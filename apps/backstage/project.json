@@ -1,0 +1,9 @@
+{
+  "name": "backstage",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/backstage/src",
+  "projectType": "application",
+  "tags": [],
+  "// targets": "to see all targets run: nx show project backstage --web",
+  "targets": {}
+}
