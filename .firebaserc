@@ -1,0 +1,18 @@
+{
+  "projects": {
+    "default": "jci-oriente"
+  },
+  "targets": {
+    "jci-oriente": {
+      "hosting": {
+        "spotlight": [
+          "jcioriente"
+        ],
+        "backstage": [
+          "jcioriente-backstage"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

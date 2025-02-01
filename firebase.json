@@ -1,0 +1,40 @@
+{
+  "hosting": [
+    {
+      "target": "spotlight",
+      "public": "dist/apps/spotlight/",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
+      "target": "backstage",
+      "public": "dist/apps/backstage/",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    }
+  ],
+  "emulators": {
+    "hosting": {
+      "port": 4000,
+      "host": "0.0.0.0"
+    }
+  }
+}
