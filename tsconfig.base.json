@@ -15,6 +15,7 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@luminova/ui": ["libs/ui/src/index.ts"],
       "@luminova/utils": ["libs/utils/src/index.ts"]
     }
   },
