@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { MemberForm, FormValues } from '../components/MemberForm';
-import { MemberTable } from "../components/MemberTable";
+import { MemberTable } from '../components/MemberTable';
 import { addMember, listMembers } from '../libs/members';
 import { Label } from '@radix-ui/react-label';
+import { Spinner } from '@luminova/ui';
 
-export function App() {
+export default function Members() {
   const [isLoading, setIsloading] = useState(false);
 
   const handleSubmit = async (values: FormValues) => {
@@ -26,12 +27,8 @@ export function App() {
       <h1 className="text-3xl fond-bold underline">Backstage</h1>
       <MemberForm onSubmit={handleSubmit} />
       {isLoading && <Label>Saving...</Label>}
-      <br />
-      <br />
-      <hr />
+      <Spinner />
       <MemberTable listMembers={listMembers} />
     </div>
   );
 }
-
-export default App;

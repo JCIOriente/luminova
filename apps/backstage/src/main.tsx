@@ -3,6 +3,10 @@ import * as ReactDOM from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './app/app';
 import MainLayout from './routes/MainLayout';
+import Dashboard from './routes/Dashboard';
+import Members from './routes/Members';
+import Events from './routes/Events';
+import Settings from './routes/Settings';
 
 const router = createBrowserRouter([
   {
@@ -11,7 +15,19 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <App />,
+        element: <Dashboard />,
+      },
+      {
+        path: 'members',
+        element: <Members />,
+      },
+      {
+        path: 'events',
+        element: <Events />,
+      },
+      {
+        path: 'settings',
+        element: <Settings />,
       },
     ],
   },

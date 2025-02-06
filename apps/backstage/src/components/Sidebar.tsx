@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom';
-import { Button } from '@luminova/ui'
-import { LayoutDashboard, Users, Calendar, Settings } from 'lucide-react'
+import { NavLink } from 'react-router-dom';
+import { Button } from '@luminova/ui';
+import { LayoutDashboard, Users, Calendar, Settings } from 'lucide-react';
 
 export function Sidebar() {
   return (
@@ -10,30 +10,30 @@ export function Sidebar() {
       </div>
       <nav className="space-y-2">
         <Button variant="ghost" className="w-full justify-start" asChild>
-          <Link to="/" className="flex items-center gap-2">
+          <NavLink to="/" className="flex items-center gap-2">
             <LayoutDashboard className="h-4 w-4" />
             Dashboard
-          </Link>
+          </NavLink>
         </Button>
         <Button variant="ghost" className="w-full justify-start" asChild>
-          <Link to="/members" className="flex items-center gap-2">
+          <NavLink to="/members" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Members
-          </Link>
+          </NavLink>
         </Button>
         <Button variant="ghost" className="w-full justify-start" asChild>
-          <Link to="/events" className="flex items-center gap-2">
+          <NavLink to="/events" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Events
-          </Link>
+          </NavLink>
         </Button>
         <Button variant="ghost" className="w-full justify-start" asChild>
-          <Link to="/settings" className="flex items-center gap-2">
+          <NavLink to="/settings" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
             Settings
-          </Link>
+          </NavLink>
         </Button>
       </nav>
     </div>
-  )
+  );
 }
