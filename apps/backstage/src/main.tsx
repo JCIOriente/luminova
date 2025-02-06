@@ -1,12 +1,14 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import App from './app/app';
-import MainLayout from './routes/MainLayout';
 import Dashboard from './routes/Dashboard';
-import Members from './routes/Members';
 import Events from './routes/Events';
+import MainLayout from './routes/MainLayout';
+import Members from './routes/Members';
 import Settings from './routes/Settings';
+
+const queryClient = new QueryClient();
 
 const router = createBrowserRouter([
   {
@@ -34,11 +36,13 @@ const router = createBrowserRouter([
 ]);
 
 const root = ReactDOM.createRoot(
-  document.getElementById('root') as HTMLElement
+  document.getElementById('root') as HTMLElement,
 );
 
 root.render(
   <StrictMode>
-    <RouterProvider router={router} />
-  </StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  </StrictMode>,
 );

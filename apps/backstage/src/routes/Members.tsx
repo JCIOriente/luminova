@@ -1,34 +1,47 @@
-import { useState } from 'react';
-import { MemberForm, FormValues } from '../components/MemberForm';
-import { MemberTable } from '../components/MemberTable';
-import { addMember, listMembers } from '../libs/members';
-import { Label } from '@radix-ui/react-label';
 import { Spinner } from '@luminova/ui';
+import { useQuery } from '@tanstack/react-query';
+import { MemberTable } from '../components/MemberTable';
+import { MemberRepository } from '../repositories/memberRepository';
+import { Member } from '../types/member';
 
 export default function Members() {
-  const [isLoading, setIsloading] = useState(false);
+  const {
+    data: members,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['members'],
+    queryFn: () => MemberRepository.getMembers(),
+  });
 
-  const handleSubmit = async (values: FormValues) => {
-    setIsloading(true);
-
-    try {
-      await addMember(values);
-      alert('Member added successfully!');
-    } catch (error) {
-      alert('Error adding member');
-      console.log(error);
-    } finally {
-      setIsloading(false);
-    }
+  const handleEdit = (member: Member) => {
+    console.log('Editing');
   };
 
+  const handleDelete = (id?: string) => {
+    console.log('Delete member');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex w-full justify-center border border-gray-100 p-5">
+        <Spinner className="h-8 w-8" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return <div className="bg-red-50">Error fetching members</div>;
+  }
+
   return (
-    <div className="p-8">
-      <h1 className="text-3xl fond-bold underline">Backstage</h1>
-      <MemberForm onSubmit={handleSubmit} />
-      {isLoading && <Label>Saving...</Label>}
-      <Spinner />
-      <MemberTable listMembers={listMembers} />
+    <div>
+      <h1 className="mb-4 text-2xl font-bold">Members</h1>
+      <MemberTable
+        members={members || []}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
     </div>
   );
 }

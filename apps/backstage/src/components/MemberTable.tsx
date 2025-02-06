@@ -1,26 +1,23 @@
-import { useEffect, useState } from "react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@luminova/ui"
-import { Member } from "../types/member"
+import { Pencil } from 'lucide-react';
+import { Trash } from 'lucide-react';
+import {
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@luminova/ui';
+import { Member } from '../types/member';
 
 type Props = {
-  listMembers: () => Promise<Member[]>
-}
+  members: Member[];
+  onEdit: (member: Member) => void;
+  onDelete: (id?: string) => void;
+};
 
-function useMembersList(listMembers: () => Promise<Member[]>) {
-  const [members, setMembers] = useState<Member[]>([])
-
-  useEffect(() => {
-    listMembers().then(members => {
-      setMembers(members)
-    })
-  }, [])
-
-  return [members]
-}
-
-export function MemberTable({ listMembers }: Props) {
-  const [members] = useMembersList(listMembers)
-
+export function MemberTable({ members, onEdit, onDelete }: Props) {
   return (
     <Table className="border">
       <TableHeader className="bg-gray-100">
@@ -30,19 +27,36 @@ export function MemberTable({ listMembers }: Props) {
           <TableHead>Phone</TableHead>
           <TableHead>Role</TableHead>
           <TableHead>Points</TableHead>
+          <TableHead>Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {members.map(member => (
+        {members.map((member) => (
           <TableRow key={member.id} className="hover:bg-gray-50">
             <TableCell>{member.name}</TableCell>
             <TableCell>{member.email}</TableCell>
             <TableCell>{member.phone}</TableCell>
             <TableCell>{member.role}</TableCell>
             <TableCell>{member.totalPoints}</TableCell>
+            <TableCell>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onEdit(member)}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onDelete(member.id)}
+              >
+                <Trash className="h-4 w-4" />
+              </Button>
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
     </Table>
-  )
+  );
 }
