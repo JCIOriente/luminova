@@ -41,7 +41,7 @@ export function MemberForm({ onSubmit }: MemberFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
           name="name"
@@ -109,7 +109,7 @@ export function MemberForm({ onSubmit }: MemberFormProps) {
             </FormItem>
           )}
         />
-        <Button type="submit">Add member</Button>
+        <Button type="submit" className="w-full">Add member</Button>
       </form>
     </Form>
   );

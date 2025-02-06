@@ -22,8 +22,8 @@ export function MemberTable({ listMembers }: Props) {
   const [members] = useMembersList(listMembers)
 
   return (
-    <Table>
-      <TableHeader>
+    <Table className="border">
+      <TableHeader className="bg-gray-100">
         <TableRow>
           <TableHead>Name</TableHead>
           <TableHead>Email</TableHead>
@@ -34,7 +34,7 @@ export function MemberTable({ listMembers }: Props) {
       </TableHeader>
       <TableBody>
         {members.map(member => (
-          <TableRow key={member.id}>
+          <TableRow key={member.id} className="hover:bg-gray-50">
             <TableCell>{member.name}</TableCell>
             <TableCell>{member.email}</TableCell>
             <TableCell>{member.phone}</TableCell>
