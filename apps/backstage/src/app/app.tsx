@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MemberForm, FormValues } from '../components/MemberForm';
-import { addMember } from '../libs/members';
+import { MemberTable } from "../components/MemberTable";
+import { addMember, listMembers } from '../libs/members';
 import { Label } from '@radix-ui/react-label';
 
 export function App() {
@@ -25,6 +26,10 @@ export function App() {
       <h1 className="text-3xl fond-bold underline">Backstage</h1>
       <MemberForm onSubmit={handleSubmit} />
       {isLoading && <Label>Saving...</Label>}
+      <br />
+      <br />
+      <hr />
+      <MemberTable listMembers={listMembers} />
     </div>
   );
 }
