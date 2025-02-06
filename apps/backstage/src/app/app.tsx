@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { MemberForm } from '../components/MemberForm';
+import { MemberForm, FormValues } from '../components/MemberForm';
 import { addMember } from '../libs/members';
 import { Label } from '@radix-ui/react-label';
 
 export function App() {
   const [isLoading, setIsloading] = useState(false);
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: FormValues) => {
     setIsloading(true);
 
     try {

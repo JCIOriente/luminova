@@ -18,9 +18,11 @@ const formSchema = z.object({
   phone: z.string().optional(),
   role: z.string().min(3, 'Role is required'),
   profilePicture: z.instanceof(File).optional(),
+  totalPoints: z.number().default(0),
+  active: z.boolean().default(true),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+export type FormValues = z.infer<typeof formSchema>;
 
 type MemberFormProps = {
   onSubmit: (values: FormValues) => void;
