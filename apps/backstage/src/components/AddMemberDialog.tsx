@@ -22,10 +22,19 @@ export function AddMemberDialog() {
       MemberRepository.addMember(member),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
+      toast({
+        title: 'Success',
+        variant: 'default',
+        description: 'Member added successfully',
+      });
       setIsOpen(false);
     },
-    onError: (error) => {
-      console.log(error);
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to add member',
+        variant: 'destructive',
+      });
     },
   });
 

@@ -1,3 +1,4 @@
+import { Toaster } from '@luminova/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import * as ReactDOM from 'react-dom/client';
@@ -43,6 +44,7 @@ root.render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      <Toaster />
     </QueryClientProvider>
   </StrictMode>,
 );
