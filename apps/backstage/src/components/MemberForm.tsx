@@ -26,9 +26,10 @@ export type FormValues = z.infer<typeof formSchema>;
 
 type MemberFormProps = {
   onSubmit: (values: FormValues) => void;
+  isLoading: boolean;
 };
 
-export function MemberForm({ onSubmit }: MemberFormProps) {
+export function MemberForm({ onSubmit, isLoading }: MemberFormProps) {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -109,7 +110,9 @@ export function MemberForm({ onSubmit }: MemberFormProps) {
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full">Add member</Button>
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? 'Adding...' : 'Add member'}
+        </Button>
       </form>
     </Form>
   );

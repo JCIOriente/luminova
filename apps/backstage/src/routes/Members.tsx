@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { MemberTable } from '../components/MemberTable';
 import { MemberRepository } from '../repositories/memberRepository';
 import { Member } from '../types/member';
+import { AddMemberDialog } from '../components/AddMemberDialog';
 
 export default function Members() {
   const {
@@ -36,7 +37,10 @@ export default function Members() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Members</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Members</h1>
+        <AddMemberDialog />
+      </div>
       <MemberTable
         members={members || []}
         onEdit={handleEdit}
