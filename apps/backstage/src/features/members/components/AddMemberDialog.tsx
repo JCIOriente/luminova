@@ -1,9 +1,3 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from '@luminova/ui';
-import { MemberRepository } from '../repositories/memberRepository';
-import { Member } from '../types/member';
-import { MemberForm } from './MemberForm';
 import {
   Button,
   Dialog,
@@ -11,14 +5,20 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  toast,
 } from '@luminova/ui';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { MemberRepository } from '../repositories/memberRepository';
+import { MemberFormValues } from '../types/member';
+import { MemberForm } from './MemberForm';
 
 export function AddMemberDialog() {
   const [isOpen, setIsOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const addMemberMutation = useMutation({
-    mutationFn: (member: Omit<Member, 'id'>) =>
+    mutationFn: (member: MemberFormValues) =>
       MemberRepository.addMember(member),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
@@ -38,7 +38,7 @@ export function AddMemberDialog() {
     },
   });
 
-  const handleSubmit = (values: Omit<Member, 'id'>) => {
+  const handleSubmit = (values: MemberFormValues) => {
     addMemberMutation.mutate(values);
   };
 

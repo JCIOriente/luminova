@@ -10,28 +10,15 @@ import {
   Input,
 } from '@luminova/ui';
 import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { Member } from '../types/member';
-
-const formSchema = z.object({
-  name: z.string().min(3, 'Name is required'),
-  email: z.string().email('Invalid email'),
-  phone: z.string().optional(),
-  role: z.string().min(3, 'Role is required'),
-  profilePicture: z.instanceof(File).optional(),
-  totalPoints: z.number().default(0),
-  active: z.boolean().default(true),
-});
-
-export type FormValues = z.infer<typeof formSchema>;
+import { MemberFormValues, memberSchema } from '../types/member';
 
 type MemberFormProps = {
-  onSubmit: (values: FormValues) => void;
+  onSubmit: (values: MemberFormValues) => void;
   isLoading: boolean;
-  initialValues?: Omit<Member, 'id'>;
+  initialValues?: MemberFormValues;
 };
 
-function sanitizeProfilePictureValue(initialValues?: FormValues) {
+function sanitizeProfilePictureValue(initialValues?: MemberFormValues) {
   if (!initialValues) {
     return;
   }
@@ -51,8 +38,8 @@ export function MemberForm({
 }: MemberFormProps) {
   sanitizeProfilePictureValue(initialValues);
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<MemberFormValues>({
+    resolver: zodResolver(memberSchema),
     defaultValues: initialValues || {
       name: '',
       email: '',
