@@ -1,8 +1,10 @@
 import { Spinner } from '@luminova/ui';
 import { useQuery } from '@tanstack/react-query';
-import { AddMemberDialog } from '../components/AddMemberDialog';
-import { MemberTable } from '../components/MemberTable';
-import { MemberRepository } from '../repositories/memberRepository';
+import {
+  AddMemberDialog,
+  MemberRepository,
+  MemberTable,
+} from '../features/members';
 
 export default function Members() {
   const {
