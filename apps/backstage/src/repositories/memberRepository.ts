@@ -38,9 +38,13 @@ export class MemberRepository {
 
   static async updateMember(
     id: string,
-    member: Partial<Member>
+    member: Partial<Member>,
   ): Promise<void> {
-    await updateDoc(doc(db, 'members', id), member);
+    const profilePicture = member.profilePicture || '';
+    await updateDoc(doc(db, 'members', id), {
+      ...member,
+      profilePicture,
+    });
   }
 
   static async deleteMember(id: string): Promise<void> {

@@ -1,6 +1,4 @@
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import {
   Button,
   Form,
@@ -11,6 +9,9 @@ import {
   FormMessage,
   Input,
 } from '@luminova/ui';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { Member } from '../types/member';
 
 const formSchema = z.object({
   name: z.string().min(3, 'Name is required'),
@@ -27,12 +28,32 @@ export type FormValues = z.infer<typeof formSchema>;
 type MemberFormProps = {
   onSubmit: (values: FormValues) => void;
   isLoading: boolean;
+  initialValues?: Omit<Member, 'id'>;
 };
 
-export function MemberForm({ onSubmit, isLoading }: MemberFormProps) {
+function sanitizeProfilePictureValue(initialValues?: FormValues) {
+  if (!initialValues) {
+    return;
+  }
+
+  if (
+    typeof initialValues.profilePicture === 'string' &&
+    initialValues.profilePicture === ''
+  ) {
+    delete initialValues.profilePicture;
+  }
+}
+
+export function MemberForm({
+  onSubmit,
+  isLoading,
+  initialValues,
+}: MemberFormProps) {
+  sanitizeProfilePictureValue(initialValues);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
+    defaultValues: initialValues || {
       name: '',
       email: '',
       phone: '',
@@ -111,7 +132,11 @@ export function MemberForm({ onSubmit, isLoading }: MemberFormProps) {
           )}
         />
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? 'Adding...' : 'Add member'}
+          {isLoading
+            ? 'Saving...'
+            : initialValues
+              ? 'Save Changes'
+              : 'Add member'}
         </Button>
       </form>
     </Form>

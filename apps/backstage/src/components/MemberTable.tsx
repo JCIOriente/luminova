@@ -1,5 +1,3 @@
-import { Pencil } from 'lucide-react';
-import { Trash } from 'lucide-react';
 import {
   Button,
   Table,
@@ -9,15 +7,16 @@ import {
   TableHeader,
   TableRow,
 } from '@luminova/ui';
+import { Trash } from 'lucide-react';
 import { Member } from '../types/member';
+import { EditMemberDialog } from './EditMemberDialog';
 
 type Props = {
   members: Member[];
-  onEdit: (member: Member) => void;
   onDelete: (id?: string) => void;
 };
 
-export function MemberTable({ members, onEdit, onDelete }: Props) {
+export function MemberTable({ members, onDelete }: Props) {
   return (
     <Table className="border">
       <TableHeader className="bg-gray-100">
@@ -39,13 +38,7 @@ export function MemberTable({ members, onEdit, onDelete }: Props) {
             <TableCell>{member.role}</TableCell>
             <TableCell>{member.totalPoints}</TableCell>
             <TableCell>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onEdit(member)}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
+              <EditMemberDialog member={member} />
               <Button
                 variant="ghost"
                 size="icon"

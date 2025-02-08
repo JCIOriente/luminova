@@ -15,10 +15,6 @@ export default function Members() {
     queryFn: () => MemberRepository.getMembers(),
   });
 
-  const handleEdit = (member: Member) => {
-    console.log('Editing');
-  };
-
   const handleDelete = (id?: string) => {
     console.log('Delete member');
   };
@@ -41,11 +37,7 @@ export default function Members() {
         <h1 className="text-2xl font-bold">Members</h1>
         <AddMemberDialog />
       </div>
-      <MemberTable
-        members={members || []}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-      />
+      <MemberTable members={members || []} onDelete={handleDelete} />
     </div>
   );
 }
