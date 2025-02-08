@@ -1,9 +1,8 @@
 import { Spinner } from '@luminova/ui';
 import { useQuery } from '@tanstack/react-query';
+import { AddMemberDialog } from '../components/AddMemberDialog';
 import { MemberTable } from '../components/MemberTable';
 import { MemberRepository } from '../repositories/memberRepository';
-import { Member } from '../types/member';
-import { AddMemberDialog } from '../components/AddMemberDialog';
 
 export default function Members() {
   const {
@@ -14,10 +13,6 @@ export default function Members() {
     queryKey: ['members'],
     queryFn: () => MemberRepository.getMembers(),
   });
-
-  const handleDelete = (id?: string) => {
-    console.log('Delete member');
-  };
 
   if (isLoading) {
     return (
@@ -37,7 +32,7 @@ export default function Members() {
         <h1 className="text-2xl font-bold">Members</h1>
         <AddMemberDialog />
       </div>
-      <MemberTable members={members || []} onDelete={handleDelete} />
+      <MemberTable members={members || []} />
     </div>
   );
 }
