@@ -1,15 +1,9 @@
 import { Button, Spinner } from '@luminova/ui';
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { DocumentData } from 'firebase/firestore';
-import {
-  AddMemberDialog,
-  Member,
-  MemberRepository,
-  MemberTable,
-} from '../features/members';
+import { AddMemberDialog, MemberTable } from '../features/members';
+import { usePaginatedMembers } from '../features/members/hooks/usePaginatedMembers';
 
 export default function Members() {
-  const pageSize = 1;
+  const pageSize = 10;
 
   const {
     data,
@@ -19,24 +13,7 @@ export default function Members() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteQuery<
-    { members: Member[]; lastDoc: DocumentData | null }, // Type of query result
-    Error, // Error type
-    {
-      pages: [
-        { members: Member[]; lastDoc: DocumentData | null }, // Type of paginated data
-      ];
-      pageParam: DocumentData | null;
-    },
-    string[], // Query key type
-    DocumentData | null // Pagination parameter type
-  >({
-    queryKey: ['members'], // Query key for the members list
-    queryFn: ({ pageParam = null }) =>
-      MemberRepository.getMembers(pageSize, pageParam), // Fetch members based on pageParam (lastDoc)
-    getNextPageParam: (lastPage) => lastPage.lastDoc || undefined, // Determine the next page parameter
-    initialPageParam: null, // Initial pagination parameter (null for Firestore pagination)
-  });
+  } = usePaginatedMembers(pageSize);
 
   // Flatten the paginated data into a single array
   const members = data?.pages.flatMap((page) => page.members) || [];
