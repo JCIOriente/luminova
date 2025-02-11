@@ -33,8 +33,7 @@ export function EditMemberDialog({ member }: EditMemberDialogProps) {
       });
       setIsOpen(false);
     },
-    onError: (error) => {
-      console.log(error);
+    onError: () => {
       toast({
         title: 'Error',
         description: 'Failed to update member',
