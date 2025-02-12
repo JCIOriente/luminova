@@ -11,7 +11,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash } from 'lucide-react';
 import { MemberRepository } from '../repositories/memberRepository';
-import { Member } from '../types/member';
+import type { Member } from '../types/member';
 import { EditMemberDialog } from './EditMemberDialog';
 
 type Props = {

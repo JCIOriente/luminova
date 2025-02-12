@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { DocumentData } from 'firebase/firestore';
 import { MemberRepository } from '../repositories/memberRepository';
-import { Member } from '../types/member';
+import type { Member } from '../types/member';
 
 type QueryResult = {
   members: Member[];

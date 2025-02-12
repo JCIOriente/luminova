@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { db, storage } from '../../../libs/firebase';
-import { Member } from '../types/member';
+import type { Member } from '../types/member';
 
 export class MemberRepository {
   static async getMembers(

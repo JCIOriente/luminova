@@ -10,7 +10,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { MemberRepository } from '../repositories/memberRepository';
-import { MemberFormValues } from '../types/member';
+import type { MemberInput } from '../types/member';
 import { MemberForm } from './MemberForm';
 
 export function AddMemberDialog() {
@@ -18,8 +18,7 @@ export function AddMemberDialog() {
   const queryClient = useQueryClient();
 
   const addMemberMutation = useMutation({
-    mutationFn: (member: MemberFormValues) =>
-      MemberRepository.addMember(member),
+    mutationFn: (member: MemberInput) => MemberRepository.addMember(member),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
       toast({
@@ -38,7 +37,7 @@ export function AddMemberDialog() {
     },
   });
 
-  const handleSubmit = (values: MemberFormValues) => {
+  const handleSubmit = (values: MemberInput) => {
     addMemberMutation.mutate(values);
   };
 

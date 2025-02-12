@@ -1,17 +1,6 @@
 import { z } from 'zod';
 
-export type Member = {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  role: string;
-  profilePicture?: File;
-  totalPoints: number;
-  active: boolean;
-};
-
-export const memberSchema = z.object({
+const MemberBaseSchema = z.object({
   name: z.string().min(3, 'Name is required'),
   email: z.string().email('Invalid email'),
   phone: z.string().optional(),
@@ -21,4 +10,12 @@ export const memberSchema = z.object({
   active: z.boolean().default(true),
 });
 
-export type MemberFormValues = z.infer<typeof memberSchema>;
+export const MemberSchema = MemberBaseSchema.extend({
+  id: z.string().nonempty('ID is required'),
+});
+
+export const MemberInputSchema = MemberBaseSchema;
+
+export type MemberInput = z.infer<typeof MemberBaseSchema>;
+
+export type Member = z.infer<typeof MemberSchema>;

@@ -10,15 +10,16 @@ import {
   Input,
 } from '@luminova/ui';
 import { useForm } from 'react-hook-form';
-import { MemberFormValues, memberSchema } from '../types/member';
+import type { MemberInput } from '../types/member';
+import { MemberInputSchema } from '../types/member';
 
 type MemberFormProps = {
-  onSubmit: (values: MemberFormValues) => void;
+  onSubmit: (values: MemberInput) => void;
   isLoading: boolean;
-  initialValues?: MemberFormValues;
+  initialValues?: MemberInput;
 };
 
-function sanitizeProfilePictureValue(initialValues?: MemberFormValues) {
+function sanitizeProfilePictureValue(initialValues?: MemberInput) {
   if (!initialValues) {
     return;
   }
@@ -38,8 +39,8 @@ export function MemberForm({
 }: MemberFormProps) {
   sanitizeProfilePictureValue(initialValues);
 
-  const form = useForm<MemberFormValues>({
-    resolver: zodResolver(memberSchema),
+  const form = useForm<MemberInput>({
+    resolver: zodResolver(MemberInputSchema),
     defaultValues: initialValues || {
       name: '',
       email: '',
