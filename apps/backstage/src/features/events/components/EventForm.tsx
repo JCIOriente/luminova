@@ -10,6 +10,11 @@ import {
   Input,
   RadioGroup,
   RadioGroupItem,
+  Select,
+  SelectItem,
+  SelectContent,
+  SelectValue,
+  SelectTrigger,
 } from '@luminova/ui';
 import { useForm } from 'react-hook-form';
 import { EventInput, EventInputSchema } from '../types/event';
@@ -47,38 +52,19 @@ export function EventForm({ onSubmit, isLoading, initialValues }: Props) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Event Type</FormLabel>
-              <FormControl>
-                <RadioGroup
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  className="flex flex-col space-y-1"
-                >
-                  <FormItem className="flex items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <RadioGroupItem value="Program" />
-                    </FormControl>
-                    <FormLabel className="font-normal">Program</FormLabel>
-                  </FormItem>
-                  <FormItem className="flex items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <RadioGroupItem value="Project" />
-                    </FormControl>
-                    <FormLabel className="font-normal">Project</FormLabel>
-                  </FormItem>
-                  <FormItem className="flex items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <RadioGroupItem value="Activity" />
-                    </FormControl>
-                    <FormLabel className="font-normal">Activity</FormLabel>
-                  </FormItem>
-                  <FormItem className="flex items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <RadioGroupItem value="Gala" />
-                    </FormControl>
-                    <FormLabel className="font-normal">Gala</FormLabel>
-                  </FormItem>
-                </RadioGroup>
-              </FormControl>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select the type of event" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Program">Program</SelectItem>
+                  <SelectItem value="Project">Project</SelectItem>
+                  <SelectItem value="Activity">Activity</SelectItem>
+                  <SelectItem value="Gala">Gala</SelectItem>
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
@@ -113,39 +99,37 @@ export function EventForm({ onSubmit, isLoading, initialValues }: Props) {
           )}
         />
 
-        {/* Scope Field (Applicable only to Gala events) */}
-        {form.watch('type') === 'Gala' && (
-          <FormField
-            control={form.control}
-            name="scope"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Scope</FormLabel>
-                <FormControl>
-                  <RadioGroup
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    className="flex flex-col space-y-1"
-                  >
-                    <FormItem className="flex items-center space-x-3 space-y-0">
-                      <FormControl>
-                        <RadioGroupItem value="National" />
-                      </FormControl>
-                      <FormLabel className="font-normal">National</FormLabel>
-                    </FormItem>
-                    <FormItem className="flex items-center space-x-3 space-y-0">
-                      <FormControl>
-                        <RadioGroupItem value="Local" />
-                      </FormControl>
-                      <FormLabel className="font-normal">Local</FormLabel>
-                    </FormItem>
-                  </RadioGroup>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
+        <FormField
+          control={form.control}
+          name="scope"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Scope</FormLabel>
+              <FormControl>
+                <RadioGroup
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  className="flex flex-row space-x-4"
+                >
+                  <FormItem className="flex items-center space-x-3 space-y-0">
+                    <FormControl>
+                      <RadioGroupItem value="Local" />
+                    </FormControl>
+                    <FormLabel className="font-normal">Local</FormLabel>
+                  </FormItem>
+
+                  <FormItem className="flex items-center space-x-3 space-y-0">
+                    <FormControl>
+                      <RadioGroupItem value="National" />
+                    </FormControl>
+                    <FormLabel className="font-normal">National</FormLabel>
+                  </FormItem>
+                </RadioGroup>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         {/* Step 3: Assign Roles */}
         <FormField
@@ -199,8 +183,7 @@ export function EventForm({ onSubmit, isLoading, initialValues }: Props) {
         />
 
         {/* Step 4: Link to Parent Entity */}
-        {(form.watch('type') === 'Activity' ||
-          form.watch('type') === 'Project') && (
+        {form.watch('type') === 'Activity' && (
           <FormField
             control={form.control}
             name="parentId"

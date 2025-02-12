@@ -5,7 +5,7 @@ export const EventBaseSchema = z.object({
   name: z.string().nonempty('Name is required'),
   description: z.string().optional(),
   scope: z.enum(['National', 'Local']).optional(),
-  directorId: z.string().optional(),
+  directorId: z.string(),
   coDirectorIds: z.array(z.string()).default([]),
   assistantIds: z.array(z.string()).default([]),
   parentId: z.string().optional(), // ID of the parent program/project (if applicable)
