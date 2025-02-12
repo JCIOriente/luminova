@@ -5,6 +5,7 @@ export * from './lib/ui/Form';
 export * from './lib/ui/Input';
 export * from './lib/ui/Label';
 export * from './lib/ui/NavigationMenu';
+export * from './lib/ui/Popover';
 export * from './lib/ui/RadioGroup';
 export * from './lib/ui/Select';
 export * from './lib/ui/Sheet';
