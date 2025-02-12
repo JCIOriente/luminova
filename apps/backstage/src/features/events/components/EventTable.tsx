@@ -12,12 +12,15 @@ import { Trash } from 'lucide-react';
 import { useDeleteEvent } from '../hooks/useDeleteEvent';
 import type { Event } from '../types/event';
 import { EditEventDialog } from './EditEventDialog';
+import { EmptyTableRow } from '../../../components/EmptyTableRow';
+import { LoadingTableRow } from '../../../components/LoadingTableRow';
 
 type Props = {
   events: Event[];
+  isLoading: boolean;
 };
 
-export function EventTable({ events }: Props) {
+export function EventTable({ events, isLoading }: Props) {
   const deleteEventMutation = useDeleteEvent();
 
   const handleDelete = (id: string) => {
@@ -52,28 +55,39 @@ export function EventTable({ events }: Props) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {events.map((event) => (
-          <TableRow key={event.id} className="hover:bg-gray-50">
-            <TableCell>{event.name}</TableCell>
-            <TableCell>{event.type}</TableCell>
-            <TableCell>{event.directorId}</TableCell>
-            <TableCell>{event.scope || 'N/A'}</TableCell>
-            <TableCell>{event.startDate}</TableCell>
-            <TableCell>{event.endDate}</TableCell>
-            <TableCell className="flex items-center gap-2">
-              {/* Edit Event Dialog */}
-              <EditEventDialog event={event} />
-              {/* Delete Event Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleDelete(event.id)}
-              >
-                <Trash className="h-4 w-4 text-red-500" />
-              </Button>
-            </TableCell>
-          </TableRow>
-        ))}
+        {isLoading && <LoadingTableRow colSpan={7} />}
+
+        {!isLoading && events.length === 0 && (
+          <EmptyTableRow
+            colSpan={7}
+            text="There are no events to show at this time"
+          />
+        )}
+
+        {!isLoading &&
+          events.length > 0 &&
+          events.map((event) => (
+            <TableRow key={event.id} className="hover:bg-gray-50">
+              <TableCell>{event.name}</TableCell>
+              <TableCell>{event.type}</TableCell>
+              <TableCell>{event.directorId}</TableCell>
+              <TableCell>{event.scope || 'N/A'}</TableCell>
+              <TableCell>{event.startDate}</TableCell>
+              <TableCell>{event.endDate}</TableCell>
+              <TableCell className="flex items-center gap-2">
+                {/* Edit Event Dialog */}
+                <EditEventDialog event={event} />
+                {/* Delete Event Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleDelete(event.id)}
+                >
+                  <Trash className="h-4 w-4 text-red-500" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
       </TableBody>
     </Table>
   );
