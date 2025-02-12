@@ -6,6 +6,7 @@ export * from './lib/ui/Input';
 export * from './lib/ui/Label';
 export * from './lib/ui/NavigationMenu';
 export * from './lib/ui/RadioGroup';
+export * from './lib/ui/Select';
 export * from './lib/ui/Sheet';
 export * from './lib/ui/Spinner';
 export * from './lib/ui/Table';
