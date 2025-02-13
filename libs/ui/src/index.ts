@@ -1,5 +1,6 @@
 export * from './lib/hooks/use-toast';
 export * from './lib/ui/Button';
+export * from './lib/ui/Command';
 export * from './lib/ui/Dialog';
 export * from './lib/ui/Form';
 export * from './lib/ui/Input';
