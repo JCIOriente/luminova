@@ -1,4 +1,4 @@
-import { Button, Spinner } from '@luminova/ui';
+import { Button } from '@luminova/ui';
 import { AddMemberDialog, MemberTable } from '../features/members';
 import { usePaginatedMembers } from '../features/members/hooks/usePaginatedMembers';
 

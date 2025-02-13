@@ -14,13 +14,15 @@ import type { Event } from '../types/event';
 import { EditEventDialog } from './EditEventDialog';
 import { EmptyTableRow } from '../../../components/EmptyTableRow';
 import { LoadingTableRow } from '../../../components/LoadingTableRow';
+import { Member } from '../../members';
 
 type Props = {
   events: Event[];
+  members?: Member[];
   isLoading: boolean;
 };
 
-export function EventTable({ events, isLoading }: Props) {
+export function EventTable({ events, members, isLoading }: Props) {
   const deleteEventMutation = useDeleteEvent();
 
   const handleDelete = (id: string) => {
@@ -40,6 +42,13 @@ export function EventTable({ events, isLoading }: Props) {
       },
     });
   };
+
+  const data = events.map((event) => {
+    const director = members?.find((member) => {
+      return event.directorId === member.id;
+    });
+    return { ...event, director };
+  });
 
   return (
     <Table className="border">
@@ -65,12 +74,12 @@ export function EventTable({ events, isLoading }: Props) {
         )}
 
         {!isLoading &&
-          events.length > 0 &&
-          events.map((event) => (
+          data.length > 0 &&
+          data.map((event) => (
             <TableRow key={event.id} className="hover:bg-gray-50">
               <TableCell>{event.name}</TableCell>
               <TableCell>{event.type}</TableCell>
-              <TableCell>{event.directorId}</TableCell>
+              <TableCell>{event.director?.name || '-'}</TableCell>
               <TableCell>{event.scope || 'N/A'}</TableCell>
               <TableCell>{event.startDate}</TableCell>
               <TableCell>{event.endDate}</TableCell>

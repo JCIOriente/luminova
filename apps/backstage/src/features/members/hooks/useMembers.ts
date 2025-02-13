@@ -5,7 +5,7 @@ export const useMembers = () => {
   const pageSize = 100;
 
   return useQuery({
-    queryKey: ['members'],
+    queryKey: ['members', 'all'],
     queryFn: () => MemberRepository.getMembers(pageSize, null),
   });
 };

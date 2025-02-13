@@ -1,7 +1,11 @@
 import { AddEventDialog, EventTable, useEvents } from '../features/events';
+import { useMembers } from '../features/members';
 
 export default function Events() {
   const { data: events = [], isLoading, isError, error } = useEvents();
+  const { data: membersData, isLoading: isMembersLoading } = useMembers();
+
+  const members = membersData?.members || [];
 
   if (isError) {
     return (
@@ -16,7 +20,11 @@ export default function Events() {
         <AddEventDialog />
       </div>
 
-      <EventTable events={events} isLoading={isLoading} />
+      <EventTable
+        events={events}
+        members={members}
+        isLoading={isLoading || isMembersLoading}
+      />
     </div>
   );
 }
