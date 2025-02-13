@@ -1,13 +1,16 @@
 import { Toaster } from '@luminova/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StrictMode } from 'react';
+import { StrictMode, lazy, Suspense } from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import Dashboard from './routes/Dashboard';
-import Events from './routes/Events';
-import MainLayout from './routes/MainLayout';
-import Members from './routes/Members';
-import Settings from './routes/Settings';
+
+const Dashboard = lazy(() => import('./routes/Dashboard'));
+const Events = lazy(() => import('./routes/Events'));
+const MainLayout = lazy(() => import('./routes/MainLayout'));
+const Members = lazy(() => import('./routes/Members'));
+const Settings = lazy(() => import('./routes/Settings'));
+
+const Loading = () => <div>Loading...</div>;
 
 const queryClient = new QueryClient();
 
@@ -18,19 +21,35 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Dashboard />,
+        element: (
+          <Suspense fallback={<Loading />}>
+            <Dashboard />
+          </Suspense>
+        ),
       },
       {
         path: 'members',
-        element: <Members />,
+        element: (
+          <Suspense fallback={<Loading />}>
+            <Members />
+          </Suspense>
+        ),
       },
       {
         path: 'events',
-        element: <Events />,
+        element: (
+          <Suspense fallback={<Loading />}>
+            <Events />
+          </Suspense>
+        ),
       },
       {
         path: 'settings',
-        element: <Settings />,
+        element: (
+          <Suspense fallback={<Loading />}>
+            <Settings />
+          </Suspense>
+        ),
       },
     ],
   },
