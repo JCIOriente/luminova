@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Button,
+  Combobox,
   Form,
   FormControl,
   FormField,
@@ -11,12 +12,13 @@ import {
   RadioGroup,
   RadioGroupItem,
   Select,
-  SelectItem,
   SelectContent,
-  SelectValue,
+  SelectItem,
   SelectTrigger,
+  SelectValue,
 } from '@luminova/ui';
 import { useForm } from 'react-hook-form';
+import { useMembers } from '../../members';
 import { EventInput, EventInputSchema } from '../types/event';
 
 type Props = {
@@ -41,6 +43,14 @@ export function EventForm({ onSubmit, isLoading, initialValues }: Props) {
       parentId: '',
     },
   });
+
+  const { data, isLoading: isMembersLoading } = useMembers();
+
+  const memberOptions =
+    data?.members.map((member) => ({
+      value: member.id,
+      label: member.name,
+    })) || [];
 
   return (
     <Form {...form}>
@@ -139,7 +149,14 @@ export function EventForm({ onSubmit, isLoading, initialValues }: Props) {
             <FormItem>
               <FormLabel>Director</FormLabel>
               <FormControl>
-                <Input placeholder="Search for director" {...field} />
+                <Combobox
+                  options={memberOptions}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  placeholder="Search for director"
+                  isLoading={isMembersLoading}
+                  multiple={false}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
