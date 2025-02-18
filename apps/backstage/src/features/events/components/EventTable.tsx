@@ -9,12 +9,12 @@ import {
   toast,
 } from '@luminova/ui';
 import { Trash } from 'lucide-react';
+import { EmptyTableRow } from '../../../components/EmptyTableRow';
+import { LoadingTableRow } from '../../../components/LoadingTableRow';
+import type { Member } from '../../members';
 import { useDeleteEvent } from '../hooks/useDeleteEvent';
 import type { Event } from '../types/event';
 import { EditEventDialog } from './EditEventDialog';
-import { EmptyTableRow } from '../../../components/EmptyTableRow';
-import { LoadingTableRow } from '../../../components/LoadingTableRow';
-import { Member } from '../../members';
 
 type Props = {
   events: Event[];
