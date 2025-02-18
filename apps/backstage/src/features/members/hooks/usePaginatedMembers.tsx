@@ -1,43 +1,24 @@
+import {
+  PaginatedData,
+  PaginationParam,
+  QueryKey,
+  QueryResult,
+  UsePaginatedReturnType,
+} from '@luminova/types';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { DocumentData } from 'firebase/firestore';
 import { MemberRepository } from '../repositories/memberRepository';
 import type { Member } from '../types/member';
 
-type QueryResult = {
-  members: Member[];
-  lastDoc: DocumentData | null;
-};
-
-type PaginatedData = {
-  pages: QueryResult[];
-  pageParams: (DocumentData | null)[];
-};
-
-type QueryKey = string[];
-
-type PaginationParam = DocumentData | null;
-
-type ErrorType = Error;
-
-type UsePaginatedMembersReturnType = ReturnType<
-  typeof useInfiniteQuery<
-    QueryResult,
-    ErrorType,
-    PaginatedData,
-    QueryKey,
-    PaginationParam
-  >
->;
-
 export const usePaginatedMembers = (
   pageSize: number,
-): UsePaginatedMembersReturnType => {
+): UsePaginatedReturnType<Member, DocumentData> => {
   return useInfiniteQuery<
-    QueryResult,
-    ErrorType,
-    PaginatedData,
+    QueryResult<Member, DocumentData>,
+    Error,
+    PaginatedData<Member, DocumentData>,
     QueryKey,
-    PaginationParam
+    PaginationParam<DocumentData>
   >({
     queryKey: ['members'],
     queryFn: ({ pageParam = null }) =>
