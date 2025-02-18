@@ -36,6 +36,8 @@ To generate a new library, use:
 
 ```sh
 nx g @nx/react:lib libs/<mylib> --bundler vite --unitTestRunner vitest --compiler swc
+
+nx g @nx/js:lib libs/<mylib> --bundler swc --unitTestRunner vitest
 ```
 
 ## Install Nx Console
