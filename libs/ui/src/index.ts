@@ -1,4 +1,5 @@
 export * from './lib/hooks/use-toast';
+export * from './lib/ui/Badge';
 export * from './lib/ui/Button';
 export * from './lib/ui/Combobox';
 export * from './lib/ui/Command';
