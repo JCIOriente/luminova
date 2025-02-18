@@ -20,6 +20,7 @@ import {
 import { useForm } from 'react-hook-form';
 import { useMembers } from '../../members';
 import { EventInput, EventInputSchema } from '../types/event';
+import { MemberSelector } from '../../../components/MemberSelector';
 
 type Props = {
   onSubmit: (values: EventInput) => void;
@@ -170,10 +171,11 @@ export function EventForm({ onSubmit, isLoading, initialValues }: Props) {
             <FormItem>
               <FormLabel>Co-Directors</FormLabel>
               <FormControl>
-                <Input
-                  placeholder="Enter co-director IDs (comma-separated)"
-                  value={field.value.join(',')}
-                  onChange={(e) => field.onChange(e.target.value.split(','))}
+                <MemberSelector
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Search for co-directors"
+                  pageSize={10}
                 />
               </FormControl>
               <FormMessage />
@@ -188,10 +190,11 @@ export function EventForm({ onSubmit, isLoading, initialValues }: Props) {
             <FormItem>
               <FormLabel>Assistants/Collaborators</FormLabel>
               <FormControl>
-                <Input
-                  placeholder="Enter assistant IDs (comma-separated)"
-                  value={field.value.join(',')}
-                  onChange={(e) => field.onChange(e.target.value.split(','))}
+                <MemberSelector
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Search for participants"
+                  pageSize={10}
                 />
               </FormControl>
               <FormMessage />
