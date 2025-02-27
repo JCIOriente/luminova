@@ -16,6 +16,12 @@ export function Sidebar() {
           </NavLink>
         </Button>
         <Button variant="ghost" className="w-full justify-start" asChild>
+          <NavLink to="/point-rules" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Point Rules
+          </NavLink>
+        </Button>
+        <Button variant="ghost" className="w-full justify-start" asChild>
           <NavLink to="/members" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Members

@@ -5,6 +5,7 @@ import * as ReactDOM from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 const Dashboard = lazy(() => import('./routes/Dashboard'));
+const PointRules = lazy(() => import('./routes/PointRules'));
 const Events = lazy(() => import('./routes/Events'));
 const MainLayout = lazy(() => import('./routes/MainLayout'));
 const Members = lazy(() => import('./routes/Members'));
@@ -24,6 +25,14 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<Loading />}>
             <Dashboard />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'point-rules',
+        element: (
+          <Suspense fallback={<Loading />}>
+            <PointRules />
           </Suspense>
         ),
       },
