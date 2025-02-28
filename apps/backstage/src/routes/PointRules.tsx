@@ -17,7 +17,7 @@ export default function PointRules() {
 
   return (
     <div>
-      <div className="mb-4 items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <h1 className="text-3xl font-bold">Point Rules</h1>
         <AddPointRuleDialog />
       </div>

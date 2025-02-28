@@ -55,7 +55,7 @@ export function PointRuleTable({ pointRules, isLoading }: Props) {
 
         {!isLoading && pointRules.length === 0 && (
           <EmptyTableRow
-            colSpan={2}
+            colSpan={3}
             text="There are no events to show at this time"
           />
         )}
