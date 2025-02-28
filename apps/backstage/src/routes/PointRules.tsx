@@ -1,5 +1,5 @@
 import {
-  PointRuleDialog,
+  AddPointRuleDialog,
   PointRuleTable,
   usePointRules,
 } from '../features/point-rules';
@@ -19,7 +19,7 @@ export default function PointRules() {
     <div>
       <div className="mb-4 items-center justify-between">
         <h1 className="text-3xl font-bold">Point Rules</h1>
-        <PointRuleDialog />
+        <AddPointRuleDialog />
       </div>
 
       <PointRuleTable pointRules={pointRules} isLoading={isLoading} />

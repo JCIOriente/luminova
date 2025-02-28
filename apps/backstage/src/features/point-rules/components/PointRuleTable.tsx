@@ -13,6 +13,7 @@ import { EmptyTableRow } from '../../../components/EmptyTableRow';
 import { LoadingTableRow } from '../../../components/LoadingTableRow';
 import { useDeletePointRule } from '../hooks/useDeletePointRule';
 import type { PointRule } from '../types/pointRule';
+import { UpdatePointRuleDialog } from './UpdatePointRuleDialog';
 
 type Props = {
   pointRules: PointRule[];
@@ -66,9 +67,7 @@ export function PointRuleTable({ pointRules, isLoading }: Props) {
               <TableCell>{pointRule.description}</TableCell>
               <TableCell>{pointRule.points}</TableCell>
               <TableCell className="flex items-center gap-2">
-                {/*
-                <EditEventDialog event={point} />
-                */}
+                <UpdatePointRuleDialog pointRule={pointRule} />
                 <Button
                   variant="ghost"
                   size="icon"

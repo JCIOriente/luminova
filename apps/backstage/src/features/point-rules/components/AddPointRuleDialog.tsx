@@ -12,7 +12,7 @@ import { useAddPointRule } from '../hooks/useAddPointRule';
 import type { PointRuleInput } from '../types/pointRule';
 import { PointRuleForm } from './PointRuleForm';
 
-export function PointRuleDialog() {
+export function AddPointRuleDialog() {
   const [isOpen, setIsOpen] = useState(false);
   const addEventMutation = useAddPointRule();
 
