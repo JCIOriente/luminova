@@ -10,7 +10,7 @@ import {
 import { db } from '../../../libs/firebase';
 import { PointRule, PointRuleInput } from '../types/pointRule';
 
-const COLLECTION_NAME = 'pointsTable';
+const COLLECTION_NAME = 'pointRules';
 
 export class PointRuleRepository {
   static async getPointRules(): Promise<PointRule[]> {
