@@ -35,6 +35,19 @@
     "hosting": {
       "port": 4000,
       "host": "0.0.0.0"
+    },
+    "firestore": {
+      "port": 4010
+    },
+    "functions": {
+      "port": 4020
+    },
+    "auth": {
+      "port": 4030
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4100
     }
   },
   "functions": [

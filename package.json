@@ -2,7 +2,9 @@
   "name": "@luminova/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "firebase:emulators:start": "firebase emulators:start --only firestore,functions,hosting --import ./.data --export-on-exit"
+  },
   "private": true,
   "dependencies": {
     "@hookform/resolvers": "3.10.0",
