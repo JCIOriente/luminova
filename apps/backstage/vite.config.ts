@@ -48,6 +48,12 @@ export default defineConfig(({ mode }) => {
         env.VITE_FIREBASE_MESSAGING_SENDER_ID,
       ),
       'process.env.FIREBASE_APP_ID': JSON.stringify(env.VITE_FIREBASE_APP_ID),
+      'process.env.FIREBASE_EMULATOR_ENABLED': JSON.stringify(
+        env.VITE_FIREBASE_EMULATOR_ENABLED,
+      ),
+      'process.env.FIREBASE_FIRESTORE_EMULATOR_PORT': JSON.stringify(
+        env.VITE_FIREBASE_FIRESTORE_EMULATOR_PORT,
+      ),
     },
     test: {
       watch: false,

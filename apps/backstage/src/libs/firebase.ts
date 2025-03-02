@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -13,6 +13,16 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
-export const auth = getAuth(app);
-export const storage = getStorage(app);
+
+const db = getFirestore(app);
+const auth = getAuth(app);
+const storage = getStorage(app);
+
+if (process.env.FIREBASE_EMULATOR_ENABLED) {
+  const defaultPort = '4010';
+  const emulatorPort = process.env.FIREBASE_FIRESTORE_EMULATOR_PORT;
+  const port = Number.parseInt(emulatorPort || defaultPort, 10);
+  connectFirestoreEmulator(db, '127.0.0.1', port);
+}
+
+export { auth, db, storage };
