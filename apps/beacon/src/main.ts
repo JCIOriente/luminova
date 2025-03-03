@@ -1,123 +1,110 @@
 import { initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { DocumentReference, getFirestore } from 'firebase-admin/firestore';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 initializeApp();
-
 const db = getFirestore();
 
 exports.awardPoints = onDocumentWritten('/events/{id}', async (event) => {
-  const memberPointsRef = getDocumentReference(event.params.id);
-
-  const currentEventData = event.data.after.data() || {};
-
-  const currentCoDirectorIds = currentEventData.coDirectorIds || [];
-  const currentCollaboratorIds = currentEventData.collaboratorIds || [];
-  const currentAssistantIds = currentEventData.assistantIds || [];
+  const memberPointsRef = getMemberPointsReference(event.params.id);
+  const eventData = extractEventData(event);
 
   const memberPointsSnapshot = await memberPointsRef.get();
-  const dbOperation = memberPointsSnapshot.exists ? 'update' : 'set';
-  const resDoc = await memberPointsRef[dbOperation]({
-    director: currentEventData.directorId,
-    name: currentEventData.name,
-    coDirectorIds: currentCoDirectorIds,
-    collaboratorIds: currentCollaboratorIds,
-    assistantIds: currentAssistantIds,
-    points: await calculatePointsPerRole(currentEventData.type, {
-      directorId: currentEventData.directorId,
-      currentCoDirectorIds,
-      currentCollaboratorIds,
-      currentAssistantIds,
-    }),
-  });
+  const operationType = memberPointsSnapshot.exists ? 'update' : 'set';
 
-  console.log(
-    "Document operation '%s' executed at time: %s",
-    dbOperation,
-    resDoc.writeTime.toDate(),
-  );
+  try {
+    const updatedDoc = await memberPointsRef[operationType]({
+      director: eventData.directorId,
+      name: eventData.name,
+      coDirectorIds: eventData.coDirectorIds,
+      collaboratorIds: eventData.collaboratorIds,
+      assistantIds: eventData.assistantIds,
+      points: await calculatePointsForRoles(eventData),
+    });
+
+    console.log(
+      `Document operation '%s' executed at time: %s`,
+      operationType,
+      updatedDoc.writeTime.toDate(),
+    );
+  } catch (error) {
+    console.error('Error updating member points:', error);
+  }
 });
 
-function getDocumentReference(eventId: string) {
-  const date = new Date();
+function getMemberPointsReference(eventId: string): DocumentReference {
+  const currentDate = new Date();
   return db
     .collection('memberPoints')
-    .doc(date.getFullYear() + '')
-    .collection(date.getMonth() + 1 + '')
+    .doc(currentDate.getFullYear().toString())
+    .collection((currentDate.getMonth() + 1).toString())
     .doc(eventId);
 }
 
-async function calculatePointsPerRole(
-  eventType: string,
-  {
-    directorId,
-    currentCoDirectorIds,
-    currentCollaboratorIds,
-    currentAssistantIds,
-  },
-) {
-  const eventPoints = await getEventPoints(eventType);
+function extractEventData(event) {
+  const eventData = event.data.after.data() || {};
+  return {
+    directorId: eventData.directorId,
+    name: eventData.name,
+    coDirectorIds: eventData.coDirectorIds || [],
+    collaboratorIds: eventData.collaboratorIds || [],
+    assistantIds: eventData.assistantIds || [],
+    type: eventData.type,
+  };
+}
 
-  const directorPoints = getPointsPerRole(eventPoints, 'Director', [
-    directorId,
+async function calculatePointsForRoles(eventData) {
+  const eventPoints = await fetchEventPoints(eventData.type);
+
+  const directorPoints = calculateRolePoints(eventPoints, 'Director', [
+    eventData.directorId,
   ]);
-  const coDirectorPoints = getPointsPerRole(
+  const coDirectorPoints = calculateRolePoints(
     eventPoints,
     'CoDirector',
-    currentCoDirectorIds,
+    eventData.coDirectorIds,
   );
-  const collaboratorPoints = getPointsPerRole(
+  const collaboratorPoints = calculateRolePoints(
     eventPoints,
     'Collaborator',
-    currentCollaboratorIds,
+    eventData.collaboratorIds,
   );
-  const assistantPoints = getPointsPerRole(
+  const assistantPoints = calculateRolePoints(
     eventPoints,
     'Assistant',
-    currentAssistantIds,
+    eventData.assistantIds,
   );
 
-  const membersData = [
+  return aggregatePoints([
     ...directorPoints,
     ...coDirectorPoints,
     ...collaboratorPoints,
     ...assistantPoints,
-  ];
-
-  const points = {};
-
-  for (const memberData of membersData) {
-    if (!points[memberData.id]) {
-      points[memberData.id] = 0;
-    }
-
-    points[memberData.id] += memberData.points;
-  }
-
-  return points;
+  ]);
 }
 
-async function getEventPoints(eventType: string) {
+async function fetchEventPoints(eventType: string): Promise<Array<unknown>> {
   const snapshot = await db.collection('pointRules').get();
-  if (snapshot.empty) return null;
+  if (snapshot.empty) return [];
 
-  const pointRules = snapshot.docs.map((doc) => ({
-    ...doc.data(),
-  }));
-
-  const eventPointRules = pointRules.filter(
-    (pointRule) => pointRule.type === eventType,
-  );
-
-  return eventPointRules;
+  return snapshot.docs
+    .map((doc) => doc.data())
+    .filter((rule) => rule.type === eventType);
 }
 
-function getPointsPerRole(eventPoints, role: string, memberIds: string[]) {
-  const eventPoint = eventPoints.find((points) => points.role === role);
-  const points = Number(eventPoint?.points) || 0;
+function calculateRolePoints(eventPoints, role: string, memberIds: string[]) {
+  const rolePoints =
+    eventPoints.find((rule) => rule.role === role)?.points || 0;
 
   return memberIds.map((memberId) => ({
     id: memberId,
-    points,
+    points: Number(rolePoints),
   }));
+}
+
+function aggregatePoints(membersData) {
+  return membersData.reduce((points, memberData) => {
+    points[memberData.id] = (points[memberData.id] || 0) + memberData.points;
+    return points;
+  }, {});
 }
