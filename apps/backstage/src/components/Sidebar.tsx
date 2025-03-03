@@ -1,6 +1,12 @@
 import { NavLink } from 'react-router-dom';
 import { Button } from '@luminova/ui';
-import { LayoutDashboard, Users, Calendar, Settings } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Users,
+  Calendar,
+  Settings,
+  Scale,
+} from 'lucide-react';
 
 export function Sidebar() {
   return (
@@ -17,7 +23,7 @@ export function Sidebar() {
         </Button>
         <Button variant="ghost" className="w-full justify-start" asChild>
           <NavLink to="/point-rules" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
+            <Scale className="h-4 w-4" />
             Point Rules
           </NavLink>
         </Button>

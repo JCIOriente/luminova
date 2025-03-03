@@ -8,6 +8,11 @@ import {
   FormLabel,
   FormMessage,
   Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@luminova/ui';
 import { useForm } from 'react-hook-form';
 import { PointRuleInput, PointRuleInputSchema } from '../types/pointRule';
@@ -22,8 +27,9 @@ export function PointRuleForm({ onSubmit, isLoading, initialValues }: Props) {
   const form = useForm({
     resolver: zodResolver(PointRuleInputSchema),
     defaultValues: initialValues || {
+      type: 'Program',
+      points: 0,
       description: '',
-      points: '',
     },
   });
 
@@ -46,12 +52,60 @@ export function PointRuleForm({ onSubmit, isLoading, initialValues }: Props) {
 
         <FormField
           control={form.control}
+          name="type"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Type</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select the type of event" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Program">Program</SelectItem>
+                  <SelectItem value="Project">Project</SelectItem>
+                  <SelectItem value="Activity">Activity</SelectItem>
+                  <SelectItem value="Gala">Gala</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="role"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Role</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select member's role" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Director">Director</SelectItem>
+                  <SelectItem value="CoDirector">CoDirector</SelectItem>
+                  <SelectItem value="Collaborator">Collaborator</SelectItem>
+                  <SelectItem value="Participant">Participant</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
           name="points"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Points</FormLabel>
               <FormControl>
-                <Input placeholder="Enter points" {...field} />
+                <Input placeholder="Points" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

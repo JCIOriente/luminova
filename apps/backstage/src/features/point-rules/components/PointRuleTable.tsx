@@ -46,6 +46,8 @@ export function PointRuleTable({ pointRules, isLoading }: Props) {
       <TableHeader className="bg-gray-100">
         <TableRow>
           <TableHead>Description</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead>Role</TableHead>
           <TableHead>Points</TableHead>
           <TableHead>Actions</TableHead>
         </TableRow>
@@ -65,6 +67,8 @@ export function PointRuleTable({ pointRules, isLoading }: Props) {
           pointRules.map((pointRule) => (
             <TableRow key={pointRule.id} className="hover:bg-gray-50">
               <TableCell>{pointRule.description}</TableCell>
+              <TableCell>{pointRule.type}</TableCell>
+              <TableCell>{pointRule.role}</TableCell>
               <TableCell>{pointRule.points}</TableCell>
               <TableCell className="flex items-center gap-2">
                 <UpdatePointRuleDialog pointRule={pointRule} />

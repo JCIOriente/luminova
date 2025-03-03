@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
 export const PointRuleInputSchema = z.object({
+  type: z.enum(['Program', 'Project', 'Activity', 'Gala']),
+  role: z.enum(['Director', 'CoDirector', 'Collaborator', 'Participant']),
+  points: z.coerce.number().min(0, 'Points must be non-negative'),
   description: z.string().nonempty('Description is required'),
-  // points: z.number().min(0, 'Points must be non-negative'),
-  points: z.string().nonempty('Points is required'),
 });
 
 export const PointRuleSchema = PointRuleInputSchema.extend({
