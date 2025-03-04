@@ -40,7 +40,8 @@ export function EventForm({ onSubmit, isLoading, initialValues }: Props) {
       endDate: Date.now(),
       directorId: '',
       coDirectorIds: [],
-      assistantIds: [],
+      collaboratorIds: [],
+      participantIds: [],
       parentId: '',
     },
   });
@@ -185,10 +186,29 @@ export function EventForm({ onSubmit, isLoading, initialValues }: Props) {
 
         <FormField
           control={form.control}
-          name="assistantIds"
+          name="collaboratorIds"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Assistants/Collaborators</FormLabel>
+              <FormLabel>Collaborators</FormLabel>
+              <FormControl>
+                <MemberSelector
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Search for collaborators"
+                  pageSize={10}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="participantIds"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Participants</FormLabel>
               <FormControl>
                 <MemberSelector
                   value={field.value}
