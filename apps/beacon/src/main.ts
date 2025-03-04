@@ -18,7 +18,7 @@ exports.awardPoints = onDocumentWritten('/events/{id}', async (event) => {
       name: eventData.name,
       coDirectorIds: eventData.coDirectorIds,
       collaboratorIds: eventData.collaboratorIds,
-      assistantIds: eventData.assistantIds,
+      participantIds: eventData.participantIds,
       points: await calculatePointsForRoles(eventData),
     });
 
@@ -48,7 +48,7 @@ function extractEventData(event) {
     name: eventData.name,
     coDirectorIds: eventData.coDirectorIds || [],
     collaboratorIds: eventData.collaboratorIds || [],
-    assistantIds: eventData.assistantIds || [],
+    participantIds: eventData.participantIds || [],
     type: eventData.type,
   };
 }
@@ -69,17 +69,17 @@ async function calculatePointsForRoles(eventData) {
     'Collaborator',
     eventData.collaboratorIds,
   );
-  const assistantPoints = calculateRolePoints(
+  const participantPoints = calculateRolePoints(
     eventPoints,
-    'Assistant',
-    eventData.assistantIds,
+    'Participant',
+    eventData.participantIds,
   );
 
   return aggregatePoints([
     ...directorPoints,
     ...coDirectorPoints,
     ...collaboratorPoints,
-    ...assistantPoints,
+    ...participantPoints,
   ]);
 }
 
