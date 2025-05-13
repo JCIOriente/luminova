@@ -4,7 +4,7 @@
 
 ✨ Your new, shiny [Nx workspace](https://nx.dev) is almost ready ✨.
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/tutorials/react-monorepo-tutorial?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/tutorials/react-monorepo-tutorial?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
 
 ## Run tasks
 
@@ -57,3 +57,34 @@ firebase target:apply hosting backstage jcioriente-backstage
 
 firebase deploy --only hosting
 ```
+
+### Firebase Emulators
+
+Firebase emulators provide a local development environment to test Firebase services without affecting your production environment. This allows you to:
+
+- Test Firestore database operations
+- Debug Cloud Functions
+- Verify hosting configurations
+- Work offline without internet connection
+
+The emulator suite dashboard is available at: http://localhost:4100/
+
+#### Development Workflow
+
+For an optimal development experience, you can run both the Firebase emulators and your application in watch mode simultaneously. This setup enables:
+
+1. Real-time code updates without manual restarts
+2. Local data persistence between sessions
+3. Automatic rebuilds when changes are detected
+
+Here's how to set it up:
+
+```sh
+# Start the Firebase emulators
+firebase emulators:start --only firestore,functions,hosting --import ./.data --export-on-exit
+
+# Start the application in watch mode
+nx build spotlight --watch
+```
+
+With these steps, you can develop and test your Firebase services locally without affecting your production environment.
