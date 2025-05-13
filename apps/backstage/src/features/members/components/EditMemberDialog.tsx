@@ -7,43 +7,40 @@ import {
   DialogTrigger,
   toast,
 } from '@luminova/ui';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Pencil } from 'lucide-react';
 import { useState } from 'react';
-import { MemberRepository } from '../repositories/memberRepository';
 import type { Member } from '../types/member';
 import { MemberForm } from './MemberForm';
+import { useUpdateMember } from '../hooks/useUpdateMember';
 
-type EditMemberDialogProps = {
+interface EditMemberDialogProps {
   member: Member;
-};
+}
 
 export function EditMemberDialog({ member }: EditMemberDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const queryClient = useQueryClient();
-
-  const updateMemberMutation = useMutation({
-    mutationFn: (updateMember: Partial<Member>) =>
-      MemberRepository.updateMember(member.id, updateMember),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['members'] });
-      toast({
-        title: 'Success',
-        description: 'Member updated successfully',
-      });
-      setIsOpen(false);
-    },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to update member',
-        variant: 'destructive',
-      });
-    },
-  });
+  const updateMemberMutation = useUpdateMember();
 
   const handleSubmit = (values: Omit<Member, 'id'>) => {
-    updateMemberMutation.mutate(values);
+    updateMemberMutation.mutate(
+      { ...values, id: member.id },
+      {
+        onSuccess: () => {
+          toast({
+            title: 'Success',
+            description: 'Member updated successfully',
+          });
+          setIsOpen(false);
+        },
+        onError: (error) => {
+          toast({
+            title: 'Error',
+            description: `Failed to update member: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   };
 
   return (

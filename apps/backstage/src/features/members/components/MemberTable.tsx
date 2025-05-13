@@ -8,13 +8,12 @@ import {
   TableRow,
   toast,
 } from '@luminova/ui';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash } from 'lucide-react';
-import { MemberRepository } from '../repositories/memberRepository';
 import type { Member } from '../types/member';
 import { EditMemberDialog } from './EditMemberDialog';
 import { LoadingTableRow } from '../../../components/LoadingTableRow';
 import { EmptyTableRow } from '../../../components/EmptyTableRow';
+import { useDeleteMember } from '../hooks/useDeleteMember';
 
 type Props = {
   members: Member[];
@@ -22,27 +21,24 @@ type Props = {
 };
 
 export function MemberTable({ members, isLoading }: Props) {
-  const queryClient = useQueryClient();
-  const deleteMemberMutation = useMutation({
-    mutationFn: (id: string) => MemberRepository.deleteMember(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['members'] });
-      toast({
-        title: 'Success',
-        description: 'Member deleted successfully',
-      });
-    },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to delete member',
-        variant: 'destructive',
-      });
-    },
-  });
+  const deleteMemberMutation = useDeleteMember();
 
   const handleDelete = (id: string) => {
-    deleteMemberMutation.mutate(id);
+    deleteMemberMutation.mutate(id, {
+      onSuccess: () => {
+        toast({
+          title: 'Success',
+          description: 'Member deleted successfully',
+        });
+      },
+      onError: (error) => {
+        toast({
+          title: 'Error',
+          description: `Failed to delete member: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: 'destructive',
+        });
+      },
+    });
   };
 
   return (

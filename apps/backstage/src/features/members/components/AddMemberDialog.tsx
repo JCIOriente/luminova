@@ -7,38 +7,32 @@ import {
   DialogTrigger,
   toast,
 } from '@luminova/ui';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { MemberRepository } from '../repositories/memberRepository';
 import type { MemberInput } from '../types/member';
 import { MemberForm } from './MemberForm';
+import { useAddMember } from '../hooks/useAddMember';
 
 export function AddMemberDialog() {
   const [isOpen, setIsOpen] = useState(false);
-  const queryClient = useQueryClient();
-
-  const addMemberMutation = useMutation({
-    mutationFn: (member: MemberInput) => MemberRepository.addMember(member),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['members'] });
-      toast({
-        title: 'Success',
-        variant: 'default',
-        description: 'Member added successfully',
-      });
-      setIsOpen(false);
-    },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to add member',
-        variant: 'destructive',
-      });
-    },
-  });
+  const addMemberMutation = useAddMember();
 
   const handleSubmit = (values: MemberInput) => {
-    addMemberMutation.mutate(values);
+    addMemberMutation.mutate(values, {
+      onSuccess: () => {
+        toast({
+          title: 'Success',
+          description: 'Member added successfully',
+        });
+        setIsOpen(false);
+      },
+      onError: (error) => {
+        toast({
+          title: 'Error',
+          description: `Failed to add member: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: 'destructive',
+        });
+      },
+    });
   };
 
   return (
