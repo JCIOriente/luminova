@@ -6,6 +6,7 @@ import {
   Calendar,
   Settings,
   Scale,
+  UserRoundPlus
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -37,6 +38,12 @@ export function Sidebar() {
           <NavLink to="/events" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Events
+          </NavLink>
+        </Button>
+        <Button variant="ghost" className="w-full justify-start" asChild>
+          <NavLink to="/allies" className="flex items-center gap-2">
+            <UserRoundPlus className="h-4 w-4" />
+            Allies
           </NavLink>
         </Button>
         <Button variant="ghost" className="w-full justify-start" asChild>

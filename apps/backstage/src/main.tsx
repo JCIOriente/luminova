@@ -10,6 +10,7 @@ const Events = lazy(() => import('./routes/Events'));
 const MainLayout = lazy(() => import('./routes/MainLayout'));
 const Members = lazy(() => import('./routes/Members'));
 const Settings = lazy(() => import('./routes/Settings'));
+const Allies = lazy(() => import('./routes/Allies')); // Add this line
 
 const Loading = () => <div>Loading...</div>;
 
@@ -49,6 +50,14 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<Loading />}>
             <Events />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'allies',
+        element: (
+          <Suspense fallback={<Loading />}>
+            <Allies />
           </Suspense>
         ),
       },
