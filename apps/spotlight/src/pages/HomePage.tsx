@@ -38,11 +38,11 @@ export default function HomePage() {
                 className="bg-primary hover:bg-primary/85"
                 asChild
               >
-                <a href="/membership">Únete a Nosotros</a>
+                <a href="/contact">Únete a Nosotros</a>
               </Button>
               <Button
                 size="lg"
-                className="bg-secondary hover:bg-secondary/85"
+                className="text-primary bg-white hover:bg-white/90"
                 asChild
               >
                 <a href="/about">Conoce Más</a>
@@ -70,12 +70,12 @@ export default function HomePage() {
                 mientras desarrollan habilidades que los distinguen personal y
                 profesionalmente.
               </p>
-              <Button variant="outline" className="group" asChild>
+              {/*<Button variant="outline" className="group" asChild>
                 <a href="/about">
                   Descubre Nuestra Historia
                   <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </a>
-              </Button>
+              </Button>*/}
             </div>
             <div className="relative order-1 lg:order-2">
               <img
@@ -84,8 +84,8 @@ export default function HomePage() {
                 className="h-[400px] w-full rounded-lg object-cover shadow-lg"
               />
               <div className="bg-primary absolute -bottom-6 -left-6 hidden rounded-lg p-6 text-white shadow-lg md:block">
-                <p className="mb-1 text-3xl font-bold">+100</p>
-                <p className="text-sm">Miembros Activos</p>
+                <p className="mb-1 text-3xl font-bold">+40</p>
+                <p className="text-sm">Miembros</p>
               </div>
             </div>
           </div>
@@ -116,12 +116,12 @@ export default function HomePage() {
                   Formamos líderes efectivos a través de talleres, conferencias
                   y oportunidades de networking.
                 </p>
-                <Button variant="link" className="group p-0" asChild>
+                {/*<Button variant="link" className="group p-0" asChild>
                   <a href="/programs#leadership">
                     Ver Más
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </a>
-                </Button>
+                </Button>*/}
               </CardContent>
             </Card>
 
@@ -137,12 +137,12 @@ export default function HomePage() {
                   Implementamos iniciativas que abordan necesidades locales y
                   crean soluciones sostenibles.
                 </p>
-                <Button variant="link" className="group p-0" asChild>
+                {/*<Button variant="link" className="group p-0" asChild>
                   <a href="/programs#community">
                     Ver Más
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </a>
-                </Button>
+                </Button>*/}
               </CardContent>
             </Card>
 
@@ -156,12 +156,12 @@ export default function HomePage() {
                   Fomentamos el espíritu emprendedor y proporcionamos
                   herramientas para el desarrollo empresarial.
                 </p>
-                <Button variant="link" className="group p-0" asChild>
+                {/*<Button variant="link" className="group p-0" asChild>
                   <a href="/programs#business">
                     Ver Más
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </a>
-                </Button>
+                </Button>*/}
               </CardContent>
             </Card>
 
@@ -190,6 +190,7 @@ export default function HomePage() {
       </section>
 
       {/* Upcoming Events Section */}
+      {/*
       <section className="bg-background py-20">
         <div className="container mx-auto px-4">
           <div className="mb-12 flex flex-col items-start justify-between md:flex-row md:items-center">
@@ -206,7 +207,6 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {/* Event 1 */}
             <Card className="bg-background overflow-hidden transition-shadow hover:shadow-md">
               <div className="relative h-48">
                 <div className="bg-primary absolute right-0 top-0 m-4 rounded px-3 py-1 text-xs font-semibold text-white">
@@ -236,7 +236,6 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            {/* Event 2 */}
             <Card className="bg-background overflow-hidden transition-shadow hover:shadow-md">
               <div className="relative h-48">
                 <img
@@ -263,7 +262,6 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            {/* Event 3 */}
             <Card className="bg-background overflow-hidden transition-shadow hover:shadow-md">
               <div className="relative h-48">
                 <img
@@ -292,6 +290,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      */}
 
       {/* CTA Section */}
       <section className="bg-primary py-20 text-white">
@@ -307,15 +306,7 @@ export default function HomePage() {
               className="text-primary bg-white hover:bg-white/90"
               asChild
             >
-              <a href="/membership">Conviértete en Miembro</a>
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-white text-white hover:bg-white/10"
-              asChild
-            >
-              <a href="/contact">Contáctanos</a>
+              <a href="/contact">Conviértete en Miembro, ¡Ponte en contacto!</a>
             </Button>
           </div>
         </div>
@@ -329,28 +320,28 @@ export default function HomePage() {
               <div className="bg-primary/10 mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full p-4">
                 <Users className="text-primary h-8 w-8" />
               </div>
-              <h3 className="mb-2 text-4xl font-bold">100+</h3>
-              <p className="text-muted-foreground">Miembros Activos</p>
+              <h3 className="mb-2 text-4xl font-bold">40+</h3>
+              <p className="text-muted-foreground">Miembros</p>
             </div>
             <div>
               <div className="bg-primary/10 mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full p-4">
                 <Calendar className="text-primary h-8 w-8" />
               </div>
-              <h3 className="mb-2 text-4xl font-bold">25+</h3>
+              <h3 className="mb-2 text-4xl font-bold">10+</h3>
               <p className="text-muted-foreground">Eventos Anuales</p>
             </div>
             <div>
               <div className="bg-primary/10 mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full p-4">
                 <Award className="text-primary h-8 w-8" />
               </div>
-              <h3 className="mb-2 text-4xl font-bold">12</h3>
+              <h3 className="mb-2 text-4xl font-bold">10+</h3>
               <p className="text-muted-foreground">Premios Nacionales</p>
             </div>
             <div>
               <div className="bg-primary/10 mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full p-4">
                 <Handshake className="text-primary h-8 w-8" />
               </div>
-              <h3 className="mb-2 text-4xl font-bold">50+</h3>
+              <h3 className="mb-2 text-4xl font-bold">20+</h3>
               <p className="text-muted-foreground">Proyectos Comunitarios</p>
             </div>
           </div>
