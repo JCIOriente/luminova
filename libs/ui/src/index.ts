@@ -1,6 +1,7 @@
 export * from './lib/hooks/use-toast';
 export * from './lib/ui/Badge';
 export * from './lib/ui/Button';
+export * from './lib/ui/Card';
 export * from './lib/ui/Combobox';
 export * from './lib/ui/Command';
 export * from './lib/ui/Dialog';
@@ -16,3 +17,4 @@ export * from './lib/ui/Spinner';
 export * from './lib/ui/Table';
 export * from './lib/ui/Toast';
 export * from './lib/ui/Toaster';
+
