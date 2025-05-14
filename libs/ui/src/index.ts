@@ -12,9 +12,9 @@ export * from './lib/ui/NavigationMenu';
 export * from './lib/ui/Popover';
 export * from './lib/ui/RadioGroup';
 export * from './lib/ui/Select';
+export * from './lib/ui/Separator';
 export * from './lib/ui/Sheet';
 export * from './lib/ui/Spinner';
 export * from './lib/ui/Table';
 export * from './lib/ui/Toast';
 export * from './lib/ui/Toaster';
-
