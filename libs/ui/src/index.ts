@@ -17,5 +17,6 @@ export * from "./lib/ui/Sheet";
 export * from "./lib/ui/Spinner";
 export * from "./lib/ui/Table";
 export * from "./lib/ui/Tabs";
+export * from "./lib/ui/Textarea";
 export * from "./lib/ui/Toast";
 export * from "./lib/ui/Toaster";
