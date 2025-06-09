@@ -177,7 +177,7 @@ export default function AboutPage() {
                   </h3>
                   <p className="text-muted-foreground">
                     JCI Oriente es una organización local afiliada a JCI
-                    Venezuela, que a su vez forma parte de JCI Internacional.
+                    Bolivia, que a su vez forma parte de JCI Internacional.
                     Compartimos la misma misión, visión y valores, pero operamos
                     con autonomía para abordar las necesidades específicas de
                     nuestra región.

@@ -1,4 +1,4 @@
-import { Button, Card, CardContent } from '@luminova/ui';
+import { Button, Card, CardContent } from "@luminova/ui";
 import {
   Activity,
   ArrowRight,
@@ -8,7 +8,7 @@ import {
   GraduationCap,
   Handshake,
   Users,
-} from 'lucide-react';
+} from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -60,9 +60,8 @@ export default function HomePage() {
               <h2 className="mb-6 text-3xl font-bold">¿Qué es JCI Oriente?</h2>
               <p className="text-muted-foreground mb-6 text-lg leading-relaxed">
                 Somos la organización líder de jóvenes ciudadanos activos en la
-                región oriental de Venezuela. Creamos oportunidades de
-                desarrollo que empoderan a los jóvenes para crear cambios
-                positivos.
+                región oriental de Bolivia. Creamos oportunidades de desarrollo
+                que empoderan a los jóvenes para crear cambios positivos.
               </p>
               <p className="text-muted-foreground mb-8 text-lg leading-relaxed">
                 Nuestra red global de casi 170.000 miembros activos está
@@ -70,12 +69,14 @@ export default function HomePage() {
                 mientras desarrollan habilidades que los distinguen personal y
                 profesionalmente.
               </p>
-              {/*<Button variant="outline" className="group" asChild>
+              {
+                /*<Button variant="outline" className="group" asChild>
                 <a href="/about">
                   Descubre Nuestra Historia
                   <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </a>
-              </Button>*/}
+              </Button>*/
+              }
             </div>
             <div className="relative order-1 lg:order-2">
               <img
@@ -116,12 +117,14 @@ export default function HomePage() {
                   Formamos líderes efectivos a través de talleres, conferencias
                   y oportunidades de networking.
                 </p>
-                {/*<Button variant="link" className="group p-0" asChild>
+                {
+                  /*<Button variant="link" className="group p-0" asChild>
                   <a href="/programs#leadership">
                     Ver Más
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </a>
-                </Button>*/}
+                </Button>*/
+                }
               </CardContent>
             </Card>
 
@@ -137,12 +140,14 @@ export default function HomePage() {
                   Implementamos iniciativas que abordan necesidades locales y
                   crean soluciones sostenibles.
                 </p>
-                {/*<Button variant="link" className="group p-0" asChild>
+                {
+                  /*<Button variant="link" className="group p-0" asChild>
                   <a href="/programs#community">
                     Ver Más
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </a>
-                </Button>*/}
+                </Button>*/
+                }
               </CardContent>
             </Card>
 
@@ -156,12 +161,14 @@ export default function HomePage() {
                   Fomentamos el espíritu emprendedor y proporcionamos
                   herramientas para el desarrollo empresarial.
                 </p>
-                {/*<Button variant="link" className="group p-0" asChild>
+                {
+                  /*<Button variant="link" className="group p-0" asChild>
                   <a href="/programs#business">
                     Ver Más
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </a>
-                </Button>*/}
+                </Button>*/
+                }
               </CardContent>
             </Card>
 
@@ -190,7 +197,8 @@ export default function HomePage() {
       </section>
 
       {/* Upcoming Events Section */}
-      {/*
+      {
+        /*
       <section className="bg-background py-20">
         <div className="container mx-auto px-4">
           <div className="mb-12 flex flex-col items-start justify-between md:flex-row md:items-center">
@@ -290,7 +298,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-      */}
+      */
+      }
 
       {/* CTA Section */}
       <section className="bg-primary py-20 text-white">

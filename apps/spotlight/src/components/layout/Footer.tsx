@@ -1,4 +1,4 @@
-import { Button, Separator } from '@luminova/ui';
+import { Button, Separator } from "@luminova/ui";
 import {
   Facebook,
   Instagram,
@@ -6,8 +6,8 @@ import {
   Mail,
   MapPin,
   Phone,
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+} from "lucide-react";
+import { Link } from "react-router-dom";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -149,12 +149,13 @@ export default function Footer() {
 
         <Separator className="my-8" />
 
-        <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
+        <div className="flex flex-col items-center justify-center gap-4 md:flex-row">
           <p className="text-muted-foreground text-center text-xs md:text-left">
             © {currentYear} JCI Oriente. Todos los derechos reservados.
           </p>
-          <div className="flex gap-6">
-            {/*<Link
+          {
+            /*<div className="flex gap-6">
+            <Link
               to="/privacy"
               className="text-muted-foreground hover:text-primary text-xs transition-colors"
             >
@@ -165,8 +166,9 @@ export default function Footer() {
               className="text-muted-foreground hover:text-primary text-xs transition-colors"
             >
               Términos de Uso
-            </Link>*/}
-          </div>
+            </Link>
+          </div>*/
+          }
         </div>
       </div>
     </footer>
