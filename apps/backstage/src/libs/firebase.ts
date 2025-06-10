@@ -1,7 +1,7 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { initializeApp } from "firebase/app";
+import { connectAuthEmulator, getAuth } from "firebase/auth";
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
@@ -19,10 +19,17 @@ const auth = getAuth(app);
 const storage = getStorage(app);
 
 if (process.env.FIREBASE_EMULATOR_ENABLED) {
-  const defaultPort = '4010';
-  const emulatorPort = process.env.FIREBASE_FIRESTORE_EMULATOR_PORT;
-  const port = Number.parseInt(emulatorPort || defaultPort, 10);
-  connectFirestoreEmulator(db, '127.0.0.1', port);
+  const firestoreDefaultPort = "4010";
+  const firestoreEmulatorPort = process.env.FIREBASE_FIRESTORE_EMULATOR_PORT ||
+    firestoreDefaultPort;
+  const firestorePort = Number.parseInt(firestoreEmulatorPort, 10);
+  connectFirestoreEmulator(db, "127.0.0.1", firestorePort);
+
+  const authDefaultPort = "4030";
+  const authEmulatorPort = process.env.FIREBASE_AUTH_EMULATOR_PORT ||
+    authDefaultPort;
+  const authPort = Number.parseInt(authEmulatorPort, 10);
+  connectAuthEmulator(auth, `http://localhost:${authPort}`);
 }
 
 export { auth, db, storage };
