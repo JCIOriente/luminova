@@ -1,5 +1,4 @@
-import { Button } from '@luminova/ui';
-import { AddAllyDialog, AllyTable, useAllies } from '../features/allies'; // Ensure path is correct
+import { AddAllyDialog, AllyTable, useAllies } from "../features/allies";
 
 export default function Allies() {
   const { data: allies, isLoading, isError, error } = useAllies();

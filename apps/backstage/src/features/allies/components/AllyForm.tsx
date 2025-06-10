@@ -1,4 +1,4 @@
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
   Form,
@@ -8,10 +8,10 @@ import {
   FormLabel,
   FormMessage,
   Input,
-} from '@luminova/ui'; // Assuming @luminova/ui is your UI library
-import { useForm } from 'react-hook-form';
-import type { AllyInput } from '../types/ally';
-import { AllyInputSchema } from '../types/ally';
+} from "@luminova/ui"; // Assuming @luminova/ui is your UI library
+import { useForm } from "react-hook-form";
+import type { AllyInput } from "../types/ally";
+import { AllyInputSchema } from "../types/ally";
 
 type AllyFormProps = {
   onSubmit: (values: AllyInput) => void;
@@ -27,10 +27,10 @@ export function AllyForm({
   const form = useForm<AllyInput>({
     resolver: zodResolver(AllyInputSchema),
     defaultValues: initialValues || {
-      companyName: '',
-      personInCharge: '',
-      phone: '',
-      email: '',
+      companyName: "",
+      personInCharge: "",
+      phone: "",
+      email: "",
     },
   });
 
@@ -70,7 +70,7 @@ export function AllyForm({
             <FormItem>
               <FormLabel>Phone</FormLabel>
               <FormControl>
-                <Input placeholder="+1 555-123-4567" {...field} />
+                <Input placeholder="+591 70000001" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -91,10 +91,10 @@ export function AllyForm({
         />
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading
-            ? 'Saving...'
+            ? "Saving..."
             : initialValues
-              ? 'Save Changes'
-              : 'Add Ally'}
+            ? "Save Changes"
+            : "Add Ally"}
         </Button>
       </form>
     </Form>
