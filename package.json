@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "firebase:emulators:start": "firebase emulators:start --only firestore,functions,hosting --import ./.data --export-on-exit"
+    "firebase:emulators:start": "firebase emulators:start --only auth,firestore,functions,hosting --import ./.data --export-on-exit"
   },
   "private": true,
   "dependencies": {

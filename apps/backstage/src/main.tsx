@@ -1,16 +1,18 @@
-import { Toaster } from '@luminova/ui';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StrictMode, lazy, Suspense } from 'react';
-import * as ReactDOM from 'react-dom/client';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { Toaster } from "@luminova/ui";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { lazy, StrictMode, Suspense } from "react";
+import * as ReactDOM from "react-dom/client";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { ProtectedRoute } from "./features/auth/components/ProtectedRoute";
 
-const Dashboard = lazy(() => import('./routes/Dashboard'));
-const PointRules = lazy(() => import('./routes/PointRules'));
-const Events = lazy(() => import('./routes/Events'));
-const MainLayout = lazy(() => import('./routes/MainLayout'));
-const Members = lazy(() => import('./routes/Members'));
-const Settings = lazy(() => import('./routes/Settings'));
-const Allies = lazy(() => import('./routes/Allies')); // Add this line
+const Dashboard = lazy(() => import("./routes/Dashboard"));
+const PointRules = lazy(() => import("./routes/PointRules"));
+const Events = lazy(() => import("./routes/Events"));
+const MainLayout = lazy(() => import("./routes/MainLayout"));
+const Members = lazy(() => import("./routes/Members"));
+const Settings = lazy(() => import("./routes/Settings"));
+const Allies = lazy(() => import("./routes/Allies"));
+const LoginPage = lazy(() => import("./routes/Login"));
 
 const Loading = () => <div>Loading...</div>;
 
@@ -18,8 +20,20 @@ const queryClient = new QueryClient();
 
 const router = createBrowserRouter([
   {
-    path: '/',
-    element: <MainLayout />,
+    path: "/login",
+    element: (
+      <Suspense fallback={<Loading />}>
+        <LoginPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: "/",
+    element: (
+      <ProtectedRoute>
+        <MainLayout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         index: true,
@@ -30,7 +44,7 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: 'point-rules',
+        path: "point-rules",
         element: (
           <Suspense fallback={<Loading />}>
             <PointRules />
@@ -38,7 +52,7 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: 'members',
+        path: "members",
         element: (
           <Suspense fallback={<Loading />}>
             <Members />
@@ -46,7 +60,7 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: 'events',
+        path: "events",
         element: (
           <Suspense fallback={<Loading />}>
             <Events />
@@ -54,7 +68,7 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: 'allies',
+        path: "allies",
         element: (
           <Suspense fallback={<Loading />}>
             <Allies />
@@ -62,7 +76,7 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: 'settings',
+        path: "settings",
         element: (
           <Suspense fallback={<Loading />}>
             <Settings />
@@ -74,7 +88,7 @@ const router = createBrowserRouter([
 ]);
 
 const root = ReactDOM.createRoot(
-  document.getElementById('root') as HTMLElement,
+  document.getElementById("root") as HTMLElement,
 );
 
 root.render(
