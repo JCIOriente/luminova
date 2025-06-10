@@ -1,20 +1,24 @@
-import { NavLink } from 'react-router-dom';
-import { Button } from '@luminova/ui';
+import { Button } from "@luminova/ui";
 import {
-  LayoutDashboard,
-  Users,
   Calendar,
-  Settings,
+  LayoutDashboard,
   Scale,
-  UserRoundPlus
-} from 'lucide-react';
+  Settings,
+  UserRoundPlus,
+  Users,
+} from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { useLogout } from "../features/auth";
 
-export function Sidebar() {
+export const Sidebar = () => {
+  const { mutate: logout } = useLogout();
+
   return (
-    <div className="w-64 border-r bg-gray-50 p-4">
+    <div className="flex h-screen w-64 flex-col border-r bg-gray-50 p-4">
       <div className="mb-6">
         <h1 className="text-xl font-bold">Backstage</h1>
       </div>
+
       <nav className="space-y-2">
         <Button variant="ghost" className="w-full justify-start" asChild>
           <NavLink to="/" className="flex items-center gap-2">
@@ -53,6 +57,16 @@ export function Sidebar() {
           </NavLink>
         </Button>
       </nav>
+
+      <div className="mt-auto">
+        <Button
+          variant="destructive"
+          className="w-full justify-center"
+          onClick={() => logout()}
+        >
+          Logout
+        </Button>
+      </div>
     </div>
   );
-}
+};
