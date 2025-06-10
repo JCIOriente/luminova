@@ -18,7 +18,7 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
-if (process.env.FIREBASE_EMULATOR_ENABLED) {
+if (process.env.FIREBASE_EMULATOR_ENABLED === "true") {
   const firestoreDefaultPort = "4010";
   const firestoreEmulatorPort = process.env.FIREBASE_FIRESTORE_EMULATOR_PORT ||
     firestoreDefaultPort;
