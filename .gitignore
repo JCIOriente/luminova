@@ -32,6 +32,7 @@ node_modules
 /coverage
 *.log
 .env*
+.yarn
 
 # System Files
 .DS_Store
