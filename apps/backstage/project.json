@@ -56,11 +56,9 @@
       }
     },
     "lint": {
-      "executor": "@nx/eslint:lint",
+      "executor": "nx:run-commands",
       "options": {
-        "lintFilePatterns": [
-          "apps/backstage/**/*.{ts,tsx,js,jsx}"
-        ]
+        "command": "npx eslint \"apps/backstage/**/*.{ts,tsx,js,jsx}\""
       }
     }
   }

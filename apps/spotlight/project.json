@@ -56,11 +56,9 @@
       }
     },
     "lint": {
-      "executor": "@nx/eslint:lint",
+      "executor": "nx:run-commands",
       "options": {
-        "lintFilePatterns": [
-          "apps/spotlight/**/*.{ts,tsx,js,jsx}"
-        ]
+        "command": "npx eslint \"apps/spotlight/**/*.{ts,tsx,js,jsx}\""
       }
     }
   }

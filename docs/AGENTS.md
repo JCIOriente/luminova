@@ -18,6 +18,7 @@
 3. Define Nx targets for Backstage/Spotlight (see `docs/ARCHITECTURE.md` notes) or run Vite directly: `nx exec --project=backstage -- vite dev` until proper targets exist.
 4. Start Firebase emulators if you need local services: `yarn firebase:emulators:start`.
 5. Build Beacon before deploying functions: `nx build beacon`.
+6. Run schema backfills against Firestore when adopting the latest release: `yarn backfill:firestore -- --dry-run` to preview, then rerun without `--dry-run` using production credentials.
 
 ## Documentation Map
 - **Architecture overview** – `docs/ARCHITECTURE.md`

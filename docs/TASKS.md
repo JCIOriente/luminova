@@ -13,9 +13,8 @@
 - Beacon function now scopes point-rule lookups and cleans up aggregated documents on event deletion.
 
 ## High Priority
-- Backfill existing Firestore data so legacy member documents have `active: true` / `deletedAt: null`, ensuring soft-delete filters work consistently.
-- Migrate historical events whose `startDate`/`endDate` were stored as numbers into proper `Timestamp` values to keep the new validation accurate.
-- Establish a repeatable fix for Nx plugin worker failures (investigate `.nx/workspace-data` corruption, document `nx reset`/cache strategy) so CI lint/build jobs can execute.
+- Run `yarn backfill:firestore` (first with `-- --dry-run`) across staging and production projects to apply member and event migrations safely.
+- Establish a repeatable fix for Nx plugin worker failures (investigate `.nx/workspace-data` corruption, document `nx reset`/cache strategy, consider switching lint targets to `nx:run-commands`) so CI lint/build jobs can execute.
 
 ## Medium Priority
 - Add meaningful unit/integration tests for repositories and forms (Vitest) and update Playwright specs to reflect actual UI flows (`apps/backstage-e2e/src/example.spec.ts`).
