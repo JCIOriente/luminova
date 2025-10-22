@@ -18,7 +18,9 @@ export const useAuth = () => {
 
   return useQuery<AuthUser | null>({
     queryKey: AUTH_QUERY_KEY,
-    queryFn: () => null, // Initial value, will be updated by the observer
+    queryFn: () => AuthService.getCurrentUser(),
     staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 };

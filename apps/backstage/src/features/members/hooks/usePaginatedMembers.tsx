@@ -6,21 +6,21 @@ import {
   UsePaginatedReturnType,
 } from '@luminova/types';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { DocumentData } from 'firebase/firestore';
+import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { MemberRepository } from '../repositories/memberRepository';
 import type { Member } from '../types/member';
 
 export const usePaginatedMembers = (
   pageSize: number,
-): UsePaginatedReturnType<Member, DocumentData> => {
+): UsePaginatedReturnType<Member, QueryDocumentSnapshot> => {
   return useInfiniteQuery<
-    QueryResult<Member, DocumentData>,
+    QueryResult<Member, QueryDocumentSnapshot>,
     Error,
-    PaginatedData<Member, DocumentData>,
+    PaginatedData<Member, QueryDocumentSnapshot>,
     QueryKey,
-    PaginationParam<DocumentData>
+    PaginationParam<QueryDocumentSnapshot>
   >({
-    queryKey: ['members'],
+    queryKey: ['members', 'paginated', pageSize],
     queryFn: ({ pageParam = null }) =>
       MemberRepository.getMembers(pageSize, pageParam),
     getNextPageParam: (lastPage) => lastPage.lastDoc || undefined,

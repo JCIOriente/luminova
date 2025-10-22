@@ -15,6 +15,22 @@ const mapFirebaseUser = (user: FirebaseUser): AuthUser => ({
 });
 
 export class AuthService {
+  static async getCurrentUser(): Promise<AuthUser | null> {
+    return new Promise((resolve, reject) => {
+      const unsubscribe = onAuthStateChanged(
+        auth,
+        (user) => {
+          unsubscribe();
+          resolve(user ? mapFirebaseUser(user) : null);
+        },
+        (error) => {
+          unsubscribe();
+          reject(error);
+        },
+      );
+    });
+  }
+
   static async login({ email, password }: LoginCredentials): Promise<AuthUser> {
     const { user } = await signInWithEmailAndPassword(auth, email, password);
     return mapFirebaseUser(user);

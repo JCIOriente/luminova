@@ -28,16 +28,39 @@ type Props = {
   initialValues?: EventInput;
 };
 
+const toDateInputValue = (value: string | Date): string => {
+  if (value instanceof Date) {
+    return value.toISOString().split('T')[0];
+  }
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
+
+  return '';
+};
+
 export function EventForm({ onSubmit, isLoading, initialValues }: Props) {
-  const form = useForm({
+  const defaultDate = toDateInputValue(new Date());
+
+  const resolvedInitialValues = initialValues
+    ? {
+        ...initialValues,
+        startDate: toDateInputValue(initialValues.startDate),
+        endDate: toDateInputValue(initialValues.endDate),
+      }
+    : undefined;
+
+  const form = useForm<EventInput>({
     resolver: zodResolver(EventInputSchema),
-    defaultValues: initialValues || {
+    defaultValues: resolvedInitialValues || {
       type: 'Program',
       name: '',
       description: '',
       scope: 'Local',
-      startDate: Date.now(),
-      endDate: Date.now(),
+      startDate: defaultDate,
+      endDate: defaultDate,
       directorId: '',
       coDirectorIds: [],
       collaboratorIds: [],
@@ -120,7 +143,7 @@ export function EventForm({ onSubmit, isLoading, initialValues }: Props) {
               <FormControl>
                 <RadioGroup
                   onValueChange={field.onChange}
-                  defaultValue={field.value}
+                  value={field.value ?? 'Local'}
                   className="flex flex-row space-x-4"
                 >
                   <FormItem className="flex items-center space-x-3 space-y-0">
@@ -142,6 +165,46 @@ export function EventForm({ onSubmit, isLoading, initialValues }: Props) {
             </FormItem>
           )}
         />
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="startDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Start Date</FormLabel>
+                <FormControl>
+                  <Input
+                    type="date"
+                    {...field}
+                    value={field.value ?? ''}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="endDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>End Date</FormLabel>
+                <FormControl>
+                  <Input
+                    type="date"
+                    {...field}
+                    value={field.value ?? ''}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         {/* Step 3: Assign Roles */}
         <FormField

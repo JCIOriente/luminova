@@ -25,8 +25,8 @@ function sanitizeProfilePictureValue(initialValues?: MemberInput) {
   }
 
   if (
-    typeof initialValues.profilePicture === 'string' &&
-    initialValues.profilePicture === ''
+    typeof initialValues.profilePicture === 'string' ||
+    initialValues.profilePicture === null
   ) {
     delete initialValues.profilePicture;
   }
