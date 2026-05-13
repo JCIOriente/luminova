@@ -44,7 +44,12 @@ export function EditAllyDialog({ ally }: EditAllyDialogProps) {
   };
 
   // Prepare initial values for the form by excluding the 'id'
-  const { id, ...initialFormValues } = ally;
+  const initialFormValues: AllyInput = {
+    companyName: ally.companyName,
+    personInCharge: ally.personInCharge,
+    phone: ally.phone,
+    email: ally.email,
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>

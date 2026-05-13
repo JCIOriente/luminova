@@ -22,6 +22,14 @@ type Props = {
   isLoading: boolean;
 };
 
+const formatDate = (value: string): string => {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleDateString();
+};
+
 export function EventTable({ events, members, isLoading }: Props) {
   const deleteEventMutation = useDeleteEvent();
 
@@ -81,8 +89,8 @@ export function EventTable({ events, members, isLoading }: Props) {
               <TableCell>{event.type}</TableCell>
               <TableCell>{event.director?.name || '-'}</TableCell>
               <TableCell>{event.scope || 'N/A'}</TableCell>
-              <TableCell>{event.startDate}</TableCell>
-              <TableCell>{event.endDate}</TableCell>
+              <TableCell>{formatDate(event.startDate)}</TableCell>
+              <TableCell>{formatDate(event.endDate)}</TableCell>
               <TableCell className="flex items-center gap-2">
                 {/* Edit Event Dialog */}
                 <EditEventDialog event={event} />

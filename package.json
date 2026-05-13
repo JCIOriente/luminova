@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "firebase:emulators:start": "firebase emulators:start --only auth,firestore,functions,hosting --import ./.data --export-on-exit"
+    "firebase:emulators:start": "firebase emulators:start --only auth,firestore,functions,hosting --import ./.data --export-on-exit",
+    "backfill:firestore": "node tools/scripts/backfill-firestore.mjs"
   },
   "private": true,
   "dependencies": {

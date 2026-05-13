@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Input } from '@luminova/ui';
-import { Badge } from '@luminova/ui';
+import { Input, Badge } from '@luminova/ui';
 import { usePaginatedMembers } from '../features/members';
 
 type MemberSelectorProps = {
@@ -17,7 +16,7 @@ const MemberSelector = ({
   pageSize = 10,
 }: MemberSelectorProps) => {
   const [inputValue, setInputValue] = useState('');
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
     usePaginatedMembers(pageSize);
 
   const members = data?.pages.flatMap((page) => page.members) || [];

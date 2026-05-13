@@ -9,7 +9,7 @@ import {
 } from '@luminova/ui';
 import { Pencil } from 'lucide-react';
 import { useState } from 'react';
-import type { Member } from '../types/member';
+import type { Member, MemberInput } from '../types/member';
 import { MemberForm } from './MemberForm';
 import { useUpdateMember } from '../hooks/useUpdateMember';
 
@@ -21,7 +21,7 @@ export function EditMemberDialog({ member }: EditMemberDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const updateMemberMutation = useUpdateMember();
 
-  const handleSubmit = (values: Omit<Member, 'id'>) => {
+  const handleSubmit = (values: MemberInput) => {
     updateMemberMutation.mutate(
       { ...values, id: member.id },
       {
@@ -43,6 +43,13 @@ export function EditMemberDialog({ member }: EditMemberDialogProps) {
     );
   };
 
+  const initialValues: MemberInput = {
+    name: member.name,
+    email: member.email,
+    phone: member.phone,
+    role: member.role,
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -57,7 +64,7 @@ export function EditMemberDialog({ member }: EditMemberDialogProps) {
         <MemberForm
           onSubmit={handleSubmit}
           isLoading={updateMemberMutation.isPending}
-          initialValues={member} // Pass initial values for editing
+          initialValues={initialValues}
         />
       </DialogContent>
     </Dialog>
