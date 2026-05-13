@@ -1,5 +1,12 @@
 # Firebase Setup
 
+## Runtime
+
+- **Node 24** for all apps and Cloud Functions
+- `.nvmrc` at repo root pins Node version
+- `firebase.json` → `functions.runtime: "nodejs24"`
+- `apps/beacon/package.json` → `engines.node: "24"`
+
 ## Project
 
 Firebase project ID: `jci-oriente`

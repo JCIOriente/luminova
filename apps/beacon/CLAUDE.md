@@ -23,7 +23,7 @@ Firebase Cloud Functions backend. Listens to Firestore event writes and automati
 
 - **Admin SDK only** — never import `firebase/firestore` (client SDK). Use `firebase-admin`.
 - **No client-side Firebase** — this is a Node.js functions environment
-- Functions runtime: Node.js 22
+- Functions runtime: **Node.js 24** (configure in `firebase.json` → `functions.runtime: "nodejs24"` and `engines.node: "24"` in `apps/beacon/package.json`)
 
 ## Data Flow
 

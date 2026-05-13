@@ -1,0 +1,22 @@
+[
+  {"query": "lets add lodash to apps/backstage/package.json, just need debounce and groupBy. what version", "should_trigger": true},
+  {"query": "bump axios from ^1.6.0 to latest, our retry interceptor needs the new AbortSignal handling", "should_trigger": true},
+  {"query": "add @tanstack/react-table, want to migrate the events grid off the hand-rolled component", "should_trigger": true},
+  {"query": "is dayjs safe to use as a moment replacement, or should we go luxon. picking one for date formatting", "should_trigger": true},
+  {"query": "what version of zod should I pin in the shared types package", "should_trigger": true},
+  {"query": "add react-dropzone to backstage for the profile picture upload", "should_trigger": true},
+  {"query": "replace moment with dayjs across the frontend, going to do the package.json edit and then sweep the call sites", "should_trigger": true},
+  {"query": "we need an oauth client lib for a google calendar integration. node ecosystem. what's the current pick", "should_trigger": true},
+  {"query": "add firebase-admin to beacon, need the latest version that supports Node 22", "should_trigger": true},
+  {"query": "bump vite to latest in all apps", "should_trigger": true},
+  {"query": "add date-fns to packages/ui for the date range picker component", "should_trigger": true},
+  {"query": "is clsx still the right choice or should we switch to something else", "should_trigger": true},
+  {"query": "run pnpm install in the repo, lockfile drifted on someone elses machine", "should_trigger": false},
+  {"query": "explain how zod's .refine() differs from .superRefine() with an example", "should_trigger": false},
+  {"query": "how do I import lodash so tree-shaking actually works in vite", "should_trigger": false},
+  {"query": "fix this typescript error in lib/api.ts, ts2345 on the axios response generic", "should_trigger": false},
+  {"query": "why is pnpm install slow on my mac, takes 4 minutes. is there a cache i can clear", "should_trigger": false},
+  {"query": "tailwind's content config is missing src/pages/admin/**/*.tsx so styles aren't getting purged correctly", "should_trigger": false},
+  {"query": "github actions yaml: setup-node@v4 vs v5, anything actually different that matters for our flow", "should_trigger": false},
+  {"query": "how does TanStack Router handle nested layouts vs React Router", "should_trigger": false}
+]

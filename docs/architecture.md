@@ -45,7 +45,7 @@
 - Deployed to Firebase Hosting target `jcioriente-backstage`
 
 ### beacon (Cloud Functions)
-- Node.js 22 Firebase Cloud Functions
+- Node.js 24 Firebase Cloud Functions (runtime: `nodejs24`)
 - Single function: `awardPoints`
 - Triggered by Firestore writes to `/events/{id}`
 - Reads `pointRules`, writes `memberPoints`
