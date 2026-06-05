@@ -17,12 +17,14 @@
     "format:fix": "prettier --write .",
     "knip": "knip",
     "audit": "pnpm audit --audit-level=high",
-    "pr-tests": "pnpm format && turbo run ci && pnpm knip && pnpm audit --audit-level=high"
+    "pr-tests": "pnpm format && turbo run ci && pnpm knip && pnpm audit --audit-level=high",
+    "seed:emulator": "firebase emulators:exec --only firestore \"$(which node) tools/scripts/seed-emulator.mjs\""
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.4.1",
     "eslint-config-prettier": "^10.1.8",
+    "firebase-admin": "13.10.0",
     "knip": "^6.15.0",
     "prettier": "^3.8.3",
     "turbo": "^2.9.16",
