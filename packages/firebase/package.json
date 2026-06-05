@@ -1,0 +1,20 @@
+{
+  "name": "@luminova/firebase",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc --noEmit",
+    "ci": "eslint . && tsc --noEmit && vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "firebase": "12.14.0"
+  }
+}
