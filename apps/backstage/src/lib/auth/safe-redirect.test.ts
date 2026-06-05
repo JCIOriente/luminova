@@ -27,4 +27,10 @@ describe("safeRedirect", () => {
   it("rejects a backslash-obfuscated protocol-relative URL", () => {
     expect(safeRedirect("/\\evil.example")).toBeUndefined();
   });
+
+  it("rejects control-char-obfuscated protocol-relative URLs (browser-strip bypass)", () => {
+    expect(safeRedirect("/\t/evil.example")).toBeUndefined();
+    expect(safeRedirect("/\n/evil.example")).toBeUndefined();
+    expect(safeRedirect("/\r/evil.example")).toBeUndefined();
+  });
 });
