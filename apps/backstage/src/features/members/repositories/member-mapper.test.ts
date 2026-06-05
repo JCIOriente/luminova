@@ -57,8 +57,8 @@ describe("toMemberUpdateDoc", () => {
 });
 
 describe("dateInputValue", () => {
-  it("formats a Timestamp as YYYY-MM-DD", () => {
-    const ts = Timestamp.fromDate(new Date("2001-12-09T00:00:00"));
+  it("formats a Timestamp as YYYY-MM-DD (UTC)", () => {
+    const ts = Timestamp.fromDate(new Date("2001-12-09T00:00:00Z"));
     expect(dateInputValue(ts)).toBe("2001-12-09");
   });
 });

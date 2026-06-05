@@ -2,15 +2,17 @@ import { Timestamp } from "firebase/firestore";
 import type { MemberInput } from "../types/member-schema";
 
 function toTimestamp(dateString: string): Timestamp {
-  return Timestamp.fromDate(new Date(`${dateString}T00:00:00`));
+  // UTC midnight so a date-only value is stored consistently regardless of the
+  // runtime timezone (date round-trips with dateInputValue's UTC parts).
+  return Timestamp.fromDate(new Date(`${dateString}T00:00:00Z`));
 }
 
 /** Format a Firestore Timestamp as a `YYYY-MM-DD` string for date inputs. */
 export function dateInputValue(timestamp: Timestamp): string {
   const date = timestamp.toDate();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 

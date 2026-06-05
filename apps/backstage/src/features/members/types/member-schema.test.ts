@@ -41,6 +41,10 @@ describe("memberSchema", () => {
     expect(memberSchema.safeParse({ ...valid, joinDate: "not-a-date" }).success).toBe(false);
   });
 
+  it("rejects an overflow date that silently rolls over", () => {
+    expect(memberSchema.safeParse({ ...valid, joinDate: "2024-02-30" }).success).toBe(false);
+  });
+
   it("rejects a status outside the enum", () => {
     expect(memberSchema.safeParse({ ...valid, status: "Suspendido" }).success).toBe(false);
   });

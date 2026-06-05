@@ -28,7 +28,9 @@ export class MemberRepository {
   async getById(id: string): Promise<Member | null> {
     const snapshot = await getDoc(doc(this.collection, id));
     if (!snapshot.exists()) return null;
-    return { id: snapshot.id, ...(snapshot.data() as Omit<Member, "id">) };
+    const data = snapshot.data() as Omit<Member, "id">;
+    if (!data.active) return null;
+    return { id: snapshot.id, ...data };
   }
 
   async create(data: MemberInput): Promise<string> {
