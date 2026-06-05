@@ -46,4 +46,20 @@ describe("createAuthStore", () => {
     lastCallback()({ uid: "u1" } as User);
     expect(listener).toHaveBeenCalledTimes(1);
   });
+
+  it("resolves ready via timeout when Firebase never emits", async () => {
+    vi.useFakeTimers();
+    try {
+      const store = createAuthStore({} as Auth, 5000);
+      let resolved = false;
+      void store.ready.then(() => {
+        resolved = true;
+      });
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(resolved).toBe(true);
+      expect(store.getState().status).toBe("pending");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

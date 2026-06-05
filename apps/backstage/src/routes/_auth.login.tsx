@@ -1,5 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { LoginForm } from "../features/auth/components/login-form";
+import { safeRedirect } from "../lib/auth/safe-redirect";
 
 interface LoginSearch {
   redirect?: string;
@@ -7,7 +8,7 @@ interface LoginSearch {
 
 export const Route = createFileRoute("/_auth/login")({
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
-    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+    redirect: safeRedirect(search.redirect),
   }),
   component: LoginPage,
 });

@@ -13,7 +13,9 @@ export interface AuthStore {
   subscribe: (listener: () => void) => () => void;
 }
 
-export function createAuthStore(auth: Auth): AuthStore {
+const READY_TIMEOUT_MS = 8000;
+
+export function createAuthStore(auth: Auth, readyTimeoutMs: number = READY_TIMEOUT_MS): AuthStore {
   let state: AuthState = { status: "pending", user: null };
   const listeners = new Set<() => void>();
   let resolveReady!: () => void;
@@ -21,7 +23,13 @@ export function createAuthStore(auth: Auth): AuthStore {
     resolveReady = resolve;
   });
 
+  // Fall back to a resolved `ready` if Firebase never emits (e.g. unreachable),
+  // so route guards redirect to /login instead of hanging on PendingScreen.
+  const timer = setTimeout(() => resolveReady(), readyTimeoutMs);
+  (timer as { unref?: () => void }).unref?.();
+
   onAuthStateChanged(auth, (user) => {
+    clearTimeout(timer);
     state = { status: user ? "authenticated" : "unauthenticated", user };
     resolveReady();
     listeners.forEach((listener) => listener());
