@@ -56,6 +56,9 @@ importers:
       '@tanstack/react-router':
         specifier: ^1.170.11
         version: 1.170.11(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      firebase:
+        specifier: 12.14.0
+        version: 12.14.0
       react:
         specifier: ^19.2.7
         version: 19.2.7
