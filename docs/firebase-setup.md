@@ -11,6 +11,17 @@
 
 Firebase project ID: `jci-oriente`
 
+## Web Apps
+
+Two web app registrations share one Firebase project and one Firestore database:
+
+| App | appId | Hosting target | URL |
+|-----|-------|----------------|-----|
+| spotlight | `1:953870918238:web:63d0034740735d618b4acf` | `jcioriente` | https://jcioriente.web.app |
+| backstage | `1:953870918238:web:acbd53d377846bd88b4acf` | `jcioriente-backstage` | https://jcioriente-backstage.web.app |
+
+Each app reads its Firebase config from its own `apps/<app>/.env.local` (template at `apps/<app>/.env.local.example`). The two apps share the same project and database but use separate app registrations and separate App Check site keys.
+
 ## Hosting Targets
 
 | Target | App | URL |
@@ -39,15 +50,19 @@ firebase target:apply hosting jcioriente-backstage jcioriente-backstage
 
 ### Frontend Apps (apps/spotlight, apps/backstage)
 
-Create `.env.local` in each app directory (never commit these):
+Each app has its own `.env.local` (never commit these). Use the template at `apps/<app>/.env.local.example`:
 
 ```bash
 VITE_FIREBASE_API_KEY=your-api-key
 VITE_FIREBASE_AUTH_DOMAIN=jci-oriente.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=jci-oriente
-VITE_FIREBASE_STORAGE_BUCKET=jci-oriente.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
-VITE_FIREBASE_APP_ID=your-app-id
+VITE_FIREBASE_STORAGE_BUCKET=jci-oriente.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=953870918238
+VITE_FIREBASE_APP_ID=<per-app appId from Web Apps table above>
+# App Check (reCAPTCHA v3) — paste the real site key once created; blank disables App Check
+VITE_APPCHECK_SITE_KEY=
+# Per-developer App Check debug token for local dev
+VITE_APPCHECK_DEBUG_TOKEN=
 VITE_FIREBASE_EMULATOR_ENABLED=false
 ```
 
@@ -58,7 +73,27 @@ For local development with emulators, set `VITE_FIREBASE_EMULATOR_ENABLED=true`.
 Cloud Functions use Application Default Credentials — no env file needed.
 For local emulator, the Firebase CLI handles credentials automatically.
 
+## App Check
+
+App Check uses **reCAPTCHA v3** to protect the Firebase backend from abuse.
+
+- Setting `VITE_APPCHECK_SITE_KEY` in `.env.local` enables App Check for that app. Leaving it blank disables App Check.
+- For local development, copy the debug token printed in the browser console into `VITE_APPCHECK_DEBUG_TOKEN` and register it under Firebase Console → App Check → Apps → Manage debug tokens.
+- Enforcement is currently **OFF** and should remain off until real reCAPTCHA v3 site keys are configured for both apps in production.
+
+The `@luminova/firebase` package initializes App Check automatically when `VITE_APPCHECK_SITE_KEY` is set.
+
 ## Emulators
+
+### Prerequisites
+
+The Firestore emulator requires a **Java Runtime Environment (JRE)**. On Apple Silicon macOS:
+
+```bash
+brew install openjdk
+# Add to your shell profile:
+export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
+```
 
 ### Start All Emulators
 
@@ -72,7 +107,18 @@ firebase emulators:start
 | Firestore | 4010 | — |
 | Functions | 4020 | — |
 | Hosting | 4000 | http://localhost:4000 |
+| Storage | 9199 | — |
 | Emulator UI | 4100 | http://localhost:4100 |
+
+### Seeding the Emulator
+
+Load sample data into the running Firestore emulator:
+
+```bash
+pnpm seed:emulator
+```
+
+The seed script requires the Firestore emulator to be running first (it checks for `FIRESTORE_EMULATOR_HOST` and refuses to run unless the variable is set, so it can never touch the production database).
 
 ### Import/Export Emulator Data
 
@@ -121,13 +167,35 @@ firebase deploy --only hosting:jcioriente-backstage
 firebase deploy --only firestore:rules
 ```
 
-## Firebase Auth Setup
+## Firestore Rules Summary
 
-In Firebase Console → Authentication → Sign-in method:
-- Enable **Email/Password** provider
-- No other providers needed
+| Collection | Public read | Authenticated read | Authenticated write | Notes |
+|------------|-------------|-------------------|---------------------|-------|
+| `projects` | yes | yes | yes | — |
+| `board` | yes | yes | yes | — |
+| `members` | no | yes | yes | — |
+| `events` | no | yes | yes | — |
+| `pointRules` | no | yes | yes | — |
+| `allies` | no | yes | yes | — |
+| `memberPoints` | no | yes | **no** | Writes only via beacon Admin SDK Cloud Function |
+| everything else | no | no | no | Denied |
 
-Create initial admin users manually in Firebase Console → Authentication → Users.
+Rules are tested by `@luminova/firestore-rules-tests`. Run:
+
+```bash
+firebase emulators:exec --only firestore "pnpm --filter @luminova/firestore-rules-tests test"
+```
+
+## Console Checklist (manual, one-time)
+
+1. Authentication → Sign-in method → enable **Email/Password**. No other providers.
+2. App Check:
+   - Register a reCAPTCHA v3 site key for each web app (spotlight, backstage).
+   - Paste each key into the matching app's `.env.local` as `VITE_APPCHECK_SITE_KEY`.
+   - For local dev, copy the debug token printed in the browser console into
+     `VITE_APPCHECK_DEBUG_TOKEN` and register it under App Check → Apps → Manage debug tokens.
+   - Leave enforcement OFF until both apps send valid tokens in production.
+3. Authentication → Users → create the initial admin user (email/password).
 
 ## Firestore Indexes
 
@@ -176,3 +244,5 @@ node tools/scripts/backfill-firestore.mjs --dry-run
 GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json \
   node tools/scripts/backfill-firestore.mjs
 ```
+
+For wiping production data, see the runbook at `tools/scripts/wipe-prod.md`.
