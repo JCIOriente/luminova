@@ -5,7 +5,8 @@
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./theme.css": "./src/theme.css"
   },
   "scripts": {
     "lint": "eslint .",
@@ -13,5 +14,20 @@
     "test": "vitest run --passWithNoTests",
     "build": "tsc --noEmit",
     "ci": "eslint . && tsc --noEmit && vitest run --passWithNoTests"
+  },
+  "peerDependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "dependencies": {
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   }
 }

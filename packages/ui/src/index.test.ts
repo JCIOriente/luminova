@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
-import { UI_PACKAGE } from "./index.js";
+import { cn } from "./lib/cn.js";
 
-test("package name", () => {
-  expect(UI_PACKAGE).toBe("@luminova/ui");
+test("cn merges classes and dedupes conflicts", () => {
+  expect(cn("px-2", "px-4")).toBe("px-4");
+  expect(cn("a", false, "b")).toBe("a b");
 });
