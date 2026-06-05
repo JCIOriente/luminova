@@ -8,6 +8,15 @@ describe("authErrorMessage", () => {
     expect(authErrorMessage(err)).toBe("Correo o contraseña incorrectos.");
   });
 
+  it("maps legacy wrong-password / user-not-found to the same generic-account message", () => {
+    expect(authErrorMessage(new FirebaseError("auth/wrong-password", "raw"))).toBe(
+      "Correo o contraseña incorrectos.",
+    );
+    expect(authErrorMessage(new FirebaseError("auth/user-not-found", "raw"))).toBe(
+      "Correo o contraseña incorrectos.",
+    );
+  });
+
   it("maps too-many-requests", () => {
     const err = new FirebaseError("auth/too-many-requests", "raw");
     expect(authErrorMessage(err)).toBe(
