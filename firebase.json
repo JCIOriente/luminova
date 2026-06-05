@@ -1,0 +1,39 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": [
+    {
+      "source": "apps/beacon",
+      "codebase": "beacon",
+      "runtime": "nodejs24",
+      "predeploy": ["pnpm --filter beacon build"]
+    }
+  ],
+  "hosting": [
+    {
+      "target": "jcioriente",
+      "public": "apps/spotlight/dist",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    },
+    {
+      "target": "jcioriente-backstage",
+      "public": "apps/backstage/dist",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    }
+  ],
+  "emulators": {
+    "auth": { "port": 4030 },
+    "firestore": { "port": 4010 },
+    "functions": { "port": 4020 },
+    "hosting": { "port": 4000 },
+    "ui": { "enabled": true, "port": 4100 },
+    "singleProjectMode": true
+  }
+}
