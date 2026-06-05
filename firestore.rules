@@ -1,0 +1,45 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /projects/{projectId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /board/{boardId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /members/{memberId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /events/{eventId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /pointRules/{ruleId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /allies/{allyId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /memberPoints/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

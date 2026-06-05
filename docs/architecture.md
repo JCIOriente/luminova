@@ -28,21 +28,27 @@
 └─────────────────────────────────────────────────────────┘
 ```
 
+Both web apps (spotlight and backstage) are registered as separate Firebase web app entries
+within the same project and share one Firestore database and one Storage bucket
+(`jci-oriente.firebasestorage.app`). Each app has its own App Check configuration.
+
 ## Apps
 
 ### spotlight (Public Site)
-- Static React app, no Firebase client
-- Three routes: `/`, `/about`, `/contact`
-- No authentication required
+- React SPA deployed to Firebase Hosting target `jcioriente`
+- Ships **no Firebase client in its default bundle** — dynamic routes (e.g. projects, board)
+  lazy-load `@luminova/firebase` via dynamic `import()` only when those routes are visited
+- Public routes do not require authentication
 - Contact form is client-side only (no backend)
-- Deployed to Firebase Hosting target `jcioriente`
+- Firebase web app registration: `1:953870918238:web:63d0034740735d618b4acf`
 
 ### backstage (Admin Dashboard)
-- React SPA with Firebase Auth + Firestore
+- React SPA with Firebase Auth + Firestore, deployed to Firebase Hosting target `jcioriente-backstage`
+- Imports `@luminova/firebase` at boot (always included in the bundle)
 - All routes except `/login` require authentication
 - CRUD operations on members, events, point rules, allies
 - Member profile pictures stored in Firebase Storage
-- Deployed to Firebase Hosting target `jcioriente-backstage`
+- Firebase web app registration: `1:953870918238:web:acbd53d377846bd88b4acf`
 
 ### beacon (Cloud Functions)
 - Node.js 24 Firebase Cloud Functions (runtime: `nodejs24`)
@@ -66,11 +72,16 @@ Admin creates/edits event in Backstage
 ## Shared Packages
 
 ### @luminova/firebase
-Single Firebase app initialization. Both frontend apps import from here.
-Handles emulator connection when `VITE_FIREBASE_EMULATOR_ENABLED=true`.
+Memoized `getFirebase()` client singleton with App Check + emulator wiring.
+Initializes Firebase app, Auth, Firestore, and Storage on first call; subsequent calls return
+the cached instance. Optionally initializes App Check (reCAPTCHA v3) when
+`VITE_APPCHECK_SITE_KEY` is set. Connects all services to emulators when
+`VITE_FIREBASE_EMULATOR_ENABLED=true`. Both frontend apps import from this package;
+spotlight does so lazily (dynamic import on dynamic routes only).
 
 ### @luminova/ui
-shadcn/ui component library. Components are copied into the package (not installed as dependency).
+Bespoke token-driven component library built on Tailwind CSS utilities.
+shadcn/Radix UI components are added for complex widgets via `pnpm dlx shadcn@latest add`.
 Both Spotlight and Backstage consume from here.
 
 ### @luminova/types

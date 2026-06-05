@@ -1,23 +1,20 @@
 {
-  "name": "beacon",
+  "name": "@luminova/firebase",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "dist/index.js",
-  "engines": {
-    "node": "24"
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
   },
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "build": "tsc",
+    "build": "tsc --noEmit",
     "ci": "eslint . && tsc --noEmit && vitest run --passWithNoTests"
   },
   "dependencies": {
-    "firebase-admin": "13.10.0",
-    "firebase-functions": "7.2.5"
-  },
-  "devDependencies": {
-    "@types/node": "^25.9.1"
+    "firebase": "12.14.0"
   }
 }
