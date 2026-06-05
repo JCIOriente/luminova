@@ -1,6 +1,6 @@
 import { onAuthStateChanged, type Auth, type User } from "firebase/auth";
 
-export type AuthStatus = "pending" | "authenticated" | "unauthenticated";
+type AuthStatus = "pending" | "authenticated" | "unauthenticated";
 
 export interface AuthState {
   status: AuthStatus;
