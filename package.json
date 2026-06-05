@@ -18,7 +18,7 @@
     "knip": "knip",
     "audit": "pnpm audit --audit-level=high",
     "pr-tests": "pnpm format && turbo run ci && pnpm knip && pnpm audit --audit-level=high",
-    "seed:emulator": "firebase emulators:exec --only firestore \"$(which node) tools/scripts/seed-emulator.mjs\""
+    "seed:emulator": "FIRESTORE_EMULATOR_HOST=127.0.0.1:4010 node tools/scripts/seed-emulator.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
