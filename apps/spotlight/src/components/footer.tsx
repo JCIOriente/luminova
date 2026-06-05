@@ -1,7 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { LogoLockup } from "./logo-lockup";
-import { RippleBackground } from "./ripple";
-import { Icon } from "./icons";
+import { LogoLockup, RippleBackground, Icon } from "@luminova/ui";
 
 const SOCIAL_STYLE: React.CSSProperties = {
   width: 36,

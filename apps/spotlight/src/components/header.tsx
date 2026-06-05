@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import clsx from "clsx";
-import { LogoLockup } from "./logo-lockup";
-import { PillButton } from "./pill-button";
-import { Icon } from "./icons";
+import { LogoLockup, Button, Icon } from "@luminova/ui";
 
 function overToneFor(pathname: string): "dark" | "blue" | null {
   if (pathname === "/about") return "blue";
@@ -68,7 +66,7 @@ export function Header() {
         ? "inverted"
         : "default";
 
-  const ctaClass = !scrolled && overBlue ? "on-blue" : undefined;
+  const ctaOnBlue = !scrolled && overBlue;
   const ctaOnDark = !scrolled && overDark;
 
   return (
@@ -101,16 +99,16 @@ export function Header() {
             >
               Contacto
             </a>
-            <PillButton
+            <Button
               href="/contact"
               onClick={(e) => go(e, "/contact")}
               size="sm"
               variant="primary"
-              className={ctaClass}
+              onBlue={ctaOnBlue}
               onDark={ctaOnDark}
             >
               Únete a JCI Oriente
-            </PillButton>
+            </Button>
           </nav>
           <button className="hamburger" aria-label="Abrir menú" onClick={() => setMobileOpen(true)}>
             <Icon.menu />
@@ -143,14 +141,14 @@ export function Header() {
             </a>
           </div>
           <div style={{ marginTop: "auto", paddingTop: 24 }}>
-            <PillButton
+            <Button
               href="/contact"
               onClick={(e) => go(e, "/contact")}
               variant="primary"
               iconRight={<Icon.arrowRight />}
             >
               Únete a JCI Oriente
-            </PillButton>
+            </Button>
           </div>
         </div>
       )}

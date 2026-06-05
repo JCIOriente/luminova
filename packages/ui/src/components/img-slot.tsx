@@ -8,6 +8,7 @@ interface ImgSlotProps {
   aspect?: string;
   height?: number | string;
   style?: CSSProperties;
+  className?: string;
 }
 
 const STRIPES_LIGHT =
@@ -27,6 +28,7 @@ export function ImgSlot({
   aspect = "4/3",
   height,
   style = {},
+  className,
 }: ImgSlotProps) {
   const base = dark ? STRIPES_DARK : STRIPES_LIGHT;
   const background = tint ? `${TINT[tint]}, ${STRIPES_LIGHT}` : base;
@@ -35,6 +37,7 @@ export function ImgSlot({
       className={cn(
         "relative flex items-end overflow-hidden rounded-card border p-4",
         dark ? "border-white/10" : "border-line",
+        className,
       )}
       style={{ background, aspectRatio: height ? undefined : aspect, height, ...style }}
       aria-label={label}

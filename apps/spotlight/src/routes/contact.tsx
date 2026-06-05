@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { PillButton } from "../components/pill-button";
-import { RippleBackground } from "../components/ripple";
-import { Reveal } from "../components/reveal";
-import { Icon } from "../components/icons";
+import {
+  Button,
+  RippleBackground,
+  Reveal,
+  Icon,
+  Input,
+  Textarea,
+  Select,
+  Field,
+  Toast,
+} from "@luminova/ui";
 
 export const Route = createFileRoute("/contact")({
   component: Contact,
@@ -18,7 +25,6 @@ interface FormState {
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
-const ERROR_STYLE = { fontSize: 13, color: "#C0392B" };
 const LABEL_META = {
   fontSize: 12,
   color: "var(--ink-3)",
@@ -62,13 +68,9 @@ function ContactForm({ onSubmit }: { onSubmit: () => void }) {
   return (
     <form className="contact-card" onSubmit={submit} noValidate aria-describedby="form-help">
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <div className="field">
-          <label htmlFor="ct-name">
-            Nombre <span className="req">*</span>
-          </label>
-          <input
+        <Field label="Nombre" htmlFor="ct-name" required error={errors.name}>
+          <Input
             id="ct-name"
-            className="input"
             type="text"
             autoComplete="name"
             value={form.name}
@@ -76,19 +78,10 @@ function ContactForm({ onSubmit }: { onSubmit: () => void }) {
             aria-invalid={!!errors.name}
             aria-describedby={errors.name ? "ct-name-err" : undefined}
           />
-          {errors.name && (
-            <div id="ct-name-err" role="alert" style={ERROR_STYLE}>
-              {errors.name}
-            </div>
-          )}
-        </div>
-        <div className="field">
-          <label htmlFor="ct-email">
-            Email <span className="req">*</span>
-          </label>
-          <input
+        </Field>
+        <Field label="Email" htmlFor="ct-email" required error={errors.email}>
+          <Input
             id="ct-email"
-            className="input"
             type="email"
             autoComplete="email"
             value={form.email}
@@ -96,53 +89,39 @@ function ContactForm({ onSubmit }: { onSubmit: () => void }) {
             aria-invalid={!!errors.email}
             aria-describedby={errors.email ? "ct-email-err" : undefined}
           />
-          {errors.email && (
-            <div id="ct-email-err" role="alert" style={ERROR_STYLE}>
-              {errors.email}
-            </div>
-          )}
-        </div>
+        </Field>
       </div>
-      <div className="field" style={{ marginTop: 16 }}>
-        <label htmlFor="ct-subject">
-          Asunto <span className="req">*</span>
-        </label>
-        <select
-          id="ct-subject"
-          className="select"
-          value={form.subject}
-          onChange={(e) => update("subject", e.target.value)}
-        >
-          <option>Membresía</option>
-          <option>Alianza institucional</option>
-          <option>Prensa / Comunicación</option>
-          <option>Otro</option>
-        </select>
+      <div style={{ marginTop: 16 }}>
+        <Field label="Asunto" htmlFor="ct-subject" required>
+          <Select
+            id="ct-subject"
+            value={form.subject}
+            onChange={(e) => update("subject", e.target.value)}
+          >
+            <option>Membresía</option>
+            <option>Alianza institucional</option>
+            <option>Prensa / Comunicación</option>
+            <option>Otro</option>
+          </Select>
+        </Field>
       </div>
-      <div className="field" style={{ marginTop: 16 }}>
-        <label htmlFor="ct-message">
-          Mensaje <span className="req">*</span>
-        </label>
-        <textarea
-          id="ct-message"
-          className="textarea"
-          rows={5}
-          value={form.message}
-          onChange={(e) => update("message", e.target.value)}
-          aria-invalid={!!errors.message}
-          aria-describedby={errors.message ? "ct-message-err" : undefined}
-          placeholder="Cuéntanos brevemente qué te interesa."
-        />
-        {errors.message && (
-          <div id="ct-message-err" role="alert" style={ERROR_STYLE}>
-            {errors.message}
-          </div>
-        )}
+      <div style={{ marginTop: 16 }}>
+        <Field label="Mensaje" htmlFor="ct-message" required error={errors.message}>
+          <Textarea
+            id="ct-message"
+            rows={5}
+            value={form.message}
+            onChange={(e) => update("message", e.target.value)}
+            aria-invalid={!!errors.message}
+            aria-describedby={errors.message ? "ct-message-err" : undefined}
+            placeholder="Cuéntanos brevemente qué te interesa."
+          />
+        </Field>
       </div>
       <div style={{ marginTop: 24 }}>
-        <PillButton as="button" type="submit" variant="primary" iconRight={<Icon.arrowRight />}>
+        <Button as="button" type="submit" variant="primary" iconRight={<Icon.arrowRight />}>
           Enviar mensaje
-        </PillButton>
+        </Button>
       </div>
       <p
         id="form-help"
@@ -425,14 +404,7 @@ function Contact() {
         }}
       />
       <ContactMap />
-      {toast && (
-        <div className="toast" role="status" aria-live="polite">
-          <span style={{ color: "var(--jci-teal)", display: "inline-flex" }}>
-            <Icon.check />
-          </span>
-          {toast}
-        </div>
-      )}
+      {toast && <Toast message={toast} icon={<Icon.check />} />}
     </>
   );
 }

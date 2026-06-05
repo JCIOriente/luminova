@@ -1,10 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { PillButton } from "../components/pill-button";
-import { RippleBackground } from "../components/ripple";
-import { SectionHeader } from "../components/section-header";
-import { Reveal } from "../components/reveal";
+import { Button, ArrowLink, RippleBackground, SectionHeader, Reveal, Icon } from "@luminova/ui";
 import { AreaCard, ProgramCard, ImpactStat } from "../components/cards";
-import { Icon } from "../components/icons";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -114,7 +110,7 @@ function HomeHero() {
             propósito desde 1993.
           </p>
           <div style={{ marginTop: 36, display: "flex", gap: 14, flexWrap: "wrap" }}>
-            <PillButton
+            <Button
               variant="primary"
               onDark
               onClick={(e) => {
@@ -123,8 +119,8 @@ function HomeHero() {
               }}
             >
               Conoce JCI Oriente
-            </PillButton>
-            <PillButton
+            </Button>
+            <Button
               variant="secondary"
               onDark
               iconRight={<Icon.arrowRight />}
@@ -134,7 +130,7 @@ function HomeHero() {
               }}
             >
               Ver nuestros programas
-            </PillButton>
+            </Button>
           </div>
         </div>
 
@@ -232,9 +228,7 @@ function HomePrograms() {
           }}
         >
           <SectionHeader eyebrow="Programas insignia" title="Cinco programas. Un compromiso." />
-          <a href="#" className="btn-ghost" style={{ paddingBottom: 8 }}>
-            Ver todos los programas <Icon.arrowRight />
-          </a>
+          <ArrowLink href="#">Ver todos los programas</ArrowLink>
         </div>
         <div className="program-scroller" style={{ marginTop: 56 }}>
           <div className="program-grid">
@@ -351,7 +345,7 @@ function HomeCTA() {
             flexWrap: "wrap",
           }}
         >
-          <PillButton
+          <Button
             variant="primary"
             onDark
             iconRight={<Icon.arrowRight />}
@@ -361,8 +355,8 @@ function HomeCTA() {
             }}
           >
             Contáctanos
-          </PillButton>
-          <PillButton
+          </Button>
+          <Button
             variant="secondary"
             onDark
             onClick={(e) => {
@@ -371,7 +365,7 @@ function HomeCTA() {
             }}
           >
             Conoce a JCI Oriente
-          </PillButton>
+          </Button>
         </div>
       </div>
     </section>
