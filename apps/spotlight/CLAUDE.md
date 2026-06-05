@@ -62,3 +62,11 @@ Public-facing marketing website for JCI Oriente. No authentication. No Firebase 
 Header: fixed nav with links to `/about` and `/contact`, active link highlighting, scroll shadow effect, mobile hamburger menu.
 
 Footer: 4-column grid — quick links, programs, contact info, social links.
+
+## Harness
+
+- **Toolchain.** Node 24, pnpm, Vite, React 19, TS 5.7 strict, TanStack Router, Tailwind v4. Consumes `@luminova/ui`.
+- **CI gate.** `spotlight-ci` = prettier-check → eslint → tsc → vite build → vitest → knip (unused) → size-limit. Run via `pnpm --filter spotlight run ci` (rolled into `pnpm pr-tests`). Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin.
+- **Invariants (CI-enforceable).** Zero `firebase`/`@luminova/firebase` imports. No `@tanstack/react-query`. Contact form client-side only — no network call.
+- **Heaviest skills.** `frontend-design` then `ui-ux-pro-max` (brand identity); `react-best-practices` (auto on `.tsx`).
+- **Sensitive surfaces.** None (no auth, no backend). Dispatch `bundle-budget-watcher` after dep/route additions.

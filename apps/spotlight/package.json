@@ -1,0 +1,12 @@
+{
+  "name": "spotlight",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc --noEmit",
+    "ci": "eslint . && tsc --noEmit && vitest run --passWithNoTests"
+  }
+}

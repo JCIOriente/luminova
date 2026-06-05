@@ -69,3 +69,10 @@ import { Button, Sheet, SheetContent } from '@luminova/ui'
 - popover, command (for combobox/multi-select)
 - radio-group (for scope selection)
 - textarea
+
+## Harness
+
+- **Toolchain.** Node 24, pnpm, React 19, TS 5.7 strict, Tailwind v4, Radix UI. Built as a workspace library consumed by `apps/spotlight` + `apps/backstage`.
+- **CI gate.** `ui-ci` = prettier-check → eslint → tsc → vitest → knip (unused exports). Run via `pnpm --filter @luminova/ui run ci` (rolled into `pnpm pr-tests`). Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin.
+- **Invariants.** Do not modify shadcn internals — wrap in consuming app. Custom components in `src/components/custom/`. Components re-exported from `src/index.ts`.
+- **Heaviest skills.** `react-best-practices` (auto), `ui-ux-pro-max` (component-level a11y). Dispatch `bundle-budget-watcher` on export surface growth.

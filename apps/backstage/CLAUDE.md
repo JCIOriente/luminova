@@ -141,3 +141,11 @@ Import db from `@luminova/firebase`:
 import { db } from '@luminova/firebase'
 import { collection, doc, getDocs, addDoc } from 'firebase/firestore'
 ```
+
+## Harness
+
+- **Toolchain.** Node 24, pnpm, Vite, React 19, TS 5.7 strict, TanStack Router + Query v5, RHF + Zod. Consumes `@luminova/ui`, `@luminova/firebase`, `@luminova/types`.
+- **CI gate.** `backstage-ci` = prettier-check → eslint → tsc → vite build → vitest → knip → size-limit. Run via `pnpm --filter backstage run ci` (rolled into `pnpm pr-tests`). Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin.
+- **Invariants.** Auth guard via `beforeLoad` (not in component). No barrel files in features. Soft-delete only (never hard delete). One repository class per collection.
+- **Sensitive surfaces → REQUIRE `/security-review` + `firestore-security-reviewer`.** Auth flow (`_auth.login`, `_app.tsx` guard), every `repositories/*` Firestore access, any change to `firestore.rules`.
+- **Heaviest skills.** `react-best-practices` (auto), `ui-ux-pro-max` (a11y for tables/forms), `/security-review`.

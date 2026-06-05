@@ -1,0 +1,15 @@
+{
+  "name": "beacon",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc --noEmit",
+    "ci": "eslint . && tsc --noEmit && vitest run --passWithNoTests"
+  }
+}

@@ -30,7 +30,7 @@ Two public-facing and admin apps + one serverless backend, deployed to Firebase.
 
 ## Stack
 
-- **React 19** + **TypeScript 5.7** (strict mode)
+- **React 19** + **TypeScript 6.0** (strict mode)
 - **TanStack Router** (file-based routing)
 - **TanStack Query v5** (server state)
 - **React Hook Form** + **Zod** (forms + validation)
@@ -216,6 +216,69 @@ Skills are stage-specific. Don't invoke them all at once — map each to its pha
 - **Never skip `/security-review`** when touching auth, Firestore rules, or Cloud Functions code.
 - **`frontend-design` before `ui-ux-pro-max`** — vision first, validation second. Reversing creates "designed by committee" results.
 - **`/simplify` is for post-feature cleanup**, not for code under active iteration. Run it when the feature is functionally done.
+
+## Tooling Index
+
+Single source of truth for every harness tool. The **Skill Workflow** section above is the full skill catalog + ordering — not repeated here. This index adds the non-skill tools (hooks, subagents, MCP) and the cross-tool routing.
+
+### Subagents (`.claude/agents/*`) — read-only reviewers
+
+| Agent | When to dispatch | Walks |
+|-------|------------------|-------|
+| `firebase-functions-reviewer` | Reviewing any `apps/beacon` change before "done" | Cloud Functions readiness: admin-SDK-only, input validation, idempotency, error handling, no client SDK |
+| `firestore-security-reviewer` | Touching `firestore.rules`, repositories, or auth-guarded routes | Rules vs repository access, auth checks, soft-delete invariants, least-privilege |
+| `bundle-budget-watcher` | After frontend (`spotlight`/`backstage`/`ui`) changes that add deps or routes | build + bundle size + unused exports; reports budget breaches |
+
+### Hooks (`.claude/hooks/*`, wired in `.claude/settings.json`)
+
+| Hook | Event | Does |
+|------|-------|------|
+| `pre-commit.sh` | `PreToolUse` Bash `git commit` | auto fmt-fix + re-stage, then lint/typecheck; blocks only if still failing. Honors `--no-verify` w/ warning |
+| `post-pr-create.sh` | `PostToolUse` Bash `gh pr create` | path-routes: if diff touches `apps/beacon`, auth routes, `firestore.rules`, or functions → leads with `/security-review` prompt. Always reminds `pnpm pr-tests` |
+| `stop.sh` | `Stop` | prints `git status -sb` + uncommitted count; nudges checkpoint commit if >10 files. Read-only |
+
+### MCP servers (`.mcp.json`)
+
+None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops go through `gh` CLI. Firebase introspection via emulators.
+
+### Routing quick-reference
+
+| If the task is… | Reach for… |
+|---|---|
+| New feature / behavior change | `superpowers:brainstorming` → `writing-plans` → TDD |
+| UI / aesthetic work (spotlight) | `frontend-design` → `ui-ux-pro-max` |
+| Add/upgrade a dependency | `secure-dep-vetting` (auto) |
+| `.tsx` edits | `react-best-practices` (auto) |
+| Touching auth / Firestore rules / Cloud Functions | `/security-review` + matching `-reviewer` subagent |
+| Bug / test failure | `superpowers:systematic-debugging` |
+| About to claim "done" | `superpowers:verification-before-completion` + dispatch relevant `-reviewer` |
+
+### Ordering when several tools apply
+
+1. **Process skills** (brainstorming, debugging) — decide HOW.
+2. **Domain skills** (frontend-design, react-best-practices) — execute.
+3. **Review subagents** (`-reviewer`, `-watcher`) — audit risky surfaces.
+4. **Cross-stack review** (`/security-review`, `/code-review`) — last, before PR.
+
+## Cross-Cutting Discipline
+
+- **Spec threshold.** Open a `docs/specs/` design doc when **≥2** of: new route/endpoint, new cross-boundary contract, >3 files touched, touches auth/Firestore-rules/Cloud-Functions, user-facing copy/flow change, measurable perf impact, schema/migration-coupled. Single-file polish doesn't need a spec.
+- **Prompt-refine default.** Non-trivial request (>1 file, opens a PR, changes a contract, edits CI/hooks, invokes a project skill) → first reply with (1) refined prompt (1–3 lines), (2) numbered tool plan, (3) one-line proceed/adjust question. Then wait. Bypass words: `auto`, `go`, `just do it`.
+- **Checkpoint commits.** Commit per milestone; never batch >10 modified files. Stop hook nudges this.
+- **PR workflow.** Always `gh pr create`, never web UI. Body template:
+  ```
+  ## Summary
+  - <what changed>
+  - <why>
+
+  ## Test plan
+  - [ ] <stack>-ci pass
+  - [ ] /security-review run (if triggers match)
+  ```
+  Run `pnpm pr-tests` locally right after opening.
+- **Branch / commit naming.** Branches `feat/ fix/ chore/ migration/`. Commits = Conventional Commits with module scope (`feat(backstage): …`). `master` always deployable.
+- **Codegen-drift gate.** Any artifact generated on one boundary and consumed on another (e.g. `@luminova/types` shared schemas, generated Firestore types) gets a CI check that regenerates and fails on diff.
+- **Docs layout.** `docs/specs/` (designs), `docs/plans/` (impl plans), `docs/status/` (handoffs), `docs/tooling/skill-development-log.md` (skill history).
 
 ## Reference Docs
 

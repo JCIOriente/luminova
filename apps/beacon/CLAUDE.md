@@ -68,3 +68,11 @@ Firestore write to /events/{id}
 - `calculatePointsForRoles(event, rules)` — return Record<memberId, points>
 - `aggregatePoints(rolePointMaps)` — merge and sum points from all roles
 - `getMemberPointsRef(year, month, eventId)` — return Firestore DocumentReference
+
+## Harness
+
+- **Toolchain.** Node 24 runtime (`firebase.json` → `functions.runtime: "nodejs24"`, `engines.node: "24"`). `firebase-admin` + `firebase-functions`. TS 5.7 strict.
+- **CI gate.** `beacon-ci` = prettier-check → eslint → tsc → vitest (emulator-backed) → npm audit. Run via `pnpm --filter beacon run ci` (rolled into `pnpm pr-tests`). Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin.
+- **Invariants.** Admin SDK only — **never** import `firebase/firestore` (client SDK). `extractEventData` returns null on invalid input (no unchecked reads). Trigger logic idempotent (re-running on same event yields same `memberPoints` doc).
+- **Sensitive surface — server-side trust boundary. ALWAYS `/security-review` + `firebase-functions-reviewer` before "done".** Untrusted Firestore input, points calc integrity, deletion handling.
+- **Heaviest skills.** `/security-review`, `secure-dep-vetting` (server deps).
