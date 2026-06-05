@@ -53,4 +53,24 @@ describe("firestore.rules", () => {
     const db = env.authenticatedContext("admin").firestore();
     await assertSucceeds(setDoc(doc(db, "members/m1"), { name: "Ana" }));
   });
+
+  it("denies authenticated client writes to memberPoints", async () => {
+    const db = env.authenticatedContext("admin").firestore();
+    await assertFails(setDoc(doc(db, "memberPoints/2025/03/e1"), { name: "x" }));
+  });
+
+  it("allows authenticated reads of memberPoints", async () => {
+    const db = env.authenticatedContext("admin").firestore();
+    await assertSucceeds(getDoc(doc(db, "memberPoints/2025/03/e1")));
+  });
+
+  it("denies anonymous writes to board", async () => {
+    const db = env.unauthenticatedContext().firestore();
+    await assertFails(setDoc(doc(db, "board/b1"), { title: "x" }));
+  });
+
+  it("denies authenticated access to an unlisted collection", async () => {
+    const db = env.authenticatedContext("admin").firestore();
+    await assertFails(getDoc(doc(db, "settings/s1")));
+  });
 });
