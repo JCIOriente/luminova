@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthLoginRouteImport } from './routes/_auth.login'
+import { Route as AppMembersRouteImport } from './routes/_app.members'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -32,28 +33,42 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => AuthRoute,
 } as any)
+const AppMembersRoute = AppMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/members': typeof AppMembersRoute
   '/login': typeof AuthLoginRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
+  '/members': typeof AppMembersRoute
   '/login': typeof AuthLoginRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
+  '/_app/members': typeof AppMembersRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login'
+  fullPaths: '/' | '/members' | '/login'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login'
-  id: '__root__' | '/_app' | '/_auth' | '/_auth/login' | '/_app/'
+  to: '/' | '/members' | '/login'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/_auth'
+    | '/_app/members'
+    | '/_auth/login'
+    | '/_app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -91,14 +106,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_app/members': {
+      id: '/_app/members'
+      path: '/members'
+      fullPath: '/members'
+      preLoaderRoute: typeof AppMembersRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppMembersRoute: typeof AppMembersRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppMembersRoute: AppMembersRoute,
   AppIndexRoute: AppIndexRoute,
 }
 

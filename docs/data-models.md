@@ -11,14 +11,29 @@ interface Member {
   email: string               // valid email
   phone?: string              // optional
   role: string                // min 3 chars (e.g. "Presidente", "Secretario")
-  profilePicture: string | null  // Firebase Storage URL or null
+  profession?: string         // optional
+  joinDate: Timestamp         // membership start date (required)
+  birthdate: Timestamp        // required
+  status: 'Activo' | 'Inactivo' | 'Desafiliado'  // membership standing (default 'Activo')
+  profilePicture: string | null  // Firebase Storage URL or null (upload deferred — set null on create)
   totalPoints: number         // default: 0 — updated by aggregation
   active: boolean             // default: true — false = soft deleted
   deletedAt: Timestamp | null // null = active, Timestamp = soft deleted
 }
 ```
 
+**`status` vs `active`**: orthogonal. `active`/`deletedAt` are the system soft-delete
+flag (a deleted row is hidden from the list). `status` is editable membership
+standing — a `Desafiliado` member is **not** deleted and still appears in the list.
+
 **Soft delete**: Never hard-delete members. Set `active: false` and `deletedAt: serverTimestamp()`.
+
+> **Type location:** `@luminova/types` does not exist yet (no `beacon` consumer
+> needs a shared `Member`). The `Member` type + `MemberInput` Zod schema live
+> locally in `apps/backstage/src/features/members/types/`. Promote to
+> `@luminova/types` when a second app (beacon) consumes it. Form input handles
+> `joinDate`/`birthdate` as `YYYY-MM-DD` strings; the repository maps them to/from
+> Firestore `Timestamp`.
 
 **Queries used**:
 - Get active members: `where('active', '==', true)`
