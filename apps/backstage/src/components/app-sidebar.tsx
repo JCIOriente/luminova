@@ -18,9 +18,16 @@ export function AppSidebar() {
       <nav className="flex flex-col gap-1">
         <Link
           to="/"
+          activeOptions={{ exact: true }}
           className="rounded-[8px] px-3 py-2 text-[15px] text-ink-1 hover:bg-surface-3 [&.active]:bg-surface-3 [&.active]:font-semibold"
         >
           Panel
+        </Link>
+        <Link
+          to="/members"
+          className="rounded-[8px] px-3 py-2 text-[15px] text-ink-1 hover:bg-surface-3 [&.active]:bg-surface-3 [&.active]:font-semibold"
+        >
+          Miembros
         </Link>
       </nav>
       <div className="mt-auto">

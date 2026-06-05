@@ -12,4 +12,7 @@ export { LogoLockup } from "./components/logo-lockup";
 export { RippleSVG, RippleBackground, RippleDivider } from "./components/ripple";
 export { Toast } from "./components/toast";
 export { Tooltip } from "./components/tooltip";
+export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./components/table";
+export { Sheet } from "./components/sheet";
+export { Dialog } from "./components/dialog";
 export { cn } from "./lib/cn";
