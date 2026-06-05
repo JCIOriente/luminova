@@ -29,6 +29,12 @@ export function AppSidebar() {
         >
           Miembros
         </Link>
+        <Link
+          to="/allies"
+          className="rounded-[8px] px-3 py-2 text-[15px] text-ink-1 hover:bg-surface-3 [&.active]:bg-surface-3 [&.active]:font-semibold"
+        >
+          Aliados
+        </Link>
       </nav>
       <div className="mt-auto">
         <Button as="button" type="button" variant="secondary" size="sm" onClick={onLogout}>
