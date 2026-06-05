@@ -247,7 +247,7 @@ None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops g
 |---|---|
 | New feature / behavior change | `superpowers:brainstorming` → `writing-plans` → TDD |
 | UI / aesthetic work (spotlight) | `frontend-design` → `ui-ux-pro-max` |
-| Add/upgrade a dependency | `secure-dep-vetting` (auto) |
+| Add / upgrade / replace / **remove** / security-patch a dependency | `secure-dep-vetting` (auto) — full lifecycle; uses `pnpm audit` (CVEs) + `pnpm knip` (unused) |
 | `.tsx` edits | `react-best-practices` (auto) |
 | Touching auth / Firestore rules / Cloud Functions | `/security-review` + matching `-reviewer` subagent |
 | Bug / test failure | `superpowers:systematic-debugging` |

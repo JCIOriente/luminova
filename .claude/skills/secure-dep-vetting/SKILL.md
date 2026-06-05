@@ -1,6 +1,6 @@
 ---
 name: secure-dep-vetting
-description: Vet npm dependencies before adding or upgrading them — always pick the latest secure version compatible with Node 24, block on known CVEs. Use this skill whenever the user wants to add, install, upgrade, or replace a dependency in `package.json` or any related lockfile, even if they don't ask for security review explicitly. Triggers on phrases like "add lodash", "install zod", "add this package", "bump axios to latest", "replace moment with dayjs", "what version of X should I use", "is this dep safe", "add a new npm dependency", or any edit that touches a `dependencies` / `devDependencies` block. Runs `npm view` to find the current latest, checks `engines.node` compatibility with Node 24, runs `pnpm audit` to check for CVEs, and refuses to proceed when a known advisory or incompatibility exists. Always invoke before editing dependency files — never default to a stale version pulled from training data.
+description: Manage the full dependency lifecycle safely — add, upgrade, replace, security-patch, and remove npm dependencies. Always pick the latest secure version compatible with Node 24, block on known CVEs, and prune deps once they are no longer used. Use whenever the user wants to add, install, upgrade, replace, security-bump, or remove a dependency in `package.json` or a lockfile, even if they don't ask for security review explicitly. Triggers on phrases like "add lodash", "install zod", "bump axios to latest", "replace moment with dayjs", "what version of X should I use", "is this dep safe", "fix the audit warnings", "patch the CVE", "are there security issues", "remove unused deps", "is anything dead", "drop the package we no longer use", "clean up dependencies", "run knip", or any edit that touches a `dependencies` / `devDependencies` block. Runs `npm view` for the current latest, checks `engines.node` against Node 24, runs `pnpm audit` for CVEs, and `pnpm knip` to find unused deps. Refuses to proceed on a known advisory or incompatibility. Always invoke before editing dependency files — never default to a stale version from training data.
 ---
 
 # Secure Dependency Vetting
@@ -151,6 +151,43 @@ After the workflow, summarize so the user can verify quickly:
 
 Action: added to <file> | blocked, suggested alternative: <name>
 ```
+
+## Security upgrades (patching a CVE in existing deps)
+
+When `pnpm audit` (or a Dependabot/Renovate alert, or "fix the audit warnings")
+flags an advisory in a dep already in the tree:
+
+1. Identify the advisory: `pnpm audit --audit-level=high` — note the package,
+   severity, advisory ID, and the **patched version range**.
+2. **Direct dep** → bump it via this skill's add/upgrade workflow (verify the
+   patched version is itself latest-secure and Node 24 compatible).
+3. **Transitive dep** with a fixed parent available → bump the parent.
+4. **Transitive dep, no parent fix yet** → add a `pnpm.overrides` entry pinning
+   the transitive to its patched version (Step 7), then `pnpm install` + re-audit.
+5. Re-run `pnpm audit --audit-level=high` — must come back clean (or only
+   accepted moderates) before claiming the CVE is fixed.
+
+Never "fix" a high/critical CVE by lowering `--audit-level`. That hides it.
+
+## Removing a dependency (no longer needed)
+
+Removal is `knip`-driven — never delete a dep by guessing it's unused.
+
+1. **Find unused.** `pnpm knip` reports unused files, exports, and **unused
+   dependencies** per workspace. Also use it after deleting a feature.
+2. **Confirm before removing.** For each flagged dep, grep the workspace to be
+   sure knip isn't missing a dynamic/`import()` or config-only use (e.g. a
+   plugin referenced only in `eslint.config.js` or `vite.config.ts`). knip's
+   entry patterns must cover those config files or it false-positives.
+3. **Remove from the correct workspace.** `pnpm --filter <pkg> remove <dep>`
+   (not a hand-edit — keeps the lockfile correct).
+4. **Re-verify.** `pnpm --filter <pkg> run ci` + `pnpm knip` + `pnpm audit`.
+   Removing a dep can shrink the tree enough to clear a transitive CVE — good.
+5. **Bundle impact.** For frontend packages, dispatch `bundle-budget-watcher`
+   to confirm the removal actually dropped weight and left no dangling imports.
+
+This is the prune half of the lifecycle: the `ci` gate's `knip` step keeps deps
+honest continuously; this section is what to do when it flags something.
 
 ## Why this exists
 

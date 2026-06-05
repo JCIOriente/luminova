@@ -16,7 +16,8 @@
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
     "knip": "knip",
-    "pr-tests": "pnpm format && turbo run ci && pnpm knip"
+    "audit": "pnpm audit --audit-level=high",
+    "pr-tests": "pnpm format && turbo run ci && pnpm knip && pnpm audit --audit-level=high"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
