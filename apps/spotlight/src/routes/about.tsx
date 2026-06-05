@@ -1,11 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { PillButton } from "../components/pill-button";
-import { RippleBackground } from "../components/ripple";
-import { SectionHeader } from "../components/section-header";
-import { Reveal } from "../components/reveal";
-import { ImgSlot } from "../components/img-slot";
+import { Button, RippleBackground, SectionHeader, Reveal, ImgSlot, Icon } from "@luminova/ui";
 import { TimelineItem } from "../components/cards";
-import { Icon } from "../components/icons";
 
 export const Route = createFileRoute("/about")({
   component: About,
@@ -283,7 +278,7 @@ function AboutWhyJoin() {
           ))}
         </div>
         <div style={{ marginTop: 64, display: "flex", justifyContent: "center" }}>
-          <PillButton
+          <Button
             variant="primary"
             iconRight={<Icon.arrowRight />}
             onClick={(e) => {
@@ -292,7 +287,7 @@ function AboutWhyJoin() {
             }}
           >
             Únete a JCI Oriente
-          </PillButton>
+          </Button>
         </div>
       </div>
     </section>

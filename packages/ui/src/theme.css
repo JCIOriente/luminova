@@ -1,0 +1,59 @@
+/* ================================================================
+   @luminova/ui — shared JCI Oriente design tokens (Tailwind v4).
+   Imported by every app: `@import "@luminova/ui/theme.css";`
+   Generates utilities: text-jci-blue, bg-surface, text-ink-2,
+   border-line, font-serif, rounded-pill, animate-ripple-spin, …
+   ================================================================ */
+@theme {
+  /* Brand — locked */
+  --color-jci-blue: #0097d7;
+  --color-jci-blue-2: #0086c0;
+  --color-jci-black: #130f2d;
+  --color-jci-white: #ffffff;
+  --color-jci-navy: #1f4789;
+  --color-jci-teal: #57bcbc;
+  --color-jci-yellow: #efc40f;
+  --color-bone: #f4f1ea;
+
+  /* Surfaces / ink / lines (promoted to --color-* so utilities generate) */
+  --color-surface: #ffffff;
+  --color-surface-2: #f7f9fb;
+  --color-surface-3: #eef2f6;
+  --color-line: rgba(19, 15, 45, 0.08);
+  --color-line-strong: rgba(19, 15, 45, 0.16);
+  --color-ink-1: #130f2d;
+  --color-ink-2: rgba(19, 15, 45, 0.72);
+  --color-ink-3: rgba(19, 15, 45, 0.52);
+
+  /* Type */
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Arvo", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  /* Radii */
+  --radius-card: 12px;
+  --radius-pill: 9999px;
+
+  /* Animations */
+  --animate-ripple-spin: ripple-rotate 60s linear infinite;
+  --animate-toast-in: toast-in 200ms ease-out;
+
+  @keyframes ripple-rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 8px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+  }
+}

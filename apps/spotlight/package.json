@@ -15,6 +15,7 @@
     "@fontsource/arvo": "^5.2.7",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/plus-jakarta-sans": "^5.2.8",
+    "@luminova/ui": "workspace:*",
     "@tanstack/react-router": "^1.170.11",
     "clsx": "^2.1.1",
     "react": "^19.2.7",

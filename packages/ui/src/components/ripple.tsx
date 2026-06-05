@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactElement } from "react";
+import { cn } from "../lib/cn";
 
 interface RippleSVGProps {
   rings?: number;
@@ -12,10 +13,7 @@ interface RippleSVGProps {
   gapDeg?: number;
 }
 
-/**
- * Concentric rings, each split into 4 quarter-arcs, each ring rotated from the
- * inner one. Pure SVG — the JCI Oriente brand motif.
- */
+/** Concentric quarter-arc rings — the JCI Oriente brand motif. */
 export function RippleSVG({
   rings = 7,
   baseRadius = 24,
@@ -154,9 +152,14 @@ export function RippleBackground({
       rings = 6;
       stroke = 6;
   }
-  if (opacity !== undefined) style.opacity = opacity;
   return (
-    <div className={`ripple-svg ${spin ? "ripple-spin" : ""}`} style={style}>
+    <div
+      className={cn(
+        "absolute origin-center",
+        spin && "animate-ripple-spin motion-reduce:animate-none",
+      )}
+      style={{ ...style, opacity: opacity ?? 0.085 }}
+    >
       <RippleSVG rings={rings} stroke={stroke} color={color} size={800} />
     </div>
   );
@@ -164,7 +167,7 @@ export function RippleBackground({
 
 export function RippleDivider({ color = "rgba(19,15,45,0.18)" }: { color?: string }) {
   return (
-    <div className="divider-ripple" aria-hidden="true">
+    <div className="flex justify-center py-2" aria-hidden="true">
       <div style={{ width: 56, height: 56, opacity: 0.55 }}>
         <RippleSVG rings={3} stroke={3} color={color} size={56} />
       </div>

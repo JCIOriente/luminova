@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { cn } from "../lib/cn";
 
 interface RevealProps {
   children: ReactNode;
@@ -7,7 +8,7 @@ interface RevealProps {
   className?: string;
 }
 
-export function Reveal({ children, delay = 0, className = "" }: RevealProps) {
+export function Reveal({ children, delay = 0, className }: RevealProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [seen, setSeen] = useState(false);
 
@@ -32,7 +33,11 @@ export function Reveal({ children, delay = 0, className = "" }: RevealProps) {
   return (
     <div
       ref={ref}
-      className={`reveal ${seen ? "in" : ""} ${className}`}
+      className={cn(
+        "transition-[opacity,transform] duration-[600ms] ease-out motion-reduce:transition-none",
+        seen ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0",
+        className,
+      )}
       style={{ transitionDelay: `${delay}ms` }}
     >
       {children}
