@@ -2,77 +2,67 @@
 
 ## Purpose
 
-Shared UI component library using shadcn/ui. All components are copied into this package and shared across `apps/backstage` and `apps/spotlight`.
+Shared component library for `apps/spotlight` and `apps/backstage`. Bespoke,
+token-driven components styled with **pure Tailwind v4 utility classes** (no
+semantic CSS classes). Consumed as **raw TypeScript source** (no build step).
 
-## Adding Components
+## What's here now (bespoke)
 
-Run from `packages/ui` directory:
-```bash
-pnpm dlx shadcn@latest add <component-name>
+`src/components/`: Button (polymorphic `a|button`, `variant` primary/secondary/ghost,
+`onDark`/`onBlue`, `sm`), Icon set + ArrowRight, ArrowLink, Input, Textarea,
+Select, Field (label + error), Reveal (IntersectionObserver), SectionHeader,
+ImgSlot, LogoLockup (self-contained PNG assets in `src/assets/`), Ripple
+(RippleSVG/RippleBackground/RippleDivider), Toast (presentational), Tooltip
+(`@radix-ui/react-tooltip`, styled with our tokens). `cn()` in `src/lib/cn.ts`.
+
+Everything is re-exported from `src/index.ts` (explicit named exports — no
+`export *`, to satisfy `verbatimModuleSyntax`/`isolatedModules`).
+
+## Deferred (shadcn/Radix complex widgets)
+
+Complex admin widgets — **combobox, dialog, command, table, sheet, popover,
+data-table** — are NOT here yet. When backstage needs them, add via shadcn/Radix
+(accessibility), styled to the JCI tokens. Keep them in `src/components/` beside
+the bespoke set. Tooltip already follows this pattern (Radix primitive + our
+utilities, not shadcn's separate theme-var system).
+
+## Design tokens — `src/theme.css`
+
+Single source of truth. Tailwind v4 `@theme` block: brand colors + ink/surface/
+line (as `--color-*` → `text-ink-2`, `bg-surface`, `border-line` utilities),
+fonts (`font-sans/serif/mono`), radii (`rounded-card/pill`), and the
+`ripple-spin` / `toast-in` animations. Exported as `@luminova/ui/theme.css`.
+
+## Consuming this package (apps)
+
+```css
+/* app's entry CSS, in order */
+@import "tailwindcss";
+@import "@luminova/ui/theme.css";
+@source "../../../packages/ui/src/**/*.{ts,tsx}";   /* REQUIRED */
 ```
 
-Examples:
-```bash
-pnpm dlx shadcn@latest add button
-pnpm dlx shadcn@latest add sheet
-pnpm dlx shadcn@latest add table
-pnpm dlx shadcn@latest add form
-pnpm dlx shadcn@latest add combobox
-```
+The `@source` line is **mandatory** — without it Tailwind purges the utility
+classes used inside `@luminova/ui` components and they render unstyled. Path is
+relative to the app's CSS file (3 levels up to repo root → `packages/ui/src`).
 
-## Structure
+Then `pnpm --filter <app> add "@luminova/ui@workspace:*"` and
+`import { Button, Input, … } from "@luminova/ui"`.
 
-```
-packages/ui/
-├── components.json          ← shadcn config (aliases, style, etc.)
-├── src/
-│   ├── components/          ← all shadcn-generated components
-│   │   ├── ui/
-│   │   │   ├── button.tsx
-│   │   │   ├── sheet.tsx
-│   │   │   └── ...
-│   └── index.ts             ← re-export everything
-```
+## Conventions
 
-## Exports
-
-All components exported from `src/index.ts`:
-```ts
-export * from './components/ui/button'
-export * from './components/ui/sheet'
-// etc.
-```
-
-Apps import as:
-```ts
-import { Button, Sheet, SheetContent } from '@luminova/ui'
-```
+- **Pure Tailwind utilities** in components; use `cn()` to merge/override
+  (tailwind-merge resolves conflicts — order matters: append overrides last).
+- **React is a peerDependency** (singleton) — never bundle React here.
+- **No semantic CSS classes** for shared components (those stay app-local for
+  marketing-specific styling, e.g. spotlight's `.area-card`, `.site-header`).
+- **Reduced motion**: animated components use `motion-reduce:*` variants. Apps
+  should also keep a global `@media (prefers-reduced-motion)` reset.
+- Add a dependency only via the `secure-dep-vetting` skill.
 
 ## Rules
 
-- **Do not modify shadcn internals** — if you need custom behavior, wrap the component in the consuming app
-- **Do not hand-write components** that shadcn provides — always use `shadcn add` first
-- Custom non-shadcn components (e.g., `MemberSelector`, `DateRangePicker`) go in `src/components/custom/`
-- Tailwind config lives in `packages/ui` — apps extend it via workspace reference
-
-## Components Needed for Backstage
-
-- button, input, label, form
-- sheet (for add/edit forms)
-- table
-- select, combobox
-- dialog (for confirmations)
-- badge, separator, spinner
-- toast, toaster
-- tabs (for grouped content)
-- card (for dashboard)
-- popover, command (for combobox/multi-select)
-- radio-group (for scope selection)
-- textarea
-
-## Harness
-
-- **Toolchain.** Node 24, pnpm, React 19, TS 5.7 strict, Tailwind v4, Radix UI. Built as a workspace library consumed by `apps/spotlight` + `apps/backstage`.
-- **CI gate.** `ui-ci` = prettier-check → eslint → tsc → vitest → knip (unused exports). Run via `pnpm --filter @luminova/ui run ci` (rolled into `pnpm pr-tests`). Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin.
-- **Invariants.** Do not modify shadcn internals — wrap in consuming app. Custom components in `src/components/custom/`. Components re-exported from `src/index.ts`.
-- **Heaviest skills.** `react-best-practices` (auto), `ui-ux-pro-max` (component-level a11y). Dispatch `bundle-budget-watcher` on export surface growth.
+- Don't reintroduce a build step — apps import the raw `.ts`/`.tsx` source.
+- Every new export must be added to `src/index.ts` and consumed by an app or the
+  smoke test (knip flags unused exports).
+- Keep brand fidelity: components mirror the Claude Design handoff's visual spec.

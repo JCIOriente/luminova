@@ -18,7 +18,7 @@ Two public-facing and admin apps + one serverless backend, deployed to Firebase.
 
 | Package | Name | Purpose |
 |---------|------|---------|
-| `packages/ui` | `@luminova/ui` | shadcn/ui components shared across apps |
+| `packages/ui` | `@luminova/ui` | Bespoke token-driven components (Tailwind utilities) shared across apps; shadcn/Radix for complex widgets (deferred) |
 | `packages/firebase` | `@luminova/firebase` | Firebase client singleton (auth, firestore, storage) |
 | `packages/types` | `@luminova/types` | Shared TypeScript types and data models |
 | `packages/utils` | `@luminova/utils` | Shared utilities (cn, etc.) |
@@ -276,7 +276,7 @@ None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops g
   - [ ] /security-review run (if triggers match)
   ```
   Run `pnpm pr-tests` locally right after opening.
-- **Branch / commit naming.** Branches `feat/ fix/ chore/ migration/`. Commits = Conventional Commits with module scope (`feat(backstage): …`). `master` always deployable.
+- **Branch per feature.** Every feature/fix gets its own branch off `main`, created **before** the first edit — never commit feature work directly to `main`/`master`. Branches `feat/ fix/ chore/ migration/` (e.g. `feat/shared-ui-components`); open a PR to integrate. Commits = Conventional Commits with module scope (`feat(backstage): …`). `master` always deployable.
 - **Codegen-drift gate.** Any artifact generated on one boundary and consumed on another (e.g. `@luminova/types` shared schemas, generated Firestore types) gets a CI check that regenerates and fails on diff.
 - **Docs layout.** `docs/specs/` (designs), `docs/plans/` (impl plans), `docs/status/` (handoffs), `docs/tooling/skill-development-log.md` (skill history).
 
