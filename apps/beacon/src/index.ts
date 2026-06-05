@@ -9,12 +9,16 @@ function db() {
   return getFirestore();
 }
 
+export function buildMemberPointsPath(year: string, month: string, eventId: string): string {
+  return `memberPoints/${year}/${month}/${eventId}`;
+}
+
 export function getMemberPointsRef(
   year: string,
   month: string,
   eventId: string,
 ): DocumentReference {
-  return db().doc(`memberPoints/${year}/${month}/${eventId}`);
+  return db().doc(buildMemberPointsPath(year, month, eventId));
 }
 
 export const awardPoints = onDocumentWritten("events/{id}", async () => {

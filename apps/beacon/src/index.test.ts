@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FUNCTION_NAME, awardPoints, getMemberPointsRef } from "./index";
+import { FUNCTION_NAME, awardPoints, buildMemberPointsPath, getMemberPointsRef } from "./index";
 
 describe("beacon", () => {
   it("exposes the awardPoints function name", () => {
@@ -12,5 +12,9 @@ describe("beacon", () => {
 
   it("exports a getMemberPointsRef helper", () => {
     expect(typeof getMemberPointsRef).toBe("function");
+  });
+
+  it("builds the memberPoints path from year/month/eventId", () => {
+    expect(buildMemberPointsPath("2025", "03", "abc123")).toBe("memberPoints/2025/03/abc123");
   });
 });
