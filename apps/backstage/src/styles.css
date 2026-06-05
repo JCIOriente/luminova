@@ -1,0 +1,27 @@
+@import "tailwindcss";
+@import "@luminova/ui/theme.css";
+/* Scan @luminova/ui source so its Tailwind utility classes aren't purged. */
+@source "../../../packages/ui/src/**/*.{ts,tsx}";
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    font-family: var(--font-sans, system-ui, sans-serif);
+    color: var(--color-ink-1, #130f2d);
+    background: var(--color-surface, #f7f9fb);
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition-duration: 0.001ms !important;
+      animation-duration: 0.001ms !important;
+    }
+  }
+}
