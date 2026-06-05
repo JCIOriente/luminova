@@ -13,9 +13,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 let env: RulesTestEnvironment;
 
 beforeAll(async () => {
-  const rulesPath = resolve(
-    fileURLToPath(new URL("../../firestore.rules", import.meta.url))
-  );
+  const rulesPath = resolve(fileURLToPath(new URL("../../firestore.rules", import.meta.url)));
   env = await initializeTestEnvironment({
     projectId: "demo-rules-test",
     firestore: {

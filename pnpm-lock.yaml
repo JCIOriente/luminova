@@ -120,7 +120,7 @@ importers:
         specifier: ^5.0.1
         version: 5.0.1(firebase@12.14.0)
       '@types/node':
-        specifier: 25.9.1
+        specifier: ^25.9.1
         version: 25.9.1
       firebase:
         specifier: 12.14.0

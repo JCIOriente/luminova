@@ -589,7 +589,7 @@ Fill `VITE_FIREBASE_*` from the spotlight web-app sdkconfig captured in Task 1.
 VITE_FIREBASE_API_KEY=
 VITE_FIREBASE_AUTH_DOMAIN=jci-oriente.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=jci-oriente
-VITE_FIREBASE_STORAGE_BUCKET=jci-oriente.appspot.com
+VITE_FIREBASE_STORAGE_BUCKET=jci-oriente.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 # App Check (reCAPTCHA v3) — paste real key when created; leave blank to disable locally
@@ -607,7 +607,7 @@ Fill `VITE_FIREBASE_*` from the backstage web-app sdkconfig captured in Task 1.
 VITE_FIREBASE_API_KEY=
 VITE_FIREBASE_AUTH_DOMAIN=jci-oriente.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=jci-oriente
-VITE_FIREBASE_STORAGE_BUCKET=jci-oriente.appspot.com
+VITE_FIREBASE_STORAGE_BUCKET=jci-oriente.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 VITE_APPCHECK_SITE_KEY=
