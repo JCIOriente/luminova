@@ -9,8 +9,9 @@ PR, one at a time or in parallel where dependencies allow. `[P]` = parallel-safe
 notes the merged PR.
 
 _Last synced: 2026-06-06 — §A Recognition Engine complete + fed (F3·A1·A2·A5·A6·A3
-all merged to main). Reshaped around the **Recognition Engine** after a
-product/UX discussion (points, QR attendance, multi-role access, award submissions)._
+all merged to main); B1 member home (#20); **E1/E2/E5 widgets (#21)** unblocking D1.
+Reshaped around the **Recognition Engine** after a product/UX discussion (points,
+QR attendance, multi-role access, award submissions)._
 
 ## Naming conventions
 
@@ -110,7 +111,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 - **Beacon**: **`awardPoints` real engine (A2)** — `checkIns` → `participations` + `memberPoints`; report-confirm triggers; **`setUserRoles` callable + seed bootstrap (F1)**.
 - **`@luminova/auth` (F1)**: role contract + CASL ability builder; role-aware `firestore.rules`.
 - **`@luminova/types` (F2)**: shared `Member`/`MemberStatus`/`Ally` types + zod schemas; **`/engine` subpath (F3)** — engine model + helpers + `CheckIn`/`checkInSchema` (BUILT package); backstage + beacon consume them.
-- **`@luminova/ui`**: primitives + **QR widgets (E4)** (`/qr-code`, `/qr-scanner`).
+- **`@luminova/ui`**: primitives + **QR widgets (E4)** (`/qr-code`, `/qr-scanner`) + **Popover (E5) / Combobox (E1) / MultiSelect (E2)** (Radix popover + cmdk).
 - **§A Recognition Engine COMPLETE + FED (F3·A1·A2·A5·A6·A3)** — points flow end-to-end; verified by a live functions-emulator e2e.
 
 ---
@@ -154,7 +155,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| D1 🟡 | **Events / Activities CRUD** — partial: A3 shipped a **thin Activity create form + table** (`/activities`, category/startAt/nullable parent). Full version (edit/delete, program/project parent + director/co-director/participant selects via E1/E2, upcoming-events feed) still ⬜ | E1, E2 | `[S]` | director/co-director/participant selects; ties to attendance (A3) + points + project link; conditional `parentId` for `Activity` |
+| D1 🟡 | **Events / Activities CRUD** — partial: A3 shipped a **thin Activity create form + table** (`/activities`, category/startAt/nullable parent). Full version (edit/delete, program/project parent + director/co-director/participant selects via E1/E2, upcoming-events feed) still ⬜. **E1/E2/E5 widgets now ✅ (#21) → unblocked.** | ~~E1, E2~~ ✅ | `[S]` | director/co-director/participant selects; ties to attendance (A3) + points + project link; conditional `parentId` for `Activity` |
 | D2 | **Reports** | A*, D1 | `[S]` | needs members/events/points data |
 | D3 | **Communications** | external email | `[S]` | scope before committing (likely a backend/email integration) |
 | D4 | **Settings** page (real) | F1 | `[P]` | profile + theme + org + role mgmt |
@@ -163,11 +164,11 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| E1 | **Combobox** (single-select + search) | — | `[P]` | blocks Events |
-| E2 | **Multi-select** with search | E1 | `[S]` | blocks Events |
-| E3 | **Command palette** primitive | E5 | `[P]` | blocks ⌘K |
+| ~~E1~~ ✅ | **Combobox** (single-select + search) — DONE (#21). `@luminova/ui` `Combobox` on Radix Popover + cmdk; re-select clears; barrel-exported | — | `[P]` | unblocked Events (D1) |
+| ~~E2~~ ✅ | **Multi-select** with search — DONE (#21). `MultiSelect` (same Popover+cmdk body) with removable chips; pure helpers unit-tested | E1 | `[S]` | unblocked Events (D1) |
+| E3 | **Command palette** primitive | E5 | `[P]` | blocks ⌘K; cmdk (added in #21) seeds it |
 | ~~E4~~ ✅ | **QR generator + QR scanner** components — DONE (#18, with A3). `@luminova/ui/qr-code` (qrcode.react) + `@luminova/ui/qr-scanner` (@zxing camera), deep-imported for lazy chunking | camera/lib (vet dep) | `[P]` | unblocked A3; mobile camera UX |
-| E5 | **Popover** primitive | — | `[P]` | shared by combobox/menus/command |
+| ~~E5~~ ✅ | **Popover** primitive — DONE (#21). `Popover` wraps `@radix-ui/react-popover`, JCI-token styled; backs E1/E2 (and later menus/E3) | — | `[P]` | shared by combobox/menus/command |
 | E6 | **DataTable** (sort/filter/paginate/skeleton) | — | `[P]` | consolidates Members/Allies/Events tables; see F1-table below |
 
 ## F. UI polish / follow-ons (mostly independent)
