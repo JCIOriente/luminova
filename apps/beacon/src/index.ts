@@ -24,3 +24,5 @@ export function getMemberPointsRef(
 export const awardPoints = onDocumentWritten("events/{id}", async () => {
   throw new Error("not implemented");
 });
+
+export { setUserRoles } from "./set-user-roles.js";

@@ -108,6 +108,9 @@ importers:
 
   apps/beacon:
     dependencies:
+      '@luminova/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       firebase-admin:
         specifier: 13.10.0
         version: 13.10.0
