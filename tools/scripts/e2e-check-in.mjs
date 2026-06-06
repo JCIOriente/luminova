@@ -38,18 +38,16 @@ async function main() {
     deletedAt: null,
     isPastPresident: false,
   });
-  await db
-    .doc(`terms/${TERM}`)
-    .set(
-      {
-        status: "Activo",
-        conventionDate: null,
-        pointsCutoffAt: null,
-        board: [],
-        bestMemberId: null,
-      },
-      { merge: true },
-    );
+  await db.doc(`terms/${TERM}`).set(
+    {
+      status: "Activo",
+      conventionDate: null,
+      pointsCutoffAt: null,
+      board: [],
+      bestMemberId: null,
+    },
+    { merge: true },
+  );
   // Assembly starting now → Attendee within 15 min → punctuality factor 1.
   await db.doc(`activities/${ACTIVITY}`).set({
     termId: TERM,
