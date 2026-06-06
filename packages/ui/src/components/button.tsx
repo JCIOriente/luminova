@@ -26,6 +26,7 @@ interface AnchorButton extends CommonProps {
 interface NativeButton extends CommonProps {
   as: "button";
   type?: "button" | "submit" | "reset";
+  disabled?: boolean;
 }
 
 export type ButtonProps = AnchorButton | NativeButton;
@@ -81,7 +82,12 @@ export function Button(props: ButtonProps) {
 
   if (props.as === "button") {
     return (
-      <button className={cls} type={props.type ?? "button"} onClick={props.onClick}>
+      <button
+        className={cn(cls, props.disabled && "cursor-not-allowed opacity-60")}
+        type={props.type ?? "button"}
+        onClick={props.onClick}
+        disabled={props.disabled}
+      >
         {inner}
       </button>
     );
