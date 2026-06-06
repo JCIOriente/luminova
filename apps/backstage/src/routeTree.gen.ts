@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthLoginRouteImport } from './routes/_auth.login'
 import { Route as AppMembersRouteImport } from './routes/_app.members'
+import { Route as AppAlliesRouteImport } from './routes/_app.allies'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -38,14 +39,21 @@ const AppMembersRoute = AppMembersRouteImport.update({
   path: '/members',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAlliesRoute = AppAlliesRouteImport.update({
+  id: '/allies',
+  path: '/allies',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/allies': typeof AppAlliesRoute
   '/members': typeof AppMembersRoute
   '/login': typeof AuthLoginRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
+  '/allies': typeof AppAlliesRoute
   '/members': typeof AppMembersRoute
   '/login': typeof AuthLoginRoute
 }
@@ -53,19 +61,21 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
+  '/_app/allies': typeof AppAlliesRoute
   '/_app/members': typeof AppMembersRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/members' | '/login'
+  fullPaths: '/' | '/allies' | '/members' | '/login'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/members' | '/login'
+  to: '/' | '/allies' | '/members' | '/login'
   id:
     | '__root__'
     | '/_app'
     | '/_auth'
+    | '/_app/allies'
     | '/_app/members'
     | '/_auth/login'
     | '/_app/'
@@ -113,15 +123,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMembersRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/allies': {
+      id: '/_app/allies'
+      path: '/allies'
+      fullPath: '/allies'
+      preLoaderRoute: typeof AppAlliesRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppAlliesRoute: typeof AppAlliesRoute
   AppMembersRoute: typeof AppMembersRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAlliesRoute: AppAlliesRoute,
   AppMembersRoute: AppMembersRoute,
   AppIndexRoute: AppIndexRoute,
 }

@@ -87,14 +87,20 @@ interface PointRule {
 ```typescript
 interface Ally {
   id: string
-  companyName: string         // required
-  personInCharge: string      // required
+  companyName: string         // required, min 3 chars
+  personInCharge: string      // required, min 3 chars
   phone: string               // required
   email: string               // valid email
+  active: boolean             // system — soft-delete flag (default true)
+  deletedAt: Timestamp | null // system — set on soft-delete (serverTimestamp)
 }
 ```
 
-**Query used**: `orderBy('companyName')` for sorted list display.
+**Soft-delete**: allies are never hard-deleted. `softDelete` sets `active=false` and
+`deletedAt`. List/read queries filter `active==true`. `active`/`deletedAt` are
+system-managed — never written by the edit form.
+
+**Query used**: `where('active','==',true)`, sorted client-side by `companyName` (es locale).
 
 ---
 
