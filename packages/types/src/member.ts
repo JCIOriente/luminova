@@ -1,5 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
-import type { MEMBER_STATUSES } from "./member-schema";
+
+export const MEMBER_STATUSES = ["Activo", "Inactivo", "Desafiliado"] as const;
 
 export type MemberStatus = (typeof MEMBER_STATUSES)[number];
 

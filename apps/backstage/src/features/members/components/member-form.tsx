@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Field, Input, Select } from "@luminova/ui";
-import { memberSchema, type MemberInput, MEMBER_STATUSES } from "../types/member-schema";
+import { memberSchema, type MemberInput, MEMBER_STATUSES } from "@luminova/types";
 
 interface MemberFormProps {
   defaultValues?: Partial<MemberInput>;

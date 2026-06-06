@@ -1,6 +1,5 @@
 import { z } from "zod";
-
-export const MEMBER_STATUSES = ["Activo", "Inactivo", "Desafiliado"] as const;
+import { MEMBER_STATUSES } from "./member";
 
 const dateString = z
   .string()

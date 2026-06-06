@@ -36,7 +36,7 @@ describe("AllyForm", () => {
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
         companyName: "Acme Bolivia",
-        personInCharge: "Ana Pérez",
+        contactPerson: "Ana Pérez",
         phone: "777",
         email: "contacto@acme.bo",
       }),

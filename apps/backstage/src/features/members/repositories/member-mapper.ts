@@ -1,5 +1,5 @@
 import { Timestamp } from "firebase/firestore";
-import type { MemberInput } from "../types/member-schema";
+import type { MemberInput } from "@luminova/types";
 
 function toTimestamp(dateString: string): Timestamp {
   // UTC midnight so a date-only value is stored consistently regardless of the

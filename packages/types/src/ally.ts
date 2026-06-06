@@ -4,7 +4,7 @@ import type { Timestamp } from "firebase/firestore";
 export interface Ally {
   id: string;
   companyName: string;
-  personInCharge: string;
+  contactPerson: string;
   phone: string;
   email: string;
   active: boolean;

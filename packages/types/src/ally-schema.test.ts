@@ -3,7 +3,7 @@ import { allySchema } from "./ally-schema";
 
 const valid = {
   companyName: "Acme Bolivia",
-  personInCharge: "Ana Pérez",
+  contactPerson: "Ana Pérez",
   phone: "777",
   email: "contacto@acme.bo",
 };
@@ -17,8 +17,8 @@ describe("allySchema", () => {
     expect(allySchema.safeParse({ ...valid, companyName: "AB" }).success).toBe(false);
   });
 
-  it("rejects a short personInCharge", () => {
-    expect(allySchema.safeParse({ ...valid, personInCharge: "An" }).success).toBe(false);
+  it("rejects a short contactPerson", () => {
+    expect(allySchema.safeParse({ ...valid, contactPerson: "An" }).success).toBe(false);
   });
 
   it("rejects an empty phone", () => {

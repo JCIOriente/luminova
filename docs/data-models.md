@@ -88,7 +88,7 @@ interface PointRule {
 interface Ally {
   id: string
   companyName: string         // required, min 3 chars
-  personInCharge: string      // required, min 3 chars
+  contactPerson: string       // required, min 3 chars (label "Encargado")
   phone: string               // required
   email: string               // valid email
   active: boolean             // system — soft-delete flag (default true)

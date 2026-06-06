@@ -10,8 +10,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import type { Member } from "../types/member";
-import type { MemberInput } from "../types/member-schema";
+import type { Member, MemberInput } from "@luminova/types";
 import { toMemberCreateDoc, toMemberUpdateDoc } from "./member-mapper";
 
 export class MemberRepository {

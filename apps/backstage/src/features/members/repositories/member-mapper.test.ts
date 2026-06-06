@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Timestamp } from "firebase/firestore";
 import { toMemberCreateDoc, toMemberUpdateDoc, dateInputValue } from "./member-mapper";
-import type { MemberInput } from "../types/member-schema";
+import type { MemberInput } from "@luminova/types";
 
 const input: MemberInput = {
   name: "Ana Pérez",

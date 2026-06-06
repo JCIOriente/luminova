@@ -53,6 +53,9 @@ importers:
       '@luminova/firebase':
         specifier: workspace:*
         version: link:../../packages/firebase
+      '@luminova/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@luminova/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -185,6 +188,16 @@ importers:
 
   packages/firebase:
     dependencies:
+      firebase:
+        specifier: 12.14.0
+        version: 12.14.0
+
+  packages/types:
+    dependencies:
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
       firebase:
         specifier: 12.14.0
         version: 12.14.0

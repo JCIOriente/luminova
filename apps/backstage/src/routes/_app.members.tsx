@@ -9,8 +9,7 @@ import { MemberTable } from "../features/members/components/member-table";
 import { MemberForm } from "../features/members/components/member-form";
 import { PageHeader } from "../components/page-header";
 import { dateInputValue } from "../features/members/repositories/member-mapper";
-import type { Member } from "../features/members/types/member";
-import type { MemberInput } from "../features/members/types/member-schema";
+import type { Member, MemberInput } from "@luminova/types";
 
 export const Route = createFileRoute("/_app/members")({
   component: MembersPage,

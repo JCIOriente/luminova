@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { memberSchema } from "./member-schema";
+import { MEMBER_STATUSES } from "./member";
 
 const valid = {
   name: "Ana Pérez",
@@ -47,5 +48,9 @@ describe("memberSchema", () => {
 
   it("rejects a status outside the enum", () => {
     expect(memberSchema.safeParse({ ...valid, status: "Suspendido" }).success).toBe(false);
+  });
+
+  it("exposes the three Spanish status values", () => {
+    expect(MEMBER_STATUSES).toEqual(["Activo", "Inactivo", "Desafiliado"]);
   });
 });
