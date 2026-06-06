@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "./timestamp.js";
 
 export const TERM_STATUSES = ["Activo", "Cerrado"] as const;
 export type TermStatus = (typeof TERM_STATUSES)[number];

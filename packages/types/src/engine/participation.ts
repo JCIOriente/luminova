@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "./timestamp.js";
 import type { PointRuleCode } from "./point-rule.js";
 import type { InitiativeKind } from "./activity.js";
 

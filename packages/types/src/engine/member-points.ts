@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "./timestamp.js";
 
 /** Derived aggregate (id === memberId). Engine-written; `Member.totalPoints` mirrors `cumulative`. */
 export interface MemberPoints {
