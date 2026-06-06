@@ -25,6 +25,9 @@ class FakeStore implements EngineStore {
   async isReportFiled(_t: string, parentId: string) {
     return this.reports.has(parentId);
   }
+  async getParticipation(id: string) {
+    return this.rows.get(id) ?? null;
+  }
   async setParticipation(row: Participation) {
     this.rows.set(row.id, row);
   }
@@ -124,6 +127,15 @@ describe("processCheckInDelete", () => {
   it("removes the row and recomputes", async () => {
     store.reports.add("p1");
     await processCheckIn(store, checkIn);
+    await processCheckInDelete(store, checkIn);
+    expect(store.rows.size).toBe(0);
+    expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 0, byMonth: {} });
+  });
+
+  it("recomputes from the row's termId even if the activity is already gone", async () => {
+    store.reports.add("p1");
+    await processCheckIn(store, checkIn);
+    store.activities.clear(); // activity deleted before the check-in
     await processCheckInDelete(store, checkIn);
     expect(store.rows.size).toBe(0);
     expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 0, byMonth: {} });

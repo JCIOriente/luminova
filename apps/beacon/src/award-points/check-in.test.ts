@@ -37,4 +37,16 @@ describe("validateCheckIn", () => {
     ).toBeNull();
     expect(validateCheckIn(undefined)).toBeNull();
   });
+
+  it("rejects ids containing '/' or '__' (path/collision safety)", () => {
+    expect(
+      validateCheckIn({ memberId: "m/1", activityId: "a1", role: "Attendee", checkInAt: ts }),
+    ).toBeNull();
+    expect(
+      validateCheckIn({ memberId: "m__1", activityId: "a1", role: "Attendee", checkInAt: ts }),
+    ).toBeNull();
+    expect(
+      validateCheckIn({ memberId: "m1", activityId: "a/1", role: "Attendee", checkInAt: ts }),
+    ).toBeNull();
+  });
 });

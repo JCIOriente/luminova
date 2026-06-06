@@ -300,13 +300,18 @@ interface Participation {
 
 ```typescript
 interface MemberPoints {
-  id: string                     // === memberId
+  id: string                     // === `${memberId}__${termId}` (per-term; the competition resets each gestión)
+  memberId: string
   termId: string
   cumulative: number             // Σ computedPoints of confirmed rows in term window
   byMonth: Record<string, number> // { 'YYYY-MM': number }
   updatedAt: Timestamp
 }
 ```
+
+The engine writes `memberPoints/{memberId__termId}`. The `participations` confirmed
+query (`memberId == · termId == · state == confirmed`) needs a composite index
+(in `firestore.indexes.json`).
 
 `Member.totalPoints` mirrors `cumulative`. **Never authored directly.** A new optional
 `Member.isPastPresident?: boolean` (missing = `false`) feeds eligibility.

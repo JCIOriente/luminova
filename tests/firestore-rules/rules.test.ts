@@ -231,6 +231,12 @@ describe("firestore.rules — checkIns", () => {
       setDoc(doc(ctx, "checkIns/c_bad"), { memberId: "m1", activityId: "a1", role: "Attendee" }),
     );
   });
+  it("denies Scanner registering a non-Attendee role (no self-award of director points)", async () => {
+    const ctx = asClaims("s3", { roles: ["Scanner"], scannerEventIds: ["a1"] });
+    await assertFails(
+      setDoc(doc(ctx, "checkIns/c_dir"), { memberId: "s3", activityId: "a1", role: "Director" }),
+    );
+  });
   it("denies a plain Member from creating", async () => {
     await assertFails(
       setDoc(doc(as("u", ["Member"]), "checkIns/c_m"), {

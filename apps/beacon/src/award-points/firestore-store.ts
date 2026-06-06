@@ -1,23 +1,42 @@
-import { type Firestore, type Timestamp } from "firebase-admin/firestore";
-import type { PointRuleCode, InitiativeKind, Participation } from "@luminova/types/engine";
+import { FieldValue, type Firestore, type Timestamp } from "firebase-admin/firestore";
+import {
+  ACTIVITY_CATEGORIES,
+  type PointRuleCode,
+  type InitiativeKind,
+  type Participation,
+} from "@luminova/types/engine";
 import type { EngineStore } from "./store.js";
 import type { ActivityRef } from "./derive.js";
 import type { AggregateRow, MemberAggregate } from "./aggregate.js";
+
+function hasToMillis(value: unknown): value is Timestamp {
+  return typeof (value as { toMillis?: unknown })?.toMillis === "function";
+}
+
+/** Parse a Firestore activity doc into an ActivityRef, or null if the required fields are malformed. */
+function parseActivity(id: string, data: Record<string, unknown>): ActivityRef | null {
+  const { termId, category, parentType, parentId, startAt } = data;
+  if (typeof termId !== "string" || termId.length === 0) return null;
+  if (!ACTIVITY_CATEGORIES.includes(category as ActivityRef["category"])) return null;
+  if (parentType !== null && parentType !== "Program" && parentType !== "Project") return null;
+  if (parentId !== null && typeof parentId !== "string") return null;
+  if (!hasToMillis(startAt)) return null;
+  return {
+    id,
+    termId,
+    category: category as ActivityRef["category"],
+    parentType: parentType as InitiativeKind | null,
+    parentId: parentId as string | null,
+    startAt,
+  };
+}
 
 export function createFirestoreStore(db: Firestore): EngineStore {
   return {
     async getActivity(activityId) {
       const snap = await db.doc(`activities/${activityId}`).get();
       if (!snap.exists) return null;
-      const d = snap.data() as Omit<ActivityRef, "id">;
-      return {
-        id: snap.id,
-        termId: d.termId,
-        category: d.category,
-        parentType: d.parentType,
-        parentId: d.parentId,
-        startAt: d.startAt as Timestamp,
-      };
+      return parseActivity(snap.id, snap.data() as Record<string, unknown>);
     },
     async getPointRulePoints(termId, code: PointRuleCode) {
       const snap = await db.doc(`pointRules/${termId}__${code}`).get();
@@ -29,6 +48,11 @@ export function createFirestoreStore(db: Firestore): EngineStore {
       const collection = parentType === "Program" ? "programs" : "projects";
       const snap = await db.doc(`${collection}/${parentId}`).get();
       return snap.exists && (snap.data() as { finalReport?: unknown }).finalReport != null;
+    },
+    async getParticipation(id): Promise<Participation | null> {
+      const snap = await db.doc(`participations/${id}`).get();
+      if (!snap.exists) return null;
+      return { id: snap.id, ...(snap.data() as Omit<Participation, "id">) };
     },
     async setParticipation(row: Participation) {
       const { id, ...data } = row;
@@ -54,7 +78,11 @@ export function createFirestoreStore(db: Firestore): EngineStore {
       return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<Participation, "id">) }));
     },
     async setMemberAggregate(memberId, termId, aggregate: MemberAggregate) {
-      await db.doc(`memberPoints/${memberId}`).set({ termId, ...aggregate, updatedAt: new Date() });
+      // Keyed by member AND term — the competition resets each gestión, so a member
+      // has one aggregate doc per term (never clobber a prior term's totals).
+      await db
+        .doc(`memberPoints/${memberId}__${termId}`)
+        .set({ memberId, termId, ...aggregate, updatedAt: FieldValue.serverTimestamp() });
       await db
         .doc(`members/${memberId}`)
         .set({ totalPoints: aggregate.cumulative }, { merge: true });
