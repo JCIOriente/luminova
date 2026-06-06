@@ -1,4 +1,4 @@
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
 import type { MemberPoints } from "@luminova/types/engine";
 
@@ -10,5 +10,13 @@ export class MemberPointsRepository {
     const snapshot = await getDoc(doc(this.db, "memberPoints", `${memberId}__${termId}`));
     if (!snapshot.exists()) return null;
     return { id: snapshot.id, ...(snapshot.data() as Omit<MemberPoints, "id">) };
+  }
+
+  /** Every member's aggregate for a term (drives the leaderboard). */
+  async getAllByTerm(termId: string): Promise<MemberPoints[]> {
+    const snapshot = await getDocs(
+      query(collection(this.db, "memberPoints"), where("termId", "==", termId)),
+    );
+    return snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<MemberPoints, "id">) }));
   }
 }
