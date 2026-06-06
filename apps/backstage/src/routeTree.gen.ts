@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthLoginRouteImport } from './routes/_auth.login'
+import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
 import { Route as AppMembersRouteImport } from './routes/_app.members'
 import { Route as AppAlliesRouteImport } from './routes/_app.allies'
 
@@ -34,6 +35,11 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => AuthRoute,
 } as any)
+const AppPointRulesRoute = AppPointRulesRouteImport.update({
+  id: '/point-rules',
+  path: '/point-rules',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppMembersRoute = AppMembersRouteImport.update({
   id: '/members',
   path: '/members',
@@ -49,12 +55,14 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/allies': typeof AppAlliesRoute
   '/members': typeof AppMembersRoute
+  '/point-rules': typeof AppPointRulesRoute
   '/login': typeof AuthLoginRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/allies': typeof AppAlliesRoute
   '/members': typeof AppMembersRoute
+  '/point-rules': typeof AppPointRulesRoute
   '/login': typeof AuthLoginRoute
 }
 export interface FileRoutesById {
@@ -63,20 +71,22 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/_app/allies': typeof AppAlliesRoute
   '/_app/members': typeof AppMembersRoute
+  '/_app/point-rules': typeof AppPointRulesRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/allies' | '/members' | '/login'
+  fullPaths: '/' | '/allies' | '/members' | '/point-rules' | '/login'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/allies' | '/members' | '/login'
+  to: '/' | '/allies' | '/members' | '/point-rules' | '/login'
   id:
     | '__root__'
     | '/_app'
     | '/_auth'
     | '/_app/allies'
     | '/_app/members'
+    | '/_app/point-rules'
     | '/_auth/login'
     | '/_app/'
   fileRoutesById: FileRoutesById
@@ -116,6 +126,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_app/point-rules': {
+      id: '/_app/point-rules'
+      path: '/point-rules'
+      fullPath: '/point-rules'
+      preLoaderRoute: typeof AppPointRulesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/members': {
       id: '/_app/members'
       path: '/members'
@@ -136,12 +153,14 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAlliesRoute: typeof AppAlliesRoute
   AppMembersRoute: typeof AppMembersRoute
+  AppPointRulesRoute: typeof AppPointRulesRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppAlliesRoute: AppAlliesRoute,
   AppMembersRoute: AppMembersRoute,
+  AppPointRulesRoute: AppPointRulesRoute,
   AppIndexRoute: AppIndexRoute,
 }
 
