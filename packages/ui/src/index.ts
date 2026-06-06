@@ -19,4 +19,7 @@ export { Dialog } from "./components/dialog";
 export { Sparkline } from "./components/sparkline-chart";
 export { LineChart } from "./components/line-chart-view";
 export type { ChartSeries } from "./components/line-chart";
+export { KpiCard, type KpiTone, type KpiTrend } from "./components/kpi-card";
+export { Skeleton } from "./components/skeleton";
+export { EmptyState } from "./components/empty-state";
 export { cn } from "./lib/cn";
