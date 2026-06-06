@@ -19,6 +19,7 @@ export const memberSchema = z.object({
   joinDate: dateString,
   birthdate: dateString,
   status: z.enum(MEMBER_STATUSES),
+  isPastPresident: z.boolean().optional(),
 });
 
 export type MemberInput = z.infer<typeof memberSchema>;

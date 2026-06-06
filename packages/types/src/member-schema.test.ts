@@ -54,3 +54,15 @@ describe("memberSchema", () => {
     expect(MEMBER_STATUSES).toEqual(["Activo", "Inactivo", "Desafiliado"]);
   });
 });
+
+describe("memberSchema isPastPresident", () => {
+  it("accepts an explicit boolean", () => {
+    const parsed = memberSchema.parse({ ...valid, isPastPresident: true });
+    expect(parsed.isPastPresident).toBe(true);
+  });
+
+  it("is optional (omitted parses fine)", () => {
+    const parsed = memberSchema.parse(valid);
+    expect(parsed.isPastPresident).toBeUndefined();
+  });
+});

@@ -17,6 +17,8 @@ export interface Member {
   status: MemberStatus;
   profilePicture: string | null;
   totalPoints: number;
+  /** Past-president flag → eligibility (cannot accrue Mejor Miembro points). Missing = false. */
+  isPastPresident?: boolean;
   active: boolean;
   deletedAt: Timestamp | null;
 }
