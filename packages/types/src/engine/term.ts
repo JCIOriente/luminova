@@ -10,14 +10,13 @@ export interface BoardSeat {
   isExecutiveCommittee: boolean;
 }
 
-/** Annual cycle (gestión). `year` is first-class so saved data is self-describing. */
+/** Annual cycle (gestión). The doc id IS the year (e.g. `terms/2026`). */
 export interface Term {
   id: string;
-  year: number;
   label?: string;
   board: BoardSeat[];
-  conventionDate: Timestamp;
-  pointsCutoffAt: Timestamp;
+  conventionDate: Timestamp | null; // unknown at term start
+  pointsCutoffAt: Timestamp | null; // unknown at term start
   bestMemberId: string | null;
   status: TermStatus;
 }

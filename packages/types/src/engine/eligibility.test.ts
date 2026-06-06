@@ -12,7 +12,6 @@ const ts = Timestamp.fromDate(new Date("2026-10-01T00:00:00Z"));
 function term(overrides: Partial<Term> = {}): Term {
   return {
     id: "t2026",
-    year: 2026,
     board: [
       { memberId: "cel-1", title: "Presidenta", isExecutiveCommittee: true },
       { memberId: "dir-1", title: "Director de Proyectos", isExecutiveCommittee: false },
@@ -75,7 +74,7 @@ describe("evaluateEligibility", () => {
       memberId: "dir-1",
       isPastPresident: false,
       currentTerm: term(),
-      previousTerm: term({ id: "t2025", year: 2025, bestMemberId: "dir-1" }),
+      previousTerm: term({ id: "t2025", bestMemberId: "dir-1" }),
     });
     expect(result.canCompete).toBe(false);
     expect(result.reasons).toContain("WonPreviousTerm");
@@ -86,7 +85,7 @@ describe("evaluateEligibility", () => {
       memberId: "dir-1",
       isPastPresident: false,
       currentTerm: term(),
-      previousTerm: term({ id: "t2025", year: 2025, bestMemberId: "someone-else" }),
+      previousTerm: term({ id: "t2025", bestMemberId: "someone-else" }),
     });
     expect(result.canAccrue).toBe(true);
     expect(result.canCompete).toBe(true);
