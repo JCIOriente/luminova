@@ -40,15 +40,38 @@ CASL on the client and **mirror them in `firestore.rules`** server-side.
 - `membershipStatus` — `Activo / Inactivo / Desafiliado` — lifecycle, owned by Membership/Admin.
 - `duesStatus` — derived from the payment ledger: `Al día → Pendiente` (after X overdue days) → a scheduled job flips `membershipStatus → Inactivo` (after Y more days). X/Y configurable; auto-reinstate on payment. Gives honest reporting ("left" vs "non-payment").
 
-## ⛔ Pending input artifacts (gate the engine + projects)
+## Input artifacts
 
-- **Points matrix** → `docs/reference/points-matrix.md` — the source of truth the
-  Point Rules + `awardPoints` are built to mirror. (CSV beside it is fine.)
-- **JCI award criteria** → `docs/reference/jci-award-criteria.md` — the rubric
-  fields per submission level; the Project schema + dossier export are built to match.
-- **Dues config (current year)** → `docs/reference/dues-config.md` — tier names +
-  amounts (BOB), the X/Y lapse thresholds, and the chapter→JCI-Bolivia obligation
-  (USD + BOB). Year-scoped; the Finance epic mirrors it.
+- ✅ **Points matrix** → `docs/reference/points-matrix.md` — received. It's the
+  **"Mejor Miembro Individual"** evaluation (a monthly competition), richer than a
+  counter — see "Recognition Engine — rules that shape the model" below.
+- ✅ **Dues config (2026)** → `docs/reference/dues-config.md` — received (tiered,
+  **per-tier cadence**; 30→Pendiente / 90→Inactivo; JCI-Bolivia obligation).
+- ⛔ **JCI award criteria** → `docs/reference/jci-award-criteria.md` — still pending;
+  gates the Project schema (C1) + dossier export (C2).
+
+## Recognition Engine — rules that shape the model (from the points matrix)
+
+The points system is the **Mejor Miembro Individual** competition. Design F3/§A to these:
+
+- **Hierarchy Programa → Proyecto → Actividad.** Likely one `Initiative` entity with
+  a `level` + parent link. "Actividad" = an execution instance (coordination meetings
+  don't count). Roles per level: director / co-director / team.
+- **Points are provisional, then confirmed by gates:** (a) director files the **final
+  report** (conclusions + economic report if budget — this *is* the C-epic dossier),
+  (b) director **"aval"** endorses co-director/team, (c) **attendance registered**,
+  (d) **punctuality factor** — ≤15 min after start = 100 %, later = 50 % (from the
+  **QR check-in timestamp**). Ledger entry → `provisional | confirmed`, with factor +
+  source/role + activity link.
+- **Time-windowed:** monthly accrual (1st–last), convention cutoff **3 weeks before**,
+  annual total. Leaderboard publishes **monthly (top 3 + Best of Month)** and annually.
+- **Finance → Points coupling:** only members **al día** are eligible; a **missed
+  month voids that month's points** (restored on payment); **joining a payment plan =
+  +5 pts**. The engine reads `duesStatus`.
+- **Accrual ≠ eligibility:** flags `isCEL` (can't compete), `isPastPresident` (no
+  accrual), `wonLastGestión` (excluded next year). JDL directors *do* accrue + compete.
+- **Tiebreaker:** social media (like 1 / comment 2 / share 3) — manual monthly entry.
+- **Transparency + disputes:** monthly public breakdown; members can request clarification.
 
 ## Done (baseline)
 
@@ -65,7 +88,7 @@ CASL on the client and **mirror them in `firestore.rules`** server-side.
 |---|------|-----|----------|------------------|
 | F1 | **Roles & permissions** — CASL abilities + role model. Keep **chapter title (Presidenta…) separate from permission**. Scanner is **event-scoped** (`can('checkIn','Attendance',{eventId})`). | CASL (vet dep) | `[S]` (everything access-gated leans on it) | absorbs the old rules-hardening: `firestore.rules` becomes **role-aware** (mirror CASL server-side; `delete:if false` + field guards). `/security-review` + `firestore-security-reviewer` |
 | F2 | **@luminova/types** package — promote `Member`/`Ally`/`Event`/`Project`/`Participation`/`PointRule`/`DuesConfig`/`Payment` so apps **and** beacon share them | — | `[P]` | needed before E-slices + Spotlight project showcase + Finance |
-| F3 | **Recognition Engine data model** — design the **participation ledger** `(member, context, role, when) → points`; `totalPoints` = derived aggregate of ledger entries | F2; **points matrix** | `[S]` design-first | the dependency under everything in §A |
+| F3 | **Recognition Engine data model** — **participation ledger** with `provisional\|confirmed` state + punctuality factor + month bucket + role/activity link; `Initiative` hierarchy (Programa/Proyecto/Actividad); a separate **eligibility** layer (flags) and **Finance→Points** read. See "rules that shape the model" above | F2; ✅ matrix | `[S]` design-first | the dependency under everything in §A; richer than "sum of points" |
 
 ## A. Recognition Engine (the spine — epic, ship in slices)
 
@@ -163,10 +186,10 @@ dues are **BOB**; everything is **year-scoped** because tiers change yearly.
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| J1 | **Dues config** (year-scoped): named **tiers** `{name, amount}` (BOB), the X/Y lapse thresholds, and the yearly JCI-Bolivia obligation (USD+BOB) | F2; dues-config doc | `[S]` | tiers vary per year; keep history |
+| J1 | **Dues config** (year-scoped): named **tiers** `{name, amount, cadence}` (BOB) with **per-tier cadence** (monthly/semestral/yearly; some tiers exempt = 0), the 30/90 lapse thresholds, and the yearly JCI-Bolivia obligation (USD+BOB) | F2; ✅ dues-config | `[S]` | tiers + cadence vary per year; keep history |
 | J2 | **Payment ledger** — Treasury records offline payments (date, amount, method, period/year, tier, recordedBy); append-only | J1 | `[S]` | `/security-review` + `firestore-security-reviewer` (Treasury-only writes) |
 | J3 | **Member ↔ tier assignment** per year (carry-over default) + derived `duesStatus` | J1, J2 | `[S]` | duesStatus computed, not stored mutable |
-| J4 | **Auto-lapse** scheduled function (beacon cron) — `Al día → Pendiente → Inactivo` per X/Y thresholds; auto-reinstate on payment; fires reminders | J3, F3-ledger pattern | `[S]` | `firebase-functions-reviewer`; audited, reversible |
+| J4 | **Auto-lapse** scheduled function (beacon cron) — overdue computed **per the member's tier cadence**; `Al día → Pendiente (30d) → Inactivo (90d)`; auto-reinstate on payment; fires reminders. Also **voids the lapsed month's points** + awards **+5 for joining a payment plan** (Finance→Points hooks) | J3, A2 | `[S]` | `firebase-functions-reviewer`; audited, reversible |
 | J5 | **Treasury dashboard + monthly money-movement report** — collected vs outstanding by tier/member; export | J2 | `[S]` | export for the board |
 
 ## K. Notifications & automation (in-app first; channel-agnostic)
