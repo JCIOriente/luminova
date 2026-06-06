@@ -5,7 +5,7 @@ import { Timestamp } from "firebase/firestore";
 import type { ReactElement } from "react";
 import { MemberTable } from "./member-table";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
-import type { Member } from "../types/member";
+import type { Member } from "@luminova/types";
 
 function renderAsAdmin(ui: ReactElement) {
   return render(

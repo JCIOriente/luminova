@@ -10,7 +10,7 @@ import {
   TableCell,
   type BadgeTone,
 } from "@luminova/ui";
-import type { Member, MemberStatus } from "../types/member";
+import type { Member, MemberStatus } from "@luminova/types";
 import { dateInputValue } from "../repositories/member-mapper";
 import { initials } from "../../../lib/initials";
 import { RowAction } from "../../../components/row-action";

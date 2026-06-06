@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { MemberRepository } from "../repositories/member-repository";
-import type { MemberInput } from "../types/member-schema";
+import type { MemberInput } from "@luminova/types";
 import { memberKeys } from "./member-keys";
 
 export function useUpdateMember() {

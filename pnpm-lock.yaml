@@ -53,6 +53,9 @@ importers:
       '@luminova/firebase':
         specifier: workspace:*
         version: link:../../packages/firebase
+      '@luminova/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@luminova/ui':
         specifier: workspace:*
         version: link:../../packages/ui
