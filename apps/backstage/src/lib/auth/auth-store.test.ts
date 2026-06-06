@@ -12,25 +12,45 @@ function lastCallback(): (u: User | null) => void {
   return onAuthStateChanged.mock.calls.at(-1)![1];
 }
 
+function fakeUser(uid: string, claims: Record<string, unknown> = {}): User {
+  return {
+    uid,
+    getIdTokenResult: () => Promise.resolve({ claims } as never),
+  } as unknown as User;
+}
+
 describe("createAuthStore", () => {
   beforeEach(() => onAuthStateChanged.mockClear());
 
   it("starts in pending with no user", () => {
     const store = createAuthStore({} as Auth);
-    expect(store.getState()).toEqual({ status: "pending", user: null });
+    expect(store.getState()).toEqual({ status: "pending", user: null, claims: { roles: [] } });
   });
 
   it("becomes authenticated when a user is emitted", () => {
     const store = createAuthStore({} as Auth);
-    const user = { uid: "u1" } as User;
+    const user = fakeUser("u1");
     lastCallback()(user);
-    expect(store.getState()).toEqual({ status: "authenticated", user });
+    expect(store.getState()).toEqual({ status: "authenticated", user, claims: { roles: [] } });
+  });
+
+  it("decodes roles from the id token after emission", async () => {
+    const store = createAuthStore({} as Auth);
+    const user = fakeUser("u1", { roles: ["Treasury"] });
+    lastCallback()(user);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(store.getState().claims).toEqual({ roles: ["Treasury"] });
   });
 
   it("becomes unauthenticated when null is emitted", () => {
     const store = createAuthStore({} as Auth);
     lastCallback()(null);
-    expect(store.getState()).toEqual({ status: "unauthenticated", user: null });
+    expect(store.getState()).toEqual({
+      status: "unauthenticated",
+      user: null,
+      claims: { roles: [] },
+    });
   });
 
   it("resolves ready on first emission", async () => {
@@ -43,7 +63,7 @@ describe("createAuthStore", () => {
     const store = createAuthStore({} as Auth);
     const listener = vi.fn();
     store.subscribe(listener);
-    lastCallback()({ uid: "u1" } as User);
+    lastCallback()(fakeUser("u1"));
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
