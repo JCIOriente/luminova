@@ -12,11 +12,6 @@ export const OVERVIEW_MOCK = {
       trend: { dir: "up", label: "+2 · vs. mes anterior" } as const,
       spark: [3, 4, 4, 5, 4, 6, 6],
     },
-    activeProjects: {
-      value: 4,
-      trend: { dir: "flat", label: "Sin cambios" } as const,
-      spark: [4, 4, 5, 4, 4, 4, 4],
-    },
     pendingTasks: {
       value: 12,
       trend: { dir: "down", label: "−3 · esta semana" } as const,

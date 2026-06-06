@@ -1,4 +1,4 @@
-import { Badge, Button, Icon, KpiCard, LineChart, type BadgeTone } from "@luminova/ui";
+import { Badge, Button, Icon, KpiCard, LineChart } from "@luminova/ui";
 import { OVERVIEW_MOCK } from "./overview-mock";
 
 function firstName(value: string): string {
@@ -145,7 +145,7 @@ export function OverviewView({
                       <span>{e.place}</span>
                     </div>
                   </div>
-                  <Badge tone={e.status.tone as BadgeTone} dot>
+                  <Badge tone={e.status.tone} dot>
                     {e.status.label}
                   </Badge>
                 </div>
@@ -194,7 +194,7 @@ export function OverviewView({
               className="group flex flex-col items-start gap-3.5 rounded-[14px] border border-line bg-surface p-[18px] text-left shadow-[0_1px_2px_rgba(19,15,45,0.05)] transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[0_18px_40px_-24px_rgba(19,15,45,0.22)]"
             >
               <span className="flex size-[42px] items-center justify-center rounded-[12px] bg-jci-blue/10 text-jci-blue">
-                {Icon[q.icon as keyof typeof Icon]({ s: 21 })}
+                {Icon[q.icon]({ s: 21 })}
               </span>
               <span>
                 <span className="block text-[14px] font-semibold text-ink-1">{q.title}</span>
