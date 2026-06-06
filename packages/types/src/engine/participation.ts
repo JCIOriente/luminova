@@ -1,5 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 import type { PointRuleCode } from "./point-rule";
+import type { InitiativeKind } from "./activity";
 
 export const PARTICIPATION_ROLES = ["Director", "CoDirector", "Team", "Attendee"] as const;
 export type ParticipationRole = (typeof PARTICIPATION_ROLES)[number];
@@ -19,6 +20,8 @@ export interface Participation {
   memberId: string;
   termId: string;
   activityId: string;
+  parentType: InitiativeKind | null; // denormalized from the activity (for report-gate query)
+  parentId: string | null;
   role: ParticipationRole;
   pointRuleCode: PointRuleCode;
   basePoints: number;
