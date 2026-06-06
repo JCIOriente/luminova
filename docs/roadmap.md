@@ -4,7 +4,12 @@ Living doc. Each item is a self-contained workstream: brainstorm → plan → TD
 PR, one at a time or in parallel where dependencies allow. `[P]` = parallel-safe,
 `[S]` = sequential (dependency noted).
 
-_Last synced: 2026-06-06 — reshaped around the **Recognition Engine** after a
+**Status legend:** ✅ done (merged) · 🟡 partial (a slice shipped, rest deferred) ·
+⬜ not started. The `#` column strikes through (`~~A1~~ ✅`) completed items and
+notes the merged PR.
+
+_Last synced: 2026-06-06 — §A Recognition Engine complete + fed (F3·A1·A2·A5·A6·A3
+all merged to main). Reshaped around the **Recognition Engine** after a
 product/UX discussion (points, QR attendance, multi-role access, award submissions)._
 
 ## Naming conventions
@@ -101,10 +106,12 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 
 - Monorepo harness; **Spotlight** (images still placeholders); **@luminova/ui**
   primitives; **@luminova/firebase** + emulator; **firebase.json/.firebaserc**.
-- **Backstage**: bootstrap + auth, **Members CRUD**, **Allies CRUD**, **UI uplift**, **role-aware ability gating (F1)**.
-- **Beacon**: `awardPoints` trigger scaffold (throws "not implemented"); **`setUserRoles` callable + seed bootstrap (F1)**.
+- **Backstage**: bootstrap + auth, **Members CRUD**, **Allies CRUD**, **UI uplift**, **role-aware ability gating (F1)**, **Point Rules admin (A1)**, **Member profile (A5)**, **Leaderboard (A6)**, **Activities create + QR check-in (A3)**.
+- **Beacon**: **`awardPoints` real engine (A2)** — `checkIns` → `participations` + `memberPoints`; report-confirm triggers; **`setUserRoles` callable + seed bootstrap (F1)**.
 - **`@luminova/auth` (F1)**: role contract + CASL ability builder; role-aware `firestore.rules`.
-- **`@luminova/types` (F2)**: shared `Member`/`MemberStatus`/`Ally` types + zod schemas (BUILT package); backstage consumes them.
+- **`@luminova/types` (F2)**: shared `Member`/`MemberStatus`/`Ally` types + zod schemas; **`/engine` subpath (F3)** — engine model + helpers + `CheckIn`/`checkInSchema` (BUILT package); backstage + beacon consume them.
+- **`@luminova/ui`**: primitives + **QR widgets (E4)** (`/qr-code`, `/qr-scanner`).
+- **§A Recognition Engine COMPLETE + FED (F3·A1·A2·A5·A6·A3)** — points flow end-to-end; verified by a live functions-emulator e2e.
 
 ---
 
@@ -114,18 +121,18 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 |---|------|-----|----------|------------------|
 | ~~F1~~ ✅ | **Roles & permissions** — DONE (PR `feat/roles-permissions`). `@luminova/auth` (roles + CASL ability), role-aware `firestore.rules`, beacon `setUserRoles` callable + seed bootstrap, backstage claim decode + `<Can>` gating. 7 roles incl. **ProjectManager**. Absorbed rules-hardening (follow-up #1). | CASL ✅ | `[S]` | **Deferred:** uid-on-create + member self-login (B1); role UI (D4); functions-deploy packaging |
 | ~~F2~~ ✅ | **@luminova/types** — DONE (PR `feat/luminova-types`). BUILT package (emits `dist/`); promoted shipped `Member`/`MemberStatus` + `Ally` types **and** their zod schemas; renamed `ally.personInCharge → contactPerson`; rewired backstage to `@luminova/types`. **Promote-shipped-only** — engine/finance entities (`Program`/`Project`/`Activity`/`Participation`/`PointRule`/`DuesConfig`/`Payment`) deferred to F3/J where their shapes are designed. | — | `[P]` | **Deferred:** engine/finance types (F3/J); `member.status → membershipStatus` (when `duesStatus` lands); beacon-safe subpath export (A2 — `member.ts`/`ally.ts` kept framework-free for it); I1 codegen-drift gate |
-| F3 | **Recognition Engine data model** — **participation ledger** with `provisional\|confirmed` state (gates: final report + attendance) + punctuality factor + month bucket + role/activity link; **distinct Program/Project + Activity** entities; a separate **eligibility** layer (flags) and **Finance→Points** read. See "rules that shape the model" above | F2; ✅ matrix | `[S]` design-first | the dependency under everything in §A; richer than "sum of points" |
+| ~~F3~~ ✅ | **Recognition Engine data model** — DONE (#12). **participation ledger** with `provisional\|confirmed` state (gates: final report + attendance) + punctuality factor + month bucket + role/activity link; **distinct Program/Project + Activity** entities; a separate **eligibility** layer (flags) and **Finance→Points** read. In `@luminova/types/engine` (pure subpath). | F2; ✅ matrix | `[S]` design-first | the dependency under everything in §A; richer than "sum of points" |
 
 ## A. Recognition Engine (the spine — epic, ship in slices)
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| A1 | **Point Rules** admin (matrix CRUD) | F3; matrix | `[S]` | mirrors the points matrix exactly |
-| A2 | **`awardPoints` real logic** (beacon) — write ledger rows from participation per rules | F3, A1 | `[S]` | `firebase-functions-reviewer`; replaces the "not implemented" throw |
-| A3 | **Attendance / QR check-in** (mobile-first) — designated scanners scan members' **personal QR**; records participation → triggers points | F1, F3, B-QR | `[S]` | the day-of mobile flagship; live roster + manual tap fallback |
-| A4 | **Offline check-in** — queue scans, sync when back online | A3 | `[S]` | roadmap, **not priority** (bad venue wifi is real) |
-| A5 | **Member profile / points history** — board view + member self-view; breakdown by source | F3 | `[S]` | makes points "very visible"; no member view exists today |
-| A6 | **Leaderboard / recognition surface** — **public to all members**; monthly (top 3 + Best of Month) + annual; eligibility flags applied | F3, A5 | `[S]` | the engagement flywheel; ties tiebreak via social (manual) |
+| ~~A1~~ ✅ | **Point Rules** admin (matrix CRUD) — DONE (#13). `/point-rules`: Admin inits the 16 matrix rows per term + edits points inline | F3; matrix | `[S]` | mirrors the points matrix exactly |
+| ~~A2~~ ✅ | **`awardPoints` real logic** (beacon) — DONE (#14). `onDocumentWritten('checkIns/{id}')` → derives `participations` + `memberPoints` + mirrors `members.totalPoints`; report-confirm triggers. Real chain e2e'd in A3. | F3, A1 | `[S]` | `firebase-functions-reviewer`; replaced the "not implemented" throw |
+| ~~A3~~ ✅ | **Attendance / QR check-in** (mobile-first) — DONE (#18). Admin/PM `/check-in`: scan member QR or manual tap → writes `checkIns` → A2 awards. Live roster. Bundled minimal E4 (QR widgets) + thin D1 (activity create). | F1, F3, B-QR | `[S]` | the day-of mobile flagship; live roster + manual tap fallback |
+| A4 ⬜ | **Offline check-in** — queue scans, sync when back online | A3 | `[S]` | roadmap, **not priority** (bad venue wifi is real); A3's `CheckInRepository.create` is the wrap seam |
+| ~~A5~~ ✅ | **Member profile / points history** — DONE (#15). `/members/:id` board view: cumulative + byMonth + ParticipationLedger + (A3) personal QR. **Member self-view still pending → B1.** | F3 | `[S]` | makes points "very visible" |
+| ~~A6~~ ✅ | **Leaderboard / recognition surface** — DONE (#16). `/leaderboard` public to all members; annual + monthly (top 3 + Best of Month); eligibility flags applied (inert until a board is designated) | F3, A5 | `[S]` | the engagement flywheel; social tiebreak deferred |
 
 ## B. Member-facing surface & role-aware home
 
@@ -147,7 +154,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| D1 | **Events CRUD** | E1, E2 | `[S]` | director/co-director/participant selects; ties to attendance (A3) + points + project link; conditional `parentId` for `Activity` |
+| D1 🟡 | **Events / Activities CRUD** — partial: A3 shipped a **thin Activity create form + table** (`/activities`, category/startAt/nullable parent). Full version (edit/delete, program/project parent + director/co-director/participant selects via E1/E2, upcoming-events feed) still ⬜ | E1, E2 | `[S]` | director/co-director/participant selects; ties to attendance (A3) + points + project link; conditional `parentId` for `Activity` |
 | D2 | **Reports** | A*, D1 | `[S]` | needs members/events/points data |
 | D3 | **Communications** | external email | `[S]` | scope before committing (likely a backend/email integration) |
 | D4 | **Settings** page (real) | F1 | `[P]` | profile + theme + org + role mgmt |
@@ -159,7 +166,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | E1 | **Combobox** (single-select + search) | — | `[P]` | blocks Events |
 | E2 | **Multi-select** with search | E1 | `[S]` | blocks Events |
 | E3 | **Command palette** primitive | E5 | `[P]` | blocks ⌘K |
-| E4 | **QR generator + QR scanner** components | camera/lib (vet dep) | `[P]` | blocks A3; mobile camera UX |
+| ~~E4~~ ✅ | **QR generator + QR scanner** components — DONE (#18, with A3). `@luminova/ui/qr-code` (qrcode.react) + `@luminova/ui/qr-scanner` (@zxing camera), deep-imported for lazy chunking | camera/lib (vet dep) | `[P]` | unblocked A3; mobile camera UX |
 | E5 | **Popover** primitive | — | `[P]` | shared by combobox/menus/command |
 | E6 | **DataTable** (sort/filter/paginate/skeleton) | — | `[P]` | consolidates Members/Allies/Events tables; see F1-table below |
 
