@@ -1,5 +1,6 @@
 import {
-  Button,
+  EmptyState,
+  Icon,
   Table,
   TableHeader,
   TableBody,
@@ -8,6 +9,7 @@ import {
   TableCell,
 } from "@luminova/ui";
 import type { Ally } from "../types/ally";
+import { RowAction } from "../../../components/row-action";
 
 interface AllyTableProps {
   allies: Ally[];
@@ -17,7 +19,13 @@ interface AllyTableProps {
 
 export function AllyTable({ allies, onEdit, onDelete }: AllyTableProps) {
   if (allies.length === 0) {
-    return <p className="text-ink-2">No hay aliados todavía.</p>;
+    return (
+      <EmptyState
+        icon={Icon.handshake({ s: 40 })}
+        title="No hay aliados todavía"
+        description="Registra empresas y organizaciones aliadas para verlas aquí."
+      />
+    );
   }
 
   return (
@@ -34,30 +42,23 @@ export function AllyTable({ allies, onEdit, onDelete }: AllyTableProps) {
       <TableBody>
         {allies.map((ally) => (
           <TableRow key={ally.id}>
-            <TableCell className="font-medium">{ally.companyName}</TableCell>
-            <TableCell>{ally.personInCharge}</TableCell>
-            <TableCell className="text-ink-2">{ally.phone}</TableCell>
+            <TableCell className="font-semibold text-ink-1">{ally.companyName}</TableCell>
+            <TableCell className="text-ink-2">{ally.personInCharge}</TableCell>
+            <TableCell className="text-ink-2 tabular-nums">{ally.phone}</TableCell>
             <TableCell className="text-ink-2">{ally.email}</TableCell>
             <TableCell className="text-right">
-              <div className="inline-flex gap-2">
-                <Button
-                  as="button"
-                  type="button"
-                  variant="secondary"
-                  size="sm"
+              <div className="inline-flex gap-1">
+                <RowAction
+                  icon={Icon.settings({ s: 17 })}
+                  label={`Editar a ${ally.companyName}`}
                   onClick={() => onEdit(ally)}
-                >
-                  Editar
-                </Button>
-                <Button
-                  as="button"
-                  type="button"
-                  variant="secondary"
-                  size="sm"
+                />
+                <RowAction
+                  icon={Icon.close({ s: 17 })}
+                  label={`Eliminar a ${ally.companyName}`}
+                  variant="danger"
                   onClick={() => onDelete(ally)}
-                >
-                  Eliminar
-                </Button>
+                />
               </div>
             </TableCell>
           </TableRow>

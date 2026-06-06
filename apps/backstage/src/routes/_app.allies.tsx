@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Button, Sheet, Dialog } from "@luminova/ui";
+import { Button, Sheet, Dialog, Icon } from "@luminova/ui";
 import { useAllies } from "../features/allies/hooks/use-allies";
 import { useAddAlly } from "../features/allies/hooks/use-add-ally";
 import { useUpdateAlly } from "../features/allies/hooks/use-update-ally";
 import { useDeleteAlly } from "../features/allies/hooks/use-delete-ally";
 import { AllyTable } from "../features/allies/components/ally-table";
 import { AllyForm } from "../features/allies/components/ally-form";
+import { PageHeader } from "../components/page-header";
 import type { Ally } from "../features/allies/types/ally";
 import type { AllyInput } from "../features/allies/types/ally-schema";
 
@@ -51,16 +52,25 @@ function AlliesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-[28px] font-semibold text-ink-1">Aliados</h2>
-        <Button as="button" type="button" onClick={() => setEditing("new")}>
-          Agregar aliado
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Gestión"
+        title="Aliados"
+        subtitle="Empresas y organizaciones que apoyan al capítulo."
+        actions={
+          <Button
+            as="button"
+            type="button"
+            iconLeft={Icon.plus({ s: 18 })}
+            onClick={() => setEditing("new")}
+          >
+            Agregar aliado
+          </Button>
+        }
+      />
 
       {isLoading && <p className="text-ink-2">Cargando…</p>}
       {isError && (
-        <p role="alert" className="text-[#c0392b]">
+        <p role="alert" className="text-error">
           No se pudieron cargar los aliados.
         </p>
       )}

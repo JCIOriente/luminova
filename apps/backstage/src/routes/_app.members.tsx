@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Button, Sheet, Dialog } from "@luminova/ui";
+import { Button, Sheet, Dialog, Icon } from "@luminova/ui";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useAddMember } from "../features/members/hooks/use-add-member";
 import { useUpdateMember } from "../features/members/hooks/use-update-member";
 import { useDeleteMember } from "../features/members/hooks/use-delete-member";
 import { MemberTable } from "../features/members/components/member-table";
 import { MemberForm } from "../features/members/components/member-form";
+import { PageHeader } from "../components/page-header";
 import { dateInputValue } from "../features/members/repositories/member-mapper";
 import type { Member } from "../features/members/types/member";
 import type { MemberInput } from "../features/members/types/member-schema";
@@ -56,16 +57,25 @@ function MembersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-[28px] font-semibold text-ink-1">Miembros</h2>
-        <Button as="button" type="button" onClick={() => setEditing("new")}>
-          Agregar miembro
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Gestión"
+        title="Miembros"
+        subtitle="Gestiona la membresía activa del capítulo, roles y estados."
+        actions={
+          <Button
+            as="button"
+            type="button"
+            iconLeft={Icon.plus({ s: 18 })}
+            onClick={() => setEditing("new")}
+          >
+            Agregar miembro
+          </Button>
+        }
+      />
 
       {isLoading && <p className="text-ink-2">Cargando…</p>}
       {isError && (
-        <p role="alert" className="text-[#c0392b]">
+        <p role="alert" className="text-error">
           No se pudieron cargar los miembros.
         </p>
       )}
