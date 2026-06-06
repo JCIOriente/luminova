@@ -164,6 +164,11 @@ describe("firestore.rules — pointRules", () => {
   it("denies non-admin write", async () => {
     await assertFails(updateDoc(doc(as("u", ["Membership"]), "pointRules/r1"), { points: 20 }));
   });
+  it("denies non-admin create (seed path)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "pointRules/2026__DirectProgram"), { points: 5 }),
+    );
+  });
 });
 
 describe("firestore.rules — terms", () => {

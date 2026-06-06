@@ -1,5 +1,6 @@
 import { collection, doc, getDocs, query, where, writeBatch, updateDoc } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
+import { pointRuleSchema } from "@luminova/types";
 import type { PointRule } from "@luminova/types";
 import { toSeedRules, byMatrixOrder } from "./point-rule-mapper";
 
@@ -37,6 +38,9 @@ export class PointRuleRepository {
   }
 
   async updatePoints(id: string, points: number): Promise<void> {
-    await updateDoc(doc(this.collection, id), { points });
+    // Repository is the authoritative validation boundary — the UI disables an
+    // invalid save, but parse here too so no caller can write a bad value.
+    const parsed = pointRuleSchema.shape.points.parse(points);
+    await updateDoc(doc(this.collection, id), { points: parsed });
   }
 }
