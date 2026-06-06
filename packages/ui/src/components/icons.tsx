@@ -196,7 +196,12 @@ export const Icon = {
   calendar: ({ s = 24 }) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M3 9h18M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path
+        d="M3 9h18M8 3v4M16 3v4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   ),
   folder: ({ s = 24 }) => (
@@ -278,22 +283,46 @@ export const Icon = {
   ),
   chevRight: ({ s = 16 }) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M9 6l6 6-6 6"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   ),
   chevExpand: ({ s = 16 }) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M8 9l4-4 4 4M8 15l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M8 9l4-4 4 4M8 15l4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   ),
   trendUp: ({ s = 16 }) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 17l6-6 4 4 6-7M14 8h6v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M4 17l6-6 4 4 6-7M14 8h6v6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   ),
   trendDown: ({ s = 16 }) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 7l6 6 4-4 6 7M14 16h6v-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M4 7l6 6 4-4 6 7M14 16h6v-6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   ),
   plus: ({ s = 18 }) => (
@@ -303,12 +332,24 @@ export const Icon = {
   ),
   download: ({ s = 18 }) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 4v10m0 0l-4-4m4 4l4-4M5 20h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M12 4v10m0 0l-4-4m4 4l4-4M5 20h14"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   ),
   logout: ({ s = 18 }) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M14 4h4a1 1 0 011 1v14a1 1 0 01-1 1h-4M10 8l-4 4 4 4M6 12h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M14 4h4a1 1 0 011 1v14a1 1 0 01-1 1h-4M10 8l-4 4 4 4M6 12h11"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   ),
 } satisfies Record<string, IconFn>;

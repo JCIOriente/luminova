@@ -60,7 +60,16 @@ export function LineChart({
           />
         ))}
         {hover !== null && (
-          <line x1={hx} y1="0" x2={hx} y2={H} stroke="currentColor" strokeOpacity="0.18" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          <line
+            x1={hx}
+            y1="0"
+            x2={hx}
+            y2={H}
+            stroke="currentColor"
+            strokeOpacity="0.18"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+          />
         )}
       </svg>
       {hover !== null && (

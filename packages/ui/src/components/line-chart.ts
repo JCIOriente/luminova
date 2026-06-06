@@ -8,9 +8,18 @@ function xAt(i: number, n: number, w: number): number {
   return n <= 1 ? 0 : (w * i) / (n - 1);
 }
 
-export function seriesPath(values: number[], w: number, h: number, min: number, max: number): string {
+export function seriesPath(
+  values: number[],
+  w: number,
+  h: number,
+  min: number,
+  max: number,
+): string {
   return values
-    .map((v, i) => `${i === 0 ? "M" : "L"}${xAt(i, values.length, w).toFixed(2)} ${scaleY(v, min, max, h).toFixed(2)}`)
+    .map(
+      (v, i) =>
+        `${i === 0 ? "M" : "L"}${xAt(i, values.length, w).toFixed(2)} ${scaleY(v, min, max, h).toFixed(2)}`,
+    )
     .join(" ");
 }
 

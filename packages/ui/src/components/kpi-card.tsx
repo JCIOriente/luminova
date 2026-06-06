@@ -42,13 +42,20 @@ export function KpiCard({
   return (
     <div className="flex flex-col gap-3 rounded-[14px] border border-line bg-surface p-[18px] shadow-[0_1px_2px_rgba(19,15,45,0.05)] transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[0_18px_40px_-24px_rgba(19,15,45,0.22)]">
       <div className="flex items-center gap-2.5">
-        <span className={cn("flex size-[38px] shrink-0 items-center justify-center rounded-[11px]", TILE[tone])}>
+        <span
+          className={cn(
+            "flex size-[38px] shrink-0 items-center justify-center rounded-[11px]",
+            TILE[tone],
+          )}
+        >
           {icon}
         </span>
         <span className="text-[13px] font-medium leading-tight text-ink-3">{label}</span>
       </div>
       <div className="flex items-end justify-between gap-2.5">
-        <span className="text-[34px] font-normal leading-none tracking-[-0.03em] text-ink-1 tabular-nums">{value}</span>
+        <span className="text-[34px] font-normal leading-none tracking-[-0.03em] text-ink-1 tabular-nums">
+          {value}
+        </span>
         {spark && <Sparkline values={spark} className={SPARK[tone]} />}
       </div>
       {trend && (

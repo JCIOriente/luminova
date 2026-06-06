@@ -1,6 +1,7 @@
 import { createFileRoute, redirect, Outlet } from "@tanstack/react-router";
 import { authRedirect } from "../lib/auth/guard";
 import { AppSidebar } from "../components/app-sidebar";
+import { AppTopbar } from "../components/app-topbar";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ context, location }) => {
@@ -14,11 +15,16 @@ export const Route = createFileRoute("/_app")({
 
 function AppLayout() {
   return (
-    <div className="flex min-h-dvh">
+    <div className="grid h-dvh grid-cols-[264px_1fr] bg-surface-2">
       <AppSidebar />
-      <main className="flex-1 p-8">
-        <Outlet />
-      </main>
+      <div className="flex min-w-0 flex-col">
+        <AppTopbar />
+        <main className="scroll flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-[1320px] px-7 pt-[30px] pb-20">
+            <Outlet />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

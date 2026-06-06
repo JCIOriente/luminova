@@ -21,5 +21,7 @@ export function sparklinePoints(values: number[], w: number, h: number, pad = 2)
 }
 
 export function pointsToPath(points: Point[]): string {
-  return points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(" ");
+  return points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
+    .join(" ");
 }
