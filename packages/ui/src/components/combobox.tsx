@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Command } from "cmdk";
-import * as RadixPopover from "@radix-ui/react-popover";
+import { Root, Trigger, Portal, Content } from "@radix-ui/react-popover";
 import { cn } from "../lib/cn";
 import { fieldControlClasses } from "./input";
 import { Icon } from "./icons";
@@ -33,8 +33,8 @@ export function Combobox({
   const selected = options.find((o) => o.value === value) ?? null;
 
   return (
-    <RadixPopover.Root open={open} onOpenChange={setOpen}>
-      <RadixPopover.Trigger asChild>
+    <Root open={open} onOpenChange={setOpen}>
+      <Trigger asChild>
         <button
           type="button"
           id={id}
@@ -50,9 +50,9 @@ export function Combobox({
           <span className="truncate">{selected ? selected.label : placeholder}</span>
           <span className="shrink-0 text-ink-2">{Icon.chevExpand({ s: 16 })}</span>
         </button>
-      </RadixPopover.Trigger>
-      <RadixPopover.Portal>
-        <RadixPopover.Content
+      </Trigger>
+      <Portal>
+        <Content
           align="start"
           sideOffset={6}
           className="z-50 w-[var(--radix-popover-trigger-width)] rounded-card border border-line bg-surface p-1 shadow-[0_24px_64px_-24px_rgba(19,15,45,0.4)]"
@@ -86,8 +86,8 @@ export function Combobox({
               ))}
             </Command.List>
           </Command>
-        </RadixPopover.Content>
-      </RadixPopover.Portal>
-    </RadixPopover.Root>
+        </Content>
+      </Portal>
+    </Root>
   );
 }

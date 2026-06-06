@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import * as RadixPopover from "@radix-ui/react-popover";
+import { Root, Trigger, Portal, Content } from "@radix-ui/react-popover";
 import { cn } from "../lib/cn";
 
 interface PopoverProps {
@@ -23,10 +23,10 @@ export function Popover({
   contentClassName,
 }: PopoverProps) {
   return (
-    <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
-      <RadixPopover.Trigger asChild>{trigger}</RadixPopover.Trigger>
-      <RadixPopover.Portal>
-        <RadixPopover.Content
+    <Root open={open} onOpenChange={onOpenChange}>
+      <Trigger asChild>{trigger}</Trigger>
+      <Portal>
+        <Content
           align={align}
           side={side}
           sideOffset={6}
@@ -36,8 +36,8 @@ export function Popover({
           )}
         >
           {children}
-        </RadixPopover.Content>
-      </RadixPopover.Portal>
-    </RadixPopover.Root>
+        </Content>
+      </Portal>
+    </Root>
   );
 }
