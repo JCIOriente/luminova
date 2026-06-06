@@ -13,6 +13,7 @@
 // This seed creates terms/2026 too (setDoc merge keeps them compatible).
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error("Refusing to run: FIRESTORE_EMULATOR_HOST is not set.");
@@ -26,6 +27,10 @@ const db = getFirestore();
 const TERM = "2026";
 const ts = (iso) => Timestamp.fromDate(new Date(iso));
 
+// A ready-to-login Admin, created in the Auth emulator + linked to member m1.
+// Dev-only credentials (the Auth emulator never authenticates against prod).
+const ADMIN = { uid: "admin", email: "admin@jci.test", password: "jci-oriente-dev" };
+
 // --- Members (current shape: joinDate/birthdate/status required) ---
 const members = [
   { id: "m1", name: "Ana Rivas", email: "ana@example.com", role: "Presidenta", totalPoints: 13 },
@@ -33,6 +38,7 @@ const members = [
   { id: "m3", name: "Carla Soto", email: "carla@example.com", role: "Tesorera", totalPoints: 4 },
 ].map((m) => ({
   ...m,
+  ...(m.id === "m1" ? { uid: ADMIN.uid } : {}),
   phone: "",
   profession: "",
   joinDate: ts("2021-03-01T00:00:00Z"),
@@ -123,6 +129,27 @@ const memberPoints = [
   { memberId: "m3", cumulative: 4, byMonth: { "2026-06": 4 } },
 ].map((mp) => ({ ...mp, termId: TERM, updatedAt: ts("2026-06-20T18:00:00Z") }));
 
+// Create (or refresh) the Admin login in the Auth emulator. Skipped if the Auth
+// emulator host isn't set, so a Firestore-only run still works.
+async function seedAdminUser() {
+  if (!process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+    console.warn(
+      "Skipping auth user: FIREBASE_AUTH_EMULATOR_HOST is not set. " +
+        "Run `pnpm seed:emulator` (which sets it) to also create the Admin login.",
+    );
+    return;
+  }
+  const auth = getAuth();
+  try {
+    await auth.createUser({ uid: ADMIN.uid, email: ADMIN.email, password: ADMIN.password });
+  } catch (error) {
+    if (error?.code !== "auth/uid-already-exists") throw error;
+    await auth.updateUser(ADMIN.uid, { email: ADMIN.email, password: ADMIN.password });
+  }
+  await auth.setCustomUserClaims(ADMIN.uid, { roles: ["Admin"] });
+  console.log(`Auth: ${ADMIN.email} / ${ADMIN.password} (Admin, uid ${ADMIN.uid}).`);
+}
+
 async function seed() {
   for (const m of members) await db.doc(`members/${m.id}`).set(m);
   await db.doc(`terms/${TERM}`).set(term, { merge: true });
@@ -135,6 +162,8 @@ async function seed() {
     await db.doc(`participations/${id}`).set(data);
   }
   for (const mp of memberPoints) await db.doc(`memberPoints/${mp.memberId}__${TERM}`).set(mp);
+
+  await seedAdminUser();
 
   console.log(
     `Seeded ${members.length} members, term ${TERM}, ${activities.length} activities, ` +
