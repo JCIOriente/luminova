@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Button, EmptyState, Icon } from "@luminova/ui";
 import { Can } from "../lib/authz/ability-context";
 import { PageHeader } from "../components/page-header";
-import { currentTermId } from "../features/point-rules/lib/current-term";
+import { currentTermId } from "../lib/current-term";
 import { usePointRules } from "../features/point-rules/hooks/use-point-rules";
 import { useSeedPointRules } from "../features/point-rules/hooks/use-seed-point-rules";
 import { useUpdatePointRule } from "../features/point-rules/hooks/use-update-point-rule";
