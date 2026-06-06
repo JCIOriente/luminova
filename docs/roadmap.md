@@ -104,6 +104,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 - **Backstage**: bootstrap + auth, **Members CRUD**, **Allies CRUD**, **UI uplift**, **role-aware ability gating (F1)**.
 - **Beacon**: `awardPoints` trigger scaffold (throws "not implemented"); **`setUserRoles` callable + seed bootstrap (F1)**.
 - **`@luminova/auth` (F1)**: role contract + CASL ability builder; role-aware `firestore.rules`.
+- **`@luminova/types` (F2)**: shared `Member`/`MemberStatus`/`Ally` types + zod schemas (BUILT package); backstage consumes them.
 
 ---
 
@@ -112,7 +113,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | # | Item | Dep | Parallel | Notes / Triggers |
 |---|------|-----|----------|------------------|
 | ~~F1~~ ✅ | **Roles & permissions** — DONE (PR `feat/roles-permissions`). `@luminova/auth` (roles + CASL ability), role-aware `firestore.rules`, beacon `setUserRoles` callable + seed bootstrap, backstage claim decode + `<Can>` gating. 7 roles incl. **ProjectManager**. Absorbed rules-hardening (follow-up #1). | CASL ✅ | `[S]` | **Deferred:** uid-on-create + member self-login (B1); role UI (D4); functions-deploy packaging |
-| F2 | **@luminova/types** package — promote `Member`/`Ally`/`Program`/`Project`/`Activity`/`Participation`/`PointRule`/`DuesConfig`/`Payment` (Program & Project are distinct) so apps **and** beacon share them | — | `[P]` | needed before E-slices + Spotlight project showcase + Finance |
+| ~~F2~~ ✅ | **@luminova/types** — DONE (PR `feat/luminova-types`). BUILT package (emits `dist/`); promoted shipped `Member`/`MemberStatus` + `Ally` types **and** their zod schemas; renamed `ally.personInCharge → contactPerson`; rewired backstage to `@luminova/types`. **Promote-shipped-only** — engine/finance entities (`Program`/`Project`/`Activity`/`Participation`/`PointRule`/`DuesConfig`/`Payment`) deferred to F3/J where their shapes are designed. | — | `[P]` | **Deferred:** engine/finance types (F3/J); `member.status → membershipStatus` (when `duesStatus` lands); beacon-safe subpath export (A2 — `member.ts`/`ally.ts` kept framework-free for it); I1 codegen-drift gate |
 | F3 | **Recognition Engine data model** — **participation ledger** with `provisional\|confirmed` state (gates: final report + attendance) + punctuality factor + month bucket + role/activity link; **distinct Program/Project + Activity** entities; a separate **eligibility** layer (flags) and **Finance→Points** read. See "rules that shape the model" above | F2; ✅ matrix | `[S]` design-first | the dependency under everything in §A; richer than "sum of points" |
 
 ## A. Recognition Engine (the spine — epic, ship in slices)
