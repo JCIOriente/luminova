@@ -112,13 +112,46 @@ firebase emulators:start
 
 ### Seeding the Emulator
 
-Load sample data into the running Firestore emulator:
+**One command does everything** — from a clean `firebase emulators:start`:
 
 ```bash
 pnpm seed:emulator
 ```
 
-The seed script requires the Firestore emulator to be running first (it checks for `FIRESTORE_EMULATOR_HOST` and refuses to run unless the variable is set, so it can never touch the production database).
+This seeds (project `jci-oriente`, matching `.firebaserc` + `VITE_FIREBASE_PROJECT_ID`):
+
+- **Firestore** — sample members + a Recognition Engine slice (term, activities,
+  participations, memberPoints) so the Members, member-profile, and Leaderboard pages
+  render real data. (Point rules are left to the UI: "Reglas de puntos" → *Inicializar*.)
+- **Auth** — a ready-to-login Admin user, linked to member m1:
+
+  | Email | Password | Roles |
+  |-------|----------|-------|
+  | `admin@jci.test` | `jci-oriente-dev` | Admin |
+
+Log in to backstage with those credentials and you'll see every (Admin-gated) feature.
+Re-running is idempotent.
+
+**Granting roles to other users** (e.g. a Scanner or a second account you created in the
+Emulator UI at http://localhost:4100):
+
+```bash
+FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:4030 GCLOUD_PROJECT=jci-oriente \
+  pnpm --filter beacon seed:roles -- <uid> Admin
+# Scanner needs event scope, set separately via the setUserRoles callable.
+```
+
+**Env-var guards (the only ones — no custom project logic):**
+
+| Script | Guard | Why |
+|--------|-------|-----|
+| `seed:emulator` | `FIRESTORE_EMULATOR_HOST` (+ `FIREBASE_AUTH_EMULATOR_HOST` for the auth user) — both set by the `pnpm` script | The Admin SDK can only reach the emulator when these are set, so it can never touch prod. |
+| `seed:roles` | `FIREBASE_AUTH_EMULATOR_HOST` | Same — necessary and sufficient. (`VITE_FIREBASE_EMULATOR_ENABLED` is a frontend build-time var, not visible to a Node script.) |
+
+> Both scripts must use the **same `GCLOUD_PROJECT` as the app** (`jci-oriente`) — the
+> emulator namespaces data/users per project, so a mismatch lands them where the app
+> never looks. If your shell can't see the keg-only JDK, prefix emulator commands with
+> the Java PATH (see Prerequisites above).
 
 ### Import/Export Emulator Data
 

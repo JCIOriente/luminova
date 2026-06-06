@@ -2,16 +2,14 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { isValidRole, type Role } from "@luminova/auth/roles";
 
+// The only guard: FIREBASE_AUTH_EMULATOR_HOST. When it is set the Admin SDK can only
+// reach the local Auth emulator — it physically cannot touch prod — so this is both
+// necessary and sufficient. (The frontend's VITE_FIREBASE_EMULATOR_ENABLED is a build-
+// time var that isn't visible to this Node script.)
 function assertEmulator(): void {
   if (!process.env.FIREBASE_AUTH_EMULATOR_HOST) {
     throw new Error(
       "Refusing to run: FIREBASE_AUTH_EMULATOR_HOST is not set (this script is emulator-only).",
-    );
-  }
-  const projectId = process.env.GCLOUD_PROJECT ?? "demo-roles";
-  if (!projectId.startsWith("demo-")) {
-    throw new Error(
-      `Refusing to run: GCLOUD_PROJECT must be a demo- project for emulator use (got "${projectId}").`,
     );
   }
 }
