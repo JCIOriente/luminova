@@ -251,11 +251,37 @@ type PointRuleCode =
   | 'PaymentPlanAdhesion'
 ```
 
+### checkIns/{checkInId} — engine input (A2)
+
+The client-written fact that drives `awardPoints`. The engine derives the
+`participations` row from it (clients never write `participations` directly).
+
+```typescript
+interface CheckIn {
+  memberId: string
+  activityId: string
+  role: 'Director' | 'CoDirector' | 'Team' | 'Attendee'
+  checkInAt: Timestamp
+}
+```
+
+Rules: read = signed-in; create = Admin/ProjectManager, or Scanner when
+`activityId ∈ token.scannerEventIds`; **immutable** (no update/delete — a
+correction is a new check-in that overwrites the deterministic
+`participations/{activityId__memberId__role}` row). `awardPoints` (beacon,
+`onDocumentWritten('checkIns/{id}')`) reads the activity + `pointRules/{termId__code}`,
+derives the row, and recomputes `memberPoints/{memberId}` + mirrors
+`members.totalPoints`. Two more triggers (`confirmOnProgramReport`,
+`confirmOnProjectReport`) flip a parented initiative's rows confirmed when its
+`finalReport` is filed.
+
 ### participations/{participationId} — ledger (engine-written, client read-only)
 
 ```typescript
 interface Participation {
   id; memberId; termId; activityId
+  parentType: 'Program' | 'Project' | null  // denormalized from the activity (report-gate query)
+  parentId: string | null
   role: 'Director' | 'CoDirector' | 'Team' | 'Attendee'
   pointRuleCode: PointRuleCode
   basePoints: number             // snapshot of PointRule.points at award time
