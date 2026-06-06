@@ -7,6 +7,24 @@ PR, one at a time or in parallel where dependencies allow. `[P]` = parallel-safe
 _Last synced: 2026-06-06 — reshaped around the **Recognition Engine** after a
 product/UX discussion (points, QR attendance, multi-role access, award submissions)._
 
+## Naming conventions
+
+Identifiers in this doc and the code follow one rule to avoid mixed-language names:
+
+- **Code identifiers** (types, fields, functions, enum *names*) → **English**, no
+  diacritics; `PascalCase` types, `camelCase` fields/functions.
+- **User-facing enum *values* / labels** → may stay **Spanish** (the product
+  language), matching the shipped `MemberStatus` = `"Activo" | "Inactivo" |
+  "Desafiliado"`. So `membershipStatus` (English key) holds Spanish values.
+- **Expand acronyms** in identifiers for readability: `isExecutiveCommittee`, not
+  `isCEL`.
+- **`gestión` → `term`** in code (the annual cycle; likely a `Term` entity carrying
+  year + board + convention date — points windows and "previous-term" eligibility
+  reference it).
+- Planned small renames when their feature lands (don't churn shipped code now):
+  `member.status` → `membershipStatus` (once `duesStatus` coexists);
+  consider `ally.personInCharge` → `contactPerson` (more idiomatic).
+
 ## Strategic frame
 
 The product's job isn't "CRUD records" — it's **run the membership loop
@@ -32,7 +50,7 @@ CASL on the client and **mirror them in `firestore.rules`** server-side.
 | **Admin** | Presidency + one designated Admin (assigned per year) | Everything |
 | **Membership** | Membership Director + Co-director | Create members; set **membershipStatus** (active/inactive); receives **birthday** notifications |
 | **Treasury** | Tesorería | Record/manage dues & payments; view money reports; receives overdue + monthly-report notifications |
-| **CEL (board)** | all Consejo Ejecutivo Local members | Read dashboard for their area; receives **birthday** notifications |
+| **CEL (board)** | all Comité Ejecutivo Local members | Read dashboard for their area; receives **birthday** notifications |
 | **Scanner** | designated **per event** | Check-in attendees for the assigned event only |
 | **Member** | everyone | Own profile, personal QR, points/history, events; see own dues status |
 
@@ -72,8 +90,10 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 - **Finance → Points coupling:** only members **al día** are eligible; a **missed
   month voids that month's points** (restored on payment); **joining a payment plan =
   +5 pts**. The engine reads `duesStatus`.
-- **Accrual ≠ eligibility:** flags `isCEL` (can't compete), `isPastPresident` (no
-  accrual), `wonLastGestión` (excluded next year). JDL directors *do* accrue + compete.
+- **Accrual ≠ eligibility:** flags `isExecutiveCommittee` (CEL — can't compete),
+  `isPastPresident` (no accrual), `wonBestMemberPreviousTerm` (excluded next term).
+  JDL directors *do* accrue + compete. (These may be derived from an award/term
+  history rather than stored booleans — decide in the F3 brainstorm.)
 - **Tiebreaker:** social media (like 1 / comment 2 / share 3) — **manual monthly entry,
   low-priority** (assess its value when the slice is built).
 
