@@ -9,8 +9,13 @@ import {
   processInitiativeReport,
 } from "./award-points/process.js";
 
+// Initialize the default app once at module load. Doing this lazily inside the
+// handler races the functions runtime's admin stub (getApps() can report a stub
+// app so initializeApp() is skipped, yet getFirestore() then finds no default
+// app). Module-load init is the reliable pattern for the emulator + prod.
+if (!getApps().length) initializeApp();
+
 function db() {
-  if (!getApps().length) initializeApp();
   return getFirestore();
 }
 
