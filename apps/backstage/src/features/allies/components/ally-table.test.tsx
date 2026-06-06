@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { AllyTable } from "./ally-table";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
-import type { Ally } from "../types/ally";
+import type { Ally } from "@luminova/types";
 
 function renderAsAdmin(ui: ReactElement) {
   return render(
@@ -17,7 +17,7 @@ function renderAsAdmin(ui: ReactElement) {
 const ally: Ally = {
   id: "a1",
   companyName: "Equipetrol SRL",
-  personInCharge: "Mario Suárez",
+  contactPerson: "Mario Suárez",
   phone: "+591 700 00000",
   email: "mario@equipetrol.bo",
 } as Ally;

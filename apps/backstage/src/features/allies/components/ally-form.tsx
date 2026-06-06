@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Field, Input } from "@luminova/ui";
-import { allySchema, type AllyInput } from "../types/ally-schema";
+import { allySchema, type AllyInput } from "@luminova/types";
 
 interface AllyFormProps {
   defaultValues?: Partial<AllyInput>;
@@ -12,7 +12,7 @@ interface AllyFormProps {
 
 const EMPTY: AllyInput = {
   companyName: "",
-  personInCharge: "",
+  contactPerson: "",
   phone: "",
   email: "",
 };
@@ -44,11 +44,11 @@ export function AllyForm({ defaultValues, submitLabel, onSubmit }: AllyFormProps
       </Field>
       <Field
         label="Encargado"
-        htmlFor="personInCharge"
+        htmlFor="contactPerson"
         required
-        error={errors.personInCharge?.message}
+        error={errors.contactPerson?.message}
       >
-        <Input id="personInCharge" {...register("personInCharge")} />
+        <Input id="contactPerson" {...register("contactPerson")} />
       </Field>
       <Field label="Teléfono" htmlFor="phone" required error={errors.phone?.message}>
         <Input id="phone" {...register("phone")} />

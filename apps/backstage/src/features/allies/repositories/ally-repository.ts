@@ -10,8 +10,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import type { Ally } from "../types/ally";
-import type { AllyInput } from "../types/ally-schema";
+import type { Ally, AllyInput } from "@luminova/types";
 import { toAllyCreateDoc, toAllyUpdateDoc } from "./ally-mapper";
 
 export class AllyRepository {

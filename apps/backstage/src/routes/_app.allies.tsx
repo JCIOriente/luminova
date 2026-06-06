@@ -8,8 +8,7 @@ import { useDeleteAlly } from "../features/allies/hooks/use-delete-ally";
 import { AllyTable } from "../features/allies/components/ally-table";
 import { AllyForm } from "../features/allies/components/ally-form";
 import { PageHeader } from "../components/page-header";
-import type { Ally } from "../features/allies/types/ally";
-import type { AllyInput } from "../features/allies/types/ally-schema";
+import type { Ally, AllyInput } from "@luminova/types";
 
 export const Route = createFileRoute("/_app/allies")({
   component: AlliesPage,
@@ -20,7 +19,7 @@ type Editing = Ally | "new" | null;
 function allyToInput(ally: Ally): Partial<AllyInput> {
   return {
     companyName: ally.companyName,
-    personInCharge: ally.personInCharge,
+    contactPerson: ally.contactPerson,
     phone: ally.phone,
     email: ally.email,
   };

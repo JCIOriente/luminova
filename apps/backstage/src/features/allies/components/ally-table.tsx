@@ -8,7 +8,7 @@ import {
   TableHead,
   TableCell,
 } from "@luminova/ui";
-import type { Ally } from "../types/ally";
+import type { Ally } from "@luminova/types";
 import { RowAction } from "../../../components/row-action";
 import { Can } from "../../../lib/authz/ability-context";
 
@@ -44,7 +44,7 @@ export function AllyTable({ allies, onEdit, onDelete }: AllyTableProps) {
         {allies.map((ally) => (
           <TableRow key={ally.id}>
             <TableCell className="font-semibold text-ink-1">{ally.companyName}</TableCell>
-            <TableCell className="text-ink-2">{ally.personInCharge}</TableCell>
+            <TableCell className="text-ink-2">{ally.contactPerson}</TableCell>
             <TableCell className="text-ink-2 tabular-nums">{ally.phone}</TableCell>
             <TableCell className="text-ink-2">{ally.email}</TableCell>
             <TableCell className="text-right">

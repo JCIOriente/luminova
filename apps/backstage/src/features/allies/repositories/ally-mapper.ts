@@ -1,10 +1,10 @@
-import type { AllyInput } from "../types/ally-schema";
+import type { AllyInput } from "@luminova/types";
 
 /** Editable fields shared by create and update. */
 function editableFields(data: AllyInput) {
   return {
     companyName: data.companyName,
-    personInCharge: data.personInCharge,
+    contactPerson: data.contactPerson,
     phone: data.phone,
     email: data.email,
   };

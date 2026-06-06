@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AllyRepository } from "../repositories/ally-repository";
-import type { AllyInput } from "../types/ally-schema";
+import type { AllyInput } from "@luminova/types";
 import { allyKeys } from "./ally-keys";
 
 export function useAddAlly() {
