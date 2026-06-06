@@ -25,6 +25,12 @@
   --color-ink-2: rgba(19, 15, 45, 0.72);
   --color-ink-3: rgba(19, 15, 45, 0.52);
 
+  /* Semantic status (validation/state — not brand palette) */
+  --color-ok: #1f8a5b;
+  --color-error: #c0392b;
+  --color-warn: #8e7300;
+  --color-teal-ink: #2e8c8c;
+
   /* Type */
   --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-serif: "Arvo", Georgia, serif;
@@ -54,6 +60,25 @@
     to {
       opacity: 1;
       transform: translate(-50%, 0);
+    }
+  }
+  --animate-skeleton: skeleton 1.3s ease-in-out infinite;
+  --animate-rise: rise 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  @keyframes skeleton {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes rise {
+    from {
+      transform: translateY(10px);
+    }
+    to {
+      transform: none;
     }
   }
 }
