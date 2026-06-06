@@ -31,27 +31,42 @@ const member: Member = {
 
 describe("MemberTable", () => {
   it("renders the status as a badge and a name", () => {
-    renderAsAdmin(<MemberTable members={[member]} onEdit={vi.fn()} onDelete={vi.fn()} />);
+    renderAsAdmin(
+      <MemberTable members={[member]} onView={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} />,
+    );
     expect(screen.getByText("Ana Pérez")).toBeInTheDocument();
     expect(screen.getByText("Activo")).toBeInTheDocument();
   });
 
   it("calls onEdit when the edit action is used", async () => {
     const onEdit = vi.fn();
-    renderAsAdmin(<MemberTable members={[member]} onEdit={onEdit} onDelete={vi.fn()} />);
+    renderAsAdmin(
+      <MemberTable members={[member]} onView={vi.fn()} onEdit={onEdit} onDelete={vi.fn()} />,
+    );
     await userEvent.click(screen.getByRole("button", { name: /editar a ana pérez/i }));
     expect(onEdit).toHaveBeenCalledWith(member);
   });
 
+  it("calls onView when the view action is used", async () => {
+    const onView = vi.fn();
+    renderAsAdmin(
+      <MemberTable members={[member]} onView={onView} onEdit={vi.fn()} onDelete={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /ver a ana pérez/i }));
+    expect(onView).toHaveBeenCalledWith(member);
+  });
+
   it("shows an empty state when there are no members", () => {
-    renderAsAdmin(<MemberTable members={[]} onEdit={vi.fn()} onDelete={vi.fn()} />);
+    renderAsAdmin(
+      <MemberTable members={[]} onView={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} />,
+    );
     expect(screen.getByText(/no hay miembros/i)).toBeInTheDocument();
   });
 
   it("hides row actions for a role without write access", () => {
     render(
       <AbilityProvider claims={{ roles: ["Treasury"] }} uid="t">
-        <MemberTable members={[member]} onEdit={vi.fn()} onDelete={vi.fn()} />
+        <MemberTable members={[member]} onView={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} />
       </AbilityProvider>,
     );
     expect(screen.queryByRole("button", { name: /editar a ana pérez/i })).toBeNull();

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button, Sheet, Dialog, Icon } from "@luminova/ui";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useAddMember } from "../features/members/hooks/use-add-member";
@@ -35,6 +35,7 @@ function MembersPage() {
   const addMember = useAddMember();
   const updateMember = useUpdateMember();
   const deleteMember = useDeleteMember();
+  const navigate = useNavigate();
 
   const [editing, setEditing] = useState<Editing>(null);
   const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
@@ -78,7 +79,16 @@ function MembersPage() {
           No se pudieron cargar los miembros.
         </p>
       )}
-      {members && <MemberTable members={members} onEdit={setEditing} onDelete={setDeleteTarget} />}
+      {members && (
+        <MemberTable
+          members={members}
+          onView={(member) =>
+            navigate({ to: "/members/$memberId", params: { memberId: member.id } })
+          }
+          onEdit={setEditing}
+          onDelete={setDeleteTarget}
+        />
+      )}
 
       <Sheet
         open={editing !== null}

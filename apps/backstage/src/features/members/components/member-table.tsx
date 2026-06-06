@@ -18,6 +18,7 @@ import { Can } from "../../../lib/authz/ability-context";
 
 interface MemberTableProps {
   members: Member[];
+  onView: (member: Member) => void;
   onEdit: (member: Member) => void;
   onDelete: (member: Member) => void;
 }
@@ -28,7 +29,7 @@ const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
   Desafiliado: "red",
 };
 
-export function MemberTable({ members, onEdit, onDelete }: MemberTableProps) {
+export function MemberTable({ members, onView, onEdit, onDelete }: MemberTableProps) {
   if (members.length === 0) {
     return (
       <EmptyState
@@ -79,6 +80,13 @@ export function MemberTable({ members, onEdit, onDelete }: MemberTableProps) {
             </TableCell>
             <TableCell className="text-right">
               <div className="inline-flex gap-1">
+                <Can I="read" a="Member">
+                  <RowAction
+                    icon={Icon.compass({ s: 17 })}
+                    label={`Ver a ${member.name}`}
+                    onClick={() => onView(member)}
+                  />
+                </Can>
                 <Can I="update" a="Member">
                   <RowAction
                     icon={Icon.settings({ s: 17 })}
