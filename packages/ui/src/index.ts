@@ -22,4 +22,6 @@ export type { ChartSeries } from "./components/line-chart";
 export { KpiCard, type KpiTone, type KpiTrend } from "./components/kpi-card";
 export { Skeleton } from "./components/skeleton";
 export { EmptyState } from "./components/empty-state";
+export { QrCode, type QrCodeProps } from "./components/qr-code";
+export { QrScanner, type QrScannerProps } from "./components/qr-scanner";
 export { cn } from "./lib/cn";
