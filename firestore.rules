@@ -71,6 +71,12 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /activities/{activityId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['Admin', 'ProjectManager']);
+      allow delete: if false;
+    }
+
     match /checkIns/{checkInId} {
       allow read: if signedIn();
       // Admin/ProjectManager may register any role; a Scanner may only register

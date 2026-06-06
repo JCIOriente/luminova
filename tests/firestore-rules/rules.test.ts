@@ -47,6 +47,7 @@ beforeAll(async () => {
     await setDoc(doc(db, "events/e1"), { title: "Gala" });
     await setDoc(doc(db, "pointRules/r1"), { points: 10 });
     await setDoc(doc(db, "terms/2026"), { status: "Activo" });
+    await setDoc(doc(db, "activities/act1"), { termId: "2026", category: "Assembly" });
     await setDoc(doc(db, "checkIns/c1"), { memberId: "m1", activityId: "a1", role: "Attendee" });
     await setDoc(doc(db, "projects/p1"), { title: "P" });
     await setDoc(doc(db, "memberPoints/2025/03/e1"), { points: 5 });
@@ -190,6 +191,39 @@ describe("firestore.rules — terms", () => {
   });
   it("denies delete even for Admin", async () => {
     await assertFails(deleteDoc(doc(as("u", ["Admin"]), "terms/2026")));
+  });
+});
+
+describe("firestore.rules — activities", () => {
+  it("allows any signed-in user to read", async () => {
+    await assertSucceeds(getDoc(doc(as("u", ["Member"]), "activities/act1")));
+  });
+  it("denies anonymous read", async () => {
+    await assertFails(getDoc(doc(anon(), "activities/act1")));
+  });
+  it("allows Admin to create an activity", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["Admin"]), "activities/act2"), { termId: "2026", category: "Course" }),
+    );
+  });
+  it("allows ProjectManager to create and update an activity", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["ProjectManager"]), "activities/act3"), {
+        termId: "2026",
+        category: "ProjectExecution",
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["ProjectManager"]), "activities/act1"), { category: "Course" }),
+    );
+  });
+  it("denies a plain Member create", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Member"]), "activities/act4"), { termId: "2026", category: "Assembly" }),
+    );
+  });
+  it("denies delete even for Admin", async () => {
+    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "activities/act1")));
   });
 });
 
