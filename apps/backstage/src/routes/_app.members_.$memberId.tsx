@@ -1,13 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Badge, type BadgeTone } from "@luminova/ui";
+import { useState } from "react";
+import { Badge, Button, Dialog, type BadgeTone } from "@luminova/ui";
 import { QrCode } from "@luminova/ui/qr-code";
-import type { MemberStatus } from "@luminova/types";
+import type { Member, MemberStatus } from "@luminova/types";
+import { Can } from "../lib/authz/ability-context";
 import { PageHeader } from "../components/page-header";
 import { encodeMemberQr } from "../lib/member-qr";
 import { currentTermId } from "../lib/current-term";
 import { useMember } from "../features/members/hooks/use-member";
 import { useMemberPoints } from "../features/members/hooks/use-member-points";
 import { useMemberParticipations } from "../features/members/hooks/use-member-participations";
+import { useProvisionMemberLogin } from "../features/members/hooks/use-provision-member-login";
 import { MemberPointsSummary } from "../features/members/components/member-points-summary";
 import { ParticipationLedger } from "../features/members/components/participation-ledger";
 
@@ -50,9 +53,12 @@ function MemberProfilePage() {
         eyebrow="Miembro"
         title={member.name}
         actions={
-          member.status ? (
-            <Badge tone={STATUS_TONE[member.status]}>{member.status}</Badge>
-          ) : undefined
+          <div className="flex items-center gap-3">
+            {member.status && <Badge tone={STATUS_TONE[member.status]}>{member.status}</Badge>}
+            <Can I="manage" a="all">
+              <InviteAccess member={member} />
+            </Can>
+          </div>
         }
       />
 
@@ -65,5 +71,51 @@ function MemberProfilePage() {
 
       <ParticipationLedger rows={participations ?? []} />
     </div>
+  );
+}
+
+function InviteAccess({ member }: { member: Member }) {
+  const provision = useProvisionMemberLogin();
+  const [open, setOpen] = useState(false);
+  const [link, setLink] = useState<string | null>(null);
+  const label = member.uid ? "Reenviar acceso" : "Invitar acceso";
+
+  const invite = () =>
+    provision.mutate(member.id, {
+      onSuccess: (result) => {
+        setLink(result.actionLink);
+        setOpen(true);
+      },
+    });
+
+  return (
+    <>
+      <Button
+        as="button"
+        type="button"
+        variant="secondary"
+        disabled={provision.isPending}
+        onClick={invite}
+      >
+        {provision.isPending ? "Generando…" : label}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen} title="Acceso de miembro">
+        <div className="flex flex-col gap-3">
+          <p className="text-[13px] text-ink-2">
+            Comparte este enlace con el miembro para que cree su contraseña e inicie sesión.
+          </p>
+          <code className="block w-full overflow-x-auto rounded-[8px] bg-ink-1/[0.04] px-3 py-2 text-[12px] text-ink-2">
+            {link}
+          </code>
+          <Button
+            as="button"
+            type="button"
+            onClick={() => link && void navigator.clipboard.writeText(link)}
+          >
+            Copiar enlace
+          </Button>
+        </div>
+      </Dialog>
+    </>
   );
 }

@@ -19,6 +19,9 @@ export interface Member {
   totalPoints: number;
   /** Past-president flag → eligibility (cannot accrue Mejor Miembro points). Missing = false. */
   isPastPresident?: boolean;
+  /** Linked Firebase Auth uid (member self-login). Set by `provisionMemberLogin`
+   *  (admin SDK); absent until the member is invited. Immutable once set (rules). */
+  uid?: string;
   active: boolean;
   deletedAt: Timestamp | null;
 }
