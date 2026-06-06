@@ -54,24 +54,28 @@ CASL on the client and **mirror them in `firestore.rules`** server-side.
 
 The points system is the **Mejor Miembro Individual** competition. Design F3/§A to these:
 
-- **Hierarchy Programa → Proyecto → Actividad.** Likely one `Initiative` entity with
-  a `level` + parent link. "Actividad" = an execution instance (coordination meetings
-  don't count). Roles per level: director / co-director / team.
-- **Points are provisional, then confirmed by gates:** (a) director files the **final
-  report** (conclusions + economic report if budget — this *is* the C-epic dossier),
-  (b) director **"aval"** endorses co-director/team, (c) **attendance registered**,
-  (d) **punctuality factor** — ≤15 min after start = 100 %, later = 50 % (from the
+- **Hierarchy Programa → Proyecto → Actividad — `Program` and `Project` are
+  DISTINCT entities** (different at their core), each producing **Activities** where
+  attendance/points happen. "Actividad" = an execution instance (coordination
+  meetings don't count). Roles: director / co-director / team.
+- **Points are provisional, then confirmed by two gates** (v1 — the "aval"
+  endorsement is **dropped for now**, it's an administrative/legal-advisor step):
+  (a) director files the **final report** (conclusions + economic report if budget —
+  this *is* the C-epic dossier), and (b) **attendance registered**. Plus a
+  **punctuality factor** — ≤15 min after start = 100 %, later = 50 % (from the
   **QR check-in timestamp**). Ledger entry → `provisional | confirmed`, with factor +
   source/role + activity link.
 - **Time-windowed:** monthly accrual (1st–last), convention cutoff **3 weeks before**,
   annual total. Leaderboard publishes **monthly (top 3 + Best of Month)** and annually.
+- **Public & transparent:** the cumulative + monthly points table is **visible to all
+  members** (not gated); monthly public breakdown; members can request clarification.
 - **Finance → Points coupling:** only members **al día** are eligible; a **missed
   month voids that month's points** (restored on payment); **joining a payment plan =
   +5 pts**. The engine reads `duesStatus`.
 - **Accrual ≠ eligibility:** flags `isCEL` (can't compete), `isPastPresident` (no
   accrual), `wonLastGestión` (excluded next year). JDL directors *do* accrue + compete.
-- **Tiebreaker:** social media (like 1 / comment 2 / share 3) — manual monthly entry.
-- **Transparency + disputes:** monthly public breakdown; members can request clarification.
+- **Tiebreaker:** social media (like 1 / comment 2 / share 3) — **manual monthly entry,
+  low-priority** (assess its value when the slice is built).
 
 ## Done (baseline)
 
@@ -87,8 +91,8 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | # | Item | Dep | Parallel | Notes / Triggers |
 |---|------|-----|----------|------------------|
 | F1 | **Roles & permissions** — CASL abilities + role model. Keep **chapter title (Presidenta…) separate from permission**. Scanner is **event-scoped** (`can('checkIn','Attendance',{eventId})`). | CASL (vet dep) | `[S]` (everything access-gated leans on it) | absorbs the old rules-hardening: `firestore.rules` becomes **role-aware** (mirror CASL server-side; `delete:if false` + field guards). `/security-review` + `firestore-security-reviewer` |
-| F2 | **@luminova/types** package — promote `Member`/`Ally`/`Event`/`Project`/`Participation`/`PointRule`/`DuesConfig`/`Payment` so apps **and** beacon share them | — | `[P]` | needed before E-slices + Spotlight project showcase + Finance |
-| F3 | **Recognition Engine data model** — **participation ledger** with `provisional\|confirmed` state + punctuality factor + month bucket + role/activity link; `Initiative` hierarchy (Programa/Proyecto/Actividad); a separate **eligibility** layer (flags) and **Finance→Points** read. See "rules that shape the model" above | F2; ✅ matrix | `[S]` design-first | the dependency under everything in §A; richer than "sum of points" |
+| F2 | **@luminova/types** package — promote `Member`/`Ally`/`Program`/`Project`/`Activity`/`Participation`/`PointRule`/`DuesConfig`/`Payment` (Program & Project are distinct) so apps **and** beacon share them | — | `[P]` | needed before E-slices + Spotlight project showcase + Finance |
+| F3 | **Recognition Engine data model** — **participation ledger** with `provisional\|confirmed` state (gates: final report + attendance) + punctuality factor + month bucket + role/activity link; **distinct Program/Project + Activity** entities; a separate **eligibility** layer (flags) and **Finance→Points** read. See "rules that shape the model" above | F2; ✅ matrix | `[S]` design-first | the dependency under everything in §A; richer than "sum of points" |
 
 ## A. Recognition Engine (the spine — epic, ship in slices)
 
@@ -99,7 +103,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | A3 | **Attendance / QR check-in** (mobile-first) — designated scanners scan members' **personal QR**; records participation → triggers points | F1, F3, B-QR | `[S]` | the day-of mobile flagship; live roster + manual tap fallback |
 | A4 | **Offline check-in** — queue scans, sync when back online | A3 | `[S]` | roadmap, **not priority** (bad venue wifi is real) |
 | A5 | **Member profile / points history** — board view + member self-view; breakdown by source | F3 | `[S]` | makes points "very visible"; no member view exists today |
-| A6 | **Leaderboard / recognition surface** | F3, A5 | `[S]` | the engagement flywheel |
+| A6 | **Leaderboard / recognition surface** — **public to all members**; monthly (top 3 + Best of Month) + annual; eligibility flags applied | F3, A5 | `[S]` | the engagement flywheel; ties tiebreak via social (manual) |
 
 ## B. Member-facing surface & role-aware home
 
