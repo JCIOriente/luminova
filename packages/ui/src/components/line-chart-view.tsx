@@ -1,0 +1,82 @@
+import { useId, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { areaPath, seriesPath, sharedDomain, type ChartSeries } from "./line-chart";
+
+const W = 720;
+const H = 300;
+
+export function LineChart({
+  series,
+  height = 300,
+  className,
+}: {
+  series: ChartSeries[];
+  height?: number;
+  className?: string;
+}) {
+  const gradId = useId();
+  const [hover, setHover] = useState<number | null>(null);
+  if (series.length === 0) return null;
+  const { min, max } = sharedDomain(series);
+  const primary = series[0]!;
+  const n = primary.values.length;
+
+  const onMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = (e.clientX - rect.left) / rect.width;
+    setHover(Math.max(0, Math.min(n - 1, Math.round(ratio * (n - 1)))));
+  };
+
+  const hx = hover === null || n <= 1 ? 0 : (W * hover) / (n - 1);
+
+  return (
+    <div className={className} style={{ position: "relative" }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        height={height}
+        preserveAspectRatio="none"
+        onPointerMove={onMove}
+        onPointerLeave={() => setHover(null)}
+        role="img"
+        aria-label={`Gráfico de ${series.map((s) => s.label).join(" y ")}`}
+      >
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={primary.color} stopOpacity="0.18" />
+            <stop offset="100%" stopColor={primary.color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath(primary.values, W, H, min, max)} fill={`url(#${gradId})`} />
+        {series.map((s) => (
+          <path
+            key={s.label}
+            d={seriesPath(s.values, W, H, min, max)}
+            fill="none"
+            stroke={s.color}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+        {hover !== null && (
+          <line x1={hx} y1="0" x2={hx} y2={H} stroke="currentColor" strokeOpacity="0.18" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+        )}
+      </svg>
+      {hover !== null && (
+        <div
+          className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-[10px] bg-jci-black px-3 py-2 text-[12px] text-white shadow-lg"
+          style={{ left: `${(hover / Math.max(1, n - 1)) * 100}%`, top: 0 }}
+        >
+          {series.map((s) => (
+            <div key={s.label} className="flex items-center gap-2 whitespace-nowrap">
+              <span className="size-2 rounded-full" style={{ background: s.color }} />
+              <span className="text-white/70">{s.label}</span>
+              <span className="ml-auto font-bold tabular-nums">{s.values[hover]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

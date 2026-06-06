@@ -17,4 +17,6 @@ export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from ".
 export { Sheet } from "./components/sheet";
 export { Dialog } from "./components/dialog";
 export { Sparkline } from "./components/sparkline-chart";
+export { LineChart } from "./components/line-chart-view";
+export type { ChartSeries } from "./components/line-chart";
 export { cn } from "./lib/cn";
