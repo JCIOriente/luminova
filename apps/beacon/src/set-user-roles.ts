@@ -1,7 +1,10 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
-import { isValidRole, type Role } from "@luminova/auth/roles";
+import { ROLES, isValidRole, type Role } from "@luminova/auth/roles";
+
+const MAX_SCANNER_EVENT_IDS = 50;
+const MAX_EVENT_ID_LENGTH = 128;
 
 export interface SetUserRolesInput {
   targetUid: string;
@@ -24,12 +27,15 @@ export function validateSetRolesInput(data: unknown): SetUserRolesInput {
   if (!Array.isArray(raw.roles) || raw.roles.length === 0) {
     throw new HttpsError("invalid-argument", "roles must be a non-empty array");
   }
+  if (raw.roles.length > ROLES.length) {
+    throw new HttpsError("invalid-argument", "roles exceeds the maximum allowed count");
+  }
   for (const role of raw.roles) {
     if (!isValidRole(role)) {
-      throw new HttpsError("invalid-argument", `unknown role: ${String(role)}`);
+      throw new HttpsError("invalid-argument", "one or more roles are invalid");
     }
   }
-  const roles = raw.roles as Role[];
+  const roles = [...new Set(raw.roles as Role[])];
 
   let scannerEventIds: string[] | undefined;
   if (raw.scannerEventIds !== undefined) {
@@ -42,7 +48,27 @@ export function validateSetRolesInput(data: unknown): SetUserRolesInput {
     if (!roles.includes("Scanner")) {
       throw new HttpsError("invalid-argument", "scannerEventIds requires the Scanner role");
     }
-    scannerEventIds = raw.scannerEventIds as string[];
+    if (raw.scannerEventIds.length > MAX_SCANNER_EVENT_IDS) {
+      throw new HttpsError("invalid-argument", "too many scannerEventIds");
+    }
+    if (
+      (raw.scannerEventIds as string[]).some(
+        (id) => id.length === 0 || id.length > MAX_EVENT_ID_LENGTH,
+      )
+    ) {
+      throw new HttpsError("invalid-argument", "scannerEventIds entries are out of bounds");
+    }
+    scannerEventIds = [...new Set(raw.scannerEventIds as string[])];
+  }
+
+  if (
+    roles.includes("Scanner") &&
+    (scannerEventIds === undefined || scannerEventIds.length === 0)
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Scanner role requires at least one scannerEventIds entry",
+    );
   }
 
   return { targetUid: raw.targetUid, roles, scannerEventIds };
@@ -55,7 +81,9 @@ function adminAuth() {
 
 function callerRoles(request: CallableRequest): string[] {
   const token = request.auth?.token as { roles?: unknown } | undefined;
-  return Array.isArray(token?.roles) ? (token.roles as string[]) : [];
+  return Array.isArray(token?.roles)
+    ? (token.roles as unknown[]).filter((role): role is string => typeof role === "string")
+    : [];
 }
 
 export const setUserRoles = onCall(async (request) => {
@@ -67,6 +95,10 @@ export const setUserRoles = onCall(async (request) => {
   }
 
   const input = validateSetRolesInput(request.data);
+
+  if (input.targetUid === request.auth.uid) {
+    throw new HttpsError("permission-denied", "cannot modify your own roles");
+  }
 
   await adminAuth().setCustomUserClaims(input.targetUid, {
     roles: input.roles,

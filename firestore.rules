@@ -15,6 +15,12 @@ service cloud.firestore {
     function unchanged(field) {
       return request.resource.data[field] == resource.data[field];
     }
+    // Block client-side resurrection of soft-deleted docs: once deletedAt is set
+    // it is immutable, and active can only transition true -> false, never back.
+    function softDeleteSafe() {
+      return (resource.data.deletedAt == null || unchanged('deletedAt'))
+        && (resource.data.active == true || unchanged('active'));
+    }
 
     match /projects/{projectId} {
       allow read: if true;
@@ -35,13 +41,15 @@ service cloud.firestore {
         && request.resource.data.totalPoints == 0;
       allow update: if hasAnyRole(['Admin', 'Membership'])
         && unchanged('totalPoints')
-        && unchanged('uid');
+        && unchanged('uid')
+        && softDeleteSafe();
       allow delete: if false;
     }
 
     match /allies/{allyId} {
       allow read: if hasAnyRole(['Admin', 'Membership', 'ProjectManager', 'ExecutiveCommittee']);
-      allow create, update: if hasAnyRole(['Admin', 'Membership']);
+      allow create: if hasAnyRole(['Admin', 'Membership']);
+      allow update: if hasAnyRole(['Admin', 'Membership']) && softDeleteSafe();
       allow delete: if false;
     }
 

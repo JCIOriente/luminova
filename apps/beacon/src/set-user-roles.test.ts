@@ -29,4 +29,43 @@ describe("validateSetRolesInput", () => {
       validateSetRolesInput({ targetUid: "u1", roles: ["Member"], scannerEventIds: ["evt_1"] }),
     ).toThrow();
   });
+
+  it("rejects the Scanner role without any scannerEventIds", () => {
+    expect(() => validateSetRolesInput({ targetUid: "u1", roles: ["Scanner"] })).toThrow();
+    expect(() =>
+      validateSetRolesInput({ targetUid: "u1", roles: ["Scanner"], scannerEventIds: [] }),
+    ).toThrow();
+  });
+
+  it("deduplicates repeated roles", () => {
+    const r = validateSetRolesInput({ targetUid: "u1", roles: ["Admin", "Admin", "Member"] });
+    expect(r.roles).toEqual(["Admin", "Member"]);
+  });
+
+  it("rejects more roles than exist", () => {
+    const tooMany = [
+      "Admin",
+      "Membership",
+      "Treasury",
+      "ExecutiveCommittee",
+      "ProjectManager",
+      "Scanner",
+      "Member",
+      "Admin",
+    ];
+    expect(() => validateSetRolesInput({ targetUid: "u1", roles: tooMany })).toThrow();
+  });
+
+  it("rejects out-of-bounds scannerEventIds entries", () => {
+    expect(() =>
+      validateSetRolesInput({ targetUid: "u1", roles: ["Scanner"], scannerEventIds: [""] }),
+    ).toThrow();
+    expect(() =>
+      validateSetRolesInput({
+        targetUid: "u1",
+        roles: ["Scanner"],
+        scannerEventIds: ["x".repeat(129)],
+      }),
+    ).toThrow();
+  });
 });

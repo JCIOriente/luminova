@@ -20,6 +20,7 @@ function anon() {
 }
 
 const MEMBER_DOC = { name: "Ana", totalPoints: 0, uid: "owner-uid", active: true, deletedAt: null };
+const DELETED_AT = new Date("2026-01-01T00:00:00Z");
 
 beforeAll(async () => {
   const rulesPath = resolve(fileURLToPath(new URL("../../firestore.rules", import.meta.url)));
@@ -31,13 +32,22 @@ beforeAll(async () => {
       rules: readFileSync(rulesPath, "utf8"),
     },
   });
+  await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, "members/m1"), MEMBER_DOC);
-    await setDoc(doc(db, "allies/a1"), { companyName: "ACME", active: true });
+    await setDoc(doc(db, "members/m_deleted"), {
+      name: "Bea",
+      totalPoints: 0,
+      uid: "bea-uid",
+      active: false,
+      deletedAt: DELETED_AT,
+    });
+    await setDoc(doc(db, "allies/a1"), { companyName: "ACME", active: true, deletedAt: null });
     await setDoc(doc(db, "events/e1"), { title: "Gala" });
     await setDoc(doc(db, "pointRules/r1"), { points: 10 });
     await setDoc(doc(db, "projects/p1"), { title: "P" });
+    await setDoc(doc(db, "memberPoints/2025/03/e1"), { points: 5 });
   });
 });
 
@@ -82,6 +92,25 @@ describe("firestore.rules — members", () => {
   it("allows Membership to update a normal field", async () => {
     await assertSucceeds(updateDoc(doc(as("u", ["Membership"]), "members/m1"), { name: "Ana2" }));
   });
+  it("allows soft-deleting a live member (active true -> false)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Membership"]), "members/m1"), {
+        active: false,
+        deletedAt: new Date("2026-02-01T00:00:00Z"),
+      }),
+    );
+  });
+  it("denies resurrecting a soft-deleted member (active false -> true)", async () => {
+    await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m_deleted"), { active: true }));
+  });
+  it("denies unsetting deletedAt on a soft-deleted member", async () => {
+    await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m_deleted"), { deletedAt: null }));
+  });
+  it("denies a Member from updating their own profile", async () => {
+    await assertFails(
+      updateDoc(doc(as("bea-uid", ["Member"]), "members/m_deleted"), { name: "X" }),
+    );
+  });
   it("denies hard delete even for Admin", async () => {
     await assertFails(deleteDoc(doc(as("u", ["Admin"]), "members/m1")));
   });
@@ -101,6 +130,14 @@ describe("firestore.rules — allies", () => {
   });
   it("allows Admin to write allies", async () => {
     await assertSucceeds(updateDoc(doc(as("u", ["Admin"]), "allies/a1"), { companyName: "X" }));
+  });
+  it("allows Membership to soft-delete an ally", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Membership"]), "allies/a1"), {
+        active: false,
+        deletedAt: new Date("2026-02-01T00:00:00Z"),
+      }),
+    );
   });
 });
 
@@ -131,6 +168,9 @@ describe("firestore.rules — pointRules", () => {
 describe("firestore.rules — memberPoints", () => {
   it("allows signed-in read (public to members)", async () => {
     await assertSucceeds(getDoc(doc(as("u", ["Member"]), "memberPoints/2025/03/e1")));
+  });
+  it("denies anonymous read", async () => {
+    await assertFails(getDoc(doc(anon(), "memberPoints/2025/03/e1")));
   });
   it("denies all client writes", async () => {
     await assertFails(setDoc(doc(as("u", ["Admin"]), "memberPoints/2025/03/e1"), { p: 1 }));

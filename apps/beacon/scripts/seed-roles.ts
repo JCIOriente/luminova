@@ -8,6 +8,12 @@ function assertEmulator(): void {
       "Refusing to run: FIREBASE_AUTH_EMULATOR_HOST is not set (this script is emulator-only).",
     );
   }
+  const projectId = process.env.GCLOUD_PROJECT ?? "demo-roles";
+  if (!projectId.startsWith("demo-")) {
+    throw new Error(
+      `Refusing to run: GCLOUD_PROJECT must be a demo- project for emulator use (got "${projectId}").`,
+    );
+  }
 }
 
 async function main(): Promise<void> {
