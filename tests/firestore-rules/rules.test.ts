@@ -46,6 +46,7 @@ beforeAll(async () => {
     await setDoc(doc(db, "allies/a1"), { companyName: "ACME", active: true, deletedAt: null });
     await setDoc(doc(db, "events/e1"), { title: "Gala" });
     await setDoc(doc(db, "pointRules/r1"), { points: 10 });
+    await setDoc(doc(db, "terms/2026"), { status: "Activo" });
     await setDoc(doc(db, "projects/p1"), { title: "P" });
     await setDoc(doc(db, "memberPoints/2025/03/e1"), { points: 5 });
   });
@@ -162,6 +163,27 @@ describe("firestore.rules — pointRules", () => {
   });
   it("denies non-admin write", async () => {
     await assertFails(updateDoc(doc(as("u", ["Membership"]), "pointRules/r1"), { points: 20 }));
+  });
+});
+
+describe("firestore.rules — terms", () => {
+  it("allows any signed-in user to read", async () => {
+    await assertSucceeds(getDoc(doc(as("u", ["Member"]), "terms/2026")));
+  });
+  it("denies anonymous read", async () => {
+    await assertFails(getDoc(doc(anon(), "terms/2026")));
+  });
+  it("allows Admin to create a term", async () => {
+    await assertSucceeds(setDoc(doc(as("u", ["Admin"]), "terms/2027"), { status: "Activo" }));
+  });
+  it("allows Admin to update a term", async () => {
+    await assertSucceeds(updateDoc(doc(as("u", ["Admin"]), "terms/2026"), { status: "Cerrado" }));
+  });
+  it("denies a non-Admin write", async () => {
+    await assertFails(setDoc(doc(as("u", ["Membership"]), "terms/2028"), { status: "Activo" }));
+  });
+  it("denies delete even for Admin", async () => {
+    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "terms/2026")));
   });
 });
 
