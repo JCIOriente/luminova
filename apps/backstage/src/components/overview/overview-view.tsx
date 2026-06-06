@@ -2,8 +2,10 @@ import { Badge, Button, Icon, KpiCard, LineChart } from "@luminova/ui";
 import { PageHeader } from "../page-header";
 import { OVERVIEW_MOCK } from "./overview-mock";
 
+const WHITESPACE = /\s+/;
+
 function firstName(value: string): string {
-  return value.trim().split(/\s+/)[0] ?? value;
+  return value.trim().split(WHITESPACE)[0] ?? value;
 }
 
 type ActivityTone = (typeof OVERVIEW_MOCK.activity)[number]["tone"];
