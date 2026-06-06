@@ -1,4 +1,4 @@
-import type { Term } from "./term";
+import type { Term } from "./term.js";
 
 export function isExecutiveCommittee(memberId: string, term: Term): boolean {
   return term.board.some((seat) => seat.memberId === memberId && seat.isExecutiveCommittee);

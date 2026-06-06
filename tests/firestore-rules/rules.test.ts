@@ -47,6 +47,7 @@ beforeAll(async () => {
     await setDoc(doc(db, "events/e1"), { title: "Gala" });
     await setDoc(doc(db, "pointRules/r1"), { points: 10 });
     await setDoc(doc(db, "terms/2026"), { status: "Activo" });
+    await setDoc(doc(db, "checkIns/c1"), { memberId: "m1", activityId: "a1", role: "Attendee" });
     await setDoc(doc(db, "projects/p1"), { title: "P" });
     await setDoc(doc(db, "memberPoints/2025/03/e1"), { points: 5 });
   });
@@ -189,6 +190,65 @@ describe("firestore.rules — terms", () => {
   });
   it("denies delete even for Admin", async () => {
     await assertFails(deleteDoc(doc(as("u", ["Admin"]), "terms/2026")));
+  });
+});
+
+function asClaims(uid: string, claims: Record<string, unknown>) {
+  return env.authenticatedContext(uid, claims).firestore();
+}
+
+describe("firestore.rules — checkIns", () => {
+  it("allows any signed-in user to read", async () => {
+    await assertSucceeds(getDoc(doc(as("u", ["Member"]), "checkIns/c1")));
+  });
+  it("allows Admin to create", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["Admin"]), "checkIns/c_admin"), {
+        memberId: "m1",
+        activityId: "a1",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("allows ProjectManager to create", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["ProjectManager"]), "checkIns/c_pm"), {
+        memberId: "m1",
+        activityId: "a1",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("allows Scanner to create only for an in-scope activity", async () => {
+    const ctx = asClaims("s1", { roles: ["Scanner"], scannerEventIds: ["a1"] });
+    await assertSucceeds(
+      setDoc(doc(ctx, "checkIns/c_scan"), { memberId: "m1", activityId: "a1", role: "Attendee" }),
+    );
+  });
+  it("denies Scanner creating for an out-of-scope activity", async () => {
+    const ctx = asClaims("s2", { roles: ["Scanner"], scannerEventIds: ["other"] });
+    await assertFails(
+      setDoc(doc(ctx, "checkIns/c_bad"), { memberId: "m1", activityId: "a1", role: "Attendee" }),
+    );
+  });
+  it("denies Scanner registering a non-Attendee role (no self-award of director points)", async () => {
+    const ctx = asClaims("s3", { roles: ["Scanner"], scannerEventIds: ["a1"] });
+    await assertFails(
+      setDoc(doc(ctx, "checkIns/c_dir"), { memberId: "s3", activityId: "a1", role: "Director" }),
+    );
+  });
+  it("denies a plain Member from creating", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Member"]), "checkIns/c_m"), {
+        memberId: "m1",
+        activityId: "a1",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("denies update and delete", async () => {
+    await assertFails(updateDoc(doc(as("u", ["Admin"]), "checkIns/c1"), { role: "Director" }));
+    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "checkIns/c1")));
   });
 });
 

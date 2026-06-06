@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ACTIVITY_CATEGORIES } from "./activity";
+import { ACTIVITY_CATEGORIES } from "./activity.js";
 
 export const activitySchema = z
   .object({

@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "./timestamp.js";
 
 export const INITIATIVE_STATUSES = ["Planificacion", "EnEjecucion", "Finalizado"] as const;
 export type InitiativeStatus = (typeof INITIATIVE_STATUSES)[number];

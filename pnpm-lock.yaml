@@ -120,6 +120,9 @@ importers:
       '@luminova/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@luminova/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       firebase-admin:
         specifier: 13.10.0
         version: 13.10.0

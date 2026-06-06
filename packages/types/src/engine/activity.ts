@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "./timestamp.js";
 
 export const ACTIVITY_CATEGORIES = [
   "Assembly",
