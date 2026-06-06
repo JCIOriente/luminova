@@ -1,4 +1,5 @@
 export { Button, type ButtonProps } from "./components/button";
+export { Badge, type BadgeTone } from "./components/badge";
 export { ArrowLink } from "./components/arrow-link";
 export { Icon, ArrowRight } from "./components/icons";
 export { Input, fieldControlClasses } from "./components/input";
