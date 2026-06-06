@@ -15,6 +15,7 @@ import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthLoginRouteImport } from './routes/_auth.login'
 import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
 import { Route as AppMembersRouteImport } from './routes/_app.members'
+import { Route as AppMeRouteImport } from './routes/_app.me'
 import { Route as AppLeaderboardRouteImport } from './routes/_app.leaderboard'
 import { Route as AppCheckInRouteImport } from './routes/_app.check-in'
 import { Route as AppAlliesRouteImport } from './routes/_app.allies'
@@ -49,6 +50,11 @@ const AppMembersRoute = AppMembersRouteImport.update({
   path: '/members',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMeRoute = AppMeRouteImport.update({
+  id: '/me',
+  path: '/me',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppLeaderboardRoute = AppLeaderboardRouteImport.update({
   id: '/leaderboard',
   path: '/leaderboard',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/allies': typeof AppAlliesRoute
   '/check-in': typeof AppCheckInRoute
   '/leaderboard': typeof AppLeaderboardRoute
+  '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
   '/point-rules': typeof AppPointRulesRoute
   '/login': typeof AuthLoginRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/allies': typeof AppAlliesRoute
   '/check-in': typeof AppCheckInRoute
   '/leaderboard': typeof AppLeaderboardRoute
+  '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
   '/point-rules': typeof AppPointRulesRoute
   '/login': typeof AuthLoginRoute
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/_app/allies': typeof AppAlliesRoute
   '/_app/check-in': typeof AppCheckInRoute
   '/_app/leaderboard': typeof AppLeaderboardRoute
+  '/_app/me': typeof AppMeRoute
   '/_app/members': typeof AppMembersRoute
   '/_app/point-rules': typeof AppPointRulesRoute
   '/_auth/login': typeof AuthLoginRoute
@@ -119,6 +128,7 @@ export interface FileRouteTypes {
     | '/allies'
     | '/check-in'
     | '/leaderboard'
+    | '/me'
     | '/members'
     | '/point-rules'
     | '/login'
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/allies'
     | '/check-in'
     | '/leaderboard'
+    | '/me'
     | '/members'
     | '/point-rules'
     | '/login'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/_app/allies'
     | '/_app/check-in'
     | '/_app/leaderboard'
+    | '/_app/me'
     | '/_app/members'
     | '/_app/point-rules'
     | '/_auth/login'
@@ -198,6 +210,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMembersRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/me': {
+      id: '/_app/me'
+      path: '/me'
+      fullPath: '/me'
+      preLoaderRoute: typeof AppMeRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/leaderboard': {
       id: '/_app/leaderboard'
       path: '/leaderboard'
@@ -241,6 +260,7 @@ interface AppRouteChildren {
   AppAlliesRoute: typeof AppAlliesRoute
   AppCheckInRoute: typeof AppCheckInRoute
   AppLeaderboardRoute: typeof AppLeaderboardRoute
+  AppMeRoute: typeof AppMeRoute
   AppMembersRoute: typeof AppMembersRoute
   AppPointRulesRoute: typeof AppPointRulesRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -252,6 +272,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAlliesRoute: AppAlliesRoute,
   AppCheckInRoute: AppCheckInRoute,
   AppLeaderboardRoute: AppLeaderboardRoute,
+  AppMeRoute: AppMeRoute,
   AppMembersRoute: AppMembersRoute,
   AppPointRulesRoute: AppPointRulesRoute,
   AppIndexRoute: AppIndexRoute,
