@@ -22,6 +22,9 @@ export type { ChartSeries } from "./components/line-chart";
 export { KpiCard, type KpiTone, type KpiTrend } from "./components/kpi-card";
 export { Skeleton } from "./components/skeleton";
 export { EmptyState } from "./components/empty-state";
+export { Popover } from "./components/popover";
+export { Combobox, type ComboboxOption } from "./components/combobox";
+export { MultiSelect } from "./components/multi-select-field";
 // QrCode / QrScanner are intentionally NOT in the barrel — they pull qrcode.react
 // / @zxing into the static graph. Import them via the deep paths
 // `@luminova/ui/qr-code` and `@luminova/ui/qr-scanner` so they stay in lazy chunks.
