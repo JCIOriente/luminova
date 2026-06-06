@@ -8,6 +8,7 @@ export const activitySchema = z
     parentId: z.string().min(1).nullable(),
     startAt: z.string().min(1, "Requerido."),
     directorId: z.string().min(1).nullable(),
+    coDirectorId: z.string().min(1).nullable(),
   })
   .superRefine((value, ctx) => {
     const isExecution = value.category === "ProjectExecution";

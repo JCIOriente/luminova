@@ -9,6 +9,7 @@ const input: ActivityInput = {
   parentId: null,
   startAt: "2026-06-10T18:30",
   directorId: null,
+  coDirectorId: null,
 };
 
 describe("toActivityCreateDoc", () => {
@@ -35,6 +36,7 @@ describe("toActivityCreateDoc", () => {
         parentId: "p-1",
         startAt: "2026-06-10T18:30",
         directorId: "m-1",
+        coDirectorId: null,
       },
       "2026",
     );

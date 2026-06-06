@@ -16,6 +16,7 @@ const EMPTY: ActivityInput = {
   parentId: null,
   startAt: "",
   directorId: null,
+  coDirectorId: null,
 };
 
 const emptyToNull = (value: string) => (value === "" ? null : value);

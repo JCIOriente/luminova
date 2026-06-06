@@ -7,6 +7,7 @@ const base = {
   parentId: "p-1",
   startAt: "2026-06-06T18:00",
   directorId: "m-1",
+  coDirectorId: null,
 };
 
 describe("activitySchema", () => {
@@ -22,6 +23,7 @@ describe("activitySchema", () => {
         parentId: null,
         startAt: "2026-06-06T18:00",
         directorId: null,
+        coDirectorId: null,
       }).success,
     ).toBe(true);
   });
@@ -40,7 +42,26 @@ describe("activitySchema", () => {
         parentId: "x",
         startAt: "2026-06-06T18:00",
         directorId: null,
+        coDirectorId: null,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("activitySchema coDirectorId", () => {
+  const inst = {
+    category: "Assembly" as const,
+    parentType: null,
+    parentId: null,
+    startAt: "2026-06-06T18:00",
+    directorId: null,
+  };
+  it("keeps a null coDirectorId", () => {
+    const r = activitySchema.parse({ ...inst, coDirectorId: null });
+    expect(r.coDirectorId).toBeNull();
+  });
+  it("keeps a member coDirectorId", () => {
+    const r = activitySchema.parse({ ...inst, coDirectorId: "m2" });
+    expect(r.coDirectorId).toBe("m2");
   });
 });
