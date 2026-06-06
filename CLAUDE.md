@@ -105,6 +105,7 @@ VITE_FIREBASE_EMULATOR_ENABLED=false
 - **No barrel files in features** — import directly from the file, not an `index.ts` re-export
 - **shadcn/ui** — add components via `pnpm dlx shadcn@latest add <component>` run from `packages/ui`
 - **No comments** unless the WHY is non-obvious
+- **Naming — English identifiers, Spanish values.** Code identifiers (types, fields, functions, enum *names*) are **English**, no diacritics (`PascalCase` types, `camelCase` fields). Only **user-facing enum values / labels** may be Spanish — e.g. `membershipStatus` (English key) holds `"Activo" | "Inactivo" | "Desafiliado"`. Expand acronyms (`isExecutiveCommittee`, not `isCEL`); translate domain terms (`gestión` → `term`). Never mix languages in one identifier.
 - **pnpm only** — never use npm or yarn in this repo
 - **Latest secure versions** — never type a version from memory. Use the `secure-dep-vetting` skill before adding or upgrading any dependency. Pin security-critical deps (firebase, auth, crypto, zod) exact; caret-range everything else.
 
