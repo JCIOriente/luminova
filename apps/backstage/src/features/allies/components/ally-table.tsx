@@ -1,5 +1,6 @@
 import {
-  Button,
+  EmptyState,
+  Icon,
   Table,
   TableHeader,
   TableBody,
@@ -17,7 +18,13 @@ interface AllyTableProps {
 
 export function AllyTable({ allies, onEdit, onDelete }: AllyTableProps) {
   if (allies.length === 0) {
-    return <p className="text-ink-2">No hay aliados todavía.</p>;
+    return (
+      <EmptyState
+        icon={Icon.handshake({ s: 40 })}
+        title="No hay aliados todavía"
+        description="Registra empresas y organizaciones aliadas para verlas aquí."
+      />
+    );
   }
 
   return (
@@ -34,30 +41,28 @@ export function AllyTable({ allies, onEdit, onDelete }: AllyTableProps) {
       <TableBody>
         {allies.map((ally) => (
           <TableRow key={ally.id}>
-            <TableCell className="font-medium">{ally.companyName}</TableCell>
-            <TableCell>{ally.personInCharge}</TableCell>
-            <TableCell className="text-ink-2">{ally.phone}</TableCell>
+            <TableCell className="font-semibold text-ink-1">{ally.companyName}</TableCell>
+            <TableCell className="text-ink-2">{ally.personInCharge}</TableCell>
+            <TableCell className="text-ink-2 tabular-nums">{ally.phone}</TableCell>
             <TableCell className="text-ink-2">{ally.email}</TableCell>
             <TableCell className="text-right">
-              <div className="inline-flex gap-2">
-                <Button
-                  as="button"
+              <div className="inline-flex gap-1">
+                <button
                   type="button"
-                  variant="secondary"
-                  size="sm"
                   onClick={() => onEdit(ally)}
+                  aria-label={`Editar a ${ally.companyName}`}
+                  className="flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-colors hover:bg-ink-1/[0.04] hover:text-ink-1"
                 >
-                  Editar
-                </Button>
-                <Button
-                  as="button"
+                  {Icon.settings({ s: 17 })}
+                </button>
+                <button
                   type="button"
-                  variant="secondary"
-                  size="sm"
                   onClick={() => onDelete(ally)}
+                  aria-label={`Eliminar a ${ally.companyName}`}
+                  className="flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-colors hover:bg-error/10 hover:text-error"
                 >
-                  Eliminar
-                </Button>
+                  {Icon.close({ s: 17 })}
+                </button>
               </div>
             </TableCell>
           </TableRow>
