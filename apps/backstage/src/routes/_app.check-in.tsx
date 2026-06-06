@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
+import { EmptyState, Icon } from "@luminova/ui";
+import { useAbility } from "../lib/authz/ability-context";
 import { PageHeader } from "../components/page-header";
 import { currentTermId } from "../lib/current-term";
 import { useMembers } from "../features/members/hooks/use-members";
@@ -19,6 +21,20 @@ const LazyQrScanner = lazy(() =>
 export const Route = createFileRoute("/_app/check-in")({ component: CheckInPage });
 
 function CheckInPage() {
+  const ability = useAbility();
+  if (!ability.can("checkIn", "Attendance")) {
+    return (
+      <EmptyState
+        icon={Icon.qr({ s: 40 })}
+        title="Sin acceso"
+        description="El registro de asistencia está disponible para administración y dirección de proyectos."
+      />
+    );
+  }
+  return <CheckInBoard />;
+}
+
+function CheckInBoard() {
   const termId = currentTermId();
   const { data: activities } = useActivitiesByTerm(termId);
   const { data: members } = useMembers();

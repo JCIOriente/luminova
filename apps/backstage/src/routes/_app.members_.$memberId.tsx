@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Badge, Sparkline, QrCode, type BadgeTone } from "@luminova/ui";
+import { Badge, Sparkline, type BadgeTone } from "@luminova/ui";
+import { QrCode } from "@luminova/ui/qr-code";
 import type { MemberStatus } from "@luminova/types";
 import { PageHeader } from "../components/page-header";
 import { encodeMemberQr } from "../lib/member-qr";

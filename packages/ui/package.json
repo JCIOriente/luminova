@@ -6,6 +6,7 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./qr-code": "./src/components/qr-code.tsx",
     "./qr-scanner": "./src/components/qr-scanner.tsx",
     "./theme.css": "./src/theme.css"
   },

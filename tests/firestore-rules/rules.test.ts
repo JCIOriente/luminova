@@ -49,6 +49,7 @@ beforeAll(async () => {
     await setDoc(doc(db, "terms/2026"), { status: "Activo" });
     await setDoc(doc(db, "activities/act1"), { termId: "2026", category: "Assembly" });
     await setDoc(doc(db, "checkIns/c1"), { memberId: "m1", activityId: "a1", role: "Attendee" });
+    await setDoc(doc(db, "participations/part1"), { memberId: "m1", termId: "2026" });
     await setDoc(doc(db, "projects/p1"), { title: "P" });
     await setDoc(doc(db, "memberPoints/2025/03/e1"), { points: 5 });
   });
@@ -271,6 +272,16 @@ describe("firestore.rules — checkIns", () => {
       setDoc(doc(ctx, "checkIns/c_dir"), { memberId: "s3", activityId: "a1", role: "Director" }),
     );
   });
+  it("denies Scanner creating for a non-existent member (no phantom check-ins)", async () => {
+    const ctx = asClaims("s4", { roles: ["Scanner"], scannerEventIds: ["a1"] });
+    await assertFails(
+      setDoc(doc(ctx, "checkIns/c_ghost"), {
+        memberId: "ghost",
+        activityId: "a1",
+        role: "Attendee",
+      }),
+    );
+  });
   it("denies a plain Member from creating", async () => {
     await assertFails(
       setDoc(doc(as("u", ["Member"]), "checkIns/c_m"), {
@@ -283,6 +294,20 @@ describe("firestore.rules — checkIns", () => {
   it("denies update and delete", async () => {
     await assertFails(updateDoc(doc(as("u", ["Admin"]), "checkIns/c1"), { role: "Director" }));
     await assertFails(deleteDoc(doc(as("u", ["Admin"]), "checkIns/c1")));
+  });
+});
+
+describe("firestore.rules — participations", () => {
+  it("allows signed-in read (ledger behind the points table)", async () => {
+    await assertSucceeds(getDoc(doc(as("u", ["Member"]), "participations/part1")));
+  });
+  it("denies anonymous read", async () => {
+    await assertFails(getDoc(doc(anon(), "participations/part1")));
+  });
+  it("denies all client writes (engine-only)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "participations/part2"), { memberId: "m1", termId: "2026" }),
+    );
   });
 });
 
