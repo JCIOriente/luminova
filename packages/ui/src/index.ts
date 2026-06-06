@@ -16,4 +16,5 @@ export { Tooltip } from "./components/tooltip";
 export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./components/table";
 export { Sheet } from "./components/sheet";
 export { Dialog } from "./components/dialog";
+export { Sparkline } from "./components/sparkline-chart";
 export { cn } from "./lib/cn";
