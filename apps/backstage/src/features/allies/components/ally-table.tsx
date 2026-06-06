@@ -10,6 +10,7 @@ import {
 } from "@luminova/ui";
 import type { Ally } from "../types/ally";
 import { RowAction } from "../../../components/row-action";
+import { Can } from "../../../lib/authz/ability-context";
 
 interface AllyTableProps {
   allies: Ally[];
@@ -48,17 +49,21 @@ export function AllyTable({ allies, onEdit, onDelete }: AllyTableProps) {
             <TableCell className="text-ink-2">{ally.email}</TableCell>
             <TableCell className="text-right">
               <div className="inline-flex gap-1">
-                <RowAction
-                  icon={Icon.settings({ s: 17 })}
-                  label={`Editar a ${ally.companyName}`}
-                  onClick={() => onEdit(ally)}
-                />
-                <RowAction
-                  icon={Icon.close({ s: 17 })}
-                  label={`Eliminar a ${ally.companyName}`}
-                  variant="danger"
-                  onClick={() => onDelete(ally)}
-                />
+                <Can I="update" a="Ally">
+                  <RowAction
+                    icon={Icon.settings({ s: 17 })}
+                    label={`Editar a ${ally.companyName}`}
+                    onClick={() => onEdit(ally)}
+                  />
+                </Can>
+                <Can I="delete" a="Ally">
+                  <RowAction
+                    icon={Icon.close({ s: 17 })}
+                    label={`Eliminar a ${ally.companyName}`}
+                    variant="danger"
+                    onClick={() => onDelete(ally)}
+                  />
+                </Can>
               </div>
             </TableCell>
           </TableRow>

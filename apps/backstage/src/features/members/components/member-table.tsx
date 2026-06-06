@@ -14,6 +14,7 @@ import type { Member, MemberStatus } from "../types/member";
 import { dateInputValue } from "../repositories/member-mapper";
 import { initials } from "../../../lib/initials";
 import { RowAction } from "../../../components/row-action";
+import { Can } from "../../../lib/authz/ability-context";
 
 interface MemberTableProps {
   members: Member[];
@@ -78,17 +79,21 @@ export function MemberTable({ members, onEdit, onDelete }: MemberTableProps) {
             </TableCell>
             <TableCell className="text-right">
               <div className="inline-flex gap-1">
-                <RowAction
-                  icon={Icon.settings({ s: 17 })}
-                  label={`Editar a ${member.name}`}
-                  onClick={() => onEdit(member)}
-                />
-                <RowAction
-                  icon={Icon.close({ s: 17 })}
-                  label={`Eliminar a ${member.name}`}
-                  variant="danger"
-                  onClick={() => onDelete(member)}
-                />
+                <Can I="update" a="Member">
+                  <RowAction
+                    icon={Icon.settings({ s: 17 })}
+                    label={`Editar a ${member.name}`}
+                    onClick={() => onEdit(member)}
+                  />
+                </Can>
+                <Can I="delete" a="Member">
+                  <RowAction
+                    icon={Icon.close({ s: 17 })}
+                    label={`Eliminar a ${member.name}`}
+                    variant="danger"
+                    onClick={() => onDelete(member)}
+                  />
+                </Can>
               </div>
             </TableCell>
           </TableRow>

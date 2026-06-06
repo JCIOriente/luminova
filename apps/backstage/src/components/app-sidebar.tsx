@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Icon, LogoLockup } from "@luminova/ui";
 import { useAuth } from "../lib/auth/auth";
+import { useAbility } from "../lib/authz/ability-context";
 import { signOutUser } from "../lib/auth/sign-out";
 import { initials } from "../lib/initials";
 import { NAV_GROUPS } from "./nav-config";
@@ -8,7 +9,13 @@ import { NAV_GROUPS } from "./nav-config";
 export function AppSidebar() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const ability = useAbility();
   const label = user?.email ?? "—";
+
+  const visibleGroups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.subject || ability.can("read", item.subject)),
+  })).filter((group) => group.items.length > 0);
 
   const onLogout = async () => {
     await signOutUser();
@@ -22,7 +29,7 @@ export function AppSidebar() {
       </div>
 
       <nav className="scroll flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
-        {NAV_GROUPS.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.label} className="contents">
             <div className="px-3 pt-4 pb-2 font-mono text-[10px] tracking-[0.16em] text-ink-3 uppercase">
               {group.label}

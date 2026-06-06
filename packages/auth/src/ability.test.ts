@@ -1,0 +1,82 @@
+import { describe, expect, it } from "vitest";
+import { subject } from "@casl/ability";
+import { buildAbility } from "./ability";
+import type { AuthClaims } from "./roles";
+
+const UID = "self-uid";
+function ability(claims: AuthClaims) {
+  return buildAbility(claims, UID);
+}
+
+describe("buildAbility", () => {
+  it("Admin can manage everything", () => {
+    const a = ability({ roles: ["Admin"] });
+    expect(a.can("manage", "all")).toBe(true);
+    expect(a.can("delete", "Member")).toBe(true);
+  });
+
+  it("Membership manages members, reads allies/events/points", () => {
+    const a = ability({ roles: ["Membership"] });
+    expect(a.can("create", "Member")).toBe(true);
+    expect(a.can("update", "Member")).toBe(true);
+    expect(a.can("read", "Ally")).toBe(true);
+    expect(a.can("read", "MemberPoints")).toBe(true);
+    expect(a.can("manage", "Payment")).toBe(false);
+  });
+
+  it("Treasury manages payments and reads members/points only", () => {
+    const a = ability({ roles: ["Treasury"] });
+    expect(a.can("manage", "Payment")).toBe(true);
+    expect(a.can("read", "Member")).toBe(true);
+    expect(a.can("update", "Member")).toBe(false);
+  });
+
+  it("ExecutiveCommittee is read-only across the board", () => {
+    const a = ability({ roles: ["ExecutiveCommittee"] });
+    expect(a.can("read", "Member")).toBe(true);
+    expect(a.can("read", "Project")).toBe(true);
+    expect(a.can("update", "Member")).toBe(false);
+    expect(a.can("create", "Event")).toBe(false);
+  });
+
+  it("ProjectManager manages projects and reads allies/events", () => {
+    const a = ability({ roles: ["ProjectManager"] });
+    expect(a.can("manage", "Project")).toBe(true);
+    expect(a.can("read", "Ally")).toBe(true);
+    expect(a.can("read", "Event")).toBe(true);
+    expect(a.can("manage", "Program")).toBe(false);
+    expect(a.can("update", "Member")).toBe(false);
+  });
+
+  it("Scanner can check in only assigned events", () => {
+    const a = ability({ roles: ["Scanner"], scannerEventIds: ["evt_1"] });
+    expect(a.can("checkIn", subject("Attendance", { eventId: "evt_1" }))).toBe(true);
+    expect(a.can("checkIn", subject("Attendance", { eventId: "evt_2" }))).toBe(false);
+  });
+
+  it("Scanner with no assigned events cannot check in", () => {
+    const a = ability({ roles: ["Scanner"] });
+    expect(a.can("checkIn", subject("Attendance", { eventId: "evt_1" }))).toBe(false);
+  });
+
+  it("Member can read/update only their own profile", () => {
+    const a = ability({ roles: ["Member"] });
+    expect(a.can("read", subject("Member", { uid: UID }))).toBe(true);
+    expect(a.can("update", subject("Member", { uid: UID }))).toBe(true);
+    expect(a.can("update", subject("Member", { uid: "other" }))).toBe(false);
+    expect(a.can("read", "MemberPoints")).toBe(true);
+    expect(a.can("read", "Event")).toBe(true);
+  });
+
+  it("additive roles union their abilities", () => {
+    const a = ability({ roles: ["Membership", "ProjectManager"] });
+    expect(a.can("create", "Member")).toBe(true);
+    expect(a.can("manage", "Project")).toBe(true);
+  });
+
+  it("no roles grants nothing", () => {
+    const a = ability({ roles: [] });
+    expect(a.can("read", "Member")).toBe(false);
+    expect(a.can("read", "MemberPoints")).toBe(false);
+  });
+});

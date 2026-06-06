@@ -3,38 +3,70 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isSignedIn() {
+    function signedIn() {
       return request.auth != null;
+    }
+    function roles() {
+      return request.auth.token.roles;
+    }
+    function hasAnyRole(rs) {
+      return signedIn() && roles().hasAny(rs);
+    }
+    function unchanged(field) {
+      return request.resource.data[field] == resource.data[field];
+    }
+    // Block client-side resurrection of soft-deleted docs: once deletedAt is set
+    // it is immutable, and active can only transition true -> false, never back.
+    function softDeleteSafe() {
+      return (resource.data.deletedAt == null || unchanged('deletedAt'))
+        && (resource.data.active == true || unchanged('active'));
     }
 
     match /projects/{projectId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow create, update: if hasAnyRole(['Admin', 'ProjectManager']);
+      allow delete: if false;
     }
 
     match /board/{boardId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow create, update: if hasAnyRole(['Admin']);
+      allow delete: if false;
     }
 
     match /members/{memberId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /events/{eventId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /pointRules/{ruleId} {
-      allow read, write: if isSignedIn();
+      allow read: if hasAnyRole(['Admin', 'Membership', 'Treasury', 'ExecutiveCommittee'])
+        || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if hasAnyRole(['Admin', 'Membership'])
+        && request.resource.data.totalPoints == 0;
+      allow update: if hasAnyRole(['Admin', 'Membership'])
+        && unchanged('totalPoints')
+        && unchanged('uid')
+        && softDeleteSafe();
+      allow delete: if false;
     }
 
     match /allies/{allyId} {
-      allow read, write: if isSignedIn();
+      allow read: if hasAnyRole(['Admin', 'Membership', 'ProjectManager', 'ExecutiveCommittee']);
+      allow create: if hasAnyRole(['Admin', 'Membership']);
+      allow update: if hasAnyRole(['Admin', 'Membership']) && softDeleteSafe();
+      allow delete: if false;
+    }
+
+    match /events/{eventId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['Admin', 'ExecutiveCommittee', 'ProjectManager']);
+      allow delete: if false;
+    }
+
+    match /pointRules/{ruleId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['Admin']);
+      allow delete: if false;
     }
 
     match /memberPoints/{document=**} {
-      allow read: if isSignedIn();
+      allow read: if signedIn();
       allow write: if false;
     }
 

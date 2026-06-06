@@ -1,0 +1,28 @@
+{
+  "name": "@luminova/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./roles": {
+      "types": "./src/roles.ts",
+      "import": "./dist/roles.js",
+      "default": "./dist/roles.js"
+    },
+    "./ability": {
+      "types": "./src/ability.ts",
+      "import": "./dist/ability.js",
+      "default": "./dist/ability.js"
+    }
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc",
+    "ci": "eslint . && tsc --noEmit && vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@casl/ability": "7.0.0"
+  }
+}

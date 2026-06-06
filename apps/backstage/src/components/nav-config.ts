@@ -7,6 +7,7 @@ export interface NavItem {
   label: string;
   icon: IconKey;
   exact?: boolean;
+  subject?: "Member" | "Ally";
 }
 
 export interface NavGroup {
@@ -19,8 +20,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Gestión",
     items: [
-      { to: "/members", label: "Miembros", icon: "user" },
-      { to: "/allies", label: "Aliados", icon: "handshake" },
+      { to: "/members", label: "Miembros", icon: "user", subject: "Member" },
+      { to: "/allies", label: "Aliados", icon: "handshake", subject: "Ally" },
     ],
   },
 ];
