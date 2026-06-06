@@ -1,12 +1,14 @@
 import {
-  Button,
+  Badge,
+  EmptyState,
+  Icon,
   Table,
   TableHeader,
   TableBody,
   TableRow,
   TableHead,
   TableCell,
-  cn,
+  type BadgeTone,
 } from "@luminova/ui";
 import type { Member, MemberStatus } from "../types/member";
 import { dateInputValue } from "../repositories/member-mapper";
@@ -17,36 +19,28 @@ interface MemberTableProps {
   onDelete: (member: Member) => void;
 }
 
-const STATUS_TONE: Record<MemberStatus, string> = {
-  Activo: "bg-jci-teal/15 text-jci-navy",
-  Inactivo: "bg-surface-3 text-ink-2",
-  Desafiliado: "bg-[#c0392b]/12 text-[#c0392b]",
+const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
+  Activo: "green",
+  Inactivo: "gray",
+  Desafiliado: "red",
 };
-
-function StatusBadge({ status }: { status: MemberStatus }) {
-  return (
-    <span
-      className={cn(
-        "inline-block rounded-pill px-2.5 py-1 text-[12px] font-semibold",
-        STATUS_TONE[status],
-      )}
-    >
-      {status}
-    </span>
-  );
-}
 
 export function MemberTable({ members, onEdit, onDelete }: MemberTableProps) {
   if (members.length === 0) {
-    return <p className="text-ink-2">No hay miembros todavía.</p>;
+    return (
+      <EmptyState
+        icon={Icon.user({ s: 40 })}
+        title="No hay miembros todavía"
+        description="Cuando agregues miembros del capítulo, aparecerán aquí."
+      />
+    );
   }
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Nombre</TableHead>
-          <TableHead>Correo</TableHead>
+          <TableHead>Miembro</TableHead>
           <TableHead>Rol</TableHead>
           <TableHead>Estado</TableHead>
           <TableHead>Ingreso</TableHead>
@@ -56,33 +50,48 @@ export function MemberTable({ members, onEdit, onDelete }: MemberTableProps) {
       <TableBody>
         {members.map((member) => (
           <TableRow key={member.id}>
-            <TableCell className="font-medium">{member.name}</TableCell>
-            <TableCell className="text-ink-2">{member.email}</TableCell>
-            <TableCell>{member.role}</TableCell>
-            <TableCell>{member.status ? <StatusBadge status={member.status} /> : "—"}</TableCell>
-            <TableCell className="text-ink-2">
+            <TableCell>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-jci-navy text-[12px] font-semibold text-white">
+                  {member.name.slice(0, 1).toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate font-semibold text-ink-1">{member.name}</div>
+                  <div className="truncate text-[12px] text-ink-3">{member.email}</div>
+                </div>
+              </div>
+            </TableCell>
+            <TableCell className="text-ink-2">{member.role}</TableCell>
+            <TableCell>
+              {member.status ? (
+                <Badge tone={STATUS_TONE[member.status]} dot>
+                  {member.status}
+                </Badge>
+              ) : (
+                "—"
+              )}
+            </TableCell>
+            <TableCell className="text-ink-2 tabular-nums">
               {member.joinDate ? dateInputValue(member.joinDate) : "—"}
             </TableCell>
             <TableCell className="text-right">
-              <div className="inline-flex gap-2">
-                <Button
-                  as="button"
+              <div className="inline-flex gap-1">
+                <button
                   type="button"
-                  variant="secondary"
-                  size="sm"
                   onClick={() => onEdit(member)}
+                  aria-label={`Editar a ${member.name}`}
+                  className="flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-colors hover:bg-ink-1/[0.04] hover:text-ink-1"
                 >
-                  Editar
-                </Button>
-                <Button
-                  as="button"
+                  {Icon.settings({ s: 17 })}
+                </button>
+                <button
                   type="button"
-                  variant="secondary"
-                  size="sm"
                   onClick={() => onDelete(member)}
+                  aria-label={`Eliminar a ${member.name}`}
+                  className="flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-colors hover:bg-error/10 hover:text-error"
                 >
-                  Eliminar
-                </Button>
+                  {Icon.close({ s: 17 })}
+                </button>
               </div>
             </TableCell>
           </TableRow>

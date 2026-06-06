@@ -28,10 +28,6 @@ function DashboardPage() {
   const allyCount = allies.data?.length ?? 0;
 
   return (
-    <OverviewView
-      memberCount={memberCount}
-      allyCount={allyCount}
-      userName={user?.email ?? "—"}
-    />
+    <OverviewView memberCount={memberCount} allyCount={allyCount} userName={user?.email ?? "—"} />
   );
 }
