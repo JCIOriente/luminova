@@ -2,8 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Timestamp } from "firebase/firestore";
+import type { ReactElement } from "react";
 import { MemberTable } from "./member-table";
+import { AbilityProvider } from "../../../lib/authz/ability-context";
 import type { Member } from "../types/member";
+
+function renderAsAdmin(ui: ReactElement) {
+  return render(
+    <AbilityProvider claims={{ roles: ["Admin"] }} uid="admin">
+      {ui}
+    </AbilityProvider>,
+  );
+}
 
 const member: Member = {
   id: "m1",
@@ -21,20 +31,30 @@ const member: Member = {
 
 describe("MemberTable", () => {
   it("renders the status as a badge and a name", () => {
-    render(<MemberTable members={[member]} onEdit={vi.fn()} onDelete={vi.fn()} />);
+    renderAsAdmin(<MemberTable members={[member]} onEdit={vi.fn()} onDelete={vi.fn()} />);
     expect(screen.getByText("Ana Pérez")).toBeInTheDocument();
     expect(screen.getByText("Activo")).toBeInTheDocument();
   });
 
   it("calls onEdit when the edit action is used", async () => {
     const onEdit = vi.fn();
-    render(<MemberTable members={[member]} onEdit={onEdit} onDelete={vi.fn()} />);
+    renderAsAdmin(<MemberTable members={[member]} onEdit={onEdit} onDelete={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: /editar a ana pérez/i }));
     expect(onEdit).toHaveBeenCalledWith(member);
   });
 
   it("shows an empty state when there are no members", () => {
-    render(<MemberTable members={[]} onEdit={vi.fn()} onDelete={vi.fn()} />);
+    renderAsAdmin(<MemberTable members={[]} onEdit={vi.fn()} onDelete={vi.fn()} />);
     expect(screen.getByText(/no hay miembros/i)).toBeInTheDocument();
+  });
+
+  it("hides row actions for a role without write access", () => {
+    render(
+      <AbilityProvider claims={{ roles: ["Treasury"] }} uid="t">
+        <MemberTable members={[member]} onEdit={vi.fn()} onDelete={vi.fn()} />
+      </AbilityProvider>,
+    );
+    expect(screen.queryByRole("button", { name: /editar a ana pérez/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /eliminar a ana pérez/i })).toBeNull();
   });
 });
