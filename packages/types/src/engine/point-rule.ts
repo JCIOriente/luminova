@@ -38,6 +38,26 @@ export const DEFAULT_POINT_VALUES: Record<PointRuleCode, number> = {
   PaymentPlanAdhesion: 5,
 };
 
+/** Canonical Spanish matrix labels (parallel to DEFAULT_POINT_VALUES). */
+export const POINT_RULE_LABELS: Record<PointRuleCode, string> = {
+  DirectProgram: "Dirección de programa",
+  CoDirectProgram: "Codirección de programa",
+  DirectProject: "Dirección de proyecto",
+  CoDirectProject: "Codirección de proyecto",
+  DirectActivity: "Dirección de actividad",
+  CoDirectActivity: "Codirección de actividad",
+  ProgramProjectTeam: "Equipo de programa o proyecto",
+  AttendAssembly: "Asistencia a asamblea",
+  AttendCourse: "Asistencia a curso oficial o libre",
+  AttendActivity: "Asistencia a actividad o proyecto",
+  AttendNationalEvent: "Asistencia a evento nacional",
+  AttendAnniversary: "Asistencia a aniversario (Local o Nacional)",
+  AttendTM: "Asistencia a TM (Local o Nacional)",
+  HeadTrainer: "Fungir como Head Trainer",
+  AssistantTrainer: "Fungir como Assistant Trainer",
+  PaymentPlanAdhesion: "Adhesión a un plan de pago",
+};
+
 /** A term-scoped editable point value for one matrix row. */
 export interface PointRule {
   id: string;

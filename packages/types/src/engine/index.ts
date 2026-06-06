@@ -13,7 +13,7 @@ export type {
 } from "./activity";
 export { ACTIVITY_CATEGORIES, ACTIVITY_STATUSES } from "./activity";
 export type { PointRule, PointRuleCode } from "./point-rule";
-export { POINT_RULE_CODES, DEFAULT_POINT_VALUES } from "./point-rule";
+export { POINT_RULE_CODES, DEFAULT_POINT_VALUES, POINT_RULE_LABELS } from "./point-rule";
 export type {
   Participation,
   ParticipationRole,

@@ -65,6 +65,12 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /terms/{termId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['Admin']);
+      allow delete: if false;
+    }
+
     match /memberPoints/{document=**} {
       allow read: if signedIn();
       allow write: if false;
