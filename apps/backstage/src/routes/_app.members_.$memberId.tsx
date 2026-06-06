@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Badge, Sparkline, type BadgeTone } from "@luminova/ui";
+import { QrCode } from "@luminova/ui/qr-code";
 import type { MemberStatus } from "@luminova/types";
 import { PageHeader } from "../components/page-header";
+import { encodeMemberQr } from "../lib/member-qr";
 import { currentTermId } from "../lib/current-term";
 import { useMember } from "../features/members/hooks/use-member";
 import { useMemberPoints } from "../features/members/hooks/use-member-points";
@@ -72,6 +74,11 @@ function MemberProfilePage() {
             ))}
           </ul>
         )}
+      </div>
+
+      <div className="flex w-fit flex-col items-center gap-3 rounded-[14px] border border-line bg-surface px-6 py-5">
+        <QrCode value={encodeMemberQr(member.id)} size={176} />
+        <p className="text-[12px] text-ink-3">QR personal · escanéalo en el check-in</p>
       </div>
 
       <ParticipationLedger rows={participations ?? []} />

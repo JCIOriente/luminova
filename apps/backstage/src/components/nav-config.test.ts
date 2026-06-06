@@ -4,7 +4,29 @@ import { NAV_GROUPS, navItemForPath } from "./nav-config";
 describe("nav-config", () => {
   it("only lists routes that exist today", () => {
     const paths = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.to));
-    expect(paths).toEqual(["/", "/members", "/allies", "/point-rules", "/leaderboard"]);
+    expect(paths).toEqual([
+      "/",
+      "/members",
+      "/allies",
+      "/point-rules",
+      "/leaderboard",
+      "/activities",
+      "/check-in",
+    ]);
+  });
+
+  it("gates activities on the Activity subject (read)", () => {
+    const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === "/activities");
+    expect(item?.subject).toBe("Activity");
+    expect(item?.action).toBeUndefined();
+    expect(item?.label).toBe("Actividades");
+  });
+
+  it("gates check-in on Attendance with the checkIn action", () => {
+    const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === "/check-in");
+    expect(item?.subject).toBe("Attendance");
+    expect(item?.action).toBe("checkIn");
+    expect(item?.label).toBe("Check-in");
   });
 
   it("gates point rules on the PointRule subject", () => {
@@ -19,8 +41,8 @@ describe("nav-config", () => {
     expect(item?.subject).toBeUndefined();
   });
 
-  it("groups items under Panel and Gestión labels", () => {
-    expect(NAV_GROUPS.map((g) => g.label)).toEqual(["Panel", "Gestión"]);
+  it("groups items under Panel, Gestión and Reconocimiento labels", () => {
+    expect(NAV_GROUPS.map((g) => g.label)).toEqual(["Panel", "Gestión", "Reconocimiento"]);
   });
 
   it("resolves the active item by exact path", () => {

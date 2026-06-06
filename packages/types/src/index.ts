@@ -7,3 +7,4 @@ export { allySchema, type AllyInput } from "./ally-schema";
 export * from "./engine";
 export { pointRuleSchema, type PointRuleInput } from "./engine/point-rule-schema";
 export { activitySchema, type ActivityInput } from "./engine/activity-schema";
+export { checkInSchema, type CheckInInput } from "./engine/check-in-schema";

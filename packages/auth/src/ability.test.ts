@@ -48,6 +48,19 @@ describe("buildAbility", () => {
     expect(a.can("update", "Member")).toBe(false);
   });
 
+  it("ProjectManager manages activities and can check in (operates the day-of)", () => {
+    const a = ability({ roles: ["ProjectManager"] });
+    expect(a.can("create", "Activity")).toBe(true);
+    expect(a.can("read", "Activity")).toBe(true);
+    expect(a.can("checkIn", "Attendance")).toBe(true);
+  });
+
+  it("does not grant a plain Member activity management", () => {
+    const a = ability({ roles: ["Member"] });
+    expect(a.can("create", "Activity")).toBe(false);
+    expect(a.can("checkIn", "Attendance")).toBe(false);
+  });
+
   it("Scanner can check in only assigned events", () => {
     const a = ability({ roles: ["Scanner"], scannerEventIds: ["evt_1"] });
     expect(a.can("checkIn", subject("Attendance", { eventId: "evt_1" }))).toBe(true);

@@ -1,14 +1,9 @@
-import type { Timestamp } from "firebase-admin/firestore";
 import { PARTICIPATION_ROLES, type ParticipationRole } from "@luminova/types/engine";
+import type { CheckIn } from "@luminova/types/engine";
 
-export interface CheckIn {
-  memberId: string;
-  activityId: string;
-  role: ParticipationRole;
-  checkInAt: Timestamp;
-}
+export type { CheckIn };
 
-function isTimestamp(value: unknown): value is Timestamp {
+function isTimestamp(value: unknown): value is CheckIn["checkInAt"] {
   return typeof (value as { toMillis?: unknown })?.toMillis === "function";
 }
 

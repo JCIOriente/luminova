@@ -47,7 +47,9 @@ beforeAll(async () => {
     await setDoc(doc(db, "events/e1"), { title: "Gala" });
     await setDoc(doc(db, "pointRules/r1"), { points: 10 });
     await setDoc(doc(db, "terms/2026"), { status: "Activo" });
+    await setDoc(doc(db, "activities/act1"), { termId: "2026", category: "Assembly" });
     await setDoc(doc(db, "checkIns/c1"), { memberId: "m1", activityId: "a1", role: "Attendee" });
+    await setDoc(doc(db, "participations/part1"), { memberId: "m1", termId: "2026" });
     await setDoc(doc(db, "projects/p1"), { title: "P" });
     await setDoc(doc(db, "memberPoints/2025/03/e1"), { points: 5 });
   });
@@ -193,6 +195,39 @@ describe("firestore.rules — terms", () => {
   });
 });
 
+describe("firestore.rules — activities", () => {
+  it("allows any signed-in user to read", async () => {
+    await assertSucceeds(getDoc(doc(as("u", ["Member"]), "activities/act1")));
+  });
+  it("denies anonymous read", async () => {
+    await assertFails(getDoc(doc(anon(), "activities/act1")));
+  });
+  it("allows Admin to create an activity", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["Admin"]), "activities/act2"), { termId: "2026", category: "Course" }),
+    );
+  });
+  it("allows ProjectManager to create and update an activity", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["ProjectManager"]), "activities/act3"), {
+        termId: "2026",
+        category: "ProjectExecution",
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["ProjectManager"]), "activities/act1"), { category: "Course" }),
+    );
+  });
+  it("denies a plain Member create", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Member"]), "activities/act4"), { termId: "2026", category: "Assembly" }),
+    );
+  });
+  it("denies delete even for Admin", async () => {
+    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "activities/act1")));
+  });
+});
+
 function asClaims(uid: string, claims: Record<string, unknown>) {
   return env.authenticatedContext(uid, claims).firestore();
 }
@@ -237,6 +272,16 @@ describe("firestore.rules — checkIns", () => {
       setDoc(doc(ctx, "checkIns/c_dir"), { memberId: "s3", activityId: "a1", role: "Director" }),
     );
   });
+  it("denies Scanner creating for a non-existent member (no phantom check-ins)", async () => {
+    const ctx = asClaims("s4", { roles: ["Scanner"], scannerEventIds: ["a1"] });
+    await assertFails(
+      setDoc(doc(ctx, "checkIns/c_ghost"), {
+        memberId: "ghost",
+        activityId: "a1",
+        role: "Attendee",
+      }),
+    );
+  });
   it("denies a plain Member from creating", async () => {
     await assertFails(
       setDoc(doc(as("u", ["Member"]), "checkIns/c_m"), {
@@ -249,6 +294,20 @@ describe("firestore.rules — checkIns", () => {
   it("denies update and delete", async () => {
     await assertFails(updateDoc(doc(as("u", ["Admin"]), "checkIns/c1"), { role: "Director" }));
     await assertFails(deleteDoc(doc(as("u", ["Admin"]), "checkIns/c1")));
+  });
+});
+
+describe("firestore.rules — participations", () => {
+  it("allows signed-in read (ledger behind the points table)", async () => {
+    await assertSucceeds(getDoc(doc(as("u", ["Member"]), "participations/part1")));
+  });
+  it("denies anonymous read", async () => {
+    await assertFails(getDoc(doc(anon(), "participations/part1")));
+  });
+  it("denies all client writes (engine-only)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "participations/part2"), { memberId: "m1", termId: "2026" }),
+    );
   });
 });
 

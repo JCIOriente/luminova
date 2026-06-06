@@ -14,7 +14,9 @@ export function AppSidebar() {
 
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !item.subject || ability.can("read", item.subject)),
+    items: group.items.filter(
+      (item) => !item.subject || ability.can(item.action ?? "read", item.subject),
+    ),
   })).filter((group) => group.items.length > 0);
 
   const onLogout = async () => {
