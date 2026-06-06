@@ -112,13 +112,39 @@ firebase emulators:start
 
 ### Seeding the Emulator
 
-Load sample data into the running Firestore emulator:
+There are **two** seed scripts — one for Firestore data, one for auth roles. They
+must target the **same project** the app + emulator use (default `jci-oriente`, from
+`.firebaserc` and `VITE_FIREBASE_PROJECT_ID`).
+
+**Recommended local flow (from a clean `firebase emulators:start`):**
 
 ```bash
+# 1. Firestore data — sample members + a Recognition Engine slice (term, activities,
+#    participations, memberPoints) so Members, the member profile, and the Leaderboard
+#    render real data. (point rules are NOT seeded — initialize them from the UI.)
 pnpm seed:emulator
+
+# 2. Create an auth user — via the Emulator UI (http://localhost:4100 → Authentication
+#    → Add user), or REST. Copy its UID.
+
+# 3. Grant that user roles so the role-gated nav (e.g. "Reglas de puntos" = Admin) shows.
+FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:4030 GCLOUD_PROJECT=jci-oriente \
+  pnpm --filter beacon seed:roles -- <uid> Admin
+
+# 4. Log in to backstage with that user and reload so the new claims load.
 ```
 
-The seed script requires the Firestore emulator to be running first (it checks for `FIRESTORE_EMULATOR_HOST` and refuses to run unless the variable is set, so it can never touch the production database).
+**Env vars (why they matter):**
+
+| Script | Required env | Default project | Notes |
+|--------|--------------|-----------------|-------|
+| `seed:emulator` | `FIRESTORE_EMULATOR_HOST` (set by the script as `127.0.0.1:4010`) | `GCLOUD_PROJECT` or `jci-oriente` | Refuses to run unless the emulator host is set, so it can never touch prod. Admin SDK bypasses rules. |
+| `seed:roles` | `FIREBASE_AUTH_EMULATOR_HOST` (point at `127.0.0.1:4030`); `GCLOUD_PROJECT` | `demo-roles` if unset | With the auth-emulator host set, the Admin SDK can only reach the emulator (never prod). **Set `GCLOUD_PROJECT` to your app's project** (`jci-oriente`) so the claims land on the user the app sees. |
+
+> The Firestore emulator namespaces data per project, so `seed:emulator` and
+> `seed:roles` must use the **same** `GCLOUD_PROJECT` as the app, or the data/claims
+> land in a namespace your app never reads. If your shell can't see the keg-only JDK,
+> prefix emulator commands with the Java PATH (see Prerequisites above).
 
 ### Import/Export Emulator Data
 

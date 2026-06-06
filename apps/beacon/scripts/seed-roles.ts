@@ -2,16 +2,27 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { isValidRole, type Role } from "@luminova/auth/roles";
 
+function projectId(): string {
+  return process.env.GCLOUD_PROJECT ?? "demo-roles";
+}
+
 function assertEmulator(): void {
+  // The real safety guard: with FIREBASE_AUTH_EMULATOR_HOST set, the Admin SDK can
+  // only reach the local Auth emulator — it physically cannot touch prod, regardless
+  // of the project id. So this alone makes the script safe to run.
   if (!process.env.FIREBASE_AUTH_EMULATOR_HOST) {
     throw new Error(
       "Refusing to run: FIREBASE_AUTH_EMULATOR_HOST is not set (this script is emulator-only).",
     );
   }
-  const projectId = process.env.GCLOUD_PROJECT ?? "demo-roles";
-  if (!projectId.startsWith("demo-")) {
-    throw new Error(
-      `Refusing to run: GCLOUD_PROJECT must be a demo- project for emulator use (got "${projectId}").`,
+  // `demo-*` is the convention for throwaway emulator runs, but to grant roles to the
+  // user your app actually sees, GCLOUD_PROJECT must match the app's project (e.g.
+  // jci-oriente). Warn — don't refuse — when it isn't a demo project.
+  if (!projectId().startsWith("demo-")) {
+    console.warn(
+      `Note: GCLOUD_PROJECT="${projectId()}" is not a demo- project. Fine for the emulator ` +
+        `(FIREBASE_AUTH_EMULATOR_HOST is set); just ensure it matches the project your app ` +
+        `connects to so the claims land on the right user.`,
     );
   }
 }
@@ -29,7 +40,7 @@ async function main(): Promise<void> {
   const roles = roleArgs as Role[];
 
   if (!getApps().length) {
-    initializeApp({ projectId: process.env.GCLOUD_PROJECT ?? "demo-roles" });
+    initializeApp({ projectId: projectId() });
   }
   await getAuth().setCustomUserClaims(uid, { roles });
 
