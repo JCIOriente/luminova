@@ -3,11 +3,12 @@ import { Icon } from "@luminova/ui";
 type IconKey = keyof typeof Icon;
 
 export interface NavItem {
-  to: "/" | "/members" | "/allies" | "/point-rules" | "/leaderboard";
+  to: "/" | "/members" | "/allies" | "/point-rules" | "/leaderboard" | "/activities" | "/check-in";
   label: string;
   icon: IconKey;
   exact?: boolean;
-  subject?: "Member" | "Ally" | "PointRule";
+  subject?: "Member" | "Ally" | "PointRule" | "Activity" | "Attendance";
+  action?: "read" | "checkIn";
 }
 
 export interface NavGroup {
@@ -24,6 +25,19 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: "/allies", label: "Aliados", icon: "handshake", subject: "Ally" },
       { to: "/point-rules", label: "Reglas de puntos", icon: "target", subject: "PointRule" },
       { to: "/leaderboard", label: "Clasificación", icon: "barChart" },
+    ],
+  },
+  {
+    label: "Reconocimiento",
+    items: [
+      { to: "/activities", label: "Actividades", icon: "calendar", subject: "Activity" },
+      {
+        to: "/check-in",
+        label: "Check-in",
+        icon: "qr",
+        subject: "Attendance",
+        action: "checkIn",
+      },
     ],
   },
 ];
