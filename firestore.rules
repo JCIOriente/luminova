@@ -71,6 +71,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /checkIns/{checkInId} {
+      allow read: if signedIn();
+      allow create: if hasAnyRole(['Admin', 'ProjectManager'])
+        || (hasAnyRole(['Scanner'])
+            && request.resource.data.activityId in request.auth.token.scannerEventIds);
+      allow update, delete: if false;
+    }
+
     match /memberPoints/{document=**} {
       allow read: if signedIn();
       allow write: if false;
