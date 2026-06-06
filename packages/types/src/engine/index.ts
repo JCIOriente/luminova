@@ -22,6 +22,7 @@ export type {
 } from "./participation.js";
 export { PARTICIPATION_ROLES, PARTICIPATION_STATES } from "./participation.js";
 export type { MemberPoints } from "./member-points.js";
+export type { CheckIn } from "./check-in.js";
 export { resolvePointRuleCode, type ResolvePointRuleInput } from "./resolve-point-rule.js";
 export { computePunctualityFactor, type ComputePunctualityInput } from "./compute-punctuality.js";
 export {
