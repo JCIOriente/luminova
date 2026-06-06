@@ -8,6 +8,11 @@
       "types": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./engine": {
+      "types": "./src/engine/index.ts",
+      "import": "./dist/engine/index.js",
+      "default": "./dist/engine/index.js"
     }
   },
   "scripts": {

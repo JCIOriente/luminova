@@ -159,3 +159,151 @@ export interface MemberPoints { ... }
 ```
 
 Zod input schemas live in each feature's `types/` folder in Backstage (not in the shared package).
+
+> **Note:** the `members`/`allies` types + their zod schemas now live in the
+> **`@luminova/types`** built package (F2). The Recognition Engine entities below
+> (F3) live in `@luminova/types/engine` (a pure, beacon-safe subpath).
+
+---
+
+## Recognition Engine (F3)
+
+The participation → points → recognition spine behind the *Mejor Miembro
+Individual* monthly competition (`docs/reference/points-matrix.md`). Types ship in
+`@luminova/types`; pure types + helpers re-export from `@luminova/types/engine`
+(framework-free for beacon `awardPoints` in A2). **Design doc:**
+`docs/superpowers/specs/2026-06-06-recognition-engine-model-design.md`.
+
+### terms/{termId}
+
+```typescript
+interface Term {
+  id: string
+  year: number                  // gestión calendar year — self-describing, not doc-id-derived
+  label?: string                // e.g. "Gestión 2026"
+  board: BoardSeat[]             // CEL + JDL roster
+  conventionDate: Timestamp
+  pointsCutoffAt: Timestamp      // = conventionDate − 3 weeks (matrix cutoff)
+  bestMemberId: string | null    // winner, set at term close → next term's exclusion
+  status: 'Activo' | 'Cerrado'
+}
+interface BoardSeat {
+  memberId: string
+  title: string                  // chapter title (Spanish) — NOT a permission role
+  isExecutiveCommittee: boolean   // CEL flag → eligibility
+}
+```
+
+### programs/{programId} · projects/{projectId}
+
+Distinct collections (different at their core + distinct point codes). Engine-minimal
+— the rich Project dossier (phases/budget/SDG/evidence/public projection) is **C1**.
+
+```typescript
+interface Program { id; termId; title; roster; finalReport; status }  // Program ≠ Project
+interface Project { id; termId; title; roster; finalReport; status }
+interface InitiativeRoster { directorId: string; coDirectorId: string | null; teamIds: string[] }
+interface FinalReport { filedAt: Timestamp; filedBy: string }  // null until filed → gate B
+type InitiativeStatus = 'Planificacion' | 'EnEjecucion' | 'Finalizado'
+```
+
+### activities/{activityId}
+
+The **unified attendable unit**. Institutional categories have `parentId === null`;
+`ProjectExecution` ties to a parent Program/Project.
+
+```typescript
+interface Activity {
+  id: string
+  termId: string
+  category: 'Assembly' | 'Course' | 'Anniversary' | 'TM' | 'NationalEvent' | 'ProjectExecution'
+  parentType: 'Program' | 'Project' | null
+  parentId: string | null         // null ⟺ institutional
+  organizers: { directorId: string | null; coDirectorId: string | null }
+  startAt: Timestamp              // punctuality reference for check-in
+  status: 'Programada' | 'Ejecutada' | 'Cancelada'
+}
+```
+
+> **Invariant A:** `category === 'ProjectExecution'` ⟺ `parentId !== null`. Enforced
+> in `activitySchema.superRefine`.
+
+### pointRules/{pointRuleId}
+
+Fixed `PointRuleCode` enum (16 matrix rows); admin edits only `points` (A1).
+`DEFAULT_POINT_VALUES` holds the matrix baseline.
+
+```typescript
+interface PointRule { id; termId; code: PointRuleCode; points: number; label: string }
+type PointRuleCode =
+  | 'DirectProgram' | 'CoDirectProgram' | 'DirectProject' | 'CoDirectProject'
+  | 'DirectActivity' | 'CoDirectActivity' | 'ProgramProjectTeam'
+  | 'AttendAssembly' | 'AttendCourse' | 'AttendActivity' | 'AttendNationalEvent'
+  | 'AttendAnniversary' | 'AttendTM' | 'HeadTrainer' | 'AssistantTrainer'
+  | 'PaymentPlanAdhesion'
+```
+
+### participations/{participationId} — ledger (engine-written, client read-only)
+
+```typescript
+interface Participation {
+  id; memberId; termId; activityId
+  role: 'Director' | 'CoDirector' | 'Team' | 'Attendee'
+  pointRuleCode: PointRuleCode
+  basePoints: number             // snapshot of PointRule.points at award time
+  punctualityFactor: 1 | 0.5     // 1.0 for non-Attendee roles
+  computedPoints: number         // basePoints * punctualityFactor
+  monthBucket: string            // 'YYYY-MM'
+  state: 'provisional' | 'confirmed' | 'voided'
+  gates: { attendanceRegistered: boolean; finalReportFiled: boolean }
+  checkInAt: Timestamp | null
+  voidReason: string | null      // e.g. 'DuesUnpaid:2026-06'
+  createdAt: Timestamp
+}
+```
+
+### memberPoints/{memberId} — derived aggregate (engine-written)
+
+```typescript
+interface MemberPoints {
+  id: string                     // === memberId
+  termId: string
+  cumulative: number             // Σ computedPoints of confirmed rows in term window
+  byMonth: Record<string, number> // { 'YYYY-MM': number }
+  updatedAt: Timestamp
+}
+```
+
+`Member.totalPoints` mirrors `cumulative`. **Never authored directly.** A new optional
+`Member.isPastPresident?: boolean` (missing = `false`) feeds eligibility.
+
+### Derivation rules (documented; A2 enforces at runtime)
+
+1. **Every participation attaches to an Activity.** `pointRuleCode` resolved by
+   `resolvePointRuleCode({ role, parentType, category })`. Direction/team rows emit
+   **per activity** under the program/project.
+2. **Punctuality factor** (`computePunctualityFactor`) applies **only to `Attendee`**:
+   `checkInAt ≤ startAt + 15min → 1.0`, later or missing → `0.5`. Other roles flat `1.0`.
+3. **Gates → state:** `attendanceRegistered` always required; `finalReportFiled`
+   required **only when the activity has a parent**. `confirmed` ⟺ all applicable
+   gates true, else `provisional`. `voided` overrides.
+4. **Finance → Points (read-only coupling):** engine reads `duesStatus` (Finance/J,
+   not modelled here). A month not *al día* ⇒ that month's rows → `voided` (restored
+   on payment); a payment plan emits a `PaymentPlanAdhesion` (+5) row.
+5. **`MemberPoints.cumulative` = Σ `computedPoints` of `confirmed` rows** within the
+   term window (≤ `Term.pointsCutoffAt`).
+6. **Eligibility** (`evaluateEligibility`): `isExecutiveCommittee` derived from
+   `Term.board`, `wonBestMemberPreviousTerm` from `prevTerm.bestMemberId`,
+   `isPastPresident` stored on Member. Past-presidents don't accrue; CEL + last
+   winner accrue but are excluded from the leaderboard (A6).
+
+### firestore.rules implications (documented — edits land with A1/A2/D1, NOT this PR)
+
+| Collection | Client read | Client write |
+|---|---|---|
+| `terms` | signed-in | Admin only |
+| `pointRules` | signed-in | Admin only |
+| `programs` / `projects` | signed-in | ProjectManager/Admin |
+| `activities` | signed-in | ProjectManager/Admin |
+| `participations` | signed-in (points are transparent) | **`if false`** — engine only |
+| `memberPoints` | signed-in (already public, F1) | **`if false`** — engine only |
