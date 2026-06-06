@@ -1,6 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
-import type { PointRuleCode } from "./point-rule";
-import type { InitiativeKind } from "./activity";
+import type { PointRuleCode } from "./point-rule.js";
+import type { InitiativeKind } from "./activity.js";
 
 export const PARTICIPATION_ROLES = ["Director", "CoDirector", "Team", "Attendee"] as const;
 export type ParticipationRole = (typeof PARTICIPATION_ROLES)[number];

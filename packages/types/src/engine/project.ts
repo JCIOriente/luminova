@@ -1,4 +1,4 @@
-import type { FinalReport, InitiativeRoster, InitiativeStatus } from "./initiative";
+import type { FinalReport, InitiativeRoster, InitiativeStatus } from "./initiative.js";
 
 /** Project — distinct from Program. Engine-minimal; the rich dossier model is C1. */
 export interface Project {

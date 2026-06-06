@@ -1,5 +1,5 @@
 import type { Timestamp } from "firebase/firestore";
-import type { ParticipationRole } from "./participation";
+import type { ParticipationRole } from "./participation.js";
 
 export interface ComputePunctualityInput {
   role: ParticipationRole;

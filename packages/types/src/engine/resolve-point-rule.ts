@@ -1,6 +1,6 @@
-import type { ActivityCategory, InitiativeKind } from "./activity";
-import type { ParticipationRole } from "./participation";
-import type { PointRuleCode } from "./point-rule";
+import type { ActivityCategory, InitiativeKind } from "./activity.js";
+import type { ParticipationRole } from "./participation.js";
+import type { PointRuleCode } from "./point-rule.js";
 
 export interface ResolvePointRuleInput {
   role: ParticipationRole;

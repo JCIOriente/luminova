@@ -1,4 +1,4 @@
-import type { FinalReport, InitiativeRoster, InitiativeStatus } from "./initiative";
+import type { FinalReport, InitiativeRoster, InitiativeStatus } from "./initiative.js";
 
 /** Program — distinct from Project (different core + distinct point codes). Engine-minimal; C1 extends. */
 export interface Program {
