@@ -7,6 +7,7 @@ import { useUpdateMember } from "../features/members/hooks/use-update-member";
 import { useDeleteMember } from "../features/members/hooks/use-delete-member";
 import { MemberTable } from "../features/members/components/member-table";
 import { MemberForm } from "../features/members/components/member-form";
+import { PageHeader } from "../components/page-header";
 import { dateInputValue } from "../features/members/repositories/member-mapper";
 import type { Member } from "../features/members/types/member";
 import type { MemberInput } from "../features/members/types/member-schema";
@@ -56,27 +57,21 @@ function MembersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-6">
-        <div>
-          <div className="mb-2.5 font-mono text-[11px] tracking-[0.14em] text-jci-blue uppercase">
-            Gestión
-          </div>
-          <h1 className="text-[30px] font-normal leading-tight tracking-[-0.02em] text-ink-1">
-            Miembros
-          </h1>
-          <p className="mt-2 text-[14.5px] text-ink-3">
-            Gestiona la membresía activa del capítulo, roles y estados.
-          </p>
-        </div>
-        <Button
-          as="button"
-          type="button"
-          iconLeft={Icon.plus({ s: 18 })}
-          onClick={() => setEditing("new")}
-        >
-          Agregar miembro
-        </Button>
-      </header>
+      <PageHeader
+        eyebrow="Gestión"
+        title="Miembros"
+        subtitle="Gestiona la membresía activa del capítulo, roles y estados."
+        actions={
+          <Button
+            as="button"
+            type="button"
+            iconLeft={Icon.plus({ s: 18 })}
+            onClick={() => setEditing("new")}
+          >
+            Agregar miembro
+          </Button>
+        }
+      />
 
       {isLoading && <p className="text-ink-2">Cargando…</p>}
       {isError && (

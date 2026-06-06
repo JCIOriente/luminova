@@ -7,7 +7,7 @@ export function Sparkline({
   className,
   strokeWidth = 1.8,
 }: {
-  values: number[];
+  values: readonly number[];
   width?: number;
   height?: number;
   className?: string;

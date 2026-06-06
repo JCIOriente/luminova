@@ -5,7 +5,7 @@ export interface Point {
 
 /** Map a number series into a w×h box. Y is flipped so larger values sit higher.
  *  A flat series is centered vertically. `pad` insets all edges. */
-export function sparklinePoints(values: number[], w: number, h: number, pad = 2): Point[] {
+export function sparklinePoints(values: readonly number[], w: number, h: number, pad = 2): Point[] {
   const n = values.length;
   const min = Math.min(...values);
   const max = Math.max(...values);

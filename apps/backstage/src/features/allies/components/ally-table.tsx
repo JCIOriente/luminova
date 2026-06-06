@@ -9,6 +9,7 @@ import {
   TableCell,
 } from "@luminova/ui";
 import type { Ally } from "../types/ally";
+import { RowAction } from "../../../components/row-action";
 
 interface AllyTableProps {
   allies: Ally[];
@@ -47,22 +48,17 @@ export function AllyTable({ allies, onEdit, onDelete }: AllyTableProps) {
             <TableCell className="text-ink-2">{ally.email}</TableCell>
             <TableCell className="text-right">
               <div className="inline-flex gap-1">
-                <button
-                  type="button"
+                <RowAction
+                  icon={Icon.settings({ s: 17 })}
+                  label={`Editar a ${ally.companyName}`}
                   onClick={() => onEdit(ally)}
-                  aria-label={`Editar a ${ally.companyName}`}
-                  className="flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-colors hover:bg-ink-1/[0.04] hover:text-ink-1"
-                >
-                  {Icon.settings({ s: 17 })}
-                </button>
-                <button
-                  type="button"
+                />
+                <RowAction
+                  icon={Icon.close({ s: 17 })}
+                  label={`Eliminar a ${ally.companyName}`}
+                  variant="danger"
                   onClick={() => onDelete(ally)}
-                  aria-label={`Eliminar a ${ally.companyName}`}
-                  className="flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-colors hover:bg-error/10 hover:text-error"
-                >
-                  {Icon.close({ s: 17 })}
-                </button>
+                />
               </div>
             </TableCell>
           </TableRow>

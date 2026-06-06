@@ -5,18 +5,11 @@ import { Sparkline } from "./sparkline-chart";
 
 export type KpiTone = "blue" | "teal" | "navy" | "amber";
 
-const TILE: Record<KpiTone, string> = {
-  blue: "bg-jci-blue/10 text-jci-blue",
-  teal: "bg-jci-teal/16 text-teal-ink",
-  navy: "bg-jci-navy/12 text-jci-navy",
-  amber: "bg-jci-yellow/18 text-warn",
-};
-
-const SPARK: Record<KpiTone, string> = {
-  blue: "text-jci-blue",
-  teal: "text-teal-ink",
-  navy: "text-jci-navy",
-  amber: "text-warn",
+const TONE: Record<KpiTone, { tile: string; spark: string }> = {
+  blue: { tile: "bg-jci-blue/10 text-jci-blue", spark: "text-jci-blue" },
+  teal: { tile: "bg-jci-teal/16 text-teal-ink", spark: "text-teal-ink" },
+  navy: { tile: "bg-jci-navy/12 text-jci-navy", spark: "text-jci-navy" },
+  amber: { tile: "bg-jci-yellow/18 text-warn", spark: "text-warn" },
 };
 
 export interface KpiTrend {
@@ -37,7 +30,7 @@ export function KpiCard({
   label: string;
   value: ReactNode;
   trend?: KpiTrend;
-  spark?: number[];
+  spark?: readonly number[];
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-[14px] border border-line bg-surface p-[18px] shadow-[0_1px_2px_rgba(19,15,45,0.05)] transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[0_18px_40px_-24px_rgba(19,15,45,0.22)]">
@@ -45,7 +38,7 @@ export function KpiCard({
         <span
           className={cn(
             "flex size-[38px] shrink-0 items-center justify-center rounded-[11px]",
-            TILE[tone],
+            TONE[tone].tile,
           )}
         >
           {icon}
@@ -56,7 +49,7 @@ export function KpiCard({
         <span className="text-[34px] font-normal leading-none tracking-[-0.03em] text-ink-1 tabular-nums">
           {value}
         </span>
-        {spark && <Sparkline values={spark} className={SPARK[tone]} />}
+        {spark && <Sparkline values={spark} className={TONE[tone].spark} />}
       </div>
       {trend && (
         <span

@@ -9,7 +9,7 @@ function xAt(i: number, n: number, w: number): number {
 }
 
 export function seriesPath(
-  values: number[],
+  values: readonly number[],
   w: number,
   h: number,
   min: number,
@@ -23,7 +23,13 @@ export function seriesPath(
     .join(" ");
 }
 
-export function areaPath(values: number[], w: number, h: number, min: number, max: number): string {
+export function areaPath(
+  values: readonly number[],
+  w: number,
+  h: number,
+  min: number,
+  max: number,
+): string {
   const line = seriesPath(values, w, h, min, max);
   return `${line} L${w.toFixed(2)} ${h.toFixed(2)} L0.00 ${h.toFixed(2)} Z`;
 }
@@ -31,11 +37,11 @@ export function areaPath(values: number[], w: number, h: number, min: number, ma
 export interface ChartSeries {
   label: string;
   color: string;
-  values: number[];
+  values: readonly number[];
 }
 
 /** Shared min/max across all series so they sit on one Y scale, with a small pad. */
-export function sharedDomain(series: ChartSeries[]): { min: number; max: number } {
+export function sharedDomain(series: readonly ChartSeries[]): { min: number; max: number } {
   const all = series.flatMap((s) => s.values);
   const lo = Math.min(...all);
   const hi = Math.max(...all);

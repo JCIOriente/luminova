@@ -1,4 +1,4 @@
-import { useId, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useId, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { areaPath, seriesPath, sharedDomain, type ChartSeries } from "./line-chart";
 
 const W = 720;
@@ -9,16 +9,33 @@ export function LineChart({
   height = 300,
   className,
 }: {
-  series: ChartSeries[];
+  series: readonly ChartSeries[];
   height?: number;
   className?: string;
 }) {
   const gradId = useId();
   const [hover, setHover] = useState<number | null>(null);
-  if (series.length === 0) return null;
-  const { min, max } = sharedDomain(series);
-  const primary = series[0]!;
-  const n = primary.values.length;
+
+  // Path geometry depends only on the data, not on hover — memoize so pointer
+  // moves (which only update `hover`) don't rebuild every path string per frame.
+  const plot = useMemo(() => {
+    if (series.length === 0) return null;
+    const { min, max } = sharedDomain(series);
+    const primary = series[0]!;
+    return {
+      primary,
+      n: primary.values.length,
+      area: areaPath(primary.values, W, H, min, max),
+      lines: series.map((s) => ({
+        label: s.label,
+        color: s.color,
+        d: seriesPath(s.values, W, H, min, max),
+      })),
+    };
+  }, [series]);
+
+  if (!plot) return null;
+  const { primary, n } = plot;
 
   const onMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -46,11 +63,11 @@ export function LineChart({
             <stop offset="100%" stopColor={primary.color} stopOpacity="0" />
           </linearGradient>
         </defs>
-        <path d={areaPath(primary.values, W, H, min, max)} fill={`url(#${gradId})`} />
-        {series.map((s) => (
+        <path d={plot.area} fill={`url(#${gradId})`} />
+        {plot.lines.map((s) => (
           <path
             key={s.label}
-            d={seriesPath(s.values, W, H, min, max)}
+            d={s.d}
             fill="none"
             stroke={s.color}
             strokeWidth="2.5"

@@ -1,11 +1,14 @@
 import { Badge, Button, Icon, KpiCard, LineChart } from "@luminova/ui";
+import { PageHeader } from "../page-header";
 import { OVERVIEW_MOCK } from "./overview-mock";
 
 function firstName(value: string): string {
   return value.trim().split(/\s+/)[0] ?? value;
 }
 
-const ACTIVITY_DOT: Record<string, string> = {
+type ActivityTone = (typeof OVERVIEW_MOCK.activity)[number]["tone"];
+
+const ACTIVITY_DOT: Record<ActivityTone, string> = {
   blue: "bg-jci-blue/12 text-jci-blue",
   teal: "bg-jci-teal/16 text-teal-ink",
   green: "bg-ok/14 text-ok",
@@ -23,31 +26,27 @@ export function OverviewView({
   const m = OVERVIEW_MOCK;
   return (
     <div className="flex flex-col gap-[22px]">
-      <header className="flex flex-wrap items-end justify-between gap-6">
-        <div>
-          <div className="mb-2.5 font-mono text-[11px] tracking-[0.14em] text-jci-blue uppercase">
-            Inicio
-          </div>
-          <h1 className="text-[30px] font-normal leading-tight tracking-[-0.02em] text-ink-1">
-            Hola, {firstName(userName)}
-          </h1>
-          <p className="mt-2 text-[14.5px] text-ink-3">Esto es lo que necesita tu atención hoy.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            as="button"
-            type="button"
-            variant="secondary"
-            size="sm"
-            iconLeft={Icon.user({ s: 18 })}
-          >
-            Invitar miembro
-          </Button>
-          <Button as="button" type="button" size="sm" iconLeft={Icon.plus({ s: 18 })}>
-            Crear evento
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Inicio"
+        title={`Hola, ${firstName(userName)}`}
+        subtitle="Esto es lo que necesita tu atención hoy."
+        actions={
+          <>
+            <Button
+              as="button"
+              type="button"
+              variant="secondary"
+              size="sm"
+              iconLeft={Icon.user({ s: 18 })}
+            >
+              Invitar miembro
+            </Button>
+            <Button as="button" type="button" size="sm" iconLeft={Icon.plus({ s: 18 })}>
+              Crear evento
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard
@@ -56,7 +55,7 @@ export function OverviewView({
           label="Miembros activos"
           value={memberCount}
           trend={{ dir: "up", label: "+8 · este trimestre" }}
-          spark={[...m.membersTrendSpark]}
+          spark={m.membersTrendSpark}
         />
         <KpiCard
           icon={Icon.calendar({ s: 20 })}
@@ -64,7 +63,7 @@ export function OverviewView({
           label="Próximos eventos"
           value={m.kpis.upcomingEvents.value}
           trend={m.kpis.upcomingEvents.trend}
-          spark={[...m.kpis.upcomingEvents.spark]}
+          spark={m.kpis.upcomingEvents.spark}
         />
         <KpiCard
           icon={Icon.handshake({ s: 20 })}
@@ -72,7 +71,7 @@ export function OverviewView({
           label="Aliados"
           value={allyCount}
           trend={{ dir: "up", label: "+1 · este mes" }}
-          spark={[...m.alliesTrendSpark]}
+          spark={m.alliesTrendSpark}
         />
         <KpiCard
           icon={Icon.check({ s: 20 })}
@@ -80,7 +79,7 @@ export function OverviewView({
           label="Tareas pendientes"
           value={m.kpis.pendingTasks.value}
           trend={m.kpis.pendingTasks.trend}
-          spark={[...m.kpis.pendingTasks.spark]}
+          spark={m.kpis.pendingTasks.spark}
         />
       </div>
 
@@ -109,10 +108,7 @@ export function OverviewView({
               </div>
             </div>
             <div className="px-[22px] pb-[22px] text-jci-black">
-              <LineChart
-                series={m.chart.map((s) => ({ ...s, values: [...s.values] }))}
-                height={280}
-              />
+              <LineChart series={m.chart} height={280} />
             </div>
           </section>
         </div>

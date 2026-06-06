@@ -2,12 +2,8 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Icon, LogoLockup } from "@luminova/ui";
 import { useAuth } from "../lib/auth/auth";
 import { signOutUser } from "../lib/auth/sign-out";
+import { initials } from "../lib/initials";
 import { NAV_GROUPS } from "./nav-config";
-
-function initials(value: string): string {
-  const parts = value.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
-}
 
 export function AppSidebar() {
   const navigate = useNavigate();

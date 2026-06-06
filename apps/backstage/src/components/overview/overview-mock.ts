@@ -9,12 +9,12 @@ export const OVERVIEW_MOCK = {
   kpis: {
     upcomingEvents: {
       value: 6,
-      trend: { dir: "up", label: "+2 · vs. mes anterior" } as const,
+      trend: { dir: "up", label: "+2 · vs. mes anterior" },
       spark: [3, 4, 4, 5, 4, 6, 6],
     },
     pendingTasks: {
       value: 12,
-      trend: { dir: "down", label: "−3 · esta semana" } as const,
+      trend: { dir: "down", label: "−3 · esta semana" },
       spark: [18, 16, 15, 14, 13, 12, 12],
     },
   },
@@ -40,7 +40,7 @@ export const OVERVIEW_MOCK = {
       title: "Asamblea General Ordinaria",
       time: "19:00",
       place: "Sede JCI · Equipetrol",
-      status: { tone: "green", label: "Confirmado" } as const,
+      status: { tone: "green", label: "Confirmado" },
     },
     {
       id: "e2",
@@ -49,7 +49,7 @@ export const OVERVIEW_MOCK = {
       title: "Capacitación: Liderazgo Consciente",
       time: "09:00",
       place: "Hotel Los Tajibos",
-      status: { tone: "blue", label: "Inscripciones abiertas" } as const,
+      status: { tone: "blue", label: "Inscripciones abiertas" },
     },
     {
       id: "e3",
@@ -58,13 +58,13 @@ export const OVERVIEW_MOCK = {
       title: "Proyecto Sonrisas — Jornada",
       time: "08:30",
       place: "Plan 3000",
-      status: { tone: "amber", label: "Planificación" } as const,
+      status: { tone: "amber", label: "Planificación" },
     },
   ],
   activity: [
     {
       id: "a1",
-      tone: "blue" as const,
+      tone: "blue",
       segments: [
         { text: "Camila Áñez", strong: true },
         { text: " creó el evento " },
@@ -74,13 +74,13 @@ export const OVERVIEW_MOCK = {
     },
     {
       id: "a2",
-      tone: "teal" as const,
+      tone: "teal",
       segments: [{ text: "Sergio Roca", strong: true }, { text: " se unió como nuevo miembro" }],
       time: "Hace 5 h",
     },
     {
       id: "a3",
-      tone: "green" as const,
+      tone: "green",
       segments: [
         { text: "Proyecto " },
         { text: "Sonrisas", strong: true },

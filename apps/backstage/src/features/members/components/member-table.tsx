@@ -12,6 +12,8 @@ import {
 } from "@luminova/ui";
 import type { Member, MemberStatus } from "../types/member";
 import { dateInputValue } from "../repositories/member-mapper";
+import { initials } from "../../../lib/initials";
+import { RowAction } from "../../../components/row-action";
 
 interface MemberTableProps {
   members: Member[];
@@ -53,7 +55,7 @@ export function MemberTable({ members, onEdit, onDelete }: MemberTableProps) {
             <TableCell>
               <div className="flex min-w-0 items-center gap-3">
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-jci-navy text-[12px] font-semibold text-white">
-                  {member.name.slice(0, 1).toUpperCase()}
+                  {initials(member.name)}
                 </span>
                 <div className="min-w-0">
                   <div className="truncate font-semibold text-ink-1">{member.name}</div>
@@ -76,22 +78,17 @@ export function MemberTable({ members, onEdit, onDelete }: MemberTableProps) {
             </TableCell>
             <TableCell className="text-right">
               <div className="inline-flex gap-1">
-                <button
-                  type="button"
+                <RowAction
+                  icon={Icon.settings({ s: 17 })}
+                  label={`Editar a ${member.name}`}
                   onClick={() => onEdit(member)}
-                  aria-label={`Editar a ${member.name}`}
-                  className="flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-colors hover:bg-ink-1/[0.04] hover:text-ink-1"
-                >
-                  {Icon.settings({ s: 17 })}
-                </button>
-                <button
-                  type="button"
+                />
+                <RowAction
+                  icon={Icon.close({ s: 17 })}
+                  label={`Eliminar a ${member.name}`}
+                  variant="danger"
                   onClick={() => onDelete(member)}
-                  aria-label={`Eliminar a ${member.name}`}
-                  className="flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-colors hover:bg-error/10 hover:text-error"
-                >
-                  {Icon.close({ s: 17 })}
-                </button>
+                />
               </div>
             </TableCell>
           </TableRow>
