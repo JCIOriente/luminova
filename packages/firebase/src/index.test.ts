@@ -9,6 +9,8 @@ const getFirestore = vi.fn(() => ({}));
 const connectFirestoreEmulator = vi.fn();
 const getStorage = vi.fn(() => ({}));
 const connectStorageEmulator = vi.fn();
+const getFunctions = vi.fn(() => ({}));
+const connectFunctionsEmulator = vi.fn();
 const initializeAppCheck = vi.fn();
 const ReCaptchaV3Provider = vi.fn();
 
@@ -16,6 +18,7 @@ vi.mock("firebase/app", () => ({ initializeApp, getApps, getApp }));
 vi.mock("firebase/auth", () => ({ getAuth, connectAuthEmulator }));
 vi.mock("firebase/firestore", () => ({ getFirestore, connectFirestoreEmulator }));
 vi.mock("firebase/storage", () => ({ getStorage, connectStorageEmulator }));
+vi.mock("firebase/functions", () => ({ getFunctions, connectFunctionsEmulator }));
 vi.mock("firebase/app-check", () => ({ initializeAppCheck, ReCaptchaV3Provider }));
 
 beforeEach(() => {
@@ -52,6 +55,7 @@ describe("getFirebase", () => {
     expect(connectFirestoreEmulator).toHaveBeenCalledWith({}, "127.0.0.1", 4010);
     expect(connectAuthEmulator).toHaveBeenCalled();
     expect(connectStorageEmulator).toHaveBeenCalledWith({}, "127.0.0.1", 9199);
+    expect(connectFunctionsEmulator).toHaveBeenCalledWith({}, "127.0.0.1", 4020);
   });
 
   it("skips App Check when no site key is set", async () => {
