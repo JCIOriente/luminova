@@ -178,15 +178,23 @@ Individual* monthly competition (`docs/reference/points-matrix.md`). Types ship 
 
 ```typescript
 interface Term {
-  id: string
-  year: number                  // gestión calendar year — self-describing, not doc-id-derived
+  id: string                     // the doc id IS the year, e.g. "2026"
   label?: string                // e.g. "Gestión 2026"
   board: BoardSeat[]             // CEL + JDL roster
-  conventionDate: Timestamp
-  pointsCutoffAt: Timestamp      // = conventionDate − 3 weeks (matrix cutoff)
+  conventionDate: Timestamp | null // unknown at term start (set later)
+  pointsCutoffAt: Timestamp | null // = conventionDate − 3 weeks; unknown at term start
   bestMemberId: string | null    // winner, set at term close → next term's exclusion
   status: 'Activo' | 'Cerrado'
 }
+```
+
+> **A1 update:** the `Term` doc id is the year (`terms/2026`); the `year` field was
+> dropped as redundant, and the two convention dates are nullable (unknown when a
+> term opens). `terms` rules are now live (read: signed-in; create/update: Admin;
+> delete: denied), as is `pointRules` write = Admin. The Point Rules admin seeds a
+> current-year term + the 16 rules from `DEFAULT_POINT_VALUES` / `POINT_RULE_LABELS`.
+
+```typescript
 interface BoardSeat {
   memberId: string
   title: string                  // chapter title (Spanish) — NOT a permission role
