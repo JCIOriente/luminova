@@ -16,6 +16,7 @@ import { Route as AuthLoginRouteImport } from './routes/_auth.login'
 import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
 import { Route as AppMembersRouteImport } from './routes/_app.members'
 import { Route as AppLeaderboardRouteImport } from './routes/_app.leaderboard'
+import { Route as AppCheckInRouteImport } from './routes/_app.check-in'
 import { Route as AppAlliesRouteImport } from './routes/_app.allies'
 import { Route as AppActivitiesRouteImport } from './routes/_app.activities'
 import { Route as AppMembersMemberIdRouteImport } from './routes/_app.members_.$memberId'
@@ -53,6 +54,11 @@ const AppLeaderboardRoute = AppLeaderboardRouteImport.update({
   path: '/leaderboard',
   getParentRoute: () => AppRoute,
 } as any)
+const AppCheckInRoute = AppCheckInRouteImport.update({
+  id: '/check-in',
+  path: '/check-in',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAlliesRoute = AppAlliesRouteImport.update({
   id: '/allies',
   path: '/allies',
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/activities': typeof AppActivitiesRoute
   '/allies': typeof AppAlliesRoute
+  '/check-in': typeof AppCheckInRoute
   '/leaderboard': typeof AppLeaderboardRoute
   '/members': typeof AppMembersRoute
   '/point-rules': typeof AppPointRulesRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/activities': typeof AppActivitiesRoute
   '/allies': typeof AppAlliesRoute
+  '/check-in': typeof AppCheckInRoute
   '/leaderboard': typeof AppLeaderboardRoute
   '/members': typeof AppMembersRoute
   '/point-rules': typeof AppPointRulesRoute
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/_app/activities': typeof AppActivitiesRoute
   '/_app/allies': typeof AppAlliesRoute
+  '/_app/check-in': typeof AppCheckInRoute
   '/_app/leaderboard': typeof AppLeaderboardRoute
   '/_app/members': typeof AppMembersRoute
   '/_app/point-rules': typeof AppPointRulesRoute
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activities'
     | '/allies'
+    | '/check-in'
     | '/leaderboard'
     | '/members'
     | '/point-rules'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activities'
     | '/allies'
+    | '/check-in'
     | '/leaderboard'
     | '/members'
     | '/point-rules'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/_app/activities'
     | '/_app/allies'
+    | '/_app/check-in'
     | '/_app/leaderboard'
     | '/_app/members'
     | '/_app/point-rules'
@@ -193,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLeaderboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/check-in': {
+      id: '/_app/check-in'
+      path: '/check-in'
+      fullPath: '/check-in'
+      preLoaderRoute: typeof AppCheckInRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/allies': {
       id: '/_app/allies'
       path: '/allies'
@@ -220,6 +239,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppActivitiesRoute: typeof AppActivitiesRoute
   AppAlliesRoute: typeof AppAlliesRoute
+  AppCheckInRoute: typeof AppCheckInRoute
   AppLeaderboardRoute: typeof AppLeaderboardRoute
   AppMembersRoute: typeof AppMembersRoute
   AppPointRulesRoute: typeof AppPointRulesRoute
@@ -230,6 +250,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppActivitiesRoute: AppActivitiesRoute,
   AppAlliesRoute: AppAlliesRoute,
+  AppCheckInRoute: AppCheckInRoute,
   AppLeaderboardRoute: AppLeaderboardRoute,
   AppMembersRoute: AppMembersRoute,
   AppPointRulesRoute: AppPointRulesRoute,

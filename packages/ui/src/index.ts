@@ -23,5 +23,6 @@ export { KpiCard, type KpiTone, type KpiTrend } from "./components/kpi-card";
 export { Skeleton } from "./components/skeleton";
 export { EmptyState } from "./components/empty-state";
 export { QrCode, type QrCodeProps } from "./components/qr-code";
-export { QrScanner, type QrScannerProps } from "./components/qr-scanner";
+// QrScanner is intentionally NOT in the barrel — it pulls @zxing into the graph.
+// Import it via the deep path `@luminova/ui/qr-scanner` so it stays in a lazy chunk.
 export { cn } from "./lib/cn";
