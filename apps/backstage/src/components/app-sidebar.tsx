@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Icon, LogoLockup } from "@luminova/ui";
+import { hasAnyRole } from "@luminova/auth/roles";
 import { useAuth } from "../lib/auth/auth";
 import { useAbility } from "../lib/authz/ability-context";
 import { signOutUser } from "../lib/auth/sign-out";
@@ -8,14 +9,16 @@ import { NAV_GROUPS } from "./nav-config";
 
 export function AppSidebar() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, claims } = useAuth();
   const ability = useAbility();
   const label = user?.email ?? "—";
 
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter(
-      (item) => !item.subject || ability.can(item.action ?? "read", item.subject),
+      (item) =>
+        (!item.subject || ability.can(item.action ?? "read", item.subject)) &&
+        (!item.roles || hasAnyRole(claims, item.roles)),
     ),
   })).filter((group) => group.items.length > 0);
 

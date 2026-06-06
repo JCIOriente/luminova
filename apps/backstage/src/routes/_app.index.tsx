@@ -1,11 +1,16 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Skeleton } from "@luminova/ui";
 import { useAuth } from "../lib/auth/auth";
+import { isMemberOnly } from "../lib/authz/is-member-only";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useAllies } from "../features/allies/hooks/use-allies";
 import { OverviewView } from "../components/overview/overview-view";
 
 export const Route = createFileRoute("/_app/")({
+  beforeLoad: async ({ context }) => {
+    await context.auth.ready;
+    if (isMemberOnly(context.auth.getState().claims)) throw redirect({ to: "/me" });
+  },
   component: DashboardPage,
 });
 

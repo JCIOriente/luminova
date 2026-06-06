@@ -6,6 +6,7 @@ describe("nav-config", () => {
     const paths = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.to));
     expect(paths).toEqual([
       "/",
+      "/me",
       "/members",
       "/allies",
       "/point-rules",
@@ -13,6 +14,25 @@ describe("nav-config", () => {
       "/activities",
       "/check-in",
     ]);
+  });
+
+  it("lists Mi panel ungated", () => {
+    const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === "/me");
+    expect(item?.label).toBe("Mi panel");
+    expect(item?.subject).toBeUndefined();
+    expect(item?.roles).toBeUndefined();
+  });
+
+  it("gates the leaderboard to non-member roles (broken for plain Members until projection)", () => {
+    const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === "/leaderboard");
+    expect(item?.roles).toEqual([
+      "Admin",
+      "Membership",
+      "Treasury",
+      "ExecutiveCommittee",
+      "ProjectManager",
+    ]);
+    expect(item?.roles).not.toContain("Member");
   });
 
   it("gates activities on the Activity subject (read)", () => {

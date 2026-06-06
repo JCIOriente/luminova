@@ -7,6 +7,7 @@ import {
   updateDoc,
   query,
   where,
+  limit,
   serverTimestamp,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
@@ -30,6 +31,15 @@ export class MemberRepository {
     const data = snapshot.data() as Omit<Member, "id">;
     if (!data.active) return null;
     return { id: snapshot.id, ...data };
+  }
+
+  /** The active member linked to an Auth uid (self-view), or null. */
+  async getByUid(uid: string): Promise<Member | null> {
+    const snapshot = await getDocs(
+      query(this.collection, where("uid", "==", uid), where("active", "==", true), limit(1)),
+    );
+    const d = snapshot.docs[0];
+    return d ? { id: d.id, ...(d.data() as Omit<Member, "id">) } : null;
   }
 
   async create(data: MemberInput): Promise<string> {

@@ -49,3 +49,4 @@ export const confirmOnProgramReport = reportTrigger("programs");
 export const confirmOnProjectReport = reportTrigger("projects");
 
 export { setUserRoles } from "./set-user-roles.js";
+export { provisionMemberLogin } from "./provision-member-login.js";

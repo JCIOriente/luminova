@@ -2,6 +2,7 @@ import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
 import { connectStorageEmulator, getStorage, type FirebaseStorage } from "firebase/storage";
+import { connectFunctionsEmulator, getFunctions, type Functions } from "firebase/functions";
 import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
 export type FirebaseServices = {
@@ -9,12 +10,14 @@ export type FirebaseServices = {
   auth: Auth;
   db: Firestore;
   storage: FirebaseStorage;
+  functions: Functions;
 };
 
 const EMULATOR_HOST = "127.0.0.1";
 const FIRESTORE_PORT = 4010;
 const AUTH_PORT = 4030;
 const STORAGE_PORT = 9199;
+const FUNCTIONS_PORT = 4020;
 
 let services: FirebaseServices | null = null;
 
@@ -52,6 +55,7 @@ export function getFirebase(): FirebaseServices {
   const auth = getAuth(app);
   const db = getFirestore(app);
   const storage = getStorage(app);
+  const functions = getFunctions(app);
 
   if (env("VITE_FIREBASE_EMULATOR_ENABLED") === "true") {
     connectAuthEmulator(auth, `http://${EMULATOR_HOST}:${AUTH_PORT}`, {
@@ -59,8 +63,9 @@ export function getFirebase(): FirebaseServices {
     });
     connectFirestoreEmulator(db, EMULATOR_HOST, FIRESTORE_PORT);
     connectStorageEmulator(storage, EMULATOR_HOST, STORAGE_PORT);
+    connectFunctionsEmulator(functions, EMULATOR_HOST, FUNCTIONS_PORT);
   }
 
-  services = { app, auth, db, storage };
+  services = { app, auth, db, storage, functions };
   return services;
 }
