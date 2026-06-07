@@ -31,7 +31,7 @@ export function Popover({
           side={side}
           sideOffset={6}
           className={cn(
-            "z-50 rounded-card border border-line bg-surface p-1 shadow-[0_24px_64px_-24px_rgba(19,15,45,0.4)]",
+            "z-50 min-w-[200px] rounded-card border border-line bg-surface p-1.5 shadow-[0_24px_64px_-24px_rgba(19,15,45,0.4)]",
             contentClassName,
           )}
         >
