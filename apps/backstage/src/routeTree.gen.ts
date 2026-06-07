@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthLoginRouteImport } from './routes/_auth.login'
+import { Route as AppProjectsRouteImport } from './routes/_app.projects'
 import { Route as AppProgramsRouteImport } from './routes/_app.programs'
 import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
 import { Route as AppMembersRouteImport } from './routes/_app.members'
@@ -40,6 +41,11 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => AuthRoute,
+} as any)
+const AppProjectsRoute = AppProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppProgramsRoute = AppProgramsRouteImport.update({
   id: '/programs',
@@ -97,6 +103,7 @@ export interface FileRoutesByFullPath {
   '/members': typeof AppMembersRoute
   '/point-rules': typeof AppPointRulesRoute
   '/programs': typeof AppProgramsRoute
+  '/projects': typeof AppProjectsRoute
   '/login': typeof AuthLoginRoute
   '/members/$memberId': typeof AppMembersMemberIdRoute
 }
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/members': typeof AppMembersRoute
   '/point-rules': typeof AppPointRulesRoute
   '/programs': typeof AppProgramsRoute
+  '/projects': typeof AppProjectsRoute
   '/login': typeof AuthLoginRoute
   '/members/$memberId': typeof AppMembersMemberIdRoute
 }
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   '/_app/members': typeof AppMembersRoute
   '/_app/point-rules': typeof AppPointRulesRoute
   '/_app/programs': typeof AppProgramsRoute
+  '/_app/projects': typeof AppProjectsRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_app/': typeof AppIndexRoute
   '/_app/members_/$memberId': typeof AppMembersMemberIdRoute
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/members'
     | '/point-rules'
     | '/programs'
+    | '/projects'
     | '/login'
     | '/members/$memberId'
   fileRoutesByTo: FileRoutesByTo
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | '/members'
     | '/point-rules'
     | '/programs'
+    | '/projects'
     | '/login'
     | '/members/$memberId'
   id:
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/_app/members'
     | '/_app/point-rules'
     | '/_app/programs'
+    | '/_app/projects'
     | '/_auth/login'
     | '/_app/'
     | '/_app/members_/$memberId'
@@ -207,6 +219,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/login'
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/_app/projects': {
+      id: '/_app/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof AppProjectsRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/programs': {
       id: '/_app/programs'
@@ -283,6 +302,7 @@ interface AppRouteChildren {
   AppMembersRoute: typeof AppMembersRoute
   AppPointRulesRoute: typeof AppPointRulesRoute
   AppProgramsRoute: typeof AppProgramsRoute
+  AppProjectsRoute: typeof AppProjectsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppMembersMemberIdRoute: typeof AppMembersMemberIdRoute
 }
@@ -296,6 +316,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppMembersRoute: AppMembersRoute,
   AppPointRulesRoute: AppPointRulesRoute,
   AppProgramsRoute: AppProgramsRoute,
+  AppProjectsRoute: AppProjectsRoute,
   AppIndexRoute: AppIndexRoute,
   AppMembersMemberIdRoute: AppMembersMemberIdRoute,
 }
