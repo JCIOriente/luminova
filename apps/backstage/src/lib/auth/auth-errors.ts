@@ -11,6 +11,10 @@ const MESSAGES: Record<string, string> = {
   "auth/user-disabled": "Esta cuenta está deshabilitada.",
   "auth/too-many-requests": "Demasiados intentos. Espera un momento e intenta de nuevo.",
   "auth/network-request-failed": "Error de red. Revisa tu conexión.",
+  "auth/expired-action-code": "El enlace expiró. Solicita uno nuevo.",
+  "auth/invalid-action-code": "El enlace no es válido o ya se usó. Solicita uno nuevo.",
+  "auth/weak-password": "La contraseña es demasiado débil.",
+  "auth/missing-email": "Ingresa tu correo.",
 };
 
 const GENERIC = "No se pudo iniciar sesión. Intenta de nuevo.";

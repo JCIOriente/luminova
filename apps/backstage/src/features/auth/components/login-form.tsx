@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Link } from "@tanstack/react-router";
 import { ArrowRight, Button, Checkbox, Field, Icon, Input, LogoLockup } from "@luminova/ui";
 import { loginSchema, type LoginInput } from "../types/login-schema";
 import { signIn } from "../../../lib/auth/sign-in";
@@ -26,7 +27,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
     try {
-      await signIn(values.email, values.password);
+      await signIn(values.email, values.password, remember);
       onSuccess();
     } catch (error) {
       setFormError(authErrorMessage(error));
@@ -73,13 +74,12 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
             <label htmlFor="password" className="text-[13px] font-semibold text-ink-1">
               Contraseña
             </label>
-            <button
-              type="button"
-              onClick={(e) => e.preventDefault()}
+            <Link
+              to="/forgot-password"
               className="text-[12.5px] font-semibold text-jci-blue transition-colors hover:text-jci-blue-2"
             >
               ¿La olvidaste?
-            </button>
+            </Link>
           </div>
           <div className="group relative flex items-center">
             <span className="pointer-events-none absolute left-3.5 flex text-ink-3 transition-colors group-focus-within:text-jci-blue">
@@ -144,10 +144,10 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       <p className="mt-9 text-[12.5px] leading-[1.5] text-ink-3">
         ¿Aún no tienes acceso? La cuenta la crea la directiva.{" "}
         <a
-          href="mailto:sistemas@jcioriente.bo"
+          href="mailto:jci.orienteolm@gmail.com"
           className="font-semibold text-jci-blue hover:text-jci-blue-2"
         >
-          Escríbele a sistemas
+          Escríbele al CEL
         </a>
         .
       </p>
