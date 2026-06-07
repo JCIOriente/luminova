@@ -1,6 +1,11 @@
 import { useId, useState } from "react";
 import { Button, Field, Input, Select, Checkbox, Sheet } from "@luminova/ui";
-import { type MemberInput, type MemberStatus, MEMBER_STATUSES } from "@luminova/types";
+import {
+  memberSchema,
+  type MemberInput,
+  type MemberStatus,
+  MEMBER_STATUSES,
+} from "@luminova/types";
 import { ROLE_SUGGESTIONS } from "../lib/role-suggestions";
 import { actionMessage } from "../lib/member-display";
 import { initials } from "../../../lib/initials";
@@ -63,7 +68,7 @@ export function MemberInviteDrawer({
     setError(null);
     setStage("creating");
     try {
-      const data: MemberInput = {
+      const data: MemberInput = memberSchema.parse({
         name: form.name.trim(),
         email: form.email.trim(),
         phone: "",
@@ -72,7 +77,7 @@ export function MemberInviteDrawer({
         joinDate: form.joinDate,
         birthdate: form.birthdate,
         status: form.status,
-      };
+      });
       const id = await onCreate(data);
       if (form.sendAccess) {
         await onProvision(id);

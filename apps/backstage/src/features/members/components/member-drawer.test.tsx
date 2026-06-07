@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { Timestamp } from "firebase/firestore";
 import type { Member } from "@luminova/types";
 import { MemberDrawer } from "./member-drawer";
+import { AbilityProvider } from "../../../lib/authz/ability-context";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a href="#">{children}</a>,
@@ -26,14 +27,16 @@ describe("MemberDrawer view mode", () => {
   it("shows the member summary and switches to edit", () => {
     const onEditMode = vi.fn();
     render(
-      <MemberDrawer
-        open
-        mode="view"
-        member={m}
-        onClose={() => {}}
-        onEditMode={onEditMode}
-        onSubmit={async () => {}}
-      />,
+      <AbilityProvider claims={{ roles: ["Admin"] }} uid="admin">
+        <MemberDrawer
+          open
+          mode="view"
+          member={m}
+          onClose={() => {}}
+          onEditMode={onEditMode}
+          onSubmit={async () => {}}
+        />
+      </AbilityProvider>,
     );
     expect(screen.getByText("ana@j.bo")).toBeInTheDocument();
     expect(screen.getByText("2021")).toBeInTheDocument();

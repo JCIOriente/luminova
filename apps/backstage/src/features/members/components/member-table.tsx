@@ -102,6 +102,7 @@ export function MemberTable({
       isLoading={isLoading}
       pageSize={pageSize}
       pageSizeOptions={[8, 16, 32]}
+      paginationLabel="miembros"
       emptyState={
         emptyState ?? (
           <EmptyState

@@ -11,7 +11,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import type { Member, MemberInput } from "@luminova/types";
+import { MEMBER_STATUSES, type Member, type MemberInput } from "@luminova/types";
 import { toMemberCreateDoc, toMemberUpdateDoc } from "./member-mapper";
 
 export class MemberRepository {
@@ -53,6 +53,9 @@ export class MemberRepository {
 
   /** Change membership standing only (Activo/Inactivo/Desafiliado). */
   async setStatus(id: string, status: Member["status"]): Promise<void> {
+    if (!MEMBER_STATUSES.includes(status)) {
+      throw new Error(`Invalid member status: ${status}`);
+    }
     await updateDoc(doc(this.collection, id), { status });
   }
 

@@ -115,15 +115,17 @@ function MembersPage() {
         subtitle="Gestiona la membresía del capítulo, roles y estados."
         actions={
           <>
-            <Button
-              as="button"
-              type="button"
-              variant="secondary"
-              iconLeft={Icon.download({ s: 18 })}
-              onClick={() => downloadCsv("miembros.csv", membersToCsv(filtered))}
-            >
-              Exportar
-            </Button>
+            <Can I="manage" a="Member">
+              <Button
+                as="button"
+                type="button"
+                variant="secondary"
+                iconLeft={Icon.download({ s: 18 })}
+                onClick={() => downloadCsv("miembros.csv", membersToCsv(filtered))}
+              >
+                Exportar
+              </Button>
+            </Can>
             <Can I="create" a="Member">
               <Button
                 as="button"

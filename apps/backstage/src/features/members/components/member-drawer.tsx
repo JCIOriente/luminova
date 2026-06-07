@@ -5,6 +5,7 @@ import { MemberForm } from "./member-form";
 import { dateInputValue } from "../repositories/member-mapper";
 import { avatarColor, joinYear } from "../lib/member-display";
 import { initials } from "../../../lib/initials";
+import { Can } from "../../../lib/authz/ability-context";
 
 interface MemberDrawerProps {
   open: boolean;
@@ -69,9 +70,11 @@ function ViewBody({ member, onEditMode }: { member: Member; onEditMode: () => vo
       </dl>
 
       <div className="mt-2 flex flex-col gap-3">
-        <Button as="button" type="button" onClick={onEditMode} className="w-full justify-center">
-          Editar perfil
-        </Button>
+        <Can I="update" a="Member">
+          <Button as="button" type="button" onClick={onEditMode} className="w-full justify-center">
+            Editar perfil
+          </Button>
+        </Can>
         <Link
           to="/members/$memberId"
           params={{ memberId: member.id }}

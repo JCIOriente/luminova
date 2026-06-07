@@ -37,6 +37,7 @@ export interface DataTableProps<T> {
   rowActions?: (row: T) => ReactNode;
   pageSize?: number;
   pageSizeOptions?: number[];
+  paginationLabel?: string;
 }
 
 type SortDir = "asc" | "desc" | null;
@@ -102,6 +103,7 @@ export function DataTable<T>({
   rowActions,
   pageSize,
   pageSizeOptions = [8, 16, 32],
+  paginationLabel = "registros",
 }: DataTableProps<T>) {
   const searchId = useId();
   const [query, setQuery] = useState("");
@@ -272,7 +274,7 @@ export function DataTable<T>({
       {pageSize && !isLoading && total > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 text-[13px] text-ink-3">
           <span>
-            Mostrando {from}–{to} de {total} miembros
+            Mostrando {from}–{to} de {total} {paginationLabel}
           </span>
           <div className="flex items-center gap-3">
             <Select
