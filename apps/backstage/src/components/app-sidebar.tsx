@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Icon, LogoLockup } from "@luminova/ui";
+import { Icon, LogoLockup, Button } from "@luminova/ui";
 import { hasAnyRole } from "@luminova/auth/roles";
 import { useAuth } from "../lib/auth/auth";
 import { useAbility } from "../lib/authz/ability-context";
@@ -64,13 +64,9 @@ export function AppSidebar() {
           </span>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[13.5px] font-semibold text-ink-1">{label}</div>
-            <button
-              type="button"
-              onClick={onLogout}
-              className="text-[11.5px] text-ink-3 transition-colors hover:text-error"
-            >
+            <Button as="button" variant="link" tone="danger" onClick={onLogout}>
               Cerrar sesión
-            </button>
+            </Button>
           </div>
         </div>
       </div>

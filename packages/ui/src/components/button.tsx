@@ -16,6 +16,7 @@ interface CommonProps {
   className?: string;
   children: ReactNode;
   onClick?: MouseEventHandler;
+  "aria-label"?: string;
 }
 
 interface AnchorButton extends CommonProps {
@@ -23,7 +24,6 @@ interface AnchorButton extends CommonProps {
   href?: string;
   target?: string;
   rel?: string;
-  "aria-label"?: string;
 }
 
 interface NativeButton extends CommonProps {
@@ -112,6 +112,7 @@ export function Button(props: ButtonProps) {
         type={props.type ?? "button"}
         onClick={props.onClick}
         disabled={props.disabled}
+        aria-label={props["aria-label"]}
       >
         {inner}
       </button>

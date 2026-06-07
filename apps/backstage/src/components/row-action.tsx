@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "@luminova/ui";
+import { IconButton } from "@luminova/ui";
 
 /** Square icon-only button for table row actions. `danger` tints the hover red. */
 export function RowAction({
@@ -14,18 +14,14 @@ export function RowAction({
   variant?: "default" | "danger";
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <IconButton
+      as="button"
       aria-label={label}
-      className={cn(
-        "flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-colors",
-        variant === "danger"
-          ? "hover:bg-error/10 hover:text-error"
-          : "hover:bg-ink-1/[0.04] hover:text-ink-1",
-      )}
+      onClick={onClick}
+      size="sm"
+      variant={variant === "danger" ? "danger" : "subtle"}
     >
       {icon}
-    </button>
+    </IconButton>
   );
 }

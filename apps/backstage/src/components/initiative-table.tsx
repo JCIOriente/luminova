@@ -7,6 +7,7 @@ import {
   TableHead,
   TableCell,
   Icon,
+  IconButton,
   type BadgeTone,
 } from "@luminova/ui";
 import type { Program } from "@luminova/types";
@@ -64,23 +65,25 @@ export function InitiativeTable<T extends Initiative>({
             <TableCell>
               <Can I="update" a={subject}>
                 <div className="flex gap-2">
-                  <button
-                    type="button"
+                  <IconButton
+                    as="button"
+                    variant="ghost"
+                    size="sm"
                     aria-label={`Editar ${row.title}`}
                     onClick={() => onEdit(row)}
-                    className="text-ink-2 hover:text-ink-1"
                   >
                     {Icon.settings({ s: 17 })}
-                  </button>
+                  </IconButton>
                   {!row.finalReport && (
-                    <button
-                      type="button"
+                    <IconButton
+                      as="button"
+                      variant="ghost"
+                      size="sm"
                       aria-label={`Marcar informe final de ${row.title}`}
                       onClick={() => onFileReport(row)}
-                      className="text-ink-2 hover:text-ink-1"
                     >
                       {Icon.check({ s: 17 })}
-                    </button>
+                    </IconButton>
                   )}
                 </div>
               </Can>
