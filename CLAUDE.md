@@ -287,3 +287,4 @@ None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops g
 - `docs/data-models.md` — all Firestore schemas with constraints
 - `docs/features.md` — feature specs and UX flows
 - `docs/firebase-setup.md` — emulator and deploy instructions
+- `packages/ui/DESIGN.md` — design-system manifest (tokens + 28 components) for **Claude Design** (claude.ai/design) ingest; link this repo there to sync the design system
