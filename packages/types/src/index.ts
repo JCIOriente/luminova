@@ -8,3 +8,11 @@ export * from "./engine";
 export { pointRuleSchema, type PointRuleInput } from "./engine/point-rule-schema";
 export { activitySchema, type ActivityInput } from "./engine/activity-schema";
 export { checkInSchema, type CheckInInput } from "./engine/check-in-schema";
+export {
+  initiativeRosterSchema,
+  initiativeFormSchema,
+  type InitiativeRosterInput,
+  type InitiativeInput,
+} from "./engine/initiative-schema";
+export { programSchema, type ProgramInput } from "./engine/program-schema";
+export { projectSchema, type ProjectInput } from "./engine/project-schema";

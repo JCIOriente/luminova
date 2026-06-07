@@ -39,12 +39,12 @@ describe("buildAbility", () => {
     expect(a.can("create", "Event")).toBe(false);
   });
 
-  it("ProjectManager manages projects and reads allies/events", () => {
+  it("ProjectManager manages programs/projects and reads allies/events", () => {
     const a = ability({ roles: ["ProjectManager"] });
     expect(a.can("manage", "Project")).toBe(true);
+    expect(a.can("manage", "Program")).toBe(true);
     expect(a.can("read", "Ally")).toBe(true);
     expect(a.can("read", "Event")).toBe(true);
-    expect(a.can("manage", "Program")).toBe(false);
     expect(a.can("update", "Member")).toBe(false);
   });
 

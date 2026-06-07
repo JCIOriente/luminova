@@ -1,12 +1,20 @@
-import { useForm } from "react-hook-form";
+import { useEffect } from "react";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Field, Input, Select } from "@luminova/ui";
+import { Button, Field, Input, Select, Combobox, type ComboboxOption } from "@luminova/ui";
 import { activitySchema, type ActivityInput, ACTIVITY_CATEGORIES } from "@luminova/types";
 import { CATEGORY_LABELS } from "../category-labels";
+import { ParentPicker } from "./parent-picker";
 
 interface ActivityFormProps {
   defaultValues?: Partial<ActivityInput>;
+  memberOptions: ComboboxOption[];
+  programOptions: ComboboxOption[];
+  projectOptions: ComboboxOption[];
+  /** Lock category + startAt (edit mode with existing check-ins). */
+  locked?: boolean;
   isSaving: boolean;
+  submitLabel?: string;
   onSubmit: (data: ActivityInput) => void;
 }
 
@@ -16,13 +24,24 @@ const EMPTY: ActivityInput = {
   parentId: null,
   startAt: "",
   directorId: null,
+  coDirectorId: null,
 };
 
-const emptyToNull = (value: string) => (value === "" ? null : value);
-
-export function ActivityForm({ defaultValues, isSaving, onSubmit }: ActivityFormProps) {
+export function ActivityForm({
+  defaultValues,
+  memberOptions,
+  programOptions,
+  projectOptions,
+  locked = false,
+  isSaving,
+  submitLabel = "Guardar",
+  onSubmit,
+}: ActivityFormProps) {
   const {
     register,
+    control,
+    watch,
+    setValue,
     handleSubmit,
     formState: { errors },
   } = useForm<ActivityInput>({
@@ -30,35 +49,92 @@ export function ActivityForm({ defaultValues, isSaving, onSubmit }: ActivityForm
     defaultValues: { ...EMPTY, ...defaultValues },
   });
 
+  const category = watch("category");
+  const isExecution = category === "ProjectExecution";
+
+  useEffect(() => {
+    if (!isExecution) {
+      setValue("parentType", null);
+      setValue("parentId", null);
+    }
+  }, [isExecution, setValue]);
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
       <Field label="Categoría" htmlFor="category" required error={errors.category?.message}>
-        <Select id="category" {...register("category")}>
-          {ACTIVITY_CATEGORIES.map((category) => (
-            <option key={category} value={category}>
-              {CATEGORY_LABELS[category]}
+        <Select id="category" disabled={locked} {...register("category")}>
+          {ACTIVITY_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {CATEGORY_LABELS[c]}
             </option>
           ))}
         </Select>
+        {locked && (
+          <p className="mt-1 text-sm text-ink-3">No editable: ya hay registros de asistencia.</p>
+        )}
       </Field>
+
       <Field label="Fecha y hora" htmlFor="startAt" required error={errors.startAt?.message}>
-        <Input id="startAt" type="datetime-local" {...register("startAt")} />
+        <Input id="startAt" type="datetime-local" disabled={locked} {...register("startAt")} />
       </Field>
-      <Field label="Tipo de padre" htmlFor="parentType" error={errors.parentType?.message}>
-        <Select id="parentType" {...register("parentType", { setValueAs: emptyToNull })}>
-          <option value="">— Institucional (sin padre)</option>
-          <option value="Program">Programa</option>
-          <option value="Project">Proyecto</option>
-        </Select>
+
+      {isExecution && (
+        <Controller
+          control={control}
+          name="parentId"
+          render={({ field: idField }) => (
+            <Controller
+              control={control}
+              name="parentType"
+              render={({ field: typeField }) => (
+                <ParentPicker
+                  parentType={typeField.value}
+                  parentId={idField.value}
+                  programOptions={programOptions}
+                  projectOptions={projectOptions}
+                  onParentTypeChange={typeField.onChange}
+                  onParentIdChange={idField.onChange}
+                  error={errors.parentId?.message}
+                />
+              )}
+            />
+          )}
+        />
+      )}
+
+      <Field label="Director" htmlFor="director" error={errors.directorId?.message}>
+        <Controller
+          control={control}
+          name="directorId"
+          render={({ field }) => (
+            <Combobox
+              id="director"
+              options={memberOptions}
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Elegir director (opcional)"
+            />
+          )}
+        />
       </Field>
-      <Field label="Id del padre" htmlFor="parentId" error={errors.parentId?.message}>
-        <Input id="parentId" {...register("parentId", { setValueAs: emptyToNull })} />
+      <Field label="Codirector" htmlFor="coDirector" error={errors.coDirectorId?.message}>
+        <Controller
+          control={control}
+          name="coDirectorId"
+          render={({ field }) => (
+            <Combobox
+              id="coDirector"
+              options={memberOptions}
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Elegir codirector (opcional)"
+            />
+          )}
+        />
       </Field>
-      <Field label="Id del director" htmlFor="directorId" error={errors.directorId?.message}>
-        <Input id="directorId" {...register("directorId", { setValueAs: emptyToNull })} />
-      </Field>
+
       <Button as="button" type="submit" className="mt-1 w-full justify-center" disabled={isSaving}>
-        {isSaving ? "Guardando…" : "Guardar"}
+        {isSaving ? "Guardando…" : submitLabel}
       </Button>
     </form>
   );

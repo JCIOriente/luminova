@@ -9,7 +9,8 @@ PR, one at a time or in parallel where dependencies allow. `[P]` = parallel-safe
 notes the merged PR.
 
 _Last synced: 2026-06-06 — §A Recognition Engine complete + fed (F3·A1·A2·A5·A6·A3
-all merged to main); B1 member home (#20); **E1/E2/E5 widgets (#21)** unblocking D1.
+all merged to main); B1 member home (#20); E1/E2/E5 widgets (#21); **D1 full
+Events/Activities CRUD (#22)** — Program/Project mgmt + parent picker + rosters.
 Reshaped around the **Recognition Engine** after a product/UX discussion (points,
 QR attendance, multi-role access, award submissions)._
 
@@ -134,6 +135,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | A4 ⬜ | **Offline check-in** — queue scans, sync when back online | A3 | `[S]` | roadmap, **not priority** (bad venue wifi is real); A3's `CheckInRepository.create` is the wrap seam |
 | ~~A5~~ ✅ | **Member profile / points history** — DONE (#15). `/members/:id` board view: cumulative + byMonth + ParticipationLedger + (A3) personal QR. **Member self-view still pending → B1.** | F3 | `[S]` | makes points "very visible" |
 | ~~A6~~ ✅ | **Leaderboard / recognition surface** — DONE (#16). `/leaderboard` public to all members; annual + monthly (top 3 + Best of Month); eligibility flags applied (inert until a board is designated) | F3, A5 | `[S]` | the engagement flywheel; social tiebreak deferred |
+| A7 ⬜ | **Roster → participation auto-expansion** (beacon) — expand an initiative's `roster` (director/co-director/team) into Director/CoDirector/Team `participation` rows without a manual check-in tap. Needs keying (per-initiative anchor, not per-execution-activity), idempotency, void-on-roster-edit. Addresses the v1 trust model (#7). D1 stores the authoritative roster; this slice makes the engine read it. | A2, D1 | `[S]` | `firebase-functions-reviewer`; the roster→roles wiring deferred out of D1 |
 
 ## B. Member-facing surface & role-aware home
 
@@ -155,7 +157,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| D1 🟡 | **Events / Activities CRUD** — partial: A3 shipped a **thin Activity create form + table** (`/activities`, category/startAt/nullable parent). Full version (edit/delete, program/project parent + director/co-director/participant selects via E1/E2, upcoming-events feed) still ⬜. **E1/E2/E5 widgets now ✅ (#21) → unblocked.** | ~~E1, E2~~ ✅ | `[S]` | director/co-director/participant selects; ties to attendance (A3) + points + project link; conditional `parentId` for `Activity` |
+| ~~D1~~ ✅ | **Events / Activities CRUD** — DONE (#22). Program + Project CRUD (`/programs`, `/projects`) with roster selects (Combobox/MultiSelect) + status + `fileFinalReport` (flips child points provisional→confirmed); Activity edit/cancel + real program/project **parent picker** (replaces A3's free-text id); `startAt`/`category` lock once check-ins exist. New `programs` rule; `projects` read tightened public→signedIn (resolves G2 for projects). | ~~E1, E2~~ ✅ | `[S]` | upcoming-events feed still ⬜ (D2); roster→participation auto-expansion → A7 |
 | D2 | **Reports** | A*, D1 | `[S]` | needs members/events/points data |
 | D3 | **Communications** | external email | `[S]` | scope before committing (likely a backend/email integration) |
 | D4 | **Settings** page (real) | F1 | `[P]` | profile + theme + org + role mgmt |
@@ -185,7 +187,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
 | G1 | **Soft-delete write-guard** — pre-flight existence/`active` check in **both** Member & Ally repos; route `handleSubmit`/`confirmDelete` try/catch | — | `[P]` | `/security-review` + `firestore-security-reviewer` |
-| G2 | Confirm-or-restrict public read on `projects`/`board` (now intersects C4's public projection) | C1 | `[S]` | `/security-review` |
+| G2 🟡 | Confirm-or-restrict public read on `projects`/`board` — **`projects` restricted to signedIn in D1 (#22)** (D1 added member-id rosters); **`board` still public** (confirm or restrict). C4 will expose curated public project fields, not raw docs. | C1 | `[S]` | `/security-review` |
 | G3 | `.env.local.example` real keys → placeholders | — | `[P]` | — |
 | G4 | App Check enforcement ON (after reCAPTCHA keys) | infra keys | `[S]` | `/security-review` |
 

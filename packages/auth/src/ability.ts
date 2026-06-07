@@ -37,7 +37,7 @@ function applyRole(role: Role, claims: AuthClaims, uid: string, can: Can): void 
       can("read", ["Member", "Ally", "Event", "MemberPoints", "Program", "Project"]);
       break;
     case "ProjectManager":
-      can("manage", ["Project", "Activity"]);
+      can("manage", ["Project", "Activity", "Program"]);
       can("checkIn", "Attendance");
       can("read", ["Ally", "Event"]);
       break;

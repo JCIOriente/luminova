@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Timestamp } from "firebase/firestore";
-import { toActivityCreateDoc } from "./activity-mapper";
+import { toActivityCreateDoc, toActivityUpdateDoc } from "./activity-mapper";
 import type { ActivityInput } from "@luminova/types";
 
 const input: ActivityInput = {
@@ -9,6 +9,7 @@ const input: ActivityInput = {
   parentId: null,
   startAt: "2026-06-10T18:30",
   directorId: null,
+  coDirectorId: null,
 };
 
 describe("toActivityCreateDoc", () => {
@@ -35,11 +36,34 @@ describe("toActivityCreateDoc", () => {
         parentId: "p-1",
         startAt: "2026-06-10T18:30",
         directorId: "m-1",
+        coDirectorId: null,
       },
       "2026",
     );
     expect(doc.organizers.directorId).toBe("m-1");
     expect(doc.parentType).toBe("Project");
     expect(doc.parentId).toBe("p-1");
+  });
+});
+
+describe("toActivityUpdateDoc", () => {
+  it("maps editable fields incl. coDirectorId, excludes termId/status", () => {
+    const doc = toActivityUpdateDoc({
+      category: "ProjectExecution",
+      parentType: "Project",
+      parentId: "p1",
+      startAt: "2026-06-06T18:00",
+      directorId: "m1",
+      coDirectorId: "m2",
+    });
+    expect(doc).toMatchObject({
+      category: "ProjectExecution",
+      parentType: "Project",
+      parentId: "p1",
+      organizers: { directorId: "m1", coDirectorId: "m2" },
+    });
+    expect("termId" in doc).toBe(false);
+    expect("status" in doc).toBe(false);
+    expect(doc.startAt.toDate().toISOString()).toBe("2026-06-06T18:00:00.000Z");
   });
 });

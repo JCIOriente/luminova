@@ -14,8 +14,19 @@ export function toActivityCreateDoc(data: ActivityInput, termId: string) {
     category: data.category,
     parentType: data.parentType,
     parentId: data.parentId,
-    organizers: { directorId: data.directorId, coDirectorId: null },
+    organizers: { directorId: data.directorId, coDirectorId: data.coDirectorId },
     startAt: toTimestamp(data.startAt),
     status: "Programada" as const,
+  };
+}
+
+/** Editable fields for an existing activity (no termId/status churn). */
+export function toActivityUpdateDoc(data: ActivityInput) {
+  return {
+    category: data.category,
+    parentType: data.parentType,
+    parentId: data.parentId,
+    organizers: { directorId: data.directorId, coDirectorId: data.coDirectorId },
+    startAt: toTimestamp(data.startAt),
   };
 }

@@ -23,7 +23,9 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      allow read: if true;
+      // D1 added member-id rosters to projects; restrict to signed-in (was public).
+      // C4's Spotlight projection will expose curated public fields, not raw docs.
+      allow read: if signedIn();
       allow create, update: if hasAnyRole(['Admin', 'ProjectManager']);
       allow delete: if false;
     }
@@ -72,6 +74,12 @@ service cloud.firestore {
     }
 
     match /activities/{activityId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['Admin', 'ProjectManager']);
+      allow delete: if false;
+    }
+
+    match /programs/{programId} {
       allow read: if signedIn();
       allow create, update: if hasAnyRole(['Admin', 'ProjectManager']);
       allow delete: if false;
