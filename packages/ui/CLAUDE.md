@@ -6,7 +6,7 @@ Shared component library for `apps/spotlight` and `apps/backstage`. Bespoke,
 token-driven components styled with **pure Tailwind v4 utility classes** (no
 semantic CSS classes). Consumed as **raw TypeScript source** (no build step).
 
-## What's here now (30 components)
+## What's here now (31 components)
 
 Full inventory + source paths + design tokens live in **`DESIGN.md`** (the
 ingest manifest for Claude Design). Quick map:
@@ -17,7 +17,8 @@ ingest manifest for Claude Design). Quick map:
   + search), MultiSelect (chips).
 - **Feedback / status:** Badge (tones), Skeleton, Toast (presentational),
   Tooltip (Radix + tokens), EmptyState.
-- **Overlays:** Dialog, Sheet, Popover (Radix; backs Combobox/MultiSelect).
+- **Overlays:** Dialog, Sheet, Popover (Radix; backs Combobox/MultiSelect),
+  CommandPalette (⌘K; cmdk dialog + groups + fuzzy filter).
 - **Data display:** Table (+ TableHeader/Body/Row/Head/Cell), DataTable
   (client-side search / sort / filter-chips / skeleton + empty, composes Table),
   KpiCard (tone + trend), LineChart, Sparkline.
@@ -34,14 +35,10 @@ ingest manifest for Claude Design). Quick map:
 
 ## Deferred (not built yet)
 
-Roadmap widgets still missing — add via shadcn/Radix (accessibility), styled to
-the JCI tokens, beside the bespoke set:
-
-- **Command palette** (⌘K) — E3 / FX3 (cmdk already a dep via Combobox).
-
-(`DataTable` E6 / FX1 — client-side sort / filter-chips / search / skeleton — is
-now shipped; server-side pagination still deferred until a collection exceeds
-~1–2k docs.)
+`DataTable` (E6 / FX1) and `CommandPalette` (E3 / FX3) are both shipped now;
+server-side table pagination stays deferred until a collection exceeds ~1–2k docs.
+No bespoke widgets are currently outstanding — add the next via shadcn/Radix
+(accessibility), styled to the JCI tokens, beside the bespoke set.
 
 Pattern for new Radix-backed widgets: wrap the primitive + our token utilities,
 not shadcn's separate theme-var system (as Tooltip/Popover/Dialog do).

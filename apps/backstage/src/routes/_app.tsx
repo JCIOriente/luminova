@@ -3,6 +3,7 @@ import { createFileRoute, redirect, Outlet } from "@tanstack/react-router";
 import { authRedirect } from "../lib/auth/guard";
 import { AppSidebar } from "../components/app-sidebar";
 import { AppTopbar } from "../components/app-topbar";
+import { CommandMenu } from "../components/command-menu";
 import { getSidebarCollapsed, subscribe } from "../lib/ui-prefs";
 
 export const Route = createFileRoute("/_app")({
@@ -30,6 +31,7 @@ function AppLayout() {
           </div>
         </main>
       </div>
+      <CommandMenu />
     </div>
   );
 }

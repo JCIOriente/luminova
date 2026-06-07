@@ -57,7 +57,7 @@ build step.
 
 ---
 
-## Components (30 — shipped)
+## Components (31 — shipped)
 
 All exported from `src/index.ts` except the QR pair (deep-imported to stay in lazy
 chunks). Paths are relative to `packages/ui/src/`.
@@ -92,6 +92,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 | `Dialog`                                      | `components/dialog.tsx`  |
 | `Sheet`                                       | `components/sheet.tsx`   |
 | `Popover` (Radix; backs Combobox/MultiSelect) | `components/popover.tsx` |
+| `CommandPalette` (⌘K; cmdk dialog + groups + fuzzy filter) | `components/command-palette.tsx` |
 
 ### Data display
 | Component | Source |
@@ -129,7 +130,7 @@ Designing these ahead in Claude Design is welcome; they're on the product roadma
 (`docs/roadmap.md`) but have no source here yet. Same tokens apply.
 
 - ~~**DataTable** (sort / filter / skeleton + filter-chips) — E6 / FX1~~ ✅ shipped (`components/data-table.tsx`); server-side pagination deferred
-- **Command palette** (⌘K) — E3 / FX3
+- ~~**Command palette** (⌘K) — E3 / FX3~~ ✅ shipped (`components/command-palette.tsx`)
 - **Sidebar** (collapsible) + **Topbar** (notification bell) — FX4 / K1
 - **Dark-mode variants** of the full set — FX2
 - **Notification center / activity feed** — K1
