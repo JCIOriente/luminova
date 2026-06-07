@@ -115,3 +115,18 @@
     }
   }
 }
+
+/* Dark mode (backstage opt-in via `data-theme="dark"`). Overrides neutral
+   tokens only — brand colors stay locked. Dark values derive from the
+   jci-black family, not new brand hues. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-surface: #16132b;
+  --color-surface-2: #1d1936;
+  --color-surface-3: #262141;
+  --color-ink-1: #f4f2fb;
+  --color-ink-2: rgba(244, 242, 251, 0.74);
+  --color-ink-3: rgba(244, 242, 251, 0.54);
+  --color-line: rgba(255, 255, 255, 0.1);
+  --color-line-strong: rgba(255, 255, 255, 0.18);
+}
