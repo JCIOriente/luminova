@@ -12,8 +12,16 @@ describe("nav-config", () => {
       "/point-rules",
       "/leaderboard",
       "/activities",
+      "/programs",
+      "/projects",
       "/check-in",
     ]);
+  });
+
+  it("gates programs/projects on their subjects", () => {
+    const items = NAV_GROUPS.flatMap((g) => g.items);
+    expect(items.find((i) => i.to === "/programs")?.subject).toBe("Program");
+    expect(items.find((i) => i.to === "/projects")?.subject).toBe("Project");
   });
 
   it("lists Mi panel ungated", () => {

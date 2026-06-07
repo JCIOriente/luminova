@@ -6,6 +6,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
+  Icon,
   type BadgeTone,
 } from "@luminova/ui";
 import type { Activity, ActivityStatus } from "@luminova/types";
@@ -13,6 +14,8 @@ import { CATEGORY_LABELS } from "../category-labels";
 
 interface ActivityTableProps {
   activities: Activity[];
+  onEdit: (activity: Activity) => void;
+  onCancel: (activity: Activity) => void;
 }
 
 const STATUS_TONE: Record<ActivityStatus, BadgeTone> = {
@@ -26,7 +29,7 @@ const DATE_FORMAT = new Intl.DateTimeFormat("es-BO", {
   timeStyle: "short",
 });
 
-export function ActivityTable({ activities }: ActivityTableProps) {
+export function ActivityTable({ activities, onEdit, onCancel }: ActivityTableProps) {
   return (
     <Table>
       <TableHeader>
@@ -34,6 +37,7 @@ export function ActivityTable({ activities }: ActivityTableProps) {
           <TableHead>Categoría</TableHead>
           <TableHead>Fecha</TableHead>
           <TableHead>Estado</TableHead>
+          <TableHead>Acciones</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -47,6 +51,28 @@ export function ActivityTable({ activities }: ActivityTableProps) {
             </TableCell>
             <TableCell>
               <Badge tone={STATUS_TONE[activity.status]}>{activity.status}</Badge>
+            </TableCell>
+            <TableCell>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  aria-label={`Editar ${CATEGORY_LABELS[activity.category]}`}
+                  onClick={() => onEdit(activity)}
+                  className="text-ink-2 hover:text-ink-1"
+                >
+                  {Icon.settings({ s: 17 })}
+                </button>
+                {activity.status !== "Cancelada" && (
+                  <button
+                    type="button"
+                    aria-label={`Cancelar ${CATEGORY_LABELS[activity.category]}`}
+                    onClick={() => onCancel(activity)}
+                    className="text-ink-2 hover:text-ink-1"
+                  >
+                    {Icon.close({ s: 17 })}
+                  </button>
+                )}
+              </div>
             </TableCell>
           </TableRow>
         ))}
