@@ -91,7 +91,7 @@ export function LineChart({
       </svg>
       {hover !== null && (
         <div
-          className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-[10px] bg-jci-black px-3 py-2 text-[12px] text-white shadow-lg"
+          className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-[10px] bg-jci-black px-3 py-2 text-[12px] text-white shadow-[0_12px_32px_-12px_rgba(19,15,45,0.5)]"
           style={{ left: `${(hover / Math.max(1, n - 1)) * 100}%`, top: 0 }}
         >
           {series.map((s) => (

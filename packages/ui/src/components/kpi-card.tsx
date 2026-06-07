@@ -33,8 +33,8 @@ export function KpiCard({
   spark?: readonly number[];
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-[14px] border border-line bg-surface p-[18px] shadow-[0_1px_2px_rgba(19,15,45,0.05)] transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[0_18px_40px_-24px_rgba(19,15,45,0.22)]">
-      <div className="flex items-center gap-2.5">
+    <div className="flex flex-col gap-3.5 rounded-[14px] border border-line bg-surface p-[18px] shadow-[0_1px_2px_rgba(19,15,45,0.05)] transition-[transform,box-shadow,border-color] duration-200 ease-expo hover:-translate-y-[3px] hover:border-line-strong hover:shadow-[0_22px_48px_-26px_rgba(19,15,45,0.28)]">
+      <div className="flex items-center gap-[11px]">
         <span
           className={cn(
             "flex size-[38px] shrink-0 items-center justify-center rounded-[11px]",
