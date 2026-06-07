@@ -25,7 +25,10 @@ export function LogoLockup({
     <img
       src={SRC[variant]}
       alt="JCI Oriente"
-      className={cn("block w-auto", size === "lg" ? "h-24" : size === "sm" ? "h-9" : "h-11")}
+      className={cn(
+        "block w-auto",
+        size === "lg" ? "h-[92px]" : size === "sm" ? "h-[34px]" : "h-11",
+      )}
     />
   );
 }
