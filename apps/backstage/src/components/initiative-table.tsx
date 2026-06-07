@@ -25,14 +25,19 @@ const STATUS_LABELS: Record<Initiative["status"], string> = {
   Planificacion: "Planificación",
 };
 
-interface InitiativeTableProps {
-  rows: Initiative[];
+interface InitiativeTableProps<T extends Initiative> {
+  rows: T[];
   memberName: (id: string) => string;
-  onEdit: (row: Initiative) => void;
-  onFileReport: (row: Initiative) => void;
+  onEdit: (row: T) => void;
+  onFileReport: (row: T) => void;
 }
 
-export function InitiativeTable({ rows, memberName, onEdit, onFileReport }: InitiativeTableProps) {
+export function InitiativeTable<T extends Initiative>({
+  rows,
+  memberName,
+  onEdit,
+  onFileReport,
+}: InitiativeTableProps<T>) {
   return (
     <Table>
       <TableHeader>
