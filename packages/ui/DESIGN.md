@@ -8,9 +8,23 @@ points at its source of truth.
 > Intent: keep a single design system so any future site (marketing, microsite,
 > internal tool) is built by **reusing these components**, not reinventing them.
 
-**Authoring note for Claude Design:** this manifest lists *what exists and where*,
-not *how it should look*. Read each component's source for its real markup, then
-render the visuals yourself. No visual specs are prescribed here on purpose.
+**Authoring note for Claude Design — design these yourself.**
+
+Treat the component source as a **functional contract**, not a visual spec. From
+each source file take only:
+
+- which components exist and their **names**,
+- their **props / variants / states** (e.g. Button has primary/secondary/ghost,
+  `onDark`/`onBlue`, `sm`; Badge has tones; KpiCard has tone + trend),
+- their **structure / parts** (e.g. Table = Header/Body/Row/Head/Cell).
+
+**Do not copy the existing Tailwind utility classes or visual styling** — that is
+the current implementation, not a design directive. Design the look, spacing,
+proportions, interaction states, and composition **yourself**. The goal is your
+best design work, not a clone of the repo's current CSS.
+
+The **one thing to honor** is the brand foundation: the **locked color palette**
+and **typography** in `src/theme.css` (see below). Everything else is open.
 
 ---
 
@@ -120,6 +134,7 @@ There is **no terminal → Claude Design push** (no MCP/CLI bridge). The sync is
 manual and happens in the product:
 
 1. Open **claude.ai/design** → your organization.
-2. **Link or upload this repository** (org settings / onboarding).
+2. **Link or upload this repository** (org settings / onboarding):
+   `https://github.com/JCIOriente/luminova`
 3. Claude Design reads `packages/ui` guided by this manifest + `src/theme.css`.
 4. To update later: design system → **Open → Remix** → chat the changes.
