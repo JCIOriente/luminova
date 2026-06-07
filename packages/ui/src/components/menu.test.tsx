@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Menu, MenuItem, MenuSeparator } from "./menu";
+import { Dialog } from "./dialog";
 
 function Fixture({ onPick }: { onPick: (v: string) => void }) {
   return (
@@ -23,6 +25,31 @@ describe("Menu", () => {
     expect(screen.getByText("Ver")).toBeInTheDocument();
     await userEvent.click(screen.getByText("Eliminar"));
     expect(onPick).toHaveBeenCalledWith("delete");
+  });
+
+  it("does not leave document.body unclickable after an item opens then closes a Dialog", async () => {
+    function MenuWithDialog() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <Menu trigger={<button aria-label="Open menu">⋯</button>}>
+            <MenuItem onSelect={() => setOpen(true)}>Editar</MenuItem>
+          </Menu>
+          <Dialog open={open} onOpenChange={setOpen} title="Editar">
+            <button onClick={() => setOpen(false)}>Cerrar</button>
+          </Dialog>
+        </>
+      );
+    }
+
+    render(<MenuWithDialog />);
+    await userEvent.click(screen.getByLabelText("Open menu"));
+    await userEvent.click(screen.getByText("Editar")); // opens Dialog, closes menu
+    expect(screen.getByText("Cerrar")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("Cerrar")); // close Dialog
+    await waitFor(() => expect(screen.queryByText("Cerrar")).not.toBeInTheDocument());
+
+    expect(document.body.style.pointerEvents).not.toBe("none");
   });
 
   it("supports keyboard navigation (open highlights first item, arrow moves)", async () => {

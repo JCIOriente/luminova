@@ -27,8 +27,12 @@ export function Menu({
   side = "bottom",
   contentClassName,
 }: MenuProps) {
+  // modal={false} is required: a modal menu sets `body { pointer-events: none }`,
+  // and selecting an item that opens a Dialog/Sheet makes that Dialog capture the
+  // "none" as its value to restore on close — leaving the page unclickable. A
+  // non-modal action menu avoids the body lock entirely.
   return (
-    <Root open={open} onOpenChange={onOpenChange}>
+    <Root open={open} onOpenChange={onOpenChange} modal={false}>
       <Trigger asChild>{trigger}</Trigger>
       <Portal>
         <Content
