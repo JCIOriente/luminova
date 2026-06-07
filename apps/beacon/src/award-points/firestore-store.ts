@@ -5,12 +5,32 @@ import {
   type InitiativeKind,
   type Participation,
 } from "@luminova/types/engine";
-import type { EngineStore } from "./store.js";
+import type { EngineStore, InitiativeWrite } from "./store.js";
 import type { ActivityRef } from "./derive.js";
 import type { AggregateRow, MemberAggregate } from "./aggregate.js";
 
 function hasToMillis(value: unknown): value is Timestamp {
   return typeof (value as { toMillis?: unknown })?.toMillis === "function";
+}
+
+/** Parse a programs/projects doc into the engine's InitiativeWrite, or null if termId is malformed. */
+export function parseInitiativeWrite(data: Record<string, unknown>): InitiativeWrite | null {
+  const termId = data.termId;
+  if (typeof termId !== "string" || termId.length === 0) return null;
+
+  const r = (data.roster ?? {}) as Record<string, unknown>;
+  const directorId = typeof r.directorId === "string" ? r.directorId : "";
+  const coDirectorId = typeof r.coDirectorId === "string" ? r.coDirectorId : null;
+  const teamIds = Array.isArray(r.teamIds)
+    ? r.teamIds.filter((x): x is string => typeof x === "string")
+    : [];
+
+  const finalReport = data.finalReport as { filedAt?: unknown } | null | undefined;
+  const reportFiled = finalReport != null;
+  const filedAtMillis =
+    reportFiled && hasToMillis(finalReport!.filedAt) ? finalReport!.filedAt.toMillis() : null;
+
+  return { termId, roster: { directorId, coDirectorId, teamIds }, reportFiled, filedAtMillis };
 }
 
 /** Parse a Firestore activity doc into an ActivityRef, or null if the required fields are malformed. */
