@@ -5,7 +5,11 @@ import { fieldControlClasses } from "./input";
 export function Textarea({ className, ...props }: ComponentPropsWithRef<"textarea">) {
   return (
     <textarea
-      className={cn(fieldControlClasses, "min-h-[140px] resize-y leading-normal", className)}
+      className={cn(
+        fieldControlClasses,
+        "h-auto min-h-[132px] resize-y py-[13px] leading-normal",
+        className,
+      )}
       {...props}
     />
   );
