@@ -1,10 +1,13 @@
-import { useId, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { Icon } from "./icons";
 import { Input } from "./input";
+import { Select } from "./select";
+import { IconButton } from "./icon-button";
 import { Skeleton } from "./skeleton";
 import { EmptyState } from "./empty-state";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./table";
+import { pageWindow } from "../lib/page-window";
 
 export interface DataTableColumn<T> {
   id: string;
@@ -32,6 +35,9 @@ export interface DataTableProps<T> {
   isLoading?: boolean;
   emptyState?: ReactNode;
   rowActions?: (row: T) => ReactNode;
+  pageSize?: number;
+  pageSizeOptions?: number[];
+  paginationLabel?: string;
 }
 
 type SortDir = "asc" | "desc" | null;
@@ -95,6 +101,9 @@ export function DataTable<T>({
   isLoading,
   emptyState,
   rowActions,
+  pageSize,
+  pageSizeOptions = [8, 16, 32],
+  paginationLabel = "registros",
 }: DataTableProps<T>) {
   const searchId = useId();
   const [query, setQuery] = useState("");
@@ -102,12 +111,23 @@ export function DataTable<T>({
   const [activeChipIds, setActiveChipIds] = useState<string[]>(
     () => chips?.filter((c) => c.active).map((c) => c.id) ?? [],
   );
+  const [size, setSize] = useState(pageSize ?? 0);
+  const [page, setPage] = useState(1);
 
   const visibleRows = useMemo(() => {
     const searched = applySearch(rows, query, searchText);
     const filtered = applyChips(searched, activeChipIds, chipPredicate);
     return applySort(filtered, sort, columns);
   }, [rows, query, searchText, activeChipIds, chipPredicate, sort, columns]);
+
+  const total = visibleRows.length;
+  const pageCount = size > 0 ? Math.max(1, Math.ceil(total / size)) : 1;
+  useEffect(() => {
+    setPage(1);
+  }, [total, size]);
+  const pagedRows = size > 0 ? visibleRows.slice((page - 1) * size, page * size) : visibleRows;
+  const from = total === 0 ? 0 : (page - 1) * size + 1;
+  const to = Math.min(page * size, total);
 
   const toggleChip = (id: string) =>
     setActiveChipIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
@@ -231,7 +251,7 @@ export function DataTable<T>({
               </td>
             </tr>
           ) : (
-            visibleRows.map((row) => (
+            pagedRows.map((row) => (
               <TableRow
                 key={getRowId(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
@@ -250,6 +270,72 @@ export function DataTable<T>({
           )}
         </TableBody>
       </Table>
+
+      {pageSize && !isLoading && total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-[13px] text-ink-3">
+          <span>
+            Mostrando {from}–{to} de {total} {paginationLabel}
+          </span>
+          <div className="flex items-center gap-3">
+            <Select
+              value={String(size)}
+              onChange={(e) => setSize(Number(e.target.value))}
+              aria-label="Filas por página"
+              className="h-9 w-auto"
+            >
+              {pageSizeOptions.map((n) => (
+                <option key={n} value={n}>
+                  {n} por página
+                </option>
+              ))}
+            </Select>
+            <div className="flex items-center gap-1">
+              <IconButton
+                as="button"
+                size="sm"
+                variant="subtle"
+                aria-label="Página anterior"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+              >
+                <span className="inline-flex rotate-180">{Icon.chevRight({ s: 16 })}</span>
+              </IconButton>
+              {pageWindow(page, pageCount).map((tok, i) =>
+                tok === "…" ? (
+                  <span key={`ellipsis-${i}`} className="px-1.5 text-ink-3">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={tok}
+                    type="button"
+                    onClick={() => setPage(tok)}
+                    aria-current={tok === page ? "page" : undefined}
+                    className={cn(
+                      "min-w-8 rounded-md px-2 py-1 text-[13px] font-semibold transition-colors",
+                      tok === page
+                        ? "bg-jci-navy text-white"
+                        : "text-ink-2 hover:bg-jci-navy-50/40 hover:text-ink-1",
+                    )}
+                  >
+                    {tok}
+                  </button>
+                ),
+              )}
+              <IconButton
+                as="button"
+                size="sm"
+                variant="subtle"
+                aria-label="Página siguiente"
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                disabled={page >= pageCount}
+              >
+                {Icon.chevRight({ s: 16 })}
+              </IconButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

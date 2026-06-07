@@ -117,3 +117,32 @@ describe("DataTable", () => {
     expect(clicked).toEqual(rows[1]);
   });
 });
+
+describe("DataTable pagination", () => {
+  const many: Row[] = Array.from({ length: 20 }, (_, i) => ({
+    id: String(i),
+    name: `Row ${String(i).padStart(2, "0")}`,
+    status: "Activo",
+    points: i,
+  }));
+  const cols: DataTableColumn<Row>[] = [
+    { id: "name", header: "Nombre", cell: (r) => r.name, sortValue: (r) => r.name },
+  ];
+
+  it("shows only pageSize rows and a range summary", () => {
+    render(<DataTable rows={many} columns={cols} getRowId={(r) => r.id} pageSize={8} />);
+    expect(screen.getByRole("table").querySelectorAll("tbody tr")).toHaveLength(8);
+    expect(screen.getByText(/Mostrando 1–8 de 20 registros/)).toBeInTheDocument();
+  });
+
+  it("navigates to the next page", async () => {
+    render(<DataTable rows={many} columns={cols} getRowId={(r) => r.id} pageSize={8} />);
+    await userEvent.click(screen.getByLabelText("Página siguiente"));
+    expect(screen.getByText(/Mostrando 9–16 de 20 registros/)).toBeInTheDocument();
+  });
+
+  it("renders no pager when pageSize is omitted", () => {
+    render(<DataTable rows={many} columns={cols} getRowId={(r) => r.id} />);
+    expect(screen.queryByLabelText("Página siguiente")).not.toBeInTheDocument();
+  });
+});

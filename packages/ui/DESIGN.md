@@ -42,7 +42,7 @@ directly for exact values. Summary of what's defined:
 | **Semantic status** | `ok` `#1f8a5b`, `error` `#c0392b`, `warn` `#8e7300`, `teal-ink` `#2e8c8c`                                                                                                        |
 | **Type**            | sans `Plus Jakarta Sans`, serif `Arvo`, mono `JetBrains Mono`                                                                                                                    |
 | **Radii**           | `card` `12px`, `pill` `9999px`                                                                                                                                                   |
-| **Motion**          | `ripple-spin`, `toast-in`, `skeleton`, `rise` (keyframes in `theme.css`)                                                                                                         |
+| **Motion**          | `ripple-spin`, `toast-in`, `skeleton`, `rise`, `overlay-in/out`, `sheet-in/out` (right slide-over), `dialog-in/out` (centered zoom), `menu-in/out` (keyframes in `theme.css`); all overlay motion is `motion-reduce:animate-none` |
 
 **Dark mode:** a `[data-theme="dark"]` block in `theme.css` overrides the **neutral
 tokens only** (surface/ink/line); brand colors stay locked. A few hardcoded
@@ -92,6 +92,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 | `Dialog`                                      | `components/dialog.tsx`  |
 | `Sheet`                                       | `components/sheet.tsx`   |
 | `Popover` (Radix; backs Combobox/MultiSelect) | `components/popover.tsx` |
+| `Menu` / `MenuItem` / `MenuSeparator` (Radix DropdownMenu; row/⋯ action menus, keyboard nav) | `components/menu.tsx` |
 | `CommandPalette` (⌘K; cmdk dialog + groups + fuzzy filter) | `components/command-palette.tsx` |
 
 ### Data display
@@ -135,8 +136,8 @@ Designing these ahead in Claude Design is welcome; they're on the product roadma
 - **Dark-mode variants** of the full set — FX2
 - **Notification center / activity feed** — K1
 - **Avatar / profile picture** — H1
-- Common gaps any new site will hit: **Tabs, Dropdown menu, Checkbox, Radio,
-  Switch, Pagination, Date picker**
+- Common gaps any new site will hit: **Tabs, Radio, Switch, Date picker**
+  (Dropdown menu ✅ `Menu`; Checkbox ✅; client Pagination ✅ via `DataTable`)
 
 ---
 
