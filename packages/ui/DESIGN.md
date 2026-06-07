@@ -57,7 +57,7 @@ build step.
 
 ---
 
-## Components (29 — shipped)
+## Components (30 — shipped)
 
 All exported from `src/index.ts` except the QR pair (deep-imported to stay in lazy
 chunks). Paths are relative to `packages/ui/src/`.
@@ -94,13 +94,13 @@ chunks). Paths are relative to `packages/ui/src/`.
 | `Popover` (Radix; backs Combobox/MultiSelect) | `components/popover.tsx` |
 
 ### Data display
-
-| Component                                    | Source                                                              |
-| -------------------------------------------- | ------------------------------------------------------------------- |
-| `Table` (+ `TableHeader/Body/Row/Head/Cell`) | `components/table.tsx`                                              |
-| `KpiCard` (tone + trend)                     | `components/kpi-card.tsx`                                           |
-| `LineChart`                                  | `components/line-chart-view.tsx` (data: `components/line-chart.ts`) |
-| `Sparkline`                                  | `components/sparkline-chart.tsx` (data: `components/sparkline.ts`)  |
+| Component | Source |
+|-----------|--------|
+| `Table` (+ `TableHeader/Body/Row/Head/Cell`) | `components/table.tsx` |
+| `DataTable` (client search / sort / filter-chips / skeleton + empty; composes `Table`) | `components/data-table.tsx` |
+| `KpiCard` (tone + trend) | `components/kpi-card.tsx` |
+| `LineChart` | `components/line-chart-view.tsx` (data: `components/line-chart.ts`) |
+| `Sparkline` | `components/sparkline-chart.tsx` (data: `components/sparkline.ts`) |
 
 ### Structure / brand
 
@@ -128,7 +128,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 Designing these ahead in Claude Design is welcome; they're on the product roadmap
 (`docs/roadmap.md`) but have no source here yet. Same tokens apply.
 
-- **DataTable** (sort / filter / paginate / skeleton + filter-chips) — E6 / FX1
+- ~~**DataTable** (sort / filter / skeleton + filter-chips) — E6 / FX1~~ ✅ shipped (`components/data-table.tsx`); server-side pagination deferred
 - **Command palette** (⌘K) — E3 / FX3
 - **Sidebar** (collapsible) + **Topbar** (notification bell) — FX4 / K1
 - **Dark-mode variants** of the full set — FX2

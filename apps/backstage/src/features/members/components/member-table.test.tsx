@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Timestamp } from "firebase/firestore";
 import type { ReactElement } from "react";
@@ -29,13 +29,24 @@ const member: Member = {
   deletedAt: null,
 };
 
+const other: Member = {
+  ...member,
+  id: "m2",
+  name: "Beto Soliz",
+  email: "beto@jci.bo",
+  role: "Tesorero",
+  status: "Inactivo",
+  totalPoints: 50,
+};
+
 describe("MemberTable", () => {
   it("renders the status as a badge and a name", () => {
     renderAsAdmin(
       <MemberTable members={[member]} onView={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} />,
     );
     expect(screen.getByText("Ana Pérez")).toBeInTheDocument();
-    expect(screen.getByText("Activo")).toBeInTheDocument();
+    const statusBadge = within(screen.getByRole("table")).getByText("Activo");
+    expect(statusBadge).toBeInTheDocument();
   });
 
   it("calls onEdit when the edit action is used", async () => {
@@ -54,6 +65,24 @@ describe("MemberTable", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: /ver a ana pérez/i }));
     expect(onView).toHaveBeenCalledWith(member);
+  });
+
+  it("filters rows as the user types in the search box", async () => {
+    renderAsAdmin(
+      <MemberTable
+        members={[member, other]}
+        onView={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Ana Pérez")).toBeInTheDocument();
+    expect(screen.getByText("Beto Soliz")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText(/buscar/i), "beto");
+
+    expect(screen.queryByText("Ana Pérez")).toBeNull();
+    expect(screen.getByText("Beto Soliz")).toBeInTheDocument();
   });
 
   it("shows an empty state when there are no members", () => {
