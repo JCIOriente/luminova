@@ -279,3 +279,24 @@ GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json \
 ```
 
 For wiping production data, see the runbook at `tools/scripts/wipe-prod.md`.
+
+## App Check (reCAPTCHA v3) & Password Reset
+
+The Firebase client (`@luminova/firebase`) already initializes App Check with the
+reCAPTCHA v3 provider when `VITE_APPCHECK_SITE_KEY` is set, and supports a
+per-developer debug token. To turn it on and wire the branded reset flow:
+
+1. **reCAPTCHA v3 key** — in the Firebase console, App Check → register the web app
+   with a **reCAPTCHA v3** provider; copy the site key.
+2. **Env** — set `VITE_APPCHECK_SITE_KEY` for prod builds. For local dev, register a
+   debug token (App Check → Manage debug tokens) and set `VITE_APPCHECK_DEBUG_TOKEN`.
+3. **Reset action URL** — Authentication → Templates → **Password reset** →
+   "Customize action URL" → `https://<backstage-host>/reset`. Without this the reset
+   email link lands on Firebase's default page instead of our branded `/reset` route
+   (which reads `?mode=resetPassword&oobCode=…`).
+4. **Localize** the password-reset email template to Spanish.
+5. **Enforcement (roadmap G4)** — once keys are verified in prod, enable App Check
+   **enforcement** for Authentication and Firestore. Do this only after confirming
+   real traffic carries valid tokens, or you will lock out the app.
+6. **Password policy** — the seeded admin account's password must satisfy the policy
+   (min 6 + lower + upper + digit) or it can no longer sign in.

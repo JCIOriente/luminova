@@ -182,6 +182,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | FX2 | **Dark mode** | — | `[P]` | token override + toggle + persistence; components already dark-ready |
 | FX3 | **⌘K command palette** | E3 | `[S]` | topbar affordance already in place |
 | FX4 | **Sidebar collapse** | — | `[P]` | structure is collapse-ready |
+| FX6 ✅ | **Auth hardening** — DONE. Remember-me → Firebase auth persistence (local/session); branded password recovery (`/forgot-password` enumeration-safe request + `/reset` verify-oobCode → set new password with live requirements checklist); password policy (min 6 + lower/upper/digit) on login **and** reset; blue brand panel + entrance motion for recovery pages; footnote → CEL (`jci.orienteolm@gmail.com`). reCAPTCHA = App Check (see G4, code-complete; keys pending). | — | `[P]` | `/security-review`; spec+plan in `docs/superpowers/` |
 | FX5 ✅ | **Login redesign** — DONE. `/login` split-screen (dark brand panel + ripple + "Sé el cambio" / light form card) from Claude Design handoff; reuses `@luminova/ui` (`RippleBackground`, `LogoLockup`, `Button`, `Field`, `Input`, new `Checkbox`; added `lock`/`eye`/`eyeOff` icons). Email/password auth unchanged. SSO omitted; "¿La olvidaste?" + "Recordarme" visual-only (deferred). | — | `[P]` | `react-best-practices`; brand side hides < `lg` |
 
 ## G. Security & data hardening (non-role)
@@ -191,7 +192,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | G1 | **Soft-delete write-guard** — pre-flight existence/`active` check in **both** Member & Ally repos; route `handleSubmit`/`confirmDelete` try/catch | — | `[P]` | `/security-review` + `firestore-security-reviewer` |
 | G2 🟡 | Confirm-or-restrict public read on `projects`/`board` — **`projects` restricted to signedIn in D1 (#22)** (D1 added member-id rosters); **`board` still public** (confirm or restrict). C4 will expose curated public project fields, not raw docs. | C1 | `[S]` | `/security-review` |
 | G3 | `.env.local.example` real keys → placeholders | — | `[P]` | — |
-| G4 | App Check enforcement ON (after reCAPTCHA keys) | infra keys | `[S]` | `/security-review` |
+| G4 🟡 | App Check enforcement ON (after reCAPTCHA keys) — **client code scaffolded** (`@luminova/firebase` inits reCAPTCHA v3 App Check when `VITE_APPCHECK_SITE_KEY` set; debug-token supported). Remaining = infra: provision key, set env, flip enforcement. See `docs/firebase-setup.md`. | infra keys | `[S]` | `/security-review` |
 
 > Note: the bulk of rules hardening moved into **F1** (rules must be role-aware now,
 > not just `delete:if false`).
