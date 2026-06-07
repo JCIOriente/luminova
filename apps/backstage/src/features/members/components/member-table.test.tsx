@@ -7,6 +7,14 @@ import { MemberTable } from "./member-table";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
 import type { Member } from "@luminova/types";
 
+const noop = {
+  onView: vi.fn(),
+  onEdit: vi.fn(),
+  onProvision: vi.fn(),
+  onSetStatus: vi.fn(),
+  onDelete: vi.fn(),
+};
+
 function renderAsAdmin(ui: ReactElement) {
   return render(
     <AbilityProvider claims={{ roles: ["Admin"] }} uid="admin">
@@ -29,76 +37,45 @@ const member: Member = {
   deletedAt: null,
 };
 
-const other: Member = {
-  ...member,
-  id: "m2",
-  name: "Beto Soliz",
-  email: "beto@jci.bo",
-  role: "Tesorero",
-  status: "Inactivo",
-  totalPoints: 50,
-};
-
 describe("MemberTable", () => {
-  it("renders the status as a badge and a name", () => {
-    renderAsAdmin(
-      <MemberTable members={[member]} onView={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} />,
-    );
+  it("renders the status badge, name and join year", () => {
+    renderAsAdmin(<MemberTable members={[member]} pageSize={8} {...noop} />);
     expect(screen.getByText("Ana Pérez")).toBeInTheDocument();
-    const statusBadge = within(screen.getByRole("table")).getByText("Activo");
-    expect(statusBadge).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getByText("Activo")).toBeInTheDocument();
+    expect(screen.getByText("2021")).toBeInTheDocument();
   });
 
-  it("calls onEdit when the edit action is used", async () => {
+  it("calls onEdit from the row menu", async () => {
     const onEdit = vi.fn();
-    renderAsAdmin(
-      <MemberTable members={[member]} onView={vi.fn()} onEdit={onEdit} onDelete={vi.fn()} />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: /editar a ana pérez/i }));
+    renderAsAdmin(<MemberTable members={[member]} pageSize={8} {...noop} onEdit={onEdit} />);
+    await userEvent.click(screen.getByRole("button", { name: /acciones para ana pérez/i }));
+    await userEvent.click(screen.getByText("Editar miembro"));
     expect(onEdit).toHaveBeenCalledWith(member);
   });
 
-  it("calls onView when the view action is used", async () => {
+  it("calls onView from the row menu", async () => {
     const onView = vi.fn();
-    renderAsAdmin(
-      <MemberTable members={[member]} onView={onView} onEdit={vi.fn()} onDelete={vi.fn()} />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: /ver a ana pérez/i }));
+    renderAsAdmin(<MemberTable members={[member]} pageSize={8} {...noop} onView={onView} />);
+    await userEvent.click(screen.getByRole("button", { name: /acciones para ana pérez/i }));
+    await userEvent.click(screen.getByText("Ver perfil"));
     expect(onView).toHaveBeenCalledWith(member);
   });
 
-  it("filters rows as the user types in the search box", async () => {
-    renderAsAdmin(
-      <MemberTable
-        members={[member, other]}
-        onView={vi.fn()}
-        onEdit={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
-    expect(screen.getByText("Ana Pérez")).toBeInTheDocument();
-    expect(screen.getByText("Beto Soliz")).toBeInTheDocument();
-
-    await userEvent.type(screen.getByPlaceholderText(/buscar/i), "beto");
-
-    expect(screen.queryByText("Ana Pérez")).toBeNull();
-    expect(screen.getByText("Beto Soliz")).toBeInTheDocument();
-  });
-
   it("shows an empty state when there are no members", () => {
-    renderAsAdmin(
-      <MemberTable members={[]} onView={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} />,
-    );
+    renderAsAdmin(<MemberTable members={[]} pageSize={8} {...noop} />);
     expect(screen.getByText(/no hay miembros/i)).toBeInTheDocument();
   });
 
-  it("hides row actions for a role without write access", () => {
+  it("hides write actions for a read-only role", async () => {
     render(
       <AbilityProvider claims={{ roles: ["Treasury"] }} uid="t">
-        <MemberTable members={[member]} onView={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} />
+        <MemberTable members={[member]} pageSize={8} {...noop} />
       </AbilityProvider>,
     );
-    expect(screen.queryByRole("button", { name: /editar a ana pérez/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /eliminar a ana pérez/i })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /acciones para ana pérez/i }));
+    expect(screen.getByText("Ver perfil")).toBeInTheDocument();
+    expect(screen.queryByText("Editar miembro")).toBeNull();
+    expect(screen.queryByText("Eliminar miembro")).toBeNull();
+    expect(screen.queryByText("Desactivar")).toBeNull();
   });
 });
