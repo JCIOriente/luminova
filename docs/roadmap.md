@@ -11,7 +11,9 @@ notes the merged PR.
 _Last synced: 2026-06-07 — §A Recognition Engine complete + fed (F3·A1·A2·A5·A6·A3
 all merged to main); B1 member home (#20); E1/E2/E5 widgets (#21); D1 full
 Events/Activities CRUD (#22); **A7 roster→participation expansion (#23)** — roster
-roles now feed the engine.
+roles now feed the engine. **Login redesign (#35) + auth hardening (#36)** — remember-me,
+password recovery, password policy. **FX batch merged**: dark mode + sidebar collapse (#37),
+DataTable/E6 + Members table UX/FX1 (#38), ⌘K command palette E3/FX3 (#39) — @luminova/ui now 31 components.
 Reshaped around the **Recognition Engine** after a product/UX discussion (points,
 QR attendance, multi-role access, award submissions)._
 
@@ -169,19 +171,19 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 |---|------|-----|----------|-------|
 | ~~E1~~ ✅ | **Combobox** (single-select + search) — DONE (#21). `@luminova/ui` `Combobox` on Radix Popover + cmdk; re-select clears; barrel-exported | — | `[P]` | unblocked Events (D1) |
 | ~~E2~~ ✅ | **Multi-select** with search — DONE (#21). `MultiSelect` (same Popover+cmdk body) with removable chips; pure helpers unit-tested | E1 | `[S]` | unblocked Events (D1) |
-| E3 | **Command palette** primitive | E5 | `[P]` | blocks ⌘K; cmdk (added in #21) seeds it |
+| ~~E3~~ ✅ | **Command palette** primitive — DONE (#39). `@luminova/ui` `CommandPalette` (cmdk dialog + grouped, fuzzy, keyboard-nav); backs ⌘K (FX3) | E5 | `[P]` | cmdk (added in #21) seeded it |
 | ~~E4~~ ✅ | **QR generator + QR scanner** components — DONE (#18, with A3). `@luminova/ui/qr-code` (qrcode.react) + `@luminova/ui/qr-scanner` (@zxing camera), deep-imported for lazy chunking | camera/lib (vet dep) | `[P]` | unblocked A3; mobile camera UX |
 | ~~E5~~ ✅ | **Popover** primitive — DONE (#21). `Popover` wraps `@radix-ui/react-popover`, JCI-token styled; backs E1/E2 (and later menus/E3) | — | `[P]` | shared by combobox/menus/command |
-| E6 | **DataTable** (sort/filter/paginate/skeleton) | — | `[P]` | consolidates Members/Allies/Events tables; see F1-table below |
+| ~~E6~~ 🟡 | **DataTable** — DONE client-side (#38). `@luminova/ui` `DataTable` (search + filter-chips + column sort + skeleton/empty; composes `Table`); adopted on Members (FX1). **Server-side pagination deferred** (> ~1–2k docs); Allies/Events adoption are follow-ups | — | `[P]` | consolidates tables |
 
 ## F. UI polish / follow-ons (mostly independent)
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| FX1 | **Table search + filter-chips + column sort** (client-side, ~hundreds of rows) | E6 or inline | `[P]` | **table-stakes UX** the design already specs (Members chips); currently unwired. **Server pagination deferred** until a collection > ~1–2k docs |
-| FX2 | **Dark mode** | — | `[P]` | token override + toggle + persistence; components already dark-ready |
-| FX3 | **⌘K command palette** | E3 | `[S]` | topbar affordance already in place |
-| FX4 | **Sidebar collapse** | — | `[P]` | structure is collapse-ready |
+| ~~FX1~~ ✅ | **Table search + filter-chips + column sort** — DONE (#38). Built on the new `DataTable` (E6) and adopted on Members (search over name+email+role, status chips, sortable columns). **Server pagination still deferred** (> ~1–2k docs); Allies/Events adoption follow-ups | E6 | `[P]` | table-stakes UX |
+| ~~FX2~~ ✅ | **Dark mode** — DONE (#37). `[data-theme="dark"]` neutral-token override in `@luminova/ui/theme.css` (brand locked); `ThemeController` follows `prefers-color-scheme` + persisted toggle (Claro/Oscuro/Sistema) via shared `ui-prefs` store. Backstage only; a few hardcoded `rgba` shadows don't invert yet | — | `[P]` | spotlight dark mode out of scope |
+| ~~FX3~~ ✅ | **⌘K command palette** — DONE (#39). `CommandMenu` wires the E3 `CommandPalette`: ability-filtered nav (from `NAV_GROUPS`) + navigate-only quick actions; topbar ⌘K affordance now real | E3 | `[S]` | — |
+| ~~FX4~~ ✅ | **Sidebar collapse** — DONE (#37). 72px icon-rail w/ per-item tooltips, header toggle, `_app` grid driven by the persisted `ui-prefs` `sidebarCollapsed` | — | `[P]` | — |
 | FX6 ✅ | **Auth hardening** — DONE. Remember-me → Firebase auth persistence (local/session); branded password recovery (`/forgot-password` enumeration-safe request + `/reset` verify-oobCode → set new password with live requirements checklist); password policy (min 6 + lower/upper/digit) on login **and** reset; blue brand panel + entrance motion for recovery pages; footnote → CEL (`jci.orienteolm@gmail.com`). reCAPTCHA = App Check (see G4, code-complete; keys pending). | — | `[P]` | `/security-review`; spec+plan in `docs/superpowers/` |
 | FX5 ✅ | **Login redesign** — DONE. `/login` split-screen (dark brand panel + ripple + "Sé el cambio" / light form card) from Claude Design handoff; reuses `@luminova/ui` (`RippleBackground`, `LogoLockup`, `Button`, `Field`, `Input`, new `Checkbox`; added `lock`/`eye`/`eyeOff` icons). Email/password auth unchanged. SSO omitted; "¿La olvidaste?" + "Recordarme" visual-only (deferred). | — | `[P]` | `react-best-practices`; brand side hides < `lg` |
 
