@@ -33,16 +33,20 @@ and **typography** in `src/theme.css` (see below). Everything else is open.
 Single source of truth: **`src/theme.css`** (Tailwind v4 `@theme` block). Read it
 directly for exact values. Summary of what's defined:
 
-| Group | Tokens |
-|-------|--------|
-| **Brand (locked)** | `jci-blue` `#0097d7`, `jci-blue-2` `#0086c0`, `jci-black` `#130f2d`, `jci-white` `#ffffff`, `jci-navy` `#1f4789`, `jci-teal` `#57bcbc`, `jci-yellow` `#efc40f`, `bone` `#f4f1ea` |
-| **Surfaces** | `surface` `#ffffff`, `surface-2` `#f7f9fb`, `surface-3` `#eef2f6` |
-| **Lines** | `line` `rgba(19,15,45,.08)`, `line-strong` `rgba(19,15,45,.16)` |
-| **Ink (text)** | `ink-1` `#130f2d`, `ink-2` `rgba(19,15,45,.72)`, `ink-3` `rgba(19,15,45,.52)` |
-| **Semantic status** | `ok` `#1f8a5b`, `error` `#c0392b`, `warn` `#8e7300`, `teal-ink` `#2e8c8c` |
-| **Type** | sans `Plus Jakarta Sans`, serif `Arvo`, mono `JetBrains Mono` |
-| **Radii** | `card` `12px`, `pill` `9999px` |
-| **Motion** | `ripple-spin`, `toast-in`, `skeleton`, `rise` (keyframes in `theme.css`) |
+| Group               | Tokens                                                                                                                                                                           |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Brand (locked)**  | `jci-blue` `#0097d7`, `jci-blue-2` `#0086c0`, `jci-black` `#130f2d`, `jci-white` `#ffffff`, `jci-navy` `#1f4789`, `jci-teal` `#57bcbc`, `jci-yellow` `#efc40f`, `bone` `#f4f1ea` |
+| **Surfaces**        | `surface` `#ffffff`, `surface-2` `#f7f9fb`, `surface-3` `#eef2f6`                                                                                                                |
+| **Lines**           | `line` `rgba(19,15,45,.08)`, `line-strong` `rgba(19,15,45,.16)`                                                                                                                  |
+| **Ink (text)**      | `ink-1` `#130f2d`, `ink-2` `rgba(19,15,45,.72)`, `ink-3` `rgba(19,15,45,.52)`                                                                                                    |
+| **Semantic status** | `ok` `#1f8a5b`, `error` `#c0392b`, `warn` `#8e7300`, `teal-ink` `#2e8c8c`                                                                                                        |
+| **Type**            | sans `Plus Jakarta Sans`, serif `Arvo`, mono `JetBrains Mono`                                                                                                                    |
+| **Radii**           | `card` `12px`, `pill` `9999px`                                                                                                                                                   |
+| **Motion**          | `ripple-spin`, `toast-in`, `skeleton`, `rise` (keyframes in `theme.css`)                                                                                                         |
+
+**Dark mode:** a `[data-theme="dark"]` block in `theme.css` overrides the **neutral
+tokens only** (surface/ink/line); brand colors stay locked. A few hardcoded
+`rgba(19,15,45,…)` shadows don't invert yet — accepted for v1.
 
 **Brand assets:** `src/assets/` — `logo-black.png`, `logo-color.png`,
 `logo-on-blue.png`, `logo-on-dark.png` (rendered via the `LogoLockup` component).
@@ -59,31 +63,34 @@ All exported from `src/index.ts` except the QR pair (deep-imported to stay in la
 chunks). Paths are relative to `packages/ui/src/`.
 
 ### Form / inputs
-| Component | Source |
-|-----------|--------|
-| `Button` (variants: primary/secondary/ghost, `onDark`/`onBlue`, `sm`; polymorphic `a`/`button`) | `components/button.tsx` |
-| `Input` | `components/input.tsx` |
-| `Textarea` | `components/textarea.tsx` |
-| `Select` | `components/select.tsx` |
-| `Field` (label + error wrapper) | `components/field.tsx` |
-| `Checkbox` (label + branded box) | `components/checkbox.tsx` |
-| `Combobox` (single-select + search) | `components/combobox.tsx` |
-| `MultiSelect` (multi-select + chips) | `components/multi-select-field.tsx` |
+
+| Component                                                                                       | Source                              |
+| ----------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `Button` (variants: primary/secondary/ghost, `onDark`/`onBlue`, `sm`; polymorphic `a`/`button`) | `components/button.tsx`             |
+| `Input`                                                                                         | `components/input.tsx`              |
+| `Textarea`                                                                                      | `components/textarea.tsx`           |
+| `Select`                                                                                        | `components/select.tsx`             |
+| `Field` (label + error wrapper)                                                                 | `components/field.tsx`              |
+| `Checkbox` (label + branded box)                                                                | `components/checkbox.tsx`           |
+| `Combobox` (single-select + search)                                                             | `components/combobox.tsx`           |
+| `MultiSelect` (multi-select + chips)                                                            | `components/multi-select-field.tsx` |
 
 ### Feedback / status
-| Component | Source |
-|-----------|--------|
-| `Badge` (tones) | `components/badge.tsx` |
-| `Skeleton` | `components/skeleton.tsx` |
-| `Toast` | `components/toast.tsx` |
-| `Tooltip` (Radix primitive + tokens) | `components/tooltip.tsx` |
-| `EmptyState` | `components/empty-state.tsx` |
+
+| Component                            | Source                       |
+| ------------------------------------ | ---------------------------- |
+| `Badge` (tones)                      | `components/badge.tsx`       |
+| `Skeleton`                           | `components/skeleton.tsx`    |
+| `Toast`                              | `components/toast.tsx`       |
+| `Tooltip` (Radix primitive + tokens) | `components/tooltip.tsx`     |
+| `EmptyState`                         | `components/empty-state.tsx` |
 
 ### Overlays
-| Component | Source |
-|-----------|--------|
-| `Dialog` | `components/dialog.tsx` |
-| `Sheet` | `components/sheet.tsx` |
+
+| Component                                     | Source                   |
+| --------------------------------------------- | ------------------------ |
+| `Dialog`                                      | `components/dialog.tsx`  |
+| `Sheet`                                       | `components/sheet.tsx`   |
 | `Popover` (Radix; backs Combobox/MultiSelect) | `components/popover.tsx` |
 
 ### Data display
@@ -96,20 +103,22 @@ chunks). Paths are relative to `packages/ui/src/`.
 | `Sparkline` | `components/sparkline-chart.tsx` (data: `components/sparkline.ts`) |
 
 ### Structure / brand
-| Component | Source |
-|-----------|--------|
-| `SectionHeader` | `components/section-header.tsx` |
-| `ArrowLink` | `components/arrow-link.tsx` |
-| `LogoLockup` | `components/logo-lockup.tsx` |
-| `ImgSlot` (image placeholder) | `components/img-slot.tsx` |
-| `Icon` + `ArrowRight` (icon set) | `components/icons.tsx` |
-| `Reveal` (scroll-in animation) | `components/reveal.tsx` |
-| `Ripple` (`RippleSVG/RippleBackground/RippleDivider`) | `components/ripple.tsx` |
+
+| Component                                             | Source                          |
+| ----------------------------------------------------- | ------------------------------- |
+| `SectionHeader`                                       | `components/section-header.tsx` |
+| `ArrowLink`                                           | `components/arrow-link.tsx`     |
+| `LogoLockup`                                          | `components/logo-lockup.tsx`    |
+| `ImgSlot` (image placeholder)                         | `components/img-slot.tsx`       |
+| `Icon` + `ArrowRight` (icon set)                      | `components/icons.tsx`          |
+| `Reveal` (scroll-in animation)                        | `components/reveal.tsx`         |
+| `Ripple` (`RippleSVG/RippleBackground/RippleDivider`) | `components/ripple.tsx`         |
 
 ### Domain widgets (deep-import only)
-| Component | Source |
-|-----------|--------|
-| `QrCode` | `components/qr-code.tsx` → `@luminova/ui/qr-code` |
+
+| Component   | Source                                                  |
+| ----------- | ------------------------------------------------------- |
+| `QrCode`    | `components/qr-code.tsx` → `@luminova/ui/qr-code`       |
 | `QrScanner` | `components/qr-scanner.tsx` → `@luminova/ui/qr-scanner` |
 
 ---
