@@ -1,4 +1,4 @@
-export type PageToken = number | "…";
+type PageToken = number | "…";
 
 export function pageWindow(current: number, total: number): PageToken[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
