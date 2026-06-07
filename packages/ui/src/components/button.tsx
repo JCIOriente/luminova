@@ -1,13 +1,16 @@
 import type { MouseEventHandler, ReactNode } from "react";
 import { cn } from "../lib/cn";
 
-type ButtonVariant = "primary" | "secondary" | "ghost";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "link";
+type ButtonTone = "brand" | "neutral" | "danger";
 
 interface CommonProps {
   variant?: ButtonVariant;
   size?: "sm" | "md";
   onDark?: boolean;
   onBlue?: boolean;
+  /** Color of the `link` variant only (inline text action). */
+  tone?: ButtonTone;
   iconLeft?: ReactNode;
   iconRight?: ReactNode;
   className?: string;
@@ -34,8 +37,20 @@ export type ButtonProps = AnchorButton | NativeButton;
 const BASE =
   "inline-flex items-center justify-center gap-2.5 h-13 px-6.5 rounded-pill border-[1.5px] border-transparent font-semibold text-[15px] -tracking-[0.005em] whitespace-nowrap cursor-pointer transition-[transform,background-color,color,box-shadow,border-color] duration-200 ease-expo focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue [&_.arrow]:transition-transform [&_.arrow]:duration-200 hover:[&_.arrow]:translate-x-[3px]";
 
-function variantClasses(variant: ButtonVariant, onDark: boolean, onBlue: boolean): string {
+function variantClasses(
+  variant: ButtonVariant,
+  onDark: boolean,
+  onBlue: boolean,
+  tone: ButtonTone,
+): string {
   switch (variant) {
+    case "link":
+      return cn(
+        "h-auto rounded-none border-0 bg-transparent p-0 text-[13px] font-semibold",
+        tone === "neutral" && "text-ink-2 hover:text-ink-1",
+        tone === "danger" && "text-ink-3 hover:text-error",
+        tone === "brand" && "text-jci-blue hover:text-jci-blue-2",
+      );
     case "secondary":
       return cn(
         "bg-transparent text-ink-1 border-line-strong hover:border-ink-1 hover:-translate-y-0.5",
@@ -64,6 +79,7 @@ export function Button(props: ButtonProps) {
     size = "md",
     onDark = false,
     onBlue = false,
+    tone = "brand",
     iconLeft,
     iconRight,
     className,
@@ -72,8 +88,8 @@ export function Button(props: ButtonProps) {
 
   const cls = cn(
     BASE,
-    variantClasses(variant, onDark, onBlue),
-    size === "sm" && "h-[42px] px-[18px] text-sm",
+    variantClasses(variant, onDark, onBlue, tone),
+    size === "sm" && variant !== "link" && "h-[42px] px-[18px] text-sm",
     className,
   );
 

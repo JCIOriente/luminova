@@ -1,4 +1,6 @@
 export { Button, type ButtonProps } from "./components/button";
+export { IconButton, type IconButtonProps } from "./components/icon-button";
+export { SegmentedControl, type SegmentedOption } from "./components/segmented-control";
 export { Badge, type BadgeTone } from "./components/badge";
 export { ArrowLink } from "./components/arrow-link";
 export { Icon, ArrowRight } from "./components/icons";
