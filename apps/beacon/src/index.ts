@@ -1,12 +1,12 @@
 import { getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import { createFirestoreStore } from "./award-points/firestore-store.js";
+import { createFirestoreStore, parseInitiativeWrite } from "./award-points/firestore-store.js";
 import { validateCheckIn } from "./award-points/check-in.js";
 import {
   processCheckIn,
   processCheckInDelete,
-  processInitiativeReport,
+  processInitiativeWrite,
 } from "./award-points/process.js";
 
 // Initialize the default app once at module load. Doing this lazily inside the
@@ -34,19 +34,43 @@ export const awardPoints = onDocumentWritten("checkIns/{id}", async (event) => {
   }
 });
 
-function reportTrigger(collection: "programs" | "projects") {
+function initiativeTrigger(collection: "programs" | "projects") {
+  const parentType = collection === "programs" ? "Program" : "Project";
   return onDocumentWritten(`${collection}/{id}`, async (event) => {
-    const before = event.data?.before?.data() as { finalReport?: unknown } | undefined;
-    const after = event.data?.after?.data() as { finalReport?: unknown } | undefined;
-    const wasFiled = before?.finalReport != null;
-    const isFiled = after?.finalReport != null;
-    if (wasFiled === isFiled) return; // no report-state transition
-    await processInitiativeReport(createFirestoreStore(db()), event.params.id, isFiled);
+    const store = createFirestoreStore(db());
+    const after = event.data?.after;
+    if (after?.exists) {
+      const init = parseInitiativeWrite(after.data());
+      if (init === null) return;
+      // createTime is stable across event retries (unlike now()), so a brand-new
+      // roster row's fallback month doesn't drift between the first run and a retry.
+      const stamp = after.createTime ?? Timestamp.now();
+      await processInitiativeWrite(store, parentType, event.params.id, init, stamp);
+      return;
+    }
+    // Initiative deleted — reconcile to an empty roster so its rows are voided.
+    // termId is unknown/irrelevant here (no new rows; deleted rows carry their own).
+    const before = event.data?.before;
+    if (before?.exists) {
+      const prev = parseInitiativeWrite(before.data());
+      await processInitiativeWrite(
+        store,
+        parentType,
+        event.params.id,
+        {
+          termId: prev?.termId ?? "",
+          roster: { directorId: "", coDirectorId: null, teamIds: [] },
+          reportFiled: false,
+          filedAtMillis: null,
+        },
+        before.createTime ?? Timestamp.now(),
+      );
+    }
   });
 }
 
-export const confirmOnProgramReport = reportTrigger("programs");
-export const confirmOnProjectReport = reportTrigger("projects");
+export const onProgramWritten = initiativeTrigger("programs");
+export const onProjectWritten = initiativeTrigger("projects");
 
 export { setUserRoles } from "./set-user-roles.js";
 export { provisionMemberLogin } from "./provision-member-login.js";

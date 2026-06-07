@@ -19,12 +19,17 @@ export interface ActivityRef {
   startAt: Timestamp;
 }
 
-/** UTC `YYYY-MM` for a Firestore Timestamp. */
-export function monthBucketOf(ts: Timestamp): string {
-  const date = new Date(ts.toMillis());
+/** UTC `YYYY-MM` for epoch millis. */
+export function monthBucketFromMillis(ms: number): string {
+  const date = new Date(ms);
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
   return `${year}-${month}`;
+}
+
+/** UTC `YYYY-MM` for a Firestore Timestamp. */
+export function monthBucketOf(ts: Timestamp): string {
+  return monthBucketFromMillis(ts.toMillis());
 }
 
 export interface DeriveInput {

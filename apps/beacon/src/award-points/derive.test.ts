@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { Timestamp } from "firebase-admin/firestore";
-import { deriveParticipation, monthBucketOf, type ActivityRef } from "./derive.js";
+import {
+  deriveParticipation,
+  monthBucketOf,
+  monthBucketFromMillis,
+  type ActivityRef,
+} from "./derive.js";
 import type { CheckIn } from "./check-in.js";
 
 const startAt = Timestamp.fromDate(new Date("2026-06-06T18:00:00Z"));
@@ -23,6 +28,12 @@ function checkIn(overrides: Partial<CheckIn> = {}): CheckIn {
 describe("monthBucketOf", () => {
   it("formats a timestamp as UTC YYYY-MM", () => {
     expect(monthBucketOf(startAt)).toBe("2026-06");
+  });
+});
+
+describe("monthBucketFromMillis", () => {
+  it("formats epoch millis as UTC YYYY-MM", () => {
+    expect(monthBucketFromMillis(Date.UTC(2026, 5, 6))).toBe("2026-06");
   });
 });
 

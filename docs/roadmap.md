@@ -9,8 +9,9 @@ PR, one at a time or in parallel where dependencies allow. `[P]` = parallel-safe
 notes the merged PR.
 
 _Last synced: 2026-06-06 — §A Recognition Engine complete + fed (F3·A1·A2·A5·A6·A3
-all merged to main); B1 member home (#20); E1/E2/E5 widgets (#21); **D1 full
-Events/Activities CRUD (#22)** — Program/Project mgmt + parent picker + rosters.
+all merged to main); B1 member home (#20); E1/E2/E5 widgets (#21); D1 full
+Events/Activities CRUD (#22); **A7 roster→participation expansion (#23)** — roster
+roles now feed the engine.
 Reshaped around the **Recognition Engine** after a product/UX discussion (points,
 QR attendance, multi-role access, award submissions)._
 
@@ -135,7 +136,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | A4 ⬜ | **Offline check-in** — queue scans, sync when back online | A3 | `[S]` | roadmap, **not priority** (bad venue wifi is real); A3's `CheckInRepository.create` is the wrap seam |
 | ~~A5~~ ✅ | **Member profile / points history** — DONE (#15). `/members/:id` board view: cumulative + byMonth + ParticipationLedger + (A3) personal QR. **Member self-view still pending → B1.** | F3 | `[S]` | makes points "very visible" |
 | ~~A6~~ ✅ | **Leaderboard / recognition surface** — DONE (#16). `/leaderboard` public to all members; annual + monthly (top 3 + Best of Month); eligibility flags applied (inert until a board is designated) | F3, A5 | `[S]` | the engagement flywheel; social tiebreak deferred |
-| A7 ⬜ | **Roster → participation auto-expansion** (beacon) — expand an initiative's `roster` (director/co-director/team) into Director/CoDirector/Team `participation` rows without a manual check-in tap. Needs keying (per-initiative anchor, not per-execution-activity), idempotency, void-on-roster-edit. Addresses the v1 trust model (#7). D1 stores the authoritative roster; this slice makes the engine read it. | A2, D1 | `[S]` | `firebase-functions-reviewer`; the roster→roles wiring deferred out of D1 |
+| ~~A7~~ ✅ | **Roster → participation auto-expansion** (beacon) — DONE (#23). `onProgramWritten`/`onProjectWritten` → idempotent `processInitiativeWrite` reconciles roster rows (Director/CoDirector/Team, anchored on the initiative id) + re-confirms attendance rows; confirms on report-filed (`monthBucket`=report month), voids on roster removal. Closes trust model #7. | A2, D1 | `[S]` | check-in convention: execution activities tap Attendee; e2e deferred |
 
 ## B. Member-facing surface & role-aware home
 
