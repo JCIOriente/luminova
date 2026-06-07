@@ -11,7 +11,7 @@ export function ArrowLink({ children, className, onDark = false, ...rest }: Arro
   return (
     <a
       className={cn(
-        "inline-flex items-center gap-2 font-semibold [&_.arrow]:transition-transform [&_.arrow]:duration-200 hover:[&_.arrow]:translate-x-1",
+        "inline-flex items-center gap-2 text-[15px] font-semibold [&_.arrow]:transition-transform [&_.arrow]:duration-200 hover:[&_.arrow]:translate-x-[3px]",
         onDark ? "text-jci-teal" : "text-jci-blue",
         className,
       )}

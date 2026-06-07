@@ -34,7 +34,7 @@ export function Reveal({ children, delay = 0, className }: RevealProps) {
     <div
       ref={ref}
       className={cn(
-        "transition-[opacity,transform] duration-[600ms] ease-out motion-reduce:transition-none",
+        "transition-[opacity,transform] duration-[600ms] ease-expo motion-reduce:transition-none",
         seen ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0",
         className,
       )}
