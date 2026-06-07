@@ -1,5 +1,5 @@
 import { useLocation } from "@tanstack/react-router";
-import { Icon } from "@luminova/ui";
+import { Icon, IconButton } from "@luminova/ui";
 import { sectionTitle } from "./breadcrumb";
 
 export function AppTopbar() {
@@ -24,13 +24,9 @@ export function AppTopbar() {
           ⌘K
         </kbd>
       </div>
-      <button
-        type="button"
-        className="flex size-[38px] items-center justify-center rounded-[10px] text-ink-2 transition-colors hover:bg-ink-1/[0.04] hover:text-ink-1"
-        aria-label="Notificaciones"
-      >
+      <IconButton as="button" variant="subtle" size="md" aria-label="Notificaciones">
         {Icon.bell({ s: 20 })}
-      </button>
+      </IconButton>
     </header>
   );
 }

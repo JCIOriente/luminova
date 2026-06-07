@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { cn } from "@luminova/ui";
+import { SegmentedControl } from "@luminova/ui";
 import type { Member } from "@luminova/types";
 import { PageHeader } from "../components/page-header";
 import { currentTermId } from "../lib/current-term";
@@ -50,44 +50,20 @@ function LeaderboardPage() {
         subtitle={`Mejor Miembro Individual · gestión ${termId}`}
       />
 
-      <div className="flex flex-wrap gap-1.5">
-        <ViewTab label="Anual" active={view === "annual"} onClick={() => setView("annual")} />
-        {months.map((month) => (
-          <ViewTab
-            key={month}
-            label={month}
-            active={view === month}
-            onClick={() => setView(month)}
-          />
-        ))}
-      </div>
+      <SegmentedControl
+        aria-label="Periodo"
+        className="flex-wrap"
+        value={view}
+        onChange={setView}
+        options={[
+          { value: "annual", label: "Anual" },
+          ...months.map((month) => ({ value: month, label: month })),
+        ]}
+      />
 
       {isPending && <p className="text-ink-3">Cargando…</p>}
       {isError && <p className="text-error">No se pudo cargar la clasificación.</p>}
       {!isPending && !isError && <LeaderboardTable entries={entries} />}
     </div>
-  );
-}
-
-function ViewTab({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-pill px-3.5 py-1.5 text-[13px] font-semibold transition-colors",
-        active ? "bg-jci-blue text-white" : "bg-ink-1/[0.05] text-ink-2 hover:bg-ink-1/[0.09]",
-      )}
-    >
-      {label}
-    </button>
   );
 }

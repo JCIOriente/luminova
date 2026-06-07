@@ -7,6 +7,7 @@ import {
   TableHead,
   TableCell,
   Icon,
+  IconButton,
   type BadgeTone,
 } from "@luminova/ui";
 import type { Activity, ActivityStatus } from "@luminova/types";
@@ -54,23 +55,25 @@ export function ActivityTable({ activities, onEdit, onCancel }: ActivityTablePro
             </TableCell>
             <TableCell>
               <div className="flex gap-2">
-                <button
-                  type="button"
+                <IconButton
+                  as="button"
+                  variant="ghost"
+                  size="sm"
                   aria-label={`Editar ${CATEGORY_LABELS[activity.category]}`}
                   onClick={() => onEdit(activity)}
-                  className="text-ink-2 hover:text-ink-1"
                 >
                   {Icon.settings({ s: 17 })}
-                </button>
+                </IconButton>
                 {activity.status !== "Cancelada" && (
-                  <button
-                    type="button"
+                  <IconButton
+                    as="button"
+                    variant="ghost"
+                    size="sm"
                     aria-label={`Cancelar ${CATEGORY_LABELS[activity.category]}`}
                     onClick={() => onCancel(activity)}
-                    className="text-ink-2 hover:text-ink-1"
                   >
                     {Icon.close({ s: 17 })}
-                  </button>
+                  </IconButton>
                 )}
               </div>
             </TableCell>

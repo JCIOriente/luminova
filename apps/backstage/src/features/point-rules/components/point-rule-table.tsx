@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } from "@luminova/ui";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  Input,
+  Button,
+} from "@luminova/ui";
 import { pointRuleSchema } from "@luminova/types";
 import type { PointRule } from "@luminova/types";
 import { useAbility } from "../../../lib/authz/ability-context";
@@ -80,15 +89,16 @@ function PointRuleRow({
             onChange={(event) => setValue(event.target.value)}
           />
           {changed && (
-            <button
-              type="button"
+            <Button
+              as="button"
+              variant="primary"
+              size="sm"
               disabled={!valid || isSaving}
               aria-label={`Guardar ${rule.label}`}
               onClick={() => parsed.success && onSave(rule.id, parsed.data)}
-              className="rounded-pill bg-jci-blue px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-jci-navy disabled:cursor-not-allowed disabled:opacity-40"
             >
               Guardar
-            </button>
+            </Button>
           )}
         </div>
       </TableCell>
