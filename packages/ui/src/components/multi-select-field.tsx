@@ -43,14 +43,14 @@ export function MultiSelect({
           aria-expanded={open}
           className={cn(
             fieldControlClasses,
-            "flex min-h-[52px] flex-wrap items-center gap-1.5 text-left disabled:opacity-60",
+            "flex h-auto min-h-[52px] flex-wrap items-center gap-1.5 px-3 py-[7px] text-left disabled:opacity-60",
           )}
         >
           {chosen.length === 0 && <span className="text-ink-3">{placeholder}</span>}
           {chosen.map((o) => (
             <span
               key={o.value}
-              className="inline-flex items-center gap-1 rounded-pill bg-surface-2 py-1 pl-2.5 pr-1.5 text-sm text-ink-1"
+              className="inline-flex items-center gap-1 rounded-pill bg-surface-3 py-1 pl-2.5 pr-1.5 text-[13px] font-medium text-ink-1"
             >
               {o.label}
               <span
@@ -61,7 +61,7 @@ export function MultiSelect({
                   e.stopPropagation();
                   onChange(removeValue(value, o.value));
                 }}
-                className="grid size-4 place-items-center rounded-full text-ink-2 hover:bg-line hover:text-ink-1"
+                className="grid size-[17px] place-items-center rounded-full text-ink-3 hover:bg-line-strong hover:text-ink-1"
               >
                 {Icon.close({ s: 12 })}
               </span>

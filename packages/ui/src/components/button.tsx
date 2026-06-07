@@ -32,23 +32,28 @@ interface NativeButton extends CommonProps {
 export type ButtonProps = AnchorButton | NativeButton;
 
 const BASE =
-  "inline-flex items-center gap-2.5 h-13 px-6.5 rounded-pill border border-transparent font-semibold text-[15px] whitespace-nowrap transition-[transform,background-color,color,box-shadow,border-color] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue [&_.arrow]:transition-transform [&_.arrow]:duration-200 hover:[&_.arrow]:translate-x-1";
+  "inline-flex items-center justify-center gap-2.5 h-13 px-6.5 rounded-pill border-[1.5px] border-transparent font-semibold text-[15px] -tracking-[0.005em] whitespace-nowrap cursor-pointer transition-[transform,background-color,color,box-shadow,border-color] duration-200 ease-expo focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue [&_.arrow]:transition-transform [&_.arrow]:duration-200 hover:[&_.arrow]:translate-x-[3px]";
 
 function variantClasses(variant: ButtonVariant, onDark: boolean, onBlue: boolean): string {
   switch (variant) {
     case "secondary":
       return cn(
-        "bg-transparent text-ink-1 border-line-strong hover:border-ink-1",
+        "bg-transparent text-ink-1 border-line-strong hover:border-ink-1 hover:-translate-y-0.5",
         onDark && "text-jci-white border-white/30 hover:border-white",
-        onBlue && "text-jci-white border-white/45 hover:border-white hover:bg-white/[0.06]",
+        onBlue && "text-jci-white border-white/45 hover:border-white hover:bg-white/[0.07]",
       );
     case "ghost":
-      return "bg-transparent h-auto p-0 border-0 text-jci-blue";
+      return cn(
+        "bg-transparent h-auto py-1 px-0.5 border-0 text-jci-blue hover:text-jci-blue-2",
+        onDark && "text-jci-teal",
+        onBlue && "text-jci-white",
+      );
     default:
       return cn(
-        "bg-jci-blue text-jci-white hover:bg-jci-blue-2",
+        "bg-jci-blue text-jci-white hover:bg-jci-blue-2 hover:-translate-y-0.5 hover:shadow-[0_14px_34px_-12px_rgba(0,151,215,0.55)] active:translate-y-0",
         onDark && "shadow-[0_8px_24px_-8px_rgba(0,151,215,0.55)]",
-        onBlue && "bg-jci-white text-jci-black hover:bg-white/90",
+        onBlue &&
+          "bg-jci-white text-jci-black hover:bg-white/90 hover:shadow-[0_14px_34px_-12px_rgba(0,0,0,0.35)]",
       );
   }
 }
@@ -83,7 +88,11 @@ export function Button(props: ButtonProps) {
   if (props.as === "button") {
     return (
       <button
-        className={cn(cls, props.disabled && "cursor-not-allowed opacity-60")}
+        className={cn(
+          cls,
+          props.disabled &&
+            "cursor-not-allowed opacity-[0.55] hover:translate-y-0 hover:shadow-none",
+        )}
         type={props.type ?? "button"}
         onClick={props.onClick}
         disabled={props.disabled}
