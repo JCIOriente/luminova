@@ -1,7 +1,9 @@
+import { useSyncExternalStore } from "react";
 import { createFileRoute, redirect, Outlet } from "@tanstack/react-router";
 import { authRedirect } from "../lib/auth/guard";
 import { AppSidebar } from "../components/app-sidebar";
 import { AppTopbar } from "../components/app-topbar";
+import { getSidebarCollapsed, subscribe } from "../lib/ui-prefs";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ context, location }) => {
@@ -14,8 +16,11 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
+  const collapsed = useSyncExternalStore(subscribe, getSidebarCollapsed, getSidebarCollapsed);
   return (
-    <div className="grid h-dvh grid-cols-[264px_1fr] bg-surface-2">
+    <div
+      className={`grid h-dvh bg-surface-2 ${collapsed ? "grid-cols-[72px_1fr]" : "grid-cols-[264px_1fr]"}`}
+    >
       <AppSidebar />
       <div className="flex min-w-0 flex-col">
         <AppTopbar />
