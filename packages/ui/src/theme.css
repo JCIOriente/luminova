@@ -15,6 +15,13 @@
   --color-jci-yellow: #efc40f;
   --color-bone: #f4f1ea;
 
+  /* Sanctioned brand tints (25 / 50 / 75% over white) */
+  --color-jci-blue-75: #40b1e1;
+  --color-jci-blue-50: #80cbeb;
+  --color-jci-blue-25: #bfe5f5;
+  --color-jci-teal-50: #abdddd;
+  --color-jci-navy-50: #8fa3c4;
+
   /* Surfaces / ink / lines (promoted to --color-* so utilities generate) */
   --color-surface: #ffffff;
   --color-surface-2: #f7f9fb;
@@ -24,6 +31,12 @@
   --color-ink-1: #130f2d;
   --color-ink-2: rgba(19, 15, 45, 0.72);
   --color-ink-3: rgba(19, 15, 45, 0.52);
+  --color-ink-4: rgba(19, 15, 45, 0.32);
+
+  /* On-dark inks (text on jci-black / jci-blue surfaces) */
+  --color-on-dark-1: #ffffff;
+  --color-on-dark-2: rgba(255, 255, 255, 0.85);
+  --color-on-dark-3: rgba(255, 255, 255, 0.55);
 
   /* Semantic status (validation/state — not brand palette) */
   --color-ok: #1f8a5b;
@@ -36,9 +49,18 @@
   --font-serif: "Arvo", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
 
+  /* Brand type scale (fluid; lean weights — 300/400 large, 600 UI labels) */
+  --text-display: clamp(40px, 6.8vw, 72px);
+  --text-title: clamp(32px, 4.4vw, 48px);
+  --text-subtitle: clamp(20px, 1.7vw, 24px);
+  --text-quote: clamp(22px, 2.6vw, 32px);
+
   /* Radii */
   --radius-card: 12px;
   --radius-pill: 9999px;
+
+  /* Motion */
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Animations */
   --animate-ripple-spin: ripple-rotate 60s linear infinite;

@@ -44,10 +44,33 @@ not shadcn's separate theme-var system (as Tooltip/Popover/Dialog do).
 
 ## Design tokens — `src/theme.css`
 
-Single source of truth. Tailwind v4 `@theme` block: brand colors + ink/surface/
-line (as `--color-*` → `text-ink-2`, `bg-surface`, `border-line` utilities),
-fonts (`font-sans/serif/mono`), radii (`rounded-card/pill`), and the
-`ripple-spin` / `toast-in` animations. Exported as `@luminova/ui/theme.css`.
+Single source of truth. Tailwind v4 `@theme` block: brand colors + sanctioned
+tints (`jci-blue-75/50/25`, `jci-teal-50`, `jci-navy-50`) + ink/surface/line +
+on-dark inks (`on-dark-1/2/3`) (all `--color-*` → `text-ink-2`, `bg-surface`,
+`border-line`, `text-on-dark-2` utilities), fonts (`font-sans/serif/mono`), brand
+type scale (`text-display/title/subtitle/quote`), radii (`rounded-card/pill`),
+easing (`ease-expo`), and the `ripple-spin` / `toast-in` animations. Exported as
+`@luminova/ui/theme.css`.
+
+## Claude Design sync
+
+This library is the coded half of a **Claude Design** (claude.ai/design) design
+system. Keep them in sync — full process in
+[`docs/tooling/claude-design-handoff.md`](../../docs/tooling/claude-design-handoff.md).
+
+- **`DESIGN.md`** is the ingest manifest Claude Design reads (tokens + component
+  inventory + source paths). Update it whenever a component is added/removed.
+- **Ingesting a redesign (handoff → code):** brainstorm + scope first, reconcile
+  tokens (`theme.css`) as the foundation batch, then migrate components **by
+  category in batches**, delta-driven.
+- **Translate, don't copy.** The handoff ships semantic `jci-*` CSS as the
+  *visual source of truth* — re-express it in **pure Tailwind utilities** here.
+  Never add the handoff's CSS system to the repo (one paradigm only).
+- **Preserve public APIs** so the 44 usage sites absorb the redesign with no
+  churn; add new props as optional.
+- **Brand tokens are locked** — flag off-brand proposals, don't apply silently.
+- **Component library ≠ Spotlight pages.** A handoff often carries both; migrate
+  the library first, brainstorm the page redesign separately.
 
 ## Consuming this package (apps)
 
