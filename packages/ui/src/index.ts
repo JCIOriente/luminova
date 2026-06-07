@@ -8,6 +8,7 @@ export { Input, fieldControlClasses } from "./components/input";
 export { Textarea } from "./components/textarea";
 export { Select } from "./components/select";
 export { Field } from "./components/field";
+export { Checkbox } from "./components/checkbox";
 export { Reveal } from "./components/reveal";
 export { SectionHeader } from "./components/section-header";
 export { ImgSlot } from "./components/img-slot";

@@ -182,6 +182,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | FX2 | **Dark mode** | — | `[P]` | token override + toggle + persistence; components already dark-ready |
 | FX3 | **⌘K command palette** | E3 | `[S]` | topbar affordance already in place |
 | FX4 | **Sidebar collapse** | — | `[P]` | structure is collapse-ready |
+| FX5 ✅ | **Login redesign** — DONE. `/login` split-screen (dark brand panel + ripple + "Sé el cambio" / light form card) from Claude Design handoff; reuses `@luminova/ui` (`RippleBackground`, `LogoLockup`, `Button`, `Field`, `Input`, new `Checkbox`; added `lock`/`eye`/`eyeOff` icons). Email/password auth unchanged. SSO omitted; "¿La olvidaste?" + "Recordarme" visual-only (deferred). | — | `[P]` | `react-best-practices`; brand side hides < `lg` |
 
 ## G. Security & data hardening (non-role)
 

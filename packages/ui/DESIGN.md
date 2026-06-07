@@ -53,7 +53,7 @@ build step.
 
 ---
 
-## Components (28 — shipped)
+## Components (29 — shipped)
 
 All exported from `src/index.ts` except the QR pair (deep-imported to stay in lazy
 chunks). Paths are relative to `packages/ui/src/`.
@@ -66,6 +66,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 | `Textarea` | `components/textarea.tsx` |
 | `Select` | `components/select.tsx` |
 | `Field` (label + error wrapper) | `components/field.tsx` |
+| `Checkbox` (label + branded box) | `components/checkbox.tsx` |
 | `Combobox` (single-select + search) | `components/combobox.tsx` |
 | `MultiSelect` (multi-select + chips) | `components/multi-select-field.tsx` |
 
