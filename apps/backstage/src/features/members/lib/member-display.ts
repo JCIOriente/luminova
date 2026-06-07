@@ -16,7 +16,7 @@ const PALETTE = [
 export function avatarColor(id: string): string {
   let hash = 0;
   for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  return PALETTE[Math.abs(hash) % PALETTE.length];
+  return PALETTE[Math.abs(hash) % PALETTE.length] ?? "#1F4789";
 }
 
 export function joinYear(joinDate: Timestamp): number {

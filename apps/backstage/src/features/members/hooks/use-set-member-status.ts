@@ -1,30 +1,18 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Member, MemberInput } from "@luminova/types";
+import type { Member } from "@luminova/types";
 import { MemberRepository } from "../repositories/member-repository";
 import { memberKeys } from "./member-keys";
 
-export function useUpdateMember() {
+export function useSetMemberStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: MemberInput }) =>
-      new MemberRepository().update(id, data),
-    onMutate: async ({ id, data }) => {
+    mutationFn: ({ id, status }: { id: string; status: Member["status"] }) =>
+      new MemberRepository().setStatus(id, status),
+    onMutate: async ({ id, status }) => {
       await queryClient.cancelQueries({ queryKey: memberKeys.all });
       const previous = queryClient.getQueryData<Member[]>(memberKeys.all);
       queryClient.setQueryData<Member[]>(memberKeys.all, (rows) =>
-        rows?.map((m) =>
-          m.id === id
-            ? {
-                ...m,
-                name: data.name,
-                email: data.email,
-                phone: data.phone ?? "",
-                role: data.role,
-                profession: data.profession ?? "",
-                status: data.status,
-              }
-            : m,
-        ),
+        rows?.map((m) => (m.id === id ? { ...m, status } : m)),
       );
       return { previous };
     },

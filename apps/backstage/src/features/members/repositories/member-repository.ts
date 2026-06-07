@@ -51,6 +51,11 @@ export class MemberRepository {
     await updateDoc(doc(this.collection, id), toMemberUpdateDoc(data));
   }
 
+  /** Change membership standing only (Activo/Inactivo/Desafiliado). */
+  async setStatus(id: string, status: Member["status"]): Promise<void> {
+    await updateDoc(doc(this.collection, id), { status });
+  }
+
   /** Soft delete — never hard-delete a member. */
   async softDelete(id: string): Promise<void> {
     await updateDoc(doc(this.collection, id), {
