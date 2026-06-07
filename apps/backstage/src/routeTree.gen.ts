@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AuthResetRouteImport } from './routes/_auth.reset'
 import { Route as AuthLoginRouteImport } from './routes/_auth.login'
+import { Route as AuthForgotPasswordRouteImport } from './routes/_auth.forgot-password'
 import { Route as AppProjectsRouteImport } from './routes/_app.projects'
 import { Route as AppProgramsRouteImport } from './routes/_app.programs'
 import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
@@ -37,9 +39,19 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AuthResetRoute = AuthResetRouteImport.update({
+  id: '/reset',
+  path: '/reset',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => AuthRoute,
 } as any)
 const AppProjectsRoute = AppProjectsRouteImport.update({
@@ -104,7 +116,9 @@ export interface FileRoutesByFullPath {
   '/point-rules': typeof AppPointRulesRoute
   '/programs': typeof AppProgramsRoute
   '/projects': typeof AppProjectsRoute
+  '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
+  '/reset': typeof AuthResetRoute
   '/members/$memberId': typeof AppMembersMemberIdRoute
 }
 export interface FileRoutesByTo {
@@ -118,7 +132,9 @@ export interface FileRoutesByTo {
   '/point-rules': typeof AppPointRulesRoute
   '/programs': typeof AppProgramsRoute
   '/projects': typeof AppProjectsRoute
+  '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
+  '/reset': typeof AuthResetRoute
   '/members/$memberId': typeof AppMembersMemberIdRoute
 }
 export interface FileRoutesById {
@@ -134,7 +150,9 @@ export interface FileRoutesById {
   '/_app/point-rules': typeof AppPointRulesRoute
   '/_app/programs': typeof AppProgramsRoute
   '/_app/projects': typeof AppProjectsRoute
+  '/_auth/forgot-password': typeof AuthForgotPasswordRoute
   '/_auth/login': typeof AuthLoginRoute
+  '/_auth/reset': typeof AuthResetRoute
   '/_app/': typeof AppIndexRoute
   '/_app/members_/$memberId': typeof AppMembersMemberIdRoute
 }
@@ -151,7 +169,9 @@ export interface FileRouteTypes {
     | '/point-rules'
     | '/programs'
     | '/projects'
+    | '/forgot-password'
     | '/login'
+    | '/reset'
     | '/members/$memberId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -165,7 +185,9 @@ export interface FileRouteTypes {
     | '/point-rules'
     | '/programs'
     | '/projects'
+    | '/forgot-password'
     | '/login'
+    | '/reset'
     | '/members/$memberId'
   id:
     | '__root__'
@@ -180,7 +202,9 @@ export interface FileRouteTypes {
     | '/_app/point-rules'
     | '/_app/programs'
     | '/_app/projects'
+    | '/_auth/forgot-password'
     | '/_auth/login'
+    | '/_auth/reset'
     | '/_app/'
     | '/_app/members_/$memberId'
   fileRoutesById: FileRoutesById
@@ -213,11 +237,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_auth/reset': {
+      id: '/_auth/reset'
+      path: '/reset'
+      fullPath: '/reset'
+      preLoaderRoute: typeof AuthResetRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/login': {
       id: '/_auth/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof AuthLoginRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/forgot-password': {
+      id: '/_auth/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof AuthForgotPasswordRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_app/projects': {
@@ -324,11 +362,15 @@ const AppRouteChildren: AppRouteChildren = {
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface AuthRouteChildren {
+  AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthLoginRoute: typeof AuthLoginRoute
+  AuthResetRoute: typeof AuthResetRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
+  AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthLoginRoute: AuthLoginRoute,
+  AuthResetRoute: AuthResetRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
