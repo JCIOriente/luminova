@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { BrowserQRCodeReader, type IScannerControls } from "@zxing/browser";
+import { cn } from "../lib/cn";
 
 export interface QrScannerProps {
   onScan: (text: string) => void;
@@ -38,12 +39,22 @@ export function QrScanner({ onScan, onError, className, paused = false }: QrScan
   }, [onScan, onError]);
 
   return (
-    <video
-      ref={videoRef}
-      className={className}
-      muted
-      playsInline
-      aria-label="Visor de cámara para escanear códigos QR"
-    />
+    <div className={cn("relative grid place-items-center overflow-hidden bg-jci-black", className)}>
+      <video
+        ref={videoRef}
+        className="size-full object-cover"
+        muted
+        playsInline
+        aria-label="Visor de cámara para escanear códigos QR"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-[18%] rounded-[14px] border-2 border-white/90"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-[18%] right-[18%] h-0.5 animate-qr-scan bg-jci-teal shadow-[0_0_14px_2px_rgba(87,188,188,0.7)] motion-reduce:hidden"
+      />
+    </div>
   );
 }
