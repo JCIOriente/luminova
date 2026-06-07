@@ -42,12 +42,12 @@ describe("initiativeFormSchema", () => {
     });
     expect(r.success).toBe(false);
   });
-  it("defaults teamIds to an empty array", () => {
-    const r = initiativeFormSchema.parse({
+  it("requires teamIds (no implicit default)", () => {
+    const r = initiativeFormSchema.safeParse({
       title: "Proyecto Aurora",
       roster: { directorId: "m1", coDirectorId: null },
       status: "Planificacion",
     });
-    expect(r.roster.teamIds).toEqual([]);
+    expect(r.success).toBe(false);
   });
 });

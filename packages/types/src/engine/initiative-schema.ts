@@ -5,7 +5,7 @@ export const initiativeRosterSchema = z
   .object({
     directorId: z.string().min(1, "Requerido."),
     coDirectorId: z.string().min(1).nullable(),
-    teamIds: z.array(z.string().min(1)).default([]),
+    teamIds: z.array(z.string().min(1)),
   })
   .superRefine((r, ctx) => {
     if (r.coDirectorId !== null && r.coDirectorId === r.directorId) {
