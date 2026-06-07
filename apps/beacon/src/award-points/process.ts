@@ -96,6 +96,8 @@ export async function processInitiativeWrite(
     const basePoints = edited ?? DEFAULT_POINT_VALUES[code as PointRuleCode];
     const id = participationId(parentId, memberId, role);
     const existing = await store.getParticipation(id);
+    // If the initiative's term changed, the prior term's aggregate must drop this row too.
+    if (existing !== null && existing.termId !== init.termId) touch(memberId, existing.termId);
     const fallbackMonth = existing?.monthBucket ?? monthBucketFromMillis(now.toMillis());
     const createdAt = existing?.createdAt ?? now;
     await store.setParticipation(

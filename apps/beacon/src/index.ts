@@ -38,32 +38,33 @@ function initiativeTrigger(collection: "programs" | "projects") {
   const parentType = collection === "programs" ? "Program" : "Project";
   return onDocumentWritten(`${collection}/{id}`, async (event) => {
     const store = createFirestoreStore(db());
-    const now = Timestamp.now();
     const after = event.data?.after;
     if (after?.exists) {
-      const init = parseInitiativeWrite(after.data() as Record<string, unknown>);
-      if (init !== null)
-        await processInitiativeWrite(store, parentType, event.params.id, init, now);
+      const init = parseInitiativeWrite(after.data());
+      if (init === null) return;
+      // createTime is stable across event retries (unlike now()), so a brand-new
+      // roster row's fallback month doesn't drift between the first run and a retry.
+      const stamp = after.createTime ?? Timestamp.now();
+      await processInitiativeWrite(store, parentType, event.params.id, init, stamp);
       return;
     }
     // Initiative deleted — reconcile to an empty roster so its rows are voided.
+    // termId is unknown/irrelevant here (no new rows; deleted rows carry their own).
     const before = event.data?.before;
     if (before?.exists) {
-      const prev = parseInitiativeWrite(before.data() as Record<string, unknown>);
-      if (prev !== null) {
-        await processInitiativeWrite(
-          store,
-          parentType,
-          event.params.id,
-          {
-            ...prev,
-            roster: { directorId: "", coDirectorId: null, teamIds: [] },
-            reportFiled: false,
-            filedAtMillis: null,
-          },
-          now,
-        );
-      }
+      const prev = parseInitiativeWrite(before.data());
+      await processInitiativeWrite(
+        store,
+        parentType,
+        event.params.id,
+        {
+          termId: prev?.termId ?? "",
+          roster: { directorId: "", coDirectorId: null, teamIds: [] },
+          reportFiled: false,
+          filedAtMillis: null,
+        },
+        before.createTime ?? Timestamp.now(),
+      );
     }
   });
 }

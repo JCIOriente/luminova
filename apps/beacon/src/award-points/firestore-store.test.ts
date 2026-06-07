@@ -38,4 +38,22 @@ describe("parseInitiativeWrite", () => {
     const out = parseInitiativeWrite({ termId: "2026" });
     expect(out?.roster).toEqual({ directorId: "", coDirectorId: null, teamIds: [] });
   });
+
+  it("rejects a termId that would break the composite id (/ or __)", () => {
+    expect(parseInitiativeWrite({ termId: "a/b" })).toBeNull();
+    expect(parseInitiativeWrite({ termId: "a__b" })).toBeNull();
+  });
+
+  it("drops roster member ids that aren't path-safe", () => {
+    const out = parseInitiativeWrite({
+      termId: "2026",
+      roster: { directorId: "d/1", coDirectorId: "c__1", teamIds: ["ok", "bad__id", "a/b"] },
+    });
+    expect(out?.roster).toEqual({ directorId: "", coDirectorId: null, teamIds: ["ok"] });
+  });
+
+  it("tolerates non-object input", () => {
+    expect(parseInitiativeWrite(undefined)).toBeNull();
+    expect(parseInitiativeWrite(null)).toBeNull();
+  });
 });

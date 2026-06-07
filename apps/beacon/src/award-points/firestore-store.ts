@@ -8,24 +8,28 @@ import {
 import type { EngineStore, InitiativeWrite } from "./store.js";
 import type { ActivityRef } from "./derive.js";
 import type { AggregateRow, MemberAggregate } from "./aggregate.js";
+import { isCleanId } from "./ids.js";
 
 function hasToMillis(value: unknown): value is Timestamp {
   return typeof (value as { toMillis?: unknown })?.toMillis === "function";
 }
 
-/** Parse a programs/projects doc into the engine's InitiativeWrite, or null if termId is malformed. */
-export function parseInitiativeWrite(data: Record<string, unknown>): InitiativeWrite | null {
-  const termId = data.termId;
-  if (typeof termId !== "string" || termId.length === 0) return null;
+/**
+ * Parse a programs/projects doc into the engine's InitiativeWrite, or null if
+ * termId is malformed. Member ids that aren't path-safe (`/` or `__`) are dropped
+ * — they would collide composite participation ids — so only clean roles expand.
+ */
+export function parseInitiativeWrite(data: unknown): InitiativeWrite | null {
+  const raw = (data ?? {}) as Record<string, unknown>;
+  if (!isCleanId(raw.termId)) return null;
+  const termId = raw.termId;
 
-  const r = (data.roster ?? {}) as Record<string, unknown>;
-  const directorId = typeof r.directorId === "string" ? r.directorId : "";
-  const coDirectorId = typeof r.coDirectorId === "string" ? r.coDirectorId : null;
-  const teamIds = Array.isArray(r.teamIds)
-    ? r.teamIds.filter((x): x is string => typeof x === "string")
-    : [];
+  const r = (raw.roster ?? {}) as Record<string, unknown>;
+  const directorId = isCleanId(r.directorId) ? r.directorId : "";
+  const coDirectorId = isCleanId(r.coDirectorId) ? r.coDirectorId : null;
+  const teamIds = Array.isArray(r.teamIds) ? r.teamIds.filter(isCleanId) : [];
 
-  const finalReport = data.finalReport as { filedAt?: unknown } | null | undefined;
+  const finalReport = raw.finalReport as { filedAt?: unknown } | null | undefined;
   const reportFiled = finalReport != null;
   const filedAtMillis =
     reportFiled && hasToMillis(finalReport!.filedAt) ? finalReport!.filedAt.toMillis() : null;
