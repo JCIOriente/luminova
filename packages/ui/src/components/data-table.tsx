@@ -182,9 +182,10 @@ export function DataTable<T>({
         </div>
       )}
 
-      <Table>
+      <div className="overflow-hidden rounded-card border border-line bg-surface">
+        <Table>
         <TableHeader>
-          <TableRow>
+          <TableRow className="bg-surface-2 hover:bg-surface-2">
             {columns.map((column) => {
               const isSortable = column.sortable ?? Boolean(column.sortValue);
               const isSorted = sort.columnId === column.id && sort.dir !== null;
@@ -219,7 +220,11 @@ export function DataTable<T>({
                 </TableHead>
               );
             })}
-            {rowActions && <TableHead className="text-right">Acciones</TableHead>}
+            {rowActions && (
+              <TableHead className="w-px text-right">
+                <span className="sr-only">Acciones</span>
+              </TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -269,7 +274,8 @@ export function DataTable<T>({
             ))
           )}
         </TableBody>
-      </Table>
+        </Table>
+      </div>
 
       {pageSize && !isLoading && total > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 text-[13px] text-ink-3">
@@ -294,6 +300,7 @@ export function DataTable<T>({
                 as="button"
                 size="sm"
                 variant="subtle"
+                className="hover:bg-jci-blue-25/60 hover:text-jci-blue"
                 aria-label="Página anterior"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
@@ -314,8 +321,8 @@ export function DataTable<T>({
                     className={cn(
                       "min-w-8 rounded-md px-2 py-1 text-[13px] font-semibold transition-colors",
                       tok === page
-                        ? "bg-jci-navy text-white"
-                        : "text-ink-2 hover:bg-jci-navy-50/40 hover:text-ink-1",
+                        ? "bg-jci-blue text-white shadow-[0_2px_8px_-2px_rgba(0,151,215,0.5)]"
+                        : "text-ink-2 hover:bg-jci-blue-25/60 hover:text-jci-blue",
                     )}
                   >
                     {tok}
@@ -326,6 +333,7 @@ export function DataTable<T>({
                 as="button"
                 size="sm"
                 variant="subtle"
+                className="hover:bg-jci-blue-25/60 hover:text-jci-blue"
                 aria-label="Página siguiente"
                 onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
                 disabled={page >= pageCount}
