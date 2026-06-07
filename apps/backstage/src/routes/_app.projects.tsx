@@ -86,6 +86,7 @@ function ProjectsPage() {
       {projects && projects.length > 0 && (
         <InitiativeTable
           rows={projects}
+          subject="Project"
           memberName={memberName}
           onEdit={setEditing}
           onFileReport={setReportTarget}

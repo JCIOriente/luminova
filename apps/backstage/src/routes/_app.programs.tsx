@@ -86,6 +86,7 @@ function ProgramsPage() {
       {programs && programs.length > 0 && (
         <InitiativeTable
           rows={programs}
+          subject="Program"
           memberName={memberName}
           onEdit={setEditing}
           onFileReport={setReportTarget}

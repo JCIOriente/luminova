@@ -348,8 +348,11 @@ describe("firestore.rules — memberPoints", () => {
 });
 
 describe("firestore.rules — public + deny-all", () => {
-  it("allows anonymous read of projects", async () => {
-    await assertSucceeds(getDoc(doc(anon(), "projects/p1")));
+  it("denies anonymous read of projects (D1 restricted; was public)", async () => {
+    await assertFails(getDoc(doc(anon(), "projects/p1")));
+  });
+  it("allows a signed-in user to read projects", async () => {
+    await assertSucceeds(getDoc(doc(as("u", ["Member"]), "projects/p1")));
   });
   it("allows anonymous read of board", async () => {
     await assertSucceeds(getDoc(doc(anon(), "board/b1")));

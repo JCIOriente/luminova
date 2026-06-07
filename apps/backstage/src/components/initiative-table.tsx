@@ -10,6 +10,7 @@ import {
   type BadgeTone,
 } from "@luminova/ui";
 import type { Program } from "@luminova/types";
+import { Can } from "../lib/authz/ability-context";
 
 type Initiative = Pick<Program, "id" | "title" | "roster" | "status" | "finalReport">;
 
@@ -27,6 +28,7 @@ const STATUS_LABELS: Record<Initiative["status"], string> = {
 
 interface InitiativeTableProps<T extends Initiative> {
   rows: T[];
+  subject: "Program" | "Project";
   memberName: (id: string) => string;
   onEdit: (row: T) => void;
   onFileReport: (row: T) => void;
@@ -34,6 +36,7 @@ interface InitiativeTableProps<T extends Initiative> {
 
 export function InitiativeTable<T extends Initiative>({
   rows,
+  subject,
   memberName,
   onEdit,
   onFileReport,
@@ -59,26 +62,28 @@ export function InitiativeTable<T extends Initiative>({
             </TableCell>
             <TableCell className="text-ink-2">{row.finalReport ? "Presentado" : "—"}</TableCell>
             <TableCell>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  aria-label={`Editar ${row.title}`}
-                  onClick={() => onEdit(row)}
-                  className="text-ink-2 hover:text-ink-1"
-                >
-                  {Icon.settings({ s: 17 })}
-                </button>
-                {!row.finalReport && (
+              <Can I="update" a={subject}>
+                <div className="flex gap-2">
                   <button
                     type="button"
-                    aria-label={`Marcar informe final de ${row.title}`}
-                    onClick={() => onFileReport(row)}
+                    aria-label={`Editar ${row.title}`}
+                    onClick={() => onEdit(row)}
                     className="text-ink-2 hover:text-ink-1"
                   >
-                    {Icon.check({ s: 17 })}
+                    {Icon.settings({ s: 17 })}
                   </button>
-                )}
-              </div>
+                  {!row.finalReport && (
+                    <button
+                      type="button"
+                      aria-label={`Marcar informe final de ${row.title}`}
+                      onClick={() => onFileReport(row)}
+                      className="text-ink-2 hover:text-ink-1"
+                    >
+                      {Icon.check({ s: 17 })}
+                    </button>
+                  )}
+                </div>
+              </Can>
             </TableCell>
           </TableRow>
         ))}
