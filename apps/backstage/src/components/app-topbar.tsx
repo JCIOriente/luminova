@@ -1,6 +1,7 @@
 import { useLocation } from "@tanstack/react-router";
 import { Icon, IconButton } from "@luminova/ui";
 import { sectionTitle } from "./breadcrumb";
+import { openCommandMenu } from "./command-menu-store";
 
 export function AppTopbar() {
   const { pathname } = useLocation();
@@ -14,16 +15,18 @@ export function AppTopbar() {
         <span className="text-[14.5px] font-semibold text-ink-1">{current}</span>
       </div>
       <div className="flex-1" />
-      <div
-        className="flex h-[38px] w-[268px] items-center gap-2.5 rounded-[10px] border border-line bg-surface-2 px-3 text-ink-3"
-        aria-hidden="true"
+      <button
+        type="button"
+        onClick={openCommandMenu}
+        aria-label="Abrir buscador (⌘K)"
+        className="flex h-[38px] w-[268px] items-center gap-2.5 rounded-[10px] border border-line bg-surface-2 px-3 text-ink-3 transition-colors hover:border-line-strong hover:text-ink-2"
       >
         {Icon.search({ s: 17 })}
-        <span className="flex-1 text-[13.5px]">Buscar en Backstage…</span>
+        <span className="flex-1 text-left text-[13.5px]">Buscar en Backstage…</span>
         <kbd className="rounded-[6px] border border-line-strong px-1.5 py-0.5 font-mono text-[10.5px] text-ink-3">
           ⌘K
         </kbd>
-      </div>
+      </button>
       <IconButton as="button" variant="subtle" size="md" aria-label="Notificaciones">
         {Icon.bell({ s: 20 })}
       </IconButton>

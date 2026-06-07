@@ -2,6 +2,7 @@ import { createFileRoute, redirect, Outlet } from "@tanstack/react-router";
 import { authRedirect } from "../lib/auth/guard";
 import { AppSidebar } from "../components/app-sidebar";
 import { AppTopbar } from "../components/app-topbar";
+import { CommandMenu } from "../components/command-menu";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ context, location }) => {
@@ -25,6 +26,7 @@ function AppLayout() {
           </div>
         </main>
       </div>
+      <CommandMenu />
     </div>
   );
 }
