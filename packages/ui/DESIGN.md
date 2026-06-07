@@ -42,7 +42,7 @@ directly for exact values. Summary of what's defined:
 | **Semantic status** | `ok` `#1f8a5b`, `error` `#c0392b`, `warn` `#8e7300`, `teal-ink` `#2e8c8c`                                                                                                        |
 | **Type**            | sans `Plus Jakarta Sans`, serif `Arvo`, mono `JetBrains Mono`                                                                                                                    |
 | **Radii**           | `card` `12px`, `pill` `9999px`                                                                                                                                                   |
-| **Motion**          | `ripple-spin`, `toast-in`, `skeleton`, `rise`, `overlay-in/out`, `sheet-in/out` (right slide-over), `menu-in/out` (keyframes in `theme.css`); all overlay motion is `motion-reduce:animate-none` |
+| **Motion**          | `ripple-spin`, `toast-in`, `skeleton`, `rise`, `overlay-in/out`, `sheet-in/out` (right slide-over), `dialog-in/out` (centered zoom), `menu-in/out` (keyframes in `theme.css`); all overlay motion is `motion-reduce:animate-none` |
 
 **Dark mode:** a `[data-theme="dark"]` block in `theme.css` overrides the **neutral
 tokens only** (surface/ink/line); brand colors stay locked. A few hardcoded

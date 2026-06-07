@@ -14,8 +14,8 @@ export function Dialog({ open, onOpenChange, title, description, children }: Dia
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="fixed inset-0 z-50 bg-jci-black/40" />
-        <RadixDialog.Content className="fixed top-1/2 left-1/2 z-50 w-[calc(100%-32px)] max-w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-card bg-surface p-[26px] shadow-[0_24px_64px_-24px_rgba(19,15,45,0.4)]">
+        <RadixDialog.Overlay className="fixed inset-0 z-50 bg-jci-black/40 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out motion-reduce:animate-none" />
+        <RadixDialog.Content className="fixed top-1/2 left-1/2 z-50 w-[calc(100%-32px)] max-w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-card bg-surface p-[26px] shadow-[0_24px_64px_-24px_rgba(19,15,45,0.4)] data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out motion-reduce:animate-none">
           <RadixDialog.Title className="text-[19px] font-semibold tracking-[-0.01em] text-ink-1">
             {title}
           </RadixDialog.Title>
