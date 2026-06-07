@@ -20,6 +20,7 @@ export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from ".
 export { DataTable, type DataTableColumn, type FilterChip } from "./components/data-table";
 export { Sheet } from "./components/sheet";
 export { Dialog } from "./components/dialog";
+export { Menu, MenuItem, MenuSeparator } from "./components/menu";
 export { Sparkline } from "./components/sparkline-chart";
 export { LineChart } from "./components/line-chart-view";
 export type { ChartSeries } from "./components/line-chart";

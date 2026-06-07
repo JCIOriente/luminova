@@ -14,8 +14,8 @@ export function Sheet({ open, onOpenChange, title, description, children }: Shee
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="fixed inset-0 z-50 bg-jci-black/40 data-[state=open]:animate-[toast-in_150ms_ease-out]" />
-        <RadixDialog.Content className="fixed top-0 right-0 z-50 flex h-dvh w-full max-w-[440px] flex-col gap-[22px] overflow-y-auto bg-surface p-[26px] shadow-[0_24px_64px_-24px_rgba(19,15,45,0.4)]">
+        <RadixDialog.Overlay className="fixed inset-0 z-50 bg-jci-black/40 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out motion-reduce:animate-none" />
+        <RadixDialog.Content className="fixed top-0 right-0 z-50 flex h-dvh w-full max-w-[440px] flex-col gap-[22px] overflow-y-auto bg-surface p-[26px] shadow-[0_24px_64px_-24px_rgba(19,15,45,0.4)] data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out motion-reduce:animate-none">
           <div className="flex items-start justify-between gap-4">
             <RadixDialog.Title className="text-[20px] font-semibold tracking-[-0.01em] text-ink-1">
               {title}
