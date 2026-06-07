@@ -51,6 +51,7 @@ beforeAll(async () => {
     await setDoc(doc(db, "checkIns/c1"), { memberId: "m1", activityId: "a1", role: "Attendee" });
     await setDoc(doc(db, "participations/part1"), { memberId: "m1", termId: "2026" });
     await setDoc(doc(db, "projects/p1"), { title: "P" });
+    await setDoc(doc(db, "programs/prog1"), { termId: "2026", title: "Programa X" });
     await setDoc(doc(db, "memberPoints/2025/03/e1"), { points: 5 });
   });
 });
@@ -225,6 +226,29 @@ describe("firestore.rules — activities", () => {
   });
   it("denies delete even for Admin", async () => {
     await assertFails(deleteDoc(doc(as("u", ["Admin"]), "activities/act1")));
+  });
+});
+
+describe("firestore.rules — programs", () => {
+  it("allows any signed-in user to read", async () => {
+    await assertSucceeds(getDoc(doc(as("u", ["Member"]), "programs/prog1")));
+  });
+  it("denies anonymous read", async () => {
+    await assertFails(getDoc(doc(anon(), "programs/prog1")));
+  });
+  it("allows ProjectManager to create", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["ProjectManager"]), "programs/prog2"), { termId: "2026", title: "Y" }),
+    );
+  });
+  it("allows Admin to update", async () => {
+    await assertSucceeds(updateDoc(doc(as("u", ["Admin"]), "programs/prog1"), { title: "Z" }));
+  });
+  it("denies a non-privileged role write", async () => {
+    await assertFails(updateDoc(doc(as("u", ["Treasury"]), "programs/prog1"), { title: "Nope" }));
+  });
+  it("denies delete even for Admin", async () => {
+    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "programs/prog1")));
   });
 });
 
