@@ -14,8 +14,8 @@ describe("LoginForm", () => {
   it("shows a validation error for an invalid email", async () => {
     render(<LoginForm onSuccess={vi.fn()} />);
     await userEvent.type(screen.getByLabelText(/correo/i), "nope");
-    await userEvent.type(screen.getByLabelText(/contraseña/i), "secret");
-    await userEvent.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+    await userEvent.type(screen.getByLabelText("Contraseña"), "secret");
+    await userEvent.click(screen.getByRole("button", { name: /entrar a backstage/i }));
     expect(await screen.findByText("Ingresa un correo válido.")).toBeInTheDocument();
     expect(signIn).not.toHaveBeenCalled();
   });
@@ -25,8 +25,8 @@ describe("LoginForm", () => {
     const onSuccess = vi.fn();
     render(<LoginForm onSuccess={onSuccess} />);
     await userEvent.type(screen.getByLabelText(/correo/i), "admin@jci.bo");
-    await userEvent.type(screen.getByLabelText(/contraseña/i), "secret");
-    await userEvent.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+    await userEvent.type(screen.getByLabelText("Contraseña"), "secret");
+    await userEvent.click(screen.getByRole("button", { name: /entrar a backstage/i }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
     expect(signIn).toHaveBeenCalledWith("admin@jci.bo", "secret");
   });
@@ -35,8 +35,8 @@ describe("LoginForm", () => {
     signIn.mockRejectedValueOnce(new FirebaseError("auth/invalid-credential", "raw"));
     render(<LoginForm onSuccess={vi.fn()} />);
     await userEvent.type(screen.getByLabelText(/correo/i), "admin@jci.bo");
-    await userEvent.type(screen.getByLabelText(/contraseña/i), "wrong");
-    await userEvent.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+    await userEvent.type(screen.getByLabelText("Contraseña"), "wrong");
+    await userEvent.click(screen.getByRole("button", { name: /entrar a backstage/i }));
     expect(await screen.findByText("Correo o contraseña incorrectos.")).toBeInTheDocument();
   });
 });

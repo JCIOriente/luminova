@@ -1,4 +1,5 @@
 import { createFileRoute, redirect, Outlet } from "@tanstack/react-router";
+import { BrandSide } from "../features/auth/components/brand-side";
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: async ({ context }) => {
@@ -12,9 +13,9 @@ export const Route = createFileRoute("/_auth")({
 
 function AuthLayout() {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-surface-2 p-6">
-      <div className="w-full max-w-[380px] rounded-card border border-line bg-surface p-8 shadow-[0_24px_48px_-24px_rgba(19,15,45,0.18)]">
-        <h1 className="mb-6 text-[22px] font-semibold text-ink-1">Backstage</h1>
+    <div className="grid min-h-dvh grid-cols-1 bg-surface lg:grid-cols-[1.04fr_1fr]">
+      <BrandSide />
+      <div className="flex items-center justify-center overflow-y-auto bg-surface-2 px-6 py-12 sm:px-10">
         <Outlet />
       </div>
     </div>

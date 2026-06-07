@@ -366,4 +366,46 @@ export const Icon = {
       />
     </svg>
   ),
+  lock: ({ s = 18 }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect
+        x="4.5"
+        y="10.5"
+        width="15"
+        height="9.5"
+        rx="2.4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <path
+        d="M8 10.5V8a4 4 0 018 0v2.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="15" r="1.3" fill="currentColor" />
+    </svg>
+  ),
+  eye: ({ s = 18 }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="2.8" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  ),
+  eyeOff: ({ s = 18 }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 5l16 14M9.6 10.1A2.8 2.8 0 0012 14.8c.7 0 1.4-.3 1.9-.7M6 7.4C3.9 8.9 2.5 11 2.5 11s3.5 6.5 9.5 6.5c1.4 0 2.6-.3 3.7-.8M10 6c.6-.2 1.3-.3 2-.3 6 0 9.5 6.3 9.5 6.3a17 17 0 01-2.2 3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ),
 } satisfies Record<string, IconFn>;
