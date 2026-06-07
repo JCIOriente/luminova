@@ -18,7 +18,7 @@ export function Tooltip({ content, children, side = "top", delayDuration = 200 }
           <RadixTooltip.Content
             side={side}
             sideOffset={6}
-            className="z-50 select-none rounded-md bg-jci-black px-2.5 py-1.5 text-[13px] font-medium text-jci-white shadow-[0_12px_40px_-12px_rgba(19,15,45,0.4)]"
+            className="z-50 select-none rounded-[9px] bg-jci-black px-[11px] py-[7px] text-[13px] font-medium text-jci-white shadow-[0_12px_32px_-12px_rgba(19,15,45,0.5)]"
           >
             {content}
             <RadixTooltip.Arrow className="fill-jci-black" />
