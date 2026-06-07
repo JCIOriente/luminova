@@ -6,25 +6,41 @@ Shared component library for `apps/spotlight` and `apps/backstage`. Bespoke,
 token-driven components styled with **pure Tailwind v4 utility classes** (no
 semantic CSS classes). Consumed as **raw TypeScript source** (no build step).
 
-## What's here now (bespoke)
+## What's here now (28 components)
 
-`src/components/`: Button (polymorphic `a|button`, `variant` primary/secondary/ghost,
-`onDark`/`onBlue`, `sm`), Icon set + ArrowRight, ArrowLink, Input, Textarea,
-Select, Field (label + error), Reveal (IntersectionObserver), SectionHeader,
-ImgSlot, LogoLockup (self-contained PNG assets in `src/assets/`), Ripple
-(RippleSVG/RippleBackground/RippleDivider), Toast (presentational), Tooltip
-(`@radix-ui/react-tooltip`, styled with our tokens). `cn()` in `src/lib/cn.ts`.
+Full inventory + source paths + design tokens live in **`DESIGN.md`** (the
+ingest manifest for Claude Design). Quick map:
 
-Everything is re-exported from `src/index.ts` (explicit named exports — no
-`export *`, to satisfy `verbatimModuleSyntax`/`isolatedModules`).
+- **Form / inputs:** Button (polymorphic `a|button`, `variant`
+  primary/secondary/ghost, `onDark`/`onBlue`, `sm`), Input, Textarea, Select,
+  Field (label + error), Combobox (single-select + search), MultiSelect (chips).
+- **Feedback / status:** Badge (tones), Skeleton, Toast (presentational),
+  Tooltip (Radix + tokens), EmptyState.
+- **Overlays:** Dialog, Sheet, Popover (Radix; backs Combobox/MultiSelect).
+- **Data display:** Table (+ TableHeader/Body/Row/Head/Cell), KpiCard (tone +
+  trend), LineChart, Sparkline.
+- **Structure / brand:** Icon set + ArrowRight, ArrowLink, SectionHeader,
+  ImgSlot, LogoLockup (PNG assets in `src/assets/`), Reveal
+  (IntersectionObserver), Ripple (RippleSVG/RippleBackground/RippleDivider).
+- **Domain widgets (deep-import):** QrCode (`@luminova/ui/qr-code`), QrScanner
+  (`@luminova/ui/qr-scanner`) — kept out of the barrel so `qrcode.react`/`@zxing`
+  stay in lazy chunks.
 
-## Deferred (shadcn/Radix complex widgets)
+`cn()` in `src/lib/cn.ts`. Everything except the QR pair is re-exported from
+`src/index.ts` (explicit named exports — no `export *`, to satisfy
+`verbatimModuleSyntax`/`isolatedModules`).
 
-Complex admin widgets — **combobox, dialog, command, table, sheet, popover,
-data-table** — are NOT here yet. When backstage needs them, add via shadcn/Radix
-(accessibility), styled to the JCI tokens. Keep them in `src/components/` beside
-the bespoke set. Tooltip already follows this pattern (Radix primitive + our
-utilities, not shadcn's separate theme-var system).
+## Deferred (not built yet)
+
+Roadmap widgets still missing — add via shadcn/Radix (accessibility), styled to
+the JCI tokens, beside the bespoke set:
+
+- **Command palette** (⌘K) — E3 / FX3 (cmdk already a dep via Combobox).
+- **DataTable** (sort / filter / paginate / skeleton + filter-chips) — E6 / FX1
+  (distinct from the primitive `Table` above).
+
+Pattern for new Radix-backed widgets: wrap the primitive + our token utilities,
+not shadcn's separate theme-var system (as Tooltip/Popover/Dialog do).
 
 ## Design tokens — `src/theme.css`
 

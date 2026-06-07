@@ -8,7 +8,7 @@ PR, one at a time or in parallel where dependencies allow. `[P]` = parallel-safe
 ⬜ not started. The `#` column strikes through (`~~A1~~ ✅`) completed items and
 notes the merged PR.
 
-_Last synced: 2026-06-06 — §A Recognition Engine complete + fed (F3·A1·A2·A5·A6·A3
+_Last synced: 2026-06-07 — §A Recognition Engine complete + fed (F3·A1·A2·A5·A6·A3
 all merged to main); B1 member home (#20); E1/E2/E5 widgets (#21); D1 full
 Events/Activities CRUD (#22); **A7 roster→participation expansion (#23)** — roster
 roles now feed the engine.
@@ -142,8 +142,8 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| B1 | **Member home** — points + rank, **personal QR**, participation history, upcoming events, milestones (birthday/anniversary — we store `birthdate`/`joinDate` and use neither) | F1, A5 | `[S]` | the reason a member opens the app |
-| B2 | **Role-aware board home** — lead with what that role needs | F1 | `[S]` | Overview already exists; make it role-conditional |
+| B1 🟡 | **Member home** — DONE core (#20). `/me`: points + rank + **personal QR** + participation ledger; member-only login redirects here. **Deferred:** upcoming-events feed + milestones (birthday/anniversary — we store `birthdate`/`joinDate` and use neither). | F1, A5 | `[S]` | the reason a member opens the app |
+| B2 | **Role-aware board home** — lead with what that role needs | F1 | `[S]` | Overview already exists; make it role-conditional. **#20 only added member-only → `/me` redirect; board home is still identical for all board roles.** |
 
 ## C. Projects & Recognition Submissions (reframed)
 
