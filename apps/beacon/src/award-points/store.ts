@@ -15,3 +15,13 @@ export interface EngineStore {
   getRowsByParent(parentId: string): Promise<Participation[]>;
   setMemberAggregate(memberId: string, termId: string, aggregate: MemberAggregate): Promise<void>;
 }
+
+export type RosterRole = "Director" | "CoDirector" | "Team";
+
+/** The initiative facts the engine needs from a programs/projects write. */
+export interface InitiativeWrite {
+  termId: string;
+  roster: { directorId: string; coDirectorId: string | null; teamIds: string[] };
+  reportFiled: boolean;
+  filedAtMillis: number | null;
+}
