@@ -44,4 +44,21 @@ describe("MemberDrawer view mode", () => {
     fireEvent.click(screen.getByText("Editar perfil"));
     expect(onEditMode).toHaveBeenCalled();
   });
+
+  it("shows phone and profession labels", () => {
+    render(
+      <AbilityProvider claims={{ roles: ["Admin"] }} uid="admin">
+        <MemberDrawer
+          open
+          mode="view"
+          member={m}
+          onClose={() => {}}
+          onEditMode={() => {}}
+          onSubmit={async () => {}}
+        />
+      </AbilityProvider>,
+    );
+    expect(screen.getByText("Teléfono")).toBeInTheDocument();
+    expect(screen.getByText("Profesión")).toBeInTheDocument();
+  });
 });
