@@ -20,7 +20,6 @@ interface MemberTableProps {
   onEdit: (member: Member) => void;
   onProvision: (member: Member) => void;
   onSetStatus: (member: Member, status: MemberStatus) => void;
-  onDelete: (member: Member) => void;
 }
 
 const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
@@ -92,7 +91,6 @@ export function MemberTable({
   onEdit,
   onProvision,
   onSetStatus,
-  onDelete,
 }: MemberTableProps) {
   return (
     <DataTable
@@ -119,7 +117,6 @@ export function MemberTable({
           onEdit={onEdit}
           onProvision={onProvision}
           onSetStatus={onSetStatus}
-          onDelete={onDelete}
         />
       )}
     />

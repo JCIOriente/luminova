@@ -5,7 +5,6 @@ import type { Member, MemberInput, MemberStatus } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useAddMember } from "../features/members/hooks/use-add-member";
 import { useUpdateMember } from "../features/members/hooks/use-update-member";
-import { useDeleteMember } from "../features/members/hooks/use-delete-member";
 import { useSetMemberStatus } from "../features/members/hooks/use-set-member-status";
 import { useProvisionMemberLogin } from "../features/members/hooks/use-provision-member-login";
 import { MemberTable } from "../features/members/components/member-table";
@@ -31,9 +30,7 @@ interface DrawerState {
   mode: "view" | "edit";
   member: Member;
 }
-type ConfirmKind = "disaffiliate" | "delete";
 interface ConfirmState {
-  kind: ConfirmKind;
   member: Member;
 }
 
@@ -43,7 +40,6 @@ function MembersPage() {
   const { data: members, isLoading, isError } = useMembers();
   const addMember = useAddMember();
   const updateMember = useUpdateMember();
-  const deleteMember = useDeleteMember();
   const setMemberStatus = useSetMemberStatus();
   const provision = useProvisionMemberLogin();
 
@@ -71,7 +67,7 @@ function MembersPage() {
 
   const handleSetStatus = (member: Member, next: MemberStatus) => {
     if (next === "Desafiliado") {
-      setConfirm({ kind: "disaffiliate", member });
+      setConfirm({ member });
       return;
     }
     setMemberStatus.mutate({ id: member.id, status: next });
@@ -96,14 +92,9 @@ function MembersPage() {
 
   const confirmAction = () => {
     if (!confirm) return;
-    const { kind, member } = confirm;
-    if (kind === "disaffiliate") {
-      setMemberStatus.mutate({ id: member.id, status: "Desafiliado" });
-      setToast(actionMessage(member.name, "disaffiliated"));
-    } else {
-      deleteMember.mutate(member.id);
-      setToast(actionMessage(member.name, "deleted"));
-    }
+    const { member } = confirm;
+    setMemberStatus.mutate({ id: member.id, status: "Desafiliado" });
+    setToast(actionMessage(member.name, "disaffiliated"));
     setConfirm(null);
   };
 
@@ -187,7 +178,6 @@ function MembersPage() {
           onEdit={(member) => setDrawer({ mode: "edit", member })}
           onProvision={(member) => void handleProvision(member)}
           onSetStatus={handleSetStatus}
-          onDelete={(member) => setConfirm({ kind: "delete", member })}
         />
       )}
 
@@ -212,12 +202,10 @@ function MembersPage() {
         onOpenChange={(open) => {
           if (!open) setConfirm(null);
         }}
-        title={confirm?.kind === "delete" ? "Eliminar miembro" : "Desafiliar miembro"}
+        title="Desafiliar miembro"
         description={
           confirm
-            ? confirm.kind === "delete"
-              ? `¿Eliminar a ${confirm.member.name}? Se marcará como inactivo en el sistema, no se borra definitivamente.`
-              : `¿Desafiliar a ${confirm.member.name}? Cambiará su estado a Desafiliado. Puedes revertirlo luego.`
+            ? `¿Desafiliar a ${confirm.member.name}? Cambiará su estado a Desafiliado. Puedes revertirlo luego.`
             : undefined
         }
       >
@@ -226,7 +214,7 @@ function MembersPage() {
             Cancelar
           </Button>
           <Button as="button" type="button" onClick={confirmAction}>
-            {confirm?.kind === "delete" ? "Eliminar" : "Desafiliar"}
+            Desafiliar
           </Button>
         </div>
       </Dialog>
