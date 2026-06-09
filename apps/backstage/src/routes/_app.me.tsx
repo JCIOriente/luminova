@@ -15,7 +15,15 @@ import { ParticipationLedger } from "../features/members/components/participatio
 
 export const Route = createFileRoute("/_app/me")({ component: MemberHome });
 
-function MemberPhotoCard({ memberId, name, src }: { memberId: string; name: string; src: string | null }) {
+function MemberPhotoCard({
+  memberId,
+  name,
+  src,
+}: {
+  memberId: string;
+  name: string;
+  src: string | null;
+}) {
   const { onUpload, onRemove } = useMemberPhoto(memberId);
   return (
     <div className="w-fit rounded-[14px] border border-line bg-surface px-6 py-5">

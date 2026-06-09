@@ -33,7 +33,11 @@ beforeAll(async () => {
   env = await initializeTestEnvironment({
     projectId: "demo-rules-test",
     storage: { host: "127.0.0.1", port: storagePort, rules: readFileSync(storageRules, "utf8") },
-    firestore: { host: "127.0.0.1", port: firestorePort, rules: readFileSync(firestoreRules, "utf8") },
+    firestore: {
+      host: "127.0.0.1",
+      port: firestorePort,
+      rules: readFileSync(firestoreRules, "utf8"),
+    },
   });
   await env.clearStorage();
   await env.clearFirestore();
