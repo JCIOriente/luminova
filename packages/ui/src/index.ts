@@ -12,6 +12,7 @@ export { Checkbox } from "./components/checkbox";
 export { Reveal } from "./components/reveal";
 export { SectionHeader } from "./components/section-header";
 export { ImgSlot } from "./components/img-slot";
+export { Avatar } from "./components/avatar";
 export { LogoLockup } from "./components/logo-lockup";
 export { RippleSVG, RippleBackground, RippleDivider } from "./components/ripple";
 export { Toast } from "./components/toast";
