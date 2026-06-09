@@ -20,6 +20,9 @@ vi.mock("../features/members/hooks/use-member-points-by-term", () => ({
     data: [{ memberId: "m1", termId: "2026", cumulative: 7, byMonth: {} }],
   }),
 }));
+vi.mock("../features/members/hooks/use-member-photo", () => ({
+  useMemberPhoto: () => ({ onUpload: vi.fn(), onRemove: vi.fn() }),
+}));
 
 import { MemberHome } from "./_app.me";
 

@@ -51,6 +51,11 @@ export class MemberRepository {
     await updateDoc(doc(this.collection, id), toMemberUpdateDoc(data));
   }
 
+  /** Set or clear the profile photo URL. Its own action — never part of the form submit. */
+  async setProfilePicture(id: string, url: string | null): Promise<void> {
+    await updateDoc(doc(this.collection, id), { profilePicture: url });
+  }
+
   /** Change membership standing only (Activo/Inactivo/Desafiliado). */
   async setStatus(id: string, status: Member["status"]): Promise<void> {
     if (!MEMBER_STATUSES.includes(status)) {
