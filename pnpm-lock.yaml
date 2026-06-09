@@ -287,6 +287,21 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(yaml@2.9.0))
 
+  tests/storage-rules:
+    devDependencies:
+      '@firebase/rules-unit-testing':
+        specifier: ^5.0.1
+        version: 5.0.1(firebase@12.14.0)
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.1
+      firebase:
+        specifier: 12.14.0
+        version: 12.14.0
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(yaml@2.9.0))
+
 packages:
 
   '@adobe/css-tools@4.5.0':
