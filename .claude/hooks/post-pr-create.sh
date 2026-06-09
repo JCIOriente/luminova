@@ -22,12 +22,16 @@ fi
 
 sensitive=$(printf '%s\n' "$diff" | grep -E 'apps/beacon/|firestore\.rules|_auth|_app\.tsx|repositories/|/functions/' || true)
 
-msg="PR opened. Run \`pnpm pr-tests\` locally now."
+msg="PR opened — it is now ready for review. Run \`pnpm pr-tests\` locally now.
+
+Review the diff before merge:
+  - /simplify    — reuse / dead-code / altitude cleanup
+  - /code-review — correctness bugs"
 if [ -n "$sensitive" ]; then
   list=$(printf '%s\n' "$sensitive" | sed 's/^/  - /')
   msg="$msg
 
-SECURITY-SENSITIVE paths changed — run /security-review before merge:
+SECURITY-SENSITIVE paths changed — also run /security-review before merge:
 $list"
 fi
 
