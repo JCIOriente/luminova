@@ -8,7 +8,6 @@ interface MemberRowMenuProps {
   onEdit: (member: Member) => void;
   onProvision: (member: Member) => void;
   onSetStatus: (member: Member, status: MemberStatus) => void;
-  onDelete: (member: Member) => void;
 }
 
 export function MemberRowMenu({
@@ -17,7 +16,6 @@ export function MemberRowMenu({
   onEdit,
   onProvision,
   onSetStatus,
-  onDelete,
 }: MemberRowMenuProps) {
   return (
     <Menu
@@ -62,12 +60,6 @@ export function MemberRowMenu({
             Desafiliar
           </MenuItem>
         )}
-      </Can>
-
-      <Can I="delete" a="Member">
-        <MenuItem danger onSelect={() => onDelete(member)}>
-          Eliminar miembro
-        </MenuItem>
       </Can>
     </Menu>
   );

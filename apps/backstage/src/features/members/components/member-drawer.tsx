@@ -65,6 +65,8 @@ function ViewBody({ member, onEditMode }: { member: Member; onEditMode: () => vo
       <dl className="grid grid-cols-2 gap-x-4 gap-y-5">
         <Detail label="Correo" value={member.email} />
         <Detail label="Rol" value={member.role} />
+        <Detail label="Teléfono" value={member.phone || "—"} />
+        <Detail label="Profesión" value={member.profession || "—"} />
         <Detail label="Miembro desde" value={member.joinDate ? joinYear(member.joinDate) : "—"} />
         <Detail label="Puntos" value={member.totalPoints ?? 0} />
       </dl>
@@ -110,6 +112,7 @@ export function MemberDrawer({
           <MemberForm
             key={member.id}
             showPreview
+            avatarSeed={member.id}
             defaultValues={toFormInput(member)}
             submitLabel="Guardar"
             onSubmit={onSubmit}

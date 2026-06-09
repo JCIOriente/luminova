@@ -184,166 +184,171 @@ export function DataTable<T>({
 
       <div className="overflow-hidden rounded-card border border-line bg-surface">
         <Table>
-        <TableHeader>
-          <TableRow className="bg-surface-2 hover:bg-surface-2">
-            {columns.map((column) => {
-              const isSortable = column.sortable ?? Boolean(column.sortValue);
-              const isSorted = sort.columnId === column.id && sort.dir !== null;
-              const ariaSort = !isSorted ? "none" : sort.dir === "asc" ? "ascending" : "descending";
-              return (
-                <TableHead key={column.id} aria-sort={isSortable ? ariaSort : undefined}>
-                  {isSortable ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSort((prev) =>
-                          prev.columnId === column.id
-                            ? { columnId: column.id, dir: nextDir(prev.dir) }
-                            : { columnId: column.id, dir: "asc" },
-                        )
-                      }
-                      className="inline-flex items-center gap-1 uppercase transition-colors hover:text-ink-1"
-                    >
-                      {column.header}
-                      <span
-                        className={cn(
-                          "text-ink-3 transition-transform duration-200 ease-expo",
-                          isSorted && sort.dir === "asc" && "rotate-180",
-                        )}
+          <TableHeader>
+            <TableRow className="bg-surface-2 hover:bg-surface-2">
+              {columns.map((column) => {
+                const isSortable = column.sortable ?? Boolean(column.sortValue);
+                const isSorted = sort.columnId === column.id && sort.dir !== null;
+                const ariaSort = !isSorted
+                  ? "none"
+                  : sort.dir === "asc"
+                    ? "ascending"
+                    : "descending";
+                return (
+                  <TableHead key={column.id} aria-sort={isSortable ? ariaSort : undefined}>
+                    {isSortable ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSort((prev) =>
+                            prev.columnId === column.id
+                              ? { columnId: column.id, dir: nextDir(prev.dir) }
+                              : { columnId: column.id, dir: "asc" },
+                          )
+                        }
+                        className="inline-flex items-center gap-1 uppercase transition-colors hover:text-ink-1"
                       >
-                        {Icon.chevExpand({ s: 14 })}
-                      </span>
-                    </button>
-                  ) : (
-                    column.header
-                  )}
-                </TableHead>
-              );
-            })}
-            {rowActions && (
-              <TableHead className="w-px text-right">
-                <span className="sr-only">Acciones</span>
-              </TableHead>
-            )}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <TableRow key={`skeleton-${i}`}>
-                {columns.map((column) => (
-                  <TableCell key={column.id}>
-                    <Skeleton className="h-4 w-3/4" />
-                  </TableCell>
-                ))}
-                {rowActions && (
-                  <TableCell className="text-right">
-                    <Skeleton className="ml-auto h-4 w-16" />
-                  </TableCell>
-                )}
-              </TableRow>
-            ))
-          ) : visibleRows.length === 0 ? (
-            <tr>
-              <td colSpan={colSpan}>
-                {emptyState ?? (
-                  <EmptyState
-                    icon={Icon.search({ s: 28 })}
-                    title="Sin resultados"
-                    description="No hay filas que coincidan con tu búsqueda o filtros."
-                  />
-                )}
-              </td>
-            </tr>
-          ) : (
-            pagedRows.map((row) => (
-              <TableRow
-                key={getRowId(row)}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={onRowClick ? "cursor-pointer" : undefined}
-              >
-                {columns.map((column) => (
-                  <TableCell key={column.id}>{column.cell(row)}</TableCell>
-                ))}
-                {rowActions && (
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    {rowActions(row)}
-                  </TableCell>
-                )}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-        </Table>
-      </div>
-
-      {pageSize && !isLoading && total > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 text-[13px] text-ink-3">
-          <span>
-            Mostrando {from}–{to} de {total} {paginationLabel}
-          </span>
-          <div className="flex items-center gap-3">
-            <Select
-              value={String(size)}
-              onChange={(e) => setSize(Number(e.target.value))}
-              aria-label="Filas por página"
-              className="h-9 w-auto"
-            >
-              {pageSizeOptions.map((n) => (
-                <option key={n} value={n}>
-                  {n} por página
-                </option>
-              ))}
-            </Select>
-            <div className="flex items-center gap-1">
-              <IconButton
-                as="button"
-                size="sm"
-                variant="subtle"
-                className="hover:bg-jci-blue-25/60 hover:text-jci-blue"
-                aria-label="Página anterior"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                <span className="inline-flex rotate-180">{Icon.chevRight({ s: 16 })}</span>
-              </IconButton>
-              {pageWindow(page, pageCount).map((tok, i) =>
-                tok === "…" ? (
-                  <span key={`ellipsis-${i}`} className="px-1.5 text-ink-3">
-                    …
-                  </span>
-                ) : (
-                  <button
-                    key={tok}
-                    type="button"
-                    onClick={() => setPage(tok)}
-                    aria-current={tok === page ? "page" : undefined}
-                    className={cn(
-                      "min-w-8 rounded-md px-2 py-1 text-[13px] font-semibold transition-colors",
-                      tok === page
-                        ? "bg-jci-blue text-white shadow-[0_2px_8px_-2px_rgba(0,151,215,0.5)]"
-                        : "text-ink-2 hover:bg-jci-blue-25/60 hover:text-jci-blue",
+                        {column.header}
+                        <span
+                          className={cn(
+                            "text-ink-3 transition-transform duration-200 ease-expo",
+                            isSorted && sort.dir === "asc" && "rotate-180",
+                          )}
+                        >
+                          {Icon.chevExpand({ s: 14 })}
+                        </span>
+                      </button>
+                    ) : (
+                      column.header
                     )}
-                  >
-                    {tok}
-                  </button>
-                ),
+                  </TableHead>
+                );
+              })}
+              {rowActions && (
+                <TableHead className="w-px text-right">
+                  <span className="sr-only">Acciones</span>
+                </TableHead>
               )}
-              <IconButton
-                as="button"
-                size="sm"
-                variant="subtle"
-                className="hover:bg-jci-blue-25/60 hover:text-jci-blue"
-                aria-label="Página siguiente"
-                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                disabled={page >= pageCount}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={`skeleton-${i}`}>
+                  {columns.map((column) => (
+                    <TableCell key={column.id}>
+                      <Skeleton className="h-4 w-3/4" />
+                    </TableCell>
+                  ))}
+                  {rowActions && (
+                    <TableCell className="text-right">
+                      <Skeleton className="ml-auto h-4 w-16" />
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            ) : visibleRows.length === 0 ? (
+              <tr>
+                <td colSpan={colSpan}>
+                  {emptyState ?? (
+                    <EmptyState
+                      icon={Icon.search({ s: 28 })}
+                      title="Sin resultados"
+                      description="No hay filas que coincidan con tu búsqueda o filtros."
+                    />
+                  )}
+                </td>
+              </tr>
+            ) : (
+              pagedRows.map((row) => (
+                <TableRow
+                  key={getRowId(row)}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  className={onRowClick ? "cursor-pointer" : undefined}
+                >
+                  {columns.map((column) => (
+                    <TableCell key={column.id}>{column.cell(row)}</TableCell>
+                  ))}
+                  {rowActions && (
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      {rowActions(row)}
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+
+        {pageSize && !isLoading && total > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface px-5 py-3.5 text-[13px] text-ink-3">
+            <span>
+              Mostrando {from}–{to} de {total} {paginationLabel}
+            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-ink-3">Por página</span>
+              <Select
+                value={String(size)}
+                onChange={(e) => setSize(Number(e.target.value))}
+                aria-label="Filas por página"
+                className="h-9 w-auto"
               >
-                {Icon.chevRight({ s: 16 })}
-              </IconButton>
+                {pageSizeOptions.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </Select>
+              <div className="flex items-center gap-1">
+                <IconButton
+                  as="button"
+                  size="sm"
+                  variant="subtle"
+                  className="hover:bg-jci-blue-25/60 hover:text-jci-blue"
+                  aria-label="Página anterior"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                >
+                  <span className="inline-flex rotate-180">{Icon.chevRight({ s: 16 })}</span>
+                </IconButton>
+                {pageWindow(page, pageCount).map((tok, i) =>
+                  tok === "…" ? (
+                    <span key={`ellipsis-${i}`} className="px-1.5 text-ink-3">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={tok}
+                      type="button"
+                      onClick={() => setPage(tok)}
+                      aria-current={tok === page ? "page" : undefined}
+                      className={cn(
+                        "min-w-8 rounded-md px-2 py-1 text-[13px] font-semibold transition-colors",
+                        tok === page
+                          ? "bg-jci-blue text-white shadow-[0_2px_8px_-2px_rgba(0,151,215,0.5)]"
+                          : "text-ink-2 hover:bg-jci-blue-25/60 hover:text-jci-blue",
+                      )}
+                    >
+                      {tok}
+                    </button>
+                  ),
+                )}
+                <IconButton
+                  as="button"
+                  size="sm"
+                  variant="subtle"
+                  className="hover:bg-jci-blue-25/60 hover:text-jci-blue"
+                  aria-label="Página siguiente"
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  disabled={page >= pageCount}
+                >
+                  {Icon.chevRight({ s: 16 })}
+                </IconButton>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

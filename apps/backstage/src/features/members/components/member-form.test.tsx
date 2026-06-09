@@ -37,4 +37,19 @@ describe("MemberForm", () => {
       }),
     );
   });
+
+  it("groups fields under section headers", () => {
+    render(<MemberForm submitLabel="Crear" onSubmit={async () => {}} />);
+    expect(screen.getByText("Datos personales")).toBeInTheDocument();
+    expect(screen.getByText("Membresía")).toBeInTheDocument();
+  });
+
+  it("renders a children slot before the submit button", () => {
+    render(
+      <MemberForm submitLabel="Crear" onSubmit={async () => {}}>
+        <span>extra-slot</span>
+      </MemberForm>,
+    );
+    expect(screen.getByText("extra-slot")).toBeInTheDocument();
+  });
 });

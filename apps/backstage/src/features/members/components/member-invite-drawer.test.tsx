@@ -11,18 +11,21 @@ function fill() {
 }
 
 describe("MemberInviteDrawer", () => {
-  it("disables submit until name, email and birthdate are valid", () => {
+  it("blocks submit and stays on the form when required fields are empty", async () => {
+    const onCreate = vi.fn();
     render(
       <MemberInviteDrawer
         open
         onClose={() => {}}
-        onCreate={async () => "x"}
+        onCreate={onCreate}
         onProvision={async () => {}}
       />,
     );
-    expect(screen.getByRole("button", { name: "Enviar invitación" })).toBeDisabled();
-    fill();
-    expect(screen.getByRole("button", { name: "Enviar invitación" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    await waitFor(() =>
+      expect(screen.getAllByText("Mínimo 3 caracteres.").length).toBeGreaterThan(0),
+    );
+    expect(onCreate).not.toHaveBeenCalled();
   });
 
   it("creates the member then provisions login when access is checked, reaching done", async () => {
