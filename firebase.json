@@ -8,10 +8,11 @@
   },
   "functions": [
     {
-      "source": "apps/beacon",
+      "source": "apps/beacon/dist",
       "codebase": "beacon",
       "runtime": "nodejs24",
-      "predeploy": ["pnpm --filter beacon build"]
+      "ignore": ["node_modules", ".git"],
+      "predeploy": ["pnpm turbo run build --filter beacon"]
     }
   ],
   "hosting": [
