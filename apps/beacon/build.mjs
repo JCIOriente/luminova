@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { readFile, writeFile, rm, mkdir, symlink } from "node:fs/promises";
+import { readFile, writeFile, rm, symlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -17,7 +17,13 @@ const root = dirname(fileURLToPath(import.meta.url));
 const dist = join(root, "dist");
 const pkg = JSON.parse(await readFile(join(root, "package.json")));
 
-const runtimeDeps = ["firebase-admin", "firebase-functions"];
+// Real npm deps (everything that isn't a pnpm workspace dep) stay external and
+// get listed in dist/package.json for the cloud npm install. workspace:* deps
+// (@luminova/*) are bundled instead. Deriving this from package.json keeps it in
+// sync — a future runtime dep is handled without editing this script.
+const runtimeDeps = Object.entries(pkg.dependencies)
+  .filter(([, version]) => !version.startsWith("workspace:"))
+  .map(([name]) => name);
 const external = runtimeDeps.flatMap((name) => [name, `${name}/*`]);
 
 await rm(dist, { recursive: true, force: true });
@@ -34,7 +40,6 @@ await build({
   logLevel: "info",
 });
 
-await mkdir(dist, { recursive: true });
 await writeFile(
   join(dist, "package.json"),
   JSON.stringify(

@@ -12,7 +12,7 @@
       "codebase": "beacon",
       "runtime": "nodejs24",
       "ignore": ["node_modules", ".git"],
-      "predeploy": ["pnpm turbo run build --filter=beacon"]
+      "predeploy": ["pnpm turbo run build --filter beacon"]
     }
   ],
   "hosting": [
