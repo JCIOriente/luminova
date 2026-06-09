@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "build": "tsc",
+    "build": "node build.mjs",
     "ci": "eslint . && tsc --noEmit && vitest run --passWithNoTests",
     "seed:roles": "node --experimental-strip-types scripts/seed-roles.ts"
   },
@@ -21,6 +21,7 @@
     "firebase-functions": "7.2.5"
   },
   "devDependencies": {
-    "@types/node": "^25.9.1"
+    "@types/node": "^25.9.1",
+    "esbuild": "^0.28.0"
   }
 }

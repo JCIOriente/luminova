@@ -4,6 +4,7 @@ packages:
   - "tests/*"
 allowBuilds:
   "@firebase/util": true
+  esbuild: true
   protobufjs: true
 minimumReleaseAgeExclude:
   - "@radix-ui/primitive@1.1.4"
