@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { readFile, writeFile, rm, mkdir } from "node:fs/promises";
+import { readFile, writeFile, rm, mkdir, symlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -49,3 +49,10 @@ await writeFile(
     2,
   ) + "\n",
 );
+
+// firebase-tools resolves the firebase-functions SDK from the source dir during
+// local discovery, and it does not walk up to the workspace store. Link beacon's
+// real (pnpm) node_modules into dist so discovery finds the external runtime
+// deps. The default functions `ignore` excludes node_modules from the upload, so
+// the cloud still installs from the clean dist/package.json above.
+await symlink(join(root, "node_modules"), join(dist, "node_modules"), "dir");
