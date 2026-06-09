@@ -21,7 +21,9 @@ function storageAnon() {
 }
 
 const PHOTO = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+const JPEG = { contentType: "image/jpeg" };
 const PATH = "members/m1/profile.jpg";
+const MISSING_PATH = "members/m_missing/profile.jpg";
 
 beforeAll(async () => {
   const storageRules = resolve(fileURLToPath(new URL("../../storage.rules", import.meta.url)));
@@ -53,7 +55,7 @@ afterAll(async () => {
 
 describe("storage.rules — member profile photos", () => {
   it("denies anonymous writes", async () => {
-    await assertFails(uploadBytes(ref(storageAnon(), PATH), PHOTO));
+    await assertFails(uploadBytes(ref(storageAnon(), PATH), PHOTO, JPEG));
   });
 
   it("denies anonymous reads", async () => {
@@ -61,19 +63,36 @@ describe("storage.rules — member profile photos", () => {
   });
 
   it("allows a privileged role (Admin) to write any member's photo", async () => {
-    await assertSucceeds(uploadBytes(ref(storageAs("admin1", ["Admin"]), PATH), PHOTO));
+    await assertSucceeds(uploadBytes(ref(storageAs("admin1", ["Admin"]), PATH), PHOTO, JPEG));
   });
 
   it("allows a privileged role (Membership) to write any member's photo", async () => {
-    await assertSucceeds(uploadBytes(ref(storageAs("staff1", ["Membership"]), PATH), PHOTO));
+    await assertSucceeds(uploadBytes(ref(storageAs("staff1", ["Membership"]), PATH), PHOTO, JPEG));
   });
 
   it("allows the owning member to write their own photo", async () => {
-    await assertSucceeds(uploadBytes(ref(storageAs("owner-uid", ["Member"]), PATH), PHOTO));
+    await assertSucceeds(uploadBytes(ref(storageAs("owner-uid", ["Member"]), PATH), PHOTO, JPEG));
   });
 
   it("denies a non-owner member writing another member's photo", async () => {
-    await assertFails(uploadBytes(ref(storageAs("stranger", ["Member"]), PATH), PHOTO));
+    await assertFails(uploadBytes(ref(storageAs("stranger", ["Member"]), PATH), PHOTO, JPEG));
+  });
+
+  it("denies a write when the member document does not exist", async () => {
+    await assertFails(uploadBytes(ref(storageAs("ghost", ["Member"]), MISSING_PATH), PHOTO, JPEG));
+  });
+
+  it("denies a non-jpeg content type even for a privileged role", async () => {
+    await assertFails(
+      uploadBytes(ref(storageAs("admin1", ["Admin"]), PATH), PHOTO, {
+        contentType: "application/octet-stream",
+      }),
+    );
+  });
+
+  it("denies an oversize upload even for a privileged role", async () => {
+    const tooBig = new Uint8Array(5 * 1024 * 1024 + 1);
+    await assertFails(uploadBytes(ref(storageAs("admin1", ["Admin"]), PATH), tooBig, JPEG));
   });
 
   it("allows any authenticated user to read a member photo", async () => {
@@ -81,6 +100,14 @@ describe("storage.rules — member profile photos", () => {
   });
 
   it("denies writes outside the members tree", async () => {
-    await assertFails(uploadBytes(ref(storageAs("admin1", ["Admin"]), "secret/x.jpg"), PHOTO));
+    await assertFails(
+      uploadBytes(ref(storageAs("admin1", ["Admin"]), "secret/x.jpg"), PHOTO, JPEG),
+    );
+  });
+
+  it("denies writing a non-profile.jpg file under a member folder", async () => {
+    await assertFails(
+      uploadBytes(ref(storageAs("admin1", ["Admin"]), "members/m1/evil.exe"), PHOTO, JPEG),
+    );
   });
 });

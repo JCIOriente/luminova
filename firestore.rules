@@ -45,6 +45,11 @@ service cloud.firestore {
         && unchanged('totalPoints')
         && unchanged('uid')
         && softDeleteSafe();
+      // A member may set only their own profilePicture (H1 self-upload on /me).
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profilePicture'])
+        && softDeleteSafe();
       allow delete: if false;
     }
 

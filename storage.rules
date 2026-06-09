@@ -9,13 +9,20 @@ service firebase.storage {
     }
 
     function ownsMember(memberId) {
+      let member = firestore.get(/databases/(default)/documents/members/$(memberId));
       return request.auth != null
-        && firestore.get(/databases/(default)/documents/members/$(memberId)).data.uid == request.auth.uid;
+        && member != null
+        && member.data.uid == request.auth.uid;
     }
 
-    match /members/{memberId}/{file} {
+    function isValidPhoto() {
+      return request.resource.contentType == 'image/jpeg'
+        && request.resource.size <= 5 * 1024 * 1024;
+    }
+
+    match /members/{memberId}/profile.jpg {
       allow read: if request.auth != null;
-      allow write: if isPrivileged() || ownsMember(memberId);
+      allow write: if (isPrivileged() || ownsMember(memberId)) && isValidPhoto();
     }
 
     match /{allPaths=**} {

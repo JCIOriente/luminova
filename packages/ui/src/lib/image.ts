@@ -1,6 +1,6 @@
 export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
-export const IMAGE_MAX_EDGE = 512;
-export const IMAGE_QUALITY = 0.8;
+const IMAGE_MAX_EDGE = 512;
+const IMAGE_QUALITY = 0.8;
 
 export type ValidateResult = { ok: true } | { ok: false; reason: "type" | "size" };
 
