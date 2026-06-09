@@ -13,7 +13,6 @@ function initials(name: string): string {
 }
 
 export function Avatar({ src, name, size = 40, className }: AvatarProps) {
-  const dimension = { width: size, height: size };
   if (src) {
     return (
       <img
@@ -27,7 +26,7 @@ export function Avatar({ src, name, size = 40, className }: AvatarProps) {
   }
   return (
     <span
-      style={dimension}
+      style={{ width: size, height: size }}
       role="img"
       aria-label={name}
       className={cn(

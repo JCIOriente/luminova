@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, type ChangeEvent } from "react";
+import { lazy, Suspense, useEffect, useState, type ChangeEvent } from "react";
 import type { Area } from "react-easy-crop";
 import { Avatar } from "./avatar";
 import { validateImage, cropAndCompress } from "../lib/image";
@@ -30,6 +30,13 @@ export function ImageUploader({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Revoke the object URL when it is replaced (re-pick) or the component unmounts
+  // (e.g. drawer closed mid-crop) — otherwise the blob leaks for the page's lifetime.
+  useEffect(() => {
+    if (!src) return;
+    return () => URL.revokeObjectURL(src);
+  }, [src]);
+
   function onFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -46,7 +53,6 @@ export function ImageUploader({
   }
 
   function discard() {
-    if (src) URL.revokeObjectURL(src);
     setSrc(null);
     setAreaPixels(null);
     setCrop({ x: 0, y: 0 });

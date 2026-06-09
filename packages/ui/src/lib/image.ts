@@ -24,14 +24,9 @@ export interface CropRect {
   height: number;
 }
 
-export async function cropAndCompress(
-  imageSrc: string,
-  crop: CropRect,
-  maxEdge = IMAGE_MAX_EDGE,
-  quality = IMAGE_QUALITY,
-): Promise<Blob> {
+export async function cropAndCompress(imageSrc: string, crop: CropRect): Promise<Blob> {
   const img = await loadImage(imageSrc);
-  const out = fittedDimensions(crop.width, crop.height, maxEdge);
+  const out = fittedDimensions(crop.width, crop.height, IMAGE_MAX_EDGE);
   const canvas = document.createElement("canvas");
   canvas.width = out.width;
   canvas.height = out.height;
@@ -42,7 +37,7 @@ export async function cropAndCompress(
     canvas.toBlob(
       (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
       "image/jpeg",
-      quality,
+      IMAGE_QUALITY,
     ),
   );
 }
