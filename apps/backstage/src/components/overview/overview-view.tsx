@@ -32,7 +32,6 @@ export function OverviewView({
 }) {
   const m = OVERVIEW_MOCK;
   const layout = boardHomeLayout(roles);
-  const visible = new Set(layout);
 
   const headerActions = (
     <>
@@ -210,7 +209,7 @@ export function OverviewView({
         eyebrow="Inicio"
         title={`Hola, ${firstName(userName)}`}
         subtitle="Esto es lo que necesita tu atención hoy."
-        actions={visible.has("headerActions") ? headerActions : undefined}
+        actions={layout.includes("headerActions") ? headerActions : undefined}
       />
 
       {layout
