@@ -8,12 +8,14 @@ PR, one at a time or in parallel where dependencies allow. `[P]` = parallel-safe
 ⬜ not started. The `#` column strikes through (`~~A1~~ ✅`) completed items and
 notes the merged PR.
 
-_Last synced: 2026-06-07 — §A Recognition Engine complete + fed (F3·A1·A2·A5·A6·A3
+_Last synced: 2026-06-10 — §A Recognition Engine complete + fed (F3·A1·A2·A5·A6·A3
 all merged to main); B1 member home (#20); E1/E2/E5 widgets (#21); D1 full
 Events/Activities CRUD (#22); **A7 roster→participation expansion (#23)** — roster
 roles now feed the engine. **Login redesign (#35) + auth hardening (#36)** — remember-me,
 password recovery, password policy. **FX batch merged**: dark mode + sidebar collapse (#37),
 DataTable/E6 + Members table UX/FX1 (#38), ⌘K command palette E3/FX3 (#39) — @luminova/ui now 31 components.
+**First prod deploy SHIPPED (#43, I4)** — both Hosting sites + rules + 5 beacon functions LIVE.
+**Members console (#41/#42)** + **B2 role-aware board home (#45)** + **H1 profilePicture upload (#46)**.
 Reshaped around the **Recognition Engine** after a product/UX discussion (points,
 QR attendance, multi-role access, award submissions)._
 
@@ -145,7 +147,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
 | B1 🟡 | **Member home** — DONE core (#20). `/me`: points + rank + **personal QR** + participation ledger; member-only login redirects here. **Deferred:** upcoming-events feed + milestones (birthday/anniversary — we store `birthdate`/`joinDate` and use neither). | F1, A5 | `[S]` | the reason a member opens the app |
-| B2 | **Role-aware board home** — lead with what that role needs | F1 | `[S]` | Overview already exists; make it role-conditional. **#20 only added member-only → `/me` redirect; board home is still identical for all board roles.** |
+| ~~B2~~ ✅ | **Role-aware board home** — DONE (#45). Pure `boardHomeLayout(roles)` orders/hides the Overview widgets per role (Admin full · Membership members-first · Treasury money-first · ProjectManager events/projects-first · ExecutiveCommittee read-only); multi-role = highest-precedence layout + union of visible widgets. Presentation-only (widgets still mocked). **Side effect:** Overview grid → vertical stack (re-grid within each role's order deferred). | F1 | `[S]` | — |
 
 ## C. Projects & Recognition Submissions (reframed)
 
@@ -203,9 +205,9 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| H1 | `profilePicture` upload (Storage uploader + emulator) | — | `[P]` | members currently `null` |
-| H2 | Project **evidence gallery** uploads | C1, H1 | `[S]` | award evidence + public showcase |
-| H3 | Ally logos (greyscale→color hover) | H1 | `[S]` | — |
+| ~~H1~~ ✅ | `profilePicture` upload — DONE (#46). Shared `@luminova/ui` `Avatar` + lazy `ImageUploader` (square-crop via `react-easy-crop`, client downscale 512px/JPEG, ≤5MB) on two surfaces (admin member drawer + member self on `/me`); `@luminova/firebase` `uploadMemberPhoto`/`deleteMemberPhoto` (path `members/{id}/profile.jpg`); scoped `storage.rules` + new `@luminova/storage-rules-tests`. **Fixed a self-upload break:** added owner-only `members` update branch scoped to `profilePicture`. | — | `[P]` | — |
+| H2 | Project **evidence gallery** uploads | C1, ~~H1~~ ✅ | `[S]` | award evidence + public showcase |
+| H3 | Ally logos (greyscale→color hover) — chains off H1's uploader (`allies/{id}/logo.*`) | ~~H1~~ ✅ | `[S]` | — |
 | H4 | Spotlight real images (replace `ImgSlot`) | — | `[P]` | needs real photos |
 
 ## I. Infra / deploy / CI
