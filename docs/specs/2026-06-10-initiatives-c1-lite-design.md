@@ -141,6 +141,11 @@ points). Backward transitions allowed only `Planificacion ⇄ EnEjecucion`.
 - **Status change / edits / photo upload** on an initiative: `Admin` ∪ `ProjectManager`
   ∪ that initiative's `directorId`/`coDirectorIds` (member↔uid match). CASL on the
   client, mirrored branch in `firestore.rules`.
+- **Mechanism:** rules can't iterate roster arrays, so beacon mirrors the direction
+  members' auth uids onto each initiative as `directionUids: string[]` (engine-written,
+  client-immutable; clients create it as `[]`). Rules check
+  `request.auth.uid in directionUids`. Known limitation: if a member's login is
+  provisioned after they joined a roster, re-save the initiative to refresh the mirror.
 - **Activity** status/edit/photos: same set evaluated against the activity's
   `organizers` ∪ the parent initiative's direction.
 - Existing activity guards unchanged: `startAt`/`category` lock once check-ins exist.
