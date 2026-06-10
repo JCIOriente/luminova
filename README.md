@@ -1,5 +1,7 @@
 # Luminova — JCI Oriente Platform
 
+> **Inspire** — _A fire shared never dies._
+
 Monorepo for the Junior Chamber International (Eastern Bolivia) platform.
 
 | App | Purpose | Hosting site |

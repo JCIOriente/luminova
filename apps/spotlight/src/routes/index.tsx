@@ -104,7 +104,7 @@ function HomeHero() {
             className="t-subtitle"
             style={{ marginTop: 16, marginBottom: 0, color: "var(--jci-teal)", fontWeight: 500 }}
           >
-            El fuego que se comparte no se apaga.
+            A fire shared never dies.
           </p>
           <p
             className="t-subtitle"

@@ -56,7 +56,7 @@ export function BrandSide({
           {title}
         </h2>
         <p className="mt-4 font-serif text-[17px] italic text-on-dark-3">
-          El fuego que se comparte no se apaga.
+          A fire shared never dies.
         </p>
         <p className="mt-6 max-w-[420px] text-[16.5px] leading-[1.62] text-on-dark-2">{lead}</p>
       </div>
