@@ -7,7 +7,12 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "outputs": ["dist/**"],
+      "env": ["VITE_FIREBASE_EMULATOR_ENABLED"]
+    },
+    "preview": {
+      "cache": false,
+      "persistent": true
     },
     "lint": {},
     "typecheck": {
