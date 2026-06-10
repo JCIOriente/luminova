@@ -42,9 +42,7 @@ export function NotFound() {
           filter: "blur(6px)",
         }}
       />
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-        <RippleBackground variant="hero-center" color="#57BCBC" opacity={0.13} />
-      </div>
+      <RippleBackground variant="hero-center" color="#57BCBC" opacity={0.13} />
 
       <div
         className="container motion-safe:animate-rise"

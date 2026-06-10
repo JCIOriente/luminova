@@ -17,14 +17,12 @@
 ## Build / env model
 
 - **Firebase web config is public** (client identifiers, not secrets) — committed in each app's `.env.production`.
-- Vite inlines `VITE_*` at **build** time. A developer's `.env.local` has `VITE_FIREBASE_EMULATOR_ENABLED=true`; the `build:*:prod` scripts **force `VITE_FIREBASE_EMULATOR_ENABLED=false`** on the shell (highest Vite priority) so an emulator-pointed bundle can never reach prod.
-- Hosting builds run vite directly via `pnpm --filter` (not turbo) to avoid serving a stale cached build.
+- Vite inlines `VITE_*` at **build** time. A developer's `.env.local` has `VITE_FIREBASE_EMULATOR_ENABLED=true`; `deploy:hosting` **forces `VITE_FIREBASE_EMULATOR_ENABLED=false`** on the shell (highest Vite priority) so an emulator-pointed bundle can never reach prod.
+- The turbo `build` task is keyed on `VITE_FIREBASE_EMULATOR_ENABLED` (`turbo.json` `env`), so an emulator-on (`build:local`) artifact and the emulator-off prod artifact never share a cache entry.
 
 ## Deploy scripts (root `package.json`)
 
 ```bash
-pnpm build:spotlight:prod    # emulator-off vite build → apps/spotlight/dist
-pnpm build:backstage:prod    # emulator-off vite build → apps/backstage/dist
 pnpm deploy:rules            # firebase deploy --only firestore,storage
 pnpm deploy:functions        # firebase deploy --only functions (predeploy builds beacon)
 pnpm deploy:hosting          # builds both apps (emulator off) + deploys both hosting targets

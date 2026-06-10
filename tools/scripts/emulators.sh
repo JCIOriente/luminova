@@ -14,11 +14,15 @@ if [ -d /opt/homebrew/opt/openjdk/bin ]; then
   export JAVA_HOME="/opt/homebrew/opt/openjdk"
 fi
 
-mkdir -p emulator-data
-
 # Fresh functions dist so the emulator never loads stale triggers.
 pnpm --filter beacon build
 
-exec firebase emulators:start \
-  --import=./emulator-data \
-  --export-on-exit=./emulator-data
+# Persist state across restarts (so the seeded Admin survives). Only --import when
+# a prior export exists — on the very first run there is no export yet, and
+# pointing --import at an empty dir makes the emulators fail to start.
+# (Two branches, not an array, to stay safe on macOS's stock bash 3.2 + `set -u`.)
+if [ -f emulator-data/firebase-export-metadata.json ]; then
+  exec firebase emulators:start --import=./emulator-data --export-on-exit=./emulator-data
+else
+  exec firebase emulators:start --export-on-exit=./emulator-data
+fi
