@@ -15,7 +15,7 @@ export const Route = createFileRoute("/_app/")({
 });
 
 function DashboardPage() {
-  const { user } = useAuth();
+  const { user, claims } = useAuth();
   const members = useMembers();
   const allies = useAllies();
 
@@ -33,6 +33,11 @@ function DashboardPage() {
   const allyCount = allies.data?.length ?? 0;
 
   return (
-    <OverviewView memberCount={memberCount} allyCount={allyCount} userName={user?.email ?? "—"} />
+    <OverviewView
+      memberCount={memberCount}
+      allyCount={allyCount}
+      userName={user?.email ?? "—"}
+      roles={claims.roles}
+    />
   );
 }
