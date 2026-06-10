@@ -1,5 +1,7 @@
 # Luminova — JCI Oriente Platform
 
+> **Inspire** — _A fire shared never dies._
+
 Monorepo for the Junior Chamber International (Eastern Bolivia) platform.
 
 | App | Purpose | Hosting site |
@@ -42,41 +44,42 @@ Set `VITE_FIREBASE_EMULATOR_ENABLED=true` for local development against emulator
 App Check (reCAPTCHA v3) stays disabled until you set `VITE_APPCHECK_SITE_KEY`; for local
 dev use `VITE_APPCHECK_DEBUG_TOKEN`. See `docs/firebase-setup.md` for the console checklist.
 
-## Run the emulators
-
-Start the full Firebase emulator suite:
+## Run locally — one command
 
 ```bash
-firebase emulators:start
+pnpm dev
 ```
 
-| Service | Port | |
-|---------|------|--|
-| Hosting | 4000 | http://localhost:4000 |
-| Firestore | 4010 | |
-| Functions | 4020 | |
-| Auth | 4030 | |
-| Storage | 9199 | |
-| Emulator UI | 4100 | http://localhost:4100 |
+This brings up the whole local stack and is the daily driver:
 
-Seed the **running** Firestore emulator with sample data (members, events, point rules):
+1. starts the Firebase emulator suite (Java is added to PATH automatically; functions
+   `dist` is rebuilt first so triggers are never stale),
+2. seeds the running Firestore + Auth emulators once they're up, and
+3. starts both app dev servers (HMR), wired to the emulators.
+
+| Surface | URL | |
+|---------|-----|--|
+| Spotlight (public) | http://localhost:5173 | |
+| Backstage (admin) | http://localhost:5174 | `admin@jci.test` / `Secret1` |
+| Emulator UI | http://localhost:4100 | |
+
+Emulator state is persisted to `emulator-data/` (`--import`/`--export-on-exit`), so the
+seeded Admin and your data **survive restarts** — `Ctrl-C` exports, the next `pnpm dev`
+re-imports. Seeding is idempotent.
+
+Ports: Firestore 4010 · Functions 4020 · Auth 4030 · Storage 9199 · Hosting 4000.
+
+### Verify a production-like build against the emulators
 
 ```bash
-pnpm seed:emulator
+pnpm build:local      # build both apps with the emulator wiring baked in
+pnpm preview:local    # build:local + emulators + seed, served as static bundles
 ```
 
-The seed script refuses to run unless `FIRESTORE_EMULATOR_HOST` is set, so it can never
-touch production.
-
-## Run the apps
-
-```bash
-pnpm dev                          # all apps
-pnpm --filter spotlight dev       # public site
-pnpm --filter backstage dev       # admin dashboard
-```
-
-Spotlight: http://localhost:5174 · Backstage: http://localhost:5173
+`preview:local` serves the built bundles at http://localhost:4173 (spotlight) and
+http://localhost:4174 (backstage) — same emulator wiring, no HMR. Use it to be sure a real
+build works before deploying. (`pnpm build` alone is the **production** artifact — emulator
+wiring is compiled out via `.env.production`.)
 
 ## Build, lint, test
 

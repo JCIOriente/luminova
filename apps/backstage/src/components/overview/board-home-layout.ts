@@ -28,7 +28,14 @@ const PRECEDENCE: Role[] = [
 
 const ROLE_LAYOUTS: Partial<Record<Role, WidgetKey[]>> = {
   Admin: DEFAULT_LAYOUT,
-  Membership: ["headerActions", "kpis", "quickActions", "recentActivity", "chart", "upcomingEvents"],
+  Membership: [
+    "headerActions",
+    "kpis",
+    "quickActions",
+    "recentActivity",
+    "chart",
+    "upcomingEvents",
+  ],
   Treasury: ["kpis", "recentActivity", "chart"],
   ProjectManager: ["upcomingEvents", "quickActions", "kpis", "recentActivity"],
   ExecutiveCommittee: ["kpis", "recentActivity", "chart"],

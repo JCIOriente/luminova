@@ -15,7 +15,7 @@ export function BrandSide({
   eyebrow = "Portal de la directiva",
   title = (
     <>
-      Sé el <b className="font-semibold">cambio.</b>
+      Inspira<b className="font-semibold">.</b>
     </>
   ),
   lead = "El panel interno de JCI Oriente. Coordina miembros, eventos y proyectos del capítulo desde un solo lugar.",
@@ -55,7 +55,9 @@ export function BrandSide({
         <h2 className="text-[clamp(40px,4.6vw,60px)] font-light leading-[1.02] -tracking-[0.03em]">
           {title}
         </h2>
-        <p className="mt-4 font-serif text-[17px] italic text-on-dark-3">Become the change.</p>
+        <p className="mt-4 font-serif text-[17px] italic text-on-dark-3">
+          A fire shared never dies.
+        </p>
         <p className="mt-6 max-w-[420px] text-[16.5px] leading-[1.62] text-on-dark-2">{lead}</p>
       </div>
 

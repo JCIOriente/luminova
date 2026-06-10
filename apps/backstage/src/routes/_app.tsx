@@ -20,10 +20,10 @@ function AppLayout() {
   const collapsed = useSyncExternalStore(subscribe, getSidebarCollapsed, getSidebarCollapsed);
   return (
     <div
-      className={`grid h-dvh bg-surface-2 ${collapsed ? "grid-cols-[72px_1fr]" : "grid-cols-[264px_1fr]"}`}
+      className={`grid h-dvh grid-rows-[minmax(0,1fr)] bg-surface-2 ${collapsed ? "grid-cols-[72px_1fr]" : "grid-cols-[264px_1fr]"}`}
     >
       <AppSidebar />
-      <div className="flex min-w-0 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-col">
         <AppTopbar />
         <main className="scroll flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1320px] px-7 pt-[30px] pb-20">

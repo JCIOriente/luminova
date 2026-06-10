@@ -29,7 +29,7 @@ const ts = (iso) => Timestamp.fromDate(new Date(iso));
 
 // A ready-to-login Admin, created in the Auth emulator + linked to member m1.
 // Dev-only credentials (the Auth emulator never authenticates against prod).
-const ADMIN = { uid: "admin", email: "admin@jci.test", password: "jci-oriente-dev" };
+const ADMIN = { uid: "admin", email: "admin@jci.test", password: "Secret1" };
 
 // --- Members (current shape: joinDate/birthdate/status required) ---
 const members = [

@@ -97,7 +97,17 @@ export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
 
 ### Start All Emulators
 
+**Daily driver — `pnpm dev`** starts the emulators, seeds them, and runs both app dev
+servers (see the README "Run locally — one command"). Under the hood it runs
+`tools/scripts/emulators.sh`, which adds Java to PATH, rebuilds the beacon functions `dist`,
+and starts the suite with `--import/--export-on-exit ./emulator-data` (state survives
+restarts).
+
+To run **only** the emulators (e.g. against an already-built bundle):
+
 ```bash
+bash tools/scripts/emulators.sh      # wrapped: Java PATH + fresh dist + persisted data
+# or the raw CLI (needs Java on PATH yourself, no persistence):
 firebase emulators:start
 ```
 
@@ -112,7 +122,8 @@ firebase emulators:start
 
 ### Seeding the Emulator
 
-**One command does everything** — from a clean `firebase emulators:start`:
+`pnpm dev` seeds automatically once the emulators are up. To (re-)seed a **running**
+emulator on its own:
 
 ```bash
 pnpm seed:emulator
@@ -127,7 +138,7 @@ This seeds (project `jci-oriente`, matching `.firebaserc` + `VITE_FIREBASE_PROJE
 
   | Email | Password | Roles |
   |-------|----------|-------|
-  | `admin@jci.test` | `jci-oriente-dev` | Admin |
+  | `admin@jci.test` | `Secret1` | Admin |
 
 Log in to backstage with those credentials and you'll see every (Admin-gated) feature.
 Re-running is idempotent.
@@ -154,6 +165,10 @@ FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:4030 GCLOUD_PROJECT=jci-oriente \
 > the Java PATH (see Prerequisites above).
 
 ### Import/Export Emulator Data
+
+`pnpm dev` (via `tools/scripts/emulators.sh`) already imports from and exports to
+`emulator-data/` automatically, so state persists across restarts. To snapshot or restore
+manually:
 
 ```bash
 # Export current emulator state

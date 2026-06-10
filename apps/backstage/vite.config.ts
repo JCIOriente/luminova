@@ -5,4 +5,6 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 
 export default defineConfig({
   plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
+  server: { port: 5174 },
+  preview: { port: 4174 },
 });
