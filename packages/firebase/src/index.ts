@@ -69,3 +69,9 @@ export function getFirebase(): FirebaseServices {
   services = { app, auth, db, storage, functions };
   return services;
 }
+
+export function getStorageService(): FirebaseStorage {
+  return getFirebase().storage;
+}
+
+export { uploadMemberPhoto, deleteMemberPhoto } from "./member-photo";

@@ -1,10 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { Badge, Button, Sheet, type BadgeTone } from "@luminova/ui";
+import { Avatar, Badge, Button, ImageUploader, Sheet, type BadgeTone } from "@luminova/ui";
 import type { Member, MemberInput, MemberStatus } from "@luminova/types";
 import { MemberForm } from "./member-form";
 import { dateInputValue } from "../repositories/member-mapper";
-import { avatarColor, joinYear } from "../lib/member-display";
-import { initials } from "../../../lib/initials";
+import { joinYear } from "../lib/member-display";
+import { useMemberPhoto } from "../hooks/use-member-photo";
 import { Can } from "../../../lib/authz/ability-context";
 
 interface MemberDrawerProps {
@@ -48,12 +48,7 @@ function ViewBody({ member, onEditMode }: { member: Member; onEditMode: () => vo
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-4">
-        <span
-          className="flex size-14 shrink-0 items-center justify-center rounded-full text-[18px] font-semibold text-white"
-          style={{ backgroundColor: avatarColor(member.id) }}
-        >
-          {initials(member.name)}
-        </span>
+        <Avatar src={member.profilePicture} name={member.name} size={56} />
         <div className="min-w-0">
           <div className="truncate text-[18px] font-semibold text-ink-1">{member.name}</div>
           <Badge tone={STATUS_TONE[member.status]} dot={member.status === "Activo"}>
@@ -89,6 +84,32 @@ function ViewBody({ member, onEditMode }: { member: Member; onEditMode: () => vo
   );
 }
 
+function EditBody({
+  member,
+  onSubmit,
+}: {
+  member: Member;
+  onSubmit: (data: MemberInput) => Promise<void>;
+}) {
+  const { onUpload, onRemove } = useMemberPhoto(member.id);
+  return (
+    <div className="flex flex-col gap-6">
+      <ImageUploader
+        currentSrc={member.profilePicture}
+        name={member.name}
+        onUpload={onUpload}
+        onRemove={onRemove}
+      />
+      <MemberForm
+        key={member.id}
+        defaultValues={toFormInput(member)}
+        submitLabel="Guardar"
+        onSubmit={onSubmit}
+      />
+    </div>
+  );
+}
+
 export function MemberDrawer({
   open,
   mode,
@@ -109,14 +130,7 @@ export function MemberDrawer({
         (mode === "view" ? (
           <ViewBody member={member} onEditMode={onEditMode} />
         ) : (
-          <MemberForm
-            key={member.id}
-            showPreview
-            avatarSeed={member.id}
-            defaultValues={toFormInput(member)}
-            submitLabel="Guardar"
-            onSubmit={onSubmit}
-          />
+          <EditBody member={member} onSubmit={onSubmit} />
         ))}
     </Sheet>
   );

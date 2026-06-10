@@ -2,9 +2,29 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    match /members/{allPaths=**} {
-      allow read, write: if request.auth != null;
+    function isPrivileged() {
+      return request.auth != null
+        && request.auth.token.roles is list
+        && request.auth.token.roles.hasAny(['Admin', 'Membership']);
     }
+
+    function ownsMember(memberId) {
+      let member = firestore.get(/databases/(default)/documents/members/$(memberId));
+      return request.auth != null
+        && member != null
+        && member.data.uid == request.auth.uid;
+    }
+
+    function isValidPhoto() {
+      return request.resource.contentType == 'image/jpeg'
+        && request.resource.size <= 5 * 1024 * 1024;
+    }
+
+    match /members/{memberId}/profile.jpg {
+      allow read: if request.auth != null;
+      allow write: if (isPrivileged() || ownsMember(memberId)) && isValidPhoto();
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

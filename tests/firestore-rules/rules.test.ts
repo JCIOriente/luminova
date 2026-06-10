@@ -28,7 +28,7 @@ beforeAll(async () => {
     projectId: "demo-rules-test",
     firestore: {
       host: "127.0.0.1",
-      port: 4010,
+      port: Number(process.env.FIRESTORE_EMULATOR_PORT ?? 4010),
       rules: readFileSync(rulesPath, "utf8"),
     },
   });
@@ -96,6 +96,28 @@ describe("firestore.rules — members", () => {
   });
   it("allows Membership to update a normal field", async () => {
     await assertSucceeds(updateDoc(doc(as("u", ["Membership"]), "members/m1"), { name: "Ana2" }));
+  });
+  it("allows the owning member to set only their own profilePicture (H1 self-upload)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), {
+        profilePicture: "https://example/p.jpg",
+      }),
+    );
+  });
+  it("denies the owning member changing another field alongside profilePicture", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), {
+        profilePicture: "https://example/p.jpg",
+        name: "Hijack",
+      }),
+    );
+  });
+  it("denies a non-owner member setting another member's profilePicture", async () => {
+    await assertFails(
+      updateDoc(doc(as("stranger", ["Member"]), "members/m1"), {
+        profilePicture: "https://example/p.jpg",
+      }),
+    );
   });
   it("allows soft-deleting a live member (active true -> false)", async () => {
     await assertSucceeds(
