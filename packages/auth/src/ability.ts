@@ -1,5 +1,7 @@
-import { AbilityBuilder, createMongoAbility, type MongoAbility } from "@casl/ability";
+import { AbilityBuilder, createMongoAbility, subject, type MongoAbility } from "@casl/ability";
 import type { AuthClaims, Role } from "./roles.js";
+
+export { subject };
 
 export type Action = "manage" | "create" | "read" | "update" | "delete" | "checkIn";
 export type Subject =
@@ -16,7 +18,7 @@ export type Subject =
   | "Activity"
   | "Position";
 
-type SubjectObject = Record<string, unknown>;
+type SubjectObject = object;
 export type AppAbility = MongoAbility<[Action, Subject | SubjectObject]>;
 
 type Can = AbilityBuilder<AppAbility>["can"];
