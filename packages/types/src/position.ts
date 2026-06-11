@@ -24,6 +24,10 @@ export interface Position {
 export interface TermPositions {
   cargoId: string | null;
   comisionIds: string[];
+  /** Uid of whoever wrote this term's assignment. Drives the claims-sync trust
+   *  gate: power grants are honored only when this uid is an Admin. Absent on
+   *  pre-K4 (K2) docs → treated as untrusted (power grants dropped). */
+  assignedBy?: string;
 }
 
 export function positionTitle(
