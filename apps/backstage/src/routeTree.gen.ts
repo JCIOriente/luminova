@@ -26,6 +26,7 @@ import { Route as AppCheckInRouteImport } from './routes/_app.check-in'
 import { Route as AppAlliesRouteImport } from './routes/_app.allies'
 import { Route as AppActivitiesRouteImport } from './routes/_app.activities'
 import { Route as AppMembersMemberIdRouteImport } from './routes/_app.members_.$memberId'
+import { Route as AppActivitiesIdRouteImport } from './routes/_app.activities_.$id'
 import { Route as AppInitiativesTypeIdRouteImport } from './routes/_app.initiatives_.$type.$id'
 
 const AuthRoute = AuthRouteImport.update({
@@ -111,6 +112,11 @@ const AppMembersMemberIdRoute = AppMembersMemberIdRouteImport.update({
   path: '/members/$memberId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppActivitiesIdRoute = AppActivitiesIdRouteImport.update({
+  id: '/activities_/$id',
+  path: '/activities/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppInitiativesTypeIdRoute = AppInitiativesTypeIdRouteImport.update({
   id: '/initiatives_/$type/$id',
   path: '/initiatives/$type/$id',
@@ -132,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/reset': typeof AuthResetRoute
+  '/activities/$id': typeof AppActivitiesIdRoute
   '/members/$memberId': typeof AppMembersMemberIdRoute
   '/initiatives/$type/$id': typeof AppInitiativesTypeIdRoute
 }
@@ -150,6 +157,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/reset': typeof AuthResetRoute
+  '/activities/$id': typeof AppActivitiesIdRoute
   '/members/$memberId': typeof AppMembersMemberIdRoute
   '/initiatives/$type/$id': typeof AppInitiativesTypeIdRoute
 }
@@ -171,6 +179,7 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/reset': typeof AuthResetRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/activities_/$id': typeof AppActivitiesIdRoute
   '/_app/members_/$memberId': typeof AppMembersMemberIdRoute
   '/_app/initiatives_/$type/$id': typeof AppInitiativesTypeIdRoute
 }
@@ -191,6 +200,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/reset'
+    | '/activities/$id'
     | '/members/$memberId'
     | '/initiatives/$type/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -209,6 +219,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/reset'
+    | '/activities/$id'
     | '/members/$memberId'
     | '/initiatives/$type/$id'
   id:
@@ -229,6 +240,7 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/reset'
     | '/_app/'
+    | '/_app/activities_/$id'
     | '/_app/members_/$memberId'
     | '/_app/initiatives_/$type/$id'
   fileRoutesById: FileRoutesById
@@ -359,6 +371,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMembersMemberIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/activities_/$id': {
+      id: '/_app/activities_/$id'
+      path: '/activities/$id'
+      fullPath: '/activities/$id'
+      preLoaderRoute: typeof AppActivitiesIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/initiatives_/$type/$id': {
       id: '/_app/initiatives_/$type/$id'
       path: '/initiatives/$type/$id'
@@ -381,6 +400,7 @@ interface AppRouteChildren {
   AppPointRulesRoute: typeof AppPointRulesRoute
   AppPositionsRoute: typeof AppPositionsRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppActivitiesIdRoute: typeof AppActivitiesIdRoute
   AppMembersMemberIdRoute: typeof AppMembersMemberIdRoute
   AppInitiativesTypeIdRoute: typeof AppInitiativesTypeIdRoute
 }
@@ -397,6 +417,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppPointRulesRoute: AppPointRulesRoute,
   AppPositionsRoute: AppPositionsRoute,
   AppIndexRoute: AppIndexRoute,
+  AppActivitiesIdRoute: AppActivitiesIdRoute,
   AppMembersMemberIdRoute: AppMembersMemberIdRoute,
   AppInitiativesTypeIdRoute: AppInitiativesTypeIdRoute,
 }
