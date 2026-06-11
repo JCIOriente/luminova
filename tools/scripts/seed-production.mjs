@@ -67,6 +67,8 @@ async function main() {
   const db = getFirestore();
   const auth = getAuth();
 
+  // Guard before prompting so a re-run doesn't make the operator re-enter
+  // everything; seedPresident also guards this internally (without `force`).
   const existing = await db.doc("meta/bootstrap").get();
   if (existing.exists) {
     console.log(

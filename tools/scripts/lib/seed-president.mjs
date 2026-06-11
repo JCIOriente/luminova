@@ -99,13 +99,13 @@ export async function seedPresident({
   }
 
   const posCol = db.collection("positions");
-  const probe = await posCol.limit(1).get();
-  if (probe.empty) {
+  let snap = await posCol.get();
+  if (snap.empty) {
     const batch = db.batch();
     for (const entry of CEL_SEED) batch.set(posCol.doc(), toPositionDoc(entry));
     await batch.commit();
+    snap = await posCol.get();
   }
-  const snap = await posCol.get();
   const positions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   const cargoId = findPresidentPositionId(positions);
 
