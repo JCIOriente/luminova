@@ -73,6 +73,9 @@ export const provisionMemberLogin = onCall(async (request) => {
   if (!user) user = await auth.createUser({ email }).catch(() => auth.getUserByEmail(email));
   const targetEmail = user.email ?? email;
 
+  // Bootstrap the base Member claim; onMemberWritten (fired by the uid write below)
+  // recomputes ['Member', ...trusted grants] from positions, healing pre-assigned
+  // members. Both authorities share the same ['Member', ...] base — no conflict.
   await auth.setCustomUserClaims(
     user.uid,
     nextClaims(user.customClaims as RawClaims | undefined, "Member"),
