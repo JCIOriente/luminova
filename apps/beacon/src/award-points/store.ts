@@ -14,6 +14,18 @@ export interface EngineStore {
   getConfirmedRows(memberId: string, termId: string): Promise<AggregateRow[]>;
   getRowsByParent(parentId: string): Promise<Participation[]>;
   setMemberAggregate(memberId: string, termId: string, aggregate: MemberAggregate): Promise<void>;
+  /** Resolve member ids -> linked auth uids (members without a login are skipped). */
+  getMemberUids(memberIds: string[]): Promise<string[]>;
+  /**
+   * Mirror direction uids onto the initiative doc (rules read them). Must be
+   * idempotent and skip identical values — this runs inside the initiative's own
+   * trigger, so an unconditional write would loop.
+   */
+  setInitiativeDirectionUids(
+    parentType: InitiativeKind,
+    parentId: string,
+    uids: string[],
+  ): Promise<void>;
 }
 
 export type RosterRole = "Director" | "CoDirector" | "Team";

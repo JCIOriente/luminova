@@ -26,7 +26,9 @@ export function parseInitiativeWrite(data: unknown): InitiativeWrite | null {
 
   const r = (raw.roster ?? {}) as Record<string, unknown>;
   const directorId = isCleanId(r.directorId) ? r.directorId : "";
-  const coDirectorIds = Array.isArray(r.coDirectorIds) ? r.coDirectorIds.filter(isCleanId) : [];
+  const coDirectorIds = Array.isArray(r.coDirectorIds)
+    ? [...new Set(r.coDirectorIds.filter(isCleanId))]
+    : [];
   const teamIds = Array.isArray(r.teamIds) ? r.teamIds.filter(isCleanId) : [];
 
   const finalReport = raw.finalReport as { filedAt?: unknown } | null | undefined;
@@ -110,6 +112,29 @@ export function createFirestoreStore(db: Firestore): EngineStore {
       await db
         .doc(`members/${memberId}`)
         .set({ totalPoints: aggregate.cumulative }, { merge: true });
+    },
+    async getMemberUids(memberIds) {
+      const uids: string[] = [];
+      for (const id of memberIds) {
+        const snap = await db.doc(`members/${id}`).get();
+        const uid = snap.exists ? (snap.data() as { uid?: unknown }).uid : undefined;
+        if (typeof uid === "string" && uid.length > 0) uids.push(uid);
+      }
+      return uids;
+    },
+    async setInitiativeDirectionUids(parentType, parentId, uids) {
+      const collection = parentType === "Program" ? "programs" : "projects";
+      const ref = db.doc(`${collection}/${parentId}`);
+      const snap = await ref.get();
+      if (!snap.exists) return; // deleted initiative — nothing to mirror
+      const sorted = [...uids].sort();
+      const current = (snap.data() as { directionUids?: unknown }).directionUids;
+      const same =
+        Array.isArray(current) &&
+        current.length === sorted.length &&
+        [...current].sort().every((v, i) => v === sorted[i]);
+      if (same) return; // identical — break the write->trigger loop
+      await ref.set({ directionUids: sorted }, { merge: true });
     },
   };
 }

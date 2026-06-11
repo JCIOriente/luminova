@@ -118,7 +118,14 @@ export async function processInitiativeWrite(
     touch(memberId, init.termId);
   }
 
-  // 4. Recompute every affected member's aggregate.
+  // 4. Mirror direction (director + co-directors) auth uids for the rules branch.
+  const directionMemberIds = [init.roster.directorId, ...init.roster.coDirectorIds].filter(
+    (id) => id !== "",
+  );
+  const uids = await store.getMemberUids(directionMemberIds);
+  await store.setInitiativeDirectionUids(parentType, parentId, uids);
+
+  // 5. Recompute every affected member's aggregate.
   for (const { memberId, termId } of affected.values()) {
     await recomputeAggregate(store, memberId, termId);
   }

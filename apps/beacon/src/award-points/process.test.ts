@@ -16,6 +16,8 @@ class FakeStore implements EngineStore {
   reports = new Set<string>();
   rows = new Map<string, Participation>();
   aggregates = new Map<string, MemberAggregate>();
+  memberUids = new Map<string, string>();
+  directionUidsWrites: { parentType: string; parentId: string; uids: string[] }[] = [];
 
   async getActivity(id: string) {
     return this.activities.get(id) ?? null;
@@ -49,6 +51,12 @@ class FakeStore implements EngineStore {
   }
   async setMemberAggregate(memberId: string, termId: string, aggregate: MemberAggregate) {
     this.aggregates.set(`${memberId}__${termId}`, aggregate);
+  }
+  async getMemberUids(memberIds: string[]) {
+    return memberIds.map((id) => this.memberUids.get(id)).filter((u): u is string => u != null);
+  }
+  async setInitiativeDirectionUids(parentType: string, parentId: string, uids: string[]) {
+    this.directionUidsWrites.push({ parentType, parentId, uids });
   }
 }
 
@@ -329,6 +337,31 @@ describe("processInitiativeWrite — roster expansion", () => {
       projNow,
     );
     expect(store.rows.get("a1__m1__Attendee")!.monthBucket).toBe("2026-06");
+  });
+});
+
+describe("processInitiativeWrite — directionUids mirror", () => {
+  it("mirrors direction uids (director + co-directors, not team)", async () => {
+    store.memberUids.set("m1", "u1");
+    store.memberUids.set("m2", "u2");
+    store.memberUids.set("m4", "u4");
+    await processInitiativeWrite(
+      store,
+      "Project",
+      "p1",
+      initiative({ roster: { directorId: "m1", coDirectorIds: ["m2"], teamIds: ["m4"] } }),
+      projNow,
+    );
+    expect(store.directionUidsWrites).toEqual([
+      { parentType: "Project", parentId: "p1", uids: ["u1", "u2"] },
+    ]);
+  });
+
+  it("mirrors an empty array when the roster has no direction (doc-missing no-op left to the store)", async () => {
+    await processInitiativeWrite(store, "Project", "p1", initiative(), projNow);
+    expect(store.directionUidsWrites).toEqual([
+      { parentType: "Project", parentId: "p1", uids: [] },
+    ]);
   });
 });
 
