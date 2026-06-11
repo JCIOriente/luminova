@@ -38,7 +38,8 @@ const positions: Position[] = [
   {
     id: "pos-eventos",
     title: "Comisión de Eventos",
-    titleFemale: "Comisión de Eventos",
+    titleFemale: null,
+    sigla: "CEV",
     category: "Comision",
     grants: [],
     term: null,
@@ -110,6 +111,8 @@ describe("MemberDrawer view mode", () => {
       </AbilityProvider>,
     );
     expect(screen.getAllByText("Presidenta")).not.toHaveLength(0);
-    expect(screen.getByText("Comisión de Eventos")).toBeInTheDocument();
+    // Comisión badge shows the sigla, never a gender-derived title (titleFemale is null).
+    expect(screen.getByText("CEV")).toBeInTheDocument();
+    expect(screen.queryByText(/Comisióna/)).not.toBeInTheDocument();
   });
 });

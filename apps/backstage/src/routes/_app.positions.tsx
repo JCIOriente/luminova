@@ -22,6 +22,7 @@ function positionToInput(position: Position): Partial<PositionInput> {
   return {
     title: position.title,
     titleFemale: position.titleFemale ?? undefined,
+    sigla: position.sigla ?? undefined,
     category: position.category,
     grants: position.grants,
     term: position.term,
