@@ -130,6 +130,51 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("u", ["Treasury"]), "members/new3"), { name: "B", totalPoints: 0 }),
     );
   });
+  it("BLOCKING: denies Membership creating with a forged assignedBy + power cargo (escalation on create)", async () => {
+    await assertFails(
+      setDoc(doc(as("mem-uid", ["Membership"]), "members/new_evil"), {
+        name: "Evil",
+        totalPoints: 0,
+        positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-victim-uid" } },
+      }),
+    );
+  });
+  it("denies setting uid on create (uid is admin-SDK only)", async () => {
+    await assertFails(
+      setDoc(doc(as("mem-uid", ["Membership"]), "members/new_uid"), {
+        name: "X",
+        totalPoints: 0,
+        uid: "mem-uid",
+      }),
+    );
+  });
+  it("denies Membership creating with a power cargo even when self-stamped", async () => {
+    await assertFails(
+      setDoc(doc(as("mem-uid", ["Membership"]), "members/new_pow"), {
+        name: "X",
+        totalPoints: 0,
+        positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "mem-uid" } },
+      }),
+    );
+  });
+  it("allows Membership creating with self assignedBy + empty-grants cargo", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("mem-uid", ["Membership"]), "members/new_ok"), {
+        name: "X",
+        totalPoints: 0,
+        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "mem-uid" } },
+      }),
+    );
+  });
+  it("allows Admin creating with a power cargo + self assignedBy", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("admin-uid", ["Admin"]), "members/new_admin"), {
+        name: "X",
+        totalPoints: 0,
+        positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
+      }),
+    );
+  });
   it("denies client mutation of totalPoints on update", async () => {
     await assertFails(updateDoc(doc(as("u", ["Membership"]), "members/m1"), { totalPoints: 99 }));
   });

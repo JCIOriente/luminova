@@ -2,8 +2,6 @@ import { Badge } from "@luminova/ui";
 import { positionTitle, type Member, type MemberGender, type Position } from "@luminova/types";
 import { CATEGORY_TONE } from "../../positions/lib/category-tone";
 
-export { CATEGORY_TONE };
-
 type ChipSource = { gender?: MemberGender; positions?: Member["positions"] };
 
 export function MemberCargoChips({
