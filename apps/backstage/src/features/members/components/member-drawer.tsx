@@ -1,9 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { Avatar, Badge, Button, ImageUploader, Sheet, type BadgeTone } from "@luminova/ui";
-import type { Member, MemberInput, MemberStatus } from "@luminova/types";
+import {
+  currentTermKey,
+  positionTitle,
+  type Member,
+  type MemberInput,
+  type MemberStatus,
+  type Position,
+} from "@luminova/types";
 import { MemberForm } from "./member-form";
 import { dateInputValue } from "../repositories/member-mapper";
-import { joinYear } from "../lib/member-display";
+import { joinYear, memberPositionLabel } from "../lib/member-display";
 import { useMemberPhoto } from "../hooks/use-member-photo";
 import { Can } from "../../../lib/authz/ability-context";
 
@@ -11,6 +18,7 @@ interface MemberDrawerProps {
   open: boolean;
   mode: "view" | "edit";
   member: Member | null;
+  positions: Position[];
   onClose: () => void;
   onEditMode: () => void;
   onSubmit: (data: MemberInput) => Promise<void>;
@@ -23,15 +31,18 @@ const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
 };
 
 function toFormInput(member: Member): Partial<MemberInput> {
+  const term = member.positions?.[currentTermKey()];
   return {
     name: member.name,
     email: member.email,
     phone: member.phone ?? "",
-    role: member.role,
+    gender: member.gender,
     profession: member.profession ?? "",
     joinDate: member.joinDate ? dateInputValue(member.joinDate) : "",
     birthdate: member.birthdate ? dateInputValue(member.birthdate) : "",
     status: member.status,
+    cargoId: term?.cargoId ?? null,
+    comisionIds: term?.comisionIds ?? [],
   };
 }
 
@@ -44,7 +55,19 @@ function Detail({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function ViewBody({ member, onEditMode }: { member: Member; onEditMode: () => void }) {
+function ViewBody({
+  member,
+  positionsById,
+  onEditMode,
+}: {
+  member: Member;
+  positionsById: Map<string, Position>;
+  onEditMode: () => void;
+}) {
+  const termKey = currentTermKey();
+  const term = member.positions?.[termKey];
+  const cargo = term?.cargoId ? positionsById.get(term.cargoId) : undefined;
+  const comisiones = (term?.comisionIds ?? []).flatMap((id) => positionsById.get(id) ?? []);
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-4">
@@ -59,12 +82,27 @@ function ViewBody({ member, onEditMode }: { member: Member; onEditMode: () => vo
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-5">
         <Detail label="Correo" value={member.email} />
-        <Detail label="Rol" value={member.role} />
+        <Detail label="Cargo" value={memberPositionLabel(member, positionsById, termKey)} />
         <Detail label="Teléfono" value={member.phone || "—"} />
         <Detail label="Profesión" value={member.profession || "—"} />
         <Detail label="Miembro desde" value={member.joinDate ? joinYear(member.joinDate) : "—"} />
         <Detail label="Puntos" value={member.totalPoints ?? 0} />
       </dl>
+
+      {(cargo || comisiones.length > 0) && (
+        <div className="flex flex-wrap gap-2">
+          {cargo && (
+            <Badge tone={cargo.category === "CEL" ? "navy" : "teal"}>
+              {positionTitle(cargo, member.gender)}
+            </Badge>
+          )}
+          {comisiones.map((comision) => (
+            <Badge key={comision.id} tone="gray">
+              {positionTitle(comision, member.gender)}
+            </Badge>
+          ))}
+        </div>
+      )}
 
       <div className="mt-2 flex flex-col gap-3">
         <Can I="update" a="Member">
@@ -86,9 +124,11 @@ function ViewBody({ member, onEditMode }: { member: Member; onEditMode: () => vo
 
 function EditBody({
   member,
+  positions,
   onSubmit,
 }: {
   member: Member;
+  positions: Position[];
   onSubmit: (data: MemberInput) => Promise<void>;
 }) {
   const { onUpload, onRemove } = useMemberPhoto(member.id);
@@ -102,6 +142,7 @@ function EditBody({
       />
       <MemberForm
         key={member.id}
+        positions={positions}
         defaultValues={toFormInput(member)}
         submitLabel="Guardar"
         onSubmit={onSubmit}
@@ -114,10 +155,12 @@ export function MemberDrawer({
   open,
   mode,
   member,
+  positions,
   onClose,
   onEditMode,
   onSubmit,
 }: MemberDrawerProps) {
+  const positionsById = new Map(positions.map((p) => [p.id, p]));
   return (
     <Sheet
       open={open}
@@ -125,12 +168,13 @@ export function MemberDrawer({
         if (!o) onClose();
       }}
       title={mode === "view" ? "Perfil del miembro" : "Editar miembro"}
+      size="md"
     >
       {member &&
         (mode === "view" ? (
-          <ViewBody member={member} onEditMode={onEditMode} />
+          <ViewBody member={member} positionsById={positionsById} onEditMode={onEditMode} />
         ) : (
-          <EditBody member={member} onSubmit={onSubmit} />
+          <EditBody member={member} positions={positions} onSubmit={onSubmit} />
         ))}
     </Sheet>
   );

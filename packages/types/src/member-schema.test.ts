@@ -6,11 +6,13 @@ const valid = {
   name: "Ana Pérez",
   email: "ana@jci.bo",
   phone: "777",
-  role: "Presidenta",
+  gender: "Femenino" as const,
   profession: "Ingeniera",
   joinDate: "2020-03-15",
   birthdate: "1992-07-01",
   status: "Activo" as const,
+  cargoId: null,
+  comisionIds: [],
 };
 
 describe("memberSchema", () => {
@@ -22,10 +24,12 @@ describe("memberSchema", () => {
     const rest = {
       name: valid.name,
       email: valid.email,
-      role: valid.role,
+      gender: valid.gender,
       joinDate: valid.joinDate,
       birthdate: valid.birthdate,
       status: valid.status,
+      cargoId: valid.cargoId,
+      comisionIds: valid.comisionIds,
     };
     expect(memberSchema.safeParse(rest).success).toBe(true);
   });
@@ -48,6 +52,12 @@ describe("memberSchema", () => {
 
   it("rejects a status outside the enum", () => {
     expect(memberSchema.safeParse({ ...valid, status: "Suspendido" }).success).toBe(false);
+  });
+
+  it("rejects a missing gender", () => {
+    const rest: Partial<typeof valid> = { ...valid };
+    delete rest.gender;
+    expect(memberSchema.safeParse(rest).success).toBe(false);
   });
 
   it("exposes the three Spanish status values", () => {

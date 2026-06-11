@@ -1,5 +1,5 @@
 import { Timestamp } from "firebase/firestore";
-import type { MemberInput } from "@luminova/types";
+import { currentTermKey, type MemberInput, type TermPositions } from "@luminova/types";
 
 function toTimestamp(dateString: string): Timestamp {
   // UTC midnight so a date-only value is stored consistently regardless of the
@@ -22,7 +22,7 @@ function editableFields(data: MemberInput) {
     name: data.name,
     email: data.email,
     phone: data.phone ?? "",
-    role: data.role,
+    gender: data.gender,
     profession: data.profession ?? "",
     joinDate: toTimestamp(data.joinDate),
     birthdate: toTimestamp(data.birthdate),
@@ -31,9 +31,11 @@ function editableFields(data: MemberInput) {
 }
 
 /** New member document: editable fields + system defaults. */
-export function toMemberCreateDoc(data: MemberInput) {
+export function toMemberCreateDoc(data: MemberInput, termKey = currentTermKey()) {
   return {
     ...editableFields(data),
+    role: "",
+    positions: { [termKey]: { cargoId: data.cargoId, comisionIds: data.comisionIds } },
     profilePicture: null,
     totalPoints: 0,
     active: true,
@@ -41,7 +43,14 @@ export function toMemberCreateDoc(data: MemberInput) {
   };
 }
 
-/** Update payload: editable fields only — never touches system-managed fields. */
-export function toMemberUpdateDoc(data: MemberInput) {
-  return editableFields(data);
+type UpdateDoc = ReturnType<typeof editableFields> & Record<`positions.${string}`, TermPositions>;
+
+/** Update payload: editable fields + dot-path term slot.
+ *  Dot-path keeps other terms' history intact without a read-modify-write.
+ *  The slot is written even when empty — clearing a cargo must overwrite it. */
+export function toMemberUpdateDoc(data: MemberInput, termKey = currentTermKey()): UpdateDoc {
+  return {
+    ...editableFields(data),
+    [`positions.${termKey}`]: { cargoId: data.cargoId, comisionIds: data.comisionIds },
+  } as UpdateDoc;
 }

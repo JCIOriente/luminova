@@ -15,6 +15,7 @@ import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthResetRouteImport } from './routes/_auth.reset'
 import { Route as AuthLoginRouteImport } from './routes/_auth.login'
 import { Route as AuthForgotPasswordRouteImport } from './routes/_auth.forgot-password'
+import { Route as AppPositionsRouteImport } from './routes/_app.positions'
 import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
 import { Route as AppMembersRouteImport } from './routes/_app.members'
 import { Route as AppMeRouteImport } from './routes/_app.me'
@@ -52,6 +53,11 @@ const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
   getParentRoute: () => AuthRoute,
+} as any)
+const AppPositionsRoute = AppPositionsRouteImport.update({
+  id: '/positions',
+  path: '/positions',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppPointRulesRoute = AppPointRulesRouteImport.update({
   id: '/point-rules',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
   '/point-rules': typeof AppPointRulesRoute
+  '/positions': typeof AppPositionsRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/reset': typeof AuthResetRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
   '/point-rules': typeof AppPointRulesRoute
+  '/positions': typeof AppPositionsRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/reset': typeof AuthResetRoute
@@ -141,6 +149,7 @@ export interface FileRoutesById {
   '/_app/me': typeof AppMeRoute
   '/_app/members': typeof AppMembersRoute
   '/_app/point-rules': typeof AppPointRulesRoute
+  '/_app/positions': typeof AppPositionsRoute
   '/_auth/forgot-password': typeof AuthForgotPasswordRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/reset': typeof AuthResetRoute
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/me'
     | '/members'
     | '/point-rules'
+    | '/positions'
     | '/forgot-password'
     | '/login'
     | '/reset'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/me'
     | '/members'
     | '/point-rules'
+    | '/positions'
     | '/forgot-password'
     | '/login'
     | '/reset'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '/_app/me'
     | '/_app/members'
     | '/_app/point-rules'
+    | '/_app/positions'
     | '/_auth/forgot-password'
     | '/_auth/login'
     | '/_auth/reset'
@@ -245,6 +257,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/forgot-password'
       preLoaderRoute: typeof AuthForgotPasswordRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/_app/positions': {
+      id: '/_app/positions'
+      path: '/positions'
+      fullPath: '/positions'
+      preLoaderRoute: typeof AppPositionsRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/point-rules': {
       id: '/_app/point-rules'
@@ -321,6 +340,7 @@ interface AppRouteChildren {
   AppMeRoute: typeof AppMeRoute
   AppMembersRoute: typeof AppMembersRoute
   AppPointRulesRoute: typeof AppPointRulesRoute
+  AppPositionsRoute: typeof AppPositionsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppMembersMemberIdRoute: typeof AppMembersMemberIdRoute
 }
@@ -334,6 +354,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppMeRoute: AppMeRoute,
   AppMembersRoute: AppMembersRoute,
   AppPointRulesRoute: AppPointRulesRoute,
+  AppPositionsRoute: AppPositionsRoute,
   AppIndexRoute: AppIndexRoute,
   AppMembersMemberIdRoute: AppMembersMemberIdRoute,
 }

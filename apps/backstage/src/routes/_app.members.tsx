@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Button, Input, Icon, Dialog, Toast, EmptyState } from "@luminova/ui";
-import type { Member, MemberInput, MemberStatus } from "@luminova/types";
+import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
+import { usePositions } from "../features/positions/hooks/use-positions";
 import { useAddMember } from "../features/members/hooks/use-add-member";
 import { useUpdateMember } from "../features/members/hooks/use-update-member";
 import { useSetMemberStatus } from "../features/members/hooks/use-set-member-status";
 import { useProvisionMemberLogin } from "../features/members/hooks/use-provision-member-login";
+import { requestPasswordReset } from "../lib/auth/request-password-reset";
 import { MemberTable } from "../features/members/components/member-table";
 import { MemberStatusFilter } from "../features/members/components/member-status-filter";
 import { MemberFilterMeta } from "../features/members/components/member-filter-meta";
@@ -18,7 +20,7 @@ import {
   type StatusFilter,
 } from "../features/members/lib/member-filter";
 import { membersToCsv, downloadCsv } from "../features/members/lib/member-csv";
-import { actionMessage } from "../features/members/lib/member-display";
+import { actionMessage, memberPositionLabel } from "../features/members/lib/member-display";
 import { PageHeader } from "../components/page-header";
 import { Can } from "../lib/authz/ability-context";
 
@@ -38,6 +40,7 @@ const PAGE_SIZE = 8;
 
 function MembersPage() {
   const { data: members, isLoading, isError } = useMembers();
+  const { data: positions } = usePositions();
   const addMember = useAddMember();
   const updateMember = useUpdateMember();
   const setMemberStatus = useSetMemberStatus();
@@ -59,6 +62,14 @@ function MembersPage() {
   const all = members ?? [];
   const counts = useMemo(() => statusCounts(all), [all]);
   const filtered = useMemo(() => filterMembers(all, { search, status }), [all, search, status]);
+  const positionsById = useMemo(
+    () => new Map((positions ?? []).map((p) => [p.id, p])),
+    [positions],
+  );
+  const roleLabel = useCallback(
+    (member: Member) => memberPositionLabel(member, positionsById, currentTermKey()),
+    [positionsById],
+  );
 
   const clearAll = () => {
     setSearch("");
@@ -75,9 +86,15 @@ function MembersPage() {
   };
 
   const handleProvision = async (member: Member) => {
+    if (provision.isPending) return;
     try {
-      await provision.mutateAsync(member.id);
-      setToast(actionMessage(member.name, "invited"));
+      const { email } = await provision.mutateAsync(member.id);
+      try {
+        await requestPasswordReset(email);
+        setToast(actionMessage(member.name, "invited"));
+      } catch {
+        setToast("Acceso creado, pero el correo no se envió.");
+      }
     } catch {
       setToast("No se pudo enviar la invitación.");
     }
@@ -112,7 +129,7 @@ function MembersPage() {
                 type="button"
                 variant="secondary"
                 iconLeft={Icon.download({ s: 18 })}
-                onClick={() => downloadCsv("miembros.csv", membersToCsv(filtered))}
+                onClick={() => downloadCsv("miembros.csv", membersToCsv(filtered, roleLabel))}
               >
                 Exportar
               </Button>
@@ -166,6 +183,7 @@ function MembersPage() {
         <MemberTable
           members={filtered}
           pageSize={PAGE_SIZE}
+          roleLabel={roleLabel}
           isLoading={isLoading}
           emptyState={
             <EmptyState
@@ -185,6 +203,7 @@ function MembersPage() {
         open={drawer !== null}
         mode={drawer?.mode ?? "view"}
         member={drawer?.member ?? null}
+        positions={positions ?? []}
         onClose={() => setDrawer(null)}
         onEditMode={() => setDrawer((d) => (d ? { ...d, mode: "edit" } : d))}
         onSubmit={handleEditSubmit}
@@ -192,9 +211,10 @@ function MembersPage() {
 
       <MemberInviteDrawer
         open={inviteOpen}
+        positions={positions ?? []}
         onClose={() => setInviteOpen(false)}
         onCreate={(data) => addMember.mutateAsync(data)}
-        onProvision={(memberId) => provision.mutateAsync(memberId).then(() => undefined)}
+        onProvision={(memberId) => provision.mutateAsync(memberId)}
       />
 
       <Dialog

@@ -295,6 +295,27 @@ GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json \
 
 For wiping production data, see the runbook at `tools/scripts/wipe-prod.md`.
 
+## Correo de invitación
+
+When an admin provisions login access for a member, the app calls Firebase Auth's
+`sendPasswordResetEmail` via `requestPasswordReset(email)` immediately after the
+`provisionMemberLogin` callable returns. Firebase delivers the set-password link directly
+to the member's inbox.
+
+- **Auth emulator** — the emulator does not send real email; it prints the generated link
+  to its log output (visible in the Emulator UI at http://localhost:4100 or in terminal).
+- **Email failure fallback** — if `sendPasswordResetEmail` throws (e.g. network error,
+  Auth quota), the drawer shows a warning and a "Copiar enlace de acceso" button so the
+  admin can share the `actionLink` manually. The row-menu "Invitar acceso" path sets a
+  toast instead.
+- **Spanish template / sender name** — Firebase Console → Authentication → Templates →
+  Password reset. Customizing the subject line, body, and "From" name is an owner op in
+  the Firebase Console; no code change required.
+- **Email-enumeration protection caveat** — with enumeration protection enabled,
+  `sendPasswordResetEmail` resolves successfully even when no email is dispatched, so the
+  drawer can report "enviada" without delivery. If invites stop arriving, check that
+  setting and prefer the copy-link fallback.
+
 ## App Check (reCAPTCHA v3) & Password Reset
 
 The Firebase client (`@luminova/firebase`) already initializes App Check with the

@@ -4,7 +4,15 @@ import type { AppAbility } from "@luminova/auth/ability";
 
 type IconKey = keyof typeof Icon;
 
-type Subject = "Member" | "Ally" | "PointRule" | "Activity" | "Attendance" | "Program" | "Project";
+type Subject =
+  | "Member"
+  | "Ally"
+  | "PointRule"
+  | "Activity"
+  | "Attendance"
+  | "Program"
+  | "Project"
+  | "Position";
 
 export interface NavItem {
   to:
@@ -16,7 +24,8 @@ export interface NavItem {
     | "/leaderboard"
     | "/activities"
     | "/initiatives"
-    | "/check-in";
+    | "/check-in"
+    | "/positions";
   label: string;
   icon: IconKey;
   exact?: boolean;
@@ -51,6 +60,14 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Clasificación",
         icon: "barChart",
         roles: ["Admin", "Membership", "Treasury", "ExecutiveCommittee", "ProjectManager"],
+      },
+      {
+        to: "/positions",
+        label: "Cargos y comisiones",
+        icon: "compass",
+        subject: "Position",
+        // Members can read Position (chip resolution on /me) — keep the catalog page off their nav.
+        roles: ["Admin", "Membership", "ExecutiveCommittee"],
       },
     ],
   },

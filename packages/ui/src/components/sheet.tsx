@@ -1,21 +1,38 @@
 import type { ReactNode } from "react";
 import * as RadixDialog from "@radix-ui/react-dialog";
+import { cn } from "../lib/cn";
+
+const SIZE_CLASSES = {
+  sm: "max-w-[440px]",
+  md: "max-w-[560px]",
+  lg: "max-w-[680px]",
+  xl: "max-w-[800px]",
+} as const;
+
+export type SheetSize = keyof typeof SIZE_CLASSES;
 
 interface SheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
+  /** Pane width. Defaults to `sm` (440px). */
+  size?: SheetSize;
   children: ReactNode;
 }
 
 /** Right-side slide-over on Radix Dialog, styled with JCI tokens. Used for forms. */
-export function Sheet({ open, onOpenChange, title, description, children }: SheetProps) {
+export function Sheet({ open, onOpenChange, title, description, size, children }: SheetProps) {
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="fixed inset-0 z-50 bg-jci-black/40 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out motion-reduce:animate-none" />
-        <RadixDialog.Content className="fixed top-0 right-0 z-50 flex h-dvh w-full max-w-[440px] flex-col gap-[22px] overflow-y-auto bg-surface p-[26px] shadow-[0_24px_64px_-24px_rgba(19,15,45,0.4)] data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out motion-reduce:animate-none">
+        <RadixDialog.Content
+          className={cn(
+            "fixed top-0 right-0 z-50 flex h-dvh w-full flex-col gap-[22px] overflow-y-auto bg-surface p-[26px] shadow-[0_24px_64px_-24px_rgba(19,15,45,0.4)] data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out motion-reduce:animate-none",
+            SIZE_CLASSES[size ?? "sm"],
+          )}
+        >
           <div className="flex items-start justify-between gap-4">
             <RadixDialog.Title className="text-[20px] font-semibold tracking-[-0.01em] text-ink-1">
               {title}

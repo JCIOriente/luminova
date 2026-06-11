@@ -197,6 +197,9 @@ importers:
       '@casl/ability':
         specifier: 7.0.0
         version: 7.0.0
+      '@luminova/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/firebase:
     dependencies:

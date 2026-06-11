@@ -11,6 +11,7 @@ describe("nav-config", () => {
       "/allies",
       "/point-rules",
       "/leaderboard",
+      "/positions",
       "/activities",
       "/initiatives",
       "/check-in",
@@ -55,6 +56,14 @@ describe("nav-config", () => {
     expect(item?.subject).toBe("Attendance");
     expect(item?.action).toBe("checkIn");
     expect(item?.label).toBe("Check-in");
+  });
+
+  it("gates positions on the Position subject", () => {
+    const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === "/positions");
+    expect(item?.subject).toBe("Position");
+    expect(item?.action).toBeUndefined();
+    expect(item?.label).toBe("Cargos y comisiones");
+    expect(item?.roles).toEqual(["Admin", "Membership", "ExecutiveCommittee"]);
   });
 
   it("gates point rules on the PointRule subject", () => {

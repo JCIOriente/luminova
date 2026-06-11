@@ -1,0 +1,38 @@
+import type { Timestamp } from "firebase/firestore";
+import type { Role } from "./permission-role.js";
+import type { MemberGender } from "./member.js";
+
+export const POSITION_CATEGORIES = ["CEL", "JDL", "Comision"] as const;
+export type PositionCategory = (typeof POSITION_CATEGORIES)[number];
+
+/** Catalog entry: a CEL cargo (fixed), JDL dirección (per term) or comisión (evergreen). */
+export interface Position {
+  id: string;
+  title: string;
+  titleFemale: string;
+  category: PositionCategory;
+  /** Permission claim roles this position confers. Empty = chip only, no power. */
+  grants: Role[];
+  /** JDL direcciones belong to one term (year); CEL and comisiones are evergreen. */
+  term: number | null;
+  description: string;
+  active: boolean;
+  deletedAt: Timestamp | null;
+}
+
+/** A member's assignments within one term: at most one cargo + any comisiones. */
+export interface TermPositions {
+  cargoId: string | null;
+  comisionIds: string[];
+}
+
+export function positionTitle(
+  position: Pick<Position, "title" | "titleFemale">,
+  gender: MemberGender | undefined,
+): string {
+  return gender === "Femenino" ? position.titleFemale : position.title;
+}
+
+export function currentTermKey(now = new Date()): string {
+  return String(now.getUTCFullYear());
+}
