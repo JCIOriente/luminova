@@ -21,6 +21,14 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
   process.exit(1);
 }
 
+if (!process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+  console.error(
+    "Refusing to run: FIREBASE_AUTH_EMULATOR_HOST is not set — the president seed " +
+      "creates an Auth user and must never touch production Auth. Use `pnpm seed:emulator`.",
+  );
+  process.exit(1);
+}
+
 const projectId = process.env.GCLOUD_PROJECT ?? "jci-oriente";
 initializeApp({ projectId });
 const db = getFirestore();
@@ -191,24 +199,27 @@ async function seed() {
     await db.doc(`programs/${id}`).set(data);
   }
 
+  // The president is its OWN member (id "president") so the sample scorers
+  // m1..m3 keep their seeded email/points and stay consistent with the seeded
+  // memberPoints/participations.
   const presidentResult = await seedPresident({
     db,
     auth: getAuth(),
     president: {
-      name: "Ana Rivas",
+      name: "Olivia Bravo",
       email: "admin@jci.cc",
       password: "Secret1",
       gender: "Femenino",
       uid: "admin",
     },
     term: TERM,
-    joinDate: ts("2021-03-01T00:00:00Z"),
-    birthdate: ts("1992-07-01T00:00:00Z"),
-    memberId: "m1",
+    joinDate: ts("2019-02-01T00:00:00Z"),
+    birthdate: ts("1988-09-12T00:00:00Z"),
+    memberId: "president",
     force: true,
   });
   console.log(
-    `President: admin@jci.cc / Secret1 (Admin via cargo ${presidentResult.cargoId}, uid ${presidentResult.presidentUid}).`,
+    `President: admin@jci.cc / Secret1 (Admin via cargo ${presidentResult.cargoId}, member ${presidentResult.memberId}, uid ${presidentResult.presidentUid}).`,
   );
 
   console.log(
