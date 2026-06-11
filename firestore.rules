@@ -64,11 +64,22 @@ service cloud.firestore {
     function positionsTouched() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(['positions']);
     }
-    // A positions write is well-formed when the writer stamped themselves and either
-    // they are Admin or the assigned cargo confers no power. Comisión power grants are
+    function positionsDelta() {
+      return request.resource.data.get('positions', {})
+        .diff(resource.data.get('positions', {}))
+        .affectedKeys();
+    }
+    // A positions write is well-formed when the ONLY changed term key is the current
+    // one (past terms are read-only for ALL client writes, Admin included — historical
+    // edits are an admin-SDK/console op), the writer stamped themselves, and either they
+    // are Admin or the assigned cargo confers no power. Restricting to the current term
+    // also closes a ride-along: a non-Admin can no longer sneak a power cargo + forged
+    // assignedBy under a different term key in the same write. Comisión power grants are
     // not loop-checkable here — the beacon claims-sync trust gate is their backstop.
     function positionsAssignmentSafe() {
-      return assignedBySelf() && (hasAnyRole(['Admin']) || cargoGrantsEmpty());
+      return positionsDelta().hasOnly([currentTermKey()])
+        && assignedBySelf()
+        && (hasAnyRole(['Admin']) || cargoGrantsEmpty());
     }
 
     function initiativeCreateAllowed() {
