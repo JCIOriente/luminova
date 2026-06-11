@@ -8,7 +8,7 @@ import { PageHeader } from "../components/page-header";
 import { InitiativeForm } from "../components/initiative-form";
 import { InitiativeCard } from "../components/initiative-card";
 import { InitiativeFilters } from "../components/initiative-filters";
-import { currentTermId } from "../lib/current-term";
+import { currentTermKey } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useActivitiesByTerm } from "../features/activities/hooks/use-activities-by-term";
 import { useInitiativesByTerm } from "../features/initiatives/hooks/use-initiatives-by-term";
@@ -32,7 +32,7 @@ function sheetTitle(editing: Editing): string {
 }
 
 function InitiativesPage() {
-  const termId = currentTermId();
+  const termId = currentTermKey();
   const ability = useAbility();
   const navigate = useNavigate();
   const canReadProgram = ability.can("read", "Program");
