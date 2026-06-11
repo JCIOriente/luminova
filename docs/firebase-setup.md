@@ -310,11 +310,12 @@ to the member's inbox.
   toast instead.
 - **Spanish template / sender name** — Firebase Console → Authentication → Templates →
   Password reset. Customizing the subject line, body, and "From" name is an owner op in
-  the Firebase Console; no code change required.
-- **Email-enumeration protection caveat** — with enumeration protection enabled,
-  `sendPasswordResetEmail` resolves successfully even when no email is dispatched, so the
-  drawer can report "enviada" without delivery. If invites stop arriving, check that
-  setting and prefer the copy-link fallback.
+  the Firebase Console; no code change required. **Still pending** — until completed,
+  members receive the default Firebase template in English.
+- **Email-enumeration protection** — if Firebase Auth's email-enumeration protection is
+  enabled, `sendPasswordResetEmail` resolves without revealing whether the address exists.
+  The invite UI already treats a silent success as "sent" and offers the copy-link fallback.
+  If invites stop arriving, check that setting and prefer the copy-link fallback.
 
 ## App Check (reCAPTCHA v3) & Password Reset
 

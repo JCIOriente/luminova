@@ -7,17 +7,17 @@ import {
   TableRow,
   TableHead,
   TableCell,
-  type BadgeTone,
 } from "@luminova/ui";
 import type { Position, PositionCategory } from "@luminova/types";
 import { RowAction } from "../../../components/row-action";
 import { Can } from "../../../lib/authz/ability-context";
 import { PERMISSION_ROLE_INFO } from "../lib/permission-labels";
+import { CATEGORY_TONE } from "../lib/category-tone";
 
-const CATEGORY_BADGES: Record<PositionCategory, { tone: BadgeTone; label: string }> = {
-  CEL: { tone: "navy", label: "CEL" },
-  JDL: { tone: "teal", label: "JDL" },
-  Comision: { tone: "gray", label: "Comisión" },
+const CATEGORY_LABEL: Record<PositionCategory, string> = {
+  CEL: "CEL",
+  JDL: "JDL",
+  Comision: "Comisión",
 };
 
 function grantsLabel(position: Position): string {
@@ -50,8 +50,8 @@ export function PositionTable({ positions, onEdit, onDeactivate }: PositionTable
             <TableCell className="font-semibold text-ink-1">{position.title}</TableCell>
             <TableCell className="text-ink-2">{position.titleFemale}</TableCell>
             <TableCell>
-              <Badge tone={CATEGORY_BADGES[position.category].tone}>
-                {CATEGORY_BADGES[position.category].label}
+              <Badge tone={CATEGORY_TONE[position.category]}>
+                {CATEGORY_LABEL[position.category]}
               </Badge>
             </TableCell>
             <TableCell className="text-ink-2 tabular-nums">{position.term ?? "—"}</TableCell>

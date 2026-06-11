@@ -152,6 +152,51 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("u", ["Treasury"]), "members/new3"), { name: "B", totalPoints: 0 }),
     );
   });
+  it("BLOCKING: denies Membership creating with a forged assignedBy + power cargo (escalation on create)", async () => {
+    await assertFails(
+      setDoc(doc(as("mem-uid", ["Membership"]), "members/new_evil"), {
+        name: "Evil",
+        totalPoints: 0,
+        positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-victim-uid" } },
+      }),
+    );
+  });
+  it("denies setting uid on create (uid is admin-SDK only)", async () => {
+    await assertFails(
+      setDoc(doc(as("mem-uid", ["Membership"]), "members/new_uid"), {
+        name: "X",
+        totalPoints: 0,
+        uid: "mem-uid",
+      }),
+    );
+  });
+  it("denies Membership creating with a power cargo even when self-stamped", async () => {
+    await assertFails(
+      setDoc(doc(as("mem-uid", ["Membership"]), "members/new_pow"), {
+        name: "X",
+        totalPoints: 0,
+        positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "mem-uid" } },
+      }),
+    );
+  });
+  it("allows Membership creating with self assignedBy + empty-grants cargo", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("mem-uid", ["Membership"]), "members/new_ok"), {
+        name: "X",
+        totalPoints: 0,
+        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "mem-uid" } },
+      }),
+    );
+  });
+  it("allows Admin creating with a power cargo + self assignedBy", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("admin-uid", ["Admin"]), "members/new_admin"), {
+        name: "X",
+        totalPoints: 0,
+        positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
+      }),
+    );
+  });
   it("denies client mutation of totalPoints on update", async () => {
     await assertFails(updateDoc(doc(as("u", ["Membership"]), "members/m1"), { totalPoints: 99 }));
   });
@@ -637,26 +682,116 @@ describe("firestore.rules — positions", () => {
   });
 });
 
-describe("firestore.rules — member positions by ExecutiveCommittee", () => {
-  it("allows a positions-only update", async () => {
+// Rules derive the term from request.time.year() (UTC); compute it from the client
+// clock so this suite can't rot when the calendar year rolls over.
+const TERM = String(new Date().getUTCFullYear());
+
+describe("firestore.rules — member positions assignment", () => {
+  it("allows ExecutiveCommittee to assign an empty-grants cargo with self assignedBy", async () => {
     await assertSucceeds(
-      updateDoc(doc(as("u", ["ExecutiveCommittee"]), "members/m_positions"), {
-        positions: { "2026": { cargoId: "pos1", comisionIds: [] } },
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" } },
       }),
     );
   });
-  it("denies touching other fields", async () => {
+  it("denies ExecutiveCommittee assigning a power-conferring cargo (Treasury)", async () => {
     await assertFails(
-      updateDoc(doc(as("u", ["ExecutiveCommittee"]), "members/m_positions"), {
-        positions: { "2026": { cargoId: "pos1", comisionIds: [] } },
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "exec-uid" } },
+      }),
+    );
+  });
+  it("BLOCKING: denies Membership assigning a power-conferring cargo", async () => {
+    await assertFails(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "mem-uid" } },
+      }),
+    );
+  });
+  it("allows Admin to assign a power-conferring cargo", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
+      }),
+    );
+  });
+  it("denies a forged assignedBy (not the caller's uid)", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "someone-else" } },
+      }),
+    );
+  });
+  it("denies ExecutiveCommittee touching non-position fields", async () => {
+    await assertFails(
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" } },
         name: "Hacked",
       }),
     );
   });
-  it("allows a dot-path positions update (production write shape)", async () => {
+  it("still allows Membership to edit non-position fields without assignedBy", async () => {
     await assertSucceeds(
-      updateDoc(doc(as("u", ["ExecutiveCommittee"]), "members/m_positions"), {
-        "positions.2027": { cargoId: "pos1", comisionIds: [] },
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), { name: "Renamed" }),
+    );
+  });
+  it("denies a forged assignedBy on the ExecutiveCommittee path", async () => {
+    await assertFails(
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "not-exec" } },
+      }),
+    );
+  });
+  it("BLOCKING: denies a non-current-term ride-along power cargo", async () => {
+    // current term is safe (empty-grants, self), but a future term sneaks a power
+    // cargo with a forged assignedBy — must be denied (only current term may change).
+    await assertFails(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), {
+        positions: {
+          [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "mem-uid" },
+          "2099": { cargoId: "pos1", comisionIds: [], assignedBy: "someone-else" },
+        },
+      }),
+    );
+  });
+  it("denies a member setting positions via the self update path", async () => {
+    // members/m1.uid === "owner-uid"; the self rule only allows profilePicture.
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "owner-uid" } },
+      }),
+    );
+  });
+  it("allows a non-Admin to assign a power-conferring comisión (rules pass; beacon trust gate drops the grant)", async () => {
+    // INTENTIONAL: rules cannot iterate comisionIds, so comisión grants are NOT
+    // gated here. The beacon onMemberWritten trust gate honors comisión power
+    // grants only when assignedBy is an Admin (see apps/beacon claims-sync).
+    await assertSucceeds(
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: null, comisionIds: ["pos1"], assignedBy: "exec-uid" } },
+      }),
+    );
+  });
+  it("denies a non-Admin assigning a dangling cargoId (get() on missing position fails closed)", async () => {
+    await assertFails(
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos_ghost", comisionIds: [], assignedBy: "exec-uid" } },
+      }),
+    );
+  });
+  it("allows the production dot-path write shape (EC, current term, empty-grants cargo)", async () => {
+    // setPositions / toMemberUpdateDoc emit positions.<term> dot-paths, not a full
+    // positions map — assert that exact production shape passes the rules.
+    await assertSucceeds(
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" },
+      }),
+    );
+  });
+  it("denies the dot-path shape under a non-current term (past-term immutability)", async () => {
+    await assertFails(
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        "positions.2099": { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" },
       }),
     );
   });

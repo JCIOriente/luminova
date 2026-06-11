@@ -72,7 +72,7 @@ positions?: {
 ```
 
 - One read renders chips and full per-term history; no joins.
-- Legacy `role` string stays during K2/K3 (forms stop writing it); dropped in K4 with a backfill of `positions` from it where feasible.
+- Legacy `role` string stays during K2/K3 (forms stop writing it); dropped outright in K4 — no migration (see K4 Addendum, decision 3).
 - "Who held cargo X in 2024" = client-side filter over members — acceptable at JCI scale (tens of members).
 
 ## Permissions chain
@@ -138,3 +138,87 @@ Order: K1 → K2 → K3 → K4. Each slice its own branch + PR (Conventional Com
 - Branded HTML email (Trigger Email extension) — possible later upgrade, decision recorded above.
 - Gestión metadata entity (themes, non-calendar terms).
 - Spotlight (public site) display of the board — separate feature.
+
+---
+
+# K4 Addendum — Claims sync, edit page, permissions (2026-06-11)
+
+**Status:** Approved (brainstorm round-trip locked the four decisions below).
+**Supersedes** the thin K4 rows in the tables above where they conflict.
+
+## K4 decisions (locked with user)
+
+1. **Trust gate = signed `assignedBy` + trigger re-check (defense in depth).** Firestore triggers carry no actor identity, so escalation is gated on two independent layers — rules at write time, the trigger at claim-compute time.
+2. **History: current term editable, past terms read-only.** Matches the K2 mapper's dot-path write (`positions.<currentTerm>`). No term picker; past gestiones render as a read-only timeline.
+3. **Drop `Member.role` outright — no migration.** Still in development; the dev DB is reseeded rather than migrated. The freeform legacy string is unmappable to catalog ids, so nothing is backfilled. Seed data improves to carry `gender` + `positions`.
+4. **Claim authority: positions own org roles; preserve Scanner.** The trigger sets `roles = ['Member', ...trustedGrants]` and additionally re-adds `Scanner` (+ `scannerEventIds`) when previously present. All org roles (Admin/Membership/Treasury/ExecutiveCommittee/ProjectManager) flow only from positions; `Scanner` stays event-scoped via `setUserRoles`.
+
+## Data model change
+
+`TermPositions` gains an audit field:
+
+```ts
+interface TermPositions {
+  cargoId: string | null
+  comisionIds: string[]
+  assignedBy?: string   // uid of the writer of THIS term's assignment
+}
+```
+
+- Optional on read: pre-K4 (K2) docs lack it → the trigger treats a missing `assignedBy` as **untrusted** (drops power-conferring grants). Safe default.
+- The member mapper stamps `assignedBy = <current uid>` into the current-term object on every positions write.
+- `Member.role` is removed from the type, the Zod schema, the mapper, the table/filter/display, and seed data.
+
+## Beacon trigger — `onMemberWritten`
+
+`onDocumentWritten('members/{id}')` in `apps/beacon` (exported from `index.ts`; esbuild already bundles `@luminova/*`).
+
+Algorithm:
+
+1. If `after` missing (delete) or `after.uid` absent (not provisioned → no Auth user) → no-op.
+2. Resolve current term (`currentTermKey()`); read `after.positions[term]` → `cargoId` + `comisionIds`.
+3. Load referenced positions from the `positions` collection (admin SDK). Union their `grants`.
+4. **Trust gate:** for any assigned position whose `grants` is non-empty, resolve the assignment's `assignedBy` via `auth.getUser(assignedBy)`; honor those grants only if that uid's claims include `Admin`. Missing / non-Admin `assignedBy` → drop that position's grants. Empty-grant comisiones are always honored (confer nothing).
+5. Read existing custom claims; compute `roles = unique(['Member', ...trustedGrants, ...(existing Scanner ? ['Scanner'] : [])])`; preserve `scannerEventIds`.
+6. If computed claims deep-equal existing → no-op (idempotent, avoids churn and re-fires). Else `setCustomUserClaims(uid, next)`.
+
+- **No write back to the member doc** → the trigger cannot retrigger itself (no loop).
+- A pure helper `computeMemberRoles({ grants, hadScanner, existingRoles })` holds the set logic and is unit-tested without the SDK; the SDK-bound trust lookup is tested via the emulator.
+- **Required e2e (emulator):** *Membership assigns Presidente cargo → trigger drops the Admin grant → claims stay `['Member']` (no Admin).*
+
+## firestore.rules
+
+On the `members` update paths that allow touching `positions` (Membership full-update and the K2 ExecutiveCommittee positions-only path):
+
+- When `positions` is in `affectedKeys`, require the current-term object's `assignedBy == request.auth.uid` (no impersonation).
+- Non-Admin callers may only assign a cargo whose catalog `grants` is empty: `get(/databases/$(database)/documents/positions/$(cargoId)).data.grants.size() == 0`. Assigning a power-conferring cargo is denied for non-Admin. The Admin path is unrestricted.
+
+This makes the permissions panel's catalog-derived view **truthful** (only an Admin can have assigned a power cargo), so the trigger's `assignedBy` re-check is the redundant second layer rather than the sole guard.
+
+## provisionMemberLogin alignment
+
+No logic fight: it keeps bootstrapping `['Member']` (merged, preserving existing claims). Its `uid`-linkage write fires `onMemberWritten`, which immediately recomputes from positions — a pre-assigned Presidenta self-heals to her full claims on first provision. Same `['Member', ...]` base on both sides.
+
+## UI — member edit page
+
+`_app.members_.$memberId.tsx` grows from read-only profile to:
+
+- **Edit form** — reuse `MemberForm`; edits current-term cargo + comisiones (+ personal fields). ExecutiveCommittee sees a positions-only variant (rule tier already live from K2); everything else read-only for them.
+- **History timeline** — past terms, read-only, resolved gendered labels (`positionTitle` + positions map), newest first.
+- **Permissions panel** — union of current-term grants → roles → `PERMISSION_ROLE_INFO` `{ label, description }` list (+ base *Miembro*). Client-pure derivation from CASL + labels; no second permissions system, no callable.
+- `frontend-design` → `ui-ux-pro-max` run for this page's visual layer.
+
+## Members table + filter
+
+- Cargo cell → category-colored `Badge` chips (CEL `navy` / JDL `teal` / Comisión `gray`) via `memberPositionLabel` + positions map.
+- Filter search matches `name + email + resolvedCargoLabel` (legacy `role` removed from the match string).
+
+## Known limitation (documented)
+
+An affected member's new claims surface on their next ID-token refresh / re-login. No proactive force-refresh — you cannot refresh another user's token anyway, and the assigner is a different user than the assignee. Recorded as accepted.
+
+## K4 gates
+
+- Emulator e2e for the trigger (the escalation test above + assign→claim, remove→revoke, idempotent re-run).
+- `/security-review` + `firebase-functions-reviewer` + `firestore-security-reviewer` before the PR (functions + rules touched).
+- Rules suite via `pnpm --filter @luminova/firestore-rules-tests run test:run`; `turbo run ci` minus emulator suites (running emulators race `pnpm pr-tests`).

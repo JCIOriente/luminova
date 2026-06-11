@@ -8,7 +8,6 @@ function member(id: string, name: string, extra: Partial<Member> = {}): Member {
     id,
     name,
     email: `${id}@x.bo`,
-    role: "Miembro",
     joinDate: Timestamp.fromDate(new Date("2020-01-01T00:00:00Z")),
     birthdate: Timestamp.fromDate(new Date("1990-01-01T00:00:00Z")),
     status: "Activo",

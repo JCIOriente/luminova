@@ -33,9 +33,9 @@ const ADMIN = { uid: "admin", email: "admin@jci.test", password: "Secret1" };
 
 // --- Members (current shape: joinDate/birthdate/status required) ---
 const members = [
-  { id: "m1", name: "Ana Rivas", email: "ana@example.com", role: "Presidenta", totalPoints: 13 },
-  { id: "m2", name: "Bruno Paz", email: "bruno@example.com", role: "Secretario", totalPoints: 7 },
-  { id: "m3", name: "Carla Soto", email: "carla@example.com", role: "Tesorera", totalPoints: 4 },
+  { id: "m1", name: "Ana Rivas", email: "ana@example.com", totalPoints: 13 },
+  { id: "m2", name: "Bruno Paz", email: "bruno@example.com", totalPoints: 7 },
+  { id: "m3", name: "Carla Soto", email: "carla@example.com", totalPoints: 4 },
 ].map((m) => ({
   ...m,
   ...(m.id === "m1" ? { uid: ADMIN.uid } : {}),

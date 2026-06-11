@@ -31,11 +31,16 @@ function editableFields(data: MemberInput) {
 }
 
 /** New member document: editable fields + system defaults. */
-export function toMemberCreateDoc(data: MemberInput, termKey = currentTermKey()) {
+export function toMemberCreateDoc(
+  data: MemberInput,
+  assignedBy: string,
+  termKey = currentTermKey(),
+) {
   return {
     ...editableFields(data),
-    role: "",
-    positions: { [termKey]: { cargoId: data.cargoId, comisionIds: data.comisionIds } },
+    positions: {
+      [termKey]: { cargoId: data.cargoId, comisionIds: data.comisionIds, assignedBy },
+    },
     profilePicture: null,
     totalPoints: 0,
     active: true,
@@ -48,9 +53,13 @@ type UpdateDoc = ReturnType<typeof editableFields> & Record<`positions.${string}
 /** Update payload: editable fields + dot-path term slot.
  *  Dot-path keeps other terms' history intact without a read-modify-write.
  *  The slot is written even when empty — clearing a cargo must overwrite it. */
-export function toMemberUpdateDoc(data: MemberInput, termKey = currentTermKey()): UpdateDoc {
+export function toMemberUpdateDoc(
+  data: MemberInput,
+  assignedBy: string,
+  termKey = currentTermKey(),
+): UpdateDoc {
   return {
     ...editableFields(data),
-    [`positions.${termKey}`]: { cargoId: data.cargoId, comisionIds: data.comisionIds },
+    [`positions.${termKey}`]: { cargoId: data.cargoId, comisionIds: data.comisionIds, assignedBy },
   } as UpdateDoc;
 }

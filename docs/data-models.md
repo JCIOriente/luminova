@@ -44,17 +44,18 @@ interface Member {
   email: string               // valid email
   phone?: string              // optional
   gender?: 'Masculino' | 'Femenino'  // used to pick Position.titleFemale for display
-  role: string                // legacy display fallback until K4 (role string kept while positions field is adopted)
   profession?: string         // optional
   joinDate: Timestamp         // membership start date (required)
   birthdate: Timestamp        // required
   status: 'Activo' | 'Inactivo' | 'Desafiliado'  // membership standing (default 'Activo')
   profilePicture: string | null  // Firebase Storage URL or null (upload deferred — set null on create)
   totalPoints: number         // default: 0 — updated by aggregation
+  uid?: string                // linked Firebase Auth uid — set by provisionMemberLogin (admin SDK); absent until invited; immutable once set
   positions?: {               // one cargo + N comisiones per term; key = calendar year string
     [term: string]: {
       cargoId: string | null    // single CEL/JDL assignment for the term (null = none)
       comisionIds: string[]     // any number of Comision assignments
+      assignedBy?: string       // uid of whoever wrote this term's assignment (K4+)
     }
   }
   active: boolean             // default: true — false = soft deleted
@@ -66,7 +67,11 @@ interface Member {
 flag (a deleted row is hidden from the list). `status` is editable membership
 standing — a `Desafiliado` member is **not** deleted and still appears in the list.
 
-**`positions` map**: dot-path field updates (`positions.2026.cargoId`) preserve history across terms. The term key is the calendar year string (e.g. `"2026"`). Legacy `role` string is kept as a display fallback until K4 lands custom claims sync.
+**`positions` map**: dot-path field updates (`positions.2026.cargoId`) preserve history across terms. The term key is the calendar year string (e.g. `"2026"`).
+
+**`assignedBy`**: the uid of whoever wrote the term's assignment. The beacon `onMemberWritten` trigger uses it as a trust gate: power-conferring grants (`Position.grants` non-empty) are included in the recomputed `roles` custom claim only when `assignedBy` is an Admin. Absent on pre-K4 docs → treated as untrusted (power grants dropped; member receives only `['Member']`).
+
+**Custom claims (`roles`)**: recomputed by the beacon `onMemberWritten` trigger (`onDocumentWritten('members/{id}')`) on every member write. The result is `['Member', ...trusted current-term grants]` in canonical `ROLES` order. An existing `Scanner` role (event-scoped, set by `setUserRoles`) is preserved and `scannerEventIds` carried through unchanged. Only applies to provisioned members (`uid` present).
 
 **Soft delete**: Never hard-delete members. Set `active: false` and `deletedAt: serverTimestamp()`.
 
@@ -172,7 +177,7 @@ interface MemberPoints {
 
 | Collection | Read | Create / Update | Delete |
 |---|---|---|---|
-| `members` | signed-in | Admin, or ExecutiveCommittee (positions-only fields) | never (soft-delete only) |
+| `members` | Admin / Membership / Treasury / ExecutiveCommittee, or self (own `uid`) | Admin/Membership (general); ExecutiveCommittee (positions-only); self (profilePicture only) | never (soft-delete only) |
 | `positions` | signed-in | Admin, or ExecutiveCommittee with empty/unchanged `grants` | never (soft-delete only) |
 | `events` | signed-in | signed-in | signed-in |
 | `pointRules` | signed-in | Admin only | never |
@@ -181,9 +186,16 @@ interface MemberPoints {
 | `*` | deny | deny | deny |
 
 > **members write rules (three tiers):**
-> 1. Admin — full write.
-> 2. ExecutiveCommittee — may update their own `positions.*` fields only (no status, no grants).
-> 3. Self — profile fields (phone, profession, birthdate, profilePicture) only.
+> 1. Admin / Membership — full update (excluding `totalPoints` and `uid`, which are immutable from client writes).
+> 2. ExecutiveCommittee — may update only the `positions` map; all other fields must be unchanged.
+> 3. Self — may update only `profilePicture` (own doc via matching `uid`).
+>
+> **Positions-update constraints (all tiers):** any write touching `positions` must satisfy `positionsAssignmentSafe()`:
+> - Only the **current term key** (`string(request.time.year())`) may change — past terms are read-only for all client writes (admin-SDK/console for historical corrections).
+> - `positions.<currentTerm>.assignedBy` must equal `request.auth.uid` (writer stamps themselves).
+> - Non-Admin writers may only assign a cargo whose `grants` array is empty (no power conferral); Admin is unrestricted.
+> - These constraints close the "ride-along" attack where a non-Admin sneaks a power cargo under a different term key in the same write.
+> - Comisión `grants` are not loop-checkable in rules — the beacon claims-sync trust gate is their backstop.
 >
 > **positions write rule:** Admin may write any field including `grants`. ExecutiveCommittee may create/update only when `grants` is empty or unchanged — prevents self-escalation.
 

@@ -9,8 +9,8 @@ import {
   type Position,
 } from "@luminova/types";
 import { MemberForm } from "./member-form";
-import { dateInputValue } from "../repositories/member-mapper";
 import { joinYear, memberPositionLabel } from "../lib/member-display";
+import { memberFormDefaults } from "../lib/member-form-defaults";
 import { useMemberPhoto } from "../hooks/use-member-photo";
 import { Can } from "../../../lib/authz/ability-context";
 
@@ -29,22 +29,6 @@ const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
   Inactivo: "gray",
   Desafiliado: "red",
 };
-
-function toFormInput(member: Member): Partial<MemberInput> {
-  const term = member.positions?.[currentTermKey()];
-  return {
-    name: member.name,
-    email: member.email,
-    phone: member.phone ?? "",
-    gender: member.gender,
-    profession: member.profession ?? "",
-    joinDate: member.joinDate ? dateInputValue(member.joinDate) : "",
-    birthdate: member.birthdate ? dateInputValue(member.birthdate) : "",
-    status: member.status,
-    cargoId: term?.cargoId ?? null,
-    comisionIds: term?.comisionIds ?? [],
-  };
-}
 
 function Detail({ label, value }: { label: string; value: string | number }) {
   return (
@@ -143,7 +127,7 @@ function EditBody({
       <MemberForm
         key={member.id}
         positions={positions}
-        defaultValues={toFormInput(member)}
+        defaultValues={memberFormDefaults(member)}
         submitLabel="Guardar"
         onSubmit={onSubmit}
       />

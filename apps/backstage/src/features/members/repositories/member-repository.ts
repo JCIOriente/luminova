@@ -11,11 +11,15 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import { MEMBER_STATUSES, type Member, type MemberInput } from "@luminova/types";
+import { currentTermKey, MEMBER_STATUSES, type Member, type MemberInput } from "@luminova/types";
 import { toMemberCreateDoc, toMemberUpdateDoc } from "./member-mapper";
 
 export class MemberRepository {
   private readonly collection = collection(getFirebase().db, "members");
+
+  private currentUid(): string {
+    return getFirebase().auth.currentUser?.uid ?? "";
+  }
 
   /** Active (non-soft-deleted) members, sorted by name. */
   async getAll(): Promise<Member[]> {
@@ -43,12 +47,24 @@ export class MemberRepository {
   }
 
   async create(data: MemberInput): Promise<string> {
-    const ref = await addDoc(this.collection, toMemberCreateDoc(data));
+    const ref = await addDoc(this.collection, toMemberCreateDoc(data, this.currentUid()));
     return ref.id;
   }
 
   async update(id: string, data: MemberInput): Promise<void> {
-    await updateDoc(doc(this.collection, id), toMemberUpdateDoc(data));
+    await updateDoc(doc(this.collection, id), toMemberUpdateDoc(data, this.currentUid()));
+  }
+
+  /** ExecutiveCommittee org-chart edit: writes ONLY the current term's assignment
+   *  (dot-path) so the positions-only rule path applies. */
+  async setPositions(
+    id: string,
+    assignment: { cargoId: string | null; comisionIds: string[] },
+    termKey = currentTermKey(),
+  ): Promise<void> {
+    await updateDoc(doc(this.collection, id), {
+      [`positions.${termKey}`]: { ...assignment, assignedBy: this.currentUid() },
+    });
   }
 
   /** Set or clear the profile photo URL. Its own action — never part of the form submit. */

@@ -13,7 +13,6 @@ const m: Member = {
   id: "1",
   name: "Ana Gómez",
   email: "ana@j.bo",
-  role: "Tesorera",
   gender: "Femenino",
   joinDate: Timestamp.fromDate(new Date("2021-01-01T00:00:00Z")),
   birthdate: Timestamp.fromDate(new Date("1990-01-01T00:00:00Z")),
@@ -72,7 +71,7 @@ describe("MemberDrawer view mode", () => {
     expect(onEditMode).toHaveBeenCalled();
   });
 
-  it("shows phone and profession labels and the legacy role as cargo", () => {
+  it("shows phone and profession labels and falls back to Miembro when no cargo is set", () => {
     render(
       <AbilityProvider claims={{ roles: ["Admin"] }} uid="admin">
         <MemberDrawer
@@ -89,7 +88,7 @@ describe("MemberDrawer view mode", () => {
     expect(screen.getByText("Teléfono")).toBeInTheDocument();
     expect(screen.getByText("Profesión")).toBeInTheDocument();
     expect(screen.getByText("Cargo")).toBeInTheDocument();
-    expect(screen.getByText("Tesorera")).toBeInTheDocument();
+    expect(screen.getByText("Miembro")).toBeInTheDocument();
   });
 
   it("shows gendered cargo and comisión chips when assignments exist", () => {

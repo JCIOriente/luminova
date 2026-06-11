@@ -24,7 +24,7 @@ export function joinYear(joinDate: Timestamp): number {
   return joinDate.toDate().getUTCFullYear();
 }
 
-type LabelSource = Pick<Member, "role"> & {
+type LabelSource = {
   gender?: MemberGender;
   positions?: Member["positions"];
 };
@@ -36,8 +36,7 @@ export function memberPositionLabel(
 ): string {
   const cargoId = member.positions?.[termKey]?.cargoId;
   const cargo = cargoId ? positionsById.get(cargoId) : undefined;
-  if (cargo) return positionTitle(cargo, member.gender);
-  return member.role || "Miembro";
+  return cargo ? positionTitle(cargo, member.gender) : "Miembro";
 }
 
 type GenderedAction = "deactivated" | "reactivated" | "disaffiliated" | "deleted" | "created";

@@ -5,10 +5,11 @@ import { Timestamp } from "firebase/firestore";
 import type { ReactElement } from "react";
 import { MemberTable } from "./member-table";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
-import type { Member } from "@luminova/types";
+import { currentTermKey, type Member, type Position } from "@luminova/types";
 
 const noop = {
-  roleLabel: (m: Member) => m.role || "Miembro",
+  roleLabel: () => "Miembro",
+  positionsById: new Map<string, Position>(),
   onView: vi.fn(),
   onEdit: vi.fn(),
   onProvision: vi.fn(),
@@ -28,7 +29,6 @@ const member: Member = {
   id: "m1",
   name: "Ana Pérez",
   email: "ana@jci.bo",
-  role: "Presidenta",
   joinDate: Timestamp.fromDate(new Date("2021-03-01T00:00:00Z")),
   birthdate: Timestamp.fromDate(new Date("1992-07-01T00:00:00Z")),
   status: "Activo",
@@ -78,5 +78,37 @@ describe("MemberTable", () => {
     expect(screen.queryByText("Editar miembro")).toBeNull();
     expect(screen.queryByText("Eliminar miembro")).toBeNull();
     expect(screen.queryByText("Desactivar")).toBeNull();
+  });
+
+  it("renders a gendered cargo chip when positionsById has the member's cargo", () => {
+    const position: Position = {
+      id: "p1",
+      title: "Tesorero",
+      titleFemale: "Tesorera",
+      category: "CEL",
+      grants: [],
+      term: null,
+      description: "",
+      active: true,
+      deletedAt: null,
+    };
+    const positionsById = new Map<string, Position>([["p1", position]]);
+    const memberWithCargo: Member = {
+      ...member,
+      gender: "Masculino",
+      positions: { [currentTermKey()]: { cargoId: "p1", comisionIds: [] } },
+    };
+    renderAsAdmin(
+      <MemberTable members={[memberWithCargo]} pageSize={8} {...noop} positionsById={positionsById} />,
+    );
+    expect(screen.getByText("Tesorero")).toBeInTheDocument();
+  });
+
+  it("renders a Miembro chip in the cargo cell when the member has no assignment", () => {
+    renderAsAdmin(<MemberTable members={[member]} pageSize={8} {...noop} />);
+    const rows = screen.getAllByRole("row");
+    const dataRow = rows.find((r) => within(r).queryByText("Ana Pérez") !== null);
+    expect(dataRow).toBeDefined();
+    expect(within(dataRow!).getByText("Miembro")).toBeInTheDocument();
   });
 });
