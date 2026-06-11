@@ -1,4 +1,5 @@
 import type { Timestamp } from "./timestamp.js";
+import type { Photo } from "./initiative.js";
 
 export const ACTIVITY_CATEGORIES = [
   "Assembly",
@@ -15,10 +16,10 @@ export type ActivityStatus = (typeof ACTIVITY_STATUSES)[number];
 
 export type InitiativeKind = "Program" | "Project";
 
-/** Activity-level direction (may differ from the parent initiative roster). */
+/** Activity-level direction (informational on parented activities — awards nothing; see spec decision 9). */
 export interface ActivityOrganizers {
   directorId: string | null;
-  coDirectorId: string | null;
+  coDirectorIds: string[];
 }
 
 /**
@@ -28,10 +29,14 @@ export interface ActivityOrganizers {
 export interface Activity {
   id: string;
   termId: string;
+  title: string;
+  description: string | null;
   category: ActivityCategory;
   parentType: InitiativeKind | null;
   parentId: string | null;
   organizers: ActivityOrganizers;
   startAt: Timestamp;
+  endAt: Timestamp | null;
+  photos: Photo[];
   status: ActivityStatus;
 }

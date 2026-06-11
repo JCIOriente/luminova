@@ -11,7 +11,10 @@ import {
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
 import type { Project, ProjectInput } from "@luminova/types";
-import { toProjectCreateDoc, toProjectUpdateDoc } from "./project-mapper";
+import {
+  toInitiativeCreateDoc,
+  toInitiativeUpdateDoc,
+} from "../../initiatives/repositories/initiative-mapper";
 
 export class ProjectRepository {
   private readonly collection = collection(getFirebase().db, "projects");
@@ -30,12 +33,12 @@ export class ProjectRepository {
   }
 
   async create(data: ProjectInput, termId: string): Promise<string> {
-    const ref = await addDoc(this.collection, toProjectCreateDoc(data, termId));
+    const ref = await addDoc(this.collection, toInitiativeCreateDoc(data, termId));
     return ref.id;
   }
 
   async update(id: string, data: ProjectInput): Promise<void> {
-    await updateDoc(doc(this.collection, id), toProjectUpdateDoc(data));
+    await updateDoc(doc(this.collection, id), toInitiativeUpdateDoc(data));
   }
 
   /** File the director's final report — the engine confirmation gate. */

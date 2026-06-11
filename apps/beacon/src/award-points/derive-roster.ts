@@ -9,8 +9,10 @@ export function desiredRosterRoles(
 ): { memberId: string; role: RosterRole }[] {
   const out: { memberId: string; role: RosterRole }[] = [];
   if (roster.directorId) out.push({ memberId: roster.directorId, role: "Director" });
-  if (roster.coDirectorId) out.push({ memberId: roster.coDirectorId, role: "CoDirector" });
-  for (const id of roster.teamIds ?? []) {
+  for (const id of roster.coDirectorIds) {
+    if (id) out.push({ memberId: id, role: "CoDirector" });
+  }
+  for (const id of roster.teamIds) {
     if (id) out.push({ memberId: id, role: "Team" });
   }
   return out;

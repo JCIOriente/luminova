@@ -59,7 +59,7 @@ function initiativeTrigger(collection: "programs" | "projects") {
         event.params.id,
         {
           termId: prev?.termId ?? "",
-          roster: { directorId: "", coDirectorId: null, teamIds: [] },
+          roster: { directorId: "", coDirectorIds: [], teamIds: [] },
           reportFiled: false,
           filedAtMillis: null,
         },

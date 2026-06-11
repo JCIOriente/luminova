@@ -1,7 +1,15 @@
 import { useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Field, Input, Select, Combobox, type ComboboxOption } from "@luminova/ui";
+import {
+  Button,
+  Field,
+  Input,
+  Select,
+  Combobox,
+  MultiSelect,
+  type ComboboxOption,
+} from "@luminova/ui";
 import { activitySchema, type ActivityInput, ACTIVITY_CATEGORIES } from "@luminova/types";
 import { CATEGORY_LABELS } from "../category-labels";
 import { ParentPicker } from "./parent-picker";
@@ -19,12 +27,15 @@ interface ActivityFormProps {
 }
 
 const EMPTY: ActivityInput = {
+  title: "",
+  description: "",
   category: "Assembly",
   parentType: null,
   parentId: null,
   startAt: "",
+  endAt: null,
   directorId: null,
-  coDirectorId: null,
+  coDirectorIds: [],
 };
 
 export function ActivityForm({
@@ -61,6 +72,9 @@ export function ActivityForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
+      <Field label="Título" htmlFor="title" required error={errors.title?.message}>
+        <Input id="title" {...register("title")} />
+      </Field>
       <Field label="Categoría" htmlFor="category" required error={errors.category?.message}>
         <Select id="category" disabled={locked} {...register("category")}>
           {ACTIVITY_CATEGORIES.map((c) => (
@@ -117,17 +131,17 @@ export function ActivityForm({
           )}
         />
       </Field>
-      <Field label="Codirector" htmlFor="coDirector" error={errors.coDirectorId?.message}>
+      <Field label="Codirectores" htmlFor="coDirectors" error={errors.coDirectorIds?.message}>
         <Controller
           control={control}
-          name="coDirectorId"
+          name="coDirectorIds"
           render={({ field }) => (
-            <Combobox
-              id="coDirector"
+            <MultiSelect
+              id="coDirectors"
               options={memberOptions}
               value={field.value}
               onChange={field.onChange}
-              placeholder="Elegir codirector (opcional)"
+              placeholder="Elegir codirectores (opcional)"
             />
           )}
         />

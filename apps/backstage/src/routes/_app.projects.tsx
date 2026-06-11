@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Button, Sheet, Dialog, Icon, EmptyState } from "@luminova/ui";
 import type { ComboboxOption } from "@luminova/ui";
 import type { Project, ProjectInput } from "@luminova/types";
+import { initiativeToInput } from "../features/initiatives/repositories/initiative-mapper";
 import { Can } from "../lib/authz/ability-context";
 import { PageHeader } from "../components/page-header";
 import { InitiativeForm } from "../components/initiative-form";
@@ -18,10 +19,6 @@ import { useFileProjectReport } from "../features/projects/hooks/use-file-projec
 export const Route = createFileRoute("/_app/projects")({ component: ProjectsPage });
 
 type Editing = Project | "new" | null;
-
-function projectToInput(p: Project): Partial<ProjectInput> {
-  return { title: p.title, roster: p.roster, status: p.status };
-}
 
 function ProjectsPage() {
   const termId = currentTermId();
@@ -102,7 +99,7 @@ function ProjectsPage() {
           <InitiativeForm
             key={editing === "new" ? "new" : editing.id}
             memberOptions={memberOptions}
-            defaultValues={editing === "new" ? undefined : projectToInput(editing)}
+            defaultValues={editing === "new" ? undefined : initiativeToInput(editing)}
             submitLabel={editing === "new" ? "Crear" : "Guardar"}
             isSaving={create.isPending || update.isPending}
             onSubmit={(data) => void handleSubmit(data)}

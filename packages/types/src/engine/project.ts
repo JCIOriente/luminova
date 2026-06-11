@@ -1,11 +1,4 @@
-import type { FinalReport, InitiativeRoster, InitiativeStatus } from "./initiative.js";
+import type { InitiativeCore } from "./initiative.js";
 
-/** Project — distinct from Program. Engine-minimal; the rich dossier model is C1. */
-export interface Project {
-  id: string;
-  termId: string;
-  title: string;
-  roster: InitiativeRoster;
-  finalReport: FinalReport | null;
-  status: InitiativeStatus;
-}
+/** Project — distinct from Program. Dossier fields (C2) still pending award criteria. */
+export type Project = InitiativeCore;

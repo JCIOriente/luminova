@@ -22,11 +22,44 @@ service cloud.firestore {
         && (resource.data.active == true || unchanged('active'));
     }
 
+    // Missing-key-safe comparison (docs created before a field existed).
+    function unchangedOrAbsent(field) {
+      return request.resource.data.get(field, null) == resource.data.get(field, null);
+    }
+    // The initiative's direction: director + co-directors, mirrored to uids by beacon.
+    function isDirection() {
+      return signedIn() && request.auth.uid in resource.data.get('directionUids', []);
+    }
+    // directionUids is beacon-written; termId is immutable; once the final report
+    // is filed the completion trio (finalReport/status/impact) is locked — clearing
+    // the report would silently un-confirm awarded points.
+    function initiativeWriteSafe() {
+      return unchangedOrAbsent('directionUids')
+        && unchangedOrAbsent('termId')
+        && (resource.data.get('finalReport', null) == null
+            || (unchangedOrAbsent('finalReport')
+                && unchangedOrAbsent('status')
+                && unchangedOrAbsent('impact')));
+    }
+
+    function initiativeCreateAllowed() {
+      return hasAnyRole(['Admin', 'ProjectManager'])
+        && request.resource.data.get('directionUids', []) == []
+        && request.resource.data.get('finalReport', null) == null
+        && request.resource.data.get('impact', null) == null
+        && request.resource.data.get('status', '') != 'Finalizado';
+    }
+    function initiativeUpdateAllowed() {
+      return (hasAnyRole(['Admin', 'ProjectManager']) || isDirection())
+        && initiativeWriteSafe();
+    }
+
     match /projects/{projectId} {
       // D1 added member-id rosters to projects; restrict to signed-in (was public).
       // C4's Spotlight projection will expose curated public fields, not raw docs.
       allow read: if signedIn();
-      allow create, update: if hasAnyRole(['Admin', 'ProjectManager']);
+      allow create: if initiativeCreateAllowed();
+      allow update: if initiativeUpdateAllowed();
       allow delete: if false;
     }
 
@@ -86,7 +119,8 @@ service cloud.firestore {
 
     match /programs/{programId} {
       allow read: if signedIn();
-      allow create, update: if hasAnyRole(['Admin', 'ProjectManager']);
+      allow create: if initiativeCreateAllowed();
+      allow update: if initiativeUpdateAllowed();
       allow delete: if false;
     }
 

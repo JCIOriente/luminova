@@ -51,10 +51,14 @@ async function main() {
   // Assembly starting now → Attendee within 15 min → punctuality factor 1.
   await db.doc(`activities/${ACTIVITY}`).set({
     termId: TERM,
+    title: "E2E ejecución",
+    description: null,
     category: "Assembly",
     parentType: null,
     parentId: null,
-    organizers: { directorId: null, coDirectorId: null },
+    organizers: { directorId: null, coDirectorIds: [] },
+    endAt: null,
+    photos: [],
     startAt: FieldValue.serverTimestamp(),
     status: "Programada",
   });

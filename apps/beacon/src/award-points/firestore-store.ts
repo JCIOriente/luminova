@@ -26,7 +26,9 @@ export function parseInitiativeWrite(data: unknown): InitiativeWrite | null {
 
   const r = (raw.roster ?? {}) as Record<string, unknown>;
   const directorId = isCleanId(r.directorId) ? r.directorId : "";
-  const coDirectorId = isCleanId(r.coDirectorId) ? r.coDirectorId : null;
+  const coDirectorIds = Array.isArray(r.coDirectorIds)
+    ? [...new Set(r.coDirectorIds.filter(isCleanId))]
+    : [];
   const teamIds = Array.isArray(r.teamIds) ? r.teamIds.filter(isCleanId) : [];
 
   const finalReport = raw.finalReport as { filedAt?: unknown } | null | undefined;
@@ -34,7 +36,7 @@ export function parseInitiativeWrite(data: unknown): InitiativeWrite | null {
   const filedAtMillis =
     reportFiled && hasToMillis(finalReport!.filedAt) ? finalReport!.filedAt.toMillis() : null;
 
-  return { termId, roster: { directorId, coDirectorId, teamIds }, reportFiled, filedAtMillis };
+  return { termId, roster: { directorId, coDirectorIds, teamIds }, reportFiled, filedAtMillis };
 }
 
 /** Parse a Firestore activity doc into an ActivityRef, or null if the required fields are malformed. */
@@ -110,6 +112,34 @@ export function createFirestoreStore(db: Firestore): EngineStore {
       await db
         .doc(`members/${memberId}`)
         .set({ totalPoints: aggregate.cumulative }, { merge: true });
+    },
+    async getMemberUids(memberIds) {
+      if (memberIds.length === 0) return [];
+      const snaps = await db.getAll(...memberIds.map((id) => db.doc(`members/${id}`)));
+      return snaps
+        .map((snap) => (snap.exists ? (snap.data() as { uid?: unknown; active?: unknown }) : null))
+        .filter(
+          (data): data is { uid: string; active: true } =>
+            data !== null &&
+            data.active === true &&
+            typeof data.uid === "string" &&
+            data.uid.length > 0,
+        )
+        .map((data) => data.uid);
+    },
+    async setInitiativeDirectionUids(parentType, parentId, uids) {
+      const collection = parentType === "Program" ? "programs" : "projects";
+      const ref = db.doc(`${collection}/${parentId}`);
+      const snap = await ref.get();
+      if (!snap.exists) return; // deleted initiative — nothing to mirror
+      const sorted = [...uids].sort();
+      const current = (snap.data() as { directionUids?: unknown }).directionUids;
+      const same =
+        Array.isArray(current) &&
+        current.length === sorted.length &&
+        [...current].sort().every((v, i) => v === sorted[i]);
+      if (same) return; // identical — break the write->trigger loop
+      await ref.set({ directionUids: sorted }, { merge: true });
     },
   };
 }

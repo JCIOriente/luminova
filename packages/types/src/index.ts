@@ -11,8 +11,11 @@ export { checkInSchema, type CheckInInput } from "./engine/check-in-schema";
 export {
   initiativeRosterSchema,
   initiativeFormSchema,
+  impactMetricSchema,
+  initiativeImpactSchema,
   type InitiativeRosterInput,
   type InitiativeInput,
+  type InitiativeImpactInput,
 } from "./engine/initiative-schema";
 export { programSchema, type ProgramInput } from "./engine/program-schema";
 export { projectSchema, type ProjectInput } from "./engine/project-schema";

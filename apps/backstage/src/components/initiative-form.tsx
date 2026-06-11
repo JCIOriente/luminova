@@ -4,12 +4,19 @@ import {
   Button,
   Field,
   Input,
+  Textarea,
   Select,
   Combobox,
   MultiSelect,
   type ComboboxOption,
 } from "@luminova/ui";
-import { initiativeFormSchema, INITIATIVE_STATUSES, type InitiativeInput } from "@luminova/types";
+import {
+  initiativeFormSchema,
+  INITIATIVE_STATUSES,
+  AREAS_OF_OPPORTUNITY,
+  AREA_OF_OPPORTUNITY_LABELS,
+  type InitiativeInput,
+} from "@luminova/types";
 
 const STATUS_LABELS: Record<(typeof INITIATIVE_STATUSES)[number], string> = {
   Planificacion: "Planificación",
@@ -19,7 +26,11 @@ const STATUS_LABELS: Record<(typeof INITIATIVE_STATUSES)[number], string> = {
 
 const EMPTY: InitiativeInput = {
   title: "",
-  roster: { directorId: "", coDirectorId: null, teamIds: [] },
+  description: "",
+  category: "DesarrolloComunitario",
+  startDate: "",
+  endDate: "",
+  roster: { directorId: "", coDirectorIds: [], teamIds: [] },
   status: "Planificacion",
 };
 
@@ -53,6 +64,31 @@ export function InitiativeForm({
       <Field label="Título" htmlFor="title" required error={errors.title?.message}>
         <Input id="title" {...register("title")} />
       </Field>
+      <Field label="Descripción" htmlFor="description" required error={errors.description?.message}>
+        <Textarea id="description" rows={3} {...register("description")} />
+      </Field>
+      <Field
+        label="Área de oportunidad"
+        htmlFor="category"
+        required
+        error={errors.category?.message}
+      >
+        <Select id="category" {...register("category")}>
+          {AREAS_OF_OPPORTUNITY.map((a) => (
+            <option key={a} value={a}>
+              {AREA_OF_OPPORTUNITY_LABELS[a]}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Inicio" htmlFor="startDate" required error={errors.startDate?.message}>
+          <Input id="startDate" type="date" {...register("startDate")} />
+        </Field>
+        <Field label="Cierre estimado" htmlFor="endDate" required error={errors.endDate?.message}>
+          <Input id="endDate" type="date" {...register("endDate")} />
+        </Field>
+      </div>
       <Field
         label="Director"
         htmlFor="director"
@@ -73,17 +109,21 @@ export function InitiativeForm({
           )}
         />
       </Field>
-      <Field label="Codirector" htmlFor="coDirector" error={errors.roster?.coDirectorId?.message}>
+      <Field
+        label="Codirectores"
+        htmlFor="coDirectors"
+        error={errors.roster?.coDirectorIds?.message}
+      >
         <Controller
           control={control}
-          name="roster.coDirectorId"
+          name="roster.coDirectorIds"
           render={({ field }) => (
-            <Combobox
-              id="coDirector"
+            <MultiSelect
+              id="coDirectors"
               options={memberOptions}
               value={field.value}
               onChange={field.onChange}
-              placeholder="Elegir codirector (opcional)"
+              placeholder="Elegir codirectores (opcional)"
             />
           )}
         />

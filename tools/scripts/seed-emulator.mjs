@@ -63,6 +63,7 @@ const term = {
 const activities = [
   {
     id: "a1",
+    title: "Asamblea ordinaria junio",
     category: "Assembly",
     parentType: null,
     parentId: null,
@@ -70,6 +71,7 @@ const activities = [
   },
   {
     id: "a2",
+    title: "Sesión TM mayo",
     category: "TM",
     parentType: null,
     parentId: null,
@@ -77,6 +79,7 @@ const activities = [
   },
   {
     id: "a3",
+    title: "Jornada de ejecución",
     category: "ProjectExecution",
     parentType: "Project",
     parentId: "p1",
@@ -85,9 +88,51 @@ const activities = [
 ].map((a) => ({
   ...a,
   termId: TERM,
-  organizers: { directorId: null, coDirectorId: null },
+  description: null,
+  organizers: { directorId: null, coDirectorIds: [] },
+  endAt: null,
+  photos: [],
   status: "Ejecutada",
 }));
+
+// --- Initiatives (C1-lite shape; directionUids is beacon-written, seeded empty) ---
+// When the functions emulator is running, onProjectWritten will expand p1's roster
+// into participation rows + mirror directionUids — desired real behavior;
+// hand-seeded memberPoints get recomputed.
+const projects = [
+  {
+    id: "p1",
+    termId: TERM,
+    title: "Reciclá Santa Cruz",
+    description: "Puntos de reciclaje y educación ambiental en cinco barrios de la ciudad.",
+    category: "DesarrolloComunitario",
+    startDate: ts("2026-02-01T00:00:00Z"),
+    endDate: ts("2026-08-31T00:00:00Z"),
+    roster: { directorId: "m1", coDirectorIds: ["m2"], teamIds: ["m3"] },
+    photos: [],
+    impact: null,
+    finalReport: null,
+    status: "EnEjecucion",
+    directionUids: [],
+  },
+];
+const programs = [
+  {
+    id: "prog1",
+    termId: TERM,
+    title: "Líderes del Mañana",
+    description: "Programa de formación cívica y liderazgo para colegios de Santa Cruz.",
+    category: "DesarrolloIndividual",
+    startDate: ts("2026-03-01T00:00:00Z"),
+    endDate: ts("2026-12-15T00:00:00Z"),
+    roster: { directorId: "m2", coDirectorIds: [], teamIds: [] },
+    photos: [],
+    impact: null,
+    finalReport: null,
+    status: "EnEjecucion",
+    directionUids: [],
+  },
+];
 
 // --- Participations (confirmed ledger rows the engine would have derived) ---
 function participation(activity, memberId, code, points) {
@@ -162,12 +207,21 @@ async function seed() {
     await db.doc(`participations/${id}`).set(data);
   }
   for (const mp of memberPoints) await db.doc(`memberPoints/${mp.memberId}__${TERM}`).set(mp);
+  for (const p of projects) {
+    const { id, ...data } = p;
+    await db.doc(`projects/${id}`).set(data);
+  }
+  for (const p of programs) {
+    const { id, ...data } = p;
+    await db.doc(`programs/${id}`).set(data);
+  }
 
   await seedAdminUser();
 
   console.log(
     `Seeded ${members.length} members, term ${TERM}, ${activities.length} activities, ` +
-      `${participations.length} participations, ${memberPoints.length} memberPoints ` +
+      `${participations.length} participations, ${memberPoints.length} memberPoints, ` +
+      `${projects.length} projects, ${programs.length} programs ` +
       `(project ${projectId}). Initialize point rules from the UI.`,
   );
 }

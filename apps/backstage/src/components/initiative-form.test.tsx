@@ -9,7 +9,7 @@ const members = [
 ];
 
 describe("InitiativeForm", () => {
-  it("submits title + director + status", async () => {
+  it("submits with all required fields filled", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
     render(
@@ -22,6 +22,12 @@ describe("InitiativeForm", () => {
     );
 
     await user.type(screen.getByLabelText(/título/i), "Proyecto Aurora");
+    await user.type(
+      screen.getByLabelText(/descripción/i),
+      "Una descripción larga para superar validación",
+    );
+    await user.type(screen.getByLabelText(/inicio/i), "2026-02-01");
+    await user.type(screen.getByLabelText(/cierre estimado/i), "2026-08-31");
     await user.click(screen.getByRole("button", { name: /^director/i }));
     await user.click(screen.getByText("Ana Rivas"));
     await user.click(screen.getByRole("button", { name: /crear/i }));
@@ -29,12 +35,12 @@ describe("InitiativeForm", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit.mock.calls[0]?.[0]).toMatchObject({
       title: "Proyecto Aurora",
-      roster: { directorId: "m1", coDirectorId: null, teamIds: [] },
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
       status: "Planificacion",
     });
   });
 
-  it("blocks submit when the director is missing", async () => {
+  it("blocks submit when required fields are missing", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
     render(
