@@ -114,13 +114,11 @@ export function createFirestoreStore(db: Firestore): EngineStore {
         .set({ totalPoints: aggregate.cumulative }, { merge: true });
     },
     async getMemberUids(memberIds) {
-      const uids: string[] = [];
-      for (const id of memberIds) {
-        const snap = await db.doc(`members/${id}`).get();
-        const uid = snap.exists ? (snap.data() as { uid?: unknown }).uid : undefined;
-        if (typeof uid === "string" && uid.length > 0) uids.push(uid);
-      }
-      return uids;
+      if (memberIds.length === 0) return [];
+      const snaps = await db.getAll(...memberIds.map((id) => db.doc(`members/${id}`)));
+      return snaps
+        .map((snap) => (snap.exists ? (snap.data() as { uid?: unknown }).uid : undefined))
+        .filter((uid): uid is string => typeof uid === "string" && uid.length > 0);
     },
     async setInitiativeDirectionUids(parentType, parentId, uids) {
       const collection = parentType === "Program" ? "programs" : "projects";

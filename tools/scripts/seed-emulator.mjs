@@ -63,6 +63,7 @@ const term = {
 const activities = [
   {
     id: "a1",
+    title: "Asamblea ordinaria junio",
     category: "Assembly",
     parentType: null,
     parentId: null,
@@ -70,6 +71,7 @@ const activities = [
   },
   {
     id: "a2",
+    title: "Sesión TM mayo",
     category: "TM",
     parentType: null,
     parentId: null,
@@ -77,15 +79,15 @@ const activities = [
   },
   {
     id: "a3",
+    title: "Jornada de ejecución",
     category: "ProjectExecution",
     parentType: "Project",
     parentId: "p1",
     startAt: ts("2026-06-20T18:00:00Z"),
   },
-].map((a, i) => ({
+].map((a) => ({
   ...a,
   termId: TERM,
-  title: ["Asamblea ordinaria junio", "Sesión TM mayo", "Jornada de ejecución"][i],
   description: null,
   organizers: { directorId: null, coDirectorIds: [] },
   endAt: null,

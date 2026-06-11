@@ -11,7 +11,7 @@ import {
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
 import type { Program, ProgramInput } from "@luminova/types";
-import { toProgramCreateDoc, toProgramUpdateDoc } from "./program-mapper";
+import { toInitiativeCreateDoc, toInitiativeUpdateDoc } from "../../initiatives/repositories/initiative-mapper";
 
 export class ProgramRepository {
   private readonly collection = collection(getFirebase().db, "programs");
@@ -30,12 +30,12 @@ export class ProgramRepository {
   }
 
   async create(data: ProgramInput, termId: string): Promise<string> {
-    const ref = await addDoc(this.collection, toProgramCreateDoc(data, termId));
+    const ref = await addDoc(this.collection, toInitiativeCreateDoc(data, termId));
     return ref.id;
   }
 
   async update(id: string, data: ProgramInput): Promise<void> {
-    await updateDoc(doc(this.collection, id), toProgramUpdateDoc(data));
+    await updateDoc(doc(this.collection, id), toInitiativeUpdateDoc(data));
   }
 
   /** File the director's final report — the engine confirmation gate. */

@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Button, Sheet, Dialog, Icon, EmptyState } from "@luminova/ui";
 import type { ComboboxOption } from "@luminova/ui";
 import type { Program, ProgramInput } from "@luminova/types";
+import { initiativeToInput } from "../features/initiatives/repositories/initiative-mapper";
 import { Can } from "../lib/authz/ability-context";
 import { PageHeader } from "../components/page-header";
 import { InitiativeForm } from "../components/initiative-form";
@@ -18,18 +19,6 @@ import { useFileProgramReport } from "../features/programs/hooks/use-file-progra
 export const Route = createFileRoute("/_app/programs")({ component: ProgramsPage });
 
 type Editing = Program | "new" | null;
-
-function programToInput(p: Program): Partial<ProgramInput> {
-  return {
-    title: p.title,
-    description: p.description,
-    category: p.category,
-    startDate: p.startDate.toDate().toISOString().slice(0, 10),
-    endDate: p.endDate.toDate().toISOString().slice(0, 10),
-    roster: p.roster,
-    status: p.status,
-  };
-}
 
 function ProgramsPage() {
   const termId = currentTermId();
@@ -110,7 +99,7 @@ function ProgramsPage() {
           <InitiativeForm
             key={editing === "new" ? "new" : editing.id}
             memberOptions={memberOptions}
-            defaultValues={editing === "new" ? undefined : programToInput(editing)}
+            defaultValues={editing === "new" ? undefined : initiativeToInput(editing)}
             submitLabel={editing === "new" ? "Crear" : "Guardar"}
             isSaving={create.isPending || update.isPending}
             onSubmit={(data) => void handleSubmit(data)}

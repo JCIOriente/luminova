@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Timestamp } from "firebase/firestore";
-import { toProgramCreateDoc, toProgramUpdateDoc } from "./program-mapper";
-import type { ProgramInput } from "@luminova/types";
+import { toInitiativeCreateDoc, toInitiativeUpdateDoc, initiativeToInput } from "./initiative-mapper";
+import type { InitiativeInput } from "@luminova/types";
 
-const VALID_INPUT: ProgramInput = {
-  title: "Programa X",
+const VALID_INPUT: InitiativeInput = {
+  title: "Iniciativa X",
   description: "Una descripción suficientemente larga para pasar validación.",
   category: "DesarrolloComunitario",
   startDate: "2026-02-01",
@@ -13,9 +13,9 @@ const VALID_INPUT: ProgramInput = {
   status: "Planificacion",
 };
 
-describe("toProgramCreateDoc", () => {
+describe("toInitiativeCreateDoc", () => {
   it("adds termId, system defaults, and converts dates to Timestamps", () => {
-    expect(toProgramCreateDoc(VALID_INPUT, "2026")).toEqual({
+    expect(toInitiativeCreateDoc(VALID_INPUT, "2026")).toEqual({
       termId: "2026",
       title: VALID_INPUT.title,
       description: VALID_INPUT.description,
@@ -32,9 +32,9 @@ describe("toProgramCreateDoc", () => {
   });
 });
 
-describe("toProgramUpdateDoc", () => {
+describe("toInitiativeUpdateDoc", () => {
   it("maps editable fields only", () => {
-    expect(toProgramUpdateDoc(VALID_INPUT)).toEqual({
+    expect(toInitiativeUpdateDoc(VALID_INPUT)).toEqual({
       title: VALID_INPUT.title,
       description: VALID_INPUT.description,
       category: VALID_INPUT.category,
@@ -46,7 +46,7 @@ describe("toProgramUpdateDoc", () => {
   });
 
   it("update doc never touches photos/impact/finalReport/directionUids", () => {
-    const docData = toProgramUpdateDoc(VALID_INPUT);
+    const docData = toInitiativeUpdateDoc(VALID_INPUT);
     expect(Object.keys(docData).sort()).toEqual([
       "category",
       "description",
@@ -56,5 +56,35 @@ describe("toProgramUpdateDoc", () => {
       "status",
       "title",
     ]);
+  });
+});
+
+describe("initiativeToInput", () => {
+  it("converts Timestamps back to YYYY-MM-DD strings", () => {
+    const core = {
+      id: "i1",
+      termId: "2026",
+      title: VALID_INPUT.title,
+      description: VALID_INPUT.description,
+      category: VALID_INPUT.category,
+      startDate: Timestamp.fromDate(new Date("2026-02-01T00:00:00Z")),
+      endDate: Timestamp.fromDate(new Date("2026-08-31T00:00:00Z")),
+      roster: { ...VALID_INPUT.roster },
+      status: VALID_INPUT.status,
+      photos: [] as never[],
+      impact: null,
+      finalReport: null,
+      directionUids: [] as string[],
+    };
+
+    expect(initiativeToInput(core)).toEqual({
+      title: VALID_INPUT.title,
+      description: VALID_INPUT.description,
+      category: VALID_INPUT.category,
+      startDate: "2026-02-01",
+      endDate: "2026-08-31",
+      roster: VALID_INPUT.roster,
+      status: VALID_INPUT.status,
+    });
   });
 });

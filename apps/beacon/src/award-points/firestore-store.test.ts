@@ -25,6 +25,10 @@ class FakeFirestore {
     };
   }
 
+  async getAll(...refs: ReturnType<FakeFirestore["doc"]>[]) {
+    return Promise.all(refs.map((ref) => ref.get()));
+  }
+
   asFirestore(): Firestore {
     return this as unknown as Firestore;
   }
