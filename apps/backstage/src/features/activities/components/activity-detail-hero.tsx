@@ -51,7 +51,7 @@ export function ActivityDetailHero({
                 className="inline-flex items-center gap-1 text-[12px] font-medium text-jci-blue hover:underline"
               >
                 {Icon.briefcase({ s: 14 })}
-                {parentTitle ?? "Ver proyecto"}
+                {parentTitle ?? "Ver iniciativa"}
               </Link>
             )}
           </div>
