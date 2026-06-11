@@ -55,7 +55,8 @@ describe("memberSchema", () => {
   });
 
   it("rejects a missing gender", () => {
-    const { gender: _, ...rest } = valid;
+    const rest: Partial<typeof valid> = { ...valid };
+    delete rest.gender;
     expect(memberSchema.safeParse(rest).success).toBe(false);
   });
 
