@@ -24,6 +24,11 @@ describe("positionSchema", () => {
     const comision = { ...base, category: "Comision" as const, term: null, grants: [] };
     expect(positionSchema.safeParse(comision).success).toBe(true);
   });
+  it("rejects a comisión with a term", () => {
+    expect(positionSchema.safeParse({ ...base, category: "Comision", term: 2026 }).success).toBe(
+      false,
+    );
+  });
   it("rejects unknown grant roles", () => {
     expect(positionSchema.safeParse({ ...base, grants: ["SuperUser"] }).success).toBe(false);
   });
