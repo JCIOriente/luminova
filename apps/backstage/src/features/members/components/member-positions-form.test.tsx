@@ -50,6 +50,32 @@ describe("MemberPositionsForm", () => {
     expect(onSubmit).toHaveBeenCalledWith({ cargoId: "dir", comisionIds: ["etica"] });
   });
 
+  it("labels comisión options by sigla, never a gendered title (female member)", async () => {
+    const cce: Position = {
+      id: "cce",
+      title: "Comisión de Conducta y Ética",
+      titleFemale: null,
+      sigla: "CCE",
+      category: "Comision",
+      grants: [],
+      term: null,
+      description: "",
+      active: true,
+      deletedAt: null,
+    };
+    render(
+      <MemberPositionsForm
+        positions={[cce]}
+        gender="Femenino"
+        defaultValues={{ cargoId: null, comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Comisiones"));
+    expect(await screen.findByText("CCE — Comisión de Conducta y Ética")).toBeInTheDocument();
+    expect(screen.queryByText(/Comisióna/)).not.toBeInTheDocument();
+  });
+
   it("shows error alert when onSubmit throws", async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error("fail"));
     render(

@@ -4,10 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { PositionForm } from "./position-form";
 
 describe("PositionForm", () => {
-  it("renders all fields for an Admin caller", () => {
+  it("renders all fields for an Admin caller (CEL default)", () => {
     render(<PositionForm submitLabel="Crear" canEditGrants onSubmit={vi.fn()} />);
-    expect(screen.getByLabelText("Título *")).toBeInTheDocument();
-    expect(screen.getByLabelText("Título femenino *")).toBeInTheDocument();
+    expect(screen.getByLabelText("Cargo *")).toBeInTheDocument();
+    expect(screen.getByLabelText("Variante femenina (opcional)")).toBeInTheDocument();
     expect(screen.getByLabelText("Categoría *")).toBeInTheDocument();
     expect(screen.getByLabelText("Descripción *")).toBeInTheDocument();
     expect(screen.getByLabelText("Permisos que otorga")).toBeInTheDocument();
@@ -76,19 +76,44 @@ describe("PositionForm", () => {
   it("submits a valid comisión with term null and grants untouched", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(<PositionForm submitLabel="Crear" canEditGrants={false} onSubmit={onSubmit} />);
-    await userEvent.type(screen.getByLabelText("Título *"), "Director de Ética");
-    await userEvent.type(screen.getByLabelText("Título femenino *"), "Directora de Ética");
     await userEvent.selectOptions(screen.getByLabelText("Categoría *"), "Comision");
+    await userEvent.type(screen.getByLabelText("Nombre *"), "Director de Ética");
+    await userEvent.type(screen.getByLabelText("Sigla *"), "CCE");
     await userEvent.type(screen.getByLabelText("Descripción *"), "Vela por el código de ética.");
     await userEvent.click(screen.getByRole("button", { name: /crear/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit).toHaveBeenCalledWith({
-      title: "Director de Ética",
-      titleFemale: "Directora de Ética",
-      category: "Comision",
-      grants: [],
-      term: null,
-      description: "Vela por el código de ética.",
-    });
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Director de Ética",
+        sigla: "CCE",
+        category: "Comision",
+        grants: [],
+        term: null,
+        description: "Vela por el código de ética.",
+      }),
+    );
+  });
+});
+
+describe("PositionForm category-aware fields", () => {
+  it("CEL shows feminine variant + permisos, no sigla", () => {
+    render(<PositionForm submitLabel="Crear" canEditGrants onSubmit={vi.fn(async () => {})} />);
+    expect(screen.getByLabelText(/variante femenina/i)).toBeInTheDocument();
+    expect(screen.getByText(/permisos que otorga/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/sigla/i)).not.toBeInTheDocument();
+  });
+  it("Comisión shows sigla, hides feminine variant + permisos", async () => {
+    const user = userEvent.setup();
+    render(<PositionForm submitLabel="Crear" canEditGrants onSubmit={vi.fn(async () => {})} />);
+    await user.selectOptions(screen.getByLabelText(/categoría/i), "Comision");
+    expect(screen.getByLabelText(/sigla/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/variante femenina/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/permisos que otorga/i)).not.toBeInTheDocument();
+  });
+  it("suggests the derived feminine as placeholder", async () => {
+    const user = userEvent.setup();
+    render(<PositionForm submitLabel="Crear" canEditGrants onSubmit={vi.fn(async () => {})} />);
+    await user.type(screen.getByLabelText(/^cargo/i), "Director");
+    expect(screen.getByLabelText(/variante femenina/i)).toHaveAttribute("placeholder", "Directora");
   });
 });

@@ -8,7 +8,7 @@ import { useUpdatePosition } from "../features/positions/hooks/use-update-positi
 import { useDeletePosition } from "../features/positions/hooks/use-delete-position";
 import { useSeedPositions } from "../features/positions/hooks/use-seed-positions";
 import { PositionForm } from "../features/positions/components/position-form";
-import { PositionTable } from "../features/positions/components/position-table";
+import { PositionSection } from "../features/positions/components/position-table";
 import { PageHeader } from "../components/page-header";
 import { Can, useAbility } from "../lib/authz/ability-context";
 
@@ -21,7 +21,8 @@ type Editing = Position | "new" | null;
 function positionToInput(position: Position): Partial<PositionInput> {
   return {
     title: position.title,
-    titleFemale: position.titleFemale,
+    titleFemale: position.titleFemale ?? undefined,
+    sigla: position.sigla ?? undefined,
     category: position.category,
     grants: position.grants,
     term: position.term,
@@ -81,6 +82,9 @@ function PositionsPage() {
 
   const all = positions ?? [];
   const activePositions = all.filter((p) => p.active);
+  const cel = activePositions.filter((p) => p.category === "CEL");
+  const jdl = activePositions.filter((p) => p.category === "JDL");
+  const comisiones = activePositions.filter((p) => p.category === "Comision");
   const seedable = all.length === 0;
 
   return (
@@ -136,11 +140,29 @@ function PositionsPage() {
         />
       )}
       {positions && !seedable && (
-        <PositionTable
-          positions={activePositions}
-          onEdit={setEditing}
-          onDeactivate={setDeactivateTarget}
-        />
+        <div className="flex flex-col gap-8">
+          <PositionSection
+            title="Cargos"
+            variant="cargo"
+            positions={cel}
+            onEdit={setEditing}
+            onDeactivate={setDeactivateTarget}
+          />
+          <PositionSection
+            title="Direcciones"
+            variant="cargo"
+            positions={jdl}
+            onEdit={setEditing}
+            onDeactivate={setDeactivateTarget}
+          />
+          <PositionSection
+            title="Comisiones"
+            variant="comision"
+            positions={comisiones}
+            onEdit={setEditing}
+            onDeactivate={setDeactivateTarget}
+          />
+        </div>
       )}
 
       <Sheet

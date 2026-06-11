@@ -28,7 +28,7 @@ export function MemberCargoChips({
       )}
       {comisiones.map((c) => (
         <Badge key={c.id} tone="gray">
-          {positionTitle(c, member.gender)}
+          {c.sigla ?? c.title}
         </Badge>
       ))}
     </div>

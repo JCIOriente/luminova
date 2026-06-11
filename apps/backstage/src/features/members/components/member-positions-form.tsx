@@ -38,7 +38,7 @@ export function MemberPositionsForm({
     .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
   const comisionOptions = positions
     .filter((p) => p.active && p.category === "Comision")
-    .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
+    .map((p) => ({ value: p.id, label: p.sigla ? `${p.sigla} — ${p.title}` : p.title }));
 
   const submit = handleSubmit(async (data) => {
     setFormError(null);

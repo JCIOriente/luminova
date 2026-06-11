@@ -9,7 +9,10 @@ export type PositionCategory = (typeof POSITION_CATEGORIES)[number];
 export interface Position {
   id: string;
   title: string;
-  titleFemale: string;
+  /** Override for the feminine form. When absent, derived by femaleTitle(). */
+  titleFemale?: string | null;
+  /** Comisión acronym, unused for CEL/JDL. */
+  sigla?: string | null;
   category: PositionCategory;
   /** Permission claim roles this position confers. Empty = chip only, no power. */
   grants: Role[];
@@ -30,11 +33,26 @@ export interface TermPositions {
   assignedBy?: string;
 }
 
+/** Derive the feminine form: feminize the FIRST word (-o→-a, -e→-a, else +a),
+ *  keep the rest. Irregular multi-word titles need an explicit titleFemale. */
+export function femaleTitle(title: string): string {
+  if (!title) return title;
+  const words = title.split(" ");
+  const first = words[0] ?? "";
+  const rest = words.slice(1);
+  let f: string;
+  if (/o$/.test(first)) f = first.replace(/o$/, "a");
+  else if (/e$/.test(first)) f = first.replace(/e$/, "a");
+  else f = first + "a";
+  return [f, ...rest].join(" ");
+}
+
 export function positionTitle(
   position: Pick<Position, "title" | "titleFemale">,
   gender: MemberGender | undefined,
 ): string {
-  return gender === "Femenino" ? position.titleFemale : position.title;
+  if (gender !== "Femenino") return position.title;
+  return position.titleFemale ?? femaleTitle(position.title);
 }
 
 export function currentTermKey(now = new Date()): string {

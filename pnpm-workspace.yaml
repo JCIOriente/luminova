@@ -2,6 +2,16 @@ packages:
   - "apps/*"
   - "packages/*"
   - "tests/*"
+overrides:
+  # Dedupe the Radix internals that hold cross-component React contexts to ONE
+  # version each. react-dialog (the Sheet) and react-popover (Combobox/MultiSelect)
+  # pin DIFFERENT patch versions, so two copies = two contexts, and a Popover
+  # portaled inside a modal Sheet breaks: dismissable-layer → dropdown rendered but
+  # UNCLICKABLE (modal pointer-events lock never exempts it); focus-scope → the
+  # modal's focus trap yanks focus from the cmdk search input (can't type to filter).
+  # One version each restores Radix's nested-layer/focus coordination.
+  "@radix-ui/react-dismissable-layer": "1.1.12"
+  "@radix-ui/react-focus-scope": "1.1.9"
 allowBuilds:
   "@firebase/util": true
   esbuild: true

@@ -12,6 +12,7 @@ describe("nav-config", () => {
       "/point-rules",
       "/leaderboard",
       "/positions",
+      "/permisos",
       "/activities",
       "/initiatives",
       "/check-in",

@@ -3,7 +3,7 @@ export type { Member, MemberStatus } from "./member.js";
 export { MEMBER_STATUSES } from "./member.js";
 export { MEMBER_GENDERS, type MemberGender } from "./member.js";
 export type { Position, PositionCategory, TermPositions } from "./position.js";
-export { POSITION_CATEGORIES, positionTitle, currentTermKey } from "./position.js";
+export { POSITION_CATEGORIES, positionTitle, currentTermKey, femaleTitle } from "./position.js";
 export { positionSchema, type PositionInput } from "./position-schema.js";
 export { memberSchema, type MemberInput } from "./member-schema.js";
 export type { Ally } from "./ally.js";

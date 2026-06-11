@@ -6,6 +6,7 @@ import {
   positionSchema,
   POSITION_CATEGORIES,
   ROLES,
+  femaleTitle,
   type PositionCategory,
   type PositionInput,
 } from "@luminova/types";
@@ -25,6 +26,7 @@ const GRANT_OPTIONS = ROLES.map((role) => ({
 const EMPTY: PositionInput = {
   title: "",
   titleFemale: "",
+  sigla: "",
   category: "CEL",
   grants: [],
   term: null,
@@ -64,7 +66,10 @@ export function PositionForm({
   });
 
   const categoryField = register("category");
-  const isTermVisible = watch("category") === "JDL";
+  const category = watch("category");
+  const title = watch("title");
+  const isTermVisible = category === "JDL";
+  const isComision = category === "Comision";
 
   const submit = handleSubmit(async (data) => {
     setFormError(null);
@@ -79,32 +84,54 @@ export function PositionForm({
     <form onSubmit={submit} noValidate className="flex flex-col gap-6">
       <div className="flex flex-col gap-4">
         <SectionLabel>Datos del cargo</SectionLabel>
-        <Field label="Título" htmlFor="title" required error={errors.title?.message}>
+        <Field
+          label={isComision ? "Nombre" : "Cargo"}
+          htmlFor="title"
+          required
+          error={errors.title?.message}
+        >
           <Input id="title" {...register("title")} />
         </Field>
-        <Field
-          label="Título femenino"
-          htmlFor="titleFemale"
-          required
-          error={errors.titleFemale?.message}
-        >
-          <Input id="titleFemale" {...register("titleFemale")} />
-        </Field>
+        {!isComision && (
+          <Field
+            label="Variante femenina (opcional)"
+            htmlFor="titleFemale"
+            hint="Vacío = se deriva del nombre."
+          >
+            <Input
+              id="titleFemale"
+              {...register("titleFemale")}
+              placeholder={title ? femaleTitle(title) : "Se deriva automáticamente"}
+            />
+          </Field>
+        )}
+        {isComision && (
+          <Field label="Sigla" htmlFor="sigla" required error={errors.sigla?.message}>
+            <Input id="sigla" {...register("sigla")} placeholder="CCE" />
+          </Field>
+        )}
         <Field label="Categoría" htmlFor="category" required error={errors.category?.message}>
           <Select
             id="category"
             {...categoryField}
             onChange={(e) => {
               void categoryField.onChange(e);
+              const newCategory = e.target.value;
               setValue(
                 "term",
-                e.target.value === "JDL" ? (defaultValues?.term ?? new Date().getFullYear()) : null,
+                newCategory === "JDL" ? (defaultValues?.term ?? new Date().getFullYear()) : null,
               );
+              if (newCategory === "Comision") {
+                setValue("grants", []);
+                setValue("titleFemale", "");
+              } else {
+                setValue("sigla", "");
+              }
             }}
           >
-            {POSITION_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {CATEGORY_LABELS[category]}
+            {POSITION_CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>
+                {CATEGORY_LABELS[cat]}
               </option>
             ))}
           </Select>
@@ -124,7 +151,7 @@ export function PositionForm({
         </Field>
       </div>
 
-      {canEditGrants && (
+      {canEditGrants && !isComision && (
         <div className="flex flex-col gap-4">
           <SectionLabel>Permisos</SectionLabel>
           <Field

@@ -82,15 +82,16 @@ export function MemberForm({
       : [];
   const cargoOptions = [...activeCargoOptions, ...assignedInactiveCargo];
 
+  const comisionLabel = (p: Position) => (p.sigla ? `${p.sigla} — ${p.title}` : p.title);
   const activeComisionOptions = positions
     .filter((p) => p.active && p.category === "Comision")
-    .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
+    .map((p) => ({ value: p.id, label: comisionLabel(p) }));
   const assignedInactiveComisiones = (currentComisionIds ?? [])
     .filter((id) => !activeComisionOptions.some((o) => o.value === id))
     .flatMap((id) =>
       positions
         .filter((p) => p.id === id)
-        .map((p) => ({ value: p.id, label: `${positionTitle(p, gender)} (inactivo)` })),
+        .map((p) => ({ value: p.id, label: `${comisionLabel(p)} (inactivo)` })),
     );
   const comisionOptions = [...activeComisionOptions, ...assignedInactiveComisiones];
 
@@ -177,7 +178,11 @@ export function MemberForm({
             )}
           />
         </Field>
-        <Field label="Comisiones" htmlFor="comisionIds" error={errors.comisionIds?.message}>
+        <Field
+          label="Comisiones (pertenece a)"
+          htmlFor="comisionIds"
+          error={errors.comisionIds?.message}
+        >
           <Controller
             control={control}
             name="comisionIds"

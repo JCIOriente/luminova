@@ -82,7 +82,7 @@ function ViewBody({
           )}
           {comisiones.map((comision) => (
             <Badge key={comision.id} tone="gray">
-              {positionTitle(comision, member.gender)}
+              {comision.sigla ?? comision.title}
             </Badge>
           ))}
         </div>

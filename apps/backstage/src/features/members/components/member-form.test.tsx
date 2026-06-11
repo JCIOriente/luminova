@@ -12,6 +12,7 @@ const positions: Position[] = [
     category: "CEL",
     grants: [],
     term: null,
+    sigla: null,
     description: "Preside el capítulo.",
     active: true,
     deletedAt: null,
@@ -23,11 +24,25 @@ const positions: Position[] = [
     category: "Comision",
     grants: [],
     term: null,
+    sigla: null,
     description: "Organiza los eventos.",
     active: true,
     deletedAt: null,
   },
 ];
+
+const comisionWithSigla: Position = {
+  id: "k1",
+  sigla: "CCE",
+  title: "Comisión de Conducta y Ética",
+  titleFemale: null,
+  category: "Comision",
+  grants: [],
+  term: null,
+  description: "",
+  active: true,
+  deletedAt: null,
+};
 
 const inactiveCargoPosition: Position = {
   id: "pos-tesorero",
@@ -89,7 +104,7 @@ describe("MemberForm", () => {
     });
     await userEvent.click(screen.getByLabelText("Cargo"));
     await userEvent.click(await screen.findByText("Presidenta"));
-    await userEvent.click(screen.getByLabelText("Comisiones"));
+    await userEvent.click(screen.getByLabelText("Comisiones (pertenece a)"));
     await userEvent.click(await screen.findByText("Comisión de Eventos"));
     await userEvent.click(screen.getByRole("button", { name: /crear/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -132,5 +147,17 @@ describe("MemberForm", () => {
       />,
     );
     expect(await screen.findByText("Tesorero (inactivo)")).toBeInTheDocument();
+  });
+
+  it("renders comisión option as 'sigla — title' when sigla is present", async () => {
+    render(
+      <MemberForm
+        positions={[...positions, comisionWithSigla]}
+        submitLabel="Crear"
+        onSubmit={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Comisiones (pertenece a)"));
+    expect(await screen.findByText(/CCE — Comisión de Conducta y Ética/)).toBeInTheDocument();
   });
 });
