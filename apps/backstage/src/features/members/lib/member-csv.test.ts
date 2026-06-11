@@ -17,14 +17,16 @@ const base: Member = {
   deletedAt: null,
 };
 
+const roleLabel = (m: Member) => m.role;
+
 describe("membersToCsv", () => {
   it("emits a header and one row per member", () => {
-    const csv = membersToCsv([base]);
-    expect(csv.split("\n")[0]).toBe("Nombre,Correo,Rol,Estado,Desde,Puntos");
+    const csv = membersToCsv([base], roleLabel);
+    expect(csv.split("\n")[0]).toBe("Nombre,Correo,Cargo,Estado,Desde,Puntos");
     expect(csv.split("\n")[1]).toBe("Ana Gómez,ana@jci.bo,Tesorera,Activo,2021,12");
   });
   it("quotes fields containing commas or quotes", () => {
-    const csv = membersToCsv([{ ...base, role: 'Director, "Área"' }]);
+    const csv = membersToCsv([{ ...base, role: 'Director, "Área"' }], roleLabel);
     expect(csv.split("\n")[1]).toContain('"Director, ""Área"""');
   });
 });

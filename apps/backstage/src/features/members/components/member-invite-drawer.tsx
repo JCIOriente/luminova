@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Button, Checkbox, Sheet } from "@luminova/ui";
-import { type MemberInput } from "@luminova/types";
+import { type MemberInput, type Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
 import { actionMessage } from "../lib/member-display";
 
 interface MemberInviteDrawerProps {
   open: boolean;
+  positions: Position[];
   onClose: () => void;
   onCreate: (data: MemberInput) => Promise<string>;
   onProvision: (memberId: string) => Promise<void>;
@@ -23,6 +24,7 @@ function today(): string {
 
 export function MemberInviteDrawer({
   open,
+  positions,
   onClose,
   onCreate,
   onProvision,
@@ -85,10 +87,11 @@ export function MemberInviteDrawer({
         </div>
       ) : (
         <MemberForm
+          positions={positions}
           submitLabel="Enviar invitación"
           pendingLabel="Enviando…"
           showPreview
-          defaultValues={{ role: "Miembro activo", joinDate: today(), status: "Activo" }}
+          defaultValues={{ joinDate: today(), status: "Activo", cargoId: null, comisionIds: [] }}
           onSubmit={handleSubmit}
         >
           <Checkbox checked={sendAccess} onChange={setSendAccess} label="Enviar acceso a la app" />

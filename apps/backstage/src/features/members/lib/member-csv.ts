@@ -1,16 +1,18 @@
 import type { Member } from "@luminova/types";
 import { joinYear } from "./member-display";
 
-const HEADER = ["Nombre", "Correo", "Rol", "Estado", "Desde", "Puntos"];
+const HEADER = ["Nombre", "Correo", "Cargo", "Estado", "Desde", "Puntos"];
 
 function cell(value: string | number): string {
   const s = String(value);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function membersToCsv(members: Member[]): string {
+export function membersToCsv(members: Member[], roleLabel: (m: Member) => string): string {
   const rows = members.map((m) =>
-    [m.name, m.email, m.role, m.status, joinYear(m.joinDate), m.totalPoints].map(cell).join(","),
+    [m.name, m.email, roleLabel(m), m.status, joinYear(m.joinDate), m.totalPoints]
+      .map(cell)
+      .join(","),
   );
   return [HEADER.join(","), ...rows].join("\n");
 }

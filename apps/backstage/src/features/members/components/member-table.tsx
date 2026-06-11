@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   DataTable,
   Badge,
@@ -14,6 +15,7 @@ import { MemberRowMenu } from "./member-row-menu";
 interface MemberTableProps {
   members: Member[];
   pageSize: number;
+  roleLabel: (member: Member) => string;
   isLoading?: boolean;
   emptyState?: React.ReactNode;
   onView: (member: Member) => void;
@@ -28,63 +30,66 @@ const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
   Desafiliado: "red",
 };
 
-const COLUMNS: DataTableColumn<Member>[] = [
-  {
-    id: "name",
-    header: "Miembro",
-    sortValue: (member) => member.name,
-    cell: (member) => (
-      <div className="flex min-w-0 items-center gap-3">
-        <span
-          className="flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold text-white"
-          style={{ backgroundColor: avatarColor(member.id) }}
-        >
-          {initials(member.name)}
-        </span>
-        <div className="min-w-0">
-          <div className="truncate font-semibold text-ink-1">{member.name}</div>
-          <div className="truncate text-[12px] text-ink-3">{member.email}</div>
+function buildColumns(roleLabel: (member: Member) => string): DataTableColumn<Member>[] {
+  return [
+    {
+      id: "name",
+      header: "Miembro",
+      sortValue: (member) => member.name,
+      cell: (member) => (
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold text-white"
+            style={{ backgroundColor: avatarColor(member.id) }}
+          >
+            {initials(member.name)}
+          </span>
+          <div className="min-w-0">
+            <div className="truncate font-semibold text-ink-1">{member.name}</div>
+            <div className="truncate text-[12px] text-ink-3">{member.email}</div>
+          </div>
         </div>
-      </div>
-    ),
-  },
-  {
-    id: "role",
-    header: "Rol",
-    sortValue: (member) => member.role,
-    cell: (member) => <span className="text-ink-2">{member.role}</span>,
-  },
-  {
-    id: "status",
-    header: "Estado",
-    sortable: false,
-    cell: (member) => (
-      <Badge tone={STATUS_TONE[member.status]} dot={member.status === "Activo"}>
-        {member.status}
-      </Badge>
-    ),
-  },
-  {
-    id: "joinDate",
-    header: "Desde",
-    sortValue: (member) => (member.joinDate ? joinYear(member.joinDate) : 0),
-    cell: (member) => (
-      <span className="tabular-nums text-ink-2">
-        {member.joinDate ? joinYear(member.joinDate) : "—"}
-      </span>
-    ),
-  },
-  {
-    id: "points",
-    header: "Puntos",
-    sortValue: (member) => member.totalPoints ?? 0,
-    cell: (member) => <span className="tabular-nums text-ink-2">{member.totalPoints ?? 0}</span>,
-  },
-];
+      ),
+    },
+    {
+      id: "role",
+      header: "Cargo",
+      sortValue: roleLabel,
+      cell: (member) => <span className="text-ink-2">{roleLabel(member)}</span>,
+    },
+    {
+      id: "status",
+      header: "Estado",
+      sortable: false,
+      cell: (member) => (
+        <Badge tone={STATUS_TONE[member.status]} dot={member.status === "Activo"}>
+          {member.status}
+        </Badge>
+      ),
+    },
+    {
+      id: "joinDate",
+      header: "Desde",
+      sortValue: (member) => (member.joinDate ? joinYear(member.joinDate) : 0),
+      cell: (member) => (
+        <span className="tabular-nums text-ink-2">
+          {member.joinDate ? joinYear(member.joinDate) : "—"}
+        </span>
+      ),
+    },
+    {
+      id: "points",
+      header: "Puntos",
+      sortValue: (member) => member.totalPoints ?? 0,
+      cell: (member) => <span className="tabular-nums text-ink-2">{member.totalPoints ?? 0}</span>,
+    },
+  ];
+}
 
 export function MemberTable({
   members,
   pageSize,
+  roleLabel,
   isLoading,
   emptyState,
   onView,
@@ -92,10 +97,11 @@ export function MemberTable({
   onProvision,
   onSetStatus,
 }: MemberTableProps) {
+  const columns = useMemo(() => buildColumns(roleLabel), [roleLabel]);
   return (
     <DataTable
       rows={members}
-      columns={COLUMNS}
+      columns={columns}
       getRowId={(member) => member.id}
       isLoading={isLoading}
       pageSize={pageSize}

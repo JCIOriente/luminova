@@ -1,4 +1,5 @@
 import type { Timestamp } from "firebase/firestore";
+import { positionTitle, type Member, type MemberGender } from "@luminova/types";
 
 const PALETTE = [
   "#1F4789",
@@ -21,6 +22,22 @@ export function avatarColor(id: string): string {
 
 export function joinYear(joinDate: Timestamp): number {
   return joinDate.toDate().getUTCFullYear();
+}
+
+type LabelSource = Pick<Member, "role"> & {
+  gender?: MemberGender;
+  positions?: Member["positions"];
+};
+
+export function memberPositionLabel(
+  member: LabelSource,
+  positionsById: Map<string, { title: string; titleFemale: string }>,
+  termKey: string,
+): string {
+  const cargoId = member.positions?.[termKey]?.cargoId;
+  const cargo = cargoId ? positionsById.get(cargoId) : undefined;
+  if (cargo) return positionTitle(cargo, member.gender);
+  return member.role || "Miembro";
 }
 
 type GenderedAction = "deactivated" | "reactivated" | "disaffiliated" | "deleted" | "created";

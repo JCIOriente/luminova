@@ -5,6 +5,7 @@ import { MemberInviteDrawer } from "./member-invite-drawer";
 function fill() {
   fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: "Ana Gómez" } });
   fireEvent.change(screen.getByLabelText(/Correo/), { target: { value: "ana@jci.bo" } });
+  fireEvent.change(screen.getByLabelText(/Género/), { target: { value: "Femenino" } });
   fireEvent.change(screen.getByLabelText(/Fecha de nacimiento/), {
     target: { value: "1990-01-01" },
   });
@@ -16,6 +17,7 @@ describe("MemberInviteDrawer", () => {
     render(
       <MemberInviteDrawer
         open
+        positions={[]}
         onClose={() => {}}
         onCreate={onCreate}
         onProvision={async () => {}}
@@ -32,7 +34,13 @@ describe("MemberInviteDrawer", () => {
     const onCreate = vi.fn().mockResolvedValue("new-id");
     const onProvision = vi.fn().mockResolvedValue(undefined);
     render(
-      <MemberInviteDrawer open onClose={() => {}} onCreate={onCreate} onProvision={onProvision} />,
+      <MemberInviteDrawer
+        open
+        positions={[]}
+        onClose={() => {}}
+        onCreate={onCreate}
+        onProvision={onProvision}
+      />,
     );
     fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
@@ -47,6 +55,7 @@ describe("MemberInviteDrawer", () => {
     render(
       <MemberInviteDrawer
         open
+        positions={[]}
         onClose={() => {}}
         onCreate={async () => "id2"}
         onProvision={onProvision}

@@ -1,13 +1,21 @@
-import { useId, useState, type ReactNode } from "react";
-import { useForm } from "react-hook-form";
+import { useState, type ReactNode } from "react";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Field, Input, Select } from "@luminova/ui";
-import { memberSchema, type MemberInput, MEMBER_STATUSES } from "@luminova/types";
-import { ROLE_SUGGESTIONS } from "../lib/role-suggestions";
+import { Button, Combobox, Field, Input, MultiSelect, Select } from "@luminova/ui";
+import {
+  memberSchema,
+  positionTitle,
+  currentTermKey,
+  type MemberInput,
+  type Position,
+  MEMBER_STATUSES,
+  MEMBER_GENDERS,
+} from "@luminova/types";
 import { avatarColor } from "../lib/member-display";
 import { initials } from "../../../lib/initials";
 
 interface MemberFormProps {
+  positions: Position[];
   defaultValues?: Partial<MemberInput>;
   submitLabel: string;
   pendingLabel?: string;
@@ -17,16 +25,17 @@ interface MemberFormProps {
   children?: ReactNode;
 }
 
-const EMPTY: MemberInput = {
+const EMPTY = {
   name: "",
   email: "",
   phone: "",
-  role: "",
   profession: "",
   joinDate: "",
   birthdate: "",
   status: "Activo",
-};
+  cargoId: null,
+  comisionIds: [],
+} satisfies Partial<MemberInput>;
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
@@ -35,6 +44,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 export function MemberForm({
+  positions,
   defaultValues,
   submitLabel,
   pendingLabel,
@@ -44,9 +54,9 @@ export function MemberForm({
   children,
 }: MemberFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
-  const roleListId = useId();
   const {
     register,
+    control,
     handleSubmit,
     watch,
     formState: { errors, isSubmitting },
@@ -55,8 +65,17 @@ export function MemberForm({
     defaultValues: { ...EMPTY, ...defaultValues },
   });
 
+  const gender = watch("gender");
+  const term = currentTermKey();
+  const cargoOptions = positions
+    .filter((p) => p.category !== "Comision" && (p.term === null || String(p.term) === term))
+    .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
+  const comisionOptions = positions
+    .filter((p) => p.category === "Comision")
+    .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
+
   const previewName = watch("name");
-  const previewRole = watch("role");
+  const previewRole = cargoOptions.find((o) => o.value === watch("cargoId"))?.label ?? "Miembro";
   const seed = avatarSeed?.trim() || previewName?.trim() || "nuevo";
 
   const submit = handleSubmit(async (data) => {
@@ -82,7 +101,7 @@ export function MemberForm({
             <div className="truncate font-semibold text-ink-1">
               {previewName?.trim() || "Nuevo miembro"}
             </div>
-            <div className="truncate text-[13px] text-ink-3">{previewRole?.trim() || "Rol"}</div>
+            <div className="truncate text-[13px] text-ink-3">{previewRole}</div>
           </div>
         </div>
       )}
@@ -94,6 +113,16 @@ export function MemberForm({
         </Field>
         <Field label="Correo" htmlFor="email" required error={errors.email?.message}>
           <Input id="email" type="email" {...register("email")} />
+        </Field>
+        <Field label="Género" htmlFor="gender" required error={errors.gender?.message}>
+          <Select id="gender" {...register("gender")}>
+            <option value="">Seleccionar…</option>
+            {MEMBER_GENDERS.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </Select>
         </Field>
         <Field label="Teléfono" htmlFor="phone" error={errors.phone?.message}>
           <Input id="phone" {...register("phone")} />
@@ -113,13 +142,34 @@ export function MemberForm({
 
       <div className="flex flex-col gap-4">
         <SectionLabel>Membresía</SectionLabel>
-        <Field label="Rol" htmlFor="role" required error={errors.role?.message}>
-          <Input id="role" list={roleListId} {...register("role")} />
-          <datalist id={roleListId}>
-            {ROLE_SUGGESTIONS.map((role) => (
-              <option key={role} value={role} />
-            ))}
-          </datalist>
+        <Field label="Cargo" htmlFor="cargoId" error={errors.cargoId?.message}>
+          <Controller
+            control={control}
+            name="cargoId"
+            render={({ field }) => (
+              <Combobox
+                id="cargoId"
+                options={cargoOptions}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Sin cargo"
+              />
+            )}
+          />
+        </Field>
+        <Field label="Comisiones" htmlFor="comisionIds" error={errors.comisionIds?.message}>
+          <Controller
+            control={control}
+            name="comisionIds"
+            render={({ field }) => (
+              <MultiSelect
+                id="comisionIds"
+                options={comisionOptions}
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
+          />
         </Field>
         <Field
           label="Fecha de ingreso"
