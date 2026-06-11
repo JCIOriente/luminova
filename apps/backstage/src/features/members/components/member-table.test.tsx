@@ -8,7 +8,7 @@ import { AbilityProvider } from "../../../lib/authz/ability-context";
 import { currentTermKey, type Member, type Position } from "@luminova/types";
 
 const noop = {
-  roleLabel: (_m: Member) => "Miembro",
+  roleLabel: () => "Miembro",
   positionsById: new Map<string, Position>(),
   onView: vi.fn(),
   onEdit: vi.fn(),

@@ -19,7 +19,7 @@ function member(p: Partial<Member>): Member {
   };
 }
 
-const noopResolve = (_m: Member) => "Miembro";
+const noopResolve = () => "Miembro";
 
 describe("filterMembers", () => {
   const rows = [
