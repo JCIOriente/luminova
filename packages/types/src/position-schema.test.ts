@@ -32,4 +32,22 @@ describe("positionSchema", () => {
   it("rejects unknown grant roles", () => {
     expect(positionSchema.safeParse({ ...base, grants: ["SuperUser"] }).success).toBe(false);
   });
+
+  it("rejects JDL with NaN term — produces 'Requerido.' error", () => {
+    const result = positionSchema.safeParse({ ...base, term: NaN });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes("Requerido."))).toBe(true);
+    }
+  });
+
+  it("rejects JDL with term before year 2000", () => {
+    const result = positionSchema.safeParse({ ...base, term: 1999 });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes("Año inválido."))).toBe(true);
+    }
+  });
 });

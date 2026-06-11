@@ -8,7 +8,7 @@ export const positionSchema = z
     titleFemale: z.string().min(3, "Mínimo 3 caracteres."),
     category: z.enum(POSITION_CATEGORIES),
     grants: z.array(z.enum(ROLES)),
-    term: z.number().int().nullable(),
+    term: z.number({ error: "Requerido." }).int().min(2000, "Año inválido.").max(2100, "Año inválido.").nullable(),
     description: z.string().min(1, "Requerido."),
   })
   .refine((p) => (p.category === "JDL") === (p.term !== null), {
