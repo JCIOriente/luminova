@@ -57,6 +57,9 @@ service cloud.firestore {
     function assignedCargoId() {
       return assignedTerm().get('cargoId', null);
     }
+    // A null cargoId short-circuits (no get). For a non-null cargoId, get() on a
+    // missing position errors → rule denies (fail-closed). Comisión grants are not
+    // checked here (rules can't iterate the array) — the beacon trust gate is their backstop.
     function cargoGrantsEmpty() {
       return assignedCargoId() == null
         || get(/databases/$(database)/documents/positions/$(assignedCargoId())).data.grants.size() == 0;

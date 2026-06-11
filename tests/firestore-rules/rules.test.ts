@@ -675,4 +675,21 @@ describe("firestore.rules — member positions assignment", () => {
       }),
     );
   });
+  it("allows a non-Admin to assign a power-conferring comisión (rules pass; beacon trust gate drops the grant)", async () => {
+    // INTENTIONAL: rules cannot iterate comisionIds, so comisión grants are NOT
+    // gated here. The beacon onMemberWritten trust gate honors comisión power
+    // grants only when assignedBy is an Admin (see apps/beacon claims-sync).
+    await assertSucceeds(
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: null, comisionIds: ["pos1"], assignedBy: "exec-uid" } },
+      }),
+    );
+  });
+  it("denies a non-Admin assigning a dangling cargoId (get() on missing position fails closed)", async () => {
+    await assertFails(
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos_ghost", comisionIds: [], assignedBy: "exec-uid" } },
+      }),
+    );
+  });
 });
