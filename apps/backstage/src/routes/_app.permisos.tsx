@@ -14,8 +14,10 @@ export const Route = createFileRoute("/_app/permisos")({
 
 function PermisosPage() {
   const isAdmin = useAbility().can("manage", "all");
-  const { data: positions, isLoading: positionsLoading } = usePositions();
-  const { data: members, isLoading: membersLoading } = useMembers();
+  // Gate the reads on isAdmin: a non-Admin who types /permisos directly shouldn't
+  // fire collection queries Firestore would deny anyway (least-privilege).
+  const { data: positions, isLoading: positionsLoading } = usePositions({ enabled: isAdmin });
+  const { data: members, isLoading: membersLoading } = useMembers({ enabled: isAdmin });
   const rows = useMemo(
     () => buildPermissionsOverview(positions ?? [], members ?? [], currentTermKey()),
     [positions, members],
@@ -44,6 +46,10 @@ function PermisosPage() {
         }
       />
       <PermisosView rows={rows} isLoading={isLoading} />
+      <p className="text-[12px] text-ink-3">
+        Refleja los cargos del catálogo. Los permisos efectivos de cada miembro se sincronizan al
+        iniciar sesión.
+      </p>
     </div>
   );
 }
