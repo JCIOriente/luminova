@@ -13,7 +13,10 @@ service cloud.firestore {
       return signedIn() && roles().hasAny(rs);
     }
     function unchanged(field) {
-      return request.resource.data[field] == resource.data[field];
+      // .get(...) so an ABSENT field (e.g. uid on an un-invited member) compares as
+      // null instead of throwing "Property is undefined" — which denied every update
+      // to a member without a uid. Immutability holds: null != a set value.
+      return request.resource.data.get(field, null) == resource.data.get(field, null);
     }
     // Block client-side resurrection of soft-deleted docs: once deletedAt is set
     // it is immutable, and active can only transition true -> false, never back.
@@ -134,8 +137,10 @@ service cloud.firestore {
         && softDeleteSafe()
         && (!positionsTouched() || positionsAssignmentSafe());
       // A member may set only their own profilePicture (H1 self-upload on /me).
+      // .get('uid', '') so a member doc WITHOUT a uid compares false instead of
+      // throwing — an erroring allow-rule must not deny an otherwise-valid update.
       allow update: if signedIn()
-        && resource.data.uid == request.auth.uid
+        && resource.data.get('uid', '') == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profilePicture'])
         && softDeleteSafe();
       // ExecutiveCommittee may edit only position assignments (org chart), nothing else.

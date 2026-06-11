@@ -107,6 +107,14 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // An un-invited member: NO uid field (the common case — only invited members
+    // get a uid). Exercises the absent-field path in unchanged()/self-edit rules.
+    await setDoc(doc(db, "members/m_nouid"), {
+      name: "Dora",
+      totalPoints: 0,
+      active: true,
+      deletedAt: null,
+    });
     await setDoc(doc(db, "positions/pos_soft"), {
       title: "Vocal",
       titleFemale: "Vocal",
@@ -205,6 +213,21 @@ describe("firestore.rules — members", () => {
   });
   it("allows Membership to update a normal field", async () => {
     await assertSucceeds(updateDoc(doc(as("u", ["Membership"]), "members/m1"), { name: "Ana2" }));
+  });
+  it("allows Admin to update a member that has NO uid field", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_nouid"), { name: "Dora2" }),
+    );
+  });
+  it("allows Admin to assign a power cargo to a uid-less member (self-stamped)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_nouid"), {
+        [`positions.${TERM}`]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" },
+      }),
+    );
+  });
+  it("still denies adding a uid to a uid-less member via client update", async () => {
+    await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m_nouid"), { uid: "sneak" }));
   });
   it("allows the owning member to set only their own profilePicture (H1 self-upload)", async () => {
     await assertSucceeds(
