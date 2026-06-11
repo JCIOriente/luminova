@@ -7,12 +7,12 @@ describe("parseInitiativeWrite", () => {
     const filedAt = Timestamp.fromDate(new Date("2026-09-01T00:00:00Z"));
     const out = parseInitiativeWrite({
       termId: "2026",
-      roster: { directorId: "d1", coDirectorId: "c1", teamIds: ["t1"] },
+      roster: { directorId: "d1", coDirectorIds: ["c1"], teamIds: ["t1"] },
       finalReport: { filedAt, filedBy: "u1" },
     });
     expect(out).toEqual({
       termId: "2026",
-      roster: { directorId: "d1", coDirectorId: "c1", teamIds: ["t1"] },
+      roster: { directorId: "d1", coDirectorIds: ["c1"], teamIds: ["t1"] },
       reportFiled: true,
       filedAtMillis: filedAt.toMillis(),
     });
@@ -21,7 +21,7 @@ describe("parseInitiativeWrite", () => {
   it("treats a null finalReport as not filed", () => {
     const out = parseInitiativeWrite({
       termId: "2026",
-      roster: { directorId: "d1", coDirectorId: null, teamIds: [] },
+      roster: { directorId: "d1", coDirectorIds: [], teamIds: [] },
       finalReport: null,
     });
     expect(out?.reportFiled).toBe(false);
@@ -30,13 +30,13 @@ describe("parseInitiativeWrite", () => {
 
   it("returns null when termId is missing", () => {
     expect(
-      parseInitiativeWrite({ roster: { directorId: "d1", coDirectorId: null, teamIds: [] } }),
+      parseInitiativeWrite({ roster: { directorId: "d1", coDirectorIds: [], teamIds: [] } }),
     ).toBeNull();
   });
 
   it("defaults a missing roster to empty (so deletes still reconcile)", () => {
     const out = parseInitiativeWrite({ termId: "2026" });
-    expect(out?.roster).toEqual({ directorId: "", coDirectorId: null, teamIds: [] });
+    expect(out?.roster).toEqual({ directorId: "", coDirectorIds: [], teamIds: [] });
   });
 
   it("rejects a termId that would break the composite id (/ or __)", () => {
@@ -47,9 +47,17 @@ describe("parseInitiativeWrite", () => {
   it("drops roster member ids that aren't path-safe", () => {
     const out = parseInitiativeWrite({
       termId: "2026",
-      roster: { directorId: "d/1", coDirectorId: "c__1", teamIds: ["ok", "bad__id", "a/b"] },
+      roster: { directorId: "d/1", coDirectorIds: ["c__1"], teamIds: ["ok", "bad__id", "a/b"] },
     });
-    expect(out?.roster).toEqual({ directorId: "", coDirectorId: null, teamIds: ["ok"] });
+    expect(out?.roster).toEqual({ directorId: "", coDirectorIds: [], teamIds: ["ok"] });
+  });
+
+  it("parses coDirectorIds and drops unclean ids", () => {
+    const init = parseInitiativeWrite({
+      termId: "2026",
+      roster: { directorId: "m1", coDirectorIds: ["m2", "bad__id", "a/b"], teamIds: [] },
+    });
+    expect(init?.roster.coDirectorIds).toEqual(["m2"]);
   });
 
   it("tolerates non-object input", () => {

@@ -5,6 +5,7 @@ import type { EngineStore } from "./store.js";
 import type { ActivityRef } from "./derive.js";
 import type { MemberAggregate } from "./aggregate.js";
 import { processCheckIn, processCheckInDelete, processInitiativeWrite } from "./process.js";
+import { participationId } from "./participation-id.js";
 import type { CheckIn } from "./check-in.js";
 
 const startAt = Timestamp.fromDate(new Date("2026-06-06T18:00:00Z"));
@@ -110,14 +111,14 @@ const projNow = Timestamp.fromDate(new Date("2026-06-10T00:00:00Z"));
 function initiative(
   over: Partial<{
     termId: string;
-    roster: { directorId: string; coDirectorId: string | null; teamIds: string[] };
+    roster: { directorId: string; coDirectorIds: string[]; teamIds: string[] };
     reportFiled: boolean;
     filedAtMillis: number | null;
   }> = {},
 ) {
   return {
     termId: "2026",
-    roster: { directorId: "", coDirectorId: null, teamIds: [] as string[] },
+    roster: { directorId: "", coDirectorIds: [] as string[], teamIds: [] as string[] },
     reportFiled: false,
     filedAtMillis: null,
     ...over,
@@ -165,7 +166,7 @@ describe("processInitiativeWrite — roster expansion", () => {
       store,
       "Project",
       "p1",
-      initiative({ roster: { directorId: "d1", coDirectorId: "c1", teamIds: ["t1", "t2"] } }),
+      initiative({ roster: { directorId: "d1", coDirectorIds: ["c1"], teamIds: ["t1", "t2"] } }),
       projNow,
     );
     expect(store.rows.get("p1__d1__Director")!.pointRuleCode).toBe("DirectProject");
@@ -182,7 +183,7 @@ describe("processInitiativeWrite — roster expansion", () => {
       "Project",
       "p1",
       initiative({
-        roster: { directorId: "d1", coDirectorId: null, teamIds: [] },
+        roster: { directorId: "d1", coDirectorIds: [], teamIds: [] },
         reportFiled: true,
         filedAtMillis,
       }),
@@ -204,7 +205,7 @@ describe("processInitiativeWrite — roster expansion", () => {
       "Project",
       "p1",
       initiative({
-        roster: { directorId: "d1", coDirectorId: "c1", teamIds: [] },
+        roster: { directorId: "d1", coDirectorIds: ["c1"], teamIds: [] },
         reportFiled: true,
         filedAtMillis,
       }),
@@ -216,7 +217,7 @@ describe("processInitiativeWrite — roster expansion", () => {
       "Project",
       "p1",
       initiative({
-        roster: { directorId: "d1", coDirectorId: null, teamIds: [] },
+        roster: { directorId: "d1", coDirectorIds: [], teamIds: [] },
         reportFiled: true,
         filedAtMillis,
       }),
@@ -226,10 +227,77 @@ describe("processInitiativeWrite — roster expansion", () => {
     expect(store.aggregates.get("c1__2026")).toEqual({ cumulative: 0, byMonth: {} });
   });
 
+  it("expands multiple co-directors then voids one dropped from the roster", async () => {
+    const filedAtMillis = Date.UTC(2026, 8, 1);
+    await processInitiativeWrite(
+      store,
+      "Project",
+      "p1",
+      initiative({
+        roster: { directorId: "d1", coDirectorIds: ["m2", "m3"], teamIds: [] },
+        reportFiled: true,
+        filedAtMillis,
+      }),
+      projNow,
+    );
+    const c2 = participationId("p1", "m2", "CoDirector");
+    const c3 = participationId("p1", "m3", "CoDirector");
+    expect(store.rows.has(c2)).toBe(true);
+    expect(store.rows.has(c3)).toBe(true);
+    expect(store.rows.get(c2)!.pointRuleCode).toBe("CoDirectProject");
+    expect(store.aggregates.get("m3__2026")).toEqual({ cumulative: 6, byMonth: { "2026-09": 6 } });
+
+    await processInitiativeWrite(
+      store,
+      "Project",
+      "p1",
+      initiative({
+        roster: { directorId: "d1", coDirectorIds: ["m2"], teamIds: [] },
+        reportFiled: true,
+        filedAtMillis,
+      }),
+      projNow,
+    );
+    expect(store.rows.has(c2)).toBe(true);
+    expect(store.rows.has(c3)).toBe(false);
+    expect(store.aggregates.get("m3__2026")).toEqual({ cumulative: 0, byMonth: {} });
+  });
+
+  it("decision 9 — direction rows are roster-only; activity organizers are never derived", async () => {
+    // ActivityRef deliberately omits `organizers`, so the engine has no seam to
+    // read them. Seed a child activity whose (Firestore) organizers would be mX/mY
+    // and assert that after a full reconcile the only direction rows are roster-derived.
+    store.activities.set("a-org", {
+      id: "a-org",
+      termId: "2026",
+      category: "ProjectExecution",
+      parentType: "Project",
+      parentId: "p1",
+      startAt,
+    });
+    await processInitiativeWrite(
+      store,
+      "Project",
+      "p1",
+      initiative({
+        roster: { directorId: "d1", coDirectorIds: ["c1"], teamIds: [] },
+        reportFiled: true,
+        filedAtMillis: Date.UTC(2026, 8, 1),
+      }),
+      projNow,
+    );
+    const directionRows = [...store.rows.values()].filter(
+      (r) => r.role === "Director" || r.role === "CoDirector",
+    );
+    expect(directionRows.map((r) => r.memberId).sort()).toEqual(["c1", "d1"]);
+    expect(store.rows.has(participationId("p1", "mX", "Director"))).toBe(false);
+    expect(store.rows.has(participationId("p1", "mY", "CoDirector"))).toBe(false);
+  });
+
   it("is idempotent — re-running an unchanged write keeps the same rows + bucket", async () => {
     const filedAtMillis = Date.UTC(2026, 8, 1);
     const init = initiative({
-      roster: { directorId: "d1", coDirectorId: null, teamIds: [] },
+      roster: { directorId: "d1", coDirectorIds: [], teamIds: [] },
       reportFiled: true,
       filedAtMillis,
     });
@@ -254,7 +322,7 @@ describe("processInitiativeWrite — roster expansion", () => {
       "Project",
       "p1",
       initiative({
-        roster: { directorId: "d1", coDirectorId: null, teamIds: [] },
+        roster: { directorId: "d1", coDirectorIds: [], teamIds: [] },
         reportFiled: true,
         filedAtMillis: Date.UTC(2026, 8, 1),
       }),

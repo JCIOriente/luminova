@@ -26,7 +26,7 @@ export function parseInitiativeWrite(data: unknown): InitiativeWrite | null {
 
   const r = (raw.roster ?? {}) as Record<string, unknown>;
   const directorId = isCleanId(r.directorId) ? r.directorId : "";
-  const coDirectorId = isCleanId(r.coDirectorId) ? r.coDirectorId : null;
+  const coDirectorIds = Array.isArray(r.coDirectorIds) ? r.coDirectorIds.filter(isCleanId) : [];
   const teamIds = Array.isArray(r.teamIds) ? r.teamIds.filter(isCleanId) : [];
 
   const finalReport = raw.finalReport as { filedAt?: unknown } | null | undefined;
@@ -34,7 +34,7 @@ export function parseInitiativeWrite(data: unknown): InitiativeWrite | null {
   const filedAtMillis =
     reportFiled && hasToMillis(finalReport!.filedAt) ? finalReport!.filedAt.toMillis() : null;
 
-  return { termId, roster: { directorId, coDirectorId, teamIds }, reportFiled, filedAtMillis };
+  return { termId, roster: { directorId, coDirectorIds, teamIds }, reportFiled, filedAtMillis };
 }
 
 /** Parse a Firestore activity doc into an ActivityRef, or null if the required fields are malformed. */

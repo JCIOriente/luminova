@@ -21,7 +21,7 @@ export type RosterRole = "Director" | "CoDirector" | "Team";
 /** The initiative facts the engine needs from a programs/projects write. */
 export interface InitiativeWrite {
   termId: string;
-  roster: { directorId: string; coDirectorId: string | null; teamIds: string[] };
+  roster: { directorId: string; coDirectorIds: string[]; teamIds: string[] };
   reportFiled: boolean;
   filedAtMillis: number | null;
 }

@@ -8,7 +8,7 @@ const filedAtMillis = Date.UTC(2026, 8, 20); // 2026-09
 describe("desiredRosterRoles", () => {
   it("maps director, co-director, and each team member", () => {
     expect(
-      desiredRosterRoles({ directorId: "m1", coDirectorId: "m2", teamIds: ["m3", "m4"] }),
+      desiredRosterRoles({ directorId: "m1", coDirectorIds: ["m2"], teamIds: ["m3", "m4"] }),
     ).toEqual([
       { memberId: "m1", role: "Director" },
       { memberId: "m2", role: "CoDirector" },
@@ -16,13 +16,26 @@ describe("desiredRosterRoles", () => {
       { memberId: "m4", role: "Team" },
     ]);
   });
-  it("skips a null co-director and an empty team", () => {
-    expect(desiredRosterRoles({ directorId: "m1", coDirectorId: null, teamIds: [] })).toEqual([
+  it("expands every co-director", () => {
+    const roles = desiredRosterRoles({
+      directorId: "m1",
+      coDirectorIds: ["m2", "m3"],
+      teamIds: ["m4"],
+    });
+    expect(roles).toEqual([
+      { memberId: "m1", role: "Director" },
+      { memberId: "m2", role: "CoDirector" },
+      { memberId: "m3", role: "CoDirector" },
+      { memberId: "m4", role: "Team" },
+    ]);
+  });
+  it("skips an empty co-director list and an empty team", () => {
+    expect(desiredRosterRoles({ directorId: "m1", coDirectorIds: [], teamIds: [] })).toEqual([
       { memberId: "m1", role: "Director" },
     ]);
   });
   it("skips an empty-string director", () => {
-    expect(desiredRosterRoles({ directorId: "", coDirectorId: null, teamIds: [] })).toEqual([]);
+    expect(desiredRosterRoles({ directorId: "", coDirectorIds: [], teamIds: [] })).toEqual([]);
   });
 });
 
