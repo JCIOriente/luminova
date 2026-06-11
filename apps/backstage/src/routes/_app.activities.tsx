@@ -3,7 +3,9 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button, EmptyState, Icon, Sheet, Dialog, Toast } from "@luminova/ui";
 import type { ComboboxOption } from "@luminova/ui";
+import { ACTIVITY_CATEGORIES } from "@luminova/types";
 import type { Activity, ActivityInput } from "@luminova/types";
+import { STANDALONE_CATEGORIES } from "../features/activities/lib/categories";
 import { Can } from "../lib/authz/ability-context";
 import { PageHeader } from "../components/page-header";
 import { currentTermKey } from "@luminova/types";
@@ -134,6 +136,7 @@ function ActivitiesPage() {
           <ActivityForm
             key={editing === "new" ? "new" : editing.id}
             defaultValues={editing === "new" ? undefined : activityToInput(editing)}
+            categoryOptions={editing === "new" ? STANDALONE_CATEGORIES : ACTIVITY_CATEGORIES}
             memberOptions={memberOptions}
             programOptions={programOptions}
             projectOptions={projectOptions}
