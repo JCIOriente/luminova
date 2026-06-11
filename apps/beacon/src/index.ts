@@ -1,6 +1,8 @@
 import { getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import type { TermPositions } from "@luminova/types";
 import { createFirestoreStore, parseInitiativeWrite } from "./award-points/firestore-store.js";
 import { validateCheckIn } from "./award-points/check-in.js";
 import {
@@ -8,6 +10,8 @@ import {
   processCheckInDelete,
   processInitiativeWrite,
 } from "./award-points/process.js";
+import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
+import { syncMemberClaims } from "./claims-sync/sync.js";
 
 // Initialize the default app once at module load. Doing this lazily inside the
 // handler races the functions runtime's admin stub (getApps() can report a stub
@@ -71,6 +75,18 @@ function initiativeTrigger(collection: "programs" | "projects") {
 
 export const onProgramWritten = initiativeTrigger("programs");
 export const onProjectWritten = initiativeTrigger("projects");
+
+function currentTermKey(): string {
+  return String(new Date().getUTCFullYear());
+}
+
+export const onMemberWritten = onDocumentWritten("members/{id}", async (event) => {
+  const after = event.data?.after;
+  if (!after?.exists) return; // deletes leave the Auth user untouched
+  const member = after.data() as { uid?: string; positions?: Record<string, TermPositions> };
+  if (!member.uid) return; // not provisioned → no Auth user to claim
+  await syncMemberClaims(firestoreClaimsDeps(db(), getAuth()), member, currentTermKey());
+});
 
 export { setUserRoles } from "./set-user-roles.js";
 export { provisionMemberLogin } from "./provision-member-login.js";

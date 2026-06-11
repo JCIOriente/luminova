@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { awardPoints, onProgramWritten, onProjectWritten, setUserRoles } from "./index";
+import {
+  awardPoints,
+  onMemberWritten,
+  onProgramWritten,
+  onProjectWritten,
+  setUserRoles,
+} from "./index";
 
 describe("beacon exports", () => {
   it("exports the awardPoints check-in trigger", () => {
@@ -11,5 +17,8 @@ describe("beacon exports", () => {
   });
   it("re-exports the setUserRoles callable", () => {
     expect(setUserRoles).toBeDefined();
+  });
+  it("exports the onMemberWritten trigger", () => {
+    expect(onMemberWritten).toBeDefined();
   });
 });
