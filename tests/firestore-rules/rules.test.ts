@@ -52,6 +52,33 @@ beforeAll(async () => {
     await setDoc(doc(db, "participations/part1"), { memberId: "m1", termId: "2026" });
     await setDoc(doc(db, "projects/p1"), { title: "P" });
     await setDoc(doc(db, "programs/prog1"), { termId: "2026", title: "Programa X" });
+    await setDoc(doc(db, "projects/p_dir"), {
+      termId: "2026",
+      title: "Eco",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: ["owner-uid"],
+      finalReport: null,
+      impact: null,
+      status: "EnEjecucion",
+    });
+    await setDoc(doc(db, "projects/p_done"), {
+      termId: "2026",
+      title: "Done",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: ["owner-uid"],
+      finalReport: { filedAt: new Date("2026-05-01T00:00:00Z"), filedBy: "owner-uid" },
+      impact: { personsImpacted: 1, volunteers: 1, custom: [], closingSummary: "x" },
+      status: "Finalizado",
+    });
+    await setDoc(doc(db, "programs/prog_dir"), {
+      termId: "2026",
+      title: "Eco Prog",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: ["owner-uid"],
+      finalReport: null,
+      impact: null,
+      status: "EnEjecucion",
+    });
     await setDoc(doc(db, "memberPoints/2025/03/e1"), { points: 5 });
   });
 });
@@ -271,6 +298,80 @@ describe("firestore.rules — programs", () => {
   });
   it("denies delete even for Admin", async () => {
     await assertFails(deleteDoc(doc(as("u", ["Admin"]), "programs/prog1")));
+  });
+});
+
+describe("firestore.rules — initiative direction branch", () => {
+  it("lets a direction uid update status", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_dir"), { status: "Planificacion" }),
+    );
+  });
+  it("denies a non-direction member", async () => {
+    await assertFails(
+      updateDoc(doc(as("other-uid", ["Member"]), "projects/p_dir"), { status: "Planificacion" }),
+    );
+  });
+  it("denies direction touching directionUids", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_dir"), {
+        directionUids: ["owner-uid", "evil-uid"],
+      }),
+    );
+  });
+  it("denies changing termId even for Admin", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_dir"), { termId: "2027" }),
+    );
+  });
+  it("locks status once finalReport is filed (even Admin)", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), { status: "EnEjecucion" }),
+    );
+  });
+  it("locks finalReport and impact once filed", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), { finalReport: null }),
+    );
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), {
+        impact: { personsImpacted: 9, volunteers: 9, custom: [], closingSummary: "edit" },
+      }),
+    );
+  });
+  it("still allows title edits on a completed initiative", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), { title: "Done (renombrado)" }),
+    );
+  });
+  it("denies create with non-empty directionUids", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["ProjectManager"]), "projects/p_new"), {
+        termId: "2026",
+        title: "X",
+        directionUids: ["u"],
+        finalReport: null,
+      }),
+    );
+  });
+  it("allows PM create without directionUids", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["ProjectManager"]), "projects/p_new2"), {
+        termId: "2026",
+        title: "X",
+        finalReport: null,
+      }),
+    );
+  });
+  it("lets a direction uid update a program status (mirrored)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "programs/prog_dir"), { status: "Planificacion" }),
+    );
+  });
+  it("denies a non-direction member on a program (mirrored)", async () => {
+    await assertFails(
+      updateDoc(doc(as("other-uid", ["Member"]), "programs/prog_dir"), { status: "Planificacion" }),
+    );
   });
 });
 
