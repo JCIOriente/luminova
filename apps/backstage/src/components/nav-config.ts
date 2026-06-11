@@ -58,7 +58,14 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: "barChart",
         roles: ["Admin", "Membership", "Treasury", "ExecutiveCommittee", "ProjectManager"],
       },
-      { to: "/positions", label: "Cargos y comisiones", icon: "compass", subject: "Position" },
+      {
+        to: "/positions",
+        label: "Cargos y comisiones",
+        icon: "compass",
+        subject: "Position",
+        // Members can read Position (chip resolution on /me) — keep the catalog page off their nav.
+        roles: ["Admin", "Membership", "ExecutiveCommittee"],
+      },
     ],
   },
   {

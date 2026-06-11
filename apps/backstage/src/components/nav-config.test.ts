@@ -63,6 +63,7 @@ describe("nav-config", () => {
     expect(item?.subject).toBe("Position");
     expect(item?.action).toBeUndefined();
     expect(item?.label).toBe("Cargos y comisiones");
+    expect(item?.roles).toEqual(["Admin", "Membership", "ExecutiveCommittee"]);
   });
 
   it("gates point rules on the PointRule subject", () => {
