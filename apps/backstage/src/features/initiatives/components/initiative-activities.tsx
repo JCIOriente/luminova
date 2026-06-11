@@ -47,9 +47,7 @@ export function InitiativeActivities({ activities, canCreate, onCreate }: Initia
                 {formatMonthYear(activity.startAt)}
               </span>
             </span>
-            <Badge tone={ACTIVITY_STATUS_TONE[activity.status]}>
-              {ACTIVITY_STATUS_LABEL[activity.status]}
-            </Badge>
+            <Badge tone={ACTIVITY_STATUS_TONE[activity.status]}>{activity.status}</Badge>
             <span className="text-ink-4 transition-colors group-hover:text-ink-2">
               {Icon.chevRight({ s: 16 })}
             </span>
@@ -62,14 +60,8 @@ export function InitiativeActivities({ activities, canCreate, onCreate }: Initia
   );
 }
 
-const ACTIVITY_STATUS_LABEL: Record<ActivityStatus, string> = {
-  Programada: "Programada",
-  Ejecutada: "Ejecutada",
-  Cancelada: "Cancelada",
-};
-
 const ACTIVITY_STATUS_TONE: Record<ActivityStatus, BadgeTone> = {
   Programada: "blue",
   Ejecutada: "green",
-  Cancelada: "gray",
+  Cancelada: "red",
 };

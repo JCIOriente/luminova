@@ -7,7 +7,7 @@ import {
   type ComboboxOption,
   type SegmentedOption,
 } from "@luminova/ui";
-import type { ActivityInput, InitiativeInput, InitiativeKind, Member } from "@luminova/types";
+import type { ActivityInput, InitiativeInput, Member } from "@luminova/types";
 import { useAbility } from "../lib/authz/ability-context";
 import { InitiativeForm } from "../components/initiative-form";
 import { InitiativeHero } from "../features/initiatives/components/initiative-hero";
@@ -22,7 +22,7 @@ import { useActivitiesByTerm } from "../features/activities/hooks/use-activities
 import { useCreateActivity } from "../features/activities/hooks/use-create-activity";
 import { useUpdateProgram } from "../features/programs/hooks/use-update-program";
 import { useUpdateProject } from "../features/projects/hooks/use-update-project";
-import { useInitiative, type InitiativeType } from "../features/initiatives/hooks/use-initiative";
+import { useInitiative, KIND, type InitiativeType } from "../features/initiatives/hooks/use-initiative";
 import { initiativeToInput } from "../features/initiatives/repositories/initiative-mapper";
 import {
   computeProgress,
@@ -39,11 +39,6 @@ export const Route = createFileRoute("/_app/initiatives_/$type/$id")({
 });
 
 type Tab = "resumen" | "actividades";
-
-const KIND: Record<InitiativeType, InitiativeKind> = {
-  program: "Program",
-  project: "Project",
-};
 
 function InitiativeDetailPage() {
   const { type, id } = Route.useParams();

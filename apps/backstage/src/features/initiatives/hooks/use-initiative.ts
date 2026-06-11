@@ -6,7 +6,7 @@ import type { InitiativeListItem } from "../lib/initiative-list-item";
 
 export type InitiativeType = "program" | "project";
 
-const KIND: Record<InitiativeType, InitiativeKind> = {
+export const KIND: Record<InitiativeType, InitiativeKind> = {
   program: "Program",
   project: "Project",
 };
