@@ -10,7 +10,9 @@ function isStringArray(v: unknown): v is string[] {
 }
 
 /** Extract a structurally-safe member from raw Firestore data. Malformed term
- *  entries are dropped (not thrown) so a bad doc can't cause a retry storm. */
+ *  entries are dropped (not thrown) so a bad doc can't cause a retry storm.
+ *  An absent comisionIds defaults to [] (the cargo grant is still honored);
+ *  a present-but-malformed comisionIds drops the entry. */
 export function parseMember(raw: unknown): SafeMember {
   const data = (raw ?? {}) as { uid?: unknown; positions?: unknown };
   const uid = typeof data.uid === "string" ? data.uid : undefined;
@@ -22,10 +24,10 @@ export function parseMember(raw: unknown): SafeMember {
       const cargoId =
         typeof v.cargoId === "string" ? v.cargoId : v.cargoId === null ? null : undefined;
       if (cargoId === undefined) continue;
-      if (!isStringArray(v.comisionIds)) continue;
+      if (v.comisionIds !== undefined && !isStringArray(v.comisionIds)) continue;
       positions[term] = {
         cargoId,
-        comisionIds: v.comisionIds,
+        comisionIds: isStringArray(v.comisionIds) ? v.comisionIds : [],
         ...(typeof v.assignedBy === "string" ? { assignedBy: v.assignedBy } : {}),
       };
     }

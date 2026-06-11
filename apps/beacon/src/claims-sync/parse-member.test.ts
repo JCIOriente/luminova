@@ -17,7 +17,7 @@ describe("parseMember", () => {
     });
   });
 
-  it("drops a term whose comisionIds is not a string array", () => {
+  it("drops a term whose comisionIds is present but not a string array", () => {
     const result = parseMember({
       uid: "u1",
       positions: {
@@ -27,6 +27,22 @@ describe("parseMember", () => {
       },
     });
     expect(result.positions).toEqual({ good: { cargoId: "p", comisionIds: ["c"] } });
+  });
+
+  it("defaults an absent comisionIds to [] when cargoId is valid", () => {
+    const result = parseMember({
+      uid: "u1",
+      positions: {
+        "2026": { cargoId: "pos-pres", assignedBy: "admin-uid" },
+        nullCargo: { cargoId: null },
+      },
+    });
+    expect(result.positions["2026"]).toEqual({
+      cargoId: "pos-pres",
+      comisionIds: [],
+      assignedBy: "admin-uid",
+    });
+    expect(result.positions.nullCargo).toEqual({ cargoId: null, comisionIds: [] });
   });
 
   it("yields empty positions when positions is an array", () => {

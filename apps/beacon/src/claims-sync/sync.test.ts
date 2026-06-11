@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Role } from "@luminova/auth/roles";
 import { syncMemberClaims, type ClaimsSyncDeps } from "./sync.js";
+import { parseMember } from "./parse-member.js";
 
 type Claims = { roles: Role[]; scannerEventIds?: string[] };
 
@@ -39,6 +40,20 @@ describe("syncMemberClaims", () => {
       "2026",
     );
     expect(writes["target-uid"]).toBeUndefined(); // already ['Member'] → no-op
+  });
+
+  it("BLOCKING: absent comisionIds (defaults []) still gates a power cargo on Admin assignedBy", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-pres": { grants: ["Admin"] } },
+      userRoles: { "membership-uid": ["Membership", "Member"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+    });
+    const member = parseMember({
+      uid: "target-uid",
+      positions: { "2026": { cargoId: "pos-pres", assignedBy: "membership-uid" } },
+    });
+    await syncMemberClaims(deps, member, "2026");
+    expect(writes["target-uid"]).toBeUndefined(); // no Admin escalation
   });
 
   it("honors power grants when assignedBy is Admin", async () => {
