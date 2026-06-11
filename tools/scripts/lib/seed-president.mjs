@@ -65,8 +65,11 @@ export async function upsertAuthUser(auth, { email, password, uid }) {
     if (error?.code !== "auth/email-already-exists" && error?.code !== "auth/uid-already-exists") {
       throw error;
     }
-    const user = await auth.getUserByEmail(email);
-    await auth.updateUser(user.uid, { password });
+    // Resolve the existing user by the pinned uid when we have one (its email may
+    // differ from the one we asked for — e.g. a re-seed that changed the email);
+    // otherwise resolve by email. Then reconcile both email and password.
+    const user = uid ? await auth.getUser(uid) : await auth.getUserByEmail(email);
+    await auth.updateUser(user.uid, { email, password });
     return user.uid;
   }
 }
