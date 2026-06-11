@@ -21,7 +21,7 @@ type Editing = Position | "new" | null;
 function positionToInput(position: Position): Partial<PositionInput> {
   return {
     title: position.title,
-    titleFemale: position.titleFemale,
+    titleFemale: position.titleFemale ?? undefined,
     category: position.category,
     grants: position.grants,
     term: position.term,

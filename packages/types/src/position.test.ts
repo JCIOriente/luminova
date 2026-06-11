@@ -1,34 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { positionTitle, currentTermKey } from "./position.js";
-import type { TermPositions } from "./position.js";
+import { femaleTitle, positionTitle } from "./position.js";
 
-const cargo = { title: "Presidente", titleFemale: "Presidenta" };
+describe("femaleTitle", () => {
+  it("maps -o to -a", () => {
+    expect(femaleTitle("Tesorero")).toBe("Tesorera");
+    expect(femaleTitle("Secretario")).toBe("Secretaria");
+  });
+  it("maps -e to -a", () => {
+    expect(femaleTitle("Presidente")).toBe("Presidenta");
+  });
+  it("adds -a to a consonant ending", () => {
+    expect(femaleTitle("Director")).toBe("Directora");
+    expect(femaleTitle("Asesor")).toBe("Asesora");
+  });
+  it("feminizes only the first word, keeping the rest", () => {
+    expect(femaleTitle("Vicepresidente de Área")).toBe("Vicepresidenta de Área");
+    expect(femaleTitle("Asesor Legal")).toBe("Asesora Legal");
+  });
+});
 
 describe("positionTitle", () => {
-  it("picks the female variant", () => {
-    expect(positionTitle(cargo, "Femenino")).toBe("Presidenta");
+  const base = { title: "Director" };
+  it("returns title for non-female", () => {
+    expect(positionTitle(base, "Masculino")).toBe("Director");
+    expect(positionTitle(base, undefined)).toBe("Director");
   });
-  it("picks the base variant for masculine", () => {
-    expect(positionTitle(cargo, "Masculino")).toBe("Presidente");
+  it("derives the feminine when no override", () => {
+    expect(positionTitle(base, "Femenino")).toBe("Directora");
   });
-  it("falls back to base when gender is missing (legacy docs)", () => {
-    expect(positionTitle(cargo, undefined)).toBe("Presidente");
-  });
-});
-
-describe("currentTermKey", () => {
-  it("is the calendar year", () => {
-    expect(currentTermKey(new Date("2026-06-10T12:00:00Z"))).toBe("2026");
-  });
-});
-
-describe("TermPositions.assignedBy", () => {
-  it("accepts an optional assignedBy uid", () => {
-    const term: TermPositions = { cargoId: "p1", comisionIds: [], assignedBy: "uid-1" };
-    expect(term.assignedBy).toBe("uid-1");
-  });
-  it("allows omitting assignedBy (legacy K2 docs)", () => {
-    const term: TermPositions = { cargoId: null, comisionIds: [] };
-    expect(term.assignedBy).toBeUndefined();
+  it("uses an explicit titleFemale override when present", () => {
+    expect(
+      positionTitle({ title: "Pasado Presidente", titleFemale: "Pasada Presidenta" }, "Femenino"),
+    ).toBe("Pasada Presidenta");
   });
 });

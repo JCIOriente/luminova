@@ -31,7 +31,7 @@ type LabelSource = {
 
 export function memberPositionLabel(
   member: LabelSource,
-  positionsById: Map<string, { title: string; titleFemale: string }>,
+  positionsById: Map<string, { title: string; titleFemale?: string | null }>,
   termKey: string,
 ): string {
   const cargoId = member.positions?.[termKey]?.cargoId;
