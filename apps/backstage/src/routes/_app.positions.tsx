@@ -80,6 +80,8 @@ function PositionsPage() {
   };
 
   const all = positions ?? [];
+  const activePositions = all.filter((p) => p.active);
+  const seedable = all.length === 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -114,7 +116,7 @@ function PositionsPage() {
           No se pudieron cargar los cargos.
         </p>
       )}
-      {positions && all.length === 0 && (
+      {positions && seedable && (
         <EmptyState
           icon={Icon.compass({ s: 40 })}
           title="El catálogo está vacío"
@@ -133,9 +135,9 @@ function PositionsPage() {
           }
         />
       )}
-      {positions && all.length > 0 && (
+      {positions && !seedable && (
         <PositionTable
-          positions={all}
+          positions={activePositions}
           onEdit={setEditing}
           onDeactivate={setDeactivateTarget}
         />

@@ -5,7 +5,6 @@ import {
   addDoc,
   updateDoc,
   query,
-  where,
   serverTimestamp,
   writeBatch,
   limit,
@@ -17,9 +16,13 @@ import { toPositionCreateDoc, toPositionUpdateDoc } from "./position-mapper";
 export class PositionRepository {
   private readonly collection = collection(getFirebase().db, "positions");
 
-  /** Active catalog entries: CEL, then JDL, then comisiones; alphabetical inside. */
+  /**
+   * Full catalog — active and soft-deleted entries — CEL, then JDL, then comisiones; alphabetical
+   * inside each group. Callers filter p.active for display; soft-deleted entries must remain
+   * available so historical assignments (positions[term].cargoId / comisionIds) keep resolving.
+   */
   async getAll(): Promise<Position[]> {
-    const snapshot = await getDocs(query(this.collection, where("active", "==", true)));
+    const snapshot = await getDocs(query(this.collection));
     const order: Record<string, number> = { CEL: 0, JDL: 1, Comision: 2 };
     return snapshot.docs
       .map((d) => ({ id: d.id, ...(d.data() as Omit<Position, "id">) }))
@@ -39,7 +42,7 @@ export class PositionRepository {
     await updateDoc(doc(this.collection, id), toPositionUpdateDoc(data));
   }
 
-  /** Soft delete — assignments referencing the id keep resolving for history. */
+  /** Soft delete — sets active:false; getAll() still returns the entry so history resolves. */
   async softDelete(id: string): Promise<void> {
     await updateDoc(doc(this.collection, id), { active: false, deletedAt: serverTimestamp() });
   }

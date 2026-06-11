@@ -66,13 +66,33 @@ export function MemberForm({
   });
 
   const gender = watch("gender");
+  const currentCargoId = watch("cargoId");
+  const currentComisionIds = watch("comisionIds");
   const term = currentTermKey();
-  const cargoOptions = positions
-    .filter((p) => p.category !== "Comision" && (p.term === null || String(p.term) === term))
+  const activeCargoOptions = positions
+    .filter(
+      (p) => p.active && p.category !== "Comision" && (p.term === null || String(p.term) === term),
+    )
     .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
-  const comisionOptions = positions
-    .filter((p) => p.category === "Comision")
+  const assignedInactiveCargo =
+    currentCargoId && !activeCargoOptions.some((o) => o.value === currentCargoId)
+      ? positions
+          .filter((p) => p.id === currentCargoId)
+          .map((p) => ({ value: p.id, label: `${positionTitle(p, gender)} (inactivo)` }))
+      : [];
+  const cargoOptions = [...activeCargoOptions, ...assignedInactiveCargo];
+
+  const activeComisionOptions = positions
+    .filter((p) => p.active && p.category === "Comision")
     .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
+  const assignedInactiveComisiones = (currentComisionIds ?? [])
+    .filter((id) => !activeComisionOptions.some((o) => o.value === id))
+    .flatMap((id) =>
+      positions
+        .filter((p) => p.id === id)
+        .map((p) => ({ value: p.id, label: `${positionTitle(p, gender)} (inactivo)` })),
+    );
+  const comisionOptions = [...activeComisionOptions, ...assignedInactiveComisiones];
 
   const previewName = watch("name");
   const previewRole = cargoOptions.find((o) => o.value === watch("cargoId"))?.label ?? "Miembro";

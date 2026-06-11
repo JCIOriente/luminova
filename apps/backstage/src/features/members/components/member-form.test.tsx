@@ -29,6 +29,18 @@ const positions: Position[] = [
   },
 ];
 
+const inactiveCargoPosition: Position = {
+  id: "pos-tesorero",
+  title: "Tesorero",
+  titleFemale: "Tesorera",
+  category: "CEL",
+  grants: [],
+  term: null,
+  description: "Gestiona las finanzas.",
+  active: false,
+  deletedAt: null,
+};
+
 describe("MemberForm", () => {
   it("blocks submit and shows an error when required fields are empty", async () => {
     const onSubmit = vi.fn();
@@ -108,5 +120,17 @@ describe("MemberForm", () => {
       </MemberForm>,
     );
     expect(screen.getByText("extra-slot")).toBeInTheDocument();
+  });
+
+  it("shows inactive assigned cargo with (inactivo) suffix in combobox trigger", async () => {
+    render(
+      <MemberForm
+        positions={[...positions, inactiveCargoPosition]}
+        defaultValues={{ cargoId: inactiveCargoPosition.id, gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText("Tesorero (inactivo)")).toBeInTheDocument();
   });
 });
