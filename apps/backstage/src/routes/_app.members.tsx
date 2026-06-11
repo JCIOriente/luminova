@@ -8,6 +8,7 @@ import { useAddMember } from "../features/members/hooks/use-add-member";
 import { useUpdateMember } from "../features/members/hooks/use-update-member";
 import { useSetMemberStatus } from "../features/members/hooks/use-set-member-status";
 import { useProvisionMemberLogin } from "../features/members/hooks/use-provision-member-login";
+import { requestPasswordReset } from "../lib/auth/request-password-reset";
 import { MemberTable } from "../features/members/components/member-table";
 import { MemberStatusFilter } from "../features/members/components/member-status-filter";
 import { MemberFilterMeta } from "../features/members/components/member-filter-meta";
@@ -86,8 +87,13 @@ function MembersPage() {
 
   const handleProvision = async (member: Member) => {
     try {
-      await provision.mutateAsync(member.id);
-      setToast(actionMessage(member.name, "invited"));
+      const { email } = await provision.mutateAsync(member.id);
+      try {
+        await requestPasswordReset(email);
+        setToast(actionMessage(member.name, "invited"));
+      } catch {
+        setToast("Acceso creado, pero el correo no se envió.");
+      }
     } catch {
       setToast("No se pudo enviar la invitación.");
     }
@@ -207,7 +213,7 @@ function MembersPage() {
         positions={positions ?? []}
         onClose={() => setInviteOpen(false)}
         onCreate={(data) => addMember.mutateAsync(data)}
-        onProvision={(memberId) => provision.mutateAsync(memberId).then(() => undefined)}
+        onProvision={(memberId) => provision.mutateAsync(memberId)}
       />
 
       <Dialog
