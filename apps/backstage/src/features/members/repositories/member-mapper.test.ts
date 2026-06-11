@@ -7,11 +7,13 @@ const input: MemberInput = {
   name: "Ana Pérez",
   email: "ana@jci.bo",
   phone: "777",
-  role: "Presidenta",
+  gender: "Femenino",
   profession: "Ingeniera",
   joinDate: "2020-03-15",
   birthdate: "1992-07-01",
   status: "Activo",
+  cargoId: null,
+  comisionIds: [],
 };
 
 describe("toMemberCreateDoc", () => {
@@ -21,7 +23,7 @@ describe("toMemberCreateDoc", () => {
       name: "Ana Pérez",
       email: "ana@jci.bo",
       phone: "777",
-      role: "Presidenta",
+      gender: "Femenino",
       profession: "Ingeniera",
       status: "Activo",
       profilePicture: null,
@@ -60,5 +62,39 @@ describe("dateInputValue", () => {
   it("formats a Timestamp as YYYY-MM-DD (UTC)", () => {
     const ts = Timestamp.fromDate(new Date("2001-12-09T00:00:00Z"));
     expect(dateInputValue(ts)).toBe("2001-12-09");
+  });
+});
+
+const posInput: MemberInput = {
+  name: "Ana Suárez",
+  email: "ana@jci.org",
+  phone: "",
+  gender: "Femenino",
+  profession: "",
+  joinDate: "2024-03-01",
+  birthdate: "1995-07-15",
+  status: "Activo",
+  cargoId: "pos-presidente",
+  comisionIds: ["pos-etica"],
+};
+
+describe("member-mapper positions", () => {
+  it("creates with current-term assignments and empty legacy role", () => {
+    const doc = toMemberCreateDoc(posInput, "2026");
+    expect(doc.positions).toEqual({
+      "2026": { cargoId: "pos-presidente", comisionIds: ["pos-etica"] },
+    });
+    expect(doc.role).toBe("");
+    expect(doc.gender).toBe("Femenino");
+  });
+
+  it("updates only the current term via dot path (other terms untouched)", () => {
+    const doc = toMemberUpdateDoc(posInput, "2026");
+    expect(doc["positions.2026"]).toEqual({
+      cargoId: "pos-presidente",
+      comisionIds: ["pos-etica"],
+    });
+    expect(doc).not.toHaveProperty("positions");
+    expect(doc).not.toHaveProperty("role");
   });
 });

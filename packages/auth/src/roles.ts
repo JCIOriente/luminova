@@ -1,22 +1,11 @@
-export const ROLES = [
-  "Admin",
-  "Membership",
-  "Treasury",
-  "ExecutiveCommittee",
-  "ProjectManager",
-  "Scanner",
-  "Member",
-] as const;
+import { ROLES, isValidRole, type Role } from "@luminova/types";
 
-export type Role = (typeof ROLES)[number];
+export { ROLES, isValidRole };
+export type { Role };
 
 export interface AuthClaims {
   roles: Role[];
   scannerEventIds?: string[];
-}
-
-export function isValidRole(value: unknown): value is Role {
-  return typeof value === "string" && (ROLES as readonly string[]).includes(value);
 }
 
 export function hasRole(claims: AuthClaims, role: Role): boolean {

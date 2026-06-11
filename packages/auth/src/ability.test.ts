@@ -81,6 +81,17 @@ describe("buildAbility", () => {
     expect(a.can("read", "Event")).toBe(true);
   });
 
+  it("lets ExecutiveCommittee manage the position catalog", () => {
+    const ability = buildAbility({ roles: ["ExecutiveCommittee"] }, "u1");
+    expect(ability.can("manage", "Position")).toBe(true);
+  });
+
+  it("lets Membership read but not manage positions", () => {
+    const ability = buildAbility({ roles: ["Membership"] }, "u1");
+    expect(ability.can("read", "Position")).toBe(true);
+    expect(ability.can("create", "Position")).toBe(false);
+  });
+
   it("additive roles union their abilities", () => {
     const a = ability({ roles: ["Membership", "ProjectManager"] });
     expect(a.can("create", "Member")).toBe(true);

@@ -19,7 +19,7 @@ export function useUpdateMember() {
                 name: data.name,
                 email: data.email,
                 phone: data.phone ?? "",
-                role: data.role,
+                gender: data.gender,
                 profession: data.profession ?? "",
                 status: data.status,
               }

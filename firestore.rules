@@ -83,6 +83,22 @@ service cloud.firestore {
         && resource.data.uid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profilePicture'])
         && softDeleteSafe();
+      // ExecutiveCommittee may edit only position assignments (org chart), nothing else.
+      allow update: if hasAnyRole(['ExecutiveCommittee'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['positions'])
+        && softDeleteSafe();
+      allow delete: if false;
+    }
+
+    // grants feed Auth custom claims (K4 trigger) — only Admin may confer power,
+    // else ExecutiveCommittee could mint an Admin-granting cargo for itself.
+    match /positions/{positionId} {
+      allow read: if signedIn();
+      allow create: if hasAnyRole(['Admin'])
+        || (hasAnyRole(['ExecutiveCommittee']) && request.resource.data.grants == []);
+      allow update: if (hasAnyRole(['Admin'])
+          || (hasAnyRole(['ExecutiveCommittee']) && unchanged('grants')))
+        && softDeleteSafe();
       allow delete: if false;
     }
 

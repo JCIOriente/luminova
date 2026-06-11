@@ -8,6 +8,7 @@ import { AbilityProvider } from "../../../lib/authz/ability-context";
 import type { Member } from "@luminova/types";
 
 const noop = {
+  roleLabel: (m: Member) => m.role || "Miembro",
   onView: vi.fn(),
   onEdit: vi.fn(),
   onProvision: vi.fn(),

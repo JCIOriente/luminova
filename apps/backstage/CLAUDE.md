@@ -20,6 +20,7 @@ Routes live in `src/routes/`. File name = URL segment.
 | `_app.point-rules.tsx` | `/point-rules` | Point rules matrix |
 | `_app.allies.tsx` | `/allies` | Partner management |
 | `_app.settings.tsx` | `/settings` | Settings placeholder |
+| `_app.positions.tsx` | `/positions` | Cargos y comisiones (catalog: CEL/JDL/comisiones) |
 
 Underscore prefix (`_auth`, `_app`) = pathless layout route (no URL segment added).
 

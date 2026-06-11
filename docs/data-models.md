@@ -2,6 +2,39 @@
 
 All Firestore collections. Used by Backstage frontend and Beacon functions.
 
+## positions/{positionId}
+
+```typescript
+interface Position {
+  id: string                     // auto-generated Firestore ID
+  title: string                  // display name (masculine / neutral form)
+  titleFemale?: string           // gendered display variant; picked by member.gender === 'Femenino'
+  category: 'CEL' | 'JDL' | 'Comision'
+  grants: Role[]                 // permission roles this cargo confers (claims sync lands in K4)
+  term: number | null            // calendar year (JDL only); null for CEL + Comision
+  description?: string
+  active: boolean                // default: true — false = soft deleted
+  deletedAt: Timestamp | null    // null = active, Timestamp = soft deleted
+}
+```
+
+**Category semantics**:
+- `CEL` — Executive Committee (fixed seed of 8 positions); Admin-only bootstrap via catalog page button; `writeBatch` atomic; refuses to seed a non-empty catalog.
+- `JDL` — Board direcciones created per term (`term = <year>`); one set per gestión.
+- `Comision` — Evergreen ad-hoc commissions (`term = null`); created on demand.
+
+**`grants`**: the permission `Role[]` this position confers. Only Admin may write a non-empty `grants` array — enforced by Firestore rules to prevent Executive Committee self-escalation. Claims sync is deferred to K4.
+
+**Soft delete**: `active: false` + `deletedAt: serverTimestamp()`. `getAll()` returns soft-deleted documents too (needed for historical assignment resolution — the UI filters `active === true` where applicable).
+
+**Queries used**:
+- Active positions: `where('active', '==', true)`
+- All (including deleted, for history): no filter
+
+> **Spec:** `docs/specs/2026-06-10-member-roles-invitations-design.md`
+
+---
+
 ## members/{memberId}
 
 ```typescript
@@ -10,13 +43,20 @@ interface Member {
   name: string                // min 3 chars
   email: string               // valid email
   phone?: string              // optional
-  role: string                // min 3 chars (e.g. "Presidente", "Secretario")
+  gender?: 'Masculino' | 'Femenino'  // used to pick Position.titleFemale for display
+  role: string                // legacy display fallback until K4 (role string kept while positions field is adopted)
   profession?: string         // optional
   joinDate: Timestamp         // membership start date (required)
   birthdate: Timestamp        // required
   status: 'Activo' | 'Inactivo' | 'Desafiliado'  // membership standing (default 'Activo')
   profilePicture: string | null  // Firebase Storage URL or null (upload deferred — set null on create)
   totalPoints: number         // default: 0 — updated by aggregation
+  positions?: {               // one cargo + N comisiones per term; key = calendar year string
+    [term: string]: {
+      cargoId: string | null    // single CEL/JDL assignment for the term (null = none)
+      comisionIds: string[]     // any number of Comision assignments
+    }
+  }
   active: boolean             // default: true — false = soft deleted
   deletedAt: Timestamp | null // null = active, Timestamp = soft deleted
 }
@@ -26,14 +66,13 @@ interface Member {
 flag (a deleted row is hidden from the list). `status` is editable membership
 standing — a `Desafiliado` member is **not** deleted and still appears in the list.
 
+**`positions` map**: dot-path field updates (`positions.2026.cargoId`) preserve history across terms. The term key is the calendar year string (e.g. `"2026"`). Legacy `role` string is kept as a display fallback until K4 lands custom claims sync.
+
 **Soft delete**: Never hard-delete members. Set `active: false` and `deletedAt: serverTimestamp()`.
 
-> **Type location:** `@luminova/types` does not exist yet (no `beacon` consumer
-> needs a shared `Member`). The `Member` type + `MemberInput` Zod schema live
-> locally in `apps/backstage/src/features/members/types/`. Promote to
-> `@luminova/types` when a second app (beacon) consumes it. Form input handles
-> `joinDate`/`birthdate` as `YYYY-MM-DD` strings; the repository maps them to/from
-> Firestore `Timestamp`.
+> **Type location:** `Member` type + `MemberInput` Zod schema live in `@luminova/types`. Form input handles `joinDate`/`birthdate` as `YYYY-MM-DD` strings; the repository maps them to/from Firestore `Timestamp`.
+>
+> **Spec:** `docs/specs/2026-06-10-member-roles-invitations-design.md`
 
 **Queries used**:
 - Get active members: `where('active', '==', true)`
@@ -131,14 +170,22 @@ interface MemberPoints {
 
 ## Firestore Security Rules Summary
 
-```
-members       → authenticated read/write
-events        → authenticated read/write
-pointRules    → authenticated read/write
-allies        → authenticated read/write
-memberPoints  → authenticated read only (no client writes)
-*             → deny all
-```
+| Collection | Read | Create / Update | Delete |
+|---|---|---|---|
+| `members` | signed-in | Admin, or ExecutiveCommittee (positions-only fields) | never (soft-delete only) |
+| `positions` | signed-in | Admin, or ExecutiveCommittee with empty/unchanged `grants` | never (soft-delete only) |
+| `events` | signed-in | signed-in | signed-in |
+| `pointRules` | signed-in | Admin only | never |
+| `allies` | signed-in | signed-in | never (soft-delete only) |
+| `memberPoints` | signed-in | engine only (`if false`) | never |
+| `*` | deny | deny | deny |
+
+> **members write rules (three tiers):**
+> 1. Admin — full write.
+> 2. ExecutiveCommittee — may update their own `positions.*` fields only (no status, no grants).
+> 3. Self — profile fields (phone, profession, birthdate, profilePicture) only.
+>
+> **positions write rule:** Admin may write any field including `grants`. ExecutiveCommittee may create/update only when `grants` is empty or unchanged — prevents self-escalation.
 
 ---
 
