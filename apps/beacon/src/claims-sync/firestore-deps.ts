@@ -22,7 +22,10 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): ClaimsSyncDeps {
   function loadUser(uid: string): Promise<UserRecord | null> {
     let pending = userCache.get(uid);
     if (!pending) {
-      pending = getUserOrNull(auth, uid);
+      pending = getUserOrNull(auth, uid).catch((error) => {
+        userCache.delete(uid);
+        throw error;
+      });
       userCache.set(uid, pending);
     }
     return pending;

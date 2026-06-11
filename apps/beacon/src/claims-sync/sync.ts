@@ -35,15 +35,17 @@ async function resolveTrustedGrants(
   return [...grants];
 }
 
+function sameList(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(a);
+  return b.every((x) => set.has(x));
+}
+
 function sameClaims(
   a: { roles: Role[]; scannerEventIds?: string[] },
   b: { roles: Role[]; scannerEventIds?: string[] },
 ): boolean {
-  const sameRoles = a.roles.length === b.roles.length && a.roles.every((r, i) => r === b.roles[i]);
-  const sa = a.scannerEventIds ?? [];
-  const sb = b.scannerEventIds ?? [];
-  const sameScanner = sa.length === sb.length && sa.every((s, i) => s === sb[i]);
-  return sameRoles && sameScanner;
+  return sameList(a.roles, b.roles) && sameList(a.scannerEventIds ?? [], b.scannerEventIds ?? []);
 }
 
 /** Recompute custom claims for a member from their current-term positions.
@@ -69,7 +71,8 @@ export async function syncMemberClaims(
       ? { roles, scannerEventIds: existing.scannerEventIds }
       : { roles };
 
-  // Both sides are produced in canonical ROLES order by computeMemberRoles, so a positional compare is exact.
+  // Order-independent compare: `existing` claims come from Auth and may not be in
+  // canonical ROLES order, so a set/membership compare avoids a redundant write.
   if (sameClaims(existing, next)) return;
   await deps.setClaims(member.uid, next);
 }

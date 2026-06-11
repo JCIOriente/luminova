@@ -2,7 +2,6 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import type { TermPositions } from "@luminova/types";
 import { createFirestoreStore, parseInitiativeWrite } from "./award-points/firestore-store.js";
 import { validateCheckIn } from "./award-points/check-in.js";
 import {
@@ -12,6 +11,7 @@ import {
 } from "./award-points/process.js";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
+import { parseMember } from "./claims-sync/parse-member.js";
 
 // Initialize the default app once at module load. Doing this lazily inside the
 // handler races the functions runtime's admin stub (getApps() can report a stub
@@ -76,6 +76,7 @@ function initiativeTrigger(collection: "programs" | "projects") {
 export const onProgramWritten = initiativeTrigger("programs");
 export const onProjectWritten = initiativeTrigger("projects");
 
+// Inlined (mirrors @luminova/types currentTermKey) to keep the zod-laden types barrel out of this bundle path. UTC year — see docs/status/2026-06-11-k4-trigger-e2e.md.
 function currentTermKey(): string {
   return String(new Date().getUTCFullYear());
 }
@@ -83,7 +84,7 @@ function currentTermKey(): string {
 export const onMemberWritten = onDocumentWritten("members/{id}", async (event) => {
   const after = event.data?.after;
   if (!after?.exists) return; // deletes leave the Auth user untouched
-  const member = after.data() as { uid?: string; positions?: Record<string, TermPositions> };
+  const member = parseMember(after.data());
   if (!member.uid) return; // not provisioned → no Auth user to claim
   await syncMemberClaims(firestoreClaimsDeps(db(), getAuth()), member, currentTermKey());
 });

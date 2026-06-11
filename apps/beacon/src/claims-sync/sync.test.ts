@@ -138,6 +138,20 @@ describe("syncMemberClaims", () => {
     expect(writes["target-uid"]).toEqual({ roles: ["ProjectManager", "Member"] });
   });
 
+  it("drops a power-conferring comisión assigned by a non-Admin", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: { "com-power": { grants: ["Treasury"] } },
+      userRoles: { "mem-uid": ["Membership"] },
+      existing: { "target-uid": { roles: ["Treasury", "Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      { uid: "target-uid", positions: { "2026": { cargoId: null, comisionIds: ["com-power"], assignedBy: "mem-uid" } } },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"] }); // Treasury revoked
+  });
+
   it("unions grants from cargo + comisión, deduped and ROLES-ordered", async () => {
     const { deps, writes } = fakeDeps({
       positions: {
