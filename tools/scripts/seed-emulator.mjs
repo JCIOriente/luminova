@@ -100,6 +100,7 @@ const activities = [
 const projects = [
   {
     id: "p1",
+    termId: TERM,
     title: "Reciclá Santa Cruz",
     description: "Puntos de reciclaje y educación ambiental en cinco barrios de la ciudad.",
     category: "DesarrolloComunitario",
@@ -116,6 +117,7 @@ const projects = [
 const programs = [
   {
     id: "prog1",
+    termId: TERM,
     title: "Líderes del Mañana",
     description: "Programa de formación cívica y liderazgo para colegios de Santa Cruz.",
     category: "DesarrolloIndividual",
