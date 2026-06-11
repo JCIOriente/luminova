@@ -8,7 +8,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { deleteDoc, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { deleteDoc, deleteField, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 
 let env: RulesTestEnvironment;
 
@@ -228,6 +228,16 @@ describe("firestore.rules — members", () => {
   });
   it("still denies adding a uid to a uid-less member via client update", async () => {
     await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m_nouid"), { uid: "sneak" }));
+  });
+  it("still denies removing an existing uid via client update", async () => {
+    await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m1"), { uid: deleteField() }));
+  });
+  it("denies a signed-in user self-editing a uid-less member's profilePicture", async () => {
+    await assertFails(
+      updateDoc(doc(as("anyone", ["Member"]), "members/m_nouid"), {
+        profilePicture: "https://example/p.jpg",
+      }),
+    );
   });
   it("allows the owning member to set only their own profilePicture (H1 self-upload)", async () => {
     await assertSucceeds(
