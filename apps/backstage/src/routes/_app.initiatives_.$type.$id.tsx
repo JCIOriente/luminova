@@ -53,7 +53,7 @@ function InitiativeDetailPage() {
   const canReadMembers = ability.can("read", "Member");
 
   const { data: item, isLoading } = useInitiative(initiativeType, id, { enabled: canRead });
-  const { data: activities } = useActivitiesByTerm(termId);
+  const { data: activities } = useActivitiesByTerm(termId, { enabled: canRead });
   const { data: members } = useMembers({ enabled: canReadMembers });
 
   const updateProgram = useUpdateProgram(termId);
@@ -102,6 +102,8 @@ function InitiativeDetailPage() {
   };
 
   const handleCreateActivity = async (data: ActivityInput) => {
+    if (!canCreateActivity) return;
+    if (data.parentType !== item.kind || data.parentId !== item.id) return;
     await createActivity.mutateAsync(data);
     setCreateOpen(false);
   };
