@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { currentTermKey } from "@luminova/types";
 import { usePositions } from "../features/positions/hooks/use-positions";
@@ -15,6 +16,10 @@ function PermisosPage() {
   const isAdmin = useAbility().can("manage", "all");
   const { data: positions, isLoading: positionsLoading } = usePositions();
   const { data: members, isLoading: membersLoading } = useMembers();
+  const rows = useMemo(
+    () => buildPermissionsOverview(positions ?? [], members ?? [], currentTermKey()),
+    [positions, members],
+  );
 
   if (!isAdmin) {
     return (
@@ -25,7 +30,6 @@ function PermisosPage() {
   }
 
   const isLoading = positionsLoading || membersLoading;
-  const rows = buildPermissionsOverview(positions ?? [], members ?? [], currentTermKey());
 
   return (
     <div className="flex flex-col gap-6">

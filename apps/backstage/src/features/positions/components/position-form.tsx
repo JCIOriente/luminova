@@ -67,6 +67,7 @@ export function PositionForm({
 
   const categoryField = register("category");
   const category = watch("category");
+  const title = watch("title");
   const isTermVisible = category === "JDL";
   const isComision = category === "Comision";
 
@@ -100,9 +101,7 @@ export function PositionForm({
             <Input
               id="titleFemale"
               {...register("titleFemale")}
-              placeholder={
-                watch("title") ? femaleTitle(watch("title")) : "Se deriva automáticamente"
-              }
+              placeholder={title ? femaleTitle(title) : "Se deriva automáticamente"}
             />
           </Field>
         )}

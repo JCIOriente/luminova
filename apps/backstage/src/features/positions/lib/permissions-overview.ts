@@ -1,4 +1,4 @@
-import type { Member, Position, Role } from "@luminova/types";
+import { ROLES, type Member, type Position, type Role } from "@luminova/types";
 import { effectiveRoles } from "../../members/lib/member-permissions";
 
 export interface PermissionRow {
@@ -7,13 +7,10 @@ export interface PermissionRow {
   holders: { id: string; name: string }[];
 }
 
-export const MANAGED_ROLES: Role[] = [
-  "Admin",
-  "Membership",
-  "Treasury",
-  "ExecutiveCommittee",
-  "ProjectManager",
-];
+// Roles surfaced on /permisos: cargo-granted, manually managed. Derived from
+// ROLES (minus the auto-assigned ones) so a role rename can't silently drift.
+const UNMANAGED_ROLES: Role[] = ["Member", "Scanner"];
+export const MANAGED_ROLES: Role[] = ROLES.filter((r) => !UNMANAGED_ROLES.includes(r));
 
 export function buildPermissionsOverview(
   positions: Position[],
