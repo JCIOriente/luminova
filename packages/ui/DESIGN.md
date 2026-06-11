@@ -57,7 +57,7 @@ build step.
 
 ---
 
-## Components (31 — shipped)
+## Components (33 — shipped)
 
 All exported from `src/index.ts` except the QR pair (deep-imported to stay in lazy
 chunks). Paths are relative to `packages/ui/src/`.
@@ -103,6 +103,14 @@ chunks). Paths are relative to `packages/ui/src/`.
 | `KpiCard` (tone + trend) | `components/kpi-card.tsx` |
 | `LineChart` | `components/line-chart-view.tsx` (data: `components/line-chart.ts`) |
 | `Sparkline` | `components/sparkline-chart.tsx` (data: `components/sparkline.ts`) |
+| `ProgressBar` (`value` 0–100 clamped, `label?`, `className?`; ARIA progressbar role) | `components/progress-bar.tsx` |
+
+### People / presence
+
+| Component | Source |
+|-----------|--------|
+| `Avatar` (`src`, `name`, `size?`, `className?`; initials fallback) | `components/avatar.tsx` |
+| `AvatarStack` (`people:{name,src?}[]`, `max?`, `size?`, `className?`; +N overflow chip with aria-label) | `components/avatar-stack.tsx` |
 
 ### Structure / brand
 
@@ -135,7 +143,7 @@ Designing these ahead in Claude Design is welcome; they're on the product roadma
 - **Sidebar** (collapsible) + **Topbar** (notification bell) — FX4 / K1
 - **Dark-mode variants** of the full set — FX2
 - **Notification center / activity feed** — K1
-- **Avatar / profile picture** — H1
+- ~~**Avatar / profile picture** — H1~~ ✅ shipped (`components/avatar.tsx`, `components/avatar-stack.tsx`)
 - Common gaps any new site will hit: **Tabs, Radio, Switch, Date picker**
   (Dropdown menu ✅ `Menu`; Checkbox ✅; client Pagination ✅ via `DataTable`)
 
