@@ -7,6 +7,7 @@ const pos = (id: string, title: string): Position => ({
   id,
   title,
   titleFemale: title,
+  sigla: null,
   category: "CEL",
   grants: [],
   term: null,
@@ -14,7 +15,23 @@ const pos = (id: string, title: string): Position => ({
   active: true,
   deletedAt: null,
 });
-const byId = new Map([pos("tes", "Tesorero"), pos("sec", "Secretario")].map((p) => [p.id, p]));
+
+const comisionPos: Position = {
+  id: "cce",
+  title: "Comisión de Conducta y Ética",
+  titleFemale: null,
+  sigla: "CCE",
+  category: "Comision",
+  grants: [],
+  term: null,
+  description: "",
+  active: true,
+  deletedAt: null,
+};
+
+const byId = new Map(
+  [pos("tes", "Tesorero"), pos("sec", "Secretario"), comisionPos].map((p) => [p.id, p]),
+);
 
 describe("MemberPositionHistory", () => {
   it("lists past terms newest-first, excluding the current term", () => {
@@ -43,5 +60,21 @@ describe("MemberPositionHistory", () => {
       />,
     );
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("shows comisión sigla as compact chip in history", () => {
+    render(
+      <MemberPositionHistory
+        member={{
+          positions: {
+            "2026": { cargoId: "sec", comisionIds: ["cce"] },
+            "2025": { cargoId: "tes", comisionIds: ["cce"] },
+          },
+        }}
+        positionsById={byId}
+        currentTermKey="2026"
+      />,
+    );
+    expect(screen.getByText("CCE")).toBeInTheDocument();
   });
 });
