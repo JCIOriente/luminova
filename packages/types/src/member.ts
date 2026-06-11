@@ -4,6 +4,9 @@ export const MEMBER_STATUSES = ["Activo", "Inactivo", "Desafiliado"] as const;
 
 export type MemberStatus = (typeof MEMBER_STATUSES)[number];
 
+export const MEMBER_GENDERS = ["Masculino", "Femenino"] as const;
+export type MemberGender = (typeof MEMBER_GENDERS)[number];
+
 /** Persisted member document (Firestore shape). Form input is `MemberInput`. */
 export interface Member {
   id: string;
