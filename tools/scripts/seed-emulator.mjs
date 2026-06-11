@@ -14,9 +14,18 @@
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { seedPresident } from "./lib/seed-president.mjs";
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error("Refusing to run: FIRESTORE_EMULATOR_HOST is not set.");
+  process.exit(1);
+}
+
+if (!process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+  console.error(
+    "Refusing to run: FIREBASE_AUTH_EMULATOR_HOST is not set — the president seed " +
+      "creates an Auth user and must never touch production Auth. Use `pnpm seed:emulator`.",
+  );
   process.exit(1);
 }
 
@@ -27,10 +36,6 @@ const db = getFirestore();
 const TERM = "2026";
 const ts = (iso) => Timestamp.fromDate(new Date(iso));
 
-// A ready-to-login Admin, created in the Auth emulator + linked to member m1.
-// Dev-only credentials (the Auth emulator never authenticates against prod).
-const ADMIN = { uid: "admin", email: "admin@jci.test", password: "Secret1" };
-
 // --- Members (current shape: joinDate/birthdate/status required) ---
 const members = [
   { id: "m1", name: "Ana Rivas", email: "ana@example.com", totalPoints: 13 },
@@ -38,7 +43,6 @@ const members = [
   { id: "m3", name: "Carla Soto", email: "carla@example.com", totalPoints: 4 },
 ].map((m) => ({
   ...m,
-  ...(m.id === "m1" ? { uid: ADMIN.uid } : {}),
   phone: "",
   profession: "",
   joinDate: ts("2021-03-01T00:00:00Z"),
@@ -174,27 +178,6 @@ const memberPoints = [
   { memberId: "m3", cumulative: 4, byMonth: { "2026-06": 4 } },
 ].map((mp) => ({ ...mp, termId: TERM, updatedAt: ts("2026-06-20T18:00:00Z") }));
 
-// Create (or refresh) the Admin login in the Auth emulator. Skipped if the Auth
-// emulator host isn't set, so a Firestore-only run still works.
-async function seedAdminUser() {
-  if (!process.env.FIREBASE_AUTH_EMULATOR_HOST) {
-    console.warn(
-      "Skipping auth user: FIREBASE_AUTH_EMULATOR_HOST is not set. " +
-        "Run `pnpm seed:emulator` (which sets it) to also create the Admin login.",
-    );
-    return;
-  }
-  const auth = getAuth();
-  try {
-    await auth.createUser({ uid: ADMIN.uid, email: ADMIN.email, password: ADMIN.password });
-  } catch (error) {
-    if (error?.code !== "auth/uid-already-exists") throw error;
-    await auth.updateUser(ADMIN.uid, { email: ADMIN.email, password: ADMIN.password });
-  }
-  await auth.setCustomUserClaims(ADMIN.uid, { roles: ["Admin"] });
-  console.log(`Auth: ${ADMIN.email} / ${ADMIN.password} (Admin, uid ${ADMIN.uid}).`);
-}
-
 async function seed() {
   for (const m of members) await db.doc(`members/${m.id}`).set(m);
   await db.doc(`terms/${TERM}`).set(term, { merge: true });
@@ -216,7 +199,28 @@ async function seed() {
     await db.doc(`programs/${id}`).set(data);
   }
 
-  await seedAdminUser();
+  // The president is its OWN member (id "president") so the sample scorers
+  // m1..m3 keep their seeded email/points and stay consistent with the seeded
+  // memberPoints/participations.
+  const presidentResult = await seedPresident({
+    db,
+    auth: getAuth(),
+    president: {
+      name: "Olivia Bravo",
+      email: "admin@jci.cc",
+      password: "Secret1",
+      gender: "Femenino",
+      uid: "admin",
+    },
+    term: TERM,
+    joinDate: ts("2019-02-01T00:00:00Z"),
+    birthdate: ts("1988-09-12T00:00:00Z"),
+    memberId: "president",
+    force: true,
+  });
+  console.log(
+    `President: admin@jci.cc / Secret1 (Admin via cargo ${presidentResult.cargoId}, member ${presidentResult.memberId}, uid ${presidentResult.presidentUid}).`,
+  );
 
   console.log(
     `Seeded ${members.length} members, term ${TERM}, ${activities.length} activities, ` +
