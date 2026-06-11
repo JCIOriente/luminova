@@ -311,6 +311,10 @@ to the member's inbox.
 - **Spanish template / sender name** — Firebase Console → Authentication → Templates →
   Password reset. Customizing the subject line, body, and "From" name is an owner op in
   the Firebase Console; no code change required.
+- **Email-enumeration protection caveat** — with enumeration protection enabled,
+  `sendPasswordResetEmail` resolves successfully even when no email is dispatched, so the
+  drawer can report "enviada" without delivery. If invites stop arriving, check that
+  setting and prefer the copy-link fallback.
 
 ## App Check (reCAPTCHA v3) & Password Reset
 
