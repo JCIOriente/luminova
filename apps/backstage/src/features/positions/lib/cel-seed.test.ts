@@ -8,7 +8,9 @@ describe("CEL_SEED", () => {
   });
   it("has unique titles and both gender variants everywhere", () => {
     expect(new Set(CEL_SEED.map((p) => p.title)).size).toBe(8);
-    expect(CEL_SEED.every((p) => p.title.length >= 3 && p.titleFemale.length >= 3)).toBe(true);
+    expect(CEL_SEED.every((p) => p.title.length >= 3 && (p.titleFemale?.length ?? 0) >= 3)).toBe(
+      true,
+    );
   });
   it("maps Presidente to Admin and Tesorero to Treasury", () => {
     expect(CEL_SEED.find((p) => p.title === "Presidente")?.grants).toEqual(["Admin"]);
