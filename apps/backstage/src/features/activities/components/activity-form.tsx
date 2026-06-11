@@ -74,6 +74,10 @@ export function ActivityForm({
     }
   }, [isExecution, lockParent, setValue]);
 
+  useEffect(() => {
+    if (lockParent) setValue("category", "ProjectExecution");
+  }, [lockParent, setValue]);
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
       <Field label="Título" htmlFor="title" required error={errors.title?.message}>
