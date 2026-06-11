@@ -16,6 +16,9 @@ password recovery, password policy. **FX batch merged**: dark mode + sidebar col
 DataTable/E6 + Members table UX/FX1 (#38), ⌘K command palette E3/FX3 (#39) — @luminova/ui now 31 components.
 **First prod deploy SHIPPED (#43, I4)** — both Hosting sites + rules + 5 beacon functions LIVE.
 **Members console (#41/#42)** + **B2 role-aware board home (#45)** + **H1 profilePicture upload (#46)**.
+**§C now in flight:** C1 split into **C1-lite** (initiatives UX + rich model, decoupled
+from award criteria — spec `docs/specs/2026-06-10-initiatives-c1-lite-design.md`, absorbs
+H2) and C1-dossier (still gated on `jci-award-criteria.md`).
 Reshaped around the **Recognition Engine** after a product/UX discussion (points,
 QR attendance, multi-role access, award submissions)._
 
@@ -153,7 +156,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| C1 | **Rich Project model** — phases (plan/execute/results), budget vs actual, **team + roles** (also feed points), impact/KPIs, SDG tags, evidence gallery, **public projection** (`published` + curated public fields) | F2; award criteria | `[S]` | one model, three consumers (manage / dossier / public) |
+| C1 🟡 | **Rich Project model** — SPLIT (spec `docs/specs/2026-06-10-initiatives-c1-lite-design.md`). **C1-lite (in flight, decoupled from award criteria):** shared `InitiativeCore` (description, JCI área category, start/end dates, `coDirectorIds[]`, impact metrics, photos) on both `programs`/`projects`; unified `/initiatives` card-grid UI + detail (in-execution/completed); completion wizard = the final-report ceremony (impact + summary + status in one update); activity refinement (title/endAt/photos, `/activities/$id` detail w/ embedded check-in, standalone-only create); galleries (absorbs H2). 6 PR slices: schema/engine → list → detail → activity detail ∥ completion → galleries. **C1-dossier (still gated on award criteria):** phases, budget vs actual, SDG tags, readiness fields, `published` public projection. | F2; ~~award criteria~~ (lite) | `[S]` | one model, three consumers (manage / dossier / public) |
 | C2 | **Award dossier** assembly + export per level (National/Area/World) against criteria, with a **readiness checklist** | C1; criteria | `[S]` | uniquely-JCI; the chapter's recognition engine |
 | C3 | **Recognition calendar** — submission windows, candidate projects, readiness % | C2 | `[S]` | competitive cadence |
 | C4 | **Spotlight project showcase** — public site reads the public projection | C1, F2 | `[S]` | reflects "what we do" publicly |
@@ -206,7 +209,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
 | ~~H1~~ ✅ | `profilePicture` upload — DONE (#46). Shared `@luminova/ui` `Avatar` + lazy `ImageUploader` (square-crop via `react-easy-crop`, client downscale 512px/JPEG, ≤5MB) on two surfaces (admin member drawer + member self on `/me`); `@luminova/firebase` `uploadMemberPhoto`/`deleteMemberPhoto` (path `members/{id}/profile.jpg`); scoped `storage.rules` + new `@luminova/storage-rules-tests`. **Fixed a self-upload break:** added owner-only `members` update branch scoped to `profilePicture`. | — | `[P]` | — |
-| H2 | Project **evidence gallery** uploads | C1, ~~H1~~ ✅ | `[S]` | award evidence + public showcase |
+| H2 | Project **evidence gallery** uploads — **absorbed into C1-lite slice 6** (`feat/initiative-galleries`): activity photos + initiative destacadas, `storage.rules` + tests | C1, ~~H1~~ ✅ | `[S]` | award evidence + public showcase |
 | H3 | Ally logos (greyscale→color hover) — chains off H1's uploader (`allies/{id}/logo.*`) | ~~H1~~ ✅ | `[S]` | — |
 | H4 | Spotlight real images (replace `ImgSlot`) | — | `[P]` | needs real photos |
 
