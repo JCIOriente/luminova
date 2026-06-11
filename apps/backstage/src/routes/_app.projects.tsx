@@ -20,7 +20,15 @@ export const Route = createFileRoute("/_app/projects")({ component: ProjectsPage
 type Editing = Project | "new" | null;
 
 function projectToInput(p: Project): Partial<ProjectInput> {
-  return { title: p.title, roster: p.roster, status: p.status };
+  return {
+    title: p.title,
+    description: p.description,
+    category: p.category,
+    startDate: p.startDate.toDate().toISOString().slice(0, 10),
+    endDate: p.endDate.toDate().toISOString().slice(0, 10),
+    roster: p.roster,
+    status: p.status,
+  };
 }
 
 function ProjectsPage() {

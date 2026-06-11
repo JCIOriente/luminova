@@ -25,12 +25,15 @@ type Editing = Activity | "new" | null;
 
 function activityToInput(a: Activity): Partial<ActivityInput> {
   return {
+    title: a.title,
+    description: a.description ?? "",
     category: a.category,
     parentType: a.parentType,
     parentId: a.parentId,
     startAt: new Date(a.startAt.toMillis()).toISOString().slice(0, 16),
+    endAt: a.endAt === null ? null : new Date(a.endAt.toMillis()).toISOString().slice(0, 16),
     directorId: a.organizers.directorId,
-    coDirectorId: a.organizers.coDirectorId,
+    coDirectorIds: a.organizers.coDirectorIds,
   };
 }
 

@@ -9,6 +9,7 @@ describe("ActivityForm", () => {
   it("submits an institutional activity with no parent", async () => {
     const onSubmit = vi.fn();
     render(<ActivityForm {...NO_OPTIONS} onSubmit={onSubmit} isSaving={false} />);
+    fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Asamblea General" } });
     fireEvent.change(screen.getByLabelText(/fecha y hora/i), {
       target: { value: "2026-06-10T18:30" },
     });
@@ -23,6 +24,7 @@ describe("ActivityForm", () => {
   it("blocks a ProjectExecution with no parent (Invariant A)", async () => {
     const onSubmit = vi.fn();
     render(<ActivityForm {...NO_OPTIONS} onSubmit={onSubmit} isSaving={false} />);
+    fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Ejecución Test" } });
     fireEvent.change(screen.getByLabelText(/categoría/i), {
       target: { value: "ProjectExecution" },
     });
