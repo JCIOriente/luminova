@@ -168,6 +168,7 @@ export function MemberDrawer({
         if (!o) onClose();
       }}
       title={mode === "view" ? "Perfil del miembro" : "Editar miembro"}
+      size="md"
     >
       {member &&
         (mode === "view" ? (

@@ -59,6 +59,7 @@ export function MemberInviteDrawer({
         if (!o) close();
       }}
       title="Invitar miembro"
+      size="md"
     >
       {done ? (
         <div className="flex flex-col gap-5">
