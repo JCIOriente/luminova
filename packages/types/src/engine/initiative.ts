@@ -5,7 +5,7 @@ export type InitiativeStatus = (typeof INITIATIVE_STATUSES)[number];
 
 export interface InitiativeRoster {
   directorId: string;
-  coDirectorId: string | null;
+  coDirectorIds: string[];
   teamIds: string[];
 }
 

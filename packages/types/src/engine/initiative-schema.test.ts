@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { initiativeFormSchema } from "./initiative-schema";
+import { initiativeFormSchema, initiativeRosterSchema } from "./initiative-schema";
 
 const base = {
   title: "Proyecto Aurora",
-  roster: { directorId: "m1", coDirectorId: null, teamIds: [] as string[] },
+  roster: { directorId: "m1", coDirectorIds: [] as string[], teamIds: [] as string[] },
   status: "Planificacion" as const,
 };
 
@@ -24,30 +24,68 @@ describe("initiativeFormSchema", () => {
   it("rejects co-director equal to director", () => {
     const r = initiativeFormSchema.safeParse({
       ...base,
-      roster: { directorId: "m1", coDirectorId: "m1", teamIds: [] },
+      roster: { directorId: "m1", coDirectorIds: ["m1"], teamIds: [] },
     });
     expect(r.success).toBe(false);
   });
   it("rejects director present in the team", () => {
     const r = initiativeFormSchema.safeParse({
       ...base,
-      roster: { directorId: "m1", coDirectorId: null, teamIds: ["m1"] },
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: ["m1"] },
     });
     expect(r.success).toBe(false);
   });
   it("rejects co-director present in the team", () => {
     const r = initiativeFormSchema.safeParse({
       ...base,
-      roster: { directorId: "m1", coDirectorId: "m2", teamIds: ["m2"] },
+      roster: { directorId: "m1", coDirectorIds: ["m2"], teamIds: ["m2"] },
     });
     expect(r.success).toBe(false);
   });
   it("requires teamIds (no implicit default)", () => {
     const r = initiativeFormSchema.safeParse({
       title: "Proyecto Aurora",
-      roster: { directorId: "m1", coDirectorId: null },
+      roster: { directorId: "m1", coDirectorIds: [] },
       status: "Planificacion",
     });
     expect(r.success).toBe(false);
+  });
+});
+
+describe("initiativeRosterSchema", () => {
+  it("rejects the director among the co-directors", () => {
+    const r = initiativeRosterSchema.safeParse({
+      directorId: "m1",
+      coDirectorIds: ["m1"],
+      teamIds: [],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects duplicate co-directors", () => {
+    const r = initiativeRosterSchema.safeParse({
+      directorId: "m1",
+      coDirectorIds: ["m2", "m2"],
+      teamIds: [],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects a co-director who is also on the team", () => {
+    const r = initiativeRosterSchema.safeParse({
+      directorId: "m1",
+      coDirectorIds: ["m2"],
+      teamIds: ["m2"],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts multiple distinct co-directors", () => {
+    const r = initiativeRosterSchema.safeParse({
+      directorId: "m1",
+      coDirectorIds: ["m2", "m3"],
+      teamIds: ["m4"],
+    });
+    expect(r.success).toBe(true);
   });
 });

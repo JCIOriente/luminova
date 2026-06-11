@@ -4,15 +4,22 @@ import { INITIATIVE_STATUSES } from "./initiative.js";
 export const initiativeRosterSchema = z
   .object({
     directorId: z.string().min(1, "Requerido."),
-    coDirectorId: z.string().min(1).nullable(),
+    coDirectorIds: z.array(z.string().min(1)),
     teamIds: z.array(z.string().min(1)),
   })
   .superRefine((r, ctx) => {
-    if (r.coDirectorId !== null && r.coDirectorId === r.directorId) {
+    if (r.coDirectorIds.includes(r.directorId)) {
       ctx.addIssue({
         code: "custom",
         message: "El codirector no puede ser el director.",
-        path: ["coDirectorId"],
+        path: ["coDirectorIds"],
+      });
+    }
+    if (new Set(r.coDirectorIds).size !== r.coDirectorIds.length) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Codirectores duplicados.",
+        path: ["coDirectorIds"],
       });
     }
     if (r.teamIds.includes(r.directorId)) {
@@ -22,7 +29,7 @@ export const initiativeRosterSchema = z
         path: ["teamIds"],
       });
     }
-    if (r.coDirectorId !== null && r.teamIds.includes(r.coDirectorId)) {
+    if (r.coDirectorIds.some((id) => r.teamIds.includes(id))) {
       ctx.addIssue({
         code: "custom",
         message: "El codirector no puede estar en el equipo.",
