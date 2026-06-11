@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ImageUploader } from "@luminova/ui";
 import { QrCode } from "@luminova/ui/qr-code";
 import { PageHeader } from "../components/page-header";
-import { currentTermId } from "../lib/current-term";
+import { currentTermKey } from "@luminova/types";
 import { encodeMemberQr } from "../lib/member-qr";
 import { pointsRank } from "../lib/points-rank";
 import { useCurrentMember } from "../features/members/hooks/use-current-member";
@@ -33,7 +33,7 @@ function MemberPhotoCard({
 }
 
 export function MemberHome() {
-  const termId = currentTermId();
+  const termId = currentTermKey();
   const { data: member, isLoading } = useCurrentMember();
   const memberId = member?.id ?? "";
   const { data: points } = useMemberPoints(memberId, termId);

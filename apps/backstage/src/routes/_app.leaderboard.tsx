@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { SegmentedControl } from "@luminova/ui";
 import type { Member } from "@luminova/types";
 import { PageHeader } from "../components/page-header";
-import { currentTermId } from "../lib/current-term";
+import { currentTermKey } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useMemberPointsByTerm } from "../features/members/hooks/use-member-points-by-term";
 import { useTerm } from "../features/leaderboard/hooks/use-term";
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/_app/leaderboard")({
 });
 
 function LeaderboardPage() {
-  const termId = currentTermId();
+  const termId = currentTermKey();
   const prevId = String(Number(termId) - 1);
 
   const members = useMembers();

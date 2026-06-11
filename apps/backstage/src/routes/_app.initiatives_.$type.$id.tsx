@@ -16,7 +16,7 @@ import { InitiativeTeamRail } from "../features/initiatives/components/initiativ
 import { InitiativeActivities } from "../features/initiatives/components/initiative-activities";
 import { InitiativeCompleted } from "../features/initiatives/components/initiative-completed";
 import { ActivityForm } from "../features/activities/components/activity-form";
-import { currentTermId } from "../lib/current-term";
+import { currentTermKey } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useActivitiesByTerm } from "../features/activities/hooks/use-activities-by-term";
 import { useCreateActivity } from "../features/activities/hooks/use-create-activity";
@@ -48,7 +48,7 @@ function InitiativeDetailPage() {
   const { type, id } = Route.useParams();
   const initiativeType = type as InitiativeType;
   const kind = KIND[initiativeType];
-  const termId = currentTermId();
+  const termId = currentTermKey();
   const ability = useAbility();
 
   const canRead = ability.can("read", kind);

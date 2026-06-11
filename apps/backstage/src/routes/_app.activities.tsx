@@ -6,7 +6,7 @@ import type { ComboboxOption } from "@luminova/ui";
 import type { Activity, ActivityInput } from "@luminova/types";
 import { Can } from "../lib/authz/ability-context";
 import { PageHeader } from "../components/page-header";
-import { currentTermId } from "../lib/current-term";
+import { currentTermKey } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useProgramsByTerm } from "../features/programs/hooks/use-programs-by-term";
 import { useProjectsByTerm } from "../features/projects/hooks/use-projects-by-term";
@@ -38,7 +38,7 @@ function activityToInput(a: Activity): Partial<ActivityInput> {
 }
 
 function ActivitiesPage() {
-  const termId = currentTermId();
+  const termId = currentTermKey();
   const { data: activities, isLoading, isError } = useActivitiesByTerm(termId);
   const { data: members } = useMembers();
   const { data: programs } = useProgramsByTerm(termId);

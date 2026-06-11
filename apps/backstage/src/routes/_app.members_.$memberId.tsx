@@ -7,7 +7,6 @@ import { subject } from "@luminova/auth/ability";
 import { Can, useAbility } from "../lib/authz/ability-context";
 import { PageHeader } from "../components/page-header";
 import { encodeMemberQr } from "../lib/member-qr";
-import { currentTermId } from "../lib/current-term";
 import { useMember } from "../features/members/hooks/use-member";
 import { useMemberPoints } from "../features/members/hooks/use-member-points";
 import { useMemberParticipations } from "../features/members/hooks/use-member-participations";
@@ -39,7 +38,7 @@ const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
 
 function MemberProfilePage() {
   const { memberId } = Route.useParams();
-  const termId = currentTermId();
+  const termId = currentTermKey();
   const ability = useAbility();
   const { data: member, isLoading } = useMember(memberId);
   const { data: positions } = usePositions();

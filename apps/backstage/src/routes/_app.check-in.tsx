@@ -3,7 +3,7 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { EmptyState, Icon } from "@luminova/ui";
 import { useAbility } from "../lib/authz/ability-context";
 import { PageHeader } from "../components/page-header";
-import { currentTermId } from "../lib/current-term";
+import { currentTermKey } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useActivitiesByTerm } from "../features/activities/hooks/use-activities-by-term";
 import { useActivityCheckIns } from "../features/check-in/hooks/use-activity-check-ins";
@@ -35,7 +35,7 @@ function CheckInPage() {
 }
 
 function CheckInBoard() {
-  const termId = currentTermId();
+  const termId = currentTermKey();
   const { data: activities } = useActivitiesByTerm(termId);
   const { data: members } = useMembers();
   const [activityId, setActivityId] = useState<string | null>(null);
