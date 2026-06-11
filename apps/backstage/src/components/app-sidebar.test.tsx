@@ -11,7 +11,9 @@ vi.mock("../lib/auth/auth", () => ({
   useAuth: () => ({ user: { email: "ana@jci.org" }, claims: { roles: ["Admin"] } }),
 }));
 
-const ability = { can: (_action: string, _subject: string) => true };
+const ability: { can: (action: string, subject: string) => boolean } = {
+  can: () => true,
+};
 vi.mock("../lib/authz/ability-context", () => ({
   useAbility: () => ability,
 }));
