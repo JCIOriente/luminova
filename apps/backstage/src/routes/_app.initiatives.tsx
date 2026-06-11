@@ -46,6 +46,7 @@ function InitiativesPage() {
   const canReadProject = ability.can("read", "Project");
   const canManageProgram = ability.can("create", "Program");
   const canManageProject = ability.can("create", "Project");
+  const canReadMembers = ability.can("read", "Member");
 
   const {
     data: items,
@@ -56,7 +57,7 @@ function InitiativesPage() {
     includeProjects: canReadProject,
   });
   const { data: activities } = useActivitiesByTerm(termId);
-  const { data: members } = useMembers();
+  const { data: members } = useMembers({ enabled: canReadMembers });
 
   const createProgram = useCreateProgram(termId);
   const updateProgram = useUpdateProgram(termId);
@@ -99,9 +100,11 @@ function InitiativesPage() {
   const handleSubmit = async (data: InitiativeInput) => {
     if (!editing) return;
     if (editing.mode === "new") {
+      if (!ability.can("create", editing.kind)) return;
       if (editing.kind === "Program") await createProgram.mutateAsync(data);
       else await createProject.mutateAsync(data);
     } else {
+      if (!ability.can("update", editing.item.kind)) return;
       if (editing.item.kind === "Program")
         await updateProgram.mutateAsync({ id: editing.item.id, data });
       else await updateProject.mutateAsync({ id: editing.item.id, data });
