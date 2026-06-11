@@ -58,7 +58,12 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Reconocimiento",
     items: [
       { to: "/activities", label: "Actividades", icon: "calendar", subject: "Activity" },
-      { to: "/initiatives", label: "Proyectos", icon: "briefcase", anySubject: ["Program", "Project"] },
+      {
+        to: "/initiatives",
+        label: "Proyectos",
+        icon: "briefcase",
+        anySubject: ["Program", "Project"],
+      },
       {
         to: "/check-in",
         label: "Check-in",

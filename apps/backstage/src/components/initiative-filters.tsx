@@ -18,9 +18,30 @@ export function InitiativeFilters({ filter, counts, onChange }: InitiativeFilter
         value={filter.tab}
         onChange={(tab) => set({ tab })}
         options={[
-          { value: "todos", label: <>Todos <Count n={counts.todos} /></> },
-          { value: "activos", label: <>Activos <Count n={counts.activos} /></> },
-          { value: "completados", label: <>Completados <Count n={counts.completados} /></> },
+          {
+            value: "todos",
+            label: (
+              <>
+                Todos <Count n={counts.todos} />
+              </>
+            ),
+          },
+          {
+            value: "activos",
+            label: (
+              <>
+                Activos <Count n={counts.activos} />
+              </>
+            ),
+          },
+          {
+            value: "completados",
+            label: (
+              <>
+                Completados <Count n={counts.completados} />
+              </>
+            ),
+          },
         ]}
       />
 

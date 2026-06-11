@@ -24,9 +24,27 @@ const item = (over: Partial<InitiativeListItem>): InitiativeListItem =>
   }) as InitiativeListItem;
 
 const data = [
-  item({ id: "1", title: "Campaña Río", status: "EnEjecucion", kind: "Project", category: "DesarrolloComunitario" }),
-  item({ id: "2", title: "Liderazgo", status: "Planificacion", kind: "Program", category: "DesarrolloIndividual" }),
-  item({ id: "3", title: "Feria", status: "Finalizado", kind: "Project", category: "NegociosEmprendimiento" }),
+  item({
+    id: "1",
+    title: "Campaña Río",
+    status: "EnEjecucion",
+    kind: "Project",
+    category: "DesarrolloComunitario",
+  }),
+  item({
+    id: "2",
+    title: "Liderazgo",
+    status: "Planificacion",
+    kind: "Program",
+    category: "DesarrolloIndividual",
+  }),
+  item({
+    id: "3",
+    title: "Feria",
+    status: "Finalizado",
+    kind: "Project",
+    category: "NegociosEmprendimiento",
+  }),
 ];
 
 describe("filterInitiatives", () => {
@@ -35,7 +53,12 @@ describe("filterInitiatives", () => {
     expect(out.map((i) => i.id)).toEqual(["1", "2"]);
   });
   it("tab completados keeps only Finalizado", () => {
-    const out = filterInitiatives(data, { tab: "completados", kind: "all", area: "all", query: "" });
+    const out = filterInitiatives(data, {
+      tab: "completados",
+      kind: "all",
+      area: "all",
+      query: "",
+    });
     expect(out.map((i) => i.id)).toEqual(["3"]);
   });
   it("filters by kind and area", () => {

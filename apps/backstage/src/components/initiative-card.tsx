@@ -1,7 +1,12 @@
 import type { Member } from "@luminova/types";
 import { AvatarStack, Badge, Icon, ProgressBar } from "@luminova/ui";
 import { AREA_OF_OPPORTUNITY_LABELS } from "@luminova/types";
-import { areaTone, formatMonthYear, statusLabel, statusTone } from "../features/initiatives/lib/derive";
+import {
+  areaTone,
+  formatMonthYear,
+  statusLabel,
+  statusTone,
+} from "../features/initiatives/lib/derive";
 import type { InitiativeListItem } from "../features/initiatives/lib/initiative-list-item";
 
 interface InitiativeCardProps {
@@ -12,7 +17,13 @@ interface InitiativeCardProps {
   onOpen?: () => void;
 }
 
-export function InitiativeCard({ item, pct, closingSoon, memberById, onOpen }: InitiativeCardProps) {
+export function InitiativeCard({
+  item,
+  pct,
+  closingSoon,
+  memberById,
+  onOpen,
+}: InitiativeCardProps) {
   const cover = item.photos[0]?.url ?? null;
   const rosterIds = [item.roster.directorId, ...item.roster.coDirectorIds, ...item.roster.teamIds];
   const people = rosterIds

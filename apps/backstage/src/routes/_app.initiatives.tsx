@@ -18,7 +18,11 @@ import { useCreateProject } from "../features/projects/hooks/use-create-project"
 import { useUpdateProject } from "../features/projects/hooks/use-update-project";
 import { initiativeToInput } from "../features/initiatives/repositories/initiative-mapper";
 import { computeProgress, isClosingSoon } from "../features/initiatives/lib/derive";
-import { filterInitiatives, tabCounts, type InitiativeFilter } from "../features/initiatives/lib/filter";
+import {
+  filterInitiatives,
+  tabCounts,
+  type InitiativeFilter,
+} from "../features/initiatives/lib/filter";
 import type { InitiativeListItem } from "../features/initiatives/lib/initiative-list-item";
 
 export const Route = createFileRoute("/_app/initiatives")({ component: InitiativesPage });
@@ -43,7 +47,11 @@ function InitiativesPage() {
   const canManageProgram = ability.can("create", "Program");
   const canManageProject = ability.can("create", "Project");
 
-  const { data: items, isLoading, isError } = useInitiativesByTerm(termId, {
+  const {
+    data: items,
+    isLoading,
+    isError,
+  } = useInitiativesByTerm(termId, {
     includePrograms: canReadProgram,
     includeProjects: canReadProject,
   });
@@ -156,7 +164,11 @@ function InitiativesPage() {
               pct={cardData.get(item.id)?.pct ?? 0}
               closingSoon={cardData.get(item.id)?.closingSoon ?? false}
               memberById={memberById}
-              onOpen={ability.can("update", item.kind) ? () => setEditing({ mode: "edit", item }) : undefined}
+              onOpen={
+                ability.can("update", item.kind)
+                  ? () => setEditing({ mode: "edit", item })
+                  : undefined
+              }
             />
           ))}
         </div>
