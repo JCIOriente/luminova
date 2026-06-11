@@ -15,7 +15,6 @@ describe("nav-config", () => {
       "/permisos",
       "/activities",
       "/initiatives",
-      "/check-in",
     ]);
   });
 
@@ -50,13 +49,6 @@ describe("nav-config", () => {
     expect(item?.subject).toBe("Activity");
     expect(item?.action).toBeUndefined();
     expect(item?.label).toBe("Actividades");
-  });
-
-  it("gates check-in on Attendance with the checkIn action", () => {
-    const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === "/check-in");
-    expect(item?.subject).toBe("Attendance");
-    expect(item?.action).toBe("checkIn");
-    expect(item?.label).toBe("Check-in");
   });
 
   it("gates positions on the Position subject", () => {
