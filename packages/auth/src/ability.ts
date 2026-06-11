@@ -13,7 +13,8 @@ export type Subject =
   | "Attendance"
   | "Program"
   | "Project"
-  | "Activity";
+  | "Activity"
+  | "Position";
 
 type SubjectObject = Record<string, unknown>;
 export type AppAbility = MongoAbility<[Action, Subject | SubjectObject]>;
@@ -27,7 +28,7 @@ function applyRole(role: Role, claims: AuthClaims, uid: string, can: Can): void 
       break;
     case "Membership":
       can("manage", "Member");
-      can("read", ["Ally", "Event", "MemberPoints"]);
+      can("read", ["Ally", "Event", "MemberPoints", "Position"]);
       break;
     case "Treasury":
       can("manage", "Payment");
@@ -35,6 +36,7 @@ function applyRole(role: Role, claims: AuthClaims, uid: string, can: Can): void 
       break;
     case "ExecutiveCommittee":
       can("read", ["Member", "Ally", "Event", "MemberPoints", "Program", "Project"]);
+      can("manage", "Position");
       break;
     case "ProjectManager":
       can("manage", ["Project", "Activity", "Program"]);
@@ -46,7 +48,7 @@ function applyRole(role: Role, claims: AuthClaims, uid: string, can: Can): void 
       break;
     case "Member":
       can(["read", "update"], "Member", { uid });
-      can("read", ["MemberPoints", "Event", "Project"]);
+      can("read", ["MemberPoints", "Event", "Project", "Position"]);
       break;
   }
 }
