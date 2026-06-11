@@ -363,6 +363,26 @@ describe("firestore.rules — initiative direction branch", () => {
       }),
     );
   });
+  it("denies create with status Finalizado", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["ProjectManager"]), "projects/p_new3"), {
+        termId: "2026",
+        title: "X",
+        status: "Finalizado",
+        finalReport: null,
+      }),
+    );
+  });
+  it("denies create with pre-filled impact", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["ProjectManager"]), "projects/p_new4"), {
+        termId: "2026",
+        title: "X",
+        impact: { personsImpacted: 1, volunteers: 1, custom: [], closingSummary: "x" },
+        finalReport: null,
+      }),
+    );
+  });
   it("lets a direction uid update a program status (mirrored)", async () => {
     await assertSucceeds(
       updateDoc(doc(as("owner-uid", ["Member"]), "programs/prog_dir"), { status: "Planificacion" }),

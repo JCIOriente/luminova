@@ -117,8 +117,17 @@ export function createFirestoreStore(db: Firestore): EngineStore {
       if (memberIds.length === 0) return [];
       const snaps = await db.getAll(...memberIds.map((id) => db.doc(`members/${id}`)));
       return snaps
-        .map((snap) => (snap.exists ? (snap.data() as { uid?: unknown }).uid : undefined))
-        .filter((uid): uid is string => typeof uid === "string" && uid.length > 0);
+        .map((snap) =>
+          snap.exists ? (snap.data() as { uid?: unknown; active?: unknown }) : null,
+        )
+        .filter(
+          (data): data is { uid: string; active: true } =>
+            data !== null &&
+            data.active === true &&
+            typeof data.uid === "string" &&
+            data.uid.length > 0,
+        )
+        .map((data) => data.uid);
     },
     async setInitiativeDirectionUids(parentType, parentId, uids) {
       const collection = parentType === "Program" ? "programs" : "projects";

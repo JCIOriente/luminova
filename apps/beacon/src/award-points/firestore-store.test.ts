@@ -149,16 +149,24 @@ describe("createFirestoreStore — directionUids mirror", () => {
 
   it("getMemberUids skips members without a uid", async () => {
     const db = new FakeFirestore();
-    db.docs.set("members/m1", { uid: "u1" });
-    db.docs.set("members/m9", {});
+    db.docs.set("members/m1", { uid: "u1", active: true });
+    db.docs.set("members/m9", { active: true });
     const store = createFirestoreStore(db.asFirestore());
     expect(await store.getMemberUids(["m1", "m9"])).toEqual(["u1"]);
   });
 
   it("getMemberUids skips members whose doc is missing", async () => {
     const db = new FakeFirestore();
-    db.docs.set("members/m1", { uid: "u1" });
+    db.docs.set("members/m1", { uid: "u1", active: true });
     const store = createFirestoreStore(db.asFirestore());
     expect(await store.getMemberUids(["m1", "gone"])).toEqual(["u1"]);
+  });
+
+  it("getMemberUids skips inactive members", async () => {
+    const db = new FakeFirestore();
+    db.docs.set("members/m1", { uid: "u1", active: true });
+    db.docs.set("members/m8", { uid: "u8", active: false });
+    const store = createFirestoreStore(db.asFirestore());
+    expect(await store.getMemberUids(["m1", "m8"])).toEqual(["u1"]);
   });
 });
