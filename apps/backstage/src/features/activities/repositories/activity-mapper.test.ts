@@ -109,7 +109,14 @@ describe("toActivityUpdateDoc", () => {
   it("update doc never touches photos/termId/status", () => {
     const docData = toActivityUpdateDoc(BASIC_INPUT);
     expect(Object.keys(docData).sort()).toEqual([
-      "category", "description", "endAt", "organizers", "parentId", "parentType", "startAt", "title",
+      "category",
+      "description",
+      "endAt",
+      "organizers",
+      "parentId",
+      "parentType",
+      "startAt",
+      "title",
     ]);
   });
 });

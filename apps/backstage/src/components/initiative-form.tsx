@@ -64,12 +64,7 @@ export function InitiativeForm({
       <Field label="Título" htmlFor="title" required error={errors.title?.message}>
         <Input id="title" {...register("title")} />
       </Field>
-      <Field
-        label="Descripción"
-        htmlFor="description"
-        required
-        error={errors.description?.message}
-      >
+      <Field label="Descripción" htmlFor="description" required error={errors.description?.message}>
         <Textarea id="description" rows={3} {...register("description")} />
       </Field>
       <Field
@@ -90,12 +85,7 @@ export function InitiativeForm({
         <Field label="Inicio" htmlFor="startDate" required error={errors.startDate?.message}>
           <Input id="startDate" type="date" {...register("startDate")} />
         </Field>
-        <Field
-          label="Cierre estimado"
-          htmlFor="endDate"
-          required
-          error={errors.endDate?.message}
-        >
+        <Field label="Cierre estimado" htmlFor="endDate" required error={errors.endDate?.message}>
           <Input id="endDate" type="date" {...register("endDate")} />
         </Field>
       </div>

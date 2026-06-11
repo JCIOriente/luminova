@@ -320,9 +320,7 @@ describe("firestore.rules — initiative direction branch", () => {
     );
   });
   it("denies changing termId even for Admin", async () => {
-    await assertFails(
-      updateDoc(doc(as("u", ["Admin"]), "projects/p_dir"), { termId: "2027" }),
-    );
+    await assertFails(updateDoc(doc(as("u", ["Admin"]), "projects/p_dir"), { termId: "2027" }));
   });
   it("locks status once finalReport is filed (even Admin)", async () => {
     await assertFails(
@@ -330,9 +328,7 @@ describe("firestore.rules — initiative direction branch", () => {
     );
   });
   it("locks finalReport and impact once filed", async () => {
-    await assertFails(
-      updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), { finalReport: null }),
-    );
+    await assertFails(updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), { finalReport: null }));
     await assertFails(
       updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), {
         impact: { personsImpacted: 9, volunteers: 9, custom: [], closingSummary: "edit" },

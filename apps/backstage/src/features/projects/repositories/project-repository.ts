@@ -11,7 +11,10 @@ import {
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
 import type { Project, ProjectInput } from "@luminova/types";
-import { toInitiativeCreateDoc, toInitiativeUpdateDoc } from "../../initiatives/repositories/initiative-mapper";
+import {
+  toInitiativeCreateDoc,
+  toInitiativeUpdateDoc,
+} from "../../initiatives/repositories/initiative-mapper";
 
 export class ProjectRepository {
   private readonly collection = collection(getFirebase().db, "projects");

@@ -113,15 +113,23 @@ describe("initiativeFormSchema (C1-lite fields)", () => {
     expect(initiativeFormSchema.safeParse(VALID_FORM).success).toBe(true);
   });
   it("rejects an unknown category", () => {
-    expect(initiativeFormSchema.safeParse({ ...VALID_FORM, category: "MedioAmbiente" }).success).toBe(false);
+    expect(
+      initiativeFormSchema.safeParse({ ...VALID_FORM, category: "MedioAmbiente" }).success,
+    ).toBe(false);
   });
   it("rejects endDate before startDate", () => {
     expect(
-      initiativeFormSchema.safeParse({ ...VALID_FORM, startDate: "2026-09-01", endDate: "2026-02-01" }).success,
+      initiativeFormSchema.safeParse({
+        ...VALID_FORM,
+        startDate: "2026-09-01",
+        endDate: "2026-02-01",
+      }).success,
     ).toBe(false);
   });
   it("rejects a short description", () => {
-    expect(initiativeFormSchema.safeParse({ ...VALID_FORM, description: "corto" }).success).toBe(false);
+    expect(initiativeFormSchema.safeParse({ ...VALID_FORM, description: "corto" }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -136,7 +144,9 @@ describe("initiativeImpactSchema", () => {
     expect(initiativeImpactSchema.safeParse(VALID_IMPACT).success).toBe(true);
   });
   it("rejects negative numbers", () => {
-    expect(initiativeImpactSchema.safeParse({ ...VALID_IMPACT, personsImpacted: -1 }).success).toBe(false);
+    expect(initiativeImpactSchema.safeParse({ ...VALID_IMPACT, personsImpacted: -1 }).success).toBe(
+      false,
+    );
   });
   it("rejects an empty custom metric label", () => {
     expect(

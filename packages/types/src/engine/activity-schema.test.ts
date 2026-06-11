@@ -35,9 +35,9 @@ describe("activitySchema", () => {
   });
 
   it("rejects a ProjectExecution without a parent (Invariant A)", () => {
-    expect(
-      activitySchema.safeParse({ ...VALID, parentType: null, parentId: null }).success,
-    ).toBe(false);
+    expect(activitySchema.safeParse({ ...VALID, parentType: null, parentId: null }).success).toBe(
+      false,
+    );
   });
 
   it("rejects an institutional category that carries a parent (Invariant A)", () => {

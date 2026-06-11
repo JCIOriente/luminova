@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Timestamp } from "firebase/firestore";
-import { toInitiativeCreateDoc, toInitiativeUpdateDoc, initiativeToInput } from "./initiative-mapper";
+import {
+  toInitiativeCreateDoc,
+  toInitiativeUpdateDoc,
+  initiativeToInput,
+} from "./initiative-mapper";
 import type { InitiativeInput } from "@luminova/types";
 
 const VALID_INPUT: InitiativeInput = {
