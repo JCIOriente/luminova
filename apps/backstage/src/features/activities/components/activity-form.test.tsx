@@ -53,4 +53,20 @@ describe("ActivityForm", () => {
     await user.selectOptions(screen.getByLabelText(/categoría/i), "ProjectExecution");
     expect(screen.getByText("Padre")).toBeInTheDocument();
   });
+
+  it("hides category + parent picker when lockParent is set", () => {
+    render(
+      <ActivityForm
+        lockParent
+        defaultValues={{ category: "ProjectExecution", parentType: "Project", parentId: "p1" }}
+        memberOptions={[]}
+        programOptions={[]}
+        projectOptions={[]}
+        isSaving={false}
+        onSubmit={() => {}}
+      />,
+    );
+    expect(screen.queryByText("Categoría")).not.toBeInTheDocument();
+    expect(screen.queryByText("Programa")).not.toBeInTheDocument();
+  });
 });
