@@ -1,6 +1,7 @@
-import type { Activity, ActivityStatus } from "@luminova/types";
-import { Badge, type BadgeTone, Button, EmptyState, Icon } from "@luminova/ui";
+import type { Activity } from "@luminova/types";
+import { Badge, Button, EmptyState, Icon } from "@luminova/ui";
 import { Link } from "@tanstack/react-router";
+import { ACTIVITY_STATUS_TONE } from "../../activities/lib/status-tone";
 import { formatMonthYear } from "../lib/derive";
 
 interface InitiativeActivitiesProps {
@@ -63,9 +64,3 @@ export function InitiativeActivities({
     </div>
   );
 }
-
-const ACTIVITY_STATUS_TONE: Record<ActivityStatus, BadgeTone> = {
-  Programada: "blue",
-  Ejecutada: "green",
-  Cancelada: "red",
-};
