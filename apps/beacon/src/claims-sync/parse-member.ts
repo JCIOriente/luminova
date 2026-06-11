@@ -19,7 +19,8 @@ export function parseMember(raw: unknown): SafeMember {
     for (const [term, value] of Object.entries(data.positions as Record<string, unknown>)) {
       const v = value as { cargoId?: unknown; comisionIds?: unknown; assignedBy?: unknown };
       if (!v || typeof v !== "object") continue;
-      const cargoId = typeof v.cargoId === "string" ? v.cargoId : v.cargoId === null ? null : undefined;
+      const cargoId =
+        typeof v.cargoId === "string" ? v.cargoId : v.cargoId === null ? null : undefined;
       if (cargoId === undefined) continue;
       if (!isStringArray(v.comisionIds)) continue;
       positions[term] = {

@@ -2,12 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Badge, Button, Dialog, type BadgeTone } from "@luminova/ui";
 import { QrCode } from "@luminova/ui/qr-code";
-import {
-  currentTermKey,
-  type Member,
-  type MemberInput,
-  type MemberStatus,
-} from "@luminova/types";
+import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
 import { subject } from "@luminova/auth/ability";
 import { Can, useAbility } from "../lib/authz/ability-context";
 import { PageHeader } from "../components/page-header";
@@ -21,7 +16,10 @@ import { useUpdateMember } from "../features/members/hooks/use-update-member";
 import { useSetMemberPositions } from "../features/members/hooks/use-set-member-positions";
 import { usePositions } from "../features/positions/hooks/use-positions";
 import { MemberForm } from "../features/members/components/member-form";
-import { MemberPositionsForm, type PositionsInput } from "../features/members/components/member-positions-form";
+import {
+  MemberPositionsForm,
+  type PositionsInput,
+} from "../features/members/components/member-positions-form";
 import { MemberPermissionsPanel } from "../features/members/components/member-permissions-panel";
 import { MemberPositionHistory } from "../features/members/components/member-position-history";
 import { MemberPointsSummary } from "../features/members/components/member-points-summary";

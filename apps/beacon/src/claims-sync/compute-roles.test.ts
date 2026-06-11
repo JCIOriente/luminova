@@ -7,7 +7,10 @@ describe("computeMemberRoles", () => {
   });
   it("unions trusted grants with Member, in ROLES order, deduped", () => {
     expect(
-      computeMemberRoles({ trustedGrants: ["Membership", "Admin", "Membership"], hadScanner: false }),
+      computeMemberRoles({
+        trustedGrants: ["Membership", "Admin", "Membership"],
+        hadScanner: false,
+      }),
     ).toEqual(["Admin", "Membership", "Member"]);
   });
   it("preserves Scanner when previously present", () => {

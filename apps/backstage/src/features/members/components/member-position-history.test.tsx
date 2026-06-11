@@ -4,8 +4,15 @@ import type { Position } from "@luminova/types";
 import { MemberPositionHistory } from "./member-position-history";
 
 const pos = (id: string, title: string): Position => ({
-  id, title, titleFemale: title, category: "CEL", grants: [], term: null,
-  description: "", active: true, deletedAt: null,
+  id,
+  title,
+  titleFemale: title,
+  category: "CEL",
+  grants: [],
+  term: null,
+  description: "",
+  active: true,
+  deletedAt: null,
 });
 const byId = new Map([pos("tes", "Tesorero"), pos("sec", "Secretario")].map((p) => [p.id, p]));
 

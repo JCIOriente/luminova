@@ -32,7 +32,9 @@ describe("syncMemberClaims", () => {
       deps,
       {
         uid: "target-uid",
-        positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "membership-uid" } },
+        positions: {
+          "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "membership-uid" },
+        },
       },
       "2026",
     );
@@ -92,7 +94,11 @@ describe("syncMemberClaims", () => {
 
   it("no-ops when member has no uid (not provisioned)", async () => {
     const { deps, writes } = fakeDeps({ positions: {}, userRoles: {}, existing: {} });
-    await syncMemberClaims(deps, { positions: { "2026": { cargoId: "x", comisionIds: [] } } }, "2026");
+    await syncMemberClaims(
+      deps,
+      { positions: { "2026": { cargoId: "x", comisionIds: [] } } },
+      "2026",
+    );
     expect(writes).toEqual({});
   });
 
@@ -104,7 +110,10 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: { "2026": { cargoId: null, comisionIds: [], assignedBy: "admin-uid" } } },
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: null, comisionIds: [], assignedBy: "admin-uid" } },
+      },
       "2026",
     );
     expect(writes["target-uid"]).toEqual({ roles: ["Member"] });
@@ -118,7 +127,10 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } } },
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } },
+      },
       "2026",
     );
     expect(writes["target-uid"]).toEqual({ roles: ["Member"] });
@@ -132,7 +144,10 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: { "2026": { cargoId: null, comisionIds: ["com-x"], assignedBy: "admin-uid" } } },
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: null, comisionIds: ["com-x"], assignedBy: "admin-uid" } },
+      },
       "2026",
     );
     expect(writes["target-uid"]).toEqual({ roles: ["ProjectManager", "Member"] });
@@ -146,7 +161,10 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: { "2026": { cargoId: null, comisionIds: ["com-power"], assignedBy: "mem-uid" } } },
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: null, comisionIds: ["com-power"], assignedBy: "mem-uid" } },
+      },
       "2026",
     );
     expect(writes["target-uid"]).toEqual({ roles: ["Member"] }); // Treasury revoked
@@ -163,7 +181,12 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: { "2026": { cargoId: "pos-tes", comisionIds: ["com-y"], assignedBy: "admin-uid" } } },
+      {
+        uid: "target-uid",
+        positions: {
+          "2026": { cargoId: "pos-tes", comisionIds: ["com-y"], assignedBy: "admin-uid" },
+        },
+      },
       "2026",
     );
     expect(writes["target-uid"]).toEqual({
@@ -186,7 +209,10 @@ describe("syncMemberClaims", () => {
     await expect(
       syncMemberClaims(
         deps,
-        { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } } },
+        {
+          uid: "target-uid",
+          positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } },
+        },
         "2026",
       ),
     ).rejects.toThrow("auth lookup failed");

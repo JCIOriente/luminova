@@ -24,9 +24,7 @@ export function MemberCargoChips({
   return (
     <div className="flex flex-wrap gap-1.5">
       {cargo && (
-        <Badge tone={CATEGORY_TONE[cargo.category]}>
-          {positionTitle(cargo, member.gender)}
-        </Badge>
+        <Badge tone={CATEGORY_TONE[cargo.category]}>{positionTitle(cargo, member.gender)}</Badge>
       )}
       {comisiones.map((c) => (
         <Badge key={c.id} tone="gray">

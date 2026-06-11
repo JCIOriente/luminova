@@ -99,7 +99,12 @@ describe("MemberTable", () => {
       positions: { [currentTermKey()]: { cargoId: "p1", comisionIds: [] } },
     };
     renderAsAdmin(
-      <MemberTable members={[memberWithCargo]} pageSize={8} {...noop} positionsById={positionsById} />,
+      <MemberTable
+        members={[memberWithCargo]}
+        pageSize={8}
+        {...noop}
+        positionsById={positionsById}
+      />,
     );
     expect(screen.getByText("Tesorero")).toBeInTheDocument();
   });

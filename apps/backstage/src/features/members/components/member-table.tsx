@@ -61,7 +61,11 @@ function buildColumns(
       header: "Cargo",
       sortValue: roleLabel,
       cell: (member) => (
-        <MemberCargoChips member={member} positionsById={positionsById} termKey={currentTermKey()} />
+        <MemberCargoChips
+          member={member}
+          positionsById={positionsById}
+          termKey={currentTermKey()}
+        />
       ),
     },
     {
