@@ -11,8 +11,9 @@ vi.mock("../lib/auth/auth", () => ({
   useAuth: () => ({ user: { email: "ana@jci.org" }, claims: { roles: ["Admin"] } }),
 }));
 
+const ability = { can: (_action: string, _subject: string) => true };
 vi.mock("../lib/authz/ability-context", () => ({
-  useAbility: () => ({ can: () => true }),
+  useAbility: () => ability,
 }));
 
 vi.mock("../lib/auth/sign-out", () => ({
@@ -27,6 +28,7 @@ import { AppSidebar } from "./app-sidebar";
 import { setSidebarCollapsed } from "../lib/ui-prefs";
 
 beforeEach(() => {
+  ability.can = () => true;
   window.localStorage.clear();
   vi.stubGlobal(
     "matchMedia",
@@ -78,5 +80,19 @@ describe("AppSidebar", () => {
     setSidebarCollapsed(true);
     render(<AppSidebar />);
     expect(screen.getByLabelText("Expandir menú")).toBeInTheDocument();
+  });
+
+  it("shows the Proyectos initiatives item when the caller can read Project but not Program", () => {
+    ability.can = (_action, subject) => subject === "Project";
+    setSidebarCollapsed(false);
+    render(<AppSidebar />);
+    expect(screen.getByText("Proyectos")).toBeInTheDocument();
+  });
+
+  it("hides the Proyectos initiatives item when the caller can read neither Program nor Project", () => {
+    ability.can = (_action, subject) => subject !== "Program" && subject !== "Project";
+    setSidebarCollapsed(false);
+    render(<AppSidebar />);
+    expect(screen.queryByText("Proyectos")).not.toBeInTheDocument();
   });
 });

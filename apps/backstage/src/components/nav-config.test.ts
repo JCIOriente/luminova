@@ -12,16 +12,16 @@ describe("nav-config", () => {
       "/point-rules",
       "/leaderboard",
       "/activities",
-      "/programs",
-      "/projects",
+      "/initiatives",
       "/check-in",
     ]);
   });
 
-  it("gates programs/projects on their subjects", () => {
-    const items = NAV_GROUPS.flatMap((g) => g.items);
-    expect(items.find((i) => i.to === "/programs")?.subject).toBe("Program");
-    expect(items.find((i) => i.to === "/projects")?.subject).toBe("Project");
+  it("gates initiatives on the Program OR Project subjects", () => {
+    const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === "/initiatives");
+    expect(item?.label).toBe("Proyectos");
+    expect(item?.subject).toBeUndefined();
+    expect(item?.anySubject).toEqual(["Program", "Project"]);
   });
 
   it("lists Mi panel ungated", () => {

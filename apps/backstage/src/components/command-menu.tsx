@@ -35,6 +35,8 @@ export function CommandMenu() {
         .filter(
           (item) =>
             (!item.subject || ability.can(item.action ?? "read", item.subject)) &&
+            (!item.anySubject ||
+              item.anySubject.some((s) => ability.can(item.action ?? "read", s))) &&
             (!item.roles || hasAnyRole(claims, item.roles)),
         )
         .map((item) => ({

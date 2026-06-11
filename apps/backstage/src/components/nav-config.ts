@@ -3,6 +3,8 @@ import type { Role } from "@luminova/auth/roles";
 
 type IconKey = keyof typeof Icon;
 
+type Subject = "Member" | "Ally" | "PointRule" | "Activity" | "Attendance" | "Program" | "Project";
+
 export interface NavItem {
   to:
     | "/"
@@ -12,13 +14,13 @@ export interface NavItem {
     | "/point-rules"
     | "/leaderboard"
     | "/activities"
-    | "/programs"
-    | "/projects"
+    | "/initiatives"
     | "/check-in";
   label: string;
   icon: IconKey;
   exact?: boolean;
-  subject?: "Member" | "Ally" | "PointRule" | "Activity" | "Attendance" | "Program" | "Project";
+  subject?: Subject;
+  anySubject?: Subject[];
   action?: "read" | "checkIn";
   /** Optional role allowlist — item shows only if the caller has one of these. */
   roles?: Role[];
@@ -55,8 +57,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Reconocimiento",
     items: [
       { to: "/activities", label: "Actividades", icon: "calendar", subject: "Activity" },
-      { to: "/programs", label: "Programas", icon: "folder", subject: "Program" },
-      { to: "/projects", label: "Proyectos", icon: "briefcase", subject: "Project" },
+      { to: "/initiatives", label: "Proyectos", icon: "briefcase", anySubject: ["Program", "Project"] },
       {
         to: "/check-in",
         label: "Check-in",

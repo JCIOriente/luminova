@@ -15,8 +15,6 @@ import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthResetRouteImport } from './routes/_auth.reset'
 import { Route as AuthLoginRouteImport } from './routes/_auth.login'
 import { Route as AuthForgotPasswordRouteImport } from './routes/_auth.forgot-password'
-import { Route as AppProjectsRouteImport } from './routes/_app.projects'
-import { Route as AppProgramsRouteImport } from './routes/_app.programs'
 import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
 import { Route as AppMembersRouteImport } from './routes/_app.members'
 import { Route as AppMeRouteImport } from './routes/_app.me'
@@ -54,16 +52,6 @@ const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
   getParentRoute: () => AuthRoute,
-} as any)
-const AppProjectsRoute = AppProjectsRouteImport.update({
-  id: '/projects',
-  path: '/projects',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppProgramsRoute = AppProgramsRouteImport.update({
-  id: '/programs',
-  path: '/programs',
-  getParentRoute: () => AppRoute,
 } as any)
 const AppPointRulesRoute = AppPointRulesRouteImport.update({
   id: '/point-rules',
@@ -121,8 +109,6 @@ export interface FileRoutesByFullPath {
   '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
   '/point-rules': typeof AppPointRulesRoute
-  '/programs': typeof AppProgramsRoute
-  '/projects': typeof AppProjectsRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/reset': typeof AuthResetRoute
@@ -138,8 +124,6 @@ export interface FileRoutesByTo {
   '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
   '/point-rules': typeof AppPointRulesRoute
-  '/programs': typeof AppProgramsRoute
-  '/projects': typeof AppProjectsRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/reset': typeof AuthResetRoute
@@ -157,8 +141,6 @@ export interface FileRoutesById {
   '/_app/me': typeof AppMeRoute
   '/_app/members': typeof AppMembersRoute
   '/_app/point-rules': typeof AppPointRulesRoute
-  '/_app/programs': typeof AppProgramsRoute
-  '/_app/projects': typeof AppProjectsRoute
   '/_auth/forgot-password': typeof AuthForgotPasswordRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/reset': typeof AuthResetRoute
@@ -177,8 +159,6 @@ export interface FileRouteTypes {
     | '/me'
     | '/members'
     | '/point-rules'
-    | '/programs'
-    | '/projects'
     | '/forgot-password'
     | '/login'
     | '/reset'
@@ -194,8 +174,6 @@ export interface FileRouteTypes {
     | '/me'
     | '/members'
     | '/point-rules'
-    | '/programs'
-    | '/projects'
     | '/forgot-password'
     | '/login'
     | '/reset'
@@ -212,8 +190,6 @@ export interface FileRouteTypes {
     | '/_app/me'
     | '/_app/members'
     | '/_app/point-rules'
-    | '/_app/programs'
-    | '/_app/projects'
     | '/_auth/forgot-password'
     | '/_auth/login'
     | '/_auth/reset'
@@ -269,20 +245,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/forgot-password'
       preLoaderRoute: typeof AuthForgotPasswordRouteImport
       parentRoute: typeof AuthRoute
-    }
-    '/_app/projects': {
-      id: '/_app/projects'
-      path: '/projects'
-      fullPath: '/projects'
-      preLoaderRoute: typeof AppProjectsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/programs': {
-      id: '/_app/programs'
-      path: '/programs'
-      fullPath: '/programs'
-      preLoaderRoute: typeof AppProgramsRouteImport
-      parentRoute: typeof AppRoute
     }
     '/_app/point-rules': {
       id: '/_app/point-rules'
@@ -359,8 +321,6 @@ interface AppRouteChildren {
   AppMeRoute: typeof AppMeRoute
   AppMembersRoute: typeof AppMembersRoute
   AppPointRulesRoute: typeof AppPointRulesRoute
-  AppProgramsRoute: typeof AppProgramsRoute
-  AppProjectsRoute: typeof AppProjectsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppMembersMemberIdRoute: typeof AppMembersMemberIdRoute
 }
@@ -374,8 +334,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppMeRoute: AppMeRoute,
   AppMembersRoute: AppMembersRoute,
   AppPointRulesRoute: AppPointRulesRoute,
-  AppProgramsRoute: AppProgramsRoute,
-  AppProjectsRoute: AppProjectsRoute,
   AppIndexRoute: AppIndexRoute,
   AppMembersMemberIdRoute: AppMembersMemberIdRoute,
 }
