@@ -20,12 +20,13 @@ export function InitiativeCompleted({ impact }: InitiativeCompletedProps) {
             label="Personas impactadas"
             value={impact.personsImpacted.toLocaleString("es")}
           />
-          <InitiativeStatCard
-            label="Voluntarios"
-            value={impact.volunteers.toLocaleString("es")}
-          />
+          <InitiativeStatCard label="Voluntarios" value={impact.volunteers.toLocaleString("es")} />
           {impact.custom.map((metric, i) => (
-            <InitiativeStatCard key={`${metric.label}-${i}`} label={metric.label} value={metric.value} />
+            <InitiativeStatCard
+              key={`${metric.label}-${i}`}
+              label={metric.label}
+              value={metric.value}
+            />
           ))}
         </div>
       </section>

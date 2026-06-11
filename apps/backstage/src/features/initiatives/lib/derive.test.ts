@@ -129,7 +129,12 @@ describe("computeProgress pending", () => {
       { id: "b", parentId: "p1", parentType: "Project", status: "Programada" },
       { id: "c", parentId: "p1", parentType: "Project", status: "Cancelada" },
     ] as unknown as import("@luminova/types").Activity[];
-    expect(computeProgress(acts, "p1")).toMatchObject({ executed: 1, total: 2, pending: 1, pct: 50 });
+    expect(computeProgress(acts, "p1")).toMatchObject({
+      executed: 1,
+      total: 2,
+      pending: 1,
+      pct: 50,
+    });
   });
 });
 

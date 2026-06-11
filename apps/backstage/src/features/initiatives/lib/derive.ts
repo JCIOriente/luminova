@@ -1,4 +1,9 @@
-import type { Activity, AreaOfOpportunity, InitiativeKind, InitiativeStatus } from "@luminova/types";
+import type {
+  Activity,
+  AreaOfOpportunity,
+  InitiativeKind,
+  InitiativeStatus,
+} from "@luminova/types";
 import type { BadgeTone } from "@luminova/ui";
 import type { InitiativeListItem } from "./initiative-list-item";
 

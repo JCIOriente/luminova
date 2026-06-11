@@ -22,7 +22,10 @@ describe("buildInitiativeTeam", () => {
   });
 
   it("returns null director when missing", () => {
-    const team = buildInitiativeTeam({ directorId: "x", coDirectorIds: [], teamIds: [] }, new Map());
+    const team = buildInitiativeTeam(
+      { directorId: "x", coDirectorIds: [], teamIds: [] },
+      new Map(),
+    );
     expect(team.director).toBeNull();
   });
 });
