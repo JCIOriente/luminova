@@ -25,6 +25,7 @@ import { Route as AppCheckInRouteImport } from './routes/_app.check-in'
 import { Route as AppAlliesRouteImport } from './routes/_app.allies'
 import { Route as AppActivitiesRouteImport } from './routes/_app.activities'
 import { Route as AppMembersMemberIdRouteImport } from './routes/_app.members_.$memberId'
+import { Route as AppInitiativesTypeIdRouteImport } from './routes/_app.initiatives_.$type.$id'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -104,6 +105,11 @@ const AppMembersMemberIdRoute = AppMembersMemberIdRouteImport.update({
   path: '/members/$memberId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppInitiativesTypeIdRoute = AppInitiativesTypeIdRouteImport.update({
+  id: '/initiatives_/$type/$id',
+  path: '/initiatives/$type/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -120,6 +126,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/reset': typeof AuthResetRoute
   '/members/$memberId': typeof AppMembersMemberIdRoute
+  '/initiatives/$type/$id': typeof AppInitiativesTypeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/reset': typeof AuthResetRoute
   '/members/$memberId': typeof AppMembersMemberIdRoute
+  '/initiatives/$type/$id': typeof AppInitiativesTypeIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -155,6 +163,7 @@ export interface FileRoutesById {
   '/_auth/reset': typeof AuthResetRoute
   '/_app/': typeof AppIndexRoute
   '/_app/members_/$memberId': typeof AppMembersMemberIdRoute
+  '/_app/initiatives_/$type/$id': typeof AppInitiativesTypeIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -173,6 +182,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset'
     | '/members/$memberId'
+    | '/initiatives/$type/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -189,6 +199,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset'
     | '/members/$memberId'
+    | '/initiatives/$type/$id'
   id:
     | '__root__'
     | '/_app'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/_auth/reset'
     | '/_app/'
     | '/_app/members_/$memberId'
+    | '/_app/initiatives_/$type/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -328,6 +340,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMembersMemberIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/initiatives_/$type/$id': {
+      id: '/_app/initiatives_/$type/$id'
+      path: '/initiatives/$type/$id'
+      fullPath: '/initiatives/$type/$id'
+      preLoaderRoute: typeof AppInitiativesTypeIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -343,6 +362,7 @@ interface AppRouteChildren {
   AppPositionsRoute: typeof AppPositionsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppMembersMemberIdRoute: typeof AppMembersMemberIdRoute
+  AppInitiativesTypeIdRoute: typeof AppInitiativesTypeIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -357,6 +377,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppPositionsRoute: AppPositionsRoute,
   AppIndexRoute: AppIndexRoute,
   AppMembersMemberIdRoute: AppMembersMemberIdRoute,
+  AppInitiativesTypeIdRoute: AppInitiativesTypeIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

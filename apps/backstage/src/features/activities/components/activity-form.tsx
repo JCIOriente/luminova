@@ -21,6 +21,8 @@ interface ActivityFormProps {
   projectOptions: ComboboxOption[];
   /** Lock category + startAt (edit mode with existing check-ins). */
   locked?: boolean;
+  /** Fix category to ProjectExecution and hide category + parent picker (child-activity create). */
+  lockParent?: boolean;
   isSaving: boolean;
   submitLabel?: string;
   onSubmit: (data: ActivityInput) => void;
@@ -44,6 +46,7 @@ export function ActivityForm({
   programOptions,
   projectOptions,
   locked = false,
+  lockParent = false,
   isSaving,
   submitLabel = "Guardar",
   onSubmit,
@@ -64,35 +67,42 @@ export function ActivityForm({
   const isExecution = category === "ProjectExecution";
 
   useEffect(() => {
+    if (lockParent) return;
     if (!isExecution) {
       setValue("parentType", null);
       setValue("parentId", null);
     }
-  }, [isExecution, setValue]);
+  }, [isExecution, lockParent, setValue]);
+
+  useEffect(() => {
+    if (lockParent) setValue("category", "ProjectExecution");
+  }, [lockParent, setValue]);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
       <Field label="Título" htmlFor="title" required error={errors.title?.message}>
         <Input id="title" {...register("title")} />
       </Field>
-      <Field label="Categoría" htmlFor="category" required error={errors.category?.message}>
-        <Select id="category" disabled={locked} {...register("category")}>
-          {ACTIVITY_CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {CATEGORY_LABELS[c]}
-            </option>
-          ))}
-        </Select>
-        {locked && (
-          <p className="mt-1 text-sm text-ink-3">No editable: ya hay registros de asistencia.</p>
-        )}
-      </Field>
+      {!lockParent && (
+        <Field label="Categoría" htmlFor="category" required error={errors.category?.message}>
+          <Select id="category" disabled={locked} {...register("category")}>
+            {ACTIVITY_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {CATEGORY_LABELS[c]}
+              </option>
+            ))}
+          </Select>
+          {locked && (
+            <p className="mt-1 text-sm text-ink-3">No editable: ya hay registros de asistencia.</p>
+          )}
+        </Field>
+      )}
 
       <Field label="Fecha y hora" htmlFor="startAt" required error={errors.startAt?.message}>
         <Input id="startAt" type="datetime-local" disabled={locked} {...register("startAt")} />
       </Field>
 
-      {isExecution && (
+      {isExecution && !lockParent && (
         <Controller
           control={control}
           name="parentId"
