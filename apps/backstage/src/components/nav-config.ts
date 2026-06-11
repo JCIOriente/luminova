@@ -14,11 +14,20 @@ export interface NavItem {
     | "/activities"
     | "/programs"
     | "/projects"
-    | "/check-in";
+    | "/check-in"
+    | "/positions";
   label: string;
   icon: IconKey;
   exact?: boolean;
-  subject?: "Member" | "Ally" | "PointRule" | "Activity" | "Attendance" | "Program" | "Project";
+  subject?:
+    | "Member"
+    | "Ally"
+    | "PointRule"
+    | "Activity"
+    | "Attendance"
+    | "Program"
+    | "Project"
+    | "Position";
   action?: "read" | "checkIn";
   /** Optional role allowlist — item shows only if the caller has one of these. */
   roles?: Role[];
@@ -49,6 +58,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: "barChart",
         roles: ["Admin", "Membership", "Treasury", "ExecutiveCommittee", "ProjectManager"],
       },
+      { to: "/positions", label: "Cargos y comisiones", icon: "compass", subject: "Position" },
     ],
   },
   {
