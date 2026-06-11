@@ -20,24 +20,11 @@ import { ActivityRepository } from "../features/activities/repositories/activity
 import { ActivityLockedError } from "../features/activities/repositories/activity-guard";
 import { ActivityForm } from "../features/activities/components/activity-form";
 import { ActivityTable } from "../features/activities/components/activity-table";
+import { activityToInput } from "../features/activities/lib/activity-to-input";
 
 export const Route = createFileRoute("/_app/activities")({ component: ActivitiesPage });
 
 type Editing = Activity | "new" | null;
-
-function activityToInput(a: Activity): Partial<ActivityInput> {
-  return {
-    title: a.title,
-    description: a.description ?? "",
-    category: a.category,
-    parentType: a.parentType,
-    parentId: a.parentId,
-    startAt: new Date(a.startAt.toMillis()).toISOString().slice(0, 16),
-    endAt: a.endAt === null ? null : new Date(a.endAt.toMillis()).toISOString().slice(0, 16),
-    directorId: a.organizers.directorId,
-    coDirectorIds: a.organizers.coDirectorIds,
-  };
-}
 
 function ActivitiesPage() {
   const termId = currentTermKey();

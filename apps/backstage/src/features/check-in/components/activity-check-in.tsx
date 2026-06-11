@@ -24,7 +24,7 @@ export function ActivityCheckIn({ activityId, members }: ActivityCheckInProps) {
     () => buildRosterEntries(checkIns ?? [], members),
     [checkIns, members],
   );
-  const checkedInIds = (checkIns ?? []).map((c) => c.memberId);
+  const checkedInIds = useMemo(() => (checkIns ?? []).map((c) => c.memberId), [checkIns]);
 
   const checkIn = (memberId: string) => {
     if (alreadyCheckedIn(checkIns ?? [], memberId)) return;

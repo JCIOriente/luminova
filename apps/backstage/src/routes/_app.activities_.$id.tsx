@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Dialog, EmptyState, Icon, SegmentedControl, Sheet, Toast } from "@luminova/ui";
 import type { ComboboxOption, SegmentedOption } from "@luminova/ui";
-import type { Activity, ActivityInput, Member } from "@luminova/types";
+import type { ActivityInput, Member } from "@luminova/types";
 import { currentTermKey } from "@luminova/types";
 import { subject } from "@luminova/auth/ability";
 import { useAbility } from "../lib/authz/ability-context";
@@ -18,24 +18,17 @@ import { ActivityLockedError } from "../features/activities/repositories/activit
 import { ActivityForm } from "../features/activities/components/activity-form";
 import { ActivityDetailHero } from "../features/activities/components/activity-detail-hero";
 import { ActivityCheckIn } from "../features/check-in/components/activity-check-in";
+import { activityToInput } from "../features/activities/lib/activity-to-input";
+import { activityKeys } from "../features/activities/hooks/activity-keys";
 
 export const Route = createFileRoute("/_app/activities_/$id")({ component: ActivityDetailPage });
 
 type Tab = "detalle" | "check-in";
 
-function activityToInput(a: Activity): Partial<ActivityInput> {
-  return {
-    title: a.title,
-    description: a.description ?? "",
-    category: a.category,
-    parentType: a.parentType,
-    parentId: a.parentId,
-    startAt: new Date(a.startAt.toMillis()).toISOString().slice(0, 16),
-    endAt: a.endAt === null ? null : new Date(a.endAt.toMillis()).toISOString().slice(0, 16),
-    directorId: a.organizers.directorId,
-    coDirectorIds: a.organizers.coDirectorIds,
-  };
-}
+const TABS: readonly SegmentedOption<Tab>[] = [
+  { value: "detalle", label: "Detalle" },
+  { value: "check-in", label: "Check-in" },
+];
 
 function ActivityDetailPage() {
   const { id } = Route.useParams();
@@ -46,18 +39,21 @@ function ActivityDetailPage() {
   const canUpdate = ability.can("update", "Activity");
   const canReadMembers = ability.can("read", "Member");
 
-  const { data: activity, isLoading } = useActivity(id, { enabled: canRead });
-  const { data: members } = useMembers({ enabled: canReadMembers });
-  const { data: programs } = useProgramsByTerm(termId, { enabled: canRead });
-  const { data: projects } = useProjectsByTerm(termId, { enabled: canRead });
-
-  const update = useUpdateActivity(termId);
-  const cancelActivity = useCancelActivity(termId);
-
   const [tab, setTab] = useState<Tab>("detalle");
   const [editOpen, setEditOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  const { data: activity, isLoading } = useActivity(id, { enabled: canRead });
+  const { data: members } = useMembers({ enabled: canReadMembers });
+  // Programs/projects only feed the parent link + the edit sheet's parent picker;
+  // skip the reads on parentless activities until the edit sheet is opened.
+  const needsInitiatives = activity?.parentId != null || editOpen;
+  const { data: programs } = useProgramsByTerm(termId, { enabled: canRead && needsInitiatives });
+  const { data: projects } = useProjectsByTerm(termId, { enabled: canRead && needsInitiatives });
+
+  const update = useUpdateActivity(termId);
+  const cancelActivity = useCancelActivity(termId);
 
   const memberById = useMemo(
     () => new Map<string, Member>((members ?? []).map((m) => [m.id, m])),
@@ -76,10 +72,11 @@ function ActivityDetailPage() {
     [projects],
   );
 
+  // The lock only governs the edit form, so the count is only needed once it opens.
   const { data: checkInCount } = useQuery({
-    queryKey: ["activities", "checkin-count", id],
+    queryKey: activityKeys.checkInCount(id),
     queryFn: () => new ActivityRepository().countCheckIns(id),
-    enabled: canRead,
+    enabled: canRead && editOpen,
   });
   const locked = (checkInCount ?? 0) > 0;
 
@@ -110,12 +107,11 @@ function ActivityDetailPage() {
   const coDirectors = activity.organizers.coDirectorIds
     .map((cid) => memberById.get(cid))
     .filter((m): m is Member => m !== undefined);
-  const parentTitle =
-    activity.parentId && activity.parentType === "Program"
-      ? ((programs ?? []).find((p) => p.id === activity.parentId)?.title ?? null)
-      : activity.parentId && activity.parentType === "Project"
-        ? ((projects ?? []).find((p) => p.id === activity.parentId)?.title ?? null)
-        : null;
+  const parentPool =
+    activity.parentType === "Program" ? programs : activity.parentType === "Project" ? projects : null;
+  const parentTitle = activity.parentId
+    ? (parentPool?.find((p) => p.id === activity.parentId)?.title ?? null)
+    : null;
 
   const canCheckIn = ability.can("checkIn", subject("Attendance", { eventId: activity.id }));
 
@@ -140,10 +136,7 @@ function ActivityDetailPage() {
     setCancelOpen(false);
   };
 
-  const tabs: readonly SegmentedOption<Tab>[] = [
-    { value: "detalle", label: "Detalle" },
-    { value: "check-in", label: "Check-in" },
-  ];
+  const hasDetalle = Boolean(activity.description) || activity.photos.length > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -173,7 +166,7 @@ function ActivityDetailPage() {
 
       <SegmentedControl<Tab>
         aria-label="Vistas de la actividad"
-        options={tabs}
+        options={TABS}
         value={tab}
         onChange={setTab}
       />
@@ -195,7 +188,7 @@ function ActivityDetailPage() {
               ))}
             </div>
           )}
-          {!activity.description && activity.photos.length === 0 && (
+          {!hasDetalle && (
             <EmptyState
               title="Sin detalle"
               description="Edita la actividad para agregar una descripción."

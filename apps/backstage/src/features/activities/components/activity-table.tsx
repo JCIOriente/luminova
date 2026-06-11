@@ -12,6 +12,7 @@ import {
 } from "@luminova/ui";
 import type { Activity, ActivityStatus } from "@luminova/types";
 import { CATEGORY_LABELS } from "../category-labels";
+import { formatActivityDateTime } from "../lib/format";
 
 interface ActivityTableProps {
   activities: Activity[];
@@ -24,11 +25,6 @@ const STATUS_TONE: Record<ActivityStatus, BadgeTone> = {
   Ejecutada: "green",
   Cancelada: "red",
 };
-
-const DATE_FORMAT = new Intl.DateTimeFormat("es-BO", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
 
 export function ActivityTable({ activities, onEdit, onCancel }: ActivityTableProps) {
   return (
@@ -48,7 +44,7 @@ export function ActivityTable({ activities, onEdit, onCancel }: ActivityTablePro
               {CATEGORY_LABELS[activity.category]}
             </TableCell>
             <TableCell className="text-ink-2 tabular-nums">
-              {DATE_FORMAT.format(activity.startAt.toDate())}
+              {formatActivityDateTime(activity.startAt)}
             </TableCell>
             <TableCell>
               <Badge tone={STATUS_TONE[activity.status]}>{activity.status}</Badge>
