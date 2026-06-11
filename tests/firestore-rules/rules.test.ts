@@ -595,27 +595,55 @@ describe("firestore.rules — positions", () => {
   });
 });
 
-describe("firestore.rules — member positions by ExecutiveCommittee", () => {
-  it("allows a positions-only update", async () => {
+// NOTE: these cases hardcode term "2026"; rules derive the term from
+// request.time.year() (UTC). If running in a later calendar year, update the key.
+describe("firestore.rules — member positions assignment", () => {
+  it("allows ExecutiveCommittee to assign an empty-grants cargo with self assignedBy", async () => {
     await assertSucceeds(
-      updateDoc(doc(as("u", ["ExecutiveCommittee"]), "members/m_positions"), {
-        positions: { "2026": { cargoId: "pos1", comisionIds: [] } },
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        positions: { "2026": { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" } },
       }),
     );
   });
-  it("denies touching other fields", async () => {
+  it("denies ExecutiveCommittee assigning a power-conferring cargo (Treasury)", async () => {
     await assertFails(
-      updateDoc(doc(as("u", ["ExecutiveCommittee"]), "members/m_positions"), {
-        positions: { "2026": { cargoId: "pos1", comisionIds: [] } },
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        positions: { "2026": { cargoId: "pos1", comisionIds: [], assignedBy: "exec-uid" } },
+      }),
+    );
+  });
+  it("BLOCKING: denies Membership assigning a power-conferring cargo", async () => {
+    await assertFails(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), {
+        positions: { "2026": { cargoId: "pos1", comisionIds: [], assignedBy: "mem-uid" } },
+      }),
+    );
+  });
+  it("allows Admin to assign a power-conferring cargo", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), {
+        positions: { "2026": { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
+      }),
+    );
+  });
+  it("denies a forged assignedBy (not the caller's uid)", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), {
+        positions: { "2026": { cargoId: "pos1", comisionIds: [], assignedBy: "someone-else" } },
+      }),
+    );
+  });
+  it("denies ExecutiveCommittee touching non-position fields", async () => {
+    await assertFails(
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        positions: { "2026": { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" } },
         name: "Hacked",
       }),
     );
   });
-  it("allows a dot-path positions update (production write shape)", async () => {
+  it("still allows Membership to edit non-position fields without assignedBy", async () => {
     await assertSucceeds(
-      updateDoc(doc(as("u", ["ExecutiveCommittee"]), "members/m_positions"), {
-        "positions.2027": { cargoId: "pos1", comisionIds: [] },
-      }),
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), { name: "Renamed" }),
     );
   });
 });

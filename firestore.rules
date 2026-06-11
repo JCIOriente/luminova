@@ -42,6 +42,35 @@ service cloud.firestore {
                 && unchangedOrAbsent('impact')));
     }
 
+    // Rules derive the current term from request.time.year() (UTC int) so they can
+    // locate positions.<term> without iterating map keys — matches the app's
+    // currentTermKey() = getUTCFullYear().
+    function currentTermKey() {
+      return string(request.time.year());
+    }
+    function assignedTerm() {
+      return request.resource.data.get('positions', {}).get(currentTermKey(), {});
+    }
+    function assignedBySelf() {
+      return assignedTerm().get('assignedBy', '') == request.auth.uid;
+    }
+    function assignedCargoId() {
+      return assignedTerm().get('cargoId', null);
+    }
+    function cargoGrantsEmpty() {
+      return assignedCargoId() == null
+        || get(/databases/$(database)/documents/positions/$(assignedCargoId())).data.grants.size() == 0;
+    }
+    function positionsTouched() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['positions']);
+    }
+    // A positions write is well-formed when the writer stamped themselves and either
+    // they are Admin or the assigned cargo confers no power. Comisión power grants are
+    // not loop-checkable here — the beacon claims-sync trust gate is their backstop.
+    function positionsAssignmentSafe() {
+      return assignedBySelf() && (hasAnyRole(['Admin']) || cargoGrantsEmpty());
+    }
+
     function initiativeCreateAllowed() {
       return hasAnyRole(['Admin', 'ProjectManager'])
         && request.resource.data.get('directionUids', []) == []
@@ -77,7 +106,8 @@ service cloud.firestore {
       allow update: if hasAnyRole(['Admin', 'Membership'])
         && unchanged('totalPoints')
         && unchanged('uid')
-        && softDeleteSafe();
+        && softDeleteSafe()
+        && (!positionsTouched() || positionsAssignmentSafe());
       // A member may set only their own profilePicture (H1 self-upload on /me).
       allow update: if signedIn()
         && resource.data.uid == request.auth.uid
@@ -86,7 +116,8 @@ service cloud.firestore {
       // ExecutiveCommittee may edit only position assignments (org chart), nothing else.
       allow update: if hasAnyRole(['ExecutiveCommittee'])
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['positions'])
-        && softDeleteSafe();
+        && softDeleteSafe()
+        && positionsAssignmentSafe();
       allow delete: if false;
     }
 
