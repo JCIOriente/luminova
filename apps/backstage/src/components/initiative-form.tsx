@@ -17,12 +17,7 @@ import {
   AREA_OF_OPPORTUNITY_LABELS,
   type InitiativeInput,
 } from "@luminova/types";
-
-const STATUS_LABELS: Record<(typeof INITIATIVE_STATUSES)[number], string> = {
-  Planificacion: "Planificación",
-  EnEjecucion: "En ejecución",
-  Finalizado: "Finalizado",
-};
+import { statusLabel } from "../features/initiatives/lib/derive";
 
 const EMPTY: InitiativeInput = {
   title: "",
@@ -147,7 +142,7 @@ export function InitiativeForm({
         <Select id="status" {...register("status")}>
           {INITIATIVE_STATUSES.map((s) => (
             <option key={s} value={s}>
-              {STATUS_LABELS[s]}
+              {statusLabel(s)}
             </option>
           ))}
         </Select>
