@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Sheet } from "@luminova/ui";
+import { Sheet, type SheetSize } from "@luminova/ui";
 
-function renderSheet(size?: "sm" | "md" | "lg" | "xl") {
+function renderSheet(size?: SheetSize) {
   render(
     <Sheet open onOpenChange={() => {}} title="Prueba" size={size}>
       <p>contenido</p>

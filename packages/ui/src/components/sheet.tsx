@@ -16,7 +16,7 @@ interface SheetProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
-  /** Pane width; defaults to `sm` (440px), the historical width. */
+  /** Pane width. Defaults to `sm` (440px). */
   size?: SheetSize;
   children: ReactNode;
 }
