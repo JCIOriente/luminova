@@ -25,11 +25,6 @@ export const Route = createFileRoute("/_app/activities_/$id")({ component: Activ
 
 type Tab = "detalle" | "check-in";
 
-const TABS: readonly SegmentedOption<Tab>[] = [
-  { value: "detalle", label: "Detalle" },
-  { value: "check-in", label: "Check-in" },
-];
-
 function ActivityDetailPage() {
   const { id } = Route.useParams();
   const termId = currentTermKey();
@@ -138,6 +133,15 @@ function ActivityDetailPage() {
 
   const hasDetalle = Boolean(activity.description) || activity.photos.length > 0;
 
+  // The check-in tab is only meaningful to users who can register attendance for
+  // this activity; hide it from everyone else instead of showing a dead "Sin acceso".
+  const tabs: readonly SegmentedOption<Tab>[] = canCheckIn
+    ? [
+        { value: "detalle", label: "Detalle" },
+        { value: "check-in", label: "Check-in" },
+      ]
+    : [{ value: "detalle", label: "Detalle" }];
+
   return (
     <div className="flex flex-col gap-6">
       <Link to="/activities" className="text-[13px] text-ink-3 hover:text-ink-1">
@@ -166,7 +170,7 @@ function ActivityDetailPage() {
 
       <SegmentedControl<Tab>
         aria-label="Vistas de la actividad"
-        options={TABS}
+        options={tabs}
         value={tab}
         onChange={setTab}
       />
@@ -197,16 +201,16 @@ function ActivityDetailPage() {
         </div>
       )}
 
-      {tab === "check-in" &&
-        (canCheckIn ? (
+      {tab === "check-in" && canCheckIn && (
+        <div className="flex flex-col gap-4">
+          {!canReadMembers && (
+            <p className="mx-auto max-w-md text-center text-[13px] text-ink-3">
+              Modo escáner: registra asistencia con el lector QR.
+            </p>
+          )}
           <ActivityCheckIn activityId={activity.id} members={members ?? []} />
-        ) : (
-          <EmptyState
-            icon={Icon.qr({ s: 40 })}
-            title="Sin acceso"
-            description="El registro de asistencia está disponible para administración y dirección de proyectos."
-          />
-        ))}
+        </div>
+      )}
 
       <Sheet open={editOpen} onOpenChange={setEditOpen} title="Editar actividad">
         <ActivityForm

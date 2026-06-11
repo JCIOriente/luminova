@@ -18,6 +18,8 @@ interface ActivityTableProps {
   activities: Activity[];
   onEdit: (activity: Activity) => void;
   onCancel: (activity: Activity) => void;
+  /** Show the edit/cancel column. Read-only viewers (e.g. Scanner) get a clean table. */
+  canManage: boolean;
 }
 
 const STATUS_TONE: Record<ActivityStatus, BadgeTone> = {
@@ -26,7 +28,7 @@ const STATUS_TONE: Record<ActivityStatus, BadgeTone> = {
   Cancelada: "red",
 };
 
-export function ActivityTable({ activities, onEdit, onCancel }: ActivityTableProps) {
+export function ActivityTable({ activities, onEdit, onCancel, canManage }: ActivityTableProps) {
   return (
     <Table>
       <TableHeader>
@@ -34,7 +36,7 @@ export function ActivityTable({ activities, onEdit, onCancel }: ActivityTablePro
           <TableHead>Categoría</TableHead>
           <TableHead>Fecha</TableHead>
           <TableHead>Estado</TableHead>
-          <TableHead>Acciones</TableHead>
+          {canManage && <TableHead>Acciones</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -49,30 +51,32 @@ export function ActivityTable({ activities, onEdit, onCancel }: ActivityTablePro
             <TableCell>
               <Badge tone={STATUS_TONE[activity.status]}>{activity.status}</Badge>
             </TableCell>
-            <TableCell>
-              <div className="flex gap-2">
-                <IconButton
-                  as="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-label={`Editar ${CATEGORY_LABELS[activity.category]}`}
-                  onClick={() => onEdit(activity)}
-                >
-                  {Icon.settings({ s: 17 })}
-                </IconButton>
-                {activity.status !== "Cancelada" && (
+            {canManage && (
+              <TableCell>
+                <div className="flex gap-2">
                   <IconButton
                     as="button"
                     variant="ghost"
                     size="sm"
-                    aria-label={`Cancelar ${CATEGORY_LABELS[activity.category]}`}
-                    onClick={() => onCancel(activity)}
+                    aria-label={`Editar ${CATEGORY_LABELS[activity.category]}`}
+                    onClick={() => onEdit(activity)}
                   >
-                    {Icon.close({ s: 17 })}
+                    {Icon.settings({ s: 17 })}
                   </IconButton>
-                )}
-              </div>
-            </TableCell>
+                  {activity.status !== "Cancelada" && (
+                    <IconButton
+                      as="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Cancelar ${CATEGORY_LABELS[activity.category]}`}
+                      onClick={() => onCancel(activity)}
+                    >
+                      {Icon.close({ s: 17 })}
+                    </IconButton>
+                  )}
+                </div>
+              </TableCell>
+            )}
           </TableRow>
         ))}
       </TableBody>

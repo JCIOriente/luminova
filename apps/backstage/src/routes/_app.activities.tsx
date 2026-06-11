@@ -6,7 +6,7 @@ import type { ComboboxOption } from "@luminova/ui";
 import { ACTIVITY_CATEGORIES } from "@luminova/types";
 import type { Activity, ActivityInput } from "@luminova/types";
 import { STANDALONE_CATEGORIES } from "../features/activities/lib/categories";
-import { Can } from "../lib/authz/ability-context";
+import { Can, useAbility } from "../lib/authz/ability-context";
 import { PageHeader } from "../components/page-header";
 import { currentTermKey } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
@@ -28,6 +28,7 @@ type Editing = Activity | "new" | null;
 
 function ActivitiesPage() {
   const termId = currentTermKey();
+  const canManage = useAbility().can("update", "Activity");
   const { data: activities, isLoading, isError } = useActivitiesByTerm(termId);
   const { data: members } = useMembers();
   const { data: programs } = useProgramsByTerm(termId);
@@ -111,7 +112,12 @@ function ActivitiesPage() {
         />
       )}
       {activities && activities.length > 0 && (
-        <ActivityTable activities={activities} onEdit={setEditing} onCancel={setCancelTarget} />
+        <ActivityTable
+          activities={activities}
+          onEdit={setEditing}
+          onCancel={setCancelTarget}
+          canManage={canManage}
+        />
       )}
 
       <Sheet

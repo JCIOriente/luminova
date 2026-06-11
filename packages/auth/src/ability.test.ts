@@ -72,6 +72,13 @@ describe("buildAbility", () => {
     expect(a.can("checkIn", subject("Attendance", { eventId: "evt_1" }))).toBe(false);
   });
 
+  it("Scanner can read activities (to reach check-in) but not the member directory", () => {
+    const a = ability({ roles: ["Scanner"], scannerEventIds: ["evt_1"] });
+    expect(a.can("read", "Activity")).toBe(true);
+    expect(a.can("read", "Member")).toBe(false);
+    expect(a.can("update", "Activity")).toBe(false);
+  });
+
   it("Member can read/update only their own profile", () => {
     const a = ability({ roles: ["Member"] });
     expect(a.can("read", subject("Member", { uid: UID }))).toBe(true);
