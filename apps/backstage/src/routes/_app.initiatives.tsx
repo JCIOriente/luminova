@@ -81,7 +81,7 @@ function InitiativesPage() {
     const map = new Map<string, { pct: number; closingSoon: boolean }>();
     for (const item of items ?? []) {
       map.set(item.id, {
-        pct: computeProgress(acts, item.id).pct,
+        pct: computeProgress(acts, item.kind, item.id).pct,
         closingSoon: isClosingSoon(item, acts, now),
       });
     }

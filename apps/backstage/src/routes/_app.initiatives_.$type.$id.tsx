@@ -92,7 +92,7 @@ function InitiativeDetailPage() {
   const acts = activities ?? [];
   const now = Date.now();
   const closingSoon = isClosingSoon(item, acts, now);
-  const progress = computeProgress(acts, item.id);
+  const progress = computeProgress(acts, item.kind, item.id);
   const children = childActivitiesOf(acts, item.kind, item.id);
   const team = buildInitiativeTeam(item.roster, memberById);
   const impact = item.impact;

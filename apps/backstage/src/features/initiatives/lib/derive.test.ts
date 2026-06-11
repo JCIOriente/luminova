@@ -58,11 +58,16 @@ describe("computeProgress", () => {
       activity("p1", "Cancelada"),
       activity("other", "Ejecutada"),
     ];
-    expect(computeProgress(acts, "p1")).toEqual({ executed: 2, total: 3, pending: 1, pct: 67 });
+    expect(computeProgress(acts, "Project", "p1")).toEqual({
+      executed: 2,
+      total: 3,
+      pending: 1,
+      pct: 67,
+    });
   });
 
   it("is 0% when no countable activities", () => {
-    expect(computeProgress([activity("p1", "Cancelada")], "p1")).toEqual({
+    expect(computeProgress([activity("p1", "Cancelada")], "Project", "p1")).toEqual({
       executed: 0,
       total: 0,
       pending: 0,
@@ -129,7 +134,7 @@ describe("computeProgress pending", () => {
       { id: "b", parentId: "p1", parentType: "Project", status: "Programada" },
       { id: "c", parentId: "p1", parentType: "Project", status: "Cancelada" },
     ] as unknown as import("@luminova/types").Activity[];
-    expect(computeProgress(acts, "p1")).toMatchObject({
+    expect(computeProgress(acts, "Project", "p1")).toMatchObject({
       executed: 1,
       total: 2,
       pending: 1,

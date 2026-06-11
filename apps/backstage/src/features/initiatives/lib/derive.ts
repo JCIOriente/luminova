@@ -18,19 +18,6 @@ export interface Progress {
   pct: number;
 }
 
-function childrenOf(activities: Activity[], initiativeId: string): Activity[] {
-  return activities.filter((a) => a.parentId === initiativeId);
-}
-
-export function computeProgress(activities: Activity[], initiativeId: string): Progress {
-  const children = childrenOf(activities, initiativeId);
-  const total = children.filter((a) => a.status !== "Cancelada").length;
-  const executed = children.filter((a) => a.status === "Ejecutada").length;
-  const pending = total - executed;
-  const pct = total === 0 ? 0 : Math.round((executed / total) * 100);
-  return { executed, total, pending, pct };
-}
-
 export function childActivitiesOf(
   activities: Activity[],
   kind: InitiativeKind,
@@ -41,6 +28,19 @@ export function childActivitiesOf(
     .sort((a, b) => a.startAt.toMillis() - b.startAt.toMillis());
 }
 
+export function computeProgress(
+  activities: Activity[],
+  kind: InitiativeKind,
+  initiativeId: string,
+): Progress {
+  const children = activities.filter((a) => a.parentType === kind && a.parentId === initiativeId);
+  const total = children.filter((a) => a.status !== "Cancelada").length;
+  const executed = children.filter((a) => a.status === "Ejecutada").length;
+  const pending = total - executed;
+  const pct = total === 0 ? 0 : Math.round((executed / total) * 100);
+  return { executed, total, pending, pct };
+}
+
 export function isClosingSoon(
   item: InitiativeListItem,
   activities: Activity[],
@@ -48,7 +48,7 @@ export function isClosingSoon(
 ): boolean {
   if (item.status !== "EnEjecucion") return false;
   const byDate = item.endDate.toMillis() - nowMs <= THIRTY_DAYS_MS;
-  const { executed, total } = computeProgress(activities, item.id);
+  const { executed, total } = computeProgress(activities, item.kind, item.id);
   const allDone = total > 0 && executed === total;
   return byDate || allDone;
 }
