@@ -958,6 +958,7 @@ const handleSubmit = async (data: MemberInput) => {
 ## Deferred to the K4 plan (write after K2/K3 merge)
 
 - Beacon `onDocumentWritten('members/{id}')` claims-sync trigger (+ `firebase-functions-reviewer`).
+- **K4 SECURITY REQUIREMENT (from K2 security review — blocking for the trigger):** cargo *assignment* is writable by Membership/ExecutiveCommittee, and the `grants` guard only covers position *definition*. The claims-sync trigger MUST NOT blindly promote grants from any assigned `cargoId`: it must gate power-conferring assignments (e.g. honor non-empty-`grants` positions only when the assignment was authored by an Admin, or require Admin re-approval before claims recompute). Add a trigger/rules test: "Membership assigns Presidente cargo → no Admin claim."
 - Extend the existing `/members/$memberId` page (`_app.members_.$memberId.tsx`): full editing, per-term position history, permissions panel from CASL + `PERMISSION_ROLE_INFO` (frontend-design → ui-ux-pro-max in that slice).
 - Exec positions-only editing UI (rule already live from K2).
 - Drop legacy `Member.role` + backfill `positions` from it; member-filter searches resolved labels.
