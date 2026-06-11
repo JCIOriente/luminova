@@ -34,10 +34,12 @@ export function MemberInviteDrawer({
 }: MemberInviteDrawerProps) {
   const [done, setDone] = useState<DoneState | null>(null);
   const [sendAccess, setSendAccess] = useState(true);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   const reset = () => {
     setDone(null);
     setSendAccess(true);
+    setCopyState("idle");
   };
 
   const close = () => {
@@ -91,11 +93,21 @@ export function MemberInviteDrawer({
                 as="button"
                 type="button"
                 variant="secondary"
-                onClick={() => navigator.clipboard.writeText(done.actionLink ?? "")}
+                onClick={() => {
+                  navigator.clipboard
+                    .writeText(done.actionLink ?? "")
+                    .then(() => setCopyState("copied"))
+                    .catch(() => setCopyState("failed"));
+                }}
                 className="w-full justify-center"
               >
-                Copiar enlace de acceso
+                {copyState === "copied" ? "Enlace copiado" : "Copiar enlace de acceso"}
               </Button>
+              {copyState === "failed" && (
+                <code className="text-[12px] break-all select-all text-ink-2">
+                  {done.actionLink}
+                </code>
+              )}
             </>
           ) : (
             <p className="text-[14px] text-ink-2">

@@ -86,6 +86,7 @@ function MembersPage() {
   };
 
   const handleProvision = async (member: Member) => {
+    if (provision.isPending) return;
     try {
       const { email } = await provision.mutateAsync(member.id);
       try {
