@@ -1,18 +1,19 @@
-// Bootstraps a PRODUCTION Admin login WITH custom claims (roles: ["Admin"]).
-// The Firebase console can create a user + password but CANNOT set custom claims,
-// so this admin-SDK script does both. Run once after the first deploy; change the
-// password from the Firebase console afterwards.
+// Bootstraps the PRODUCTION president (a real member who is Admin via the
+// Presidente cargo) — ONCE. The Firebase console cannot set custom claims, so this
+// admin-SDK script does it, then self-assigns the Admin cargo so the claims-sync
+// trigger keeps Admin durably. A `meta/bootstrap` doc makes re-runs a no-op.
 //
 // Requires Application Default Credentials for the prod project:
 //   gcloud auth application-default login
-//   (or set GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json)
+//   (or GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json)
 //
-// Run:       pnpm seed:production
-// Override:  SEED_ADMIN_EMAIL=you@example.com SEED_ADMIN_PASSWORD=... pnpm seed:production
+// Run:  pnpm seed:production
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { createInterface } from "node:readline/promises";
+import { seedPresident } from "./lib/seed-president.mjs";
 
-// Hard guard: never let emulator env vars silently redirect a production seed.
 if (process.env.FIREBASE_AUTH_EMULATOR_HOST || process.env.FIRESTORE_EMULATOR_HOST) {
   console.error(
     "Refusing to run: emulator env vars are set (FIREBASE_AUTH_EMULATOR_HOST / " +
@@ -22,34 +23,84 @@ if (process.env.FIREBASE_AUTH_EMULATOR_HOST || process.env.FIRESTORE_EMULATOR_HO
 }
 
 const projectId = process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GCLOUD_PROJECT ?? "jci-oriente";
-const email = process.env.SEED_ADMIN_EMAIL ?? "jci.orienteolm@gmail.com";
-const password = process.env.SEED_ADMIN_PASSWORD ?? "Secret1";
+const TERM = String(new Date().getUTCFullYear());
 
-initializeApp({ credential: applicationDefault(), projectId });
-const auth = getAuth();
+const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-async function seedAdmin() {
-  let user;
-  try {
-    user = await auth.createUser({ email, password });
-    console.log(`Created Auth user ${email} (uid ${user.uid}).`);
-  } catch (error) {
-    if (error?.code !== "auth/email-already-exists") throw error;
-    user = await auth.getUserByEmail(email);
-    await auth.updateUser(user.uid, { password });
-    console.log(`Auth user ${email} already existed (uid ${user.uid}); password reset.`);
+// Intercept echo so askHidden can suppress the typed password characters.
+const realWrite = rl.output.write.bind(rl.output);
+rl.output.write = (chunk, ...rest) => (rl.output.muted ? true : realWrite(chunk, ...rest));
+
+async function ask(label, validate) {
+  for (;;) {
+    const value = (await rl.question(`${label}: `)).trim();
+    const error = validate(value);
+    if (!error) return value;
+    console.error(`  ✗ ${error}`);
   }
-
-  // Merge, never clobber: preserve any existing claims/roles, ensure Admin is present.
-  const existingRoles = Array.isArray(user.customClaims?.roles) ? user.customClaims.roles : [];
-  const roles = Array.from(new Set([...existingRoles, "Admin"]));
-  await auth.setCustomUserClaims(user.uid, { ...user.customClaims, roles });
-
-  console.log(`Set claims roles=${JSON.stringify(roles)} on ${email} (project ${projectId}).`);
-  console.log(
-    `\nLog in to backstage with:\n  ${email} / ${password}\n` +
-      "Then change this password from the Firebase console.",
-  );
 }
 
-seedAdmin().then(() => process.exit(0));
+async function askHidden(label, validate) {
+  for (;;) {
+    process.stdout.write(`${label}: `);
+    rl.output.muted = true;
+    const value = (await rl.question("")).trim();
+    rl.output.muted = false;
+    process.stdout.write("\n");
+    const error = validate(value);
+    if (!error) return value;
+    console.error(`  ✗ ${error}`);
+  }
+}
+
+const nonEmpty = (v) => (v.length === 0 ? "required" : null);
+const emailOk = (v) => (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) ? null : "invalid email");
+const genderOk = (v) =>
+  ["Masculino", "Femenino"].includes(v) ? null : "type Masculino or Femenino";
+const passwordOk = (v) =>
+  v.length >= 6 && /[a-z]/.test(v) && /[A-Z]/.test(v) && /\d/.test(v)
+    ? null
+    : "min 6 chars with a lowercase, an uppercase, and a digit";
+
+async function main() {
+  initializeApp({ credential: applicationDefault(), projectId });
+  const db = getFirestore();
+  const auth = getAuth();
+
+  const existing = await db.doc("meta/bootstrap").get();
+  if (existing.exists) {
+    console.log(
+      `Already seeded (president uid ${existing.get("presidentUid")}). ` +
+        "Manage members and cargos from backstage. Nothing to do.",
+    );
+    rl.close();
+    process.exit(0);
+  }
+
+  console.log(`Seeding the initial president for project ${projectId} (term ${TERM}).\n`);
+  const name = await ask("President full name", nonEmpty);
+  const email = await ask("President email", emailOk);
+  const gender = await ask("Gender (Masculino/Femenino)", genderOk);
+  const password = await askHidden("Temp password", passwordOk);
+
+  const result = await seedPresident({
+    db,
+    auth,
+    president: { name, email, password, gender },
+    term: TERM,
+    joinDate: Timestamp.now(),
+    birthdate: Timestamp.now(),
+  });
+
+  rl.close();
+  console.log(
+    `\n✓ Seeded president ${email} (Admin via cargo ${result.cargoId}, uid ${result.presidentUid}).\n` +
+      `Log in to backstage with ${email} and the password you set, then change it from the Firebase console.`,
+  );
+  process.exit(0);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
