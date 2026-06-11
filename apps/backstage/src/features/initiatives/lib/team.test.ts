@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import type { Member } from "@luminova/types";
 import { buildInitiativeTeam } from "./team";
 
-const m = (id: string, name: string, role: string): Member =>
-  ({ id, name, role, profilePicture: null }) as unknown as Member;
+const m = (id: string, name: string, profession: string): Member =>
+  ({ id, name, profession, profilePicture: null }) as unknown as Member;
 
 describe("buildInitiativeTeam", () => {
   it("resolves director, co-directors, team and skips unknown ids", () => {
@@ -17,6 +17,7 @@ describe("buildInitiativeTeam", () => {
       byId,
     );
     expect(team.director?.name).toBe("Dir");
+    expect(team.director?.role).toBe("Presidente");
     expect(team.coDirectors.map((p) => p.id)).toEqual(["c"]);
     expect(team.members.map((p) => p.id)).toEqual(["t"]);
   });

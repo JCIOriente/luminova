@@ -17,7 +17,12 @@ function resolve(ids: string[], byId: Map<string, Member>): TeamPerson[] {
   return ids
     .map((id) => byId.get(id))
     .filter((m): m is Member => Boolean(m))
-    .map((m) => ({ id: m.id, name: m.name, role: m.role, profilePicture: m.profilePicture }));
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      role: m.profession ?? "",
+      profilePicture: m.profilePicture,
+    }));
 }
 
 export function buildInitiativeTeam(

@@ -35,7 +35,9 @@ async function resolveTrustedGrants(
     const position = await deps.getPosition(id);
     if (!position || position.grants.length === 0) continue;
     if (assignerIsAdmin === null) {
-      assignerIsAdmin = assignedBy ? (await deps.getUserRoles(assignedBy)).includes("Admin") : false;
+      assignerIsAdmin = assignedBy
+        ? (await deps.getUserRoles(assignedBy)).includes("Admin")
+        : false;
     }
     if (assignerIsAdmin) for (const grant of position.grants) grants.add(grant);
   }
