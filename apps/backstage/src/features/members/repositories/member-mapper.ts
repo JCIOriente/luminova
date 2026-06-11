@@ -38,7 +38,6 @@ export function toMemberCreateDoc(
 ) {
   return {
     ...editableFields(data),
-    role: "",
     positions: {
       [termKey]: { cargoId: data.cargoId, comisionIds: data.comisionIds, assignedBy },
     },

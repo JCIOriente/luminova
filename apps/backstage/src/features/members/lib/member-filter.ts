@@ -8,12 +8,16 @@ export interface MemberFilter {
   status: StatusFilter;
 }
 
-export function filterMembers(members: Member[], { search, status }: MemberFilter): Member[] {
+export function filterMembers(
+  members: Member[],
+  { search, status }: MemberFilter,
+  resolveLabel: (member: Member) => string,
+): Member[] {
   const q = search.trim().toLowerCase();
   return members.filter((m) => {
     if (status !== "Todos" && m.status !== status) return false;
     if (!q) return true;
-    return `${m.name} ${m.email} ${m.role}`.toLowerCase().includes(q);
+    return `${m.name} ${m.email} ${resolveLabel(m)}`.toLowerCase().includes(q);
   });
 }
 

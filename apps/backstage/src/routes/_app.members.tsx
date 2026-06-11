@@ -61,7 +61,6 @@ function MembersPage() {
 
   const all = members ?? [];
   const counts = useMemo(() => statusCounts(all), [all]);
-  const filtered = useMemo(() => filterMembers(all, { search, status }), [all, search, status]);
   const positionsById = useMemo(
     () => new Map((positions ?? []).map((p) => [p.id, p])),
     [positions],
@@ -69,6 +68,10 @@ function MembersPage() {
   const roleLabel = useCallback(
     (member: Member) => memberPositionLabel(member, positionsById, currentTermKey()),
     [positionsById],
+  );
+  const filtered = useMemo(
+    () => filterMembers(all, { search, status }, roleLabel),
+    [all, search, status, roleLabel],
   );
 
   const clearAll = () => {

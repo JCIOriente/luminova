@@ -79,12 +79,11 @@ const posInput: MemberInput = {
 };
 
 describe("member-mapper positions", () => {
-  it("creates with current-term assignments and empty legacy role", () => {
+  it("creates with current-term assignments", () => {
     const doc = toMemberCreateDoc(posInput, "uid-admin", "2026");
     expect(doc.positions).toEqual({
       "2026": { cargoId: "pos-presidente", comisionIds: ["pos-etica"], assignedBy: "uid-admin" },
     });
-    expect(doc.role).toBe("");
     expect(doc.gender).toBe("Femenino");
   });
 

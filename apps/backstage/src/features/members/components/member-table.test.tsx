@@ -8,7 +8,7 @@ import { AbilityProvider } from "../../../lib/authz/ability-context";
 import type { Member } from "@luminova/types";
 
 const noop = {
-  roleLabel: (m: Member) => m.role || "Miembro",
+  roleLabel: (_m: Member) => "Miembro",
   onView: vi.fn(),
   onEdit: vi.fn(),
   onProvision: vi.fn(),
@@ -28,7 +28,6 @@ const member: Member = {
   id: "m1",
   name: "Ana Pérez",
   email: "ana@jci.bo",
-  role: "Presidenta",
   joinDate: Timestamp.fromDate(new Date("2021-03-01T00:00:00Z")),
   birthdate: Timestamp.fromDate(new Date("1992-07-01T00:00:00Z")),
   status: "Activo",

@@ -8,24 +8,12 @@ describe("memberPositionLabel", () => {
   it("resolves the gendered cargo title for the term", () => {
     const member = {
       gender: "Femenino" as const,
-      role: "",
       positions: { "2026": { cargoId: "pos-pres", comisionIds: [] } },
     };
     expect(memberPositionLabel(member, positions, "2026")).toBe("Presidenta");
   });
-  it("falls back to the legacy role string", () => {
-    expect(memberPositionLabel({ role: "Vocal" }, positions, "2026")).toBe("Vocal");
-  });
-  it("falls back to legacy role when cargoId is present but not in positionsById (dangling id)", () => {
-    const member = {
-      gender: "Masculino" as const,
-      role: "Vocal",
-      positions: { "2026": { cargoId: "pos-deleted", comisionIds: [] } },
-    };
-    expect(memberPositionLabel(member, positions, "2026")).toBe("Vocal");
-  });
-  it("falls back to Miembro when nothing is set", () => {
-    expect(memberPositionLabel({ role: "" }, positions, "2026")).toBe("Miembro");
+  it("falls back to Miembro when no cargo is set", () => {
+    expect(memberPositionLabel({ positions: {} }, positions, "2026")).toBe("Miembro");
   });
 });
 

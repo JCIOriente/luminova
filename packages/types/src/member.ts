@@ -14,7 +14,6 @@ export interface Member {
   name: string;
   email: string;
   phone?: string;
-  role: string;
   profession?: string;
   joinDate: Timestamp;
   birthdate: Timestamp;

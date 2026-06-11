@@ -14,7 +14,6 @@ function member(p: Partial<Member>): Member {
     id: "1",
     name: "Ana",
     email: "a@j.bo",
-    role: "Vocal",
     joinDate: Timestamp.now(),
     birthdate: Timestamp.now(),
     status: "Activo",
