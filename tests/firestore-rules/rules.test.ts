@@ -692,4 +692,20 @@ describe("firestore.rules — member positions assignment", () => {
       }),
     );
   });
+  it("allows the production dot-path write shape (EC, current term, empty-grants cargo)", async () => {
+    // setPositions / toMemberUpdateDoc emit positions.<term> dot-paths, not a full
+    // positions map — assert that exact production shape passes the rules.
+    await assertSucceeds(
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" },
+      }),
+    );
+  });
+  it("denies the dot-path shape under a non-current term (past-term immutability)", async () => {
+    await assertFails(
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
+        "positions.2099": { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" },
+      }),
+    );
+  });
 });
