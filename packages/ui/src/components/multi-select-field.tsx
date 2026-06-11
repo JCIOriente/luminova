@@ -71,10 +71,12 @@ export function MultiSelect({
         </button>
       </Trigger>
       <Portal>
+        {/* pointer-events-auto: stay clickable when portaled inside a modal Sheet
+            (Dialog), whose pointer-events lock would otherwise disable the panel. */}
         <Content
           align="start"
           sideOffset={6}
-          className="z-50 w-[var(--radix-popover-trigger-width)] rounded-card border border-line bg-surface p-1 shadow-[0_24px_64px_-24px_rgba(19,15,45,0.4)]"
+          className="pointer-events-auto z-50 w-[var(--radix-popover-trigger-width)] rounded-card border border-line bg-surface p-1 shadow-[0_24px_64px_-24px_rgba(19,15,45,0.4)]"
         >
           <Command className="flex flex-col gap-1">
             <div className="flex items-center gap-2 border-b border-line px-2 pb-2 pt-1 text-ink-2">

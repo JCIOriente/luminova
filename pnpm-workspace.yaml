@@ -2,6 +2,12 @@ packages:
   - "apps/*"
   - "packages/*"
   - "tests/*"
+overrides:
+  # Dedupe to ONE dismissable-layer instance. react-dialog@1.1.15 pins 1.1.11 and
+  # react-popover@1.1.16 pins 1.1.12; two copies = two React contexts, so a Popover
+  # (Combobox/MultiSelect) portaled inside a modal Sheet (Dialog) renders but is
+  # UNCLICKABLE (the modal pointer-events lock never exempts it). One version fixes it.
+  "@radix-ui/react-dismissable-layer": "1.1.12"
 allowBuilds:
   "@firebase/util": true
   esbuild: true
