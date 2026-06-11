@@ -6,6 +6,7 @@ interface ProgressBarProps {
   className?: string;
 }
 
+/** Pass `label` (or wrap with an external `aria-labelledby`) so the bar has an accessible name. */
 export function ProgressBar({ value, label, className }: ProgressBarProps) {
   const pct = Math.max(0, Math.min(100, Math.round(value)));
   return (

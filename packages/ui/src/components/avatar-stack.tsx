@@ -29,7 +29,9 @@ export function AvatarStack({ people, max = 3, size = 28, className }: AvatarSta
         </span>
       ))}
       {overflow.length > 0 && (
+        // -size/3.5 overlaps siblings; chip font scales at 0.36 of diameter
         <span
+          role="img"
           aria-label={`${overflow.length} más: ${overflow.map((p) => p.name).join(", ")}`}
           className="flex items-center justify-center rounded-full bg-ink-1/[0.06] font-semibold text-ink-2 ring-2 ring-surface"
           style={{ width: size, height: size, marginLeft: -size / 3.5, fontSize: size * 0.36 }}

@@ -16,4 +16,10 @@ describe("ProgressBar", () => {
     render(<ProgressBar value={-10} />);
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
   });
+
+  it("sets fill width to the clamped percentage", () => {
+    const { container } = render(<ProgressBar value={50} label="Avance" />);
+    const fill = container.querySelector("[role=progressbar] > div");
+    expect(fill).toHaveStyle({ width: "50%" });
+  });
 });
