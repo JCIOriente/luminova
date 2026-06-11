@@ -23,6 +23,7 @@
     "ci": "eslint . && tsc --noEmit && vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@casl/ability": "7.0.0"
+    "@casl/ability": "7.0.0",
+    "@luminova/types": "workspace:*"
   }
 }

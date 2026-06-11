@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MEMBER_STATUSES } from "./member";
+import { MEMBER_STATUSES } from "./member.js";
 
 const dateString = z
   .string()
