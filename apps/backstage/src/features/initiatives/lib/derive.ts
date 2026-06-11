@@ -1,4 +1,4 @@
-import type { Activity, AreaOfOpportunity, InitiativeStatus } from "@luminova/types";
+import type { Activity, AreaOfOpportunity, InitiativeKind, InitiativeStatus } from "@luminova/types";
 import type { BadgeTone } from "@luminova/ui";
 import type { InitiativeListItem } from "./initiative-list-item";
 
@@ -9,6 +9,7 @@ const THIRTY_DAYS_MS = 30 * 86_400_000;
 interface Progress {
   executed: number;
   total: number;
+  pending: number;
   pct: number;
 }
 
@@ -20,8 +21,19 @@ export function computeProgress(activities: Activity[], initiativeId: string): P
   const children = childrenOf(activities, initiativeId);
   const total = children.filter((a) => a.status !== "Cancelada").length;
   const executed = children.filter((a) => a.status === "Ejecutada").length;
+  const pending = total - executed;
   const pct = total === 0 ? 0 : Math.round((executed / total) * 100);
-  return { executed, total, pct };
+  return { executed, total, pending, pct };
+}
+
+export function childActivitiesOf(
+  activities: Activity[],
+  kind: InitiativeKind,
+  initiativeId: string,
+): Activity[] {
+  return activities
+    .filter((a) => a.parentType === kind && a.parentId === initiativeId)
+    .sort((a, b) => a.startAt.toMillis() - b.startAt.toMillis());
 }
 
 export function isClosingSoon(

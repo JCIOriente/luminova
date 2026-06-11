@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Activity } from "@luminova/types";
 import {
   areaTone,
+  childActivitiesOf,
   computeProgress,
   formatMonthYear,
   isClosingSoon,
@@ -57,13 +58,14 @@ describe("computeProgress", () => {
       activity("p1", "Cancelada"),
       activity("other", "Ejecutada"),
     ];
-    expect(computeProgress(acts, "p1")).toEqual({ executed: 2, total: 3, pct: 67 });
+    expect(computeProgress(acts, "p1")).toEqual({ executed: 2, total: 3, pending: 1, pct: 67 });
   });
 
   it("is 0% when no countable activities", () => {
     expect(computeProgress([activity("p1", "Cancelada")], "p1")).toEqual({
       executed: 0,
       total: 0,
+      pending: 0,
       pct: 0,
     });
   });
@@ -117,5 +119,27 @@ describe("areaTone", () => {
 describe("formatMonthYear", () => {
   it("formats a timestamp as capitalized es month + year", () => {
     expect(formatMonthYear(ts(Date.UTC(2026, 7, 15)))).toMatch(/^[A-ZÁÉÍÓÚ]\w+\.? 2026$/);
+  });
+});
+
+describe("computeProgress pending", () => {
+  it("reports pending = total - executed (excludes Cancelada)", () => {
+    const acts = [
+      { id: "a", parentId: "p1", parentType: "Project", status: "Ejecutada" },
+      { id: "b", parentId: "p1", parentType: "Project", status: "Programada" },
+      { id: "c", parentId: "p1", parentType: "Project", status: "Cancelada" },
+    ] as unknown as import("@luminova/types").Activity[];
+    expect(computeProgress(acts, "p1")).toMatchObject({ executed: 1, total: 2, pending: 1, pct: 50 });
+  });
+});
+
+describe("childActivitiesOf", () => {
+  it("matches parentId AND parentType", () => {
+    const acts = [
+      { id: "a", parentId: "p1", parentType: "Project", startAt: { toMillis: () => 0 } },
+      { id: "b", parentId: "p1", parentType: "Program", startAt: { toMillis: () => 0 } },
+      { id: "c", parentId: "p2", parentType: "Project", startAt: { toMillis: () => 0 } },
+    ] as unknown as import("@luminova/types").Activity[];
+    expect(childActivitiesOf(acts, "Project", "p1").map((a) => a.id)).toEqual(["a"]);
   });
 });
