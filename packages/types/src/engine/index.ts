@@ -1,3 +1,4 @@
+export type { Timestamp } from "./timestamp.js";
 export type {
   InitiativeRoster,
   FinalReport,
