@@ -46,3 +46,25 @@ If manual tap / named roster for Scanners is wanted later, it requires a
 deliberate decision to widen Scanner's member-directory access (the
 `firestore.rules` `members` read deliberately excludes Scanner) — out of scope
 for this slice. Track as a future A-track (offline/scanner) item.
+
+## Least-privilege note (reviewed)
+
+`firestore-security-reviewer` flagged that the Scanner's `read Activity` grant is
+**unconditional** (broader than scoping it to `scannerEventIds`). Kept
+deliberately:
+
+- It is the entry point. Scoping the grant to `{ id: { $in: scannerEventIds } }`
+  makes `ability.can("read", "Activity")` (the plain, instance-less check the
+  `/activities` nav item uses) return false, re-hiding the Scanner's only
+  navigation into check-in — the exact hole this change fixes.
+- Zero real data-access change: `firestore.rules` already makes `activities`
+  `read: if signedIn()`, so any authenticated user can already read every
+  activity via the SDK. The grant only affects backstage UI surfacing.
+- No PII leaks through the list/detail to a Scanner: organizer names resolve from
+  the member directory, which Scanner cannot read — they see only
+  title/date/category/photos (already SDK-readable).
+
+If tighter UI intent is later preferred, the correct shape is a dedicated
+Scanner-scoped check-in landing (list filtered to `scannerEventIds`) plus
+`subject("Activity", { id })` route checks — a small follow-up, not a security
+gap.

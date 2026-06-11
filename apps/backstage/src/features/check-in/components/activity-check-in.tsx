@@ -46,7 +46,9 @@ export function ActivityCheckIn({ activityId, members }: ActivityCheckInProps) {
         />
       </Suspense>
       <RosterList entries={roster} />
-      <ManualTapList members={members} checkedInIds={checkedInIds} onTap={checkIn} />
+      {members.length > 0 && (
+        <ManualTapList members={members} checkedInIds={checkedInIds} onTap={checkIn} />
+      )}
     </div>
   );
 }
