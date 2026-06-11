@@ -62,12 +62,14 @@ export async function syncMemberClaims(
   const trustedGrants = await resolveTrustedGrants(deps, positionIds, term?.assignedBy);
 
   const existing = await deps.getExistingClaims(member.uid);
-  const roles = computeMemberRoles({ trustedGrants, hadScanner: existing.roles.includes("Scanner") });
+  const hadScanner = existing.roles.includes("Scanner");
+  const roles = computeMemberRoles({ trustedGrants, hadScanner });
   const next =
-    existing.roles.includes("Scanner") && existing.scannerEventIds
+    hadScanner && existing.scannerEventIds
       ? { roles, scannerEventIds: existing.scannerEventIds }
       : { roles };
 
+  // Both sides are produced in canonical ROLES order by computeMemberRoles, so a positional compare is exact.
   if (sameClaims(existing, next)) return;
   await deps.setClaims(member.uid, next);
 }

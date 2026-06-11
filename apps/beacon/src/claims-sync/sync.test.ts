@@ -109,4 +109,73 @@ describe("syncMemberClaims", () => {
     );
     expect(writes["target-uid"]).toEqual({ roles: ["Member"] });
   });
+
+  it("drops grants from a missing/deleted position", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: {}, // pos-pres not in catalog (deleted)
+      userRoles: { "admin-uid": ["Admin"] },
+      existing: { "target-uid": { roles: ["Admin", "Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } } },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"] });
+  });
+
+  it("honors a power-conferring comisión when assignedBy is Admin", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: { "com-x": { grants: ["ProjectManager"] } },
+      userRoles: { "admin-uid": ["Admin"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      { uid: "target-uid", positions: { "2026": { cargoId: null, comisionIds: ["com-x"], assignedBy: "admin-uid" } } },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({ roles: ["ProjectManager", "Member"] });
+  });
+
+  it("unions grants from cargo + comisión, deduped and ROLES-ordered", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: {
+        "pos-tes": { grants: ["Treasury", "ExecutiveCommittee"] },
+        "com-y": { grants: ["ExecutiveCommittee", "Membership"] },
+      },
+      userRoles: { "admin-uid": ["Admin"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      { uid: "target-uid", positions: { "2026": { cargoId: "pos-tes", comisionIds: ["com-y"], assignedBy: "admin-uid" } } },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({
+      roles: ["Membership", "Treasury", "ExecutiveCommittee", "Member"],
+    });
+  });
+
+  it("propagates and writes nothing when a dependency rejects", async () => {
+    const writes: Record<string, { roles: Role[]; scannerEventIds?: string[] }> = {};
+    const deps: ClaimsSyncDeps = {
+      getPosition: async () => ({ grants: ["Admin"] }),
+      getUserRoles: async () => {
+        throw new Error("auth lookup failed");
+      },
+      getExistingClaims: async () => ({ roles: ["Member"] }),
+      setClaims: async (uid, claims) => {
+        writes[uid] = claims;
+      },
+    };
+    await expect(
+      syncMemberClaims(
+        deps,
+        { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } } },
+        "2026",
+      ),
+    ).rejects.toThrow("auth lookup failed");
+    expect(writes).toEqual({});
+  });
 });
