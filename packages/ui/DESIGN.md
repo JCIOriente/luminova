@@ -90,7 +90,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 | Component                                     | Source                   |
 | --------------------------------------------- | ------------------------ |
 | `Dialog`                                      | `components/dialog.tsx`  |
-| `Sheet`                                       | `components/sheet.tsx`   |
+| `Sheet` — `size sm|md|lg|xl (440/560/680/800px, default sm)` | `components/sheet.tsx`   |
 | `Popover` (Radix; backs Combobox/MultiSelect) | `components/popover.tsx` |
 | `Menu` / `MenuItem` / `MenuSeparator` (Radix DropdownMenu; row/⋯ action menus, keyboard nav) | `components/menu.tsx` |
 | `CommandPalette` (⌘K; cmdk dialog + groups + fuzzy filter) | `components/command-palette.tsx` |
