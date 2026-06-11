@@ -3,19 +3,22 @@ import { Button, Checkbox, Sheet } from "@luminova/ui";
 import { type MemberInput, type Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
 import { actionMessage } from "../lib/member-display";
+import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
 
 interface MemberInviteDrawerProps {
   open: boolean;
   positions: Position[];
   onClose: () => void;
   onCreate: (data: MemberInput) => Promise<string>;
-  onProvision: (memberId: string) => Promise<void>;
+  onProvision: (memberId: string) => Promise<{ email: string; actionLink: string }>;
 }
 
 interface DoneState {
   name: string;
   email: string;
   provisioned: boolean;
+  emailSent: boolean;
+  actionLink: string | null;
 }
 
 function today(): string {
@@ -31,10 +34,12 @@ export function MemberInviteDrawer({
 }: MemberInviteDrawerProps) {
   const [done, setDone] = useState<DoneState | null>(null);
   const [sendAccess, setSendAccess] = useState(true);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   const reset = () => {
     setDone(null);
     setSendAccess(true);
+    setCopyState("idle");
   };
 
   const close = () => {
@@ -45,11 +50,20 @@ export function MemberInviteDrawer({
   const handleSubmit = async (data: MemberInput) => {
     const id = await onCreate(data);
     let provisioned = false;
+    let emailSent = false;
+    let actionLink: string | null = null;
     if (sendAccess) {
-      await onProvision(id);
+      const result = await onProvision(id);
       provisioned = true;
+      actionLink = result.actionLink;
+      try {
+        await requestPasswordReset(data.email);
+        emailSent = true;
+      } catch {
+        emailSent = false;
+      }
     }
-    setDone({ name: data.name, email: data.email, provisioned });
+    setDone({ name: data.name, email: data.email, provisioned, emailSent, actionLink });
   };
 
   return (
@@ -66,11 +80,40 @@ export function MemberInviteDrawer({
           <p className="text-[15px] font-semibold text-ink-1">
             {actionMessage(done.name, "created")}
           </p>
-          <p className="text-[14px] text-ink-2">
-            {done.provisioned
-              ? `${done.email} recibirá un enlace para crear su contraseña y acceder a la app.`
-              : "Aún no tiene acceso a la app. Podrás invitarlo desde el menú de su fila."}
-          </p>
+          {done.provisioned && done.emailSent ? (
+            <p className="text-[14px] text-ink-2">
+              {`Invitación enviada a ${done.email}. Recibirá un correo para crear su contraseña y acceder a la app.`}
+            </p>
+          ) : done.provisioned && !done.emailSent ? (
+            <>
+              <p role="alert" className="text-[14px] text-error">
+                El correo no se pudo enviar. Comparte el enlace de acceso manualmente.
+              </p>
+              <Button
+                as="button"
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  navigator.clipboard
+                    .writeText(done.actionLink ?? "")
+                    .then(() => setCopyState("copied"))
+                    .catch(() => setCopyState("failed"));
+                }}
+                className="w-full justify-center"
+              >
+                {copyState === "copied" ? "Enlace copiado" : "Copiar enlace de acceso"}
+              </Button>
+              {copyState === "failed" && (
+                <code className="text-[12px] break-all select-all text-ink-2">
+                  {done.actionLink}
+                </code>
+              )}
+            </>
+          ) : (
+            <p className="text-[14px] text-ink-2">
+              Aún no tiene acceso a la app. Podrás invitarlo desde el menú de su fila.
+            </p>
+          )}
           <div className="flex flex-col gap-3">
             <Button as="button" type="button" onClick={reset} className="w-full justify-center">
               Invitar a otra persona

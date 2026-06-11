@@ -962,4 +962,5 @@ const handleSubmit = async (data: MemberInput) => {
 - Extend the existing `/members/$memberId` page (`_app.members_.$memberId.tsx`): full editing, per-term position history, permissions panel from CASL + `PERMISSION_ROLE_INFO` (frontend-design → ui-ux-pro-max in that slice).
 - Exec positions-only editing UI (rule already live from K2).
 - Drop legacy `Member.role` + backfill `positions` from it; member-filter searches resolved labels.
+- Category-colored chips in the members TABLE (spec promised table+drawer; K2 shipped drawer chips + a text label in the table — upgrade with the K4 edit page).
 - `provisionMemberLogin` claims alignment: today it sets `roles: ["Member"]`; the K4 trigger recomputes from positions, so provisioning a Presidenta heals on first positions write — K4 makes the trigger also run on `uid` linkage (already specced).
