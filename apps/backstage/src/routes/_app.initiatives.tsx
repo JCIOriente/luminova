@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button, Icon, EmptyState, Menu, MenuItem, Sheet } from "@luminova/ui";
 import type { ComboboxOption } from "@luminova/ui";
 import type { InitiativeInput, Member } from "@luminova/types";
@@ -13,35 +13,28 @@ import { useMembers } from "../features/members/hooks/use-members";
 import { useActivitiesByTerm } from "../features/activities/hooks/use-activities-by-term";
 import { useInitiativesByTerm } from "../features/initiatives/hooks/use-initiatives-by-term";
 import { useCreateProgram } from "../features/programs/hooks/use-create-program";
-import { useUpdateProgram } from "../features/programs/hooks/use-update-program";
 import { useCreateProject } from "../features/projects/hooks/use-create-project";
-import { useUpdateProject } from "../features/projects/hooks/use-update-project";
-import { initiativeToInput } from "../features/initiatives/repositories/initiative-mapper";
 import { computeProgress, isClosingSoon } from "../features/initiatives/lib/derive";
 import {
   filterInitiatives,
   tabCounts,
   type InitiativeFilter,
 } from "../features/initiatives/lib/filter";
-import type { InitiativeListItem } from "../features/initiatives/lib/initiative-list-item";
 
 export const Route = createFileRoute("/_app/initiatives")({ component: InitiativesPage });
 
-type Editing =
-  | { mode: "new"; kind: "Program" | "Project" }
-  | { mode: "edit"; item: InitiativeListItem }
-  | null;
+type Editing = { mode: "new"; kind: "Program" | "Project" } | null;
 
 function sheetTitle(editing: Editing): string {
   if (!editing) return "";
-  const kind = editing.mode === "new" ? editing.kind : editing.item.kind;
-  const noun = kind === "Program" ? "programa" : "proyecto";
-  return `${editing.mode === "new" ? "Nuevo" : "Editar"} ${noun}`;
+  const noun = editing.kind === "Program" ? "programa" : "proyecto";
+  return `Nuevo ${noun}`;
 }
 
 function InitiativesPage() {
   const termId = currentTermId();
   const ability = useAbility();
+  const navigate = useNavigate();
   const canReadProgram = ability.can("read", "Program");
   const canReadProject = ability.can("read", "Project");
   const canManageProgram = ability.can("create", "Program");
@@ -60,9 +53,7 @@ function InitiativesPage() {
   const { data: members } = useMembers({ enabled: canReadMembers });
 
   const createProgram = useCreateProgram(termId);
-  const updateProgram = useUpdateProgram(termId);
   const createProject = useCreateProject(termId);
-  const updateProject = useUpdateProject(termId);
 
   const [filter, setFilter] = useState<InitiativeFilter>({
     tab: "todos",
@@ -99,24 +90,13 @@ function InitiativesPage() {
 
   const handleSubmit = async (data: InitiativeInput) => {
     if (!editing) return;
-    if (editing.mode === "new") {
-      if (!ability.can("create", editing.kind)) return;
-      if (editing.kind === "Program") await createProgram.mutateAsync(data);
-      else await createProject.mutateAsync(data);
-    } else {
-      if (!ability.can("update", editing.item.kind)) return;
-      if (editing.item.kind === "Program")
-        await updateProgram.mutateAsync({ id: editing.item.id, data });
-      else await updateProject.mutateAsync({ id: editing.item.id, data });
-    }
+    if (!ability.can("create", editing.kind)) return;
+    if (editing.kind === "Program") await createProgram.mutateAsync(data);
+    else await createProject.mutateAsync(data);
     setEditing(null);
   };
 
-  const isSaving =
-    createProgram.isPending ||
-    updateProgram.isPending ||
-    createProject.isPending ||
-    updateProject.isPending;
+  const isSaving = createProgram.isPending || createProject.isPending;
 
   return (
     <div className="flex flex-col gap-6">
@@ -167,10 +147,11 @@ function InitiativesPage() {
               pct={cardData.get(item.id)?.pct ?? 0}
               closingSoon={cardData.get(item.id)?.closingSoon ?? false}
               memberById={memberById}
-              onOpen={
-                ability.can("update", item.kind)
-                  ? () => setEditing({ mode: "edit", item })
-                  : undefined
+              onOpen={() =>
+                void navigate({
+                  to: "/initiatives/$type/$id",
+                  params: { type: item.kind === "Program" ? "program" : "project", id: item.id },
+                })
               }
             />
           ))}
@@ -184,10 +165,10 @@ function InitiativesPage() {
       >
         {editing !== null && (
           <InitiativeForm
-            key={editing.mode === "new" ? `new-${editing.kind}` : editing.item.id}
+            key={`new-${editing.kind}`}
             memberOptions={memberOptions}
-            defaultValues={editing.mode === "new" ? undefined : initiativeToInput(editing.item)}
-            submitLabel={editing.mode === "new" ? "Crear" : "Guardar"}
+            defaultValues={undefined}
+            submitLabel="Crear"
             isSaving={isSaving}
             onSubmit={(data) => void handleSubmit(data)}
           />
