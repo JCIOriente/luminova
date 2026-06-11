@@ -18,7 +18,9 @@ export class MemberRepository {
   private readonly collection = collection(getFirebase().db, "members");
 
   private currentUid(): string {
-    return getFirebase().auth.currentUser?.uid ?? "";
+    const uid = getFirebase().auth.currentUser?.uid;
+    if (!uid) throw new Error("Tu sesión expiró. Inicia sesión nuevamente.");
+    return uid;
   }
 
   /** Active (non-soft-deleted) members, sorted by name. */
