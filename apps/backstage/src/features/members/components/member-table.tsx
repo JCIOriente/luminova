@@ -7,15 +7,17 @@ import {
   type DataTableColumn,
   type BadgeTone,
 } from "@luminova/ui";
-import { type Member, type MemberStatus } from "@luminova/types";
+import { currentTermKey, type Member, type MemberStatus, type Position } from "@luminova/types";
 import { avatarColor, joinYear } from "../lib/member-display";
 import { initials } from "../../../lib/initials";
 import { MemberRowMenu } from "./member-row-menu";
+import { MemberCargoChips } from "./member-cargo-chips";
 
 interface MemberTableProps {
   members: Member[];
   pageSize: number;
   roleLabel: (member: Member) => string;
+  positionsById: Map<string, Position>;
   isLoading?: boolean;
   emptyState?: React.ReactNode;
   onView: (member: Member) => void;
@@ -30,7 +32,10 @@ const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
   Desafiliado: "red",
 };
 
-function buildColumns(roleLabel: (member: Member) => string): DataTableColumn<Member>[] {
+function buildColumns(
+  roleLabel: (member: Member) => string,
+  positionsById: Map<string, Position>,
+): DataTableColumn<Member>[] {
   return [
     {
       id: "name",
@@ -55,7 +60,9 @@ function buildColumns(roleLabel: (member: Member) => string): DataTableColumn<Me
       id: "role",
       header: "Cargo",
       sortValue: roleLabel,
-      cell: (member) => <span className="text-ink-2">{roleLabel(member)}</span>,
+      cell: (member) => (
+        <MemberCargoChips member={member} positionsById={positionsById} termKey={currentTermKey()} />
+      ),
     },
     {
       id: "status",
@@ -90,6 +97,7 @@ export function MemberTable({
   members,
   pageSize,
   roleLabel,
+  positionsById,
   isLoading,
   emptyState,
   onView,
@@ -97,7 +105,7 @@ export function MemberTable({
   onProvision,
   onSetStatus,
 }: MemberTableProps) {
-  const columns = useMemo(() => buildColumns(roleLabel), [roleLabel]);
+  const columns = useMemo(() => buildColumns(roleLabel, positionsById), [roleLabel, positionsById]);
   return (
     <DataTable
       rows={members}

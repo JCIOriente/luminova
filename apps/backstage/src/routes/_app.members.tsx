@@ -187,6 +187,7 @@ function MembersPage() {
           members={filtered}
           pageSize={PAGE_SIZE}
           roleLabel={roleLabel}
+          positionsById={positionsById}
           isLoading={isLoading}
           emptyState={
             <EmptyState
