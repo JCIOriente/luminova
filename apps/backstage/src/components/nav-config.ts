@@ -25,7 +25,8 @@ export interface NavItem {
     | "/activities"
     | "/initiatives"
     | "/check-in"
-    | "/positions";
+    | "/positions"
+    | "/permisos";
   label: string;
   icon: IconKey;
   exact?: boolean;
@@ -69,6 +70,7 @@ export const NAV_GROUPS: NavGroup[] = [
         // Members can read Position (chip resolution on /me) — keep the catalog page off their nav.
         roles: ["Admin", "Membership", "ExecutiveCommittee"],
       },
+      { to: "/permisos", label: "Permisos", icon: "lock", roles: ["Admin"] },
     ],
   },
   {

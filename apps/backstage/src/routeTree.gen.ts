@@ -17,6 +17,7 @@ import { Route as AuthLoginRouteImport } from './routes/_auth.login'
 import { Route as AuthForgotPasswordRouteImport } from './routes/_auth.forgot-password'
 import { Route as AppPositionsRouteImport } from './routes/_app.positions'
 import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
+import { Route as AppPermisosRouteImport } from './routes/_app.permisos'
 import { Route as AppMembersRouteImport } from './routes/_app.members'
 import { Route as AppMeRouteImport } from './routes/_app.me'
 import { Route as AppLeaderboardRouteImport } from './routes/_app.leaderboard'
@@ -63,6 +64,11 @@ const AppPositionsRoute = AppPositionsRouteImport.update({
 const AppPointRulesRoute = AppPointRulesRouteImport.update({
   id: '/point-rules',
   path: '/point-rules',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPermisosRoute = AppPermisosRouteImport.update({
+  id: '/permisos',
+  path: '/permisos',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMembersRoute = AppMembersRouteImport.update({
@@ -120,6 +126,7 @@ export interface FileRoutesByFullPath {
   '/leaderboard': typeof AppLeaderboardRoute
   '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
+  '/permisos': typeof AppPermisosRoute
   '/point-rules': typeof AppPointRulesRoute
   '/positions': typeof AppPositionsRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
@@ -137,6 +144,7 @@ export interface FileRoutesByTo {
   '/leaderboard': typeof AppLeaderboardRoute
   '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
+  '/permisos': typeof AppPermisosRoute
   '/point-rules': typeof AppPointRulesRoute
   '/positions': typeof AppPositionsRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
@@ -156,6 +164,7 @@ export interface FileRoutesById {
   '/_app/leaderboard': typeof AppLeaderboardRoute
   '/_app/me': typeof AppMeRoute
   '/_app/members': typeof AppMembersRoute
+  '/_app/permisos': typeof AppPermisosRoute
   '/_app/point-rules': typeof AppPointRulesRoute
   '/_app/positions': typeof AppPositionsRoute
   '/_auth/forgot-password': typeof AuthForgotPasswordRoute
@@ -176,6 +185,7 @@ export interface FileRouteTypes {
     | '/leaderboard'
     | '/me'
     | '/members'
+    | '/permisos'
     | '/point-rules'
     | '/positions'
     | '/forgot-password'
@@ -193,6 +203,7 @@ export interface FileRouteTypes {
     | '/leaderboard'
     | '/me'
     | '/members'
+    | '/permisos'
     | '/point-rules'
     | '/positions'
     | '/forgot-password'
@@ -211,6 +222,7 @@ export interface FileRouteTypes {
     | '/_app/leaderboard'
     | '/_app/me'
     | '/_app/members'
+    | '/_app/permisos'
     | '/_app/point-rules'
     | '/_app/positions'
     | '/_auth/forgot-password'
@@ -282,6 +294,13 @@ declare module '@tanstack/react-router' {
       path: '/point-rules'
       fullPath: '/point-rules'
       preLoaderRoute: typeof AppPointRulesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/permisos': {
+      id: '/_app/permisos'
+      path: '/permisos'
+      fullPath: '/permisos'
+      preLoaderRoute: typeof AppPermisosRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/members': {
@@ -358,6 +377,7 @@ interface AppRouteChildren {
   AppLeaderboardRoute: typeof AppLeaderboardRoute
   AppMeRoute: typeof AppMeRoute
   AppMembersRoute: typeof AppMembersRoute
+  AppPermisosRoute: typeof AppPermisosRoute
   AppPointRulesRoute: typeof AppPointRulesRoute
   AppPositionsRoute: typeof AppPositionsRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -373,6 +393,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppLeaderboardRoute: AppLeaderboardRoute,
   AppMeRoute: AppMeRoute,
   AppMembersRoute: AppMembersRoute,
+  AppPermisosRoute: AppPermisosRoute,
   AppPointRulesRoute: AppPointRulesRoute,
   AppPositionsRoute: AppPositionsRoute,
   AppIndexRoute: AppIndexRoute,
