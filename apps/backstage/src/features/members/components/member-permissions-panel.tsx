@@ -4,15 +4,18 @@ import { PERMISSION_ROLE_INFO } from "../../positions/lib/permission-labels";
 export function MemberPermissionsPanel({ roles }: { roles: Role[] }) {
   return (
     <section
-      aria-labelledby="permisos-efectivos-title"
+      aria-labelledby="cargos-asignados-title"
       className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5"
     >
       <h2
-        id="permisos-efectivos-title"
+        id="cargos-asignados-title"
         className="text-[12px] font-medium tracking-[0.02em] text-ink-3 uppercase"
       >
-        Permisos efectivos
+        Cargos asignados
       </h2>
+      <p className="text-[12px] text-ink-3">
+        Permisos que otorgan los cargos y comisiones asignados.
+      </p>
       <ul className="flex flex-col gap-3">
         {roles.map((role) => {
           const info = PERMISSION_ROLE_INFO[role];
