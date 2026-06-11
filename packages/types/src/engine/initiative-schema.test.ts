@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { initiativeFormSchema, initiativeRosterSchema } from "./initiative-schema";
+import {
+  initiativeFormSchema,
+  initiativeImpactSchema,
+  initiativeRosterSchema,
+} from "./initiative-schema";
 
 const base = {
   title: "Proyecto Aurora",
+  description: "Descripción de prueba con al menos diez caracteres.",
+  category: "DesarrolloComunitario" as const,
+  startDate: "2026-01-01",
+  endDate: "2026-06-30",
   roster: { directorId: "m1", coDirectorIds: [] as string[], teamIds: [] as string[] },
   status: "Planificacion" as const,
 };
@@ -87,5 +95,55 @@ describe("initiativeRosterSchema", () => {
       teamIds: ["m4"],
     });
     expect(r.success).toBe(true);
+  });
+});
+
+const VALID_FORM = {
+  title: "Reciclá Santa Cruz",
+  description: "Puntos de reciclaje y educación ambiental en cinco barrios.",
+  category: "DesarrolloComunitario",
+  startDate: "2026-02-01",
+  endDate: "2026-08-31",
+  roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+  status: "EnEjecucion",
+};
+
+describe("initiativeFormSchema (C1-lite fields)", () => {
+  it("accepts a complete form", () => {
+    expect(initiativeFormSchema.safeParse(VALID_FORM).success).toBe(true);
+  });
+  it("rejects an unknown category", () => {
+    expect(initiativeFormSchema.safeParse({ ...VALID_FORM, category: "MedioAmbiente" }).success).toBe(false);
+  });
+  it("rejects endDate before startDate", () => {
+    expect(
+      initiativeFormSchema.safeParse({ ...VALID_FORM, startDate: "2026-09-01", endDate: "2026-02-01" }).success,
+    ).toBe(false);
+  });
+  it("rejects a short description", () => {
+    expect(initiativeFormSchema.safeParse({ ...VALID_FORM, description: "corto" }).success).toBe(false);
+  });
+});
+
+describe("initiativeImpactSchema", () => {
+  const VALID_IMPACT = {
+    personsImpacted: 600,
+    volunteers: 45,
+    custom: [{ label: "Juguetes entregados", value: "1.200" }],
+    closingSummary: "Tres jornadas de entrega; superamos la meta de 500 niños.",
+  };
+  it("accepts a complete impact", () => {
+    expect(initiativeImpactSchema.safeParse(VALID_IMPACT).success).toBe(true);
+  });
+  it("rejects negative numbers", () => {
+    expect(initiativeImpactSchema.safeParse({ ...VALID_IMPACT, personsImpacted: -1 }).success).toBe(false);
+  });
+  it("rejects an empty custom metric label", () => {
+    expect(
+      initiativeImpactSchema.safeParse({
+        ...VALID_IMPACT,
+        custom: [{ label: "", value: "3" }],
+      }).success,
+    ).toBe(false);
   });
 });
