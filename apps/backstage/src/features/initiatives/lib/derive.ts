@@ -6,7 +6,7 @@ type Timestamp = { toMillis(): number };
 
 const THIRTY_DAYS_MS = 30 * 86_400_000;
 
-export interface Progress {
+interface Progress {
   executed: number;
   total: number;
   pct: number;

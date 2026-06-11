@@ -17,6 +17,7 @@ import { useUpdateProgram } from "../features/programs/hooks/use-update-program"
 import { useCreateProject } from "../features/projects/hooks/use-create-project";
 import { useUpdateProject } from "../features/projects/hooks/use-update-project";
 import { initiativeToInput } from "../features/initiatives/repositories/initiative-mapper";
+import { computeProgress, isClosingSoon } from "../features/initiatives/lib/derive";
 import { filterInitiatives, tabCounts, type InitiativeFilter } from "../features/initiatives/lib/filter";
 import type { InitiativeListItem } from "../features/initiatives/lib/initiative-list-item";
 
@@ -26,6 +27,13 @@ type Editing =
   | { mode: "new"; kind: "Program" | "Project" }
   | { mode: "edit"; item: InitiativeListItem }
   | null;
+
+function sheetTitle(editing: Editing): string {
+  if (!editing) return "";
+  const kind = editing.mode === "new" ? editing.kind : editing.item.kind;
+  const noun = kind === "Program" ? "programa" : "proyecto";
+  return `${editing.mode === "new" ? "Nuevo" : "Editar"} ${noun}`;
+}
 
 function InitiativesPage() {
   const termId = currentTermId();
@@ -55,7 +63,6 @@ function InitiativesPage() {
   });
   const [editing, setEditing] = useState<Editing>(null);
 
-  const now = useMemo(() => Date.now(), []);
   const memberById = useMemo(
     () => new Map<string, Member>((members ?? []).map((m) => [m.id, m])),
     [members],
@@ -67,6 +74,19 @@ function InitiativesPage() {
 
   const counts = useMemo(() => tabCounts(items ?? []), [items]);
   const visible = useMemo(() => filterInitiatives(items ?? [], filter), [items, filter]);
+
+  const cardData = useMemo(() => {
+    const now = Date.now();
+    const acts = activities ?? [];
+    const map = new Map<string, { pct: number; closingSoon: boolean }>();
+    for (const item of items ?? []) {
+      map.set(item.id, {
+        pct: computeProgress(acts, item.id).pct,
+        closingSoon: isClosingSoon(item, acts, now),
+      });
+    }
+    return map;
+  }, [activities, items]);
 
   const handleSubmit = async (data: InitiativeInput) => {
     if (!editing) return;
@@ -133,9 +153,9 @@ function InitiativesPage() {
             <InitiativeCard
               key={`${item.kind}-${item.id}`}
               item={item}
-              activities={activities ?? []}
+              pct={cardData.get(item.id)?.pct ?? 0}
+              closingSoon={cardData.get(item.id)?.closingSoon ?? false}
               memberById={memberById}
-              now={now}
               onOpen={ability.can("update", item.kind) ? () => setEditing({ mode: "edit", item }) : undefined}
             />
           ))}
@@ -145,15 +165,7 @@ function InitiativesPage() {
       <Sheet
         open={editing !== null}
         onOpenChange={(open) => !open && setEditing(null)}
-        title={
-          editing?.mode === "new"
-            ? editing.kind === "Program"
-              ? "Nuevo programa"
-              : "Nuevo proyecto"
-            : editing?.item.kind === "Program"
-              ? "Editar programa"
-              : "Editar proyecto"
-        }
+        title={sheetTitle(editing)}
       >
         {editing !== null && (
           <InitiativeForm

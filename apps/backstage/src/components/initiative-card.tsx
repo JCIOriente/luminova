@@ -1,27 +1,18 @@
-import type { Activity, Member } from "@luminova/types";
+import type { Member } from "@luminova/types";
 import { AvatarStack, Badge, Icon, ProgressBar } from "@luminova/ui";
 import { AREA_OF_OPPORTUNITY_LABELS } from "@luminova/types";
-import {
-  areaTone,
-  computeProgress,
-  formatMonthYear,
-  isClosingSoon,
-  statusLabel,
-  statusTone,
-} from "../features/initiatives/lib/derive";
+import { areaTone, formatMonthYear, statusLabel, statusTone } from "../features/initiatives/lib/derive";
 import type { InitiativeListItem } from "../features/initiatives/lib/initiative-list-item";
 
 interface InitiativeCardProps {
   item: InitiativeListItem;
-  activities: Activity[];
+  pct: number;
+  closingSoon: boolean;
   memberById: Map<string, Member>;
-  now: number;
   onOpen?: () => void;
 }
 
-export function InitiativeCard({ item, activities, memberById, now, onOpen }: InitiativeCardProps) {
-  const { pct } = computeProgress(activities, item.id);
-  const closingSoon = isClosingSoon(item, activities, now);
+export function InitiativeCard({ item, pct, closingSoon, memberById, onOpen }: InitiativeCardProps) {
   const cover = item.photos[0]?.url ?? null;
   const rosterIds = [item.roster.directorId, ...item.roster.coDirectorIds, ...item.roster.teamIds];
   const people = rosterIds

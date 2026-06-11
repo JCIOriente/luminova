@@ -1,12 +1,11 @@
 import { useSyncExternalStore } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Icon, IconButton, LogoLockup, Button, SegmentedControl, Tooltip } from "@luminova/ui";
-import { hasAnyRole } from "@luminova/auth/roles";
 import { useAuth } from "../lib/auth/auth";
 import { useAbility } from "../lib/authz/ability-context";
 import { signOutUser } from "../lib/auth/sign-out";
 import { initials } from "../lib/initials";
-import { NAV_GROUPS } from "./nav-config";
+import { NAV_GROUPS, isNavItemVisible } from "./nav-config";
 import {
   getSidebarCollapsed,
   setSidebarCollapsed,
@@ -32,13 +31,7 @@ export function AppSidebar() {
 
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter(
-      (item) =>
-        (!item.subject || ability.can(item.action ?? "read", item.subject)) &&
-        (!item.anySubject ||
-          item.anySubject.some((s) => ability.can(item.action ?? "read", s))) &&
-        (!item.roles || hasAnyRole(claims, item.roles)),
-    ),
+    items: group.items.filter((item) => isNavItemVisible(item, ability, claims)),
   })).filter((group) => group.items.length > 0);
 
   const onLogout = async () => {

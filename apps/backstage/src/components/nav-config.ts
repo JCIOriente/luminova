@@ -1,5 +1,6 @@
 import { Icon } from "@luminova/ui";
-import type { Role } from "@luminova/auth/roles";
+import { hasAnyRole, type Role } from "@luminova/auth/roles";
+import type { AppAbility } from "@luminova/auth/ability";
 
 type IconKey = keyof typeof Icon;
 
@@ -68,6 +69,18 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+export function isNavItemVisible(
+  item: NavItem,
+  ability: AppAbility,
+  claims: Parameters<typeof hasAnyRole>[0],
+): boolean {
+  return (
+    (!item.subject || ability.can(item.action ?? "read", item.subject)) &&
+    (!item.anySubject || item.anySubject.some((s) => ability.can(item.action ?? "read", s))) &&
+    (!item.roles || hasAnyRole(claims, item.roles))
+  );
+}
 
 export function navItemForPath(pathname: string): NavItem | undefined {
   return NAV_GROUPS.flatMap((g) => g.items).find((i) =>

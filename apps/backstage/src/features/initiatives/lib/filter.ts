@@ -35,9 +35,6 @@ export function filterInitiatives(
 }
 
 export function tabCounts(items: InitiativeListItem[]): Record<InitiativeTab, number> {
-  return {
-    todos: items.length,
-    activos: items.filter((i) => i.status !== "Finalizado").length,
-    completados: items.filter((i) => i.status === "Finalizado").length,
-  };
+  const completados = items.filter((i) => i.status === "Finalizado").length;
+  return { todos: items.length, activos: items.length - completados, completados };
 }
