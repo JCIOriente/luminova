@@ -81,19 +81,41 @@ beforeAll(async () => {
     });
     await setDoc(doc(db, "memberPoints/2025/03/e1"), { points: 5 });
     await setDoc(doc(db, "positions/pos1"), {
-      title: "Tesorero", titleFemale: "Tesorera", category: "CEL",
-      grants: ["Treasury"], term: null, description: "Finanzas.", active: true, deletedAt: null,
+      title: "Tesorero",
+      titleFemale: "Tesorera",
+      category: "CEL",
+      grants: ["Treasury"],
+      term: null,
+      description: "Finanzas.",
+      active: true,
+      deletedAt: null,
     });
     await setDoc(doc(db, "positions/pos_deleted"), {
-      title: "Tesorero", titleFemale: "Tesorera", category: "CEL",
-      grants: ["Treasury"], term: null, description: "Finanzas.", active: false, deletedAt: DELETED_AT,
+      title: "Tesorero",
+      titleFemale: "Tesorera",
+      category: "CEL",
+      grants: ["Treasury"],
+      term: null,
+      description: "Finanzas.",
+      active: false,
+      deletedAt: DELETED_AT,
     });
     await setDoc(doc(db, "members/m_positions"), {
-      name: "Carlos", totalPoints: 0, uid: "carlos-uid", active: true, deletedAt: null,
+      name: "Carlos",
+      totalPoints: 0,
+      uid: "carlos-uid",
+      active: true,
+      deletedAt: null,
     });
     await setDoc(doc(db, "positions/pos_soft"), {
-      title: "Vocal", titleFemale: "Vocal", category: "JDL",
-      grants: [], term: 2026, description: "Vocal del directorio.", active: true, deletedAt: null,
+      title: "Vocal",
+      titleFemale: "Vocal",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Vocal del directorio.",
+      active: true,
+      deletedAt: null,
     });
   });
 });
@@ -539,9 +561,14 @@ describe("firestore.rules — positions", () => {
   it("allows ExecutiveCommittee to create", async () => {
     await assertSucceeds(
       setDoc(doc(as("u", ["ExecutiveCommittee"]), "positions/new1"), {
-        title: "Director de Comunicación", titleFemale: "Directora de Comunicación",
-        category: "JDL", grants: [], term: 2026, description: "Comunica.",
-        active: true, deletedAt: null,
+        title: "Director de Comunicación",
+        titleFemale: "Directora de Comunicación",
+        category: "JDL",
+        grants: [],
+        term: 2026,
+        description: "Comunica.",
+        active: true,
+        deletedAt: null,
       }),
     );
   });
@@ -558,16 +585,28 @@ describe("firestore.rules — positions", () => {
   it("denies ExecutiveCommittee creating a position with grants", async () => {
     await assertFails(
       setDoc(doc(as("u", ["ExecutiveCommittee"]), "positions/new_priv"), {
-        title: "Cargo Sombra", titleFemale: "Cargo Sombra", category: "JDL",
-        grants: ["Admin"], term: 2026, description: "Escalación.", active: true, deletedAt: null,
+        title: "Cargo Sombra",
+        titleFemale: "Cargo Sombra",
+        category: "JDL",
+        grants: ["Admin"],
+        term: 2026,
+        description: "Escalación.",
+        active: true,
+        deletedAt: null,
       }),
     );
   });
   it("allows Admin to create a position with grants", async () => {
     await assertSucceeds(
       setDoc(doc(as("u", ["Admin"]), "positions/admin_created"), {
-        title: "Presidente", titleFemale: "Presidenta", category: "CEL",
-        grants: ["Admin"], term: null, description: "Dirige el capítulo.", active: true, deletedAt: null,
+        title: "Presidente",
+        titleFemale: "Presidenta",
+        category: "CEL",
+        grants: ["Admin"],
+        term: null,
+        description: "Dirige el capítulo.",
+        active: true,
+        deletedAt: null,
       }),
     );
   });
@@ -578,13 +617,16 @@ describe("firestore.rules — positions", () => {
   });
   it("allows ExecutiveCommittee updating non-grants fields", async () => {
     await assertSucceeds(
-      updateDoc(doc(as("u", ["ExecutiveCommittee"]), "positions/pos1"), { description: "Actualizada." }),
+      updateDoc(doc(as("u", ["ExecutiveCommittee"]), "positions/pos1"), {
+        description: "Actualizada.",
+      }),
     );
   });
   it("allows ExecutiveCommittee to soft-delete a live position", async () => {
     await assertSucceeds(
       updateDoc(doc(as("u", ["ExecutiveCommittee"]), "positions/pos_soft"), {
-        active: false, deletedAt: new Date(),
+        active: false,
+        deletedAt: new Date(),
       }),
     );
   });

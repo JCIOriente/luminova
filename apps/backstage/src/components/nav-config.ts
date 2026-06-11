@@ -1,7 +1,18 @@
 import { Icon } from "@luminova/ui";
-import type { Role } from "@luminova/auth/roles";
+import { hasAnyRole, type Role } from "@luminova/auth/roles";
+import type { AppAbility } from "@luminova/auth/ability";
 
 type IconKey = keyof typeof Icon;
+
+type Subject =
+  | "Member"
+  | "Ally"
+  | "PointRule"
+  | "Activity"
+  | "Attendance"
+  | "Program"
+  | "Project"
+  | "Position";
 
 export interface NavItem {
   to:
@@ -12,22 +23,14 @@ export interface NavItem {
     | "/point-rules"
     | "/leaderboard"
     | "/activities"
-    | "/programs"
-    | "/projects"
+    | "/initiatives"
     | "/check-in"
     | "/positions";
   label: string;
   icon: IconKey;
   exact?: boolean;
-  subject?:
-    | "Member"
-    | "Ally"
-    | "PointRule"
-    | "Activity"
-    | "Attendance"
-    | "Program"
-    | "Project"
-    | "Position";
+  subject?: Subject;
+  anySubject?: Subject[];
   action?: "read" | "checkIn";
   /** Optional role allowlist — item shows only if the caller has one of these. */
   roles?: Role[];
@@ -72,8 +75,12 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Reconocimiento",
     items: [
       { to: "/activities", label: "Actividades", icon: "calendar", subject: "Activity" },
-      { to: "/programs", label: "Programas", icon: "folder", subject: "Program" },
-      { to: "/projects", label: "Proyectos", icon: "briefcase", subject: "Project" },
+      {
+        to: "/initiatives",
+        label: "Proyectos",
+        icon: "briefcase",
+        anySubject: ["Program", "Project"],
+      },
       {
         to: "/check-in",
         label: "Check-in",
@@ -84,6 +91,18 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+export function isNavItemVisible(
+  item: NavItem,
+  ability: AppAbility,
+  claims: Parameters<typeof hasAnyRole>[0],
+): boolean {
+  return (
+    (!item.subject || ability.can(item.action ?? "read", item.subject)) &&
+    (!item.anySubject || item.anySubject.some((s) => ability.can(item.action ?? "read", s))) &&
+    (!item.roles || hasAnyRole(claims, item.roles))
+  );
+}
 
 export function navItemForPath(pathname: string): NavItem | undefined {
   return NAV_GROUPS.flatMap((g) => g.items).find((i) =>

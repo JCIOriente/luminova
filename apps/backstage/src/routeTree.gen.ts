@@ -15,13 +15,12 @@ import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthResetRouteImport } from './routes/_auth.reset'
 import { Route as AuthLoginRouteImport } from './routes/_auth.login'
 import { Route as AuthForgotPasswordRouteImport } from './routes/_auth.forgot-password'
-import { Route as AppProjectsRouteImport } from './routes/_app.projects'
-import { Route as AppProgramsRouteImport } from './routes/_app.programs'
 import { Route as AppPositionsRouteImport } from './routes/_app.positions'
 import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
 import { Route as AppMembersRouteImport } from './routes/_app.members'
 import { Route as AppMeRouteImport } from './routes/_app.me'
 import { Route as AppLeaderboardRouteImport } from './routes/_app.leaderboard'
+import { Route as AppInitiativesRouteImport } from './routes/_app.initiatives'
 import { Route as AppCheckInRouteImport } from './routes/_app.check-in'
 import { Route as AppAlliesRouteImport } from './routes/_app.allies'
 import { Route as AppActivitiesRouteImport } from './routes/_app.activities'
@@ -55,16 +54,6 @@ const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => AuthRoute,
 } as any)
-const AppProjectsRoute = AppProjectsRouteImport.update({
-  id: '/projects',
-  path: '/projects',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppProgramsRoute = AppProgramsRouteImport.update({
-  id: '/programs',
-  path: '/programs',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppPositionsRoute = AppPositionsRouteImport.update({
   id: '/positions',
   path: '/positions',
@@ -88,6 +77,11 @@ const AppMeRoute = AppMeRouteImport.update({
 const AppLeaderboardRoute = AppLeaderboardRouteImport.update({
   id: '/leaderboard',
   path: '/leaderboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInitiativesRoute = AppInitiativesRouteImport.update({
+  id: '/initiatives',
+  path: '/initiatives',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCheckInRoute = AppCheckInRouteImport.update({
@@ -116,13 +110,12 @@ export interface FileRoutesByFullPath {
   '/activities': typeof AppActivitiesRoute
   '/allies': typeof AppAlliesRoute
   '/check-in': typeof AppCheckInRoute
+  '/initiatives': typeof AppInitiativesRoute
   '/leaderboard': typeof AppLeaderboardRoute
   '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
   '/point-rules': typeof AppPointRulesRoute
   '/positions': typeof AppPositionsRoute
-  '/programs': typeof AppProgramsRoute
-  '/projects': typeof AppProjectsRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/reset': typeof AuthResetRoute
@@ -133,13 +126,12 @@ export interface FileRoutesByTo {
   '/activities': typeof AppActivitiesRoute
   '/allies': typeof AppAlliesRoute
   '/check-in': typeof AppCheckInRoute
+  '/initiatives': typeof AppInitiativesRoute
   '/leaderboard': typeof AppLeaderboardRoute
   '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
   '/point-rules': typeof AppPointRulesRoute
   '/positions': typeof AppPositionsRoute
-  '/programs': typeof AppProgramsRoute
-  '/projects': typeof AppProjectsRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/reset': typeof AuthResetRoute
@@ -152,13 +144,12 @@ export interface FileRoutesById {
   '/_app/activities': typeof AppActivitiesRoute
   '/_app/allies': typeof AppAlliesRoute
   '/_app/check-in': typeof AppCheckInRoute
+  '/_app/initiatives': typeof AppInitiativesRoute
   '/_app/leaderboard': typeof AppLeaderboardRoute
   '/_app/me': typeof AppMeRoute
   '/_app/members': typeof AppMembersRoute
   '/_app/point-rules': typeof AppPointRulesRoute
   '/_app/positions': typeof AppPositionsRoute
-  '/_app/programs': typeof AppProgramsRoute
-  '/_app/projects': typeof AppProjectsRoute
   '/_auth/forgot-password': typeof AuthForgotPasswordRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/reset': typeof AuthResetRoute
@@ -172,13 +163,12 @@ export interface FileRouteTypes {
     | '/activities'
     | '/allies'
     | '/check-in'
+    | '/initiatives'
     | '/leaderboard'
     | '/me'
     | '/members'
     | '/point-rules'
     | '/positions'
-    | '/programs'
-    | '/projects'
     | '/forgot-password'
     | '/login'
     | '/reset'
@@ -189,13 +179,12 @@ export interface FileRouteTypes {
     | '/activities'
     | '/allies'
     | '/check-in'
+    | '/initiatives'
     | '/leaderboard'
     | '/me'
     | '/members'
     | '/point-rules'
     | '/positions'
-    | '/programs'
-    | '/projects'
     | '/forgot-password'
     | '/login'
     | '/reset'
@@ -207,13 +196,12 @@ export interface FileRouteTypes {
     | '/_app/activities'
     | '/_app/allies'
     | '/_app/check-in'
+    | '/_app/initiatives'
     | '/_app/leaderboard'
     | '/_app/me'
     | '/_app/members'
     | '/_app/point-rules'
     | '/_app/positions'
-    | '/_app/programs'
-    | '/_app/projects'
     | '/_auth/forgot-password'
     | '/_auth/login'
     | '/_auth/reset'
@@ -270,20 +258,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthForgotPasswordRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_app/projects': {
-      id: '/_app/projects'
-      path: '/projects'
-      fullPath: '/projects'
-      preLoaderRoute: typeof AppProjectsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/programs': {
-      id: '/_app/programs'
-      path: '/programs'
-      fullPath: '/programs'
-      preLoaderRoute: typeof AppProgramsRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/positions': {
       id: '/_app/positions'
       path: '/positions'
@@ -317,6 +291,13 @@ declare module '@tanstack/react-router' {
       path: '/leaderboard'
       fullPath: '/leaderboard'
       preLoaderRoute: typeof AppLeaderboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/initiatives': {
+      id: '/_app/initiatives'
+      path: '/initiatives'
+      fullPath: '/initiatives'
+      preLoaderRoute: typeof AppInitiativesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/check-in': {
@@ -354,13 +335,12 @@ interface AppRouteChildren {
   AppActivitiesRoute: typeof AppActivitiesRoute
   AppAlliesRoute: typeof AppAlliesRoute
   AppCheckInRoute: typeof AppCheckInRoute
+  AppInitiativesRoute: typeof AppInitiativesRoute
   AppLeaderboardRoute: typeof AppLeaderboardRoute
   AppMeRoute: typeof AppMeRoute
   AppMembersRoute: typeof AppMembersRoute
   AppPointRulesRoute: typeof AppPointRulesRoute
   AppPositionsRoute: typeof AppPositionsRoute
-  AppProgramsRoute: typeof AppProgramsRoute
-  AppProjectsRoute: typeof AppProjectsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppMembersMemberIdRoute: typeof AppMembersMemberIdRoute
 }
@@ -369,13 +349,12 @@ const AppRouteChildren: AppRouteChildren = {
   AppActivitiesRoute: AppActivitiesRoute,
   AppAlliesRoute: AppAlliesRoute,
   AppCheckInRoute: AppCheckInRoute,
+  AppInitiativesRoute: AppInitiativesRoute,
   AppLeaderboardRoute: AppLeaderboardRoute,
   AppMeRoute: AppMeRoute,
   AppMembersRoute: AppMembersRoute,
   AppPointRulesRoute: AppPointRulesRoute,
   AppPositionsRoute: AppPositionsRoute,
-  AppProgramsRoute: AppProgramsRoute,
-  AppProjectsRoute: AppProjectsRoute,
   AppIndexRoute: AppIndexRoute,
   AppMembersMemberIdRoute: AppMembersMemberIdRoute,
 }

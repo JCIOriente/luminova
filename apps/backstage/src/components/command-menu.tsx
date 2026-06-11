@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { CommandPalette, Icon, type CommandItem } from "@luminova/ui";
-import { hasAnyRole } from "@luminova/auth/roles";
 import { useAuth } from "../lib/auth/auth";
 import { useAbility } from "../lib/authz/ability-context";
-import { NAV_GROUPS } from "./nav-config";
+import { NAV_GROUPS, isNavItemVisible } from "./nav-config";
 import {
   getCommandMenuOpen,
   setCommandMenuOpen,
@@ -32,11 +31,7 @@ export function CommandMenu() {
   const items = useMemo<CommandItem[]>(() => {
     const navItems: CommandItem[] = NAV_GROUPS.flatMap((group) =>
       group.items
-        .filter(
-          (item) =>
-            (!item.subject || ability.can(item.action ?? "read", item.subject)) &&
-            (!item.roles || hasAnyRole(claims, item.roles)),
-        )
+        .filter((item) => isNavItemVisible(item, ability, claims))
         .map((item) => ({
           id: `nav-${item.to}`,
           label: item.label,

@@ -13,6 +13,8 @@ export { Reveal } from "./components/reveal";
 export { SectionHeader } from "./components/section-header";
 export { ImgSlot } from "./components/img-slot";
 export { Avatar } from "./components/avatar";
+export { AvatarStack } from "./components/avatar-stack";
+export { ProgressBar } from "./components/progress-bar";
 export { ImageUploader } from "./components/image-uploader";
 export { LogoLockup } from "./components/logo-lockup";
 export { RippleSVG, RippleBackground, RippleDivider } from "./components/ripple";

@@ -57,4 +57,11 @@ describe("CommandMenu", () => {
     expect(screen.queryByText("Aliados")).toBeNull();
     expect(screen.queryByText("Invitar miembro")).toBeNull();
   });
+
+  it("hides Proyectos when ability can read neither Program nor Project", async () => {
+    renderWithRoles(<CommandMenu />, ["Treasury"]);
+    await userEvent.keyboard("{Meta>}k{/Meta}");
+    await screen.findByText("Inicio");
+    expect(screen.queryByText("Proyectos")).toBeNull();
+  });
 });
