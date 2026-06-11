@@ -82,8 +82,7 @@ export function MemberForm({
       : [];
   const cargoOptions = [...activeCargoOptions, ...assignedInactiveCargo];
 
-  const comisionLabel = (p: Position) =>
-    p.sigla ? `${p.sigla} — ${p.title}` : p.title;
+  const comisionLabel = (p: Position) => (p.sigla ? `${p.sigla} — ${p.title}` : p.title);
   const activeComisionOptions = positions
     .filter((p) => p.active && p.category === "Comision")
     .map((p) => ({ value: p.id, label: comisionLabel(p) }));
@@ -179,7 +178,11 @@ export function MemberForm({
             )}
           />
         </Field>
-        <Field label="Comisiones (pertenece a)" htmlFor="comisionIds" error={errors.comisionIds?.message}>
+        <Field
+          label="Comisiones (pertenece a)"
+          htmlFor="comisionIds"
+          error={errors.comisionIds?.message}
+        >
           <Controller
             control={control}
             name="comisionIds"
