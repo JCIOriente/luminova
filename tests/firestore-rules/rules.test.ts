@@ -373,6 +373,19 @@ describe("firestore.rules — initiative direction branch", () => {
       updateDoc(doc(as("other-uid", ["Member"]), "programs/prog_dir"), { status: "Planificacion" }),
     );
   });
+  it("direction may edit roster (documented escalation: mirrors new co-director uids)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_dir"), {
+        roster: { directorId: "m1", coDirectorIds: ["m2"], teamIds: [] },
+      }),
+    );
+  });
+  it("legacy doc without directionUids: Admin may edit, nobody is direction", async () => {
+    await assertSucceeds(updateDoc(doc(as("u", ["Admin"]), "projects/p1"), { title: "Legacy" }));
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p1"), { title: "Nope" }),
+    );
+  });
 });
 
 function asClaims(uid: string, claims: Record<string, unknown>) {

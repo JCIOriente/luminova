@@ -146,6 +146,10 @@ points). Backward transitions allowed only `Planificacion ⇄ EnEjecucion`.
   client-immutable; clients create it as `[]`). Rules check
   `request.auth.uid in directionUids`. Known limitation: if a member's login is
   provisioned after they joined a roster, re-save the initiative to refresh the mirror.
+  Second known limitation (accepted v1): roster edits are direction-editable, so a
+  director can appoint co-directors who then become direction themselves (transitive
+  grant, scoped to that one initiative). Revisit narrowing roster edits to Admin/PM
+  if it's abused.
 - **Activity** status/edit/photos: same set evaluated against the activity's
   `organizers` ∪ the parent initiative's direction.
 - Existing activity guards unchanged: `startAt`/`category` lock once check-ins exist.
