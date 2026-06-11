@@ -1,25 +1,40 @@
 import type { Activity, ActivityStatus } from "@luminova/types";
-import { Badge, type BadgeTone, EmptyState, Icon } from "@luminova/ui";
+import { Badge, type BadgeTone, Button, EmptyState, Icon } from "@luminova/ui";
 import { Link } from "@tanstack/react-router";
 import { formatMonthYear } from "../lib/derive";
 
 interface InitiativeActivitiesProps {
   activities: Activity[];
+  canCreate: boolean;
+  onCreate: () => void;
 }
 
-export function InitiativeActivities({ activities }: InitiativeActivitiesProps) {
-  if (activities.length === 0) {
-    return (
-      <EmptyState
-        title="Sin actividades"
-        description="Las actividades de ejecucion apareceran aqui cuando se creen."
-      />
-    );
-  }
-
+export function InitiativeActivities({ activities, canCreate, onCreate }: InitiativeActivitiesProps) {
   return (
-    <ul className="flex flex-col gap-2">
-      {activities.map((activity) => (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[15px] font-semibold text-ink-1">Actividades</h2>
+        {canCreate && (
+          <Button
+            as="button"
+            type="button"
+            variant="secondary"
+            iconLeft={Icon.plus({ s: 16 })}
+            onClick={onCreate}
+          >
+            Nueva actividad
+          </Button>
+        )}
+      </div>
+
+      {activities.length === 0 ? (
+        <EmptyState
+          title="Sin actividades"
+          description="Las actividades de ejecución aparecerán aquí cuando se creen."
+        />
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {activities.map((activity) => (
         <li key={activity.id}>
           <Link
             to="/activities"
@@ -38,10 +53,12 @@ export function InitiativeActivities({ activities }: InitiativeActivitiesProps) 
             <span className="text-ink-4 transition-colors group-hover:text-ink-2">
               {Icon.chevRight({ s: 16 })}
             </span>
-          </Link>
-        </li>
-      ))}
-    </ul>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

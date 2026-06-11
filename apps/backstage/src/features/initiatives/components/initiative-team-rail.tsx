@@ -14,7 +14,11 @@ export function InitiativeTeamRail({ team }: InitiativeTeamRailProps) {
       <h2 className="text-[15px] font-semibold text-ink-1">Equipo</h2>
 
       {team.director ? (
-        <PersonRow person={team.director} featuredLabel="Director" featured />
+        <PersonRow
+          person={team.director}
+          featuredLabel={`Director · ${team.director.role}`}
+          featured
+        />
       ) : (
         <p className="text-[13px] text-ink-3">Sin director asignado.</p>
       )}
@@ -22,7 +26,7 @@ export function InitiativeTeamRail({ team }: InitiativeTeamRailProps) {
       {hasCoDirectors && (
         <div className="flex flex-col gap-3">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-4">
-            Co-direccion
+            Co-dirección
           </span>
           {team.coDirectors.map((person) => (
             <PersonRow key={person.id} person={person} />

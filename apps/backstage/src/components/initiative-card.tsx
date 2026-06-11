@@ -2,6 +2,7 @@ import type { Member } from "@luminova/types";
 import { AvatarStack, Badge, Icon, ProgressBar } from "@luminova/ui";
 import { AREA_OF_OPPORTUNITY_LABELS } from "@luminova/types";
 import {
+  COVER_STRIP,
   areaTone,
   formatMonthYear,
   statusLabel,
@@ -89,13 +90,3 @@ export function InitiativeCard({
     </Tag>
   );
 }
-
-const COVER_STRIP: Record<ReturnType<typeof areaTone>, string> = {
-  blue: "bg-jci-blue",
-  teal: "bg-jci-teal",
-  amber: "bg-jci-yellow",
-  navy: "bg-jci-navy",
-  green: "bg-ok",
-  red: "bg-error",
-  gray: "bg-ink-4",
-};

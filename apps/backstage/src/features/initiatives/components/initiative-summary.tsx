@@ -1,13 +1,7 @@
 import { Icon, ProgressBar } from "@luminova/ui";
 import { formatMonthYear } from "../lib/derive";
+import type { Progress } from "../lib/derive";
 import type { InitiativeListItem } from "../lib/initiative-list-item";
-
-interface Progress {
-  executed: number;
-  total: number;
-  pending: number;
-  pct: number;
-}
 
 interface InitiativeSummaryProps {
   item: InitiativeListItem;

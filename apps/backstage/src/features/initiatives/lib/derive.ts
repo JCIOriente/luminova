@@ -6,7 +6,7 @@ type Timestamp = { toMillis(): number };
 
 const THIRTY_DAYS_MS = 30 * 86_400_000;
 
-interface Progress {
+export interface Progress {
   executed: number;
   total: number;
   pending: number;
@@ -78,6 +78,16 @@ const AREA_TONE: Record<AreaOfOpportunity, BadgeTone> = {
 export function areaTone(area: AreaOfOpportunity): BadgeTone {
   return AREA_TONE[area];
 }
+
+export const COVER_STRIP: Record<BadgeTone, string> = {
+  blue: "bg-jci-blue",
+  teal: "bg-jci-teal",
+  amber: "bg-jci-yellow",
+  navy: "bg-jci-navy",
+  green: "bg-ok",
+  red: "bg-error",
+  gray: "bg-ink-4",
+};
 
 const MONTH_YEAR = new Intl.DateTimeFormat("es", { month: "short", year: "numeric" });
 

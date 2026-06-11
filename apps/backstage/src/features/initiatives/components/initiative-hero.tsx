@@ -1,6 +1,8 @@
 import { AREA_OF_OPPORTUNITY_LABELS } from "@luminova/types";
 import { Badge } from "@luminova/ui";
+import type { ReactNode } from "react";
 import {
+  COVER_STRIP,
   areaTone,
   formatMonthYear,
   statusLabel,
@@ -11,9 +13,10 @@ import type { InitiativeListItem } from "../lib/initiative-list-item";
 interface InitiativeHeroProps {
   item: InitiativeListItem;
   closingSoon: boolean;
+  actions?: ReactNode;
 }
 
-export function InitiativeHero({ item, closingSoon }: InitiativeHeroProps) {
+export function InitiativeHero({ item, closingSoon, actions }: InitiativeHeroProps) {
   const cover = item.photos[0]?.url ?? null;
   const closedAt = item.finalReport ? formatMonthYear(item.finalReport.filedAt) : null;
 
@@ -26,22 +29,25 @@ export function InitiativeHero({ item, closingSoon }: InitiativeHeroProps) {
       )}
 
       <div className="flex flex-col gap-3 px-5 pb-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={areaTone(item.category)} dot>
-            {AREA_OF_OPPORTUNITY_LABELS[item.category]}
-          </Badge>
-          <Badge tone={statusTone(item.status)}>{statusLabel(item.status)}</Badge>
-          {closingSoon && (
-            <Badge tone="amber" dot>
-              Por cerrar
+        <div className="flex items-start gap-3">
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <Badge tone={areaTone(item.category)} dot>
+              {AREA_OF_OPPORTUNITY_LABELS[item.category]}
             </Badge>
-          )}
-          {closedAt && (
-            <span className="text-[12px] font-medium text-ink-3">Cerrado en {closedAt}</span>
-          )}
-          <span className="ml-auto text-[11px] font-semibold uppercase tracking-wide text-ink-4">
-            {item.kind === "Program" ? "Programa" : "Proyecto"}
-          </span>
+            <Badge tone={statusTone(item.status)}>{statusLabel(item.status)}</Badge>
+            {closingSoon && (
+              <Badge tone="amber" dot>
+                Por cerrar
+              </Badge>
+            )}
+            {closedAt && (
+              <span className="text-[12px] font-medium text-ink-3">Cerrado en {closedAt}</span>
+            )}
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-4">
+              {item.kind === "Program" ? "Programa" : "Proyecto"}
+            </span>
+          </div>
+          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </div>
 
         <div>
@@ -54,13 +60,3 @@ export function InitiativeHero({ item, closingSoon }: InitiativeHeroProps) {
     </header>
   );
 }
-
-const COVER_STRIP: Record<ReturnType<typeof areaTone>, string> = {
-  blue: "bg-jci-blue",
-  teal: "bg-jci-teal",
-  amber: "bg-jci-yellow",
-  navy: "bg-jci-navy",
-  green: "bg-ok",
-  red: "bg-error",
-  gray: "bg-ink-4",
-};
