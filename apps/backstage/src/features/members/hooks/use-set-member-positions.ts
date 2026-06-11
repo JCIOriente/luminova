@@ -9,7 +9,6 @@ export function useSetMemberPositions(memberId: string) {
     mutationFn: (data: PositionsInput) => new MemberRepository().setPositions(memberId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: memberKeys.all });
-      void queryClient.invalidateQueries({ queryKey: memberKeys.detail(memberId) });
     },
   });
 }

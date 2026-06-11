@@ -16,7 +16,14 @@ type MemberLike = { uid?: string; positions?: Record<string, TermPositions> };
 
 /** Union of grants from the term's positions, gating power-conferring positions
  *  (non-empty grants) on an Admin `assignedBy`. The assigner lookup is performed
- *  at most once and only when a power position is actually present. */
+ *  at most once and only when a power position is actually present.
+ *
+ *  The loop is intentionally sequential so that the early-exit (assignerIsAdmin =
+ *  false stops accumulating grants) is preserved — parallel fetches would not
+ *  short-circuit. `getUserRoles` reads the assigner's LIVE claims, so a later
+ *  Firestore write that re-invokes this function re-evaluates trust: if the
+ *  assigner has since lost Admin, their previously granted power positions are
+ *  revoked and claims reflect current org state (by design). */
 async function resolveTrustedGrants(
   deps: ClaimsSyncDeps,
   positionIds: string[],

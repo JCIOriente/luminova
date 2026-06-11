@@ -1,11 +1,8 @@
-import { Badge, type BadgeTone } from "@luminova/ui";
+import { Badge } from "@luminova/ui";
 import { positionTitle, type Member, type MemberGender, type Position } from "@luminova/types";
+import { CATEGORY_TONE } from "../../positions/lib/category-tone";
 
-export const CATEGORY_TONE: Record<Position["category"], BadgeTone> = {
-  CEL: "navy",
-  JDL: "teal",
-  Comision: "gray",
-};
+export { CATEGORY_TONE };
 
 type ChipSource = { gender?: MemberGender; positions?: Member["positions"] };
 

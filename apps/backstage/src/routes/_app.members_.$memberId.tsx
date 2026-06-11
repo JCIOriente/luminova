@@ -21,13 +21,13 @@ import { useUpdateMember } from "../features/members/hooks/use-update-member";
 import { useSetMemberPositions } from "../features/members/hooks/use-set-member-positions";
 import { usePositions } from "../features/positions/hooks/use-positions";
 import { MemberForm } from "../features/members/components/member-form";
-import { MemberPositionsForm } from "../features/members/components/member-positions-form";
+import { MemberPositionsForm, type PositionsInput } from "../features/members/components/member-positions-form";
 import { MemberPermissionsPanel } from "../features/members/components/member-permissions-panel";
 import { MemberPositionHistory } from "../features/members/components/member-position-history";
 import { MemberPointsSummary } from "../features/members/components/member-points-summary";
 import { ParticipationLedger } from "../features/members/components/participation-ledger";
 import { effectiveRoles } from "../features/members/lib/member-permissions";
-import { dateInputValue } from "../features/members/repositories/member-mapper";
+import { memberFormDefaults } from "../features/members/lib/member-form-defaults";
 
 export const Route = createFileRoute("/_app/members_/$memberId")({
   component: MemberProfilePage,
@@ -38,22 +38,6 @@ const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
   Inactivo: "gray",
   Desafiliado: "red",
 };
-
-function toFormDefaults(member: Member): Partial<MemberInput> {
-  const term = member.positions?.[currentTermKey()];
-  return {
-    name: member.name,
-    email: member.email,
-    phone: member.phone ?? "",
-    gender: member.gender,
-    profession: member.profession ?? "",
-    joinDate: dateInputValue(member.joinDate),
-    birthdate: dateInputValue(member.birthdate),
-    status: member.status,
-    cargoId: term?.cargoId ?? null,
-    comisionIds: term?.comisionIds ?? [],
-  };
-}
 
 function MemberProfilePage() {
   const { memberId } = Route.useParams();
@@ -70,9 +54,10 @@ function MemberProfilePage() {
     () => new Map((positions ?? []).map((p) => [p.id, p])),
     [positions],
   );
+  const termKey = currentTermKey();
   const roles = useMemo(
-    () => (member ? effectiveRoles(member, positionsById, currentTermKey()) : ["Member" as const]),
-    [member, positionsById],
+    () => (member ? effectiveRoles(member, positionsById, termKey) : ["Member" as const]),
+    [member, positionsById, termKey],
   );
 
   if (isLoading) return <p className="text-ink-3">Cargando…</p>;
@@ -91,15 +76,8 @@ function MemberProfilePage() {
   const canManagePositions = ability.can("manage", "Position");
   const showPositionsOnly = !canEdit && canManagePositions;
 
-  const handleEdit = async (data: MemberInput) => {
-    await updateMember.mutateAsync({ id: member.id, data });
-  };
-  const handleSetPositions = async (data: {
-    cargoId: string | null;
-    comisionIds: string[];
-  }) => {
-    await setPositions.mutateAsync(data);
-  };
+  const handleEdit = (data: MemberInput) => updateMember.mutateAsync({ id: member.id, data });
+  const handleSetPositions = (data: PositionsInput) => setPositions.mutateAsync(data);
 
   return (
     <div className="flex flex-col gap-6 motion-reduce:animate-none">
@@ -126,7 +104,7 @@ function MemberProfilePage() {
             <section className="rounded-card border border-line bg-surface p-5">
               <MemberForm
                 positions={positions}
-                defaultValues={toFormDefaults(member)}
+                defaultValues={memberFormDefaults(member)}
                 submitLabel="Guardar cambios"
                 pendingLabel="Guardando…"
                 onSubmit={handleEdit}
@@ -144,8 +122,8 @@ function MemberProfilePage() {
                 positions={positions}
                 gender={member.gender}
                 defaultValues={{
-                  cargoId: member.positions?.[currentTermKey()]?.cargoId ?? null,
-                  comisionIds: member.positions?.[currentTermKey()]?.comisionIds ?? [],
+                  cargoId: member.positions?.[termKey]?.cargoId ?? null,
+                  comisionIds: member.positions?.[termKey]?.comisionIds ?? [],
                 }}
                 onSubmit={handleSetPositions}
               />
@@ -161,7 +139,7 @@ function MemberProfilePage() {
           <MemberPositionHistory
             member={member}
             positionsById={positionsById}
-            currentTermKey={currentTermKey()}
+            currentTermKey={termKey}
           />
           <div className="flex flex-col items-center gap-3 rounded-card border border-line bg-surface px-6 py-5">
             <QrCode value={encodeMemberQr(member.id)} size={176} />

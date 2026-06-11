@@ -48,9 +48,8 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): ClaimsSyncDeps {
       const scannerEventIds = Array.isArray(claims?.scannerEventIds)
         ? (claims.scannerEventIds as unknown[]).filter((s): s is string => typeof s === "string")
         : undefined;
-      return scannerEventIds
-        ? { roles: rolesFromClaims(claims), scannerEventIds }
-        : { roles: rolesFromClaims(claims) };
+      const roles = rolesFromClaims(claims);
+      return scannerEventIds ? { roles, scannerEventIds } : { roles };
     },
     setClaims: async (uid, next) => {
       await auth.setCustomUserClaims(uid, next);
