@@ -18,7 +18,7 @@ const input: MemberInput = {
 
 describe("toMemberCreateDoc", () => {
   it("sets system defaults for a new member", () => {
-    const doc = toMemberCreateDoc(input);
+    const doc = toMemberCreateDoc(input, "");
     expect(doc).toMatchObject({
       name: "Ana Pérez",
       email: "ana@jci.bo",
@@ -34,14 +34,14 @@ describe("toMemberCreateDoc", () => {
   });
 
   it("converts date strings to Timestamps", () => {
-    const doc = toMemberCreateDoc(input);
+    const doc = toMemberCreateDoc(input, "");
     expect(doc.joinDate).toBeInstanceOf(Timestamp);
     expect(dateInputValue(doc.joinDate)).toBe("2020-03-15");
     expect(dateInputValue(doc.birthdate)).toBe("1992-07-01");
   });
 
   it("stores empty string for omitted optional fields", () => {
-    const doc = toMemberCreateDoc({ ...input, phone: undefined, profession: undefined });
+    const doc = toMemberCreateDoc({ ...input, phone: undefined, profession: undefined }, "");
     expect(doc.phone).toBe("");
     expect(doc.profession).toBe("");
   });
@@ -49,7 +49,7 @@ describe("toMemberCreateDoc", () => {
 
 describe("toMemberUpdateDoc", () => {
   it("includes editable fields but not system fields", () => {
-    const doc = toMemberUpdateDoc(input);
+    const doc = toMemberUpdateDoc(input, "");
     expect(doc).toMatchObject({ name: "Ana Pérez", status: "Activo" });
     expect(doc).not.toHaveProperty("active");
     expect(doc).not.toHaveProperty("totalPoints");
@@ -80,21 +80,40 @@ const posInput: MemberInput = {
 
 describe("member-mapper positions", () => {
   it("creates with current-term assignments and empty legacy role", () => {
-    const doc = toMemberCreateDoc(posInput, "2026");
+    const doc = toMemberCreateDoc(posInput, "uid-admin", "2026");
     expect(doc.positions).toEqual({
-      "2026": { cargoId: "pos-presidente", comisionIds: ["pos-etica"] },
+      "2026": { cargoId: "pos-presidente", comisionIds: ["pos-etica"], assignedBy: "uid-admin" },
     });
     expect(doc.role).toBe("");
     expect(doc.gender).toBe("Femenino");
   });
 
   it("updates only the current term via dot path (other terms untouched)", () => {
-    const doc = toMemberUpdateDoc(posInput, "2026");
+    const doc = toMemberUpdateDoc(posInput, "uid-admin", "2026");
     expect(doc["positions.2026"]).toEqual({
       cargoId: "pos-presidente",
       comisionIds: ["pos-etica"],
+      assignedBy: "uid-admin",
     });
     expect(doc).not.toHaveProperty("positions");
     expect(doc).not.toHaveProperty("role");
+  });
+
+  it("stamps assignedBy into the created term slot", () => {
+    const doc = toMemberCreateDoc(posInput, "uid-admin", "2026");
+    expect(doc.positions["2026"]).toEqual({
+      cargoId: posInput.cargoId,
+      comisionIds: posInput.comisionIds,
+      assignedBy: "uid-admin",
+    });
+  });
+
+  it("stamps assignedBy into the dot-path update slot", () => {
+    const doc = toMemberUpdateDoc(posInput, "uid-admin", "2026");
+    expect(doc["positions.2026"]).toEqual({
+      cargoId: posInput.cargoId,
+      comisionIds: posInput.comisionIds,
+      assignedBy: "uid-admin",
+    });
   });
 });
