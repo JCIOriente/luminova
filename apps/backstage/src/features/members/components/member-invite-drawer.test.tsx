@@ -44,7 +44,9 @@ describe("MemberInviteDrawer", () => {
 
   it("creates the member then provisions login when access is checked, reaching done", async () => {
     const onCreate = vi.fn().mockResolvedValue("new-id");
-    const onProvision = vi.fn().mockResolvedValue({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
+    const onProvision = vi
+      .fn()
+      .mockResolvedValue({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
     render(
       <MemberInviteDrawer
         open
@@ -65,7 +67,9 @@ describe("MemberInviteDrawer", () => {
   });
 
   it("skips provisioning when access is unchecked", async () => {
-    const onProvision = vi.fn().mockResolvedValue({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
+    const onProvision = vi
+      .fn()
+      .mockResolvedValue({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
     render(
       <MemberInviteDrawer
         open
@@ -96,7 +100,9 @@ describe("MemberInviteDrawer", () => {
     );
     fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
-    await waitFor(() => expect(screen.getByText(/Invitación enviada a ana@jci\.bo/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/Invitación enviada a ana@jci\.bo/)).toBeInTheDocument(),
+    );
     expect(screen.getByText(/recibirá un correo para crear su contraseña/i)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -109,7 +115,10 @@ describe("MemberInviteDrawer", () => {
         positions={[]}
         onClose={() => {}}
         onCreate={async () => "id4"}
-        onProvision={async () => ({ email: "ana@jci.bo", actionLink: "https://example.com/action-link" })}
+        onProvision={async () => ({
+          email: "ana@jci.bo",
+          actionLink: "https://example.com/action-link",
+        })}
       />,
     );
     fill();

@@ -98,9 +98,7 @@ export function PositionForm({
               void categoryField.onChange(e);
               setValue(
                 "term",
-                e.target.value === "JDL"
-                  ? (defaultValues?.term ?? new Date().getFullYear())
-                  : null,
+                e.target.value === "JDL" ? (defaultValues?.term ?? new Date().getFullYear()) : null,
               );
             }}
           >
