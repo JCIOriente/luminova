@@ -105,4 +105,11 @@ describe("toActivityUpdateDoc", () => {
     expect("photos" in doc).toBe(false);
     expect(doc.startAt.toDate().toISOString()).toBe("2026-06-06T18:00:00.000Z");
   });
+
+  it("update doc never touches photos/termId/status", () => {
+    const docData = toActivityUpdateDoc(BASIC_INPUT);
+    expect(Object.keys(docData).sort()).toEqual([
+      "category", "description", "endAt", "organizers", "parentId", "parentType", "startAt", "title",
+    ]);
+  });
 });

@@ -40,7 +40,7 @@ describe("InitiativeForm", () => {
     });
   });
 
-  it("blocks submit when the director is missing", async () => {
+  it("blocks submit when required fields are missing", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
     render(
