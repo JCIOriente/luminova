@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Button, Combobox, Field, MultiSelect } from "@luminova/ui";
 import { positionTitle, currentTermKey, type MemberGender, type Position } from "@luminova/types";
 
-export interface PositionsInput {
-  cargoId: string | null;
-  comisionIds: string[];
-}
+export const positionsSchema = z.object({
+  cargoId: z.string().min(1).nullable(),
+  comisionIds: z.array(z.string().min(1)),
+});
+
+export type PositionsInput = z.infer<typeof positionsSchema>;
 
 export function MemberPositionsForm({
   positions,
@@ -24,7 +28,7 @@ export function MemberPositionsForm({
     control,
     handleSubmit,
     formState: { isSubmitting },
-  } = useForm<PositionsInput>({ defaultValues });
+  } = useForm<PositionsInput>({ resolver: zodResolver(positionsSchema), defaultValues });
 
   const term = currentTermKey();
   const cargoOptions = positions
