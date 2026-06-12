@@ -213,9 +213,22 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // A parented activity inherits its parent initiative's direction. Standalone
+    // activities (parentId == null) stay Admin/ProjectManager-only. Organizers-as-
+    // individuals are not honored (rules can't iterate the array; no uid mirror).
+    function activityParentDirection() {
+      let coll = resource.data.get('parentType', '') == 'Program' ? 'programs' : 'projects';
+      return signedIn()
+        && resource.data.get('parentId', null) != null
+        && request.auth.uid in get(
+             /databases/$(database)/documents/$(coll)/$(resource.data.parentId)
+           ).data.get('directionUids', []);
+    }
+
     match /activities/{activityId} {
       allow read: if signedIn();
-      allow create, update: if hasAnyRole(['Admin', 'ProjectManager']);
+      allow create: if hasAnyRole(['Admin', 'ProjectManager']);
+      allow update: if hasAnyRole(['Admin', 'ProjectManager']) || activityParentDirection();
       allow delete: if false;
     }
 

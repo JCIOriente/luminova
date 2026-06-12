@@ -48,6 +48,20 @@ beforeAll(async () => {
     await setDoc(doc(db, "pointRules/r1"), { points: 10 });
     await setDoc(doc(db, "terms/2026"), { status: "Activo" });
     await setDoc(doc(db, "activities/act1"), { termId: "2026", category: "Assembly" });
+    await setDoc(doc(db, "activities/act_dir"), {
+      termId: "2026",
+      category: "ProjectExecution",
+      parentType: "Project",
+      parentId: "p_dir",
+      title: "Actividad del Proyecto Eco",
+    });
+    await setDoc(doc(db, "activities/act_standalone"), {
+      termId: "2026",
+      category: "Assembly",
+      parentType: null,
+      parentId: null,
+      title: "Actividad sin parent",
+    });
     await setDoc(doc(db, "checkIns/c1"), { memberId: "m1", activityId: "a1", role: "Attendee" });
     await setDoc(doc(db, "participations/part1"), { memberId: "m1", termId: "2026" });
     await setDoc(doc(db, "projects/p1"), { title: "P" });
@@ -797,6 +811,39 @@ describe("firestore.rules — positions", () => {
   it("denies ExecutiveCommittee resurrecting a soft-deleted position", async () => {
     await assertFails(
       updateDoc(doc(as("u", ["ExecutiveCommittee"]), "positions/pos_deleted"), { active: true }),
+    );
+  });
+});
+
+describe("firestore.rules — activity parent-initiative direction", () => {
+  it("lets the parent initiative's direction update a parented activity", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "activities/act_dir"), {
+        photos: [
+          {
+            id: "ph1",
+            url: "https://x/ph1.jpg",
+            caption: null,
+            uploadedAt: new Date("2026-06-12T00:00:00Z"),
+            uploadedBy: "m_owner",
+          },
+        ],
+      }),
+    );
+  });
+  it("still lets Admin update a parented activity", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "activities/act_dir"), { title: "Renombrada" }),
+    );
+  });
+  it("denies a non-direction member updating a parented activity", async () => {
+    await assertFails(
+      updateDoc(doc(as("stranger", ["Member"]), "activities/act_dir"), { title: "Hack" }),
+    );
+  });
+  it("denies a direction member updating a standalone activity (no parent direction)", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "activities/act_standalone"), { title: "X" }),
     );
   });
 });
