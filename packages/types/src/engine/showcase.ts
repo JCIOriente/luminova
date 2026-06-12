@@ -1,9 +1,15 @@
 import type { Timestamp } from "./timestamp.js";
-import type { AreaOfOpportunity, InitiativeImpact, Photo } from "./initiative.js";
+import type { AreaOfOpportunity, InitiativeImpact } from "./initiative.js";
 import type { InitiativeKind } from "./activity.js";
 
 export interface ShowcasePerson {
   name: string;
+}
+
+export interface ShowcasePhoto {
+  id: string;
+  url: string;
+  caption: string | null;
 }
 
 export interface ShowcaseTeam {
@@ -28,6 +34,6 @@ export interface ShowcaseItem {
   endDate: Timestamp;
   completedAt: Timestamp;
   impact: InitiativeImpact;
-  photos: Photo[];
+  photos: ShowcasePhoto[];
   team: ShowcaseTeam;
 }

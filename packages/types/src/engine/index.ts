@@ -14,7 +14,7 @@ export {
   AREAS_OF_OPPORTUNITY,
   AREA_OF_OPPORTUNITY_LABELS,
 } from "./initiative.js";
-export type { ShowcasePerson, ShowcaseTeam, ShowcaseItem } from "./showcase.js";
+export type { ShowcasePerson, ShowcaseTeam, ShowcasePhoto, ShowcaseItem } from "./showcase.js";
 export type { Term, BoardSeat, TermStatus } from "./term.js";
 export { TERM_STATUSES } from "./term.js";
 export type { Program } from "./program.js";

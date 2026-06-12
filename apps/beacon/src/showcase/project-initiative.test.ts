@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Timestamp } from "firebase-admin/firestore";
-import { projectInitiative } from "./project-initiative.js";
+import { projectInitiative, rosterMemberIds } from "./project-initiative.js";
 
 const ts = (ms: number) => Timestamp.fromMillis(ms);
 
@@ -42,6 +42,8 @@ describe("projectInitiative", () => {
     expect(item!.team.members).toEqual([{ name: "Caro" }]); // m_missing dropped
     expect(item!.impact.personsImpacted).toBe(1200);
     expect(item!.photos).toHaveLength(1);
+    expect(item!.photos[0]).toEqual({ id: "ph1", url: "https://x/y?token=1", caption: null });
+    expect(item!.photos[0]).not.toHaveProperty("uploadedBy");
   });
 
   it("returns null when not Finalizado", () => {
@@ -68,5 +70,27 @@ describe("projectInitiative", () => {
       resolve,
     );
     expect(item!.team.director).toBeNull();
+  });
+
+  it("drops path-unsafe roster ids (no path injection)", () => {
+    const item = projectInitiative(
+      "Project",
+      "p1",
+      completedDoc({ roster: { directorId: "a/b", coDirectorIds: ["x__y"], teamIds: ["m3"] } }),
+      resolve,
+    );
+    expect(item!.team.director).toBeNull();
+    expect(item!.team.coDirectors).toEqual([]);
+    expect(item!.team.members).toEqual([{ name: "Caro" }]);
+  });
+});
+
+describe("rosterMemberIds", () => {
+  it("excludes path-unsafe ids", () => {
+    expect(
+      rosterMemberIds({
+        roster: { directorId: "a/b", coDirectorIds: ["x__y", "m2"], teamIds: ["m3"] },
+      }),
+    ).toEqual(["m2", "m3"]);
   });
 });

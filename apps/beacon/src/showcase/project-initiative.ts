@@ -7,21 +7,26 @@ import {
   type Photo,
   type ShowcaseItem,
   type ShowcasePerson,
+  type ShowcasePhoto,
 } from "@luminova/types/engine";
+import { isCleanId } from "../award-points/ids.js";
 
 function isTimestamp(v: unknown): v is Timestamp {
   return typeof (v as { toMillis?: unknown })?.toMillis === "function";
 }
 
-function asPhotos(v: unknown): Photo[] {
+function asPhotos(v: unknown): ShowcasePhoto[] {
   if (!Array.isArray(v)) return [];
-  return v.filter(
-    (p): p is Photo =>
-      typeof p === "object" &&
-      p !== null &&
-      typeof (p as Photo).url === "string" &&
-      isTimestamp((p as Photo).uploadedAt),
-  );
+  return v
+    .filter(
+      (p): p is Photo =>
+        typeof p === "object" && p !== null && typeof (p as Photo).url === "string",
+    )
+    .map((p) => ({
+      id: typeof p.id === "string" ? p.id : "",
+      url: p.url,
+      caption: typeof p.caption === "string" ? p.caption : null,
+    }));
 }
 
 function asImpact(v: unknown): InitiativeImpact | null {
@@ -32,7 +37,14 @@ function asImpact(v: unknown): InitiativeImpact | null {
     personsImpacted: i.personsImpacted,
     volunteers: i.volunteers,
     closingSummary: i.closingSummary,
-    custom: Array.isArray(i.custom) ? i.custom : [],
+    custom: Array.isArray(i.custom)
+      ? i.custom
+          .filter((c) => typeof c === "object" && c !== null)
+          .map((c) => ({
+            label: String((c as { label?: unknown }).label ?? ""),
+            value: String((c as { value?: unknown }).value ?? ""),
+          }))
+      : [],
   };
 }
 
@@ -99,5 +111,14 @@ export function rosterMemberIds(data: Record<string, unknown>): string[] {
     ...(r.directorId ? [r.directorId] : []),
     ...(r.coDirectorIds ?? []),
     ...(r.teamIds ?? []),
-  ];
+  ].filter(isCleanId);
+}
+
+/** Cheap eligibility check: only completed initiatives with impact + filed report are projected. */
+export function isProjectable(data: Record<string, unknown>): boolean {
+  return (
+    data.status === "Finalizado" &&
+    data.impact != null &&
+    (data.finalReport as { filedAt?: unknown } | null)?.filedAt != null
+  );
 }

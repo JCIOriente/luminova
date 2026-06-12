@@ -9,7 +9,11 @@ import {
   processCheckInDelete,
   processInitiativeWrite,
 } from "./award-points/process.js";
-import { projectInitiative, rosterMemberIds } from "./showcase/project-initiative.js";
+import {
+  isProjectable,
+  projectInitiative,
+  rosterMemberIds,
+} from "./showcase/project-initiative.js";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
 import { parseMember } from "./claims-sync/parse-member.js";
@@ -48,7 +52,7 @@ async function projectShowcase(
   data: Record<string, unknown> | undefined,
 ): Promise<void> {
   const ref = database.doc(`showcase/${id}`);
-  if (!data) {
+  if (!data || !isProjectable(data)) {
     await ref.delete();
     return;
   }
@@ -86,12 +90,16 @@ function initiativeTrigger(collection: "programs" | "projects") {
       const stamp = after.createTime ?? Timestamp.now();
       await processInitiativeWrite(store, parentType, event.params.id, init, stamp);
       // Projection runs after engine work so a showcase error never pre-empts points.
-      await projectShowcase(
-        db(),
-        parentType,
-        event.params.id,
-        after.data() as Record<string, unknown>,
-      );
+      try {
+        await projectShowcase(
+          db(),
+          parentType,
+          event.params.id,
+          after.data() as Record<string, unknown>,
+        );
+      } catch (err) {
+        console.error("showcase projection failed", { id: event.params.id, err });
+      }
       return;
     }
     // Initiative deleted — reconcile to an empty roster so its rows are voided.
@@ -111,7 +119,11 @@ function initiativeTrigger(collection: "programs" | "projects") {
         },
         before.createTime ?? Timestamp.now(),
       );
-      await projectShowcase(db(), parentType, event.params.id, undefined);
+      try {
+        await projectShowcase(db(), parentType, event.params.id, undefined);
+      } catch (err) {
+        console.error("showcase projection failed", { id: event.params.id, err });
+      }
     }
   });
 }
