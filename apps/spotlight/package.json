@@ -15,9 +15,12 @@
     "@fontsource/arvo": "^5.2.7",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/plus-jakarta-sans": "^5.2.8",
+    "@luminova/firebase": "workspace:*",
+    "@luminova/types": "workspace:*",
     "@luminova/ui": "workspace:*",
     "@tanstack/react-router": "^1.170.11",
     "clsx": "^2.1.1",
+    "firebase": "12.14.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
