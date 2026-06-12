@@ -3,8 +3,10 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button, EmptyState, Icon, Sheet, Dialog, Toast } from "@luminova/ui";
 import type { ComboboxOption } from "@luminova/ui";
+import { ACTIVITY_CATEGORIES } from "@luminova/types";
 import type { Activity, ActivityInput } from "@luminova/types";
-import { Can } from "../lib/authz/ability-context";
+import { STANDALONE_CATEGORIES } from "../features/activities/lib/categories";
+import { Can, useAbility } from "../lib/authz/ability-context";
 import { PageHeader } from "../components/page-header";
 import { currentTermKey } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
@@ -18,27 +20,15 @@ import { ActivityRepository } from "../features/activities/repositories/activity
 import { ActivityLockedError } from "../features/activities/repositories/activity-guard";
 import { ActivityForm } from "../features/activities/components/activity-form";
 import { ActivityTable } from "../features/activities/components/activity-table";
+import { activityToInput } from "../features/activities/lib/activity-to-input";
 
 export const Route = createFileRoute("/_app/activities")({ component: ActivitiesPage });
 
 type Editing = Activity | "new" | null;
 
-function activityToInput(a: Activity): Partial<ActivityInput> {
-  return {
-    title: a.title,
-    description: a.description ?? "",
-    category: a.category,
-    parentType: a.parentType,
-    parentId: a.parentId,
-    startAt: new Date(a.startAt.toMillis()).toISOString().slice(0, 16),
-    endAt: a.endAt === null ? null : new Date(a.endAt.toMillis()).toISOString().slice(0, 16),
-    directorId: a.organizers.directorId,
-    coDirectorIds: a.organizers.coDirectorIds,
-  };
-}
-
 function ActivitiesPage() {
   const termId = currentTermKey();
+  const canManage = useAbility().can("update", "Activity");
   const { data: activities, isLoading, isError } = useActivitiesByTerm(termId);
   const { data: members } = useMembers();
   const { data: programs } = useProgramsByTerm(termId);
@@ -122,7 +112,12 @@ function ActivitiesPage() {
         />
       )}
       {activities && activities.length > 0 && (
-        <ActivityTable activities={activities} onEdit={setEditing} onCancel={setCancelTarget} />
+        <ActivityTable
+          activities={activities}
+          onEdit={setEditing}
+          onCancel={setCancelTarget}
+          canManage={canManage}
+        />
       )}
 
       <Sheet
@@ -134,6 +129,7 @@ function ActivitiesPage() {
           <ActivityForm
             key={editing === "new" ? "new" : editing.id}
             defaultValues={editing === "new" ? undefined : activityToInput(editing)}
+            categoryOptions={editing === "new" ? STANDALONE_CATEGORIES : ACTIVITY_CATEGORIES}
             memberOptions={memberOptions}
             programOptions={programOptions}
             projectOptions={projectOptions}

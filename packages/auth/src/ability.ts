@@ -47,6 +47,10 @@ function applyRole(role: Role, claims: AuthClaims, uid: string, can: Can): void 
       break;
     case "Scanner":
       can("checkIn", "Attendance", { eventId: { $in: claims.scannerEventIds ?? [] } });
+      // Reach the activity list + detail page (the new home of check-in). Activities
+      // are signed-in-readable in firestore.rules; this only opens the backstage UI.
+      // Member directory stays closed (no read Member) — Scanner is QR-scan-primary.
+      can("read", "Activity");
       break;
     case "Member":
       can(["read", "update"], "Member", { uid });

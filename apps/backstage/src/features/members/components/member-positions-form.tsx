@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Button, Combobox, Field, MultiSelect } from "@luminova/ui";
 import { positionTitle, currentTermKey, type MemberGender, type Position } from "@luminova/types";
 
-export const positionsSchema = z.object({
+const positionsSchema = z.object({
   cargoId: z.string().min(1).nullable(),
   comisionIds: z.array(z.string().min(1)),
 });

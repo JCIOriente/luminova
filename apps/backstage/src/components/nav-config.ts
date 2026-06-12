@@ -24,7 +24,6 @@ export interface NavItem {
     | "/leaderboard"
     | "/activities"
     | "/initiatives"
-    | "/check-in"
     | "/positions"
     | "/permisos";
   label: string;
@@ -82,13 +81,6 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Proyectos",
         icon: "briefcase",
         anySubject: ["Program", "Project"],
-      },
-      {
-        to: "/check-in",
-        label: "Check-in",
-        icon: "qr",
-        subject: "Attendance",
-        action: "checkIn",
       },
     ],
   },

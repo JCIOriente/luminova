@@ -10,7 +10,12 @@ import {
   MultiSelect,
   type ComboboxOption,
 } from "@luminova/ui";
-import { activitySchema, type ActivityInput, ACTIVITY_CATEGORIES } from "@luminova/types";
+import {
+  activitySchema,
+  type ActivityInput,
+  type ActivityCategory,
+  ACTIVITY_CATEGORIES,
+} from "@luminova/types";
 import { CATEGORY_LABELS } from "../category-labels";
 import { ParentPicker } from "./parent-picker";
 
@@ -19,6 +24,8 @@ interface ActivityFormProps {
   memberOptions: ComboboxOption[];
   programOptions: ComboboxOption[];
   projectOptions: ComboboxOption[];
+  /** Restrict the category select (default: all categories). */
+  categoryOptions?: readonly ActivityCategory[];
   /** Lock category + startAt (edit mode with existing check-ins). */
   locked?: boolean;
   /** Fix category to ProjectExecution and hide category + parent picker (child-activity create). */
@@ -42,6 +49,7 @@ const EMPTY: ActivityInput = {
 
 export function ActivityForm({
   defaultValues,
+  categoryOptions = ACTIVITY_CATEGORIES,
   memberOptions,
   programOptions,
   projectOptions,
@@ -86,7 +94,7 @@ export function ActivityForm({
       {!lockParent && (
         <Field label="Categoría" htmlFor="category" required error={errors.category?.message}>
           <Select id="category" disabled={locked} {...register("category")}>
-            {ACTIVITY_CATEGORIES.map((c) => (
+            {categoryOptions.map((c) => (
               <option key={c} value={c}>
                 {CATEGORY_LABELS[c]}
               </option>
