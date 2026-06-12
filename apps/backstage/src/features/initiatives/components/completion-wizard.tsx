@@ -52,7 +52,7 @@ export function CompletionWizard({
   };
 
   const goToStep3 = async () => {
-    if (await trigger(["personsImpacted", "volunteers"])) setStep(3);
+    if (await trigger(["personsImpacted", "volunteers", "custom"])) setStep(3);
   };
 
   return (

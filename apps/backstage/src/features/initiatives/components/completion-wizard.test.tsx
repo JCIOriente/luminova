@@ -41,6 +41,19 @@ describe("CompletionWizard", () => {
     expect(screen.queryByText(/destacadas/i)).not.toBeInTheDocument();
   });
 
+  it("blocks advancing to step 3 when a custom metric is left blank", async () => {
+    const user = userEvent.setup();
+    const onComplete = renderWizard();
+    await user.type(screen.getByLabelText(/resumen de cierre/i), "Cierre con métrica vacía.");
+    await user.click(screen.getByRole("button", { name: /siguiente/i }));
+    await user.type(screen.getByLabelText(/personas impactadas/i), "10");
+    await user.type(screen.getByLabelText(/voluntarios/i), "2");
+    await user.click(screen.getByRole("button", { name: /agregar métrica/i }));
+    await user.click(screen.getByRole("button", { name: /siguiente/i }));
+    await waitFor(() => expect(onComplete).not.toHaveBeenCalled());
+    expect(screen.queryByText(/destacadas/i)).not.toBeInTheDocument();
+  });
+
   it("submits the full impact trio including a custom metric", async () => {
     const user = userEvent.setup();
     const onComplete = renderWizard();

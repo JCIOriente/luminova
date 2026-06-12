@@ -188,7 +188,7 @@ function InitiativeDetailPage() {
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 flex flex-col gap-6">
             {item.impact ? (
-              <InitiativeCompleted impact={item.impact} activities={children} item={item} />
+              <InitiativeCompleted impact={item.impact} activities={children} />
             ) : (
               <InitiativeSummary item={item} progress={progress} />
             )}
