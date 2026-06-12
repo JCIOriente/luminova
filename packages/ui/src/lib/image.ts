@@ -24,9 +24,13 @@ export interface CropRect {
   height: number;
 }
 
-export async function cropAndCompress(imageSrc: string, crop: CropRect): Promise<Blob> {
+export async function cropAndCompress(
+  imageSrc: string,
+  crop: CropRect,
+  maxEdge: number = IMAGE_MAX_EDGE,
+): Promise<Blob> {
   const img = await loadImage(imageSrc);
-  const out = fittedDimensions(crop.width, crop.height, IMAGE_MAX_EDGE);
+  const out = fittedDimensions(crop.width, crop.height, maxEdge);
   const canvas = document.createElement("canvas");
   canvas.width = out.width;
   canvas.height = out.height;

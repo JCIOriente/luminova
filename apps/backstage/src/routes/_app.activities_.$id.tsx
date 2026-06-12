@@ -7,7 +7,9 @@ import type { ActivityInput, Member } from "@luminova/types";
 import { currentTermKey } from "@luminova/types";
 import { subject } from "@luminova/auth/ability";
 import { useAbility } from "../lib/authz/ability-context";
+import { useAuth } from "../lib/auth/auth";
 import { useActivity } from "../features/activities/hooks/use-activity";
+import { useActivityPhotos } from "../features/activities/hooks/use-activity-photos";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useProgramsByTerm } from "../features/programs/hooks/use-programs-by-term";
 import { useProjectsByTerm } from "../features/projects/hooks/use-projects-by-term";
@@ -20,6 +22,9 @@ import { ActivityDetailHero } from "../features/activities/components/activity-d
 import { ActivityCheckIn } from "../features/check-in/components/activity-check-in";
 import { activityToInput } from "../features/activities/lib/activity-to-input";
 import { activityKeys } from "../features/activities/hooks/activity-keys";
+import { PhotoManager } from "../features/initiatives/components/photo-manager";
+import { PhotoGallery } from "../features/initiatives/components/photo-gallery";
+import { useInitiative, INITIATIVE_TYPE } from "../features/initiatives/hooks/use-initiative";
 
 export const Route = createFileRoute("/_app/activities_/$id")({ component: ActivityDetailPage });
 
@@ -29,6 +34,8 @@ function ActivityDetailPage() {
   const { id } = Route.useParams();
   const termId = currentTermKey();
   const ability = useAbility();
+  const { user } = useAuth();
+  const uid = user?.uid ?? null;
 
   const canRead = ability.can("read", "Activity");
   const canUpdate = ability.can("update", "Activity");
@@ -49,6 +56,22 @@ function ActivityDetailPage() {
 
   const update = useUpdateActivity(termId);
   const cancelActivity = useCancelActivity(termId);
+
+  const parentType = activity?.parentType ?? null;
+  const parentId = activity?.parentId ?? null;
+  const photoActions = useActivityPhotos(id, termId);
+  const parentInitiative = useInitiative(
+    parentType ? INITIATIVE_TYPE[parentType] : "project",
+    parentId ?? "",
+    {
+      enabled: parentId !== null && ability.can("read", parentType ?? "Project"),
+    },
+  );
+  const isParentDirection =
+    uid !== null &&
+    parentId !== null &&
+    (parentInitiative.data?.directionUids.includes(uid) ?? false);
+  const canManagePhotos = canUpdate || isParentDirection;
 
   const memberById = useMemo(
     () => new Map<string, Member>((members ?? []).map((m) => [m.id, m])),
@@ -135,7 +158,7 @@ function ActivityDetailPage() {
     setCancelOpen(false);
   };
 
-  const hasDetalle = Boolean(activity.description) || activity.photos.length > 0;
+  const hasDetalle = Boolean(activity.description) || activity.photos.length > 0 || canManagePhotos;
 
   // The check-in tab is only meaningful to users who can register attendance for
   // this activity; hide it from everyone else instead of showing a dead "Sin acceso".
@@ -191,17 +214,16 @@ function ActivityDetailPage() {
               {activity.description}
             </p>
           )}
-          {activity.photos.length > 0 && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {activity.photos.map((photo, i) => (
-                <img
-                  key={photo.url}
-                  src={photo.url}
-                  alt={`${activity.title} — foto ${i + 1}`}
-                  className="aspect-[4/3] w-full rounded-card border border-line object-cover"
-                />
-              ))}
-            </div>
+          {canManagePhotos ? (
+            <PhotoManager
+              photos={activity.photos}
+              onUpload={(blob) => photoActions.addPhoto(blob)}
+              onRemove={photoActions.removePhotoById}
+              onSetCover={photoActions.setCover}
+              onSetCaption={photoActions.setCaption}
+            />
+          ) : (
+            activity.photos.length > 0 && <PhotoGallery photos={activity.photos} showCover />
           )}
           {!hasDetalle && (
             <EmptyState

@@ -75,3 +75,9 @@ export function getStorageService(): FirebaseStorage {
 }
 
 export { uploadMemberPhoto, deleteMemberPhoto } from "./member-photo";
+export {
+  uploadInitiativePhoto,
+  deleteInitiativePhoto,
+  uploadActivityPhoto,
+  deleteActivityPhoto,
+} from "./photo-storage";

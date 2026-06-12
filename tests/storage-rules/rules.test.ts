@@ -9,7 +9,7 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { doc, setDoc } from "firebase/firestore";
-import { getBytes, ref, uploadBytes } from "firebase/storage";
+import { getBytes, ref, uploadBytes, deleteObject } from "firebase/storage";
 
 let env: RulesTestEnvironment;
 
@@ -49,6 +49,38 @@ beforeAll(async () => {
       totalPoints: 0,
       active: true,
       deletedAt: null,
+    });
+    await setDoc(doc(ctx.firestore(), "projects/proj1"), {
+      termId: "2026",
+      title: "Proyecto Uno",
+      directionUids: ["dir-uid"],
+    });
+    await setDoc(doc(ctx.firestore(), "activities/act_child"), {
+      termId: "2026",
+      title: "Curso A",
+      parentType: "Project",
+      parentId: "proj1",
+    });
+    await setDoc(doc(ctx.firestore(), "activities/act_standalone"), {
+      termId: "2026",
+      title: "Asamblea",
+      parentType: null,
+      parentId: null,
+    });
+    await setDoc(doc(ctx.firestore(), "programs/prog1"), {
+      termId: "2026",
+      title: "Programa Uno",
+      directionUids: ["dir-uid"],
+    });
+    await setDoc(doc(ctx.firestore(), "projects/proj_nodir"), {
+      termId: "2026",
+      title: "Sin Direccion",
+    });
+    await setDoc(doc(ctx.firestore(), "activities/act_prog_child"), {
+      termId: "2026",
+      title: "Curso Programa",
+      parentType: "Program",
+      parentId: "prog1",
     });
   });
 });
@@ -113,5 +145,124 @@ describe("storage.rules — member profile photos", () => {
     await assertFails(
       uploadBytes(ref(storageAs("admin1", ["Admin"]), "members/m1/evil.exe"), PHOTO, JPEG),
     );
+  });
+});
+
+const PROJ_PHOTO = "projects/proj1/photos/ph1.jpg";
+const ACT_CHILD_PHOTO = "activities/act_child/photos/ph1.jpg";
+const ACT_STANDALONE_PHOTO = "activities/act_standalone/photos/ph1.jpg";
+
+describe("storage.rules — initiative photos", () => {
+  it("allows Admin to write", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), PROJ_PHOTO), PHOTO, JPEG));
+  });
+  it("allows ProjectManager to write", async () => {
+    await assertSucceeds(
+      uploadBytes(ref(storageAs("a", ["ProjectManager"]), PROJ_PHOTO), PHOTO, JPEG),
+    );
+  });
+  it("allows the initiative direction to write", async () => {
+    await assertSucceeds(
+      uploadBytes(ref(storageAs("dir-uid", ["Member"]), PROJ_PHOTO), PHOTO, JPEG),
+    );
+  });
+  it("denies a non-direction member", async () => {
+    await assertFails(uploadBytes(ref(storageAs("stranger", ["Member"]), PROJ_PHOTO), PHOTO, JPEG));
+  });
+  it("denies anonymous", async () => {
+    await assertFails(uploadBytes(ref(storageAnon(), PROJ_PHOTO), PHOTO, JPEG));
+  });
+  it("denies a non-jpeg even for Admin", async () => {
+    await assertFails(
+      uploadBytes(ref(storageAs("a", ["Admin"]), PROJ_PHOTO), PHOTO, {
+        contentType: "application/octet-stream",
+      }),
+    );
+  });
+  it("denies oversize even for Admin", async () => {
+    await assertFails(
+      uploadBytes(
+        ref(storageAs("a", ["Admin"]), PROJ_PHOTO),
+        new Uint8Array(5 * 1024 * 1024 + 1),
+        JPEG,
+      ),
+    );
+  });
+  it("allows any signed-in user to read", async () => {
+    await assertSucceeds(getBytes(ref(storageAs("any", ["Member"]), PROJ_PHOTO)));
+  });
+});
+
+describe("storage.rules — activity photos", () => {
+  it("allows Admin to write a parented activity photo", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), ACT_CHILD_PHOTO), PHOTO, JPEG));
+  });
+  it("allows the parent initiative's direction to write", async () => {
+    await assertSucceeds(
+      uploadBytes(ref(storageAs("dir-uid", ["Member"]), ACT_CHILD_PHOTO), PHOTO, JPEG),
+    );
+  });
+  it("denies a non-direction member on a parented activity", async () => {
+    await assertFails(
+      uploadBytes(ref(storageAs("stranger", ["Member"]), ACT_CHILD_PHOTO), PHOTO, JPEG),
+    );
+  });
+  it("allows Admin on a standalone activity", async () => {
+    await assertSucceeds(
+      uploadBytes(ref(storageAs("a", ["Admin"]), ACT_STANDALONE_PHOTO), PHOTO, JPEG),
+    );
+  });
+  it("denies a member (no parent direction) on a standalone activity", async () => {
+    await assertFails(
+      uploadBytes(ref(storageAs("dir-uid", ["Member"]), ACT_STANDALONE_PHOTO), PHOTO, JPEG),
+    );
+  });
+});
+
+const PROG_PHOTO = "programs/prog1/photos/ph1.jpg";
+const PROJ_NODIR_PHOTO = "projects/proj_nodir/photos/ph1.jpg";
+const ACT_PROG_CHILD_PHOTO = "activities/act_prog_child/photos/ph1.jpg";
+
+describe("storage.rules — programs path + Program-parented activity + missing directionUids", () => {
+  it("allows Admin to write a program photo", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), PROG_PHOTO), PHOTO, JPEG));
+  });
+  it("allows the program's direction to write", async () => {
+    await assertSucceeds(
+      uploadBytes(ref(storageAs("dir-uid", ["Member"]), PROG_PHOTO), PHOTO, JPEG),
+    );
+  });
+  it("denies a non-direction member on a program photo", async () => {
+    await assertFails(uploadBytes(ref(storageAs("stranger", ["Member"]), PROG_PHOTO), PHOTO, JPEG));
+  });
+  it("allows the parent PROGRAM's direction to write an activity photo", async () => {
+    await assertSucceeds(
+      uploadBytes(ref(storageAs("dir-uid", ["Member"]), ACT_PROG_CHILD_PHOTO), PHOTO, JPEG),
+    );
+  });
+  it("denies a non-direction member on a Program-parented activity", async () => {
+    await assertFails(
+      uploadBytes(ref(storageAs("stranger", ["Member"]), ACT_PROG_CHILD_PHOTO), PHOTO, JPEG),
+    );
+  });
+  it("denies (does not error) a member on an initiative lacking directionUids", async () => {
+    await assertFails(
+      uploadBytes(ref(storageAs("anyone", ["Member"]), PROJ_NODIR_PHOTO), PHOTO, JPEG),
+    );
+  });
+});
+
+describe("storage.rules — photo deletes (request.resource is null on delete)", () => {
+  it("lets an editor delete an initiative photo (not gated on isValidPhoto)", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), PROJ_PHOTO), PHOTO, JPEG));
+    await assertSucceeds(deleteObject(ref(storageAs("dir-uid", ["Member"]), PROJ_PHOTO)));
+  });
+  it("lets an editor delete an activity photo", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), ACT_CHILD_PHOTO), PHOTO, JPEG));
+    await assertSucceeds(deleteObject(ref(storageAs("a", ["Admin"]), ACT_CHILD_PHOTO)));
+  });
+  it("denies a non-editor deleting an initiative photo", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), PROG_PHOTO), PHOTO, JPEG));
+    await assertFails(deleteObject(ref(storageAs("stranger", ["Member"]), PROG_PHOTO)));
   });
 });

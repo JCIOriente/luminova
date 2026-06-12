@@ -17,12 +17,15 @@ import { useAbility } from "../lib/authz/ability-context";
 import { useAuth } from "../lib/auth/auth";
 import { CompletionWizard } from "../features/initiatives/components/completion-wizard";
 import { useCompleteInitiative } from "../features/initiatives/hooks/use-complete-initiative";
+import { useInitiativePhotos } from "../features/initiatives/hooks/use-initiative-photos";
 import { InitiativeForm } from "../components/initiative-form";
 import { InitiativeHero } from "../features/initiatives/components/initiative-hero";
 import { InitiativeSummary } from "../features/initiatives/components/initiative-summary";
 import { InitiativeTeamRail } from "../features/initiatives/components/initiative-team-rail";
 import { InitiativeActivities } from "../features/initiatives/components/initiative-activities";
 import { InitiativeCompleted } from "../features/initiatives/components/initiative-completed";
+import { PhotoManager } from "../features/initiatives/components/photo-manager";
+import { PhotoGallery } from "../features/initiatives/components/photo-gallery";
 import { ActivityForm } from "../features/activities/components/activity-form";
 import { currentTermKey } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
@@ -74,6 +77,7 @@ function InitiativeDetailPage() {
   const updateProject = useUpdateProject(termId);
   const completeInitiative = useCompleteInitiative(initiativeType, termId);
   const createActivity = useCreateActivity(termId);
+  const photoActions = useInitiativePhotos(initiativeType, id, item?.termId ?? termId);
 
   const [tab, setTab] = useState<Tab>("resumen");
   const [editOpen, setEditOpen] = useState(false);
@@ -104,6 +108,7 @@ function InitiativeDetailPage() {
   const isDirection = uid !== null && item.directionUids.includes(uid);
   const isCompleted = item.status === "Finalizado" || item.finalReport !== null;
   const canComplete = (canUpdate || isDirection) && !isCompleted;
+  const canManagePhotos = canUpdate || isDirection;
   const kindLabel = item.kind === "Program" ? "programa" : "proyecto";
 
   const acts = activities ?? [];
@@ -181,12 +186,26 @@ function InitiativeDetailPage() {
 
       {tab === "resumen" && (
         <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 flex flex-col gap-6">
             {item.impact ? (
-              <InitiativeCompleted impact={item.impact} />
+              <InitiativeCompleted impact={item.impact} activities={children} />
             ) : (
               <InitiativeSummary item={item} progress={progress} />
             )}
+            <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+              <h2 className="text-[15px] font-semibold text-ink-1">Destacadas</h2>
+              {canManagePhotos ? (
+                <PhotoManager
+                  photos={item.photos}
+                  onUpload={photoActions.addPhoto}
+                  onRemove={photoActions.removePhotoById}
+                  onSetCover={photoActions.setCover}
+                  onSetCaption={photoActions.setCaption}
+                />
+              ) : (
+                <PhotoGallery photos={item.photos} showCover />
+              )}
+            </section>
           </div>
           <aside>
             <InitiativeTeamRail team={team} />
@@ -218,6 +237,11 @@ function InitiativeDetailPage() {
           initiativeLabel={kindLabel}
           isSaving={completeInitiative.isPending}
           onComplete={(impact) => void handleComplete(impact)}
+          photos={item.photos}
+          onUploadPhoto={photoActions.addPhoto}
+          onRemovePhoto={photoActions.removePhotoById}
+          onSetCover={photoActions.setCover}
+          onSetCaption={photoActions.setCaption}
         />
       </Sheet>
 

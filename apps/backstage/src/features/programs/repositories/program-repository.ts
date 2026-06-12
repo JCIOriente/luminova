@@ -7,14 +7,20 @@ import {
   updateDoc,
   query,
   where,
+  arrayUnion,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import type { Program, ProgramInput, InitiativeImpactInput } from "@luminova/types";
+import type { Program, ProgramInput, InitiativeImpactInput, Photo } from "@luminova/types";
 import {
   toInitiativeCreateDoc,
   toInitiativeUpdateDoc,
   toInitiativeCompleteDoc,
 } from "../../initiatives/repositories/initiative-mapper";
+import {
+  removePhoto as dropPhoto,
+  moveCover,
+  setCaption as relabel,
+} from "../../initiatives/repositories/photo-array";
 
 export class ProgramRepository {
   private readonly collection = collection(getFirebase().db, "programs");
@@ -44,5 +50,27 @@ export class ProgramRepository {
   /** The completion wizard's atomic trio write — the engine confirmation gate. */
   async complete(id: string, impact: InitiativeImpactInput, uid: string): Promise<void> {
     await updateDoc(doc(this.collection, id), toInitiativeCompleteDoc(impact, uid));
+  }
+
+  async addPhoto(id: string, photo: Photo): Promise<void> {
+    await updateDoc(doc(this.collection, id), { photos: arrayUnion(photo) });
+  }
+
+  async removePhoto(id: string, photoId: string): Promise<void> {
+    const row = await this.getById(id);
+    if (!row) throw new Error("Iniciativa no encontrada.");
+    await updateDoc(doc(this.collection, id), { photos: dropPhoto(row.photos, photoId) });
+  }
+
+  async setCover(id: string, photoId: string): Promise<void> {
+    const row = await this.getById(id);
+    if (!row) throw new Error("Iniciativa no encontrada.");
+    await updateDoc(doc(this.collection, id), { photos: moveCover(row.photos, photoId) });
+  }
+
+  async setCaption(id: string, photoId: string, caption: string): Promise<void> {
+    const row = await this.getById(id);
+    if (!row) throw new Error("Iniciativa no encontrada.");
+    await updateDoc(doc(this.collection, id), { photos: relabel(row.photos, photoId, caption) });
   }
 }

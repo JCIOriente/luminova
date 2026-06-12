@@ -207,6 +207,9 @@ importers:
 
   packages/firebase:
     dependencies:
+      '@luminova/types':
+        specifier: workspace:*
+        version: link:../types
       firebase:
         specifier: 12.14.0
         version: 12.14.0
