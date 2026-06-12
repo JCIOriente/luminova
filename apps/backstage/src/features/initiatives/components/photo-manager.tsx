@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { Photo } from "@luminova/types";
-import { ImageUploader, Input } from "@luminova/ui";
+import { Badge, ImageUploader, Input } from "@luminova/ui";
 
 interface PhotoManagerProps {
   photos: Photo[];
@@ -89,9 +89,9 @@ function PhotoThumbnail({
       </div>
 
       {isCover && (
-        <span className="absolute top-2 left-2 rounded-pill bg-jci-yellow/22 px-2 py-0.5 text-[12px] font-semibold text-ink-1">
+        <Badge tone="amber" className="absolute top-2 left-2">
           Portada
-        </span>
+        </Badge>
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-2">

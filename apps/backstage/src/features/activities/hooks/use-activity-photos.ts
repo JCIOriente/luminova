@@ -13,8 +13,10 @@ export function useActivityPhotos(activityId: string, termId: string) {
   const repo = useMemo(() => new ActivityRepository(), []);
 
   const invalidate = useCallback(async () => {
-    await qc.invalidateQueries({ queryKey: activityKeys.byId(activityId) });
-    await qc.invalidateQueries({ queryKey: activityKeys.byTerm(termId) });
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: activityKeys.byId(activityId) }),
+      qc.invalidateQueries({ queryKey: activityKeys.byTerm(termId) }),
+    ]);
   }, [qc, activityId, termId]);
 
   const addPhoto = useCallback(

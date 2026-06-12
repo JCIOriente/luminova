@@ -20,10 +20,12 @@ export function useInitiativePhotos(type: InitiativeType, id: string, termId: st
   const kind = KIND[type];
 
   const invalidate = useCallback(async () => {
-    await qc.invalidateQueries({
-      queryKey: type === "program" ? programKeys.byTerm(termId) : projectKeys.byTerm(termId),
-    });
-    await qc.invalidateQueries({ queryKey: initiativeDetailKey(type, id) });
+    await Promise.all([
+      qc.invalidateQueries({
+        queryKey: type === "program" ? programKeys.byTerm(termId) : projectKeys.byTerm(termId),
+      }),
+      qc.invalidateQueries({ queryKey: initiativeDetailKey(type, id) }),
+    ]);
   }, [qc, type, termId, id]);
 
   const addPhoto = useCallback(

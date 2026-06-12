@@ -1,5 +1,5 @@
 import type { Photo } from "@luminova/types";
-import { EmptyState } from "@luminova/ui";
+import { Badge, EmptyState } from "@luminova/ui";
 
 interface PhotoGalleryProps {
   photos: Photo[];
@@ -24,9 +24,9 @@ export function PhotoGallery({ photos, showCover = false }: PhotoGalleryProps) {
             />
           </div>
           {showCover && index === 0 && (
-            <span className="absolute top-2 left-2 rounded-pill bg-jci-yellow/22 px-2 py-0.5 text-[12px] font-semibold text-ink-1">
+            <Badge tone="amber" className="absolute top-2 left-2">
               Portada
-            </span>
+            </Badge>
           )}
           {photo.caption && (
             <figcaption className="mt-1 text-[13px] text-ink-2">{photo.caption}</figcaption>
