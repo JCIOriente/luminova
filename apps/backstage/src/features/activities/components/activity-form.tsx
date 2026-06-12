@@ -10,7 +10,12 @@ import {
   MultiSelect,
   type ComboboxOption,
 } from "@luminova/ui";
-import { activitySchema, type ActivityInput, type ActivityCategory, ACTIVITY_CATEGORIES } from "@luminova/types";
+import {
+  activitySchema,
+  type ActivityInput,
+  type ActivityCategory,
+  ACTIVITY_CATEGORIES,
+} from "@luminova/types";
 import { CATEGORY_LABELS } from "../category-labels";
 import { ParentPicker } from "./parent-picker";
 

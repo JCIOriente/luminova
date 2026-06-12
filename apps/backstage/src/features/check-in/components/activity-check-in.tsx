@@ -20,10 +20,7 @@ export function ActivityCheckIn({ activityId, members }: ActivityCheckInProps) {
   const { data: checkIns } = useActivityCheckIns(activityId);
   const create = useCreateCheckIn(activityId);
 
-  const roster = useMemo(
-    () => buildRosterEntries(checkIns ?? [], members),
-    [checkIns, members],
-  );
+  const roster = useMemo(() => buildRosterEntries(checkIns ?? [], members), [checkIns, members]);
   const checkedInIds = useMemo(() => (checkIns ?? []).map((c) => c.memberId), [checkIns]);
 
   const checkIn = (memberId: string) => {

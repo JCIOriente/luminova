@@ -103,7 +103,11 @@ function ActivityDetailPage() {
     .map((cid) => memberById.get(cid))
     .filter((m): m is Member => m !== undefined);
   const parentPool =
-    activity.parentType === "Program" ? programs : activity.parentType === "Project" ? projects : null;
+    activity.parentType === "Program"
+      ? programs
+      : activity.parentType === "Project"
+        ? projects
+        : null;
   const parentTitle = activity.parentId
     ? (parentPool?.find((p) => p.id === activity.parentId)?.title ?? null)
     : null;
@@ -157,7 +161,12 @@ function ActivityDetailPage() {
           canUpdate &&
           activity.status !== "Cancelada" && (
             <>
-              <Button as="button" type="button" variant="secondary" onClick={() => setEditOpen(true)}>
+              <Button
+                as="button"
+                type="button"
+                variant="secondary"
+                onClick={() => setEditOpen(true)}
+              >
                 Editar
               </Button>
               <Button as="button" type="button" variant="ghost" onClick={() => setCancelOpen(true)}>
@@ -178,7 +187,9 @@ function ActivityDetailPage() {
       {tab === "detalle" && (
         <div className="flex flex-col gap-6">
           {activity.description && (
-            <p className="max-w-2xl text-[14px] leading-relaxed text-ink-2">{activity.description}</p>
+            <p className="max-w-2xl text-[14px] leading-relaxed text-ink-2">
+              {activity.description}
+            </p>
           )}
           {activity.photos.length > 0 && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -233,7 +244,12 @@ function ActivityDetailPage() {
         description="¿Cancelar la actividad? Se marcará como Cancelada, no se borra."
       >
         <div className="flex justify-end gap-3">
-          <Button as="button" type="button" variant="secondary" onClick={() => setCancelOpen(false)}>
+          <Button
+            as="button"
+            type="button"
+            variant="secondary"
+            onClick={() => setCancelOpen(false)}
+          >
             Volver
           </Button>
           <Button as="button" type="button" onClick={() => void confirmCancel()}>
