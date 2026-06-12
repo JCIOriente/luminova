@@ -264,6 +264,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Curated public projection of completed initiatives (beacon admin SDK writes;
+    // the public marketing site reads it without auth). Curated fields only — no raw
+    // initiative/member data. See docs/specs/2026-06-12-spotlight-impacto-showcase-design.md
+    match /showcase/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
