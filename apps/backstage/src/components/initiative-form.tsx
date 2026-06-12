@@ -35,6 +35,7 @@ interface InitiativeFormProps {
   submitLabel: string;
   isSaving: boolean;
   onSubmit: (data: InitiativeInput) => void;
+  lockStatus?: boolean;
 }
 
 export function InitiativeForm({
@@ -43,6 +44,7 @@ export function InitiativeForm({
   submitLabel,
   isSaving,
   onSubmit,
+  lockStatus = false,
 }: InitiativeFormProps) {
   const {
     register,
@@ -138,15 +140,31 @@ export function InitiativeForm({
           )}
         />
       </Field>
-      <Field label="Estado" htmlFor="status" required error={errors.status?.message}>
-        <Select id="status" {...register("status")}>
-          {INITIATIVE_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {statusLabel(s)}
-            </option>
-          ))}
-        </Select>
-      </Field>
+      {lockStatus ? (
+        <Field label="Estado" htmlFor="status-locked">
+          <input type="hidden" {...register("status")} />
+          <div
+            id="status-locked"
+            className="flex items-center gap-2 rounded-[10px] border border-line bg-surface-2 px-3 py-2 text-[14px] text-ink-2"
+          >
+            <span>{statusLabel("Finalizado")}</span>
+            <span aria-hidden>🔒</span>
+          </div>
+          <p className="mt-1 text-[12px] text-ink-3">
+            No se puede reabrir una iniciativa finalizada.
+          </p>
+        </Field>
+      ) : (
+        <Field label="Estado" htmlFor="status" required error={errors.status?.message}>
+          <Select id="status" {...register("status")}>
+            {INITIATIVE_STATUSES.filter((s) => s !== "Finalizado").map((s) => (
+              <option key={s} value={s}>
+                {statusLabel(s)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
       <Button as="button" type="submit" className="mt-1 w-full justify-center" disabled={isSaving}>
         {isSaving ? "Guardando…" : submitLabel}
       </Button>
