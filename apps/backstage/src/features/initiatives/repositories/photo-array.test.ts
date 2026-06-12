@@ -16,6 +16,6 @@ describe("photo-array transforms", () => {
     expect(moveCover([make("a"), make("b")], "z").map((p) => p.id)).toEqual(["a", "b"]);
   });
   it("sets a caption by id", () => {
-    expect(setCaption([make("a")], "a", "Hola")[0].caption).toBe("Hola");
+    expect(setCaption([make("a")], "a", "Hola")[0]?.caption).toBe("Hola");
   });
 });

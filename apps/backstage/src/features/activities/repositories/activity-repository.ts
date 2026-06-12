@@ -8,11 +8,17 @@ import {
   query,
   where,
   getCountFromServer,
+  arrayUnion,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import type { Activity, ActivityInput } from "@luminova/types";
+import type { Activity, ActivityInput, Photo } from "@luminova/types";
 import { toActivityCreateDoc, toActivityUpdateDoc } from "./activity-mapper";
 import { lockedFieldsChanged, ActivityLockedError } from "./activity-guard";
+import {
+  removePhoto as dropPhoto,
+  moveCover,
+  setCaption as relabel,
+} from "../../initiatives/repositories/photo-array";
 
 export class ActivityRepository {
   private readonly db = getFirebase().db;
@@ -61,5 +67,27 @@ export class ActivityRepository {
   /** Soft-cancel — never hard-delete an activity referenced by the engine. */
   async cancel(id: string): Promise<void> {
     await updateDoc(doc(this.collection, id), { status: "Cancelada" });
+  }
+
+  async addPhoto(id: string, photo: Photo): Promise<void> {
+    await updateDoc(doc(this.collection, id), { photos: arrayUnion(photo) });
+  }
+
+  async removePhoto(id: string, photoId: string): Promise<void> {
+    const row = await this.getById(id);
+    if (!row) throw new Error("Actividad no encontrada.");
+    await updateDoc(doc(this.collection, id), { photos: dropPhoto(row.photos, photoId) });
+  }
+
+  async setCover(id: string, photoId: string): Promise<void> {
+    const row = await this.getById(id);
+    if (!row) throw new Error("Actividad no encontrada.");
+    await updateDoc(doc(this.collection, id), { photos: moveCover(row.photos, photoId) });
+  }
+
+  async setCaption(id: string, photoId: string, caption: string): Promise<void> {
+    const row = await this.getById(id);
+    if (!row) throw new Error("Actividad no encontrada.");
+    await updateDoc(doc(this.collection, id), { photos: relabel(row.photos, photoId, caption) });
   }
 }
