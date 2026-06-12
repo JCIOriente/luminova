@@ -142,7 +142,7 @@ export function InitiativeForm({
       </Field>
       {lockStatus ? (
         <Field label="Estado" htmlFor="status-locked">
-          <input type="hidden" {...register("status")} />
+          <Input type="hidden" {...register("status")} />
           <div
             id="status-locked"
             className="flex items-center gap-2 rounded-[10px] border border-line bg-surface-2 px-3 py-2 text-[14px] text-ink-2"
