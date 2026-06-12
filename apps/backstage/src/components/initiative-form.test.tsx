@@ -55,4 +55,31 @@ describe("InitiativeForm", () => {
     await user.click(screen.getByRole("button", { name: /crear/i }));
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it("never offers Finalizado as a selectable status", () => {
+    render(
+      <InitiativeForm
+        memberOptions={[]}
+        submitLabel="Guardar"
+        isSaving={false}
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("option", { name: /completado/i })).not.toBeInTheDocument();
+  });
+
+  it("locks status to a read-only pill when finalReport is filed", () => {
+    render(
+      <InitiativeForm
+        memberOptions={[]}
+        submitLabel="Guardar"
+        isSaving={false}
+        onSubmit={vi.fn()}
+        lockStatus
+        defaultValues={{ status: "Finalizado" }}
+      />,
+    );
+    expect(screen.queryByLabelText("Estado")).not.toBeInTheDocument();
+    expect(screen.getByText(/no se puede reabrir/i)).toBeInTheDocument();
+  });
 });

@@ -7,13 +7,13 @@ import {
   updateDoc,
   query,
   where,
-  serverTimestamp,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import type { Program, ProgramInput } from "@luminova/types";
+import type { Program, ProgramInput, InitiativeImpactInput } from "@luminova/types";
 import {
   toInitiativeCreateDoc,
   toInitiativeUpdateDoc,
+  toInitiativeCompleteDoc,
 } from "../../initiatives/repositories/initiative-mapper";
 
 export class ProgramRepository {
@@ -41,14 +41,8 @@ export class ProgramRepository {
     await updateDoc(doc(this.collection, id), toInitiativeUpdateDoc(data));
   }
 
-  /** File the director's final report — the engine confirmation gate. */
-  async fileFinalReport(id: string, uid: string): Promise<void> {
-    const existing = await this.getById(id);
-    if (!existing) throw new Error("Programa no encontrado.");
-    if (existing.finalReport) throw new Error("El informe final ya fue presentado.");
-    await updateDoc(doc(this.collection, id), {
-      finalReport: { filedAt: serverTimestamp(), filedBy: uid },
-      status: "Finalizado",
-    });
+  /** The completion wizard's atomic trio write — the engine confirmation gate. */
+  async complete(id: string, impact: InitiativeImpactInput, uid: string): Promise<void> {
+    await updateDoc(doc(this.collection, id), toInitiativeCompleteDoc(impact, uid));
   }
 }

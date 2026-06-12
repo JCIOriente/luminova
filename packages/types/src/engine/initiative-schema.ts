@@ -66,8 +66,14 @@ export const impactMetricSchema = z.object({
 });
 
 export const initiativeImpactSchema = z.object({
-  personsImpacted: z.number().int().min(0, "Debe ser 0 o más."),
-  volunteers: z.number().int().min(0, "Debe ser 0 o más."),
+  personsImpacted: z
+    .number({ error: "Requerido." })
+    .int("Debe ser un entero.")
+    .min(0, "Debe ser 0 o más."),
+  volunteers: z
+    .number({ error: "Requerido." })
+    .int("Debe ser un entero.")
+    .min(0, "Debe ser 0 o más."),
   custom: z.array(impactMetricSchema),
   closingSummary: z.string().min(10, "Mínimo 10 caracteres."),
 });

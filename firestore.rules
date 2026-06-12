@@ -97,6 +97,29 @@ service cloud.firestore {
         || (assignedBySelf() && (hasAnyRole(['Admin']) || cargoGrantsEmpty()));
     }
 
+    // The completion trio (status + finalReport + impact) is written atomically by the
+    // wizard. A status flip to Finalizado missing either the report or the impact would
+    // orphan child-activity point confirmation and permanently strand the doc (the trio
+    // locks once finalReport is set). Require both in the same write. Create already
+    // forbids Finalizado.
+    function finalizedRequiresReport() {
+      return request.resource.data.get('status', '') != 'Finalizado'
+        || (request.resource.data.get('finalReport', null) != null
+            && request.resource.data.get('impact', null) != null);
+    }
+    // The write that first files the report (finalReport null -> set) must stamp
+    // finalReport.filedBy as the caller — clients pass it, so pin it to the auth uid
+    // for audit integrity. Once filed, initiativeWriteSafe() locks finalReport, so
+    // later edits to a completed doc (e.g. an Admin renaming it) never re-enter here.
+    function filingReportNow() {
+      return resource.data.get('finalReport', null) == null
+        && request.resource.data.get('finalReport', null) != null;
+    }
+    function reportFiledBySelf() {
+      return !filingReportNow()
+        || request.resource.data.finalReport.get('filedBy', '') == request.auth.uid;
+    }
+
     function initiativeCreateAllowed() {
       return hasAnyRole(['Admin', 'ProjectManager'])
         && request.resource.data.get('directionUids', []) == []
@@ -106,7 +129,9 @@ service cloud.firestore {
     }
     function initiativeUpdateAllowed() {
       return (hasAnyRole(['Admin', 'ProjectManager']) || isDirection())
-        && initiativeWriteSafe();
+        && initiativeWriteSafe()
+        && finalizedRequiresReport()
+        && reportFiledBySelf();
     }
 
     match /projects/{projectId} {
