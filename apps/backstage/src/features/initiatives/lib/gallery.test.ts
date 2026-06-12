@@ -6,7 +6,7 @@ const at = (ms: number) => ({ toMillis: () => ms }) as Activity["startAt"];
 const photo = (id: string): Photo =>
   ({ id, url: `u/${id}`, caption: null, uploadedAt: at(0), uploadedBy: "m" }) as Photo;
 const act = (id: string, startMs: number, photos: Photo[]): Activity =>
-  ({ id, title: `A-${id}`, startAt: at(startMs), photos } as unknown as Activity);
+  ({ id, title: `A-${id}`, startAt: at(startMs), photos }) as unknown as Activity;
 
 describe("groupActivityPhotos", () => {
   it("keeps only activities that have photos, oldest-start first", () => {

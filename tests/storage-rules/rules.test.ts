@@ -157,10 +157,14 @@ describe("storage.rules — initiative photos", () => {
     await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), PROJ_PHOTO), PHOTO, JPEG));
   });
   it("allows ProjectManager to write", async () => {
-    await assertSucceeds(uploadBytes(ref(storageAs("a", ["ProjectManager"]), PROJ_PHOTO), PHOTO, JPEG));
+    await assertSucceeds(
+      uploadBytes(ref(storageAs("a", ["ProjectManager"]), PROJ_PHOTO), PHOTO, JPEG),
+    );
   });
   it("allows the initiative direction to write", async () => {
-    await assertSucceeds(uploadBytes(ref(storageAs("dir-uid", ["Member"]), PROJ_PHOTO), PHOTO, JPEG));
+    await assertSucceeds(
+      uploadBytes(ref(storageAs("dir-uid", ["Member"]), PROJ_PHOTO), PHOTO, JPEG),
+    );
   });
   it("denies a non-direction member", async () => {
     await assertFails(uploadBytes(ref(storageAs("stranger", ["Member"]), PROJ_PHOTO), PHOTO, JPEG));
@@ -170,12 +174,18 @@ describe("storage.rules — initiative photos", () => {
   });
   it("denies a non-jpeg even for Admin", async () => {
     await assertFails(
-      uploadBytes(ref(storageAs("a", ["Admin"]), PROJ_PHOTO), PHOTO, { contentType: "application/octet-stream" }),
+      uploadBytes(ref(storageAs("a", ["Admin"]), PROJ_PHOTO), PHOTO, {
+        contentType: "application/octet-stream",
+      }),
     );
   });
   it("denies oversize even for Admin", async () => {
     await assertFails(
-      uploadBytes(ref(storageAs("a", ["Admin"]), PROJ_PHOTO), new Uint8Array(5 * 1024 * 1024 + 1), JPEG),
+      uploadBytes(
+        ref(storageAs("a", ["Admin"]), PROJ_PHOTO),
+        new Uint8Array(5 * 1024 * 1024 + 1),
+        JPEG,
+      ),
     );
   });
   it("allows any signed-in user to read", async () => {
@@ -188,16 +198,24 @@ describe("storage.rules — activity photos", () => {
     await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), ACT_CHILD_PHOTO), PHOTO, JPEG));
   });
   it("allows the parent initiative's direction to write", async () => {
-    await assertSucceeds(uploadBytes(ref(storageAs("dir-uid", ["Member"]), ACT_CHILD_PHOTO), PHOTO, JPEG));
+    await assertSucceeds(
+      uploadBytes(ref(storageAs("dir-uid", ["Member"]), ACT_CHILD_PHOTO), PHOTO, JPEG),
+    );
   });
   it("denies a non-direction member on a parented activity", async () => {
-    await assertFails(uploadBytes(ref(storageAs("stranger", ["Member"]), ACT_CHILD_PHOTO), PHOTO, JPEG));
+    await assertFails(
+      uploadBytes(ref(storageAs("stranger", ["Member"]), ACT_CHILD_PHOTO), PHOTO, JPEG),
+    );
   });
   it("allows Admin on a standalone activity", async () => {
-    await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), ACT_STANDALONE_PHOTO), PHOTO, JPEG));
+    await assertSucceeds(
+      uploadBytes(ref(storageAs("a", ["Admin"]), ACT_STANDALONE_PHOTO), PHOTO, JPEG),
+    );
   });
   it("denies a member (no parent direction) on a standalone activity", async () => {
-    await assertFails(uploadBytes(ref(storageAs("dir-uid", ["Member"]), ACT_STANDALONE_PHOTO), PHOTO, JPEG));
+    await assertFails(
+      uploadBytes(ref(storageAs("dir-uid", ["Member"]), ACT_STANDALONE_PHOTO), PHOTO, JPEG),
+    );
   });
 });
 
@@ -210,18 +228,26 @@ describe("storage.rules — programs path + Program-parented activity + missing 
     await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), PROG_PHOTO), PHOTO, JPEG));
   });
   it("allows the program's direction to write", async () => {
-    await assertSucceeds(uploadBytes(ref(storageAs("dir-uid", ["Member"]), PROG_PHOTO), PHOTO, JPEG));
+    await assertSucceeds(
+      uploadBytes(ref(storageAs("dir-uid", ["Member"]), PROG_PHOTO), PHOTO, JPEG),
+    );
   });
   it("denies a non-direction member on a program photo", async () => {
     await assertFails(uploadBytes(ref(storageAs("stranger", ["Member"]), PROG_PHOTO), PHOTO, JPEG));
   });
   it("allows the parent PROGRAM's direction to write an activity photo", async () => {
-    await assertSucceeds(uploadBytes(ref(storageAs("dir-uid", ["Member"]), ACT_PROG_CHILD_PHOTO), PHOTO, JPEG));
+    await assertSucceeds(
+      uploadBytes(ref(storageAs("dir-uid", ["Member"]), ACT_PROG_CHILD_PHOTO), PHOTO, JPEG),
+    );
   });
   it("denies a non-direction member on a Program-parented activity", async () => {
-    await assertFails(uploadBytes(ref(storageAs("stranger", ["Member"]), ACT_PROG_CHILD_PHOTO), PHOTO, JPEG));
+    await assertFails(
+      uploadBytes(ref(storageAs("stranger", ["Member"]), ACT_PROG_CHILD_PHOTO), PHOTO, JPEG),
+    );
   });
   it("denies (does not error) a member on an initiative lacking directionUids", async () => {
-    await assertFails(uploadBytes(ref(storageAs("anyone", ["Member"]), PROJ_NODIR_PHOTO), PHOTO, JPEG));
+    await assertFails(
+      uploadBytes(ref(storageAs("anyone", ["Member"]), PROJ_NODIR_PHOTO), PHOTO, JPEG),
+    );
   });
 });

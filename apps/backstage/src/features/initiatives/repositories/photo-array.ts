@@ -12,5 +12,7 @@ export function moveCover(photos: Photo[], photoId: string): Photo[] {
 
 export function setCaption(photos: Photo[], photoId: string, caption: string): Photo[] {
   const trimmed = caption.trim();
-  return photos.map((p) => (p.id === photoId ? { ...p, caption: trimmed === "" ? null : trimmed } : p));
+  return photos.map((p) =>
+    p.id === photoId ? { ...p, caption: trimmed === "" ? null : trimmed } : p,
+  );
 }

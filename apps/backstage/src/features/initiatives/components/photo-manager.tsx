@@ -115,10 +115,18 @@ function PhotoThumbnail({
               disabled={isDisabled}
               onChange={(e) => setCaptionValue(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); void commitCaption(); }
-                if (e.key === "Escape") { e.preventDefault(); cancelCaption(); }
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void commitCaption();
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancelCaption();
+                }
               }}
-              onBlur={() => { if (!committingRef.current) void commitCaption(); }}
+              onBlur={() => {
+                if (!committingRef.current) void commitCaption();
+              }}
               className="h-9 text-[13px]"
             />
           </div>

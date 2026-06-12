@@ -24,10 +24,7 @@ import { activityToInput } from "../features/activities/lib/activity-to-input";
 import { activityKeys } from "../features/activities/hooks/activity-keys";
 import { PhotoManager } from "../features/initiatives/components/photo-manager";
 import { PhotoGallery } from "../features/initiatives/components/photo-gallery";
-import {
-  useInitiative,
-  INITIATIVE_TYPE,
-} from "../features/initiatives/hooks/use-initiative";
+import { useInitiative, INITIATIVE_TYPE } from "../features/initiatives/hooks/use-initiative";
 
 export const Route = createFileRoute("/_app/activities_/$id")({ component: ActivityDetailPage });
 
@@ -67,13 +64,13 @@ function ActivityDetailPage() {
     parentType ? INITIATIVE_TYPE[parentType] : "project",
     parentId ?? "",
     {
-      enabled:
-        parentId !== null &&
-        ability.can("read", parentType ?? "Project"),
+      enabled: parentId !== null && ability.can("read", parentType ?? "Project"),
     },
   );
   const isParentDirection =
-    uid !== null && parentId !== null && (parentInitiative.data?.directionUids.includes(uid) ?? false);
+    uid !== null &&
+    parentId !== null &&
+    (parentInitiative.data?.directionUids.includes(uid) ?? false);
   const canManagePhotos = canUpdate || isParentDirection;
 
   const memberById = useMemo(
@@ -226,9 +223,7 @@ function ActivityDetailPage() {
               onSetCaption={photoActions.setCaption}
             />
           ) : (
-            activity.photos.length > 0 && (
-              <PhotoGallery photos={activity.photos} showCover />
-            )
+            activity.photos.length > 0 && <PhotoGallery photos={activity.photos} showCover />
           )}
           {!hasDetalle && (
             <EmptyState
