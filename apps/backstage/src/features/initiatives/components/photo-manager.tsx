@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Photo } from "@luminova/types";
 import { ImageUploader, Input } from "@luminova/ui";
 
@@ -32,6 +32,7 @@ function PhotoThumbnail({
   const [editingCaption, setEditingCaption] = useState(false);
   const [captionValue, setCaptionValue] = useState(photo.caption ?? "");
   const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const committingRef = useRef(false);
 
   const isDisabled = disabled || busy;
 
@@ -44,14 +45,26 @@ function PhotoThumbnail({
     }
   }
 
-  async function handleSetCaption() {
+  async function commitCaption() {
+    if (committingRef.current) return;
+    committingRef.current = true;
     setBusy(true);
     try {
       await onSetCaption(photo.id, captionValue);
       setEditingCaption(false);
     } finally {
       setBusy(false);
+      committingRef.current = false;
     }
+  }
+
+  function cancelCaption() {
+    committingRef.current = true;
+    setCaptionValue(photo.caption ?? "");
+    setEditingCaption(false);
+    queueMicrotask(() => {
+      committingRef.current = false;
+    });
   }
 
   async function handleRemove() {
@@ -102,10 +115,10 @@ function PhotoThumbnail({
               disabled={isDisabled}
               onChange={(e) => setCaptionValue(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") void handleSetCaption();
-                if (e.key === "Escape") setEditingCaption(false);
+                if (e.key === "Enter") { e.preventDefault(); void commitCaption(); }
+                if (e.key === "Escape") { e.preventDefault(); cancelCaption(); }
               }}
-              onBlur={() => void handleSetCaption()}
+              onBlur={() => { if (!committingRef.current) void commitCaption(); }}
               className="h-9 text-[13px]"
             />
           </div>

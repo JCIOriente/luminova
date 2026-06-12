@@ -91,4 +91,55 @@ describe("PhotoManager", () => {
 
     expect(onRemove).toHaveBeenCalledWith("photo-1");
   });
+
+  it("pressing Enter in the caption input commits exactly once", async () => {
+    const user = userEvent.setup();
+    const { onSetCaption } = renderManager();
+
+    const editButtons = screen.getAllByRole("button", { name: /editar descripción/i });
+    await user.click(editButtons[0]!);
+
+    const input = await screen.findByRole("textbox", { name: /editar descripción/i });
+    await user.clear(input);
+    await user.type(input, "Nueva");
+    await user.keyboard("{Enter}");
+
+    expect(onSetCaption).toHaveBeenCalledTimes(1);
+    expect(onSetCaption).toHaveBeenCalledWith("photo-1", "Nueva");
+  });
+
+  it("pressing Escape in the caption input cancels without saving", async () => {
+    const user = userEvent.setup();
+    const { onSetCaption } = renderManager();
+
+    const editButtons = screen.getAllByRole("button", { name: /editar descripción/i });
+    await user.click(editButtons[0]!);
+
+    const input = await screen.findByRole("textbox", { name: /editar descripción/i });
+    await user.type(input, " extra");
+    await user.keyboard("{Escape}");
+
+    expect(onSetCaption).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox", { name: /editar descripción/i })).not.toBeInTheDocument();
+  });
+
+  it("confirm-remove cancel flow: Cancelar suppresses onRemove, Quitar remains clickable", async () => {
+    const user = userEvent.setup();
+    const { onRemove } = renderManager();
+
+    const quitarButtons = screen.getAllByRole("button", { name: /quitar foto/i });
+    await user.click(quitarButtons[0]!);
+
+    const cancelButton = await screen.findByRole("button", { name: /cancelar quitar foto/i });
+    await user.click(cancelButton);
+
+    expect(onRemove).not.toHaveBeenCalled();
+
+    const quitarButtonsAfter = screen.getAllByRole("button", { name: /quitar foto/i });
+    await user.click(quitarButtonsAfter[0]!);
+    const confirmButton = await screen.findByRole("button", { name: /confirmar quitar foto/i });
+    await user.click(confirmButton);
+
+    expect(onRemove).toHaveBeenCalledWith("photo-1");
+  });
 });
