@@ -67,6 +67,21 @@ beforeAll(async () => {
       parentType: null,
       parentId: null,
     });
+    await setDoc(doc(ctx.firestore(), "programs/prog1"), {
+      termId: "2026",
+      title: "Programa Uno",
+      directionUids: ["dir-uid"],
+    });
+    await setDoc(doc(ctx.firestore(), "projects/proj_nodir"), {
+      termId: "2026",
+      title: "Sin Direccion",
+    });
+    await setDoc(doc(ctx.firestore(), "activities/act_prog_child"), {
+      termId: "2026",
+      title: "Curso Programa",
+      parentType: "Program",
+      parentId: "prog1",
+    });
   });
 });
 
@@ -183,5 +198,30 @@ describe("storage.rules — activity photos", () => {
   });
   it("denies a member (no parent direction) on a standalone activity", async () => {
     await assertFails(uploadBytes(ref(storageAs("dir-uid", ["Member"]), ACT_STANDALONE_PHOTO), PHOTO, JPEG));
+  });
+});
+
+const PROG_PHOTO = "programs/prog1/photos/ph1.jpg";
+const PROJ_NODIR_PHOTO = "projects/proj_nodir/photos/ph1.jpg";
+const ACT_PROG_CHILD_PHOTO = "activities/act_prog_child/photos/ph1.jpg";
+
+describe("storage.rules — programs path + Program-parented activity + missing directionUids", () => {
+  it("allows Admin to write a program photo", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), PROG_PHOTO), PHOTO, JPEG));
+  });
+  it("allows the program's direction to write", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("dir-uid", ["Member"]), PROG_PHOTO), PHOTO, JPEG));
+  });
+  it("denies a non-direction member on a program photo", async () => {
+    await assertFails(uploadBytes(ref(storageAs("stranger", ["Member"]), PROG_PHOTO), PHOTO, JPEG));
+  });
+  it("allows the parent PROGRAM's direction to write an activity photo", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("dir-uid", ["Member"]), ACT_PROG_CHILD_PHOTO), PHOTO, JPEG));
+  });
+  it("denies a non-direction member on a Program-parented activity", async () => {
+    await assertFails(uploadBytes(ref(storageAs("stranger", ["Member"]), ACT_PROG_CHILD_PHOTO), PHOTO, JPEG));
+  });
+  it("denies (does not error) a member on an initiative lacking directionUids", async () => {
+    await assertFails(uploadBytes(ref(storageAs("anyone", ["Member"]), PROJ_NODIR_PHOTO), PHOTO, JPEG));
   });
 });
