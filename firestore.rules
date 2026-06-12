@@ -97,6 +97,14 @@ service cloud.firestore {
         || (assignedBySelf() && (hasAnyRole(['Admin']) || cargoGrantsEmpty()));
     }
 
+    // The completion trio is written atomically by the wizard; a bare status flip to
+    // Finalizado (no report) would orphan child-activity point confirmation. Enforce
+    // the report is present in the same write. Create already forbids Finalizado.
+    function finalizedRequiresReport() {
+      return request.resource.data.get('status', '') != 'Finalizado'
+        || request.resource.data.get('finalReport', null) != null;
+    }
+
     function initiativeCreateAllowed() {
       return hasAnyRole(['Admin', 'ProjectManager'])
         && request.resource.data.get('directionUids', []) == []
@@ -106,7 +114,8 @@ service cloud.firestore {
     }
     function initiativeUpdateAllowed() {
       return (hasAnyRole(['Admin', 'ProjectManager']) || isDirection())
-        && initiativeWriteSafe();
+        && initiativeWriteSafe()
+        && finalizedRequiresReport();
     }
 
     match /projects/{projectId} {

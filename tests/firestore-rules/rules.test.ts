@@ -517,6 +517,30 @@ describe("firestore.rules — initiative direction branch", () => {
       updateDoc(doc(as("owner-uid", ["Member"]), "projects/p1"), { title: "Nope" }),
     );
   });
+  it("denies setting Finalizado without a finalReport", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_dir"), { status: "Finalizado" }),
+    );
+  });
+  it("denies Admin setting Finalizado without a finalReport", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_dir"), { status: "Finalizado" }),
+    );
+  });
+  it("denies completing a program without a finalReport (mirrored)", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "programs/prog_dir"), { status: "Finalizado" }),
+    );
+  });
+  it("lets direction complete with the full trio", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_dir"), {
+        status: "Finalizado",
+        finalReport: { filedAt: new Date("2026-06-11T00:00:00Z"), filedBy: "owner-uid" },
+        impact: { personsImpacted: 120, volunteers: 8, custom: [], closingSummary: "Cerrado con éxito." },
+      }),
+    );
+  });
 });
 
 function asClaims(uid: string, claims: Record<string, unknown>) {
