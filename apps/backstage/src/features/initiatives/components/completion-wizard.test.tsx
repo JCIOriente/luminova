@@ -37,4 +37,24 @@ describe("CompletionWizard", () => {
       }),
     );
   });
+
+  it("blocks submit when a required impact number is left blank", async () => {
+    const user = userEvent.setup();
+    const onComplete = renderWizard();
+    await user.type(screen.getByLabelText(/resumen de cierre/i), "Cierre con impacto real.");
+    await user.click(screen.getByRole("button", { name: /siguiente/i }));
+    await user.clear(screen.getByLabelText(/personas impactadas/i));
+    await user.click(screen.getByRole("button", { name: /finalizar/i }));
+    await waitFor(() => expect(onComplete).not.toHaveBeenCalled());
+  });
+
+  it("preserves the closing summary when navigating back from step 2", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    const summary = screen.getByLabelText(/resumen de cierre/i);
+    await user.type(summary, "Resumen que debe sobrevivir.");
+    await user.click(screen.getByRole("button", { name: /siguiente/i }));
+    await user.click(screen.getByRole("button", { name: /atrás/i }));
+    expect(screen.getByLabelText(/resumen de cierre/i)).toHaveValue("Resumen que debe sobrevivir.");
+  });
 });
