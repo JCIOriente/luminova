@@ -79,6 +79,27 @@ beforeAll(async () => {
       impact: null,
       status: "EnEjecucion",
     });
+    // Pristine pending fixtures dedicated to the completion-SUCCESS tests, which mutate
+    // their target (status -> Finalizado). Keeping them separate leaves p_dir/prog_dir
+    // pristine for the deny tests regardless of run order (suite seeds once, no reset).
+    await setDoc(doc(db, "projects/p_complete"), {
+      termId: "2026",
+      title: "Por cerrar (direction)",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: ["owner-uid"],
+      finalReport: null,
+      impact: null,
+      status: "EnEjecucion",
+    });
+    await setDoc(doc(db, "projects/p_pm"), {
+      termId: "2026",
+      title: "Por cerrar (PM)",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: [],
+      finalReport: null,
+      impact: null,
+      status: "EnEjecucion",
+    });
     await setDoc(doc(db, "memberPoints/2025/03/e1"), { points: 5 });
     await setDoc(doc(db, "positions/pos1"), {
       title: "Tesorero",
@@ -534,7 +555,7 @@ describe("firestore.rules — initiative direction branch", () => {
   });
   it("lets direction complete with the full trio", async () => {
     await assertSucceeds(
-      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_dir"), {
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_complete"), {
         status: "Finalizado",
         finalReport: { filedAt: new Date("2026-06-11T00:00:00Z"), filedBy: "owner-uid" },
         impact: {
@@ -543,6 +564,33 @@ describe("firestore.rules — initiative direction branch", () => {
           custom: [],
           closingSummary: "Cerrado con éxito.",
         },
+      }),
+    );
+  });
+  it("allows ProjectManager (non-direction) to complete with the full trio", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("pm-uid", ["ProjectManager"]), "projects/p_pm"), {
+        status: "Finalizado",
+        finalReport: { filedAt: new Date("2026-06-11T00:00:00Z"), filedBy: "pm-uid" },
+        impact: { personsImpacted: 10, volunteers: 2, custom: [], closingSummary: "Cierre PM." },
+      }),
+    );
+  });
+  it("denies a plain Member (non-direction) completing even with the full trio", async () => {
+    await assertFails(
+      updateDoc(doc(as("other-uid", ["Member"]), "projects/p_dir"), {
+        status: "Finalizado",
+        finalReport: { filedAt: new Date("2026-06-11T00:00:00Z"), filedBy: "other-uid" },
+        impact: { personsImpacted: 10, volunteers: 2, custom: [], closingSummary: "Cierre." },
+      }),
+    );
+  });
+  it("denies completing with a forged filedBy (not the caller)", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_dir"), {
+        status: "Finalizado",
+        finalReport: { filedAt: new Date("2026-06-11T00:00:00Z"), filedBy: "someone-else" },
+        impact: { personsImpacted: 1, volunteers: 1, custom: [], closingSummary: "Forjado." },
       }),
     );
   });
