@@ -9,7 +9,7 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { doc, setDoc } from "firebase/firestore";
-import { getBytes, ref, uploadBytes } from "firebase/storage";
+import { getBytes, ref, uploadBytes, deleteObject } from "firebase/storage";
 
 let env: RulesTestEnvironment;
 
@@ -249,5 +249,20 @@ describe("storage.rules — programs path + Program-parented activity + missing 
     await assertFails(
       uploadBytes(ref(storageAs("anyone", ["Member"]), PROJ_NODIR_PHOTO), PHOTO, JPEG),
     );
+  });
+});
+
+describe("storage.rules — photo deletes (request.resource is null on delete)", () => {
+  it("lets an editor delete an initiative photo (not gated on isValidPhoto)", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), PROJ_PHOTO), PHOTO, JPEG));
+    await assertSucceeds(deleteObject(ref(storageAs("dir-uid", ["Member"]), PROJ_PHOTO)));
+  });
+  it("lets an editor delete an activity photo", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), ACT_CHILD_PHOTO), PHOTO, JPEG));
+    await assertSucceeds(deleteObject(ref(storageAs("a", ["Admin"]), ACT_CHILD_PHOTO)));
+  });
+  it("denies a non-editor deleting an initiative photo", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), PROG_PHOTO), PHOTO, JPEG));
+    await assertFails(deleteObject(ref(storageAs("stranger", ["Member"]), PROG_PHOTO)));
   });
 });

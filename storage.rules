@@ -57,17 +57,23 @@ service firebase.storage {
       allow write: if (isPrivileged() || ownsMember(memberId)) && isValidPhoto();
     }
 
+    // Split write: create/update validate the incoming file; delete must NOT touch
+    // request.resource (it is null on delete — gating delete on isValidPhoto() would
+    // error and deny every delete, orphaning the Storage blob).
     match /projects/{id}/photos/{photoId} {
       allow read: if request.auth != null;
-      allow write: if isInitiativeEditor('projects', id) && isValidPhoto();
+      allow create, update: if isInitiativeEditor('projects', id) && isValidPhoto();
+      allow delete: if isInitiativeEditor('projects', id);
     }
     match /programs/{id}/photos/{photoId} {
       allow read: if request.auth != null;
-      allow write: if isInitiativeEditor('programs', id) && isValidPhoto();
+      allow create, update: if isInitiativeEditor('programs', id) && isValidPhoto();
+      allow delete: if isInitiativeEditor('programs', id);
     }
     match /activities/{id}/photos/{photoId} {
       allow read: if request.auth != null;
-      allow write: if isActivityEditor(id) && isValidPhoto();
+      allow create, update: if isActivityEditor(id) && isValidPhoto();
+      allow delete: if isActivityEditor(id);
     }
 
     match /{allPaths=**} {
