@@ -1,6 +1,6 @@
 import type { Activity, Photo } from "@luminova/types";
 
-export interface ActivityPhotoGroup {
+interface ActivityPhotoGroup {
   activityId: string;
   title: string;
   photos: Photo[];
