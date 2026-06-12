@@ -9,7 +9,15 @@ import type { InitiativeType } from "./use-initiative";
 export function useCompleteInitiative(type: InitiativeType, termId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, impact, uid }: { id: string; impact: InitiativeImpactInput; uid: string }) =>
+    mutationFn: ({
+      id,
+      impact,
+      uid,
+    }: {
+      id: string;
+      impact: InitiativeImpactInput;
+      uid: string;
+    }) =>
       type === "program"
         ? new ProgramRepository().complete(id, impact, uid)
         : new ProjectRepository().complete(id, impact, uid),

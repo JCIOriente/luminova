@@ -537,7 +537,12 @@ describe("firestore.rules — initiative direction branch", () => {
       updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_dir"), {
         status: "Finalizado",
         finalReport: { filedAt: new Date("2026-06-11T00:00:00Z"), filedBy: "owner-uid" },
-        impact: { personsImpacted: 120, volunteers: 8, custom: [], closingSummary: "Cerrado con éxito." },
+        impact: {
+          personsImpacted: 120,
+          volunteers: 8,
+          custom: [],
+          closingSummary: "Cerrado con éxito.",
+        },
       }),
     );
   });

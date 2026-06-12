@@ -7,7 +7,12 @@ import {
   type ComboboxOption,
   type SegmentedOption,
 } from "@luminova/ui";
-import type { ActivityInput, InitiativeImpactInput, InitiativeInput, Member } from "@luminova/types";
+import type {
+  ActivityInput,
+  InitiativeImpactInput,
+  InitiativeInput,
+  Member,
+} from "@luminova/types";
 import { useAbility } from "../lib/authz/ability-context";
 import { useAuth } from "../lib/auth/auth";
 import { CompletionWizard } from "../features/initiatives/components/completion-wizard";
@@ -149,7 +154,12 @@ function InitiativeDetailPage() {
           (canUpdate || canComplete) && (
             <div className="flex gap-2">
               {canUpdate && (
-                <Button as="button" type="button" variant="secondary" onClick={() => setEditOpen(true)}>
+                <Button
+                  as="button"
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setEditOpen(true)}
+                >
                   Editar
                 </Button>
               )}

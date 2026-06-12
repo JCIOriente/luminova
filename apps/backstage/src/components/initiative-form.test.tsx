@@ -58,7 +58,12 @@ describe("InitiativeForm", () => {
 
   it("never offers Finalizado as a selectable status", () => {
     render(
-      <InitiativeForm memberOptions={[]} submitLabel="Guardar" isSaving={false} onSubmit={vi.fn()} />,
+      <InitiativeForm
+        memberOptions={[]}
+        submitLabel="Guardar"
+        isSaving={false}
+        onSubmit={vi.fn()}
+      />,
     );
     expect(screen.queryByRole("option", { name: /completado/i })).not.toBeInTheDocument();
   });

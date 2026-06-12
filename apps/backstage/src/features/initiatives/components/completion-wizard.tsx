@@ -36,7 +36,11 @@ export function CompletionWizard({ initiativeLabel, isSaving, onComplete }: Comp
   };
 
   return (
-    <form onSubmit={handleSubmit((data) => onComplete(data))} noValidate className="flex flex-col gap-4">
+    <form
+      onSubmit={handleSubmit((data) => onComplete(data))}
+      noValidate
+      className="flex flex-col gap-4"
+    >
       <p className="text-[13px] text-ink-3">Paso {step} de 2</p>
 
       {step === 1 && (
@@ -49,7 +53,12 @@ export function CompletionWizard({ initiativeLabel, isSaving, onComplete }: Comp
           >
             <Textarea id="closingSummary" rows={5} {...register("closingSummary")} />
           </Field>
-          <Button as="button" type="button" className="justify-center" onClick={() => void goNext()}>
+          <Button
+            as="button"
+            type="button"
+            className="justify-center"
+            onClick={() => void goNext()}
+          >
             Siguiente →
           </Button>
         </>
