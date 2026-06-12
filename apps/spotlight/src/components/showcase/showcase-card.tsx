@@ -1,13 +1,9 @@
+import { memo } from "react";
 import { Link } from "@tanstack/react-router";
 import { ImgSlot } from "@luminova/ui";
 import { AREA_OF_OPPORTUNITY_LABELS, type AreaOfOpportunity } from "@luminova/types/engine";
 import type { ShowcaseItem } from "@luminova/types/engine";
-import { formatES } from "./format";
-
-const monthYearFormatter = new Intl.DateTimeFormat("es-BO", {
-  month: "long",
-  year: "numeric",
-});
+import { formatES, formatMonthYear } from "./format";
 
 const AREA_TINT: Record<AreaOfOpportunity, "blue" | "teal" | "navy"> = {
   DesarrolloIndividual: "blue",
@@ -16,10 +12,10 @@ const AREA_TINT: Record<AreaOfOpportunity, "blue" | "teal" | "navy"> = {
   CooperacionInternacional: "blue",
 };
 
-export function ShowcaseCard({ item }: { item: ShowcaseItem }) {
+export const ShowcaseCard = memo(function ShowcaseCard({ item }: { item: ShowcaseItem }) {
   const cover = item.photos[0]?.url ?? null;
   const areaLabel = AREA_OF_OPPORTUNITY_LABELS[item.category];
-  const completed = monthYearFormatter.format(item.completedAt.toDate());
+  const completed = formatMonthYear(item.completedAt);
 
   return (
     <Link to="/impacto/$id" params={{ id: item.id }} className="showcase-card">
@@ -45,4 +41,4 @@ export function ShowcaseCard({ item }: { item: ShowcaseItem }) {
       </div>
     </Link>
   );
-}
+});

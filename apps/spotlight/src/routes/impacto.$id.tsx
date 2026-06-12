@@ -56,7 +56,9 @@ function DetailHero({ item }: { item: ShowcaseItem }) {
 function DetailContent({ item }: { item: ShowcaseItem }) {
   const { description, team } = item;
   const { closingSummary } = item.impact;
-  const showDescription = description.trim() !== "" && description.trim() !== closingSummary.trim();
+  const descTrimmed = description.trim();
+  const summaryTrimmed = closingSummary.trim();
+  const showDescription = descTrimmed !== "" && descTrimmed !== summaryTrimmed;
   const hasTeam = team.director !== null || team.coDirectors.length > 0 || team.members.length > 0;
 
   return (
@@ -70,7 +72,7 @@ function DetailContent({ item }: { item: ShowcaseItem }) {
         </div>
       </section>
 
-      {closingSummary.trim() !== "" && (
+      {summaryTrimmed !== "" && (
         <section className="section">
           <div className="container">
             <Reveal>

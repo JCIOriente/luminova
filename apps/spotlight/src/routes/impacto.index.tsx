@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { RippleBackground } from "@luminova/ui";
 import { useShowcaseList } from "../showcase/use-showcase";
@@ -61,8 +62,13 @@ function ImpactoHero({ count, personsImpacted }: { count: number; personsImpacte
 function ImpactoPage() {
   const { data, loading, error } = useShowcaseList();
 
-  const count = data.length;
-  const personsImpacted = data.reduce((sum, it) => sum + it.impact.personsImpacted, 0);
+  const { count, personsImpacted } = useMemo(
+    () => ({
+      count: data.length,
+      personsImpacted: data.reduce((sum, it) => sum + it.impact.personsImpacted, 0),
+    }),
+    [data],
+  );
 
   return (
     <>

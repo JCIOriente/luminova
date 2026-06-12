@@ -11,6 +11,15 @@ const monthYearFormatter = new Intl.DateTimeFormat("es-BO", {
   month: "short",
   year: "numeric",
 });
+const monthYearLongFormatter = new Intl.DateTimeFormat("es-BO", {
+  month: "long",
+  year: "numeric",
+});
+
+export function formatMonthYear(ts: Timestamp): string {
+  const s = monthYearLongFormatter.format(ts.toDate());
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 function stripDot(s: string): string {
   return s.replace(/\.$/, "");
