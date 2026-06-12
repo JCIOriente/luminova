@@ -56,6 +56,11 @@ export function InitiativeForm({
     defaultValues: { ...EMPTY, ...defaultValues },
   });
 
+  // Lock the status field on any already-finalized initiative — the wizard owns the
+  // Finalizado transition, and the report locks it. Derive from the data as a fallback
+  // so a caller that forgets `lockStatus` can never expose an editable status here.
+  const statusLocked = lockStatus || defaultValues?.status === "Finalizado";
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
       <Field label="Título" htmlFor="title" required error={errors.title?.message}>
@@ -140,7 +145,7 @@ export function InitiativeForm({
           )}
         />
       </Field>
-      {lockStatus ? (
+      {statusLocked ? (
         <Field label="Estado" htmlFor="status-locked">
           <Input type="hidden" {...register("status")} />
           <div

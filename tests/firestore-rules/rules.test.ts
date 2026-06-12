@@ -594,6 +594,15 @@ describe("firestore.rules — initiative direction branch", () => {
       }),
     );
   });
+  it("denies completing with a report but null impact", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_dir"), {
+        status: "Finalizado",
+        finalReport: { filedAt: new Date("2026-06-11T00:00:00Z"), filedBy: "owner-uid" },
+        impact: null,
+      }),
+    );
+  });
 });
 
 function asClaims(uid: string, claims: Record<string, unknown>) {
