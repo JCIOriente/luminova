@@ -131,6 +131,7 @@ Skills are stage-specific. Don't invoke them all at once — map each to its pha
 | `ui-ux-pro-max:ui-ux-pro-max` | community | Design database: 161 palettes, 57 font pairings, accessibility (a11y) validation | Manual |
 | `simplify` | Anthropic (bundled) | Post-write cleanup: redundant vars, unused imports, dead defensive code | Manual |
 | `security-review` | Anthropic (bundled) | Vulnerability scan on diff: auth flaws, injection, secret leaks | Manual |
+| `feature-flow` | local (this repo) | End-to-end ship conductor: worktree → design → review → PR → handoff; enforces worktree-first + subagent model tiering | Manual |
 
 ### Superpowers sub-skills — which one when
 
@@ -152,6 +153,10 @@ Skills are stage-specific. Don't invoke them all at once — map each to its pha
 | `superpowers:using-superpowers` | Auto: establishes how to find/use skills |
 
 ### Full workflow (in order, per feature)
+
+> Invoke the **`feature-flow`** skill to drive this whole sequence start-to-finish
+> (worktree-first → design → review → PR → resume → handoff). The steps below are
+> the underlying reference it orchestrates.
 
 ```
 1. EXPLORE INTENT (before any creative work)
@@ -234,6 +239,7 @@ Single source of truth for every harness tool. The **Skill Workflow** section ab
 
 | Hook | Event | Does |
 |------|-------|------|
+| `branch-guard.sh` | `PreToolUse` Bash `git commit` | runs first: hard-blocks (exit 2) commits on `main`/`master` (ignores `--no-verify`); warns on branch names outside `feat/\|fix/\|chore/\|migration/` |
 | `pre-commit.sh` | `PreToolUse` Bash `git commit` | auto fmt-fix + re-stage, then lint/typecheck; blocks only if still failing. Honors `--no-verify` w/ warning |
 | `post-pr-create.sh` | `PostToolUse` Bash `gh pr create` | path-routes: if diff touches `apps/beacon`, auth routes, `firestore.rules`, or functions → leads with `/security-review` prompt. Always reminds `pnpm pr-tests` |
 | `stop.sh` | `Stop` | prints `git status -sb` + uncommitted count; nudges checkpoint commit if >10 files. Read-only |
