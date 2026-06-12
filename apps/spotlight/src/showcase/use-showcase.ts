@@ -5,7 +5,11 @@ import { fetchShowcaseItem, fetchShowcaseList } from "./showcase-firestore";
 type Async<T> = { data: T; loading: boolean; error: boolean };
 
 export function useShowcaseList(): Async<ShowcaseItem[]> {
-  const [state, setState] = useState<Async<ShowcaseItem[]>>({ data: [], loading: true, error: false });
+  const [state, setState] = useState<Async<ShowcaseItem[]>>({
+    data: [],
+    loading: true,
+    error: false,
+  });
   useEffect(() => {
     let alive = true;
     fetchShowcaseList()
@@ -19,7 +23,11 @@ export function useShowcaseList(): Async<ShowcaseItem[]> {
 }
 
 export function useShowcaseItem(id: string): Async<ShowcaseItem | null> {
-  const [state, setState] = useState<Async<ShowcaseItem | null>>({ data: null, loading: true, error: false });
+  const [state, setState] = useState<Async<ShowcaseItem | null>>({
+    data: null,
+    loading: true,
+    error: false,
+  });
   useEffect(() => {
     let alive = true;
     setState({ data: null, loading: true, error: false });

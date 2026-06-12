@@ -4,7 +4,7 @@ import { sortByCompletedDesc } from "./showcase-firestore";
 import type { ShowcaseItem } from "@luminova/types/engine";
 
 const item = (id: string, ms: number) =>
-  ({ id, completedAt: Timestamp.fromMillis(ms) } as unknown as ShowcaseItem);
+  ({ id, completedAt: Timestamp.fromMillis(ms) }) as unknown as ShowcaseItem;
 
 describe("sortByCompletedDesc", () => {
   it("orders newest completedAt first", () => {

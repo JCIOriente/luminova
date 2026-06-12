@@ -17,7 +17,10 @@ function asPhotos(v: unknown): Photo[] {
   if (!Array.isArray(v)) return [];
   return v.filter(
     (p): p is Photo =>
-      typeof p === "object" && p !== null && typeof (p as Photo).url === "string" && isTimestamp((p as Photo).uploadedAt),
+      typeof p === "object" &&
+      p !== null &&
+      typeof (p as Photo).url === "string" &&
+      isTimestamp((p as Photo).uploadedAt),
   );
 }
 
@@ -57,7 +60,11 @@ export function projectInitiative(
   if (!AREAS_OF_OPPORTUNITY.includes(data.category as AreaOfOpportunity)) return null;
   if (!isTimestamp(data.startDate) || !isTimestamp(data.endDate)) return null;
 
-  const roster = (data.roster ?? {}) as { directorId?: string; coDirectorIds?: string[]; teamIds?: string[] };
+  const roster = (data.roster ?? {}) as {
+    directorId?: string;
+    coDirectorIds?: string[];
+    teamIds?: string[];
+  };
   return {
     id,
     kind,
@@ -71,14 +78,26 @@ export function projectInitiative(
     photos: asPhotos(data.photos),
     team: {
       director: roster.directorId ? person(roster.directorId, resolve) : null,
-      coDirectors: (roster.coDirectorIds ?? []).map((cid) => person(cid, resolve)).filter((p): p is ShowcasePerson => p !== null),
-      members: (roster.teamIds ?? []).map((tid) => person(tid, resolve)).filter((p): p is ShowcasePerson => p !== null),
+      coDirectors: (roster.coDirectorIds ?? [])
+        .map((cid) => person(cid, resolve))
+        .filter((p): p is ShowcasePerson => p !== null),
+      members: (roster.teamIds ?? [])
+        .map((tid) => person(tid, resolve))
+        .filter((p): p is ShowcasePerson => p !== null),
     },
   };
 }
 
 /** All roster ids that need name resolution (director + co-directors + team). */
 export function rosterMemberIds(data: Record<string, unknown>): string[] {
-  const r = (data.roster ?? {}) as { directorId?: string; coDirectorIds?: string[]; teamIds?: string[] };
-  return [...(r.directorId ? [r.directorId] : []), ...(r.coDirectorIds ?? []), ...(r.teamIds ?? [])];
+  const r = (data.roster ?? {}) as {
+    directorId?: string;
+    coDirectorIds?: string[];
+    teamIds?: string[];
+  };
+  return [
+    ...(r.directorId ? [r.directorId] : []),
+    ...(r.coDirectorIds ?? []),
+    ...(r.teamIds ?? []),
+  ];
 }

@@ -86,7 +86,12 @@ function initiativeTrigger(collection: "programs" | "projects") {
       const stamp = after.createTime ?? Timestamp.now();
       await processInitiativeWrite(store, parentType, event.params.id, init, stamp);
       // Projection runs after engine work so a showcase error never pre-empts points.
-      await projectShowcase(db(), parentType, event.params.id, after.data() as Record<string, unknown>);
+      await projectShowcase(
+        db(),
+        parentType,
+        event.params.id,
+        after.data() as Record<string, unknown>,
+      );
       return;
     }
     // Initiative deleted — reconcile to an empty roster so its rows are voided.

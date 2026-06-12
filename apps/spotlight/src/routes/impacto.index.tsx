@@ -8,13 +8,7 @@ export const Route = createFileRoute("/impacto/")({
   component: ImpactoPage,
 });
 
-function ImpactoHero({
-  count,
-  personsImpacted,
-}: {
-  count: number;
-  personsImpacted: number;
-}) {
+function ImpactoHero({ count, personsImpacted }: { count: number; personsImpacted: number }) {
   return (
     <section
       className="bg-dark"

@@ -15,7 +15,9 @@ function completedDoc(over: Record<string, unknown> = {}) {
     status: "Finalizado",
     finalReport: { filedAt: ts(3000), filedBy: "u1" },
     impact: { personsImpacted: 1200, volunteers: 30, custom: [], closingSummary: "ok" },
-    photos: [{ id: "ph1", url: "https://x/y?token=1", caption: null, uploadedAt: ts(1), uploadedBy: "m1" }],
+    photos: [
+      { id: "ph1", url: "https://x/y?token=1", caption: null, uploadedAt: ts(1), uploadedBy: "m1" },
+    ],
     roster: { directorId: "m1", coDirectorIds: ["m2"], teamIds: ["m3", "m_missing"] },
     ...over,
   };
@@ -43,7 +45,9 @@ describe("projectInitiative", () => {
   });
 
   it("returns null when not Finalizado", () => {
-    expect(projectInitiative("Project", "p1", completedDoc({ status: "EnEjecucion" }), resolve)).toBeNull();
+    expect(
+      projectInitiative("Project", "p1", completedDoc({ status: "EnEjecucion" }), resolve),
+    ).toBeNull();
   });
 
   it("returns null when impact missing", () => {
@@ -51,11 +55,18 @@ describe("projectInitiative", () => {
   });
 
   it("returns null when finalReport missing", () => {
-    expect(projectInitiative("Program", "g1", completedDoc({ finalReport: null }), resolve)).toBeNull();
+    expect(
+      projectInitiative("Program", "g1", completedDoc({ finalReport: null }), resolve),
+    ).toBeNull();
   });
 
   it("director null when unresolvable", () => {
-    const item = projectInitiative("Project", "p1", completedDoc({ roster: { directorId: "ghost", coDirectorIds: [], teamIds: [] } }), resolve);
+    const item = projectInitiative(
+      "Project",
+      "p1",
+      completedDoc({ roster: { directorId: "ghost", coDirectorIds: [], teamIds: [] } }),
+      resolve,
+    );
     expect(item!.team.director).toBeNull();
   });
 });
