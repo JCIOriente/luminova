@@ -28,10 +28,15 @@ function asPhotos(v: unknown): ShowcasePhoto[] {
   return v
     .filter(
       (p): p is Photo =>
-        typeof p === "object" && p !== null && typeof (p as Photo).url === "string",
+        typeof p === "object" &&
+        p !== null &&
+        typeof (p as Photo).id === "string" &&
+        (p as Photo).id.length > 0 &&
+        typeof (p as Photo).url === "string" &&
+        (p as Photo).url.length > 0,
     )
     .map((p) => ({
-      id: typeof p.id === "string" ? p.id : "",
+      id: p.id,
       url: p.url,
       caption: typeof p.caption === "string" ? p.caption : null,
     }));

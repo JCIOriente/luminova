@@ -240,7 +240,7 @@ function HomePrograms() {
               void navigate({ to: "/impacto" });
             }}
           >
-            Ver todos los programas
+            Ver nuestro impacto
           </ArrowLink>
         </div>
         <div className="program-scroller" style={{ marginTop: 56 }}>

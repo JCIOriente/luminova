@@ -72,6 +72,21 @@ describe("projectInitiative", () => {
     expect(item!.team.director).toBeNull();
   });
 
+  it("drops photos missing a usable id", () => {
+    const item = projectInitiative(
+      "Project",
+      "p1",
+      completedDoc({
+        photos: [
+          { url: "https://x/a", caption: null, uploadedAt: ts(1), uploadedBy: "m1" }, // no id
+          { id: "ph2", url: "https://x/b", caption: "ok", uploadedAt: ts(1), uploadedBy: "m1" },
+        ],
+      }),
+      resolve,
+    );
+    expect(item!.photos).toEqual([{ id: "ph2", url: "https://x/b", caption: "ok" }]);
+  });
+
   it("drops path-unsafe roster ids (no path injection)", () => {
     const item = projectInitiative(
       "Project",
