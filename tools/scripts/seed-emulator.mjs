@@ -143,7 +143,7 @@ const programs = [
     title: "Emprende Oriente 2025",
     description:
       "Aceleración de negocios locales en etapa temprana con mentoría, comunidad y vinculación estratégica en el Oriente boliviano.",
-    category: "NegociosYEmprendimiento",
+    category: "NegociosEmprendimiento",
     startDate: ts("2025-03-01T00:00:00Z"),
     endDate: ts("2025-11-30T00:00:00Z"),
     roster: { directorId: "m1", coDirectorIds: ["m2"], teamIds: ["m3"] },
