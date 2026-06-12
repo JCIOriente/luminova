@@ -1,13 +1,6 @@
 import type { ShowcaseItem } from "@luminova/types/engine";
 import { formatES } from "./format";
 
-function formatMetricValue(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed === "") return raw;
-  const asNumber = Number(trimmed);
-  return Number.isFinite(asNumber) ? formatES(asNumber) : raw;
-}
-
 function Stat({
   value,
   label,
@@ -39,7 +32,7 @@ export function ImpactBand({ impact }: { impact: ShowcaseItem["impact"] }) {
       {impact.custom.map((metric, i) => (
         <Stat
           key={`${metric.label}-${i}`}
-          value={formatMetricValue(metric.value)}
+          value={metric.value}
           label={metric.label}
         />
       ))}
