@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { RippleBackground } from "@luminova/ui";
 import { useShowcaseList } from "../showcase/use-showcase";
 import { ShowcaseGrid } from "../components/showcase/showcase-grid";
-import { formatES } from "../components/showcase/showcase-card";
+import { formatES } from "../components/showcase/format";
 
 export const Route = createFileRoute("/impacto/")({
   component: ImpactoPage,

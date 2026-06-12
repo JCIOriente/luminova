@@ -2,12 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ImgSlot } from "@luminova/ui";
 import { AREA_OF_OPPORTUNITY_LABELS, type AreaOfOpportunity } from "@luminova/types/engine";
 import type { ShowcaseItem } from "@luminova/types/engine";
-
-const numberFormatter = new Intl.NumberFormat("es-BO");
-
-export function formatES(n: number): string {
-  return numberFormatter.format(n);
-}
+import { formatES } from "./format";
 
 const monthYearFormatter = new Intl.DateTimeFormat("es-BO", {
   month: "long",
