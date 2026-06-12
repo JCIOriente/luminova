@@ -7,8 +7,11 @@ import {
   type ComboboxOption,
   type SegmentedOption,
 } from "@luminova/ui";
-import type { ActivityInput, InitiativeInput, Member } from "@luminova/types";
+import type { ActivityInput, InitiativeImpactInput, InitiativeInput, Member } from "@luminova/types";
 import { useAbility } from "../lib/authz/ability-context";
+import { useAuth } from "../lib/auth/auth";
+import { CompletionWizard } from "../features/initiatives/components/completion-wizard";
+import { useCompleteInitiative } from "../features/initiatives/hooks/use-complete-initiative";
 import { InitiativeForm } from "../components/initiative-form";
 import { InitiativeHero } from "../features/initiatives/components/initiative-hero";
 import { InitiativeSummary } from "../features/initiatives/components/initiative-summary";
@@ -50,6 +53,8 @@ function InitiativeDetailPage() {
   const kind = KIND[initiativeType];
   const termId = currentTermKey();
   const ability = useAbility();
+  const { user } = useAuth();
+  const uid = user?.uid ?? null;
 
   const canRead = ability.can("read", kind);
   const canUpdate = ability.can("update", kind);
@@ -62,10 +67,12 @@ function InitiativeDetailPage() {
 
   const updateProgram = useUpdateProgram(termId);
   const updateProject = useUpdateProject(termId);
+  const completeInitiative = useCompleteInitiative(initiativeType, termId);
   const createActivity = useCreateActivity(termId);
 
   const [tab, setTab] = useState<Tab>("resumen");
   const [editOpen, setEditOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
   const memberById = useMemo(
@@ -89,6 +96,10 @@ function InitiativeDetailPage() {
     );
   }
 
+  const isDirection = uid !== null && item.directionUids.includes(uid);
+  const canComplete = (canUpdate || isDirection) && item.status !== "Finalizado";
+  const statusLocked = item.status === "Finalizado" || item.finalReport !== null;
+
   const acts = activities ?? [];
   const now = Date.now();
   const closingSoon = isClosingSoon(item, acts, now);
@@ -103,6 +114,12 @@ function InitiativeDetailPage() {
     if (item.kind === "Program") await updateProgram.mutateAsync({ id: item.id, data });
     else await updateProject.mutateAsync({ id: item.id, data });
     setEditOpen(false);
+  };
+
+  const handleComplete = async (impact: InitiativeImpactInput) => {
+    if (!canComplete || uid === null) return;
+    await completeInitiative.mutateAsync({ id: item.id, impact, uid });
+    setCompleteOpen(false);
   };
 
   const handleCreateActivity = async (data: ActivityInput) => {
@@ -129,10 +146,19 @@ function InitiativeDetailPage() {
         item={item}
         closingSoon={closingSoon}
         actions={
-          canUpdate && (
-            <Button as="button" type="button" variant="secondary" onClick={() => setEditOpen(true)}>
-              Editar
-            </Button>
+          (canUpdate || canComplete) && (
+            <div className="flex gap-2">
+              {canUpdate && (
+                <Button as="button" type="button" variant="secondary" onClick={() => setEditOpen(true)}>
+                  Editar
+                </Button>
+              )}
+              {canComplete && (
+                <Button as="button" type="button" onClick={() => setCompleteOpen(true)}>
+                  Finalizar
+                </Button>
+              )}
+            </div>
           )
         }
       />
@@ -177,7 +203,20 @@ function InitiativeDetailPage() {
           defaultValues={initiativeToInput(item)}
           submitLabel="Guardar"
           isSaving={isSavingInitiative}
+          lockStatus={statusLocked}
           onSubmit={(data) => void handleUpdate(data)}
+        />
+      </Sheet>
+
+      <Sheet
+        open={completeOpen}
+        onOpenChange={setCompleteOpen}
+        title={`Finalizar ${item.kind === "Program" ? "programa" : "proyecto"}`}
+      >
+        <CompletionWizard
+          initiativeLabel={item.kind === "Program" ? "programa" : "proyecto"}
+          isSaving={completeInitiative.isPending}
+          onComplete={(impact) => void handleComplete(impact)}
         />
       </Sheet>
 
