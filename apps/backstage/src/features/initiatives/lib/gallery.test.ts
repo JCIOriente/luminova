@@ -16,8 +16,8 @@ describe("groupActivityPhotos", () => {
       act("c", 300, []),
     ]);
     expect(groups.map((g) => g.activityId)).toEqual(["a", "b"]);
-    expect(groups[0].title).toBe("A-a");
-    expect(groups[0].photos.map((p) => p.id)).toEqual(["p1"]);
+    expect(groups[0]?.title).toBe("A-a");
+    expect(groups[0]?.photos.map((p) => p.id)).toEqual(["p1"]);
   });
   it("returns [] when nothing has photos", () => {
     expect(groupActivityPhotos([act("a", 1, [])])).toEqual([]);
