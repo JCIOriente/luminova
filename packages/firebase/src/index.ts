@@ -74,6 +74,7 @@ export function getStorageService(): FirebaseStorage {
   return getFirebase().storage;
 }
 
+export { getFirestoreLite } from "./firestore-lite";
 export { uploadMemberPhoto, deleteMemberPhoto } from "./member-photo";
 export {
   uploadInitiativePhoto,

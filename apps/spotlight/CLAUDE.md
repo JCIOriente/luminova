@@ -67,6 +67,6 @@ Footer: 4-column grid — quick links, programs, contact info, social links.
 
 - **Toolchain.** Node 24, pnpm, Vite, React 19, TS 5.7 strict, TanStack Router, Tailwind v4. Consumes `@luminova/ui`.
 - **CI gate.** `spotlight-ci` = prettier-check → eslint → tsc → vite build → vitest → knip (unused) → size-limit. Run via `pnpm --filter spotlight run ci` (rolled into `pnpm pr-tests`). Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin.
-- **Invariants (CI-enforceable).** Zero `firebase`/`@luminova/firebase` imports. No `@tanstack/react-query`. Contact form client-side only — no network call.
+- **Invariants (CI-enforceable).** The showcase may read the public `showcase` Firestore collection via `@luminova/firebase`'s `getFirestoreLite()` (lite SDK, one-shot reads only — no realtime listeners, no auth, no writes). No other Firebase service may be imported; `getFirebase()` is forbidden here. No `@tanstack/react-query`. Contact form client-side only — no network call.
 - **Heaviest skills.** `frontend-design` then `ui-ux-pro-max` (brand identity); `react-best-practices` (auto on `.tsx`).
 - **Sensitive surfaces.** None (no auth, no backend). Dispatch `bundle-budget-watcher` after dep/route additions.
