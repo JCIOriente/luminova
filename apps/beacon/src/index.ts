@@ -80,7 +80,8 @@ export const awardPoints = onDocumentWritten("checkIns/{id}", async (event) => {
 function initiativeTrigger(collection: "programs" | "projects") {
   const parentType = collection === "programs" ? "Program" : "Project";
   return onDocumentWritten(`${collection}/{id}`, async (event) => {
-    const store = createFirestoreStore(db());
+    const database = db();
+    const store = createFirestoreStore(database);
     const after = event.data?.after;
     if (after?.exists) {
       const init = parseInitiativeWrite(after.data());
@@ -92,7 +93,7 @@ function initiativeTrigger(collection: "programs" | "projects") {
       // Projection runs after engine work so a showcase error never pre-empts points.
       try {
         await projectShowcase(
-          db(),
+          database,
           parentType,
           event.params.id,
           after.data() as Record<string, unknown>,
@@ -120,7 +121,7 @@ function initiativeTrigger(collection: "programs" | "projects") {
         before.createTime ?? Timestamp.now(),
       );
       try {
-        await projectShowcase(db(), parentType, event.params.id, undefined);
+        await projectShowcase(database, parentType, event.params.id, undefined);
       } catch (err) {
         console.error("showcase projection failed", { id: event.params.id, err });
       }

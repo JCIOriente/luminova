@@ -1,4 +1,3 @@
-import { Timestamp } from "firebase-admin/firestore";
 import {
   AREAS_OF_OPPORTUNITY,
   type AreaOfOpportunity,
@@ -10,9 +9,18 @@ import {
   type ShowcasePhoto,
 } from "@luminova/types/engine";
 import { isCleanId } from "../award-points/ids.js";
+import { hasToMillis } from "../firestore-util.js";
 
-function isTimestamp(v: unknown): v is Timestamp {
-  return typeof (v as { toMillis?: unknown })?.toMillis === "function";
+function parseRoster(data: Record<string, unknown>): {
+  directorId?: string;
+  coDirectorIds?: string[];
+  teamIds?: string[];
+} {
+  return (data.roster ?? {}) as {
+    directorId?: string;
+    coDirectorIds?: string[];
+    teamIds?: string[];
+  };
 }
 
 function asPhotos(v: unknown): ShowcasePhoto[] {
@@ -30,7 +38,12 @@ function asPhotos(v: unknown): ShowcasePhoto[] {
 }
 
 function asImpact(v: unknown): InitiativeImpact | null {
-  const i = v as InitiativeImpact | null;
+  const i = (v ?? null) as {
+    personsImpacted?: unknown;
+    volunteers?: unknown;
+    closingSummary?: unknown;
+    custom?: unknown;
+  } | null;
   if (!i || typeof i.personsImpacted !== "number" || typeof i.volunteers !== "number") return null;
   if (typeof i.closingSummary !== "string") return null;
   return {
@@ -64,19 +77,15 @@ export function projectInitiative(
   data: Record<string, unknown>,
   resolve: (memberId: string) => string | null,
 ): ShowcaseItem | null {
-  if (data.status !== "Finalizado") return null;
+  if (!isProjectable(data)) return null;
   const impact = asImpact(data.impact);
   if (!impact) return null;
-  const finalReport = data.finalReport as { filedAt?: unknown } | null | undefined;
-  if (!finalReport || !isTimestamp(finalReport.filedAt)) return null;
+  const finalReport = data.finalReport as { filedAt?: unknown };
+  if (!hasToMillis(finalReport.filedAt)) return null;
   if (!AREAS_OF_OPPORTUNITY.includes(data.category as AreaOfOpportunity)) return null;
-  if (!isTimestamp(data.startDate) || !isTimestamp(data.endDate)) return null;
+  if (!hasToMillis(data.startDate) || !hasToMillis(data.endDate)) return null;
 
-  const roster = (data.roster ?? {}) as {
-    directorId?: string;
-    coDirectorIds?: string[];
-    teamIds?: string[];
-  };
+  const roster = parseRoster(data);
   return {
     id,
     kind,
@@ -102,11 +111,7 @@ export function projectInitiative(
 
 /** All roster ids that need name resolution (director + co-directors + team). */
 export function rosterMemberIds(data: Record<string, unknown>): string[] {
-  const r = (data.roster ?? {}) as {
-    directorId?: string;
-    coDirectorIds?: string[];
-    teamIds?: string[];
-  };
+  const r = parseRoster(data);
   return [
     ...(r.directorId ? [r.directorId] : []),
     ...(r.coDirectorIds ?? []),

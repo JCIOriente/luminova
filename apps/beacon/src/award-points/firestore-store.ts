@@ -1,4 +1,4 @@
-import { FieldValue, type Firestore, type Timestamp } from "firebase-admin/firestore";
+import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import {
   ACTIVITY_CATEGORIES,
   type PointRuleCode,
@@ -9,10 +9,7 @@ import type { EngineStore, InitiativeWrite } from "./store.js";
 import type { ActivityRef } from "./derive.js";
 import type { AggregateRow, MemberAggregate } from "./aggregate.js";
 import { isCleanId } from "./ids.js";
-
-function hasToMillis(value: unknown): value is Timestamp {
-  return typeof (value as { toMillis?: unknown })?.toMillis === "function";
-}
+import { hasToMillis } from "../firestore-util.js";
 
 /**
  * Parse a programs/projects doc into the engine's InitiativeWrite, or null if
