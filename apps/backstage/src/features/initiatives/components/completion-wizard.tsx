@@ -3,11 +3,18 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Field, Input, Textarea } from "@luminova/ui";
 import { initiativeImpactSchema, type InitiativeImpactInput } from "@luminova/types";
+import type { Photo } from "@luminova/types";
+import { PhotoManager } from "./photo-manager";
 
 interface CompletionWizardProps {
   initiativeLabel: string;
   isSaving: boolean;
   onComplete: (impact: InitiativeImpactInput) => void;
+  photos: Photo[];
+  onUploadPhoto: (blob: Blob) => Promise<void>;
+  onRemovePhoto: (photoId: string) => Promise<void>;
+  onSetCover: (photoId: string) => Promise<void>;
+  onSetCaption: (photoId: string, caption: string) => Promise<void>;
 }
 
 const EMPTY: InitiativeImpactInput = {
@@ -17,8 +24,17 @@ const EMPTY: InitiativeImpactInput = {
   custom: [],
 };
 
-export function CompletionWizard({ initiativeLabel, isSaving, onComplete }: CompletionWizardProps) {
-  const [step, setStep] = useState<1 | 2>(1);
+export function CompletionWizard({
+  initiativeLabel,
+  isSaving,
+  onComplete,
+  photos,
+  onUploadPhoto,
+  onRemovePhoto,
+  onSetCover,
+  onSetCaption,
+}: CompletionWizardProps) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const {
     register,
     control,
@@ -31,8 +47,12 @@ export function CompletionWizard({ initiativeLabel, isSaving, onComplete }: Comp
   });
   const { fields, append, remove } = useFieldArray({ control, name: "custom" });
 
-  const goNext = async () => {
+  const goToStep2 = async () => {
     if (await trigger("closingSummary")) setStep(2);
+  };
+
+  const goToStep3 = async () => {
+    if (await trigger(["personsImpacted", "volunteers"])) setStep(3);
   };
 
   return (
@@ -41,7 +61,7 @@ export function CompletionWizard({ initiativeLabel, isSaving, onComplete }: Comp
       noValidate
       className="flex flex-col gap-4"
     >
-      <p className="text-[13px] text-ink-3">Paso {step} de 2</p>
+      <p className="text-[13px] text-ink-3">Paso {step} de 3</p>
 
       {step === 1 && (
         <>
@@ -57,7 +77,7 @@ export function CompletionWizard({ initiativeLabel, isSaving, onComplete }: Comp
             as="button"
             type="button"
             className="justify-center"
-            onClick={() => void goNext()}
+            onClick={() => void goToStep2()}
           >
             Siguiente →
           </Button>
@@ -140,6 +160,39 @@ export function CompletionWizard({ initiativeLabel, isSaving, onComplete }: Comp
               variant="secondary"
               className="flex-1 justify-center"
               onClick={() => setStep(1)}
+            >
+              ← Atrás
+            </Button>
+            <Button
+              as="button"
+              type="button"
+              className="flex-1 justify-center"
+              onClick={() => void goToStep3()}
+            >
+              Siguiente →
+            </Button>
+          </div>
+        </>
+      )}
+
+      {step === 3 && (
+        <>
+          <p className="text-[13px] font-medium text-ink-1">Destacadas (opcional)</p>
+          <PhotoManager
+            photos={photos}
+            onUpload={onUploadPhoto}
+            onRemove={onRemovePhoto}
+            onSetCover={onSetCover}
+            onSetCaption={onSetCaption}
+            disabled={isSaving}
+          />
+          <div className="flex gap-2">
+            <Button
+              as="button"
+              type="button"
+              variant="secondary"
+              className="flex-1 justify-center"
+              onClick={() => setStep(2)}
             >
               ← Atrás
             </Button>

@@ -237,6 +237,11 @@ function InitiativeDetailPage() {
           initiativeLabel={kindLabel}
           isSaving={completeInitiative.isPending}
           onComplete={(impact) => void handleComplete(impact)}
+          photos={item.photos}
+          onUploadPhoto={photoActions.addPhoto}
+          onRemovePhoto={photoActions.removePhotoById}
+          onSetCover={photoActions.setCover}
+          onSetCaption={photoActions.setCaption}
         />
       </Sheet>
 
