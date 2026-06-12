@@ -93,6 +93,13 @@ export function Header() {
               Programas
             </a>
             <a
+              href="/impacto"
+              onClick={(e) => go(e, "/impacto")}
+              className={clsx("nav-link", pathname === "/impacto" && "active")}
+            >
+              Impacto
+            </a>
+            <a
               href="/contact"
               onClick={(e) => go(e, "/contact")}
               className={clsx("nav-link", pathname === "/contact" && "active")}
@@ -135,6 +142,9 @@ export function Header() {
             </a>
             <a href="/about" onClick={(e) => go(e, "/about")} className="mobile-nav-link">
               Quiénes Somos
+            </a>
+            <a href="/impacto" onClick={(e) => go(e, "/impacto")} className="mobile-nav-link">
+              Impacto
             </a>
             <a href="/contact" onClick={(e) => go(e, "/contact")} className="mobile-nav-link">
               Contacto
