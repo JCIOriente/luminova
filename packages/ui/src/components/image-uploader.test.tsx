@@ -12,4 +12,20 @@ describe("ImageUploader", () => {
     await waitFor(() => expect(screen.getByText(/imagen válida|valid image/i)).toBeInTheDocument());
     expect(onUpload).not.toHaveBeenCalled();
   });
+
+  it("renders with landscape aspect/cropShape/maxEdge props", () => {
+    render(
+      <ImageUploader
+        currentSrc={null}
+        name="Foto evento"
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+        aspect={3 / 2}
+        cropShape="rect"
+        maxEdge={1600}
+      />,
+    );
+    expect(screen.getByTestId("image-file-input")).toBeInTheDocument();
+    expect(screen.getByText(/Subir foto/i)).toBeInTheDocument();
+  });
 });

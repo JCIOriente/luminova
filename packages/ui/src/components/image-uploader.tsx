@@ -12,6 +12,9 @@ interface ImageUploaderProps {
   onUpload: (blob: Blob) => Promise<void>;
   onRemove: () => Promise<void>;
   disabled?: boolean;
+  aspect?: number;
+  cropShape?: "round" | "rect";
+  maxEdge?: number;
 }
 
 const actionLink = "text-[14px] font-semibold text-jci-blue transition-colors hover:text-jci-navy";
@@ -22,6 +25,9 @@ export function ImageUploader({
   onUpload,
   onRemove,
   disabled,
+  aspect = 1,
+  cropShape = "round",
+  maxEdge = 512,
 }: ImageUploaderProps) {
   const [src, setSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -64,7 +70,7 @@ export function ImageUploader({
     setBusy(true);
     setError(null);
     try {
-      const blob = await cropAndCompress(src, areaPixels);
+      const blob = await cropAndCompress(src, areaPixels, maxEdge);
       await onUpload(blob);
       discard();
     } catch {
@@ -133,8 +139,8 @@ export function ImageUploader({
                 image={src}
                 crop={crop}
                 zoom={zoom}
-                aspect={1}
-                cropShape="round"
+                aspect={aspect}
+                cropShape={cropShape}
                 showGrid={false}
                 onCropChange={setCrop}
                 onZoomChange={setZoom}

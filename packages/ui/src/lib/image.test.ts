@@ -26,4 +26,10 @@ describe("fittedDimensions", () => {
   it("handles square", () => {
     expect(fittedDimensions(1024, 1024, 512)).toEqual({ width: 512, height: 512 });
   });
+  it("fits to a custom max edge", () => {
+    expect(fittedDimensions(3200, 2400, 1600)).toEqual({ width: 1600, height: 1200 });
+  });
+  it("leaves smaller images untouched", () => {
+    expect(fittedDimensions(800, 600, 1600)).toEqual({ width: 800, height: 600 });
+  });
 });
