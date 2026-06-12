@@ -102,8 +102,9 @@ function InitiativeDetailPage() {
   }
 
   const isDirection = uid !== null && item.directionUids.includes(uid);
-  const canComplete = (canUpdate || isDirection) && item.status !== "Finalizado";
-  const statusLocked = item.status === "Finalizado" || item.finalReport !== null;
+  const isCompleted = item.status === "Finalizado" || item.finalReport !== null;
+  const canComplete = (canUpdate || isDirection) && !isCompleted;
+  const kindLabel = item.kind === "Program" ? "programa" : "proyecto";
 
   const acts = activities ?? [];
   const now = Date.now();
@@ -111,8 +112,6 @@ function InitiativeDetailPage() {
   const progress = computeProgress(acts, item.kind, item.id);
   const children = childActivitiesOf(acts, item.kind, item.id);
   const team = buildInitiativeTeam(item.roster, memberById);
-  const impact = item.impact;
-  const showCompleted = item.status === "Finalizado" && impact !== null;
 
   const handleUpdate = async (data: InitiativeInput) => {
     if (!canUpdate) return;
@@ -183,8 +182,8 @@ function InitiativeDetailPage() {
       {tab === "resumen" && (
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            {showCompleted && impact ? (
-              <InitiativeCompleted impact={impact} />
+            {item.impact ? (
+              <InitiativeCompleted impact={item.impact} />
             ) : (
               <InitiativeSummary item={item} progress={progress} />
             )}
@@ -203,28 +202,20 @@ function InitiativeDetailPage() {
         />
       )}
 
-      <Sheet
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        title={`Editar ${item.kind === "Program" ? "programa" : "proyecto"}`}
-      >
+      <Sheet open={editOpen} onOpenChange={setEditOpen} title={`Editar ${kindLabel}`}>
         <InitiativeForm
           memberOptions={memberOptions}
           defaultValues={initiativeToInput(item)}
           submitLabel="Guardar"
           isSaving={isSavingInitiative}
-          lockStatus={statusLocked}
+          lockStatus={isCompleted}
           onSubmit={(data) => void handleUpdate(data)}
         />
       </Sheet>
 
-      <Sheet
-        open={completeOpen}
-        onOpenChange={setCompleteOpen}
-        title={`Finalizar ${item.kind === "Program" ? "programa" : "proyecto"}`}
-      >
+      <Sheet open={completeOpen} onOpenChange={setCompleteOpen} title={`Finalizar ${kindLabel}`}>
         <CompletionWizard
-          initiativeLabel={item.kind === "Program" ? "programa" : "proyecto"}
+          initiativeLabel={kindLabel}
           isSaving={completeInitiative.isPending}
           onComplete={(impact) => void handleComplete(impact)}
         />

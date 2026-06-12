@@ -7,13 +7,13 @@ import {
   updateDoc,
   query,
   where,
-  serverTimestamp,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
 import type { Program, ProgramInput, InitiativeImpactInput } from "@luminova/types";
 import {
   toInitiativeCreateDoc,
   toInitiativeUpdateDoc,
+  toInitiativeCompleteDoc,
 } from "../../initiatives/repositories/initiative-mapper";
 
 export class ProgramRepository {
@@ -43,10 +43,6 @@ export class ProgramRepository {
 
   /** The completion wizard's atomic trio write — the engine confirmation gate. */
   async complete(id: string, impact: InitiativeImpactInput, uid: string): Promise<void> {
-    await updateDoc(doc(this.collection, id), {
-      status: "Finalizado",
-      impact,
-      finalReport: { filedAt: serverTimestamp(), filedBy: uid },
-    });
+    await updateDoc(doc(this.collection, id), toInitiativeCompleteDoc(impact, uid));
   }
 }

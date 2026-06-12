@@ -16,9 +16,12 @@ export const INITIATIVE_TYPE: Record<InitiativeKind, InitiativeType> = {
   Project: "project",
 };
 
+export const initiativeDetailKey = (type: InitiativeType, id: string) =>
+  ["initiatives", "detail", type, id] as const;
+
 export function useInitiative(type: InitiativeType, id: string, opts: { enabled: boolean }) {
   return useQuery<InitiativeListItem | null>({
-    queryKey: ["initiatives", "detail", type, id],
+    queryKey: initiativeDetailKey(type, id),
     enabled: opts.enabled,
     queryFn: async () => {
       const kind = KIND[type];

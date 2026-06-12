@@ -4,7 +4,7 @@ import { ProgramRepository } from "../../programs/repositories/program-repositor
 import { ProjectRepository } from "../../projects/repositories/project-repository";
 import { programKeys } from "../../programs/hooks/program-keys";
 import { projectKeys } from "../../projects/hooks/project-keys";
-import type { InitiativeType } from "./use-initiative";
+import { initiativeDetailKey, type InitiativeType } from "./use-initiative";
 
 export function useCompleteInitiative(type: InitiativeType, termId: string) {
   const qc = useQueryClient();
@@ -21,9 +21,11 @@ export function useCompleteInitiative(type: InitiativeType, termId: string) {
       type === "program"
         ? new ProgramRepository().complete(id, impact, uid)
         : new ProjectRepository().complete(id, impact, uid),
-    onSuccess: () =>
-      qc.invalidateQueries({
+    onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({
         queryKey: type === "program" ? programKeys.byTerm(termId) : projectKeys.byTerm(termId),
-      }),
+      });
+      void qc.invalidateQueries({ queryKey: initiativeDetailKey(type, id) });
+    },
   });
 }

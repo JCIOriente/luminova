@@ -1,5 +1,5 @@
-import { Timestamp } from "firebase/firestore";
-import type { InitiativeCore, InitiativeInput } from "@luminova/types";
+import { Timestamp, serverTimestamp } from "firebase/firestore";
+import type { InitiativeCore, InitiativeInput, InitiativeImpactInput } from "@luminova/types";
 
 /** `date` input ("YYYY-MM-DD") → Timestamp at midnight UTC (round-trips TZ-stable). */
 function toDateTimestamp(value: string): Timestamp {
@@ -20,6 +20,15 @@ export function toInitiativeCreateDoc(data: InitiativeInput, termId: string) {
     impact: null,
     finalReport: null,
     directionUids: [],
+  };
+}
+
+/** The completion wizard's atomic trio — written by both initiative repositories. */
+export function toInitiativeCompleteDoc(impact: InitiativeImpactInput, uid: string) {
+  return {
+    status: "Finalizado",
+    impact,
+    finalReport: { filedAt: serverTimestamp(), filedBy: uid },
   };
 }
 
