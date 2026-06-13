@@ -13,7 +13,12 @@ esac
 
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 
-base=$(git merge-base HEAD origin/master 2>/dev/null || git merge-base HEAD master 2>/dev/null || echo "")
+# Resolve the repo's default branch instead of assuming master — a stale
+# origin/master ref (this repo has one) would otherwise give a bogus merge-base
+# and a garbage diff range, false-flagging unrelated files as security-sensitive.
+default=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')
+default=${default:-main}
+base=$(git merge-base HEAD "origin/$default" 2>/dev/null || git merge-base HEAD "$default" 2>/dev/null || echo "")
 if [ -n "$base" ]; then
   diff=$(git diff --name-only "$base"...HEAD 2>/dev/null || echo "")
 else
