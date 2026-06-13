@@ -239,16 +239,37 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Two timestamps fall on the same Bolivia-local (UTC-4) calendar day.
+    function sameBoliviaDay(a, b) {
+      let la = a - duration.time(4, 0, 0, 0);
+      let lb = b - duration.time(4, 0, 0, 0);
+      return la.year() == lb.year() && la.month() == lb.month() && la.day() == lb.day();
+    }
+    // A check-in is only valid on the activity's own Bolivia day, while the
+    // activity is not Cancelada and its parent initiative is not Finalizado.
+    function withinCheckInWindow(activityId) {
+      let act = get(/databases/$(database)/documents/activities/$(activityId)).data;
+      let parentColl = act.get('parentType', '') == 'Program' ? 'programs' : 'projects';
+      let parentOpen = act.get('parentId', null) == null
+        || get(/databases/$(database)/documents/$(parentColl)/$(act.parentId))
+             .data.get('status', '') != 'Finalizado';
+      return act.get('status', '') != 'Cancelada'
+        && sameBoliviaDay(request.time, act.startAt)
+        && parentOpen;
+    }
+
     match /checkIns/{checkInId} {
       allow read: if signedIn();
       // Admin/ProjectManager may register any role; a Scanner may only register
       // attendance for its assigned activities (never director/team — that would
-      // self-award high-value points).
-      allow create: if hasAnyRole(['Admin', 'ProjectManager'])
-        || (hasAnyRole(['Scanner'])
-            && request.resource.data.role == 'Attendee'
-            && request.resource.data.activityId in request.auth.token.scannerEventIds
-            && exists(/databases/$(database)/documents/members/$(request.resource.data.memberId)));
+      // self-award high-value points). All creators are bound to the activity's
+      // check-in window (its Bolivia day; parent not Finalizado; not Cancelada).
+      allow create: if withinCheckInWindow(request.resource.data.activityId)
+        && (hasAnyRole(['Admin', 'ProjectManager'])
+          || (hasAnyRole(['Scanner'])
+              && request.resource.data.role == 'Attendee'
+              && request.resource.data.activityId in request.auth.token.scannerEventIds
+              && exists(/databases/$(database)/documents/members/$(request.resource.data.memberId))));
       allow update, delete: if false;
     }
 
