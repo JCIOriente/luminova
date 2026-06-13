@@ -30,8 +30,10 @@ function asPhotos(v: unknown): ShowcasePhoto[] {
       (p): p is Photo =>
         typeof p === "object" &&
         p !== null &&
-        typeof (p as Photo).id === "string" &&
-        (p as Photo).id.length > 0 &&
+        // gallery-clean id: path-safe AND free of the `:` namespace separator, so a
+        // client-set photo id can't forge a colliding `${activityId}:${photoId}` key.
+        isCleanId((p as Photo).id) &&
+        !(p as Photo).id.includes(":") &&
         typeof (p as Photo).url === "string" &&
         (p as Photo).url.length > 0,
     )

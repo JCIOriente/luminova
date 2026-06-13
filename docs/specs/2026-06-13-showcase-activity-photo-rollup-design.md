@@ -108,6 +108,17 @@ program/project write ──existing────┘     ├─ projectInitiative
   (admin-scale write volume — acceptable). The activities query is `.limit(500)`-capped
   defensively; an initiative exceeding that drops the overflow activities' photos.
 - A non-`Ejecutada` activity's photos never showcase, even if the work happened.
+
+## Tracked follow-up (pre-existing, not introduced here)
+
+- **Photo-URL origin validation.** `asPhotos` projects a photo's `url` verbatim into the
+  world-readable `showcase` doc with no Storage-origin allowlist — pre-existing since C4
+  (#66) for initiative photos; this PR marginally widens the writer set to activity-direction
+  members. A rogue ProjectManager/direction insider could point a photo at an off-Storage URL.
+  No XSS (`<img src>` won't run `javascript:`/`data:`). Not fixed here because a naive
+  scheme/host allowlist drops the Storage **emulator**'s `http://127.0.0.1:9199/...` URLs and
+  would break local seed/verification. Fix needs an emulator-aware allowlist applied once in
+  `asPhotos` (covers both photo sources). (security-review Finding 1, MEDIUM.)
 - `onActivityWritten` and the parent's own `onProgram/ProjectWritten` both `set()` the
   same `showcase/{id}` (full overwrite, no transaction). A rare concurrent write can let
   the loser overwrite with a prior-generation snapshot — cosmetic only, self-heals on the

@@ -176,6 +176,19 @@ describe("activityShowcasePhotos", () => {
   it("drops activities whose doc id is path-unsafe", () => {
     expect(activityShowcasePhotos("Project", [activity("a/b"), activity("a__b")])).toEqual([]);
   });
+
+  it("drops photos whose own id is not gallery-clean (path-unsafe or contains ':')", () => {
+    const photos = activityShowcasePhotos("Project", [
+      activity("act1", {
+        photos: [
+          { id: "x:y", url: "https://x/a", caption: null, uploadedAt: ts(1), uploadedBy: "m1" },
+          { id: "a/b", url: "https://x/b", caption: null, uploadedAt: ts(1), uploadedBy: "m1" },
+          { id: "ok", url: "https://x/c", caption: null, uploadedAt: ts(1), uploadedBy: "m1" },
+        ],
+      }),
+    ]);
+    expect(photos).toEqual([{ id: "act1:ok", url: "https://x/c", caption: null }]);
+  });
 });
 
 describe("activityParentRefs", () => {
