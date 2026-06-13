@@ -1,6 +1,7 @@
 import {
   DEFAULT_POINT_VALUES,
   resolvePointRuleCode,
+  isReportGatedRole,
   type ParticipationState,
   type PointRuleCode,
 } from "@luminova/types/engine";
@@ -71,7 +72,7 @@ export async function processInitiativeWrite(
   //    keep their month. Attendance is immediate — the report never gates it.
   for (const row of rows) {
     if (row.checkInAt === null) continue;
-    if (row.role === "Attendee") continue;
+    if (!isReportGatedRole(row.role)) continue;
     const finalReportFiled = init.reportFiled;
     const state: ParticipationState =
       row.gates.attendanceRegistered && finalReportFiled ? "confirmed" : "provisional";

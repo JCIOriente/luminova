@@ -27,7 +27,7 @@ export function ActivityCheckIn({ activityId, members }: ActivityCheckInProps) {
   const [toast, setToast] = useState<{ message: string; ok: boolean } | null>(null);
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2600);
+    const t = setTimeout(() => setToast(null), 2800);
     return () => clearTimeout(t);
   }, [toast]);
 

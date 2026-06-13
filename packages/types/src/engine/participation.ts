@@ -5,6 +5,15 @@ import type { InitiativeKind } from "./activity.js";
 export const PARTICIPATION_ROLES = ["Director", "CoDirector", "Team", "Attendee"] as const;
 export type ParticipationRole = (typeof PARTICIPATION_ROLES)[number];
 
+/**
+ * Whether a role's points wait on the parent initiative's final report. Leadership
+ * (Director/CoDirector/Team) is report-gated; attendance is confirmed immediately.
+ * Single source for the engine's report-gate policy (derive + reconcile).
+ */
+export function isReportGatedRole(role: ParticipationRole): boolean {
+  return role !== "Attendee";
+}
+
 export const PARTICIPATION_STATES = ["provisional", "confirmed", "voided"] as const;
 export type ParticipationState = (typeof PARTICIPATION_STATES)[number];
 

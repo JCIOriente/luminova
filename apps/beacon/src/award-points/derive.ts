@@ -2,6 +2,7 @@ import type { Timestamp } from "firebase-admin/firestore";
 import {
   resolvePointRuleCode,
   computePunctualityFactor,
+  isReportGatedRole,
   type ActivityCategory,
   type InitiativeKind,
   type Participation,
@@ -62,8 +63,8 @@ export function deriveParticipation({
     checkInAt: checkIn.checkInAt,
     startAt: activity.startAt,
   });
-  const isLeadership = checkIn.role !== "Attendee";
-  const finalReportFiled = !isLeadership || activity.parentId === null ? true : reportFiled;
+  const finalReportFiled =
+    !isReportGatedRole(checkIn.role) || activity.parentId === null ? true : reportFiled;
   const attendanceRegistered = true;
   const state = attendanceRegistered && finalReportFiled ? "confirmed" : "provisional";
 

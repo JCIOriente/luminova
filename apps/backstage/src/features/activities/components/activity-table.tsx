@@ -8,11 +8,11 @@ import {
   TableCell,
   Icon,
   IconButton,
-  type BadgeTone,
 } from "@luminova/ui";
 import { Link } from "@tanstack/react-router";
-import type { Activity, ActivityStatus } from "@luminova/types";
+import type { Activity } from "@luminova/types";
 import { CATEGORY_LABELS } from "../category-labels";
+import { ACTIVITY_STATUS_TONE } from "../lib/status-tone";
 import { formatActivityDateTime } from "../lib/format";
 
 interface ActivityTableProps {
@@ -26,12 +26,6 @@ interface ActivityTableProps {
   /** Whether each activity is inside its check-in window (id -> open). */
   checkInOpenById: Record<string, boolean>;
 }
-
-const STATUS_TONE: Record<ActivityStatus, BadgeTone> = {
-  Programada: "gray",
-  Ejecutada: "green",
-  Cancelada: "red",
-};
 
 export function ActivityTable({
   activities,
@@ -81,7 +75,7 @@ export function ActivityTable({
                 {formatActivityDateTime(activity.startAt)}
               </TableCell>
               <TableCell>
-                <Badge tone={STATUS_TONE[activity.status]}>{activity.status}</Badge>
+                <Badge tone={ACTIVITY_STATUS_TONE[activity.status]}>{activity.status}</Badge>
               </TableCell>
               {canManage && (
                 <TableCell>

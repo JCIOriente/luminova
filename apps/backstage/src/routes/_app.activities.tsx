@@ -55,21 +55,22 @@ function ActivitiesPage() {
     [projects],
   );
 
-  const initiatives = useMemo(
-    () => [...(programs ?? []), ...(projects ?? [])],
-    [programs, projects],
-  );
-  const parentTitleById = useMemo(
-    () => Object.fromEntries(initiatives.map((i) => [i.id, i.title])),
-    [initiatives],
-  );
-  const checkInOpenById = useMemo(() => {
-    const statusById = Object.fromEntries(initiatives.map((i) => [i.id, i.status]));
+  const { parentTitleById, checkInOpenById } = useMemo(() => {
+    const initiatives = [...(programs ?? []), ...(projects ?? [])];
+    const titleById: Record<string, string> = {};
+    const statusById: Record<string, string> = {};
+    for (const i of initiatives) {
+      titleById[i.id] = i.title;
+      statusById[i.id] = i.status;
+    }
     const now = new Date();
-    return Object.fromEntries(
-      (activities ?? []).map((a) => [a.id, isCheckInOpen(a, statusById, now)]),
-    );
-  }, [activities, initiatives]);
+    return {
+      parentTitleById: titleById,
+      checkInOpenById: Object.fromEntries(
+        (activities ?? []).map((a) => [a.id, isCheckInOpen(a, statusById, now)]),
+      ),
+    };
+  }, [activities, programs, projects]);
 
   const editingId = editing && editing !== "new" ? editing.id : null;
   const { data: checkInCount } = useQuery({

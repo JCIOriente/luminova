@@ -4,8 +4,7 @@ import type { Activity } from "@luminova/types";
 const BOLIVIA_OFFSET_MS = 4 * 60 * 60 * 1000;
 
 function boliviaDayKey(ms: number): string {
-  const d = new Date(ms - BOLIVIA_OFFSET_MS);
-  return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
+  return new Date(ms - BOLIVIA_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 type WindowActivity = Pick<Activity, "startAt" | "status" | "parentId">;

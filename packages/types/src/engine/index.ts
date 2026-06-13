@@ -35,7 +35,7 @@ export type {
   ParticipationState,
   ParticipationGates,
 } from "./participation.js";
-export { PARTICIPATION_ROLES, PARTICIPATION_STATES } from "./participation.js";
+export { PARTICIPATION_ROLES, PARTICIPATION_STATES, isReportGatedRole } from "./participation.js";
 export type { MemberPoints } from "./member-points.js";
 export type { CheckIn } from "./check-in.js";
 export { resolvePointRuleCode, type ResolvePointRuleInput } from "./resolve-point-rule.js";
