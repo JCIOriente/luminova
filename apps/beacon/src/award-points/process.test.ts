@@ -78,15 +78,15 @@ beforeEach(() => {
 });
 
 describe("processCheckIn", () => {
-  it("writes a provisional row (no report yet) and a zero aggregate", async () => {
+  it("writes a confirmed attendance row + aggregate immediately, no report needed", async () => {
     await processCheckIn(store, checkIn);
     const row = store.rows.get("a1__m1__Attendee")!;
-    expect(row.state).toBe("provisional");
+    expect(row.state).toBe("confirmed");
     expect(row.basePoints).toBe(3);
-    expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 0, byMonth: {} });
+    expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 3, byMonth: { "2026-06": 3 } });
   });
 
-  it("writes a confirmed row + aggregate when the report is filed", async () => {
+  it("confirms attendance the same way whether or not the report is filed", async () => {
     store.reports.add("p1");
     await processCheckIn(store, checkIn);
     expect(store.rows.get("a1__m1__Attendee")!.state).toBe("confirmed");
@@ -133,9 +133,9 @@ function initiative(
   };
 }
 
-describe("processInitiativeWrite — report confirmation of attendance rows", () => {
-  it("confirms the initiative's provisional attendance rows", async () => {
-    await processCheckIn(store, checkIn); // provisional attendance row
+describe("processInitiativeWrite — attendance is independent of the report", () => {
+  it("leaves an already-confirmed attendance row confirmed when the report is filed", async () => {
+    await processCheckIn(store, checkIn); // confirmed immediately
     await processInitiativeWrite(
       store,
       "Project",
@@ -147,9 +147,8 @@ describe("processInitiativeWrite — report confirmation of attendance rows", ()
     expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 3, byMonth: { "2026-06": 3 } });
   });
 
-  it("reverts attendance rows to provisional when the report is unfiled", async () => {
-    store.reports.add("p1");
-    await processCheckIn(store, checkIn); // confirmed
+  it("does NOT revert attendance to provisional when the report is unfiled", async () => {
+    await processCheckIn(store, checkIn); // confirmed immediately
     await processInitiativeWrite(
       store,
       "Project",
@@ -157,8 +156,8 @@ describe("processInitiativeWrite — report confirmation of attendance rows", ()
       initiative({ reportFiled: false }),
       projNow,
     );
-    expect(store.rows.get("a1__m1__Attendee")!.state).toBe("provisional");
-    expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 0, byMonth: {} });
+    expect(store.rows.get("a1__m1__Attendee")!.state).toBe("confirmed");
+    expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 3, byMonth: { "2026-06": 3 } });
   });
 });
 

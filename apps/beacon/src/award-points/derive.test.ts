@@ -64,13 +64,25 @@ describe("deriveParticipation", () => {
     });
   });
 
-  it("is provisional when a parented activity has no report yet", () => {
+  it("confirms an attendee immediately even when a parented activity has no report", () => {
     const row = deriveParticipation({
       checkIn: checkIn(),
       activity: activity(),
       basePoints: 3,
       reportFiled: false,
     });
+    expect(row?.state).toBe("confirmed");
+    expect(row?.gates.finalReportFiled).toBe(true);
+  });
+
+  it("keeps a leadership check-in provisional until the parent report is filed", () => {
+    const row = deriveParticipation({
+      checkIn: checkIn({ role: "Director" }),
+      activity: activity(),
+      basePoints: 5,
+      reportFiled: false,
+    });
+    expect(row?.pointRuleCode).toBe("DirectProject");
     expect(row?.state).toBe("provisional");
     expect(row?.gates.finalReportFiled).toBe(false);
   });

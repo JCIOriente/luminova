@@ -67,9 +67,11 @@ export async function processInitiativeWrite(
 
   const rows = await store.getRowsByParent(parentId);
 
-  // 1. Re-confirm attendance rows (checkInAt != null) per the report gate; keep their month.
+  // 1. Re-confirm leadership check-in rows (checkInAt != null) per the report gate;
+  //    keep their month. Attendance is immediate — the report never gates it.
   for (const row of rows) {
     if (row.checkInAt === null) continue;
+    if (row.role === "Attendee") continue;
     const finalReportFiled = init.reportFiled;
     const state: ParticipationState =
       row.gates.attendanceRegistered && finalReportFiled ? "confirmed" : "provisional";

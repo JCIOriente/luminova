@@ -62,7 +62,8 @@ export function deriveParticipation({
     checkInAt: checkIn.checkInAt,
     startAt: activity.startAt,
   });
-  const finalReportFiled = activity.parentId === null ? true : reportFiled;
+  const isLeadership = checkIn.role !== "Attendee";
+  const finalReportFiled = !isLeadership || activity.parentId === null ? true : reportFiled;
   const attendanceRegistered = true;
   const state = attendanceRegistered && finalReportFiled ? "confirmed" : "provisional";
 
