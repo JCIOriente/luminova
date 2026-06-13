@@ -57,6 +57,35 @@ export function activityShowcasePhotos(
     .flatMap((d) => asPhotos(d.data.photos).map((p) => ({ ...p, id: `${d.id}:${p.id}` })));
 }
 
+export interface ShowcaseParentRef {
+  kind: InitiativeKind;
+  id: string;
+}
+
+/**
+ * Distinct, path-safe parent initiatives to re-project for an activity write.
+ * Looks at both the before- and after-doc so a delete reconciles the old parent and
+ * a parent-change re-projects both the source and destination.
+ */
+export function activityParentRefs(
+  before: Record<string, unknown> | undefined,
+  after: Record<string, unknown> | undefined,
+): ShowcaseParentRef[] {
+  const refs: ShowcaseParentRef[] = [];
+  const seen = new Set<string>();
+  for (const data of [before, after]) {
+    if (!data) continue;
+    const kind = data.parentType;
+    const id = data.parentId;
+    if ((kind !== "Program" && kind !== "Project") || !isCleanId(id)) continue;
+    const key = `${kind}/${id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    refs.push({ kind, id });
+  }
+  return refs;
+}
+
 function asImpact(v: unknown): InitiativeImpact | null {
   const i = (v ?? null) as {
     personsImpacted?: unknown;

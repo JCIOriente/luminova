@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Timestamp } from "firebase-admin/firestore";
 import {
+  activityParentRefs,
   activityShowcasePhotos,
   projectInitiative,
   rosterMemberIds,
@@ -168,5 +169,51 @@ describe("activityShowcasePhotos", () => {
 
   it("returns [] for an activity with no photos", () => {
     expect(activityShowcasePhotos("Project", [activity("act1", { photos: undefined })])).toEqual([]);
+  });
+});
+
+describe("activityParentRefs", () => {
+  it("returns the single parent for a created/updated parented activity", () => {
+    expect(activityParentRefs(undefined, { parentType: "Program", parentId: "g1" })).toEqual([
+      { kind: "Program", id: "g1" },
+    ]);
+  });
+
+  it("returns the parent from the before-doc on delete", () => {
+    expect(activityParentRefs({ parentType: "Project", parentId: "p1" }, undefined)).toEqual([
+      { kind: "Project", id: "p1" },
+    ]);
+  });
+
+  it("dedupes when parent is unchanged across before/after", () => {
+    expect(
+      activityParentRefs(
+        { parentType: "Project", parentId: "p1" },
+        { parentType: "Project", parentId: "p1" },
+      ),
+    ).toEqual([{ kind: "Project", id: "p1" }]);
+  });
+
+  it("returns both parents when an activity moves between them", () => {
+    expect(
+      activityParentRefs(
+        { parentType: "Program", parentId: "g1" },
+        { parentType: "Project", parentId: "p1" },
+      ),
+    ).toEqual([
+      { kind: "Program", id: "g1" },
+      { kind: "Project", id: "p1" },
+    ]);
+  });
+
+  it("ignores standalone activities (null parent)", () => {
+    expect(
+      activityParentRefs({ parentType: null, parentId: null }, { parentType: null, parentId: null }),
+    ).toEqual([]);
+  });
+
+  it("ignores path-unsafe or malformed parent ids", () => {
+    expect(activityParentRefs(undefined, { parentType: "Program", parentId: "a/b" })).toEqual([]);
+    expect(activityParentRefs(undefined, { parentType: "Bogus", parentId: "g1" })).toEqual([]);
   });
 });
