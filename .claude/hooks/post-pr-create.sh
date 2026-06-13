@@ -25,6 +25,7 @@ else
   diff=$(git diff --name-only HEAD~1 2>/dev/null || echo "")
 fi
 
+# Keep this path set in sync with security-review-gate.sh's $SENSITIVE.
 sensitive=$(printf '%s\n' "$diff" | grep -E 'apps/beacon/|firestore\.rules|_auth|_app\.tsx|repositories/|/functions/' || true)
 
 msg="PR opened — it is now ready for review. Run \`pnpm pr-tests\` locally now.

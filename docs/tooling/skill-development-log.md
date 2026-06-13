@@ -3,6 +3,35 @@
 Chronological record of changes to this repo's Claude Code harness — skills,
 hooks, subagents. Newest first. Referenced from `CLAUDE.md` (Docs layout).
 
+## 2026-06-13 — `security-review-gate` hook (hard gate)
+
+**Branch:** `feat/security-review-gate`
+
+### `security-review-gate.sh` (`.claude/hooks/`)
+- **What:** new `PreToolUse(Bash)` hook on `gh pr create`, wired last in the Bash
+  matcher. Hard-blocks (exit 2) the PR when the branch diff (vs the default
+  branch resolved from `origin/HEAD`) touches `apps/beacon`/`firestore.rules`/
+  `_auth`/`_app.tsx`/`repositories/`/`/functions/` **unless** a fresh
+  `Security-Reviewed: <sha>` commit trailer exists in range.
+- **Freshness rule:** the trailer's sha must be an ancestor of `HEAD` AND no
+  sensitive file may have changed after it. A stale or foreign sha is rejected.
+- **Why:** `post-pr-create.sh` only *reminded* to run `/security-review`; the
+  reminder is skippable. This enforces it for the paths that matter. Decisions
+  (with user): commit-trailer + freshness over a docs artifact or diff-hash
+  sentinel; fire on `gh pr create` only (not `git push`).
+- **Producer:** `feature-flow` phase 3 stamps the trailer once `/security-review`
+  comes back clean.
+- **Reuses:** the stdin-JSON parse + command-position regex idiom from
+  `branch-guard.sh`; the default-branch resolution from `post-pr-create.sh`.
+
+### Verification
+- 7 scenarios in a throwaway repo: (1) sensitive + no trailer → block;
+  (2) fresh trailer at HEAD → pass; (3) sensitive change after trailer → block;
+  (4) non-sensitive branch → pass; (5) trailer sha not a HEAD-ancestor → block;
+  (6) quoted `"gh pr create"` (not command position) → pass; (7) chained
+  `&& gh pr create` on a sensitive branch → block. All green.
+- `settings.json` valid JSON; gate wired after `pre-commit.sh` in PreToolUse.
+
 ## 2026-06-12 — `feature-flow` skill + `branch-guard` hook
 
 **Branch:** `chore/feature-flow-workflow`
