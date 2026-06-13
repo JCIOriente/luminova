@@ -168,7 +168,9 @@ describe("activityShowcasePhotos", () => {
   });
 
   it("returns [] for an activity with no photos", () => {
-    expect(activityShowcasePhotos("Project", [activity("act1", { photos: undefined })])).toEqual([]);
+    expect(activityShowcasePhotos("Project", [activity("act1", { photos: undefined })])).toEqual(
+      [],
+    );
   });
 });
 
@@ -208,7 +210,10 @@ describe("activityParentRefs", () => {
 
   it("ignores standalone activities (null parent)", () => {
     expect(
-      activityParentRefs({ parentType: null, parentId: null }, { parentType: null, parentId: null }),
+      activityParentRefs(
+        { parentType: null, parentId: null },
+        { parentType: null, parentId: null },
+      ),
     ).toEqual([]);
   });
 
