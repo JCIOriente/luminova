@@ -23,6 +23,15 @@ function parseRoster(data: Record<string, unknown>): {
   };
 }
 
+/**
+ * A showcase id usable as a flattened gallery key: path-safe (`isCleanId`) AND free of
+ * the `:` separator, so a client-set photo id can't forge a colliding
+ * `${activityId}:${photoId}` key. Applied to both photo ids and contributing activity ids.
+ */
+function isGalleryId(id: unknown): id is string {
+  return isCleanId(id) && !id.includes(":");
+}
+
 function asPhotos(v: unknown): ShowcasePhoto[] {
   if (!Array.isArray(v)) return [];
   return v
@@ -30,10 +39,7 @@ function asPhotos(v: unknown): ShowcasePhoto[] {
       (p): p is Photo =>
         typeof p === "object" &&
         p !== null &&
-        // gallery-clean id: path-safe AND free of the `:` namespace separator, so a
-        // client-set photo id can't forge a colliding `${activityId}:${photoId}` key.
-        isCleanId((p as Photo).id) &&
-        !(p as Photo).id.includes(":") &&
+        isGalleryId((p as Photo).id) &&
         typeof (p as Photo).url === "string" &&
         (p as Photo).url.length > 0,
     )
@@ -50,7 +56,7 @@ function asPhotos(v: unknown): ShowcasePhoto[] {
  * `kind` contribute; ids become `${activityId}:${photoId}` so flattened gallery keys
  * never collide with the initiative's own photos or across activities. The `:`
  * separator is gallery-key-only — these ids are never used as a Firestore path or
- * composite doc id. `activityId` is `isCleanId`-gated for the same path-safety
+ * composite doc id. `activityId` is `isGalleryId`-gated for the same path-safety
  * discipline as roster ids.
  */
 export function activityShowcasePhotos(
@@ -58,7 +64,7 @@ export function activityShowcasePhotos(
   docs: { id: string; data: Record<string, unknown> }[],
 ): ShowcasePhoto[] {
   return docs
-    .filter((d) => isCleanId(d.id) && d.data.parentType === kind && d.data.status === "Ejecutada")
+    .filter((d) => isGalleryId(d.id) && d.data.parentType === kind && d.data.status === "Ejecutada")
     .flatMap((d) => asPhotos(d.data.photos).map((p) => ({ ...p, id: `${d.id}:${p.id}` })));
 }
 

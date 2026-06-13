@@ -62,23 +62,21 @@ async function projectShowcase(
     await ref.delete();
     return;
   }
-  const names = await resolveMemberNames(database, rosterMemberIds(data));
+  // Independent reads — resolve names and fetch child activities concurrently.
+  const [names, activitySnap] = await Promise.all([
+    resolveMemberNames(database, rosterMemberIds(data)),
+    database.collection("activities").where("parentId", "==", id).limit(ACTIVITY_ROLLUP_CAP).get(),
+  ]);
   const item = projectInitiative(kind, id, data, (mid) => names.get(mid) ?? null);
   if (!item) {
     await ref.delete();
     return;
   }
-  const activitySnap = await database
-    .collection("activities")
-    .where("parentId", "==", id)
-    .limit(ACTIVITY_ROLLUP_CAP)
-    .get();
   const activityPhotos = activityShowcasePhotos(
     kind,
     activitySnap.docs.map((d) => ({ id: d.id, data: d.data() })),
   );
-  item.photos = [...item.photos, ...activityPhotos];
-  await ref.set(item);
+  await ref.set({ ...item, photos: [...item.photos, ...activityPhotos] });
 }
 
 export const awardPoints = onDocumentWritten("checkIns/{id}", async (event) => {
