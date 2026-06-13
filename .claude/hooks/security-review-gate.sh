@@ -21,7 +21,7 @@ cmd=$(printf '%s' "$input" | node -e 'let s="";process.stdin.on("data",d=>s+=d).
 
 # Authoritative filter: match `gh pr create` in command position (start of line
 # or after a shell separator) so a harmless `echo "gh pr create"` doesn't block.
-if ! printf '%s' "$cmd" | grep -qE '(^|[[:space:]]|[;&|(])gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'; then
+if ! printf '%s' "$cmd" | grep -qE '(^|[[:space:]]|[;&|(])gh[[:space:]]+pr[[:space:]]+create([[:space:];&|)]|$)'; then
   exit 0
 fi
 
@@ -39,6 +39,7 @@ if [ -z "$base" ]; then
   exit 0
 fi
 
+# Keep this path set in sync with post-pr-create.sh's `sensitive` grep.
 SENSITIVE='apps/beacon/|firestore\.rules|_auth|_app\.tsx|repositories/|/functions/'
 
 diff=$(git diff --name-only "$base"...HEAD 2>/dev/null || echo "")
@@ -57,6 +58,9 @@ fresh=""
 if [ -n "$reviewed" ]; then
   while IFS= read -r r; do
     [ -z "$r" ] && continue
+    # Only honor a literal sha — a symbolic ref like HEAD/main/<tag> would
+    # trivially self-certify (always an ancestor of HEAD, empty diff after it).
+    printf '%s' "$r" | grep -qiE '^[0-9a-f]{7,40}$' || continue
     rsha=$(git rev-parse --verify --quiet "${r}^{commit}" 2>/dev/null || echo "")
     [ -z "$rsha" ] && continue
     git merge-base --is-ancestor "$rsha" HEAD 2>/dev/null || continue
@@ -65,9 +69,7 @@ if [ -n "$reviewed" ]; then
       fresh="$rsha"
       break
     fi
-  done <<EOF
-$reviewed
-EOF
+  done <<< "$reviewed"
 fi
 
 if [ -n "$fresh" ]; then

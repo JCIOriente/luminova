@@ -241,7 +241,7 @@ Single source of truth for every harness tool. The **Skill Workflow** section ab
 |------|-------|------|
 | `branch-guard.sh` | `PreToolUse` Bash `git commit` | runs first: hard-blocks (exit 2) commits on `main`/`master` (ignores `--no-verify`); warns on branch names outside `feat/\|fix/\|chore/\|migration/` |
 | `pre-commit.sh` | `PreToolUse` Bash `git commit` | auto fmt-fix + re-stage, then lint/typecheck; blocks only if still failing. Honors `--no-verify` w/ warning |
-| `security-review-gate.sh` | `PreToolUse` Bash `gh pr create` | **hard gate** (exit 2): blocks the PR when the branch diff touches `apps/beacon`/`firestore.rules`/auth unless a fresh `Security-Reviewed: <sha>` commit trailer is in range (sha is HEAD-ancestor + no sensitive file changed after it). feature-flow phase 3 stamps it. Enforcing counterpart to `post-pr-create.sh` |
+| `security-review-gate.sh` | `PreToolUse` Bash `gh pr create` | **hard gate** (exit 2): blocks the PR when the branch diff touches `apps/beacon`/`firestore.rules`/auth unless a fresh `Security-Reviewed: <sha>` commit trailer is in range (sha is HEAD-ancestor + no sensitive file changed after it). feature-flow phase 3 stamps it; to stamp manually after a clean `/security-review`: `git commit --allow-empty -m 'chore: security-review' -m "Security-Reviewed: $(git rev-parse HEAD)"`. Enforcing counterpart to `post-pr-create.sh` |
 | `post-pr-create.sh` | `PostToolUse` Bash `gh pr create` | path-routes: if diff touches `apps/beacon`, auth routes, `firestore.rules`, or functions → leads with `/security-review` prompt. Always reminds `pnpm pr-tests` |
 | `stop.sh` | `Stop` | prints `git status -sb` + uncommitted count; nudges checkpoint commit if >10 files. Read-only |
 
