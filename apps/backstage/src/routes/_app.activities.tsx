@@ -21,6 +21,7 @@ import { ActivityLockedError } from "../features/activities/repositories/activit
 import { ActivityForm } from "../features/activities/components/activity-form";
 import { ActivityTable } from "../features/activities/components/activity-table";
 import { activityToInput } from "../features/activities/lib/activity-to-input";
+import { isCheckInOpen } from "../features/activities/lib/check-in-window";
 
 export const Route = createFileRoute("/_app/activities")({ component: ActivitiesPage });
 
@@ -53,6 +54,22 @@ function ActivitiesPage() {
     () => (projects ?? []).map((p) => ({ value: p.id, label: p.title })),
     [projects],
   );
+
+  const initiatives = useMemo(
+    () => [...(programs ?? []), ...(projects ?? [])],
+    [programs, projects],
+  );
+  const parentTitleById = useMemo(
+    () => Object.fromEntries(initiatives.map((i) => [i.id, i.title])),
+    [initiatives],
+  );
+  const checkInOpenById = useMemo(() => {
+    const statusById = Object.fromEntries(initiatives.map((i) => [i.id, i.status]));
+    const now = new Date();
+    return Object.fromEntries(
+      (activities ?? []).map((a) => [a.id, isCheckInOpen(a, statusById, now)]),
+    );
+  }, [activities, initiatives]);
 
   const editingId = editing && editing !== "new" ? editing.id : null;
   const { data: checkInCount } = useQuery({
@@ -117,6 +134,8 @@ function ActivitiesPage() {
           onEdit={setEditing}
           onCancel={setCancelTarget}
           canManage={canManage}
+          parentTitleById={parentTitleById}
+          checkInOpenById={checkInOpenById}
         />
       )}
 
