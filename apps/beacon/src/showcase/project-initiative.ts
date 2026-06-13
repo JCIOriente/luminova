@@ -42,6 +42,21 @@ function asPhotos(v: unknown): ShowcasePhoto[] {
     }));
 }
 
+/**
+ * Flatten the photos of executed child activities into namespaced ShowcasePhotos.
+ * Only `status === "Ejecutada"` activities whose `parentType` matches the projected
+ * `kind` contribute; ids become `${activityId}:${photoId}` so flattened gallery keys
+ * never collide with the initiative's own photos or across activities.
+ */
+export function activityShowcasePhotos(
+  kind: InitiativeKind,
+  docs: { id: string; data: Record<string, unknown> }[],
+): ShowcasePhoto[] {
+  return docs
+    .filter((d) => d.data.parentType === kind && d.data.status === "Ejecutada")
+    .flatMap((d) => asPhotos(d.data.photos).map((p) => ({ ...p, id: `${d.id}:${p.id}` })));
+}
+
 function asImpact(v: unknown): InitiativeImpact | null {
   const i = (v ?? null) as {
     personsImpacted?: unknown;
