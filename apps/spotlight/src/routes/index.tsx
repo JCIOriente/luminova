@@ -219,6 +219,7 @@ function HomeAreas() {
 }
 
 function HomePrograms() {
+  const navigate = useNavigate();
   return (
     <section id="programas" className="section">
       <div className="container">
@@ -232,7 +233,15 @@ function HomePrograms() {
           }}
         >
           <SectionHeader eyebrow="Programas insignia" title="Cinco programas. Un compromiso." />
-          <ArrowLink href="#">Ver todos los programas</ArrowLink>
+          <ArrowLink
+            href="/impacto"
+            onClick={(e) => {
+              e.preventDefault();
+              void navigate({ to: "/impacto" });
+            }}
+          >
+            Ver nuestro impacto
+          </ArrowLink>
         </div>
         <div className="program-scroller" style={{ marginTop: 56 }}>
           <div className="program-grid">

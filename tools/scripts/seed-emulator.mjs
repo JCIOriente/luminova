@@ -136,6 +136,32 @@ const programs = [
     status: "EnEjecucion",
     directionUids: [],
   },
+  // Finalizado so the onProgramWritten trigger projects it into showcase → /impacto has data locally
+  {
+    id: "prog2",
+    termId: TERM,
+    title: "Emprende Oriente 2025",
+    description:
+      "Aceleración de negocios locales en etapa temprana con mentoría, comunidad y vinculación estratégica en el Oriente boliviano.",
+    category: "NegociosEmprendimiento",
+    startDate: ts("2025-03-01T00:00:00Z"),
+    endDate: ts("2025-11-30T00:00:00Z"),
+    roster: { directorId: "m1", coDirectorIds: ["m2"], teamIds: ["m3"] },
+    photos: [],
+    impact: {
+      personsImpacted: 320,
+      volunteers: 12,
+      custom: [{ label: "Emprendimientos acompañados", value: "18" }],
+      closingSummary:
+        "El programa acompañó a 18 emprendimientos locales durante ocho meses con talleres de modelo de negocio, mentoría personalizada y un demo day con inversores regionales. Impactamos directamente a más de 320 personas y generamos tres alianzas institucionales nuevas.",
+    },
+    finalReport: {
+      filedAt: ts("2025-12-05T00:00:00Z"),
+      filedBy: "m1",
+    },
+    status: "Finalizado",
+    directionUids: [],
+  },
 ];
 
 // --- Participations (confirmed ledger rows the engine would have derived) ---

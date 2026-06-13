@@ -160,6 +160,7 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    await setDoc(doc(db, "showcase/s1"), { id: "s1", kind: "Project", title: "Eco" });
   });
 });
 
@@ -845,6 +846,21 @@ describe("firestore.rules — activity parent-initiative direction", () => {
     await assertFails(
       updateDoc(doc(as("owner-uid", ["Member"]), "activities/act_standalone"), { title: "X" }),
     );
+  });
+});
+
+describe("showcase (public read, beacon-only write)", () => {
+  it("anyone (anon) can read", async () => {
+    await assertSucceeds(getDoc(doc(anon(), "showcase/s1")));
+  });
+  it("signed-in member can read", async () => {
+    await assertSucceeds(getDoc(doc(as("u", ["Member"]), "showcase/s1")));
+  });
+  it("anon cannot write", async () => {
+    await assertFails(setDoc(doc(anon(), "showcase/s2"), { title: "x" }));
+  });
+  it("admin cannot write (beacon admin SDK only)", async () => {
+    await assertFails(setDoc(doc(as("u", ["Admin"]), "showcase/s2"), { title: "x" }));
   });
 });
 
