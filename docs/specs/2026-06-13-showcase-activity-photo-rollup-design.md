@@ -64,8 +64,12 @@ parents still short-circuit to `ref.delete()` before any activity read.
 - Resolve `(parentType, parentId)` from the after-doc, falling back to the before-doc on a
   delete.
 - Standalone activity (`parentId == null`) → return immediately (no showcase exists).
-- Re-project the parent: fetch the parent Program/Project doc → `projectShowcase(…)` (passing
-  `undefined` when the parent doc is absent so a dangling child cleans up the showcase).
+- Re-project the parent: fetch the parent Program/Project doc → `projectShowcase(…)`. **Skip
+  when the parent doc does not exist** — a missing parent means either the activity's
+  `parentType` is forged (pointing at the wrong collection) or the parent was deleted; in
+  both cases this trigger must not delete `showcase/{id}` (the initiative's own delete-trigger
+  owns showcase cleanup, and a forged `parentType` could otherwise wipe a *different*
+  initiative's live showcase). (code-review high — confirmed cross-initiative deletion vector.)
 - **Parent-change edge:** when an activity moves parent (before.parentId ≠ after.parentId),
   re-project **both** distinct parents so the old parent does not keep stale photos.
 - Projection wrapped in `try/catch` + `console.error` (mirrors the initiative trigger — a

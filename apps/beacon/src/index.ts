@@ -161,11 +161,17 @@ export const onActivityWritten = onDocumentWritten("activities/{id}", async (eve
       const collection = parent.kind === "Program" ? "programs" : "projects";
       try {
         const snap = await database.doc(`${collection}/${parent.id}`).get();
+        // Only re-project when the parent actually exists. A missing parent means
+        // either the activity's `parentType` is forged (pointing at the wrong
+        // collection) or the parent was deleted — in both cases deleting `showcase/id`
+        // here would clobber a doc this trigger doesn't own (the initiative's own
+        // delete-trigger handles showcase cleanup on real deletion).
+        if (!snap.exists) return;
         await projectShowcase(
           database,
           parent.kind,
           parent.id,
-          snap.exists ? (snap.data() as Record<string, unknown>) : undefined,
+          snap.data() as Record<string, unknown>,
         );
       } catch (err) {
         console.error("showcase projection failed", { id: parent.id, err });
