@@ -159,6 +159,38 @@ describe("processInitiativeWrite — attendance is independent of the report", (
     expect(store.rows.get("a1__m1__Attendee")!.state).toBe("confirmed");
     expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 3, byMonth: { "2026-06": 3 } });
   });
+
+  it("self-heals a legacy provisional attendance row to confirmed", async () => {
+    // A row written under the old report-gated model (provisional, gate false).
+    store.rows.set("a1__m1__Attendee", {
+      id: "a1__m1__Attendee",
+      memberId: "m1",
+      termId: "2026",
+      activityId: "a1",
+      parentType: "Project",
+      parentId: "p1",
+      role: "Attendee",
+      pointRuleCode: "AttendActivity",
+      basePoints: 3,
+      punctualityFactor: 1,
+      computedPoints: 3,
+      monthBucket: "2026-06",
+      state: "provisional",
+      gates: { attendanceRegistered: true, finalReportFiled: false },
+      checkInAt: startAt,
+      voidReason: null,
+      createdAt: startAt,
+    });
+    await processInitiativeWrite(
+      store,
+      "Project",
+      "p1",
+      initiative({ reportFiled: false }),
+      projNow,
+    );
+    expect(store.rows.get("a1__m1__Attendee")!.state).toBe("confirmed");
+    expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 3, byMonth: { "2026-06": 3 } });
+  });
 });
 
 describe("processInitiativeWrite — roster expansion", () => {

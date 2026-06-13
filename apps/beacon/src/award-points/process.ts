@@ -26,8 +26,10 @@ export async function processCheckIn(store: EngineStore, checkIn: CheckIn): Prom
 
   const edited = await store.getPointRulePoints(activity.termId, code);
   const basePoints = edited ?? DEFAULT_POINT_VALUES[code];
+  // Only report-gated (leadership) roles need the report read; attendance is
+  // immediate, so skip the round-trip — derive ignores it for those rows anyway.
   const reportFiled =
-    activity.parentType !== null && activity.parentId !== null
+    isReportGatedRole(checkIn.role) && activity.parentType !== null && activity.parentId !== null
       ? await store.isReportFiled(activity.parentType, activity.parentId)
       : true;
 
@@ -68,12 +70,12 @@ export async function processInitiativeWrite(
 
   const rows = await store.getRowsByParent(parentId);
 
-  // 1. Re-confirm leadership check-in rows (checkInAt != null) per the report gate;
-  //    keep their month. Attendance is immediate — the report never gates it.
+  // 1. Reconcile check-in rows (checkInAt != null), keeping their month. Leadership
+  //    follows the report gate; attendance is always confirmed — this also self-heals
+  //    any legacy attendance row left provisional before attendance went immediate.
   for (const row of rows) {
     if (row.checkInAt === null) continue;
-    if (!isReportGatedRole(row.role)) continue;
-    const finalReportFiled = init.reportFiled;
+    const finalReportFiled = isReportGatedRole(row.role) ? init.reportFiled : true;
     const state: ParticipationState =
       row.gates.attendanceRegistered && finalReportFiled ? "confirmed" : "provisional";
     if (row.state !== state || row.gates.finalReportFiled !== finalReportFiled) {

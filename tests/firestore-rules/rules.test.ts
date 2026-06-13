@@ -101,6 +101,14 @@ beforeAll(async () => {
       startAt: inWindow,
       status: "Cancelada",
     });
+    await setDoc(doc(db, "activities/act_badparent"), {
+      termId: "2026",
+      category: "ProjectExecution",
+      parentType: "Committee",
+      parentId: "p_closed",
+      startAt: inWindow,
+      status: "Programada",
+    });
     await setDoc(doc(db, "checkIns/c1"), { memberId: "m1", activityId: "a1", role: "Attendee" });
     await setDoc(doc(db, "participations/part1"), { memberId: "m1", termId: "2026" });
     await setDoc(doc(db, "projects/p1"), { title: "P" });
@@ -745,6 +753,15 @@ describe("firestore.rules — checkIns", () => {
       setDoc(doc(as("u", ["Admin"]), "checkIns/c_cancel"), {
         memberId: "m1",
         activityId: "act_cancel",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("denies a check-in when the activity has a malformed parentType (fails closed)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "checkIns/c_badparent"), {
+        memberId: "m1",
+        activityId: "act_badparent",
         role: "Attendee",
       }),
     );

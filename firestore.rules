@@ -239,7 +239,8 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Two timestamps fall on the same Bolivia-local (UTC-4) calendar day.
+    // Two timestamps fall on the same Bolivia-local (UTC-4, no DST) calendar day.
+    // Mirrored client-side in apps/backstage/.../lib/check-in-window.ts — keep in sync.
     function sameBoliviaDay(a, b) {
       let la = a - duration.time(4, 0, 0, 0);
       let lb = b - duration.time(4, 0, 0, 0);
@@ -247,12 +248,15 @@ service cloud.firestore {
     }
     // A check-in is only valid on the activity's own Bolivia day, while the
     // activity is not Cancelada and its parent initiative is not Finalizado.
+    // A parented activity must carry a known parentType — anything else is
+    // malformed and fails closed (parentOpen == false → deny).
     function withinCheckInWindow(activityId) {
       let act = get(/databases/$(database)/documents/activities/$(activityId)).data;
       let parentColl = act.get('parentType', '') == 'Program' ? 'programs' : 'projects';
       let parentOpen = act.get('parentId', null) == null
-        || get(/databases/$(database)/documents/$(parentColl)/$(act.parentId))
-             .data.get('status', '') != 'Finalizado';
+        || (act.get('parentType', '') in ['Program', 'Project']
+            && get(/databases/$(database)/documents/$(parentColl)/$(act.parentId))
+                 .data.get('status', '') != 'Finalizado');
       return act.get('status', '') != 'Cancelada'
         && sameBoliviaDay(request.time, act.startAt)
         && parentOpen;
