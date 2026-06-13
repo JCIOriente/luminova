@@ -10,6 +10,7 @@ import {
   processInitiativeWrite,
 } from "./award-points/process.js";
 import {
+  activityShowcasePhotos,
   isProjectable,
   projectInitiative,
   rosterMemberIds,
@@ -58,8 +59,17 @@ async function projectShowcase(
   }
   const names = await resolveMemberNames(database, rosterMemberIds(data));
   const item = projectInitiative(kind, id, data, (mid) => names.get(mid) ?? null);
-  if (item) await ref.set(item);
-  else await ref.delete();
+  if (!item) {
+    await ref.delete();
+    return;
+  }
+  const activitySnap = await database.collection("activities").where("parentId", "==", id).get();
+  const activityPhotos = activityShowcasePhotos(
+    kind,
+    activitySnap.docs.map((d) => ({ id: d.id, data: d.data() })),
+  );
+  item.photos = [...item.photos, ...activityPhotos];
+  await ref.set(item);
 }
 
 export const awardPoints = onDocumentWritten("checkIns/{id}", async (event) => {
