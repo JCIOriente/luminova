@@ -47,6 +47,10 @@ async function resolveMemberNames(
   return names;
 }
 
+// Defensive bound on the child-activity roll-up query — far above any realistic
+// per-initiative activity count, but caps memory/latency on a pathological parent.
+const ACTIVITY_ROLLUP_CAP = 500;
+
 async function projectShowcase(
   database: Firestore,
   kind: "Program" | "Project",
@@ -64,7 +68,11 @@ async function projectShowcase(
     await ref.delete();
     return;
   }
-  const activitySnap = await database.collection("activities").where("parentId", "==", id).get();
+  const activitySnap = await database
+    .collection("activities")
+    .where("parentId", "==", id)
+    .limit(ACTIVITY_ROLLUP_CAP)
+    .get();
   const activityPhotos = activityShowcasePhotos(
     kind,
     activitySnap.docs.map((d) => ({ id: d.id, data: d.data() })),
@@ -147,20 +155,25 @@ export const onActivityWritten = onDocumentWritten("activities/{id}", async (eve
   const database = db();
   const before = event.data?.before?.data();
   const after = event.data?.after?.data();
-  for (const parent of activityParentRefs(before, after)) {
-    const collection = parent.kind === "Program" ? "programs" : "projects";
-    try {
-      const snap = await database.doc(`${collection}/${parent.id}`).get();
-      await projectShowcase(
-        database,
-        parent.kind,
-        parent.id,
-        snap.exists ? (snap.data() as Record<string, unknown>) : undefined,
-      );
-    } catch (err) {
-      console.error("showcase projection failed", { id: parent.id, err });
-    }
-  }
+  // A parent-change re-projects both source and destination — distinct showcase
+  // docs, so run them concurrently; each keeps its own catch so one failure does
+  // not cancel the other.
+  await Promise.all(
+    activityParentRefs(before, after).map(async (parent) => {
+      const collection = parent.kind === "Program" ? "programs" : "projects";
+      try {
+        const snap = await database.doc(`${collection}/${parent.id}`).get();
+        await projectShowcase(
+          database,
+          parent.kind,
+          parent.id,
+          snap.exists ? (snap.data() as Record<string, unknown>) : undefined,
+        );
+      } catch (err) {
+        console.error("showcase projection failed", { id: parent.id, err });
+      }
+    }),
+  );
 });
 
 // Inlined (mirrors @luminova/types currentTermKey) to keep the zod-laden types barrel out of this bundle path. UTC year — see docs/status/2026-06-11-k4-trigger-e2e.md.

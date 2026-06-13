@@ -172,6 +172,10 @@ describe("activityShowcasePhotos", () => {
       [],
     );
   });
+
+  it("drops activities whose doc id is path-unsafe", () => {
+    expect(activityShowcasePhotos("Project", [activity("a/b"), activity("a__b")])).toEqual([]);
+  });
 });
 
 describe("activityParentRefs", () => {

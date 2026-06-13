@@ -105,5 +105,11 @@ program/project write ──existing────┘     ├─ projectInitiative
 - Flattened presentation loses per-activity labeling (deliberate).
 - No gallery pagination (pre-existing C4 limit).
 - Every activity write now incurs a parent read + activities query + member `getAll`
-  (admin-scale write volume — acceptable).
+  (admin-scale write volume — acceptable). The activities query is `.limit(500)`-capped
+  defensively; an initiative exceeding that drops the overflow activities' photos.
 - A non-`Ejecutada` activity's photos never showcase, even if the work happened.
+- `onActivityWritten` and the parent's own `onProgram/ProjectWritten` both `set()` the
+  same `showcase/{id}` (full overwrite, no transaction). A rare concurrent write can let
+  the loser overwrite with a prior-generation snapshot — cosmetic only, self-heals on the
+  next write to either the parent or any child activity. Not worth optimistic-concurrency
+  complexity for an eventually-consistent public projection. (firebase-functions-reviewer H2.)

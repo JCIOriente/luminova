@@ -46,14 +46,17 @@ function asPhotos(v: unknown): ShowcasePhoto[] {
  * Flatten the photos of executed child activities into namespaced ShowcasePhotos.
  * Only `status === "Ejecutada"` activities whose `parentType` matches the projected
  * `kind` contribute; ids become `${activityId}:${photoId}` so flattened gallery keys
- * never collide with the initiative's own photos or across activities.
+ * never collide with the initiative's own photos or across activities. The `:`
+ * separator is gallery-key-only — these ids are never used as a Firestore path or
+ * composite doc id. `activityId` is `isCleanId`-gated for the same path-safety
+ * discipline as roster ids.
  */
 export function activityShowcasePhotos(
   kind: InitiativeKind,
   docs: { id: string; data: Record<string, unknown> }[],
 ): ShowcasePhoto[] {
   return docs
-    .filter((d) => d.data.parentType === kind && d.data.status === "Ejecutada")
+    .filter((d) => isCleanId(d.id) && d.data.parentType === kind && d.data.status === "Ejecutada")
     .flatMap((d) => asPhotos(d.data.photos).map((p) => ({ ...p, id: `${d.id}:${p.id}` })));
 }
 
