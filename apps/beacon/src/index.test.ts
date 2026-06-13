@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   awardPoints,
+  onActivityWritten,
   onMemberWritten,
   onProgramWritten,
   onProjectWritten,
@@ -20,5 +21,8 @@ describe("beacon exports", () => {
   });
   it("exports the onMemberWritten trigger", () => {
     expect(onMemberWritten).toBeDefined();
+  });
+  it("exports the onActivityWritten trigger", () => {
+    expect(onActivityWritten).toBeDefined();
   });
 });

@@ -10,6 +10,7 @@ import {
   processInitiativeWrite,
 } from "./award-points/process.js";
 import {
+  activityParentRefs,
   activityShowcasePhotos,
   isProjectable,
   projectInitiative,
@@ -141,6 +142,26 @@ function initiativeTrigger(collection: "programs" | "projects") {
 
 export const onProgramWritten = initiativeTrigger("programs");
 export const onProjectWritten = initiativeTrigger("projects");
+
+export const onActivityWritten = onDocumentWritten("activities/{id}", async (event) => {
+  const database = db();
+  const before = event.data?.before?.data();
+  const after = event.data?.after?.data();
+  for (const parent of activityParentRefs(before, after)) {
+    const collection = parent.kind === "Program" ? "programs" : "projects";
+    try {
+      const snap = await database.doc(`${collection}/${parent.id}`).get();
+      await projectShowcase(
+        database,
+        parent.kind,
+        parent.id,
+        snap.exists ? (snap.data() as Record<string, unknown>) : undefined,
+      );
+    } catch (err) {
+      console.error("showcase projection failed", { id: parent.id, err });
+    }
+  }
+});
 
 // Inlined (mirrors @luminova/types currentTermKey) to keep the zod-laden types barrel out of this bundle path. UTC year — see docs/status/2026-06-11-k4-trigger-e2e.md.
 function currentTermKey(): string {
