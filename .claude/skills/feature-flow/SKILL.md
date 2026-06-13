@@ -72,6 +72,11 @@ Default to the cheapest tier that fits; escalate deliberately, not reflexively.
 2. `/simplify` on the diff — reuse, dead code, redundant vars. (Only once the feature is functionally done, not mid-iteration.)
 3. `/code-review` on the diff — correctness + reuse. It has caught CRITICALs the subagents missed; do not skip it.
 4. `/security-review` — **required** when the diff touches auth, `firestore.rules`, or `apps/beacon`. Dispatch the matching read-only subagent too: `firestore-security-reviewer` (rules/repositories/auth routes), `firebase-functions-reviewer` (beacon), `bundle-budget-watcher` (frontend deps/routes).
+   - **Stamp the review.** Once `/security-review` comes back clean, record the reviewed sha so `security-review-gate.sh` lets the PR through:
+     ```
+     git commit --allow-empty -m 'chore: security-review' -m "Security-Reviewed: $(git rev-parse HEAD)"
+     ```
+     (or add the `Security-Reviewed: <HEAD-sha>` trailer to the next real commit). The gate honors it only while no sensitive file changes after that sha — re-review and re-stamp if you touch a sensitive path again.
 
 Checkpoint-commit per milestone; never batch >10 modified files.
 
