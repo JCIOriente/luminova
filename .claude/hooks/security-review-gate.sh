@@ -32,7 +32,9 @@ fi
 # branch, making the gate silently inspect the wrong tree). Fall back to
 # CLAUDE_PROJECT_DIR when `.cwd` is absent or unusable.
 hookcwd=$(printf '%s' "$input" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).cwd||"")}catch{process.stdout.write("")}})')
-cd "${hookcwd:-${CLAUDE_PROJECT_DIR:-.}}" 2>/dev/null || cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
+cd "${hookcwd:-${CLAUDE_PROJECT_DIR:-.}}" 2>/dev/null \
+  || cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null \
+  || { echo "security-review-gate: WARN — could not enter a working dir; gate skipped." >&2; exit 0; }
 
 # Resolve the repo default branch from origin/HEAD (fallback main) instead of
 # assuming master — a stale origin/master ref would give a bogus merge-base.
