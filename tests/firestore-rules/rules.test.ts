@@ -62,6 +62,53 @@ beforeAll(async () => {
       parentId: null,
       title: "Actividad sin parent",
     });
+    const inWindow = new Date();
+    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000);
+    await setDoc(doc(db, "activities/a1"), {
+      termId: "2026",
+      category: "Assembly",
+      parentType: null,
+      parentId: null,
+      startAt: inWindow,
+      status: "Programada",
+    });
+    await setDoc(doc(db, "activities/act_old"), {
+      termId: "2026",
+      category: "Assembly",
+      parentType: null,
+      parentId: null,
+      startAt: twoDaysAgo,
+      status: "Programada",
+    });
+    await setDoc(doc(db, "projects/p_closed"), {
+      termId: "2026",
+      title: "Cerrado",
+      status: "Finalizado",
+    });
+    await setDoc(doc(db, "activities/act_closed_parent"), {
+      termId: "2026",
+      category: "ProjectExecution",
+      parentType: "Project",
+      parentId: "p_closed",
+      startAt: inWindow,
+      status: "Programada",
+    });
+    await setDoc(doc(db, "activities/act_cancel"), {
+      termId: "2026",
+      category: "Assembly",
+      parentType: null,
+      parentId: null,
+      startAt: inWindow,
+      status: "Cancelada",
+    });
+    await setDoc(doc(db, "activities/act_badparent"), {
+      termId: "2026",
+      category: "ProjectExecution",
+      parentType: "Committee",
+      parentId: "p_closed",
+      startAt: inWindow,
+      status: "Programada",
+    });
     await setDoc(doc(db, "checkIns/c1"), { memberId: "m1", activityId: "a1", role: "Attendee" });
     await setDoc(doc(db, "participations/part1"), { memberId: "m1", termId: "2026" });
     await setDoc(doc(db, "projects/p1"), { title: "P" });
@@ -679,6 +726,51 @@ describe("firestore.rules — checkIns", () => {
       setDoc(doc(as("u", ["Member"]), "checkIns/c_m"), {
         memberId: "m1",
         activityId: "a1",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("denies a check-in once the activity's day has passed", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "checkIns/c_old"), {
+        memberId: "m1",
+        activityId: "act_old",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("denies a check-in when the parent initiative is Finalizado", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "checkIns/c_closed"), {
+        memberId: "m1",
+        activityId: "act_closed_parent",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("denies a check-in for a cancelled activity", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "checkIns/c_cancel"), {
+        memberId: "m1",
+        activityId: "act_cancel",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("denies a check-in when the activity has a malformed parentType (fails closed)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "checkIns/c_badparent"), {
+        memberId: "m1",
+        activityId: "act_badparent",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("denies a check-in for a non-existent activity", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "checkIns/c_ghostact"), {
+        memberId: "m1",
+        activityId: "does_not_exist",
         role: "Attendee",
       }),
     );

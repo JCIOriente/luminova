@@ -1,4 +1,5 @@
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { Toast, Icon } from "@luminova/ui";
 import type { Member } from "@luminova/types";
 import { useActivityCheckIns } from "../hooks/use-activity-check-ins";
 import { useCreateCheckIn } from "../hooks/use-create-check-in";
@@ -23,9 +24,22 @@ export function ActivityCheckIn({ activityId, members }: ActivityCheckInProps) {
   const roster = useMemo(() => buildRosterEntries(checkIns ?? [], members), [checkIns, members]);
   const checkedInIds = useMemo(() => (checkIns ?? []).map((c) => c.memberId), [checkIns]);
 
+  const [toast, setToast] = useState<{ message: string; ok: boolean } | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2800);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   const checkIn = (memberId: string) => {
     if (alreadyCheckedIn(checkIns ?? [], memberId)) return;
-    create.mutate({ memberId, activityId, role: "Attendee" });
+    create.mutate(
+      { memberId, activityId, role: "Attendee" },
+      {
+        onSuccess: () => setToast({ message: "Asistencia registrada", ok: true }),
+        onError: () => setToast({ message: "No se pudo registrar la asistencia", ok: false }),
+      },
+    );
   };
 
   const onScan = (text: string) => {
@@ -45,6 +59,12 @@ export function ActivityCheckIn({ activityId, members }: ActivityCheckInProps) {
       <RosterList entries={roster} />
       {members.length > 0 && (
         <ManualTapList members={members} checkedInIds={checkedInIds} onTap={checkIn} />
+      )}
+      {toast && (
+        <Toast
+          message={toast.message}
+          icon={toast.ok ? Icon.check({ s: 18 }) : Icon.close({ s: 18 })}
+        />
       )}
     </div>
   );
