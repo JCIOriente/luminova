@@ -10,6 +10,8 @@ import {
   processInitiativeWrite,
 } from "./award-points/process.js";
 import {
+  activityParentRefs,
+  activityShowcasePhotos,
   isProjectable,
   projectInitiative,
   rosterMemberIds,
@@ -45,6 +47,10 @@ async function resolveMemberNames(
   return names;
 }
 
+// Defensive bound on the child-activity roll-up query — far above any realistic
+// per-initiative activity count, but caps memory/latency on a pathological parent.
+const ACTIVITY_ROLLUP_CAP = 500;
+
 async function projectShowcase(
   database: Firestore,
   kind: "Program" | "Project",
@@ -56,10 +62,21 @@ async function projectShowcase(
     await ref.delete();
     return;
   }
-  const names = await resolveMemberNames(database, rosterMemberIds(data));
+  // Independent reads — resolve names and fetch child activities concurrently.
+  const [names, activitySnap] = await Promise.all([
+    resolveMemberNames(database, rosterMemberIds(data)),
+    database.collection("activities").where("parentId", "==", id).limit(ACTIVITY_ROLLUP_CAP).get(),
+  ]);
   const item = projectInitiative(kind, id, data, (mid) => names.get(mid) ?? null);
-  if (item) await ref.set(item);
-  else await ref.delete();
+  if (!item) {
+    await ref.delete();
+    return;
+  }
+  const activityPhotos = activityShowcasePhotos(
+    kind,
+    activitySnap.docs.map((d) => ({ id: d.id, data: d.data() })),
+  );
+  await ref.set({ ...item, photos: [...item.photos, ...activityPhotos] });
 }
 
 export const awardPoints = onDocumentWritten("checkIns/{id}", async (event) => {
@@ -131,6 +148,37 @@ function initiativeTrigger(collection: "programs" | "projects") {
 
 export const onProgramWritten = initiativeTrigger("programs");
 export const onProjectWritten = initiativeTrigger("projects");
+
+export const onActivityWritten = onDocumentWritten("activities/{id}", async (event) => {
+  const database = db();
+  const before = event.data?.before?.data();
+  const after = event.data?.after?.data();
+  // A parent-change re-projects both source and destination — distinct showcase
+  // docs, so run them concurrently; each keeps its own catch so one failure does
+  // not cancel the other.
+  await Promise.all(
+    activityParentRefs(before, after).map(async (parent) => {
+      const collection = parent.kind === "Program" ? "programs" : "projects";
+      try {
+        const snap = await database.doc(`${collection}/${parent.id}`).get();
+        // Only re-project when the parent actually exists. A missing parent means
+        // either the activity's `parentType` is forged (pointing at the wrong
+        // collection) or the parent was deleted — in both cases deleting `showcase/id`
+        // here would clobber a doc this trigger doesn't own (the initiative's own
+        // delete-trigger handles showcase cleanup on real deletion).
+        if (!snap.exists) return;
+        await projectShowcase(
+          database,
+          parent.kind,
+          parent.id,
+          snap.data() as Record<string, unknown>,
+        );
+      } catch (err) {
+        console.error("showcase projection failed", { id: parent.id, err });
+      }
+    }),
+  );
+});
 
 // Inlined (mirrors @luminova/types currentTermKey) to keep the zod-laden types barrel out of this bundle path. UTC year — see docs/status/2026-06-11-k4-trigger-e2e.md.
 function currentTermKey(): string {

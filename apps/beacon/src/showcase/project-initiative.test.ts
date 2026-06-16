@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { Timestamp } from "firebase-admin/firestore";
-import { projectInitiative, rosterMemberIds } from "./project-initiative.js";
+import {
+  activityParentRefs,
+  activityShowcasePhotos,
+  projectInitiative,
+  rosterMemberIds,
+} from "./project-initiative.js";
 
 const ts = (ms: number) => Timestamp.fromMillis(ms);
 
@@ -107,5 +112,130 @@ describe("rosterMemberIds", () => {
         roster: { directorId: "a/b", coDirectorIds: ["x__y", "m2"], teamIds: ["m3"] },
       }),
     ).toEqual(["m2", "m3"]);
+  });
+});
+
+describe("activityShowcasePhotos", () => {
+  const activity = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    data: {
+      parentType: "Project",
+      status: "Ejecutada",
+      photos: [
+        { id: "a", url: "https://x/a?t=1", caption: "hola", uploadedAt: ts(1), uploadedBy: "m1" },
+        { id: "b", url: "https://x/b?t=1", caption: null, uploadedAt: ts(1), uploadedBy: "m1" },
+      ],
+      ...over,
+    },
+  });
+
+  it("flattens executed activity photos with namespaced ids + preserved captions", () => {
+    const photos = activityShowcasePhotos("Project", [activity("act1")]);
+    expect(photos).toEqual([
+      { id: "act1:a", url: "https://x/a?t=1", caption: "hola" },
+      { id: "act1:b", url: "https://x/b?t=1", caption: null },
+    ]);
+  });
+
+  it("namespaces by activity id so two activities never collide", () => {
+    const photos = activityShowcasePhotos("Project", [activity("act1"), activity("act2")]);
+    expect(photos.map((p) => p.id)).toEqual(["act1:a", "act1:b", "act2:a", "act2:b"]);
+  });
+
+  it("excludes non-Ejecutada activities", () => {
+    expect(activityShowcasePhotos("Project", [activity("act1", { status: "Programada" })])).toEqual(
+      [],
+    );
+    expect(activityShowcasePhotos("Project", [activity("act1", { status: "Cancelada" })])).toEqual(
+      [],
+    );
+  });
+
+  it("excludes activities whose parentType differs from the projected kind", () => {
+    expect(activityShowcasePhotos("Program", [activity("act1")])).toEqual([]);
+  });
+
+  it("drops activity photos missing a usable id", () => {
+    const photos = activityShowcasePhotos("Project", [
+      activity("act1", {
+        photos: [
+          { url: "https://x/noid", caption: null, uploadedAt: ts(1), uploadedBy: "m1" },
+          { id: "b", url: "https://x/b", caption: null, uploadedAt: ts(1), uploadedBy: "m1" },
+        ],
+      }),
+    ]);
+    expect(photos).toEqual([{ id: "act1:b", url: "https://x/b", caption: null }]);
+  });
+
+  it("returns [] for an activity with no photos", () => {
+    expect(activityShowcasePhotos("Project", [activity("act1", { photos: undefined })])).toEqual(
+      [],
+    );
+  });
+
+  it("drops activities whose doc id is path-unsafe", () => {
+    expect(activityShowcasePhotos("Project", [activity("a/b"), activity("a__b")])).toEqual([]);
+  });
+
+  it("drops photos whose own id is not gallery-clean (path-unsafe or contains ':')", () => {
+    const photos = activityShowcasePhotos("Project", [
+      activity("act1", {
+        photos: [
+          { id: "x:y", url: "https://x/a", caption: null, uploadedAt: ts(1), uploadedBy: "m1" },
+          { id: "a/b", url: "https://x/b", caption: null, uploadedAt: ts(1), uploadedBy: "m1" },
+          { id: "ok", url: "https://x/c", caption: null, uploadedAt: ts(1), uploadedBy: "m1" },
+        ],
+      }),
+    ]);
+    expect(photos).toEqual([{ id: "act1:ok", url: "https://x/c", caption: null }]);
+  });
+});
+
+describe("activityParentRefs", () => {
+  it("returns the single parent for a created/updated parented activity", () => {
+    expect(activityParentRefs(undefined, { parentType: "Program", parentId: "g1" })).toEqual([
+      { kind: "Program", id: "g1" },
+    ]);
+  });
+
+  it("returns the parent from the before-doc on delete", () => {
+    expect(activityParentRefs({ parentType: "Project", parentId: "p1" }, undefined)).toEqual([
+      { kind: "Project", id: "p1" },
+    ]);
+  });
+
+  it("dedupes when parent is unchanged across before/after", () => {
+    expect(
+      activityParentRefs(
+        { parentType: "Project", parentId: "p1" },
+        { parentType: "Project", parentId: "p1" },
+      ),
+    ).toEqual([{ kind: "Project", id: "p1" }]);
+  });
+
+  it("returns both parents when an activity moves between them", () => {
+    expect(
+      activityParentRefs(
+        { parentType: "Program", parentId: "g1" },
+        { parentType: "Project", parentId: "p1" },
+      ),
+    ).toEqual([
+      { kind: "Program", id: "g1" },
+      { kind: "Project", id: "p1" },
+    ]);
+  });
+
+  it("ignores standalone activities (null parent)", () => {
+    expect(
+      activityParentRefs(
+        { parentType: null, parentId: null },
+        { parentType: null, parentId: null },
+      ),
+    ).toEqual([]);
+  });
+
+  it("ignores path-unsafe or malformed parent ids", () => {
+    expect(activityParentRefs(undefined, { parentType: "Program", parentId: "a/b" })).toEqual([]);
+    expect(activityParentRefs(undefined, { parentType: "Bogus", parentId: "g1" })).toEqual([]);
   });
 });
