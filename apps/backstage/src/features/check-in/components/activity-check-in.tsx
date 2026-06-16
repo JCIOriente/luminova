@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { Toast, Icon } from "@luminova/ui";
+import { EmptyState, Toast, Icon } from "@luminova/ui";
 import type { Member } from "@luminova/types";
 import { useActivityCheckIns } from "../hooks/use-activity-check-ins";
 import { useCreateCheckIn } from "../hooks/use-create-check-in";
@@ -15,9 +15,10 @@ const LazyQrScanner = lazy(() =>
 interface ActivityCheckInProps {
   activityId: string;
   members: Member[];
+  open?: boolean;
 }
 
-export function ActivityCheckIn({ activityId, members }: ActivityCheckInProps) {
+export function ActivityCheckIn({ activityId, members, open = true }: ActivityCheckInProps) {
   const { data: checkIns } = useActivityCheckIns(activityId);
   const create = useCreateCheckIn(activityId);
 
@@ -46,6 +47,16 @@ export function ActivityCheckIn({ activityId, members }: ActivityCheckInProps) {
     const memberId = decodeMemberQr(text);
     if (memberId) checkIn(memberId);
   };
+
+  if (!open) {
+    return (
+      <EmptyState
+        icon={Icon.calendar({ s: 40 })}
+        title="Check-in no disponible"
+        description="Solo se puede registrar asistencia el día de la actividad y mientras su iniciativa siga abierta."
+      />
+    );
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-5">

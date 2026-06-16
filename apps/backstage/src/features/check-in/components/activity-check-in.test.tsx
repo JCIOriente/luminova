@@ -38,4 +38,10 @@ describe("ActivityCheckIn", () => {
     fireEvent.click(screen.getByRole("button", { name: /ana rivas/i }));
     expect(await screen.findByText("No se pudo registrar la asistencia")).toBeInTheDocument();
   });
+
+  it("shows a closed-window notice and hides the tap UI when the window is closed", () => {
+    render(<ActivityCheckIn activityId="a1" members={members} open={false} />);
+    expect(screen.getByText(/check-in no disponible/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /ana rivas/i })).not.toBeInTheDocument();
+  });
 });

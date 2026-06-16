@@ -250,6 +250,12 @@ service cloud.firestore {
     // activity is not Cancelada and its parent initiative is not Finalizado.
     // A parented activity must carry a known parentType — anything else is
     // malformed and fails closed (parentOpen == false → deny).
+    // Admin may backdate an attendance correction, so the same-day constraint is
+    // lifted for them. The Cancelada and parent-Finalizado guards stay in force for
+    // everyone — those protect locked/awarded points, not the check-in clock.
+    function checkInDayOpen(act) {
+      return hasAnyRole(['Admin']) || sameBoliviaDay(request.time, act.startAt);
+    }
     function withinCheckInWindow(activityId) {
       let act = get(/databases/$(database)/documents/activities/$(activityId)).data;
       let parentColl = act.get('parentType', '') == 'Program' ? 'programs' : 'projects';
@@ -258,7 +264,7 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/$(parentColl)/$(act.parentId))
                  .data.get('status', '') != 'Finalizado');
       return act.get('status', '') != 'Cancelada'
-        && sameBoliviaDay(request.time, act.startAt)
+        && checkInDayOpen(act)
         && parentOpen;
     }
 

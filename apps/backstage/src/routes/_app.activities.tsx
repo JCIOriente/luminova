@@ -7,6 +7,8 @@ import { ACTIVITY_CATEGORIES } from "@luminova/types";
 import type { Activity, ActivityInput } from "@luminova/types";
 import { STANDALONE_CATEGORIES } from "../features/activities/lib/categories";
 import { Can, useAbility } from "../lib/authz/ability-context";
+import { useAuth } from "../lib/auth/auth";
+import { hasRole } from "@luminova/auth/roles";
 import { PageHeader } from "../components/page-header";
 import { currentTermKey } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
@@ -30,6 +32,8 @@ type Editing = Activity | "new" | null;
 function ActivitiesPage() {
   const termId = currentTermKey();
   const canManage = useAbility().can("update", "Activity");
+  const { claims } = useAuth();
+  const isAdmin = hasRole(claims, "Admin");
   const { data: activities, isLoading, isError } = useActivitiesByTerm(termId);
   const { data: members } = useMembers();
   const { data: programs } = useProgramsByTerm(termId);
@@ -67,10 +71,18 @@ function ActivitiesPage() {
     return {
       parentTitleById: titleById,
       checkInOpenById: Object.fromEntries(
-        (activities ?? []).map((a) => [a.id, isCheckInOpen(a, statusById, now)]),
+        (activities ?? []).map((a) => [
+          a.id,
+          isCheckInOpen(
+            a,
+            a.parentId !== null ? (statusById[a.parentId] ?? null) : null,
+            now,
+            isAdmin,
+          ),
+        ]),
       ),
     };
-  }, [activities, programs, projects]);
+  }, [activities, programs, projects, isAdmin]);
 
   const editingId = editing && editing !== "new" ? editing.id : null;
   const { data: checkInCount } = useQuery({
