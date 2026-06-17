@@ -6,6 +6,7 @@ import type { ComboboxOption, SegmentedOption } from "@luminova/ui";
 import type { ActivityInput, Member } from "@luminova/types";
 import { currentTermKey } from "@luminova/types";
 import { subject } from "@luminova/auth/ability";
+import { hasRole } from "@luminova/auth/roles";
 import { useAbility } from "../lib/authz/ability-context";
 import { useAuth } from "../lib/auth/auth";
 import { useActivity } from "../features/activities/hooks/use-activity";
@@ -21,6 +22,7 @@ import { ActivityForm } from "../features/activities/components/activity-form";
 import { ActivityDetailHero } from "../features/activities/components/activity-detail-hero";
 import { ActivityCheckIn } from "../features/check-in/components/activity-check-in";
 import { activityToInput } from "../features/activities/lib/activity-to-input";
+import { isCheckInOpen } from "../features/activities/lib/check-in-window";
 import { activityKeys } from "../features/activities/hooks/activity-keys";
 import { PhotoManager } from "../features/initiatives/components/photo-manager";
 import { PhotoGallery } from "../features/initiatives/components/photo-gallery";
@@ -34,8 +36,9 @@ function ActivityDetailPage() {
   const { id } = Route.useParams();
   const termId = currentTermKey();
   const ability = useAbility();
-  const { user } = useAuth();
+  const { user, claims } = useAuth();
   const uid = user?.uid ?? null;
+  const isAdmin = hasRole(claims, "Admin");
 
   const canRead = ability.can("read", "Activity");
   const canUpdate = ability.can("update", "Activity");
@@ -131,11 +134,17 @@ function ActivityDetailPage() {
       : activity.parentType === "Project"
         ? projects
         : null;
-  const parentTitle = activity.parentId
-    ? (parentPool?.find((p) => p.id === activity.parentId)?.title ?? null)
-    : null;
+  const parent =
+    activity.parentId !== null
+      ? (parentPool?.find((p) => p.id === activity.parentId) ?? null)
+      : null;
+  const parentTitle = parent?.title ?? null;
 
   const canCheckIn = ability.can("checkIn", subject("Attendance", { eventId: activity.id }));
+  // parentId set but `parent` not yet resolved → parent?.status is undefined →
+  // isCheckInOpen fails closed until programs/projects load.
+  const parentStatus = activity.parentId === null ? null : parent?.status;
+  const checkInOpen = isCheckInOpen(activity, parentStatus, new Date(), isAdmin);
 
   const handleUpdate = async (data: ActivityInput) => {
     if (!canUpdate) return;
@@ -241,7 +250,7 @@ function ActivityDetailPage() {
               Modo escáner: registra asistencia con el lector QR.
             </p>
           )}
-          <ActivityCheckIn activityId={activity.id} members={members ?? []} />
+          <ActivityCheckIn activityId={activity.id} members={members ?? []} open={checkInOpen} />
         </div>
       )}
 

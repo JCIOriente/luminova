@@ -80,10 +80,26 @@ beforeAll(async () => {
       startAt: twoDaysAgo,
       status: "Programada",
     });
+    await setDoc(doc(db, "activities/act_old_cancel"), {
+      termId: "2026",
+      category: "Assembly",
+      parentType: null,
+      parentId: null,
+      startAt: twoDaysAgo,
+      status: "Cancelada",
+    });
     await setDoc(doc(db, "projects/p_closed"), {
       termId: "2026",
       title: "Cerrado",
       status: "Finalizado",
+    });
+    await setDoc(doc(db, "activities/act_old_closed_parent"), {
+      termId: "2026",
+      category: "ProjectExecution",
+      parentType: "Project",
+      parentId: "p_closed",
+      startAt: twoDaysAgo,
+      status: "Programada",
     });
     await setDoc(doc(db, "activities/act_closed_parent"), {
       termId: "2026",
@@ -730,11 +746,38 @@ describe("firestore.rules — checkIns", () => {
       }),
     );
   });
-  it("denies a check-in once the activity's day has passed", async () => {
+  it("denies a non-Admin check-in once the activity's day has passed", async () => {
     await assertFails(
-      setDoc(doc(as("u", ["Admin"]), "checkIns/c_old"), {
+      setDoc(doc(as("u", ["ProjectManager"]), "checkIns/c_old"), {
         memberId: "m1",
         activityId: "act_old",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("allows an Admin to backdate a check-in (day-window escape hatch)", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["Admin"]), "checkIns/c_old_admin"), {
+        memberId: "m1",
+        activityId: "act_old",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("keeps an Admin blocked on a backdated cancelled activity (hatch is day-window only)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "checkIns/c_old_cancel"), {
+        memberId: "m1",
+        activityId: "act_old_cancel",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("keeps an Admin blocked when a backdated activity's parent is Finalizado (hatch is day-window only)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "checkIns/c_old_closed"), {
+        memberId: "m1",
+        activityId: "act_old_closed_parent",
         role: "Attendee",
       }),
     );
