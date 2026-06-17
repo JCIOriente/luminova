@@ -3,6 +3,24 @@
 Chronological record of changes to this repo's Claude Code harness — skills,
 hooks, subagents. Newest first. Referenced from `CLAUDE.md` (Docs layout).
 
+## 2026-06-13 — `firestore-security-reviewer`: CREATE-path parity check
+
+**Branch:** `chore/reviewer-create-audit`
+
+### `.claude/agents/firestore-security-reviewer.md`
+- **What:** added checklist item #3 "CREATE-path parity" — audit `create` rules
+  with the same rigor as `update`, specifically that power/identity fields
+  (roles, claims, `assignedBy`, `uid`, cargo grants) cannot be forged on create
+  (no client-set `uid`, self-stamped attribution, non-privileged actors limited
+  to empty grants). Critical if violated. Renumbered the trailing items 4–9.
+- **Why:** create paths lag update and are the easy miss. In K4, a Membership
+  user created a member with a client-set `uid` + forged
+  `assignedBy=<known-Admin>` + a power cargo → the claims trigger minted Admin —
+  a Critical caught only by `/code-review`, not the reviewers. Encoding it in the
+  subagent's checklist closes that gap. See the `feedback-audit-create-rules`
+  memory.
+- **Scope:** checklist text only; no runtime code, no rules change.
+
 ## 2026-06-13 — `security-review-gate` hook (hard gate)
 
 **Branch:** `feat/security-review-gate`
