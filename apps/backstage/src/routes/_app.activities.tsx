@@ -73,12 +73,9 @@ function ActivitiesPage() {
       checkInOpenById: Object.fromEntries(
         (activities ?? []).map((a) => [
           a.id,
-          isCheckInOpen(
-            a,
-            a.parentId !== null ? (statusById[a.parentId] ?? null) : null,
-            now,
-            isAdmin,
-          ),
+          // parentId set but its status absent from the map (initiatives still
+          // loading) → undefined → isCheckInOpen fails closed until they resolve.
+          isCheckInOpen(a, a.parentId !== null ? statusById[a.parentId] : null, now, isAdmin),
         ]),
       ),
     };

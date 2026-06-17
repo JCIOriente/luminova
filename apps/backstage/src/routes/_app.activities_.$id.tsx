@@ -141,7 +141,10 @@ function ActivityDetailPage() {
   const parentTitle = parent?.title ?? null;
 
   const canCheckIn = ability.can("checkIn", subject("Attendance", { eventId: activity.id }));
-  const checkInOpen = isCheckInOpen(activity, parent?.status ?? null, new Date(), isAdmin);
+  // parentId set but `parent` not yet resolved → parent?.status is undefined →
+  // isCheckInOpen fails closed until programs/projects load.
+  const parentStatus = activity.parentId === null ? null : parent?.status;
+  const checkInOpen = isCheckInOpen(activity, parentStatus, new Date(), isAdmin);
 
   const handleUpdate = async (data: ActivityInput) => {
     if (!canUpdate) return;

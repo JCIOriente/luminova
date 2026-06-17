@@ -39,6 +39,14 @@ describe("isCheckInOpen", () => {
     expect(isCheckInOpen(activity(), "EnEjecucion", now)).toBe(true);
   });
 
+  it("fails closed while a parented activity's status is unresolved", () => {
+    expect(isCheckInOpen(activity(), undefined, now)).toBe(false);
+  });
+
+  it("keeps an admin blocked while the parent status is unresolved (gate fails closed)", () => {
+    expect(isCheckInOpen(activity(), undefined, now, true)).toBe(false);
+  });
+
   it("lets an admin bypass the day window for a backdated correction", () => {
     const tomorrow = new Date("2026-06-14T14:00:00Z");
     expect(isCheckInOpen(activity(), null, tomorrow, true)).toBe(true);
