@@ -3,6 +3,26 @@
 Chronological record of changes to this repo's Claude Code harness — skills,
 hooks, subagents. Newest first. Referenced from `CLAUDE.md` (Docs layout).
 
+## 2026-06-16 — `security-review-gate.sh`: diff the worktree, not the main checkout
+
+**Branch:** `fix/gate-worktree-cwd`
+
+### `.claude/hooks/security-review-gate.sh`
+- **What:** the gate now `cd`s to the PreToolUse payload's `.cwd` (falling back to
+  `CLAUDE_PROJECT_DIR`, then `.`) before resolving the diff range, instead of
+  always using `CLAUDE_PROJECT_DIR`.
+- **Why (real gap):** `CLAUDE_PROJECT_DIR` is the main checkout, which stays on
+  `main`. For a **worktree-based PR** — the workflow `feature-flow` mandates —
+  the gate was diffing `main...main` = empty → it never fired. The `.cwd` field
+  tracks the actual working directory including worktrees (confirmed against the
+  official hooks docs), so diffing there inspects the PR's own branch. Found
+  while shipping the CREATE-audit PR (#70) through a worktree.
+- **Verification:** new 4-case cwd suite — (C1) `.cwd`=worktree-sensitive +
+  `CLAUDE_PROJECT_DIR`=clean-main → BLOCK (proves cwd is used); (C2) `.cwd`=clean
+  vs env=sensitive → PASS (cwd wins); (C3) no `.cwd` → fallback to env BLOCK;
+  (C4) bad `.cwd` → fallback BLOCK. Plus the original 10-scenario suite green
+  (back-compat). `cd` target is double-quoted (no injection from the path value).
+
 ## 2026-06-13 — `firestore-security-reviewer`: CREATE-path parity check
 
 **Branch:** `chore/reviewer-create-audit`

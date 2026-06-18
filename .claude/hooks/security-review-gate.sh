@@ -25,7 +25,16 @@ if ! printf '%s' "$cmd" | grep -qE '(^|[[:space:]]|[;&|(])gh[[:space:]]+pr[[:spa
   exit 0
 fi
 
-cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
+# Operate on the tree the command actually runs in. The PreToolUse payload's
+# `.cwd` tracks the real working directory — including a worktree — so a
+# worktree-based `gh pr create` is diffed against its OWN branch, not the main
+# checkout (which CLAUDE_PROJECT_DIR points at and which may sit on another
+# branch, making the gate silently inspect the wrong tree). Fall back to
+# CLAUDE_PROJECT_DIR when `.cwd` is absent or unusable.
+hookcwd=$(printf '%s' "$input" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).cwd||"")}catch{process.stdout.write("")}})')
+cd "${hookcwd:-${CLAUDE_PROJECT_DIR:-.}}" 2>/dev/null \
+  || cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null \
+  || { echo "security-review-gate: WARN — could not enter a working dir; gate skipped." >&2; exit 0; }
 
 # Resolve the repo default branch from origin/HEAD (fallback main) instead of
 # assuming master — a stale origin/master ref would give a bogus merge-base.
