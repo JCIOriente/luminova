@@ -3,6 +3,32 @@
 Chronological record of changes to this repo's Claude Code harness — skills,
 hooks, subagents. Newest first. Referenced from `CLAUDE.md` (Docs layout).
 
+## 2026-06-18 — `with-emulator-lock.sh`: serialize emulator runs (pr-tests port race)
+
+**Branch:** `fix/pr-tests-port-race`
+
+### `tools/scripts/with-emulator-lock.sh` (new) + `tests/{firestore,storage}-rules/package.json`
+- **What:** both rules suites' `test` script now runs `firebase emulators:exec`
+  through a portable machine-wide `mkdir` lock; each `ci` just calls `test`.
+- **Why:** `turbo run ci` runs every package's `ci` concurrently, so both rules
+  suites started a firestore emulator (and the Emulator Hub) on the same fixed
+  ports from the single root `firebase.json` → flaky port collision; parallel git
+  worktrees collided too. Serializing emulator runs removes the race without
+  juggling firebase's many internal ports. Tests stay on fixed ports.
+- **Hardening (after /code-review + /security-review, opus):** atomic `mkdir`
+  acquire; traps set before the pid write + INT/TERM forwarding (bash skips the
+  EXIT trap on untrapped SIGTERM → CI-cancel leak); reclaim of a dead/abandoned
+  lock is serialized via a `$LOCK.reap` dir and re-verifies liveness under it
+  (closes a concurrent-reclaim double-acquire); the timeout branch self-heals an
+  orphaned `$LOCK.reap` (reaper SIGKILL'd) but only when the holder is dead, never
+  stealing a live lock; per-uid default lock path (shared-runner DoS); no-args
+  guard; explicit exit-code passthrough.
+- **Verification:** 6 `node:test` cases in `tools/scripts/lib/with-emulator-lock.test.mjs`
+  (serialize, concurrent-reclaim-serialize, stale-PID reclaim, reap-leak self-heal,
+  timeout, no-args) — all green. Both rules suites run concurrently via turbo and
+  serialize cleanly (firestore-rules 141 → shutdown → storage-rules 34). `pnpm
+  pr-tests` green through format/turbo-ci/knip (parallel turbo-ci needs the lock).
+
 ## 2026-06-16 — `security-review-gate.sh`: diff the worktree, not the main checkout
 
 **Branch:** `fix/gate-worktree-cwd`
