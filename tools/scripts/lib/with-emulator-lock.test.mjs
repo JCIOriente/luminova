@@ -7,6 +7,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const WRAPPER = fileURLToPath(new URL("../with-emulator-lock.sh", import.meta.url));
+// A PID that cannot be alive (above every platform's pid_max), so the stale-lock
+// reclaim path treats a lock stamped with it as abandoned.
+const DEAD_PID = "2147483646";
 
 function run(env, ...args) {
   return new Promise((resolve) => {
@@ -44,7 +47,7 @@ test("concurrent reclaim of a stale lock still serializes (no double-acquire)", 
   const lock = join(dir, "lock");
   // Pre-seed a stale lock so both waiters race the reclaim path at once.
   mkdirSync(lock);
-  writeFileSync(join(lock, "pid"), "2147483646");
+  writeFileSync(join(lock, "pid"), DEAD_PID);
   const env = { EMULATOR_LOCK_DIR: lock, EMULATOR_LOCK_TIMEOUT: "30" };
   const body = `printf 'ENTER\\n' >> '${log}'; sleep 0.4; printf 'EXIT\\n' >> '${log}'`;
 
@@ -61,16 +64,33 @@ test("reclaims a stale lock held by a dead PID", async (t) => {
   const marker = join(dir, "ran");
   // Pre-create the lock with a PID that cannot be alive.
   mkdirSync(lock);
-  writeFileSync(join(lock, "pid"), "2147483646");
+  writeFileSync(join(lock, "pid"), DEAD_PID);
+
+  const { code } = await run({ EMULATOR_LOCK_DIR: lock }, "bash", "-c", `printf ok > '${marker}'`);
+
+  assert.equal(code, 0, "wrapper did not run the command after reclaiming a stale lock");
+  assert.equal(readFileSync(marker, "utf8"), "ok");
+});
+
+test("self-heals a wedged reap dir (orphaned reaper) instead of failing forever", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "emu-lock-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const lock = join(dir, "lock");
+  const marker = join(dir, "ran");
+  // A stale lock that normally self-heals via reclaim...
+  mkdirSync(lock);
+  writeFileSync(join(lock, "pid"), DEAD_PID);
+  // ...but a reaper was SIGKILL'd holding the reap dir, wedging the reclaim path.
+  mkdirSync(`${lock}.reap`);
 
   const { code } = await run(
-    { EMULATOR_LOCK_DIR: lock, EMULATOR_LOCK_TIMEOUT: "10" },
+    { EMULATOR_LOCK_DIR: lock, EMULATOR_LOCK_TIMEOUT: "1" },
     "bash",
     "-c",
     `printf ok > '${marker}'`,
   );
 
-  assert.equal(code, 0, "wrapper did not run the command after reclaiming a stale lock");
+  assert.equal(code, 0, "did not self-heal the wedged reap dir");
   assert.equal(readFileSync(marker, "utf8"), "ok");
 });
 

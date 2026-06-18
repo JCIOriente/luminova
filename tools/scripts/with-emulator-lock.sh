@@ -24,7 +24,9 @@ set -uo pipefail
   exit 2
 }
 
-LOCK="${EMULATOR_LOCK_DIR:-${TMPDIR:-/tmp}/luminova-emulator.lock}"
+# Namespace the default path per-uid so a co-tenant on a shared runner can't
+# pre-create (and thus DoS or block reclaim of) another user's lock in /tmp.
+LOCK="${EMULATOR_LOCK_DIR:-${TMPDIR:-/tmp}/luminova-emulator-$(id -u).lock}"
 TIMEOUT="${EMULATOR_LOCK_TIMEOUT:-300}"
 
 acquired=""
@@ -67,6 +69,19 @@ while :; do
   fi
 
   if [ "$waited" -ge "$TIMEOUT" ]; then
+    # Self-heal a wedge: a reaper SIGKILL'd while holding $LOCK.reap leaves it
+    # orphaned (its only cleanup is the rmdir above; no trap survives SIGKILL),
+    # so reclaim can never run even though the holder is dead. Clear both dirs
+    # once and retry — but ONLY when the holder is genuinely dead/absent. A LIVE
+    # holder that legitimately ran past TIMEOUT must still time out; stealing its
+    # lock would double-acquire.
+    h=$(cat "$LOCK/pid" 2>/dev/null)
+    if [ -z "${retried:-}" ] && { [ -z "$h" ] || ! kill -0 "$h" 2>/dev/null; }; then
+      retried=1
+      rm -rf "$LOCK" "$LOCK.reap" 2>/dev/null
+      waited=0
+      continue
+    fi
     echo "with-emulator-lock: timed out after ${TIMEOUT}s waiting for $LOCK" >&2
     exit 1
   fi
