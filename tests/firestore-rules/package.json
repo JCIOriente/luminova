@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "test:run": "vitest run",
-    "test": "firebase emulators:exec --only firestore --project demo-rules-test \"pnpm run test:run\"",
-    "ci": "firebase emulators:exec --only firestore --project demo-rules-test \"pnpm run test:run\""
+    "test": "bash ../../tools/scripts/with-emulator-lock.sh firebase emulators:exec --only firestore --project demo-rules-test \"pnpm run test:run\"",
+    "ci": "pnpm run test"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.1",
