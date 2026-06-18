@@ -15,6 +15,13 @@ overrides:
   # Patch HIGH advisory GHSA-gv7w-rqvm-qjhr (esbuild <0.28.1: RCE via NPM_CONFIG_REGISTRY).
   # Pre-existing repo-wide transitive (vite/vitest/@tailwindcss/vite); dev tooling only.
   "esbuild@<0.28.1": "^0.28.1"
+  # Patch HIGH advisory GHSA-hmw2-7cc7-3qxx (form-data CRLF injection via unescaped
+  # multipart field/filenames). It spans two lines pulled transitively: the 2.x copy
+  # (@types/request>retry-request under firebase-admin/@google-cloud) and the 4.x copy
+  # (wait-on>axios). Bump each within its own major to the security patch — 2.5.6 is
+  # the official v2-backport; 4.0.6 is the patched 4.x — so consumers' ranges still hold.
+  "form-data@<2.5.6": "^2.5.6"
+  "form-data@>=4.0.0 <4.0.6": "^4.0.6"
 allowBuilds:
   "@firebase/util": true
   esbuild: true
