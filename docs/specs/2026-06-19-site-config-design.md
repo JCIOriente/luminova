@@ -21,15 +21,22 @@ possible, with near-instant propagation when edited.
 **Editable (in site-config):**
 - Stats (1–7): yearsActive*, programCount, countries, membersWorldwide, nationalAwards,
   efficiencyPct, standoutOrg {year, title}
-- Lists (12–17, except programs): allies, timeline, execRoles, MVV, reasons
+- Lists (14–17, except programs and comité): allies, timeline, MVV, reasons
 - Contact/org (18–21): email, location, meetingSchedule, links
 
-**NOT editable — stays in code:**
-- Dates/facts (8–11): founding years 1915/1946/1993, age range 18–40 (set-once,
-  rarely change)
+**NOT editable in site-config — sourced elsewhere:**
+- Dates/facts (8–11): founding years 1915/1946/1993, age range 18–40 — stay as code
+  constants (set-once, rarely change).
 - Flagship program cards (12): **reuse the existing `featured` showcase items**
   already in Firestore; render via a **lazy-loaded** home component so it does not
   block initial page load. No duplicate data entry.
+- Exec-committee roles (15): **sourced from the existing position catalog, NOT a new
+  editable list.** The CEL positions (`CEL_SEED`, currently in
+  `apps/backstage/src/features/positions/lib/cel-seed.ts`) are promoted to a shared
+  constant in `@luminova/types`; spotlight imports the role labels directly (it already
+  depends on `@luminova/types`). The `positions` Firestore collection stays auth-gated;
+  no world-read projection is added. This is the single source of truth — the president
+  manages cargos in "Cargos y comités", not in this form.
 
 \* `yearsActive` is **computed** client-side (`currentYear − 1993`), NOT stored —
 otherwise it goes stale every January. The timeline "Hoy" milestone is likewise
@@ -53,13 +60,21 @@ siteConfig/current {
   }
   allies: string[]
   timeline: { year: string, title: string, description: string }[]
-  execRoles: string[]
   mvv: { mision: string, vision: string, valores: string }
   reasons: { number: string, title: string, body: string }[]
   contact: { email: string, location: string, meetingSchedule: string,
              links: { label: string, url: string }[] }
 }
 ```
+
+> No `execRoles` field — exec-committee roles come from the `@luminova/types` CEL
+> catalog (see Scope). Doc holds 5 editable section-groups, not 6.
+
+**Naming:** schema keys are **English** (`stats`, `allies`, `timeline`, `mvv`,
+`reasons`, `contact`), values Spanish, per repo convention. The Claude Design handoff
+uses Spanish field keys (`estadisticas`, `premioAnio`, `hitos`…) — map those to the
+English schema keys during implementation; they are the UI's concern, not the data
+model's.
 
 - One doc → one read, one snapshot, atomic save.
 - Unlike `showcase` (beacon-projected), this is **hand-authored** → `backstage`
@@ -71,15 +86,22 @@ siteConfig/current {
 
 ### Backstage — `/config` ("Configuración del sitio")
 
-- **Singleton page**, not a CRUD list (exactly one doc).
+- **Singleton page**, not a CRUD list (exactly one doc). Lives as the **"Sitio
+  público"** tab inside a `/config` "Configuración" route (sibling tab "Preferencias"
+  is out of scope here).
 - `siteConfigRepository` (get + update) — existing repository pattern.
 - `useSiteConfig` query + `useUpdateSiteConfig` mutation (TanStack Query v5).
-- React Hook Form + Zod, one schema. Sectioned/collapsible cards:
-  Stats · Aliados · Hitos · Comité · MVV · Razones · Contacto.
-  `useFieldArray` for the list sections (allies, timeline, reasons, execRoles, links).
+- React Hook Form + Zod, one schema. **5 collapsible section cards** (Comité dropped):
+  01 Estadísticas · 02 Aliados · 03 Hitos · 04 Misión·Visión·Valores · 05 Razones ·
+  06 Contacto. `useFieldArray` for the list sections (allies, timeline, reasons,
+  contact.links).
+- Sticky save bar: dirty/error state + last-saved timestamp
+  (`Intl.DateTimeFormat('es-BO', …)`); `formState.isDirty` drives it, `formState.errors`
+  drives per-field messages + blocked-count. Errors surface only after first save attempt.
 - Save = `setDoc(merge)` writing fields **+ bump `version`** + `updatedAt` server
   timestamp, in one atomic write.
 - Scaffold via `backstage-feature-scaffold`, adapted to singleton (drop list view).
+- Build against the Claude Design handoff (below) using `@luminova/ui` primitives.
 
 ### Spotlight — read + cache (stale-while-revalidate)
 
@@ -111,11 +133,14 @@ No cron, no manual push button, no beacon trigger.
 
 ## Implementation order
 
-1. `@luminova/types` — `SiteConfig` type + Zod schema (+ codegen-drift gate).
+1. `@luminova/types` — `SiteConfig` type + Zod schema (+ codegen-drift gate). Also
+   **promote the CEL catalog** (`CEL_SEED` role labels) into a shared constant here;
+   update backstage's positions feature to import it (no behavior change).
 2. `firestore.rules` — `siteConfig` public-read / admin-write + rules tests.
-3. `backstage` — repository, hooks, `/config` route + sectioned form.
+3. `backstage` — repository, hooks, `/config` route + sectioned form (5 groups).
 4. `spotlight` — reader (firestore-lite), `useSiteConfig`, persistQueryClient setup,
-   wire all hardcoded sites to the config; compute `yearsActive`.
+   wire all hardcoded sites to the config; compute `yearsActive`; render "Comité
+   Ejecutivo" labels from the `@luminova/types` CEL catalog.
 5. `spotlight` — lazy-loaded home flagship-cards component reading `featured` showcase.
 6. Seed `siteConfig/current` with the current hardcoded values (migration/seed script).
 
@@ -131,37 +156,27 @@ No cron, no manual push button, no beacon trigger.
   `@tanstack/query-sync-storage-persister`.
 - Design validation: `frontend-design` then `ui-ux-pro-max` on the backstage form.
 
-## Claude Design prompt (for the backstage `/config` page)
+## Design handoff (Claude Design — DONE)
 
-> Design an admin settings page for a nonprofit chapter's public-site content, called
-> "Configuración del sitio". This is the single place a chapter president (non-technical,
-> serves a 1-year term) edits the facts shown on the public marketing site.
->
-> It is one long form, organized into collapsible sections, each a card:
-> 1. **Estadísticas** — numeric stat fields with their public labels: número de programas
->    insignia, países en la red (texto, ej. "100+"), miembros en el mundo (texto, ej.
->    "200.000+"), reconocimientos nacionales (número), eficiencia operativa % (número),
->    y premio destacado {año + título}.
-> 2. **Aliados** — editable list of organization names (add/remove/reorder rows).
-> 3. **Hitos** — editable timeline list, each row {año, título, descripción}.
-> 4. **Comité** — editable list of role labels (Presidente, VP…).
-> 5. **Misión / Visión / Valores** — three multiline text areas.
-> 6. **Razones para unirse** — editable list of {número, título, cuerpo}.
-> 7. **Contacto** — email, ubicación, horario de reunión, y enlaces {etiqueta, url}.
->
-> One sticky "Guardar cambios" action; show last-saved timestamp. Spanish UI labels.
-> Calm, trustworthy, institutional aesthetic — this is JCI (Junior Chamber International),
-> navy/teal brand. Must use the design tokens and components in this repo's
-> `@luminova/ui` design system (see DESIGN.md): token-driven spacing/color, existing
-> form inputs, DatePicker, Card, Button, collapsible Section. Accessible (WCAG AA
-> contrast, labeled fields, keyboard-operable add/remove rows). Desktop-first admin
-> layout with a readable max width; the section cards stack in a single column.
->
-> Deliver the page composed from existing `@luminova/ui` primitives, plus any new
-> field-array row component needed, ready to wire to a React Hook Form + Zod form.
+High-fidelity design produced and reviewed. Handoff bundle:
+`design_handoff_configuracion_sitio/` in the linked Claude Design project
+`97303bd9-fd99-46af-9104-27338d4b9412` (pull via DesignSync). Key files: `README.md`
+(spec: layout, tokens, interactions, validation), `src/pages-configuracion.jsx` (the
+reference page — `SitioPublico`, `Collapsible`, `FieldArray`, all sections, sticky save
+bar), `src/config-data.jsx` (seed payload shape), `src/dashboard.css` +
+`src/colors_and_type.css` (token values).
 
-After Claude Design produces the layout, use its handoff so implementation wires it
-straight to `useSiteConfig` / `useUpdateSiteConfig`.
+The handoff is a **visual reference**, not shippable code. Recreate it in-repo with
+React Hook Form + Zod + `@luminova/ui` primitives. Deviations from the handoff, decided:
+- **Drop section 04 "Comité"** — roles come from the `@luminova/types` CEL catalog, not
+  an editable list (per Scope). Renumber the remaining sections 01–06 → 5 groups.
+- **Map Spanish field keys → English schema keys** (handoff uses `estadisticas`,
+  `premioAnio`, etc.; schema uses `stats`, `standoutOrg`, …).
+- The handoff's `FieldArray` row (drag handle decorative; up/down/delete keyboard-operable
+  → RHF `move`/`remove`/`append`) is the one new component to build; back it with
+  `@luminova/ui` icon buttons. Pointer drag-reorder is optional.
+- Tokens: reconcile the handoff's `--jci-*` vars against the repo's existing
+  `@luminova/ui` tokens — reuse repo tokens, do not introduce a parallel set.
 
 ## Out of scope / deferred
 
