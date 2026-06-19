@@ -57,7 +57,7 @@ build step.
 
 ---
 
-## Components (33 — shipped)
+## Components (35 — shipped)
 
 All exported from `src/index.ts` except the QR pair (deep-imported to stay in lazy
 chunks). Paths are relative to `packages/ui/src/`.
@@ -74,6 +74,8 @@ chunks). Paths are relative to `packages/ui/src/`.
 | `Checkbox` (label + branded box)                                                                | `components/checkbox.tsx`           |
 | `Combobox` (single-select + search)                                                             | `components/combobox.tsx`           |
 | `MultiSelect` (multi-select + chips)                                                            | `components/multi-select-field.tsx` |
+| `DatePicker` (calendar popover, `yyyy-MM-dd`; month/year dropdown caption)                      | `components/date-picker.tsx`        |
+| `DateTimePicker` (calendar popover + time, `yyyy-MM-ddTHH:mm`)                                  | `components/date-picker.tsx`        |
 
 ### Feedback / status
 

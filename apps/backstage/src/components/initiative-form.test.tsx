@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { InitiativeForm } from "./initiative-form";
+import { pickDate } from "../test/pick-date";
 
 const members = [
   { value: "m1", label: "Ana Rivas" },
@@ -26,8 +27,8 @@ describe("InitiativeForm", () => {
       screen.getByLabelText(/descripción/i),
       "Una descripción larga para superar validación",
     );
-    await user.type(screen.getByLabelText(/inicio/i), "2026-02-01");
-    await user.type(screen.getByLabelText(/cierre estimado/i), "2026-08-31");
+    await pickDate(/inicio/i, "2026-02-15");
+    await pickDate(/cierre estimado/i, "2026-08-15");
     await user.click(screen.getByRole("button", { name: /^director/i }));
     await user.click(screen.getByText("Ana Rivas"));
     await user.click(screen.getByRole("button", { name: /crear/i }));
