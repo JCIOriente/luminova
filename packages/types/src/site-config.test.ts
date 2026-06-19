@@ -10,7 +10,7 @@ const valid = {
     efficiencyPct: 100,
     standoutOrg: { year: "2021", title: "Organización Local Más Sobresaliente" },
   },
-  allies: ["Unifranz"],
+  allies: [{ nombre: "Unifranz" }],
   timeline: [{ year: "1993", title: "Se funda JCI Oriente", description: "..." }],
   mvv: { mision: "m", vision: "v", valores: "x" },
   reasons: [{ number: "01", title: "Red", body: "..." }],
@@ -41,7 +41,7 @@ describe("siteConfigSchema", () => {
     expect(r.success).toBe(false);
   });
   it("rejects empty ally name", () => {
-    const r = siteConfigSchema.safeParse({ ...valid, allies: [""] });
+    const r = siteConfigSchema.safeParse({ ...valid, allies: [{ nombre: "" }] });
     expect(r.success).toBe(false);
   });
 });
