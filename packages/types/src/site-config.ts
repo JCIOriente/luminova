@@ -37,7 +37,6 @@ export interface SiteConfig {
   version: number;
   updatedAt: Timestamp;
   stats: SiteStats;
-  allies: string[];
   timeline: SiteTimelineEntry[];
   mvv: { mision: string; vision: string; valores: string };
   reasons: SiteReason[];

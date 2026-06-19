@@ -19,7 +19,6 @@ export const siteConfigSchema = z.object({
       .max(100, "Máximo 100"),
     standoutOrg: z.object({ year: reqText, title: reqText }),
   }),
-  allies: z.array(z.object({ nombre: reqText })),
   timeline: z.array(z.object({ year: reqText, title: reqText, description: z.string() })),
   mvv: z.object({ mision: reqText, vision: reqText, valores: reqText }),
   reasons: z.array(z.object({ number: z.string(), title: reqText, body: z.string() })),

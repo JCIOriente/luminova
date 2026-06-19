@@ -35,7 +35,6 @@ function revalidateOnce(): Promise<Resolved | null> {
       // Typed literal: adding a required field to Resolved fails compilation here.
       const resolved: Resolved = {
         stats: fresh.stats,
-        allies: fresh.allies,
         timeline: fresh.timeline,
         mvv: fresh.mvv,
         reasons: fresh.reasons,

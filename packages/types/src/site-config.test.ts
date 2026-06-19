@@ -10,7 +10,6 @@ const valid = {
     efficiencyPct: 100,
     standoutOrg: { year: "2021", title: "Organización Local Más Sobresaliente" },
   },
-  allies: [{ nombre: "Unifranz" }],
   timeline: [{ year: "1993", title: "Se funda JCI Oriente", description: "..." }],
   mvv: { mision: "m", vision: "v", valores: "x" },
   reasons: [{ number: "01", title: "Red", body: "..." }],
@@ -38,10 +37,6 @@ describe("siteConfigSchema", () => {
       ...valid,
       stats: { ...valid.stats, efficiencyPct: 101 },
     });
-    expect(r.success).toBe(false);
-  });
-  it("rejects empty ally name", () => {
-    const r = siteConfigSchema.safeParse({ ...valid, allies: [{ nombre: "" }] });
     expect(r.success).toBe(false);
   });
   it("rejects a javascript: link url (XSS guard)", () => {

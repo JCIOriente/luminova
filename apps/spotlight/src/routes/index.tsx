@@ -257,8 +257,11 @@ function HomeImpact() {
   );
 }
 
+// Placeholder until the dedicated allies feature (real Ally records with logos +
+// categories, projected for public read) ships. Tracked as a follow-up PR.
+const ALLIES = ["Unifranz", "JCI Bolivia", "JCI Worldwide", "Cámara de Industria SC", "Fexpocruz"];
+
 function HomeAllies() {
-  const config = useSiteConfig();
   return (
     <section className="section" style={{ paddingTop: 80, paddingBottom: 80 }}>
       <div className="container">
@@ -267,7 +270,7 @@ function HomeAllies() {
             Confían en nosotros
           </div>
           <div className="ally-strip" style={{ marginTop: 32 }}>
-            {config.allies.map((name) => (
+            {ALLIES.map((name) => (
               <a key={name} className="ally" href="#">
                 <span className="mark" aria-hidden="true" />
                 {name}

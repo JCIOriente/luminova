@@ -21,7 +21,6 @@ const BLANK_CONFIG: SiteConfigInput = {
     efficiencyPct: 0,
     standoutOrg: { year: "", title: "" },
   },
-  allies: [],
   timeline: [],
   mvv: { mision: "", vision: "", valores: "" },
   reasons: [],

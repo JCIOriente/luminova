@@ -11,7 +11,6 @@ const input = {
     efficiencyPct: 100,
     standoutOrg: { year: "2021", title: "OLM" },
   },
-  allies: [{ nombre: "Unifranz" }],
   timeline: [{ year: "1993", title: "Fundación", description: "d" }],
   mvv: { mision: "m", vision: "v", valores: "x" },
   reasons: [{ number: "01", title: "Red", body: "b" }],
@@ -24,22 +23,18 @@ const input = {
 };
 
 describe("site-config mapper", () => {
-  it("flattens allies to strings for the doc", () => {
-    expect(toSiteConfigDoc(input, 3).allies).toEqual(["Unifranz"]);
-  });
   it("bumps the version", () => {
     expect(toSiteConfigDoc(input, 3).version).toBe(4);
   });
-  it("round-trips allies back to row objects", () => {
+  it("round-trips timeline through the form shape", () => {
     const doc = {
       version: 4,
-      allies: ["Unifranz"],
       stats: input.stats,
       timeline: input.timeline,
       mvv: input.mvv,
       reasons: input.reasons,
       contact: input.contact,
     } as unknown as SiteConfig;
-    expect(toSiteConfigInput(doc).allies).toEqual([{ nombre: "Unifranz" }]);
+    expect(toSiteConfigInput(doc).timeline).toEqual(input.timeline);
   });
 });

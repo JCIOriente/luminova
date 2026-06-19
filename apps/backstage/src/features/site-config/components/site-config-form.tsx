@@ -153,34 +153,6 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
 
       <CollapsibleSection
         num="02"
-        icon={Icon.handshake({ s: 18 })}
-        title="Aliados"
-        desc="Organizaciones aliadas que se muestran en el inicio"
-      >
-        <FieldArrayRows
-          control={control}
-          name="allies"
-          makeBlank={() => ({ nombre: "" })}
-          addLabel="Agregar aliado"
-          itemNoun="aliado"
-          renderRow={(index) => (
-            <Field
-              label="Nombre"
-              htmlFor={`ally-${index}`}
-              error={err(errors.allies?.[index]?.nombre?.message)}
-            >
-              <Input
-                id={`ally-${index}`}
-                aria-invalid={attempted && !!errors.allies?.[index]?.nombre}
-                {...register(`allies.${index}.nombre`)}
-              />
-            </Field>
-          )}
-        />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        num="03"
         icon={Icon.calendar({ s: 18 })}
         title="Hitos"
         desc="Línea de tiempo de la historia del capítulo"
@@ -229,7 +201,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
-        num="04"
+        num="03"
         icon={Icon.compass({ s: 18 })}
         title="Misión · Visión · Valores"
         desc="Declaraciones institucionales"
@@ -260,7 +232,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
-        num="05"
+        num="04"
         icon={Icon.spark({ s: 18 })}
         title="Razones"
         desc="Motivos para unirse al capítulo"
@@ -298,7 +270,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
-        num="06"
+        num="05"
         icon={Icon.mail({ s: 18 })}
         title="Contacto"
         desc="Correo, ubicación y enlaces del capítulo"

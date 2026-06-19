@@ -12,7 +12,6 @@ export const SITE_CONFIG_CONTENT = {
     efficiencyPct: 100,
     standoutOrg: { year: "2021", title: "Organización Local Más Sobresaliente" },
   },
-  allies: ["Unifranz", "JCI Bolivia", "JCI Worldwide", "Cámara de Industria SC", "Fexpocruz"],
   timeline: [
     {
       year: "1915",

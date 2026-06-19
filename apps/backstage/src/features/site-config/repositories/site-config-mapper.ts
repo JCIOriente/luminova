@@ -6,7 +6,6 @@ export function toSiteConfigDoc(data: SiteConfigInput, currentVersion: number) {
     version: currentVersion + 1,
     updatedAt: serverTimestamp(),
     stats: data.stats,
-    allies: data.allies.map((a) => a.nombre),
     timeline: data.timeline,
     mvv: data.mvv,
     reasons: data.reasons,
@@ -17,7 +16,6 @@ export function toSiteConfigDoc(data: SiteConfigInput, currentVersion: number) {
 export function toSiteConfigInput(doc: SiteConfig): SiteConfigInput {
   return {
     stats: doc.stats,
-    allies: doc.allies.map((nombre) => ({ nombre })),
     timeline: doc.timeline,
     mvv: doc.mvv,
     reasons: doc.reasons,
