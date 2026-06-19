@@ -152,7 +152,7 @@ function HomeAbout() {
               </p>
               <figure className="pullquote" style={{ marginTop: 36, marginBottom: 0 }}>
                 <blockquote className="t-quote" style={{ margin: 0 }}>
-                  {`Más de ${config.stats.membersWorldwide} miembros en ${config.stats.countries} países, 17 organizaciones en Bolivia, 1 capítulo activo en Santa Cruz.`}
+                  {`“Más de ${config.stats.membersWorldwide} miembros en ${config.stats.countries} países, 17 organizaciones en Bolivia, 1 capítulo activo en Santa Cruz.”`}
                 </blockquote>
                 <cite>Red JCI · 2025</cite>
               </figure>

@@ -36,7 +36,13 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
   const errorCount = Object.keys(errors).length;
   const hasErrors = attempted && errorCount > 0;
 
-  const submit = handleSubmit(onSubmit);
+  const submit = handleSubmit(async (data) => {
+    await onSubmit(data);
+    // Re-baseline the form to the saved values so isDirty clears and Discard
+    // restores what was actually persisted (RHF ignores defaultValues prop changes).
+    reset(data);
+    setAttempted(false);
+  });
 
   const err = (message: string | undefined) => (attempted ? message : undefined);
 
