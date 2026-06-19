@@ -36,9 +36,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
   const errorCount = Object.keys(errors).length;
   const hasErrors = attempted && errorCount > 0;
 
-  const submit = handleSubmit(async (data) => {
-    await onSubmit(data);
-  });
+  const submit = handleSubmit(onSubmit);
 
   const err = (message: string | undefined) => (attempted ? message : undefined);
 

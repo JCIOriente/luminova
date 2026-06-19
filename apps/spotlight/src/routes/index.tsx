@@ -1,15 +1,8 @@
 import { lazy, Suspense } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import {
-  Button,
-  ArrowLink,
-  RippleBackground,
-  SectionHeader,
-  Skeleton,
-  Reveal,
-  Icon,
-} from "@luminova/ui";
+import { Button, ArrowLink, RippleBackground, SectionHeader, Reveal, Icon } from "@luminova/ui";
 import { AreaCard, ImpactStat } from "../components/cards";
+import { ProgramsSkeleton } from "../components/programs-skeleton";
 
 const LazyHomePrograms = lazy(() => import("../components/home-programs"));
 import { useSiteConfig } from "../site-config/use-site-config";
@@ -189,24 +182,6 @@ function HomeAreas() {
         </div>
       </div>
     </section>
-  );
-}
-
-function ProgramsSkeleton() {
-  return (
-    <div className="program-grid" aria-busy="true" aria-label="Cargando programas">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="program-card overflow-hidden">
-          <Skeleton className="h-[200px] rounded-none" />
-          <div className="body flex flex-col gap-[10px]">
-            <Skeleton className="h-3 w-2/5" />
-            <Skeleton className="h-5 w-3/4" />
-            <Skeleton className="h-3.5 w-[90%]" />
-            <Skeleton className="h-3.5 w-3/5" />
-          </div>
-        </div>
-      ))}
-    </div>
   );
 }
 

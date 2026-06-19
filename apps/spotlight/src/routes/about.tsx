@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, RippleBackground, SectionHeader, Reveal, ImgSlot, Icon } from "@luminova/ui";
+import { Button, RippleBackground, SectionHeader, Reveal, ImgSlot, Icon, cn } from "@luminova/ui";
 import { CEL_POSITION_TITLES } from "@luminova/types";
 import { TimelineItem } from "../components/cards";
 import { useSiteConfig } from "../site-config/use-site-config";
+import { currentYearsActive } from "../site-config/defaults";
 
 export const Route = createFileRoute("/about")({
   component: About,
@@ -97,7 +98,7 @@ function AboutMVV() {
         <div className="grid-3" style={{ marginTop: 56 }}>
           {MVV_PRESENTATION.map((it, i) => (
             <Reveal key={it.title} delay={i * 80}>
-              <div className={`mvv-card ${it.variant}`}>
+              <div className={cn("mvv-card", it.variant)}>
                 <div className="accent">{it.icon}</div>
                 <h3 className="t-h4" style={{ margin: 0 }}>
                   {it.title}
@@ -126,7 +127,7 @@ function AboutTimeline() {
   return (
     <section className="section">
       <div className="container">
-        <SectionHeader eyebrow="Hitos" title="32 años de huella." />
+        <SectionHeader eyebrow="Hitos" title={`${currentYearsActive()} años de huella.`} />
         <div className="timeline" style={{ marginTop: 56, maxWidth: 760 }}>
           {config.timeline.map((it, i) => (
             <Reveal key={it.year + it.title} delay={i * 40}>
