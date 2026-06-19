@@ -1,13 +1,4 @@
-import {
-  EmptyState,
-  Icon,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@luminova/ui";
+import { DataTable, EmptyState, Icon, type DataTableColumn } from "@luminova/ui";
 import type { Position } from "@luminova/types";
 import { RowAction } from "../../../components/row-action";
 import { Can } from "../../../lib/authz/ability-context";
@@ -48,6 +39,44 @@ function PositionActions({
   );
 }
 
+const CARGO_COLUMNS: DataTableColumn<Position>[] = [
+  {
+    id: "title",
+    header: "Cargo",
+    sortValue: (position) => position.title,
+    cell: (position) => <span className="font-semibold text-ink-1">{position.title}</span>,
+  },
+  {
+    id: "term",
+    header: "Gestión",
+    sortValue: (position) => position.term ?? 0,
+    cell: (position) => <span className="tabular-nums text-ink-2">{position.term ?? "—"}</span>,
+  },
+  {
+    id: "grants",
+    header: "Permisos",
+    sortable: false,
+    cell: (position) => <span className="text-ink-2">{grantsLabel(position)}</span>,
+  },
+];
+
+const COMISION_COLUMNS: DataTableColumn<Position>[] = [
+  {
+    id: "sigla",
+    header: "Sigla",
+    sortValue: (position) => position.sigla ?? "",
+    cell: (position) => (
+      <span className="font-mono text-sm text-ink-2">{position.sigla ?? "—"}</span>
+    ),
+  },
+  {
+    id: "title",
+    header: "Nombre",
+    sortValue: (position) => position.title,
+    cell: (position) => <span className="font-semibold text-ink-1">{position.title}</span>,
+  },
+];
+
 interface PositionSectionProps {
   title: string;
   positions: Position[];
@@ -70,60 +99,15 @@ export function PositionSection({
         <EmptyState
           title={variant === "cargo" ? "Sin cargos en esta categoría." : "Sin comisiones."}
         />
-      ) : variant === "cargo" ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Cargo</TableHead>
-              <TableHead>Gestión</TableHead>
-              <TableHead>Permisos</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {positions.map((position) => (
-              <TableRow key={position.id}>
-                <TableCell className="font-semibold text-ink-1">{position.title}</TableCell>
-                <TableCell className="text-ink-2 tabular-nums">{position.term ?? "—"}</TableCell>
-                <TableCell className="text-ink-2">{grantsLabel(position)}</TableCell>
-                <TableCell className="text-right">
-                  <PositionActions
-                    position={position}
-                    onEdit={onEdit}
-                    onDeactivate={onDeactivate}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Sigla</TableHead>
-              <TableHead>Nombre</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {positions.map((position) => (
-              <TableRow key={position.id}>
-                <TableCell className="text-ink-2 font-mono text-sm">
-                  {position.sigla ?? "—"}
-                </TableCell>
-                <TableCell className="font-semibold text-ink-1">{position.title}</TableCell>
-                <TableCell className="text-right">
-                  <PositionActions
-                    position={position}
-                    onEdit={onEdit}
-                    onDeactivate={onDeactivate}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          rows={positions}
+          columns={variant === "cargo" ? CARGO_COLUMNS : COMISION_COLUMNS}
+          getRowId={(position) => position.id}
+          rowActions={(position) => (
+            <PositionActions position={position} onEdit={onEdit} onDeactivate={onDeactivate} />
+          )}
+        />
       )}
     </section>
   );
