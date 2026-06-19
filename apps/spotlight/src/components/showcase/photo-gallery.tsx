@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Lightbox from "yet-another-react-lightbox";
 import Captions from "yet-another-react-lightbox/plugins/captions";
 import Fullscreen from "yet-another-react-lightbox/plugins/fullscreen";
@@ -11,13 +11,12 @@ import type { ShowcaseItem } from "@luminova/types/engine";
 
 export function PhotoGallery({ photos, title }: { photos: ShowcaseItem["photos"]; title?: string }) {
   const [index, setIndex] = useState(-1);
+  const slides = useMemo(
+    () => photos.map((photo) => ({ src: photo.url, description: photo.caption ?? undefined })),
+    [photos],
+  );
 
   if (photos.length === 0) return null;
-
-  const slides = photos.map((photo) => ({
-    src: photo.url,
-    description: photo.caption ?? undefined,
-  }));
 
   return (
     <figure className="gallery">
@@ -30,7 +29,7 @@ export function PhotoGallery({ photos, title }: { photos: ShowcaseItem["photos"]
               onClick={() => setIndex(i)}
               aria-label={photo.caption ?? title ?? "Ampliar foto"}
             >
-              <img src={photo.url} alt={photo.caption ?? title ?? ""} loading="lazy" />
+              <img src={photo.url} alt="" loading="lazy" />
               {photo.caption && <span className="gallery-caption">{photo.caption}</span>}
             </button>
           </li>

@@ -26,8 +26,8 @@ describe("TeamCredits", () => {
     expect(screen.getByText("Caro")).toBeInTheDocument();
   });
 
-  it("renders a photo avatar when photoUrl is present", () => {
-    render(
+  it("renders a photo avatar (decorative — name is the adjacent text) when photoUrl is present", () => {
+    const { container } = render(
       <TeamCredits
         team={{
           director: { name: "Ana Lopez", photoUrl: "https://x/ana.jpg" },
@@ -36,7 +36,10 @@ describe("TeamCredits", () => {
         }}
       />,
     );
-    expect(screen.getByAltText("Ana Lopez")).toHaveAttribute("src", "https://x/ana.jpg");
+    const img = container.querySelector("img");
+    expect(img).toHaveAttribute("src", "https://x/ana.jpg");
+    expect(img).toHaveAttribute("alt", "");
+    expect(screen.getByText("Ana Lopez")).toBeInTheDocument();
   });
 
   it("falls back to an initials monogram when photoUrl is null", () => {

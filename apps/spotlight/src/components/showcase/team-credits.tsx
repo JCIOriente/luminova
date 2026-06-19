@@ -11,9 +11,9 @@ export function initials(name: string): string {
 }
 
 function Avatar({ person, size }: { person: ShowcasePerson; size: "lg" | "sm" }) {
-  const cls = `team-avatar${size === "lg" ? " team-avatar-lg" : ""}`;
+  const cls = size === "lg" ? "team-avatar team-avatar-lg" : "team-avatar";
   if (person.photoUrl) {
-    return <img className={cls} src={person.photoUrl} alt={person.name} loading="lazy" />;
+    return <img className={cls} src={person.photoUrl} alt="" loading="lazy" />;
   }
   return (
     <span className={`${cls} team-avatar-fallback`} aria-hidden="true">

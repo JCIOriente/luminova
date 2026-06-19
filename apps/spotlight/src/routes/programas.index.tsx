@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { RippleBackground, Reveal } from "@luminova/ui";
+import { RippleBackground } from "@luminova/ui";
 import { useFeaturedList } from "../showcase/use-showcase";
-import { ShowcaseCard } from "../components/showcase/showcase-card";
+import { ShowcaseCardGrid } from "../components/showcase/showcase-card-grid";
 
 export const Route = createFileRoute("/programas/")({
   component: ProgramasPage,
@@ -65,13 +65,7 @@ function ProgramasPage() {
               Pronto destacaremos aquí nuestros programas y proyectos más representativos.
             </p>
           ) : (
-            <div className="showcase-grid">
-              {data.map((item, i) => (
-                <Reveal key={item.id} delay={i * 60}>
-                  <ShowcaseCard item={item} />
-                </Reveal>
-              ))}
-            </div>
+            <ShowcaseCardGrid items={data} />
           )}
         </div>
       </section>

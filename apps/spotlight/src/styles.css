@@ -1325,15 +1325,16 @@
     align-items: center;
     justify-content: center;
     font-family: var(--font-sans);
-    font-weight: 600;
-    font-size: 17px;
+    font-weight: 700;
+    font-size: 18px;
     letter-spacing: 0.02em;
+    /* Solid navy (~8.9:1 on white initials) — the blue/teal brand stops fail WCAG AA. */
     color: var(--jci-white);
-    background: linear-gradient(135deg, var(--jci-blue), var(--jci-teal));
+    background: var(--jci-navy);
     border-color: transparent;
   }
   .team-avatar-lg.team-avatar-fallback {
-    font-size: 26px;
+    font-size: 28px;
   }
 
   /* ----- Back link ----- */
