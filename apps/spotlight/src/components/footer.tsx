@@ -2,6 +2,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { LogoLockup, RippleBackground, Icon } from "@luminova/ui";
 import { useSiteConfig } from "../site-config/use-site-config";
 
+// Neutralize script-bearing hrefs (e.g. javascript:) from admin-authored links;
+// the public site reads Firestore directly, so it cannot rely on the form's schema.
+const safeHref = (url: string): string => (/^https?:\/\//i.test(url) || url === "#" ? url : "#");
+
 const SOCIAL_STYLE: React.CSSProperties = {
   width: 36,
   height: 36,
@@ -97,7 +101,7 @@ export function Footer() {
             <ul>
               {config.contact.links.map((link) => (
                 <li key={link.label}>
-                  <a href={link.url} target="_blank" rel="noreferrer">
+                  <a href={safeHref(link.url)} target="_blank" rel="noreferrer">
                     {link.label}
                   </a>
                 </li>

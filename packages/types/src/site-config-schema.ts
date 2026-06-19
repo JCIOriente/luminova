@@ -2,6 +2,10 @@ import { z } from "zod";
 
 const reqText = z.string().min(1, "Requerido.");
 const intMin0 = z.number({ error: "Ingresa un número" }).int().min(0, "Mínimo 0");
+// Block javascript:/data: and other script-bearing schemes from public <a href>.
+const safeUrl = reqText.refine((v) => v === "#" || /^https?:\/\//i.test(v), {
+  message: "Usa una URL http(s) o «#».",
+});
 
 export const siteConfigSchema = z.object({
   stats: z.object({
@@ -23,7 +27,7 @@ export const siteConfigSchema = z.object({
     email: z.string().email("Correo no válido"),
     location: reqText,
     meetingSchedule: reqText,
-    links: z.array(z.object({ label: reqText, url: reqText })),
+    links: z.array(z.object({ label: reqText, url: safeUrl })),
   }),
 });
 

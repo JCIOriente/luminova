@@ -44,4 +44,18 @@ describe("siteConfigSchema", () => {
     const r = siteConfigSchema.safeParse({ ...valid, allies: [{ nombre: "" }] });
     expect(r.success).toBe(false);
   });
+  it("rejects a javascript: link url (XSS guard)", () => {
+    const r = siteConfigSchema.safeParse({
+      ...valid,
+      contact: { ...valid.contact, links: [{ label: "x", url: "javascript:alert(1)" }] },
+    });
+    expect(r.success).toBe(false);
+  });
+  it("accepts a '#' placeholder link url", () => {
+    const r = siteConfigSchema.safeParse({
+      ...valid,
+      contact: { ...valid.contact, links: [{ label: "x", url: "#" }] },
+    });
+    expect(r.success).toBe(true);
+  });
 });
