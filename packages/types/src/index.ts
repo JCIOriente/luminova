@@ -34,3 +34,4 @@ export type {
   SiteContact,
 } from "./site-config.js";
 export { siteConfigSchema, type SiteConfigInput } from "./site-config-schema.js";
+export { CEL_POSITIONS, type CelPositionSeed } from "./cel-positions.js";
