@@ -14,8 +14,14 @@ export interface QrScannerProps {
  *  decoded text. Generic — the caller interprets the payload. */
 export function QrScanner({ onScan, onError, className, paused = false }: QrScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Hold callbacks + paused in refs so the camera is initialized once on mount
+  // and never torn down / re-created when the parent re-renders with new closures.
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
+  const onScanRef = useRef(onScan);
+  onScanRef.current = onScan;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   useEffect(() => {
     const reader = new BrowserQRCodeReader();
@@ -24,19 +30,19 @@ export function QrScanner({ onScan, onError, className, paused = false }: QrScan
 
     reader
       .decodeFromVideoDevice(undefined, videoRef.current ?? undefined, (result) => {
-        if (result && !pausedRef.current) onScan(result.getText());
+        if (result && !pausedRef.current) onScanRef.current(result.getText());
       })
       .then((c) => {
         if (cancelled) c.stop();
         else controls = c;
       })
-      .catch((err) => onError?.(err));
+      .catch((err) => onErrorRef.current?.(err));
 
     return () => {
       cancelled = true;
       controls?.stop();
     };
-  }, [onScan, onError]);
+  }, []);
 
   return (
     <div className={cn("relative grid place-items-center overflow-hidden bg-jci-black", className)}>
