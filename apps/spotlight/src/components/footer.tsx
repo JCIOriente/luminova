@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { LogoLockup, RippleBackground, Icon } from "@luminova/ui";
+import { useSiteConfig } from "../site-config/use-site-config";
 
 const SOCIAL_STYLE: React.CSSProperties = {
   width: 36,
@@ -13,6 +14,7 @@ const SOCIAL_STYLE: React.CSSProperties = {
 };
 
 export function Footer() {
+  const config = useSiteConfig();
   const navigate = useNavigate();
   const go = (e: React.MouseEvent, to: string) => {
     e.preventDefault();
@@ -78,12 +80,10 @@ export function Footer() {
             <h4>Contacto</h4>
             <ul>
               <li>
-                <a href="mailto:jci.orienteolm@gmail.com">jci.orienteolm@gmail.com</a>
+                <a href={`mailto:${config.contact.email}`}>{config.contact.email}</a>
               </li>
               <li>
-                <span style={{ color: "rgba(255,255,255,0.55)" }}>
-                  Santa Cruz de la Sierra, Bolivia
-                </span>
+                <span style={{ color: "rgba(255,255,255,0.55)" }}>{config.contact.location}</span>
               </li>
               <li>
                 <a href="/contact" onClick={(e) => go(e, "/contact")}>
@@ -95,21 +95,13 @@ export function Footer() {
           <div className="footer-col">
             <h4>Red JCI</h4>
             <ul>
-              <li>
-                <a href="https://jci.cc" target="_blank" rel="noreferrer">
-                  JCI Worldwide ↗
-                </a>
-              </li>
-              <li>
-                <a href="#" target="_blank" rel="noreferrer">
-                  JCI Bolivia ↗
-                </a>
-              </li>
-              <li>
-                <a href="#" target="_blank" rel="noreferrer">
-                  JCI Americas ↗
-                </a>
-              </li>
+              {config.contact.links.map((link) => (
+                <li key={link.label}>
+                  <a href={link.url} target="_blank" rel="noreferrer">
+                    {link.label}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
         </div>
