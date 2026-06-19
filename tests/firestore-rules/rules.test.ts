@@ -576,9 +576,7 @@ describe("firestore.rules — initiative direction branch", () => {
     );
   });
   it("lets Admin set the featured flag", async () => {
-    await assertSucceeds(
-      updateDoc(doc(as("u", ["Admin"]), "projects/p_feat"), { featured: true }),
-    );
+    await assertSucceeds(updateDoc(doc(as("u", ["Admin"]), "projects/p_feat"), { featured: true }));
   });
   it("lets ProjectManager set the featured flag", async () => {
     await assertSucceeds(
