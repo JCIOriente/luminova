@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemberInviteDrawer } from "./member-invite-drawer";
+import { pickDate } from "../../../test/pick-date";
 
 vi.mock("../../../lib/auth/request-password-reset", () => ({
   requestPasswordReset: vi.fn().mockResolvedValue(undefined),
@@ -9,13 +10,11 @@ vi.mock("../../../lib/auth/request-password-reset", () => ({
 import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
 const mockedRequestPasswordReset = vi.mocked(requestPasswordReset);
 
-function fill() {
+async function fill() {
   fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: "Ana Gómez" } });
   fireEvent.change(screen.getByLabelText(/Correo/), { target: { value: "ana@jci.bo" } });
   fireEvent.change(screen.getByLabelText(/Género/), { target: { value: "Femenino" } });
-  fireEvent.change(screen.getByLabelText(/Fecha de nacimiento/), {
-    target: { value: "1990-01-01" },
-  });
+  await pickDate(/Fecha de nacimiento/, "1990-01-15");
 }
 
 describe("MemberInviteDrawer", () => {
@@ -56,7 +55,7 @@ describe("MemberInviteDrawer", () => {
         onProvision={onProvision}
       />,
     );
-    fill();
+    await fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
     await waitFor(() => expect(screen.getByText("Ana Gómez fue agregada")).toBeInTheDocument());
     expect(onCreate).toHaveBeenCalledTimes(1);
@@ -79,7 +78,7 @@ describe("MemberInviteDrawer", () => {
         onProvision={onProvision}
       />,
     );
-    fill();
+    await fill();
     fireEvent.click(screen.getByLabelText("Enviar acceso a la app"));
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
     await waitFor(() => expect(screen.getByText("Ana Gómez fue agregada")).toBeInTheDocument());
@@ -98,7 +97,7 @@ describe("MemberInviteDrawer", () => {
         onProvision={async () => ({ email: "ana@jci.bo", actionLink: "https://example.com/link" })}
       />,
     );
-    fill();
+    await fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
     await waitFor(() =>
       expect(screen.getByText(/Invitación enviada a ana@jci\.bo/)).toBeInTheDocument(),
@@ -121,7 +120,7 @@ describe("MemberInviteDrawer", () => {
         })}
       />,
     );
-    fill();
+    await fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     expect(screen.getByRole("alert")).toHaveTextContent(

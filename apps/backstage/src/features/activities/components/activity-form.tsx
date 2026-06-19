@@ -7,6 +7,7 @@ import {
   Input,
   Select,
   Combobox,
+  DateTimePicker,
   MultiSelect,
   type ComboboxOption,
 } from "@luminova/ui";
@@ -107,7 +108,18 @@ export function ActivityForm({
       )}
 
       <Field label="Fecha y hora" htmlFor="startAt" required error={errors.startAt?.message}>
-        <Input id="startAt" type="datetime-local" disabled={locked} {...register("startAt")} />
+        <Controller
+          control={control}
+          name="startAt"
+          render={({ field }) => (
+            <DateTimePicker
+              id="startAt"
+              value={field.value}
+              onChange={field.onChange}
+              disabled={locked}
+            />
+          )}
+        />
       </Field>
 
       {isExecution && !lockParent && (

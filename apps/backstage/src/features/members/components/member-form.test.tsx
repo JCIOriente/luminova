@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
+import { pickDate } from "../../../test/pick-date";
 
 const positions: Position[] = [
   {
@@ -71,12 +72,8 @@ describe("MemberForm", () => {
     expect(screen.getByLabelText("Género *")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/nombre/i), "Ana Pérez");
     await userEvent.type(screen.getByLabelText(/correo/i), "ana@jci.bo");
-    fireEvent.change(screen.getByLabelText(/fecha de ingreso/i), {
-      target: { value: "2020-03-15" },
-    });
-    fireEvent.change(screen.getByLabelText(/fecha de nacimiento/i), {
-      target: { value: "1992-07-01" },
-    });
+    await pickDate(/fecha de ingreso/i, "2020-03-15");
+    await pickDate(/fecha de nacimiento/i, "1992-07-15");
     await userEvent.click(screen.getByRole("button", { name: /crear/i }));
     expect(await screen.findByText("Requerido.")).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
@@ -96,12 +93,8 @@ describe("MemberForm", () => {
     await userEvent.type(screen.getByLabelText(/nombre/i), "Ana Pérez");
     await userEvent.type(screen.getByLabelText(/correo/i), "ana@jci.bo");
     await userEvent.selectOptions(screen.getByLabelText("Género *"), "Femenino");
-    fireEvent.change(screen.getByLabelText(/fecha de ingreso/i), {
-      target: { value: "2020-03-15" },
-    });
-    fireEvent.change(screen.getByLabelText(/fecha de nacimiento/i), {
-      target: { value: "1992-07-01" },
-    });
+    await pickDate(/fecha de ingreso/i, "2020-03-15");
+    await pickDate(/fecha de nacimiento/i, "1992-07-15");
     await userEvent.click(screen.getByLabelText("Cargo"));
     await userEvent.click(await screen.findByText("Presidenta"));
     await userEvent.click(screen.getByLabelText("Comisiones (pertenece a)"));
@@ -114,7 +107,7 @@ describe("MemberForm", () => {
         email: "ana@jci.bo",
         gender: "Femenino",
         joinDate: "2020-03-15",
-        birthdate: "1992-07-01",
+        birthdate: "1992-07-15",
         status: "Activo",
         cargoId: "pos-pres",
         comisionIds: ["pos-eventos"],

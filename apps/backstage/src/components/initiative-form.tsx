@@ -7,6 +7,7 @@ import {
   Textarea,
   Select,
   Combobox,
+  DatePicker,
   MultiSelect,
   type ComboboxOption,
 } from "@luminova/ui";
@@ -85,10 +86,22 @@ export function InitiativeForm({
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Inicio" htmlFor="startDate" required error={errors.startDate?.message}>
-          <Input id="startDate" type="date" {...register("startDate")} />
+          <Controller
+            control={control}
+            name="startDate"
+            render={({ field }) => (
+              <DatePicker id="startDate" value={field.value} onChange={field.onChange} />
+            )}
+          />
         </Field>
         <Field label="Cierre estimado" htmlFor="endDate" required error={errors.endDate?.message}>
-          <Input id="endDate" type="date" {...register("endDate")} />
+          <Controller
+            control={control}
+            name="endDate"
+            render={({ field }) => (
+              <DatePicker id="endDate" value={field.value} onChange={field.onChange} />
+            )}
+          />
         </Field>
       </div>
       <Field

@@ -33,6 +33,7 @@ export { Skeleton } from "./components/skeleton";
 export { EmptyState } from "./components/empty-state";
 export { Popover } from "./components/popover";
 export { Combobox, type ComboboxOption } from "./components/combobox";
+export { DatePicker, DateTimePicker } from "./components/date-picker";
 export { CommandPalette, type CommandItem } from "./components/command-palette";
 export { MultiSelect } from "./components/multi-select-field";
 // QrCode / QrScanner are intentionally NOT in the barrel — they pull qrcode.react

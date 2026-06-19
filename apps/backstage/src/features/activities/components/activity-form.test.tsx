@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ActivityForm } from "./activity-form";
+import { pickDate } from "../../../test/pick-date";
 
 const NO_OPTIONS = { memberOptions: [], programOptions: [], projectOptions: [] };
 
@@ -10,9 +11,7 @@ describe("ActivityForm", () => {
     const onSubmit = vi.fn();
     render(<ActivityForm {...NO_OPTIONS} onSubmit={onSubmit} isSaving={false} />);
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Asamblea General" } });
-    fireEvent.change(screen.getByLabelText(/fecha y hora/i), {
-      target: { value: "2026-06-10T18:30" },
-    });
+    await pickDate(/fecha y hora/i, "2026-06-10");
     fireEvent.click(screen.getByRole("button", { name: /guardar/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit).toHaveBeenCalledWith(
@@ -28,9 +27,7 @@ describe("ActivityForm", () => {
     fireEvent.change(screen.getByLabelText(/categoría/i), {
       target: { value: "ProjectExecution" },
     });
-    fireEvent.change(screen.getByLabelText(/fecha y hora/i), {
-      target: { value: "2026-06-10T18:30" },
-    });
+    await pickDate(/fecha y hora/i, "2026-06-10");
     fireEvent.click(screen.getByRole("button", { name: /guardar/i }));
     await waitFor(() =>
       expect(screen.getByText(/requiere un programa o proyecto/i)).toBeInTheDocument(),

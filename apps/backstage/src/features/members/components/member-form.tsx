@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Combobox, Field, Input, MultiSelect, Select } from "@luminova/ui";
+import { Button, Combobox, DatePicker, Field, Input, MultiSelect, Select } from "@luminova/ui";
 import {
   memberSchema,
   positionTitle,
@@ -157,7 +157,13 @@ export function MemberForm({
           required
           error={errors.birthdate?.message}
         >
-          <Input id="birthdate" type="date" {...register("birthdate")} />
+          <Controller
+            control={control}
+            name="birthdate"
+            render={({ field }) => (
+              <DatePicker id="birthdate" value={field.value} onChange={field.onChange} />
+            )}
+          />
         </Field>
       </div>
 
@@ -202,7 +208,13 @@ export function MemberForm({
           required
           error={errors.joinDate?.message}
         >
-          <Input id="joinDate" type="date" {...register("joinDate")} />
+          <Controller
+            control={control}
+            name="joinDate"
+            render={({ field }) => (
+              <DatePicker id="joinDate" value={field.value} onChange={field.onChange} />
+            )}
+          />
         </Field>
         <Field label="Estado" htmlFor="status" required error={errors.status?.message}>
           <Select id="status" {...register("status")}>
