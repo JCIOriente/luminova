@@ -24,3 +24,15 @@ export {
 } from "./engine/initiative-schema.js";
 export { programSchema, type ProgramInput } from "./engine/program-schema.js";
 export { projectSchema, type ProjectInput } from "./engine/project-schema.js";
+
+export type {
+  SiteConfig,
+  SiteStats,
+  SiteTimelineEntry,
+  SiteReason,
+  SiteLink,
+  SiteContact,
+} from "./site-config.js";
+export { siteConfigSchema, type SiteConfigInput } from "./site-config-schema.js";
+export { CEL_POSITIONS, type CelPositionSeed } from "./cel-positions.js";
+export { CEL_POSITION_TITLES } from "./cel-position-titles.js";
