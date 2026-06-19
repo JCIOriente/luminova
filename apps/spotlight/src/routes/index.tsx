@@ -1,6 +1,17 @@
+import { lazy, Suspense } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, ArrowLink, RippleBackground, SectionHeader, Reveal, Icon } from "@luminova/ui";
-import { AreaCard, ProgramCard, ImpactStat } from "../components/cards";
+import {
+  Button,
+  ArrowLink,
+  RippleBackground,
+  SectionHeader,
+  Skeleton,
+  Reveal,
+  Icon,
+} from "@luminova/ui";
+import { AreaCard, ImpactStat } from "../components/cards";
+
+const LazyHomePrograms = lazy(() => import("../components/home-programs"));
 import { useSiteConfig } from "../site-config/use-site-config";
 import { currentYearsActive } from "../site-config/defaults";
 
@@ -36,44 +47,6 @@ const AREAS = [
     title: "Negocio y Emprendimiento",
     desc: "Una comunidad de fundadores, ejecutivos y profesionales que construyen el futuro económico de la región.",
     icon: <Icon.briefcase />,
-  },
-];
-
-const PROGRAMS = [
-  {
-    tag: "Anual · Septiembre",
-    title: "World Clean Up Day",
-    desc: "Movilización global de limpieza. JCI Oriente coordina la jornada en Santa Cruz cada año.",
-    label: "World Clean Up Day · jornada en Equipetrol",
-    tint: "teal" as const,
-  },
-  {
-    tag: "Programa de impacto",
-    title: "Madre Emprendedora",
-    desc: "Capacitación y acompañamiento a mujeres jefas de hogar que inician su primer negocio.",
-    label: "Madre Emprendedora · taller cohort 2024",
-    tint: "blue" as const,
-  },
-  {
-    tag: "Programa de impacto",
-    title: "Emprende Oriente",
-    desc: "Acelera negocios locales en etapa temprana con mentoría, comunidad y vinculación.",
-    label: "Emprende Oriente · demo day",
-    tint: "navy" as const,
-  },
-  {
-    tag: "Programa social",
-    title: "Transformando Vidas",
-    desc: "Intervenciones puntuales en comunidades rurales del departamento.",
-    label: "Transformando Vidas · brigada rural",
-    tint: "blue" as const,
-  },
-  {
-    tag: "Programa educativo",
-    title: "Creando Oportunidades",
-    desc: "Becas, talleres y conexiones para jóvenes universitarios del Oriente.",
-    label: "Creando Oportunidades · panel UPSA",
-    tint: "teal" as const,
   },
 ];
 
@@ -219,6 +192,24 @@ function HomeAreas() {
   );
 }
 
+function ProgramsSkeleton() {
+  return (
+    <div className="program-grid" aria-busy="true" aria-label="Cargando programas">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="program-card overflow-hidden">
+          <Skeleton className="h-[200px] rounded-none" />
+          <div className="body flex flex-col gap-[10px]">
+            <Skeleton className="h-3 w-2/5" />
+            <Skeleton className="h-5 w-3/4" />
+            <Skeleton className="h-3.5 w-[90%]" />
+            <Skeleton className="h-3.5 w-3/5" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function HomePrograms() {
   const navigate = useNavigate();
   return (
@@ -245,19 +236,9 @@ function HomePrograms() {
           </ArrowLink>
         </div>
         <div className="program-scroller" style={{ marginTop: 56 }}>
-          <div className="program-grid">
-            {PROGRAMS.map((p, i) => (
-              <Reveal key={p.title} delay={i * 60}>
-                <ProgramCard
-                  tag={p.tag}
-                  title={p.title}
-                  description={p.desc}
-                  slotLabel={p.label}
-                  tint={p.tint}
-                />
-              </Reveal>
-            ))}
-          </div>
+          <Suspense fallback={<ProgramsSkeleton />}>
+            <LazyHomePrograms />
+          </Suspense>
         </div>
       </div>
     </section>
