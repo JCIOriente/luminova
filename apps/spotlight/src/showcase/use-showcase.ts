@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DependencyList } from "react";
 import type { ShowcaseItem } from "@luminova/types/engine";
-import { fetchShowcaseItem, fetchShowcaseList } from "./showcase-firestore";
+import { fetchFeatured, fetchShowcaseItem, fetchShowcaseList } from "./showcase-firestore";
 
 type Async<T> = { data: T; loading: boolean; error: boolean };
 
@@ -33,6 +33,10 @@ function useAsync<T>(fetcher: () => Promise<T>, empty: T, deps: DependencyList):
 
 export function useShowcaseList(): Async<ShowcaseItem[]> {
   return useAsync(fetchShowcaseList, [] as ShowcaseItem[], []);
+}
+
+export function useFeaturedList(): Async<ShowcaseItem[]> {
+  return useAsync(fetchFeatured, [] as ShowcaseItem[], []);
 }
 
 export function useShowcaseItem(id: string): Async<ShowcaseItem | null> {

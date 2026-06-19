@@ -45,19 +45,6 @@ export function Header() {
     void navigate({ to });
   };
 
-  const goToPrograms = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setMobileOpen(false);
-    const scroll = () =>
-      document.getElementById("programas")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    if (pathname === "/") {
-      scroll();
-    } else {
-      void navigate({ to: "/" });
-      setTimeout(scroll, 80);
-    }
-  };
-
   const logoVariant = scrolled
     ? "default"
     : overBlue
@@ -89,7 +76,11 @@ export function Header() {
             >
               Quiénes Somos
             </a>
-            <a href="/" onClick={goToPrograms} className="nav-link">
+            <a
+              href="/programas"
+              onClick={(e) => go(e, "/programas")}
+              className={clsx("nav-link", pathname === "/programas" && "active")}
+            >
               Programas
             </a>
             <a
@@ -142,6 +133,9 @@ export function Header() {
             </a>
             <a href="/about" onClick={(e) => go(e, "/about")} className="mobile-nav-link">
               Quiénes Somos
+            </a>
+            <a href="/programas" onClick={(e) => go(e, "/programas")} className="mobile-nav-link">
+              Programas
             </a>
             <a href="/impacto" onClick={(e) => go(e, "/impacto")} className="mobile-nav-link">
               Impacto

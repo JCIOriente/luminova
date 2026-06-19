@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProgramasIndexRouteImport } from './routes/programas.index'
 import { Route as ImpactoIndexRouteImport } from './routes/impacto.index'
 import { Route as ImpactoIdRouteImport } from './routes/impacto.$id'
 
@@ -28,6 +29,11 @@ const AboutRoute = AboutRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProgramasIndexRoute = ProgramasIndexRouteImport.update({
+  id: '/programas/',
+  path: '/programas/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImpactoIndexRoute = ImpactoIndexRouteImport.update({
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/contact': typeof ContactRoute
   '/impacto/$id': typeof ImpactoIdRoute
   '/impacto/': typeof ImpactoIndexRoute
+  '/programas/': typeof ProgramasIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/contact': typeof ContactRoute
   '/impacto/$id': typeof ImpactoIdRoute
   '/impacto': typeof ImpactoIndexRoute
+  '/programas': typeof ProgramasIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,27 @@ export interface FileRoutesById {
   '/contact': typeof ContactRoute
   '/impacto/$id': typeof ImpactoIdRoute
   '/impacto/': typeof ImpactoIndexRoute
+  '/programas/': typeof ProgramasIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/contact' | '/impacto/$id' | '/impacto/'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/contact'
+    | '/impacto/$id'
+    | '/impacto/'
+    | '/programas/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/contact' | '/impacto/$id' | '/impacto'
-  id: '__root__' | '/' | '/about' | '/contact' | '/impacto/$id' | '/impacto/'
+  to: '/' | '/about' | '/contact' | '/impacto/$id' | '/impacto' | '/programas'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/contact'
+    | '/impacto/$id'
+    | '/impacto/'
+    | '/programas/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,6 +99,7 @@ export interface RootRouteChildren {
   ContactRoute: typeof ContactRoute
   ImpactoIdRoute: typeof ImpactoIdRoute
   ImpactoIndexRoute: typeof ImpactoIndexRoute
+  ProgramasIndexRoute: typeof ProgramasIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -102,6 +125,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/programas/': {
+      id: '/programas/'
+      path: '/programas'
+      fullPath: '/programas/'
+      preLoaderRoute: typeof ProgramasIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/impacto/': {
       id: '/impacto/'
       path: '/impacto'
@@ -125,6 +155,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContactRoute: ContactRoute,
   ImpactoIdRoute: ImpactoIdRoute,
   ImpactoIndexRoute: ImpactoIndexRoute,
+  ProgramasIndexRoute: ProgramasIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
