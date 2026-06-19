@@ -18,15 +18,6 @@ export function Footer() {
     e.preventDefault();
     void navigate({ to });
   };
-  const goToPrograms = (e: React.MouseEvent) => {
-    e.preventDefault();
-    void navigate({ to: "/" });
-    setTimeout(
-      () => document.getElementById("programas")?.scrollIntoView({ behavior: "smooth" }),
-      80,
-    );
-  };
-
   return (
     <footer className="site-footer">
       <RippleBackground variant="footer" color="#FFFFFF" opacity={0.045} />
@@ -77,7 +68,7 @@ export function Footer() {
                 </a>
               </li>
               <li>
-                <a href="/" onClick={goToPrograms}>
+                <a href="/programas" onClick={(e) => go(e, "/programas")}>
                   Programas
                 </a>
               </li>

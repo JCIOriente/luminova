@@ -1211,11 +1211,25 @@
     aspect-ratio: 4 / 3;
     background: var(--surface-3);
   }
+  .gallery-trigger {
+    display: block;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
   .gallery-item img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     transition: transform 400ms ease-out;
+  }
+  /* yet-another-react-lightbox — tune the backdrop to the brand navy */
+  .yarl__root {
+    --yarl__color_backdrop: rgba(19, 15, 45, 0.92);
   }
   .gallery-item:hover img {
     transform: scale(1.04);
@@ -1248,38 +1262,79 @@
   .team-credits {
     display: flex;
     flex-direction: column;
-    gap: 36px;
+    gap: 40px;
   }
-  .team-block {
+  .team-lead {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .team-lead-meta {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 6px;
   }
-  .team-role {
-    color: var(--ink-3);
-  }
-  .team-director {
+  .team-lead-name {
     margin: 0;
     font-family: var(--font-serif);
     color: var(--ink-1);
   }
-  .team-chips {
+  .team-block {
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .team-role {
+    color: var(--ink-3);
+  }
+  .team-roster {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px 20px;
     list-style: none;
     margin: 0;
     padding: 0;
   }
-  .team-chip {
-    padding: 8px 16px;
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--line-strong);
-    background: var(--surface);
+  .team-member {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .team-member-name {
     font-family: var(--font-sans);
     font-size: 14px;
     font-weight: 500;
     color: var(--ink-1);
+  }
+  .team-avatar {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-pill);
+    object-fit: cover;
+    background: var(--surface-3);
+    border: 1px solid var(--line);
+    box-shadow: 0 2px 8px rgba(19, 15, 45, 0.08);
+  }
+  .team-avatar-lg {
+    width: 88px;
+    height: 88px;
+  }
+  .team-avatar-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.02em;
+    /* Solid navy (~8.9:1 on white initials) — the blue/teal brand stops fail WCAG AA. */
+    color: var(--jci-white);
+    background: var(--jci-navy);
+    border-color: transparent;
+  }
+  .team-avatar-lg.team-avatar-fallback {
+    font-size: 28px;
   }
 
   /* ----- Back link ----- */
