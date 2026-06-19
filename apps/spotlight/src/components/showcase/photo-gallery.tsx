@@ -9,7 +9,13 @@ import "yet-another-react-lightbox/plugins/captions.css";
 import "yet-another-react-lightbox/plugins/thumbnails.css";
 import type { ShowcaseItem } from "@luminova/types/engine";
 
-export function PhotoGallery({ photos, title }: { photos: ShowcaseItem["photos"]; title?: string }) {
+export function PhotoGallery({
+  photos,
+  title,
+}: {
+  photos: ShowcaseItem["photos"];
+  title?: string;
+}) {
   const [index, setIndex] = useState(-1);
   const slides = useMemo(
     () => photos.map((photo) => ({ src: photo.url, description: photo.caption ?? undefined })),

@@ -51,7 +51,12 @@ function ProgramasPage() {
       <section className="section">
         <div className="container">
           {loading ? (
-            <div className="showcase-grid" role="status" aria-busy="true" aria-label="Cargando programas">
+            <div
+              className="showcase-grid"
+              role="status"
+              aria-busy="true"
+              aria-label="Cargando programas"
+            >
               {Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="showcase-card-skeleton" />
               ))}
