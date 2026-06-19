@@ -85,7 +85,7 @@ export const SITE_CONFIG_DEFAULTS: Omit<SiteConfig, "version" | "updatedAt"> = {
   },
 };
 
-export const FOUNDING_YEAR = 1993;
+const FOUNDING_YEAR = 1993;
 
 export function currentYearsActive(now = new Date()): number {
   return now.getFullYear() - FOUNDING_YEAR;
