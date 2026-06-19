@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button, RippleBackground, SectionHeader, Reveal, ImgSlot, Icon } from "@luminova/ui";
-import { CEL_POSITIONS } from "@luminova/types";
+import { CEL_POSITION_TITLES } from "@luminova/types";
 import { TimelineItem } from "../components/cards";
 import { useSiteConfig } from "../site-config/use-site-config";
 
@@ -14,7 +14,7 @@ const MVV_PRESENTATION = [
   { variant: "var-navy", icon: <Icon.spark />, title: "Valores", field: "valores" as const },
 ];
 
-const COMITE = CEL_POSITIONS.map((p) => p.title);
+const COMITE = CEL_POSITION_TITLES;
 
 function AboutHero() {
   return (

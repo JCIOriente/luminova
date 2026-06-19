@@ -320,7 +320,7 @@ service cloud.firestore {
 
     // World-read singleton doc for the public marketing site; only Admin may
     // edit org facts (stats, allies, timeline, MVV, reasons, contact) via backstage.
-    match /siteConfig/{doc} {
+    match /siteConfig/current {
       allow read: if true;
       allow write: if hasAnyRole(['Admin']);
     }

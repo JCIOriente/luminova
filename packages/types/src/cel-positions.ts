@@ -75,3 +75,10 @@ export const CEL_POSITIONS: CelPositionSeed[] = [
     description: "Asesora a la presidencia.",
   },
 ];
+
+/**
+ * Public-safe CEL cargo labels (no `grants`/RBAC taxonomy). Use this in
+ * unauthenticated surfaces like the public site; `CEL_POSITIONS` carries role
+ * grants and must not reach the public bundle.
+ */
+export const CEL_POSITION_TITLES: string[] = CEL_POSITIONS.map((p) => p.title);
