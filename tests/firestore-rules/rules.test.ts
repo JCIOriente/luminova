@@ -245,6 +245,7 @@ beforeAll(async () => {
       deletedAt: null,
     });
     await setDoc(doc(db, "showcase/s1"), { id: "s1", kind: "Project", title: "Eco" });
+    await setDoc(doc(db, "siteConfig/current"), { version: 1, stats: {}, allies: [] });
   });
 });
 
@@ -1163,6 +1164,27 @@ describe("firestore.rules — member positions assignment", () => {
     await assertFails(
       updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
         "positions.2099": { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" },
+      }),
+    );
+  });
+});
+
+describe("firestore.rules — siteConfig", () => {
+  it("allows anonymous read (public site)", async () => {
+    await assertSucceeds(getDoc(doc(anon(), "siteConfig/current")));
+  });
+  it("denies anonymous write", async () => {
+    await assertFails(setDoc(doc(anon(), "siteConfig/current"), { version: 2 }));
+  });
+  it("denies non-admin signed-in write", async () => {
+    await assertFails(setDoc(doc(as("u", ["Membership"]), "siteConfig/current"), { version: 2 }));
+  });
+  it("allows Admin write", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("admin", ["Admin"]), "siteConfig/current"), {
+        version: 2,
+        stats: {},
+        allies: [],
       }),
     );
   });

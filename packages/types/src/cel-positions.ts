@@ -1,6 +1,9 @@
 import type { Position } from "./position.js";
 
-export type CelPositionSeed = Omit<Position, "id" | "deletedAt" | "active" | "term" | "titleFemale" | "sigla"> & {
+export type CelPositionSeed = Omit<
+  Position,
+  "id" | "deletedAt" | "active" | "term" | "titleFemale" | "sigla"
+> & {
   term: number | null;
   titleFemale?: string;
   sigla?: string;
