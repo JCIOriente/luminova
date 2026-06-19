@@ -7,9 +7,9 @@ describe("TeamCredits", () => {
     render(
       <TeamCredits
         team={{
-          director: { name: "Ana" },
-          coDirectors: [{ name: "Beto" }],
-          members: [{ name: "Caro" }],
+          director: { name: "Ana", photoUrl: null },
+          coDirectors: [{ name: "Beto", photoUrl: null }],
+          members: [{ name: "Caro", photoUrl: null }],
         }}
       />,
     );

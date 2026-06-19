@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { Timestamp } from "firebase-admin/firestore";
+import type { ShowcasePerson } from "@luminova/types/engine";
 import {
   activityParentRefs,
   activityShowcasePhotos,
   projectInitiative,
   rosterMemberIds,
+  showcasePerson,
 } from "./project-initiative.js";
 
 const ts = (ms: number) => Timestamp.fromMillis(ms);
@@ -28,12 +30,12 @@ function completedDoc(over: Record<string, unknown> = {}) {
   };
 }
 
-const names = new Map([
-  ["m1", "Ana"],
-  ["m2", "Beto"],
-  ["m3", "Caro"],
+const people = new Map<string, ShowcasePerson>([
+  ["m1", { name: "Ana", photoUrl: "https://pics/ana.jpg" }],
+  ["m2", { name: "Beto", photoUrl: null }],
+  ["m3", { name: "Caro", photoUrl: "https://pics/caro.jpg" }],
 ]);
-const resolve = (id: string) => names.get(id) ?? null;
+const resolve = (id: string) => people.get(id) ?? null;
 
 describe("projectInitiative", () => {
   it("projects a completed initiative with resolved names + completedAt", () => {
@@ -42,9 +44,10 @@ describe("projectInitiative", () => {
     expect(item!.id).toBe("p1");
     expect(item!.kind).toBe("Project");
     expect(item!.completedAt.toMillis()).toBe(3000);
-    expect(item!.team.director).toEqual({ name: "Ana" });
-    expect(item!.team.coDirectors).toEqual([{ name: "Beto" }]);
-    expect(item!.team.members).toEqual([{ name: "Caro" }]); // m_missing dropped
+    expect(item!.team.director).toEqual({ name: "Ana", photoUrl: "https://pics/ana.jpg" });
+    expect(item!.team.coDirectors).toEqual([{ name: "Beto", photoUrl: null }]);
+    // m_missing dropped; Caro keeps her photo
+    expect(item!.team.members).toEqual([{ name: "Caro", photoUrl: "https://pics/caro.jpg" }]);
     expect(item!.impact.personsImpacted).toBe(1200);
     expect(item!.photos).toHaveLength(1);
     expect(item!.photos[0]).toEqual({ id: "ph1", url: "https://x/y?token=1", caption: null });
@@ -101,7 +104,39 @@ describe("projectInitiative", () => {
     );
     expect(item!.team.director).toBeNull();
     expect(item!.team.coDirectors).toEqual([]);
-    expect(item!.team.members).toEqual([{ name: "Caro" }]);
+    expect(item!.team.members).toEqual([{ name: "Caro", photoUrl: "https://pics/caro.jpg" }]);
+  });
+
+  it("projects featured true when the initiative is flagged", () => {
+    const item = projectInitiative("Project", "p1", completedDoc({ featured: true }), resolve);
+    expect(item!.featured).toBe(true);
+  });
+
+  it("projects featured false when the flag is absent or falsy", () => {
+    expect(projectInitiative("Project", "p1", completedDoc(), resolve)!.featured).toBe(false);
+    expect(
+      projectInitiative("Project", "p1", completedDoc({ featured: false }), resolve)!.featured,
+    ).toBe(false);
+  });
+});
+
+describe("showcasePerson", () => {
+  it("drops a member with an empty or non-string name (no blank public credit)", () => {
+    expect(showcasePerson("", "https://x/p.jpg")).toBeNull();
+    expect(showcasePerson(undefined, "https://x/p.jpg")).toBeNull();
+    expect(showcasePerson(42, null)).toBeNull();
+  });
+  it("exposes an https profile photo", () => {
+    expect(showcasePerson("Ana", "https://x/p.jpg")).toEqual({
+      name: "Ana",
+      photoUrl: "https://x/p.jpg",
+    });
+  });
+  it("nulls a non-https or non-string photo (member-controlled, public surface)", () => {
+    expect(showcasePerson("Ana", "http://x/p.jpg")).toEqual({ name: "Ana", photoUrl: null });
+    expect(showcasePerson("Ana", "javascript:alert(1)")).toEqual({ name: "Ana", photoUrl: null });
+    expect(showcasePerson("Ana", null)).toEqual({ name: "Ana", photoUrl: null });
+    expect(showcasePerson("Ana", { url: "x" })).toEqual({ name: "Ana", photoUrl: null });
   });
 });
 

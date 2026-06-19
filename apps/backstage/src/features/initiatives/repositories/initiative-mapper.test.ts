@@ -15,6 +15,7 @@ const VALID_INPUT: InitiativeInput = {
   endDate: "2026-08-31",
   roster: { directorId: "m1", coDirectorIds: [], teamIds: ["m2"] },
   status: "Planificacion",
+  featured: false,
 };
 
 describe("toInitiativeCreateDoc", () => {
@@ -28,6 +29,7 @@ describe("toInitiativeCreateDoc", () => {
       endDate: Timestamp.fromDate(new Date("2026-08-31T00:00:00Z")),
       roster: VALID_INPUT.roster,
       status: VALID_INPUT.status,
+      featured: false,
       photos: [],
       impact: null,
       finalReport: null,
@@ -46,7 +48,14 @@ describe("toInitiativeUpdateDoc", () => {
       endDate: Timestamp.fromDate(new Date("2026-08-31T00:00:00Z")),
       roster: VALID_INPUT.roster,
       status: VALID_INPUT.status,
+      featured: false,
     });
+  });
+
+  it("carries the featured flag through create and update", () => {
+    const featured = { ...VALID_INPUT, featured: true };
+    expect(toInitiativeCreateDoc(featured, "2026").featured).toBe(true);
+    expect(toInitiativeUpdateDoc(featured).featured).toBe(true);
   });
 
   it("update doc never touches photos/impact/finalReport/directionUids", () => {
@@ -55,6 +64,7 @@ describe("toInitiativeUpdateDoc", () => {
       "category",
       "description",
       "endDate",
+      "featured",
       "roster",
       "startDate",
       "status",
@@ -79,6 +89,7 @@ describe("initiativeToInput", () => {
       impact: null,
       finalReport: null,
       directionUids: [] as string[],
+      featured: true,
     };
 
     expect(initiativeToInput(core)).toEqual({
@@ -89,6 +100,27 @@ describe("initiativeToInput", () => {
       endDate: "2026-08-31",
       roster: VALID_INPUT.roster,
       status: VALID_INPUT.status,
+      featured: true,
     });
+  });
+
+  it("defaults featured to false for a pre-feature doc that lacks the field", () => {
+    const core = {
+      id: "i1",
+      termId: "2026",
+      title: VALID_INPUT.title,
+      description: VALID_INPUT.description,
+      category: VALID_INPUT.category,
+      startDate: Timestamp.fromDate(new Date("2026-02-01T00:00:00Z")),
+      endDate: Timestamp.fromDate(new Date("2026-08-31T00:00:00Z")),
+      roster: { ...VALID_INPUT.roster },
+      status: VALID_INPUT.status,
+      photos: [] as never[],
+      impact: null,
+      finalReport: null,
+      directionUids: [] as string[],
+      featured: undefined as unknown as boolean,
+    };
+    expect(initiativeToInput(core).featured).toBe(false);
   });
 });

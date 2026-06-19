@@ -15,7 +15,9 @@ import {
   isProjectable,
   projectInitiative,
   rosterMemberIds,
+  showcasePerson,
 } from "./showcase/project-initiative.js";
+import type { ShowcasePerson } from "@luminova/types/engine";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
 import { parseMember } from "./claims-sync/parse-member.js";
@@ -30,21 +32,21 @@ function db() {
   return getFirestore();
 }
 
-async function resolveMemberNames(
+async function resolveMembers(
   database: Firestore,
   ids: string[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, ShowcasePerson>> {
   const unique = [...new Set(ids)].filter((id) => id.length > 0);
-  const names = new Map<string, string>();
+  const people = new Map<string, ShowcasePerson>();
   for (let i = 0; i < unique.length; i += 300) {
     const refs = unique.slice(i, i + 300).map((id) => database.doc(`members/${id}`));
     const snaps = await database.getAll(...refs);
     for (const snap of snaps) {
-      const name = snap.get("name");
-      if (typeof name === "string") names.set(snap.id, name);
+      const p = showcasePerson(snap.get("name"), snap.get("profilePicture"));
+      if (p) people.set(snap.id, p);
     }
   }
-  return names;
+  return people;
 }
 
 // Defensive bound on the child-activity roll-up query — far above any realistic
@@ -63,11 +65,11 @@ async function projectShowcase(
     return;
   }
   // Independent reads — resolve names and fetch child activities concurrently.
-  const [names, activitySnap] = await Promise.all([
-    resolveMemberNames(database, rosterMemberIds(data)),
+  const [members, activitySnap] = await Promise.all([
+    resolveMembers(database, rosterMemberIds(data)),
     database.collection("activities").where("parentId", "==", id).limit(ACTIVITY_ROLLUP_CAP).get(),
   ]);
-  const item = projectInitiative(kind, id, data, (mid) => names.get(mid) ?? null);
+  const item = projectInitiative(kind, id, data, (mid) => members.get(mid) ?? null);
   if (!item) {
     await ref.delete();
     return;

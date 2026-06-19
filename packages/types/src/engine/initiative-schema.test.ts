@@ -13,6 +13,7 @@ const base = {
   endDate: "2026-06-30",
   roster: { directorId: "m1", coDirectorIds: [] as string[], teamIds: [] as string[] },
   status: "Planificacion" as const,
+  featured: false,
 };
 
 describe("initiativeFormSchema", () => {
@@ -55,6 +56,18 @@ describe("initiativeFormSchema", () => {
       title: "Proyecto Aurora",
       roster: { directorId: "m1", coDirectorIds: [] },
       status: "Planificacion",
+    });
+    expect(r.success).toBe(false);
+  });
+  it("requires featured (no implicit default)", () => {
+    const r = initiativeFormSchema.safeParse({
+      title: base.title,
+      description: base.description,
+      category: base.category,
+      startDate: base.startDate,
+      endDate: base.endDate,
+      roster: base.roster,
+      status: base.status,
     });
     expect(r.success).toBe(false);
   });
@@ -106,6 +119,7 @@ const VALID_FORM = {
   endDate: "2026-08-31",
   roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
   status: "EnEjecucion",
+  featured: true,
 };
 
 describe("initiativeFormSchema (C1-lite fields)", () => {

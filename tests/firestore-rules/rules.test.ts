@@ -177,6 +177,27 @@ beforeAll(async () => {
       impact: null,
       status: "EnEjecucion",
     });
+    // Dedicated targets for the featured-flag SUCCESS tests, which persist featured:true.
+    // Kept separate so p_dir stays pristine (featured absent) for the deny test —
+    // the suite seeds once with no per-test reset.
+    await setDoc(doc(db, "projects/p_feat"), {
+      termId: "2026",
+      title: "Destacable (admin)",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: ["owner-uid"],
+      finalReport: null,
+      impact: null,
+      status: "EnEjecucion",
+    });
+    await setDoc(doc(db, "programs/prog_feat"), {
+      termId: "2026",
+      title: "Destacable (PM)",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: ["owner-uid"],
+      finalReport: null,
+      impact: null,
+      status: "EnEjecucion",
+    });
     await setDoc(doc(db, "memberPoints/2025/03/e1"), { points: 5 });
     await setDoc(doc(db, "positions/pos1"), {
       title: "Tesorero",
@@ -552,6 +573,41 @@ describe("firestore.rules — initiative direction branch", () => {
   it("still allows title edits on a completed initiative", async () => {
     await assertSucceeds(
       updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), { title: "Done (renombrado)" }),
+    );
+  });
+  it("lets Admin set the featured flag", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_feat"), { featured: true }),
+    );
+  });
+  it("lets ProjectManager set the featured flag", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["ProjectManager"]), "programs/prog_feat"), { featured: true }),
+    );
+  });
+  it("denies a direction-only editor setting featured true (project)", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_dir"), { featured: true }),
+    );
+  });
+  it("denies a direction-only editor setting featured true (program)", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "programs/prog_dir"), { featured: true }),
+    );
+  });
+  it("lets a direction-only editor update other fields while featured is untouched", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_dir"), { title: "Eco (dir edit)" }),
+    );
+  });
+  it("lets a direction-only editor echo featured:false on a legacy doc (absent == false)", async () => {
+    // The form always sends `featured`; on a pre-feature doc (no field) that value is
+    // false. Treating absent as false must NOT deny the edit. Regression guard.
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "programs/prog_dir"), {
+        title: "Eco Prog (dir)",
+        featured: false,
+      }),
     );
   });
   it("denies create with non-empty directionUids", async () => {

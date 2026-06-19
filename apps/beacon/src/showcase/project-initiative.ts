@@ -121,9 +121,18 @@ function asImpact(v: unknown): InitiativeImpact | null {
   };
 }
 
-function person(id: string, resolve: (id: string) => string | null): ShowcasePerson | null {
-  const name = resolve(id);
-  return name ? { name } : null;
+/**
+ * Build a public ShowcasePerson from raw member fields, or null when the member has
+ * no usable display name. An empty/non-string name is dropped (no blank credit on the
+ * public page). `profilePicture` is member-controlled and rendered on a no-auth page,
+ * so it is exposed only when it is an https URL — any other value projects null.
+ */
+export function showcasePerson(name: unknown, photoUrl: unknown): ShowcasePerson | null {
+  if (typeof name !== "string" || name.length === 0) return null;
+  return {
+    name,
+    photoUrl: typeof photoUrl === "string" && photoUrl.startsWith("https://") ? photoUrl : null,
+  };
 }
 
 /**
@@ -135,7 +144,7 @@ export function projectInitiative(
   kind: InitiativeKind,
   id: string,
   data: Record<string, unknown>,
-  resolve: (memberId: string) => string | null,
+  resolve: (memberId: string) => ShowcasePerson | null,
 ): ShowcaseItem | null {
   if (!isProjectable(data)) return null;
   const impact = asImpact(data.impact);
@@ -149,6 +158,7 @@ export function projectInitiative(
   return {
     id,
     kind,
+    featured: data.featured === true,
     title: typeof data.title === "string" ? data.title : "",
     description: typeof data.description === "string" ? data.description : "",
     category: data.category as AreaOfOpportunity,
@@ -158,12 +168,12 @@ export function projectInitiative(
     impact,
     photos: asPhotos(data.photos),
     team: {
-      director: roster.directorId ? person(roster.directorId, resolve) : null,
+      director: roster.directorId ? resolve(roster.directorId) : null,
       coDirectors: (roster.coDirectorIds ?? [])
-        .map((cid) => person(cid, resolve))
+        .map((cid) => resolve(cid))
         .filter((p): p is ShowcasePerson => p !== null),
       members: (roster.teamIds ?? [])
-        .map((tid) => person(tid, resolve))
+        .map((tid) => resolve(tid))
         .filter((p): p is ShowcasePerson => p !== null),
     },
   };

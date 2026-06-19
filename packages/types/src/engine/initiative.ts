@@ -72,4 +72,5 @@ export interface InitiativeCore {
   finalReport: FinalReport | null;
   status: InitiativeStatus;
   directionUids: string[];
+  featured: boolean;
 }
