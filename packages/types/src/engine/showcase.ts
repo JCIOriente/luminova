@@ -4,6 +4,7 @@ import type { InitiativeKind } from "./activity.js";
 
 export interface ShowcasePerson {
   name: string;
+  photoUrl: string | null;
 }
 
 export interface ShowcasePhoto {
@@ -27,6 +28,7 @@ export interface ShowcaseTeam {
 export interface ShowcaseItem {
   id: string;
   kind: InitiativeKind;
+  featured: boolean;
   title: string;
   description: string;
   category: AreaOfOpportunity;

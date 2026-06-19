@@ -48,6 +48,7 @@ export const initiativeFormSchema = z
     endDate: z.string().min(1, "Requerido."),
     roster: initiativeRosterSchema,
     status: z.enum(INITIATIVE_STATUSES),
+    featured: z.boolean(),
   })
   .superRefine((v, ctx) => {
     if (v.endDate < v.startDate) {

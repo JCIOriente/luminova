@@ -127,11 +127,26 @@ service cloud.firestore {
         && request.resource.data.get('impact', null) == null
         && request.resource.data.get('status', '') != 'Finalizado';
     }
+    // `featured` promotes an already-public finalized initiative onto the curated
+    // public /programas page — a curation decision, not an editing one. Only Admin/
+    // ProjectManager may flip it; a direction-only editor (who may otherwise update
+    // their own initiative) must leave it unchanged. A pre-feature doc has no
+    // `featured` field, which is semantically `false`, so default-to-false on BOTH
+    // sides — else a direction editor echoing `featured: false` (the form always
+    // sends it) on a legacy doc reads as null!=false and the whole update is denied.
+    // Create is Admin/PM-only (initiativeCreateAllowed), so a non-privileged forged
+    // `featured: true` on create cannot happen; an Admin/PM creating it featured is
+    // their prerogative and only reaches the public page once finalized (isProjectable).
+    function featuredUpdateSafe() {
+      return hasAnyRole(['Admin', 'ProjectManager'])
+        || request.resource.data.get('featured', false) == resource.data.get('featured', false);
+    }
     function initiativeUpdateAllowed() {
       return (hasAnyRole(['Admin', 'ProjectManager']) || isDirection())
         && initiativeWriteSafe()
         && finalizedRequiresReport()
-        && reportFiledBySelf();
+        && reportFiledBySelf()
+        && featuredUpdateSafe();
     }
 
     match /projects/{projectId} {
