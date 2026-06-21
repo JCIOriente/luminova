@@ -7,8 +7,8 @@ export function useRemoveAllyLogo() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      await deleteAllyLogo(id);
-      await new AllyRepository().clearLogo(id);
+      // Independent writes to two services (Storage blob + Firestore field) — run concurrently.
+      await Promise.all([deleteAllyLogo(id), new AllyRepository().clearLogo(id)]);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: allyKeys.all }),
   });

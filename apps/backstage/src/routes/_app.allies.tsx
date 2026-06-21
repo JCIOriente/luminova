@@ -77,18 +77,22 @@ function AlliesPage() {
         }}
         title={editing === "new" ? "Agregar aliado" : "Editar aliado"}
       >
-        {editing !== null && (
-          <AllyForm
-            key={editing === "new" ? "new" : editing.id}
-            ally={editing === "new" ? undefined : editing}
-            submitLabel={editing === "new" ? "Crear" : "Guardar"}
-            onSubmit={handleSubmit}
-            onUploadLogo={
-              editing !== "new" ? (file) => setLogo.mutateAsync({ id: editing.id, file }) : undefined
-            }
-            onRemoveLogo={editing !== "new" ? () => removeLogo.mutateAsync(editing.id) : undefined}
-          />
-        )}
+        {editing !== null &&
+          (() => {
+            const existing = editing === "new" ? null : editing;
+            return (
+              <AllyForm
+                key={existing?.id ?? "new"}
+                ally={existing ?? undefined}
+                submitLabel={existing ? "Guardar" : "Crear"}
+                onSubmit={handleSubmit}
+                onUploadLogo={
+                  existing ? (file) => setLogo.mutateAsync({ id: existing.id, file }) : undefined
+                }
+                onRemoveLogo={existing ? () => removeLogo.mutateAsync(existing.id) : undefined}
+              />
+            );
+          })()}
       </Sheet>
 
       <Dialog

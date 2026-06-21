@@ -7,8 +7,6 @@ export { POSITION_CATEGORIES, positionTitle, currentTermKey, femaleTitle } from 
 export { positionSchema, type PositionInput } from "./position-schema.js";
 export { memberSchema, type MemberInput } from "./member-schema.js";
 export type { Ally } from "./ally.js";
-export type { AllyCategory, AllyShowcaseItem } from "./engine/ally-public.js";
-export { ALLY_CATEGORIES, ALLY_CATEGORY_LABELS } from "./engine/ally-public.js";
 export { allySchema, type AllyInput } from "./ally-schema.js";
 
 export * from "./engine/index.js";
