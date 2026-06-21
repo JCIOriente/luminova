@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Field, Input } from "@luminova/ui";
+import { Button, Field, Input, Select } from "@luminova/ui";
 import {
   allySchema,
   ALLY_CATEGORIES,
@@ -69,10 +69,9 @@ export function AllyForm({ ally, submitLabel, onSubmit, onUploadLogo, onRemoveLo
         <Input id="email" type="email" {...register("email")} />
       </Field>
       <Field label="Categoría" htmlFor="category" error={errors.category?.message}>
-        <select
+        <Select
           id="category"
           {...register("category", { setValueAs: (v) => (v === "" ? undefined : v) })}
-          className="h-11 w-full rounded-[8px] border border-line bg-surface px-3 text-[14px] text-ink-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue"
         >
           <option value="">Sin categoría</option>
           {ALLY_CATEGORIES.map((c) => (
@@ -80,7 +79,7 @@ export function AllyForm({ ally, submitLabel, onSubmit, onUploadLogo, onRemoveLo
               {ALLY_CATEGORY_LABELS[c]}
             </option>
           ))}
-        </select>
+        </Select>
       </Field>
 
       {ally && onUploadLogo && onRemoveLogo ? (

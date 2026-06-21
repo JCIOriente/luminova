@@ -1,4 +1,5 @@
 import { useState, type ChangeEvent } from "react";
+import { Input } from "@luminova/ui";
 
 const ACCEPTED = ["image/png", "image/jpeg"];
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -47,13 +48,13 @@ export function LogoUploader({ currentSrc, onUpload, onRemove, disabled }: LogoU
           className="h-16 w-auto rounded-card border border-line object-contain p-1"
         />
       )}
-      <input
+      <Input
         type="file"
         aria-label="Logo"
         accept="image/png,image/jpeg"
         disabled={disabled || busy}
         onChange={(e) => void onFile(e)}
-        className="text-[13px]"
+        className="h-auto py-2 text-[13px]"
       />
       {currentSrc && (
         <button
