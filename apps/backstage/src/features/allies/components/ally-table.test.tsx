@@ -20,12 +20,30 @@ const ally: Ally = {
   contactPerson: "Mario Suárez",
   phone: "+591 700 00000",
   email: "mario@equipetrol.bo",
-} as Ally;
+  logoUrl: null,
+  category: null,
+  active: true,
+  deletedAt: null,
+};
 
 describe("AllyTable", () => {
   it("renders the company name", () => {
     renderAsAdmin(<AllyTable allies={[ally]} onEdit={vi.fn()} onDelete={vi.fn()} />);
     expect(screen.getByText("Equipetrol SRL")).toBeInTheDocument();
+  });
+
+  it("renders the logo and category label for a complete ally", () => {
+    const complete: Ally = {
+      ...ally,
+      logoUrl: "https://cdn/logo.png",
+      category: "University",
+    };
+    renderAsAdmin(<AllyTable allies={[complete]} onEdit={vi.fn()} onDelete={vi.fn()} />);
+    expect(screen.getByRole("img", { name: /logo de equipetrol srl/i })).toHaveAttribute(
+      "src",
+      "https://cdn/logo.png",
+    );
+    expect(screen.getByText("Universidades")).toBeInTheDocument();
   });
 
   it("calls onDelete when the delete action is used", async () => {

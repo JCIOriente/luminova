@@ -57,6 +57,22 @@ describe("AllyForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("preserves a set category when editing without touching the select", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AllyForm
+        ally={{ ...ALLY, category: "University" }}
+        submitLabel="Guardar"
+        onSubmit={onSubmit}
+        onUploadLogo={vi.fn()}
+        onRemoveLogo={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ category: "University" }));
+  });
+
   it("submits valid data", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(<AllyForm submitLabel="Crear" onSubmit={onSubmit} />);

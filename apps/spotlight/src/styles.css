@@ -629,38 +629,13 @@
     gap: 56px;
     flex-wrap: wrap;
   }
-  .ally {
-    font-family: var(--font-sans);
-    font-weight: 600;
-    font-size: 18px;
-    color: var(--ink-3);
-    letter-spacing: -0.005em;
-    padding: 8px 0;
-    transition: color 150ms ease-out;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .ally:hover {
-    color: var(--ink-1);
-  }
-  .ally .mark {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    background: var(--ink-3);
-    opacity: 0.4;
-  }
-  .ally:hover .mark {
-    opacity: 1;
-    background: var(--jci-blue);
-  }
   .ally-card {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 10px;
     width: 160px;
+    margin: 0;
   }
   .ally-logo {
     height: 56px;

@@ -261,8 +261,8 @@ function HomeImpact() {
 }
 
 function HomeAllies() {
-  const { data: allies, loading } = useAllies();
-  if (loading || allies.length === 0) return null;
+  const { data: allies, loading, error } = useAllies();
+  if (loading || error || allies.length === 0) return null;
   return (
     <section className="section" style={{ paddingTop: 80, paddingBottom: 80 }}>
       <div className="container">

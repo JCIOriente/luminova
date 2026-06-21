@@ -79,7 +79,11 @@ function AlliesPage() {
       >
         {editing !== null &&
           (() => {
-            const existing = editing === "new" ? null : editing;
+            // Resolve the edited ally from the live query data, not the snapshot taken
+            // when the Sheet opened — so the logo preview reflects an upload/removal
+            // after invalidateQueries refetches, without closing and reopening.
+            const existing =
+              editing === "new" ? null : (allies?.find((a) => a.id === editing.id) ?? editing);
             return (
               <AllyForm
                 key={existing?.id ?? "new"}

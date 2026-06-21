@@ -38,6 +38,18 @@ export function LogoUploader({ currentSrc, onUpload, onRemove, disabled }: LogoU
     }
   }
 
+  async function handleRemove() {
+    setError(null);
+    setBusy(true);
+    try {
+      await onRemove();
+    } catch {
+      setError("No se pudo quitar el logo. Intenta de nuevo.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <span className="text-[13px] font-medium text-ink-1">Logo</span>
@@ -60,7 +72,7 @@ export function LogoUploader({ currentSrc, onUpload, onRemove, disabled }: LogoU
         <button
           type="button"
           disabled={disabled || busy}
-          onClick={() => void onRemove()}
+          onClick={() => void handleRemove()}
           className="self-start text-[13px] font-medium text-error transition-colors hover:opacity-80 disabled:opacity-50"
         >
           Quitar logo
