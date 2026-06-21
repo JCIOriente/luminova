@@ -25,6 +25,7 @@ function applyConditional(role: Role, claims: AuthClaims, uid: string, can: Can)
       can("read", ["MemberPoints", "Event", "Project", "Position"]);
       break;
     default:
+      // Other built-in roles carry only coarse grants, applied via the perms claim.
       break;
   }
 }

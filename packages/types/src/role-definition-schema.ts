@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { ALL_PERMISSION_CODES, PERMISSION_CAP } from "./permission.js";
+import { ALL_PERMISSION_CODES, PERMISSION_CAP, type PermissionCode } from "./permission.js";
 
-/** Shared permission-code schema (DRY across role + member assignment forms). */
+/** Shared permission-code schema (DRY across role + member assignment forms).
+ *  Cast preserves the `PermissionCode` output type through `.parse()`. */
 export const permissionCodeSchema = z.enum(
-  ALL_PERMISSION_CODES as [string, ...string[]],
+  ALL_PERMISSION_CODES as [PermissionCode, ...PermissionCode[]],
 );
 
 export const roleDefinitionSchema = z.object({
