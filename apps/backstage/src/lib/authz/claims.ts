@@ -1,4 +1,5 @@
 import { isValidRole, type AuthClaims, type Role } from "@luminova/auth/roles";
+import { isValidPermissionCode, type PermissionCode } from "@luminova/types";
 
 export function decodeClaims(tokenClaims: Record<string, unknown> | null | undefined): AuthClaims {
   if (!tokenClaims || !Array.isArray(tokenClaims.roles)) {
@@ -10,5 +11,13 @@ export function decodeClaims(tokenClaims: Record<string, unknown> | null | undef
     Array.isArray(rawEventIds) && rawEventIds.every((id) => typeof id === "string")
       ? (rawEventIds as string[])
       : undefined;
-  return scannerEventIds ? { roles, scannerEventIds } : { roles };
+  const rawPerms = tokenClaims.perms;
+  const perms = Array.isArray(rawPerms)
+    ? rawPerms.filter((p): p is PermissionCode => isValidPermissionCode(p))
+    : undefined;
+  return {
+    roles,
+    ...(perms ? { perms } : {}),
+    ...(scannerEventIds ? { scannerEventIds } : {}),
+  };
 }
