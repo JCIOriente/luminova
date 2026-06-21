@@ -5,6 +5,8 @@ import { useAllies } from "../features/allies/hooks/use-allies";
 import { useAddAlly } from "../features/allies/hooks/use-add-ally";
 import { useUpdateAlly } from "../features/allies/hooks/use-update-ally";
 import { useDeleteAlly } from "../features/allies/hooks/use-delete-ally";
+import { useSetAllyLogo } from "../features/allies/hooks/use-set-ally-logo";
+import { useRemoveAllyLogo } from "../features/allies/hooks/use-remove-ally-logo";
 import { AllyTable } from "../features/allies/components/ally-table";
 import { AllyForm } from "../features/allies/components/ally-form";
 import { PageHeader } from "../components/page-header";
@@ -16,20 +18,13 @@ export const Route = createFileRoute("/_app/allies")({
 
 type Editing = Ally | "new" | null;
 
-function allyToInput(ally: Ally): Partial<AllyInput> {
-  return {
-    companyName: ally.companyName,
-    contactPerson: ally.contactPerson,
-    phone: ally.phone,
-    email: ally.email,
-  };
-}
-
 function AlliesPage() {
   const { data: allies, isLoading, isError } = useAllies();
   const addAlly = useAddAlly();
   const updateAlly = useUpdateAlly();
   const deleteAlly = useDeleteAlly();
+  const setLogo = useSetAllyLogo();
+  const removeLogo = useRemoveAllyLogo();
 
   const [editing, setEditing] = useState<Editing>(null);
   const [deleteTarget, setDeleteTarget] = useState<Ally | null>(null);
@@ -85,9 +80,13 @@ function AlliesPage() {
         {editing !== null && (
           <AllyForm
             key={editing === "new" ? "new" : editing.id}
-            defaultValues={editing === "new" ? undefined : allyToInput(editing)}
+            ally={editing === "new" ? undefined : editing}
             submitLabel={editing === "new" ? "Crear" : "Guardar"}
             onSubmit={handleSubmit}
+            onUploadLogo={
+              editing !== "new" ? (file) => setLogo.mutateAsync({ id: editing.id, file }) : undefined
+            }
+            onRemoveLogo={editing !== "new" ? () => removeLogo.mutateAsync(editing.id) : undefined}
           />
         )}
       </Sheet>

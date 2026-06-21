@@ -1,5 +1,6 @@
-import { DataTable, EmptyState, Icon, type DataTableColumn } from "@luminova/ui";
+import { Badge, DataTable, EmptyState, Icon, type DataTableColumn } from "@luminova/ui";
 import type { Ally } from "@luminova/types";
+import { ALLY_CATEGORY_LABELS } from "@luminova/types";
 import { RowAction } from "../../../components/row-action";
 import { Can } from "../../../lib/authz/ability-context";
 
@@ -11,10 +12,35 @@ interface AllyTableProps {
 
 const columns: DataTableColumn<Ally>[] = [
   {
+    id: "logo",
+    header: "Logo",
+    cell: (ally) =>
+      ally.logoUrl ? (
+        <img
+          src={ally.logoUrl}
+          alt={`Logo de ${ally.companyName}`}
+          className="h-8 w-auto max-w-20 object-contain"
+        />
+      ) : (
+        <span className="text-ink-2">—</span>
+      ),
+  },
+  {
     id: "company",
     header: "Empresa",
     sortValue: (ally) => ally.companyName,
     cell: (ally) => <span className="font-semibold text-ink-1">{ally.companyName}</span>,
+  },
+  {
+    id: "category",
+    header: "Categoría",
+    sortValue: (ally) => (ally.category ? ALLY_CATEGORY_LABELS[ally.category] : ""),
+    cell: (ally) =>
+      ally.category ? (
+        <Badge tone="blue">{ALLY_CATEGORY_LABELS[ally.category]}</Badge>
+      ) : (
+        <span className="text-ink-2">—</span>
+      ),
   },
   {
     id: "contact",
