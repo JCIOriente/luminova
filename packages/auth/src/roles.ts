@@ -1,10 +1,12 @@
-import { ROLES, isValidRole, type Role } from "@luminova/types";
+import { ROLES, isValidRole, type Role, type PermissionCode } from "@luminova/types";
 
 export { ROLES, isValidRole };
 export type { Role };
 
 export interface AuthClaims {
   roles: Role[];
+  /** Resolved effective coarse permission set. Absent on pre-backfill tokens. */
+  perms?: PermissionCode[];
   scannerEventIds?: string[];
 }
 

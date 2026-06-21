@@ -110,4 +110,34 @@ describe("buildAbility", () => {
     expect(a.can("read", "Member")).toBe(false);
     expect(a.can("read", "MemberPoints")).toBe(false);
   });
+
+  it("grants coarse abilities from the perms claim (manage implies CRUD)", () => {
+    const a = ability({ roles: ["Member"], perms: ["manage:Ally"] });
+    expect(a.can("update", "Ally")).toBe(true);
+    expect(a.can("read", "Ally")).toBe(true);
+    expect(a.can("delete", "Ally")).toBe(true);
+  });
+
+  it("perms claim drives coarse access independently of roles", () => {
+    const a = ability({ roles: ["Member"], perms: ["read:Payment"] });
+    expect(a.can("read", "Payment")).toBe(true);
+    expect(a.can("update", "Payment")).toBe(false);
+  });
+
+  it("keeps conditional Member self-access from roles even when perms is present", () => {
+    const a = ability({ roles: ["Member"], perms: [] });
+    expect(a.can("update", subject("Member", { uid: UID }))).toBe(true);
+    expect(a.can("update", subject("Member", { uid: "other" }))).toBe(false);
+  });
+
+  it("falls back to role-derived abilities when perms is absent (pre-backfill)", () => {
+    const a = ability({ roles: ["Membership"] });
+    expect(a.can("manage", "Member")).toBe(true);
+    expect(a.can("read", "Ally")).toBe(true);
+  });
+
+  it("an empty perms claim grants no coarse access (does NOT fall back)", () => {
+    const a = ability({ roles: ["Membership"], perms: [] });
+    expect(a.can("manage", "Member")).toBe(false);
+  });
 });

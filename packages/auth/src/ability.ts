@@ -1,68 +1,49 @@
 import { AbilityBuilder, createMongoAbility, subject, type MongoAbility } from "@casl/ability";
+import { BUILT_IN_ROLE_PERMS, type Action, type Subject, type PermissionCode } from "@luminova/types";
 import type { AuthClaims, Role } from "./roles.js";
 
 export { subject };
-
-export type Action = "manage" | "create" | "read" | "update" | "delete" | "checkIn";
-export type Subject =
-  | "all"
-  | "Member"
-  | "Ally"
-  | "Event"
-  | "PointRule"
-  | "MemberPoints"
-  | "Payment"
-  | "Attendance"
-  | "Program"
-  | "Project"
-  | "Activity"
-  | "Position";
+export type { Action, Subject };
 
 type SubjectObject = object;
 export type AppAbility = MongoAbility<[Action, Subject | SubjectObject]>;
 
 type Can = AbilityBuilder<AppAbility>["can"];
 
-function applyRole(role: Role, claims: AuthClaims, uid: string, can: Can): void {
+/** Conditional / object-scoped grants that can't be expressed as coarse perms.
+ *  These stay hardcoded per built-in role name and are NOT editable in the UI. */
+function applyConditional(role: Role, claims: AuthClaims, uid: string, can: Can): void {
   switch (role) {
-    case "Admin":
-      can("manage", "all");
-      break;
-    case "Membership":
-      can("manage", "Member");
-      can("read", ["Ally", "Event", "MemberPoints", "Position"]);
-      break;
-    case "Treasury":
-      can("manage", "Payment");
-      can("read", ["Member", "MemberPoints"]);
-      break;
-    case "ExecutiveCommittee":
-      can("read", ["Member", "Ally", "Event", "MemberPoints", "Program", "Project"]);
-      can("manage", "Position");
-      break;
-    case "ProjectManager":
-      can("manage", ["Project", "Activity", "Program"]);
-      can("checkIn", "Attendance");
-      can("read", ["Ally", "Event"]);
-      break;
     case "Scanner":
       can("checkIn", "Attendance", { eventId: { $in: claims.scannerEventIds ?? [] } });
       // Reach the activity list + detail page (the new home of check-in). Activities
       // are signed-in-readable in firestore.rules; this only opens the backstage UI.
-      // Member directory stays closed (no read Member) — Scanner is QR-scan-primary.
       can("read", "Activity");
       break;
     case "Member":
       can(["read", "update"], "Member", { uid });
       can("read", ["MemberPoints", "Event", "Project", "Position"]);
       break;
+    default:
+      break;
   }
 }
 
+function applyPerms(perms: readonly PermissionCode[], can: Can): void {
+  for (const code of perms) {
+    const [action, sub] = code.split(":") as [Action, Subject];
+    can(action, sub);
+  }
+}
+
+/** Build the CASL ability from a member's claims. Coarse abilities come from the
+ *  resolved `perms` claim; pre-backfill (perms absent) they fall back to the
+ *  built-in role perm map so nothing breaks. Conditional grants always derive
+ *  from the built-in `roles` claim. */
 export function buildAbility(claims: AuthClaims, uid: string): AppAbility {
   const builder = new AbilityBuilder<AppAbility>(createMongoAbility);
-  for (const role of claims.roles) {
-    applyRole(role, claims, uid, builder.can);
-  }
+  const perms = claims.perms ?? claims.roles.flatMap((role) => BUILT_IN_ROLE_PERMS[role]);
+  applyPerms(perms, builder.can);
+  for (const role of claims.roles) applyConditional(role, claims, uid, builder.can);
   return builder.build();
 }

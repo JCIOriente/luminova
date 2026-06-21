@@ -13,6 +13,11 @@
       "types": "./src/ability.ts",
       "import": "./dist/ability.js",
       "default": "./dist/ability.js"
+    },
+    "./perms": {
+      "types": "./src/perms.ts",
+      "import": "./dist/perms.js",
+      "default": "./dist/perms.js"
     }
   },
   "scripts": {
