@@ -1,4 +1,9 @@
-export const ALLY_CATEGORIES = ["University", "PublicInstitution", "Organization", "Company"] as const;
+export const ALLY_CATEGORIES = [
+  "University",
+  "PublicInstitution",
+  "Organization",
+  "Company",
+] as const;
 export type AllyCategory = (typeof ALLY_CATEGORIES)[number];
 
 export const ALLY_CATEGORY_LABELS: Record<AllyCategory, string> = {

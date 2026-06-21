@@ -29,7 +29,13 @@ function toDefaults(ally?: Ally): AllyInput {
   };
 }
 
-export function AllyForm({ ally, submitLabel, onSubmit, onUploadLogo, onRemoveLogo }: AllyFormProps) {
+export function AllyForm({
+  ally,
+  submitLabel,
+  onSubmit,
+  onUploadLogo,
+  onRemoveLogo,
+}: AllyFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
