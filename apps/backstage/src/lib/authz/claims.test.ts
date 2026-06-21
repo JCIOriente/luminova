@@ -23,4 +23,25 @@ describe("decodeClaims", () => {
   it("ignores a non-array roles claim", () => {
     expect(decodeClaims({ roles: "Admin" })).toEqual({ roles: [] });
   });
+
+  it("decodes a valid perms claim, filtering unknown codes", () => {
+    expect(decodeClaims({ roles: ["Member"], perms: ["manage:Ally", "bogus:Code", "read:Payment"] })).toEqual({
+      roles: ["Member"],
+      perms: ["manage:Ally", "read:Payment"],
+    });
+  });
+
+  it("preserves an empty perms array (backfilled-empty is authoritative, not absent)", () => {
+    expect(decodeClaims({ roles: ["Membership"], perms: [] })).toEqual({
+      roles: ["Membership"],
+      perms: [],
+    });
+  });
+
+  it("omits perms entirely when the claim is absent or non-array (pre-backfill → role fallback)", () => {
+    expect(decodeClaims({ roles: ["Membership"] })).toEqual({ roles: ["Membership"] });
+    expect(decodeClaims({ roles: ["Membership"], perms: "manage:all" })).toEqual({
+      roles: ["Membership"],
+    });
+  });
 });

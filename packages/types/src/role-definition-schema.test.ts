@@ -34,4 +34,13 @@ describe("roleDefinitionSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects duplicate permission codes (so the cap can't be gamed)", () => {
+    const result = roleDefinitionSchema.safeParse({
+      name: "X",
+      description: "",
+      permissions: ["read:Member", "read:Member"],
+    });
+    expect(result.success).toBe(false);
+  });
 });

@@ -43,7 +43,7 @@ function applyPerms(perms: readonly PermissionCode[], can: Can): void {
  *  from the built-in `roles` claim. */
 export function buildAbility(claims: AuthClaims, uid: string): AppAbility {
   const builder = new AbilityBuilder<AppAbility>(createMongoAbility);
-  const perms = claims.perms ?? claims.roles.flatMap((role) => BUILT_IN_ROLE_PERMS[role]);
+  const perms = claims.perms ?? claims.roles.flatMap((role) => BUILT_IN_ROLE_PERMS[role] ?? []);
   applyPerms(perms, builder.can);
   for (const role of claims.roles) applyConditional(role, claims, uid, builder.can);
   return builder.build();

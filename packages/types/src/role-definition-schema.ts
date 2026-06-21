@@ -12,7 +12,8 @@ export const roleDefinitionSchema = z.object({
   description: z.string(),
   permissions: z
     .array(permissionCodeSchema)
-    .max(PERMISSION_CAP, `Máximo ${PERMISSION_CAP} permisos.`),
+    .max(PERMISSION_CAP, `Máximo ${PERMISSION_CAP} permisos.`)
+    .refine((codes) => new Set(codes).size === codes.length, "Permisos duplicados."),
 });
 
 export type RoleDefinitionInput = z.infer<typeof roleDefinitionSchema>;
