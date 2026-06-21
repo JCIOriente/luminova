@@ -1,6 +1,5 @@
 import { Badge, DataTable, EmptyState, Icon, type DataTableColumn } from "@luminova/ui";
-import type { Ally } from "@luminova/types";
-import { ALLY_CATEGORY_LABELS } from "@luminova/types";
+import { ALLY_CATEGORY_LABELS, type Ally } from "@luminova/types";
 import { RowAction } from "../../../components/row-action";
 import { Can } from "../../../lib/authz/ability-context";
 

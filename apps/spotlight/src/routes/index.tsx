@@ -4,11 +4,12 @@ import { Button, ArrowLink, RippleBackground, SectionHeader, Reveal, Icon } from
 import { AreaCard, ImpactStat } from "../components/cards";
 import { ProgramsSkeleton } from "../components/programs-skeleton";
 
-const LazyHomePrograms = lazy(() => import("../components/home-programs"));
 import { useSiteConfig } from "../site-config/use-site-config";
 import { currentYearsActive } from "../site-config/defaults";
 import { useAllies } from "../allies/use-allies";
 import { ALLY_CATEGORY_LABELS } from "@luminova/types/engine";
+
+const LazyHomePrograms = lazy(() => import("../components/home-programs"));
 
 export const Route = createFileRoute("/")({
   component: Home,
