@@ -20,6 +20,7 @@ import {
   type PositionsInput,
 } from "../features/members/components/member-positions-form";
 import { MemberPermissionsPanel } from "../features/members/components/member-permissions-panel";
+import { MemberRolesPanel } from "../features/permissions/components/member-roles-panel";
 import { MemberPositionHistory } from "../features/members/components/member-position-history";
 import { MemberPointsSummary } from "../features/members/components/member-points-summary";
 import { ParticipationLedger } from "../features/members/components/participation-ledger";
@@ -133,6 +134,9 @@ function MemberProfilePage() {
 
         <aside className="flex flex-col gap-6">
           <MemberPermissionsPanel roles={roles} />
+          <Can I="manage" a="all">
+            <MemberRolesPanel member={member} builtInRoleNames={roles} />
+          </Can>
           <MemberPositionHistory
             member={member}
             positionsById={positionsById}
