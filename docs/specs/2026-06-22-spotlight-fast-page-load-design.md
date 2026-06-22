@@ -62,6 +62,9 @@ care not to regress SWR behavior.
 
 ### PR1 — `@luminova/firebase/lite` subpath export
 
+> PR1 also carries this spec doc (folded in, no separate docs PR). Its worktree
+> branch is `feat/spotlight-fast-load`, already holding the spec.
+
 **Change:** add a second package export so consumers can pull firestore-lite
 without dragging the full SDK barrel.
 
