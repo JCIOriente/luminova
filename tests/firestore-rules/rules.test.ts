@@ -1408,4 +1408,20 @@ describe("firestore.rules — perm-based coarse gates", () => {
       setDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "events/e_ec"), { title: "Asamblea" }),
     );
   });
+
+  it("grants activity create to a custom role with manage:Activity", async () => {
+    await assertSucceeds(
+      setDoc(doc(asCustom("act-uid", ["manage:Activity"]), "activities/a_custom"), {
+        termId: "2026",
+        category: "Assembly",
+      }),
+    );
+  });
+
+  it("fail-closed: ProjectManager with absent perms claim cannot create an activity", async () => {
+    const ctx = env.authenticatedContext("legacy-pm", { roles: ["ProjectManager"] }).firestore();
+    await assertFails(
+      setDoc(doc(ctx, "activities/a_legacy"), { termId: "2026", category: "Assembly" }),
+    );
+  });
 });
