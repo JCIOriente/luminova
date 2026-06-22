@@ -97,6 +97,21 @@ service cloud.firestore {
         || (assignedBySelf() && (hasAnyRole(['Admin']) || cargoGrantsEmpty()));
     }
 
+    // roleIds + permissionOverrides feed Auth custom claims via the beacon trigger.
+    // Only Admin may set or change them — otherwise a Membership user (who may edit
+    // members) could self-assign a power-granting custom role or override and have
+    // the claims-sync trigger mint those perms. Create has no prior resource, so it
+    // forbids the fields outright for non-Admins; update pins them unchanged.
+    function createPermissionAssignmentSafe() {
+      return hasAnyRole(['Admin'])
+        || (!('roleIds' in request.resource.data)
+            && !('permissionOverrides' in request.resource.data));
+    }
+    function updatePermissionAssignmentSafe() {
+      return hasAnyRole(['Admin'])
+        || (unchanged('roleIds') && unchanged('permissionOverrides'));
+    }
+
     // The completion trio (status + finalReport + impact) is written atomically by the
     // wizard. A status flip to Finalizado missing either the report or the impact would
     // orphan child-activity point confirmation and permanently strand the doc (the trio
@@ -170,10 +185,12 @@ service cloud.firestore {
       allow create: if hasAnyRole(['Admin', 'Membership'])
         && request.resource.data.totalPoints == 0
         && !('uid' in request.resource.data)
+        && createPermissionAssignmentSafe()
         && createPositionsSafe();
       allow update: if hasAnyRole(['Admin', 'Membership'])
         && unchanged('totalPoints')
         && unchanged('uid')
+        && updatePermissionAssignmentSafe()
         && softDeleteSafe()
         && (!positionsTouched() || positionsAssignmentSafe());
       // A member may set only their own profilePicture (H1 self-upload on /me).
@@ -200,6 +217,37 @@ service cloud.firestore {
       allow update: if (hasAnyRole(['Admin'])
           || (hasAnyRole(['ExecutiveCommittee']) && unchanged('grants')))
         && softDeleteSafe();
+      allow delete: if false;
+    }
+
+    // Identity fields are set at seed time and never change via a client write —
+    // letting a client flip builtIn/builtInKey would let an impostor custom role
+    // spoof a built-in key and double-grant perms through the trigger.
+    function roleIdentityUnchanged() {
+      return unchanged('builtIn') && unchanged('builtInKey') && unchanged('locked');
+    }
+    // Role definitions (editable RBAC). Permission sets here feed Auth custom claims
+    // via the beacon onRoleWritten trigger, so writes are Admin-only — the same trust
+    // boundary as positions.grants. Signed-in read so the admin UI can render role
+    // names + the per-member effective-perms preview.
+    match /roles/{roleId} {
+      allow read: if signedIn();
+      // Clients author CUSTOM roles only; built-ins are seeded via the admin SDK
+      // (bypasses rules). Forbidding builtIn/builtInKey on client create closes the
+      // impostor that spoofs a built-in key to double-grant perms in the trigger.
+      allow create: if hasAnyRole(['Admin'])
+        && request.resource.data.builtIn == false
+        && request.resource.data.builtInKey == null
+        && request.resource.data.get('locked', false) == false;
+      // The locked (Admin) role is immutable. Identity fields can't change. A built-in
+      // role can't be deactivated (that would silently restore its seed perms via the
+      // trigger fallback) — only permissions/name/description are editable.
+      allow update: if hasAnyRole(['Admin'])
+        && resource.data.get('locked', false) == false
+        && roleIdentityUnchanged()
+        && softDeleteSafe()
+        && (resource.data.get('builtIn', false) != true
+            || request.resource.data.get('active', true) == true);
       allow delete: if false;
     }
 
