@@ -19,6 +19,24 @@ const valid = {
     meetingSchedule: "Miércoles 19:30",
     links: [{ label: "JCI", url: "https://jci.cc" }],
   },
+  linktree: {
+    handle: "@jci.oriente",
+    tagline: "Sé el cambio.",
+    taglineAccent: "Become the Change.",
+    links: [
+      {
+        id: "a1",
+        icon: "user",
+        title: "Quiero ser miembro",
+        description: "Postula y únete",
+        url: "https://wa.me/591",
+        isPrimary: true,
+        badge: "Únete",
+        active: true,
+      },
+    ],
+    socials: [{ platform: "instagram", url: "https://instagram.com/jci.oriente" }],
+  },
 };
 
 describe("siteConfigSchema", () => {
@@ -52,5 +70,40 @@ describe("siteConfigSchema", () => {
       contact: { ...valid.contact, links: [{ label: "x", url: "#" }] },
     });
     expect(r.success).toBe(true);
+  });
+  it("accepts a mailto: linktree url", () => {
+    const r = siteConfigSchema.safeParse({
+      ...valid,
+      linktree: {
+        ...valid.linktree,
+        links: [{ ...valid.linktree.links[0], url: "mailto:jci@example.com" }],
+      },
+    });
+    expect(r.success).toBe(true);
+  });
+  it("rejects a javascript: linktree url", () => {
+    const r = siteConfigSchema.safeParse({
+      ...valid,
+      linktree: {
+        ...valid.linktree,
+        links: [{ ...valid.linktree.links[0], url: "javascript:alert(1)" }],
+      },
+    });
+    expect(r.success).toBe(false);
+  });
+  it("rejects an icon outside the allowed set", () => {
+    const r = siteConfigSchema.safeParse({
+      ...valid,
+      linktree: {
+        ...valid.linktree,
+        links: [{ ...valid.linktree.links[0], icon: "rocket" }],
+      },
+    });
+    expect(r.success).toBe(false);
+  });
+  it("requires the linktree section", () => {
+    const noLinktree = { ...valid };
+    delete (noLinktree as { linktree?: unknown }).linktree;
+    expect(siteConfigSchema.safeParse(noLinktree).success).toBe(false);
   });
 });
