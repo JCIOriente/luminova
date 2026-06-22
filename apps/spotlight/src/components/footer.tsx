@@ -1,10 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { LogoLockup, RippleBackground, Icon } from "@luminova/ui";
 import { useSiteConfig } from "../site-config/use-site-config";
-
-// Neutralize script-bearing hrefs (e.g. javascript:) from admin-authored links;
-// the public site reads Firestore directly, so it cannot rely on the form's schema.
-const safeHref = (url: string): string => (/^https?:\/\//i.test(url) || url === "#" ? url : "#");
+import { safeHref } from "../site-config/safe-href";
 
 const SOCIAL_STYLE: React.CSSProperties = {
   width: 36,
@@ -76,6 +73,11 @@ export function Footer() {
               <li>
                 <a href="/programas" onClick={(e) => go(e, "/programas")}>
                   Programas
+                </a>
+              </li>
+              <li>
+                <a href="/enlaces" onClick={(e) => go(e, "/enlaces")}>
+                  Enlaces
                 </a>
               </li>
             </ul>
