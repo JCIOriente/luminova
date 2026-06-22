@@ -2,6 +2,7 @@
 **/node_modules/**
 **/.turbo/**
 **/coverage/**
+.worktrees/**
 **/routeTree.gen.ts
 pnpm-lock.yaml
 

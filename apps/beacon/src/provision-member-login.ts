@@ -1,8 +1,9 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { isValidRole, type Role } from "@luminova/auth/roles";
+import { requireAdmin } from "./callable-auth.js";
 
 export interface ProvisionInput {
   memberId: string;
@@ -41,18 +42,8 @@ function ensureApp() {
   if (!getApps().length) initializeApp();
 }
 
-function callerRoles(request: CallableRequest): string[] {
-  const token = request.auth?.token as { roles?: unknown } | undefined;
-  return Array.isArray(token?.roles)
-    ? (token.roles as unknown[]).filter((r): r is string => typeof r === "string")
-    : [];
-}
-
 export const provisionMemberLogin = onCall(async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "sign-in required");
-  if (!callerRoles(request).includes("Admin")) {
-    throw new HttpsError("permission-denied", "Admin role required");
-  }
+  requireAdmin(request);
   const { memberId } = validateProvisionInput(request.data);
   ensureApp();
   const db = getFirestore();

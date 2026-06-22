@@ -5,15 +5,9 @@
   "ignore": ["tools/scripts/**"],
   "workspaces": {
     "apps/*": {
-      "entry": ["src/main.tsx", "src/index.ts"],
-      "project": ["src/**/*.{ts,tsx}"]
-    },
-    "packages/auth": {
-      "entry": ["src/roles.ts", "src/ability.ts"],
       "project": ["src/**/*.{ts,tsx}"]
     },
     "packages/*": {
-      "entry": ["src/index.ts"],
       "project": ["src/**/*.{ts,tsx}"]
     },
     "tests/*": {
