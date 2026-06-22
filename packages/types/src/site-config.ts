@@ -39,10 +39,20 @@ export const LINKTREE_ICONS = [
   "compass",
   "briefcase",
   "spark",
+  "linkedin",
+  "whatsapp",
+  "youtube",
 ] as const;
 export type LinktreeIcon = (typeof LINKTREE_ICONS)[number];
 
-export const LINKTREE_SOCIAL_PLATFORMS = ["instagram", "facebook", "tiktok"] as const;
+export const LINKTREE_SOCIAL_PLATFORMS = [
+  "instagram",
+  "facebook",
+  "tiktok",
+  "linkedin",
+  "whatsapp",
+  "youtube",
+] as const;
 export type LinktreeSocialPlatform = (typeof LINKTREE_SOCIAL_PLATFORMS)[number];
 
 export interface LinktreeLink {
