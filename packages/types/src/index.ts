@@ -1,4 +1,21 @@
 export { ROLES, isValidRole, type Role } from "./permission-role.js";
+export {
+  ACTIONS,
+  SUBJECTS,
+  ALL_PERMISSION_CODES,
+  isValidPermissionCode,
+  PERMISSION_CAP,
+  type Action,
+  type Subject,
+  type PermissionCode,
+} from "./permission.js";
+export { BUILT_IN_ROLE_PERMS, type RoleDefinition } from "./role-definition.js";
+export type { PermissionOverrides } from "./permission-overrides.js";
+export {
+  roleDefinitionSchema,
+  permissionCodeSchema,
+  type RoleDefinitionInput,
+} from "./role-definition-schema.js";
 export type { Member, MemberStatus } from "./member.js";
 export { MEMBER_STATUSES } from "./member.js";
 export { MEMBER_GENDERS, type MemberGender } from "./member.js";
