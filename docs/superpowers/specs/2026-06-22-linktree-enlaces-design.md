@@ -23,6 +23,8 @@ glassmorphism link cards, socials, footer).
    set. No `lucide-react` dependency.
 5. **Active flag** — each link has `active: boolean`; spotlight renders only
    `active === true`.
+6. **Discoverable** — add an "Enlaces" entry to the spotlight footer "Sitio"
+   nav so `/enlaces` is reachable from the main site, not orphaned.
 
 ## Architecture (additive — no beacon, no rules change)
 
@@ -130,8 +132,8 @@ widen the allowlist if it only permits `http(s):`. Must keep blocking
 
 - `apps/spotlight/src/routes/enlaces.tsx` — new public route (no auth), ported
   from `Linktree.html`:
-  - `<Ripple>` component — port the `buildRipple` SVG generator to React
-    (concentric rings of quarter-arcs); honor `prefers-reduced-motion` (no spin).
+  - Ripple background — reuse the existing `RippleBackground` component from
+    `@luminova/ui` (already used by the footer); no from-scratch SVG port.
   - Brand header — existing spotlight logo asset (reused, not re-uploaded),
     `handle`, `tagline` + `taglineAccent` (accent span in `--jci-blue`).
   - Links nav — `links.filter(l => l.active).map(...)` → glass cards; `.primary`
@@ -147,6 +149,9 @@ widen the allowlist if it only permits `http(s):`. Must keep blocking
   `Resolved` type literal.
 - `apps/spotlight/src/site-config/defaults.ts` — add a `linktree` default
   (sensible JCI links) so the page renders before/without backstage data.
+- `apps/spotlight/src/components/footer.tsx` — add an `<li>` "Enlaces" →
+  `/enlaces` to the "Sitio" column (after Programas), using the existing `go()`
+  navigate handler.
 
 ## Testing (TDD)
 
@@ -164,8 +169,9 @@ widen the allowlist if it only permits `http(s):`. Must keep blocking
 - `packages/types`: `site-config.ts`, `site-config-schema.ts`, `index.ts` (export
   `LINKTREE_ICONS`, types).
 - `apps/backstage`: `site-config-form.tsx`, `site-config-mapper.ts` (+ tests).
-- `apps/spotlight`: `routes/enlaces.tsx` (+ `Ripple` component), `styles.css`,
-  `site-config/use-site-config.ts`, `site-config/defaults.ts` (+ tests).
+- `apps/spotlight`: `routes/enlaces.tsx`, `styles.css`,
+  `site-config/use-site-config.ts`, `site-config/defaults.ts`,
+  `components/footer.tsx` (+ tests). Ripple reuses `@luminova/ui`.
 - `docs/superpowers/specs/2026-06-22-linktree-enlaces-design.md` (this file).
 
 **No** new dependencies, **no** Cloud Functions, **no** `firestore.rules` change.
