@@ -27,7 +27,7 @@ export function Footer() {
       <div className="container" style={{ position: "relative", zIndex: 1 }}>
         <div className="footer-cols">
           <div className="footer-col">
-            <LogoLockup variant="inverted" size="sm" />
+            <LogoLockup variant="inverted" size="sm" loading="lazy" />
             <p
               style={{
                 marginTop: 22,

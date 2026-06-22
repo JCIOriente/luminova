@@ -17,14 +17,19 @@ const SRC: Record<LogoVariant, string> = {
 export function LogoLockup({
   variant = "default",
   size = "md",
+  loading = "eager",
 }: {
   variant?: LogoVariant;
   size?: LogoSize;
+  loading?: "eager" | "lazy";
 }) {
   return (
     <img
       src={SRC[variant]}
       alt="JCI Oriente"
+      width={600}
+      height={600}
+      loading={loading}
       className={cn(
         "block w-auto",
         size === "lg" ? "h-[92px]" : size === "sm" ? "h-[34px]" : "h-11",
