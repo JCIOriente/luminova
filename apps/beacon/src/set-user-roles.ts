@@ -1,7 +1,12 @@
-import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { getFirestore } from "firebase-admin/firestore";
+import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { ROLES, isValidRole, type Role } from "@luminova/auth/roles";
+import { PERMISSION_CAP } from "@luminova/types/permission";
+import { requireAdmin } from "./callable-auth.js";
+import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
+import { resolveMemberPerms } from "./claims-sync/resolve-member-perms.js";
+import { ensureApp } from "./runtime.js";
 
 const MAX_SCANNER_EVENT_IDS = 50;
 const MAX_EVENT_ID_LENGTH = 128;
@@ -74,34 +79,32 @@ export function validateSetRolesInput(data: unknown): SetUserRolesInput {
   return { targetUid: raw.targetUid, roles, scannerEventIds };
 }
 
-function adminAuth() {
-  if (!getApps().length) initializeApp();
-  return getAuth();
-}
-
-function callerRoles(request: CallableRequest): string[] {
-  const token = request.auth?.token as { roles?: unknown } | undefined;
-  return Array.isArray(token?.roles)
-    ? (token.roles as unknown[]).filter((role): role is string => typeof role === "string")
-    : [];
-}
-
 export const setUserRoles = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "sign-in required");
-  }
-  if (!callerRoles(request).includes("Admin")) {
-    throw new HttpsError("permission-denied", "Admin role required");
-  }
+  requireAdmin(request);
 
   const input = validateSetRolesInput(request.data);
 
-  if (input.targetUid === request.auth.uid) {
+  if (input.targetUid === request.auth?.uid) {
     throw new HttpsError("permission-denied", "cannot modify your own roles");
   }
 
-  await adminAuth().setCustomUserClaims(input.targetUid, {
+  ensureApp();
+  const auth = getAuth();
+  // Resolve the coarse perms for these built-in roles so the `perms` claim stays
+  // consistent with the position-driven trigger (rules gate on perms).
+  const perms = await resolveMemberPerms(
+    firestoreClaimsDeps(getFirestore(), auth),
+    input.roles,
+    [],
+    { grant: [], revoke: [] },
+  );
+  if (perms.length > PERMISSION_CAP) {
+    throw new HttpsError("internal", "resolved perms exceed the claim size cap");
+  }
+
+  await auth.setCustomUserClaims(input.targetUid, {
     roles: input.roles,
+    perms,
     scannerEventIds: input.scannerEventIds,
   });
 

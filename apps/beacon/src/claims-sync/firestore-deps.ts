@@ -1,11 +1,26 @@
 import type { Auth, UserRecord } from "firebase-admin/auth";
-import type { Firestore } from "firebase-admin/firestore";
+import type { DocumentData, Firestore } from "firebase-admin/firestore";
 import { isValidRole, type Role } from "@luminova/auth/roles";
+import { isValidPermissionCode, type PermissionCode } from "@luminova/types/permission";
 import type { ClaimsSyncDeps } from "./sync.js";
 
 function rolesFromClaims(claims: Record<string, unknown> | undefined): Role[] {
   const raw = claims?.roles;
   return Array.isArray(raw) ? raw.filter((r): r is Role => isValidRole(r)) : [];
+}
+
+function permsFromClaims(claims: Record<string, unknown> | undefined): PermissionCode[] | undefined {
+  const raw = claims?.perms;
+  return Array.isArray(raw) ? raw.filter((p): p is PermissionCode => isValidPermissionCode(p)) : undefined;
+}
+
+function permsFromRoleDoc(data: DocumentData | undefined): PermissionCode[] {
+  const raw = data?.permissions;
+  return Array.isArray(raw) ? raw.filter((p): p is PermissionCode => isValidPermissionCode(p)) : [];
+}
+
+function isActiveRoleDoc(data: DocumentData | undefined): boolean {
+  return data?.active !== false && (data?.deletedAt === null || data?.deletedAt === undefined);
 }
 
 async function getUserOrNull(auth: Auth, uid: string): Promise<UserRecord | null> {
@@ -49,10 +64,37 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): ClaimsSyncDeps {
         ? (claims.scannerEventIds as unknown[]).filter((s): s is string => typeof s === "string")
         : undefined;
       const roles = rolesFromClaims(claims);
-      return scannerEventIds ? { roles, scannerEventIds } : { roles };
+      const perms = permsFromClaims(claims);
+      return {
+        roles,
+        ...(perms ? { perms } : {}),
+        ...(scannerEventIds ? { scannerEventIds } : {}),
+      };
+    },
+    getRoleDocsByBuiltInKeys: async (keys) => {
+      if (keys.length === 0) return [];
+      // `in` supports ≤30 values; ROLES has 7. `builtIn === true` is defense in
+      // depth against an impostor custom role spoofing a builtInKey (rules also
+      // forbid clients setting builtInKey, but the trust boundary is the trigger).
+      const snap = await db.collection("roles").where("builtInKey", "in", keys).get();
+      return snap.docs
+        .filter((d) => d.get("builtIn") === true && isActiveRoleDoc(d.data()))
+        .map((d) => ({
+          permissions: permsFromRoleDoc(d.data()),
+          builtInKey: d.get("builtInKey") as Role,
+        }));
+    },
+    getRolesByIds: async (ids) => {
+      if (ids.length === 0) return [];
+      const refs = ids.map((id) => db.doc(`roles/${id}`));
+      const snaps = await db.getAll(...refs);
+      return snaps
+        .filter((s) => s.exists && isActiveRoleDoc(s.data()))
+        .map((s) => ({ permissions: permsFromRoleDoc(s.data()) }));
     },
     setClaims: async (uid, next) => {
       await auth.setCustomUserClaims(uid, next);
     },
+    logError: (message, meta) => console.error(message, meta),
   };
 }

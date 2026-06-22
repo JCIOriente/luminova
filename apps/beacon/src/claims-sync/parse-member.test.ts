@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { parseMember } from "./parse-member.js";
 
 describe("parseMember", () => {
+  const NO_GRANTS = { grant: [], revoke: [] };
+
   it("passes through a well-formed member (incl. assignedBy)", () => {
     const result = parseMember({
       uid: "u1",
@@ -14,7 +16,32 @@ describe("parseMember", () => {
       positions: {
         "2026": { cargoId: "pos-pres", comisionIds: ["com-a", "com-b"], assignedBy: "admin-uid" },
       },
+      roleIds: [],
+      permissionOverrides: NO_GRANTS,
     });
+  });
+
+  it("extracts roleIds and filters override codes to the known vocabulary", () => {
+    const result = parseMember({
+      uid: "u1",
+      positions: {},
+      roleIds: ["custom-1", "custom-2"],
+      permissionOverrides: { grant: ["manage:Event", "bogus:Code"], revoke: ["read:Member"] },
+    });
+    expect(result.roleIds).toEqual(["custom-1", "custom-2"]);
+    expect(result.permissionOverrides).toEqual({
+      grant: ["manage:Event"],
+      revoke: ["read:Member"],
+    });
+  });
+
+  it("defaults roleIds to [] and overrides to empty when absent or malformed", () => {
+    expect(parseMember({ uid: "u1", positions: {}, roleIds: "nope" }).roleIds).toEqual([]);
+    expect(parseMember({ uid: "u1", positions: {} }).permissionOverrides).toEqual(NO_GRANTS);
+    expect(
+      parseMember({ uid: "u1", positions: {}, permissionOverrides: { grant: "x" } })
+        .permissionOverrides,
+    ).toEqual(NO_GRANTS);
   });
 
   it("drops a term whose comisionIds is present but not a string array", () => {
@@ -79,7 +106,8 @@ describe("parseMember", () => {
   });
 
   it("handles null/undefined raw input", () => {
-    expect(parseMember(null)).toEqual({ uid: undefined, positions: {} });
-    expect(parseMember(undefined)).toEqual({ uid: undefined, positions: {} });
+    const empty = { uid: undefined, positions: {}, roleIds: [], permissionOverrides: NO_GRANTS };
+    expect(parseMember(null)).toEqual(empty);
+    expect(parseMember(undefined)).toEqual(empty);
   });
 });

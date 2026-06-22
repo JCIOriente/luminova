@@ -13,6 +13,16 @@
       "types": "./src/engine/index.ts",
       "import": "./dist/engine/index.js",
       "default": "./dist/engine/index.js"
+    },
+    "./permission": {
+      "types": "./src/permission.ts",
+      "import": "./dist/permission.js",
+      "default": "./dist/permission.js"
+    },
+    "./role-definition": {
+      "types": "./src/role-definition.ts",
+      "import": "./dist/role-definition.js",
+      "default": "./dist/role-definition.js"
     }
   },
   "scripts": {

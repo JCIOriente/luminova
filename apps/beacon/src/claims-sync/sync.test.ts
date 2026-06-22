@@ -1,23 +1,52 @@
 import { describe, expect, it } from "vitest";
 import type { Role } from "@luminova/auth/roles";
-import { syncMemberClaims, type ClaimsSyncDeps } from "./sync.js";
+import type { PermissionCode, RoleDefinition } from "@luminova/types";
+import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
+import { ACTIONS, SUBJECTS } from "@luminova/types/permission";
+import { syncMemberClaims, type ClaimsSyncDeps, type MemberClaims } from "./sync.js";
 import { parseMember } from "./parse-member.js";
 
-type Claims = { roles: Role[]; scannerEventIds?: string[] };
+type Claims = { roles: Role[]; perms?: PermissionCode[]; scannerEventIds?: string[] };
+
+/** Expected coarse perms for a set of built-in roles via the seed snapshot
+ *  (independent union+sort, so the assertion isn't tautological with the impl). */
+function permsFor(roles: Role[]): PermissionCode[] {
+  return [...new Set(roles.flatMap((r) => BUILT_IN_ROLE_PERMS[r]))].sort();
+}
+
+const customRole = (id: string, permissions: PermissionCode[]): RoleDefinition => ({
+  id,
+  name: id,
+  description: "",
+  builtIn: false,
+  builtInKey: null,
+  permissions,
+  locked: false,
+  active: true,
+  deletedAt: null,
+});
 
 function fakeDeps(opts: {
   positions: Record<string, { grants: Role[] }>;
   userRoles: Record<string, Role[]>;
   existing: Record<string, Claims>;
+  builtInDocs?: RoleDefinition[];
+  customRoles?: Record<string, RoleDefinition>;
+  logError?: (message: string, meta: Record<string, unknown>) => void;
 }) {
-  const writes: Record<string, Claims> = {};
+  const writes: Record<string, MemberClaims> = {};
   const deps: ClaimsSyncDeps = {
     getPosition: async (id) => opts.positions[id] ?? null,
     getUserRoles: async (uid) => opts.userRoles[uid] ?? [],
     getExistingClaims: async (uid) => opts.existing[uid] ?? { roles: [] },
+    getRoleDocsByBuiltInKeys: async (keys) =>
+      (opts.builtInDocs ?? []).filter((d) => d.builtInKey !== null && keys.includes(d.builtInKey)),
+    getRolesByIds: async (ids) =>
+      ids.map((id) => opts.customRoles?.[id]).filter((r): r is RoleDefinition => r !== undefined),
     setClaims: async (uid, claims) => {
       writes[uid] = claims;
     },
+    logError: opts.logError,
   };
   return { deps, writes };
 }
@@ -31,18 +60,199 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
+      { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "membership-uid" } } },
+      "2026",
+    );
+    expect(writes["target-uid"]).toBeUndefined(); // already ['Member'] + [] perms → no-op
+  });
+
+  it("honors power grants when assignedBy is Admin", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-pres": { grants: ["Admin"] } },
+      userRoles: { "admin-uid": ["Admin", "Member"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } } },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({
+      roles: ["Admin", "Member"],
+      perms: permsFor(["Admin", "Member"]),
+    });
+  });
+
+  it("drops power grants when assignedBy is missing (legacy doc)", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-pres": { grants: ["Admin"] } },
+      userRoles: {},
+      existing: { "target-uid": { roles: ["Admin", "Member"], perms: ["manage:all"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [] } } },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: [] }); // Admin revoked
+  });
+
+  it("preserves Scanner + scannerEventIds while recomputing org roles + perms", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-tes": { grants: ["Treasury"] } },
+      userRoles: { "admin-uid": ["Admin"] },
+      existing: { "target-uid": { roles: ["Member", "Scanner"], scannerEventIds: ["e1"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      { uid: "target-uid", positions: { "2026": { cargoId: "pos-tes", comisionIds: [], assignedBy: "admin-uid" } } },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({
+      roles: ["Treasury", "Scanner", "Member"],
+      perms: permsFor(["Treasury", "Scanner", "Member"]),
+      scannerEventIds: ["e1"],
+    });
+  });
+
+  it("no-ops when member has no uid (not provisioned)", async () => {
+    const { deps, writes } = fakeDeps({ positions: {}, userRoles: {}, existing: {} });
+    await syncMemberClaims(deps, { positions: { "2026": { cargoId: "x", comisionIds: [] } } }, "2026");
+    expect(writes).toEqual({});
+  });
+
+  it("revokes to ['Member'] (empty perms) when the current-term cargo is cleared", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: {},
+      userRoles: {},
+      existing: { "target-uid": { roles: ["Treasury", "Member"], perms: permsFor(["Treasury"]) } },
+    });
+    await syncMemberClaims(
+      deps,
+      { uid: "target-uid", positions: { "2026": { cargoId: null, comisionIds: [], assignedBy: "admin-uid" } } },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: [] });
+  });
+
+  it("unions grants from cargo + comisión, deduped and ROLES-ordered, with perms", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: {
+        "pos-tes": { grants: ["Treasury", "ExecutiveCommittee"] },
+        "com-y": { grants: ["ExecutiveCommittee", "Membership"] },
+      },
+      userRoles: { "admin-uid": ["Admin"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      { uid: "target-uid", positions: { "2026": { cargoId: "pos-tes", comisionIds: ["com-y"], assignedBy: "admin-uid" } } },
+      "2026",
+    );
+    const roles: Role[] = ["Membership", "Treasury", "ExecutiveCommittee", "Member"];
+    expect(writes["target-uid"]).toEqual({ roles, perms: permsFor(roles) });
+  });
+
+  it("includes perms from a directly-assigned custom role", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: {},
+      userRoles: {},
+      existing: { "target-uid": { roles: ["Member"] } },
+      customRoles: { "role-x": customRole("role-x", ["manage:Ally", "read:Event"]) },
+    });
+    await syncMemberClaims(
+      deps,
+      { uid: "target-uid", positions: {}, roleIds: ["role-x"], permissionOverrides: { grant: [], revoke: [] } },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: ["manage:Ally", "read:Event"] });
+  });
+
+  it("applies per-member overrides (grant adds, revoke removes)", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-tes": { grants: ["Treasury"] } },
+      userRoles: { "admin-uid": ["Admin"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
       {
         uid: "target-uid",
-        positions: {
-          "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "membership-uid" },
-        },
+        positions: { "2026": { cargoId: "pos-tes", comisionIds: [], assignedBy: "admin-uid" } },
+        roleIds: [],
+        permissionOverrides: { grant: ["manage:Event"], revoke: ["read:Member"] },
       },
       "2026",
     );
-    expect(writes["target-uid"]).toBeUndefined(); // already ['Member'] → no-op
+    // Treasury = manage:Payment, read:Member, read:MemberPoints; +manage:Event, -read:Member
+    expect(writes["target-uid"]).toEqual({
+      roles: ["Treasury", "Member"],
+      perms: ["manage:Event", "manage:Payment", "read:MemberPoints"],
+    });
   });
 
-  it("BLOCKING: absent comisionIds (defaults []) still gates a power cargo on Admin assignedBy", async () => {
+  it("uses the live built-in role doc perms over the seed fallback", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-tes": { grants: ["Treasury"] } },
+      userRoles: { "admin-uid": ["Admin"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+      builtInDocs: [
+        { ...customRole("Treasury", ["read:Member"]), builtIn: true, builtInKey: "Treasury" },
+      ],
+    });
+    await syncMemberClaims(
+      deps,
+      { uid: "target-uid", positions: { "2026": { cargoId: "pos-tes", comisionIds: [], assignedBy: "admin-uid" } } },
+      "2026",
+    );
+    // Live Treasury doc was edited down to just read:Member (not the seed default).
+    expect(writes["target-uid"]).toEqual({ roles: ["Treasury", "Member"], perms: ["read:Member"] });
+  });
+
+  it("fail-closed: writes empty perms (not stale claims) when effective perms exceed the cap", async () => {
+    const errors: string[] = [];
+    const { deps, writes } = fakeDeps({
+      positions: {},
+      userRoles: {},
+      // Stale elevated claims must be cleared, not retained, on a cap breach.
+      existing: { "target-uid": { roles: ["Admin", "Member"], perms: ["manage:all"] } },
+      customRoles: { big: customRole("big", distinctCodes(31)) },
+      logError: (message) => errors.push(message),
+    });
+    await syncMemberClaims(
+      deps,
+      { uid: "target-uid", positions: {}, roleIds: ["big"], permissionOverrides: { grant: [], revoke: [] } },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: [] });
+    expect(errors[0]).toMatch(/cap/i);
+  });
+
+  it("propagates and writes nothing when a dependency rejects", async () => {
+    const writes: Record<string, MemberClaims> = {};
+    const deps: ClaimsSyncDeps = {
+      getPosition: async () => ({ grants: ["Admin"] }),
+      getUserRoles: async () => {
+        throw new Error("auth lookup failed");
+      },
+      getExistingClaims: async () => ({ roles: ["Member"] }),
+      getRoleDocsByBuiltInKeys: async () => [],
+      getRolesByIds: async () => [],
+      setClaims: async (uid, claims) => {
+        writes[uid] = claims;
+      },
+    };
+    await expect(
+      syncMemberClaims(
+        deps,
+        { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } } },
+        "2026",
+      ),
+    ).rejects.toThrow("auth lookup failed");
+    expect(writes).toEqual({});
+  });
+
+  it("parseMember output flows through (absent comisionIds power cargo, non-Admin → dropped)", async () => {
     const { deps, writes } = fakeDeps({
       positions: { "pos-pres": { grants: ["Admin"] } },
       userRoles: { "membership-uid": ["Membership", "Member"] },
@@ -55,182 +265,15 @@ describe("syncMemberClaims", () => {
     await syncMemberClaims(deps, member, "2026");
     expect(writes["target-uid"]).toBeUndefined(); // no Admin escalation
   });
-
-  it("honors power grants when assignedBy is Admin", async () => {
-    const { deps, writes } = fakeDeps({
-      positions: { "pos-pres": { grants: ["Admin"] } },
-      userRoles: { "admin-uid": ["Admin", "Member"] },
-      existing: { "target-uid": { roles: ["Member"] } },
-    });
-    await syncMemberClaims(
-      deps,
-      {
-        uid: "target-uid",
-        positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } },
-      },
-      "2026",
-    );
-    expect(writes["target-uid"]).toEqual({ roles: ["Admin", "Member"] });
-  });
-
-  it("drops power grants when assignedBy is missing (legacy doc)", async () => {
-    const { deps, writes } = fakeDeps({
-      positions: { "pos-pres": { grants: ["Admin"] } },
-      userRoles: {},
-      existing: { "target-uid": { roles: ["Admin", "Member"] } },
-    });
-    await syncMemberClaims(
-      deps,
-      { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [] } } },
-      "2026",
-    );
-    expect(writes["target-uid"]).toEqual({ roles: ["Member"] }); // Admin revoked
-  });
-
-  it("preserves Scanner + scannerEventIds while recomputing org roles", async () => {
-    const { deps, writes } = fakeDeps({
-      positions: { "pos-tes": { grants: ["Treasury"] } },
-      userRoles: { "admin-uid": ["Admin"] },
-      existing: { "target-uid": { roles: ["Member", "Scanner"], scannerEventIds: ["e1"] } },
-    });
-    await syncMemberClaims(
-      deps,
-      {
-        uid: "target-uid",
-        positions: { "2026": { cargoId: "pos-tes", comisionIds: [], assignedBy: "admin-uid" } },
-      },
-      "2026",
-    );
-    expect(writes["target-uid"]).toEqual({
-      roles: ["Treasury", "Scanner", "Member"],
-      scannerEventIds: ["e1"],
-    });
-  });
-
-  it("no-ops when member has no uid (not provisioned)", async () => {
-    const { deps, writes } = fakeDeps({ positions: {}, userRoles: {}, existing: {} });
-    await syncMemberClaims(
-      deps,
-      { positions: { "2026": { cargoId: "x", comisionIds: [] } } },
-      "2026",
-    );
-    expect(writes).toEqual({});
-  });
-
-  it("revokes to ['Member'] when the current-term cargo is cleared", async () => {
-    const { deps, writes } = fakeDeps({
-      positions: {},
-      userRoles: {},
-      existing: { "target-uid": { roles: ["Treasury", "Member"] } },
-    });
-    await syncMemberClaims(
-      deps,
-      {
-        uid: "target-uid",
-        positions: { "2026": { cargoId: null, comisionIds: [], assignedBy: "admin-uid" } },
-      },
-      "2026",
-    );
-    expect(writes["target-uid"]).toEqual({ roles: ["Member"] });
-  });
-
-  it("drops grants from a missing/deleted position", async () => {
-    const { deps, writes } = fakeDeps({
-      positions: {}, // pos-pres not in catalog (deleted)
-      userRoles: { "admin-uid": ["Admin"] },
-      existing: { "target-uid": { roles: ["Admin", "Member"] } },
-    });
-    await syncMemberClaims(
-      deps,
-      {
-        uid: "target-uid",
-        positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } },
-      },
-      "2026",
-    );
-    expect(writes["target-uid"]).toEqual({ roles: ["Member"] });
-  });
-
-  it("honors a power-conferring comisión when assignedBy is Admin", async () => {
-    const { deps, writes } = fakeDeps({
-      positions: { "com-x": { grants: ["ProjectManager"] } },
-      userRoles: { "admin-uid": ["Admin"] },
-      existing: { "target-uid": { roles: ["Member"] } },
-    });
-    await syncMemberClaims(
-      deps,
-      {
-        uid: "target-uid",
-        positions: { "2026": { cargoId: null, comisionIds: ["com-x"], assignedBy: "admin-uid" } },
-      },
-      "2026",
-    );
-    expect(writes["target-uid"]).toEqual({ roles: ["ProjectManager", "Member"] });
-  });
-
-  it("drops a power-conferring comisión assigned by a non-Admin", async () => {
-    const { deps, writes } = fakeDeps({
-      positions: { "com-power": { grants: ["Treasury"] } },
-      userRoles: { "mem-uid": ["Membership"] },
-      existing: { "target-uid": { roles: ["Treasury", "Member"] } },
-    });
-    await syncMemberClaims(
-      deps,
-      {
-        uid: "target-uid",
-        positions: { "2026": { cargoId: null, comisionIds: ["com-power"], assignedBy: "mem-uid" } },
-      },
-      "2026",
-    );
-    expect(writes["target-uid"]).toEqual({ roles: ["Member"] }); // Treasury revoked
-  });
-
-  it("unions grants from cargo + comisión, deduped and ROLES-ordered", async () => {
-    const { deps, writes } = fakeDeps({
-      positions: {
-        "pos-tes": { grants: ["Treasury", "ExecutiveCommittee"] },
-        "com-y": { grants: ["ExecutiveCommittee", "Membership"] },
-      },
-      userRoles: { "admin-uid": ["Admin"] },
-      existing: { "target-uid": { roles: ["Member"] } },
-    });
-    await syncMemberClaims(
-      deps,
-      {
-        uid: "target-uid",
-        positions: {
-          "2026": { cargoId: "pos-tes", comisionIds: ["com-y"], assignedBy: "admin-uid" },
-        },
-      },
-      "2026",
-    );
-    expect(writes["target-uid"]).toEqual({
-      roles: ["Membership", "Treasury", "ExecutiveCommittee", "Member"],
-    });
-  });
-
-  it("propagates and writes nothing when a dependency rejects", async () => {
-    const writes: Record<string, { roles: Role[]; scannerEventIds?: string[] }> = {};
-    const deps: ClaimsSyncDeps = {
-      getPosition: async () => ({ grants: ["Admin"] }),
-      getUserRoles: async () => {
-        throw new Error("auth lookup failed");
-      },
-      getExistingClaims: async () => ({ roles: ["Member"] }),
-      setClaims: async (uid, claims) => {
-        writes[uid] = claims;
-      },
-    };
-    await expect(
-      syncMemberClaims(
-        deps,
-        {
-          uid: "target-uid",
-          positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } },
-        },
-        "2026",
-      ),
-    ).rejects.toThrow("auth lookup failed");
-    expect(writes).toEqual({});
-  });
 });
+
+/** N distinct valid permission codes, for cap testing. */
+function distinctCodes(n: number): PermissionCode[] {
+  const out: PermissionCode[] = [];
+  for (const a of ACTIONS)
+    for (const s of SUBJECTS) {
+      if (out.length >= n) return out;
+      out.push(`${a}:${s}` as PermissionCode);
+    }
+  return out;
+}

@@ -1,18 +1,33 @@
 import type { Role } from "@luminova/auth/roles";
-import type { TermPositions } from "@luminova/types";
+import type { TermPositions, PermissionCode } from "@luminova/types";
+import { PERMISSION_CAP } from "@luminova/types/permission";
 import { computeMemberRoles } from "./compute-roles.js";
+import { resolveMemberPerms, type RolePermsDeps } from "./resolve-member-perms.js";
 
-export interface ClaimsSyncDeps {
+export interface MemberClaims {
+  roles: Role[];
+  perms: PermissionCode[];
+  scannerEventIds?: string[];
+}
+
+export interface ClaimsSyncDeps extends RolePermsDeps {
   /** Catalog position by id, or null if missing/deleted. */
   getPosition(id: string): Promise<{ grants: Role[] } | null>;
   /** The assigner's current claim roles (for the power-grant trust gate). */
   getUserRoles(uid: string): Promise<Role[]>;
   /** The target member's existing custom claims. */
-  getExistingClaims(uid: string): Promise<{ roles: Role[]; scannerEventIds?: string[] }>;
-  setClaims(uid: string, claims: { roles: Role[]; scannerEventIds?: string[] }): Promise<void>;
+  getExistingClaims(uid: string): Promise<{ roles: Role[]; perms?: PermissionCode[]; scannerEventIds?: string[] }>;
+  setClaims(uid: string, claims: MemberClaims): Promise<void>;
+  /** Structured error sink (defaults to console.error in the Firestore impl). */
+  logError?(message: string, meta: Record<string, unknown>): void;
 }
 
-type MemberLike = { uid?: string; positions?: Record<string, TermPositions> };
+type MemberLike = {
+  uid?: string;
+  positions?: Record<string, TermPositions>;
+  roleIds?: string[];
+  permissionOverrides?: { grant: PermissionCode[]; revoke: PermissionCode[] };
+};
 
 /** Union of grants from the term's positions, gating power-conferring positions
  *  (non-empty grants) on an Admin `assignedBy`. The assigner lookup is performed
@@ -51,15 +66,24 @@ function sameList(a: readonly string[], b: readonly string[]): boolean {
 }
 
 function sameClaims(
-  a: { roles: Role[]; scannerEventIds?: string[] },
-  b: { roles: Role[]; scannerEventIds?: string[] },
+  a: { roles: Role[]; perms?: PermissionCode[]; scannerEventIds?: string[] },
+  b: MemberClaims,
 ): boolean {
-  return sameList(a.roles, b.roles) && sameList(a.scannerEventIds ?? [], b.scannerEventIds ?? []);
+  return (
+    sameList(a.roles, b.roles) &&
+    sameList(a.perms ?? [], b.perms) &&
+    sameList(a.scannerEventIds ?? [], b.scannerEventIds ?? [])
+  );
 }
 
-/** Recompute custom claims for a member from their current-term positions.
- *  No-op when unprovisioned or when the computed claims already match (idempotent;
- *  avoids a self-retrigger storm — note this writes Auth claims, NOT the member doc). */
+const EMPTY_OVERRIDES = { grant: [] as PermissionCode[], revoke: [] as PermissionCode[] };
+
+/** Recompute custom claims for a member from their current-term positions, their
+ *  directly-assigned custom roles, and per-member overrides. Writes both `roles`
+ *  (built-in names, drive conditional rules) and the resolved coarse `perms` set.
+ *  No-op when unprovisioned or when the computed claims already match (idempotent).
+ *  Fail-closed on a cap breach: skips the write rather than truncating (truncation
+ *  could drop a revoke and grant power). Writes Auth claims, NOT the member doc. */
 export async function syncMemberClaims(
   deps: ClaimsSyncDeps,
   member: MemberLike,
@@ -75,13 +99,33 @@ export async function syncMemberClaims(
   const existing = await deps.getExistingClaims(member.uid);
   const hadScanner = existing.roles.includes("Scanner");
   const roles = computeMemberRoles({ trustedGrants, hadScanner });
-  const next =
+
+  let perms = await resolveMemberPerms(
+    deps,
+    roles,
+    member.roleIds ?? [],
+    member.permissionOverrides ?? EMPTY_OVERRIDES,
+  );
+  if (perms.length > PERMISSION_CAP) {
+    // Fail-closed: drop ALL coarse perms rather than truncate (truncation could
+    // keep a stale grant while dropping a revoke). We still write the recomputed
+    // `roles` + empty `perms` so a concurrent role revocation always lands —
+    // never leave the member on stale, possibly-elevated claims.
+    deps.logError?.("effective perms exceed cap; writing empty perms (fail-closed)", {
+      uid: member.uid,
+      count: perms.length,
+      cap: PERMISSION_CAP,
+    });
+    perms = [];
+  }
+
+  const next: MemberClaims =
     hadScanner && existing.scannerEventIds
-      ? { roles, scannerEventIds: existing.scannerEventIds }
-      : { roles };
+      ? { roles, perms, scannerEventIds: existing.scannerEventIds }
+      : { roles, perms };
 
   // Order-independent compare: `existing` claims come from Auth and may not be in
-  // canonical ROLES order, so a set/membership compare avoids a redundant write.
+  // canonical order, so a set/membership compare avoids a redundant write.
   if (sameClaims(existing, next)) return;
   await deps.setClaims(member.uid, next);
 }

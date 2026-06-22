@@ -46,6 +46,36 @@ beforeAll(async () => {
     await setDoc(doc(db, "allies/a1"), { companyName: "ACME", active: true, deletedAt: null });
     await setDoc(doc(db, "events/e1"), { title: "Gala" });
     await setDoc(doc(db, "pointRules/r1"), { points: 10 });
+    await setDoc(doc(db, "roles/Admin"), {
+      name: "Administrador",
+      description: "",
+      builtIn: true,
+      builtInKey: "Admin",
+      permissions: ["manage:all"],
+      locked: true,
+      active: true,
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "roles/Treasury"), {
+      name: "Tesorería",
+      description: "",
+      builtIn: true,
+      builtInKey: "Treasury",
+      permissions: ["manage:Payment"],
+      locked: false,
+      active: true,
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "roles/custom_existing"), {
+      name: "Coordinador",
+      description: "",
+      builtIn: false,
+      builtInKey: null,
+      permissions: ["read:Event"],
+      locked: false,
+      active: true,
+      deletedAt: null,
+    });
     await setDoc(doc(db, "terms/2026"), { status: "Activo" });
     await setDoc(doc(db, "activities/act1"), { termId: "2026", category: "Assembly" });
     await setDoc(doc(db, "activities/act_dir"), {
@@ -1182,6 +1212,145 @@ describe("firestore.rules — member positions assignment", () => {
     await assertFails(
       updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
         "positions.2099": { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" },
+      }),
+    );
+  });
+});
+
+describe("firestore.rules — roles collection", () => {
+  const ROLE_DOC = {
+    name: "Coordinador",
+    description: "",
+    builtIn: false,
+    builtInKey: null,
+    permissions: ["manage:Event"],
+    locked: false,
+    active: true,
+    deletedAt: null,
+  };
+
+  it("allows any signed-in user to read role definitions", async () => {
+    await assertSucceeds(getDoc(doc(as("u", ["Member"]), "roles/Admin")));
+  });
+  it("denies anonymous reads of role definitions", async () => {
+    await assertFails(getDoc(doc(anon(), "roles/Admin")));
+  });
+  it("allows Admin to create a custom role", async () => {
+    await assertSucceeds(setDoc(doc(as("admin-uid", ["Admin"]), "roles/custom1"), ROLE_DOC));
+  });
+  it("denies a non-Admin (Membership) creating a role", async () => {
+    await assertFails(setDoc(doc(as("mem-uid", ["Membership"]), "roles/custom2"), ROLE_DOC));
+  });
+  it("BLOCKING: denies a client creating a role that spoofs a built-in key", async () => {
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "roles/impostor"), {
+        ...ROLE_DOC,
+        builtIn: true,
+        builtInKey: "Treasury",
+        permissions: ["manage:all"],
+      }),
+    );
+  });
+  it("allows Admin to edit a custom role's permissions", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/custom_existing"), {
+        permissions: ["read:Event", "manage:Ally"],
+      }),
+    );
+  });
+  it("allows Admin to edit a non-locked built-in role's permissions", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/Treasury"), {
+        permissions: ["read:Member"],
+      }),
+    );
+  });
+  it("denies a non-Admin updating a role", async () => {
+    await assertFails(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "roles/custom_existing"), {
+        permissions: ["manage:all"],
+      }),
+    );
+  });
+  it("BLOCKING: denies editing the locked Admin role", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/Admin"), { permissions: ["read:Member"] }),
+    );
+  });
+  it("denies changing a role's identity fields (builtInKey)", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/custom_existing"), { builtInKey: "Treasury" }),
+    );
+  });
+  it("denies deactivating a built-in role (would restore seed perms via the trigger)", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/Treasury"), { active: false }),
+    );
+  });
+  it("denies hard-deleting a role even for Admin", async () => {
+    await assertFails(deleteDoc(doc(as("admin-uid", ["Admin"]), "roles/custom_existing")));
+  });
+});
+
+describe("firestore.rules — member permission assignment (roleIds + overrides)", () => {
+  it("allows Admin to set roleIds + permissionOverrides on a member", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), {
+        roleIds: ["custom1"],
+        permissionOverrides: { grant: ["manage:Event"], revoke: [] },
+      }),
+    );
+  });
+  it("BLOCKING: denies Membership setting roleIds (privilege escalation vector)", async () => {
+    // A distinct value (not whatever the Admin test left on m1) so this is a real
+    // change — setting roleIds to its current value would be a legitimate no-op.
+    await assertFails(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), {
+        roleIds: ["membership-self-grant"],
+      }),
+    );
+  });
+  it("BLOCKING: denies Membership setting permissionOverrides", async () => {
+    await assertFails(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), {
+        permissionOverrides: { grant: ["manage:all"], revoke: [] },
+      }),
+    );
+  });
+  it("still allows Membership to edit ordinary fields (roleIds untouched)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), { name: "Renombrada" }),
+    );
+  });
+  it("allows Admin to create a member carrying roleIds", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("admin-uid", ["Admin"]), "members/m_admin_new"), {
+        name: "Nuevo",
+        totalPoints: 0,
+        active: true,
+        deletedAt: null,
+        roleIds: ["custom1"],
+      }),
+    );
+  });
+  it("BLOCKING: denies Membership creating a member with roleIds", async () => {
+    await assertFails(
+      setDoc(doc(as("mem-uid", ["Membership"]), "members/m_mem_new"), {
+        name: "Nuevo",
+        totalPoints: 0,
+        active: true,
+        deletedAt: null,
+        roleIds: ["custom1"],
+      }),
+    );
+  });
+  it("allows Membership to create a member without permission fields", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("mem-uid", ["Membership"]), "members/m_mem_plain"), {
+        name: "Nuevo",
+        totalPoints: 0,
+        active: true,
+        deletedAt: null,
       }),
     );
   });
