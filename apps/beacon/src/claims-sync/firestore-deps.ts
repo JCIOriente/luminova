@@ -9,9 +9,13 @@ function rolesFromClaims(claims: Record<string, unknown> | undefined): Role[] {
   return Array.isArray(raw) ? raw.filter((r): r is Role => isValidRole(r)) : [];
 }
 
-function permsFromClaims(claims: Record<string, unknown> | undefined): PermissionCode[] | undefined {
+function permsFromClaims(
+  claims: Record<string, unknown> | undefined,
+): PermissionCode[] | undefined {
   const raw = claims?.perms;
-  return Array.isArray(raw) ? raw.filter((p): p is PermissionCode => isValidPermissionCode(p)) : undefined;
+  return Array.isArray(raw)
+    ? raw.filter((p): p is PermissionCode => isValidPermissionCode(p))
+    : undefined;
 }
 
 function permsFromRoleDoc(data: DocumentData | undefined): PermissionCode[] {

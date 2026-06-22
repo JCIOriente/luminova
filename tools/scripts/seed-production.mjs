@@ -87,10 +87,109 @@ const passwordOk = (v) =>
     ? null
     : "min 6 chars with a lowercase, an uppercase, and a digit";
 
+// Mirror of BUILT_IN_ROLE_PERMS in packages/types/src/role-definition.ts (kept inline
+// so this standalone prod script needs no built workspace dist). Coarse, non-conditional
+// perms each built-in role confers; conditional grants live in CASL + firestore.rules.
+// Keep in sync with role-definition.ts.
+const BUILT_IN_ROLE_PERMS = {
+  Admin: ["manage:all"],
+  Membership: [
+    "manage:Member",
+    "read:Ally",
+    "create:Ally",
+    "update:Ally",
+    "read:Event",
+    "read:MemberPoints",
+    "read:Position",
+  ],
+  Treasury: ["manage:Payment", "read:Member", "read:MemberPoints"],
+  ExecutiveCommittee: [
+    "read:Member",
+    "read:Ally",
+    "read:Event",
+    "create:Event",
+    "update:Event",
+    "read:MemberPoints",
+    "read:Program",
+    "read:Project",
+    "manage:Position",
+  ],
+  ProjectManager: [
+    "manage:Project",
+    "manage:Activity",
+    "manage:Program",
+    "read:Ally",
+    "read:Event",
+    "create:Event",
+    "update:Event",
+    "checkIn:Attendance",
+  ],
+  Scanner: [],
+  Member: [],
+};
+const ROLE_LABELS = {
+  Admin: "Administrador",
+  Membership: "Membresía",
+  Treasury: "Tesorería",
+  ExecutiveCommittee: "Comité Ejecutivo",
+  ProjectManager: "Director de Proyecto",
+  Scanner: "Escáner",
+  Member: "Miembro",
+};
+
+// Idempotent: create the 7 built-in role docs (never clobbers an admin's later edits).
+// Mirrors apps/beacon seedBuiltInRoles + the seedRoles callable.
+async function seedBuiltInRoles(db) {
+  let created = 0;
+  for (const [role, permissions] of Object.entries(BUILT_IN_ROLE_PERMS)) {
+    try {
+      await db.doc(`roles/${role}`).create({
+        name: ROLE_LABELS[role],
+        description: "",
+        builtIn: true,
+        builtInKey: role,
+        permissions,
+        locked: role === "Admin",
+        active: true,
+        deletedAt: null,
+      });
+      created += 1;
+    } catch (error) {
+      if (error?.code !== 6) throw error; // 6 = ALREADY_EXISTS
+    }
+  }
+  return created;
+}
+
+// Touch every member so the deployed onMemberWritten trigger re-mints their custom
+// claims (roles + the new `perms` set) using the production resolution logic. Must run
+// BEFORE the perm-based firestore.rules are deployed, else tokens without `perms` are
+// denied coarse access until their next member write.
+async function backfillMemberClaims(db) {
+  const snap = await db.collection("members").get();
+  let touched = 0;
+  for (const doc of snap.docs) {
+    await doc.ref.set({ claimsSyncedAt: Timestamp.now() }, { merge: true });
+    touched += 1;
+  }
+  return touched;
+}
+
 async function main() {
   initializeApp({ credential: applicationDefault(), projectId });
   const db = getFirestore();
   const auth = getAuth();
+
+  // Permissions bootstrap — runs on EVERY invocation (idempotent), before the
+  // president guard, so an already-bootstrapped org still gets roles seeded + claims
+  // backfilled. New orgs: members don't exist yet, so backfill is a no-op and the
+  // president created below mints its own claims via onMemberWritten.
+  const rolesCreated = await seedBuiltInRoles(db);
+  console.log(`✓ built-in roles: ${rolesCreated} created, ${7 - rolesCreated} already existed.`);
+  const touched = await backfillMemberClaims(db);
+  console.log(
+    `✓ ${touched} member(s) touched — onMemberWritten will re-mint roles + perms (~1-2 min).`,
+  );
 
   // Guard before prompting so a re-run doesn't make the operator re-enter
   // everything; seedPresident also guards this internally (without `force`).

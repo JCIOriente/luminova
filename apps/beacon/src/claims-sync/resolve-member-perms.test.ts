@@ -18,7 +18,11 @@ describe("resolveMemberPerms", () => {
 
   it("prefers the live built-in role doc over the seed snapshot", async () => {
     const out = await resolveMemberPerms(
-      deps({ getRoleDocsByBuiltInKeys: async () => [{ permissions: ["read:Member"], builtInKey: "Treasury" }] }),
+      deps({
+        getRoleDocsByBuiltInKeys: async () => [
+          { permissions: ["read:Member"], builtInKey: "Treasury" },
+        ],
+      }),
       ["Treasury"],
       [],
       NO_OVERRIDES,

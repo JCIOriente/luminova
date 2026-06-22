@@ -5,7 +5,9 @@ import type { PermissionCode, RoleDefinition } from "@luminova/types";
 
 export interface RolePermsDeps {
   /** Live built-in role docs (editable) matching these role names by builtInKey. */
-  getRoleDocsByBuiltInKeys(keys: Role[]): Promise<Pick<RoleDefinition, "permissions" | "builtInKey">[]>;
+  getRoleDocsByBuiltInKeys(
+    keys: Role[],
+  ): Promise<Pick<RoleDefinition, "permissions" | "builtInKey">[]>;
   /** Custom role docs by id. */
   getRolesByIds(ids: string[]): Promise<Pick<RoleDefinition, "permissions">[]>;
 }

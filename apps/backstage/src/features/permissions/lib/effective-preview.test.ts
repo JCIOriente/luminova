@@ -30,7 +30,14 @@ describe("previewEffectivePerms", () => {
     const out = previewEffectivePerms({
       builtInRoleNames: ["Treasury"],
       selectedCustomRoleIds: [],
-      allRoles: [role({ id: "Treasury", builtIn: true, builtInKey: "Treasury", permissions: ["read:Member"] })],
+      allRoles: [
+        role({
+          id: "Treasury",
+          builtIn: true,
+          builtInKey: "Treasury",
+          permissions: ["read:Member"],
+        }),
+      ],
       overrides: { grant: [], revoke: [] },
     });
     expect(out).toEqual(["read:Member"]);
