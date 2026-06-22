@@ -9,7 +9,7 @@ export {
   type Subject,
   type PermissionCode,
 } from "./permission.js";
-export { BUILT_IN_ROLE_PERMS, type RoleDefinition } from "./role-definition.js";
+export { BUILT_IN_ROLE_PERMS, ROLE_LABELS, type RoleDefinition } from "./role-definition.js";
 export type { PermissionOverrides } from "./permission-overrides.js";
 export {
   roleDefinitionSchema,

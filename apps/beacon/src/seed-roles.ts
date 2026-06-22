@@ -1,6 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { ROLES, type Role } from "@luminova/auth/roles";
-import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
+import { BUILT_IN_ROLE_PERMS, ROLE_LABELS } from "@luminova/types/role-definition";
 import type { PermissionCode } from "@luminova/types/permission";
 
 export interface SeedRoleDoc {
@@ -14,16 +14,6 @@ export interface SeedRoleDoc {
   active: true;
   deletedAt: null;
 }
-
-const ROLE_LABELS: Record<Role, string> = {
-  Admin: "Administrador",
-  Membership: "Membresía",
-  Treasury: "Tesorería",
-  ExecutiveCommittee: "Comité Ejecutivo",
-  ProjectManager: "Director de Proyecto",
-  Scanner: "Escáner",
-  Member: "Miembro",
-};
 
 /** The 7 built-in role docs to seed (id = role name). Admin is locked. */
 export function buildBuiltInRoleDocs(): SeedRoleDoc[] {
