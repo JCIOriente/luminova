@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as EnlacesRouteImport } from './routes/enlaces'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
@@ -16,6 +17,11 @@ import { Route as ProgramasIndexRouteImport } from './routes/programas.index'
 import { Route as ImpactoIndexRouteImport } from './routes/impacto.index'
 import { Route as ImpactoIdRouteImport } from './routes/impacto.$id'
 
+const EnlacesRoute = EnlacesRouteImport.update({
+  id: '/enlaces',
+  path: '/enlaces',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/enlaces': typeof EnlacesRoute
   '/impacto/$id': typeof ImpactoIdRoute
   '/impacto/': typeof ImpactoIndexRoute
   '/programas/': typeof ProgramasIndexRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/enlaces': typeof EnlacesRoute
   '/impacto/$id': typeof ImpactoIdRoute
   '/impacto': typeof ImpactoIndexRoute
   '/programas': typeof ProgramasIndexRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/enlaces': typeof EnlacesRoute
   '/impacto/$id': typeof ImpactoIdRoute
   '/impacto/': typeof ImpactoIndexRoute
   '/programas/': typeof ProgramasIndexRoute
@@ -78,16 +87,25 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
+    | '/enlaces'
     | '/impacto/$id'
     | '/impacto/'
     | '/programas/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/contact' | '/impacto/$id' | '/impacto' | '/programas'
+  to:
+    | '/'
+    | '/about'
+    | '/contact'
+    | '/enlaces'
+    | '/impacto/$id'
+    | '/impacto'
+    | '/programas'
   id:
     | '__root__'
     | '/'
     | '/about'
     | '/contact'
+    | '/enlaces'
     | '/impacto/$id'
     | '/impacto/'
     | '/programas/'
@@ -97,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   ContactRoute: typeof ContactRoute
+  EnlacesRoute: typeof EnlacesRoute
   ImpactoIdRoute: typeof ImpactoIdRoute
   ImpactoIndexRoute: typeof ImpactoIndexRoute
   ProgramasIndexRoute: typeof ProgramasIndexRoute
@@ -104,6 +123,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/enlaces': {
+      id: '/enlaces'
+      path: '/enlaces'
+      fullPath: '/enlaces'
+      preLoaderRoute: typeof EnlacesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/contact': {
       id: '/contact'
       path: '/contact'
@@ -153,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   ContactRoute: ContactRoute,
+  EnlacesRoute: EnlacesRoute,
   ImpactoIdRoute: ImpactoIdRoute,
   ImpactoIndexRoute: ImpactoIndexRoute,
   ProgramasIndexRoute: ProgramasIndexRoute,
