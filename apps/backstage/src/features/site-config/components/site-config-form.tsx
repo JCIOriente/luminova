@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { siteConfigSchema, type SiteConfigInput } from "@luminova/types";
-import { Button, Field, Icon, Input, Textarea, cn } from "@luminova/ui";
+import { LINKTREE_ICONS, siteConfigSchema, type SiteConfigInput } from "@luminova/types";
+import { Button, Checkbox, Field, Icon, Input, Select, Textarea, cn } from "@luminova/ui";
 import { CollapsibleSection } from "./collapsible-section";
 import { FieldArrayRows } from "./field-array-rows";
 
@@ -11,6 +11,23 @@ interface SiteConfigFormProps {
   lastSaved: Date;
   onSubmit: (data: SiteConfigInput) => Promise<void>;
 }
+
+const LINKTREE_ICON_LABELS: Record<(typeof LINKTREE_ICONS)[number], string> = {
+  user: "Persona",
+  globe: "Globo",
+  folder: "Carpeta",
+  calendar: "Calendario",
+  mail: "Correo",
+  megaphone: "Megáfono",
+  handshake: "Alianza",
+  heart: "Corazón",
+  target: "Objetivo",
+  compass: "Brújula",
+  briefcase: "Maletín",
+  spark: "Destello",
+};
+
+const SOCIAL_LABELS = ["Instagram", "Facebook", "TikTok"] as const;
 
 const stampFormatter = new Intl.DateTimeFormat("es-BO", {
   day: "numeric",
@@ -342,6 +359,143 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                 </div>
               )}
             />
+          </div>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        num="06"
+        icon={Icon.globe({ s: 18 })}
+        title="Enlaces (Linktree)"
+        desc="Página pública /enlaces — botones, redes y encabezado"
+      >
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Usuario" htmlFor="lt-handle" hint="Ej. @jci.oriente">
+              <Input id="lt-handle" {...register("linktree.handle")} />
+            </Field>
+            <Field label="Lema" htmlFor="lt-tagline" hint="Ej. Sé el cambio.">
+              <Input id="lt-tagline" {...register("linktree.tagline")} />
+            </Field>
+            <Field label="Lema (acento azul)" htmlFor="lt-accent" hint="Ej. Become the Change.">
+              <Input id="lt-accent" {...register("linktree.taglineAccent")} />
+            </Field>
+          </div>
+
+          <div>
+            <span className="mb-2 block text-[13px] font-semibold text-ink-1">Botones</span>
+            <FieldArrayRows
+              control={control}
+              name="linktree.links"
+              makeBlank={() => ({
+                id: crypto.randomUUID(),
+                icon: "globe" as const,
+                title: "",
+                description: "",
+                url: "",
+                isPrimary: false,
+                badge: "",
+                active: true,
+              })}
+              addLabel="Agregar botón"
+              itemNoun="botón"
+              renderRow={(index) => (
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[160px_1fr]">
+                    <Field label="Icono" htmlFor={`lt-link-icon-${index}`}>
+                      <Select id={`lt-link-icon-${index}`} {...register(`linktree.links.${index}.icon`)}>
+                        {LINKTREE_ICONS.map((name) => (
+                          <option key={name} value={name}>
+                            {LINKTREE_ICON_LABELS[name]}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field
+                      label="Título"
+                      htmlFor={`lt-link-title-${index}`}
+                      error={err(errors.linktree?.links?.[index]?.title?.message)}
+                    >
+                      <Input
+                        id={`lt-link-title-${index}`}
+                        aria-invalid={attempted && !!errors.linktree?.links?.[index]?.title}
+                        {...register(`linktree.links.${index}.title`)}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Descripción" htmlFor={`lt-link-desc-${index}`}>
+                    <Input
+                      id={`lt-link-desc-${index}`}
+                      {...register(`linktree.links.${index}.description`)}
+                    />
+                  </Field>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_160px]">
+                    <Field
+                      label="URL"
+                      htmlFor={`lt-link-url-${index}`}
+                      hint="http(s):// o mailto:"
+                      error={err(errors.linktree?.links?.[index]?.url?.message)}
+                    >
+                      <Input
+                        id={`lt-link-url-${index}`}
+                        aria-invalid={attempted && !!errors.linktree?.links?.[index]?.url}
+                        {...register(`linktree.links.${index}.url`)}
+                      />
+                    </Field>
+                    <Field label="Insignia" htmlFor={`lt-link-badge-${index}`} hint="Opcional">
+                      <Input
+                        id={`lt-link-badge-${index}`}
+                        {...register(`linktree.links.${index}.badge`)}
+                      />
+                    </Field>
+                  </div>
+                  <div className="flex flex-wrap gap-4">
+                    <Controller
+                      control={control}
+                      name={`linktree.links.${index}.isPrimary`}
+                      render={({ field }) => (
+                        <Checkbox
+                          checked={field.value}
+                          onChange={field.onChange}
+                          label="Destacado (azul)"
+                        />
+                      )}
+                    />
+                    <Controller
+                      control={control}
+                      name={`linktree.links.${index}.active`}
+                      render={({ field }) => (
+                        <Checkbox
+                          checked={field.value}
+                          onChange={field.onChange}
+                          label="Activo"
+                        />
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+            />
+          </div>
+
+          <div>
+            <span className="mb-2 block text-[13px] font-semibold text-ink-1">Redes sociales</span>
+            <div className="flex flex-col gap-3">
+              {SOCIAL_LABELS.map((label, index) => (
+                <Field
+                  key={label}
+                  label={label}
+                  htmlFor={`lt-social-${index}`}
+                  error={err(errors.linktree?.socials?.[index]?.url?.message)}
+                >
+                  <Input
+                    id={`lt-social-${index}`}
+                    aria-invalid={attempted && !!errors.linktree?.socials?.[index]?.url}
+                    {...register(`linktree.socials.${index}.url`)}
+                  />
+                </Field>
+              ))}
+            </div>
           </div>
         </div>
       </CollapsibleSection>
