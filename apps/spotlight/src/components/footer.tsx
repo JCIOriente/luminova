@@ -103,7 +103,7 @@ export function Footer() {
             <ul>
               {config.contact.links.map((link) => (
                 <li key={link.label}>
-                  <a href={safeHref(link.url)} target="_blank" rel="noreferrer">
+                  <a href={safeHref(link.url)} target="_blank" rel="noopener noreferrer">
                     {link.label}
                   </a>
                 </li>
