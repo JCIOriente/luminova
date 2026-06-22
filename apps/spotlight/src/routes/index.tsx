@@ -6,8 +6,9 @@ import { ProgramsSkeleton } from "../components/programs-skeleton";
 
 import { useSiteConfig } from "../site-config/use-site-config";
 import { currentYearsActive } from "../site-config/defaults";
-import { useAllies } from "../allies/use-allies";
-import { ALLY_CATEGORY_LABELS } from "@luminova/types/engine";
+import { fetchAllies } from "../allies/ally-showcase-firestore";
+import { useAsyncOnVisible } from "../lib/use-async-on-visible";
+import { ALLY_CATEGORY_LABELS, type AllyShowcaseItem } from "@luminova/types/engine";
 
 const LazyHomePrograms = lazy(() => import("../components/home-programs"));
 
@@ -261,26 +262,33 @@ function HomeImpact() {
 }
 
 function HomeAllies() {
-  const { data: allies, loading, error } = useAllies();
-  if (loading || error || allies.length === 0) return null;
+  const {
+    ref,
+    data: allies,
+    loading,
+    error,
+  } = useAsyncOnVisible(fetchAllies, [] as AllyShowcaseItem[], []);
+  const ready = !loading && !error && allies.length > 0;
   return (
-    <section className="section" style={{ paddingTop: 80, paddingBottom: 80 }}>
-      <div className="container">
-        <div style={{ textAlign: "center" }}>
-          <div className="t-label" style={{ color: "var(--ink-3)" }}>
-            Confían en nosotros
-          </div>
-          <div className="ally-strip" style={{ marginTop: 32 }}>
-            {allies.map((ally) => (
-              <figure key={ally.id} className="ally-card">
-                <img className="ally-logo" src={ally.logoUrl} alt={ally.name} loading="lazy" />
-                <figcaption className="ally-name">{ally.name}</figcaption>
-                <span className="ally-chip">{ALLY_CATEGORY_LABELS[ally.category]}</span>
-              </figure>
-            ))}
+    <section ref={ref} className="section" style={{ paddingTop: 80, paddingBottom: 80 }}>
+      {ready ? (
+        <div className="container">
+          <div style={{ textAlign: "center" }}>
+            <div className="t-label" style={{ color: "var(--ink-3)" }}>
+              Confían en nosotros
+            </div>
+            <div className="ally-strip" style={{ marginTop: 32 }}>
+              {allies.map((ally) => (
+                <figure key={ally.id} className="ally-card">
+                  <img className="ally-logo" src={ally.logoUrl} alt={ally.name} loading="lazy" />
+                  <figcaption className="ally-name">{ally.name}</figcaption>
+                  <span className="ally-chip">{ALLY_CATEGORY_LABELS[ally.category]}</span>
+                </figure>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }

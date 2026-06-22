@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { LogoLockup, RippleBackground, Icon } from "@luminova/ui";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { safeHref } from "../site-config/safe-href";
+import { BACKSTAGE_URL } from "../config/external-links";
 
 const SOCIAL_STYLE: React.CSSProperties = {
   width: 36,
@@ -74,6 +75,9 @@ export function Footer() {
                 <a href="/programas" onClick={(e) => go(e, "/programas")}>
                   Programas
                 </a>
+              </li>
+              <li>
+                <a href={BACKSTAGE_URL}>Portal de miembros</a>
               </li>
               <li>
                 <a href="/enlaces" onClick={(e) => go(e, "/enlaces")}>
