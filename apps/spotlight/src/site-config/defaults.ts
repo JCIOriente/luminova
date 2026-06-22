@@ -82,6 +82,13 @@ export const SITE_CONFIG_DEFAULTS: Omit<SiteConfig, "version" | "updatedAt"> = {
       { label: "JCI Americas ↗", url: "#" },
     ],
   },
+  linktree: {
+    handle: "",
+    tagline: "",
+    taglineAccent: "",
+    links: [],
+    socials: [],
+  },
 };
 
 const FOUNDING_YEAR = 1993;

@@ -3,7 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Skeleton, EmptyState, Icon, Toast } from "@luminova/ui";
 import { useSiteConfig } from "../features/site-config/hooks/use-site-config";
 import { useUpdateSiteConfig } from "../features/site-config/hooks/use-update-site-config";
-import { toSiteConfigInput } from "../features/site-config/repositories/site-config-mapper";
+import {
+  toSiteConfigInput,
+  EMPTY_LINKTREE,
+} from "../features/site-config/repositories/site-config-mapper";
 import { SiteConfigForm } from "../features/site-config/components/site-config-form";
 import { PageHeader } from "../components/page-header";
 import type { SiteConfigInput } from "@luminova/types";
@@ -30,6 +33,7 @@ const BLANK_CONFIG: SiteConfigInput = {
     meetingSchedule: "",
     links: [],
   },
+  linktree: EMPTY_LINKTREE,
 };
 
 function ConfigPage() {

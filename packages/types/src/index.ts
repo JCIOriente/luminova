@@ -49,7 +49,13 @@ export type {
   SiteReason,
   SiteLink,
   SiteContact,
+  SiteLinktree,
+  LinktreeLink,
+  LinktreeSocial,
+  LinktreeIcon,
+  LinktreeSocialPlatform,
 } from "./site-config.js";
+export { LINKTREE_ICONS, LINKTREE_SOCIAL_PLATFORMS } from "./site-config.js";
 export { siteConfigSchema, type SiteConfigInput } from "./site-config-schema.js";
 export { CEL_POSITIONS, type CelPositionSeed } from "./cel-positions.js";
 export { CEL_POSITION_TITLES } from "./cel-position-titles.js";

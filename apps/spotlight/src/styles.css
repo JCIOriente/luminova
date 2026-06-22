@@ -1385,4 +1385,34 @@
     font-size: clamp(20px, 2.4vw, 26px);
     color: var(--ink-3);
   }
+
+  /* /enlaces linktree cards */
+  .lt-link {
+    transition:
+      transform 0.3s var(--ease, cubic-bezier(0.16, 1, 0.3, 1)),
+      background 0.3s,
+      border-color 0.3s,
+      box-shadow 0.3s;
+  }
+  .lt-link:hover,
+  .lt-link:focus-visible {
+    transform: translateY(-3px);
+    border-color: rgba(0, 151, 215, 0.55);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+    outline: none;
+  }
+  .lt-link.is-primary:hover {
+    box-shadow: 0 16px 44px rgba(0, 151, 215, 0.42);
+  }
+  .lt-soc {
+    transition:
+      transform 0.3s,
+      background 0.3s,
+      color 0.3s;
+  }
+  .lt-soc:hover {
+    transform: translateY(-3px);
+    background: var(--jci-blue, #0097d7);
+    color: #fff;
+  }
 }

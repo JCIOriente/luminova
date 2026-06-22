@@ -26,6 +26,59 @@ export interface SiteLink {
   url: string;
 }
 
+export const LINKTREE_ICONS = [
+  "user",
+  "globe",
+  "folder",
+  "calendar",
+  "mail",
+  "megaphone",
+  "handshake",
+  "heart",
+  "target",
+  "compass",
+  "briefcase",
+  "spark",
+  "linkedin",
+  "whatsapp",
+  "youtube",
+] as const;
+export type LinktreeIcon = (typeof LINKTREE_ICONS)[number];
+
+export const LINKTREE_SOCIAL_PLATFORMS = [
+  "instagram",
+  "facebook",
+  "tiktok",
+  "linkedin",
+  "whatsapp",
+  "youtube",
+] as const;
+export type LinktreeSocialPlatform = (typeof LINKTREE_SOCIAL_PLATFORMS)[number];
+
+export interface LinktreeLink {
+  id: string;
+  icon: LinktreeIcon;
+  title: string;
+  description: string;
+  url: string;
+  isPrimary: boolean;
+  badge?: string;
+  active: boolean;
+}
+
+export interface LinktreeSocial {
+  platform: LinktreeSocialPlatform;
+  url: string;
+}
+
+export interface SiteLinktree {
+  handle: string;
+  tagline: string;
+  taglineAccent: string;
+  links: LinktreeLink[];
+  socials: LinktreeSocial[];
+}
+
 export interface SiteContact {
   email: string;
   location: string;
@@ -41,4 +94,5 @@ export interface SiteConfig {
   mvv: { mision: string; vision: string; valores: string };
   reasons: SiteReason[];
   contact: SiteContact;
+  linktree?: SiteLinktree;
 }
