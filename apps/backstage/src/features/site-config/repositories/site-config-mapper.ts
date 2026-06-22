@@ -26,9 +26,7 @@ function normalizeSocials(stored: SiteLinktree["socials"]): SiteLinktree["social
 function normalizeLinktree(stored: SiteLinktree | undefined): SiteLinktree {
   if (!stored) return EMPTY_LINKTREE;
   return {
-    handle: stored.handle,
-    tagline: stored.tagline,
-    taglineAccent: stored.taglineAccent,
+    ...stored,
     links: stored.links.map((link) => ({
       ...link,
       id: link.id || crypto.randomUUID(),

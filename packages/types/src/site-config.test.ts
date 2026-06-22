@@ -106,4 +106,24 @@ describe("siteConfigSchema", () => {
     delete (noLinktree as { linktree?: unknown }).linktree;
     expect(siteConfigSchema.safeParse(noLinktree).success).toBe(false);
   });
+  it("accepts an empty social url", () => {
+    const r = siteConfigSchema.safeParse({
+      ...valid,
+      linktree: {
+        ...valid.linktree,
+        socials: [{ platform: "instagram", url: "" }],
+      },
+    });
+    expect(r.success).toBe(true);
+  });
+  it("still rejects a javascript: social url", () => {
+    const r = siteConfigSchema.safeParse({
+      ...valid,
+      linktree: {
+        ...valid.linktree,
+        socials: [{ platform: "instagram", url: "javascript:alert(1)" }],
+      },
+    });
+    expect(r.success).toBe(false);
+  });
 });

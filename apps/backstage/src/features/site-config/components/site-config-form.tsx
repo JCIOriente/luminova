@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LINKTREE_ICONS, siteConfigSchema, type SiteConfigInput } from "@luminova/types";
+import {
+  LINKTREE_ICONS,
+  LINKTREE_SOCIAL_PLATFORMS,
+  siteConfigSchema,
+  type LinktreeSocialPlatform,
+  type SiteConfigInput,
+} from "@luminova/types";
 import { Button, Checkbox, Field, Icon, Input, Select, Textarea, cn } from "@luminova/ui";
 import { CollapsibleSection } from "./collapsible-section";
 import { FieldArrayRows } from "./field-array-rows";
@@ -27,7 +33,11 @@ const LINKTREE_ICON_LABELS: Record<(typeof LINKTREE_ICONS)[number], string> = {
   spark: "Destello",
 };
 
-const SOCIAL_LABELS = ["Instagram", "Facebook", "TikTok"] as const;
+const SOCIAL_LABELS: Record<LinktreeSocialPlatform, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
+  tiktok: "TikTok",
+};
 
 const stampFormatter = new Intl.DateTimeFormat("es-BO", {
   day: "numeric",
@@ -480,15 +490,15 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           <div>
             <span className="mb-2 block text-[13px] font-semibold text-ink-1">Redes sociales</span>
             <div className="flex flex-col gap-3">
-              {SOCIAL_LABELS.map((label, index) => (
+              {LINKTREE_SOCIAL_PLATFORMS.map((platform, index) => (
                 <Field
-                  key={label}
-                  label={label}
-                  htmlFor={`lt-social-${index}`}
+                  key={platform}
+                  label={SOCIAL_LABELS[platform]}
+                  htmlFor={`lt-social-${platform}`}
                   error={err(errors.linktree?.socials?.[index]?.url?.message)}
                 >
                   <Input
-                    id={`lt-social-${index}`}
+                    id={`lt-social-${platform}`}
                     aria-invalid={attempted && !!errors.linktree?.socials?.[index]?.url}
                     {...register(`linktree.socials.${index}.url`)}
                   />

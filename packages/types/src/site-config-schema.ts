@@ -9,6 +9,13 @@ const safeUrl = reqText.refine((v) => v === "#" || /^(https?:\/\/|mailto:)/i.tes
   message: "Usa una URL http(s), mailto: o «#».",
 });
 
+// Socials may be left blank (the public page simply omits an empty one), so allow "".
+const optionalSafeUrl = z
+  .string()
+  .refine((v) => v === "" || v === "#" || /^(https?:\/\/|mailto:)/i.test(v), {
+    message: "Usa una URL http(s), mailto: o «#».",
+  });
+
 const linktreeSchema = z.object({
   handle: reqText,
   tagline: reqText,
@@ -28,7 +35,7 @@ const linktreeSchema = z.object({
   socials: z.array(
     z.object({
       platform: z.enum(LINKTREE_SOCIAL_PLATFORMS),
-      url: safeUrl,
+      url: optionalSafeUrl,
     }),
   ),
 });
