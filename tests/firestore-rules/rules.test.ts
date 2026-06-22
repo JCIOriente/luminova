@@ -9,11 +9,20 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { deleteDoc, deleteField, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
+import type { Role } from "@luminova/types";
 
 let env: RulesTestEnvironment;
 
-function as(uid: string, roles: string[]) {
-  return env.authenticatedContext(uid, { roles }).firestore();
+/** Effective perms a set of built-in roles confers (mirrors the beacon resolution),
+ *  so role-based contexts exercise the perm-based rule gates. */
+function permsForRoles(roles: string[]): string[] {
+  return [...new Set(roles.flatMap((r) => BUILT_IN_ROLE_PERMS[r as Role] ?? []))];
+}
+/** Authenticated context. `perms` defaults to the built-in roles' effective set;
+ *  pass an explicit array to simulate a custom role / override grant. */
+function as(uid: string, roles: string[], perms?: string[]) {
+  return env.authenticatedContext(uid, { roles, perms: perms ?? permsForRoles(roles) }).firestore();
 }
 function anon() {
   return env.unauthenticatedContext().firestore();
@@ -1352,6 +1361,86 @@ describe("firestore.rules — member permission assignment (roleIds + overrides)
         active: true,
         deletedAt: null,
       }),
+    );
+  });
+});
+
+describe("firestore.rules — perm-based coarse gates", () => {
+  // A custom role confers no built-in role name; its power is entirely in `perms`.
+  function asCustom(uid: string, perms: string[]) {
+    return env.authenticatedContext(uid, { roles: ["Member"], perms }).firestore();
+  }
+
+  it("grants ally create to a custom role with manage:Ally and no privileged role", async () => {
+    await assertSucceeds(
+      setDoc(doc(asCustom("custom-uid", ["manage:Ally"]), "allies/a_custom"), {
+        companyName: "Nueva",
+        active: true,
+        deletedAt: null,
+      }),
+    );
+  });
+
+  it("grants member read to a custom role with read:Member", async () => {
+    await assertSucceeds(getDoc(doc(asCustom("custom-uid", ["read:Member"]), "members/m1")));
+  });
+
+  it("manage:all behaves as superuser for any subject", async () => {
+    await assertSucceeds(
+      setDoc(doc(asCustom("su-uid", ["manage:all"]), "events/e_su"), { title: "X" }),
+    );
+  });
+
+  it("denies a coarse write when the perm is absent (role present, perm not)", async () => {
+    // Member role carries no coarse perms; explicit empty perms → canDo denies.
+    await assertFails(
+      setDoc(doc(asCustom("plain-uid", []), "allies/a_denied"), {
+        companyName: "No",
+        active: true,
+        deletedAt: null,
+      }),
+    );
+  });
+
+  it("fail-closed: denies a coarse write when the perms claim is absent (pre-backfill)", async () => {
+    const ctx = env.authenticatedContext("legacy-uid", { roles: ["Membership"] }).firestore();
+    await assertFails(
+      setDoc(doc(ctx, "allies/a_legacy"), { companyName: "Legacy", active: true, deletedAt: null }),
+    );
+  });
+
+  it("reconciled: Membership (via perms) can still create + update allies", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("mem-uid", ["Membership"]), "allies/a_mem"), {
+        companyName: "Aliado",
+        active: true,
+        deletedAt: null,
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "allies/a1"), { companyName: "Editado" }),
+    );
+  });
+
+  it("reconciled: ExecutiveCommittee (via perms) can create events", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "events/e_ec"), { title: "Asamblea" }),
+    );
+  });
+
+  it("grants activity create to a custom role with manage:Activity", async () => {
+    await assertSucceeds(
+      setDoc(doc(asCustom("act-uid", ["manage:Activity"]), "activities/a_custom"), {
+        termId: "2026",
+        category: "Assembly",
+      }),
+    );
+  });
+
+  it("fail-closed: ProjectManager with absent perms claim cannot create an activity", async () => {
+    const ctx = env.authenticatedContext("legacy-pm", { roles: ["ProjectManager"] }).firestore();
+    await assertFails(
+      setDoc(doc(ctx, "activities/a_legacy"), { termId: "2026", category: "Assembly" }),
     );
   });
 });

@@ -31,12 +31,12 @@ describe("buildAbility", () => {
     expect(a.can("update", "Member")).toBe(false);
   });
 
-  it("ExecutiveCommittee is read-only across the board", () => {
+  it("ExecutiveCommittee reads broadly and writes events (reconciled with rules)", () => {
     const a = ability({ roles: ["ExecutiveCommittee"] });
     expect(a.can("read", "Member")).toBe(true);
     expect(a.can("read", "Project")).toBe(true);
     expect(a.can("update", "Member")).toBe(false);
-    expect(a.can("create", "Event")).toBe(false);
+    expect(a.can("create", "Event")).toBe(true);
   });
 
   it("ProjectManager manages programs/projects and reads allies/events", () => {
@@ -152,11 +152,12 @@ describe("buildAbility", () => {
     expect(a.can("read", "Ally")).toBe(false);
   });
 
-  it("ExecutiveCommittee fallback is read-only across the board + manages Position", () => {
+  it("ExecutiveCommittee fallback reads broadly, manages Position, writes Events", () => {
     const a = ability({ roles: ["ExecutiveCommittee"] });
     for (const s of ["Member", "Ally", "Event", "MemberPoints", "Program", "Project"] as const)
       expect(a.can("read", s)).toBe(true);
     expect(a.can("manage", "Position")).toBe(true);
+    expect(a.can("create", "Event")).toBe(true); // reconciled with firestore.rules
     expect(a.can("update", "Member")).toBe(false);
     expect(a.can("manage", "Payment")).toBe(false);
   });
@@ -167,6 +168,7 @@ describe("buildAbility", () => {
       expect(a.can("manage", s)).toBe(true);
     expect(a.can("read", "Ally")).toBe(true);
     expect(a.can("read", "Event")).toBe(true);
+    expect(a.can("create", "Event")).toBe(true); // reconciled with firestore.rules
     expect(a.can("checkIn", "Attendance")).toBe(true);
     expect(a.can("manage", "Member")).toBe(false);
   });
