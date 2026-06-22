@@ -12,6 +12,21 @@ service cloud.firestore {
     function hasAnyRole(rs) {
       return signedIn() && roles().hasAny(rs);
     }
+    // Resolved coarse permission set (beacon-minted). `.get(...,[])` so a pre-backfill
+    // token without the claim reads as empty (deny) rather than erroring.
+    function perms() {
+      return request.auth.token.get('perms', []);
+    }
+    function hasPerm(p) {
+      return signedIn() && perms().hasAny([p]);
+    }
+    // Coarse CRUD gate: manage:all (Admin) covers everything; manage:<subject>
+    // covers all actions on that subject; else the exact action:subject code.
+    function canDo(action, subject) {
+      return hasPerm('manage:all')
+        || hasPerm('manage:' + subject)
+        || hasPerm(action + ':' + subject);
+    }
     function unchanged(field) {
       // .get(...) so an ABSENT field (e.g. uid on an un-invited member) compares as
       // null instead of throwing "Property is undefined" — which denied every update
@@ -135,8 +150,8 @@ service cloud.firestore {
         || request.resource.data.finalReport.get('filedBy', '') == request.auth.uid;
     }
 
-    function initiativeCreateAllowed() {
-      return hasAnyRole(['Admin', 'ProjectManager'])
+    function initiativeCreateAllowed(subject) {
+      return canDo('create', subject)
         && request.resource.data.get('directionUids', []) == []
         && request.resource.data.get('finalReport', null) == null
         && request.resource.data.get('impact', null) == null
@@ -156,8 +171,8 @@ service cloud.firestore {
       return hasAnyRole(['Admin', 'ProjectManager'])
         || request.resource.data.get('featured', false) == resource.data.get('featured', false);
     }
-    function initiativeUpdateAllowed() {
-      return (hasAnyRole(['Admin', 'ProjectManager']) || isDirection())
+    function initiativeUpdateAllowed(subject) {
+      return (canDo('update', subject) || isDirection())
         && initiativeWriteSafe()
         && finalizedRequiresReport()
         && reportFiledBySelf()
@@ -168,8 +183,8 @@ service cloud.firestore {
       // D1 added member-id rosters to projects; restrict to signed-in (was public).
       // C4's Spotlight projection will expose curated public fields, not raw docs.
       allow read: if signedIn();
-      allow create: if initiativeCreateAllowed();
-      allow update: if initiativeUpdateAllowed();
+      allow create: if initiativeCreateAllowed('Project');
+      allow update: if initiativeUpdateAllowed('Project');
       allow delete: if false;
     }
 
@@ -180,14 +195,14 @@ service cloud.firestore {
     }
 
     match /members/{memberId} {
-      allow read: if hasAnyRole(['Admin', 'Membership', 'Treasury', 'ExecutiveCommittee'])
+      allow read: if canDo('read', 'Member')
         || (signedIn() && resource.data.uid == request.auth.uid);
-      allow create: if hasAnyRole(['Admin', 'Membership'])
+      allow create: if canDo('create', 'Member')
         && request.resource.data.totalPoints == 0
         && !('uid' in request.resource.data)
         && createPermissionAssignmentSafe()
         && createPositionsSafe();
-      allow update: if hasAnyRole(['Admin', 'Membership'])
+      allow update: if canDo('update', 'Member')
         && unchanged('totalPoints')
         && unchanged('uid')
         && updatePermissionAssignmentSafe()
@@ -212,10 +227,12 @@ service cloud.firestore {
     // else ExecutiveCommittee could mint an Admin-granting cargo for itself.
     match /positions/{positionId} {
       allow read: if signedIn();
-      allow create: if hasAnyRole(['Admin'])
-        || (hasAnyRole(['ExecutiveCommittee']) && request.resource.data.grants == []);
-      allow update: if (hasAnyRole(['Admin'])
-          || (hasAnyRole(['ExecutiveCommittee']) && unchanged('grants')))
+      // Authorization is perm-based; the power-grant authority (who may confer
+      // non-empty grants → claims) stays Admin-role-only, as before.
+      allow create: if canDo('create', 'Position')
+        && (hasAnyRole(['Admin']) || request.resource.data.grants == []);
+      allow update: if canDo('update', 'Position')
+        && (hasAnyRole(['Admin']) || unchanged('grants'))
         && softDeleteSafe();
       allow delete: if false;
     }
@@ -252,21 +269,23 @@ service cloud.firestore {
     }
 
     match /allies/{allyId} {
-      allow read: if hasAnyRole(['Admin', 'Membership', 'ProjectManager', 'ExecutiveCommittee']);
-      allow create: if hasAnyRole(['Admin', 'Membership']);
-      allow update: if hasAnyRole(['Admin', 'Membership']) && softDeleteSafe();
+      allow read: if canDo('read', 'Ally');
+      allow create: if canDo('create', 'Ally');
+      allow update: if canDo('update', 'Ally') && softDeleteSafe();
       allow delete: if false;
     }
 
     match /events/{eventId} {
       allow read: if signedIn();
-      allow create, update: if hasAnyRole(['Admin', 'ExecutiveCommittee', 'ProjectManager']);
+      allow create: if canDo('create', 'Event');
+      allow update: if canDo('update', 'Event');
       allow delete: if false;
     }
 
     match /pointRules/{ruleId} {
       allow read: if signedIn();
-      allow create, update: if hasAnyRole(['Admin']);
+      allow create: if canDo('create', 'PointRule');
+      allow update: if canDo('update', 'PointRule');
       allow delete: if false;
     }
 
@@ -290,15 +309,15 @@ service cloud.firestore {
 
     match /activities/{activityId} {
       allow read: if signedIn();
-      allow create: if hasAnyRole(['Admin', 'ProjectManager']);
-      allow update: if hasAnyRole(['Admin', 'ProjectManager']) || activityParentDirection();
+      allow create: if canDo('create', 'Activity');
+      allow update: if canDo('update', 'Activity') || activityParentDirection();
       allow delete: if false;
     }
 
     match /programs/{programId} {
       allow read: if signedIn();
-      allow create: if initiativeCreateAllowed();
-      allow update: if initiativeUpdateAllowed();
+      allow create: if initiativeCreateAllowed('Program');
+      allow update: if initiativeUpdateAllowed('Program');
       allow delete: if false;
     }
 
@@ -333,12 +352,12 @@ service cloud.firestore {
 
     match /checkIns/{checkInId} {
       allow read: if signedIn();
-      // Admin/ProjectManager may register any role; a Scanner may only register
-      // attendance for its assigned activities (never director/team — that would
-      // self-award high-value points). All creators are bound to the activity's
-      // check-in window (its Bolivia day; parent not Finalizado; not Cancelada).
+      // checkIn:Attendance holders (Admin/PM, or a custom role) may register any
+      // role; a Scanner may only register attendance for its assigned activities
+      // (never director/team — that would self-award high-value points). All
+      // creators are bound to the activity's check-in window.
       allow create: if withinCheckInWindow(request.resource.data.activityId)
-        && (hasAnyRole(['Admin', 'ProjectManager'])
+        && (canDo('checkIn', 'Attendance')
           || (hasAnyRole(['Scanner'])
               && request.resource.data.role == 'Attendee'
               && request.resource.data.activityId in request.auth.token.scannerEventIds

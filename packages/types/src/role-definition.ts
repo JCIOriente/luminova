@@ -29,12 +29,22 @@ export interface RoleDefinition {
  *  here and re-seed. */
 export const BUILT_IN_ROLE_PERMS: Record<Role, PermissionCode[]> = {
   Admin: ["manage:all"],
-  Membership: ["manage:Member", "read:Ally", "read:Event", "read:MemberPoints", "read:Position"],
+  Membership: [
+    "manage:Member",
+    "read:Ally",
+    "create:Ally",
+    "update:Ally",
+    "read:Event",
+    "read:MemberPoints",
+    "read:Position",
+  ],
   Treasury: ["manage:Payment", "read:Member", "read:MemberPoints"],
   ExecutiveCommittee: [
     "read:Member",
     "read:Ally",
     "read:Event",
+    "create:Event",
+    "update:Event",
     "read:MemberPoints",
     "read:Program",
     "read:Project",
@@ -46,6 +56,8 @@ export const BUILT_IN_ROLE_PERMS: Record<Role, PermissionCode[]> = {
     "manage:Program",
     "read:Ally",
     "read:Event",
+    "create:Event",
+    "update:Event",
     "checkIn:Attendance",
   ],
   Scanner: [],
