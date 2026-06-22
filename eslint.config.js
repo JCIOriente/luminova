@@ -58,8 +58,7 @@ export default tseslint.config(
           paths: [
             {
               name: "@luminova/firebase",
-              message:
-                "Spotlight is public/lite-only. Import from '@luminova/firebase/lite'.",
+              message: "Spotlight is public/lite-only. Import from '@luminova/firebase/lite'.",
             },
           ],
         },
