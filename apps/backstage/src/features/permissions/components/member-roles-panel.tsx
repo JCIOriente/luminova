@@ -37,7 +37,9 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
   const [roleIds, setRoleIdsState] = useState<string[]>(member.roleIds ?? []);
   // Drop any stray :all / :Role override codes the matrix can't represent, so an
   // edit-and-save can't silently re-persist an unassignable code.
-  const [grant, setGrantState] = useState<string[]>(assignableOnly(member.permissionOverrides?.grant));
+  const [grant, setGrantState] = useState<string[]>(
+    assignableOnly(member.permissionOverrides?.grant),
+  );
   const [revoke, setRevokeState] = useState<string[]>(
     assignableOnly(member.permissionOverrides?.revoke),
   );
@@ -109,12 +111,22 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
 
       <label className="flex flex-col gap-1.5">
         <span className="text-[13px] font-medium text-ink-2">Permisos adicionales (otorgar)</span>
-        <MultiSelect options={CODE_OPTIONS} value={grant} onChange={setGrant} placeholder="Ninguno" />
+        <MultiSelect
+          options={CODE_OPTIONS}
+          value={grant}
+          onChange={setGrant}
+          placeholder="Ninguno"
+        />
       </label>
 
       <label className="flex flex-col gap-1.5">
         <span className="text-[13px] font-medium text-ink-2">Permisos revocados</span>
-        <MultiSelect options={CODE_OPTIONS} value={revoke} onChange={setRevoke} placeholder="Ninguno" />
+        <MultiSelect
+          options={CODE_OPTIONS}
+          value={revoke}
+          onChange={setRevoke}
+          placeholder="Ninguno"
+        />
       </label>
 
       <div className="flex flex-col gap-2 border-t border-line pt-3">

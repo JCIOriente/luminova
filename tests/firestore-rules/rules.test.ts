@@ -1288,7 +1288,9 @@ describe("firestore.rules — roles collection", () => {
   });
   it("denies changing a role's identity fields (builtInKey)", async () => {
     await assertFails(
-      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/custom_existing"), { builtInKey: "Treasury" }),
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/custom_existing"), {
+        builtInKey: "Treasury",
+      }),
     );
   });
   it("denies deactivating a built-in role (would restore seed perms via the trigger)", async () => {

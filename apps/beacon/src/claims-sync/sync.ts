@@ -16,7 +16,9 @@ export interface ClaimsSyncDeps extends RolePermsDeps {
   /** The assigner's current claim roles (for the power-grant trust gate). */
   getUserRoles(uid: string): Promise<Role[]>;
   /** The target member's existing custom claims. */
-  getExistingClaims(uid: string): Promise<{ roles: Role[]; perms?: PermissionCode[]; scannerEventIds?: string[] }>;
+  getExistingClaims(
+    uid: string,
+  ): Promise<{ roles: Role[]; perms?: PermissionCode[]; scannerEventIds?: string[] }>;
   setClaims(uid: string, claims: MemberClaims): Promise<void>;
   /** Structured error sink (defaults to console.error in the Firestore impl). */
   logError?(message: string, meta: Record<string, unknown>): void;

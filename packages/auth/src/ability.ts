@@ -1,5 +1,10 @@
 import { AbilityBuilder, createMongoAbility, subject, type MongoAbility } from "@casl/ability";
-import { BUILT_IN_ROLE_PERMS, type Action, type Subject, type PermissionCode } from "@luminova/types";
+import {
+  BUILT_IN_ROLE_PERMS,
+  type Action,
+  type Subject,
+  type PermissionCode,
+} from "@luminova/types";
 import type { AuthClaims, Role } from "./roles.js";
 
 export { subject };

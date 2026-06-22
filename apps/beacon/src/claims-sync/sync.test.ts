@@ -60,7 +60,12 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "membership-uid" } } },
+      {
+        uid: "target-uid",
+        positions: {
+          "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "membership-uid" },
+        },
+      },
       "2026",
     );
     expect(writes["target-uid"]).toBeUndefined(); // already ['Member'] + [] perms → no-op
@@ -74,7 +79,10 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } } },
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } },
+      },
       "2026",
     );
     expect(writes["target-uid"]).toEqual({
@@ -105,7 +113,10 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: { "2026": { cargoId: "pos-tes", comisionIds: [], assignedBy: "admin-uid" } } },
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-tes", comisionIds: [], assignedBy: "admin-uid" } },
+      },
       "2026",
     );
     expect(writes["target-uid"]).toEqual({
@@ -117,7 +128,11 @@ describe("syncMemberClaims", () => {
 
   it("no-ops when member has no uid (not provisioned)", async () => {
     const { deps, writes } = fakeDeps({ positions: {}, userRoles: {}, existing: {} });
-    await syncMemberClaims(deps, { positions: { "2026": { cargoId: "x", comisionIds: [] } } }, "2026");
+    await syncMemberClaims(
+      deps,
+      { positions: { "2026": { cargoId: "x", comisionIds: [] } } },
+      "2026",
+    );
     expect(writes).toEqual({});
   });
 
@@ -129,7 +144,10 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: { "2026": { cargoId: null, comisionIds: [], assignedBy: "admin-uid" } } },
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: null, comisionIds: [], assignedBy: "admin-uid" } },
+      },
       "2026",
     );
     expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: [] });
@@ -146,7 +164,12 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: { "2026": { cargoId: "pos-tes", comisionIds: ["com-y"], assignedBy: "admin-uid" } } },
+      {
+        uid: "target-uid",
+        positions: {
+          "2026": { cargoId: "pos-tes", comisionIds: ["com-y"], assignedBy: "admin-uid" },
+        },
+      },
       "2026",
     );
     const roles: Role[] = ["Membership", "Treasury", "ExecutiveCommittee", "Member"];
@@ -162,10 +185,18 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: {}, roleIds: ["role-x"], permissionOverrides: { grant: [], revoke: [] } },
+      {
+        uid: "target-uid",
+        positions: {},
+        roleIds: ["role-x"],
+        permissionOverrides: { grant: [], revoke: [] },
+      },
       "2026",
     );
-    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: ["manage:Ally", "read:Event"] });
+    expect(writes["target-uid"]).toEqual({
+      roles: ["Member"],
+      perms: ["manage:Ally", "read:Event"],
+    });
   });
 
   it("applies per-member overrides (grant adds, revoke removes)", async () => {
@@ -202,7 +233,10 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: { "2026": { cargoId: "pos-tes", comisionIds: [], assignedBy: "admin-uid" } } },
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-tes", comisionIds: [], assignedBy: "admin-uid" } },
+      },
       "2026",
     );
     // Live Treasury doc was edited down to just read:Member (not the seed default).
@@ -221,7 +255,12 @@ describe("syncMemberClaims", () => {
     });
     await syncMemberClaims(
       deps,
-      { uid: "target-uid", positions: {}, roleIds: ["big"], permissionOverrides: { grant: [], revoke: [] } },
+      {
+        uid: "target-uid",
+        positions: {},
+        roleIds: ["big"],
+        permissionOverrides: { grant: [], revoke: [] },
+      },
       "2026",
     );
     expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: [] });
@@ -245,7 +284,10 @@ describe("syncMemberClaims", () => {
     await expect(
       syncMemberClaims(
         deps,
-        { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } } },
+        {
+          uid: "target-uid",
+          positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } },
+        },
         "2026",
       ),
     ).rejects.toThrow("auth lookup failed");

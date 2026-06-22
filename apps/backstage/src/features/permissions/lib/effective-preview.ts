@@ -1,5 +1,10 @@
 import { resolveEffectivePerms } from "@luminova/auth/perms";
-import { BUILT_IN_ROLE_PERMS, type PermissionCode, type Role, type RoleDefinition } from "@luminova/types";
+import {
+  BUILT_IN_ROLE_PERMS,
+  type PermissionCode,
+  type Role,
+  type RoleDefinition,
+} from "@luminova/types";
 
 /** Client-side mirror of the beacon resolution for the member-assignment preview:
  *  effective perms = built-in roles (held via positions) ∪ selected custom roles ∪
