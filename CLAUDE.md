@@ -171,8 +171,10 @@ Skills are stage-specific. Don't invoke them all at once — map each to its pha
    → frontend-design first   → aesthetic vision, layout, palette direction
    → ui-ux-pro-max  second   → validate palette, typography, a11y, contrast
 
-4. ISOLATE WORKSPACE (optional — for risky/long features)
+4. ISOLATE WORKSPACE (MANDATORY — every feature/fix, no exceptions)
    → superpowers:using-git-worktrees
+   All work runs in a `.worktrees/<slug>` worktree off `main`. Never edit in the
+   primary checkout. See the "Worktree-first" rule under Cross-Cutting Discipline.
 
 5. ADD DEPENDENCIES
    → secure-dep-vetting (auto on package.json edit)
@@ -284,6 +286,7 @@ None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops g
   - [ ] /security-review run (if triggers match)
   ```
   Run `pnpm pr-tests` locally right after opening.
+- **Worktree-first (MANDATORY).** Every feature/fix runs in its own git worktree — not optional, no exceptions. Create it **before** the first edit: `git worktree add .worktrees/<slug> -b <branch> main` (worktrees live in `.worktrees/`, which is gitignored and excluded from prettier/knip). Never edit, build, or run tests in the primary checkout. Tooling/config-only changes count too. Remove the worktree after the PR merges (`git worktree remove .worktrees/<slug>`).
 - **Branch per feature.** Every feature/fix gets its own branch off `main`, created **before** the first edit — never commit feature work directly to `main`/`master`. Branches `feat/ fix/ chore/ migration/` (e.g. `feat/shared-ui-components`); open a PR to integrate. Commits = Conventional Commits with module scope (`feat(backstage): …`). `master` always deployable.
 - **Codegen-drift gate.** Any artifact generated on one boundary and consumed on another (e.g. `@luminova/types` shared schemas, generated Firestore types) gets a CI check that regenerates and fails on diff.
 - **Docs layout.** `docs/specs/` (designs), `docs/plans/` (impl plans), `docs/status/` (handoffs), `docs/tooling/skill-development-log.md` (skill history).

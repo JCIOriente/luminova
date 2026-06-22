@@ -1,6 +1,6 @@
 import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
-export function callerRoles(request: CallableRequest): string[] {
+function callerRoles(request: CallableRequest): string[] {
   const token = request.auth?.token as { roles?: unknown } | undefined;
   return Array.isArray(token?.roles)
     ? (token.roles as unknown[]).filter((role): role is string => typeof role === "string")
