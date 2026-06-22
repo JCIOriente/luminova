@@ -63,3 +63,15 @@ export const BUILT_IN_ROLE_PERMS: Record<Role, PermissionCode[]> = {
   Scanner: [],
   Member: [],
 };
+
+/** Spanish display labels for the built-in roles — used when seeding the role docs
+ *  (the `name` field). Custom roles carry their own admin-entered name. */
+export const ROLE_LABELS: Record<Role, string> = {
+  Admin: "Administrador",
+  Membership: "Membresía",
+  Treasury: "Tesorería",
+  ExecutiveCommittee: "Comité Ejecutivo",
+  ProjectManager: "Director de Proyecto",
+  Scanner: "Escáner",
+  Member: "Miembro",
+};
