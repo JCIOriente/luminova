@@ -25,16 +25,6 @@ if (process.env.FIREBASE_AUTH_EMULATOR_HOST || process.env.FIRESTORE_EMULATOR_HO
   process.exit(1);
 }
 
-// This seed prompts interactively (by design — see the brainstorm). A non-TTY
-// stdin (CI, pipe) would hang on the first prompt, so fail fast with a message.
-if (!process.stdin.isTTY) {
-  console.error(
-    "Refusing to run: stdin is not a TTY. This seed prompts for the president's " +
-      "details — run it from an interactive terminal.",
-  );
-  process.exit(1);
-}
-
 const projectId = process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GCLOUD_PROJECT ?? "jci-oriente";
 // Mirror of currentTermKey() in packages/types/src/position.ts (UTC year).
 const TERM = String(new Date().getUTCFullYear());
@@ -167,12 +157,10 @@ async function seedBuiltInRoles(db) {
 // denied coarse access until their next member write.
 async function backfillMemberClaims(db) {
   const snap = await db.collection("members").get();
-  let touched = 0;
   for (const doc of snap.docs) {
     await doc.ref.set({ claimsSyncedAt: Timestamp.now() }, { merge: true });
-    touched += 1;
   }
-  return touched;
+  return snap.size;
 }
 
 async function main() {
@@ -185,7 +173,10 @@ async function main() {
   // backfilled. New orgs: members don't exist yet, so backfill is a no-op and the
   // president created below mints its own claims via onMemberWritten.
   const rolesCreated = await seedBuiltInRoles(db);
-  console.log(`✓ built-in roles: ${rolesCreated} created, ${7 - rolesCreated} already existed.`);
+  const roleTotal = Object.keys(BUILT_IN_ROLE_PERMS).length;
+  console.log(
+    `✓ built-in roles: ${rolesCreated} created, ${roleTotal - rolesCreated} already existed.`,
+  );
   const touched = await backfillMemberClaims(db);
   console.log(
     `✓ ${touched} member(s) touched — onMemberWritten will re-mint roles + perms (~1-2 min).`,
@@ -203,14 +194,30 @@ async function main() {
     process.exit(0);
   }
 
+  // Only the FIRST-RUN president bootstrap below prompts interactively, so the TTY
+  // requirement is enforced here — not at module load. This lets the idempotent
+  // roles-seed + perms-backfill above run headlessly (e.g. for an already-bootstrapped
+  // org) while a non-TTY first run still fails fast before any prompt would hang.
+  if (!process.stdin.isTTY) {
+    console.error(
+      "Refusing to run the first-time president bootstrap: stdin is not a TTY. " +
+        "Run it from an interactive terminal.",
+    );
+    rl.close();
+    process.exit(1);
+  }
+
   // Seed siteConfig/current with default org facts (idempotent — safe to re-run).
   // Content is shared with the emulator seed; allies stored as string[] (the backstage
   // mapper inflates them to {nombre} row objects).
-  await db.doc("siteConfig/current").set({
-    version: 1,
-    updatedAt: Timestamp.now(),
-    ...SITE_CONFIG_CONTENT,
-  });
+  await db.doc("siteConfig/current").set(
+    {
+      version: 1,
+      updatedAt: Timestamp.now(),
+      ...SITE_CONFIG_CONTENT,
+    },
+    { merge: true },
+  );
   console.log("✓ siteConfig/current seeded.");
 
   console.log(`Seeding the initial president for project ${projectId} (term ${TERM}).\n`);
