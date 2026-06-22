@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  toSiteConfigDoc,
-  toSiteConfigInput,
-  EMPTY_LINKTREE,
-} from "./site-config-mapper";
+import { toSiteConfigDoc, toSiteConfigInput, EMPTY_LINKTREE } from "./site-config-mapper";
 import type { SiteConfig, LinktreeLink } from "@luminova/types";
 
 const linktree = {
@@ -79,9 +75,7 @@ describe("site-config mapper", () => {
     expect(toSiteConfigInput(docFrom({})).linktree).toEqual(EMPTY_LINKTREE);
   });
   it("normalizes socials to the three platforms in order", () => {
-    const result = toSiteConfigInput(
-      docFrom({ linktree: { ...linktree, socials: [] } }),
-    );
+    const result = toSiteConfigInput(docFrom({ linktree: { ...linktree, socials: [] } }));
     expect(result.linktree.socials.map((s) => s.platform)).toEqual([
       "instagram",
       "facebook",
@@ -90,9 +84,7 @@ describe("site-config mapper", () => {
   });
   it("generates an id for a link missing one", () => {
     const noId = { ...linktree.links[0], id: "" } as LinktreeLink;
-    const result = toSiteConfigInput(
-      docFrom({ linktree: { ...linktree, links: [noId] } }),
-    );
+    const result = toSiteConfigInput(docFrom({ linktree: { ...linktree, links: [noId] } }));
     expect(result.linktree.links[0]!.id).not.toBe("");
   });
 });

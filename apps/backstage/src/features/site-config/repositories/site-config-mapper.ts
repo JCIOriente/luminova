@@ -16,9 +16,7 @@ export const EMPTY_LINKTREE: SiteLinktree = {
 
 // Force socials to exactly the three platforms, in canonical order, so the
 // fixed form rows always have a value to bind regardless of stored shape.
-function normalizeSocials(
-  stored: SiteLinktree["socials"],
-): SiteLinktree["socials"] {
+function normalizeSocials(stored: SiteLinktree["socials"]): SiteLinktree["socials"] {
   return LINKTREE_SOCIAL_PLATFORMS.map((platform) => ({
     platform,
     url: stored.find((s) => s.platform === platform)?.url ?? "",

@@ -403,7 +403,10 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                 <div className="flex flex-col gap-3">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-[160px_1fr]">
                     <Field label="Icono" htmlFor={`lt-link-icon-${index}`}>
-                      <Select id={`lt-link-icon-${index}`} {...register(`linktree.links.${index}.icon`)}>
+                      <Select
+                        id={`lt-link-icon-${index}`}
+                        {...register(`linktree.links.${index}.icon`)}
+                      >
                         {LINKTREE_ICONS.map((name) => (
                           <option key={name} value={name}>
                             {LINKTREE_ICON_LABELS[name]}
@@ -465,11 +468,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                       control={control}
                       name={`linktree.links.${index}.active`}
                       render={({ field }) => (
-                        <Checkbox
-                          checked={field.value}
-                          onChange={field.onChange}
-                          label="Activo"
-                        />
+                        <Checkbox checked={field.value} onChange={field.onChange} label="Activo" />
                       )}
                     />
                   </div>
