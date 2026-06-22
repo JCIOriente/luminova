@@ -20,7 +20,8 @@ import {
 import type { ShowcasePerson } from "@luminova/types/engine";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
-import { parseMember } from "./claims-sync/parse-member.js";
+import { parseMember, MEMBER_SYNC_FIELDS } from "./claims-sync/parse-member.js";
+import { currentTermKey } from "./runtime.js";
 
 // Initialize the default app once at module load. Doing this lazily inside the
 // handler races the functions runtime's admin stub (getApps() can report a stub
@@ -182,11 +183,6 @@ export const onActivityWritten = onDocumentWritten("activities/{id}", async (eve
   );
 });
 
-// Inlined (mirrors @luminova/types currentTermKey) to keep the zod-laden types barrel out of this bundle path. UTC year — see docs/status/2026-06-11-k4-trigger-e2e.md.
-function currentTermKey(): string {
-  return String(new Date().getUTCFullYear());
-}
-
 export const onMemberWritten = onDocumentWritten("members/{id}", async (event) => {
   const after = event.data?.after;
   if (!after?.exists) return; // deletes leave the Auth user untouched
@@ -195,5 +191,41 @@ export const onMemberWritten = onDocumentWritten("members/{id}", async (event) =
   await syncMemberClaims(firestoreClaimsDeps(db(), getAuth()), member, currentTermKey());
 });
 
+// A role's permission set changed → re-sync the custom claims of every member who
+// holds it. Custom role: members whose roleIds array-contains the id. Built-in
+// role: all provisioned members (rare, admin-only edit). Idempotent per member.
+// Per-member try/catch isolates a single Auth failure so it can't re-trigger the
+// whole fan-out (retry storm); longer timeout + projection bound the scan.
+export const onRoleWritten = onDocumentWritten(
+  { document: "roles/{id}", timeoutSeconds: 540, memory: "512MiB" },
+  async (event) => {
+    const after = event.data?.after;
+    const before = event.data?.before;
+    const data = after?.exists ? after.data() : before?.data();
+    if (!data) return;
+    const database = db();
+    const deps = firestoreClaimsDeps(database, getAuth());
+    // event.time is stable across retries (unlike now()) — avoids a year-boundary
+    // retry resolving positions under a different term key.
+    const termKey = String(new Date(event.time).getUTCFullYear());
+    const builtInKey = typeof data.builtInKey === "string" ? data.builtInKey : null;
+    const members = database.collection("members").select(...MEMBER_SYNC_FIELDS);
+    const query = builtInKey
+      ? members
+      : members.where("roleIds", "array-contains", event.params.id);
+    const { docs } = await query.get();
+    for (const doc of docs) {
+      const member = parseMember(doc.data());
+      if (!member.uid) continue;
+      try {
+        await syncMemberClaims(deps, member, termKey);
+      } catch (err) {
+        console.error("onRoleWritten member re-sync failed", { memberId: doc.id, err });
+      }
+    }
+  },
+);
+
 export { setUserRoles } from "./set-user-roles.js";
+export { seedRoles, recomputeAllClaims } from "./recompute-claims.js";
 export { provisionMemberLogin } from "./provision-member-login.js";
