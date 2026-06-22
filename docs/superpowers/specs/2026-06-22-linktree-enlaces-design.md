@@ -34,10 +34,14 @@ backstage /config  ──writes──▶  siteConfig/current.linktree   (world-r
 spotlight /enlaces  ◀──reads───────────────┘   (TanStack Query banned in spotlight)
 ```
 
-`siteConfig/current` is already world-read + Admin-write (`firestore.rules`
-lines ~331–334) and is read directly by spotlight via `getFirestoreLite()` —
-**no Cloud Function projection and no rules edit are required.** The linktree
-section rides the existing read/write path.
+`siteConfig/current` is already world-read + Admin-write (`firestore.rules:401`,
+`allow write: if hasAnyRole(['Admin'])`) and is read directly by spotlight via
+`getFirestoreLite()` — **no Cloud Function projection and no rules edit are
+required.** The linktree section rides the existing read/write path. (The newer
+`perms`-claim model — `hasPerm`/`manage:*` — has landed in the rules but does
+**not** gate `siteConfig`, which stays Admin-only; linktree inherits that. If a
+later track migrates `siteConfig` to a perm gate, linktree rides along
+unchanged since it is the same doc.)
 
 ## Data model — extend `SiteConfig`
 
@@ -107,10 +111,22 @@ linktree: z.object({
 }).optional(),
 ```
 
-**Open flag — `safeUrl` + `mailto:`.** The design has `mailto:jci.orienteolm@gmail.com`.
-Verify the existing `safeUrl` validator allows `mailto:` (and ideally `tel:`);
-widen the allowlist if it only permits `http(s):`. Must keep blocking
-`javascript:`.
+**Confirmed change — widen `safeUrl` for `mailto:`.** The current validator
+(`site-config-schema.ts:6`) is
+`reqText.refine((v) => v === "#" || /^https?:\/\//i.test(v))` — it rejects
+`mailto:`, so the design's `mailto:jci.orienteolm@gmail.com` link would fail
+validation. Widen the scheme test to `/^(https?:\/\/|mailto:)/i` (still blocks
+`javascript:` and every other scheme). This is a shared validator, so it also
+relaxes `contact.links` to permit mailto — acceptable (mailto is not an
+injection vector). Mirror the same allowance in the spotlight runtime
+neutralizer (see below).
+
+**Spotlight runtime neutralizer.** Firestore is read directly on the public
+site, so admin-authored hrefs are re-checked at render, independent of the Zod
+schema. `footer.tsx:7` already has `safeHref` (`/^https?:\/\//i || "#"`). The
+`/enlaces` route needs the same guard, widened to also allow `mailto:`. Extract
+a shared `safeHref` helper (allows `http(s):` + `mailto:`, else `#`) and reuse
+it in both `footer.tsx` and `enlaces.tsx` rather than duplicating.
 
 ## Backstage editor
 
@@ -151,13 +167,19 @@ widen the allowlist if it only permits `http(s):`. Must keep blocking
   (sensible JCI links) so the page renders before/without backstage data.
 - `apps/spotlight/src/components/footer.tsx` — add an `<li>` "Enlaces" →
   `/enlaces` to the "Sitio" column (after Programas), using the existing `go()`
-  navigate handler.
+  navigate handler. Replace its local `safeHref` with the shared helper.
+- `apps/spotlight/src/site-config/safe-href.ts` (new) — shared runtime href
+  neutralizer (`http(s):` + `mailto:`, else `#`), consumed by `footer.tsx` and
+  `enlaces.tsx`.
 
 ## Testing (TDD)
 
 - **Types/schema** — `linktree` schema accepts a valid doc; rejects a
   `javascript:` url; rejects an icon outside `LINKTREE_ICONS`; `mailto:` url
-  accepted.
+  accepted; (regression) the widened `safeUrl` still rejects `javascript:` for
+  `contact.links` too.
+- **safe-href helper** — passes through `https:`/`mailto:`, returns `#` for
+  `javascript:` and other schemes.
 - **Backstage mapper** — `toSiteConfigDoc(toSiteConfigInput(doc))` round-trips
   `linktree` (links order, flags, ids preserved); blank id gets generated.
 - **Spotlight route** — renders only `active === true` links; `isPrimary` gets
