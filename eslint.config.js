@@ -45,4 +45,24 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // Spotlight is the public, no-auth site. It must only touch Firestore via the
+    // lite SDK; importing the @luminova/firebase barrel pulls the full firebase
+    // SDK (auth/storage/functions/app-check) into the public bundle. Steer to the
+    // /lite subpath, which only carries firebase/app + firebase/firestore/lite.
+    files: ["apps/spotlight/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@luminova/firebase",
+              message: "Spotlight is public/lite-only. Import from '@luminova/firebase/lite'.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

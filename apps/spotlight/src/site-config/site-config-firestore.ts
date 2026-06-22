@@ -1,5 +1,5 @@
 import { doc, getDoc } from "firebase/firestore/lite";
-import { getFirestoreLite } from "@luminova/firebase";
+import { getFirestoreLite } from "@luminova/firebase/lite";
 import type { SiteConfig } from "@luminova/types";
 
 export async function fetchSiteConfig(): Promise<SiteConfig | null> {
