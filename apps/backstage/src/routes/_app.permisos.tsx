@@ -5,6 +5,7 @@ import { usePositions } from "../features/positions/hooks/use-positions";
 import { useMembers } from "../features/members/hooks/use-members";
 import { buildPermissionsOverview } from "../features/positions/lib/permissions-overview";
 import { PermisosView } from "../features/positions/components/permisos-view";
+import { RoleManager } from "../features/permissions/components/role-manager";
 import { PageHeader } from "../components/page-header";
 import { useAbility } from "../lib/authz/ability-context";
 
@@ -50,6 +51,7 @@ function PermisosPage() {
         Refleja los cargos del catálogo. Los permisos efectivos de cada miembro se sincronizan al
         iniciar sesión.
       </p>
+      <RoleManager />
     </div>
   );
 }
