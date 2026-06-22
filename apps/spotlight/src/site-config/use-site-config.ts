@@ -39,6 +39,7 @@ function revalidateOnce(): Promise<Resolved | null> {
         mvv: fresh.mvv,
         reasons: fresh.reasons,
         contact: fresh.contact,
+        linktree: fresh.linktree ?? SITE_CONFIG_DEFAULTS.linktree,
       };
       writeCache(resolved);
       return resolved;
