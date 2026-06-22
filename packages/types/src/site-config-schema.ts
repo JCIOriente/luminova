@@ -41,6 +41,7 @@ const linktreeSchema = z.object({
 });
 
 export const siteConfigSchema = z.object({
+  hero: z.object({ motto: reqText, submotto: z.string() }),
   stats: z.object({
     programCount: intMin0,
     countries: reqText,
@@ -59,6 +60,13 @@ export const siteConfigSchema = z.object({
     email: z.string().email("Correo no válido"),
     location: reqText,
     meetingSchedule: reqText,
+    mapUrl: optionalSafeUrl,
+    socials: z.object({
+      instagram: optionalSafeUrl,
+      facebook: optionalSafeUrl,
+      tiktok: optionalSafeUrl,
+      linkedin: optionalSafeUrl,
+    }),
     links: z.array(z.object({ label: reqText, url: safeUrl })),
   }),
   linktree: linktreeSchema,

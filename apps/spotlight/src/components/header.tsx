@@ -3,9 +3,17 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import clsx from "clsx";
 import { LogoLockup, Button, Icon } from "@luminova/ui";
 
+// Add a route here whenever its hero sits over a colored background, or the
+// navbar text will fall back to dark and lose contrast on that page.
+const DARK_HERO_ROUTES = ["/", "/programas", "/impacto"];
+const BLUE_HERO_ROUTES = ["/about"];
+const BLUE_HERO_PREFIXES = ["/impacto/"];
+
 function overToneFor(pathname: string): "dark" | "blue" | null {
-  if (pathname === "/about") return "blue";
-  if (pathname === "/") return "dark";
+  const p = pathname.replace(/\/+$/, "") || "/";
+  if (BLUE_HERO_ROUTES.includes(p) || BLUE_HERO_PREFIXES.some((prefix) => p.startsWith(prefix)))
+    return "blue";
+  if (DARK_HERO_ROUTES.includes(p)) return "dark";
   return null;
 }
 

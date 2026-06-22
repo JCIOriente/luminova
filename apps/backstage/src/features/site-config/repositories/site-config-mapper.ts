@@ -39,6 +39,7 @@ export function toSiteConfigDoc(data: SiteConfigInput, currentVersion: number) {
   return {
     version: currentVersion + 1,
     updatedAt: serverTimestamp(),
+    hero: data.hero,
     stats: data.stats,
     timeline: data.timeline,
     mvv: data.mvv,
@@ -50,6 +51,7 @@ export function toSiteConfigDoc(data: SiteConfigInput, currentVersion: number) {
 
 export function toSiteConfigInput(doc: SiteConfig): SiteConfigInput {
   return {
+    hero: doc.hero ?? { motto: "", submotto: "" },
     stats: doc.stats,
     timeline: doc.timeline,
     mvv: doc.mvv,

@@ -65,18 +65,17 @@ function HomeHero() {
       <RippleBackground variant="hero" color="#0097D7" />
       <div className="container" style={{ position: "relative", zIndex: 1, width: "100%" }}>
         <div style={{ maxWidth: 920 }}>
-          <div className="eyebrow no-rule" style={{ color: "var(--jci-teal)", display: "flex" }}>
-            <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>Inspire.</span>
-          </div>
-          <h1 className="t-display" style={{ marginTop: 20, marginBottom: 0, color: "#fff" }}>
-            Inspira.
+          <h1 className="t-display" style={{ marginTop: 0, marginBottom: 0, color: "#fff" }}>
+            {config.hero.motto}
           </h1>
-          <p
-            className="t-subtitle"
-            style={{ marginTop: 16, marginBottom: 0, color: "var(--jci-teal)", fontWeight: 500 }}
-          >
-            A fire shared never dies.
-          </p>
+          {config.hero.submotto ? (
+            <p
+              className="t-subtitle"
+              style={{ marginTop: 16, marginBottom: 0, color: "var(--jci-teal)", fontWeight: 500 }}
+            >
+              {config.hero.submotto}
+            </p>
+          ) : null}
           <p
             className="t-subtitle"
             style={{ marginTop: 24, maxWidth: 620, color: "rgba(255,255,255,0.78)" }}

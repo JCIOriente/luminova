@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TerminosRouteImport } from './routes/terminos'
+import { Route as PrivacidadRouteImport } from './routes/privacidad'
 import { Route as EnlacesRouteImport } from './routes/enlaces'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AboutRouteImport } from './routes/about'
@@ -17,6 +19,16 @@ import { Route as ProgramasIndexRouteImport } from './routes/programas.index'
 import { Route as ImpactoIndexRouteImport } from './routes/impacto.index'
 import { Route as ImpactoIdRouteImport } from './routes/impacto.$id'
 
+const TerminosRoute = TerminosRouteImport.update({
+  id: '/terminos',
+  path: '/terminos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacidadRoute = PrivacidadRouteImport.update({
+  id: '/privacidad',
+  path: '/privacidad',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EnlacesRoute = EnlacesRouteImport.update({
   id: '/enlaces',
   path: '/enlaces',
@@ -58,6 +70,8 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
   '/enlaces': typeof EnlacesRoute
+  '/privacidad': typeof PrivacidadRoute
+  '/terminos': typeof TerminosRoute
   '/impacto/$id': typeof ImpactoIdRoute
   '/impacto/': typeof ImpactoIndexRoute
   '/programas/': typeof ProgramasIndexRoute
@@ -67,6 +81,8 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
   '/enlaces': typeof EnlacesRoute
+  '/privacidad': typeof PrivacidadRoute
+  '/terminos': typeof TerminosRoute
   '/impacto/$id': typeof ImpactoIdRoute
   '/impacto': typeof ImpactoIndexRoute
   '/programas': typeof ProgramasIndexRoute
@@ -77,6 +93,8 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
   '/enlaces': typeof EnlacesRoute
+  '/privacidad': typeof PrivacidadRoute
+  '/terminos': typeof TerminosRoute
   '/impacto/$id': typeof ImpactoIdRoute
   '/impacto/': typeof ImpactoIndexRoute
   '/programas/': typeof ProgramasIndexRoute
@@ -88,6 +106,8 @@ export interface FileRouteTypes {
     | '/about'
     | '/contact'
     | '/enlaces'
+    | '/privacidad'
+    | '/terminos'
     | '/impacto/$id'
     | '/impacto/'
     | '/programas/'
@@ -97,6 +117,8 @@ export interface FileRouteTypes {
     | '/about'
     | '/contact'
     | '/enlaces'
+    | '/privacidad'
+    | '/terminos'
     | '/impacto/$id'
     | '/impacto'
     | '/programas'
@@ -106,6 +128,8 @@ export interface FileRouteTypes {
     | '/about'
     | '/contact'
     | '/enlaces'
+    | '/privacidad'
+    | '/terminos'
     | '/impacto/$id'
     | '/impacto/'
     | '/programas/'
@@ -116,6 +140,8 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   ContactRoute: typeof ContactRoute
   EnlacesRoute: typeof EnlacesRoute
+  PrivacidadRoute: typeof PrivacidadRoute
+  TerminosRoute: typeof TerminosRoute
   ImpactoIdRoute: typeof ImpactoIdRoute
   ImpactoIndexRoute: typeof ImpactoIndexRoute
   ProgramasIndexRoute: typeof ProgramasIndexRoute
@@ -123,6 +149,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terminos': {
+      id: '/terminos'
+      path: '/terminos'
+      fullPath: '/terminos'
+      preLoaderRoute: typeof TerminosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacidad': {
+      id: '/privacidad'
+      path: '/privacidad'
+      fullPath: '/privacidad'
+      preLoaderRoute: typeof PrivacidadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/enlaces': {
       id: '/enlaces'
       path: '/enlaces'
@@ -180,6 +220,8 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   ContactRoute: ContactRoute,
   EnlacesRoute: EnlacesRoute,
+  PrivacidadRoute: PrivacidadRoute,
+  TerminosRoute: TerminosRoute,
   ImpactoIdRoute: ImpactoIdRoute,
   ImpactoIndexRoute: ImpactoIndexRoute,
   ProgramasIndexRoute: ProgramasIndexRoute,

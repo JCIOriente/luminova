@@ -29,6 +29,7 @@ const linktree = {
 };
 
 const input = {
+  hero: { motto: "Se ve, se siente, el espíritu de Oriente", submotto: "" },
   stats: {
     programCount: 5,
     countries: "100+",
@@ -44,6 +45,8 @@ const input = {
     email: "a@b.com",
     location: "SC",
     meetingSchedule: "Mié",
+    mapUrl: "https://maps.app.goo.gl/abc",
+    socials: { instagram: "https://instagram.com/jci", facebook: "", tiktok: "", linkedin: "" },
     links: [{ label: "JCI", url: "https://jci.cc" }],
   },
   linktree,
@@ -52,6 +55,7 @@ const input = {
 function docFrom(partial: Partial<SiteConfig>): SiteConfig {
   return {
     version: 4,
+    hero: input.hero,
     stats: input.stats,
     timeline: input.timeline,
     mvv: input.mvv,

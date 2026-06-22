@@ -34,6 +34,7 @@ function revalidateOnce(): Promise<Resolved | null> {
       if (!fresh) return null;
       // Typed literal: adding a required field to Resolved fails compilation here.
       const resolved: Resolved = {
+        hero: fresh.hero ?? SITE_CONFIG_DEFAULTS.hero,
         stats: fresh.stats,
         timeline: fresh.timeline,
         mvv: fresh.mvv,

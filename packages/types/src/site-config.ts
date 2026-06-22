@@ -79,16 +79,34 @@ export interface SiteLinktree {
   socials: LinktreeSocial[];
 }
 
+// Footer + contact-page social links. Intentionally separate from
+// SiteLinktree.socials, which powers the standalone /enlaces page and carries
+// its own ordered, larger platform set.
+export interface SiteSocials {
+  instagram: string;
+  facebook: string;
+  tiktok: string;
+  linkedin: string;
+}
+
 export interface SiteContact {
   email: string;
   location: string;
   meetingSchedule: string;
+  mapUrl: string;
+  socials: SiteSocials;
   links: SiteLink[];
+}
+
+export interface SiteHero {
+  motto: string;
+  submotto: string;
 }
 
 export interface SiteConfig {
   version: number;
   updatedAt: Timestamp;
+  hero: SiteHero;
   stats: SiteStats;
   timeline: SiteTimelineEntry[];
   mvv: { mision: string; vision: string; valores: string };

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { siteConfigSchema } from "./site-config-schema";
 
 const valid = {
+  hero: { motto: "Se ve, se siente, el espíritu de Oriente", submotto: "" },
   stats: {
     programCount: 5,
     countries: "100+",
@@ -17,6 +18,13 @@ const valid = {
     email: "jci@example.com",
     location: "Santa Cruz",
     meetingSchedule: "Miércoles 19:30",
+    mapUrl: "https://maps.app.goo.gl/abc",
+    socials: {
+      instagram: "https://instagram.com/jci.oriente",
+      facebook: "https://facebook.com/jci",
+      tiktok: "",
+      linkedin: "",
+    },
     links: [{ label: "JCI", url: "https://jci.cc" }],
   },
   linktree: {

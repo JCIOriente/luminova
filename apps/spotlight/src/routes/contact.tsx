@@ -12,6 +12,8 @@ import {
   Toast,
 } from "@luminova/ui";
 import { useSiteConfig } from "../site-config/use-site-config";
+import { safeHref } from "../site-config/safe-href";
+import { SocialIconLinks } from "../components/social-icon-links";
 
 export const Route = createFileRoute("/contact")({
   component: Contact,
@@ -164,6 +166,7 @@ function ContactHero() {
 
 function ContactBody({ onSubmit }: { onSubmit: () => void }) {
   const config = useSiteConfig();
+  const mapHref = safeHref(config.contact.mapUrl);
   return (
     <section className="section" style={{ paddingTop: 56 }}>
       <div className="container">
@@ -204,9 +207,21 @@ function ContactBody({ onSubmit }: { onSubmit: () => void }) {
                   <div>
                     <div style={LABEL_META}>Sede</div>
                     <div style={{ fontSize: 16, fontWeight: 500 }}>{config.contact.location}</div>
-                    <div style={{ fontSize: 13, color: "var(--ink-3)", marginTop: 2 }}>
-                      Dirección física por confirmar
-                    </div>
+                    {mapHref !== "#" ? (
+                      <a
+                        href={mapHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: 13,
+                          color: "var(--jci-blue)",
+                          marginTop: 2,
+                          display: "inline-block",
+                        }}
+                      >
+                        Ver en Google Maps ↗
+                      </a>
+                    ) : null}
                   </div>
                 </div>
                 <div className="contact-row">
@@ -239,15 +254,7 @@ function ContactBody({ onSubmit }: { onSubmit: () => void }) {
                   Redes sociales
                 </div>
                 <div className="social-row">
-                  <a href="#" aria-label="Facebook">
-                    <Icon.facebook />
-                  </a>
-                  <a href="#" aria-label="Instagram">
-                    <Icon.instagram />
-                  </a>
-                  <a href="#" aria-label="TikTok">
-                    <Icon.tiktok />
-                  </a>
+                  <SocialIconLinks />
                 </div>
               </div>
 
@@ -293,6 +300,8 @@ function ContactBody({ onSubmit }: { onSubmit: () => void }) {
 }
 
 function ContactMap() {
+  const config = useSiteConfig();
+  const mapHref = safeHref(config.contact.mapUrl);
   return (
     <section style={{ paddingBottom: 80 }}>
       <div className="container">
@@ -387,8 +396,30 @@ function ContactMap() {
             <div className="t-label" style={{ color: "var(--jci-blue)" }}>
               Sede
             </div>
-            <div style={{ marginTop: 6 }}>Santa Cruz de la Sierra · Bolivia</div>
+            <div style={{ marginTop: 6 }}>{config.contact.location}</div>
           </div>
+          {mapHref !== "#" ? (
+            <a
+              href={mapHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Abrir la sede en Google Maps"
+              style={{
+                position: "absolute",
+                right: 24,
+                bottom: 24,
+                background: "var(--jci-blue)",
+                color: "#fff",
+                padding: "10px 16px",
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 600,
+                textDecoration: "none",
+              }}
+            >
+              Abrir en Google Maps ↗
+            </a>
+          ) : null}
         </div>
       </div>
     </section>
