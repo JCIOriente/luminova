@@ -275,6 +275,13 @@ beforeAll(async () => {
       deletedAt: null,
     });
     await setDoc(doc(db, "showcase/s1"), { id: "s1", kind: "Project", title: "Eco" });
+    await setDoc(doc(db, "allyShowcase/a1"), {
+      id: "a1",
+      name: "Unifranz",
+      logoUrl: "https://cdn/x.png",
+      category: "University",
+    });
+    await setDoc(doc(db, "siteConfig/current"), { version: 1, stats: {}, allies: [] });
   });
 });
 
@@ -1083,6 +1090,18 @@ describe("showcase (public read, beacon-only write)", () => {
   });
 });
 
+describe("allyShowcase (public read, beacon-only write)", () => {
+  it("allows anonymous read", async () => {
+    await assertSucceeds(getDoc(doc(anon(), "allyShowcase/a1")));
+  });
+  it("denies anonymous write", async () => {
+    await assertFails(setDoc(doc(anon(), "allyShowcase/a2"), { name: "x" }));
+  });
+  it("denies Admin write (beacon admin SDK only)", async () => {
+    await assertFails(setDoc(doc(as("u", ["Admin"]), "allyShowcase/a2"), { name: "x" }));
+  });
+});
+
 // Rules derive the term from request.time.year() (UTC); compute it from the client
 // clock so this suite can't rot when the calendar year rolls over.
 const TERM = String(new Date().getUTCFullYear());
@@ -1332,6 +1351,27 @@ describe("firestore.rules — member permission assignment (roleIds + overrides)
         totalPoints: 0,
         active: true,
         deletedAt: null,
+      }),
+    );
+  });
+});
+
+describe("firestore.rules — siteConfig", () => {
+  it("allows anonymous read (public site)", async () => {
+    await assertSucceeds(getDoc(doc(anon(), "siteConfig/current")));
+  });
+  it("denies anonymous write", async () => {
+    await assertFails(setDoc(doc(anon(), "siteConfig/current"), { version: 2 }));
+  });
+  it("denies non-admin signed-in write", async () => {
+    await assertFails(setDoc(doc(as("u", ["Membership"]), "siteConfig/current"), { version: 2 }));
+  });
+  it("allows Admin write", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("admin", ["Admin"]), "siteConfig/current"), {
+        version: 2,
+        stats: {},
+        allies: [],
       }),
     );
   });

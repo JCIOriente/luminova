@@ -11,6 +11,7 @@ import {
   Field,
   Toast,
 } from "@luminova/ui";
+import { useSiteConfig } from "../site-config/use-site-config";
 
 export const Route = createFileRoute("/contact")({
   component: Contact,
@@ -34,6 +35,7 @@ const LABEL_META = {
 };
 
 function ContactForm({ onSubmit }: { onSubmit: () => void }) {
+  const config = useSiteConfig();
   const [form, setForm] = useState<FormState>({
     name: "",
     email: "",
@@ -129,10 +131,10 @@ function ContactForm({ onSubmit }: { onSubmit: () => void }) {
       >
         Te responderemos desde{" "}
         <a
-          href="mailto:jci.orienteolm@gmail.com"
+          href={`mailto:${config.contact.email}`}
           style={{ color: "var(--jci-navy)", textDecoration: "underline", textUnderlineOffset: 3 }}
         >
-          jci.orienteolm@gmail.com
+          {config.contact.email}
         </a>{" "}
         en un plazo máximo de 48 horas hábiles.
       </p>
@@ -161,6 +163,7 @@ function ContactHero() {
 }
 
 function ContactBody({ onSubmit }: { onSubmit: () => void }) {
+  const config = useSiteConfig();
   return (
     <section className="section" style={{ paddingTop: 56 }}>
       <div className="container">
@@ -187,10 +190,10 @@ function ContactBody({ onSubmit }: { onSubmit: () => void }) {
                   <div>
                     <div style={LABEL_META}>Email</div>
                     <a
-                      href="mailto:jci.orienteolm@gmail.com"
+                      href={`mailto:${config.contact.email}`}
                       style={{ fontSize: 16, fontWeight: 500 }}
                     >
-                      jci.orienteolm@gmail.com
+                      {config.contact.email}
                     </a>
                   </div>
                 </div>
@@ -200,9 +203,7 @@ function ContactBody({ onSubmit }: { onSubmit: () => void }) {
                   </span>
                   <div>
                     <div style={LABEL_META}>Sede</div>
-                    <div style={{ fontSize: 16, fontWeight: 500 }}>
-                      Santa Cruz de la Sierra, Bolivia
-                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 500 }}>{config.contact.location}</div>
                     <div style={{ fontSize: 13, color: "var(--ink-3)", marginTop: 2 }}>
                       Dirección física por confirmar
                     </div>
@@ -214,7 +215,9 @@ function ContactBody({ onSubmit }: { onSubmit: () => void }) {
                   </span>
                   <div>
                     <div style={LABEL_META}>Reuniones</div>
-                    <div style={{ fontSize: 16, fontWeight: 500 }}>Cada miércoles · 19:30 hrs</div>
+                    <div style={{ fontSize: 16, fontWeight: 500 }}>
+                      {config.contact.meetingSchedule}
+                    </div>
                     <div style={{ fontSize: 13, color: "var(--ink-3)", marginTop: 2 }}>
                       Bajo confirmación previa con el comité.
                     </div>

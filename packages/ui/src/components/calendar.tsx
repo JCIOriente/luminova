@@ -10,11 +10,12 @@ const DEFAULT_CLASS_NAMES: CalendarProps["classNames"] = {
   months: "flex flex-col",
   month: "flex flex-col gap-3",
   month_caption: "flex h-9 items-center justify-center px-9",
-  caption_label: "text-[14px] font-semibold capitalize text-ink-1",
+  caption_label:
+    "inline-flex h-9 items-center gap-1 rounded-[8px] border-[1.5px] border-line-strong bg-surface pl-3 pr-2 text-[14px] font-medium capitalize text-ink-1",
   dropdowns: "flex items-center gap-2",
-  dropdown_root: "relative",
+  dropdown_root: "relative inline-flex focus-within:[&>span]:border-jci-blue",
   dropdown:
-    "h-9 rounded-[8px] border-[1.5px] border-line-strong bg-surface pl-2 pr-7 text-[14px] font-medium capitalize text-ink-1 focus:border-jci-blue focus:outline-none",
+    "absolute inset-0 z-10 size-full cursor-pointer appearance-none opacity-0 focus-visible:outline-none",
   nav: "absolute inset-x-0 top-0 flex h-9 items-center justify-between",
   button_previous:
     "flex size-8 items-center justify-center rounded-[8px] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink-1 disabled:opacity-40",
@@ -35,7 +36,15 @@ const DEFAULT_CLASS_NAMES: CalendarProps["classNames"] = {
 
 function CalendarChevron({ orientation }: { orientation?: "left" | "right" | "up" | "down" }) {
   return (
-    <span className={cn(orientation === "left" && "rotate-180")}>{Icon.chevRight({ s: 18 })}</span>
+    <span
+      className={cn(
+        orientation === "left" && "rotate-180",
+        orientation === "down" && "rotate-90",
+        orientation === "up" && "-rotate-90",
+      )}
+    >
+      {Icon.chevRight({ s: 18 })}
+    </span>
   );
 }
 

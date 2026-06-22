@@ -25,7 +25,8 @@ export interface NavItem {
     | "/activities"
     | "/initiatives"
     | "/positions"
-    | "/permisos";
+    | "/permisos"
+    | "/config";
   label: string;
   icon: IconKey;
   exact?: boolean;
@@ -83,6 +84,10 @@ export const NAV_GROUPS: NavGroup[] = [
         anySubject: ["Program", "Project"],
       },
     ],
+  },
+  {
+    label: "Sitio",
+    items: [{ to: "/config", label: "Configuración", icon: "settings", roles: ["Admin"] }],
   },
 ];
 

@@ -366,6 +366,21 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Curated public projection of allies (beacon admin SDK writes from onAllyWritten;
+    // the public marketing site reads it without auth). Public fields only —
+    // name + logoUrl + category; contactPerson/phone/email never leave /allies.
+    match /allyShowcase/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // World-read singleton doc for the public marketing site; only Admin may
+    // edit org facts (stats, allies, timeline, MVV, reasons, contact) via backstage.
+    match /siteConfig/current {
+      allow read: if true;
+      allow write: if hasAnyRole(['Admin']);
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
