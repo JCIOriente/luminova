@@ -7,7 +7,7 @@ service cloud.firestore {
       return request.auth != null;
     }
     function roles() {
-      return request.auth.token.roles;
+      return request.auth.token.get('roles', []);
     }
     function hasAnyRole(rs) {
       return signedIn() && roles().hasAny(rs);
@@ -167,6 +167,9 @@ service cloud.firestore {
     // Create is Admin/PM-only (initiativeCreateAllowed), so a non-privileged forged
     // `featured: true` on create cannot happen; an Admin/PM creating it featured is
     // their prerogative and only reaches the public page once finalized (isProjectable).
+    // Intentionally role-based, NOT perm-based: `featured` is a curation decision
+    // bound to Admin/ProjectManager. A custom role with manage:Project may edit an
+    // initiative but must leave `featured` unchanged (falls through to the second arm).
     function featuredUpdateSafe() {
       return hasAnyRole(['Admin', 'ProjectManager'])
         || request.resource.data.get('featured', false) == resource.data.get('featured', false);
@@ -383,6 +386,21 @@ service cloud.firestore {
     match /showcase/{id} {
       allow read: if true;
       allow write: if false;
+    }
+
+    // Curated public projection of allies (beacon admin SDK writes from onAllyWritten;
+    // the public marketing site reads it without auth). Public fields only —
+    // name + logoUrl + category; contactPerson/phone/email never leave /allies.
+    match /allyShowcase/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // World-read singleton doc for the public marketing site; only Admin may
+    // edit org facts (stats, allies, timeline, MVV, reasons, contact) via backstage.
+    match /siteConfig/current {
+      allow read: if true;
+      allow write: if hasAnyRole(['Admin']);
     }
 
     match /{document=**} {

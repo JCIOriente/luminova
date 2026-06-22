@@ -28,4 +28,16 @@ describe("allySchema", () => {
   it("rejects an invalid email", () => {
     expect(allySchema.safeParse({ ...valid, email: "nope" }).success).toBe(false);
   });
+
+  it("accepts a valid category", () => {
+    expect(allySchema.safeParse({ ...valid, category: "University" }).success).toBe(true);
+  });
+
+  it("rejects an unknown category", () => {
+    expect(allySchema.safeParse({ ...valid, category: "Nope" }).success).toBe(false);
+  });
+
+  it("allows category to be omitted", () => {
+    expect(allySchema.safeParse(valid).success).toBe(true);
+  });
 });

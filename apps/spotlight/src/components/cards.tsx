@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { RippleSVG, ImgSlot } from "@luminova/ui";
+import { RippleSVG } from "@luminova/ui";
 
 export function AreaCard({
   number,
@@ -36,35 +36,6 @@ export function AreaCard({
       >
         {description}
       </p>
-    </article>
-  );
-}
-
-export function ProgramCard({
-  tag,
-  title,
-  description,
-  slotLabel,
-  tint,
-}: {
-  tag?: string;
-  title: string;
-  description: string;
-  slotLabel: string;
-  tint?: "blue" | "teal" | "navy";
-}) {
-  return (
-    <article className="program-card">
-      <ImgSlot label={slotLabel} tint={tint} className="rounded-none border-0" />
-      <div className="body">
-        {tag && <div className="tag">{tag}</div>}
-        <h3 className="t-h4" style={{ margin: 0 }}>
-          {title}
-        </h3>
-        <p style={{ margin: "10px 0 0", color: "var(--ink-2)", fontSize: 15, lineHeight: 1.55 }}>
-          {description}
-        </p>
-      </div>
     </article>
   );
 }

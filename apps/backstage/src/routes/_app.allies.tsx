@@ -5,6 +5,8 @@ import { useAllies } from "../features/allies/hooks/use-allies";
 import { useAddAlly } from "../features/allies/hooks/use-add-ally";
 import { useUpdateAlly } from "../features/allies/hooks/use-update-ally";
 import { useDeleteAlly } from "../features/allies/hooks/use-delete-ally";
+import { useSetAllyLogo } from "../features/allies/hooks/use-set-ally-logo";
+import { useRemoveAllyLogo } from "../features/allies/hooks/use-remove-ally-logo";
 import { AllyTable } from "../features/allies/components/ally-table";
 import { AllyForm } from "../features/allies/components/ally-form";
 import { PageHeader } from "../components/page-header";
@@ -16,20 +18,13 @@ export const Route = createFileRoute("/_app/allies")({
 
 type Editing = Ally | "new" | null;
 
-function allyToInput(ally: Ally): Partial<AllyInput> {
-  return {
-    companyName: ally.companyName,
-    contactPerson: ally.contactPerson,
-    phone: ally.phone,
-    email: ally.email,
-  };
-}
-
 function AlliesPage() {
   const { data: allies, isLoading, isError } = useAllies();
   const addAlly = useAddAlly();
   const updateAlly = useUpdateAlly();
   const deleteAlly = useDeleteAlly();
+  const setLogo = useSetAllyLogo();
+  const removeLogo = useRemoveAllyLogo();
 
   const [editing, setEditing] = useState<Editing>(null);
   const [deleteTarget, setDeleteTarget] = useState<Ally | null>(null);
@@ -82,14 +77,26 @@ function AlliesPage() {
         }}
         title={editing === "new" ? "Agregar aliado" : "Editar aliado"}
       >
-        {editing !== null && (
-          <AllyForm
-            key={editing === "new" ? "new" : editing.id}
-            defaultValues={editing === "new" ? undefined : allyToInput(editing)}
-            submitLabel={editing === "new" ? "Crear" : "Guardar"}
-            onSubmit={handleSubmit}
-          />
-        )}
+        {editing !== null &&
+          (() => {
+            // Resolve the edited ally from the live query data, not the snapshot taken
+            // when the Sheet opened — so the logo preview reflects an upload/removal
+            // after invalidateQueries refetches, without closing and reopening.
+            const existing =
+              editing === "new" ? null : (allies?.find((a) => a.id === editing.id) ?? editing);
+            return (
+              <AllyForm
+                key={existing?.id ?? "new"}
+                ally={existing ?? undefined}
+                submitLabel={existing ? "Guardar" : "Crear"}
+                onSubmit={handleSubmit}
+                onUploadLogo={
+                  existing ? (file) => setLogo.mutateAsync({ id: existing.id, file }) : undefined
+                }
+                onRemoveLogo={existing ? () => removeLogo.mutateAsync(existing.id) : undefined}
+              />
+            );
+          })()}
       </Sheet>
 
       <Dialog

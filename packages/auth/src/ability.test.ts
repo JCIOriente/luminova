@@ -168,6 +168,7 @@ describe("buildAbility", () => {
       expect(a.can("manage", s)).toBe(true);
     expect(a.can("read", "Ally")).toBe(true);
     expect(a.can("read", "Event")).toBe(true);
+    expect(a.can("create", "Event")).toBe(true); // reconciled with firestore.rules
     expect(a.can("checkIn", "Attendance")).toBe(true);
     expect(a.can("manage", "Member")).toBe(false);
   });

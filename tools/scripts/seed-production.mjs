@@ -1,7 +1,9 @@
 // Bootstraps the PRODUCTION president (a real member who is Admin via the
-// Presidente cargo) — ONCE. The Firebase console cannot set custom claims, so this
-// admin-SDK script does it, then self-assigns the Admin cargo so the claims-sync
-// trigger keeps Admin durably. A `meta/bootstrap` doc makes re-runs a no-op.
+// Presidente cargo) — ONCE, and seeds siteConfig/current with default org facts so
+// spotlight works immediately after deploy. The Firebase console cannot set custom
+// claims, so this admin-SDK script does it, then self-assigns the Admin cargo so
+// the claims-sync trigger keeps Admin durably. A `meta/bootstrap` doc makes
+// president re-runs a no-op (siteConfig is always (re-)written on each run).
 //
 // Requires Application Default Credentials for the prod project:
 //   gcloud auth application-default login
@@ -13,6 +15,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { createInterface } from "node:readline/promises";
 import { seedPresident } from "./lib/seed-president.mjs";
+import { SITE_CONFIG_CONTENT } from "./lib/site-config-seed-data.mjs";
 
 if (process.env.FIREBASE_AUTH_EMULATOR_HOST || process.env.FIRESTORE_EMULATOR_HOST) {
   console.error(
@@ -100,6 +103,16 @@ async function main() {
     rl.close();
     process.exit(0);
   }
+
+  // Seed siteConfig/current with default org facts (idempotent — safe to re-run).
+  // Content is shared with the emulator seed; allies stored as string[] (the backstage
+  // mapper inflates them to {nombre} row objects).
+  await db.doc("siteConfig/current").set({
+    version: 1,
+    updatedAt: Timestamp.now(),
+    ...SITE_CONFIG_CONTENT,
+  });
+  console.log("✓ siteConfig/current seeded.");
 
   console.log(`Seeding the initial president for project ${projectId} (term ${TERM}).\n`);
   const name = await ask("President full name", nonEmpty);

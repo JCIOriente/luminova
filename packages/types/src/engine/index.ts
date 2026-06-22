@@ -15,6 +15,12 @@ export {
   AREA_OF_OPPORTUNITY_LABELS,
 } from "./initiative.js";
 export type { ShowcasePerson, ShowcaseTeam, ShowcasePhoto, ShowcaseItem } from "./showcase.js";
+export {
+  ALLY_CATEGORIES,
+  ALLY_CATEGORY_LABELS,
+  type AllyCategory,
+  type AllyShowcaseItem,
+} from "./ally-public.js";
 export type { Term, BoardSeat, TermStatus } from "./term.js";
 export { TERM_STATUSES } from "./term.js";
 export type { Program } from "./program.js";

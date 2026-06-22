@@ -67,6 +67,7 @@ export function getStorageService(): FirebaseStorage {
 
 export { getFirestoreLite } from "./firestore-lite";
 export { uploadMemberPhoto, deleteMemberPhoto } from "./member-photo";
+export { uploadAllyLogo, deleteAllyLogo } from "./ally-logo";
 export {
   uploadInitiativePhoto,
   deleteInitiativePhoto,

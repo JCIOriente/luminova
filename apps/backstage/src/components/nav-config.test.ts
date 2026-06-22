@@ -15,6 +15,7 @@ describe("nav-config", () => {
       "/permisos",
       "/activities",
       "/initiatives",
+      "/config",
     ]);
   });
 
@@ -71,8 +72,8 @@ describe("nav-config", () => {
     expect(item?.subject).toBeUndefined();
   });
 
-  it("groups items under Panel, Gestión and Reconocimiento labels", () => {
-    expect(NAV_GROUPS.map((g) => g.label)).toEqual(["Panel", "Gestión", "Reconocimiento"]);
+  it("groups items under Panel, Gestión, Reconocimiento and Sitio labels", () => {
+    expect(NAV_GROUPS.map((g) => g.label)).toEqual(["Panel", "Gestión", "Reconocimiento", "Sitio"]);
   });
 
   it("resolves the active item by exact path", () => {

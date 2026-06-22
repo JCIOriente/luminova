@@ -41,6 +41,15 @@ export class AllyRepository {
     await updateDoc(doc(this.collection, id), toAllyUpdateDoc(data));
   }
 
+  /** Persist the uploaded logo URL — written separately from the editable form fields. */
+  async setLogo(id: string, logoUrl: string): Promise<void> {
+    await updateDoc(doc(this.collection, id), { logoUrl });
+  }
+
+  async clearLogo(id: string): Promise<void> {
+    await updateDoc(doc(this.collection, id), { logoUrl: null });
+  }
+
   /** Soft delete — never hard-delete an ally. */
   async softDelete(id: string): Promise<void> {
     await updateDoc(doc(this.collection, id), {

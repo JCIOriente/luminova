@@ -1,89 +1,21 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, RippleBackground, SectionHeader, Reveal, ImgSlot, Icon } from "@luminova/ui";
+import { Button, RippleBackground, SectionHeader, Reveal, ImgSlot, Icon, cn } from "@luminova/ui";
+import { CEL_POSITION_TITLES } from "@luminova/types";
 import { TimelineItem } from "../components/cards";
+import { useSiteConfig } from "../site-config/use-site-config";
+import { currentYearsActive } from "../site-config/defaults";
 
 export const Route = createFileRoute("/about")({
   component: About,
 });
 
-const MVV = [
-  {
-    variant: "var-blue",
-    icon: <Icon.target />,
-    title: "Misión",
-    body: "Brindar oportunidades de desarrollo que empoderen a las personas jóvenes a crear cambios positivos en el Oriente boliviano.",
-  },
-  {
-    variant: "",
-    icon: <Icon.compass />,
-    title: "Visión",
-    body: "Ser la organización referente de jóvenes líderes activos en Santa Cruz, reconocida por su impacto, ética y red global.",
-  },
-  {
-    variant: "var-navy",
-    icon: <Icon.spark />,
-    title: "Valores",
-    body: "Liderazgo con propósito · Servicio · Hermandad internacional · Empresa libre · Fe en Dios · Dignidad humana.",
-  },
+const MVV_PRESENTATION = [
+  { variant: "var-blue", icon: <Icon.target />, title: "Misión", field: "mision" as const },
+  { variant: "", icon: <Icon.compass />, title: "Visión", field: "vision" as const },
+  { variant: "var-navy", icon: <Icon.spark />, title: "Valores", field: "valores" as const },
 ];
 
-const TIMELINE = [
-  {
-    year: "1915",
-    title: "Nace la Junior Chamber",
-    desc: "St. Louis, Missouri. Henry Giessenbier funda lo que se convertirá en JCI Worldwide.",
-  },
-  {
-    year: "1993",
-    title: "Se funda JCI Oriente",
-    desc: "El capítulo Santa Cruz se establece como parte de JCI Bolivia.",
-  },
-  {
-    year: "2018",
-    title: "Expansión de programas",
-    desc: "Lanzamiento de Madre Emprendedora y consolidación de Emprende Oriente.",
-  },
-  {
-    year: "2019",
-    title: "100% de eficiencia",
-    desc: "Primera certificación nacional de eficiencia operativa.",
-  },
-  {
-    year: "2020",
-    title: "Eficiencia ratificada",
-    desc: "Segundo año consecutivo cumpliendo el 100% de los indicadores JCI Bolivia.",
-  },
-  {
-    year: "2021",
-    title: "Organización Local más Sobresaliente",
-    desc: "Reconocimiento nacional al desempeño del capítulo.",
-  },
-  {
-    year: "Hoy",
-    title: "Una nueva generación",
-    desc: "Más de 11 reconocimientos acumulados y proyectos vigentes en cinco frentes.",
-  },
-];
-
-const COMITE = ["Presidente", "VP Desarrollo", "VP Comunidad", "VP Negocio"];
-
-const REASONS = [
-  {
-    num: "01",
-    title: "Una red que abre puertas",
-    desc: "Acceso directo a 200.000+ miembros activos en 100+ países. Conferencias regionales, mundiales y oportunidades de movilidad real.",
-  },
-  {
-    num: "02",
-    title: "Proyectos con impacto medible",
-    desc: "No reuniones que no van a ningún lado: programas estructurados con cohortes, indicadores y resultados publicados al cierre de año.",
-  },
-  {
-    num: "03",
-    title: "Liderazgo en práctica",
-    desc: "Mentoría 1:1, posiciones de comité que se renuevan cada año, oratoria y formación financiada por la red JCI.",
-  },
-];
+const COMITE = CEL_POSITION_TITLES;
 
 function AboutHero() {
   return (
@@ -154,6 +86,7 @@ function AboutStory() {
 }
 
 function AboutMVV() {
+  const config = useSiteConfig();
   return (
     <section className="section bg-soft">
       <div className="container">
@@ -163,9 +96,9 @@ function AboutMVV() {
           subtitle="Tres marcos que deciden qué proyectos tomamos y cómo trabajamos juntos."
         />
         <div className="grid-3" style={{ marginTop: 56 }}>
-          {MVV.map((it, i) => (
+          {MVV_PRESENTATION.map((it, i) => (
             <Reveal key={it.title} delay={i * 80}>
-              <div className={`mvv-card ${it.variant}`}>
+              <div className={cn("mvv-card", it.variant)}>
                 <div className="accent">{it.icon}</div>
                 <h3 className="t-h4" style={{ margin: 0 }}>
                   {it.title}
@@ -178,7 +111,7 @@ function AboutMVV() {
                     lineHeight: 1.6,
                   }}
                 >
-                  {it.body}
+                  {config.mvv[it.field]}
                 </p>
               </div>
             </Reveal>
@@ -190,14 +123,15 @@ function AboutMVV() {
 }
 
 function AboutTimeline() {
+  const config = useSiteConfig();
   return (
     <section className="section">
       <div className="container">
-        <SectionHeader eyebrow="Hitos" title="32 años de huella." />
+        <SectionHeader eyebrow="Hitos" title={`${currentYearsActive()} años de huella.`} />
         <div className="timeline" style={{ marginTop: 56, maxWidth: 760 }}>
-          {TIMELINE.map((it, i) => (
+          {config.timeline.map((it, i) => (
             <Reveal key={it.year + it.title} delay={i * 40}>
-              <TimelineItem year={it.year} title={it.title} description={it.desc} />
+              <TimelineItem year={it.year} title={it.title} description={it.description} />
             </Reveal>
           ))}
         </div>
@@ -246,6 +180,7 @@ function AboutComite() {
 }
 
 function AboutWhyJoin() {
+  const config = useSiteConfig();
   const navigate = useNavigate();
   return (
     <section className="section">
@@ -256,10 +191,10 @@ function AboutWhyJoin() {
           subtitle="No te vamos a vender un sueño: te contamos exactamente lo que cambia cuando entras."
         />
         <div className="grid-3" style={{ marginTop: 56 }}>
-          {REASONS.map((r, i) => (
-            <Reveal key={r.num} delay={i * 80}>
+          {config.reasons.map((r, i) => (
+            <Reveal key={r.number} delay={i * 80}>
               <article className="reason-card">
-                <div className="num">{r.num}</div>
+                <div className="num">{r.number}</div>
                 <h3 className="t-h4" style={{ margin: 0 }}>
                   {r.title}
                 </h3>
@@ -271,7 +206,7 @@ function AboutWhyJoin() {
                     lineHeight: 1.6,
                   }}
                 >
-                  {r.desc}
+                  {r.body}
                 </p>
               </article>
             </Reveal>

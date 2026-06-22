@@ -15,6 +15,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { seedPresident } from "./lib/seed-president.mjs";
+import { SITE_CONFIG_CONTENT } from "./lib/site-config-seed-data.mjs";
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error("Refusing to run: FIRESTORE_EMULATOR_HOST is not set.");
@@ -197,6 +198,9 @@ const participations = [
   participation(a3, "m2", "AttendActivity", 3),
 ];
 
+// --- siteConfig/current (default org facts; content shared with seed-production) ---
+const siteConfig = { version: 1, updatedAt: Timestamp.now(), ...SITE_CONFIG_CONTENT };
+
 // --- MemberPoints aggregates (id = `${memberId}__${termId}`) ---
 const memberPoints = [
   { memberId: "m1", cumulative: 13, byMonth: { "2026-06": 7, "2026-05": 6 } },
@@ -205,6 +209,7 @@ const memberPoints = [
 ].map((mp) => ({ ...mp, termId: TERM, updatedAt: ts("2026-06-20T18:00:00Z") }));
 
 async function seed() {
+  await db.doc("siteConfig/current").set(siteConfig);
   for (const m of members) await db.doc(`members/${m.id}`).set(m);
   await db.doc(`terms/${TERM}`).set(term, { merge: true });
   for (const a of activities) {
@@ -249,7 +254,7 @@ async function seed() {
   );
 
   console.log(
-    `Seeded ${members.length} members, term ${TERM}, ${activities.length} activities, ` +
+    `Seeded siteConfig/current, ${members.length} members, term ${TERM}, ${activities.length} activities, ` +
       `${participations.length} participations, ${memberPoints.length} memberPoints, ` +
       `${projects.length} projects, ${programs.length} programs ` +
       `(project ${projectId}). Initialize point rules from the UI.`,
