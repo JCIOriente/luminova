@@ -45,7 +45,7 @@ const linktree: SiteLinktree = {
 };
 
 vi.mock("../site-config/use-site-config", () => ({
-  useSiteConfig: () => ({ linktree }),
+  useSiteConfig: () => ({ linktree, contact: { location: "Santa Cruz, Bolivia" } }),
 }));
 
 describe("EnlacesPage", () => {
@@ -74,5 +74,9 @@ describe("EnlacesPage", () => {
     expect(screen.getByLabelText("Instagram")).toBeInTheDocument();
     expect(screen.getByLabelText("Facebook")).toBeInTheDocument();
     expect(screen.getByLabelText("TikTok")).toBeInTheDocument();
+  });
+  it("renders the contact location in the footer", () => {
+    render(<EnlacesPage />);
+    expect(screen.getByText("Santa Cruz, Bolivia")).toBeInTheDocument();
   });
 });

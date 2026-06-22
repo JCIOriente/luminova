@@ -22,6 +22,9 @@ const linktree = {
     { platform: "instagram" as const, url: "https://instagram.com/jci" },
     { platform: "facebook" as const, url: "https://facebook.com/jci" },
     { platform: "tiktok" as const, url: "https://tiktok.com/@jci" },
+    { platform: "linkedin" as const, url: "https://linkedin.com/company/jci" },
+    { platform: "whatsapp" as const, url: "https://whatsapp.com/channel/jci" },
+    { platform: "youtube" as const, url: "https://youtube.com/@jci" },
   ],
 };
 
@@ -74,12 +77,15 @@ describe("site-config mapper", () => {
   it("fills a default linktree when the stored doc lacks one", () => {
     expect(toSiteConfigInput(docFrom({})).linktree).toEqual(EMPTY_LINKTREE);
   });
-  it("normalizes socials to the three platforms in order", () => {
+  it("normalizes socials to the six platforms in order", () => {
     const result = toSiteConfigInput(docFrom({ linktree: { ...linktree, socials: [] } }));
     expect(result.linktree.socials.map((s) => s.platform)).toEqual([
       "instagram",
       "facebook",
       "tiktok",
+      "linkedin",
+      "whatsapp",
+      "youtube",
     ]);
   });
   it("generates an id for a link missing one", () => {

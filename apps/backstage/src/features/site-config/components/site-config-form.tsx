@@ -31,12 +31,18 @@ const LINKTREE_ICON_LABELS: Record<(typeof LINKTREE_ICONS)[number], string> = {
   compass: "Brújula",
   briefcase: "Maletín",
   spark: "Destello",
+  linkedin: "LinkedIn",
+  whatsapp: "WhatsApp",
+  youtube: "YouTube",
 };
 
 const SOCIAL_LABELS: Record<LinktreeSocialPlatform, string> = {
   instagram: "Instagram",
   facebook: "Facebook",
   tiktok: "TikTok",
+  linkedin: "LinkedIn",
+  whatsapp: "WhatsApp",
+  youtube: "YouTube",
 };
 
 const stampFormatter = new Intl.DateTimeFormat("es-BO", {
@@ -384,10 +390,10 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             <Field label="Usuario" htmlFor="lt-handle" hint="Ej. @jci.oriente">
               <Input id="lt-handle" {...register("linktree.handle")} />
             </Field>
-            <Field label="Lema" htmlFor="lt-tagline" hint="Ej. Sé el cambio.">
+            <Field label="Lema" htmlFor="lt-tagline" hint="Ej. Lema 2026">
               <Input id="lt-tagline" {...register("linktree.tagline")} />
             </Field>
-            <Field label="Lema (acento azul)" htmlFor="lt-accent" hint="Ej. Become the Change.">
+            <Field label="Lema (acento azul)" htmlFor="lt-accent" hint="Ej. Sublema 2026">
               <Input id="lt-accent" {...register("linktree.taglineAccent")} />
             </Field>
           </div>

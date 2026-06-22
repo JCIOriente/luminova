@@ -22,6 +22,9 @@ const LINK_ICON: Record<LinktreeIcon, (p: { s?: number }) => ReactNode> = {
   compass: Icon.compass,
   briefcase: Icon.briefcase,
   spark: Icon.spark,
+  linkedin: Icon.linkedin,
+  whatsapp: Icon.whatsapp,
+  youtube: Icon.youtube,
 };
 
 const SOCIAL: Record<
@@ -31,6 +34,9 @@ const SOCIAL: Record<
   instagram: { label: "Instagram", icon: Icon.instagram },
   facebook: { label: "Facebook", icon: Icon.facebook },
   tiktok: { label: "TikTok", icon: Icon.tiktok },
+  linkedin: { label: "LinkedIn", icon: Icon.linkedin },
+  whatsapp: { label: "WhatsApp", icon: Icon.whatsapp },
+  youtube: { label: "YouTube", icon: Icon.youtube },
 };
 
 const cardBase: React.CSSProperties = {
@@ -49,7 +55,8 @@ const cardBase: React.CSSProperties = {
 };
 
 export function EnlacesPage() {
-  const { linktree } = useSiteConfig();
+  const config = useSiteConfig();
+  const linktree = config.linktree;
   if (!linktree) return null;
   const links = linktree.links.filter((l) => l.active);
 
@@ -90,15 +97,19 @@ export function EnlacesPage() {
           }}
         >
           <LogoLockup variant="inverted" />
-          <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.92)" }}>
-            {linktree.handle}
-          </div>
-          <p className="t-quote" style={{ fontStyle: "italic", color: "#fff", maxWidth: "24ch" }}>
-            {linktree.tagline}{" "}
-            <b style={{ color: "var(--jci-blue)", fontStyle: "normal", fontWeight: 400 }}>
-              {linktree.taglineAccent}
-            </b>
-          </p>
+          {linktree.handle ? (
+            <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.92)" }}>
+              {linktree.handle}
+            </div>
+          ) : null}
+          {linktree.tagline || linktree.taglineAccent ? (
+            <p className="t-quote" style={{ fontStyle: "italic", color: "#fff", maxWidth: "24ch" }}>
+              {linktree.tagline}{" "}
+              <b style={{ color: "var(--jci-blue)", fontStyle: "normal", fontWeight: 400 }}>
+                {linktree.taglineAccent}
+              </b>
+            </p>
+          ) : null}
         </header>
 
         <nav style={{ width: "100%", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -207,7 +218,7 @@ export function EnlacesPage() {
             lineHeight: 1.9,
           }}
         >
-          <div>Santa Cruz de la Sierra · Bolivia</div>
+          {config.contact.location ? <div>{config.contact.location}</div> : null}
           <div>JCI Oriente · Desde 1993</div>
         </footer>
       </div>
