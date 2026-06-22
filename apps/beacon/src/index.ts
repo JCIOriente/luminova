@@ -17,6 +17,7 @@ import {
   rosterMemberIds,
   showcasePerson,
 } from "./showcase/project-initiative.js";
+import { projectAlly } from "./showcase/project-ally.js";
 import type { ShowcasePerson } from "@luminova/types/engine";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
@@ -193,6 +194,28 @@ export const onMemberWritten = onDocumentWritten("members/{id}", async (event) =
   const member = parseMember(after.data());
   if (!member.uid) return; // not provisioned → no Auth user to claim
   await syncMemberClaims(firestoreClaimsDeps(db(), getAuth()), member, currentTermKey());
+});
+
+// Curated public projection: mirror an ally write into the world-read allyShowcase
+// collection (public fields only), or delete it when the ally is no longer showable.
+export const onAllyWritten = onDocumentWritten("allies/{id}", async (event) => {
+  // Swallow + log: a permanent Firestore error (bad id, permission) must not throw
+  // and trigger an at-least-once retry storm. The projection self-heals on the next
+  // write to the ally. Mirrors the projectShowcase error handling above.
+  try {
+    const ref = db().doc(`allyShowcase/${event.params.id}`);
+    const after = event.data?.after;
+    const item = after?.exists
+      ? projectAlly(event.params.id, after.data() as Record<string, unknown>)
+      : null;
+    if (!item) {
+      await ref.delete();
+      return;
+    }
+    await ref.set(item);
+  } catch (err) {
+    console.error("allyShowcase projection failed", { id: event.params.id, err });
+  }
 });
 
 export { setUserRoles } from "./set-user-roles.js";

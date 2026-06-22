@@ -629,31 +629,47 @@
     gap: 56px;
     flex-wrap: wrap;
   }
-  .ally {
-    font-family: var(--font-sans);
-    font-weight: 600;
-    font-size: 18px;
-    color: var(--ink-3);
-    letter-spacing: -0.005em;
-    padding: 8px 0;
-    transition: color 150ms ease-out;
+  .ally-card {
     display: flex;
+    flex-direction: column;
     align-items: center;
     gap: 10px;
+    width: 160px;
+    margin: 0;
   }
-  .ally:hover {
-    color: var(--ink-1);
+  .ally-logo {
+    height: 56px;
+    width: auto;
+    max-width: 140px;
+    object-fit: contain;
+    filter: grayscale(1);
+    opacity: 0.7;
+    transition:
+      filter 150ms ease-out,
+      opacity 150ms ease-out;
   }
-  .ally .mark {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    background: var(--ink-3);
-    opacity: 0.4;
-  }
-  .ally:hover .mark {
+  .ally-card:hover .ally-logo {
+    filter: grayscale(0);
     opacity: 1;
-    background: var(--jci-blue);
+  }
+  .ally-name {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--ink-2);
+    letter-spacing: -0.005em;
+    text-align: center;
+  }
+  .ally-chip {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--jci-blue);
+    background: color-mix(in srgb, var(--jci-blue) 12%, transparent);
+    border-radius: 999px;
+    padding: 3px 10px;
   }
 
   /* ----- Timeline ----- */

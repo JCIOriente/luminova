@@ -4,9 +4,12 @@ import { Button, ArrowLink, RippleBackground, SectionHeader, Reveal, Icon } from
 import { AreaCard, ImpactStat } from "../components/cards";
 import { ProgramsSkeleton } from "../components/programs-skeleton";
 
-const LazyHomePrograms = lazy(() => import("../components/home-programs"));
 import { useSiteConfig } from "../site-config/use-site-config";
 import { currentYearsActive } from "../site-config/defaults";
+import { useAllies } from "../allies/use-allies";
+import { ALLY_CATEGORY_LABELS } from "@luminova/types/engine";
+
+const LazyHomePrograms = lazy(() => import("../components/home-programs"));
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -257,11 +260,9 @@ function HomeImpact() {
   );
 }
 
-// Placeholder until the dedicated allies feature (real Ally records with logos +
-// categories, projected for public read) ships. Tracked as a follow-up PR.
-const ALLIES = ["Unifranz", "JCI Bolivia", "JCI Worldwide", "Cámara de Industria SC", "Fexpocruz"];
-
 function HomeAllies() {
+  const { data: allies, loading, error } = useAllies();
+  if (loading || error || allies.length === 0) return null;
   return (
     <section className="section" style={{ paddingTop: 80, paddingBottom: 80 }}>
       <div className="container">
@@ -270,11 +271,12 @@ function HomeAllies() {
             Confían en nosotros
           </div>
           <div className="ally-strip" style={{ marginTop: 32 }}>
-            {ALLIES.map((name) => (
-              <a key={name} className="ally" href="#">
-                <span className="mark" aria-hidden="true" />
-                {name}
-              </a>
+            {allies.map((ally) => (
+              <figure key={ally.id} className="ally-card">
+                <img className="ally-logo" src={ally.logoUrl} alt={ally.name} loading="lazy" />
+                <figcaption className="ally-name">{ally.name}</figcaption>
+                <span className="ally-chip">{ALLY_CATEGORY_LABELS[ally.category]}</span>
+              </figure>
             ))}
           </div>
         </div>

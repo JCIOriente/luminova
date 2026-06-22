@@ -245,6 +245,12 @@ beforeAll(async () => {
       deletedAt: null,
     });
     await setDoc(doc(db, "showcase/s1"), { id: "s1", kind: "Project", title: "Eco" });
+    await setDoc(doc(db, "allyShowcase/a1"), {
+      id: "a1",
+      name: "Unifranz",
+      logoUrl: "https://cdn/x.png",
+      category: "University",
+    });
     await setDoc(doc(db, "siteConfig/current"), { version: 1, stats: {}, allies: [] });
   });
 });
@@ -1051,6 +1057,18 @@ describe("showcase (public read, beacon-only write)", () => {
   });
   it("admin cannot write (beacon admin SDK only)", async () => {
     await assertFails(setDoc(doc(as("u", ["Admin"]), "showcase/s2"), { title: "x" }));
+  });
+});
+
+describe("allyShowcase (public read, beacon-only write)", () => {
+  it("allows anonymous read", async () => {
+    await assertSucceeds(getDoc(doc(anon(), "allyShowcase/a1")));
+  });
+  it("denies anonymous write", async () => {
+    await assertFails(setDoc(doc(anon(), "allyShowcase/a2"), { name: "x" }));
+  });
+  it("denies Admin write (beacon admin SDK only)", async () => {
+    await assertFails(setDoc(doc(as("u", ["Admin"]), "allyShowcase/a2"), { name: "x" }));
   });
 });
 
