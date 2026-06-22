@@ -1,5 +1,5 @@
 import { collection, getDocs } from "firebase/firestore/lite";
-import { getFirestoreLite } from "@luminova/firebase";
+import { getFirestoreLite } from "@luminova/firebase/lite";
 import type { AllyShowcaseItem } from "@luminova/types/engine";
 
 export function sortByName(items: AllyShowcaseItem[]): AllyShowcaseItem[] {

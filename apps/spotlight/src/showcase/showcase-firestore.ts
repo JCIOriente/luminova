@@ -1,5 +1,5 @@
 import { collection, doc, getDoc, getDocs } from "firebase/firestore/lite";
-import { getFirestoreLite } from "@luminova/firebase";
+import { getFirestoreLite } from "@luminova/firebase/lite";
 import type { ShowcaseItem } from "@luminova/types/engine";
 
 export function sortByCompletedDesc(items: ShowcaseItem[]): ShowcaseItem[] {
