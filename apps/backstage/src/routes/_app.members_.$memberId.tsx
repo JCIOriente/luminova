@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Badge, Button, Dialog, type BadgeTone } from "@luminova/ui";
 import { QrCode } from "@luminova/ui/qr-code";
 import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
@@ -20,12 +20,18 @@ import {
   type PositionsInput,
 } from "../features/members/components/member-positions-form";
 import { MemberPermissionsPanel } from "../features/members/components/member-permissions-panel";
-import { MemberRolesPanel } from "../features/permissions/components/member-roles-panel";
 import { MemberPositionHistory } from "../features/members/components/member-position-history";
 import { MemberPointsSummary } from "../features/members/components/member-points-summary";
 import { ParticipationLedger } from "../features/members/components/participation-ledger";
 import { effectiveRoles } from "../features/members/lib/member-permissions";
 import { memberFormDefaults } from "../features/members/lib/member-form-defaults";
+
+// Admin-only + pulls MultiSelect — lazy so non-admins don't download it.
+const MemberRolesPanel = lazy(() =>
+  import("../features/permissions/components/member-roles-panel").then((m) => ({
+    default: m.MemberRolesPanel,
+  })),
+);
 
 export const Route = createFileRoute("/_app/members_/$memberId")({
   component: MemberProfilePage,
@@ -135,7 +141,9 @@ function MemberProfilePage() {
         <aside className="flex flex-col gap-6">
           <MemberPermissionsPanel roles={roles} />
           <Can I="manage" a="all">
-            <MemberRolesPanel member={member} builtInRoleNames={roles} />
+            <Suspense fallback={null}>
+              <MemberRolesPanel member={member} builtInRoleNames={roles} />
+            </Suspense>
           </Can>
           <MemberPositionHistory
             member={member}

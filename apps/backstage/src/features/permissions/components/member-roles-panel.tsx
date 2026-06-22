@@ -16,7 +16,10 @@ import { permissionLabel } from "../lib/permission-matrix";
 const ASSIGNABLE_CODES = ALL_PERMISSION_CODES.filter(
   (c) => !c.endsWith(":all") && !c.endsWith(":Role"),
 );
+const ASSIGNABLE_SET = new Set<string>(ASSIGNABLE_CODES);
 const CODE_OPTIONS = ASSIGNABLE_CODES.map((c) => ({ value: c, label: permissionLabel(c) }));
+const assignableOnly = (codes: string[] | undefined): string[] =>
+  (codes ?? []).filter((c) => ASSIGNABLE_SET.has(c));
 
 interface MemberRolesPanelProps {
   member: Member;
@@ -31,9 +34,28 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
   const save = useSaveMemberPermissions();
   const [saved, setSaved] = useState(false);
 
-  const [roleIds, setRoleIds] = useState<string[]>(member.roleIds ?? []);
-  const [grant, setGrant] = useState<string[]>(member.permissionOverrides?.grant ?? []);
-  const [revoke, setRevoke] = useState<string[]>(member.permissionOverrides?.revoke ?? []);
+  const [roleIds, setRoleIdsState] = useState<string[]>(member.roleIds ?? []);
+  // Drop any stray :all / :Role override codes the matrix can't represent, so an
+  // edit-and-save can't silently re-persist an unassignable code.
+  const [grant, setGrantState] = useState<string[]>(assignableOnly(member.permissionOverrides?.grant));
+  const [revoke, setRevokeState] = useState<string[]>(
+    assignableOnly(member.permissionOverrides?.revoke),
+  );
+
+  // Any edit clears a prior "Guardado." confirmation so it never lingers over
+  // unsaved changes.
+  const setRoleIds = (v: string[]) => {
+    setRoleIdsState(v);
+    setSaved(false);
+  };
+  const setGrant = (v: string[]) => {
+    setGrantState(v);
+    setSaved(false);
+  };
+  const setRevoke = (v: string[]) => {
+    setRevokeState(v);
+    setSaved(false);
+  };
 
   const customRoleOptions = useMemo(
     () => (roles ?? []).filter((r) => !r.builtIn).map((r) => ({ value: r.id, label: r.name })),
