@@ -7,13 +7,15 @@ function editableFields(data: AllyInput) {
     contactPerson: data.contactPerson,
     phone: data.phone,
     email: data.email,
+    category: data.category ?? null,
   };
 }
 
-/** New ally document: editable fields + system defaults. */
+/** New ally document: editable fields + system defaults. Logo is uploaded out-of-band. */
 export function toAllyCreateDoc(data: AllyInput) {
   return {
     ...editableFields(data),
+    logoUrl: null,
     active: true,
     deletedAt: null,
   };

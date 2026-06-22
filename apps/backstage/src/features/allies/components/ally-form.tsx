@@ -1,23 +1,41 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Field, Input } from "@luminova/ui";
-import { allySchema, type AllyInput } from "@luminova/types";
+import { Button, Field, Input, Select } from "@luminova/ui";
+import {
+  allySchema,
+  ALLY_CATEGORIES,
+  ALLY_CATEGORY_LABELS,
+  type AllyInput,
+  type Ally,
+} from "@luminova/types";
+import { LogoUploader } from "./logo-uploader";
 
 interface AllyFormProps {
-  defaultValues?: Partial<AllyInput>;
+  ally?: Ally;
   submitLabel: string;
   onSubmit: (data: AllyInput) => Promise<void>;
+  onUploadLogo?: (file: File) => Promise<void>;
+  onRemoveLogo?: () => Promise<void>;
 }
 
-const EMPTY: AllyInput = {
-  companyName: "",
-  contactPerson: "",
-  phone: "",
-  email: "",
-};
+function toDefaults(ally?: Ally): AllyInput {
+  return {
+    companyName: ally?.companyName ?? "",
+    contactPerson: ally?.contactPerson ?? "",
+    phone: ally?.phone ?? "",
+    email: ally?.email ?? "",
+    category: ally?.category ?? undefined,
+  };
+}
 
-export function AllyForm({ defaultValues, submitLabel, onSubmit }: AllyFormProps) {
+export function AllyForm({
+  ally,
+  submitLabel,
+  onSubmit,
+  onUploadLogo,
+  onRemoveLogo,
+}: AllyFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
@@ -25,7 +43,7 @@ export function AllyForm({ defaultValues, submitLabel, onSubmit }: AllyFormProps
     formState: { errors, isSubmitting },
   } = useForm<AllyInput>({
     resolver: zodResolver(allySchema),
-    defaultValues: { ...EMPTY, ...defaultValues },
+    defaultValues: toDefaults(ally),
   });
 
   const submit = handleSubmit(async (data) => {
@@ -56,6 +74,33 @@ export function AllyForm({ defaultValues, submitLabel, onSubmit }: AllyFormProps
       <Field label="Correo" htmlFor="email" required error={errors.email?.message}>
         <Input id="email" type="email" {...register("email")} />
       </Field>
+      <Field label="Categoría" htmlFor="category" error={errors.category?.message}>
+        <Select
+          id="category"
+          {...register("category", { setValueAs: (v) => (v === "" ? undefined : v) })}
+        >
+          <option value="">Sin categoría</option>
+          {ALLY_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {ALLY_CATEGORY_LABELS[c]}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      {ally && onUploadLogo && onRemoveLogo ? (
+        <LogoUploader
+          currentSrc={ally.logoUrl}
+          onUpload={onUploadLogo}
+          onRemove={onRemoveLogo}
+          disabled={isSubmitting}
+        />
+      ) : (
+        <p className="text-[13px] text-ink-2">
+          Guarda el aliado y vuelve a editarlo para añadir su logo.
+        </p>
+      )}
+
       {formError && (
         <div role="alert" className="text-[13px] text-[#c0392b]">
           {formError}

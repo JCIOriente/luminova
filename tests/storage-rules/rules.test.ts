@@ -266,3 +266,37 @@ describe("storage.rules — photo deletes (request.resource is null on delete)",
     await assertFails(deleteObject(ref(storageAs("stranger", ["Member"]), PROG_PHOTO)));
   });
 });
+
+const LOGO = "allies/a1/logo";
+const PNG = { contentType: "image/png" };
+
+describe("storage.rules — ally logos (public read, privileged write)", () => {
+  it("allows anyone to read a logo (public site)", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("a", ["Admin"]), LOGO), PHOTO, PNG));
+    await assertSucceeds(getBytes(ref(storageAnon(), LOGO)));
+  });
+  it("allows Admin to upload a png logo", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("admin1", ["Admin"]), LOGO), PHOTO, PNG));
+  });
+  it("allows Membership to upload a jpeg logo", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("staff1", ["Membership"]), LOGO), PHOTO, JPEG));
+  });
+  it("denies a plain Member from uploading", async () => {
+    await assertFails(uploadBytes(ref(storageAs("m", ["Member"]), LOGO), PHOTO, PNG));
+  });
+  it("denies a non-image contentType", async () => {
+    await assertFails(
+      uploadBytes(ref(storageAs("admin1", ["Admin"]), LOGO), PHOTO, {
+        contentType: "application/pdf",
+      }),
+    );
+  });
+  it("allows a privileged user to delete a logo", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("admin1", ["Admin"]), LOGO), PHOTO, PNG));
+    await assertSucceeds(deleteObject(ref(storageAs("admin1", ["Admin"]), LOGO)));
+  });
+  it("denies a plain Member from deleting a logo", async () => {
+    await assertSucceeds(uploadBytes(ref(storageAs("admin1", ["Admin"]), LOGO), PHOTO, PNG));
+    await assertFails(deleteObject(ref(storageAs("m", ["Member"]), LOGO)));
+  });
+});

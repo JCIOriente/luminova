@@ -1,6 +1,15 @@
+import { lazy, Suspense } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button, ArrowLink, RippleBackground, SectionHeader, Reveal, Icon } from "@luminova/ui";
-import { AreaCard, ProgramCard, ImpactStat } from "../components/cards";
+import { AreaCard, ImpactStat } from "../components/cards";
+import { ProgramsSkeleton } from "../components/programs-skeleton";
+
+import { useSiteConfig } from "../site-config/use-site-config";
+import { currentYearsActive } from "../site-config/defaults";
+import { useAllies } from "../allies/use-allies";
+import { ALLY_CATEGORY_LABELS } from "@luminova/types/engine";
+
+const LazyHomePrograms = lazy(() => import("../components/home-programs"));
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -37,47 +46,8 @@ const AREAS = [
   },
 ];
 
-const PROGRAMS = [
-  {
-    tag: "Anual · Septiembre",
-    title: "World Clean Up Day",
-    desc: "Movilización global de limpieza. JCI Oriente coordina la jornada en Santa Cruz cada año.",
-    label: "World Clean Up Day · jornada en Equipetrol",
-    tint: "teal" as const,
-  },
-  {
-    tag: "Programa de impacto",
-    title: "Madre Emprendedora",
-    desc: "Capacitación y acompañamiento a mujeres jefas de hogar que inician su primer negocio.",
-    label: "Madre Emprendedora · taller cohort 2024",
-    tint: "blue" as const,
-  },
-  {
-    tag: "Programa de impacto",
-    title: "Emprende Oriente",
-    desc: "Acelera negocios locales en etapa temprana con mentoría, comunidad y vinculación.",
-    label: "Emprende Oriente · demo day",
-    tint: "navy" as const,
-  },
-  {
-    tag: "Programa social",
-    title: "Transformando Vidas",
-    desc: "Intervenciones puntuales en comunidades rurales del departamento.",
-    label: "Transformando Vidas · brigada rural",
-    tint: "blue" as const,
-  },
-  {
-    tag: "Programa educativo",
-    title: "Creando Oportunidades",
-    desc: "Becas, talleres y conexiones para jóvenes universitarios del Oriente.",
-    label: "Creando Oportunidades · panel UPSA",
-    tint: "teal" as const,
-  },
-];
-
-const ALLIES = ["Unifranz", "JCI Bolivia", "JCI Worldwide", "Cámara de Industria SC", "Fexpocruz"];
-
 function HomeHero() {
+  const config = useSiteConfig();
   return (
     <section
       className="bg-dark"
@@ -141,15 +111,15 @@ function HomeHero() {
         <div style={{ marginTop: 64 }}>
           <div className="mini-stats">
             <div className="mini-stat">
-              <div className="v t-num">+32</div>
+              <div className="v t-num">+{currentYearsActive()}</div>
               <div className="l">años desarrollando líderes en el Oriente</div>
             </div>
             <div className="mini-stat">
-              <div className="v t-num">5</div>
+              <div className="v t-num">{config.stats.programCount}</div>
               <div className="l">programas insignia activos</div>
             </div>
             <div className="mini-stat">
-              <div className="v t-num">100+</div>
+              <div className="v t-num">{config.stats.countries}</div>
               <div className="l">países en la red global JCI</div>
             </div>
           </div>
@@ -160,6 +130,7 @@ function HomeHero() {
 }
 
 function HomeAbout() {
+  const config = useSiteConfig();
   return (
     <section id="about-jci" className="section">
       <div className="container">
@@ -184,8 +155,7 @@ function HomeAbout() {
               </p>
               <figure className="pullquote" style={{ marginTop: 36, marginBottom: 0 }}>
                 <blockquote className="t-quote" style={{ margin: 0 }}>
-                  “Más de 200.000 miembros en 100+ países, 17 organizaciones en Bolivia, 1 capítulo
-                  activo en Santa Cruz.”
+                  {`“Más de ${config.stats.membersWorldwide} miembros en ${config.stats.countries} países, 17 organizaciones en Bolivia, 1 capítulo activo en Santa Cruz.”`}
                 </blockquote>
                 <cite>Red JCI · 2025</cite>
               </figure>
@@ -244,19 +214,9 @@ function HomePrograms() {
           </ArrowLink>
         </div>
         <div className="program-scroller" style={{ marginTop: 56 }}>
-          <div className="program-grid">
-            {PROGRAMS.map((p, i) => (
-              <Reveal key={p.title} delay={i * 60}>
-                <ProgramCard
-                  tag={p.tag}
-                  title={p.title}
-                  description={p.desc}
-                  slotLabel={p.label}
-                  tint={p.tint}
-                />
-              </Reveal>
-            ))}
-          </div>
+          <Suspense fallback={<ProgramsSkeleton />}>
+            <LazyHomePrograms />
+          </Suspense>
         </div>
       </div>
     </section>
@@ -264,6 +224,7 @@ function HomePrograms() {
 }
 
 function HomeImpact() {
+  const config = useSiteConfig();
   return (
     <section className="section bg-blue" style={{ position: "relative", overflow: "hidden" }}>
       <RippleBackground variant="subtle" color="#FFFFFF" opacity={0.06} />
@@ -277,10 +238,22 @@ function HomeImpact() {
           </h2>
         </div>
         <div className="impact-grid" style={{ marginTop: 72 }}>
-          <ImpactStat value="+32" label="años activos en Santa Cruz desde 1993" />
-          <ImpactStat value="2021" label="Organización Local Más Sobresaliente — JCI Bolivia" />
-          <ImpactStat value="100%" label="eficiencia operativa certificada en 2019 y 2020" />
-          <ImpactStat value="+11" label="reconocimientos nacionales acumulados" />
+          <ImpactStat
+            value={`+${currentYearsActive()}`}
+            label="años activos en Santa Cruz desde 1993"
+          />
+          <ImpactStat
+            value={config.stats.standoutOrg.year}
+            label={`${config.stats.standoutOrg.title} — JCI Bolivia`}
+          />
+          <ImpactStat
+            value={`${config.stats.efficiencyPct}%`}
+            label="eficiencia operativa certificada en 2019 y 2020"
+          />
+          <ImpactStat
+            value={`+${config.stats.nationalAwards}`}
+            label="reconocimientos nacionales acumulados"
+          />
         </div>
       </div>
     </section>
@@ -288,6 +261,8 @@ function HomeImpact() {
 }
 
 function HomeAllies() {
+  const { data: allies, loading, error } = useAllies();
+  if (loading || error || allies.length === 0) return null;
   return (
     <section className="section" style={{ paddingTop: 80, paddingBottom: 80 }}>
       <div className="container">
@@ -296,11 +271,12 @@ function HomeAllies() {
             Confían en nosotros
           </div>
           <div className="ally-strip" style={{ marginTop: 32 }}>
-            {ALLIES.map((name) => (
-              <a key={name} className="ally" href="#">
-                <span className="mark" aria-hidden="true" />
-                {name}
-              </a>
+            {allies.map((ally) => (
+              <figure key={ally.id} className="ally-card">
+                <img className="ally-logo" src={ally.logoUrl} alt={ally.name} loading="lazy" />
+                <figcaption className="ally-name">{ally.name}</figcaption>
+                <span className="ally-chip">{ALLY_CATEGORY_LABELS[ally.category]}</span>
+              </figure>
             ))}
           </div>
         </div>
