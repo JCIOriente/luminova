@@ -3,6 +3,11 @@
 **Date:** 2026-06-22
 **App:** `apps/spotlight` (public marketing site, no auth)
 **Status:** Design approved, pending implementation plan
+**Baseline:** chunk/asset sizes below were measured via `pnpm build:local` just
+before #91 (linktree `/enlaces`) and #92 (tooling) merged. Those merges add an
+`/enlaces` route chunk and rework `vite.config.ts`/`turbo.json`, but do not
+change any of the four targets. The implementation branches sit on `main` at
+`b30aa5a` (both merges included); re-measure there before/after each PR.
 
 ## Problem
 
@@ -69,7 +74,11 @@ without dragging the full SDK barrel.
   ```
 - `packages/firebase/src/firestore-lite.ts` already imports only
   `firebase/app` + `firebase/firestore/lite` — it becomes the public lite entry
-  (export `getFirestoreLite` from it; it already does).
+  (export `getFirestoreLite` from it; it already does). The `./lite` export
+  points at **source** (`./src/firestore-lite.ts`), consistent with the existing
+  `.` → `./src/index.ts`; the package's `build` is `tsc --noEmit` with empty
+  turbo outputs (`packages/firebase/turbo.json`, added in #92) — there is no
+  `dist`, so no build wiring changes.
 - Spotlight swaps every `from "@luminova/firebase"` to
   `from "@luminova/firebase/lite"` in:
   - `src/allies/ally-showcase-firestore.ts`
@@ -113,7 +122,9 @@ passes (no orphaned font dep).
 `vite-imagetools`.
 
 - Add `vite-imagetools` to spotlight (dev dep) → `secure-dep-vetting`.
-- Wire the plugin in `apps/spotlight/vite.config.ts`.
+- Wire the plugin into the existing `apps/spotlight/vite.config.ts` `plugins`
+  array (post-#92 it is the multiline form carrying `tanstackRouter` with
+  `routeFileIgnorePattern`, `react`, `tailwindcss` — append `imagetools()`).
 - Update logo imports to request WebP (e.g.
   `import logo from "...logo-color.png?format=webp&w=..."` per the plugin's
   query API; exact syntax finalized in the plan).
@@ -151,11 +162,13 @@ Firestore reads fire only when the section nears the viewport.
   export const BACKSTAGE_URL = "https://jcioriente-backstage.web.app";
   ```
   Single source of truth so a future custom domain is a one-line change.
-- In `src/components/footer.tsx`, add a list item to the **"Sitio"** column:
-  `Portal de miembros` → `BACKSTAGE_URL`. It is an external app (different
-  origin), so a plain anchor with same-tab navigation — **not** the SPA
-  `navigate()` used by the in-site links. Backstage is auth-gated, so the link
-  lands on its login screen.
+- In `src/components/footer.tsx` (the merged #91 version: dynamic linktree
+  footer, `safeHref` now imported from `../site-config/safe-href`), add a list
+  item to the **"Sitio"** column (`<h4>Sitio</h4>`, after Programas). It is an
+  external app (different origin), so a plain anchor with same-tab navigation —
+  **not** the SPA `navigate()` used by the in-site links, and not routed through
+  `safeHref` (the URL is a trusted in-repo constant). Backstage is auth-gated, so
+  the link lands on its login screen.
 
 **Verify:** rebuild + manual check. Below-fold reads do not fire until scroll
 (observe Network in devtools). Footer shows the new link in the Sitio column and
@@ -163,6 +176,12 @@ navigates to the backstage URL.
 
 ## Cross-cutting
 
+- **Worktree-first (MANDATORY, per CLAUDE.md #92).** Each PR runs in its own
+  `.worktrees/<slug>` worktree created off `main` **before** the first edit
+  (`git worktree add .worktrees/<slug> -b <branch> main`) — never edit, build, or
+  test in the primary checkout. `.worktrees/` is gitignored and excluded from
+  prettier/knip. Remove with `git worktree remove` after each PR merges. Since
+  the 4 slices are file-disjoint, they get 4 parallel worktrees.
 - Each PR follows the repo flow: branch off `main`, TDD where it applies
   (firestore readers, the visibility hook), `react-best-practices` (auto on
   `.tsx`), `/simplify` on the diff, `superpowers:verification-before-completion`
