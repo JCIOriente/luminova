@@ -318,7 +318,7 @@ function HomeCTA() {
             marginRight: "auto",
           }}
         >
-          Conviértete en el cambio que el Oriente necesita.
+          Conviértete en el cambio que quieres ver en el mundo.
         </h2>
         <p
           className="t-subtitle"
@@ -330,7 +330,7 @@ function HomeCTA() {
             marginRight: "auto",
           }}
         >
-          Postúlate, ven a una reunión, conoce al comité. Sin compromiso.
+          Postúlate, conócenos y mira el cambio que logramos — en nosotros y en nuestra comunidad.
         </p>
         <div
           style={{
