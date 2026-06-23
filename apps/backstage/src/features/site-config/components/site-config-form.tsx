@@ -45,6 +45,11 @@ const SOCIAL_LABELS: Record<LinktreeSocialPlatform, string> = {
   youtube: "YouTube",
 };
 
+const CONTACT_SOCIALS = (["instagram", "facebook", "tiktok", "linkedin"] as const).map((key) => ({
+  key,
+  label: SOCIAL_LABELS[key],
+}));
+
 const stampFormatter = new Intl.DateTimeFormat("es-BO", {
   day: "numeric",
   month: "short",
@@ -83,10 +88,35 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
     <form noValidate onSubmit={submit} className="flex flex-col gap-4 pb-28">
       <CollapsibleSection
         num="01"
+        icon={Icon.megaphone({ s: 18 })}
+        title="Portada"
+        desc="Lema y sublema del encabezado de inicio"
+        defaultOpen
+      >
+        <div className="flex flex-col gap-4">
+          <Field
+            label="Lema"
+            htmlFor="hero-motto"
+            hint="Ej. el lema de la gestión o el lema institucional"
+            error={err(errors.hero?.motto?.message)}
+          >
+            <Input
+              id="hero-motto"
+              aria-invalid={attempted && !!errors.hero?.motto}
+              {...register("hero.motto")}
+            />
+          </Field>
+          <Field label="Sublema" htmlFor="hero-submotto" hint="Opcional — texto de acento debajo">
+            <Input id="hero-submotto" {...register("hero.submotto")} />
+          </Field>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        num="02"
         icon={Icon.barChart({ s: 18 })}
         title="Estadísticas"
         desc="Cifras de impacto en la página de inicio"
-        defaultOpen
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
@@ -185,7 +215,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
-        num="02"
+        num="03"
         icon={Icon.calendar({ s: 18 })}
         title="Hitos"
         desc="Línea de tiempo de la historia del capítulo"
@@ -234,7 +264,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
-        num="03"
+        num="04"
         icon={Icon.compass({ s: 18 })}
         title="Misión · Visión · Valores"
         desc="Declaraciones institucionales"
@@ -265,7 +295,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
-        num="04"
+        num="05"
         icon={Icon.spark({ s: 18 })}
         title="Razones"
         desc="Motivos para unirse al capítulo"
@@ -303,7 +333,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
-        num="05"
+        num="06"
         icon={Icon.mail({ s: 18 })}
         title="Contacto"
         desc="Correo, ubicación y enlaces del capítulo"
@@ -339,6 +369,38 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
               {...register("contact.meetingSchedule")}
             />
           </Field>
+          <Field
+            label="Mapa (Google Maps)"
+            htmlFor="contactMapUrl"
+            hint="Enlace a la ubicación de la sede"
+            error={err(errors.contact?.mapUrl?.message)}
+          >
+            <Input
+              id="contactMapUrl"
+              aria-invalid={attempted && !!errors.contact?.mapUrl}
+              {...register("contact.mapUrl")}
+            />
+          </Field>
+
+          <div>
+            <span className="mb-2 block text-[13px] font-semibold text-ink-1">Redes sociales</span>
+            <div className="flex flex-col gap-3">
+              {CONTACT_SOCIALS.map(({ key, label }) => (
+                <Field
+                  key={key}
+                  label={label}
+                  htmlFor={`contact-social-${key}`}
+                  error={err(errors.contact?.socials?.[key]?.message)}
+                >
+                  <Input
+                    id={`contact-social-${key}`}
+                    aria-invalid={attempted && !!errors.contact?.socials?.[key]}
+                    {...register(`contact.socials.${key}`)}
+                  />
+                </Field>
+              ))}
+            </div>
+          </div>
 
           <div>
             <span className="mb-2 block text-[13px] font-semibold text-ink-1">Enlaces</span>
@@ -380,7 +442,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
-        num="06"
+        num="07"
         icon={Icon.globe({ s: 18 })}
         title="Enlaces (Linktree)"
         desc="Página pública /enlaces — botones, redes y encabezado"

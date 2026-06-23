@@ -1,8 +1,12 @@
 import { useNavigate } from "@tanstack/react-router";
-import { LogoLockup, RippleBackground, Icon } from "@luminova/ui";
+import { LogoLockup, RippleBackground } from "@luminova/ui";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { safeHref } from "../site-config/safe-href";
 import { BACKSTAGE_URL } from "../config/external-links";
+import { SocialIconLinks } from "./social-icon-links";
+
+const JCI_BOLIVIA_URL = "https://jcibolivia.org/";
+const CURRENT_YEAR = new Date().getFullYear();
 
 const SOCIAL_STYLE: React.CSSProperties = {
   width: 36,
@@ -42,15 +46,7 @@ export function Footer() {
               1993.
             </p>
             <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
-              <a href="#" aria-label="Facebook" style={SOCIAL_STYLE}>
-                <Icon.facebook />
-              </a>
-              <a href="#" aria-label="Instagram" style={SOCIAL_STYLE}>
-                <Icon.instagram />
-              </a>
-              <a href="#" aria-label="TikTok" style={SOCIAL_STYLE}>
-                <Icon.tiktok />
-              </a>
+              <SocialIconLinks style={SOCIAL_STYLE} />
             </div>
           </div>
           <div className="footer-col">
@@ -117,15 +113,24 @@ export function Footer() {
         </div>
         <div className="footer-strip">
           <div>
-            © {new Date().getFullYear()} JCI Oriente. Miembro de{" "}
-            <a href="#" style={{ textDecoration: "underline", textUnderlineOffset: 3 }}>
+            © {CURRENT_YEAR} JCI Oriente. Miembro de{" "}
+            <a
+              href={JCI_BOLIVIA_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ textDecoration: "underline", textUnderlineOffset: 3 }}
+            >
               JCI Bolivia
             </a>
             .
           </div>
           <div style={{ display: "flex", gap: 22 }}>
-            <a href="#">Privacidad</a>
-            <a href="#">Términos</a>
+            <a href="/privacidad" onClick={(e) => go(e, "/privacidad")}>
+              Privacidad
+            </a>
+            <a href="/terminos" onClick={(e) => go(e, "/terminos")}>
+              Términos
+            </a>
           </div>
         </div>
       </div>

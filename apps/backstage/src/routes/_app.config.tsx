@@ -16,6 +16,7 @@ export const Route = createFileRoute("/_app/config")({
 });
 
 const BLANK_CONFIG: SiteConfigInput = {
+  hero: { motto: "", submotto: "" },
   stats: {
     programCount: 0,
     countries: "",
@@ -31,6 +32,8 @@ const BLANK_CONFIG: SiteConfigInput = {
     email: "",
     location: "",
     meetingSchedule: "",
+    mapUrl: "",
+    socials: { instagram: "", facebook: "", tiktok: "", linkedin: "" },
     links: [],
   },
   linktree: EMPTY_LINKTREE,

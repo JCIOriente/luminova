@@ -49,6 +49,8 @@ export type {
   SiteReason,
   SiteLink,
   SiteContact,
+  SiteSocials,
+  SiteHero,
   SiteLinktree,
   LinktreeLink,
   LinktreeSocial,
