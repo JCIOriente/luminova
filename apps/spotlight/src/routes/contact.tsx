@@ -63,10 +63,14 @@ function ContactForm({ onSubmit }: { onSubmit: () => void }) {
 
   function submit(ev: React.FormEvent) {
     ev.preventDefault();
-    if (validate()) {
-      onSubmit();
-      setForm({ name: "", email: "", subject: "Membresía", message: "" });
-    }
+    if (!validate()) return;
+    const subject = `[Web] ${form.subject} — ${form.name}`;
+    const body = `Nombre: ${form.name}\nEmail: ${form.email}\nAsunto: ${form.subject}\n\nMensaje:\n${form.message}`;
+    window.location.href = `mailto:${config.contact.email}?subject=${encodeURIComponent(
+      subject,
+    )}&body=${encodeURIComponent(body)}`;
+    onSubmit();
+    setForm({ name: "", email: "", subject: "Membresía", message: "" });
   }
 
   return (
@@ -433,7 +437,7 @@ function Contact() {
       <ContactHero />
       <ContactBody
         onSubmit={() => {
-          setToast("Mensaje enviado. Te responderemos a la brevedad.");
+          setToast("Abrimos tu correo para que envíes el mensaje. Te responderemos a la brevedad.");
           setTimeout(() => setToast(null), 4000);
         }}
       />
