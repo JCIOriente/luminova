@@ -1,4 +1,5 @@
 import "@fontsource/arvo/latin-400.css";
+import "@fontsource/arvo/latin-400-italic.css";
 import "./styles.css";
 
 import { StrictMode } from "react";
