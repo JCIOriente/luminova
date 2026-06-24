@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { lazy, Suspense } from "react";
 import { ImageUploader } from "@luminova/ui";
-import { QrCode } from "@luminova/ui/qr-code";
 import { PageHeader } from "../components/page-header";
 import { currentTermKey } from "@luminova/types";
 import { encodeMemberQr } from "../lib/member-qr";
@@ -12,6 +12,9 @@ import { useMemberParticipations } from "../features/members/hooks/use-member-pa
 import { useMemberPointsByTerm } from "../features/members/hooks/use-member-points-by-term";
 import { MemberPointsSummary } from "../features/members/components/member-points-summary";
 import { ParticipationLedger } from "../features/members/components/participation-ledger";
+
+// qrcode.react (~13 kB gz) lazy so it leaves the always-loaded index shell.
+const QrCode = lazy(() => import("@luminova/ui/qr-code").then((m) => ({ default: m.QrCode })));
 
 export const Route = createFileRoute("/_app/me")({ component: MemberHome });
 
@@ -59,7 +62,9 @@ export function MemberHome() {
         </p>
       )}
       <div className="flex w-fit flex-col items-center gap-3 rounded-[14px] border border-line bg-surface px-6 py-5">
-        <QrCode value={encodeMemberQr(member.id)} size={176} />
+        <Suspense fallback={<div className="size-[176px]" />}>
+          <QrCode value={encodeMemberQr(member.id)} size={176} />
+        </Suspense>
         <p className="text-[12px] text-ink-3">Tu QR personal · muéstralo en el check-in</p>
       </div>
       <ParticipationLedger rows={participations ?? []} />

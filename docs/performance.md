@@ -18,7 +18,7 @@ Baseline measured on `main` (gzip transfer sizes unless noted):
 
 | Lever | spotlight | backstage |
 |-------|-----------|-----------|
-| Initial JS (`index-*.js`) | **91 kB gz** | **104 kB gz** |
+| Initial JS (`index-*.js`) | **91 kB gz** | **103 kB gz** |
 | Initial CSS (`index-*.css`) | 12 kB gz | 11 kB gz |
 | Largest route chunk | `about` 21 kB gz | `_app` 8 kB gz |
 | Firebase SDK | `firestore-lite` 39 kB gz, **lazy** (data routes only) | full SDK in the `index` shell |
@@ -57,7 +57,7 @@ What's already in place (don't redo these):
 
 | Budget | spotlight | backstage |
 |--------|-----------|-----------|
-| Initial JS (`index` chunk) | ≤ **100 kB gz** (now 91) | ≤ **115 kB gz** (now 104, monitor) |
+| Initial JS (`index` chunk) | ≤ **100 kB gz** (now 91) | ≤ **115 kB gz** (now 103, monitor) |
 | Initial CSS | ≤ 15 kB gz (now 12) | ≤ 15 kB gz (now 11) |
 | Any single route chunk | ≤ 40 kB gz | ≤ 40 kB gz |
 | New runtime dependency | justify if it adds > 10 kB gz to any initial chunk | same |
@@ -115,14 +115,14 @@ By metric — technique → what it does → status here.
 
 | # | Lever | Effort | Impact | Status |
 |---|-------|--------|--------|--------|
-| 1 | **Backstage: lazy-load `QrCode`** (`@luminova/ui/qr-code`). `qrcode.react` (~44 kB src / ~13 kB gz) is eager in the backstage `index` shell because two routes (`_app.me`, `_app.members_.$memberId`) import it statically → rolldown hoists it shared. Make it `lazy()` like the sibling `QrScanner` already is. | S | **Med (~13 kB gz off every backstage page)** | open |
+| 1 | **Backstage: lazy-load `QrCode`** (`@luminova/ui/qr-code`). `qrcode.react` was eager in the backstage `index` shell because two routes (`_app.me`, `_app.members_.$memberId`) imported it statically → rolldown hoisted it shared. Made it `lazy()` + `<Suspense>` (176×176 placeholder, no layout shift) like the sibling `QrScanner`. Result: `qrcode.react` now in its own `qr-code` chunk (6.1 kB gz), loaded only when a QR renders. **Index `index-*.js` 108.66 → 102.88 kB gz (−5.78).** | S | **Med (−5.78 kB gz off every backstage page)** | ✅ done |
 | 2 | Lazy-load the `/impacto/$id` lightbox (open-on-demand) | S | Low-Med | ✅ done |
 | 3 | `decoding="async"` on the lazy `<img>`s (+ `fetchPriority="high"` on the impacto detail hero) | XS | Low | ✅ done |
 | 4 | SSG / prerender static routes (TanStack Start or `vite-plugin-ssg`) — ship real HTML instead of a blank div + JS render | L | **High (FCP/LCP on slow devices)** | open |
 | 5 | Inline critical CSS / cut the render-blocking CSS | M | Low-Med | open |
 | — | ~~Trim the spotlight `index` shell~~ | — | **Dropped** | measured: ~85% react-dom + TanStack Router (irreducible); `@luminova/ui` only ~24 kB src. No worthwhile cut — don't pursue. |
 
-**Measurement note (2026-06-24):** the shells were broken down via the sourcemap `sourcesContent` (source-map-explorer fails on rolldown's Vite-8 sourcemaps — `generated column Infinity`). Spotlight `index` ≈ react-dom 533k + router 238k + `@luminova/ui` 24k (src bytes). Backstage `index` adds TanStack Query (~85k, needed) + `qrcode.react` 44k (→ item 1). Pick from the top; measure before and after (§6).
+**Measurement note (2026-06-24):** the shells were broken down via the sourcemap `sourcesContent` (source-map-explorer fails on rolldown's Vite-8 sourcemaps — `generated column Infinity`). Spotlight `index` ≈ react-dom 533k + router 238k + `@luminova/ui` 24k (src bytes). Backstage `index` adds TanStack Query (~85k, needed); `qrcode.react` (44k src) was split out via item 1 (now its own `qr-code` chunk). Pick from the top; measure before and after (§6).
 
 ---
 
