@@ -1,7 +1,5 @@
-import "@fontsource-variable/plus-jakarta-sans/wght.css";
-import "@fontsource/arvo/400.css";
-import "@fontsource/arvo/400-italic.css";
-import "@fontsource/jetbrains-mono/400.css";
+import "@fontsource/arvo/latin-400.css";
+import "@fontsource/arvo/latin-400-italic.css";
 import "./styles.css";
 
 import { StrictMode } from "react";
