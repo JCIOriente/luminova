@@ -8,9 +8,13 @@ import { imagetools } from "vite-imagetools";
 // it before CSS parse/layout (kills the swap delay on hero text). The emitted name
 // is content-hashed, so resolve it from the build bundle rather than hardcoding.
 function preloadJakartaLatin(): Plugin {
+  let base = "/";
   return {
     name: "preload-jakarta-latin",
     apply: "build",
+    configResolved(config) {
+      base = config.base;
+    },
     transformIndexHtml: {
       order: "post",
       handler(html, ctx) {
@@ -27,7 +31,7 @@ function preloadJakartaLatin(): Plugin {
                 rel: "preload",
                 as: "font",
                 type: "font/woff2",
-                href: `/${fileName}`,
+                href: `${base}${fileName}`,
                 crossorigin: "",
               },
               injectTo: "head",

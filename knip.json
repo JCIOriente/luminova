@@ -1,11 +1,15 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreDependencies": ["tailwindcss", "@fontsource-variable/plus-jakarta-sans"],
+  "ignoreDependencies": ["tailwindcss"],
   "ignoreBinaries": ["firebase"],
   "ignore": ["tools/scripts/**"],
   "workspaces": {
     "apps/*": {
       "project": ["src/**/*.{ts,tsx}"]
+    },
+    "apps/spotlight": {
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignoreDependencies": ["@fontsource-variable/plus-jakarta-sans"]
     },
     "packages/*": {
       "project": ["src/**/*.{ts,tsx}"]

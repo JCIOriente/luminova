@@ -158,13 +158,6 @@
     line-height: 1.35;
     font-weight: 400;
   }
-  .t-mono {
-    font-family: var(--font-sans);
-    font-variant-numeric: tabular-nums;
-    font-size: 12px;
-    line-height: 1.4;
-    letter-spacing: 0.02em;
-  }
   .t-num {
     font-family: var(--font-sans);
     font-weight: 400;
