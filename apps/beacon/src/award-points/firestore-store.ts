@@ -129,11 +129,16 @@ export function createFirestoreStore(db: Firestore): EngineStore {
         // members write fires onMemberWritten (claims-sync), so an unconditional
         // write amplifies into a wasted claims sync on every recompute even when
         // the total is unchanged (report-gate reconcile, redelivery). Skip-if-equal
-        // mirrors setInitiativeDirectionUids. A missing doc reads as undefined →
-        // differs → written (preserves the prior create-on-write behavior).
-        const currentTotal = memberSnap.exists
+        // mirrors setInitiativeDirectionUids. memberRef is read inside the txn on
+        // purpose (atomic decision); the only other writer of this doc is rare
+        // admin edits, and claims-sync writes Auth, not Firestore — so no loop.
+        // A missing or non-number value reads as undefined → differs → a corrective
+        // numeric write lands (and preserves the prior create-on-write behavior);
+        // otherwise a legacy non-number totalPoints would defeat the guard forever.
+        const raw = memberSnap.exists
           ? (memberSnap.data() as { totalPoints?: unknown }).totalPoints
           : undefined;
+        const currentTotal = typeof raw === "number" ? raw : undefined;
         if (currentTotal !== aggregate.cumulative) {
           tx.set(memberRef, { totalPoints: aggregate.cumulative }, { merge: true });
         }

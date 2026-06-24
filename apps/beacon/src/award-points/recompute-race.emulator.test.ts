@@ -108,7 +108,7 @@ function countWritesTo(real: Firestore, path: string): { db: Firestore; writes: 
     new Proxy(tx, {
       get(t, p) {
         if (p === "set")
-          return (ref: any, ...rest: unknown[]) => {
+          return (ref: { path?: string }, ...rest: unknown[]) => {
             if (ref?.path === path) count += 1;
             return t.set(ref, ...rest);
           };
@@ -188,17 +188,23 @@ describe("recomputeAggregate concurrency (emulator)", () => {
     const counter = countWritesTo(db, `members/${M}`);
     const counted = createFirestoreStore(counter.db);
 
+    // Assert deltas, not absolutes: the unchanged case must issue ZERO members
+    // writes (a skip is never called on any txn attempt → retry-proof), while the
+    // changed cases issue at least one (a retry could inflate the absolute count).
     await db.doc("participations/p0").set(confirmedRow("p0", 4));
-    await counted.recomputeAggregate(M, TERM); // 0 → 4: one members write (creates doc)
-    expect(counter.writes()).toBe(1);
+    const before1 = counter.writes();
+    await counted.recomputeAggregate(M, TERM); // 0 → 4: writes members (creates doc)
+    expect(counter.writes()).toBeGreaterThan(before1);
     expect((await db.doc(`members/${M}`).get()).data()?.totalPoints).toBe(4);
 
+    const before2 = counter.writes();
     await counted.recomputeAggregate(M, TERM); // unchanged (4): members write skipped
-    expect(counter.writes()).toBe(1);
+    expect(counter.writes()).toBe(before2);
 
     await db.doc("participations/p1").set(confirmedRow("p1", 4));
-    await counted.recomputeAggregate(M, TERM); // 4 → 8: one more members write
-    expect(counter.writes()).toBe(2);
+    const before3 = counter.writes();
+    await counted.recomputeAggregate(M, TERM); // 4 → 8: writes members again
+    expect(counter.writes()).toBeGreaterThan(before3);
     expect((await db.doc(`members/${M}`).get()).data()?.totalPoints).toBe(8);
   });
 });
