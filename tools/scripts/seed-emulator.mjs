@@ -15,6 +15,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { seedPresident } from "./lib/seed-president.mjs";
+import { seedBuiltInRoles } from "./lib/role-seed.mjs";
 import { SITE_CONFIG_CONTENT } from "./lib/site-config-seed-data.mjs";
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
@@ -209,6 +210,9 @@ const memberPoints = [
 ].map((mp) => ({ ...mp, termId: TERM, updatedAt: ts("2026-06-20T18:00:00Z") }));
 
 async function seed() {
+  // Seed the built-in role docs so the backstage /permissions UI is populated and
+  // the onMemberWritten trigger resolves perms from live docs — matching prod.
+  const rolesCreated = await seedBuiltInRoles(db);
   await db.doc("siteConfig/current").set(siteConfig);
   for (const m of members) await db.doc(`members/${m.id}`).set(m);
   await db.doc(`terms/${TERM}`).set(term, { merge: true });
@@ -254,7 +258,7 @@ async function seed() {
   );
 
   console.log(
-    `Seeded siteConfig/current, ${members.length} members, term ${TERM}, ${activities.length} activities, ` +
+    `Seeded ${rolesCreated} built-in roles, siteConfig/current, ${members.length} members, term ${TERM}, ${activities.length} activities, ` +
       `${participations.length} participations, ${memberPoints.length} memberPoints, ` +
       `${projects.length} projects, ${programs.length} programs ` +
       `(project ${projectId}). Initialize point rules from the UI.`,

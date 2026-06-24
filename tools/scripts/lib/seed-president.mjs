@@ -1,7 +1,11 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { CEL_SEED, toPositionDoc } from "./cel-seed.mjs";
+import { permsForRoles } from "./role-seed.mjs";
 
 const ADMIN_GRANT = "Admin";
+
+/** The president holds the Member + Admin built-in roles. */
+const PRESIDENT_ROLES = ["Member", "Admin"];
 
 /** The catalog id of the Presidente cargo — the active CEL position granting Admin. */
 export function findPresidentPositionId(positions) {
@@ -19,9 +23,13 @@ export function findPresidentPositionId(positions) {
 }
 
 /** Claims the president must hold so the self-assigned Admin cargo stays trusted
- *  on every onMemberWritten re-derivation. Matches what the trigger computes. */
+ *  on every onMemberWritten re-derivation, AND so the perm-gated Firestore rules
+ *  let it read/write from the first login. `perms` is derived from the shared
+ *  built-in mirror (the same union the beacon trigger computes for these roles →
+ *  `manage:all`). Without it every read fails closed → the "No se pudieron
+ *  cargar …" blank pages. */
 export function presidentClaims() {
-  return { roles: ["Member", "Admin"] };
+  return { roles: [...PRESIDENT_ROLES], perms: permsForRoles(PRESIDENT_ROLES) };
 }
 
 /** Firestore member-doc body for the seeded president. `joinDate`/`birthdate`
