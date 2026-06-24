@@ -289,6 +289,7 @@ None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops g
 - **Worktree-first (MANDATORY).** Every feature/fix runs in its own git worktree — not optional, no exceptions. Create it **before** the first edit: `git worktree add .worktrees/<slug> -b <branch> main` (worktrees live in `.worktrees/`, which is gitignored and excluded from prettier/knip). Never edit, build, or run tests in the primary checkout. Tooling/config-only changes count too. Remove the worktree after the PR merges (`git worktree remove .worktrees/<slug>`).
 - **Branch per feature.** Every feature/fix gets its own branch off `main`, created **before** the first edit — never commit feature work directly to `main`/`master`. Branches `feat/ fix/ chore/ migration/` (e.g. `feat/shared-ui-components`); open a PR to integrate. Commits = Conventional Commits with module scope (`feat(backstage): …`). `master` always deployable.
 - **Codegen-drift gate.** Any artifact generated on one boundary and consumed on another (e.g. `@luminova/types` shared schemas, generated Firestore types) gets a CI check that regenerates and fails on diff.
+- **Performance budget.** Frontend changes hold the bundle budgets + Core-Web-Vitals targets in `docs/performance.md` and follow its Claude guardrails. After any dep/route change, dispatch `bundle-budget-watcher` and note the `index`-chunk gz delta; a budget breach must be a conscious, noted decision.
 - **Docs layout.** `docs/specs/` (designs), `docs/plans/` (impl plans), `docs/status/` (handoffs), `docs/tooling/skill-development-log.md` (skill history).
 
 ## Reference Docs
@@ -297,4 +298,5 @@ None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops g
 - `docs/data-models.md` — all Firestore schemas with constraints
 - `docs/features.md` — feature specs and UX flows
 - `docs/firebase-setup.md` — emulator and deploy instructions
+- `docs/performance.md` — perf budgets, Core-Web-Vitals targets, optimization playbook + the Claude guardrails for keeping the frontends fast
 - `packages/ui/DESIGN.md` — design-system manifest (tokens + 28 components) for **Claude Design** (claude.ai/design) ingest; link this repo there to sync the design system
