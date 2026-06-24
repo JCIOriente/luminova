@@ -1,13 +1,7 @@
-import { useMemo, useState } from "react";
-import Lightbox from "yet-another-react-lightbox";
-import Captions from "yet-another-react-lightbox/plugins/captions";
-import Fullscreen from "yet-another-react-lightbox/plugins/fullscreen";
-import Thumbnails from "yet-another-react-lightbox/plugins/thumbnails";
-import Zoom from "yet-another-react-lightbox/plugins/zoom";
-import "yet-another-react-lightbox/styles.css";
-import "yet-another-react-lightbox/plugins/captions.css";
-import "yet-another-react-lightbox/plugins/thumbnails.css";
+import { lazy, Suspense, useState } from "react";
 import type { ShowcaseItem } from "@luminova/types/engine";
+
+const PhotoLightbox = lazy(() => import("./photo-lightbox"));
 
 export function PhotoGallery({
   photos,
@@ -17,10 +11,7 @@ export function PhotoGallery({
   title?: string;
 }) {
   const [index, setIndex] = useState(-1);
-  const slides = useMemo(
-    () => photos.map((photo) => ({ src: photo.url, description: photo.caption ?? undefined })),
-    [photos],
-  );
+  const [ready, setReady] = useState(false);
 
   if (photos.length === 0) return null;
 
@@ -32,22 +23,28 @@ export function PhotoGallery({
             <button
               type="button"
               className="gallery-trigger"
-              onClick={() => setIndex(i)}
+              onClick={() => {
+                setReady(true);
+                setIndex(i);
+              }}
               aria-label={photo.caption ?? title ?? "Ampliar foto"}
             >
-              <img src={photo.url} alt="" loading="lazy" />
+              <img src={photo.url} alt="" loading="lazy" decoding="async" />
               {photo.caption && <span className="gallery-caption">{photo.caption}</span>}
             </button>
           </li>
         ))}
       </ul>
-      <Lightbox
-        open={index >= 0}
-        index={index < 0 ? 0 : index}
-        close={() => setIndex(-1)}
-        slides={slides}
-        plugins={[Captions, Fullscreen, Thumbnails, Zoom]}
-      />
+      {ready && (
+        <Suspense fallback={null}>
+          <PhotoLightbox
+            photos={photos}
+            open={index >= 0}
+            index={index < 0 ? 0 : index}
+            onClose={() => setIndex(-1)}
+          />
+        </Suspense>
+      )}
     </figure>
   );
 }

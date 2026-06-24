@@ -38,7 +38,14 @@ function DetailHero({ item }: { item: ShowcaseItem }) {
     <section className="showcase-detail-hero">
       {cover ? (
         <>
-          <img className="showcase-detail-hero-img" src={cover} alt="" aria-hidden="true" />
+          <img
+            className="showcase-detail-hero-img"
+            src={cover}
+            alt=""
+            aria-hidden="true"
+            decoding="async"
+            fetchPriority="high"
+          />
           <div className="showcase-detail-hero-scrim" aria-hidden="true" />
         </>
       ) : (

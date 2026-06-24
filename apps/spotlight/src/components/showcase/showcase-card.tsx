@@ -21,7 +21,7 @@ export const ShowcaseCard = memo(function ShowcaseCard({ item }: { item: Showcas
     <Link to="/impacto/$id" params={{ id: item.id }} className="showcase-card">
       <div className="showcase-card-cover">
         {cover ? (
-          <img src={cover} alt={item.title} loading="lazy" />
+          <img src={cover} alt={item.title} loading="lazy" decoding="async" />
         ) : (
           <ImgSlot
             label={areaLabel}
