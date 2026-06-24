@@ -1,6 +1,8 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { isValidRole, type Role } from "@luminova/auth/roles";
+import { resolveEffectivePerms } from "@luminova/auth/perms";
+import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
 
 // The only guard: FIREBASE_AUTH_EMULATOR_HOST. When it is set the Admin SDK can only
 // reach the local Auth emulator — it physically cannot touch prod — so this is both
@@ -26,12 +28,21 @@ async function main(): Promise<void> {
   }
   const roles = roleArgs as Role[];
 
+  // Mint the `perms` claim alongside `roles` — the perm-gated Firestore rules read
+  // `perms`, so a roles-only grant leaves the user unable to read anything ("No se
+  // pudieron cargar …"). Mirror the trigger's built-in path: union of each role's
+  // BUILT_IN_ROLE_PERMS (no custom roles / overrides here). The onMemberWritten
+  // trigger reconciles to the live role docs on the member's next write.
+  const perms = resolveEffectivePerms({
+    roleDocs: roles.map((role) => ({ permissions: BUILT_IN_ROLE_PERMS[role] })),
+  });
+
   if (!getApps().length) {
     initializeApp({ projectId: process.env.GCLOUD_PROJECT ?? "demo-roles" });
   }
-  await getAuth().setCustomUserClaims(uid, { roles });
+  await getAuth().setCustomUserClaims(uid, { roles, perms });
 
-  console.log(`Granted ${roles.join(", ")} to ${uid}`);
+  console.log(`Granted ${roles.join(", ")} (perms: ${perms.join(", ") || "none"}) to ${uid}`);
 }
 
 void main();

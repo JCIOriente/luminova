@@ -134,17 +134,25 @@ This seeds (project `jci-oriente`, matching `.firebaserc` + `VITE_FIREBASE_PROJE
 - **Firestore** — sample members + a Recognition Engine slice (term, activities,
   participations, memberPoints) so the Members, member-profile, and Leaderboard pages
   render real data. (Point rules are left to the UI: "Reglas de puntos" → *Inicializar*.)
-- **Auth** — a ready-to-login Admin user, linked to member m1:
+- **Auth** — a ready-to-login Presidente (Admin via cargo), its own `president` member:
 
-  | Email | Password | Roles |
-  |-------|----------|-------|
-  | `admin@jci.test` | `Secret1` | Admin |
+  | Email | Password | Roles | Perms |
+  |-------|----------|-------|-------|
+  | `admin@jci.cc` | `Secret1` | Member, Admin | `manage:all` |
 
 Log in to backstage with those credentials and you'll see every (Admin-gated) feature.
 Re-running is idempotent.
 
+> **Why the `perms` claim matters.** The Firestore rules gate every read/write on the
+> coarse `perms` custom claim (`manage:all` for Admin), not on `roles`. The seed mints
+> `perms` on the Auth user up front, so the pages load on first login. A token minted
+> **before** this was added carries no `perms` → every list fails closed with "No se
+> pudieron cargar los miembros/aliados…". Fix: re-seed (`pnpm seed:emulator`) and sign
+> out/in so the app fetches a fresh ID token with the claim.
+
 **Granting roles to other users** (e.g. a Scanner or a second account you created in the
-Emulator UI at http://localhost:4100):
+Emulator UI at http://localhost:4100) — this also mints the matching built-in `perms`,
+so the account can read immediately:
 
 ```bash
 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:4030 GCLOUD_PROJECT=jci-oriente \
