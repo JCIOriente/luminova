@@ -106,10 +106,12 @@ export function createFirestoreStore(db: Firestore): EngineStore {
       const memberRef = db.doc(`members/${memberId}`);
       await db.runTransaction(async (tx) => {
         // Read the aggregate doc into the transaction's read set (value unused):
-        // every recompute writes it, so this guarantees a write-write conflict —
-        // and a retry that re-reads the rows — when two recomputes for the same
-        // member+term race. Don't rely on query-read conflict detection alone.
+        // memberPoints is always written below, so this guarantees a write-write
+        // conflict — and a retry that re-reads the rows — when two recomputes for
+        // the same member+term race. Don't rely on query-read conflict detection
+        // alone, and don't rely on the conditional members write below.
         await tx.get(memberPointsRef);
+        const memberSnap = await tx.get(memberRef);
         const snap = await tx.get(rows);
         const aggregate = aggregateFromRows(
           snap.docs.map((doc) => {
@@ -123,7 +125,23 @@ export function createFirestoreStore(db: Firestore): EngineStore {
           ...aggregate,
           updatedAt: FieldValue.serverTimestamp(),
         });
-        tx.set(memberRef, { totalPoints: aggregate.cumulative }, { merge: true });
+        // Mirror to members.totalPoints only when it actually changed: every
+        // members write fires onMemberWritten (claims-sync), so an unconditional
+        // write amplifies into a wasted claims sync on every recompute even when
+        // the total is unchanged (report-gate reconcile, redelivery). Skip-if-equal
+        // mirrors setInitiativeDirectionUids. memberRef is read inside the txn on
+        // purpose (atomic decision); the only other writer of this doc is rare
+        // admin edits, and claims-sync writes Auth, not Firestore — so no loop.
+        // A missing or non-number value reads as undefined → differs → a corrective
+        // numeric write lands (and preserves the prior create-on-write behavior);
+        // otherwise a legacy non-number totalPoints would defeat the guard forever.
+        const raw = memberSnap.exists
+          ? (memberSnap.data() as { totalPoints?: unknown }).totalPoints
+          : undefined;
+        const currentTotal = typeof raw === "number" ? raw : undefined;
+        if (currentTotal !== aggregate.cumulative) {
+          tx.set(memberRef, { totalPoints: aggregate.cumulative }, { merge: true });
+        }
       });
     },
     async getMemberUids(memberIds) {
