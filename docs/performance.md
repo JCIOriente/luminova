@@ -122,7 +122,7 @@ By metric — technique → what it does → status here.
 | 5 | Inline critical CSS / cut the render-blocking CSS | M | Low-Med | open |
 | — | ~~Trim the spotlight `index` shell~~ | — | **Dropped** | measured: ~85% react-dom + TanStack Router (irreducible); `@luminova/ui` only ~24 kB src. No worthwhile cut — don't pursue. |
 
-**Measurement note (2026-06-24):** the shells were broken down via the sourcemap `sourcesContent` (source-map-explorer fails on rolldown's Vite-8 sourcemaps — `generated column Infinity`). Spotlight `index` ≈ react-dom 533k + router 238k + `@luminova/ui` 24k (src bytes). Backstage `index` adds TanStack Query (~85k, needed); `qrcode.react` (44k src) was split out via item 1 (now its own `qr-code` chunk). Pick from the top; measure before and after (§6).
+**Measurement note (2026-06-24):** the shells were broken down via the sourcemap `sourcesContent` (source-map-explorer fails on rolldown's Vite-8 sourcemaps — `generated column Infinity`). Spotlight `index` ≈ react-dom 533k + router 238k + `@luminova/ui` 24k (src bytes). Backstage `index` adds TanStack Query (~85k, needed); `qrcode.react` (44k src) was split out via item 1 (now its own `qr-code` chunk). Pick from the top; measure before and after (6).
 
 ---
 
@@ -137,7 +137,7 @@ Apply on **every** frontend change. These are the rules, not aspirations.
 - A heavy dep used on one route or below the fold must be **lazy** (`lazy(() => import(...))` or a
   dynamic `import()`), never in a shared/initial chunk.
 - After any dep or route change, **dispatch `bundle-budget-watcher`** and check the `index`-chunk gz
-  delta against §2 budgets. Record the result in the PR.
+  delta against 2 budgets. Record the result in the PR.
 
 **Code-splitting & main thread**
 - Keep TanStack `autoCodeSplitting` on; don't collapse routes into the shell.

@@ -29,7 +29,7 @@ member assigned cargo "Presidente" → grants ["Admin"]
 ```
 
 `firestore.rules`/CASL gate on **roles**, never on titles, so Admin must exist as
-its own permission. See `docs/roadmap.md` §"Personas & permissions".
+its own permission. See `docs/roadmap.md` "Personas & permissions".
 
 ### The durability rule (why order matters)
 

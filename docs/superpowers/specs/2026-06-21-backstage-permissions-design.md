@@ -35,7 +35,7 @@ Subject = "Member" | "Ally" | "Event" | "PointRule" | "MemberPoints"
 PermissionCode = `${Action}:${Subject}`   // e.g. "manage:Member", "read:Payment", "manage:all"
 ```
 
-- `manage:X` implies `create|read|update|delete` on `X` (CASL semantics; rules expand explicitly — see §Rules).
+- `manage:X` implies `create|read|update|delete` on `X` (CASL semantics; rules expand explicitly — see Rules).
 - `manage:all` is Admin's single perm.
 - `Role` subject gates the permissions admin surface itself (`manage:Role`), held only by Admin in the MVP (Admin has `manage:all`).
 - The set is finite and small (13 subjects × 6 actions), so a cap of 30 cannot be reached in normal use — Admin = 1 perm; a heavy custom role with `manage` on every subject ≈ 13.
@@ -117,7 +117,7 @@ The 20 existing call sites are untouched (same `ability.can(...)` / `<Can>` API)
 
 New trigger **`onRoleWritten`** (`roles/{id}`): when a role doc changes, re-sync every member who effectively holds it (custom: `roleIds array-contains id`; built-in: members whose positions confer `builtInKey`). Batched; fan-out cost is acknowledged (role edits are rare, Admin-only). Deletes of a custom role also re-sync affected members.
 
-New **admin-only backfill callable** `recomputeAllClaims` to populate `perms` for every existing member at rollout (see §Rollout).
+New **admin-only backfill callable** `recomputeAllClaims` to populate `perms` for every existing member at rollout (see Rollout).
 
 ## `firestore.rules`
 

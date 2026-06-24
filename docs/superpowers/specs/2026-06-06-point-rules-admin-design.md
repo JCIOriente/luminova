@@ -7,7 +7,7 @@ _Date: 2026-06-06 · Branch: `feat/point-rules-admin` · Status: approved_
 A backstage admin surface to **view and tune the Mejor Miembro Individual point
 matrix** (`docs/reference/points-matrix.md`). An Admin opens `/point-rules`,
 sees the 16 fixed matrix rows for the current term, and edits each row's **points**
-value inline. First in the Recognition Engine §A slice; consumes the F3 model
+value inline. First in the Recognition Engine A slice; consumes the F3 model
 (`@luminova/types` `PointRule` / `PointRuleCode` / `DEFAULT_POINT_VALUES`).
 
 **Not** general CRUD: `PointRuleCode` is a fixed 16-value enum, so this is

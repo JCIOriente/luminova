@@ -837,6 +837,6 @@ export function downloadCsv(filename: string, csv: string): void {
 
 ## Self-Review notes (coverage vs spec)
 
-- §4 header / §5 search+status / §6 sort+Puntos+Desde / §7 pagination / §8 ⋯ menu (uid-keyed invite, status flips, Desafiliar≠Eliminar, soft-delete, Can-gates) / §9 drawer 2 modes / §10 invite 3-stage creating real row + default-on provision / §11 states (skeleton via DataTable isLoading, empty states, toasts, error rollback) / §12 permissions (Can gates + Admin provisioning) — all mapped to Tasks 1–14.
+- 4 header / 5 search+status / 6 sort+Puntos+Desde / 7 pagination / 8 ⋯ menu (uid-keyed invite, status flips, Desafiliar≠Eliminar, soft-delete, Can-gates) / 9 drawer 2 modes / 10 invite 3-stage creating real row + default-on provision / 11 states (skeleton via DataTable isLoading, empty states, toasts, error rollback) / 12 permissions (Can gates + Admin provisioning) — all mapped to Tasks 1–14.
 - Deferred per spec (email, área, dues statuses, server pagination) — intentionally absent.
 - `MemberRowMenu` handler names (`onView/onEdit/onProvision/onSetStatus/onDelete`) are consistent across Tasks 9, 13, 14.
