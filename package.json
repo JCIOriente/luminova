@@ -24,6 +24,7 @@
     "seed:emulator": "FIRESTORE_EMULATOR_HOST=127.0.0.1:4010 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:4030 node tools/scripts/seed-emulator.mjs",
     "seed:production": "node tools/scripts/seed-production.mjs",
     "deploy:rules": "firebase deploy --only firestore,storage",
+    "deploy:indexes": "firebase deploy --only firestore:indexes",
     "deploy:functions": "firebase deploy --only functions",
     "deploy:hosting": "VITE_FIREBASE_EMULATOR_ENABLED=false turbo run build --filter spotlight --filter backstage && firebase deploy --only hosting",
     "deploy:all": "pnpm deploy:rules && pnpm deploy:functions && pnpm deploy:hosting"
