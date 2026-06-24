@@ -10,8 +10,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
+    "test:emulator": "bash ../../tools/scripts/with-emulator-lock.sh firebase emulators:exec --only firestore --project demo-beacon-test \"vitest run --config vitest.emulator.config.ts\"",
     "build": "node build.mjs",
-    "ci": "eslint . && tsc --noEmit && vitest run --passWithNoTests",
+    "ci": "eslint . && tsc --noEmit && vitest run --passWithNoTests && pnpm run test:emulator",
     "seed:roles": "node --experimental-strip-types scripts/seed-roles.ts"
   },
   "dependencies": {

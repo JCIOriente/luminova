@@ -1,6 +1,5 @@
 import type { PointRuleCode, InitiativeKind, Participation } from "@luminova/types/engine";
 import type { ActivityRef } from "./derive.js";
-import type { AggregateRow, MemberAggregate } from "./aggregate.js";
 
 /** All Firestore access the engine needs, behind an interface so the orchestration is unit-testable. */
 export interface EngineStore {
@@ -11,9 +10,15 @@ export interface EngineStore {
   getParticipation(id: string): Promise<Participation | null>;
   setParticipation(row: Participation): Promise<void>;
   deleteParticipation(id: string): Promise<void>;
-  getConfirmedRows(memberId: string, termId: string): Promise<AggregateRow[]>;
   getRowsByParent(parentId: string): Promise<Participation[]>;
-  setMemberAggregate(memberId: string, termId: string, aggregate: MemberAggregate): Promise<void>;
+  /**
+   * Atomically re-sum the member's confirmed rows for a term and persist the
+   * aggregate (`memberPoints/{member}__{term}` + mirrored `members.totalPoints`).
+   * MUST read the rows and write the aggregate in one transaction: a non-atomic
+   * read-then-write loses updates when concurrent check-ins for the same member
+   * race — a stale snapshot overwrites a fresher one.
+   */
+  recomputeAggregate(memberId: string, termId: string): Promise<void>;
   /** Resolve member ids -> linked auth uids (members without a login are skipped). */
   getMemberUids(memberIds: string[]): Promise<string[]>;
   /**
