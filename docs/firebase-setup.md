@@ -223,6 +223,15 @@ firebase deploy --only hosting:jcioriente-backstage
 firebase deploy --only firestore:rules
 ```
 
+> **Runbook — claim/rule changes need a token refresh.** Custom claims (`roles`, `perms`)
+> are baked into each user's ID token and cached until it refreshes (~1h, or on re-login).
+> After deploying perm-gated rules or backfilling claims (`seedRoles` + `recomputeAllClaims`),
+> **already-signed-in users keep their old token** and may hit `permission-denied` ("No se
+> pudieron cargar …") until they sign out and back in. Sequence to avoid a lockout window:
+> backfill claims **first**, then deploy the rules; tell active users to re-login. (In dev,
+> a `permission-denied` read logs a self-diagnosing hint to the console — see
+> `apps/backstage/src/lib/query-client.ts`.)
+
 ## Firestore Rules Summary
 
 | Collection | Public read | Authenticated read | Authenticated write | Notes |
