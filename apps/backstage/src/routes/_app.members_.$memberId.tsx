@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { Badge, Button, Dialog, type BadgeTone } from "@luminova/ui";
-import { QrCode } from "@luminova/ui/qr-code";
 import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
 import { subject } from "@luminova/auth/ability";
 import { Can, useAbility } from "../lib/authz/ability-context";
@@ -25,6 +24,9 @@ import { MemberPointsSummary } from "../features/members/components/member-point
 import { ParticipationLedger } from "../features/members/components/participation-ledger";
 import { effectiveRoles } from "../features/members/lib/member-permissions";
 import { memberFormDefaults } from "../features/members/lib/member-form-defaults";
+
+// qrcode.react (~13 kB gz) lazy so it leaves the always-loaded index shell.
+const QrCode = lazy(() => import("@luminova/ui/qr-code").then((m) => ({ default: m.QrCode })));
 
 // Admin-only + pulls MultiSelect — lazy so non-admins don't download it.
 const MemberRolesPanel = lazy(() =>
@@ -151,7 +153,9 @@ function MemberProfilePage() {
             currentTermKey={termKey}
           />
           <div className="flex flex-col items-center gap-3 rounded-card border border-line bg-surface px-6 py-5">
-            <QrCode value={encodeMemberQr(member.id)} size={176} />
+            <Suspense fallback={<div className="size-[176px]" />}>
+              <QrCode value={encodeMemberQr(member.id)} size={176} />
+            </Suspense>
             <p className="text-[12px] text-ink-3">QR personal · escanéalo en el check-in</p>
           </div>
         </aside>
