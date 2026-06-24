@@ -18,25 +18,68 @@ jobs:
     name: checks
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth 0 so the change-filter can diff against the base/before SHA.
       - uses: actions/checkout@v4
-      - run: corepack enable
-      - uses: actions/setup-node@v4
+        with:
+          fetch-depth: 0
+      # Skip the build/lint/test/audit suite when a PR touches ONLY inert files
+      # (docs, markdown, license) — nothing to compile or test. The job still RUNS
+      # and reports success on skip, so it stays safe to mark as a required status
+      # check (a paths-skipped required check would deadlock the PR forever).
+      # Conservative by design: images/assets are NOT inert (an imported .svg
+      # affects the build) and any non-doc file -> run. Default is always run.
+      - name: Detect code changes
+        id: code
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          else
+            base="${{ github.event.before }}"
+            head="${{ github.sha }}"
+          fi
+          if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "base SHA unavailable (new branch/force-push) -> running checks"
+            exit 0
+          fi
+          remaining=$(git diff --name-only "$base...$head" \
+            | grep -vE '(\.md$|^docs/|^LICENSE$|^\.gitignore$|^\.editorconfig$)' || true)
+          if [ -n "$remaining" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "code files changed -> running checks"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "docs/inert files only -> skipping checks"
+          fi
+      - if: steps.code.outputs.run == 'true'
+        run: corepack enable
+      - if: steps.code.outputs.run == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm format
-      - run: pnpm turbo run lint typecheck build
+      - if: steps.code.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.code.outputs.run == 'true'
+        run: pnpm format
+      - if: steps.code.outputs.run == 'true'
+        run: pnpm turbo run lint typecheck build
       # Initial-chunk gzip budgets (docs/performance.md §2). Runs after build so
       # apps/*/dist is present; fails the gate on a breach.
-      - run: bash tools/scripts/check-bundle-budget.sh
+      - if: steps.code.outputs.run == 'true'
+        run: bash tools/scripts/check-bundle-budget.sh
       # Unit suites only — exclude tests/* (those boot the Firestore emulator, see
       # the `emulator` job). beacon's own `test` task is unit-only; its emulator
       # suite is a separate `test:emulator` script.
-      - run: pnpm turbo run test --filter="./apps/*" --filter="./packages/*"
-      - run: pnpm knip
-      - run: pnpm audit --audit-level=high
-      - run: pnpm test:seed
+      - if: steps.code.outputs.run == 'true'
+        run: pnpm turbo run test --filter="./apps/*" --filter="./packages/*"
+      - if: steps.code.outputs.run == 'true'
+        run: pnpm knip
+      - if: steps.code.outputs.run == 'true'
+        run: pnpm audit --audit-level=high
+      - if: steps.code.outputs.run == 'true'
+        run: pnpm test:seed
 
   emulator:
     name: emulator
