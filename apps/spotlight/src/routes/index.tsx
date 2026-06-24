@@ -279,7 +279,13 @@ function HomeAllies() {
             <div className="ally-strip" style={{ marginTop: 32 }}>
               {allies.map((ally) => (
                 <figure key={ally.id} className="ally-card">
-                  <img className="ally-logo" src={ally.logoUrl} alt={ally.name} loading="lazy" />
+                  <img
+                    className="ally-logo"
+                    src={ally.logoUrl}
+                    alt={ally.name}
+                    loading="lazy"
+                    decoding="async"
+                  />
                   <figcaption className="ally-name">{ally.name}</figcaption>
                   <span className="ally-chip">{ALLY_CATEGORY_LABELS[ally.category]}</span>
                 </figure>

@@ -26,6 +26,7 @@ function ShowcaseProgramCard({ item, index }: { item: ShowcaseItem; index: numbe
               src={cover}
               alt={item.title}
               loading="lazy"
+              decoding="async"
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
           </div>

@@ -104,24 +104,25 @@ By metric — technique → what it does → status here.
 
 | Technique | Effect | Status |
 |-----------|--------|--------|
-| Code-split routes + lazy heavy components | Less main-thread parse/exec | ✅ routes; ⚠️ lightbox (backlog) |
+| Code-split routes + lazy heavy components | Less main-thread parse/exec | ✅ routes + lightbox (lazy on first open) |
 | Tree-shake / drop unused deps (`knip`) | Smaller, faster bundle | ✅ knip-gated |
 | Defer below-fold work (IntersectionObserver) | Main thread free at load | ✅ `useAsyncOnVisible` |
 | Subpath / lite SDK imports | Drops unused vendor code | ✅ firebase/lite |
 
 ---
 
-## 4. Backlog (ranked — next perf efforts, NOT yet done)
+## 4. Backlog (ranked — next perf efforts)
 
-| # | Lever | Effort | Impact |
-|---|-------|--------|--------|
-| 1 | `rollup-plugin-visualizer` → crack the ~91–104 kB-gz `index` shell, then trim (e.g. `clsx` in header, audit `@luminova/ui` barrel pull-in) | S→M | Med (INP, download) |
-| 2 | Lazy-load `yet-another-react-lightbox` on `/impacto/$id` (open-on-demand) | S | Low-Med |
-| 3 | `decoding="async"` on the lazy `<img>`s | XS | Low |
-| 4 | SSG / prerender static routes (TanStack Start or `vite-plugin-ssg`) — ship real HTML instead of a blank div + JS render | L | **High (FCP/LCP on slow devices)** |
-| 5 | Inline critical CSS / cut the render-blocking CSS | M | Low-Med |
+| # | Lever | Effort | Impact | Status |
+|---|-------|--------|--------|--------|
+| 1 | **Backstage: lazy-load `QrCode`** (`@luminova/ui/qr-code`). `qrcode.react` (~44 kB src / ~13 kB gz) is eager in the backstage `index` shell because two routes (`_app.me`, `_app.members_.$memberId`) import it statically → rolldown hoists it shared. Make it `lazy()` like the sibling `QrScanner` already is. | S | **Med (~13 kB gz off every backstage page)** | open |
+| 2 | Lazy-load the `/impacto/$id` lightbox (open-on-demand) | S | Low-Med | ✅ done |
+| 3 | `decoding="async"` on the lazy `<img>`s (+ `fetchPriority="high"` on the impacto detail hero) | XS | Low | ✅ done |
+| 4 | SSG / prerender static routes (TanStack Start or `vite-plugin-ssg`) — ship real HTML instead of a blank div + JS render | L | **High (FCP/LCP on slow devices)** | open |
+| 5 | Inline critical CSS / cut the render-blocking CSS | M | Low-Med | open |
+| — | ~~Trim the spotlight `index` shell~~ | — | **Dropped** | measured: ~85% react-dom + TanStack Router (irreducible); `@luminova/ui` only ~24 kB src. No worthwhile cut — don't pursue. |
 
-Pick from the top; measure before and after (§6).
+**Measurement note (2026-06-24):** the shells were broken down via the sourcemap `sourcesContent` (source-map-explorer fails on rolldown's Vite-8 sourcemaps — `generated column Infinity`). Spotlight `index` ≈ react-dom 533k + router 238k + `@luminova/ui` 24k (src bytes). Backstage `index` adds TanStack Query (~85k, needed) + `qrcode.react` 44k (→ item 1). Pick from the top; measure before and after (§6).
 
 ---
 
