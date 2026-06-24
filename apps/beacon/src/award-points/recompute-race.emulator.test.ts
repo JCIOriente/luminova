@@ -10,6 +10,13 @@ import type { CheckIn } from "./check-in.js";
 // `firebase emulators:exec`). Exercises the REAL admin-SDK store, so the
 // aggregate read+write is genuinely concurrent here — unlike the in-memory
 // fakes, which serialize every await and cannot express a race.
+// Fail closed: the admin SDK silently targets PROD if the emulator host is
+// unset, so refuse to run outside `pnpm test:emulator`.
+if (!process.env.FIRESTORE_EMULATOR_HOST) {
+  throw new Error(
+    "recompute-race.emulator.test must run via `pnpm test:emulator` — FIRESTORE_EMULATOR_HOST is unset.",
+  );
+}
 const app = initializeApp({ projectId: "demo-beacon-test" });
 const db = getFirestore(app);
 const store = createFirestoreStore(db);

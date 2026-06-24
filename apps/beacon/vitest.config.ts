@@ -4,6 +4,6 @@ import { defineConfig } from "vitest/config";
 // and run separately via `pnpm test:emulator` under the Firestore emulator lock.
 export default defineConfig({
   test: {
-    exclude: ["**/node_modules/**", "**/dist/**", "**/*.emulator.test.ts"],
+    exclude: ["**/node_modules/**", "**/dist/**", "**/*.config.*", "**/*.emulator.test.ts"],
   },
 });
