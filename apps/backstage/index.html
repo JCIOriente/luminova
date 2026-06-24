@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Warm the Google/Firebase origins hit right after load (auth → Firestore → Storage avatars). -->
+    <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
+
     <title>JCI Oriente — Backstage</title>
   </head>
   <body>
