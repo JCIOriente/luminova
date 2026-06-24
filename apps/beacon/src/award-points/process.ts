@@ -9,7 +9,6 @@ import type { EngineStore, InitiativeWrite } from "./store.js";
 import type { CheckIn } from "./check-in.js";
 import { deriveParticipation, monthBucketFromMillis } from "./derive.js";
 import { participationId } from "./participation-id.js";
-import { aggregateFromRows } from "./aggregate.js";
 import { deriveRosterRow, desiredRosterRoles } from "./derive-roster.js";
 
 /** Derive + persist the participation row for a check-in, then recompute the member aggregate. */
@@ -36,7 +35,7 @@ export async function processCheckIn(store: EngineStore, checkIn: CheckIn): Prom
   const row = deriveParticipation({ checkIn, activity, basePoints, reportFiled });
   if (row === null) return;
   await store.setParticipation(row);
-  await recomputeAggregate(store, checkIn.memberId, activity.termId);
+  await store.recomputeAggregate(checkIn.memberId, activity.termId);
 }
 
 /** A check-in was deleted — remove its derived row and recompute. */
@@ -46,7 +45,7 @@ export async function processCheckInDelete(store: EngineStore, checkIn: CheckIn)
   // so deletion stays correct even if the activity is already gone.
   const existing = await store.getParticipation(id);
   await store.deleteParticipation(id);
-  if (existing !== null) await recomputeAggregate(store, existing.memberId, existing.termId);
+  if (existing !== null) await store.recomputeAggregate(existing.memberId, existing.termId);
 }
 
 /**
@@ -132,15 +131,6 @@ export async function processInitiativeWrite(
 
   // 5. Recompute every affected member's aggregate.
   for (const { memberId, termId } of affected.values()) {
-    await recomputeAggregate(store, memberId, termId);
+    await store.recomputeAggregate(memberId, termId);
   }
-}
-
-async function recomputeAggregate(
-  store: EngineStore,
-  memberId: string,
-  termId: string,
-): Promise<void> {
-  const rows = await store.getConfirmedRows(memberId, termId);
-  await store.setMemberAggregate(memberId, termId, aggregateFromRows(rows));
 }

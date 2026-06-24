@@ -6,6 +6,7 @@ import type { ActivityRef } from "./derive.js";
 import type { MemberAggregate } from "./aggregate.js";
 import { processCheckIn, processCheckInDelete, processInitiativeWrite } from "./process.js";
 import { participationId } from "./participation-id.js";
+import { aggregateFromRows } from "./aggregate.js";
 import type { CheckIn } from "./check-in.js";
 
 const startAt = Timestamp.fromDate(new Date("2026-06-06T18:00:00Z"));
@@ -37,20 +38,14 @@ class FakeStore implements EngineStore {
   async deleteParticipation(id: string) {
     this.rows.delete(id);
   }
-  async getConfirmedRows(memberId: string, termId: string) {
-    return [...this.rows.values()]
-      .filter((r) => r.memberId === memberId && r.termId === termId && r.state === "confirmed")
-      .map((r) => ({
-        computedPoints: r.computedPoints,
-        monthBucket: r.monthBucket,
-        state: r.state,
-      }));
-  }
   async getRowsByParent(parentId: string) {
     return [...this.rows.values()].filter((r) => r.parentId === parentId);
   }
-  async setMemberAggregate(memberId: string, termId: string, aggregate: MemberAggregate) {
-    this.aggregates.set(`${memberId}__${termId}`, aggregate);
+  async recomputeAggregate(memberId: string, termId: string) {
+    const rows = [...this.rows.values()].filter(
+      (r) => r.memberId === memberId && r.termId === termId && r.state === "confirmed",
+    );
+    this.aggregates.set(`${memberId}__${termId}`, aggregateFromRows(rows));
   }
   async getMemberUids(memberIds: string[]) {
     return memberIds.map((id) => this.memberUids.get(id)).filter((u): u is string => u != null);
@@ -83,6 +78,9 @@ describe("processCheckIn", () => {
     const row = store.rows.get("a1__m1__Attendee")!;
     expect(row.state).toBe("confirmed");
     expect(row.basePoints).toBe(3);
+    expect(row.punctualityFactor).toBe(1); // on-time → full credit
+    expect(row.computedPoints).toBe(3); // basePoints * punctualityFactor
+    expect(row.pointRuleCode).toBe("AttendActivity");
     expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 3, byMonth: { "2026-06": 3 } });
   });
 
@@ -100,11 +98,11 @@ describe("processCheckIn", () => {
     expect(store.rows.get("a1__m1__Attendee")!.basePoints).toBe(3); // AttendActivity default
   });
 
-  it("is idempotent — a duplicate check-in overwrites the same row", async () => {
+  it("does not double-count when the same check-in is redelivered (at-least-once)", async () => {
     store.reports.add("p1");
     await processCheckIn(store, checkIn);
     await processCheckIn(store, checkIn);
-    expect(store.rows.size).toBe(1);
+    expect(store.rows.size).toBe(1); // deterministic id → one row, not two
     expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 3, byMonth: { "2026-06": 3 } });
   });
 

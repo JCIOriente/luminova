@@ -7,7 +7,7 @@ import {
 } from "@luminova/types/engine";
 import type { EngineStore, InitiativeWrite } from "./store.js";
 import type { ActivityRef } from "./derive.js";
-import type { AggregateRow, MemberAggregate } from "./aggregate.js";
+import { aggregateFromRows, type AggregateRow } from "./aggregate.js";
 import { isCleanId } from "./ids.js";
 import { hasToMillis } from "../firestore-util.js";
 
@@ -84,31 +84,47 @@ export function createFirestoreStore(db: Firestore): EngineStore {
     async deleteParticipation(id) {
       await db.doc(`participations/${id}`).delete();
     },
-    async getConfirmedRows(memberId, termId): Promise<AggregateRow[]> {
-      const snap = await db
-        .collection("participations")
-        .where("memberId", "==", memberId)
-        .where("termId", "==", termId)
-        .where("state", "==", "confirmed")
-        .get();
-      return snap.docs.map((doc) => {
-        const d = doc.data() as AggregateRow;
-        return { computedPoints: d.computedPoints, monthBucket: d.monthBucket, state: d.state };
-      });
-    },
     async getRowsByParent(parentId): Promise<Participation[]> {
       const snap = await db.collection("participations").where("parentId", "==", parentId).get();
       return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<Participation, "id">) }));
     },
-    async setMemberAggregate(memberId, termId, aggregate: MemberAggregate) {
-      // Keyed by member AND term — the competition resets each gestión, so a member
-      // has one aggregate doc per term (never clobber a prior term's totals).
-      await db
-        .doc(`memberPoints/${memberId}__${termId}`)
-        .set({ memberId, termId, ...aggregate, updatedAt: FieldValue.serverTimestamp() });
-      await db
-        .doc(`members/${memberId}`)
-        .set({ totalPoints: aggregate.cumulative }, { merge: true });
+    async recomputeAggregate(memberId, termId) {
+      // Read the confirmed rows and write the aggregate in ONE transaction. The
+      // query read is the transaction's read set, so a concurrent check-in that
+      // adds/removes a matching row before commit forces a retry — and both
+      // racing recomputes write the same memberPoints doc, so the loser aborts
+      // and re-reads. A plain read-then-write here loses updates under concurrency.
+      // memberPoints is keyed by member AND term: the competition resets each
+      // gestión, so a member has one aggregate doc per term (never clobber a prior
+      // term's totals).
+      const rows = db
+        .collection("participations")
+        .where("memberId", "==", memberId)
+        .where("termId", "==", termId)
+        .where("state", "==", "confirmed");
+      const memberPointsRef = db.doc(`memberPoints/${memberId}__${termId}`);
+      const memberRef = db.doc(`members/${memberId}`);
+      await db.runTransaction(async (tx) => {
+        // Read the aggregate doc into the transaction's read set (value unused):
+        // every recompute writes it, so this guarantees a write-write conflict —
+        // and a retry that re-reads the rows — when two recomputes for the same
+        // member+term race. Don't rely on query-read conflict detection alone.
+        await tx.get(memberPointsRef);
+        const snap = await tx.get(rows);
+        const aggregate = aggregateFromRows(
+          snap.docs.map((doc) => {
+            const d = doc.data() as AggregateRow;
+            return { computedPoints: d.computedPoints, monthBucket: d.monthBucket, state: d.state };
+          }),
+        );
+        tx.set(memberPointsRef, {
+          memberId,
+          termId,
+          ...aggregate,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(memberRef, { totalPoints: aggregate.cumulative }, { merge: true });
+      });
     },
     async getMemberUids(memberIds) {
       if (memberIds.length === 0) return [];
