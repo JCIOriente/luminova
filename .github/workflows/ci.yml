@@ -66,7 +66,7 @@ jobs:
             echo "base SHA unavailable (new branch/force-push) -> running emulator suites"
             exit 0
           fi
-          if git diff --name-only "$base" "$head" \
+          if git diff --name-only "$base...$head" \
             | grep -qE '^(apps/beacon/|tests/|tools/scripts/|\.github/workflows/ci\.yml|firestore\.rules|storage\.rules|firestore\.indexes\.json|firebase\.json)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "engine/rules paths changed -> running emulator suites"
