@@ -30,8 +30,11 @@ test("findPresidentPositionId throws when no active CEL grants Admin", () => {
   );
 });
 
-test("presidentClaims includes Member and Admin", () => {
-  assert.deepEqual(presidentClaims(), { roles: ["Member", "Admin"] });
+test("presidentClaims grants Member+Admin roles and the manage:all perm", () => {
+  assert.deepEqual(presidentClaims(), {
+    roles: ["Member", "Admin"],
+    perms: ["manage:all"],
+  });
 });
 
 test("buildPresidentMember self-assigns the cargo for the term", () => {

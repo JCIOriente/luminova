@@ -15,6 +15,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { createInterface } from "node:readline/promises";
 import { seedPresident } from "./lib/seed-president.mjs";
+import { seedBuiltInRoles, BUILT_IN_ROLE_PERMS } from "./lib/role-seed.mjs";
 import { SITE_CONFIG_CONTENT } from "./lib/site-config-seed-data.mjs";
 
 if (process.env.FIREBASE_AUTH_EMULATOR_HOST || process.env.FIRESTORE_EMULATOR_HOST) {
@@ -76,80 +77,6 @@ const passwordOk = (v) =>
   v.length >= 6 && /[a-z]/.test(v) && /[A-Z]/.test(v) && /\d/.test(v)
     ? null
     : "min 6 chars with a lowercase, an uppercase, and a digit";
-
-// Mirror of BUILT_IN_ROLE_PERMS in packages/types/src/role-definition.ts (kept inline
-// so this standalone prod script needs no built workspace dist). Coarse, non-conditional
-// perms each built-in role confers; conditional grants live in CASL + firestore.rules.
-// Keep in sync with role-definition.ts.
-const BUILT_IN_ROLE_PERMS = {
-  Admin: ["manage:all"],
-  Membership: [
-    "manage:Member",
-    "read:Ally",
-    "create:Ally",
-    "update:Ally",
-    "read:Event",
-    "read:MemberPoints",
-    "read:Position",
-  ],
-  Treasury: ["manage:Payment", "read:Member", "read:MemberPoints"],
-  ExecutiveCommittee: [
-    "read:Member",
-    "read:Ally",
-    "read:Event",
-    "create:Event",
-    "update:Event",
-    "read:MemberPoints",
-    "read:Program",
-    "read:Project",
-    "manage:Position",
-  ],
-  ProjectManager: [
-    "manage:Project",
-    "manage:Activity",
-    "manage:Program",
-    "read:Ally",
-    "read:Event",
-    "create:Event",
-    "update:Event",
-    "checkIn:Attendance",
-  ],
-  Scanner: [],
-  Member: [],
-};
-const ROLE_LABELS = {
-  Admin: "Administrador",
-  Membership: "Membresía",
-  Treasury: "Tesorería",
-  ExecutiveCommittee: "Comité Ejecutivo",
-  ProjectManager: "Director de Proyecto",
-  Scanner: "Escáner",
-  Member: "Miembro",
-};
-
-// Idempotent: create the 7 built-in role docs (never clobbers an admin's later edits).
-// Mirrors apps/beacon seedBuiltInRoles + the seedRoles callable.
-async function seedBuiltInRoles(db) {
-  let created = 0;
-  for (const [role, permissions] of Object.entries(BUILT_IN_ROLE_PERMS)) {
-    try {
-      await db.doc(`roles/${role}`).create({
-        name: ROLE_LABELS[role],
-        description: "",
-        builtIn: true,
-        builtInKey: role,
-        permissions,
-        locked: role === "Admin",
-        active: true,
-        deletedAt: null,
-      });
-      created += 1;
-    } catch (error) {
-      if (error?.code !== 6) throw error; // 6 = ALREADY_EXISTS
-    }
-  }
-  return created;
-}
 
 // Touch every member so the deployed onMemberWritten trigger re-mints their custom
 // claims (roles + the new `perms` set) using the production resolution logic. Must run
