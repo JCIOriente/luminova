@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test:run": "vitest run",
-    "test": "bash ../../tools/scripts/with-emulator-lock.sh firebase emulators:exec --only firestore --project demo-rules-test \"pnpm run test:run\"",
+    "test": "bash ../../tools/scripts/with-emulator-lock.sh bash ../../tools/scripts/with-emulator-boot-retry.sh firebase emulators:exec --only firestore --project demo-rules-test \"pnpm run test:run\"",
     "ci": "pnpm run test"
   },
   "devDependencies": {
