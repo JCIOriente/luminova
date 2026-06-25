@@ -1,34 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  BUILT_IN_ROLE_PERMS,
-  ROLE_LABELS,
-  permsForRoles,
-  buildBuiltInRoleDocs,
-} from "./role-seed.mjs";
+import { permsForRoles, buildBuiltInRoleDocs } from "./role-seed.mjs";
 
-const ROLES = [
-  "Admin",
-  "Membership",
-  "Treasury",
-  "ExecutiveCommittee",
-  "ProjectManager",
-  "Scanner",
-  "Member",
-];
-
-// Snapshot the mirror against packages/types/src/role-definition.ts. Plain-Node can't
-// import the workspace package, so this guards drift by asserting the known shape — a
-// change to role-definition.ts must be reflected here or this test fails.
-test("BUILT_IN_ROLE_PERMS mirrors role-definition.ts", () => {
-  assert.deepEqual(BUILT_IN_ROLE_PERMS.Admin, ["manage:all"]);
-  assert.deepEqual(BUILT_IN_ROLE_PERMS.Scanner, []);
-  assert.deepEqual(BUILT_IN_ROLE_PERMS.Member, []);
-  for (const role of ROLES) {
-    assert.ok(Array.isArray(BUILT_IN_ROLE_PERMS[role]), `${role} has a perms array`);
-    assert.equal(typeof ROLE_LABELS[role], "string", `${role} has a label`);
-  }
-});
+// Behavioral tests only. The drift guard that this mirror's BUILT_IN_ROLE_PERMS +
+// ROLE_LABELS match the canonical @luminova/types source lives in
+// packages/types/src/role-definition.mirror.test.ts (a vitest that CAN import the
+// workspace package; this plain-Node runner cannot).
 
 test("permsForRoles unions, dedupes, and sorts", () => {
   assert.deepEqual(permsForRoles(["Member", "Admin"]), ["manage:all"]);

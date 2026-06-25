@@ -9,16 +9,14 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { deleteDoc, deleteField, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
-import type { Role } from "@luminova/types";
+// Build claims with the REAL seed producer (not a local re-implementation), so every
+// role-based context exercises the exact perms a seeded user receives → this whole suite
+// is a "seed-output ⊨ firestore.rules" contract. The packages/types drift guard proves the
+// .mjs mirror matches the canonical @luminova/types table.
+import { permsForRoles } from "../../tools/scripts/lib/role-seed.mjs";
 
 let env: RulesTestEnvironment;
 
-/** Effective perms a set of built-in roles confers (mirrors the beacon resolution),
- *  so role-based contexts exercise the perm-based rule gates. */
-function permsForRoles(roles: string[]): string[] {
-  return [...new Set(roles.flatMap((r) => BUILT_IN_ROLE_PERMS[r as Role] ?? []))];
-}
 /** Authenticated context. `perms` defaults to the built-in roles' effective set;
  *  pass an explicit array to simulate a custom role / override grant. */
 function as(uid: string, roles: string[], perms?: string[]) {

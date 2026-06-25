@@ -1,11 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { CEL_SEED } from "./cel-seed.mjs";
-import {
-  findPresidentPositionId,
-  presidentClaims,
-  buildPresidentMember,
-} from "./seed-president.mjs";
+import { findPresidentPositionId, buildPresidentMember } from "./seed-president.mjs";
+import { presidentClaims } from "./president-claims.mjs";
 
 test("CEL mirror has exactly one Admin-granting Presidente", () => {
   const admins = CEL_SEED.filter((p) => p.grants.includes("Admin"));

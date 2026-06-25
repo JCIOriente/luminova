@@ -326,9 +326,6 @@ importers:
       '@firebase/rules-unit-testing':
         specifier: ^5.0.1
         version: 5.0.1(firebase@12.14.0)
-      '@luminova/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
