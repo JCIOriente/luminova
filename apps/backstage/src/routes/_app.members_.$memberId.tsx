@@ -161,7 +161,11 @@ function MemberProfilePage() {
             rank={rank}
             activityCount={summary.activityCount}
           />
-          <ParticipationLedger summary={summary} />
+          <ParticipationLedger
+            summary={summary}
+            totalPoints={points?.cumulative ?? 0}
+            termId={termId}
+          />
         </div>
 
         <aside className="flex flex-col gap-6">

@@ -42,9 +42,13 @@ function summaryOf(rows: Participation[]) {
   return summarizeParticipations(rows, activities, initiatives);
 }
 
+function renderLedger(rows: Participation[]) {
+  render(<ParticipationLedger summary={summaryOf(rows)} totalPoints={0} termId="2026" />);
+}
+
 describe("ParticipationLedger", () => {
   it("renders the activity title, parent initiative, role, points, state and month", () => {
-    render(<ParticipationLedger summary={summaryOf([row({})])} />);
+    renderLedger([row({})]);
     expect(screen.getByText("Lanzamiento del programa")).toBeInTheDocument();
     // Appears twice: the project chip in the summary and the table's Iniciativa cell.
     expect(screen.getAllByText("Crecimiento JCI").length).toBeGreaterThan(0);
@@ -56,48 +60,40 @@ describe("ParticipationLedger", () => {
   });
 
   it("summarizes participated projects and distinct activity count", () => {
-    render(
-      <ParticipationLedger
-        summary={summaryOf([
-          row({ id: "r1", activityId: "a1", parentId: "p1" }),
-          row({ id: "r2", activityId: "a2", parentId: "p1" }),
-        ])}
-      />,
-    );
+    renderLedger([
+      row({ id: "r1", activityId: "a1", parentId: "p1" }),
+      row({ id: "r2", activityId: "a2", parentId: "p1" }),
+    ]);
     expect(screen.getByText("Proyectos y actividades")).toBeInTheDocument();
     expect(screen.getByText(/2 actividades/)).toBeInTheDocument();
   });
 
   it("falls back to the rule label when the activity is unavailable", () => {
-    render(<ParticipationLedger summary={summaryOf([row({ activityId: "missing" })])} />);
+    renderLedger([row({ activityId: "missing" })]);
     expect(screen.getByText("Dirección de programa")).toBeInTheDocument();
   });
 
   it("labels provisional and voided states", () => {
-    render(
-      <ParticipationLedger
-        summary={summaryOf([
-          row({
-            id: "r2",
-            activityId: "a2",
-            parentId: null,
-            parentType: null,
-            state: "provisional",
-            pointRuleCode: "AttendAssembly",
-            role: "Attendee",
-          }),
-          row({
-            id: "r3",
-            activityId: "a3",
-            parentId: null,
-            parentType: null,
-            state: "voided",
-            pointRuleCode: "AttendTM",
-            role: "Team",
-          }),
-        ])}
-      />,
-    );
+    renderLedger([
+      row({
+        id: "r2",
+        activityId: "a2",
+        parentId: null,
+        parentType: null,
+        state: "provisional",
+        pointRuleCode: "AttendAssembly",
+        role: "Attendee",
+      }),
+      row({
+        id: "r3",
+        activityId: "a3",
+        parentId: null,
+        parentType: null,
+        state: "voided",
+        pointRuleCode: "AttendTM",
+        role: "Team",
+      }),
+    ]);
     expect(screen.getByText("Provisional")).toBeInTheDocument();
     expect(screen.getByText("Anulado")).toBeInTheDocument();
     expect(screen.getByText("Asistente")).toBeInTheDocument();
@@ -105,7 +101,7 @@ describe("ParticipationLedger", () => {
   });
 
   it("shows an empty state when there are no rows", () => {
-    render(<ParticipationLedger summary={summaryOf([])} />);
+    renderLedger([]);
     expect(screen.getByText(/sin participaciones/i)).toBeInTheDocument();
   });
 });

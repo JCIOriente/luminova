@@ -1,4 +1,11 @@
-import type { InitiativeKind, Participation } from "@luminova/types";
+import type { InitiativeKind, Participation, ParticipationRole } from "@luminova/types";
+
+export const PARTICIPATION_ROLE_LABEL: Record<ParticipationRole, string> = {
+  Director: "Director",
+  CoDirector: "Codirector",
+  Team: "Equipo",
+  Attendee: "Asistente",
+};
 
 export interface EnrichedParticipation extends Participation {
   /** Resolved activity title, or null when the source activity is unavailable. */

@@ -1,4 +1,5 @@
-import { Sparkline } from "@luminova/ui";
+import type { ReactNode } from "react";
+import { RippleSVG } from "@luminova/ui";
 import type { MemberPoints } from "@luminova/types/engine";
 
 interface MemberPointsSummaryProps {
@@ -8,25 +9,22 @@ interface MemberPointsSummaryProps {
   activityCount: number;
 }
 
-function Stat({
-  value,
+function Cell({
+  eyebrow,
+  children,
   label,
-  accent = false,
 }: {
-  value: string;
+  eyebrow: string;
+  children: ReactNode;
   label: string;
-  accent?: boolean;
 }) {
   return (
-    <div>
-      <div
-        className={`text-[40px] leading-none font-semibold tabular-nums ${
-          accent ? "text-jci-yellow" : "text-on-dark-1"
-        }`}
-      >
-        {value}
+    <div className="min-w-0 sm:px-9 sm:first:pl-0">
+      <div className="mb-4 font-mono text-[10.5px] tracking-[0.16em] text-on-dark-3 uppercase">
+        {eyebrow}
       </div>
-      <div className="mt-2 text-[12px] leading-tight text-on-dark-3">{label}</div>
+      <div className="leading-[0.95]">{children}</div>
+      <div className="mt-3.5 text-[13.5px] leading-snug text-on-dark-2">{label}</div>
     </div>
   );
 }
@@ -38,33 +36,53 @@ export function MemberPointsSummary({
   activityCount,
 }: MemberPointsSummaryProps) {
   const months = Object.entries(points?.byMonth ?? {}).sort(([a], [b]) => (a < b ? -1 : 1));
+  const last = months.at(-1);
 
   return (
-    <div className="flex flex-col gap-6 rounded-[14px] bg-jci-blue px-7 py-6 text-on-dark-1">
-      <div className="grid grid-cols-2 gap-x-8 gap-y-6 sm:grid-cols-3">
-        <Stat
-          value={String(points?.cumulative ?? 0)}
-          label={`puntos confirmados · ${termId}`}
-          accent
-        />
-        {rank && <Stat value={`${rank.rank}°`} label={`de ${rank.total} en el capítulo`} />}
-        <Stat value={String(activityCount)} label="actividades este período" />
+    <div className="relative isolate flex flex-col gap-6 overflow-hidden rounded-[20px] bg-jci-black px-7 py-7 text-on-dark-1 shadow-[0_26px_60px_-34px_rgba(19,15,45,0.55)] sm:px-9 sm:py-8">
+      <RippleSVG
+        color="#ffffff"
+        size={520}
+        className="pointer-events-none absolute top-1/2 -right-28 -z-10 size-[520px] -translate-y-1/2 opacity-[0.06] motion-safe:animate-ripple-spin"
+      />
+
+      <div className="grid gap-6 sm:grid-cols-[1.6fr_1fr_1fr] sm:gap-0 sm:divide-x sm:divide-white/15">
+        <Cell eyebrow={`Puntos confirmados · ${termId}`} label="Acumulados esta temporada">
+          <span className="text-[64px] font-light tracking-[-0.03em] text-jci-yellow tabular-nums sm:text-[70px]">
+            {points?.cumulative ?? 0}
+          </span>
+          <span className="ml-2 text-[21px] text-on-dark-2">pts</span>
+        </Cell>
+
+        {rank && (
+          <Cell eyebrow="Clasificación" label={`de ${rank.total} en el capítulo`}>
+            <span className="text-[48px] font-light tabular-nums">{rank.rank}°</span>
+          </Cell>
+        )}
+
+        <Cell
+          eyebrow="Este período"
+          label={activityCount === 1 ? "actividad registrada" : "actividades registradas"}
+        >
+          <span className="text-[48px] font-light tabular-nums">{activityCount}</span>
+        </Cell>
       </div>
 
-      {months.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-on-dark-3/25 pt-4">
-          {months.length >= 2 && (
-            <Sparkline values={months.map(([, value]) => value)} className="text-on-dark-2" />
-          )}
-          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-on-dark-3">
-            {months.map(([month, value]) => (
-              <li key={month} className="tabular-nums">
-                <span className="text-on-dark-2">{month}</span> · {value}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/15 pt-5">
+        {last ? (
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[10px] tracking-[0.14em] text-on-dark-3 uppercase">
+              Último registro
+            </span>
+            <span className="text-[13.5px] font-medium tabular-nums text-on-dark-1">
+              {last[0]} · <span className="font-semibold text-jci-yellow">+{last[1]} pts</span>
+            </span>
+          </div>
+        ) : (
+          <span className="text-[13.5px] text-on-dark-3">Sin registros todavía</span>
+        )}
+        <span className="font-serif text-[16px] text-jci-teal italic">Inspira.</span>
+      </div>
     </div>
   );
 }
