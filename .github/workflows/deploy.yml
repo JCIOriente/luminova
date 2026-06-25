@@ -1,0 +1,239 @@
+name: Deploy
+
+# Keyless CD. Runs only after the CI workflow concludes successfully on main.
+# Auth = Workload Identity Federation (OIDC) — no long-lived credential is stored
+# anywhere; GitHub mints a short-lived token per run, exchanged for a GCP token that
+# GCP's STS only honors for this repo on refs/heads/main. Every deploy job is gated
+# behind the `production` GitHub environment (required reviewer + main-only).
+on:
+  # `workflow_run` reads this file from the DEFAULT branch, so a feature/PR branch
+  # can never alter deploy logic to exfiltrate the OIDC token — only code merged to
+  # main changes how we deploy.
+  workflow_run:
+    workflows: ["CI"] # must equal `name:` in ci.yml
+    types: [completed]
+  # Manual escape hatch for first-run validation, re-deploys, and rollbacks.
+  workflow_dispatch:
+    inputs:
+      surface:
+        description: "all | rules | functions | hosting"
+        default: "all"
+
+permissions:
+  id-token: write # REQUIRED to mint the OIDC token for WIF
+  contents: read # checkout only
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false # never interrupt an in-flight deploy
+
+jobs:
+  filter:
+    name: filter
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Deploy only on a green CI run that came from a push to main, or a manual run.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push')
+    outputs:
+      spotlight: ${{ steps.f.outputs.spotlight }}
+      backstage: ${{ steps.f.outputs.backstage }}
+      functions: ${{ steps.f.outputs.functions }}
+      rules: ${{ steps.f.outputs.rules }}
+      sha: ${{ steps.f.outputs.sha }}
+    steps:
+      # fetch-depth 0 so we can diff the deployed commit against its first parent.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Detect changed surfaces
+        id: f
+        run: |
+          sp=false; bs=false; fn=false; rl=false
+          head="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "sha=$head" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual run: deploy the requested surface(s), no diff.
+            case "${{ github.event.inputs.surface }}" in
+              all)       sp=true; bs=true; fn=true; rl=true ;;
+              hosting)   sp=true; bs=true ;;
+              functions) fn=true ;;
+              rules)     rl=true ;;
+              *) echo "unknown surface '${{ github.event.inputs.surface }}'"; exit 1 ;;
+            esac
+            echo "manual dispatch -> surface=${{ github.event.inputs.surface }}"
+          else
+            base="${head}^"
+            if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+              # Root commit / shallow miss -> deploy everything (fail-safe).
+              sp=true; bs=true; fn=true; rl=true
+              echo "base commit unavailable -> deploying all surfaces"
+            else
+              diff=$(git diff --name-only "$base...$head")
+              echo "changed files:"; echo "$diff"
+              q() { printf '%s\n' "$diff" | grep -qE "$1"; }
+              # packages/** feeds every app+functions bundle; firebase.json touches all.
+              q '^(apps/spotlight/|packages/|firebase\.json)'                                   && sp=true || true
+              q '^(apps/backstage/|packages/|firebase\.json)'                                   && bs=true || true
+              q '^(apps/beacon/|packages/|firebase\.json)'                                      && fn=true || true
+              q '(^firestore\.rules$|^storage\.rules$|^firestore\.indexes\.json$|^firebase\.json$)' && rl=true || true
+            fi
+          fi
+          {
+            echo "spotlight=$sp"
+            echo "backstage=$bs"
+            echo "functions=$fn"
+            echo "rules=$rl"
+          } >> "$GITHUB_OUTPUT"
+          echo "resolved -> spotlight=$sp backstage=$bs functions=$fn rules=$rl"
+
+  # Order: rules -> functions -> hosting. Data contract lands before the backend that
+  # relies on it; backend lands before the UI that calls it; user-visible hosting flips
+  # last and is the cheapest to roll back.
+  deploy-rules:
+    name: deploy-rules
+    needs: filter
+    if: needs.filter.outputs.rules == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - run: corepack enable
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: |
+          npm config set prefix "$HOME/.npm-global"
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+      - id: fbcache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.npm-global
+          key: firebase-tools-${{ runner.os }}-15.22.1
+      - if: steps.fbcache.outputs.cache-hit != 'true'
+        run: npm install -g firebase-tools@15.22.1
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      - name: Deploy rules + indexes + storage
+        run: |
+          firebase deploy \
+            --only firestore:rules,firestore:indexes,storage \
+            --project "$GCP_PROJECT_ID" --non-interactive --force
+
+  deploy-functions:
+    name: deploy-functions
+    needs: [filter, deploy-rules]
+    # Runs when functions changed and the rules stage did not FAIL (skipped is fine).
+    if: >-
+      always() &&
+      needs.deploy-rules.result != 'failure' &&
+      needs.deploy-rules.result != 'cancelled' &&
+      needs.filter.outputs.functions == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - run: corepack enable
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: |
+          npm config set prefix "$HOME/.npm-global"
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+      - id: fbcache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.npm-global
+          key: firebase-tools-${{ runner.os }}-15.22.1
+      - if: steps.fbcache.outputs.cache-hit != 'true'
+        run: npm install -g firebase-tools@15.22.1
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      # firebase.json `predeploy` runs `pnpm turbo run build --filter beacon`.
+      # --force skips the gen2 delete-confirmation prompt under --non-interactive.
+      - name: Deploy functions (beacon)
+        run: |
+          firebase deploy --only functions \
+            --project "$GCP_PROJECT_ID" --non-interactive --force
+
+  deploy-hosting:
+    name: deploy-hosting
+    needs: [filter, deploy-functions]
+    if: >-
+      always() &&
+      needs.deploy-functions.result != 'failure' &&
+      needs.deploy-functions.result != 'cancelled' &&
+      (needs.filter.outputs.spotlight == 'true' || needs.filter.outputs.backstage == 'true')
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - run: corepack enable
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: |
+          npm config set prefix "$HOME/.npm-global"
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+      - id: fbcache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.npm-global
+          key: firebase-tools-${{ runner.os }}-15.22.1
+      - if: steps.fbcache.outputs.cache-hit != 'true'
+        run: npm install -g firebase-tools@15.22.1
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      # Build only the changed target(s). VITE_FIREBASE_EMULATOR_ENABLED=false guards
+      # against a dev bundle ever reaching prod (also forced in .env.production).
+      - if: needs.filter.outputs.spotlight == 'true'
+        run: VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter spotlight
+      - if: needs.filter.outputs.backstage == 'true'
+        run: VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter backstage
+      - name: Deploy hosting (changed targets)
+        run: |
+          targets=""
+          if [ "${{ needs.filter.outputs.spotlight }}" = "true" ]; then
+            targets="hosting:jcioriente"
+          fi
+          if [ "${{ needs.filter.outputs.backstage }}" = "true" ]; then
+            if [ -n "$targets" ]; then
+              targets="hosting"
+            else
+              targets="hosting:jcioriente-backstage"
+            fi
+          fi
+          echo "deploying: $targets"
+          firebase deploy --only "$targets" \
+            --project "$GCP_PROJECT_ID" --non-interactive
