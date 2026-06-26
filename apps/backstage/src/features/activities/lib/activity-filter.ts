@@ -1,4 +1,5 @@
 import type { Activity } from "@luminova/types";
+import { BOLIVIA_OFFSET_MS } from "../../../lib/datetime";
 
 export const ACTIVITY_TABS = ["proximos", "mes", "todas"] as const;
 export type ActivityTab = (typeof ACTIVITY_TABS)[number];
@@ -8,9 +9,6 @@ export const ACTIVITY_TAB_LABELS: Record<ActivityTab, string> = {
   mes: "Este mes",
   todas: "Todas",
 };
-
-/** Bolivia is UTC-4 (no DST). Mirrors check-in-window.ts / the firestore.rules window. */
-const BOLIVIA_OFFSET_MS = 4 * 60 * 60 * 1000;
 
 /**
  * Filter the term's activities for a tab. `startAt` is the scheduled wall-clock

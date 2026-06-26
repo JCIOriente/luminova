@@ -2,7 +2,7 @@ import type { Activity } from "@luminova/types";
 import { Badge, Button, EmptyState, Icon } from "@luminova/ui";
 import { Link } from "@tanstack/react-router";
 import { ACTIVITY_STATUS_TONE } from "../../activities/lib/status-tone";
-import { formatMonthYear } from "../lib/derive";
+import { formatMonthYear } from "../../../lib/datetime";
 
 interface InitiativeActivitiesProps {
   activities: Activity[];

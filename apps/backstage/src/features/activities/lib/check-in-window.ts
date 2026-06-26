@@ -1,11 +1,5 @@
 import type { Activity } from "@luminova/types";
-
-/** Bolivia is UTC-4 (no DST). Mirrors the firestore.rules check-in window. */
-const BOLIVIA_OFFSET_MS = 4 * 60 * 60 * 1000;
-
-function boliviaDayKey(ms: number): string {
-  return new Date(ms - BOLIVIA_OFFSET_MS).toISOString().slice(0, 10);
-}
+import { boliviaDayKey } from "../../../lib/datetime";
 
 type WindowActivity = Pick<Activity, "startAt" | "status">;
 
