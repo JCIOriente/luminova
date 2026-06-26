@@ -1,5 +1,5 @@
 import { Icon, ProgressBar } from "@luminova/ui";
-import { formatMonthYear } from "../lib/derive";
+import { formatMonthYear } from "../../../lib/datetime";
 import type { Progress } from "../lib/derive";
 import type { InitiativeListItem } from "../lib/initiative-list-item";
 

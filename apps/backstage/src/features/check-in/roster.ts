@@ -9,6 +9,7 @@ export interface CheckInRecord {
 export interface RosterEntry {
   memberId: string;
   name: string;
+  src: string | null;
 }
 
 export function alreadyCheckedIn(checkIns: CheckInRecord[], memberId: string): boolean {
@@ -16,8 +17,15 @@ export function alreadyCheckedIn(checkIns: CheckInRecord[], memberId: string): b
 }
 
 export function buildRosterEntries(checkIns: CheckInRecord[], members: Member[]): RosterEntry[] {
-  const nameById = new Map(members.map((m) => [m.id, m.name]));
+  const byId = new Map(members.map((m) => [m.id, m]));
   return checkIns
-    .map((c) => ({ memberId: c.memberId, name: nameById.get(c.memberId) ?? c.memberId }))
+    .map((c) => {
+      const member = byId.get(c.memberId);
+      return {
+        memberId: c.memberId,
+        name: member?.name ?? c.memberId,
+        src: member?.profilePicture ?? null,
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name, "es"));
 }

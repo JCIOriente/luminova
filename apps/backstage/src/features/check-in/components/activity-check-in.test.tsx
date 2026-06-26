@@ -31,7 +31,8 @@ beforeEach(() => {
   scanHandler = undefined;
 });
 
-async function getScanHandler() {
+async function openScanner() {
+  fireEvent.click(screen.getByRole("button", { name: /escanear carnets/i }));
   await screen.findByTestId("qr");
   if (!scanHandler) throw new Error("scanner not mounted");
   return scanHandler;
@@ -55,7 +56,7 @@ describe("ActivityCheckIn", () => {
   it("shows a success overlay on QR scan and dismisses it on tap (one read)", async () => {
     mutate = (_input, opts) => opts.onSuccess?.();
     render(<ActivityCheckIn activityId="a1" members={members} />);
-    const scan = await getScanHandler();
+    const scan = await openScanner();
     act(() => scan("jcioriente:member:m-1"));
     const overlay = await screen.findByRole("button", { name: /continuar escaneando/i });
     expect(within(overlay).getByText("Asistencia registrada")).toBeInTheDocument();
@@ -71,7 +72,7 @@ describe("ActivityCheckIn", () => {
       opts.onSuccess?.();
     };
     render(<ActivityCheckIn activityId="a1" members={members} />);
-    await getScanHandler();
+    await openScanner();
     // Call the latest handler each time, as the real scanner does via its ref.
     act(() => scanHandler!("jcioriente:member:m-1"));
     act(() => scanHandler!("jcioriente:member:m-1"));
@@ -80,7 +81,7 @@ describe("ActivityCheckIn", () => {
 
   it("shows an error overlay for an unrecognized QR payload", async () => {
     render(<ActivityCheckIn activityId="a1" members={members} />);
-    const scan = await getScanHandler();
+    const scan = await openScanner();
     act(() => scan("not-our-qr"));
     expect(await screen.findByText("Código no reconocido")).toBeInTheDocument();
   });

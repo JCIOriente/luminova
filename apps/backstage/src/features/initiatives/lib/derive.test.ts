@@ -4,7 +4,6 @@ import {
   areaTone,
   childActivitiesOf,
   computeProgress,
-  formatMonthYear,
   isClosingSoon,
   statusLabel,
   statusTone,
@@ -119,12 +118,6 @@ describe("areaTone", () => {
     expect(areaTone("DesarrolloComunitario")).toBe("teal");
     expect(areaTone("NegociosEmprendimiento")).toBe("amber");
     expect(areaTone("CooperacionInternacional")).toBe("navy");
-  });
-});
-
-describe("formatMonthYear", () => {
-  it("formats a timestamp as capitalized es month + year", () => {
-    expect(formatMonthYear(ts(Date.UTC(2026, 7, 15)))).toMatch(/^[A-ZÁÉÍÓÚ]\w+\.? 2026$/);
   });
 });
 

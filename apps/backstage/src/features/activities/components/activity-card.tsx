@@ -4,7 +4,7 @@ import type { Activity } from "@luminova/types";
 import { CATEGORY_LABELS } from "../category-labels";
 import { ACTIVITY_STATUS_TONE } from "../lib/status-tone";
 import { CATEGORY_TONE, TONE_COVER_BG, TONE_RIPPLE_COLOR } from "../lib/category-tone";
-import { formatCardDateTime, formatDateChip } from "../lib/card-datetime";
+import { formatDateChip, formatDateTime } from "../../../lib/datetime";
 import { locationKind } from "../lib/location-kind";
 
 export interface CardDirector {
@@ -119,7 +119,7 @@ export function ActivityCard({
         <div className="mt-1 flex flex-col gap-1.5 text-[13px] text-ink-2">
           <div className="flex items-center gap-2">
             {Icon.calendar({ s: 15 })}
-            <span className="tabular-nums">{formatCardDateTime(activity.startAt)}</span>
+            <span className="tabular-nums">{formatDateTime(activity.startAt)}</span>
           </div>
           {activity.location && (
             <div className="flex items-center gap-2">

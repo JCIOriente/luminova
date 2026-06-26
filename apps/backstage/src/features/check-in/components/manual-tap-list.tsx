@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Icon, Input } from "@luminova/ui";
+import { Avatar, Icon, Input } from "@luminova/ui";
 import type { Member } from "@luminova/types";
 
 interface ManualTapListProps {
@@ -10,6 +10,7 @@ interface ManualTapListProps {
 
 export function ManualTapList({ members, checkedInIds, onTap }: ManualTapListProps) {
   const [search, setSearch] = useState("");
+  const checkedIn = useMemo(() => new Set(checkedInIds), [checkedInIds]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -27,17 +28,25 @@ export function ManualTapList({ members, checkedInIds, onTap }: ManualTapListPro
       />
       <ul className="flex flex-col gap-1">
         {filtered.map((member) => {
-          const done = checkedInIds.includes(member.id);
+          const done = checkedIn.has(member.id);
           return (
             <li key={member.id}>
               <button
                 type="button"
                 disabled={done}
                 onClick={() => onTap(member.id)}
-                className="flex min-h-11 w-full items-center justify-between rounded-[10px] border border-line bg-surface px-4 py-2.5 text-left text-[14px] text-ink-1 transition-colors hover:border-jci-blue disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-11 w-full items-center gap-3 rounded-[10px] border border-line bg-surface px-4 py-2 text-left text-[14px] text-ink-1 transition-colors hover:border-jci-blue disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <span className="truncate">{member.name}</span>
-                {done && <span className="text-ok">{Icon.check({ s: 18 })}</span>}
+                <Avatar src={member.profilePicture} name={member.name} size={28} />
+                <span className="flex-1 truncate">{member.name}</span>
+                <span
+                  className={`grid size-7 place-items-center rounded-full ${
+                    done ? "bg-ok/15 text-ok" : "bg-jci-blue/10 text-jci-blue"
+                  }`}
+                  aria-hidden="true"
+                >
+                  {done ? Icon.check({ s: 16 }) : Icon.plus({ s: 16 })}
+                </span>
               </button>
             </li>
           );

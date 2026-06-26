@@ -7,8 +7,6 @@ import type {
 import type { BadgeTone } from "@luminova/ui";
 import type { InitiativeListItem } from "./initiative-list-item";
 
-type Timestamp = { toMillis(): number };
-
 const THIRTY_DAYS_MS = 30 * 86_400_000;
 
 export interface Progress {
@@ -93,10 +91,3 @@ export const COVER_STRIP: Record<BadgeTone, string> = {
   red: "bg-error",
   gray: "bg-ink-4",
 };
-
-const MONTH_YEAR = new Intl.DateTimeFormat("es", { month: "short", year: "numeric" });
-
-export function formatMonthYear(ts: Timestamp): string {
-  const raw = MONTH_YEAR.format(new Date(ts.toMillis()));
-  return raw.charAt(0).toUpperCase() + raw.slice(1);
-}

@@ -30,7 +30,7 @@ import { useInitiative, INITIATIVE_TYPE } from "../features/initiatives/hooks/us
 
 export const Route = createFileRoute("/_app/activities_/$id")({ component: ActivityDetailPage });
 
-type Tab = "detalle" | "check-in";
+type Tab = "resumen" | "galeria" | "check-in";
 
 function ActivityDetailPage() {
   const { id } = Route.useParams();
@@ -44,7 +44,7 @@ function ActivityDetailPage() {
   const canUpdate = ability.can("update", "Activity");
   const canReadMembers = ability.can("read", "Member");
 
-  const [tab, setTab] = useState<Tab>("detalle");
+  const [tab, setTab] = useState<Tab>("resumen");
   const [editOpen, setEditOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -167,16 +167,16 @@ function ActivityDetailPage() {
     setCancelOpen(false);
   };
 
-  const hasDetalle = Boolean(activity.description) || activity.photos.length > 0 || canManagePhotos;
-
   // The check-in tab is only meaningful to users who can register attendance for
   // this activity; hide it from everyone else instead of showing a dead "Sin acceso".
-  const tabs: readonly SegmentedOption<Tab>[] = canCheckIn
-    ? [
-        { value: "detalle", label: "Detalle" },
-        { value: "check-in", label: "Check-in" },
-      ]
-    : [{ value: "detalle", label: "Detalle" }];
+  const tabs: readonly SegmentedOption<Tab>[] = [
+    { value: "resumen", label: "Resumen" },
+    { value: "galeria", label: "Galería" },
+    ...(canCheckIn ? [{ value: "check-in" as const, label: "Check-in" }] : []),
+  ];
+  // Fall back to Resumen if the active tab leaves the set (e.g. a user who loses
+  // check-in ability while parked on that tab) so no blank, unselected panel shows.
+  const activeTab: Tab = tabs.some((t) => t.value === tab) ? tab : "resumen";
 
   return (
     <div className="flex flex-col gap-6">
@@ -212,17 +212,29 @@ function ActivityDetailPage() {
       <SegmentedControl<Tab>
         aria-label="Vistas de la actividad"
         options={tabs}
-        value={tab}
+        value={activeTab}
         onChange={setTab}
       />
 
-      {tab === "detalle" && (
-        <div className="flex flex-col gap-6">
-          {activity.description && (
-            <p className="max-w-2xl text-[14px] leading-relaxed text-ink-2">
+      {activeTab === "resumen" && (
+        <section className="rounded-card border border-line bg-surface p-5">
+          <h2 className="font-mono text-[10.5px] tracking-[0.12em] text-ink-3 uppercase">
+            Sobre la actividad
+          </h2>
+          {activity.description ? (
+            <p className="mt-3 max-w-2xl text-[14px] leading-relaxed whitespace-pre-line text-ink-2">
               {activity.description}
             </p>
+          ) : (
+            <p className="mt-3 text-[13px] text-ink-3">
+              Edita la actividad para agregar una descripción.
+            </p>
           )}
+        </section>
+      )}
+
+      {activeTab === "galeria" && (
+        <div className="flex flex-col gap-6">
           {canManagePhotos ? (
             <PhotoManager
               photos={activity.photos}
@@ -231,19 +243,15 @@ function ActivityDetailPage() {
               onSetCover={photoActions.setCover}
               onSetCaption={photoActions.setCaption}
             />
+          ) : activity.photos.length > 0 ? (
+            <PhotoGallery photos={activity.photos} showCover />
           ) : (
-            activity.photos.length > 0 && <PhotoGallery photos={activity.photos} showCover />
-          )}
-          {!hasDetalle && (
-            <EmptyState
-              title="Sin detalle"
-              description="Edita la actividad para agregar una descripción."
-            />
+            <EmptyState title="Sin fotos" description="Aún no hay fotos de esta actividad." />
           )}
         </div>
       )}
 
-      {tab === "check-in" && canCheckIn && (
+      {activeTab === "check-in" && (
         <div className="flex flex-col gap-4">
           {!canReadMembers && (
             <p className="mx-auto max-w-md text-center text-[13px] text-ink-3">

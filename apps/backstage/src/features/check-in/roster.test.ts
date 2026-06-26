@@ -22,8 +22,9 @@ describe("roster", () => {
     expect(rows.map((r) => r.name)).toEqual(["Ana Rivas", "Bruno Paz"]);
   });
 
-  it("falls back to the id when the member is unknown", () => {
+  it("falls back to the id and a null avatar when the member is unknown", () => {
     const rows = buildRosterEntries([{ memberId: "ghost", role: "Attendee" }], members);
     expect(rows[0]?.name).toBe("ghost");
+    expect(rows[0]?.src).toBeNull();
   });
 });

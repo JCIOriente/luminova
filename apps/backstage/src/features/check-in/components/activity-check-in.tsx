@@ -1,16 +1,13 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { EmptyState, Toast, Icon, cn } from "@luminova/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { EmptyState, Toast, Icon } from "@luminova/ui";
 import type { Member } from "@luminova/types";
 import { useActivityCheckIns } from "../hooks/use-activity-check-ins";
 import { useCreateCheckIn } from "../hooks/use-create-check-in";
 import { RosterList } from "./roster-list";
 import { ManualTapList } from "./manual-tap-list";
+import { ScanModal, type ScanResult } from "./scan-modal";
 import { alreadyCheckedIn, buildRosterEntries } from "../roster";
 import { decodeMemberQr } from "../../../lib/member-qr";
-
-const LazyQrScanner = lazy(() =>
-  import("@luminova/ui/qr-scanner").then((m) => ({ default: m.QrScanner })),
-);
 
 interface ActivityCheckInProps {
   activityId: string;
@@ -18,53 +15,8 @@ interface ActivityCheckInProps {
   open?: boolean;
 }
 
-type ScanStatus = "pending" | "success" | "duplicate" | "error";
-interface ScanResult {
-  status: ScanStatus;
-  title: string;
-  name?: string;
-}
-
-const SCAN_STYLES: Record<ScanStatus, string> = {
-  pending: "bg-ink-1/85",
-  success: "bg-emerald-500/95",
-  duplicate: "bg-amber-500/95",
-  error: "bg-error/95",
-};
-
-/** Luma-style overlay over the camera: a single result is shown (and the scanner
- *  paused) until tapped or auto-dismissed, which prevents the same QR from
- *  re-registering. Always dismissable so a hung write can never trap the camera. */
-function ScanFeedback({ result, onDismiss }: { result: ScanResult; onDismiss: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onDismiss}
-      aria-label="Continuar escaneando"
-      className={cn(
-        "absolute inset-0 z-10 grid place-items-center rounded-[14px]",
-        SCAN_STYLES[result.status],
-      )}
-    >
-      <div className="flex flex-col items-center gap-3 px-6 text-center text-white">
-        {result.status === "pending" ? (
-          <span className="size-16 animate-spin rounded-full border-4 border-white/30 border-t-white" />
-        ) : (
-          <span className="grid size-16 place-items-center rounded-full bg-white/20">
-            {result.status === "error" ? Icon.close({ s: 44 }) : Icon.check({ s: 44 })}
-          </span>
-        )}
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[17px] font-semibold" aria-live="assertive">
-            {result.title}
-          </span>
-          {result.name && <span className="text-[14px] text-white/85">{result.name}</span>}
-          <span className="mt-1 text-[12px] text-white/70">Toca para continuar</span>
-        </div>
-      </div>
-    </button>
-  );
-}
+/** How long a toast / settled scan result lingers before auto-clearing. */
+const DISMISS_MS = 2800;
 
 export function ActivityCheckIn({ activityId, members, open = true }: ActivityCheckInProps) {
   const { data: checkIns } = useActivityCheckIns(activityId);
@@ -73,10 +25,11 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
   const roster = useMemo(() => buildRosterEntries(checkIns ?? [], members), [checkIns, members]);
   const checkedInIds = useMemo(() => (checkIns ?? []).map((c) => c.memberId), [checkIns]);
 
+  const [scanOpen, setScanOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; ok: boolean } | null>(null);
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2800);
+    const t = setTimeout(() => setToast(null), DISMISS_MS);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -93,7 +46,7 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
   // so the same QR is never read twice). A "pending" write waits for its callback.
   useEffect(() => {
     if (!scan || scan.status === "pending") return;
-    const t = setTimeout(() => setScan(null), 2800);
+    const t = setTimeout(() => setScan(null), DISMISS_MS);
     return () => clearTimeout(t);
   }, [scan]);
 
@@ -151,20 +104,54 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-5">
-      <div className="relative aspect-square w-full">
-        <Suspense fallback={<p className="text-ink-3">Cargando cámara…</p>}>
-          <LazyQrScanner
-            onScan={onScan}
-            paused={create.isPending || scan !== null}
-            className="size-full rounded-[14px] bg-ink-1/5 object-cover"
-          />
-        </Suspense>
-        {scan && <ScanFeedback result={scan} onDismiss={dismissScan} />}
+      <div className="flex items-center gap-4 rounded-card border border-line bg-surface px-5 py-4">
+        <span className="grid size-11 shrink-0 place-items-center rounded-card bg-ok/10 text-ok">
+          {Icon.check({ s: 22 })}
+        </span>
+        <div className="flex flex-col">
+          <span className="text-[34px] leading-none font-semibold tabular-nums text-ink-1">
+            {roster.length}
+          </span>
+          <span className="mt-1 text-[12px] text-ink-3">
+            {roster.length === 1 ? "miembro presente" : "miembros presentes"}
+          </span>
+        </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setScanOpen(true)}
+        className="flex items-center gap-4 rounded-card border border-line bg-surface px-5 py-4 text-left transition-colors hover:border-jci-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue"
+      >
+        <span className="grid size-11 shrink-0 place-items-center rounded-card bg-jci-blue/10 text-jci-blue">
+          {Icon.qr({ s: 22 })}
+        </span>
+        <span className="flex flex-1 flex-col">
+          <span className="text-[14px] font-semibold text-ink-1">Escanear carnets</span>
+          <span className="text-[12.5px] text-ink-3">Abre el lector de QR</span>
+        </span>
+        <span className="text-ink-4">{Icon.arrowRight({ s: 18 })}</span>
+      </button>
+
       <RosterList entries={roster} />
       {members.length > 0 && (
         <ManualTapList members={members} checkedInIds={checkedInIds} onTap={onManualTap} />
       )}
+
+      {scanOpen && (
+        <ScanModal
+          presentCount={roster.length}
+          paused={create.isPending || scan !== null}
+          scan={scan}
+          onScan={onScan}
+          onDismissScan={dismissScan}
+          onClose={() => {
+            setScanOpen(false);
+            dismissScan();
+          }}
+        />
+      )}
+
       {toast && (
         <Toast
           message={toast.message}
