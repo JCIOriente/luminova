@@ -5,7 +5,7 @@ const LazyQrScanner = lazy(() =>
   import("@luminova/ui/qr-scanner").then((m) => ({ default: m.QrScanner })),
 );
 
-export type ScanStatus = "pending" | "success" | "duplicate" | "error";
+type ScanStatus = "pending" | "success" | "duplicate" | "error";
 export interface ScanResult {
   status: ScanStatus;
   title: string;
@@ -79,6 +79,7 @@ export function ScanModal({
   onCloseRef.current = onClose;
 
   useEffect(() => {
+    // activeElement is typed Element; narrow to HTMLElement to call focus() on restore.
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";

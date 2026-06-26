@@ -15,6 +15,9 @@ interface ActivityCheckInProps {
   open?: boolean;
 }
 
+/** How long a toast / settled scan result lingers before auto-clearing. */
+const DISMISS_MS = 2800;
+
 export function ActivityCheckIn({ activityId, members, open = true }: ActivityCheckInProps) {
   const { data: checkIns } = useActivityCheckIns(activityId);
   const create = useCreateCheckIn(activityId);
@@ -26,7 +29,7 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
   const [toast, setToast] = useState<{ message: string; ok: boolean } | null>(null);
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2800);
+    const t = setTimeout(() => setToast(null), DISMISS_MS);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -43,7 +46,7 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
   // so the same QR is never read twice). A "pending" write waits for its callback.
   useEffect(() => {
     if (!scan || scan.status === "pending") return;
-    const t = setTimeout(() => setScan(null), 2800);
+    const t = setTimeout(() => setScan(null), DISMISS_MS);
     return () => clearTimeout(t);
   }, [scan]);
 

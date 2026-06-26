@@ -10,6 +10,7 @@ interface ManualTapListProps {
 
 export function ManualTapList({ members, checkedInIds, onTap }: ManualTapListProps) {
   const [search, setSearch] = useState("");
+  const checkedIn = useMemo(() => new Set(checkedInIds), [checkedInIds]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -27,7 +28,7 @@ export function ManualTapList({ members, checkedInIds, onTap }: ManualTapListPro
       />
       <ul className="flex flex-col gap-1">
         {filtered.map((member) => {
-          const done = checkedInIds.includes(member.id);
+          const done = checkedIn.has(member.id);
           return (
             <li key={member.id}>
               <button

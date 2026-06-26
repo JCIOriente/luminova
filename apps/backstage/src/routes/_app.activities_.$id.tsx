@@ -174,6 +174,9 @@ function ActivityDetailPage() {
     { value: "galeria", label: "Galería" },
     ...(canCheckIn ? [{ value: "check-in" as const, label: "Check-in" }] : []),
   ];
+  // Fall back to Resumen if the active tab leaves the set (e.g. a user who loses
+  // check-in ability while parked on that tab) so no blank, unselected panel shows.
+  const activeTab: Tab = tabs.some((t) => t.value === tab) ? tab : "resumen";
 
   return (
     <div className="flex flex-col gap-6">
@@ -209,11 +212,11 @@ function ActivityDetailPage() {
       <SegmentedControl<Tab>
         aria-label="Vistas de la actividad"
         options={tabs}
-        value={tab}
+        value={activeTab}
         onChange={setTab}
       />
 
-      {tab === "resumen" && (
+      {activeTab === "resumen" && (
         <section className="rounded-card border border-line bg-surface p-5">
           <h2 className="font-mono text-[10.5px] tracking-[0.12em] text-ink-3 uppercase">
             Sobre la actividad
@@ -230,7 +233,7 @@ function ActivityDetailPage() {
         </section>
       )}
 
-      {tab === "galeria" && (
+      {activeTab === "galeria" && (
         <div className="flex flex-col gap-6">
           {canManagePhotos ? (
             <PhotoManager
@@ -248,7 +251,7 @@ function ActivityDetailPage() {
         </div>
       )}
 
-      {tab === "check-in" && canCheckIn && (
+      {activeTab === "check-in" && (
         <div className="flex flex-col gap-4">
           {!canReadMembers && (
             <p className="mx-auto max-w-md text-center text-[13px] text-ink-3">

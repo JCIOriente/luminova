@@ -16,7 +16,7 @@ const DATE_TIME = new Intl.DateTimeFormat("es-BO", {
   timeZone: "UTC",
 });
 const MONTH_SHORT = new Intl.DateTimeFormat("es-BO", { month: "short", timeZone: "UTC" });
-const MONTH_YEAR = new Intl.DateTimeFormat("es", {
+const MONTH_YEAR = new Intl.DateTimeFormat("es-BO", {
   month: "short",
   year: "numeric",
   timeZone: "UTC",
