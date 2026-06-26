@@ -9,6 +9,11 @@ import { encodeMemberQr } from "../lib/member-qr";
 import { useMember } from "../features/members/hooks/use-member";
 import { useMemberPoints } from "../features/members/hooks/use-member-points";
 import { useMemberParticipations } from "../features/members/hooks/use-member-participations";
+import { useMemberPointsByTerm } from "../features/members/hooks/use-member-points-by-term";
+import { useActivitiesByTerm } from "../features/activities/hooks/use-activities-by-term";
+import { useInitiativesByTerm } from "../features/initiatives/hooks/use-initiatives-by-term";
+import { summarizeParticipations } from "../features/members/lib/participation-summary";
+import { pointsRank } from "../lib/points-rank";
 import { useProvisionMemberLogin } from "../features/members/hooks/use-provision-member-login";
 import { useUpdateMember } from "../features/members/hooks/use-update-member";
 import { useSetMemberPositions } from "../features/members/hooks/use-set-member-positions";
@@ -53,12 +58,26 @@ function MemberProfilePage() {
   const { data: positions } = usePositions();
   const { data: points } = useMemberPoints(memberId, termId);
   const { data: participations } = useMemberParticipations(memberId, termId);
+  const { data: allPoints } = useMemberPointsByTerm(termId);
+  const { data: activities } = useActivitiesByTerm(termId);
+  const { data: initiatives } = useInitiativesByTerm(termId, {
+    includePrograms: true,
+    includeProjects: true,
+  });
   const updateMember = useUpdateMember();
   const setPositions = useSetMemberPositions(memberId);
 
   const positionsById = useMemo(
     () => new Map((positions ?? []).map((p) => [p.id, p])),
     [positions],
+  );
+  const summary = useMemo(
+    () => summarizeParticipations(participations ?? [], activities ?? [], initiatives ?? []),
+    [participations, activities, initiatives],
+  );
+  const rank = useMemo(
+    () => (allPoints ? pointsRank(allPoints, memberId) : null),
+    [allPoints, memberId],
   );
   const termKey = currentTermKey();
   const roles = useMemo(
@@ -136,8 +155,17 @@ function MemberProfilePage() {
             </section>
           )}
 
-          <MemberPointsSummary points={points} termId={termId} />
-          <ParticipationLedger rows={participations ?? []} />
+          <MemberPointsSummary
+            points={points}
+            termId={termId}
+            rank={rank}
+            activityCount={summary.activityCount}
+          />
+          <ParticipationLedger
+            summary={summary}
+            totalPoints={points?.cumulative ?? 0}
+            termId={termId}
+          />
         </div>
 
         <aside className="flex flex-col gap-6">

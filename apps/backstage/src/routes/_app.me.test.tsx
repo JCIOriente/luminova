@@ -23,6 +23,15 @@ vi.mock("../features/members/hooks/use-member-points-by-term", () => ({
 vi.mock("../features/members/hooks/use-member-photo", () => ({
   useMemberPhoto: () => ({ onUpload: vi.fn(), onRemove: vi.fn() }),
 }));
+vi.mock("../features/activities/hooks/use-activities-by-term", () => ({
+  useActivitiesByTerm: () => ({ data: [] }),
+}));
+vi.mock("../features/initiatives/hooks/use-initiatives-by-term", () => ({
+  useInitiativesByTerm: () => ({ data: [] }),
+}));
+vi.mock("../features/positions/hooks/use-positions", () => ({
+  usePositions: () => ({ data: [] }),
+}));
 
 import { MemberHome } from "./_app.me";
 
@@ -30,6 +39,9 @@ describe("MemberHome", () => {
   it("renders points, QR and rank for the current member", () => {
     render(<MemberHome />);
     expect(screen.getByText(/tu qr personal/i)).toBeInTheDocument();
-    expect(screen.getByText(/puesto por puntos/i)).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText(/en el capítulo/i)).toBeInTheDocument();
+    // No cargo assigned → falls back to the base role label.
+    expect(screen.getAllByText("Miembro").length).toBeGreaterThan(0);
   });
 });
