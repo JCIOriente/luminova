@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { Icon, RippleSVG, cn } from "@luminova/ui";
 
 const LazyQrScanner = lazy(() =>
@@ -72,13 +72,27 @@ export function ScanModal({
   onDismissScan,
   onClose,
 }: ScanModalProps) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  // Read the latest onClose from a ref so the listener subscribes once for the
+  // modal's lifetime instead of re-binding on every parent render.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus?.();
+    };
+  }, []);
 
   return (
     <div
@@ -104,6 +118,7 @@ export function ScanModal({
               {presentCount} presentes
             </span>
             <button
+              ref={closeRef}
               type="button"
               onClick={onClose}
               aria-label="Cerrar"

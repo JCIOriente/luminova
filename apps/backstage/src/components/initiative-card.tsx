@@ -1,13 +1,8 @@
 import type { Member } from "@luminova/types";
 import { AvatarStack, Badge, Icon, ProgressBar } from "@luminova/ui";
 import { AREA_OF_OPPORTUNITY_LABELS } from "@luminova/types";
-import {
-  COVER_STRIP,
-  areaTone,
-  formatMonthYear,
-  statusLabel,
-  statusTone,
-} from "../features/initiatives/lib/derive";
+import { COVER_STRIP, areaTone, statusLabel, statusTone } from "../features/initiatives/lib/derive";
+import { formatMonthYear } from "../lib/datetime";
 import type { InitiativeListItem } from "../features/initiatives/lib/initiative-list-item";
 
 interface InitiativeCardProps {

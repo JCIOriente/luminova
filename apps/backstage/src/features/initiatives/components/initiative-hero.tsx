@@ -1,7 +1,8 @@
 import { AREA_OF_OPPORTUNITY_LABELS } from "@luminova/types";
 import { Badge } from "@luminova/ui";
 import type { ReactNode } from "react";
-import { COVER_STRIP, areaTone, formatMonthYear, statusLabel, statusTone } from "../lib/derive";
+import { COVER_STRIP, areaTone, statusLabel, statusTone } from "../lib/derive";
+import { formatMonthYear } from "../../../lib/datetime";
 import type { InitiativeListItem } from "../lib/initiative-list-item";
 
 interface InitiativeHeroProps {

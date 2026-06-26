@@ -101,7 +101,10 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-5">
-      <div className="flex items-center justify-between gap-4 rounded-card border border-line bg-surface px-5 py-4">
+      <div className="flex items-center gap-4 rounded-card border border-line bg-surface px-5 py-4">
+        <span className="grid size-11 shrink-0 place-items-center rounded-card bg-ok/10 text-ok">
+          {Icon.check({ s: 22 })}
+        </span>
         <div className="flex flex-col">
           <span className="text-[34px] leading-none font-semibold tabular-nums text-ink-1">
             {roster.length}
@@ -110,10 +113,6 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
             {roster.length === 1 ? "miembro presente" : "miembros presentes"}
           </span>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-pill bg-ok/10 px-3 py-1.5 text-[12px] font-medium text-ok">
-          {Icon.check({ s: 15 })}
-          {roster.length} registrados
-        </span>
       </div>
 
       <button

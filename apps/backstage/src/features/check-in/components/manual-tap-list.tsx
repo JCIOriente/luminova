@@ -39,11 +39,9 @@ export function ManualTapList({ members, checkedInIds, onTap }: ManualTapListPro
                 <Avatar src={member.profilePicture} name={member.name} size={28} />
                 <span className="flex-1 truncate">{member.name}</span>
                 <span
-                  className={
-                    done
-                      ? "grid size-7 place-items-center rounded-full bg-ok/15 text-ok"
-                      : "grid size-7 place-items-center rounded-full bg-jci-blue/10 text-jci-blue"
-                  }
+                  className={`grid size-7 place-items-center rounded-full ${
+                    done ? "bg-ok/15 text-ok" : "bg-jci-blue/10 text-jci-blue"
+                  }`}
                   aria-hidden="true"
                 >
                   {done ? Icon.check({ s: 16 }) : Icon.plus({ s: 16 })}
