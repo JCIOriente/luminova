@@ -142,10 +142,13 @@ Settings → Environments → New environment → `production`:
 There are **zero stored secrets** — auth is OIDC-minted per run; a leaked env var is
 useless without a token satisfying the attribute-condition.
 
-**Optional:** to receive deploy-outcome pings, add an environment (or repo) **secret**
-`DEPLOY_WEBHOOK_URL` — a Slack- or Discord-compatible incoming webhook. If unset, the
-`notify` job is a no-op. This webhook URL is the only stored secret, and a low-value
-one (it can only post a message to your channel).
+**Optional:** to receive deploy-outcome pings, add a **repository** secret (Settings →
+Secrets and variables → Actions, *not* the `production` environment) named
+`DEPLOY_WEBHOOK_URL` — a Slack- or Discord-compatible incoming webhook. The `notify`
+job runs without an environment so it can post on every outcome without an approval
+prompt, which means it only sees repo-level secrets; an environment-scoped secret
+would be invisible to it. If unset, `notify` is a no-op. This webhook URL is the only
+stored secret, and a low-value one (it can only post a message to your channel).
 
 ## Verification (escalating blast radius)
 
