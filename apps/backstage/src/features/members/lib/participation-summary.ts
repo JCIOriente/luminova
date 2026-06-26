@@ -7,14 +7,14 @@ export const PARTICIPATION_ROLE_LABEL: Record<ParticipationRole, string> = {
   Attendee: "Asistente",
 };
 
-export interface EnrichedParticipation extends Participation {
+interface EnrichedParticipation extends Participation {
   /** Resolved activity title, or null when the source activity is unavailable. */
   activityTitle: string | null;
   /** Resolved parent program/project title, or null when there is no parent. */
   parentTitle: string | null;
 }
 
-export interface ParticipationProject {
+interface ParticipationProject {
   id: string;
   title: string;
   kind: InitiativeKind;
