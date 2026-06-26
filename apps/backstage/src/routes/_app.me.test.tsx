@@ -29,6 +29,9 @@ vi.mock("../features/activities/hooks/use-activities-by-term", () => ({
 vi.mock("../features/initiatives/hooks/use-initiatives-by-term", () => ({
   useInitiativesByTerm: () => ({ data: [] }),
 }));
+vi.mock("../features/positions/hooks/use-positions", () => ({
+  usePositions: () => ({ data: [] }),
+}));
 
 import { MemberHome } from "./_app.me";
 
@@ -38,5 +41,7 @@ describe("MemberHome", () => {
     expect(screen.getByText(/tu qr personal/i)).toBeInTheDocument();
     expect(screen.getByText("7")).toBeInTheDocument();
     expect(screen.getByText(/en el capítulo/i)).toBeInTheDocument();
+    // No cargo assigned → falls back to the base role label.
+    expect(screen.getAllByText("Miembro").length).toBeGreaterThan(0);
   });
 });

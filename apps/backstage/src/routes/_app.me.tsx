@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Icon } from "@luminova/ui";
 import { PageHeader } from "../components/page-header";
-import { currentTermKey } from "@luminova/types";
+import { currentTermKey, positionTitle } from "@luminova/types";
 import { encodeMemberQr } from "../lib/member-qr";
 import { pointsRank } from "../lib/points-rank";
 import { useCurrentMember } from "../features/members/hooks/use-current-member";
@@ -11,16 +11,22 @@ import { useMemberParticipations } from "../features/members/hooks/use-member-pa
 import { useMemberPointsByTerm } from "../features/members/hooks/use-member-points-by-term";
 import { useActivitiesByTerm } from "../features/activities/hooks/use-activities-by-term";
 import { useInitiativesByTerm } from "../features/initiatives/hooks/use-initiatives-by-term";
-import {
-  PARTICIPATION_ROLE_LABEL,
-  summarizeParticipations,
-} from "../features/members/lib/participation-summary";
+import { usePositions } from "../features/positions/hooks/use-positions";
+import { summarizeParticipations } from "../features/members/lib/participation-summary";
 import { MemberPointsSummary } from "../features/members/components/member-points-summary";
 import { MemberCredentialCard } from "../features/members/components/member-credential-card";
 import { ParticipationLedger } from "../features/members/components/participation-ledger";
 
 // qrcode.react (~13 kB gz) lazy so it leaves the always-loaded index shell.
 const QrCode = lazy(() => import("@luminova/ui/qr-code").then((m) => ({ default: m.QrCode })));
+
+// The modal pulls in Radix Dialog — lazy-mount it on demand so it stays out of
+// the always-loaded /me shell.
+const MemberQrDialog = lazy(() =>
+  import("../features/members/components/member-qr-dialog").then((m) => ({
+    default: m.MemberQrDialog,
+  })),
+);
 
 export const Route = createFileRoute("/_app/me")({ component: MemberHome });
 
@@ -36,6 +42,8 @@ export function MemberHome() {
     includePrograms: true,
     includeProjects: true,
   });
+  const { data: positions } = usePositions();
+  const [qrOpen, setQrOpen] = useState(false);
 
   const summary = useMemo(
     () => summarizeParticipations(participations ?? [], activities ?? [], initiatives ?? []),
@@ -47,15 +55,21 @@ export function MemberHome() {
     [allPoints, member],
   );
 
+  const positionsById = useMemo(
+    () => new Map((positions ?? []).map((p) => [p.id, p])),
+    [positions],
+  );
+
   if (isLoading) return <p className="text-ink-3">Cargando…</p>;
   if (!member) {
     return <p className="text-ink-2">Tu usuario no está vinculado a un perfil de miembro.</p>;
   }
 
-  const latest = summary.rows[0];
-  const role = latest ? PARTICIPATION_ROLE_LABEL[latest.role] : null;
-  const initiative = latest?.parentTitle ?? latest?.activityTitle ?? null;
+  const cargoId = member.positions?.[termId]?.cargoId ?? null;
+  const cargo = cargoId ? positionsById.get(cargoId) : null;
+  const role = cargo ? positionTitle(cargo, member.gender) : "Miembro";
   const joinYear = member.joinDate ? member.joinDate.toDate().getFullYear() : null;
+  const qrValue = encodeMemberQr(member.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -75,7 +89,6 @@ export function MemberHome() {
           src={member.profilePicture}
           joinYear={joinYear}
           role={role}
-          initiative={initiative}
         />
         <section className="flex flex-col rounded-card border border-line bg-surface">
           <header className="flex items-center justify-between border-b border-line px-6 py-4">
@@ -85,17 +98,22 @@ export function MemberHome() {
             </div>
             <span className="text-ink-3">{Icon.qr({ s: 20 })}</span>
           </header>
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-6">
-            <div className="rounded-[14px] border border-line bg-jci-white p-3.5">
+          <button
+            type="button"
+            onClick={() => setQrOpen(true)}
+            aria-label="Ampliar el código QR"
+            className="group flex flex-1 cursor-pointer flex-col items-center justify-center gap-4 px-6 py-6 text-center transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
+          >
+            <div className="rounded-[14px] border border-line bg-jci-white p-3.5 transition group-hover:border-jci-blue group-focus-visible:border-jci-blue">
               <Suspense fallback={<div className="size-[168px]" />}>
-                <QrCode value={encodeMemberQr(member.id)} size={168} />
+                <QrCode value={qrValue} size={168} />
               </Suspense>
             </div>
-            <p className="max-w-[220px] text-center text-[12.5px] leading-relaxed text-ink-3">
+            <p className="max-w-[220px] text-[12.5px] leading-relaxed text-ink-3">
               <span className="font-semibold text-ink-2">Tu QR personal.</span> Muéstralo en el
-              check-in para registrar tu asistencia.
+              check-in. <span className="font-semibold text-jci-blue">Toca para ampliar.</span>
             </p>
-          </div>
+          </button>
         </section>
       </div>
 
@@ -104,6 +122,12 @@ export function MemberHome() {
         totalPoints={points?.cumulative ?? 0}
         termId={termId}
       />
+
+      {qrOpen && (
+        <Suspense fallback={null}>
+          <MemberQrDialog open onOpenChange={setQrOpen} value={qrValue} name={member.name} />
+        </Suspense>
+      )}
     </div>
   );
 }

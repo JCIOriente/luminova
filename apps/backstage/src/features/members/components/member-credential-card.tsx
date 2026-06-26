@@ -21,17 +21,14 @@ export function MemberCredentialCard({
   src,
   joinYear,
   role,
-  initiative,
 }: {
   memberId: string;
   name: string;
   src: string | null;
   joinYear: number | null;
-  role: string | null;
-  initiative: string | null;
+  role: string;
 }) {
   const { onUpload, onRemove } = useMemberPhoto(memberId);
-  const roleValue = role ? (initiative ? `${role} · ${initiative}` : role) : "Sin asignar";
 
   return (
     <section className="flex flex-col rounded-card border border-line bg-surface">
@@ -51,7 +48,7 @@ export function MemberCredentialCard({
               {name}
             </div>
             <div className="mt-2">
-              <Badge tone="blue">{role ?? "Miembro"}</Badge>
+              <Badge tone="blue">{role}</Badge>
             </div>
           </div>
         </div>
@@ -61,7 +58,7 @@ export function MemberCredentialCard({
             {CHAPTER}
           </Row>
           <Row icon={Icon.user({ s: 17 })} label="Rol actual">
-            {roleValue}
+            {role}
           </Row>
           <Row icon={Icon.calendar({ s: 17 })} label="Miembro desde">
             {joinYear ?? "—"}
