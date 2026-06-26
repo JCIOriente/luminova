@@ -4,6 +4,7 @@ import { activitySchema } from "./activity-schema";
 const VALID = {
   title: "Jornada en La Cuchilla",
   description: "",
+  location: "",
   category: "ProjectExecution" as const,
   parentType: "Project" as const,
   parentId: "p-1",
@@ -23,6 +24,7 @@ describe("activitySchema", () => {
       activitySchema.safeParse({
         title: "Jornada en La Cuchilla",
         description: "",
+        location: "",
         category: "Assembly",
         parentType: null,
         parentId: null,
@@ -45,6 +47,7 @@ describe("activitySchema", () => {
       activitySchema.safeParse({
         title: "Jornada en La Cuchilla",
         description: "",
+        location: "",
         category: "Assembly",
         parentType: "Program",
         parentId: "x",
@@ -79,12 +82,23 @@ describe("activitySchema", () => {
       activitySchema.safeParse({ ...VALID, directorId: "m1", coDirectorIds: ["m1"] }).success,
     ).toBe(false);
   });
+
+  it("accepts a physical address or a virtual link as location, and empty", () => {
+    expect(activitySchema.safeParse({ ...VALID, location: "Sede JCI · Equipetrol" }).success).toBe(
+      true,
+    );
+    expect(
+      activitySchema.safeParse({ ...VALID, location: "https://meet.google.com/abc" }).success,
+    ).toBe(true);
+    expect(activitySchema.safeParse({ ...VALID, location: "" }).success).toBe(true);
+  });
 });
 
 describe("activitySchema coDirectorIds", () => {
   const inst = {
     title: "Jornada en La Cuchilla",
     description: "",
+    location: "",
     category: "Assembly" as const,
     parentType: null,
     parentId: null,

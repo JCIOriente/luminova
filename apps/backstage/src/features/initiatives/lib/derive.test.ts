@@ -19,6 +19,7 @@ function activity(parentId: string, status: Activity["status"]): Activity {
     termId: "2026",
     title: "x",
     description: null,
+    location: null,
     category: "ProjectExecution",
     parentType: "Project",
     parentId,

@@ -5,6 +5,7 @@ export const activitySchema = z
   .object({
     title: z.string().min(3, "Mínimo 3 caracteres."),
     description: z.string(),
+    location: z.string().max(300, "Máximo 300 caracteres."),
     category: z.enum(ACTIVITY_CATEGORIES),
     parentType: z.enum(["Program", "Project"]).nullable(),
     parentId: z.string().min(1).nullable(),

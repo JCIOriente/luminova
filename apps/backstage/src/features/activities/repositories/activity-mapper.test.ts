@@ -6,6 +6,7 @@ import type { ActivityInput } from "@luminova/types";
 const BASIC_INPUT: ActivityInput = {
   title: "Asamblea General",
   description: "",
+  location: "",
   category: "Assembly",
   parentType: null,
   parentId: null,
@@ -41,11 +42,19 @@ describe("toActivityCreateDoc", () => {
     expect(doc.description).toBe("Texto");
   });
 
+  it("converts empty location to null and preserves a non-empty one", () => {
+    expect(toActivityCreateDoc(BASIC_INPUT, "2026").location).toBeNull();
+    expect(
+      toActivityCreateDoc({ ...BASIC_INPUT, location: "Sede JCI · Equipetrol" }, "2026").location,
+    ).toBe("Sede JCI · Equipetrol");
+  });
+
   it("carries title, director, coDirectorIds, and parent through for a ProjectExecution", () => {
     const doc = toActivityCreateDoc(
       {
         title: "Ejecución de Proyecto",
         description: "",
+        location: "",
         category: "ProjectExecution",
         parentType: "Project",
         parentId: "p-1",
@@ -84,6 +93,7 @@ describe("toActivityUpdateDoc", () => {
     const doc = toActivityUpdateDoc({
       title: "Asamblea Actualizada",
       description: "Nota.",
+      location: "Hotel Los Tajibos",
       category: "ProjectExecution",
       parentType: "Project",
       parentId: "p1",
@@ -112,6 +122,7 @@ describe("toActivityUpdateDoc", () => {
       "category",
       "description",
       "endAt",
+      "location",
       "organizers",
       "parentId",
       "parentType",

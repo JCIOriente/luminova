@@ -31,6 +31,8 @@ export interface Activity {
   termId: string;
   title: string;
   description: string | null;
+  /** Free-text venue: a physical address or a virtual meeting link. */
+  location: string | null;
   category: ActivityCategory;
   parentType: InitiativeKind | null;
   parentId: string | null;

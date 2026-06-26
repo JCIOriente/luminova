@@ -5,6 +5,7 @@ export function activityToInput(a: Activity): Partial<ActivityInput> {
   return {
     title: a.title,
     description: a.description ?? "",
+    location: a.location ?? "",
     category: a.category,
     parentType: a.parentType,
     parentId: a.parentId,

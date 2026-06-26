@@ -39,6 +39,7 @@ interface ActivityFormProps {
 const EMPTY: ActivityInput = {
   title: "",
   description: "",
+  location: "",
   category: "Assembly",
   parentType: null,
   parentId: null,
@@ -119,6 +120,14 @@ export function ActivityForm({
               disabled={locked}
             />
           )}
+        />
+      </Field>
+
+      <Field label="Ubicación" htmlFor="location" error={errors.location?.message}>
+        <Input
+          id="location"
+          {...register("location")}
+          placeholder="Dirección física o enlace virtual (opcional)"
         />
       </Field>
 

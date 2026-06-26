@@ -12,6 +12,7 @@ export function toActivityCreateDoc(data: ActivityInput, termId: string) {
     termId,
     title: data.title,
     description: data.description === "" ? null : data.description,
+    location: data.location === "" ? null : data.location,
     category: data.category,
     parentType: data.parentType,
     parentId: data.parentId,
@@ -28,6 +29,7 @@ export function toActivityUpdateDoc(data: ActivityInput) {
   return {
     title: data.title,
     description: data.description === "" ? null : data.description,
+    location: data.location === "" ? null : data.location,
     category: data.category,
     parentType: data.parentType,
     parentId: data.parentId,
