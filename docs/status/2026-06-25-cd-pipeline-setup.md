@@ -30,7 +30,18 @@ push to main ─▶ CI (checks + emulator) ─▶ green? ─▶ Deploy workflow
   `functions` / `rules`). `packages/**` rebuilds all app+functions surfaces;
   `firebase.json` touches all.
 - **Order:** rules+indexes → functions → hosting (data contract before backend before
-  UI; hosting is last and the cheapest to roll back).
+  UI; hosting flips last and only after a smoke test passes).
+- **Hosting = preview → smoke → promote (no rollback needed).** Each changed target
+  deploys to a short-lived preview channel (`ci-<sha>`, 1-day expiry); the workflow
+  HTTP-smoke-tests the channel URL and only `hosting:clone`s it to `live` if the smoke
+  passes. Live never serves a broken build, so there is no rollback step to get wrong.
+  (firebase-tools has **no** `hosting:rollback` command — this pattern replaces it.)
+- **Functions** have no built-in rollback (gen2 = Cloud Run); revert-and-redeploy is
+  the documented path. The job runs `functions:list` as a post-deploy sanity check.
+- **Traceability:** rules/functions deploys carry `--message <sha>`; the hosting job
+  sets the GitHub deployment `url`. Outcomes post to an optional webhook (`notify`).
+- **DRY:** the per-job setup (Node + pnpm + firebase-tools + WIF auth) lives in one
+  composite action, `.github/actions/firebase-setup`.
 - Nothing deploys on a red CI run: the `filter` job's `if` is false, so all surface
   flags resolve empty and every deploy job skips.
 
@@ -131,6 +142,11 @@ Settings → Environments → New environment → `production`:
 There are **zero stored secrets** — auth is OIDC-minted per run; a leaked env var is
 useless without a token satisfying the attribute-condition.
 
+**Optional:** to receive deploy-outcome pings, add an environment (or repo) **secret**
+`DEPLOY_WEBHOOK_URL` — a Slack- or Discord-compatible incoming webhook. If unset, the
+`notify` job is a no-op. This webhook URL is the only stored secret, and a low-value
+one (it can only post a message to your channel).
+
 ## Verification (escalating blast radius)
 
 1. **WIF dry-run:** `workflow_dispatch` (any surface) → confirm the `google-github-actions/auth`
@@ -144,7 +160,12 @@ useless without a token satisfying the attribute-condition.
 
 ## Rollback
 
-- **Hosting:** `firebase hosting:rollback` or console release history (one click, atomic).
+The hosting smoke-then-promote flow means a broken build is rejected *before* it
+reaches `live`, so routine rollbacks are rare. When you still need to revert:
+
+- **Hosting:** there is **no** `firebase hosting:rollback` CLI command. Use the Firebase
+  console (Hosting → release history → Rollback, one click, atomic), or re-promote a
+  prior version with `firebase hosting:clone <site>:live@<VERSION_ID> <site>:live`.
 - **Functions (gen2):** no built-in rollback — redeploy the previous good commit
   (`workflow_dispatch surface=functions` from the last good state, or `git revert` on
   main → CI green → auto redeploy). Emergency: roll Cloud Run traffic to a previous

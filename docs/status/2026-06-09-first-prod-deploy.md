@@ -71,6 +71,6 @@ pnpm deploy:all              # rules → functions → hosting, in that order
 
 ## Rollback
 
-- **Hosting:** Console → Hosting → target → **Release history** → roll back to the previous release (instant). Or `firebase hosting:rollback`.
+- **Hosting:** Console → Hosting → target → **Release history** → roll back to the previous release (instant). (There is no `firebase hosting:rollback` CLI command; from the CLI use `firebase hosting:clone <site>:live@<VERSION_ID> <site>:live`.)
 - **Functions:** redeploy the previous commit (`git checkout <prev> -- apps/beacon && pnpm deploy:functions`), or delete a bad function in Console.
 - **Rules:** re-deploy the prior `firestore.rules`/`storage.rules` from git history: `git checkout <prev> -- firestore.rules storage.rules && pnpm deploy:rules`.

@@ -1,0 +1,42 @@
+name: firebase-setup
+description: >-
+  Shared deploy-job setup — Node + pnpm, pinned firebase-tools (cached), and
+  keyless Workload Identity Federation auth. Assumes the repo is already checked out.
+inputs:
+  workload_identity_provider:
+    description: Full WIF provider resource name
+    required: true
+  service_account:
+    description: Deploy service account email
+    required: true
+runs:
+  using: composite
+  steps:
+    - run: corepack enable
+      shell: bash
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+    # Pinned global firebase-tools under a user-owned prefix (no sudo), cached across
+    # runs; only re-downloads when the version key changes. Matches the CI workflow.
+    - run: |
+        npm config set prefix "$HOME/.npm-global"
+        echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+      shell: bash
+    - id: fbcache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ~/.npm-global
+        key: firebase-tools-${{ runner.os }}-15.22.1
+    - if: steps.fbcache.outputs.cache-hit != 'true'
+      run: npm install -g firebase-tools@15.22.1
+      shell: bash
+    # Keyless: exchanges the GitHub OIDC token for short-lived GCP credentials (ADC).
+    # firebase-tools picks these up automatically — no firebase login, no stored key.
+    - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ inputs.workload_identity_provider }}
+        service_account: ${{ inputs.service_account }}
