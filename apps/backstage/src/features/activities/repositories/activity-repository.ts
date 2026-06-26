@@ -20,6 +20,11 @@ import {
   setCaption as relabel,
 } from "../../initiatives/repositories/photo-array";
 
+/** Normalize a raw doc — `location` predates this field, so default it to null. */
+function parseActivity(id: string, data: Omit<Activity, "id">): Activity {
+  return { id, ...data, location: data.location ?? null };
+}
+
 export class ActivityRepository {
   private readonly db = getFirebase().db;
   private readonly collection = collection(this.db, "activities");
@@ -28,14 +33,14 @@ export class ActivityRepository {
   async getByTerm(termId: string): Promise<Activity[]> {
     const snapshot = await getDocs(query(this.collection, where("termId", "==", termId)));
     return snapshot.docs
-      .map((d) => ({ id: d.id, ...(d.data() as Omit<Activity, "id">) }))
+      .map((d) => parseActivity(d.id, d.data() as Omit<Activity, "id">))
       .sort((a, b) => b.startAt.toMillis() - a.startAt.toMillis());
   }
 
   async getById(id: string): Promise<Activity | null> {
     const snapshot = await getDoc(doc(this.collection, id));
     if (!snapshot.exists()) return null;
-    return { id: snapshot.id, ...(snapshot.data() as Omit<Activity, "id">) };
+    return parseActivity(snapshot.id, snapshot.data() as Omit<Activity, "id">);
   }
 
   /** Number of check-ins referencing this activity (engine-safety guard input). */

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, EmptyState, Icon, Sheet, Dialog, Toast } from "@luminova/ui";
+import { Button, EmptyState, Icon, Sheet, Dialog, Toast, SegmentedControl } from "@luminova/ui";
 import type { ComboboxOption } from "@luminova/ui";
 import { ACTIVITY_CATEGORIES } from "@luminova/types";
 import type { Activity, ActivityInput } from "@luminova/types";
@@ -21,9 +21,18 @@ import { useCancelActivity } from "../features/activities/hooks/use-cancel-activ
 import { ActivityRepository } from "../features/activities/repositories/activity-repository";
 import { ActivityLockedError } from "../features/activities/repositories/activity-guard";
 import { ActivityForm } from "../features/activities/components/activity-form";
-import { ActivityTable } from "../features/activities/components/activity-table";
+import {
+  ActivityCardGrid,
+  type CardDirector,
+} from "../features/activities/components/activity-card-grid";
 import { activityToInput } from "../features/activities/lib/activity-to-input";
 import { isCheckInOpen } from "../features/activities/lib/check-in-window";
+import {
+  ACTIVITY_TABS,
+  ACTIVITY_TAB_LABELS,
+  filterActivities,
+  type ActivityTab,
+} from "../features/activities/lib/activity-filter";
 
 export const Route = createFileRoute("/_app/activities")({ component: ActivitiesPage });
 
@@ -45,6 +54,20 @@ function ActivitiesPage() {
   const [editing, setEditing] = useState<Editing>(null);
   const [cancelTarget, setCancelTarget] = useState<Activity | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [tab, setTab] = useState<ActivityTab>("proximos");
+
+  const directorById = useMemo<Record<string, CardDirector>>(
+    () =>
+      Object.fromEntries(
+        (members ?? []).map((m) => [m.id, { name: m.name, profilePicture: m.profilePicture }]),
+      ),
+    [members],
+  );
+
+  const visibleActivities = useMemo(
+    () => filterActivities(activities ?? [], tab, new Date()),
+    [activities, tab],
+  );
 
   const memberOptions: ComboboxOption[] = useMemo(
     () => (members ?? []).map((m) => ({ value: m.id, label: m.name })),
@@ -116,6 +139,11 @@ function ActivitiesPage() {
       <PageHeader
         eyebrow="Reconocimiento"
         title="Actividades"
+        subtitle={
+          activities && activities.length > 0
+            ? `${activities.length} ${activities.length === 1 ? "actividad" : "actividades"} · Gestión ${termId}`
+            : undefined
+        }
         actions={
           <Can I="create" a="Activity">
             <Button
@@ -139,14 +167,23 @@ function ActivitiesPage() {
         />
       )}
       {activities && activities.length > 0 && (
-        <ActivityTable
-          activities={activities}
-          onEdit={setEditing}
-          onCancel={setCancelTarget}
-          canManage={canManage}
-          parentTitleById={parentTitleById}
-          checkInOpenById={checkInOpenById}
-        />
+        <>
+          <SegmentedControl
+            aria-label="Filtrar actividades"
+            value={tab}
+            onChange={setTab}
+            options={ACTIVITY_TABS.map((value) => ({ value, label: ACTIVITY_TAB_LABELS[value] }))}
+          />
+          <ActivityCardGrid
+            activities={visibleActivities}
+            onEdit={setEditing}
+            onCancel={setCancelTarget}
+            canManage={canManage}
+            parentTitleById={parentTitleById}
+            checkInOpenById={checkInOpenById}
+            directorById={directorById}
+          />
+        </>
       )}
 
       <Sheet
