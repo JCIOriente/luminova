@@ -1,8 +1,16 @@
 # CD pipeline — keyless deploy to Firebase
 
-Status: workflow authored (`.github/workflows/deploy.yml`). **Blocked on one-time
-owner provisioning (Part A) before it can deploy.** Until then the workflow runs but
-the deploy jobs fail at the auth step (no WIF provider / env configured).
+> **Living reference:** `docs/ci-cd.md` is the maintained source of truth (architecture,
+> as-provisioned infra inventory, ops/validation/rollback). This file is the dated
+> design/provisioning record from when the pipeline was authored.
+
+Status: **PROVISIONED 2026-07-01.** Deploy SA, WIF pool/provider, least-priv IAM, and
+the GitHub `production` environment (reviewer + main-only + vars) are all in place —
+see the as-provisioned inventory in `docs/ci-cd.md`. The workflow is live once
+`deploy.yml` lands on `main` (merge PR #113); validate via `workflow_dispatch` from
+`main` (escalating: hosting → rules → functions).
+
+The Part A commands below are the original author-time runbook, kept for provenance.
 
 ## How it works
 
