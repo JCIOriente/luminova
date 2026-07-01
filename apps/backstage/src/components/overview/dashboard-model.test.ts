@@ -16,7 +16,13 @@ function member(id: string, name: string, joinMs: number, active = true): Member
   return { id, name, active, joinDate: Timestamp.fromMillis(joinMs) } as Member;
 }
 function activity(id: string, title: string, startMs: number, status: Activity["status"]): Activity {
-  return { id, title, status, startAt: Timestamp.fromMillis(startMs) } as Activity;
+  return {
+    id,
+    title,
+    status,
+    location: null,
+    startAt: Timestamp.fromMillis(startMs),
+  } as unknown as Activity;
 }
 function initiative(id: string, title: string, filedMs: number | null): InitiativeListItem {
   return {

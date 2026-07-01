@@ -1,10 +1,15 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Skeleton } from "@luminova/ui";
+import { currentTermKey } from "@luminova/types";
 import { useAuth } from "../lib/auth/auth";
 import { isMemberOnly } from "../lib/authz/is-member-only";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useAllies } from "../features/allies/hooks/use-allies";
+import { useActivitiesByTerm } from "../features/activities/hooks/use-activities-by-term";
+import { useMemberPointsByTerm } from "../features/members/hooks/use-member-points-by-term";
+import { useInitiativesByTerm } from "../features/initiatives/hooks/use-initiatives-by-term";
 import { OverviewView } from "../components/overview/overview-view";
+import { buildDashboardModel } from "../components/overview/dashboard-model";
 
 export const Route = createFileRoute("/_app/")({
   beforeLoad: async ({ context }) => {
@@ -16,10 +21,28 @@ export const Route = createFileRoute("/_app/")({
 
 function DashboardPage() {
   const { user, claims } = useAuth();
+  const termId = currentTermKey();
   const members = useMembers();
   const allies = useAllies();
+  const activities = useActivitiesByTerm(termId);
+  const memberPoints = useMemberPointsByTerm(termId);
+  const initiatives = useInitiativesByTerm(termId, {
+    includePrograms: true,
+    includeProjects: true,
+  });
 
-  if (members.isLoading || allies.isLoading) {
+  if (
+    members.isLoading ||
+    allies.isLoading ||
+    activities.isLoading ||
+    memberPoints.isLoading ||
+    initiatives.isLoading ||
+    !members.data ||
+    !allies.data ||
+    !activities.data ||
+    !memberPoints.data ||
+    !initiatives.data
+  ) {
     return (
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -29,15 +52,14 @@ function DashboardPage() {
     );
   }
 
-  const memberCount = members.data?.filter((m) => m.active).length ?? 0;
-  const allyCount = allies.data?.length ?? 0;
+  const model = buildDashboardModel({
+    members: members.data,
+    allies: allies.data,
+    activities: activities.data,
+    memberPoints: memberPoints.data,
+    initiatives: initiatives.data,
+    now: new Date(),
+  });
 
-  return (
-    <OverviewView
-      memberCount={memberCount}
-      allyCount={allyCount}
-      userName={user?.email ?? "—"}
-      roles={claims.roles}
-    />
-  );
+  return <OverviewView model={model} userName={user?.email ?? "—"} roles={claims.roles} />;
 }

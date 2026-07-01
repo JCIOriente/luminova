@@ -36,8 +36,9 @@ export type DashboardModel = {
 const MONTH_LABEL = new Intl.DateTimeFormat("es-BO", { month: "short", timeZone: "UTC" });
 
 function monthLabel(monthKey: string): string {
-  const [y, m] = monthKey.split("-").map(Number);
-  const raw = MONTH_LABEL.format(new Date(Date.UTC(y, m - 1, 1))).replace(/[.\s]/g, "");
+  const year = Number(monthKey.slice(0, 4));
+  const month = Number(monthKey.slice(5, 7));
+  const raw = MONTH_LABEL.format(new Date(Date.UTC(year, month - 1, 1))).replace(/[.\s]/g, "");
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
