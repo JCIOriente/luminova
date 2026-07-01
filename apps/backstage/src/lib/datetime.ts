@@ -69,12 +69,6 @@ export function boliviaDayKey(ms: number): string {
   return new Date(ms - BOLIVIA_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-// UTC YYYY-MM, matching beacon's monthBucketFromMillis so dashboard sums line up
-// with the engine-written memberPoints.byMonth buckets (also UTC).
-export function monthKeyUtc(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 7);
-}
-
 /** Capitalized 3-letter month for a YYYY-MM key, e.g. "2026-06" → "Jun". */
 export function monthKeyToLabel(monthKey: string): string {
   const year = Number(monthKey.slice(0, 4));

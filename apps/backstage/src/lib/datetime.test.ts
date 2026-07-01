@@ -9,7 +9,6 @@ import {
   formatMonthYear,
   formatTime,
   monthKeyToLabel,
-  monthKeyUtc,
   relativeTimeEs,
 } from "./datetime";
 
@@ -52,13 +51,6 @@ describe("boliviaDayKey", () => {
   });
   it("exposes the UTC-4 offset", () => {
     expect(BOLIVIA_OFFSET_MS).toBe(4 * 60 * 60 * 1000);
-  });
-});
-
-describe("monthKeyUtc", () => {
-  it("returns the UTC YYYY-MM, matching beacon's byMonth buckets", () => {
-    expect(monthKeyUtc(Date.UTC(2026, 6, 1, 2, 0))).toBe("2026-07");
-    expect(monthKeyUtc(Date.UTC(2026, 5, 30, 23, 0))).toBe("2026-06");
   });
 });
 
