@@ -8,19 +8,38 @@ PR, one at a time or in parallel where dependencies allow. `[P]` = parallel-safe
 ⬜ not started. The `#` column strikes through (`~~A1~~ ✅`) completed items and
 notes the merged PR.
 
-_Last synced: 2026-06-10 — §A Recognition Engine complete + fed (F3·A1·A2·A5·A6·A3
-all merged to main); B1 member home (#20); E1/E2/E5 widgets (#21); D1 full
-Events/Activities CRUD (#22); **A7 roster→participation expansion (#23)** — roster
-roles now feed the engine. **Login redesign (#35) + auth hardening (#36)** — remember-me,
-password recovery, password policy. **FX batch merged**: dark mode + sidebar collapse (#37),
-DataTable/E6 + Members table UX/FX1 (#38), ⌘K command palette E3/FX3 (#39) — @luminova/ui now 31 components.
-**First prod deploy SHIPPED (#43, I4)** — both Hosting sites + rules + 5 beacon functions LIVE.
-**Members console (#41/#42)** + **B2 role-aware board home (#45)** + **H1 profilePicture upload (#46)**.
-**§C now in flight:** C1 split into **C1-lite** (initiatives UX + rich model, decoupled
-from award criteria — spec `docs/specs/2026-06-10-initiatives-c1-lite-design.md`, absorbs
-H2) and C1-dossier (still gated on `jci-award-criteria.md`).
-Reshaped around the **Recognition Engine** after a product/UX discussion (points,
-QR attendance, multi-role access, award submissions)._
+_Last synced: 2026-06-30 — large batch merged since the 2026-06-10 sync (PRs #44–#114,
+all merged; #113 CD pipeline open). Highlights:_
+
+- **NEW — Backstage design-system polish (FX7):** Mi panel v2 (#111, black hero + credential
+  card + QR modal), Actividades as a DS card grid + `Activity.location` physical/virtual (#112),
+  activity-detail tabs + check-in scan modal restyle + datetime-helper consolidation (#114).
+  Pattern: generate the screen via frontend-design on claude.ai/design, implement through DesignSync.
+- **NEW — Keyless CD pipeline (I7, PR #113 open):** Firebase deploy via WIF/OIDC (no stored key),
+  approval-gated `production` env, path-filtered rules→functions→hosting, hosting preview→smoke→promote.
+  Blocked on owner gcloud/WIF provisioning.
+- **C Projects:** **C1-lite COMPLETE** (slices 1–6: schema #49 · `/initiatives` grid #51 ·
+  detail #55 · activity detail #62 · completion wizard #63 · galleries #64) — absorbs **H2 ✅**.
+  **C4 Spotlight public showcase SHIPPED** (`/impacto` #66 + executed-activity photo roll-up #69).
+  C1-dossier + C2/C3 still gated on `jci-award-criteria.md`.
+- **NEW — Custom roles & permissions epic (N):** coarse `action:Subject` perms in a `perms`
+  custom claim, Admin-only authority, runtime-editable roles (4 slices #84–#87 + seeding #88/#89).
+- **NEW — Positions catalog & member governance:** CEL/JDL/comisiones catalog + gendered cargos (#52),
+  member claims-sync trigger + edit page + permissions panel (#54), Firebase invite email (#53),
+  check-in window gating (#73), Sheet size prop (#50).
+- **NEW — Spotlight public site & lightweight CMS (M):** president-editable site config + SWR (#82),
+  Linktree `/enlaces` (#91), public allies wall (#83), curated `/programas` + lightbox (#77/#80).
+- **NEW — Performance & Web Vitals track (L):** firebase/lite, font diet, WebP, deferred reads,
+  immutable caching + preconnect, lazy lightbox/QrCode (#93–#105). Playbook: `docs/performance.md`.
+- **NEW — CI is now live:** GitHub Actions PR gate (fast checks + emulator suites) + minutes/bundle
+  budget tuning (#104/#106). Removes the standing "no CI" risk.
+- **Beacon correctness:** atomic member-points recompute (#100) + totalPoints write-skip (#103).
+
+_Older context (still valid): A Recognition Engine complete + fed (F3·A1·A2·A5·A6·A3);
+B1 member home (#20); D1 Events/Activities CRUD (#22); A7 roster→participation (#23);
+login redesign + auth hardening (#35/#36); FX batch (#37/#38/#39); first prod deploy (#43, I4);
+Members console (#41/#42); B2 board home (#45); H1 profilePicture (#46). Reshaped around the
+**Recognition Engine** (points, QR attendance, multi-role access, award submissions)._
 
 ## Naming conventions
 
@@ -85,7 +104,7 @@ CASL on the client and **mirror them in `firestore.rules`** server-side.
 
 ## Recognition Engine — rules that shape the model (from the points matrix)
 
-The points system is the **Mejor Miembro Individual** competition. Design F3/§A to these:
+The points system is the **Mejor Miembro Individual** competition. Design F3/A to these:
 
 - **Hierarchy Programa → Proyecto → Actividad — `Program` and `Project` are
   DISTINCT entities** (different at their core), each producing **Activities** where
@@ -121,7 +140,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 - **`@luminova/auth` (F1)**: role contract + CASL ability builder; role-aware `firestore.rules`.
 - **`@luminova/types` (F2)**: shared `Member`/`MemberStatus`/`Ally` types + zod schemas; **`/engine` subpath (F3)** — engine model + helpers + `CheckIn`/`checkInSchema` (BUILT package); backstage + beacon consume them.
 - **`@luminova/ui`**: primitives + **QR widgets (E4)** (`/qr-code`, `/qr-scanner`) + **Popover (E5) / Combobox (E1) / MultiSelect (E2)** (Radix popover + cmdk).
-- **§A Recognition Engine COMPLETE + FED (F3·A1·A2·A5·A6·A3)** — points flow end-to-end; verified by a live functions-emulator e2e.
+- **A Recognition Engine COMPLETE + FED (F3·A1·A2·A5·A6·A3)** — points flow end-to-end; verified by a live functions-emulator e2e.
 
 ---
 
@@ -131,7 +150,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 |---|------|-----|----------|------------------|
 | ~~F1~~ ✅ | **Roles & permissions** — DONE (PR `feat/roles-permissions`). `@luminova/auth` (roles + CASL ability), role-aware `firestore.rules`, beacon `setUserRoles` callable + seed bootstrap, backstage claim decode + `<Can>` gating. 7 roles incl. **ProjectManager**. Absorbed rules-hardening (follow-up #1). | CASL ✅ | `[S]` | **Deferred:** uid-on-create + member self-login (B1); role UI (D4); functions-deploy packaging |
 | ~~F2~~ ✅ | **@luminova/types** — DONE (PR `feat/luminova-types`). BUILT package (emits `dist/`); promoted shipped `Member`/`MemberStatus` + `Ally` types **and** their zod schemas; renamed `ally.personInCharge → contactPerson`; rewired backstage to `@luminova/types`. **Promote-shipped-only** — engine/finance entities (`Program`/`Project`/`Activity`/`Participation`/`PointRule`/`DuesConfig`/`Payment`) deferred to F3/J where their shapes are designed. | — | `[P]` | **Deferred:** engine/finance types (F3/J); `member.status → membershipStatus` (when `duesStatus` lands); beacon-safe subpath export (A2 — `member.ts`/`ally.ts` kept framework-free for it); I1 codegen-drift gate |
-| ~~F3~~ ✅ | **Recognition Engine data model** — DONE (#12). **participation ledger** with `provisional\|confirmed` state (gates: final report + attendance) + punctuality factor + month bucket + role/activity link; **distinct Program/Project + Activity** entities; a separate **eligibility** layer (flags) and **Finance→Points** read. In `@luminova/types/engine` (pure subpath). | F2; ✅ matrix | `[S]` design-first | the dependency under everything in §A; richer than "sum of points" |
+| ~~F3~~ ✅ | **Recognition Engine data model** — DONE (#12). **participation ledger** with `provisional\|confirmed` state (gates: final report + attendance) + punctuality factor + month bucket + role/activity link; **distinct Program/Project + Activity** entities; a separate **eligibility** layer (flags) and **Finance→Points** read. In `@luminova/types/engine` (pure subpath). | F2; ✅ matrix | `[S]` design-first | the dependency under everything in A; richer than "sum of points" |
 
 ## A. Recognition Engine (the spine — epic, ship in slices)
 
@@ -149,17 +168,18 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| B1 🟡 | **Member home** — DONE core (#20). `/me`: points + rank + **personal QR** + participation ledger; member-only login redirects here. **Deferred:** upcoming-events feed + milestones (birthday/anniversary — we store `birthdate`/`joinDate` and use neither). | F1, A5 | `[S]` | the reason a member opens the app |
-| ~~B2~~ ✅ | **Role-aware board home** — DONE (#45). Pure `boardHomeLayout(roles)` orders/hides the Overview widgets per role (Admin full · Membership members-first · Treasury money-first · ProjectManager events/projects-first · ExecutiveCommittee read-only); multi-role = highest-precedence layout + union of visible widgets. Presentation-only (widgets still mocked). **Side effect:** Overview grid → vertical stack (re-grid within each role's order deferred). | F1 | `[S]` | — |
+| B1 🟡 | **Member home** — DONE core (#20). `/me`: points + rank + **personal QR** + participation ledger (redesigned in FX7 #111). **NEXT slice (active, retention focus):** upcoming-events feed + milestones (birthday/anniversary — we store `birthdate`/`joinDate` and use neither). Cheap, emotional, gives a member a reason to return between events; pairs with K1 notifications. | F1, A5 | `[S]` | the reason a member opens the app |
+| ~~B2~~ ✅ | **Role-aware board home (layout)** — DONE (#45). Pure `boardHomeLayout(roles)` orders/hides the Overview widgets per role (Admin full · Membership members-first · Treasury money-first · ProjectManager events/projects-first · ExecutiveCommittee read-only); multi-role = highest-precedence layout + union of visible widgets. **Layout only — the widgets it arranges are still mock data (see B3).** **Side effect:** Overview grid → vertical stack (re-grid within each role's order deferred). | F1 | `[S]` | — |
+| **B3** ⬜ **P0** | **Real board dashboard (kill the mock)** — the dashboard at `/` (`components/overview/overview-mock.ts`, first screen on every board login) renders **fabricated** KPIs, trends, attendance charts, an upcoming-events list, and an activity feed. Only Members/Allies counts are real. **Highest-leverage trust fix:** wire real aggregates (member/ally counts already live · real upcoming activities · real recent check-ins / activity feed) + **honest empty/loading states** for anything without a backend yet (notifications → K1, money → J5). A smaller truthful dashboard beats the current fiction. Fake-but-pretty erodes trust the day someone acts on an invented number. | A*, D1 | `[S]` | inverted-risk: the polished screen is the dishonest one |
 
 ## C. Projects & Recognition Submissions (reframed)
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| C1 🟡 | **Rich Project model** — SPLIT (spec `docs/specs/2026-06-10-initiatives-c1-lite-design.md`). **C1-lite (in flight, decoupled from award criteria):** shared `InitiativeCore` (description, JCI área category, start/end dates, `coDirectorIds[]`, impact metrics, photos) on both `programs`/`projects`; unified `/initiatives` card-grid UI + detail (in-execution/completed); completion wizard = the final-report ceremony (impact + summary + status in one update); activity refinement (title/endAt/photos, `/activities/$id` detail w/ embedded check-in, standalone-only create); galleries (absorbs H2). 6 PR slices: schema/engine → list → detail → activity detail ∥ completion → galleries. **C1-dossier (still gated on award criteria):** phases, budget vs actual, SDG tags, readiness fields, `published` public projection. | F2; ~~award criteria~~ (lite) | `[S]` | one model, three consumers (manage / dossier / public) |
+| C1 🟡 | **Rich Project model** — SPLIT (spec `docs/specs/2026-06-10-initiatives-c1-lite-design.md`). **C1-lite ✅ COMPLETE** (slices 1–6: schema #49 · `/initiatives` grid #51 · detail #55 · activity detail #62 · completion wizard #63 · galleries #64): shared `InitiativeCore` on both `programs`/`projects`; unified `/initiatives` card-grid + detail; completion wizard = final-report ceremony; activity refinement + `/activities/$id` detail w/ embedded check-in; galleries (absorbs **H2 ✅**). **C1-dossier ⬜ (still gated on award criteria):** phases, budget vs actual, SDG tags, readiness fields, `published` public projection. | F2; ~~award criteria~~ (lite) | `[S]` | one model, three consumers (manage / dossier / public) |
 | C2 | **Award dossier** assembly + export per level (National/Area/World) against criteria, with a **readiness checklist** | C1; criteria | `[S]` | uniquely-JCI; the chapter's recognition engine |
 | C3 | **Recognition calendar** — submission windows, candidate projects, readiness % | C2 | `[S]` | competitive cadence |
-| C4 | **Spotlight project showcase** — public site reads the public projection | C1, F2 | `[S]` | reflects "what we do" publicly |
+| ~~C4~~ ✅ | **Spotlight project showcase** — DONE (#66 + #69). Beacon projection → world-read `showcase` collection; spotlight `/impacto` reads via firestore-lite, full team-name credits, curated `ShowcaseItem`; executed-activity photos roll up into the showcase. | C1, F2 | `[S]` | reflects "what we do" publicly |
 
 ## D. Remaining admin CRUD
 
@@ -191,6 +211,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | ~~FX4~~ ✅ | **Sidebar collapse** — DONE (#37). 72px icon-rail w/ per-item tooltips, header toggle, `_app` grid driven by the persisted `ui-prefs` `sidebarCollapsed` | — | `[P]` | — |
 | FX6 ✅ | **Auth hardening** — DONE. Remember-me → Firebase auth persistence (local/session); branded password recovery (`/forgot-password` enumeration-safe request + `/reset` verify-oobCode → set new password with live requirements checklist); password policy (min 6 + lower/upper/digit) on login **and** reset; blue brand panel + entrance motion for recovery pages; footnote → CEL (`jci.orienteolm@gmail.com`). reCAPTCHA = App Check (see G4, code-complete; keys pending). | — | `[P]` | `/security-review`; spec+plan in `docs/superpowers/` |
 | FX5 ✅ | **Login redesign** — DONE. `/login` split-screen (dark brand panel + ripple + "Sé el cambio" / light form card) from Claude Design handoff; reuses `@luminova/ui` (`RippleBackground`, `LogoLockup`, `Button`, `Field`, `Input`, new `Checkbox`; added `lock`/`eye`/`eyeOff` icons). Email/password auth unchanged. SSO omitted; "¿La olvidaste?" + "Recordarme" visual-only (deferred). | — | `[P]` | `react-best-practices`; brand side hides < `lg` |
+| FX7 🟡 | **Backstage DS polish** — restyle existing screens to the JCI Oriente design system (generate via frontend-design on claude.ai/design → implement via DesignSync). **Done:** Mi panel v2 (#111, black hero + credential card + QR modal), Actividades DS card grid + `Activity.location` physical/virtual (#112), activity-detail tabs + check-in scan modal + datetime-helper consolidation (#114). **Remaining:** roll the DS pass across the rest (Overview/B3, Members, Leaderboard, Allies, Initiatives). | — | `[P]` | `frontend-design` → DesignSync; consolidate datetime helpers when touched |
 
 ## G. Security & data hardening (non-role)
 
@@ -209,7 +230,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
 | ~~H1~~ ✅ | `profilePicture` upload — DONE (#46). Shared `@luminova/ui` `Avatar` + lazy `ImageUploader` (square-crop via `react-easy-crop`, client downscale 512px/JPEG, ≤5MB) on two surfaces (admin member drawer + member self on `/me`); `@luminova/firebase` `uploadMemberPhoto`/`deleteMemberPhoto` (path `members/{id}/profile.jpg`); scoped `storage.rules` + new `@luminova/storage-rules-tests`. **Fixed a self-upload break:** added owner-only `members` update branch scoped to `profilePicture`. | — | `[P]` | — |
-| H2 | Project **evidence gallery** uploads — **absorbed into C1-lite slice 6** (`feat/initiative-galleries`): activity photos + initiative destacadas, `storage.rules` + tests | C1, ~~H1~~ ✅ | `[S]` | award evidence + public showcase |
+| ~~H2~~ ✅ | Project **evidence gallery** uploads — DONE (#64, C1-lite slice 6): activity photos + initiative destacadas, `storage.rules` + tests | C1, ~~H1~~ ✅ | `[S]` | award evidence + public showcase |
 | H3 | Ally logos (greyscale→color hover) — chains off H1's uploader (`allies/{id}/logo.*`) | ~~H1~~ ✅ | `[S]` | — |
 | H4 | Spotlight real images (replace `ImgSlot`) | — | `[P]` | needs real photos |
 
@@ -217,11 +238,14 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/§A
 
 | # | Item | Dep | Parallel | Notes |
 |---|------|-----|----------|-------|
-| I1 | Codegen-drift CI gate for shared `@luminova/types` schemas | F2 | `[S]` | root CLAUDE.md discipline |
-| I2 | Java in CI so `firestore-rules-tests` runs | — | `[P]` | unblocks F1's rules tests |
+| ~~I0~~ ✅ | **GitHub Actions CI PR gate** — DONE (#104 + #106). Fast `checks` job (lint/tsc/build/vitest/knip/audit) + `emulator` job (firestore-rules + beacon emulator suites); path-filtered + firebase-tools cache to cut Actions minutes; bundle-budget gate. Both jobs are **required** and the branch ruleset is **active** (owner op completed 2026-06-24). | — | `[P]` | removes the standing "no CI" risk |
+| I1 | Codegen-drift CI gate for shared `@luminova/types` schemas | F2 | `[S]` | root CLAUDE.md discipline; can now ride on I0 |
+| I2 🟡 | Java in CI so `firestore-rules-tests` runs — **the emulator job in I0 runs the rules tests**; confirm Java is provisioned there and retire this item if so | — | `[P]` | likely subsumed by I0 |
 | I3 | Storage wipe (manual Console) | — | `[P]` | pending from rewrite |
-| I4 | First prod deploy (hosting + functions) | F1, G* | `[S]` | gate on access + hardening |
-| I5 | Bump the 1 moderate Dependabot advisory | — | `[P]` | `secure-dep-vetting` |
+| ~~I4~~ ✅ | First prod deploy (hosting + functions) — DONE (#43). Both Hosting sites + rules + beacon functions LIVE. | F1, G* | `[S]` | gate on access + hardening |
+| I5 🟡 | Bump remaining Dependabot/audit advisories — **batch cleared in #97** (undici/uuid/protobufjs) + #75 (form-data) | — | `[P]` | `secure-dep-vetting`; recheck periodically |
+| ~~I6~~ ✅ | **`pnpm deploy:indexes`** — Firestore composite indexes for the new queries deployed (owner op completed 2026-06-24, surfaced by the points-race + permissions work). | — | `[P]` | owner op, not a PR |
+| I7 🟡 | **Keyless CD pipeline** (PR #113 open) — Firebase deploy via WIF/OIDC (no stored service-account key), approval-gated `production` env, path-filtered rules→functions→hosting, hosting preview→smoke→promote. **Blocked on owner gcloud/WIF provisioning.** GOTCHA: no `firebase hosting:rollback` command exists. Terraform/staging deferred (solo-dev scale). | I0 | `[S]` | owner provisioning gates merge |
 
 ## J. Finance & Treasury (membership dues — v1 = record offline, not full accounting)
 
@@ -253,6 +277,53 @@ resources").
 | K3 | **Email channel** (later) | K1 | `[S]` | plugs into the interface |
 | K4 | **WhatsApp channel** (when resources allow) | K1 | `[S]` | WhatsApp Business API |
 
+> Note: the memory/PR shorthand "K1–K4" used during 2026-06-11 (#50–#54) referred to a
+> different batch (Sheet sizes, positions catalog, invite email, member claims-sync) — see
+> N, **not** this Notifications track. This K is still ⬜ not started.
+
+## L. Performance & Web Vitals (NEW — playbook: `docs/performance.md`)
+
+Spotlight is the public, unauthenticated site → first-paint matters; backstage is behind a
+login wall → load perf is monitored, not aggressively tuned. Budgets + CWV targets + the
+Claude perf guardrails live in `docs/performance.md`; the ranked backlog there is the source
+of truth, mirrored here for roadmap visibility.
+
+| # | Item | Dep | Parallel | Notes |
+|---|------|-----|----------|-------|
+| ~~L1~~ ✅ | **Spotlight bundle diet** — DONE. firebase `/lite` subpath (#93, 378k→40.7kgz), variable Jakarta font + latin-only diet (#94/#99), build-time WebP logos (#95), defer below-fold Firestore reads (#96). | — | `[P]` | public bundle shrunk hard |
+| ~~L2~~ ✅ | **Hosting cache + hints** — DONE (#101). Immutable `Cache-Control` on `/assets/**` (both apps) + preconnect hints + `docs/performance.md` playbook wired into CLAUDE.md governance. | — | `[P]` | was missing entirely |
+| ~~L3~~ ✅ | **Shell measurement + quick wins** — DONE (#102/#105). Measured both index shells (spotlight ~85% react-dom+router = irreducible); lazy lightbox on `/impacto/$id` (20→2.2kgz); `decoding=async`/`fetchPriority`; backstage lazy `QrCode` (index 108.66→102.88kgz). | — | `[P]` | — |
+| **L4** ⬜ | **SSG / prerender static spotlight routes** — ship real HTML instead of a blank `<div id="root">` + JS render, so FCP/LCP (the hero text is the spotlight LCP) paint before the ~91 kB JS executes. Fully-static routes (`about`, `contact`, `privacidad`, `terminos`) prerender cleanly; Firestore-driven routes (`index`, `programas`, `impacto`, `enlaces`) prerender the static shell + above-the-fold defaults, then hydrate. **Approach is undecided** — weigh (a) lightweight build-time snapshot (post-build crawl / vite prerender plugin; SPA runtime untouched, hydrate over HTML; LOW risk), (b) migrate to TanStack Start (real SSR/SSG + loaders; HIGH effort/risk, biggest long-term payoff), (c) `vite-react-ssg` (weak TanStack-Router compat, likely forces router changes; MED-HIGH risk). Recommended starting point: (a). **Biggest remaining FCP/LCP win.** Brainstorm → spec before building. | — | `[S]` | L effort; **next perf effort when prioritized** |
+| L5 ⬜ | **Inline critical CSS / cut render-blocking CSS** on spotlight | — | `[P]` | M effort, low-med impact |
+
+## M. Spotlight public site & lightweight CMS (NEW)
+
+The public site grew a president-editable content layer (no extra backend — folded into
+`siteConfig` + world-read beacon projections, read by spotlight via a zero-dep SWR
+localStorage hook; TanStack Query is banned in spotlight).
+
+| # | Item | Dep | Parallel | Notes |
+|---|------|-----|----------|-------|
+| ~~M1~~ ✅ | **President-editable site config** — DONE (#82). World-read `siteConfig/current` singleton edited in backstage `/config`, read by spotlight via SWR; motto, socials, contact, comité from CEL catalog. | F1 | `[P]` | RQ banned in spotlight (SWR hook instead) |
+| ~~M2~~ ✅ | **Linktree `/enlaces`** — DONE (#91). President-editable link page folded into `siteConfig`, bespoke Icon picker, `active` filter, two-layer URL guard. | M1 | `[S]` | — |
+| ~~M3~~ ✅ | **Public allies wall** — DONE (#83). Real allies (name + logo + category chip) via world-read `allyShowcase` beacon projection; backstage logo upload + 4-category select; logo host-allowlist. | F1 | `[P]` | — |
+| ~~M4~~ ✅ | **Curated `/programas` + legal pages + nav polish** — DONE (#80/#98). Curated programs page, `/privacidad` + `/terminos`, navbar contrast fixes. | — | `[P]` | pairs with C4 `/impacto` |
+| M5 ⬜ | **Spotlight real images** (replace `ImgSlot` placeholders) — also roadmap **H4** | — | `[P]` | needs real photos from the chapter |
+| M6 | **Spotlight dark mode** (out of scope so far — FX2 was backstage-only) | — | `[P]` | only if the brand calls for it |
+
+## N. Custom roles, permissions & member governance (NEW)
+
+Extends F1's fixed-role contract into runtime-editable custom roles + a positions catalog that
+drives both titles and (via a claims-sync trigger) permission grants.
+
+| # | Item | Dep | Parallel | Notes |
+|---|------|-----|----------|-------|
+| ~~N1~~ ✅ | **Dynamic permissions epic** — DONE (#84–#87 + seeding #88/#89/#107). Coarse `action:Subject` perms in a `perms` custom claim; Admin-only authority; runtime role CRUD UI + per-member assignment; rules enforce perm gates; cap 30 fail-closed. **Deploy op:** run `seedRoles` + `recomputeAllClaims` callables before the perm rules bite. | F1 | `[S]` | `/security-review` + `firestore-security-reviewer` |
+| ~~N2~~ ✅ | **Positions catalog** (CEL/JDL/comisiones) + gender-aware cargos — DONE (#52). | F1 | `[S]` | feeds permission grants |
+| ~~N3~~ ✅ | **Member claims-sync + edit page + permissions panel** — DONE (#54). Beacon `onMemberWritten` trigger mints role/cargo claims from signed `positions.<term>.assignedBy`; 2-layer assignment-trust gate (rules + trigger re-check); member edit (full + EC positions-only). | F1, N2 | `[S]` | `firebase-functions-reviewer`; CREATE-path escalation caught + fixed |
+| ~~N4~~ ✅ | **Member invite / self-login provisioning** — DONE (#53). Firebase Auth invitation email → member sets password (closes F1's deferred "member self-login"). | F1 | `[S]` | — |
+| N5 ⬜ | **Settings page (real)** — also roadmap **D4**: profile + theme + org + role mgmt landing | F1, N1 | `[P]` | role mgmt now exists; needs a home |
+
 ---
 
 ## Sequencing
@@ -272,11 +343,39 @@ F2/F3 (types + engine model) unblock the most and can't be designed piecemeal.
    FX2 dark mode, FX4 sidebar collapse, FX1 table filtering, E1/E5/E6 widgets,
    G1 soft-delete guard, G3 env placeholders, H1 uploads, I5 dependabot.
 
-**Recommended first moves:** drop the three **input artifacts** (points matrix,
-award criteria, dues config) into `docs/reference/`, then start **F1 (roles +
-role-aware rules)** and **F2 (types)** — the foundation the engine, finance, and
-notifications all sit on. In parallel, knock out a couple of §5 independents
-(dark mode, soft-delete guard) so there's always shippable progress.
+**Where we are (2026-06-30):** Foundations (F1/F2/F3), the whole Recognition Engine (A),
+member surface (B1/B2), Projects-lite (C1-lite + C4 public showcase), admin CRUD (D1),
+all UI widgets (E), UI polish + backstage DS pass (F, incl. FX7 #111/#112/#114), media (H),
+the permissions/positions epic (N), the spotlight CMS (M), the performance track (L1–L3),
+and CI (I0) are **shipped and live**. Keyless CD (I7 #113) is open, blocked on owner WIF setup.
+
+**Product diagnosis (2026-06-30):** the engine is real but two surfaces are dishonest/incomplete —
+(1) the board dashboard at `/` is **mock data** (B3), and (2) the live leaderboard runs without its
+`duesStatus` eligibility gate because **Finance (J) is unbuilt**, so it currently awards points to
+members who aren't al día. Cold-start / empty states are also unscoped (the mock exists to make the
+dashboard "look alive" — real empty states fix that honestly).
+
+**Active now (this cycle):**
+
+1. **B3 — Real board dashboard (P0).** Kill `overview-mock.ts`; wire real aggregates + honest
+   empty/loading states. Cheapest fix, largest credibility payoff.
+2. **B1 retention slice.** Upcoming-events feed + birthday/anniversary milestones on `/me`
+   (stored-but-unused `birthdate`/`joinDate`). A reason to return between events.
+
+**What's genuinely left after that (recommended order):**
+
+1. **J Finance & Treasury** — largest unbuilt epic, ready input artifact (`dues-config.md`).
+   J1 → J2 → J3 → J4 (auto-lapse + Finance→Points hooks) → J5. **Closes the leaderboard's
+   `duesStatus` eligibility hole** — frame it as completing the engine, not a new epic.
+2. **K Notifications** — K1 (in-app model; the bell + activity feed are still mocked) → K2
+   (scheduled triggers), riding alongside J4. K3/K4 (email/WhatsApp) deferred to "enough resources".
+3. **C dossier track (C1-dossier → C2 → C3)** — **blocked** on `docs/reference/jci-award-criteria.md`.
+   Chase that artifact to unblock.
+4. **Smaller wins, parallel anytime:** FX7 DS pass on remaining screens · **L4 SSG/prerender**
+   (biggest spotlight FCP/LCP win — brainstorm first) · L5 critical CSS · D2 Reports · D4/N5 real
+   Settings page · G1 soft-delete write-guard · G3 env placeholders · A4 offline check-in (low pri).
+5. **Owner ops (not PRs):** I7 WIF/gcloud provisioning (unblocks CD) · App Check keys + enforcement
+   (G4) · I3 storage wipe. (CI required + ruleset active + indexes deployed — done 2026-06-24.)
 
 Pick an item → `prompt-refine` → `superpowers:brainstorming` → `writing-plans` →
 subagent TDD, branch off `main`.

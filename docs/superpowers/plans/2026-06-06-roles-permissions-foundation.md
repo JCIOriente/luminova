@@ -1313,7 +1313,7 @@ Body uses the repo PR template (Summary + Test plan with `/security-review` chec
 
 ## Self-Review notes
 
-- **Spec coverage:** §1 roles → Task 1; §2 ability → Task 2; §3 rules → Task 3; §4 callable+bootstrap → Tasks 4–5; §5 integration+testing → Tasks 6–7; verification/reviews → Task 8. All sections covered.
+- **Spec coverage:** 1 roles → Task 1; 2 ability → Task 2; 3 rules → Task 3; 4 callable+bootstrap → Tasks 4–5; 5 integration+testing → Tasks 6–7; verification/reviews → Task 8. All sections covered.
 - **Type consistency:** `AuthClaims`/`Role` defined in Task 1 used identically in Tasks 2,4,5,6,7; `AppAbility`/`buildAbility` defined Task 2 used in Task 7; `decodeClaims` defined Task 6 used in auth-store same task. `validateSetRolesInput` defined and tested in Task 4.
 - **Known deferrals (flagged, not bugs):** production functions packaging of `@luminova/auth` (emulator-only in F1); forced claim refresh mid-session; `projects`/`board` public-read restriction (G2); role-assignment UI (D4); member self-login wiring (B1).
 </content>

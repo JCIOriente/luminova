@@ -751,7 +751,7 @@ git commit -m "feat(spotlight): wire Impacto into header nav + home link"
 ## Self-Review notes (plan vs spec)
 
 - **Spec coverage:** projection collection (T1–T3), rules (T4), spotlight read (T5), index+filter+empty (T6), detail+gallery+team+not-found (T7), nav (T8), reviews (T9). ✔
-- **Photo public access:** no storage.rules task — by design (tokenized urls). ✔ (Spec §6.)
+- **Photo public access:** no storage.rules task — by design (tokenized urls). ✔ (Spec 6.)
 - **Type consistency:** `ShowcaseItem`/`ShowcaseTeam`/`ShowcasePerson` defined T1, consumed identically T2/T5/T6/T7. Mapper `projectInitiative` + `rosterMemberIds` names match T2↔T3 usage. ✔
 - **Deferred (spec):** activity-photo roll-up, pagination/search — not in any task. ✔
 - **Risk flagged:** spotlight may lack jsdom test infra (T6 Step 1 note) and may need a direct `firebase` dep for bundling (T5 Step 1 note) — both resolved via `secure-dep-vetting` with exact versions copied from backstage, never typed from memory.

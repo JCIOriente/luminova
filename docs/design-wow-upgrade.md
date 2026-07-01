@@ -79,13 +79,13 @@ These two skills do different jobs. Using them in the right order multiplies the
 → Output: ok.
 
 **Good prompt for interactive-prototype (exploration):**
-> Read `docs/brand-research.md` and `docs/design-brief.md` and `docs/design-wow-upgrade.md`. Build **three** interactive HTML prototype variants of the JCI Oriente home page, each committing fully to a different aesthetic direction from §3 of the wow upgrade brief: **Editorial-Civic**, **Kinetic Ripple**, and **Documentary Maximalist**. Put all three on a single design canvas page (one file) so I can compare side-by-side. Each variant must include: a fully-designed hero, the four areas of opportunity section, and the closing CTA. Use real Spanish copy, real ripple SVG, and at least one signature motion moment per variant. Skip the about/contact pages for this round. Hold yourself to the anti-slop rules in §1.
+> Read `docs/brand-research.md` and `docs/design-brief.md` and `docs/design-wow-upgrade.md`. Build **three** interactive HTML prototype variants of the JCI Oriente home page, each committing fully to a different aesthetic direction from 3 of the wow upgrade brief: **Editorial-Civic**, **Kinetic Ripple**, and **Documentary Maximalist**. Put all three on a single design canvas page (one file) so I can compare side-by-side. Each variant must include: a fully-designed hero, the four areas of opportunity section, and the closing CTA. Use real Spanish copy, real ripple SVG, and at least one signature motion moment per variant. Skip the about/contact pages for this round. Hold yourself to the anti-slop rules in 1.
 
 **Good prompt for interactive-prototype (deepening the chosen direction):**
-> I chose **Direction 2: Kinetic Ripple**. Build a single full-flow interactive prototype covering the home, about, and contact pages with working in-page navigation, the signature ripple choreography on the hero (per §3.2 of the wow brief), real Spanish copy, and a **Tweaks panel** exposing: `--accent-color`, `--ripple-density`, `--type-scale`, `--motion-speed`. Use placeholder photography with a duotone treatment in JCI Blue × JCI Black. Optimise for what looks great on a 15" laptop — desktop first, then mobile.
+> I chose **Direction 2: Kinetic Ripple**. Build a single full-flow interactive prototype covering the home, about, and contact pages with working in-page navigation, the signature ripple choreography on the hero (per 3.2 of the wow brief), real Spanish copy, and a **Tweaks panel** exposing: `--accent-color`, `--ripple-density`, `--type-scale`, `--motion-speed`. Use placeholder photography with a duotone treatment in JCI Blue × JCI Black. Optimise for what looks great on a 15" laptop — desktop first, then mobile.
 
 **Good prompt for frontend-design (production):**
-> Implement the approved Kinetic Ripple prototype in `apps/spotlight` using TanStack Router file-based routes (`/`, `/about`, `/contact`). Port the design tokens from the prototype into Tailwind v4 CSS variables in `apps/spotlight/src/styles.css`. Build the primitive components listed in §6 of `docs/design-brief.md` and place them in `apps/spotlight/src/components/`. The ripple background must be a parameterised React component using inline SVG with the construction rules from `docs/brand-research.md` §2.4. Match the motion choreography from §3.2 of the wow brief — use the Motion library since this is React. Respect React 19 + TypeScript strict + Tailwind utility-only conventions per `CLAUDE.md`. Write a Vitest test for each route's smoke-render before claiming done.
+> Implement the approved Kinetic Ripple prototype in `apps/spotlight` using TanStack Router file-based routes (`/`, `/about`, `/contact`). Port the design tokens from the prototype into Tailwind v4 CSS variables in `apps/spotlight/src/styles.css`. Build the primitive components listed in 6 of `docs/design-brief.md` and place them in `apps/spotlight/src/components/`. The ripple background must be a parameterised React component using inline SVG with the construction rules from `docs/brand-research.md` 2.4. Match the motion choreography from 3.2 of the wow brief — use the Motion library since this is React. Respect React 19 + TypeScript strict + Tailwind utility-only conventions per `CLAUDE.md`. Write a Vitest test for each route's smoke-render before claiming done.
 
 **Note** — don't paste design tokens into prompts. Point the skill at `docs/brand-research.md` and `docs/design-brief.md` and let it read what it needs. Skills are context-budget-aware.
 
@@ -322,12 +322,12 @@ Before claiming "done", any prototype or page must pass these:
 
 ## 7. Working session order
 
-1. **You:** decide which of the three directions in §3 you want (or pick "show me all three").
-2. **Claude Design — interactive-prototype:** build the chosen direction(s) as clickable HTML prototype(s), home page only. Use the *exploration* prompt from §2.3.
+1. **You:** decide which of the three directions in 3 you want (or pick "show me all three").
+2. **Claude Design — interactive-prototype:** build the chosen direction(s) as clickable HTML prototype(s), home page only. Use the *exploration* prompt from 2.3.
 3. **You:** click through, pick one direction, send screenshots / notes of what to amplify and what to dial back.
-4. **Claude Design — interactive-prototype:** build the full 3-page flow with Tweaks panel. Use the *deepening* prompt from §2.3.
+4. **Claude Design — interactive-prototype:** build the full 3-page flow with Tweaks panel. Use the *deepening* prompt from 2.3.
 5. **You:** play with the Tweaks until the feel is right. Note the final token values.
-6. **Claude Code — frontend-design:** port to `apps/spotlight` production code with React/TanStack Router/Tailwind. Use the *production* prompt from §2.3.
+6. **Claude Code — frontend-design:** port to `apps/spotlight` production code with React/TanStack Router/Tailwind. Use the *production* prompt from 2.3.
 7. **Claude Code — ui-ux-pro-max:** accessibility and contrast validation pass.
 8. **Claude Code — `/simplify` and `react-best-practices`:** code health cleanup.
 9. **Claude Code — `/security-review`:** even on a static site, run it once (contact form, third-party fonts, CSP).
@@ -338,7 +338,7 @@ Before claiming "done", any prototype or page must pass these:
 
 - The first brief was a recipe. This one is a vision.
 - Use `interactive-prototype` for cheap exploration, then `frontend-design` for production code. Don't run them in parallel.
-- Commit to **one** aesthetic direction. I recommend **Kinetic Ripple** (§3.2).
+- Commit to **one** aesthetic direction. I recommend **Kinetic Ripple** (3.2).
 - The signature moment matters more than any single section: the ripple-builds-itself hero that resolves into the header logo on scroll.
 - Replace every safe choice (grids, carousels, bland CTAs, neutral copy) with one bold one.
 - Tune live with Tweaks, then port the values to production.

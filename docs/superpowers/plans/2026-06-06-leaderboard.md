@@ -221,7 +221,7 @@ export function useTerm(id: string) {
 
 ## Task 5: Route `_app.leaderboard.tsx`
 
-- [ ] Implement per spec §components: compose `useMembers`, `useMemberPointsByTerm(termId)`, `useTerm(termId)`, `useTerm(prevId)`; `isPending`/`isError` via any; build `membersById`; `months = monthsPresent(points)`; `view` state (`"annual"|month`); `useMemo` entries (`rankAnnual`/`rankMonthly`); view toggle (buttons: "Anual" + each month); `LeaderboardTable`. Loading/error/empty states.
+- [ ] Implement per spec components: compose `useMembers`, `useMemberPointsByTerm(termId)`, `useTerm(termId)`, `useTerm(prevId)`; `isPending`/`isError` via any; build `membersById`; `months = monthsPresent(points)`; `view` state (`"annual"|month`); `useMemo` entries (`rankAnnual`/`rankMonthly`); view toggle (buttons: "Anual" + each month); `LeaderboardTable`. Loading/error/empty states.
 - [ ] `pnpm --filter backstage exec vite build` (regen routeTree), then `build` clean.
 - [ ] Commit `feat(backstage): leaderboard route` (+ routeTree.gen.ts).
 

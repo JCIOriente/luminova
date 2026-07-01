@@ -978,7 +978,7 @@ function ResetPage() {
 
 - [ ] **Step 1: firebase-setup.md** — append an "App Check & password reset" section listing: create reCAPTCHA v3 key → register in App Check; set `VITE_APPCHECK_SITE_KEY` + per-dev `VITE_APPCHECK_DEBUG_TOKEN`; Authentication → Templates → Password reset → customize action URL → `https://<host>/reset`; localize the email template to Spanish; (later G4) enable App Check enforcement; ensure the seeded admin password meets the policy.
 
-- [ ] **Step 2: roadmap.md** — under §G, mark G4 code-side scaffolded (pending keys); add an auth-hardening row under §B or §F noting remember-me + recovery + policy shipped.
+- [ ] **Step 2: roadmap.md** — under G, mark G4 code-side scaffolded (pending keys); add an auth-hardening row under B or F noting remember-me + recovery + policy shipped.
 
 - [ ] **Step 3: Full CI** `pnpm --filter backstage run ci` — expect PASS (eslint, tsc, vitest). Then `pnpm --filter backstage build` — expect built.
 

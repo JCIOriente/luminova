@@ -1018,7 +1018,7 @@ Add a `## Recognition Engine (F3)` section documenting each collection
 `memberPoints`) with its fields, the six derivation rules, Invariant A, the
 Finance→Points read coupling, and the firestore.rules implications table. Mirror
 the wording in `docs/superpowers/specs/2026-06-06-recognition-engine-model-design.md`
-(§Entities, §Derivation rules & invariants, §firestore.rules implications). Note
+(Entities, Derivation rules & invariants, firestore.rules implications). Note
 that `participations`/`memberPoints` are engine-written (client read-only) and
 that rules edits land with A1/A2/D1.
 

@@ -5,7 +5,7 @@ _Date: 2026-06-06 · Branch: `feat/recognition-engine-model` · Status: approved
 ## Goal
 
 Design the **Recognition Engine** data model — the entities, invariants, and
-derivation rules under all of §A (Point Rules → `awardPoints` → profile → QR →
+derivation rules under all of A (Point Rules → `awardPoints` → profile → QR →
 leaderboard) — and promote it into `@luminova/types` following the F2
 promote-and-share pattern (BUILT package, emits `dist/`).
 
