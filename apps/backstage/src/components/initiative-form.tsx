@@ -20,6 +20,7 @@ import {
   type InitiativeInput,
 } from "@luminova/types";
 import { statusLabel } from "../features/initiatives/lib/derive";
+import { DisabledReason } from "../lib/authz/action-gate";
 
 const EMPTY: InitiativeInput = {
   title: "",
@@ -39,6 +40,9 @@ interface InitiativeFormProps {
   isSaving: boolean;
   onSubmit: (data: InitiativeInput) => void;
   lockStatus?: boolean;
+  /** Whether the caller may set `featured` — Admin/ProjectManager only, mirroring
+   *  the rules' `featuredUpdateSafe`. A direction/perm editor sees it disabled. */
+  canFeature?: boolean;
 }
 
 export function InitiativeForm({
@@ -48,6 +52,7 @@ export function InitiativeForm({
   isSaving,
   onSubmit,
   lockStatus = false,
+  canFeature = false,
 }: InitiativeFormProps) {
   const {
     register,
@@ -190,11 +195,17 @@ export function InitiativeForm({
           control={control}
           name="featured"
           render={({ field }) => (
-            <Checkbox
-              checked={field.value}
-              onChange={field.onChange}
-              label="Destacar en /programas"
-            />
+            <DisabledReason
+              when={!canFeature}
+              reason="Solo un Admin o Project Manager puede destacar iniciativas."
+              inline
+            >
+              <Checkbox
+                checked={field.value}
+                onChange={field.onChange}
+                label="Destacar en /programas"
+              />
+            </DisabledReason>
           )}
         />
         <p className="text-[12px] text-ink-3">

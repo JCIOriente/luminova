@@ -11,7 +11,13 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import { currentTermKey, MEMBER_STATUSES, type Member, type MemberInput } from "@luminova/types";
+import {
+  currentTermKey,
+  MEMBER_STATUSES,
+  type Member,
+  type MemberInput,
+  type TermPositions,
+} from "@luminova/types";
 import { toMemberCreateDoc, toMemberUpdateDoc } from "./member-mapper";
 
 export class MemberRepository {
@@ -53,8 +59,15 @@ export class MemberRepository {
     return ref.id;
   }
 
-  async update(id: string, data: MemberInput): Promise<void> {
-    await updateDoc(doc(this.collection, id), toMemberUpdateDoc(data, this.currentUid()));
+  async update(
+    id: string,
+    data: MemberInput,
+    currentPositions?: Pick<TermPositions, "cargoId" | "comisionIds"> | null,
+  ): Promise<void> {
+    await updateDoc(
+      doc(this.collection, id),
+      toMemberUpdateDoc(data, this.currentUid(), currentPositions),
+    );
   }
 
   /** ExecutiveCommittee org-chart edit: writes ONLY the current term's assignment

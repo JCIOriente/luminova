@@ -4,6 +4,7 @@ import { Button, Icon, EmptyState, Menu, MenuItem, Sheet } from "@luminova/ui";
 import type { ComboboxOption } from "@luminova/ui";
 import type { InitiativeInput, Member } from "@luminova/types";
 import { useAbility } from "../lib/authz/ability-context";
+import { useCan } from "../lib/authz/use-can";
 import { PageHeader } from "../components/page-header";
 import { InitiativeForm } from "../components/initiative-form";
 import { InitiativeCard } from "../components/initiative-card";
@@ -34,6 +35,7 @@ function sheetTitle(editing: Editing): string {
 function InitiativesPage() {
   const termId = currentTermKey();
   const ability = useAbility();
+  const canFeature = useCan().hasRole(["Admin", "ProjectManager"]);
   const navigate = useNavigate();
   const canReadProgram = ability.can("read", "Program");
   const canReadProject = ability.can("read", "Project");
@@ -170,6 +172,7 @@ function InitiativesPage() {
             defaultValues={undefined}
             submitLabel="Crear"
             isSaving={isSaving}
+            canFeature={canFeature}
             onSubmit={(data) => void handleSubmit(data)}
           />
         )}

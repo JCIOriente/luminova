@@ -106,7 +106,12 @@ function MemberProfilePage() {
   // role with that perm but no EC claim would be denied at write.
   const showPositionsOnly = !canEdit && gate.hasRole(["ExecutiveCommittee"]);
 
-  const handleEdit = (data: MemberInput) => updateMember.mutateAsync({ id: member.id, data });
+  const handleEdit = (data: MemberInput) =>
+    updateMember.mutateAsync({
+      id: member.id,
+      data,
+      currentPositions: member.positions?.[termKey] ?? null,
+    });
   const handleSetPositions = (data: PositionsInput) => setPositions.mutateAsync(data);
 
   return (
@@ -138,6 +143,7 @@ function MemberProfilePage() {
                 defaultValues={memberFormDefaults(member)}
                 submitLabel="Guardar cambios"
                 pendingLabel="Guardando…"
+                allowPowerGrants={gate.isAdmin}
                 onSubmit={handleEdit}
                 avatarSeed={member.name}
               />
@@ -152,6 +158,7 @@ function MemberProfilePage() {
               <MemberPositionsForm
                 positions={positions}
                 gender={member.gender}
+                allowPowerGrants={gate.isAdmin}
                 defaultValues={{
                   cargoId: member.positions?.[termKey]?.cargoId ?? null,
                   comisionIds: member.positions?.[termKey]?.comisionIds ?? [],

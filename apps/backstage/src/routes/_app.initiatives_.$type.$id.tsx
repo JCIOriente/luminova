@@ -14,6 +14,7 @@ import type {
   Member,
 } from "@luminova/types";
 import { useAbility } from "../lib/authz/ability-context";
+import { useCan } from "../lib/authz/use-can";
 import { useAuth } from "../lib/auth/auth";
 import { CompletionWizard } from "../features/initiatives/components/completion-wizard";
 import { useCompleteInitiative } from "../features/initiatives/hooks/use-complete-initiative";
@@ -66,6 +67,7 @@ function InitiativeDetailPage() {
 
   const canRead = ability.can("read", kind);
   const canUpdate = ability.can("update", kind);
+  const canFeature = useCan().hasRole(["Admin", "ProjectManager"]);
   const canCreateActivity = ability.can("create", "Activity");
   const canReadMembers = ability.can("read", "Member");
 
@@ -228,6 +230,7 @@ function InitiativeDetailPage() {
           submitLabel="Guardar"
           isSaving={isSavingInitiative}
           lockStatus={isCompleted}
+          canFeature={canFeature}
           onSubmit={(data) => void handleUpdate(data)}
         />
       </Sheet>

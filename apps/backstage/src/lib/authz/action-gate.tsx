@@ -29,7 +29,7 @@ export function ActionGate({ can, role, when, fallback = null, children }: GateP
   return <>{allowed ? children : fallback}</>;
 }
 
-type DisabledChild = ReactElement<{ disabled?: boolean; "aria-disabled"?: boolean }>;
+type DisabledChild = ReactElement<{ disabled?: boolean }>;
 
 /** Keeps a control visible but disabled when a *state* precondition blocks it
  *  (locked / closed / wrong-role-for-this-field), with a short reason — never a
@@ -51,9 +51,7 @@ export function DisabledReason({
 }) {
   if (!when) return <>{children}</>;
   const child = Children.only(children);
-  const disabled = isValidElement(child)
-    ? cloneElement(child, { disabled: true, "aria-disabled": true })
-    : child;
+  const disabled = isValidElement(child) ? cloneElement(child, { disabled: true }) : child;
   if (inline) {
     return (
       <div className="flex flex-col gap-1">

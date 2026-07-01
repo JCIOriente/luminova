@@ -16,11 +16,16 @@ export function MemberPositionsForm({
   positions,
   gender,
   defaultValues,
+  allowPowerGrants,
   onSubmit,
 }: {
   positions: Position[];
   gender: MemberGender | undefined;
   defaultValues: PositionsInput;
+  /** Whether the caller may assign power-granting cargos. Only Admin may (rules'
+   *  `cargoGrantsEmpty`); a non-Admin sees only grant-free cargos (plus the current
+   *  assignment, so an existing selection still renders). */
+  allowPowerGrants: boolean;
   onSubmit: (data: PositionsInput) => Promise<void>;
 }) {
   const [formError, setFormError] = useState<string | null>(null);
@@ -35,6 +40,7 @@ export function MemberPositionsForm({
     .filter(
       (p) => p.active && p.category !== "Comision" && (p.term === null || String(p.term) === term),
     )
+    .filter((p) => allowPowerGrants || p.grants.length === 0 || p.id === defaultValues.cargoId)
     .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
   const comisionOptions = positions
     .filter((p) => p.active && p.category === "Comision")

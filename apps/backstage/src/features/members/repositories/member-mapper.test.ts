@@ -88,7 +88,7 @@ describe("member-mapper positions", () => {
   });
 
   it("updates only the current term via dot path (other terms untouched)", () => {
-    const doc = toMemberUpdateDoc(posInput, "uid-admin", "2026");
+    const doc = toMemberUpdateDoc(posInput, "uid-admin", null, "2026");
     expect(doc["positions.2026"]).toEqual({
       cargoId: "pos-presidente",
       comisionIds: ["pos-etica"],
@@ -96,6 +96,42 @@ describe("member-mapper positions", () => {
     });
     expect(doc).not.toHaveProperty("positions");
     expect(doc).not.toHaveProperty("role");
+  });
+
+  it("omits the positions slot when the assignment is unchanged (avoids re-gate)", () => {
+    const doc = toMemberUpdateDoc(
+      posInput,
+      "uid-admin",
+      { cargoId: "pos-presidente", comisionIds: ["pos-etica"] },
+      "2026",
+    );
+    expect(doc).not.toHaveProperty("positions.2026");
+    expect(doc).toMatchObject({ name: "Ana Suárez" });
+  });
+
+  it("compares comisionIds order-independently", () => {
+    const twoComisiones: MemberInput = { ...posInput, comisionIds: ["a", "b"] };
+    const doc = toMemberUpdateDoc(
+      twoComisiones,
+      "uid-admin",
+      { cargoId: "pos-presidente", comisionIds: ["b", "a"] },
+      "2026",
+    );
+    expect(doc).not.toHaveProperty("positions.2026");
+  });
+
+  it("writes the slot when the cargo changed", () => {
+    const doc = toMemberUpdateDoc(
+      posInput,
+      "uid-admin",
+      { cargoId: null, comisionIds: ["pos-etica"] },
+      "2026",
+    );
+    expect(doc["positions.2026"]).toEqual({
+      cargoId: "pos-presidente",
+      comisionIds: ["pos-etica"],
+      assignedBy: "uid-admin",
+    });
   });
 
   it("stamps assignedBy into the created term slot", () => {
@@ -108,7 +144,7 @@ describe("member-mapper positions", () => {
   });
 
   it("stamps assignedBy into the dot-path update slot", () => {
-    const doc = toMemberUpdateDoc(posInput, "uid-admin", "2026");
+    const doc = toMemberUpdateDoc(posInput, "uid-admin", null, "2026");
     expect(doc["positions.2026"]).toEqual({
       cargoId: posInput.cargoId,
       comisionIds: posInput.comisionIds,

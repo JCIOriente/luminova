@@ -48,18 +48,36 @@ export function toMemberCreateDoc(
   };
 }
 
-type UpdateDoc = ReturnType<typeof editableFields> & Record<`positions.${string}`, TermPositions>;
+type EditableFields = ReturnType<typeof editableFields>;
+type UpdateDoc = EditableFields & Partial<Record<`positions.${string}`, TermPositions>>;
+
+function sameAssignment(
+  current: Pick<TermPositions, "cargoId" | "comisionIds"> | null | undefined,
+  next: Pick<TermPositions, "cargoId" | "comisionIds">,
+): boolean {
+  if (!current) return false;
+  if (current.cargoId !== next.cargoId) return false;
+  const a = [...current.comisionIds].sort();
+  const b = [...next.comisionIds].sort();
+  return a.length === b.length && a.every((id, i) => id === b[i]);
+}
 
 /** Update payload: editable fields + dot-path term slot.
  *  Dot-path keeps other terms' history intact without a read-modify-write.
- *  The slot is written even when empty — clearing a cargo must overwrite it. */
+ *  The slot is written even when empty — clearing a cargo must overwrite it —
+ *  BUT is omitted entirely when the assignment is unchanged: re-stamping it would
+ *  trip the rules' `positionsAssignmentSafe` gate (self-stamp + power-cargo checks),
+ *  denying an otherwise-fine bio edit for a non-Admin editor of a power-cargo member. */
 export function toMemberUpdateDoc(
   data: MemberInput,
   assignedBy: string,
+  current?: Pick<TermPositions, "cargoId" | "comisionIds"> | null,
   termKey = currentTermKey(),
 ): UpdateDoc {
+  const next = { cargoId: data.cargoId, comisionIds: data.comisionIds };
+  if (sameAssignment(current, next)) return editableFields(data);
   return {
     ...editableFields(data),
-    [`positions.${termKey}`]: { cargoId: data.cargoId, comisionIds: data.comisionIds, assignedBy },
-  } as UpdateDoc;
+    [`positions.${termKey}`]: { ...next, assignedBy },
+  };
 }

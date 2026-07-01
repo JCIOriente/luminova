@@ -13,6 +13,7 @@ import { joinYear, memberPositionLabel } from "../lib/member-display";
 import { memberFormDefaults } from "../lib/member-form-defaults";
 import { useMemberPhoto } from "../hooks/use-member-photo";
 import { Can } from "../../../lib/authz/ability-context";
+import { useCan } from "../../../lib/authz/use-can";
 
 interface MemberDrawerProps {
   open: boolean;
@@ -116,6 +117,7 @@ function EditBody({
   onSubmit: (data: MemberInput) => Promise<void>;
 }) {
   const { onUpload, onRemove } = useMemberPhoto(member.id);
+  const { isAdmin } = useCan();
   return (
     <div className="flex flex-col gap-6">
       <ImageUploader
@@ -129,6 +131,7 @@ function EditBody({
         positions={positions}
         defaultValues={memberFormDefaults(member)}
         submitLabel="Guardar"
+        allowPowerGrants={isAdmin}
         onSubmit={onSubmit}
       />
     </div>

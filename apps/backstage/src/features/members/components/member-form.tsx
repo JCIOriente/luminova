@@ -22,6 +22,10 @@ interface MemberFormProps {
   onSubmit: (data: MemberInput) => Promise<void>;
   showPreview?: boolean;
   avatarSeed?: string;
+  /** Whether the editor may assign power-granting cargos — Admin only (rules'
+   *  `cargoGrantsEmpty` / `createPositionsSafe`). Non-Admin sees only grant-free
+   *  cargos plus the current selection. */
+  allowPowerGrants?: boolean;
   children?: ReactNode;
 }
 
@@ -51,6 +55,7 @@ export function MemberForm({
   onSubmit,
   showPreview,
   avatarSeed,
+  allowPowerGrants = false,
   children,
 }: MemberFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
@@ -73,6 +78,7 @@ export function MemberForm({
     .filter(
       (p) => p.active && p.category !== "Comision" && (p.term === null || String(p.term) === term),
     )
+    .filter((p) => allowPowerGrants || p.grants.length === 0 || p.id === currentCargoId)
     .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
   const assignedInactiveCargo =
     currentCargoId && !activeCargoOptions.some((o) => o.value === currentCargoId)

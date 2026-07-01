@@ -105,7 +105,11 @@ function MembersPage() {
 
   const handleEditSubmit = async (data: MemberInput) => {
     if (!drawer) return;
-    await updateMember.mutateAsync({ id: drawer.member.id, data });
+    await updateMember.mutateAsync({
+      id: drawer.member.id,
+      data,
+      currentPositions: drawer.member.positions?.[currentTermKey()] ?? null,
+    });
     setToast(actionMessage(data.name, "saved"));
     setDrawer(null);
   };

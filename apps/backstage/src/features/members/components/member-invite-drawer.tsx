@@ -141,6 +141,7 @@ export function MemberInviteDrawer({
           submitLabel="Enviar invitación"
           pendingLabel="Enviando…"
           showPreview
+          allowPowerGrants={isAdmin}
           defaultValues={{ joinDate: today(), status: "Activo", cargoId: null, comisionIds: [] }}
           onSubmit={handleSubmit}
         >
