@@ -29,6 +29,7 @@ import { activityKeys } from "../features/activities/hooks/activity-keys";
 import { PhotoManager } from "../features/initiatives/components/photo-manager";
 import { PhotoGallery } from "../features/initiatives/components/photo-gallery";
 import { useInitiative, INITIATIVE_TYPE } from "../features/initiatives/hooks/use-initiative";
+import { useDismissingToast } from "../lib/use-dismissing-toast";
 
 export const Route = createFileRoute("/_app/activities_/$id")({ component: ActivityDetailPage });
 
@@ -49,7 +50,7 @@ function ActivityDetailPage() {
   const [tab, setTab] = useState<Tab>("resumen");
   const [editOpen, setEditOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useDismissingToast();
 
   const { data: activity, isLoading } = useActivity(id, { enabled: canRead });
   const { data: members } = useMembers({ enabled: canReadMembers });

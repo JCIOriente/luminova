@@ -56,7 +56,7 @@ function sameAssignment(
   next: Pick<TermPositions, "cargoId" | "comisionIds">,
 ): boolean {
   if (!current) return false;
-  if (current.cargoId !== next.cargoId) return false;
+  if ((current.cargoId ?? null) !== (next.cargoId ?? null)) return false;
   // `current` comes from a raw Firestore cast (member read path), so a legacy slot
   // may carry cargoId but no comisionIds — default to [] rather than spread-throwing.
   const a = [...(current.comisionIds ?? [])].sort();
