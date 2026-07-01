@@ -365,7 +365,15 @@ service cloud.firestore {
               && request.resource.data.role == 'Attendee'
               && request.resource.data.activityId in request.auth.token.scannerEventIds
               && exists(/databases/$(database)/documents/members/$(request.resource.data.memberId))));
-      allow update, delete: if false;
+      // Undo a check-in (mis-scan correction). Same authority + window binding as
+      // create, but read from the existing doc (resource.data) since delete carries
+      // no request.resource. A Scanner may only undo Attendee rows on its own events.
+      allow delete: if withinCheckInWindow(resource.data.activityId)
+        && (canDo('checkIn', 'Attendance')
+          || (hasAnyRole(['Scanner'])
+              && resource.data.role == 'Attendee'
+              && resource.data.activityId in request.auth.token.scannerEventIds));
+      allow update: if false;
     }
 
     // Engine-written ledger (beacon admin SDK). Client read-only — the member
