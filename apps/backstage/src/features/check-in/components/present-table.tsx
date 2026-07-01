@@ -5,7 +5,6 @@ import { formatTime } from "../../../lib/datetime";
 interface PresentTableProps {
   entries: RosterEntry[];
   onRemove: (entry: RosterEntry) => void;
-  canRemove: boolean;
 }
 
 const columns: DataTableColumn<RosterEntry>[] = [
@@ -33,30 +32,26 @@ const columns: DataTableColumn<RosterEntry>[] = [
   },
 ];
 
-export function PresentTable({ entries, onRemove, canRemove }: PresentTableProps) {
+export function PresentTable({ entries, onRemove }: PresentTableProps) {
   return (
     <DataTable
       rows={entries}
       columns={columns}
-      getRowId={(e) => e.memberId}
+      getRowId={(e) => `${e.memberId}__${e.role}`}
       searchText={(e) => `${e.name} ${e.profession ?? ""}`}
       searchPlaceholder="Filtrar presentes…"
       pageSize={16}
       paginationLabel="presentes"
-      rowActions={
-        canRemove
-          ? (e) => (
-              <button
-                type="button"
-                onClick={() => onRemove(e)}
-                aria-label={`Quitar a ${e.name}`}
-                className="grid size-8 place-items-center rounded-[8px] text-ink-3 transition-colors hover:bg-error/10 hover:text-error"
-              >
-                {Icon.close({ s: 16 })}
-              </button>
-            )
-          : undefined
-      }
+      rowActions={(e) => (
+        <button
+          type="button"
+          onClick={() => onRemove(e)}
+          aria-label={`Quitar a ${e.name}`}
+          className="grid size-8 place-items-center rounded-[8px] text-ink-3 transition-colors hover:bg-error/10 hover:text-error"
+        >
+          {Icon.close({ s: 16 })}
+        </button>
+      )}
       emptyState={
         <EmptyState
           icon={Icon.user({ s: 40 })}

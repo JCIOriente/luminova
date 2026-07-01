@@ -67,6 +67,7 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
   };
 
   const onRemove = (entry: RosterEntry) => {
+    if (remove.isPending) return;
     remove.mutate(
       { memberId: entry.memberId, role: entry.role },
       {
@@ -142,7 +143,7 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
         )}
       </div>
 
-      <PresentTable entries={roster} onRemove={onRemove} canRemove />
+      <PresentTable entries={roster} onRemove={onRemove} />
 
       {scanOpen && (
         <ScanModal

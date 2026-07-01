@@ -178,6 +178,26 @@ beforeAll(async () => {
       activityId: "act_old",
       role: "Attendee",
     });
+    await setDoc(doc(db, "checkIns/c_del_director"), {
+      memberId: "m1",
+      activityId: "a1",
+      role: "Director",
+    });
+    await setDoc(doc(db, "checkIns/c_del_old_admin"), {
+      memberId: "m1",
+      activityId: "act_old",
+      role: "Attendee",
+    });
+    await setDoc(doc(db, "checkIns/c_del_cancel"), {
+      memberId: "m1",
+      activityId: "act_cancel",
+      role: "Attendee",
+    });
+    await setDoc(doc(db, "checkIns/c_del_closed"), {
+      memberId: "m1",
+      activityId: "act_closed_parent",
+      role: "Attendee",
+    });
     await setDoc(doc(db, "participations/part1"), { memberId: "m1", termId: "2026" });
     await setDoc(doc(db, "projects/p1"), { title: "P" });
     await setDoc(doc(db, "programs/prog1"), { termId: "2026", title: "Programa X" });
@@ -950,6 +970,19 @@ describe("firestore.rules — checkIns", () => {
   });
   it("denies a non-Admin delete once the activity's day has passed (window binds delete too)", async () => {
     await assertFails(deleteDoc(doc(as("u", ["ProjectManager"]), "checkIns/c_del_old")));
+  });
+  it("denies a Scanner deleting a non-Attendee row even on an in-scope activity", async () => {
+    const ctx = asClaims("s1", { roles: ["Scanner"], scannerEventIds: ["a1"] });
+    await assertFails(deleteDoc(doc(ctx, "checkIns/c_del_director")));
+  });
+  it("allows Admin to delete a past-day check-in (day-window bypass on delete)", async () => {
+    await assertSucceeds(deleteDoc(doc(as("u", ["Admin"]), "checkIns/c_del_old_admin")));
+  });
+  it("denies delete on a cancelled activity (window binds delete)", async () => {
+    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "checkIns/c_del_cancel")));
+  });
+  it("denies delete when the parent initiative is Finalizado", async () => {
+    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "checkIns/c_del_closed")));
   });
 });
 
