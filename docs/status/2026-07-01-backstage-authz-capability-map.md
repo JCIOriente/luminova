@@ -67,9 +67,12 @@ Severity = how convincingly the UI pretends the action will work.
 - **Status→Finalizado without report+impact** — impossible via UI: status Select
   filters `Finalizado`; only the CompletionWizard reaches it, writing the trio
   atomically (satisfies `finalizedRequiresReport`).
-- **RoleManager / MemberRolesPanel / `/permisos`** — correctly `manage:all`-gated
-  **and lazy-loaded / read-skipped** for non-Admins (least-privilege). Only the M6
-  perm≠role edge remains (defense-in-depth, not an exploit).
+- **RoleManager / MemberRolesPanel** — lazy-loaded / read-skipped for non-Admins
+  (least-privilege). Gating **realigned perm→role** (`useCan().isAdmin`) so a custom
+  `manage:all`-perm-without-Admin-role holder no longer sees a RoleManager whose every
+  write the rules deny. `/permisos` and `/positions` (grants editor + CEL seed) carried
+  the same `manage:all`-perm holdover — both switched to the role-based capability
+  (`isAdmin` / `canAssignPowerGrants`) after the firestore-security-reviewer flagged them.
 - **Check-in tab + create controls** — correctly gated: tab uses
   `can('checkIn', subject('Attendance',{eventId:activity.id}))` (resolves the
   Scanner CASL condition); creates always send `role:'Attendee'`. `check-in-window.ts`

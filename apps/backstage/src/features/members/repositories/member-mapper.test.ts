@@ -49,7 +49,7 @@ describe("toMemberCreateDoc", () => {
 
 describe("toMemberUpdateDoc", () => {
   it("includes editable fields but not system fields", () => {
-    const doc = toMemberUpdateDoc(input, "");
+    const doc = toMemberUpdateDoc(input, "", null);
     expect(doc).toMatchObject({ name: "Ana Pérez", status: "Activo" });
     expect(doc).not.toHaveProperty("active");
     expect(doc).not.toHaveProperty("totalPoints");

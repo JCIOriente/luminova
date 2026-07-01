@@ -73,7 +73,9 @@ function sameAssignment(
 export function toMemberUpdateDoc(
   data: MemberInput,
   assignedBy: string,
-  current?: Pick<TermPositions, "cargoId" | "comisionIds"> | null,
+  // Required (may be null) — an omitted `current` silently reverts to always-write,
+  // reintroducing the re-gate bug; force callers to be explicit.
+  current: Pick<TermPositions, "cargoId" | "comisionIds"> | null,
   termKey = currentTermKey(),
 ): UpdateDoc {
   const next = { cargoId: data.cargoId, comisionIds: data.comisionIds };
