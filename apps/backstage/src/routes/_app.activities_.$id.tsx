@@ -65,6 +65,7 @@ function ActivityDetailPage() {
   const parentType = activity?.parentType ?? null;
   const parentId = activity?.parentId ?? null;
   const photoActions = useActivityPhotos(id, termId);
+  const galleryError = "No se pudo actualizar la galería.";
   const parentInitiative = useInitiative(
     parentType ? INITIATIVE_TYPE[parentType] : "project",
     parentId ?? "",
@@ -244,10 +245,12 @@ function ActivityDetailPage() {
           {canManagePhotos ? (
             <PhotoManager
               photos={activity.photos}
-              onUpload={(blob) => photoActions.addPhoto(blob)}
-              onRemove={photoActions.removePhotoById}
-              onSetCover={photoActions.setCover}
-              onSetCaption={photoActions.setCaption}
+              onUpload={(blob) => photoActions.addPhoto(blob).catch(() => setToast(galleryError))}
+              onRemove={(id) => photoActions.removePhotoById(id).catch(() => setToast(galleryError))}
+              onSetCover={(id) => photoActions.setCover(id).catch(() => setToast(galleryError))}
+              onSetCaption={(id, caption) =>
+                photoActions.setCaption(id, caption).catch(() => setToast(galleryError))
+              }
             />
           ) : activity.photos.length > 0 ? (
             <PhotoGallery photos={activity.photos} showCover />

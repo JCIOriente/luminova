@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, Icon, EmptyState, Menu, MenuItem, Sheet } from "@luminova/ui";
+import { Button, Icon, EmptyState, Menu, MenuItem, Sheet, Toast } from "@luminova/ui";
 import type { ComboboxOption } from "@luminova/ui";
 import type { InitiativeInput, Member } from "@luminova/types";
 import { useAbility } from "../lib/authz/ability-context";
@@ -64,6 +64,12 @@ function InitiativesPage() {
     query: "",
   });
   const [editing, setEditing] = useState<Editing>(null);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!errorToast) return;
+    const id = setTimeout(() => setErrorToast(null), 2800);
+    return () => clearTimeout(id);
+  }, [errorToast]);
 
   const memberById = useMemo(
     () => new Map<string, Member>((members ?? []).map((m) => [m.id, m])),
@@ -93,9 +99,13 @@ function InitiativesPage() {
   const handleSubmit = async (data: InitiativeInput) => {
     if (!editing) return;
     if (!ability.can("create", editing.kind)) return;
-    if (editing.kind === "Program") await createProgram.mutateAsync(data);
-    else await createProject.mutateAsync(data);
-    setEditing(null);
+    try {
+      if (editing.kind === "Program") await createProgram.mutateAsync(data);
+      else await createProject.mutateAsync(data);
+      setEditing(null);
+    } catch {
+      setErrorToast("No se pudo crear. Revisa tus permisos e intenta de nuevo.");
+    }
   };
 
   const isSaving = createProgram.isPending || createProject.isPending;
@@ -177,6 +187,7 @@ function InitiativesPage() {
           />
         )}
       </Sheet>
+      {errorToast && <Toast message={errorToast} icon={Icon.close({ s: 18 })} />}
     </div>
   );
 }

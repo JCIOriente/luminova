@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import {
   Button,
   Sheet,
   SegmentedControl,
+  Toast,
+  Icon,
   type ComboboxOption,
   type SegmentedOption,
 } from "@luminova/ui";
@@ -85,6 +87,12 @@ function InitiativeDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!errorToast) return;
+    const t = setTimeout(() => setErrorToast(null), 2800);
+    return () => clearTimeout(t);
+  }, [errorToast]);
 
   const memberById = useMemo(
     () => new Map<string, Member>((members ?? []).map((m) => [m.id, m])),
@@ -122,22 +130,47 @@ function InitiativeDetailPage() {
 
   const handleUpdate = async (data: InitiativeInput) => {
     if (!canUpdate) return;
-    if (item.kind === "Program") await updateProgram.mutateAsync({ id: item.id, data });
-    else await updateProject.mutateAsync({ id: item.id, data });
-    setEditOpen(false);
+    try {
+      if (item.kind === "Program") await updateProgram.mutateAsync({ id: item.id, data });
+      else await updateProject.mutateAsync({ id: item.id, data });
+      setEditOpen(false);
+    } catch {
+      setErrorToast("No se pudo guardar. Revisa tus permisos e intenta de nuevo.");
+    }
   };
 
   const handleComplete = async (impact: InitiativeImpactInput) => {
     if (!canComplete || uid === null) return;
-    await completeInitiative.mutateAsync({ id: item.id, impact, uid });
-    setCompleteOpen(false);
+    try {
+      await completeInitiative.mutateAsync({ id: item.id, impact, uid });
+      setCompleteOpen(false);
+    } catch {
+      setErrorToast("No se pudo finalizar. Revisa tus permisos e intenta de nuevo.");
+    }
   };
 
   const handleCreateActivity = async (data: ActivityInput) => {
     if (!canCreateActivity) return;
     if (data.parentType !== item.kind || data.parentId !== item.id) return;
-    await createActivity.mutateAsync(data);
-    setCreateOpen(false);
+    try {
+      await createActivity.mutateAsync(data);
+      setCreateOpen(false);
+    } catch {
+      setErrorToast("No se pudo crear la actividad.");
+    }
+  };
+
+  // Photo mutations otherwise reject silently (PhotoManager swallows). Wrap each so a
+  // denial (or upload/network failure) surfaces a toast.
+  const guardPhoto =
+    <A extends unknown[]>(fn: (...a: A) => Promise<void>) =>
+    (...a: A) =>
+      fn(...a).catch(() => setErrorToast("No se pudo actualizar la galería."));
+  const photo = {
+    addPhoto: guardPhoto(photoActions.addPhoto),
+    removePhotoById: guardPhoto(photoActions.removePhotoById),
+    setCover: guardPhoto(photoActions.setCover),
+    setCaption: guardPhoto(photoActions.setCaption),
   };
 
   const isSavingInitiative = updateProgram.isPending || updateProject.isPending;
@@ -199,10 +232,10 @@ function InitiativeDetailPage() {
               {canManagePhotos ? (
                 <PhotoManager
                   photos={item.photos}
-                  onUpload={photoActions.addPhoto}
-                  onRemove={photoActions.removePhotoById}
-                  onSetCover={photoActions.setCover}
-                  onSetCaption={photoActions.setCaption}
+                  onUpload={photo.addPhoto}
+                  onRemove={photo.removePhotoById}
+                  onSetCover={photo.setCover}
+                  onSetCaption={photo.setCaption}
                 />
               ) : (
                 <PhotoGallery photos={item.photos} showCover />
@@ -241,10 +274,10 @@ function InitiativeDetailPage() {
           isSaving={completeInitiative.isPending}
           onComplete={(impact) => void handleComplete(impact)}
           photos={item.photos}
-          onUploadPhoto={photoActions.addPhoto}
-          onRemovePhoto={photoActions.removePhotoById}
-          onSetCover={photoActions.setCover}
-          onSetCaption={photoActions.setCaption}
+          onUploadPhoto={photo.addPhoto}
+          onRemovePhoto={photo.removePhotoById}
+          onSetCover={photo.setCover}
+          onSetCaption={photo.setCaption}
         />
       </Sheet>
 
@@ -264,6 +297,7 @@ function InitiativeDetailPage() {
           onSubmit={(data) => void handleCreateActivity(data)}
         />
       </Sheet>
+      {errorToast && <Toast message={errorToast} icon={Icon.close({ s: 18 })} />}
     </div>
   );
 }

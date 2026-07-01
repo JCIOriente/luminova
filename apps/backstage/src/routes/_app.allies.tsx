@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Button, Sheet, Dialog, Icon } from "@luminova/ui";
+import { Button, Sheet, Dialog, Icon, Toast } from "@luminova/ui";
 import { useAllies } from "../features/allies/hooks/use-allies";
 import { useAddAlly } from "../features/allies/hooks/use-add-ally";
 import { useUpdateAlly } from "../features/allies/hooks/use-update-ally";
@@ -29,6 +29,12 @@ function AlliesPage() {
 
   const [editing, setEditing] = useState<Editing>(null);
   const [deleteTarget, setDeleteTarget] = useState<Ally | null>(null);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!errorToast) return;
+    const id = setTimeout(() => setErrorToast(null), 2800);
+    return () => clearTimeout(id);
+  }, [errorToast]);
 
   const handleSubmit = async (data: AllyInput) => {
     if (editing === "new") {
@@ -41,8 +47,12 @@ function AlliesPage() {
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
-    await deleteAlly.mutateAsync(deleteTarget.id);
-    setDeleteTarget(null);
+    try {
+      await deleteAlly.mutateAsync(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch {
+      setErrorToast("No se pudo eliminar el aliado.");
+    }
   };
 
   return (
@@ -128,6 +138,7 @@ function AlliesPage() {
           </Button>
         </div>
       </Dialog>
+      {errorToast && <Toast message={errorToast} icon={Icon.close({ s: 18 })} />}
     </div>
   );
 }
