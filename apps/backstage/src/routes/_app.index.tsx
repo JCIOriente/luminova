@@ -32,11 +32,6 @@ function DashboardPage() {
   });
 
   if (
-    members.isLoading ||
-    allies.isLoading ||
-    activities.isLoading ||
-    memberPoints.isLoading ||
-    initiatives.isLoading ||
     !members.data ||
     !allies.data ||
     !activities.data ||
@@ -52,14 +47,17 @@ function DashboardPage() {
     );
   }
 
+  const now = new Date();
   const model = buildDashboardModel({
     members: members.data,
     allies: allies.data,
     activities: activities.data,
     memberPoints: memberPoints.data,
     initiatives: initiatives.data,
-    now: new Date(),
+    now,
   });
 
-  return <OverviewView model={model} userName={user?.email ?? "—"} roles={claims.roles} />;
+  return (
+    <OverviewView model={model} userName={user?.email ?? "—"} now={now} roles={claims.roles} />
+  );
 }

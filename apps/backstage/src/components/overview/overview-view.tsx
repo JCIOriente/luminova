@@ -1,18 +1,10 @@
 import { Fragment, type ReactNode } from "react";
 import type { Role } from "@luminova/auth/roles";
-import {
-  Badge,
-  type BadgeTone,
-  Button,
-  type ChartSeries,
-  Icon,
-  KpiCard,
-  LineChart,
-} from "@luminova/ui";
+import { Badge, Button, type ChartSeries, Icon, KpiCard, LineChart } from "@luminova/ui";
 import { PageHeader } from "../page-header";
 import { boardHomeLayout, type WidgetKey } from "./board-home-layout";
 import { relativeTimeEs } from "../../lib/datetime";
-import type { DashboardModel, FeedTone, UpcomingEventItem } from "./dashboard-model";
+import type { DashboardModel, FeedTone } from "./dashboard-model";
 
 const WHITESPACE = /\s+/;
 
@@ -24,12 +16,6 @@ const FEED_DOT: Record<FeedTone, string> = {
   blue: "bg-jci-blue/12 text-jci-blue",
   teal: "bg-jci-teal/16 text-teal-ink",
   green: "bg-ok/14 text-ok",
-};
-
-const EVENT_BADGE: Record<UpcomingEventItem["status"]["tone"], BadgeTone> = {
-  blue: "blue",
-  green: "green",
-  neutral: "gray",
 };
 
 const QUICK_ACTIONS = [
@@ -67,14 +53,15 @@ const QUICK_ACTIONS = [
 export function OverviewView({
   model,
   userName,
+  now,
   roles = [],
 }: {
   model: DashboardModel;
   userName: string;
+  now: Date;
   roles?: readonly Role[];
 }) {
   const layout = boardHomeLayout(roles);
-  const now = new Date();
   const chartSeries: ChartSeries[] = [
     {
       label: "Puntos otorgados",
@@ -106,28 +93,28 @@ export function OverviewView({
         <KpiCard
           icon={Icon.user({ s: 20 })}
           tone="blue"
-          label={model.kpis.activeMembers.label}
+          label="Miembros activos"
           value={model.kpis.activeMembers.value}
           trend={model.kpis.activeMembers.trend}
         />
         <KpiCard
           icon={Icon.calendar({ s: 20 })}
           tone="teal"
-          label={model.kpis.upcomingEvents.label}
+          label="Próximos eventos"
           value={model.kpis.upcomingEvents.value}
           trend={model.kpis.upcomingEvents.trend}
         />
         <KpiCard
           icon={Icon.handshake({ s: 20 })}
           tone="navy"
-          label={model.kpis.allies.label}
+          label="Aliados"
           value={model.kpis.allies.value}
           trend={model.kpis.allies.trend}
         />
         <KpiCard
           icon={Icon.barChart({ s: 20 })}
           tone="amber"
-          label={model.kpis.pointsThisMonth.label}
+          label="Puntos otorgados (mes)"
           value={model.kpis.pointsThisMonth.value}
           trend={model.kpis.pointsThisMonth.trend}
         />
@@ -182,7 +169,7 @@ export function OverviewView({
                     <span>{e.place}</span>
                   </div>
                 </div>
-                <Badge tone={EVENT_BADGE[e.status.tone]} dot>
+                <Badge tone={e.status.tone} dot>
                   {e.status.label}
                 </Badge>
               </div>

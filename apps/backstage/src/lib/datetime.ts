@@ -69,6 +69,19 @@ export function boliviaDayKey(ms: number): string {
   return new Date(ms - BOLIVIA_OFFSET_MS).toISOString().slice(0, 10);
 }
 
+/** YYYY-MM of an instant read in Bolivia local time (UTC-4). */
+export function monthKeyBolivia(ms: number): string {
+  return boliviaDayKey(ms).slice(0, 7);
+}
+
+/** Capitalized 3-letter month for a YYYY-MM key, e.g. "2026-06" → "Jun". */
+export function monthKeyToLabel(monthKey: string): string {
+  const year = Number(monthKey.slice(0, 4));
+  const month = Number(monthKey.slice(5, 7));
+  const raw = MONTH_SHORT.format(new Date(Date.UTC(year, month - 1, 1))).replace(/[.\s]/g, "");
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
 /** Spanish relative time for the activity feed. Coarse buckets, no external dep. */
 export function relativeTimeEs(at: Date, now: Date): string {
   const min = Math.floor((now.getTime() - at.getTime()) / 60_000);

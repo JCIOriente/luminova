@@ -6,10 +6,10 @@ import type { DashboardModel } from "./dashboard-model";
 function makeModel(overrides: Partial<DashboardModel> = {}): DashboardModel {
   return {
     kpis: {
-      activeMembers: { label: "Miembros activos", value: 142, trend: undefined },
-      upcomingEvents: { label: "Próximos eventos", value: 3, trend: undefined },
-      allies: { label: "Aliados", value: 6, trend: undefined },
-      pointsThisMonth: { label: "Puntos otorgados (mes)", value: 88, trend: undefined },
+      activeMembers: { value: 142, trend: undefined },
+      upcomingEvents: { value: 3, trend: undefined },
+      allies: { value: 6, trend: undefined },
+      pointsThisMonth: { value: 88, trend: undefined },
     },
     pointsByMonth: [{ monthKey: "2026-06", label: "Jun", points: 88 }],
     upcomingEvents: [],
@@ -20,7 +20,7 @@ function makeModel(overrides: Partial<DashboardModel> = {}): DashboardModel {
 
 describe("OverviewView", () => {
   it("renders real KPI values from the model", () => {
-    render(<OverviewView model={makeModel()} userName="Camila Áñez" />);
+    render(<OverviewView model={makeModel()} userName="Camila Áñez" now={new Date()} />);
     expect(screen.getByText("142")).toBeInTheDocument();
     expect(screen.getByText("Miembros activos")).toBeInTheDocument();
     expect(screen.getByText("Aliados")).toBeInTheDocument();
@@ -28,13 +28,13 @@ describe("OverviewView", () => {
   });
 
   it("shows honest empty states when lists are empty", () => {
-    render(<OverviewView model={makeModel()} userName="Camila Áñez" />);
+    render(<OverviewView model={makeModel()} userName="Camila Áñez" now={new Date()} />);
     expect(screen.getByText("No hay eventos próximos.")).toBeInTheDocument();
     expect(screen.getByText("Sin actividad reciente.")).toBeInTheDocument();
   });
 
   it("greets the user by first name", () => {
-    render(<OverviewView model={makeModel()} userName="Camila Áñez" />);
+    render(<OverviewView model={makeModel()} userName="Camila Áñez" now={new Date()} />);
     expect(screen.getByRole("heading", { name: /camila/i })).toBeInTheDocument();
   });
 });

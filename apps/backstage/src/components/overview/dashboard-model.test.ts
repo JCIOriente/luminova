@@ -1,13 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { Timestamp } from "firebase/firestore";
-import type { Activity, Member, MemberPoints } from "@luminova/types";
+import type { Activity, Ally, Member, MemberPoints } from "@luminova/types";
 import type { InitiativeListItem } from "../../features/initiatives/lib/initiative-list-item";
-import {
-  buildDashboardModel,
-  deriveActivityFeed,
-  monthKeyBolivia,
-  pointsByMonthSeries,
-} from "./dashboard-model";
+import { buildDashboardModel, deriveActivityFeed, pointsByMonthSeries } from "./dashboard-model";
 
 function mp(id: string, byMonth: Record<string, number>): MemberPoints {
   return { id, memberId: id, termId: "2026", cumulative: 0, byMonth } as MemberPoints;
@@ -38,13 +33,6 @@ function initiative(id: string, title: string, filedMs: number | null): Initiati
     finalReport: filedMs ? { filedAt: Timestamp.fromMillis(filedMs), filedBy: "u" } : null,
   } as InitiativeListItem;
 }
-
-describe("monthKeyBolivia", () => {
-  it("returns YYYY-MM in Bolivia local time", () => {
-    expect(monthKeyBolivia(new Date(Date.UTC(2026, 6, 1, 2, 0)))).toBe("2026-06");
-    expect(monthKeyBolivia(new Date(Date.UTC(2026, 6, 1, 12, 0)))).toBe("2026-07");
-  });
-});
 
 describe("pointsByMonthSeries", () => {
   it("sums byMonth across members, sorted ascending", () => {
@@ -103,7 +91,7 @@ describe("buildDashboardModel", () => {
         member("m2", "Beto", Date.UTC(2025, 0, 1)),
         member("m3", "Gone", thisMonth(3), false),
       ],
-      allies: [{ id: "al1" }, { id: "al2" }],
+      allies: [{ id: "al1" }, { id: "al2" }] as unknown as Ally[],
       activities: [activity("a1", "Futuro", thisMonth(20), "Programada")],
       memberPoints: [mp("m1", { "2026-06": 40, "2026-05": 10 })],
       initiatives: [],

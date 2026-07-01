@@ -1,19 +1,19 @@
-import type { Activity, Member, MemberPoints } from "@luminova/types";
+import type { Activity, Ally, Member, MemberPoints } from "@luminova/types";
 import type { KpiTrend } from "@luminova/ui";
 import type { InitiativeListItem } from "../../features/initiatives/lib/initiative-list-item";
 import { filterActivities } from "../../features/activities/lib/activity-filter";
-import { BOLIVIA_OFFSET_MS, formatDateChip, formatTime } from "../../lib/datetime";
+import { formatDateChip, formatTime, monthKeyBolivia, monthKeyToLabel } from "../../lib/datetime";
 
-type DashboardKpi = { label: string; value: number; trend: KpiTrend | undefined };
+type DashboardKpi = { value: number; trend: KpiTrend | undefined };
 
-export type UpcomingEventItem = {
+type UpcomingEventItem = {
   id: string;
   month: string;
   day: string;
   title: string;
   time: string;
   place: string;
-  status: { tone: "blue" | "green" | "neutral"; label: string };
+  status: { tone: "blue" | "green"; label: string };
 };
 
 export type FeedTone = "blue" | "teal" | "green";
@@ -33,20 +33,6 @@ export type DashboardModel = {
   feed: FeedItem[];
 };
 
-const MONTH_LABEL = new Intl.DateTimeFormat("es-BO", { month: "short", timeZone: "UTC" });
-
-function monthLabel(monthKey: string): string {
-  const year = Number(monthKey.slice(0, 4));
-  const month = Number(monthKey.slice(5, 7));
-  const raw = MONTH_LABEL.format(new Date(Date.UTC(year, month - 1, 1))).replace(/[.\s]/g, "");
-  return raw.charAt(0).toUpperCase() + raw.slice(1);
-}
-
-/** YYYY-MM of an instant read in Bolivia local time (UTC-4). */
-export function monthKeyBolivia(now: Date): string {
-  return new Date(now.getTime() - BOLIVIA_OFFSET_MS).toISOString().slice(0, 7);
-}
-
 /** Real chart series: total points awarded per month across all members. */
 export function pointsByMonthSeries(memberPoints: MemberPoints[]): PointsMonth[] {
   const totals = new Map<string, number>();
@@ -57,7 +43,7 @@ export function pointsByMonthSeries(memberPoints: MemberPoints[]): PointsMonth[]
   }
   return [...totals.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([monthKey, points]) => ({ monthKey, label: monthLabel(monthKey), points }));
+    .map(([monthKey, points]) => ({ monthKey, label: monthKeyToLabel(monthKey), points }));
 }
 
 type FeedInput = {
@@ -115,8 +101,6 @@ export function deriveActivityFeed({
     .slice(0, limit);
 }
 
-type Ally = { id: string };
-
 type BuildInput = {
   members: Member[];
   allies: Ally[];
@@ -126,44 +110,27 @@ type BuildInput = {
   now: Date;
 };
 
-const STATUS_BADGE: Record<Activity["status"], UpcomingEventItem["status"]> = {
-  Programada: { tone: "blue", label: "Programada" },
-  Ejecutada: { tone: "green", label: "Ejecutada" },
-  Cancelada: { tone: "neutral", label: "Cancelada" },
-};
-
-function joinedThisMonth(members: Member[], monthKey: string): number {
-  return members.filter(
-    (m) =>
-      m.active &&
-      new Date(m.joinDate.toMillis() - BOLIVIA_OFFSET_MS).toISOString().slice(0, 7) === monthKey,
-  ).length;
-}
-
 export function buildDashboardModel(input: BuildInput): DashboardModel {
   const { members, allies, activities, memberPoints, initiatives, now } = input;
-  const monthKey = monthKeyBolivia(now);
+  const monthKey = monthKeyBolivia(now.getTime());
   const activeMembers = members.filter((m) => m.active);
   const upcoming = filterActivities(activities, "proximos", now).sort(
     (a, b) => a.startAt.toMillis() - b.startAt.toMillis(),
   );
-  const joined = joinedThisMonth(members, monthKey);
+  const joined = activeMembers.filter(
+    (m) => monthKeyBolivia(m.joinDate.toMillis()) === monthKey,
+  ).length;
   const pointsThisMonth = memberPoints.reduce((sum, mp) => sum + (mp.byMonth[monthKey] ?? 0), 0);
 
   return {
     kpis: {
       activeMembers: {
-        label: "Miembros activos",
         value: activeMembers.length,
         trend: joined > 0 ? { dir: "up", label: `+${joined} · este mes` } : undefined,
       },
-      upcomingEvents: { label: "Próximos eventos", value: upcoming.length, trend: undefined },
-      allies: { label: "Aliados", value: allies.length, trend: undefined },
-      pointsThisMonth: {
-        label: "Puntos otorgados (mes)",
-        value: pointsThisMonth,
-        trend: undefined,
-      },
+      upcomingEvents: { value: upcoming.length, trend: undefined },
+      allies: { value: allies.length, trend: undefined },
+      pointsThisMonth: { value: pointsThisMonth, trend: undefined },
     },
     pointsByMonth: pointsByMonthSeries(memberPoints),
     upcomingEvents: upcoming.map((a) => {
@@ -175,7 +142,10 @@ export function buildDashboardModel(input: BuildInput): DashboardModel {
         title: a.title,
         time: formatTime(a.startAt),
         place: a.location ?? "Sin ubicación",
-        status: STATUS_BADGE[a.status],
+        status:
+          a.status === "Ejecutada"
+            ? { tone: "green", label: "Ejecutada" }
+            : { tone: "blue", label: "Programada" },
       };
     }),
     feed: deriveActivityFeed({ members, activities, initiatives, now, limit: 8 }),
