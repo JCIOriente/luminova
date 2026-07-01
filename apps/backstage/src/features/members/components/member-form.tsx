@@ -74,11 +74,15 @@ export function MemberForm({
   const currentCargoId = watch("cargoId");
   const currentComisionIds = watch("comisionIds");
   const term = currentTermKey();
+  // Keep the member's ORIGINALLY-assigned cargo selectable for a non-Admin even if it
+  // grants power — but off the static default, not the reactive selection, so switching
+  // away and back still works (matches MemberPositionsForm).
+  const assignedCargoId = defaultValues?.cargoId ?? null;
   const activeCargoOptions = positions
     .filter(
       (p) => p.active && p.category !== "Comision" && (p.term === null || String(p.term) === term),
     )
-    .filter((p) => allowPowerGrants || p.grants.length === 0 || p.id === currentCargoId)
+    .filter((p) => allowPowerGrants || p.grants.length === 0 || p.id === assignedCargoId)
     .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
   const assignedInactiveCargo =
     currentCargoId && !activeCargoOptions.some((o) => o.value === currentCargoId)

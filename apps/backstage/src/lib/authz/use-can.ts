@@ -18,6 +18,9 @@ export interface Can {
    *  here so the Admin/ProjectManager policy lives in one place, not scattered
    *  role-array literals at each call site. */
   readonly canFeatureInitiatives: boolean;
+  /** May assign power-granting cargos (rules' `cargoGrantsEmpty` / `createPositionsSafe`
+   *  — Admin only). Named so the policy isn't a bare `isAdmin` at each grant site. */
+  readonly canAssignPowerGrants: boolean;
 }
 
 /** Pure builder — no React — so the gate logic is unit-testable. */
@@ -27,6 +30,7 @@ export function buildCan(ability: AppAbility, claims: AuthClaims): Can {
     hasRole: (roles) => hasAnyRole(claims, roles),
     isAdmin: hasAnyRole(claims, ["Admin"]),
     canFeatureInitiatives: hasAnyRole(claims, ["Admin", "ProjectManager"]),
+    canAssignPowerGrants: hasAnyRole(claims, ["Admin"]),
   };
 }
 

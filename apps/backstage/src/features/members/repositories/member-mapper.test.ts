@@ -120,6 +120,16 @@ describe("member-mapper positions", () => {
     expect(doc).not.toHaveProperty("positions.2026");
   });
 
+  it("treats a legacy slot with no comisionIds as empty instead of throwing", () => {
+    const legacy = { cargoId: "pos-presidente" } as { cargoId: string; comisionIds: string[] };
+    const noComisiones: MemberInput = { ...posInput, comisionIds: [] };
+    expect(() => toMemberUpdateDoc(noComisiones, "uid-admin", legacy, "2026")).not.toThrow();
+    // cargo same + both comisión sets empty → unchanged → slot omitted.
+    expect(toMemberUpdateDoc(noComisiones, "uid-admin", legacy, "2026")).not.toHaveProperty(
+      "positions.2026",
+    );
+  });
+
   it("writes the slot when the cargo changed", () => {
     const doc = toMemberUpdateDoc(
       posInput,

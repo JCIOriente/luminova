@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Skeleton, EmptyState, Icon, Toast } from "@luminova/ui";
+import { useDismissingToast } from "../lib/use-dismissing-toast";
 import { useSiteConfig } from "../features/site-config/hooks/use-site-config";
 import { useUpdateSiteConfig } from "../features/site-config/hooks/use-update-site-config";
 import {
@@ -44,13 +44,7 @@ function ConfigPage() {
   const { isAdmin } = useCan();
   const { data, isLoading, isError } = useSiteConfig();
   const updateSiteConfig = useUpdateSiteConfig();
-  const [toast, setToast] = useState<{ message: string; ok: boolean } | null>(null);
-
-  useEffect(() => {
-    if (!toast) return;
-    const id = setTimeout(() => setToast(null), 2800);
-    return () => clearTimeout(id);
-  }, [toast]);
+  const [toast, setToast] = useDismissingToast<{ message: string; ok: boolean }>();
 
   const handleSubmit = async (formData: SiteConfigInput) => {
     try {

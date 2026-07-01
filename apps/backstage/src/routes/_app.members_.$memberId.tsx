@@ -143,7 +143,7 @@ function MemberProfilePage() {
                 defaultValues={memberFormDefaults(member)}
                 submitLabel="Guardar cambios"
                 pendingLabel="Guardando…"
-                allowPowerGrants={gate.isAdmin}
+                allowPowerGrants={gate.canAssignPowerGrants}
                 onSubmit={handleEdit}
                 avatarSeed={member.name}
               />
@@ -158,7 +158,7 @@ function MemberProfilePage() {
               <MemberPositionsForm
                 positions={positions}
                 gender={member.gender}
-                allowPowerGrants={gate.isAdmin}
+                allowPowerGrants={gate.canAssignPowerGrants}
                 defaultValues={{
                   cargoId: member.positions?.[termKey]?.cargoId ?? null,
                   comisionIds: member.positions?.[termKey]?.comisionIds ?? [],

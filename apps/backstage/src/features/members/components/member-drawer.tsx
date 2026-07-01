@@ -117,7 +117,7 @@ function EditBody({
   onSubmit: (data: MemberInput) => Promise<void>;
 }) {
   const { onUpload, onRemove } = useMemberPhoto(member.id);
-  const { isAdmin } = useCan();
+  const { canAssignPowerGrants } = useCan();
   return (
     <div className="flex flex-col gap-6">
       <ImageUploader
@@ -131,7 +131,7 @@ function EditBody({
         positions={positions}
         defaultValues={memberFormDefaults(member)}
         submitLabel="Guardar"
-        allowPowerGrants={isAdmin}
+        allowPowerGrants={canAssignPowerGrants}
         onSubmit={onSubmit}
       />
     </div>

@@ -37,7 +37,7 @@ export function MemberInviteDrawer({
   // non-Admin may still create the member; they just can't send access here, so hide
   // the option and default it off — otherwise the provision step fails silently after
   // the member is already created.
-  const { isAdmin } = useCan();
+  const { isAdmin, canAssignPowerGrants } = useCan();
   const [done, setDone] = useState<DoneState | null>(null);
   const [sendAccess, setSendAccess] = useState(isAdmin);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
@@ -141,7 +141,7 @@ export function MemberInviteDrawer({
           submitLabel="Enviar invitación"
           pendingLabel="Enviando…"
           showPreview
-          allowPowerGrants={isAdmin}
+          allowPowerGrants={canAssignPowerGrants}
           defaultValues={{ joinDate: today(), status: "Activo", cargoId: null, comisionIds: [] }}
           onSubmit={handleSubmit}
         >

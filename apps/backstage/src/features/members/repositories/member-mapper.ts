@@ -57,8 +57,10 @@ function sameAssignment(
 ): boolean {
   if (!current) return false;
   if (current.cargoId !== next.cargoId) return false;
-  const a = [...current.comisionIds].sort();
-  const b = [...next.comisionIds].sort();
+  // `current` comes from a raw Firestore cast (member read path), so a legacy slot
+  // may carry cargoId but no comisionIds — default to [] rather than spread-throwing.
+  const a = [...(current.comisionIds ?? [])].sort();
+  const b = [...(next.comisionIds ?? [])].sort();
   return a.length === b.length && a.every((id, i) => id === b[i]);
 }
 
