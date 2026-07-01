@@ -21,6 +21,18 @@ const MONTH_YEAR = new Intl.DateTimeFormat("es-BO", {
   year: "numeric",
   timeZone: "UTC",
 });
+const DATE_ONLY = new Intl.DateTimeFormat("es-BO", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const TIME_ONLY = new Intl.DateTimeFormat("es-BO", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "UTC",
+});
 
 /** Calendar chip for an activity cover: 3-letter uppercase month + day-of-month. */
 export function formatDateChip(ts: Timestamp): { month: string; day: string } {
@@ -34,6 +46,16 @@ export function formatDateChip(ts: Timestamp): { month: string; day: string } {
 /** Full "14 jun 2026, 19:00" line for card bodies and the detail hero. */
 export function formatDateTime(ts: Timestamp): string {
   return DATE_TIME.format(ts.toDate());
+}
+
+/** Date only, "14 jun 2026", for detail fact rows. */
+export function formatDate(ts: Timestamp): string {
+  return DATE_ONLY.format(ts.toDate());
+}
+
+/** Time only, "19:00", for detail fact rows. */
+export function formatTime(ts: Timestamp): string {
+  return TIME_ONLY.format(ts.toDate());
 }
 
 /** Capitalized "Jun 2026" for compact activity listings. */

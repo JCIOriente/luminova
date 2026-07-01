@@ -20,6 +20,8 @@ import { ActivityRepository } from "../features/activities/repositories/activity
 import { ActivityLockedError } from "../features/activities/repositories/activity-guard";
 import { ActivityForm } from "../features/activities/components/activity-form";
 import { ActivityDetailHero } from "../features/activities/components/activity-detail-hero";
+import { ActivityTeam } from "../features/activities/components/activity-team";
+import { ActivityDetails } from "../features/activities/components/activity-details";
 import { ActivityCheckIn } from "../features/check-in/components/activity-check-in";
 import { activityToInput } from "../features/activities/lib/activity-to-input";
 import { isCheckInOpen } from "../features/activities/lib/check-in-window";
@@ -186,8 +188,6 @@ function ActivityDetailPage() {
 
       <ActivityDetailHero
         activity={activity}
-        director={director}
-        coDirectors={coDirectors}
         parentTitle={parentTitle}
         actions={
           canUpdate &&
@@ -217,20 +217,26 @@ function ActivityDetailPage() {
       />
 
       {activeTab === "resumen" && (
-        <section className="rounded-card border border-line bg-surface p-5">
-          <h2 className="font-mono text-[10.5px] tracking-[0.12em] text-ink-3 uppercase">
-            Sobre la actividad
-          </h2>
-          {activity.description ? (
-            <p className="mt-3 max-w-2xl text-[14px] leading-relaxed whitespace-pre-line text-ink-2">
-              {activity.description}
-            </p>
-          ) : (
-            <p className="mt-3 text-[13px] text-ink-3">
-              Edita la actividad para agregar una descripción.
-            </p>
-          )}
-        </section>
+        <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+          <div className="flex flex-col gap-6">
+            <section className="rounded-card border border-line bg-surface p-5">
+              <h2 className="font-mono text-[10.5px] tracking-[0.12em] text-ink-3 uppercase">
+                Sobre la actividad
+              </h2>
+              {activity.description ? (
+                <p className="mt-3 text-[14px] leading-relaxed whitespace-pre-line text-ink-2">
+                  {activity.description}
+                </p>
+              ) : (
+                <p className="mt-3 text-[13px] text-ink-3">
+                  Edita la actividad para agregar una descripción.
+                </p>
+              )}
+            </section>
+            <ActivityTeam director={director} coDirectors={coDirectors} />
+          </div>
+          <ActivityDetails activity={activity} />
+        </div>
       )}
 
       {activeTab === "galeria" && (

@@ -5,6 +5,7 @@ import {
   Button,
   Field,
   Input,
+  Textarea,
   Select,
   Combobox,
   DateTimePicker,
@@ -92,6 +93,15 @@ export function ActivityForm({
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
       <Field label="Título" htmlFor="title" required error={errors.title?.message}>
         <Input id="title" {...register("title")} />
+      </Field>
+
+      <Field label="Descripción" htmlFor="description" error={errors.description?.message}>
+        <Textarea
+          id="description"
+          rows={4}
+          {...register("description")}
+          placeholder="Describe la actividad, agenda u orden del día (opcional)"
+        />
       </Field>
       {!lockParent && (
         <Field label="Categoría" htmlFor="category" required error={errors.category?.message}>
