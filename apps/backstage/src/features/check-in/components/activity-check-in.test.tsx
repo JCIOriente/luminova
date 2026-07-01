@@ -21,6 +21,9 @@ vi.mock("../hooks/use-create-check-in", () => ({
     isPending: false,
   }),
 }));
+vi.mock("../hooks/use-remove-check-in", () => ({
+  useRemoveCheckIn: () => ({ mutate: () => {}, isPending: false }),
+}));
 
 import { ActivityCheckIn } from "./activity-check-in";
 
@@ -30,6 +33,11 @@ beforeEach(() => {
   mutate = () => {};
   scanHandler = undefined;
 });
+
+function tapMemberByName(name: RegExp) {
+  fireEvent.change(screen.getByLabelText(/buscar miembro/i), { target: { value: "ana" } });
+  fireEvent.click(screen.getByRole("button", { name }));
+}
 
 async function openScanner() {
   fireEvent.click(screen.getByRole("button", { name: /escanear carnets/i }));
@@ -42,14 +50,14 @@ describe("ActivityCheckIn", () => {
   it("shows a success toast after a check-in succeeds", async () => {
     mutate = (_input, opts) => opts.onSuccess?.();
     render(<ActivityCheckIn activityId="a1" members={members} />);
-    fireEvent.click(screen.getByRole("button", { name: /ana rivas/i }));
+    tapMemberByName(/ana rivas/i);
     expect(await screen.findByText("Asistencia registrada")).toBeInTheDocument();
   });
 
   it("shows an error toast when the check-in write fails", async () => {
     mutate = (_input, opts) => opts.onError?.();
     render(<ActivityCheckIn activityId="a1" members={members} />);
-    fireEvent.click(screen.getByRole("button", { name: /ana rivas/i }));
+    tapMemberByName(/ana rivas/i);
     expect(await screen.findByText("No se pudo registrar la asistencia")).toBeInTheDocument();
   });
 

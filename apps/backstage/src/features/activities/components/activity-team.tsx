@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Member } from "@luminova/types";
 import { Avatar, Icon } from "@luminova/ui";
 
@@ -13,7 +14,7 @@ function ContactButton({
 }: {
   href: string;
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <a

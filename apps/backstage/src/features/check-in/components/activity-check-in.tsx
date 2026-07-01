@@ -3,10 +3,13 @@ import { EmptyState, Toast, Icon } from "@luminova/ui";
 import type { Member } from "@luminova/types";
 import { useActivityCheckIns } from "../hooks/use-activity-check-ins";
 import { useCreateCheckIn } from "../hooks/use-create-check-in";
-import { RosterList } from "./roster-list";
+import { useRemoveCheckIn } from "../hooks/use-remove-check-in";
+import { CheckInStats } from "./check-in-stats";
+import { PresentTable } from "./present-table";
 import { ManualTapList } from "./manual-tap-list";
 import { ScanModal, type ScanResult } from "./scan-modal";
-import { alreadyCheckedIn, buildRosterEntries } from "../roster";
+import { alreadyCheckedIn, buildRosterEntries, type RosterEntry } from "../roster";
+import { computeAttendance } from "../lib/attendance";
 import { decodeMemberQr } from "../../../lib/member-qr";
 
 interface ActivityCheckInProps {
@@ -21,9 +24,11 @@ const DISMISS_MS = 2800;
 export function ActivityCheckIn({ activityId, members, open = true }: ActivityCheckInProps) {
   const { data: checkIns } = useActivityCheckIns(activityId);
   const create = useCreateCheckIn(activityId);
+  const remove = useRemoveCheckIn(activityId);
 
   const roster = useMemo(() => buildRosterEntries(checkIns ?? [], members), [checkIns, members]);
   const checkedInIds = useMemo(() => (checkIns ?? []).map((c) => c.memberId), [checkIns]);
+  const attendance = computeAttendance(roster.length);
 
   const [scanOpen, setScanOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; ok: boolean } | null>(null);
@@ -57,6 +62,16 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
       {
         onSuccess: () => setToast({ message: "Asistencia registrada", ok: true }),
         onError: () => setToast({ message: "No se pudo registrar la asistencia", ok: false }),
+      },
+    );
+  };
+
+  const onRemove = (entry: RosterEntry) => {
+    remove.mutate(
+      { memberId: entry.memberId, role: entry.role },
+      {
+        onSuccess: () => setToast({ message: "Asistencia eliminada", ok: true }),
+        onError: () => setToast({ message: "No se pudo eliminar la asistencia", ok: false }),
       },
     );
   };
@@ -103,40 +118,31 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-5">
-      <div className="flex items-center gap-4 rounded-card border border-line bg-surface px-5 py-4">
-        <span className="grid size-11 shrink-0 place-items-center rounded-card bg-ok/10 text-ok">
-          {Icon.check({ s: 22 })}
-        </span>
-        <div className="flex flex-col">
-          <span className="text-[34px] leading-none font-semibold tabular-nums text-ink-1">
-            {roster.length}
+    <div className="flex flex-col gap-5">
+      <CheckInStats attendance={attendance} />
+
+      <div className="grid items-start gap-4 md:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setScanOpen(true)}
+          className="flex items-center gap-4 rounded-card bg-jci-blue px-5 py-4 text-left text-on-dark-1 transition-colors hover:bg-jci-blue/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue"
+        >
+          <span className="grid size-11 shrink-0 place-items-center rounded-card bg-white/15">
+            {Icon.qr({ s: 22 })}
           </span>
-          <span className="mt-1 text-[12px] text-ink-3">
-            {roster.length === 1 ? "miembro presente" : "miembros presentes"}
+          <span className="flex flex-1 flex-col">
+            <span className="text-[15px] font-semibold">Escanear carnets</span>
+            <span className="text-[12.5px] text-on-dark-2">Abre el lector de QR</span>
           </span>
-        </div>
+          <span aria-hidden="true">{Icon.arrowRight({ s: 18 })}</span>
+        </button>
+
+        {members.length > 0 && (
+          <ManualTapList members={members} checkedInIds={checkedInIds} onTap={onManualTap} />
+        )}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setScanOpen(true)}
-        className="flex items-center gap-4 rounded-card border border-line bg-surface px-5 py-4 text-left transition-colors hover:border-jci-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue"
-      >
-        <span className="grid size-11 shrink-0 place-items-center rounded-card bg-jci-blue/10 text-jci-blue">
-          {Icon.qr({ s: 22 })}
-        </span>
-        <span className="flex flex-1 flex-col">
-          <span className="text-[14px] font-semibold text-ink-1">Escanear carnets</span>
-          <span className="text-[12.5px] text-ink-3">Abre el lector de QR</span>
-        </span>
-        <span className="text-ink-4">{Icon.arrowRight({ s: 18 })}</span>
-      </button>
-
-      <RosterList entries={roster} />
-      {members.length > 0 && (
-        <ManualTapList members={members} checkedInIds={checkedInIds} onTap={onManualTap} />
-      )}
+      <PresentTable entries={roster} onRemove={onRemove} canRemove />
 
       {scanOpen && (
         <ScanModal

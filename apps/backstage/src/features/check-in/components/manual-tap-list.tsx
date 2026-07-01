@@ -8,50 +8,64 @@ interface ManualTapListProps {
   onTap: (memberId: string) => void;
 }
 
+/** Add-by-name search: matches appear only once the operator types, so the field
+ *  sits quietly next to the scanner until it's needed. */
 export function ManualTapList({ members, checkedInIds, onTap }: ManualTapListProps) {
   const [search, setSearch] = useState("");
   const checkedIn = useMemo(() => new Set(checkedInIds), [checkedInIds]);
+  const term = search.trim().toLowerCase();
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    const list = term ? members.filter((m) => m.name.toLowerCase().includes(term)) : members;
-    return [...list].sort((a, b) => a.name.localeCompare(b.name, "es"));
-  }, [members, search]);
+  const matches = useMemo(() => {
+    if (!term) return [];
+    return members
+      .filter(
+        (m) =>
+          m.name.toLowerCase().includes(term) ||
+          (m.profession?.toLowerCase().includes(term) ?? false),
+      )
+      .sort((a, b) => a.name.localeCompare(b.name, "es"))
+      .slice(0, 6);
+  }, [members, term]);
 
   return (
     <div className="flex flex-col gap-2">
       <Input
-        placeholder="Buscar miembro…"
+        placeholder="o registra a un miembro por su nombre…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         aria-label="Buscar miembro"
       />
-      <ul className="flex flex-col gap-1">
-        {filtered.map((member) => {
-          const done = checkedIn.has(member.id);
-          return (
-            <li key={member.id}>
-              <button
-                type="button"
-                disabled={done}
-                onClick={() => onTap(member.id)}
-                className="flex min-h-11 w-full items-center gap-3 rounded-[10px] border border-line bg-surface px-4 py-2 text-left text-[14px] text-ink-1 transition-colors hover:border-jci-blue disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Avatar src={member.profilePicture} name={member.name} size={28} />
-                <span className="flex-1 truncate">{member.name}</span>
-                <span
-                  className={`grid size-7 place-items-center rounded-full ${
-                    done ? "bg-ok/15 text-ok" : "bg-jci-blue/10 text-jci-blue"
-                  }`}
-                  aria-hidden="true"
-                >
-                  {done ? Icon.check({ s: 16 }) : Icon.plus({ s: 16 })}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      {term &&
+        (matches.length === 0 ? (
+          <p className="px-1 text-[13px] text-ink-3">Sin resultados</p>
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {matches.map((member) => {
+              const done = checkedIn.has(member.id);
+              return (
+                <li key={member.id}>
+                  <button
+                    type="button"
+                    disabled={done}
+                    onClick={() => onTap(member.id)}
+                    className="flex min-h-11 w-full items-center gap-3 rounded-[10px] border border-line bg-surface px-4 py-2 text-left text-[14px] text-ink-1 transition-colors hover:border-jci-blue disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Avatar src={member.profilePicture} name={member.name} size={28} />
+                    <span className="flex-1 truncate">{member.name}</span>
+                    <span
+                      className={`grid size-7 place-items-center rounded-full ${
+                        done ? "bg-ok/15 text-ok" : "bg-jci-blue/10 text-jci-blue"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {done ? Icon.check({ s: 16 }) : Icon.plus({ s: 16 })}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ))}
     </div>
   );
 }
