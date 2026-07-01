@@ -176,6 +176,30 @@ reaches `live`, so routine rollbacks are rare. When you still need to revert:
 - **Rules/indexes:** revert the commit + redeploy (ruleset history in console; indexes
   are additive).
 
+## Cost & operational notes
+
+**This pipeline is effectively free.**
+- **GitHub Actions:** `$0` — `JCIOriente/luminova` is a **public** repo, so Actions
+  minutes are unlimited/free.
+- **WIF / service account / STS token exchange:** `$0` — always free on GCP.
+- **Hosting preview channels:** negligible; each `ci-<sha>` channel auto-expires in 1
+  day and the smoke test is a single request.
+- **Only recurring cost:** gen2 function deploys push container images to Artifact
+  Registry + a Cloud Build (free tier: 120 build-min/day, a beacon build is ~1–2 min).
+  Images accumulate over time — this predates CD (manual `firebase deploy` does the
+  same). Optional one-time caps: an **Artifact Registry cleanup policy** (keep last N)
+  on the `gcf-artifacts` repo, and a **GCP budget alert** on `jci-oriente` (gen2 =
+  Cloud Run; a runaway trigger loop is the only real billing risk).
+
+**Operational caveats:**
+- **`workflow_dispatch` must be run from the `main` branch.** Deploy jobs check out
+  the dispatched ref, and the WIF token is only honored for `refs/heads/main` (STS
+  attribute-condition) — dispatching from any other branch fails at auth *and* at the
+  main-only environment restriction (fails safe, but the error is opaque).
+- **Public-repo safety:** fork PRs run CI but cannot deploy — the `filter` guard
+  rejects `event == 'pull_request'`, a fork's `assertion.repository` claim (`fork/…`)
+  fails the STS condition, and the `production` environment is main-only. Triple-gated.
+
 ## Deferred
 
 - **PR preview channels** — the standard `FirebaseExtended/action-hosting-deploy`
