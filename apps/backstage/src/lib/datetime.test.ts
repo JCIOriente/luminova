@@ -8,6 +8,8 @@ import {
   formatDateTime,
   formatMonthYear,
   formatTime,
+  monthKeyToLabel,
+  relativeTimeEs,
 } from "./datetime";
 
 const ts = Timestamp.fromDate(new Date("2026-06-14T19:00:00Z"));
@@ -49,5 +51,28 @@ describe("boliviaDayKey", () => {
   });
   it("exposes the UTC-4 offset", () => {
     expect(BOLIVIA_OFFSET_MS).toBe(4 * 60 * 60 * 1000);
+  });
+});
+
+describe("monthKeyToLabel", () => {
+  it("capitalizes the 3-letter month for a YYYY-MM key", () => {
+    expect(monthKeyToLabel("2026-05")).toBe("May");
+    expect(monthKeyToLabel("2026-06")).toBe("Jun");
+  });
+});
+
+describe("relativeTimeEs", () => {
+  const now = new Date(Date.UTC(2026, 5, 14, 12, 0));
+  it("returns 'Hace un momento' under a minute", () => {
+    expect(relativeTimeEs(new Date(now.getTime() - 30_000), now)).toBe("Hace un momento");
+  });
+  it("returns hours for same-day", () => {
+    expect(relativeTimeEs(new Date(now.getTime() - 2 * 3600_000), now)).toBe("Hace 2 h");
+  });
+  it("returns 'Ayer' for ~1 day", () => {
+    expect(relativeTimeEs(new Date(now.getTime() - 26 * 3600_000), now)).toBe("Ayer");
+  });
+  it("returns days for older", () => {
+    expect(relativeTimeEs(new Date(now.getTime() - 4 * 86400_000), now)).toBe("Hace 4 d");
   });
 });

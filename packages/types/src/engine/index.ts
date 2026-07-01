@@ -44,6 +44,7 @@ export type {
 export { PARTICIPATION_ROLES, PARTICIPATION_STATES, isReportGatedRole } from "./participation.js";
 export type { MemberPoints } from "./member-points.js";
 export type { CheckIn } from "./check-in.js";
+export { monthBucketFromMillis } from "./month-bucket.js";
 export { resolvePointRuleCode, type ResolvePointRuleInput } from "./resolve-point-rule.js";
 export { computePunctualityFactor, type ComputePunctualityInput } from "./compute-punctuality.js";
 export {

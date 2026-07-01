@@ -68,3 +68,23 @@ export function formatMonthYear(ts: Timestamp): string {
 export function boliviaDayKey(ms: number): string {
   return new Date(ms - BOLIVIA_OFFSET_MS).toISOString().slice(0, 10);
 }
+
+/** Capitalized 3-letter month for a YYYY-MM key, e.g. "2026-06" → "Jun". */
+export function monthKeyToLabel(monthKey: string): string {
+  const year = Number(monthKey.slice(0, 4));
+  const month = Number(monthKey.slice(5, 7));
+  const raw = MONTH_SHORT.format(new Date(Date.UTC(year, month - 1, 1))).replace(/[.\s]/g, "");
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+/** Spanish relative time for the activity feed. Coarse buckets, no external dep. */
+export function relativeTimeEs(at: Date, now: Date): string {
+  const min = Math.floor((now.getTime() - at.getTime()) / 60_000);
+  if (min < 1) return "Hace un momento";
+  if (min < 60) return `Hace ${min} min`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `Hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "Ayer";
+  return `Hace ${days} d`;
+}

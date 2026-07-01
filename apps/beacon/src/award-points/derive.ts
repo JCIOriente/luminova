@@ -3,12 +3,15 @@ import {
   resolvePointRuleCode,
   computePunctualityFactor,
   isReportGatedRole,
+  monthBucketFromMillis,
   type ActivityCategory,
   type InitiativeKind,
   type Participation,
 } from "@luminova/types/engine";
 import type { CheckIn } from "./check-in.js";
 import { participationId } from "./participation-id.js";
+
+export { monthBucketFromMillis } from "@luminova/types/engine";
 
 /** The activity facts the engine needs (read from activities/{id}). */
 export interface ActivityRef {
@@ -18,14 +21,6 @@ export interface ActivityRef {
   parentType: InitiativeKind | null;
   parentId: string | null;
   startAt: Timestamp;
-}
-
-/** UTC `YYYY-MM` for epoch millis. */
-export function monthBucketFromMillis(ms: number): string {
-  const date = new Date(ms);
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
 }
 
 /** UTC `YYYY-MM` for a Firestore Timestamp. */
