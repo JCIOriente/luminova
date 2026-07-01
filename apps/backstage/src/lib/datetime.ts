@@ -68,3 +68,15 @@ export function formatMonthYear(ts: Timestamp): string {
 export function boliviaDayKey(ms: number): string {
   return new Date(ms - BOLIVIA_OFFSET_MS).toISOString().slice(0, 10);
 }
+
+/** Spanish relative time for the activity feed. Coarse buckets, no external dep. */
+export function relativeTimeEs(at: Date, now: Date): string {
+  const min = Math.floor((now.getTime() - at.getTime()) / 60_000);
+  if (min < 1) return "Hace un momento";
+  if (min < 60) return `Hace ${min} min`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `Hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "Ayer";
+  return `Hace ${days} d`;
+}
