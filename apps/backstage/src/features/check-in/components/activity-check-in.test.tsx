@@ -26,8 +26,18 @@ vi.mock("../hooks/use-remove-check-in", () => ({
 }));
 
 import { ActivityCheckIn } from "./activity-check-in";
+import { AbilityProvider } from "../../../lib/authz/ability-context";
+import type { ReactNode } from "react";
 
 const members = [{ id: "m-1", name: "Ana Rivas" }] as Member[];
+
+function renderCheckIn(ui: ReactNode) {
+  return render(
+    <AbilityProvider claims={{ roles: ["Admin"], perms: ["manage:all"] }} uid="admin">
+      {ui}
+    </AbilityProvider>,
+  );
+}
 
 beforeEach(() => {
   mutate = () => {};
@@ -49,21 +59,21 @@ async function openScanner() {
 describe("ActivityCheckIn", () => {
   it("shows a success toast after a check-in succeeds", async () => {
     mutate = (_input, opts) => opts.onSuccess?.();
-    render(<ActivityCheckIn activityId="a1" members={members} />);
+    renderCheckIn(<ActivityCheckIn activityId="a1" members={members} />);
     tapMemberByName(/ana rivas/i);
     expect(await screen.findByText("Asistencia registrada")).toBeInTheDocument();
   });
 
   it("shows an error toast when the check-in write fails", async () => {
     mutate = (_input, opts) => opts.onError?.();
-    render(<ActivityCheckIn activityId="a1" members={members} />);
+    renderCheckIn(<ActivityCheckIn activityId="a1" members={members} />);
     tapMemberByName(/ana rivas/i);
     expect(await screen.findByText("No se pudo registrar la asistencia")).toBeInTheDocument();
   });
 
   it("shows a success overlay on QR scan and dismisses it on tap (one read)", async () => {
     mutate = (_input, opts) => opts.onSuccess?.();
-    render(<ActivityCheckIn activityId="a1" members={members} />);
+    renderCheckIn(<ActivityCheckIn activityId="a1" members={members} />);
     const scan = await openScanner();
     act(() => scan("jcioriente:member:m-1"));
     const overlay = await screen.findByRole("button", { name: /continuar escaneando/i });
@@ -79,7 +89,7 @@ describe("ActivityCheckIn", () => {
       calls.push(input);
       opts.onSuccess?.();
     };
-    render(<ActivityCheckIn activityId="a1" members={members} />);
+    renderCheckIn(<ActivityCheckIn activityId="a1" members={members} />);
     await openScanner();
     // Call the latest handler each time, as the real scanner does via its ref.
     act(() => scanHandler!("jcioriente:member:m-1"));
@@ -88,14 +98,14 @@ describe("ActivityCheckIn", () => {
   });
 
   it("shows an error overlay for an unrecognized QR payload", async () => {
-    render(<ActivityCheckIn activityId="a1" members={members} />);
+    renderCheckIn(<ActivityCheckIn activityId="a1" members={members} />);
     const scan = await openScanner();
     act(() => scan("not-our-qr"));
     expect(await screen.findByText("Código no reconocido")).toBeInTheDocument();
   });
 
   it("shows a closed-window notice and hides the tap UI when the window is closed", () => {
-    render(<ActivityCheckIn activityId="a1" members={members} open={false} />);
+    renderCheckIn(<ActivityCheckIn activityId="a1" members={members} open={false} />);
     expect(screen.getByText(/check-in no disponible/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /ana rivas/i })).not.toBeInTheDocument();
   });

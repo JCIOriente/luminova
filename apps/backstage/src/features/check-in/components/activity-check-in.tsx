@@ -10,7 +10,9 @@ import { ManualTapList } from "./manual-tap-list";
 import { ScanModal, type ScanResult } from "./scan-modal";
 import { alreadyCheckedIn, buildRosterEntries, type RosterEntry } from "../roster";
 import { computeAttendance } from "../lib/attendance";
+import { canRemoveEntry } from "../lib/can-remove-entry";
 import { decodeMemberQr } from "../../../lib/member-qr";
+import { useAbility } from "../../../lib/authz/ability-context";
 
 interface ActivityCheckInProps {
   activityId: string;
@@ -25,6 +27,7 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
   const { data: checkIns } = useActivityCheckIns(activityId);
   const create = useCreateCheckIn(activityId);
   const remove = useRemoveCheckIn(activityId);
+  const ability = useAbility();
 
   const roster = useMemo(() => buildRosterEntries(checkIns ?? [], members), [checkIns, members]);
   const checkedInIds = useMemo(() => (checkIns ?? []).map((c) => c.memberId), [checkIns]);
@@ -143,7 +146,11 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
         )}
       </div>
 
-      <PresentTable entries={roster} onRemove={onRemove} />
+      <PresentTable
+        entries={roster}
+        onRemove={onRemove}
+        canRemove={(entry) => canRemoveEntry(ability, activityId, entry)}
+      />
 
       {scanOpen && (
         <ScanModal
