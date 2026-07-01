@@ -52,7 +52,8 @@ deploy to Firebase). This is the living reference; dated provisioning records li
 
 ## 2. CI (`ci.yml`)
 
-Runs on every `pull_request` and every `push` to `main`. Two required status checks:
+Runs on every `pull_request` **targeting `main`** and every `push` to `main`. Two
+required status checks:
 
 | Job | Does | Path filter |
 |-----|------|-------------|
@@ -89,7 +90,9 @@ on:
   the dispatched ref and the WIF token is only honored for `refs/heads/main`.
 
 ```yaml
-permissions: { id-token: write, contents: read }   # id-token: write is required to mint the OIDC token
+permissions: { contents: read }   # workflow default: least privilege
+# id-token: write is granted per-job to the THREE deploy jobs only, so the ungated
+# filter/notify jobs can never mint the deploy credential. filter also gets actions:read.
 concurrency: { group: deploy-production, cancel-in-progress: false }  # never interrupt an in-flight deploy
 ```
 
@@ -97,21 +100,27 @@ concurrency: { group: deploy-production, cancel-in-progress: false }  # never in
 
 | Job | Runs when | Environment | Notes |
 |-----|-----------|-------------|-------|
-| `filter` | green-CI-on-main **or** manual dispatch | — | Checks out the deployed SHA (`fetch-depth: 0`), diffs it against its first parent, and emits `spotlight/backstage/functions/rules` booleans + the SHA. Untrusted-ish inputs (`surface`, SHAs) flow through `env:`, never inline `${{ }}` in `run:`. |
-| `deploy-rules` | `rules == true` | `production` | `firebase deploy --only firestore:rules,firestore:indexes,storage --force --message <sha>` |
+| `filter` | green-CI-on-main **or** manual dispatch | — | Checks out the deployed SHA (`fetch-depth: 0`) and diffs it against the **last successfully-deployed commit** (`gh run list --workflow Deploy --status success`, needs `actions: read`); falls back to the first parent, then to deploy-all. Emits `spotlight/backstage/functions/rules` booleans + the SHA. Untrusted-ish inputs (`surface`, SHAs) flow through `env:`, never inline `${{ }}` in `run:`. |
+| `deploy-rules` | `rules == true` | `production` | Two steps: `firebase deploy --only firestore:rules,storage --force`, then `--only firestore:indexes` **without `--force`** (see §9 — index deletes fail loud instead of silently reaping). Both `--message <sha>`. |
 | `deploy-functions` | `functions == true` and rules didn't fail | `production` | `firebase deploy --only functions --force --message <sha>` (predeploy builds beacon), then `functions:list` as a sanity check. gen2 = Cloud Run; no auto-rollback. |
-| `deploy-hosting` | `spotlight` or `backstage` true, and functions didn't fail | `production` | Build changed target(s) with `VITE_FIREBASE_EMULATOR_ENABLED=false`, then **preview → smoke → promote** (below). |
+| `deploy-hosting` | `spotlight` or `backstage` true, and **neither rules nor functions failed** | `production` | Build changed target(s) with `VITE_FIREBASE_EMULATOR_ENABLED=false`, then **preview → smoke → promote** (below). `needs` both prior deploy jobs so a failed rules deploy can't ship a UI against a data contract that never landed. |
 | `notify` | always | — | No-op unless `DEPLOY_WEBHOOK_URL` repo secret is set. Posts a Slack/Discord-compatible message with per-surface results + run URL. |
 
-**Surface → path mapping** (conservative; `packages/**` feeds every bundle,
-`firebase.json` touches everything):
+**Surface → path mapping** (conservative; `packages/**` and the root dep/build files
+feed every bundle, `firebase.json` touches everything):
 
 | Surface | Deploys when the diff touches |
 |---------|-------------------------------|
-| `spotlight` (`hosting:jcioriente` ← `apps/spotlight/dist`) | `apps/spotlight/`, `packages/`, `firebase.json` |
-| `backstage` (`hosting:jcioriente-backstage` ← `apps/backstage/dist`) | `apps/backstage/`, `packages/`, `firebase.json` |
-| `functions` (`beacon`, nodejs24) | `apps/beacon/`, `packages/`, `firebase.json` |
+| `spotlight` (`hosting:jcioriente` ← `apps/spotlight/dist`) | `apps/spotlight/`, `packages/`, root deps†, `firebase.json` |
+| `backstage` (`hosting:jcioriente-backstage` ← `apps/backstage/dist`) | `apps/backstage/`, `packages/`, root deps†, `firebase.json` |
+| `functions` (`beacon`, nodejs24) | `apps/beacon/`, `packages/`, root deps†, `firebase.json` |
 | `rules` | `firestore.rules`, `storage.rules`, `firestore.indexes.json`, `firebase.json` |
+
+† **root deps** = `pnpm-lock.yaml`, `pnpm-workspace.yaml`, root `package.json`,
+`turbo.json`. Included so an override-only security patch (the repo's CVE-fix pattern —
+undici/form-data) actually redeploys the bundles that embed the vulnerable dep, instead
+of merging green while prod keeps serving the old build. Rules don't embed node_modules,
+so they're deliberately excluded from the root-dep trigger.
 
 **Ordering rationale — rules → functions → hosting:** the data contract goes live
 before the backend that relies on it (no fail-open window), the backend goes live
@@ -128,13 +137,21 @@ empty → every deploy job's `if` is false → all skip.
 firebase-tools has **no** `hosting:rollback` command. Instead each changed target:
 
 1. deploys to a short-lived preview channel `ci-<sha7>` (`--expires 1d --json`),
-2. is HTTP-smoke-tested (`curl -fsS --retry 5` against the channel URL from the JSON),
+2. is smoke-tested: `curl -fsS --retry 5` on the channel root **and** on the hashed
+   entry bundle (`/assets/*.js`) parsed out of the shell HTML — a plain 200 on the SPA
+   shell would otherwise mask a build whose JS failed to upload,
 3. is promoted to `live` with `firebase hosting:clone <site>:<chan> <site>:live` **only
    if the smoke passes.**
 
-`live` therefore never serves a build that failed to load. The preview channel
-auto-expires. A broken build is rejected *before* it reaches users, so there is no
-rollback path to get wrong.
+Every smoke failure path is an explicit `return 1`: the `promote()` function is invoked
+as `promote … || rc=1`, which disables bash `errexit` inside it, so a failed `curl`
+must not be allowed to fall through to the promote (this was a real defect — a failed
+smoke used to promote the broken build and report success).
+
+`live` therefore never serves a build that failed to load. **Per-target semantics:** the
+two hosting targets promote independently — if one target's smoke fails, the other
+still promotes and the job exits non-zero; re-running redeploys both. The preview
+channel auto-expires.
 
 ---
 
@@ -315,8 +332,12 @@ rare. When still needed:
 - **Functions (gen2):** no built-in rollback — `git revert` on `main` → CI green →
   auto re-deploy, or `workflow_dispatch surface=functions` from a good state. Emergency:
   shift Cloud Run traffic to a previous revision in the console.
-- **Rules/indexes:** revert the commit + redeploy (ruleset history in console; indexes
-  are additive).
+- **Rules/indexes:** revert the commit + redeploy (ruleset history in console).
+  `firestore.indexes.json` is the **single source of truth** for composite indexes: the
+  index deploy step runs *without* `--force`, so any index that exists in prod but not
+  in the file makes the deploy **fail loud** rather than silently delete it. If you ever
+  create an index in the console, mirror it into `firestore.indexes.json` before the next
+  rules-surface deploy. (Index *creation* is additive and always safe.)
 
 ---
 
@@ -345,7 +366,14 @@ Effectively **$0**.
 | `workflow_dispatch` deploy fails auth | Dispatched from a non-`main` branch — the STS `ref` condition only honors `refs/heads/main`. Re-dispatch from `main`. |
 | Deploy never triggers after merge | The CI workflow's `name:` must equal `"CI"` (the `workflow_run.workflows` value). Also confirm CI concluded `success`. |
 | `notify` never posts | `DEPLOY_WEBHOOK_URL` must be a **repository** secret, not a `production`-environment secret — the `notify` job has no `environment:` and can't read env-scoped secrets. |
-| Hosting smoke fails, live untouched | Working as designed — the preview build failed to load; live was never promoted. Inspect the preview URL in the job log. |
+| Hosting smoke fails, live untouched | Working as designed — the preview root or its entry bundle failed to load; live was never promoted. Inspect the preview URL in the job log. |
+| One hosting target shipped, the other didn't | Per-target promotion — one target's smoke failed and it was left on the old build while the other promoted; the job is red. Fix the failing build and re-run (redeploys both). |
+| Index deploy aborts on a delete prompt | An index exists in prod that isn't in `firestore.indexes.json` (see §9). Mirror it into the file, or intentionally remove it via the console first. |
+| A merged change never deployed | Usually a superseded/failed prior run. The `filter` diffs since the **last successful Deploy**, so the *next* green push self-heals it; to force it now, `workflow_dispatch surface=all` from `main`. |
+
+**Upgrading firebase-tools:** the version is pinned in **four** spots — `ci.yml` (cache
+key + `npm install -g`) and `.github/actions/firebase-setup/action.yml` (cache key +
+`npm install -g`). Bump all four together, plus the note at the end of this doc.
 
 ---
 
@@ -361,6 +389,9 @@ Not built yet; revisit when a second developer joins or infra grows:
 - **PR preview channels** — the standard `action-hosting-deploy` needs a stored SA key
   (fork PRs could read it), conflicting with the keyless goal; revisit as a WIF-based,
   non-fork-only job.
+- **`packageManager` integrity hash** — pin `pnpm@<v>+sha512.<hash>` (via
+  `corepack use pnpm@<v>`) so corepack verifies the pnpm tarball. Low threat at solo
+  scale; do it during the next pnpm bump rather than hand-writing the hash.
 
 ---
 

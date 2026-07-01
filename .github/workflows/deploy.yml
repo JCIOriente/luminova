@@ -19,9 +19,11 @@ on:
         description: "all | rules | functions | hosting"
         default: "all"
 
+# Least privilege at the top: only checkout rights by default. The OIDC minting
+# right (`id-token: write`) is granted per-job to the three deploy jobs ONLY, so the
+# ungated `filter`/`notify` jobs can never mint the deploy credential.
 permissions:
-  id-token: write # REQUIRED to mint the OIDC token for WIF
-  contents: read # checkout only
+  contents: read
 
 concurrency:
   group: deploy-production
@@ -32,6 +34,9 @@ jobs:
     name: filter
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read # checkout
+      actions: read # read the last successful Deploy run (change-since-last-deploy diff)
     # Deploy only on a green CI run that came from a push to main, or a manual run.
     if: >-
       github.event_name == 'workflow_dispatch' ||
@@ -45,7 +50,7 @@ jobs:
       rules: ${{ steps.f.outputs.rules }}
       sha: ${{ steps.f.outputs.sha }}
     steps:
-      # fetch-depth 0 so we can diff the deployed commit against its first parent.
+      # fetch-depth 0 so we can diff the deployed commit against any main ancestor.
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
@@ -60,6 +65,7 @@ jobs:
           SURFACE: ${{ github.event.inputs.surface }}
           EVENT_HEAD: ${{ github.event.workflow_run.head_sha }}
           FALLBACK_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           sp=false; bs=false; fn=false; rl=false
@@ -76,20 +82,37 @@ jobs:
             esac
             echo "manual dispatch -> surface=$SURFACE"
           else
-            base="${head}^"
-            if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
-              # Root commit / shallow miss -> deploy everything (fail-safe).
-              sp=true; bs=true; fn=true; rl=true
-              echo "base commit unavailable -> deploying all surfaces"
+            # Diff against the last commit we SUCCESSFULLY deployed, not the first
+            # parent. A prior run can be superseded (concurrency cancels the pending
+            # run) or fail mid-deploy; first-parent diffing would then silently drop
+            # that commit's surfaces forever. Diffing since the last successful Deploy
+            # makes every run cover the cumulative change and self-heal a failed one.
+            # Fallbacks: first parent, then deploy-all.
+            base=$(gh run list --workflow Deploy --branch main --status success \
+                     --limit 1 --json headSha -q '.[0].headSha // empty' 2>/dev/null || true)
+            if [ -n "$base" ] && [ "$base" != "$head" ] && git cat-file -e "${base}^{commit}" 2>/dev/null; then
+              echo "diffing against last successful deploy: $base"
+            elif git cat-file -e "${head}^^{commit}" 2>/dev/null; then
+              base="${head}^"
+              echo "no usable prior deploy -> diffing against first parent: $base"
             else
+              base=""
+              sp=true; bs=true; fn=true; rl=true
+              echo "no base commit available -> deploying all surfaces (fail-safe)"
+            fi
+            if [ -n "$base" ]; then
               diff=$(git diff --name-only "$base...$head")
               echo "changed files:"; echo "$diff"
               q() { printf '%s\n' "$diff" | grep -qE "$1"; }
-              # packages/** feeds every app+functions bundle; firebase.json touches all.
-              q '^(apps/spotlight/|packages/|firebase\.json)'                                   && sp=true || true
-              q '^(apps/backstage/|packages/|firebase\.json)'                                   && bs=true || true
-              q '^(apps/beacon/|packages/|firebase\.json)'                                      && fn=true || true
-              q '(^firestore\.rules$|^storage\.rules$|^firestore\.indexes\.json$|^firebase\.json$)' && rl=true || true
+              # Root dep/build files feed every app+functions bundle — a CVE override
+              # in pnpm-lock/pnpm-workspace (or a root package.json/turbo.json change)
+              # must redeploy the bundles that embed it, or prod keeps serving the old
+              # vulnerable build. packages/** does too; firebase.json touches all.
+              root='^pnpm-lock\.yaml$|^pnpm-workspace\.yaml$|^package\.json$|^turbo\.json$'
+              q "^apps/spotlight/|^packages/|^firebase\.json$|$root" && sp=true || true
+              q "^apps/backstage/|^packages/|^firebase\.json$|$root" && bs=true || true
+              q "^apps/beacon/|^packages/|^firebase\.json$|$root"    && fn=true || true
+              q '^firestore\.rules$|^storage\.rules$|^firestore\.indexes\.json$|^firebase\.json$' && rl=true || true
             fi
           fi
           {
@@ -110,6 +133,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 10
+    permissions:
+      id-token: write # mint the OIDC token for WIF
+      contents: read
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
     steps:
@@ -120,14 +146,28 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
-      - name: Deploy rules + indexes + storage
+      - name: Deploy rules + storage
         env:
           SHA: ${{ needs.filter.outputs.sha }}
         run: |
           set -euo pipefail
           firebase deploy \
-            --only firestore:rules,firestore:indexes,storage \
+            --only firestore:rules,storage \
             --project "$GCP_PROJECT_ID" --non-interactive --force \
+            --message "$SHA"
+      # Indexes deploy WITHOUT --force on purpose: additive index creation proceeds,
+      # but a would-be index DELETION (an index in prod not mirrored in
+      # firestore.indexes.json) aborts the deploy under --non-interactive instead of
+      # being silently reaped. firestore.indexes.json is the single source of truth;
+      # reconcile any console-created index into it before it can be deleted here.
+      - name: Deploy indexes (delete-safe, no --force)
+        env:
+          SHA: ${{ needs.filter.outputs.sha }}
+        run: |
+          set -euo pipefail
+          firebase deploy \
+            --only firestore:indexes \
+            --project "$GCP_PROJECT_ID" --non-interactive \
             --message "$SHA"
 
   deploy-functions:
@@ -142,6 +182,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 20
+    permissions:
+      id-token: write
+      contents: read
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
     steps:
@@ -169,9 +212,13 @@ jobs:
 
   deploy-hosting:
     name: deploy-hosting
-    needs: [filter, deploy-functions]
+    # Needs BOTH prior stages: a failed rules deploy skips functions, and hosting must
+    # not ship a UI whose data contract (rules) never landed. Check both results.
+    needs: [filter, deploy-rules, deploy-functions]
     if: >-
       always() &&
+      needs.deploy-rules.result != 'failure' &&
+      needs.deploy-rules.result != 'cancelled' &&
       needs.deploy-functions.result != 'failure' &&
       needs.deploy-functions.result != 'cancelled' &&
       (needs.filter.outputs.spotlight == 'true' || needs.filter.outputs.backstage == 'true')
@@ -180,6 +227,9 @@ jobs:
       name: production
       url: https://jcioriente.web.app
     timeout-minutes: 15
+    permissions:
+      id-token: write
+      contents: read
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
     steps:
@@ -196,10 +246,10 @@ jobs:
         run: VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter spotlight
       - if: needs.filter.outputs.backstage == 'true'
         run: VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter backstage
-      # Preview -> smoke -> promote. We deploy each changed target to a short-lived
-      # preview channel, HTTP-smoke its URL, and only promote it to `live` if the
-      # smoke passes. Live therefore never serves a broken build, so no rollback is
-      # needed; the preview channel auto-expires.
+      # Preview -> smoke -> promote. Each changed target deploys to a short-lived
+      # preview channel; we smoke the channel URL (root HTML loads AND its hashed entry
+      # bundle loads) and promote to `live` ONLY on success. Live never serves a build
+      # that failed to load, so there is no rollback step; the preview auto-expires.
       - name: Deploy hosting (preview, smoke, promote)
         env:
           SPOTLIGHT: ${{ needs.filter.outputs.spotlight }}
@@ -208,11 +258,15 @@ jobs:
         run: |
           set -euo pipefail
           chan="ci-${SHA:0:7}"
+          # NOTE: this function is invoked as `promote ... || rc=1`, which disables
+          # errexit inside it — so EVERY failure path must be an explicit `return 1`.
+          # Do not rely on `set -e` here.
           promote() {
             target="$1"; site="$2"
             echo "::group::preview deploy ($target -> channel $chan)"
             out=$(firebase hosting:channel:deploy "$chan" --only "$target" \
-                  --expires 1d --json --project "$GCP_PROJECT_ID")
+                  --expires 1d --json --project "$GCP_PROJECT_ID") \
+              || { echo "::endgroup::"; echo "ERROR: preview deploy failed for $site"; return 1; }
             printf '%s\n' "$out"
             echo "::endgroup::"
             url=$(printf '%s' "$out" | jq -r 'first(.result[].url)')
@@ -220,15 +274,27 @@ jobs:
               echo "ERROR: no preview URL returned for $site"; return 1
             fi
             echo "smoke test: $url"
-            curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "$url"
+            html=$(curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "$url") \
+              || { echo "ERROR: smoke FAILED (root did not load) for $site"; return 1; }
+            # Verify the hashed entry bundle referenced by the shell actually loads —
+            # a plain 200 on the SPA shell would otherwise mask a broken/missing build.
+            asset=$(printf '%s' "$html" | grep -oE '/assets/[A-Za-z0-9._-]+\.js' | head -1 || true)
+            if [ -n "$asset" ]; then
+              echo "asset check: ${url%/}${asset}"
+              curl -fsS --retry 3 --retry-delay 3 --retry-all-errors -o /dev/null "${url%/}${asset}" \
+                || { echo "ERROR: entry bundle $asset failed to load for $site"; return 1; }
+            else
+              echo "WARNING: no /assets/*.js reference found in $site shell — skipping asset check"
+            fi
             echo "smoke passed -> promoting $site:$chan to $site:live"
-            firebase hosting:clone "$site:$chan" "$site:live" --project "$GCP_PROJECT_ID"
+            firebase hosting:clone "$site:$chan" "$site:live" --project "$GCP_PROJECT_ID" \
+              || { echo "ERROR: promote (hosting:clone) failed for $site"; return 1; }
           }
           rc=0
           if [ "$SPOTLIGHT" = "true" ]; then promote jcioriente jcioriente || rc=1; fi
           if [ "$BACKSTAGE" = "true" ]; then promote jcioriente-backstage jcioriente-backstage || rc=1; fi
           if [ "$rc" != "0" ]; then
-            echo "one or more targets failed smoke -> live left untouched for those targets"
+            echo "one or more targets failed -> those targets' live was left untouched"
           fi
           exit $rc
 
@@ -262,4 +328,6 @@ jobs:
           text="Deploy ${status} — ${SHA:0:7} (rules=${R_RULES} functions=${R_FUNCS} hosting=${R_HOST}) ${RUN_URL}"
           # Slack reads `text`; Discord reads `content`. Sending both keeps it portable.
           payload=$(jq -nc --arg t "$text" '{text:$t, content:$t}')
-          curl -fsS -X POST -H 'Content-Type: application/json' -d "$payload" "$WEBHOOK"
+          # A webhook outage must not turn the deploy run red — notification is best-effort.
+          curl -fsS -X POST -H 'Content-Type: application/json' -d "$payload" "$WEBHOOK" \
+            || echo "webhook post failed (non-fatal)"
