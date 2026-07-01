@@ -3,9 +3,11 @@ import { Timestamp } from "firebase/firestore";
 import {
   BOLIVIA_OFFSET_MS,
   boliviaDayKey,
+  formatDate,
   formatDateChip,
   formatDateTime,
   formatMonthYear,
+  formatTime,
 } from "./datetime";
 
 const ts = Timestamp.fromDate(new Date("2026-06-14T19:00:00Z"));
@@ -21,6 +23,14 @@ describe("formatDateTime", () => {
     const out = formatDateTime(ts);
     expect(out).toContain("19:00");
     expect(out).toContain("2026");
+  });
+});
+
+describe("formatDate / formatTime", () => {
+  it("splits the UTC instant into date-only and time-only parts", () => {
+    expect(formatDate(ts)).toContain("2026");
+    expect(formatDate(ts)).not.toContain("19:00");
+    expect(formatTime(ts)).toBe("19:00");
   });
 });
 
