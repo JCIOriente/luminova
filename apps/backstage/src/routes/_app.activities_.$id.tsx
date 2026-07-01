@@ -246,7 +246,9 @@ function ActivityDetailPage() {
             <PhotoManager
               photos={activity.photos}
               onUpload={(blob) => photoActions.addPhoto(blob).catch(() => setToast(galleryError))}
-              onRemove={(id) => photoActions.removePhotoById(id).catch(() => setToast(galleryError))}
+              onRemove={(id) =>
+                photoActions.removePhotoById(id).catch(() => setToast(galleryError))
+              }
               onSetCover={(id) => photoActions.setCover(id).catch(() => setToast(galleryError))}
               onSetCaption={(id, caption) =>
                 photoActions.setCaption(id, caption).catch(() => setToast(galleryError))
