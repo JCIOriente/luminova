@@ -15,7 +15,12 @@ function mp(id: string, byMonth: Record<string, number>): MemberPoints {
 function member(id: string, name: string, joinMs: number, active = true): Member {
   return { id, name, active, joinDate: Timestamp.fromMillis(joinMs) } as Member;
 }
-function activity(id: string, title: string, startMs: number, status: Activity["status"]): Activity {
+function activity(
+  id: string,
+  title: string,
+  startMs: number,
+  status: Activity["status"],
+): Activity {
   return {
     id,
     title,

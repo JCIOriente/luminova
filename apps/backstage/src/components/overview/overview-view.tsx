@@ -1,6 +1,14 @@
 import { Fragment, type ReactNode } from "react";
 import type { Role } from "@luminova/auth/roles";
-import { Badge, type BadgeTone, Button, type ChartSeries, Icon, KpiCard, LineChart } from "@luminova/ui";
+import {
+  Badge,
+  type BadgeTone,
+  Button,
+  type ChartSeries,
+  Icon,
+  KpiCard,
+  LineChart,
+} from "@luminova/ui";
 import { PageHeader } from "../page-header";
 import { boardHomeLayout, type WidgetKey } from "./board-home-layout";
 import { relativeTimeEs } from "../../lib/datetime";
@@ -25,11 +33,36 @@ const EVENT_BADGE: Record<UpcomingEventItem["status"]["tone"], BadgeTone> = {
 };
 
 const QUICK_ACTIONS = [
-  { id: "q1", icon: "plus", title: "Crear evento", desc: "Programa una nueva actividad del capítulo" },
-  { id: "q2", icon: "user", title: "Invitar miembro", desc: "Suma a alguien a la membresía activa" },
-  { id: "q3", icon: "handshake", title: "Registrar aliado", desc: "Añade una empresa u organización aliada" },
-  { id: "q4", icon: "barChart", title: "Ver reportes", desc: "Indicadores y exportes del capítulo" },
-] as const satisfies readonly { id: string; icon: keyof typeof Icon; title: string; desc: string }[];
+  {
+    id: "q1",
+    icon: "plus",
+    title: "Crear evento",
+    desc: "Programa una nueva actividad del capítulo",
+  },
+  {
+    id: "q2",
+    icon: "user",
+    title: "Invitar miembro",
+    desc: "Suma a alguien a la membresía activa",
+  },
+  {
+    id: "q3",
+    icon: "handshake",
+    title: "Registrar aliado",
+    desc: "Añade una empresa u organización aliada",
+  },
+  {
+    id: "q4",
+    icon: "barChart",
+    title: "Ver reportes",
+    desc: "Indicadores y exportes del capítulo",
+  },
+] as const satisfies readonly {
+  id: string;
+  icon: keyof typeof Icon;
+  title: string;
+  desc: string;
+}[];
 
 export function OverviewView({
   model,

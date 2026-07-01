@@ -4,7 +4,7 @@ import type { InitiativeListItem } from "../../features/initiatives/lib/initiati
 import { filterActivities } from "../../features/activities/lib/activity-filter";
 import { BOLIVIA_OFFSET_MS, formatDateChip, formatTime } from "../../lib/datetime";
 
-export type DashboardKpi = { label: string; value: number; trend: KpiTrend | undefined };
+type DashboardKpi = { label: string; value: number; trend: KpiTrend | undefined };
 
 export type UpcomingEventItem = {
   id: string;
