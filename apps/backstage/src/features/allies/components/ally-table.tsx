@@ -83,7 +83,9 @@ export function AllyTable({ allies, onEdit, onDelete }: AllyTableProps) {
               onClick={() => onEdit(ally)}
             />
           </Can>
-          <Can I="delete" a="Ally">
+          {/* Soft-delete is an `update` write (rules gate allies delete:false); gate
+              on update:Ally to match the real authority, not a delete:Ally perm. */}
+          <Can I="update" a="Ally">
             <RowAction
               icon={Icon.close({ s: 17 })}
               label={`Eliminar a ${ally.companyName}`}

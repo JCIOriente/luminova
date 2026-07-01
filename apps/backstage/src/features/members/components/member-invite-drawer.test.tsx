@@ -1,7 +1,21 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ReactElement, ReactNode } from "react";
 import { MemberInviteDrawer } from "./member-invite-drawer";
+import { AbilityProvider } from "../../../lib/authz/ability-context";
 import { pickDate } from "../../../test/pick-date";
+
+// The drawer's "Enviar acceso" checkbox is Admin-only; render as Admin so the
+// provisioning path under test is available.
+function renderWithAbility(ui: ReactElement) {
+  return render(ui, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <AbilityProvider claims={{ roles: ["Admin"], perms: ["manage:all"] }} uid="admin">
+        {children}
+      </AbilityProvider>
+    ),
+  });
+}
 
 vi.mock("../../../lib/auth/request-password-reset", () => ({
   requestPasswordReset: vi.fn().mockResolvedValue(undefined),
@@ -25,7 +39,7 @@ describe("MemberInviteDrawer", () => {
 
   it("blocks submit and stays on the form when required fields are empty", async () => {
     const onCreate = vi.fn();
-    render(
+    renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}
@@ -46,7 +60,7 @@ describe("MemberInviteDrawer", () => {
     const onProvision = vi
       .fn()
       .mockResolvedValue({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
-    render(
+    renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}
@@ -69,7 +83,7 @@ describe("MemberInviteDrawer", () => {
     const onProvision = vi
       .fn()
       .mockResolvedValue({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
-    render(
+    renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}
@@ -88,7 +102,7 @@ describe("MemberInviteDrawer", () => {
   });
 
   it("shows email-sent copy when requestPasswordReset resolves", async () => {
-    render(
+    renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}
@@ -108,7 +122,7 @@ describe("MemberInviteDrawer", () => {
 
   it("shows warning and copy-link button when requestPasswordReset rejects", async () => {
     mockedRequestPasswordReset.mockRejectedValue(new Error("network error"));
-    render(
+    renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}

@@ -27,7 +27,9 @@ function PositionActions({
           onClick={() => onEdit(position)}
         />
       </Can>
-      <Can I="delete" a="Position">
+      {/* Deactivate is a soft-delete = `update` write (positions delete:false); gate
+          on update:Position to match the rule, not a delete:Position perm. */}
+      <Can I="update" a="Position">
         <RowAction
           icon={Icon.close({ s: 17 })}
           label={`Desactivar ${position.title}`}

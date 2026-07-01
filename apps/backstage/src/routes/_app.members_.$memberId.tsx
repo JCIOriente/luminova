@@ -3,7 +3,9 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { Badge, Button, Dialog, type BadgeTone } from "@luminova/ui";
 import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
 import { subject } from "@luminova/auth/ability";
-import { Can, useAbility } from "../lib/authz/ability-context";
+import { useAbility } from "../lib/authz/ability-context";
+import { ActionGate } from "../lib/authz/action-gate";
+import { useCan } from "../lib/authz/use-can";
 import { PageHeader } from "../components/page-header";
 import { encodeMemberQr } from "../lib/member-qr";
 import { useMember } from "../features/members/hooks/use-member";
@@ -54,6 +56,7 @@ function MemberProfilePage() {
   const { memberId } = Route.useParams();
   const termId = currentTermKey();
   const ability = useAbility();
+  const gate = useCan();
   const { data: member, isLoading } = useMember(memberId);
   const { data: positions } = usePositions();
   const { data: points } = useMemberPoints(memberId, termId);
@@ -98,8 +101,10 @@ function MemberProfilePage() {
   }
 
   const canEdit = ability.can("update", subject("Member", { uid: member.uid }));
-  const canManagePositions = ability.can("manage", "Position");
-  const showPositionsOnly = !canEdit && canManagePositions;
+  // The positions-only lane maps to the ExecutiveCommittee allow-rule (positions-only
+  // member writes). Gate on the EC *role*, not the manage:Position perm — a custom
+  // role with that perm but no EC claim would be denied at write.
+  const showPositionsOnly = !canEdit && gate.hasRole(["ExecutiveCommittee"]);
 
   const handleEdit = (data: MemberInput) => updateMember.mutateAsync({ id: member.id, data });
   const handleSetPositions = (data: PositionsInput) => setPositions.mutateAsync(data);
@@ -116,9 +121,10 @@ function MemberProfilePage() {
         actions={
           <div className="flex items-center gap-3">
             {member.status && <Badge tone={STATUS_TONE[member.status]}>{member.status}</Badge>}
-            <Can I="manage" a="all">
+            {/* provisionMemberLogin is requireAdmin (role), not the manage:all perm. */}
+            <ActionGate role={["Admin"]}>
               <InviteAccess member={member} />
-            </Can>
+            </ActionGate>
           </div>
         }
       />
@@ -170,11 +176,12 @@ function MemberProfilePage() {
 
         <aside className="flex flex-col gap-6">
           <MemberPermissionsPanel roles={roles} />
-          <Can I="manage" a="all">
+          {/* roleIds/permissionOverrides writes are Admin-role-only (firestore.rules). */}
+          <ActionGate role={["Admin"]}>
             <Suspense fallback={null}>
               <MemberRolesPanel member={member} builtInRoleNames={roles} />
             </Suspense>
-          </Can>
+          </ActionGate>
           <MemberPositionHistory
             member={member}
             positionsById={positionsById}
@@ -196,15 +203,19 @@ function InviteAccess({ member }: { member: Member }) {
   const provision = useProvisionMemberLogin();
   const [open, setOpen] = useState(false);
   const [link, setLink] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const label = member.uid ? "Reenviar acceso" : "Invitar acceso";
 
-  const invite = () =>
+  const invite = () => {
+    setError(false);
     provision.mutate(member.id, {
       onSuccess: (result) => {
         setLink(result.actionLink);
         setOpen(true);
       },
+      onError: () => setError(true),
     });
+  };
 
   return (
     <>
@@ -217,6 +228,11 @@ function InviteAccess({ member }: { member: Member }) {
       >
         {provision.isPending ? "Generando…" : label}
       </Button>
+      {error && (
+        <p role="alert" className="text-[12px] text-error">
+          No se pudo generar el acceso.
+        </p>
+      )}
       <Dialog open={open} onOpenChange={setOpen} title="Acceso de miembro">
         <div className="flex flex-col gap-3">
           <p className="text-[13px] text-ink-2">

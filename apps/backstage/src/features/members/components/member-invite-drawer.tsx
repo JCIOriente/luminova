@@ -4,6 +4,7 @@ import { type MemberInput, type Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
 import { actionMessage } from "../lib/member-display";
 import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
+import { useCan } from "../../../lib/authz/use-can";
 
 interface MemberInviteDrawerProps {
   open: boolean;
@@ -32,13 +33,18 @@ export function MemberInviteDrawer({
   onCreate,
   onProvision,
 }: MemberInviteDrawerProps) {
+  // Provisioning login is Admin-role-only (provisionMemberLogin → requireAdmin). A
+  // non-Admin may still create the member; they just can't send access here, so hide
+  // the option and default it off — otherwise the provision step fails silently after
+  // the member is already created.
+  const { isAdmin } = useCan();
   const [done, setDone] = useState<DoneState | null>(null);
-  const [sendAccess, setSendAccess] = useState(true);
+  const [sendAccess, setSendAccess] = useState(isAdmin);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   const reset = () => {
     setDone(null);
-    setSendAccess(true);
+    setSendAccess(isAdmin);
     setCopyState("idle");
   };
 
@@ -138,7 +144,13 @@ export function MemberInviteDrawer({
           defaultValues={{ joinDate: today(), status: "Activo", cargoId: null, comisionIds: [] }}
           onSubmit={handleSubmit}
         >
-          <Checkbox checked={sendAccess} onChange={setSendAccess} label="Enviar acceso a la app" />
+          {isAdmin && (
+            <Checkbox
+              checked={sendAccess}
+              onChange={setSendAccess}
+              label="Enviar acceso a la app"
+            />
+          )}
         </MemberForm>
       )}
     </Sheet>
