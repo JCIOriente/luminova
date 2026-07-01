@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import {
   Button,
@@ -21,6 +21,7 @@ import { useAuth } from "../lib/auth/auth";
 import { CompletionWizard } from "../features/initiatives/components/completion-wizard";
 import { useCompleteInitiative } from "../features/initiatives/hooks/use-complete-initiative";
 import { useInitiativePhotos } from "../features/initiatives/hooks/use-initiative-photos";
+import { useDismissingToast } from "../lib/use-dismissing-toast";
 import { InitiativeForm } from "../components/initiative-form";
 import { InitiativeHero } from "../features/initiatives/components/initiative-hero";
 import { InitiativeSummary } from "../features/initiatives/components/initiative-summary";
@@ -69,7 +70,7 @@ function InitiativeDetailPage() {
 
   const canRead = ability.can("read", kind);
   const canUpdate = ability.can("update", kind);
-  const canFeature = useCan().hasRole(["Admin", "ProjectManager"]);
+  const canFeature = useCan().canFeatureInitiatives;
   const canCreateActivity = ability.can("create", "Activity");
   const canReadMembers = ability.can("read", "Member");
 
@@ -87,12 +88,7 @@ function InitiativeDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [errorToast, setErrorToast] = useState<string | null>(null);
-  useEffect(() => {
-    if (!errorToast) return;
-    const t = setTimeout(() => setErrorToast(null), 2800);
-    return () => clearTimeout(t);
-  }, [errorToast]);
+  const [errorToast, setErrorToast] = useDismissingToast();
 
   const memberById = useMemo(
     () => new Map<string, Member>((members ?? []).map((m) => [m.id, m])),

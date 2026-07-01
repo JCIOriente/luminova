@@ -42,7 +42,7 @@ Severity = how convincingly the UI pretends the action will work.
 | **A2** | allies | `_app.allies.tsx:54` "Agregar aliado" | Create button ungated (unlike row edit/delete). `create:Ally`-less user sees it; submit denied (form shows generic error). | HIDE (`create:Ally`) | MED |
 | **P1** | positions | `position-table.tsx:30` "Desactivar cargo" | Gated `<Can delete Position>` but soft-delete rides `update:Position` (`rules:237`, positions `delete:false`). Action/subject of gate ≠ write. | REGATE to `update:Position` | MED |
 | **P2** | point-rules | `_app.point-rules.tsx:32` "Inicializar" | Gated `create:PointRule`, but `seed()` batch also writes `terms/{termId}` = **Admin-only** (`rules:297`). Non-Admin holder sees it; whole batch fails. **Silent** (`seed.mutate`). | HIDE (Admin role) + onError | MED |
-| **I1** | initiatives | `initiative-form.tsx:188` "Destacar en /programas" checkbox | `featured` change is `Admin`/`ProjectManager` **role**-only (`featuredUpdateSafe`, `rules:173`). A perm-based `update:Project` role (not Admin/PM) sees & flips it → **entire update denied**. **Silent** (`void handleUpdate`). | DISABLE+reason (or hide) unless Admin/PM role | MED |
+| **I1** | initiatives | `initiative-form.tsx:188` "Destacar en /programas" checkbox | `featured` change is `Admin`/`ProjectManager` **role**-only (`featuredUpdateSafe`, `rules:173`). A perm-based `update:Project` role (not Admin/PM) sees & flips it → **entire update denied**. **Silent** (`void handleUpdate`). | HIDE unless `canFeatureInitiatives` (Admin/PM) | MED |
 | **M1** | members | `_app.members_.$memberId.tsx:101` positions-only lane | `showPositionsOnly = !canEdit && can('manage','Position')` (perm), but the only rule permitting a positions-only member write is `hasAnyRole(['ExecutiveCommittee'])` (`rules:222`). `manage:Position`-perm-without-EC-role sees the "Cargos" form; every save denied. | REGATE to EC role | MED |
 | **M2** | members | `member-mapper.ts:56` `toMemberUpdateDoc` always emits `positions.<term>` | Every member save trips `positionsTouched()`→`positionsAssignmentSafe()`→`(Admin OR cargoGrantsEmpty)`. A `update:Member` (Membership) user editing a **power-cargo** member (e.g. President) is denied **even changing only a phone**. Generic error, no explanation. | Omit unchanged positions from the write (behaviour) + onError | MED |
 | **M3** | members | `member-positions-form.tsx:34` / `member-form.tsx:72` cargo combobox | Lists **all** active non-Comisión cargos incl. grant-bearing. A non-Admin (EC) picking a power cargo is denied (`cargoGrantsEmpty`, `rules:81`). No hint which are assignable. | Filter combobox to assignable cargos for non-Admin | MED |
@@ -93,14 +93,23 @@ Severity = how convincingly the UI pretends the action will work.
 
 **Reusable helper** — `apps/backstage/src/lib/authz/`:
 
-- `useCan()` — combines `useAbility()` + `useAuth().claims`; returns
-  `{ can(action,subject), hasRole(roles), isAdmin }`. One place for perm **and**
-  role gates (rules use both).
-- `<ActionGate can={{action,subject}} | role={[...]} | when={bool}>` — renders
-  children only when allowed (declarative HIDE).
-- `<DisabledReason when reason>` — wraps a control, disables + tooltip/inline reason
-  (declarative DISABLE, class 2).
-- TDD the predicate helpers (`useCan`, `canRemoveEntry`, assignable-cargo filter).
+- `useCan()` — combines `useAbility()` + the claims exposed by `AbilityProvider`;
+  returns `{ can(action,subject), hasRole(roles), isAdmin, canFeatureInitiatives }`.
+  One place for perm **and** role gates (rules use both); named capabilities keep
+  policy (e.g. featured = Admin/PM) out of scattered role-array literals. Pure
+  `buildCan(ability, claims)` seam is unit-tested without React.
+- `<ActionGate role={[...]} | when={bool}>` — renders children only when allowed
+  (declarative HIDE for the role-based rules). Perm gates keep using the CASL
+  `<Can I a>` component; the two mechanisms don't overlap.
+- `useDismissingToast(ms)` — route-local auto-clearing toast state (no global
+  provider), replacing the copy-pasted state+timer block.
+- TDD the predicate helpers (`buildCan`, `canRemoveEntry`, assignable-cargo filter).
+
+**Note on hide-vs-disable:** every never-allowed control in this pass is gated by a
+*role* (permanent for the user), so all resolve to **HIDE** for consistency —
+including `featured` (Admin/PM-only) and power-granting cargos (filtered out). No
+control has a genuine *state* precondition needing disable+reason, so that variant
+isn't used here; add it back the day a locked/window-blocked control appears.
 
 **Order** (checkpoint-commit per group, ≤10 files):
 

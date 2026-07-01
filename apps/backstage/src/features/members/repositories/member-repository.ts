@@ -62,7 +62,9 @@ export class MemberRepository {
   async update(
     id: string,
     data: MemberInput,
-    currentPositions?: Pick<TermPositions, "cargoId" | "comisionIds"> | null,
+    // Required (may be null) so a caller can't silently forget it and reintroduce the
+    // re-gate bug: an omitted current slot makes the mapper always re-stamp positions.
+    currentPositions: Pick<TermPositions, "cargoId" | "comisionIds"> | null,
   ): Promise<void> {
     await updateDoc(
       doc(this.collection, id),

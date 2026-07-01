@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Button, Sheet, Dialog, Icon, Toast } from "@luminova/ui";
+import { useDismissingToast } from "../lib/use-dismissing-toast";
 import { useAllies } from "../features/allies/hooks/use-allies";
 import { useAddAlly } from "../features/allies/hooks/use-add-ally";
 import { useUpdateAlly } from "../features/allies/hooks/use-update-ally";
@@ -29,12 +30,7 @@ function AlliesPage() {
 
   const [editing, setEditing] = useState<Editing>(null);
   const [deleteTarget, setDeleteTarget] = useState<Ally | null>(null);
-  const [errorToast, setErrorToast] = useState<string | null>(null);
-  useEffect(() => {
-    if (!errorToast) return;
-    const id = setTimeout(() => setErrorToast(null), 2800);
-    return () => clearTimeout(id);
-  }, [errorToast]);
+  const [errorToast, setErrorToast] = useDismissingToast();
 
   const handleSubmit = async (data: AllyInput) => {
     if (editing === "new") {

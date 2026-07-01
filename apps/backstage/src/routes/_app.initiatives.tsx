@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button, Icon, EmptyState, Menu, MenuItem, Sheet, Toast } from "@luminova/ui";
+import { useDismissingToast } from "../lib/use-dismissing-toast";
 import type { ComboboxOption } from "@luminova/ui";
 import type { InitiativeInput, Member } from "@luminova/types";
 import { useAbility } from "../lib/authz/ability-context";
@@ -35,7 +36,7 @@ function sheetTitle(editing: Editing): string {
 function InitiativesPage() {
   const termId = currentTermKey();
   const ability = useAbility();
-  const canFeature = useCan().hasRole(["Admin", "ProjectManager"]);
+  const canFeature = useCan().canFeatureInitiatives;
   const navigate = useNavigate();
   const canReadProgram = ability.can("read", "Program");
   const canReadProject = ability.can("read", "Project");
@@ -64,12 +65,7 @@ function InitiativesPage() {
     query: "",
   });
   const [editing, setEditing] = useState<Editing>(null);
-  const [errorToast, setErrorToast] = useState<string | null>(null);
-  useEffect(() => {
-    if (!errorToast) return;
-    const id = setTimeout(() => setErrorToast(null), 2800);
-    return () => clearTimeout(id);
-  }, [errorToast]);
+  const [errorToast, setErrorToast] = useDismissingToast();
 
   const memberById = useMemo(
     () => new Map<string, Member>((members ?? []).map((m) => [m.id, m])),

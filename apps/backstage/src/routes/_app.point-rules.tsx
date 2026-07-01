@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Button, EmptyState, Icon, Toast } from "@luminova/ui";
 import { ActionGate } from "../lib/authz/action-gate";
+import { useDismissingToast } from "../lib/use-dismissing-toast";
 import { PageHeader } from "../components/page-header";
 import { currentTermKey } from "@luminova/types";
 import { usePointRules } from "../features/point-rules/hooks/use-point-rules";
@@ -18,13 +18,7 @@ function PointRulesPage() {
   const { data: rules, isLoading, isError } = usePointRules(termId);
   const seed = useSeedPointRules();
   const update = useUpdatePointRule(termId);
-  const [toast, setToast] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!toast) return;
-    const id = setTimeout(() => setToast(null), 2800);
-    return () => clearTimeout(id);
-  }, [toast]);
+  const [toast, setToast] = useDismissingToast();
 
   return (
     <div className="flex flex-col gap-6">

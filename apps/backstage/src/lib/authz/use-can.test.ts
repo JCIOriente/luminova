@@ -35,6 +35,12 @@ describe("buildCan", () => {
     expect(gate.hasRole(["Admin"])).toBe(true);
   });
 
+  it("canFeatureInitiatives holds for Admin or ProjectManager only", () => {
+    expect(can({ roles: ["Admin"] }).canFeatureInitiatives).toBe(true);
+    expect(can({ roles: ["ProjectManager"] }).canFeatureInitiatives).toBe(true);
+    expect(can({ roles: ["Membership"] }).canFeatureInitiatives).toBe(false);
+  });
+
   it("empty claims deny everything (fail-closed)", () => {
     const gate = can({ roles: [] });
     expect(gate.can("read", "Member")).toBe(false);

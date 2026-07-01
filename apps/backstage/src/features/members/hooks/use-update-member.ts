@@ -6,9 +6,11 @@ import { memberKeys } from "./member-keys";
 interface UpdateMemberVars {
   id: string;
   data: MemberInput;
-  /** The member's current-term assignment, so the mapper can skip re-stamping an
-   *  unchanged positions slot (which the rules would otherwise re-gate). */
-  currentPositions?: Pick<TermPositions, "cargoId" | "comisionIds"> | null;
+  /** The member's current-term assignment (or null), so the mapper can skip
+   *  re-stamping an unchanged positions slot — which the rules would otherwise
+   *  re-gate, denying a bio-only edit of a power-cargo member. Required so a caller
+   *  can't silently drop it. */
+  currentPositions: Pick<TermPositions, "cargoId" | "comisionIds"> | null;
 }
 
 export function useUpdateMember() {

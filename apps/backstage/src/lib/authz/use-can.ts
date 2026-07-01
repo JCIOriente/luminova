@@ -14,6 +14,10 @@ export interface Can {
   hasRole(roles: readonly Role[]): boolean;
   /** Shorthand for the Admin role (not the `manage:all` perm). */
   readonly isAdmin: boolean;
+  /** May curate the public /programas page (rules' `featuredUpdateSafe`). Named
+   *  here so the Admin/ProjectManager policy lives in one place, not scattered
+   *  role-array literals at each call site. */
+  readonly canFeatureInitiatives: boolean;
 }
 
 /** Pure builder — no React — so the gate logic is unit-testable. */
@@ -22,6 +26,7 @@ export function buildCan(ability: AppAbility, claims: AuthClaims): Can {
     can: (action, subject) => ability.can(action, subject),
     hasRole: (roles) => hasAnyRole(claims, roles),
     isAdmin: hasAnyRole(claims, ["Admin"]),
+    canFeatureInitiatives: hasAnyRole(claims, ["Admin", "ProjectManager"]),
   };
 }
 
