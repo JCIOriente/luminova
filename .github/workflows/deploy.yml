@@ -1,0 +1,265 @@
+name: Deploy
+
+# Keyless CD. Runs only after the CI workflow concludes successfully on main.
+# Auth = Workload Identity Federation (OIDC) — no long-lived credential is stored
+# anywhere; GitHub mints a short-lived token per run, exchanged for a GCP token that
+# GCP's STS only honors for this repo on refs/heads/main. Every deploy job is gated
+# behind the `production` GitHub environment (required reviewer + main-only).
+on:
+  # `workflow_run` reads this file from the DEFAULT branch, so a feature/PR branch
+  # can never alter deploy logic to exfiltrate the OIDC token — only code merged to
+  # main changes how we deploy.
+  workflow_run:
+    workflows: ["CI"] # must equal `name:` in ci.yml
+    types: [completed]
+  # Manual escape hatch for first-run validation, re-deploys, and rollbacks.
+  workflow_dispatch:
+    inputs:
+      surface:
+        description: "all | rules | functions | hosting"
+        default: "all"
+
+permissions:
+  id-token: write # REQUIRED to mint the OIDC token for WIF
+  contents: read # checkout only
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false # never interrupt an in-flight deploy
+
+jobs:
+  filter:
+    name: filter
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Deploy only on a green CI run that came from a push to main, or a manual run.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push')
+    outputs:
+      spotlight: ${{ steps.f.outputs.spotlight }}
+      backstage: ${{ steps.f.outputs.backstage }}
+      functions: ${{ steps.f.outputs.functions }}
+      rules: ${{ steps.f.outputs.rules }}
+      sha: ${{ steps.f.outputs.sha }}
+    steps:
+      # fetch-depth 0 so we can diff the deployed commit against its first parent.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Detect changed surfaces
+        id: f
+        # Untrusted-ish inputs flow through env, never inline ${{ }} in the script,
+        # so nothing can break out of the shell (defense in depth — dispatch is
+        # already restricted to repo writers).
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SURFACE: ${{ github.event.inputs.surface }}
+          EVENT_HEAD: ${{ github.event.workflow_run.head_sha }}
+          FALLBACK_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          sp=false; bs=false; fn=false; rl=false
+          head="${EVENT_HEAD:-$FALLBACK_SHA}"
+          echo "sha=$head" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            # Manual run: deploy the requested surface(s), no diff.
+            case "$SURFACE" in
+              all)       sp=true; bs=true; fn=true; rl=true ;;
+              hosting)   sp=true; bs=true ;;
+              functions) fn=true ;;
+              rules)     rl=true ;;
+              *) echo "unknown surface '$SURFACE'"; exit 1 ;;
+            esac
+            echo "manual dispatch -> surface=$SURFACE"
+          else
+            base="${head}^"
+            if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+              # Root commit / shallow miss -> deploy everything (fail-safe).
+              sp=true; bs=true; fn=true; rl=true
+              echo "base commit unavailable -> deploying all surfaces"
+            else
+              diff=$(git diff --name-only "$base...$head")
+              echo "changed files:"; echo "$diff"
+              q() { printf '%s\n' "$diff" | grep -qE "$1"; }
+              # packages/** feeds every app+functions bundle; firebase.json touches all.
+              q '^(apps/spotlight/|packages/|firebase\.json)'                                   && sp=true || true
+              q '^(apps/backstage/|packages/|firebase\.json)'                                   && bs=true || true
+              q '^(apps/beacon/|packages/|firebase\.json)'                                      && fn=true || true
+              q '(^firestore\.rules$|^storage\.rules$|^firestore\.indexes\.json$|^firebase\.json$)' && rl=true || true
+            fi
+          fi
+          {
+            echo "spotlight=$sp"
+            echo "backstage=$bs"
+            echo "functions=$fn"
+            echo "rules=$rl"
+          } >> "$GITHUB_OUTPUT"
+          echo "resolved -> spotlight=$sp backstage=$bs functions=$fn rules=$rl"
+
+  # Order: rules -> functions -> hosting. Data contract lands before the backend that
+  # relies on it; backend lands before the UI that calls it; user-visible hosting flips
+  # last and only after a smoke test passes.
+  deploy-rules:
+    name: deploy-rules
+    needs: filter
+    if: needs.filter.outputs.rules == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - uses: ./.github/actions/firebase-setup
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      - name: Deploy rules + indexes + storage
+        env:
+          SHA: ${{ needs.filter.outputs.sha }}
+        run: |
+          set -euo pipefail
+          firebase deploy \
+            --only firestore:rules,firestore:indexes,storage \
+            --project "$GCP_PROJECT_ID" --non-interactive --force \
+            --message "$SHA"
+
+  deploy-functions:
+    name: deploy-functions
+    needs: [filter, deploy-rules]
+    # Runs when functions changed and the rules stage did not FAIL (skipped is fine).
+    if: >-
+      always() &&
+      needs.deploy-rules.result != 'failure' &&
+      needs.deploy-rules.result != 'cancelled' &&
+      needs.filter.outputs.functions == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - uses: ./.github/actions/firebase-setup
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      # firebase.json `predeploy` runs `pnpm turbo run build --filter beacon`.
+      # --force skips the gen2 delete-confirmation prompt under --non-interactive.
+      - name: Deploy functions (beacon)
+        env:
+          SHA: ${{ needs.filter.outputs.sha }}
+        run: |
+          set -euo pipefail
+          firebase deploy --only functions \
+            --project "$GCP_PROJECT_ID" --non-interactive --force \
+            --message "$SHA"
+      # Sanity: confirm the deploy registered functions (no auto-rollback for gen2 —
+      # see the runbook; revert-and-redeploy is the documented path).
+      - name: List deployed functions
+        run: firebase functions:list --project "$GCP_PROJECT_ID" || true
+
+  deploy-hosting:
+    name: deploy-hosting
+    needs: [filter, deploy-functions]
+    if: >-
+      always() &&
+      needs.deploy-functions.result != 'failure' &&
+      needs.deploy-functions.result != 'cancelled' &&
+      (needs.filter.outputs.spotlight == 'true' || needs.filter.outputs.backstage == 'true')
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://jcioriente.web.app
+    timeout-minutes: 15
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ needs.filter.outputs.sha }}
+      - uses: ./.github/actions/firebase-setup
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      # Build only the changed target(s). VITE_FIREBASE_EMULATOR_ENABLED=false guards
+      # against a dev bundle ever reaching prod (also forced in .env.production).
+      - if: needs.filter.outputs.spotlight == 'true'
+        run: VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter spotlight
+      - if: needs.filter.outputs.backstage == 'true'
+        run: VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter backstage
+      # Preview -> smoke -> promote. We deploy each changed target to a short-lived
+      # preview channel, HTTP-smoke its URL, and only promote it to `live` if the
+      # smoke passes. Live therefore never serves a broken build, so no rollback is
+      # needed; the preview channel auto-expires.
+      - name: Deploy hosting (preview, smoke, promote)
+        env:
+          SPOTLIGHT: ${{ needs.filter.outputs.spotlight }}
+          BACKSTAGE: ${{ needs.filter.outputs.backstage }}
+          SHA: ${{ needs.filter.outputs.sha }}
+        run: |
+          set -euo pipefail
+          chan="ci-${SHA:0:7}"
+          promote() {
+            target="$1"; site="$2"
+            echo "::group::preview deploy ($target -> channel $chan)"
+            out=$(firebase hosting:channel:deploy "$chan" --only "$target" \
+                  --expires 1d --json --project "$GCP_PROJECT_ID")
+            printf '%s\n' "$out"
+            echo "::endgroup::"
+            url=$(printf '%s' "$out" | jq -r 'first(.result[].url)')
+            if [ -z "$url" ] || [ "$url" = "null" ]; then
+              echo "ERROR: no preview URL returned for $site"; return 1
+            fi
+            echo "smoke test: $url"
+            curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "$url"
+            echo "smoke passed -> promoting $site:$chan to $site:live"
+            firebase hosting:clone "$site:$chan" "$site:live" --project "$GCP_PROJECT_ID"
+          }
+          rc=0
+          if [ "$SPOTLIGHT" = "true" ]; then promote jcioriente jcioriente || rc=1; fi
+          if [ "$BACKSTAGE" = "true" ]; then promote jcioriente-backstage jcioriente-backstage || rc=1; fi
+          if [ "$rc" != "0" ]; then
+            echo "one or more targets failed smoke -> live left untouched for those targets"
+          fi
+          exit $rc
+
+  # Best-effort outcome notification. No-op unless DEPLOY_WEBHOOK_URL is configured
+  # (Slack- or Discord-compatible incoming webhook). Never fails the deploy.
+  notify:
+    name: notify
+    needs: [filter, deploy-rules, deploy-functions, deploy-hosting]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post deploy result
+        env:
+          WEBHOOK: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          R_RULES: ${{ needs.deploy-rules.result }}
+          R_FUNCS: ${{ needs.deploy-functions.result }}
+          R_HOST: ${{ needs.deploy-hosting.result }}
+          SHA: ${{ needs.filter.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK:-}" ]; then echo "DEPLOY_WEBHOOK_URL unset -> skip"; exit 0; fi
+          ran=false
+          for r in "$R_RULES" "$R_FUNCS" "$R_HOST"; do
+            case "$r" in success|failure) ran=true ;; esac
+          done
+          if [ "$ran" != "true" ]; then echo "nothing deployed -> skip notify"; exit 0; fi
+          status="✅ success"
+          case "$R_RULES$R_FUNCS$R_HOST" in *failure*) status="❌ failure" ;; esac
+          text="Deploy ${status} — ${SHA:0:7} (rules=${R_RULES} functions=${R_FUNCS} hosting=${R_HOST}) ${RUN_URL}"
+          # Slack reads `text`; Discord reads `content`. Sending both keeps it portable.
+          payload=$(jq -nc --arg t "$text" '{text:$t, content:$t}')
+          curl -fsS -X POST -H 'Content-Type: application/json' -d "$payload" "$WEBHOOK"
