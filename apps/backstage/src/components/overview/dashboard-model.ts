@@ -2,7 +2,13 @@ import type { Activity, Ally, Member, MemberPoints } from "@luminova/types";
 import type { KpiTrend } from "@luminova/ui";
 import type { InitiativeListItem } from "../../features/initiatives/lib/initiative-list-item";
 import { filterActivities } from "../../features/activities/lib/activity-filter";
-import { formatDateChip, formatTime, monthKeyBolivia, monthKeyToLabel } from "../../lib/datetime";
+import {
+  BOLIVIA_OFFSET_MS,
+  formatDateChip,
+  formatTime,
+  monthKeyToLabel,
+  monthKeyUtc,
+} from "../../lib/datetime";
 
 type DashboardKpi = { value: number; trend: KpiTrend | undefined };
 
@@ -33,7 +39,6 @@ export type DashboardModel = {
   feed: FeedItem[];
 };
 
-/** Real chart series: total points awarded per month across all members. */
 export function pointsByMonthSeries(memberPoints: MemberPoints[]): PointsMonth[] {
   const totals = new Map<string, number>();
   for (const mp of memberPoints) {
@@ -54,7 +59,6 @@ type FeedInput = {
   limit: number;
 };
 
-/** Merge real domain events we can already read + timestamp, newest-first, capped. */
 export function deriveActivityFeed({
   members,
   activities,
@@ -65,7 +69,7 @@ export function deriveActivityFeed({
   const items: FeedItem[] = [];
 
   for (const m of members) {
-    if (!m.active) continue;
+    if (!m.active || !m.joinDate) continue;
     items.push({
       id: m.id,
       tone: "teal",
@@ -81,7 +85,9 @@ export function deriveActivityFeed({
       tone: "blue",
       strong: a.title,
       text: " se realizó",
-      at: a.startAt.toDate(),
+      // startAt is the wall-clock pinned to UTC; shift by the Bolivia offset to
+      // get the real instant so ordering/relative-time match member/report events.
+      at: new Date(a.startAt.toMillis() + BOLIVIA_OFFSET_MS),
     });
   }
   for (const i of initiatives) {
@@ -112,13 +118,13 @@ type BuildInput = {
 
 export function buildDashboardModel(input: BuildInput): DashboardModel {
   const { members, allies, activities, memberPoints, initiatives, now } = input;
-  const monthKey = monthKeyBolivia(now.getTime());
+  const monthKey = monthKeyUtc(now.getTime());
   const activeMembers = members.filter((m) => m.active);
   const upcoming = filterActivities(activities, "proximos", now).sort(
     (a, b) => a.startAt.toMillis() - b.startAt.toMillis(),
   );
   const joined = activeMembers.filter(
-    (m) => monthKeyBolivia(m.joinDate.toMillis()) === monthKey,
+    (m) => m.joinDate && monthKeyUtc(m.joinDate.toMillis()) === monthKey,
   ).length;
   const pointsThisMonth = memberPoints.reduce((sum, mp) => sum + (mp.byMonth[monthKey] ?? 0), 0);
 

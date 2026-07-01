@@ -8,8 +8,8 @@ import {
   formatDateTime,
   formatMonthYear,
   formatTime,
-  monthKeyBolivia,
   monthKeyToLabel,
+  monthKeyUtc,
   relativeTimeEs,
 } from "./datetime";
 
@@ -55,11 +55,10 @@ describe("boliviaDayKey", () => {
   });
 });
 
-describe("monthKeyBolivia", () => {
-  it("returns YYYY-MM read in Bolivia local time", () => {
-    // 2026-07-01T02:00Z is still 2026-06-30 in UTC-4
-    expect(monthKeyBolivia(Date.UTC(2026, 6, 1, 2, 0))).toBe("2026-06");
-    expect(monthKeyBolivia(Date.UTC(2026, 6, 1, 12, 0))).toBe("2026-07");
+describe("monthKeyUtc", () => {
+  it("returns the UTC YYYY-MM, matching beacon's byMonth buckets", () => {
+    expect(monthKeyUtc(Date.UTC(2026, 6, 1, 2, 0))).toBe("2026-07");
+    expect(monthKeyUtc(Date.UTC(2026, 5, 30, 23, 0))).toBe("2026-06");
   });
 });
 

@@ -4,6 +4,8 @@ import type { Activity, Ally, Member, MemberPoints } from "@luminova/types";
 import type { InitiativeListItem } from "../../features/initiatives/lib/initiative-list-item";
 import { buildDashboardModel, deriveActivityFeed, pointsByMonthSeries } from "./dashboard-model";
 
+// Minimal fixtures: cast to the domain types since the selectors read only the
+// few fields each factory sets (rest of the required shape is irrelevant here).
 function mp(id: string, byMonth: Record<string, number>): MemberPoints {
   return { id, memberId: id, termId: "2026", cumulative: 0, byMonth } as MemberPoints;
 }
@@ -52,10 +54,11 @@ describe("deriveActivityFeed", () => {
   const t = (d: number) => now.getTime() - d * 3600_000;
 
   it("merges member joins, executed activities, filed initiatives newest-first", () => {
+    // a1 startAt is pinned wall-clock; its real instant is t(5)+4h = now-1h (newest).
     const feed = deriveActivityFeed({
       members: [member("m1", "Ana Lopez", t(2))],
       activities: [
-        activity("a1", "Asamblea", t(1), "Ejecutada"),
+        activity("a1", "Asamblea", t(5), "Ejecutada"),
         activity("a2", "Reunion", t(3), "Programada"),
       ],
       initiatives: [initiative("i1", "Sonrisas", t(5)), initiative("i2", "WIP", null)],
@@ -68,10 +71,11 @@ describe("deriveActivityFeed", () => {
     expect(feed[2]).toMatchObject({ tone: "green", strong: "Sonrisas" });
   });
 
-  it("excludes future timestamps and caps at limit", () => {
+  it("excludes future events, including a pinned activity whose real instant is future", () => {
     const feed = deriveActivityFeed({
       members: [member("m1", "A", now.getTime() + 3600_000)],
-      activities: [],
+      // pinned at now → real instant now+4h (Bolivia offset) → still future → excluded
+      activities: [activity("af", "Futuro", now.getTime(), "Ejecutada")],
       initiatives: [],
       now,
       limit: 2,

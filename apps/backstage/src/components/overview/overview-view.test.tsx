@@ -22,6 +22,8 @@ describe("OverviewView", () => {
   it("renders real KPI values from the model", () => {
     render(<OverviewView model={makeModel()} userName="Camila Áñez" now={new Date()} />);
     expect(screen.getByText("142")).toBeInTheDocument();
+    expect(screen.getByText("6")).toBeInTheDocument();
+    expect(screen.getByText("88")).toBeInTheDocument();
     expect(screen.getByText("Miembros activos")).toBeInTheDocument();
     expect(screen.getByText("Aliados")).toBeInTheDocument();
     expect(screen.getByText("Puntos otorgados (mes)")).toBeInTheDocument();

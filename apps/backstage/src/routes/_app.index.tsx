@@ -32,6 +32,20 @@ function DashboardPage() {
   });
 
   if (
+    members.isError ||
+    allies.isError ||
+    activities.isError ||
+    memberPoints.isError ||
+    initiatives.isError
+  ) {
+    return (
+      <div className="rounded-[16px] border border-line bg-surface p-8 text-center text-[13px] text-ink-3">
+        No se pudo cargar el panel. Revisa tu conexión e intenta recargar la página.
+      </div>
+    );
+  }
+
+  if (
     !members.data ||
     !allies.data ||
     !activities.data ||
