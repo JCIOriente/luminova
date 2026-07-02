@@ -9,6 +9,7 @@ interface ParentPickerProps {
   onParentTypeChange: (t: InitiativeKind) => void;
   onParentIdChange: (id: string | null) => void;
   error?: string;
+  disabled?: boolean;
 }
 
 export function ParentPicker({
@@ -19,6 +20,7 @@ export function ParentPicker({
   onParentTypeChange,
   onParentIdChange,
   error,
+  disabled = false,
 }: ParentPickerProps) {
   const options = parentType === "Program" ? programOptions : projectOptions;
   return (
@@ -27,6 +29,7 @@ export function ParentPicker({
         <Select
           id="parentType"
           value={parentType ?? "Project"}
+          disabled={disabled}
           onChange={(e) => {
             onParentTypeChange(e.target.value as InitiativeKind);
             onParentIdChange(null);
@@ -42,6 +45,7 @@ export function ParentPicker({
           options={options}
           value={parentId}
           onChange={onParentIdChange}
+          disabled={disabled}
           placeholder={parentType === "Program" ? "Elegir programa" : "Elegir proyecto"}
         />
       </Field>

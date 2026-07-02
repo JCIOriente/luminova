@@ -150,15 +150,23 @@ export function ActivityForm({
               control={control}
               name="parentType"
               render={({ field: typeField }) => (
-                <ParentPicker
-                  parentType={typeField.value}
-                  parentId={idField.value}
-                  programOptions={programOptions}
-                  projectOptions={projectOptions}
-                  onParentTypeChange={typeField.onChange}
-                  onParentIdChange={idField.onChange}
-                  error={errors.parentId?.message}
-                />
+                <div>
+                  <ParentPicker
+                    parentType={typeField.value}
+                    parentId={idField.value}
+                    programOptions={programOptions}
+                    projectOptions={projectOptions}
+                    onParentTypeChange={typeField.onChange}
+                    onParentIdChange={idField.onChange}
+                    error={errors.parentId?.message}
+                    disabled={locked}
+                  />
+                  {locked && (
+                    <p className="mt-1 text-sm text-ink-3">
+                      No editable: ya hay registros de asistencia.
+                    </p>
+                  )}
+                </div>
               )}
             />
           )}
