@@ -100,19 +100,20 @@ export const awardPoints = onDocumentWritten(
     const store = createFirestoreStore(db());
     const after = event.data?.after;
     const before = event.data?.before;
+    // .data() re-decodes the proto on every call — capture once for both uses.
+    const raw = after?.exists ? after.data() : before?.exists ? before.data() : undefined;
     if (after?.exists) {
-      const checkIn = validateCheckIn(after.data());
+      const checkIn = validateCheckIn(raw);
       if (checkIn !== null) await processCheckIn(store, checkIn);
     } else if (before?.exists) {
-      const checkIn = validateCheckIn(before.data());
+      const checkIn = validateCheckIn(raw);
       if (checkIn !== null) await processCheckInDelete(store, checkIn);
     }
     // Mirror check-in existence onto the activity for the rules-side field lock.
     // Runs even when validateCheckIn rejected the doc (a malformed check-in still
     // matches the count query) and after the engine work so a mirror failure never
     // pre-empts points — errors propagate on purpose so the retry redoes both.
-    const raw = (after?.exists ? after.data() : before?.data()) ?? {};
-    const activityId = (raw as { activityId?: unknown }).activityId;
+    const activityId = ((raw ?? {}) as { activityId?: unknown }).activityId;
     if (isCleanId(activityId)) await syncActivityCheckInFlag(db(), activityId);
   },
 );

@@ -1,9 +1,33 @@
-import type { Firestore } from "firebase-admin/firestore";
+import { initializeApp, type App } from "firebase-admin/app";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
-// Test-only Firestore proxies shared by the *.emulator.test.ts suites. Not part
-// of the runtime bundle (nothing under dist/index.js imports this).
+// Test-only harness shared by the *.emulator.test.ts suites (app bootstrap +
+// Firestore proxies). Not part of the runtime bundle (nothing under
+// dist/index.js imports this).
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Fail closed: the admin SDK silently targets PROD if the emulator host is
+ *  unset, so refuse to run outside `pnpm test:emulator`. Each vitest file runs
+ *  in its own worker, so a per-file default app never collides. */
+export function initEmulatorTestApp(): { app: App; db: Firestore } {
+  if (!process.env.FIRESTORE_EMULATOR_HOST) {
+    throw new Error(
+      "emulator tests must run via `pnpm test:emulator` — FIRESTORE_EMULATOR_HOST is unset.",
+    );
+  }
+  const app = initializeApp({ projectId: "demo-beacon-test" });
+  return { app, db: getFirestore(app) };
+}
+
+export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export async function clearCollections(db: Firestore, names: string[]): Promise<void> {
+  await Promise.all(
+    names.map(async (name) => {
+      const snap = await db.collection(name).get();
+      await Promise.all(snap.docs.map((d) => d.ref.delete()));
+    }),
+  );
+}
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

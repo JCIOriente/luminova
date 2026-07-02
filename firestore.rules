@@ -150,13 +150,18 @@ service cloud.firestore {
         || request.resource.data.finalReport.get('filedBy', '') == request.auth.uid;
     }
 
+    // Single source of truth for who may curate `featured` — shared by the
+    // create and update arms so the authority can never drift apart again.
+    function canCurateFeatured() {
+      return hasAnyRole(['Admin', 'ProjectManager']);
+    }
     function initiativeCreateAllowed(subject) {
       return canDo('create', subject)
         && request.resource.data.get('directionUids', []) == []
         && request.resource.data.get('finalReport', null) == null
         && request.resource.data.get('impact', null) == null
         && request.resource.data.get('status', '') != 'Finalizado'
-        && (hasAnyRole(['Admin', 'ProjectManager'])
+        && (canCurateFeatured()
             || request.resource.data.get('featured', false) == false);
     }
     // `featured` promotes an already-public finalized initiative onto the curated
@@ -175,7 +180,7 @@ service cloud.firestore {
     // bound to Admin/ProjectManager. A custom role with manage:Project may edit an
     // initiative but must leave `featured` unchanged (falls through to the second arm).
     function featuredUpdateSafe() {
-      return hasAnyRole(['Admin', 'ProjectManager'])
+      return canCurateFeatured()
         || request.resource.data.get('featured', false) == resource.data.get('featured', false);
     }
     function initiativeUpdateAllowed(subject) {

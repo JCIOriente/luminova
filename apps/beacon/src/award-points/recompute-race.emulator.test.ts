@@ -1,31 +1,28 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { initializeApp, deleteApp } from "firebase-admin/app";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { deleteApp } from "firebase-admin/app";
+import { Timestamp } from "firebase-admin/firestore";
 import type { Participation } from "@luminova/types/engine";
 import { createFirestoreStore } from "./firestore-store.js";
 import { processCheckIn } from "./process.js";
 import type { CheckIn } from "./check-in.js";
-import { countTxWritesTo, slowReadsDb } from "./emulator-tx-proxies.js";
+import {
+  clearCollections,
+  countTxWritesTo,
+  initEmulatorTestApp,
+  sleep,
+  slowReadsDb,
+} from "./emulator-harness.js";
 
 // Runs against the Firestore emulator (FIRESTORE_EMULATOR_HOST set by
 // `firebase emulators:exec`). Exercises the REAL admin-SDK store, so the
 // aggregate read+write is genuinely concurrent here — unlike the in-memory
 // fakes, which serialize every await and cannot express a race.
-// Fail closed: the admin SDK silently targets PROD if the emulator host is
-// unset, so refuse to run outside `pnpm test:emulator`.
-if (!process.env.FIRESTORE_EMULATOR_HOST) {
-  throw new Error(
-    "recompute-race.emulator.test must run via `pnpm test:emulator` — FIRESTORE_EMULATOR_HOST is unset.",
-  );
-}
-const app = initializeApp({ projectId: "demo-beacon-test" });
-const db = getFirestore(app);
+const { app, db } = initEmulatorTestApp();
 const store = createFirestoreStore(db);
 
 const TERM = "2026";
 const M = "m1";
 const TS = Timestamp.fromDate(new Date("2026-06-06T18:00:00Z"));
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function confirmedRow(id: string, pts: number): Participation {
   return {
@@ -49,13 +46,8 @@ function confirmedRow(id: string, pts: number): Participation {
   };
 }
 
-async function clear(name: string): Promise<void> {
-  const snap = await db.collection(name).get();
-  await Promise.all(snap.docs.map((d) => d.ref.delete()));
-}
-
 beforeEach(async () => {
-  await Promise.all(["participations", "memberPoints", "members", "activities"].map(clear));
+  await clearCollections(db, ["participations", "memberPoints", "members", "activities"]);
 });
 
 afterAll(async () => {

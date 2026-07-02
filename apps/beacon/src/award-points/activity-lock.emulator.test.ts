@@ -1,18 +1,16 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { initializeApp, deleteApp } from "firebase-admin/app";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { deleteApp } from "firebase-admin/app";
+import { Timestamp } from "firebase-admin/firestore";
 import { syncActivityCheckInFlag } from "./activity-lock.js";
-import { countTxWritesTo, slowReadsDb } from "./emulator-tx-proxies.js";
+import {
+  clearCollections,
+  countTxWritesTo,
+  initEmulatorTestApp,
+  sleep,
+  slowReadsDb,
+} from "./emulator-harness.js";
 
-// Fail closed: the admin SDK silently targets PROD if the emulator host is
-// unset, so refuse to run outside `pnpm test:emulator`.
-if (!process.env.FIRESTORE_EMULATOR_HOST) {
-  throw new Error(
-    "activity-lock.emulator.test must run via `pnpm test:emulator` — FIRESTORE_EMULATOR_HOST is unset.",
-  );
-}
-const app = initializeApp({ projectId: "demo-beacon-test" });
-const db = getFirestore(app);
+const { app, db } = initEmulatorTestApp();
 
 const TS = Timestamp.fromDate(new Date("2026-06-06T18:00:00Z"));
 const ACTIVITY = {
@@ -24,15 +22,8 @@ const ACTIVITY = {
   status: "Programada",
 };
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function clear(name: string): Promise<void> {
-  const snap = await db.collection(name).get();
-  await Promise.all(snap.docs.map((d) => d.ref.delete()));
-}
-
 beforeEach(async () => {
-  await Promise.all(["checkIns", "activities"].map(clear));
+  await clearCollections(db, ["checkIns", "activities"]);
 });
 
 afterAll(async () => {
