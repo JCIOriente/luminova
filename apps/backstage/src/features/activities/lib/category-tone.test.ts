@@ -7,7 +7,7 @@ describe("CATEGORY_TONE", () => {
     for (const category of ACTIVITY_CATEGORIES) {
       const tone = CATEGORY_TONE[category];
       expect(TONE_COVER_BG[tone]).toBeDefined();
-      expect(TONE_RIPPLE_COLOR[tone]).toMatch(/^#/);
+      expect(TONE_RIPPLE_COLOR[tone]).toMatch(/^var\(--color-jci-/);
     }
   });
 });

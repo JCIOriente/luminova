@@ -28,7 +28,9 @@ export function ManualTapList({ members, checkedInIds, onTap }: ManualTapListPro
   }, [members, term]);
 
   return (
-    <div className="flex flex-col gap-2">
+    // p-3 around the 52px Input makes the tile's rest height match the 76px
+    // scan card beside it (12 + 52 + 12); results grow inside the tile only.
+    <div className="flex flex-col gap-2 rounded-card border border-line bg-surface p-3">
       <Input
         placeholder="o registra a un miembro por su nombre…"
         value={search}

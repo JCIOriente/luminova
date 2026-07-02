@@ -4,6 +4,8 @@ import { groupActivityPhotos } from "../lib/gallery";
 import { InitiativeStatCard } from "./initiative-stat-card";
 import { PhotoGallery } from "./photo-gallery";
 
+const NUMBER_ES_BO = new Intl.NumberFormat("es-BO");
+
 interface InitiativeCompletedProps {
   impact: InitiativeImpact;
   activities: Activity[];
@@ -24,9 +26,9 @@ export function InitiativeCompleted({ impact, activities }: InitiativeCompletedP
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <InitiativeStatCard
             label="Personas impactadas"
-            value={impact.personsImpacted.toLocaleString("es")}
+            value={NUMBER_ES_BO.format(impact.personsImpacted)}
           />
-          <InitiativeStatCard label="Voluntarios" value={impact.volunteers.toLocaleString("es")} />
+          <InitiativeStatCard label="Voluntarios" value={NUMBER_ES_BO.format(impact.volunteers)} />
           {impact.custom.map((metric, i) => (
             <InitiativeStatCard
               key={`${metric.label}-${i}`}

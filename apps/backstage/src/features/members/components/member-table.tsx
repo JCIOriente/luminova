@@ -4,12 +4,12 @@ import {
   Badge,
   EmptyState,
   Icon,
+  initials,
   type DataTableColumn,
   type BadgeTone,
 } from "@luminova/ui";
 import { currentTermKey, type Member, type MemberStatus, type Position } from "@luminova/types";
 import { avatarColor, joinYear } from "../lib/member-display";
-import { initials } from "../../../lib/initials";
 import { MemberRowMenu } from "./member-row-menu";
 import { MemberCargoChips } from "./member-cargo-chips";
 

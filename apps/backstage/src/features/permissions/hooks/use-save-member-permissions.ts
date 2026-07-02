@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { PermissionOverrides } from "@luminova/types";
 import { MemberPermissionsRepository } from "../repositories/member-permissions-repository";
+import { memberKeys } from "../../members/hooks/member-keys";
 
 export function useSaveMemberPermissions() {
   const queryClient = useQueryClient();
@@ -15,6 +16,6 @@ export function useSaveMemberPermissions() {
       permissionOverrides: PermissionOverrides;
     }) => new MemberPermissionsRepository().save(memberId, { roleIds, permissionOverrides }),
     // Broad invalidation — matches the members list + any member-detail query key.
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["members"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: memberKeys.all }),
   });
 }

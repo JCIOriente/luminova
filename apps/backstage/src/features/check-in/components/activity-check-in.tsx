@@ -126,6 +126,8 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
       <CheckInStats attendance={attendance} />
 
       <div className="grid items-start gap-4 md:grid-cols-2">
+        {/* 76px rest height (py-4 + size-11 badge) — ManualTapList's p-3 tile is
+            sized to match; keep in sync. */}
         <button
           type="button"
           onClick={() => setScanOpen(true)}

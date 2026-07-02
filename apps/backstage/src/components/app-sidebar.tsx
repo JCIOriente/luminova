@@ -1,10 +1,17 @@
 import { useSyncExternalStore } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Icon, IconButton, LogoLockup, Button, SegmentedControl, Tooltip } from "@luminova/ui";
+import {
+  Icon,
+  IconButton,
+  LogoLockup,
+  Button,
+  SegmentedControl,
+  Tooltip,
+  initials,
+} from "@luminova/ui";
 import { useAuth } from "../lib/auth/auth";
 import { useAbility } from "../lib/authz/ability-context";
 import { signOutUser } from "../lib/auth/sign-out";
-import { initials } from "../lib/initials";
 import { NAV_GROUPS, isNavItemVisible } from "./nav-config";
 import {
   getSidebarCollapsed,

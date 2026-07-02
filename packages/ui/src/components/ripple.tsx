@@ -19,7 +19,7 @@ export function RippleSVG({
   baseRadius = 24,
   stroke = 6,
   size = 800,
-  color = "#0097D7",
+  color = "var(--color-jci-blue)",
   className = "",
   style = {},
   rotateStep = 15,
@@ -28,6 +28,9 @@ export function RippleSVG({
   const cx = size / 2;
   const cy = size / 2;
   const items: ReactElement[] = [];
+  // stroke via style, not the attribute: var(--*) colors are invalid in
+  // SVG presentation attributes but valid in CSS.
+  const strokeStyle: CSSProperties = { stroke: color };
 
   for (let i = 0; i < rings; i++) {
     const r = baseRadius + i * (stroke * 2);
@@ -49,7 +52,7 @@ export function RippleSVG({
           key={`${i}-${q}`}
           d={d}
           fill="none"
-          stroke={color}
+          style={strokeStyle}
           strokeWidth={stroke}
           strokeLinecap="butt"
           transform={`rotate(${baseRotate} ${cx} ${cy})`}
@@ -91,7 +94,7 @@ interface RippleBackgroundProps {
 
 export function RippleBackground({
   variant = "subtle",
-  color = "#0097D7",
+  color = "var(--color-jci-blue)",
   opacity,
   spin = true,
 }: RippleBackgroundProps) {

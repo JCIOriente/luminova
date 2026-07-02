@@ -65,7 +65,7 @@ export function OverviewView({
   const chartSeries: ChartSeries[] = [
     {
       label: "Puntos otorgados",
-      color: "#0097D7",
+      color: "var(--color-jci-blue)",
       values: model.pointsByMonth.map((p) => p.points),
     },
   ];

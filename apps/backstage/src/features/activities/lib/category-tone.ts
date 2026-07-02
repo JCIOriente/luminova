@@ -20,7 +20,7 @@ export const TONE_COVER_BG: Record<CoverTone, string> = {
 };
 
 export const TONE_RIPPLE_COLOR: Record<CoverTone, string> = {
-  blue: "#0097D7",
-  teal: "#57BCBC",
-  navy: "#1F4789",
+  blue: "var(--color-jci-blue)",
+  teal: "var(--color-jci-teal)",
+  navy: "var(--color-jci-navy)",
 };

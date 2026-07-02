@@ -37,6 +37,7 @@ interface ConfirmState {
 }
 
 const PAGE_SIZE = 8;
+const NO_MEMBERS: Member[] = [];
 
 function MembersPage() {
   const { data: members, isLoading, isError } = useMembers();
@@ -59,7 +60,7 @@ function MembersPage() {
     return () => clearTimeout(id);
   }, [toast]);
 
-  const all = members ?? [];
+  const all = members ?? NO_MEMBERS;
   const counts = useMemo(() => statusCounts(all), [all]);
   const positionsById = useMemo(
     () => new Map((positions ?? []).map((p) => [p.id, p])),

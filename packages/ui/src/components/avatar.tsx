@@ -1,15 +1,11 @@
 import { cn } from "../lib/cn";
+import { initials } from "../lib/initials";
 
 interface AvatarProps {
   src: string | null | undefined;
   name: string;
   size?: number;
   className?: string;
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
 export function Avatar({ src, name, size = 40, className }: AvatarProps) {
