@@ -1,14 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { TeamCredits, initials } from "./team-credits";
-
-describe("initials", () => {
-  it("takes the first letter of up to two name parts, uppercased", () => {
-    expect(initials("Ana")).toBe("A");
-    expect(initials("Ana López")).toBe("AL");
-    expect(initials("ana maría lópez")).toBe("AM");
-  });
-});
+import { TeamCredits } from "./team-credits";
 
 describe("TeamCredits", () => {
   it("renders director, co-directors and members by name", () => {

@@ -1,7 +1,16 @@
 import { useState, type ReactNode } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Combobox, DatePicker, Field, Input, MultiSelect, Select } from "@luminova/ui";
+import {
+  Button,
+  Combobox,
+  DatePicker,
+  Field,
+  Input,
+  MultiSelect,
+  Select,
+  initials,
+} from "@luminova/ui";
 import {
   memberSchema,
   positionTitle,
@@ -12,7 +21,6 @@ import {
   MEMBER_GENDERS,
 } from "@luminova/types";
 import { avatarColor } from "../lib/member-display";
-import { initials } from "../../../lib/initials";
 
 interface MemberFormProps {
   positions: Position[];

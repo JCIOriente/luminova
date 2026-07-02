@@ -1,14 +1,5 @@
+import { initials } from "@luminova/ui";
 import type { ShowcaseItem, ShowcasePerson } from "@luminova/types/engine";
-
-export function initials(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]!.toUpperCase())
-    .join("");
-}
 
 function Avatar({ person, size }: { person: ShowcasePerson; size: "lg" | "sm" }) {
   const cls = size === "lg" ? "team-avatar team-avatar-lg" : "team-avatar";

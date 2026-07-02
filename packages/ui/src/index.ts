@@ -40,3 +40,4 @@ export { MultiSelect } from "./components/multi-select-field";
 // / @zxing into the static graph. Import them via the deep paths
 // `@luminova/ui/qr-code` and `@luminova/ui/qr-scanner` so they stay in lazy chunks.
 export { cn } from "./lib/cn";
+export { initials } from "./lib/initials";
