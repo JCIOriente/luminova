@@ -148,9 +148,9 @@ describe("PhotoManager failed writes", () => {
   it("keeps the caption editor open and preserves the typed value when the write rejects", async () => {
     const user = userEvent.setup();
     renderManager({
-      onSetCaption: vi.fn<(id: string, caption: string) => Promise<void>>().mockRejectedValue(
-        new Error("denied"),
-      ),
+      onSetCaption: vi
+        .fn<(id: string, caption: string) => Promise<void>>()
+        .mockRejectedValue(new Error("denied")),
     });
 
     await user.click(screen.getAllByRole("button", { name: /editar descripción/i })[0]!);
