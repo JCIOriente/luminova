@@ -215,6 +215,7 @@
   --color-ink-1: #f4f2fb;
   --color-ink-2: rgba(244, 242, 251, 0.74);
   --color-ink-3: rgba(244, 242, 251, 0.54);
+  --color-ink-4: rgba(244, 242, 251, 0.34);
   --color-line: rgba(255, 255, 255, 0.1);
   --color-line-strong: rgba(255, 255, 255, 0.18);
 }

@@ -59,8 +59,9 @@ export function LineChart({
       >
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={primary.color} stopOpacity="0.18" />
-            <stop offset="100%" stopColor={primary.color} stopOpacity="0" />
+            {/* stop-color via style: var(--*) colors don't work in SVG attributes */}
+            <stop offset="0%" style={{ stopColor: primary.color }} stopOpacity="0.18" />
+            <stop offset="100%" style={{ stopColor: primary.color }} stopOpacity="0" />
           </linearGradient>
         </defs>
         <path d={plot.area} fill={`url(#${gradId})`} />
@@ -69,7 +70,7 @@ export function LineChart({
             key={s.label}
             d={s.d}
             fill="none"
-            stroke={s.color}
+            style={{ stroke: s.color }}
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
