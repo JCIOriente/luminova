@@ -246,13 +246,27 @@ function ActivityDetailPage() {
           {canManagePhotos ? (
             <PhotoManager
               photos={activity.photos}
+              // Upload: ImageUploader owns its own error + keeps the crop, so just toast.
               onUpload={(blob) => photoActions.addPhoto(blob).catch(() => setToast(galleryError))}
+              // Remove/cover/caption: toast AND re-throw so PhotoManager keeps its UI open
+              // for a retry instead of closing optimistically on a denied write.
               onRemove={(id) =>
-                photoActions.removePhotoById(id).catch(() => setToast(galleryError))
+                photoActions.removePhotoById(id).catch((err) => {
+                  setToast(galleryError);
+                  throw err;
+                })
               }
-              onSetCover={(id) => photoActions.setCover(id).catch(() => setToast(galleryError))}
+              onSetCover={(id) =>
+                photoActions.setCover(id).catch((err) => {
+                  setToast(galleryError);
+                  throw err;
+                })
+              }
               onSetCaption={(id, caption) =>
-                photoActions.setCaption(id, caption).catch(() => setToast(galleryError))
+                photoActions.setCaption(id, caption).catch((err) => {
+                  setToast(galleryError);
+                  throw err;
+                })
               }
             />
           ) : activity.photos.length > 0 ? (

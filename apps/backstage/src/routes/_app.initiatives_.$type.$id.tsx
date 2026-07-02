@@ -156,17 +156,24 @@ function InitiativeDetailPage() {
     }
   };
 
-  // Photo mutations otherwise reject silently (PhotoManager swallows). Wrap each so a
-  // denial (or upload/network failure) surfaces a toast.
-  const guardPhoto =
+  // Photo mutations otherwise reject silently. Toast the failure and RE-THROW so
+  // PhotoManager keeps its caption/remove UI open for a retry instead of closing
+  // optimistically. Upload is excluded — ImageUploader surfaces its own inline error
+  // and keeps the crop open — so it only toasts.
+  const galleryError = "No se pudo actualizar la galería.";
+  const rethrowPhoto =
     <A extends unknown[]>(fn: (...a: A) => Promise<void>) =>
     (...a: A) =>
-      fn(...a).catch(() => setErrorToast("No se pudo actualizar la galería."));
+      fn(...a).catch((err) => {
+        setErrorToast(galleryError);
+        throw err;
+      });
   const photo = {
-    addPhoto: guardPhoto(photoActions.addPhoto),
-    removePhotoById: guardPhoto(photoActions.removePhotoById),
-    setCover: guardPhoto(photoActions.setCover),
-    setCaption: guardPhoto(photoActions.setCaption),
+    addPhoto: (...a: Parameters<typeof photoActions.addPhoto>) =>
+      photoActions.addPhoto(...a).catch(() => setErrorToast(galleryError)),
+    removePhotoById: rethrowPhoto(photoActions.removePhotoById),
+    setCover: rethrowPhoto(photoActions.setCover),
+    setCaption: rethrowPhoto(photoActions.setCaption),
   };
 
   const isSavingInitiative = updateProgram.isPending || updateProject.isPending;

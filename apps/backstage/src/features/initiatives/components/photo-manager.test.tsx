@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Photo } from "@luminova/types";
 import { Timestamp } from "firebase/firestore";
@@ -141,5 +141,57 @@ describe("PhotoManager", () => {
     await user.click(confirmButton);
 
     expect(onRemove).toHaveBeenCalledWith("photo-1");
+  });
+});
+
+describe("PhotoManager failed writes", () => {
+  it("keeps the caption editor open and preserves the typed value when the write rejects", async () => {
+    const user = userEvent.setup();
+    renderManager({
+      onSetCaption: vi.fn<(id: string, caption: string) => Promise<void>>().mockRejectedValue(
+        new Error("denied"),
+      ),
+    });
+
+    await user.click(screen.getAllByRole("button", { name: /editar descripción/i })[0]!);
+    const input = await screen.findByRole("textbox", { name: /editar descripción/i });
+    await user.clear(input);
+    await user.type(input, "Nuevo texto");
+    await user.keyboard("{Enter}");
+
+    // No optimistic close: the editor stays open with the user's text intact.
+    const stillOpen = await screen.findByRole("textbox", { name: /editar descripción/i });
+    expect(stillOpen).toHaveValue("Nuevo texto");
+  });
+
+  it("closes the caption editor when the write succeeds", async () => {
+    const user = userEvent.setup();
+    renderManager();
+
+    await user.click(screen.getAllByRole("button", { name: /editar descripción/i })[0]!);
+    const input = await screen.findByRole("textbox", { name: /editar descripción/i });
+    await user.type(input, " editada");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("textbox", { name: /editar descripción/i }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("keeps the remove confirm open when the remove write rejects", async () => {
+    const user = userEvent.setup();
+    renderManager({
+      onRemove: vi.fn<(id: string) => Promise<void>>().mockRejectedValue(new Error("denied")),
+    });
+
+    await user.click(screen.getAllByRole("button", { name: /quitar foto/i })[0]!);
+    await user.click(await screen.findByRole("button", { name: /confirmar quitar foto/i }));
+
+    // The photo wasn't removed, so the confirm must stay for a retry.
+    expect(
+      await screen.findByRole("button", { name: /confirmar quitar foto/i }),
+    ).toBeInTheDocument();
   });
 });
