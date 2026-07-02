@@ -52,8 +52,10 @@ What's already in place (don't redo these):
 | **CLS** (Cumulative Layout Shift) | < 0.1 | `aspect-ratio`/`width`+`height` on media, reserved space |
 | **INP** (Interaction to Next Paint) | < 200 ms | code-split, lazy heavy components, small main-thread bundle |
 
-**Bundle budgets** (gzip; CI is task-runner-based — these are enforced by judgment +
-`bundle-budget-watcher`, not yet a hard gate):
+**Bundle budgets** (gzip). The **initial JS/CSS budgets are a hard CI gate** —
+`tools/scripts/check-bundle-budget.sh` runs in the CI `checks` job (see `docs/ci-cd.md`
+section 2) and fails on any breach. The route-chunk and new-dep lines are not
+machine-enforced yet — hold them by judgment + `bundle-budget-watcher`:
 
 | Budget | spotlight | backstage |
 |--------|-----------|-----------|
@@ -62,8 +64,10 @@ What's already in place (don't redo these):
 | Any single route chunk | ≤ 40 kB gz | ≤ 40 kB gz |
 | New runtime dependency | justify if it adds > 10 kB gz to any initial chunk | same |
 
-Breaching a budget is not automatically a blocker — but it **must** be a conscious, noted decision
-in the PR, with the `bundle-budget-watcher` report attached.
+Breaching an initial-chunk budget fails CI. A deliberate breach means raising the budget **both**
+here and in `tools/scripts/check-bundle-budget.sh` (the script hardcodes these numbers — keep the
+two in sync), as a conscious, noted decision in the PR with the `bundle-budget-watcher` report
+attached. Route-chunk/dep breaches aren't CI-blocked but need the same conscious note.
 
 ---
 
@@ -137,7 +141,8 @@ Apply on **every** frontend change. These are the rules, not aspirations.
 - A heavy dep used on one route or below the fold must be **lazy** (`lazy(() => import(...))` or a
   dynamic `import()`), never in a shared/initial chunk.
 - After any dep or route change, **dispatch `bundle-budget-watcher`** and check the `index`-chunk gz
-  delta against 2 budgets. Record the result in the PR.
+  delta against the section-2 budgets (CI enforces the index budgets via
+  `tools/scripts/check-bundle-budget.sh`). Record the result in the PR.
 
 **Code-splitting & main thread**
 - Keep TanStack `autoCodeSplitting` on; don't collapse routes into the shell.
@@ -172,8 +177,10 @@ Apply on **every** frontend change. These are the rules, not aspirations.
 - **Bundle composition:** add `rollup-plugin-visualizer` to the app's `vite.config.ts` (dev-only),
   build, open the treemap. Identify what's eager in the `index` chunk before trimming.
 - **Size report / dead code:** dispatch the `bundle-budget-watcher` subagent (build + size + `knip`).
+- **Budget gate (same check CI runs):** build the frontends, then
+  `bash tools/scripts/check-bundle-budget.sh` — compares each `index-*` chunk gz against section 2.
 - **Per-chunk gz quickcheck:** `for f in apps/<app>/dist/assets/index-*.js; do gzip -c "$f" | wc -c; done`.
-- **Cache headers (e2e):** `firebase emulators:exec --only hosting --project jci-oriente` then
+- **Cache headers (e2e):** `firebase emulators:start --only hosting --project jci-oriente`, then in another shell
   `curl -sI <local-url>/assets/<file>` (expect `immutable`) and `<local-url>/` (expect `no-cache`).
   The hosting emulator serves each target on its own port (printed at startup); free port 4000 first
   (kill any running dev emulator) or override `emulators.hosting.port` transiently.
