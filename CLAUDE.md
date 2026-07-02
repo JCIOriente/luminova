@@ -21,7 +21,7 @@ Two public-facing and admin apps + one serverless backend, deployed to Firebase.
 | `packages/ui` | `@luminova/ui` | Bespoke token-driven components (Tailwind utilities) shared across apps; shadcn/Radix for complex widgets (deferred) |
 | `packages/firebase` | `@luminova/firebase` | Firebase client singleton (auth, firestore, storage) |
 | `packages/types` | `@luminova/types` | Shared TypeScript types and data models |
-| `packages/utils` | `@luminova/utils` | Shared utilities (cn, etc.) |
+| `packages/auth` | `@luminova/auth` | CASL-based roles, permissions, ability builder |
 
 ## Runtime
 

@@ -38,7 +38,7 @@ directly for exact values. Summary of what's defined:
 | **Brand (locked)**  | `jci-blue` `#0097d7`, `jci-blue-2` `#0086c0`, `jci-black` `#130f2d`, `jci-white` `#ffffff`, `jci-navy` `#1f4789`, `jci-teal` `#57bcbc`, `jci-yellow` `#efc40f`, `bone` `#f4f1ea` |
 | **Surfaces**        | `surface` `#ffffff`, `surface-2` `#f7f9fb`, `surface-3` `#eef2f6`                                                                                                                |
 | **Lines**           | `line` `rgba(19,15,45,.08)`, `line-strong` `rgba(19,15,45,.16)`                                                                                                                  |
-| **Ink (text)**      | `ink-1` `#130f2d`, `ink-2` `rgba(19,15,45,.72)`, `ink-3` `rgba(19,15,45,.52)`                                                                                                    |
+| **Ink (text)**      | `ink-1` `#130f2d`, `ink-2` `rgba(19,15,45,.72)`, `ink-3` `rgba(19,15,45,.52)`, `ink-4` `rgba(19,15,45,.32)`                                                                      |
 | **Semantic status** | `ok` `#1f8a5b`, `error` `#c0392b`, `warn` `#8e7300`, `teal-ink` `#2e8c8c`                                                                                                        |
 | **Type**            | sans `Plus Jakarta Sans`, serif `Arvo`, mono `JetBrains Mono`                                                                                                                    |
 | **Radii**           | `card` `12px`, `pill` `9999px`                                                                                                                                                   |
