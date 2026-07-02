@@ -102,7 +102,7 @@ export function AllyForm({
       )}
 
       {formError && (
-        <div role="alert" className="text-[13px] text-[#c0392b]">
+        <div role="alert" className="text-[13px] text-error">
           {formError}
         </div>
       )}
