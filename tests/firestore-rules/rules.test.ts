@@ -28,6 +28,9 @@ function anon() {
 
 const MEMBER_DOC = { name: "Ana", totalPoints: 0, uid: "owner-uid", active: true, deletedAt: null };
 const DELETED_AT = new Date("2026-01-01T00:00:00Z");
+// Fixed instant for the activity-lock fixtures so echo-update tests can resend
+// the exact same startAt value.
+const LOCK_TS = new Date("2026-06-10T18:00:00Z");
 
 beforeAll(async () => {
   const rulesPath = resolve(fileURLToPath(new URL("../../firestore.rules", import.meta.url)));
@@ -161,6 +164,38 @@ beforeAll(async () => {
       parentId: "p_closed",
       startAt: inWindow,
       status: "Programada",
+    });
+    // Activity-lock fixtures: hasCheckIns is beacon-maintained; true locks
+    // category/startAt/parentId/parentType against every client writer.
+    await setDoc(doc(db, "activities/act_locked"), {
+      termId: "2026",
+      category: "Assembly",
+      parentType: null,
+      parentId: null,
+      title: "Bloqueada",
+      startAt: LOCK_TS,
+      status: "Programada",
+      hasCheckIns: true,
+    });
+    await setDoc(doc(db, "activities/act_unlocked_flag"), {
+      termId: "2026",
+      category: "Assembly",
+      parentType: null,
+      parentId: null,
+      title: "Libre",
+      startAt: LOCK_TS,
+      status: "Programada",
+      hasCheckIns: false,
+    });
+    await setDoc(doc(db, "activities/act_dir_locked"), {
+      termId: "2026",
+      category: "ProjectExecution",
+      parentType: "Project",
+      parentId: "p_dir",
+      title: "Actividad bloqueada del Eco",
+      startAt: LOCK_TS,
+      status: "Programada",
+      hasCheckIns: true,
     });
     await setDoc(doc(db, "checkIns/c1"), { memberId: "m1", activityId: "a1", role: "Attendee" });
     await setDoc(doc(db, "checkIns/c_del_admin"), {
@@ -1142,6 +1177,171 @@ describe("firestore.rules — activity parent-initiative direction", () => {
   it("denies a direction member updating a standalone activity (no parent direction)", async () => {
     await assertFails(
       updateDoc(doc(as("owner-uid", ["Member"]), "activities/act_standalone"), { title: "X" }),
+    );
+  });
+});
+
+describe("firestore.rules — initiative featured create-gate", () => {
+  // Curation authority is the Admin/ProjectManager ROLE; a custom role holding only
+  // the create perm may create initiatives but never born-featured ones.
+  function asCustom(uid: string, perms: string[]) {
+    return env.authenticatedContext(uid, { roles: ["Member"], perms }).firestore();
+  }
+
+  it("denies a custom create:Project holder creating featured:true", async () => {
+    await assertFails(
+      setDoc(doc(asCustom("cust-uid", ["create:Project"]), "projects/p_feat_c1"), {
+        termId: "2026",
+        title: "Colada",
+        featured: true,
+      }),
+    );
+  });
+  it("denies a custom manage:Project holder creating featured:true", async () => {
+    await assertFails(
+      setDoc(doc(asCustom("cust-uid", ["manage:Project"]), "projects/p_feat_c2"), {
+        termId: "2026",
+        title: "Colada",
+        featured: true,
+      }),
+    );
+  });
+  it("denies a custom create:Program holder creating featured:true", async () => {
+    await assertFails(
+      setDoc(doc(asCustom("cust-uid", ["create:Program"]), "programs/prog_feat_c1"), {
+        termId: "2026",
+        title: "Colada",
+        featured: true,
+      }),
+    );
+  });
+  it("allows a custom create:Project holder creating featured:false", async () => {
+    await assertSucceeds(
+      setDoc(doc(asCustom("cust-uid", ["create:Project"]), "projects/p_feat_c3"), {
+        termId: "2026",
+        title: "Normal",
+        featured: false,
+      }),
+    );
+  });
+  it("allows a custom create:Project holder creating without the field", async () => {
+    await assertSucceeds(
+      setDoc(doc(asCustom("cust-uid", ["create:Project"]), "projects/p_feat_c4"), {
+        termId: "2026",
+        title: "Normal",
+      }),
+    );
+  });
+  it("allows Admin creating featured:true", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["Admin"]), "projects/p_feat_admin_create"), {
+        termId: "2026",
+        title: "Curada",
+        featured: true,
+      }),
+    );
+  });
+  it("allows ProjectManager creating featured:true (program)", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["ProjectManager"]), "programs/prog_feat_pm_create"), {
+        termId: "2026",
+        title: "Curada",
+        featured: true,
+      }),
+    );
+  });
+});
+
+describe("firestore.rules — activity lock (hasCheckIns)", () => {
+  it("denies Admin changing category on a locked activity", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), { category: "Course" }),
+    );
+  });
+  it("denies Admin changing startAt on a locked activity", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), {
+        startAt: new Date("2026-06-11T18:00:00Z"),
+      }),
+    );
+  });
+  it("denies Admin re-parenting a locked activity", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), {
+        parentType: "Project",
+        parentId: "p_dir",
+      }),
+    );
+  });
+  it("allows Admin editing title on a locked activity", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), { title: "Renombrada" }),
+    );
+  });
+  it("allows an echo update resending unchanged locked fields", async () => {
+    // The backstage mapper always sends the full editable field set.
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), {
+        category: "Assembly",
+        startAt: LOCK_TS,
+        parentType: null,
+        parentId: null,
+        title: "Bloqueada (echo)",
+      }),
+    );
+  });
+  it("allows category change while hasCheckIns is false", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "activities/act_unlocked_flag"), { category: "Course" }),
+    );
+  });
+  it("allows category change on a legacy doc without the flag", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "activities/act1"), { category: "Course" }),
+    );
+  });
+  it("denies client setting hasCheckIns:true on create (even Admin)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "activities/act_forge1"), {
+        termId: "2026",
+        category: "Assembly",
+        hasCheckIns: true,
+      }),
+    );
+  });
+  it("denies client setting hasCheckIns:false on create (beacon-only field)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "activities/act_forge2"), {
+        termId: "2026",
+        category: "Assembly",
+        hasCheckIns: false,
+      }),
+    );
+  });
+  it("denies client clearing hasCheckIns on update (even Admin)", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), { hasCheckIns: false }),
+    );
+  });
+  it("denies client removing hasCheckIns via deleteField", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "activities/act_unlocked_flag"), {
+        hasCheckIns: deleteField(),
+      }),
+    );
+  });
+  it("lets the parent direction edit a locked activity while locked fields are untouched", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "activities/act_dir_locked"), {
+        title: "Editada por dirección",
+      }),
+    );
+  });
+  it("denies the parent direction changing category on a locked activity", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "activities/act_dir_locked"), {
+        category: "Course",
+      }),
     );
   });
 });

@@ -155,7 +155,9 @@ service cloud.firestore {
         && request.resource.data.get('directionUids', []) == []
         && request.resource.data.get('finalReport', null) == null
         && request.resource.data.get('impact', null) == null
-        && request.resource.data.get('status', '') != 'Finalizado';
+        && request.resource.data.get('status', '') != 'Finalizado'
+        && (hasAnyRole(['Admin', 'ProjectManager'])
+            || request.resource.data.get('featured', false) == false);
     }
     // `featured` promotes an already-public finalized initiative onto the curated
     // public /programas page — a curation decision, not an editing one. Only Admin/
@@ -164,8 +166,10 @@ service cloud.firestore {
     // `featured` field, which is semantically `false`, so default-to-false on BOTH
     // sides — else a direction editor echoing `featured: false` (the form always
     // sends it) on a legacy doc reads as null!=false and the whole update is denied.
-    // Create is Admin/PM-only (initiativeCreateAllowed), so a non-privileged forged
-    // `featured: true` on create cannot happen; an Admin/PM creating it featured is
+    // Create mirrors the same authority: initiativeCreateAllowed is PERM-based
+    // (canDo), so a custom role holding create:Project/Program could otherwise
+    // create a doc born `featured: true` and reach the public page once finalized —
+    // hence its Admin/PM-or-featured-false arm. An Admin/PM creating it featured is
     // their prerogative and only reaches the public page once finalized (isProjectable).
     // Intentionally role-based, NOT perm-based: `featured` is a curation decision
     // bound to Admin/ProjectManager. A custom role with manage:Project may edit an
@@ -310,10 +314,32 @@ service cloud.firestore {
            ).data.get('directionUids', []);
     }
 
+    // Once an activity has check-ins, the fields that feed the points derivation
+    // (category → point rule, startAt → punctuality factor, parentId/parentType →
+    // rule resolution + report gate) are locked for EVERY client writer — mutating
+    // them would silently change what already-awarded points mean. Rules cannot
+    // query checkIns, so beacon's awardPoints trigger mirrors their existence onto
+    // the activity doc as `hasCheckIns` (recomputed from a count() per checkIns
+    // write; admin SDK bypasses these rules). The flag lands with trigger latency —
+    // the client repository's live-count guard covers that window; this gate closes
+    // the persistent bypass. Legacy docs without the field read as unlocked.
+    function activityLockSafe() {
+      return resource.data.get('hasCheckIns', false) != true
+        || (unchanged('category')
+            && unchanged('startAt')
+            && unchanged('parentId')
+            && unchanged('parentType'));
+    }
+
     match /activities/{activityId} {
       allow read: if signedIn();
-      allow create: if canDo('create', 'Activity');
-      allow update: if canDo('update', 'Activity') || activityParentDirection();
+      // hasCheckIns is beacon-owned: clients may never set it (create) or touch
+      // it (update) — a forged true self-locks, a forged false unlocks the gate.
+      allow create: if canDo('create', 'Activity')
+        && !('hasCheckIns' in request.resource.data);
+      allow update: if (canDo('update', 'Activity') || activityParentDirection())
+        && unchanged('hasCheckIns')
+        && activityLockSafe();
       allow delete: if false;
     }
 
