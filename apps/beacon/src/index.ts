@@ -86,25 +86,36 @@ async function projectShowcase(
   await ref.set({ ...item, photos: [...item.photos, ...activityPhotos] });
 }
 
-export const awardPoints = onDocumentWritten("checkIns/{id}", async (event) => {
-  const store = createFirestoreStore(db());
-  const after = event.data?.after;
-  const before = event.data?.before;
-  if (after?.exists) {
-    const checkIn = validateCheckIn(after.data());
-    if (checkIn !== null) await processCheckIn(store, checkIn);
-  } else if (before?.exists) {
-    const checkIn = validateCheckIn(before.data());
-    if (checkIn !== null) await processCheckInDelete(store, checkIn);
-  }
-  // Mirror check-in existence onto the activity for the rules-side field lock.
-  // Runs even when validateCheckIn rejected the doc (a malformed check-in still
-  // matches the count query) and after the engine work so a mirror failure never
-  // pre-empts points — a retry redoes both idempotently.
-  const raw = (after?.exists ? after.data() : before?.data()) ?? {};
-  const activityId = (raw as { activityId?: unknown }).activityId;
-  if (isCleanId(activityId)) await syncActivityCheckInFlag(db(), activityId);
-});
+// retry: true — a transient failure here MUST redeliver: the hasCheckIns mirror
+// only recomputes on checkIns writes, so a swallowed/unretried error on an
+// activity's first check-in would leave the rules-side lock disengaged forever
+// (single-check-in activities never get a second write to self-heal on). The
+// whole handler is idempotent under redelivery (deterministic participation ids,
+// recompute-from-rows aggregate, recompute-from-count flag), and validateCheckIn
+// rejects malformed docs by returning null — never throwing — so bad input
+// cannot loop a retry storm.
+export const awardPoints = onDocumentWritten(
+  { document: "checkIns/{id}", retry: true },
+  async (event) => {
+    const store = createFirestoreStore(db());
+    const after = event.data?.after;
+    const before = event.data?.before;
+    if (after?.exists) {
+      const checkIn = validateCheckIn(after.data());
+      if (checkIn !== null) await processCheckIn(store, checkIn);
+    } else if (before?.exists) {
+      const checkIn = validateCheckIn(before.data());
+      if (checkIn !== null) await processCheckInDelete(store, checkIn);
+    }
+    // Mirror check-in existence onto the activity for the rules-side field lock.
+    // Runs even when validateCheckIn rejected the doc (a malformed check-in still
+    // matches the count query) and after the engine work so a mirror failure never
+    // pre-empts points — errors propagate on purpose so the retry redoes both.
+    const raw = (after?.exists ? after.data() : before?.data()) ?? {};
+    const activityId = (raw as { activityId?: unknown }).activityId;
+    if (isCleanId(activityId)) await syncActivityCheckInFlag(db(), activityId);
+  },
+);
 
 function initiativeTrigger(collection: "programs" | "projects") {
   const parentType = collection === "programs" ? "Program" : "Project";

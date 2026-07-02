@@ -117,6 +117,12 @@ write, a locked-field edit passes rules. The client repository's live-count guar
 stays as the UX-level check; the rules gate is defense-in-depth that closes the
 *persistent* bypass. Documented in the rules comment.
 
+`awardPoints` runs with `retry: true` (functions-reviewer High finding: v2 triggers
+default to no redelivery, so a transient flag-sync failure on an activity's only
+check-in would otherwise strand the lock disengaged forever with no self-heal).
+The handler is idempotent under redelivery; `validateCheckIn`'s no-throw contract
+prevents malformed-input retry storms.
+
 ### Type change
 
 `packages/types/src/engine/activity.ts` — `Activity` gains
