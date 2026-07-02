@@ -3,6 +3,8 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { createFirestoreStore, parseInitiativeWrite } from "./award-points/firestore-store.js";
+import { syncActivityCheckInFlag } from "./award-points/activity-lock.js";
+import { isCleanId } from "./award-points/ids.js";
 import { validateCheckIn } from "./award-points/check-in.js";
 import {
   processCheckIn,
@@ -11,6 +13,7 @@ import {
 } from "./award-points/process.js";
 import {
   activityParentRefs,
+  activityProjectionUnchanged,
   activityShowcasePhotos,
   isProjectable,
   projectInitiative,
@@ -83,20 +86,37 @@ async function projectShowcase(
   await ref.set({ ...item, photos: [...item.photos, ...activityPhotos] });
 }
 
-export const awardPoints = onDocumentWritten("checkIns/{id}", async (event) => {
-  const store = createFirestoreStore(db());
-  const after = event.data?.after;
-  if (after?.exists) {
-    const checkIn = validateCheckIn(after.data());
-    if (checkIn !== null) await processCheckIn(store, checkIn);
-    return;
-  }
-  const before = event.data?.before;
-  if (before?.exists) {
-    const checkIn = validateCheckIn(before.data());
-    if (checkIn !== null) await processCheckInDelete(store, checkIn);
-  }
-});
+// retry: true — a transient failure here MUST redeliver: the hasCheckIns mirror
+// only recomputes on checkIns writes, so a swallowed/unretried error on an
+// activity's first check-in would leave the rules-side lock disengaged forever
+// (single-check-in activities never get a second write to self-heal on). The
+// whole handler is idempotent under redelivery (deterministic participation ids,
+// recompute-from-rows aggregate, recompute-from-count flag), and validateCheckIn
+// rejects malformed docs by returning null — never throwing — so bad input
+// cannot loop a retry storm.
+export const awardPoints = onDocumentWritten(
+  { document: "checkIns/{id}", retry: true },
+  async (event) => {
+    const store = createFirestoreStore(db());
+    const after = event.data?.after;
+    const before = event.data?.before;
+    // .data() re-decodes the proto on every call — capture once for both uses.
+    const raw = after?.exists ? after.data() : before?.exists ? before.data() : undefined;
+    if (after?.exists) {
+      const checkIn = validateCheckIn(raw);
+      if (checkIn !== null) await processCheckIn(store, checkIn);
+    } else if (before?.exists) {
+      const checkIn = validateCheckIn(raw);
+      if (checkIn !== null) await processCheckInDelete(store, checkIn);
+    }
+    // Mirror check-in existence onto the activity for the rules-side field lock.
+    // Runs even when validateCheckIn rejected the doc (a malformed check-in still
+    // matches the count query) and after the engine work so a mirror failure never
+    // pre-empts points — errors propagate on purpose so the retry redoes both.
+    const activityId = ((raw ?? {}) as { activityId?: unknown }).activityId;
+    if (isCleanId(activityId)) await syncActivityCheckInFlag(db(), activityId);
+  },
+);
 
 function initiativeTrigger(collection: "programs" | "projects") {
   const parentType = collection === "programs" ? "Program" : "Project";
@@ -157,6 +177,9 @@ export const onActivityWritten = onDocumentWritten("activities/{id}", async (eve
   const database = db();
   const before = event.data?.before?.data();
   const after = event.data?.after?.data();
+  // awardPoints mirrors hasCheckIns onto activities on every check-in write; skip
+  // the re-projection when nothing the showcase consumes changed.
+  if (activityProjectionUnchanged(before, after)) return;
   // A parent-change re-projects both source and destination — distinct showcase
   // docs, so run them concurrently; each keeps its own catch so one failure does
   // not cancel the other.

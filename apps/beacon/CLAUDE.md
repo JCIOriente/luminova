@@ -21,8 +21,17 @@ Scanner scoped to the activity). On write:
    evaluate the two gates → `state`, set `monthBucket`/`computedPoints`.
 4. Write `participations/{activityId__memberId__role}` (deterministic id →
    idempotent) and recompute `memberPoints/{memberId}` + mirror `members.totalPoints`.
+5. `syncActivityCheckInFlag` — mirror `hasCheckIns` onto the activity (transactional
+   `count()` recompute, unconditional write = conflict anchor) so firestore.rules can
+   lock category/startAt/parentId/parentType once check-ins exist.
 
-On a `checkIns` **delete**, the derived row is removed and the aggregate recomputed.
+On a `checkIns` **delete**, the derived row is removed and the aggregate recomputed
+(and the flag re-mirrored).
+
+The trigger runs with `retry: true` — the only trigger that does. The flag mirror
+only recomputes on checkIns writes, so an unretried transient failure would strand
+the rules-side lock; the handler is idempotent under redelivery and step 1's
+no-throw contract prevents malformed-input retry storms.
 
 ### `confirmOnProgramReport` / `confirmOnProjectReport` — `onDocumentWritten('programs|projects/{id}')`
 

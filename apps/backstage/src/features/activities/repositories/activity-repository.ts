@@ -55,14 +55,24 @@ export class ActivityRepository {
     return ref.id;
   }
 
-  /** Edit an activity. Locks startAt/category once check-ins exist (retro-points). */
+  /** Edit an activity. Locks startAt/category/parent once check-ins exist (retro-points). */
   async update(id: string, data: ActivityInput): Promise<void> {
     const existing = await this.getById(id);
     if (!existing) throw new Error("Actividad no encontrada.");
     if ((await this.countCheckIns(id)) > 0) {
       const changed = lockedFieldsChanged(
-        { category: existing.category, startAt: existing.startAt.toMillis() },
-        { category: data.category, startAt: new Date(`${data.startAt}:00Z`).getTime() },
+        {
+          category: existing.category,
+          startAt: existing.startAt.toMillis(),
+          parentType: existing.parentType,
+          parentId: existing.parentId,
+        },
+        {
+          category: data.category,
+          startAt: new Date(`${data.startAt}:00Z`).getTime(),
+          parentType: data.parentType,
+          parentId: data.parentId,
+        },
       );
       if (changed) throw new ActivityLockedError();
     }

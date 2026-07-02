@@ -28,13 +28,17 @@ interface ActivityFormProps {
   projectOptions: ComboboxOption[];
   /** Restrict the category select (default: all categories). */
   categoryOptions?: readonly ActivityCategory[];
-  /** Lock category + startAt (edit mode with existing check-ins). */
+  /** Lock category + startAt + parent (edit mode with existing check-ins). */
   locked?: boolean;
   /** Fix category to ProjectExecution and hide category + parent picker (child-activity create). */
   lockParent?: boolean;
   isSaving: boolean;
   submitLabel?: string;
   onSubmit: (data: ActivityInput) => void;
+}
+
+function LockedFieldHint() {
+  return <p className="mt-1 text-sm text-ink-3">No editable: ya hay registros de asistencia.</p>;
 }
 
 const EMPTY: ActivityInput = {
@@ -112,9 +116,7 @@ export function ActivityForm({
               </option>
             ))}
           </Select>
-          {locked && (
-            <p className="mt-1 text-sm text-ink-3">No editable: ya hay registros de asistencia.</p>
-          )}
+          {locked && <LockedFieldHint />}
         </Field>
       )}
 
@@ -131,6 +133,7 @@ export function ActivityForm({
             />
           )}
         />
+        {locked && <LockedFieldHint />}
       </Field>
 
       <Field label="Ubicación" htmlFor="location" error={errors.location?.message}>
@@ -150,15 +153,19 @@ export function ActivityForm({
               control={control}
               name="parentType"
               render={({ field: typeField }) => (
-                <ParentPicker
-                  parentType={typeField.value}
-                  parentId={idField.value}
-                  programOptions={programOptions}
-                  projectOptions={projectOptions}
-                  onParentTypeChange={typeField.onChange}
-                  onParentIdChange={idField.onChange}
-                  error={errors.parentId?.message}
-                />
+                <div>
+                  <ParentPicker
+                    parentType={typeField.value}
+                    parentId={idField.value}
+                    programOptions={programOptions}
+                    projectOptions={projectOptions}
+                    onParentTypeChange={typeField.onChange}
+                    onParentIdChange={idField.onChange}
+                    error={errors.parentId?.message}
+                    disabled={locked}
+                  />
+                  {locked && <LockedFieldHint />}
+                </div>
               )}
             />
           )}

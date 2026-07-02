@@ -1,30 +1,28 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { initializeApp, deleteApp } from "firebase-admin/app";
-import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
+import { deleteApp } from "firebase-admin/app";
+import { Timestamp } from "firebase-admin/firestore";
 import type { Participation } from "@luminova/types/engine";
 import { createFirestoreStore } from "./firestore-store.js";
 import { processCheckIn } from "./process.js";
 import type { CheckIn } from "./check-in.js";
+import {
+  clearCollections,
+  countTxWritesTo,
+  initEmulatorTestApp,
+  sleep,
+  slowReadsDb,
+} from "./emulator-harness.js";
 
 // Runs against the Firestore emulator (FIRESTORE_EMULATOR_HOST set by
 // `firebase emulators:exec`). Exercises the REAL admin-SDK store, so the
 // aggregate read+write is genuinely concurrent here — unlike the in-memory
 // fakes, which serialize every await and cannot express a race.
-// Fail closed: the admin SDK silently targets PROD if the emulator host is
-// unset, so refuse to run outside `pnpm test:emulator`.
-if (!process.env.FIRESTORE_EMULATOR_HOST) {
-  throw new Error(
-    "recompute-race.emulator.test must run via `pnpm test:emulator` — FIRESTORE_EMULATOR_HOST is unset.",
-  );
-}
-const app = initializeApp({ projectId: "demo-beacon-test" });
-const db = getFirestore(app);
+const { app, db } = initEmulatorTestApp();
 const store = createFirestoreStore(db);
 
 const TERM = "2026";
 const M = "m1";
 const TS = Timestamp.fromDate(new Date("2026-06-06T18:00:00Z"));
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function confirmedRow(id: string, pts: number): Participation {
   return {
@@ -48,94 +46,8 @@ function confirmedRow(id: string, pts: number): Participation {
   };
 }
 
-// Delays every Firestore read (the participations query AND any transaction
-// read) so a recompute reads an early snapshot but writes late — the ordering
-// that turns the lost-update window into a permanent corruption. A non-atomic
-// read-then-write loses the concurrently-added row under this; a transactional
-// recompute detects the conflict, retries, and re-reads.
-function slowReadsDb(real: Firestore, delayMs: number): Firestore {
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const wrapQuery = (q: any): any =>
-    new Proxy(q, {
-      get(t, p) {
-        if (p === "where") return (...a: unknown[]) => wrapQuery(t.where(...a));
-        if (p === "get")
-          return async () => {
-            const r = await t.get();
-            await sleep(delayMs);
-            return r;
-          };
-        const v = Reflect.get(t, p, t);
-        return typeof v === "function" ? v.bind(t) : v;
-      },
-    });
-  const wrapTx = (tx: any): any =>
-    new Proxy(tx, {
-      get(t, p) {
-        if (p === "get")
-          return async (ref: unknown) => {
-            const r = await t.get(ref);
-            await sleep(delayMs);
-            return r;
-          };
-        const v = Reflect.get(t, p, t);
-        return typeof v === "function" ? v.bind(t) : v;
-      },
-    });
-  return new Proxy(real, {
-    get(t, p) {
-      if (p === "collection")
-        return (name: string) =>
-          name === "participations" ? wrapQuery(t.collection(name)) : t.collection(name);
-      if (p === "runTransaction")
-        return (fn: (tx: unknown) => unknown, opts?: unknown) =>
-          (t as any).runTransaction((tx: unknown) => fn(wrapTx(tx)), opts);
-      const v = Reflect.get(t, p, t);
-      return typeof v === "function" ? v.bind(t) : v;
-    },
-  }) as Firestore;
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-}
-
-// Counts how many times the transaction issues a write to a specific doc path —
-// asserts the skip-if-unchanged guard at the source (whether a write is ISSUED),
-// independent of Firestore's no-op-identical-write optimization (the emulator
-// does not bump updateTime on an identical merge, so updateTime can't tell).
-function countWritesTo(real: Firestore, path: string): { db: Firestore; writes: () => number } {
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  let count = 0;
-  const wrapTx = (tx: any): any =>
-    new Proxy(tx, {
-      get(t, p) {
-        if (p === "set")
-          return (ref: { path?: string }, ...rest: unknown[]) => {
-            if (ref?.path === path) count += 1;
-            return t.set(ref, ...rest);
-          };
-        const v = Reflect.get(t, p, t);
-        return typeof v === "function" ? v.bind(t) : v;
-      },
-    });
-  const proxied = new Proxy(real, {
-    get(t, p) {
-      if (p === "runTransaction")
-        return (fn: (tx: unknown) => unknown, opts?: unknown) =>
-          (t as any).runTransaction((tx: unknown) => fn(wrapTx(tx)), opts);
-      const v = Reflect.get(t, p, t);
-      return typeof v === "function" ? v.bind(t) : v;
-    },
-  }) as Firestore;
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-  return { db: proxied, writes: () => count };
-}
-
-async function clear(name: string): Promise<void> {
-  const snap = await db.collection(name).get();
-  await Promise.all(snap.docs.map((d) => d.ref.delete()));
-}
-
 beforeEach(async () => {
-  await Promise.all(["participations", "memberPoints", "members", "activities"].map(clear));
+  await clearCollections(db, ["participations", "memberPoints", "members", "activities"]);
 });
 
 afterAll(async () => {
@@ -185,7 +97,7 @@ describe("recomputeAggregate concurrency (emulator)", () => {
   });
 
   it("issues a members write only when totalPoints changes (no claims-sync amplification)", async () => {
-    const counter = countWritesTo(db, `members/${M}`);
+    const counter = countTxWritesTo(db, `members/${M}`);
     const counted = createFirestoreStore(counter.db);
 
     // Assert deltas, not absolutes: the unchanged case must issue ZERO members

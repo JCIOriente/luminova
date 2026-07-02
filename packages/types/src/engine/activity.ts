@@ -41,4 +41,8 @@ export interface Activity {
   endAt: Timestamp | null;
   photos: Photo[];
   status: ActivityStatus;
+  /** Beacon-maintained (awardPoints mirror; clients may never write it). True once
+   * any check-in references this activity — firestore.rules then locks
+   * category/startAt/parentId/parentType. Absent on pre-feature docs. */
+  hasCheckIns?: boolean;
 }

@@ -45,7 +45,17 @@ export async function processCheckInDelete(store: EngineStore, checkIn: CheckIn)
   // so deletion stays correct even if the activity is already gone.
   const existing = await store.getParticipation(id);
   await store.deleteParticipation(id);
-  if (existing !== null) await store.recomputeAggregate(existing.memberId, existing.termId);
+  if (existing !== null) {
+    await store.recomputeAggregate(existing.memberId, existing.termId);
+    return;
+  }
+  // Redelivery self-heal (awardPoints runs with retry: true): a prior attempt may
+  // have deleted the row and died before its recompute — the row is gone but the
+  // aggregate is stale. Resolve the term from the activity instead; it matches the
+  // deleted row's term because the rules lock termId once check-ins exist.
+  // Activity also gone → nothing resolvable (same terminal state as before).
+  const activity = await store.getActivity(checkIn.activityId);
+  if (activity !== null) await store.recomputeAggregate(checkIn.memberId, activity.termId);
 }
 
 /**
