@@ -84,8 +84,14 @@ function MembersPage() {
       setConfirm({ member });
       return;
     }
-    setMemberStatus.mutate({ id: member.id, status: next });
-    setToast(actionMessage(member.name, next === "Inactivo" ? "deactivated" : "reactivated"));
+    setMemberStatus.mutate(
+      { id: member.id, status: next },
+      {
+        onSuccess: () =>
+          setToast(actionMessage(member.name, next === "Inactivo" ? "deactivated" : "reactivated")),
+        onError: () => setToast("No se pudo actualizar el estado del miembro."),
+      },
+    );
   };
 
   const handleProvision = async (member: Member) => {
@@ -105,7 +111,11 @@ function MembersPage() {
 
   const handleEditSubmit = async (data: MemberInput) => {
     if (!drawer) return;
-    await updateMember.mutateAsync({ id: drawer.member.id, data });
+    await updateMember.mutateAsync({
+      id: drawer.member.id,
+      data,
+      currentPositions: drawer.member.positions?.[currentTermKey()] ?? null,
+    });
     setToast(actionMessage(data.name, "saved"));
     setDrawer(null);
   };
@@ -113,8 +123,13 @@ function MembersPage() {
   const confirmAction = () => {
     if (!confirm) return;
     const { member } = confirm;
-    setMemberStatus.mutate({ id: member.id, status: "Desafiliado" });
-    setToast(actionMessage(member.name, "disaffiliated"));
+    setMemberStatus.mutate(
+      { id: member.id, status: "Desafiliado" },
+      {
+        onSuccess: () => setToast(actionMessage(member.name, "disaffiliated")),
+        onError: () => setToast("No se pudo desafiliar al miembro."),
+      },
+    );
     setConfirm(null);
   };
 

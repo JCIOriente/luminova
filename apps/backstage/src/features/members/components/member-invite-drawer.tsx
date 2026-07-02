@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Checkbox, Sheet } from "@luminova/ui";
 import { type MemberInput, type Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
 import { actionMessage } from "../lib/member-display";
 import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
+import { useCan } from "../../../lib/authz/use-can";
 
 interface MemberInviteDrawerProps {
   open: boolean;
@@ -32,13 +33,26 @@ export function MemberInviteDrawer({
   onCreate,
   onProvision,
 }: MemberInviteDrawerProps) {
+  // Provisioning login is Admin-role-only (provisionMemberLogin → requireAdmin). A
+  // non-Admin may still create the member; they just can't send access here, so hide
+  // the option and default it off — otherwise the provision step fails silently after
+  // the member is already created.
+  const { isAdmin, canAssignPowerGrants } = useCan();
   const [done, setDone] = useState<DoneState | null>(null);
-  const [sendAccess, setSendAccess] = useState(true);
+  const [sendAccess, setSendAccess] = useState(isAdmin);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+
+  // The drawer mounts with the page, before the auth token's claims decode (the store
+  // emits with empty claims first, then re-emits). Re-sync the default each time it
+  // OPENS — by then isAdmin is resolved — so an Admin's first invite doesn't silently
+  // default "Enviar acceso" off. Won't clobber a manual toggle (deps stable while open).
+  useEffect(() => {
+    if (open) setSendAccess(isAdmin);
+  }, [open, isAdmin]);
 
   const reset = () => {
     setDone(null);
-    setSendAccess(true);
+    setSendAccess(isAdmin);
     setCopyState("idle");
   };
 
@@ -53,14 +67,22 @@ export function MemberInviteDrawer({
     let emailSent = false;
     let actionLink: string | null = null;
     if (sendAccess) {
-      const result = await onProvision(id);
-      provisioned = true;
-      actionLink = result.actionLink;
+      // The member is already created; if provisioning fails, fall through to the
+      // done screen with provisioned=false ("aún no tiene acceso, invítalo desde su
+      // fila") instead of throwing — a thrown error reads as a create failure and
+      // would invite a duplicate-create retry.
       try {
-        await requestPasswordReset(data.email);
-        emailSent = true;
+        const result = await onProvision(id);
+        provisioned = true;
+        actionLink = result.actionLink;
+        try {
+          await requestPasswordReset(data.email);
+          emailSent = true;
+        } catch {
+          emailSent = false;
+        }
       } catch {
-        emailSent = false;
+        provisioned = false;
       }
     }
     setDone({ name: data.name, email: data.email, provisioned, emailSent, actionLink });
@@ -135,10 +157,17 @@ export function MemberInviteDrawer({
           submitLabel="Enviar invitación"
           pendingLabel="Enviando…"
           showPreview
+          allowPowerGrants={canAssignPowerGrants}
           defaultValues={{ joinDate: today(), status: "Activo", cargoId: null, comisionIds: [] }}
           onSubmit={handleSubmit}
         >
-          <Checkbox checked={sendAccess} onChange={setSendAccess} label="Enviar acceso a la app" />
+          {isAdmin && (
+            <Checkbox
+              checked={sendAccess}
+              onChange={setSendAccess}
+              label="Enviar acceso a la app"
+            />
+          )}
         </MemberForm>
       )}
     </Sheet>

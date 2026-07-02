@@ -29,6 +29,7 @@ import { activityKeys } from "../features/activities/hooks/activity-keys";
 import { PhotoManager } from "../features/initiatives/components/photo-manager";
 import { PhotoGallery } from "../features/initiatives/components/photo-gallery";
 import { useInitiative, INITIATIVE_TYPE } from "../features/initiatives/hooks/use-initiative";
+import { useDismissingToast } from "../lib/use-dismissing-toast";
 
 export const Route = createFileRoute("/_app/activities_/$id")({ component: ActivityDetailPage });
 
@@ -49,7 +50,7 @@ function ActivityDetailPage() {
   const [tab, setTab] = useState<Tab>("resumen");
   const [editOpen, setEditOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useDismissingToast();
 
   const { data: activity, isLoading } = useActivity(id, { enabled: canRead });
   const { data: members } = useMembers({ enabled: canReadMembers });
@@ -65,6 +66,7 @@ function ActivityDetailPage() {
   const parentType = activity?.parentType ?? null;
   const parentId = activity?.parentId ?? null;
   const photoActions = useActivityPhotos(id, termId);
+  const galleryError = "No se pudo actualizar la galería.";
   const parentInitiative = useInitiative(
     parentType ? INITIATIVE_TYPE[parentType] : "project",
     parentId ?? "",
@@ -244,10 +246,28 @@ function ActivityDetailPage() {
           {canManagePhotos ? (
             <PhotoManager
               photos={activity.photos}
-              onUpload={(blob) => photoActions.addPhoto(blob)}
-              onRemove={photoActions.removePhotoById}
-              onSetCover={photoActions.setCover}
-              onSetCaption={photoActions.setCaption}
+              // Upload: ImageUploader owns its own error + keeps the crop, so just toast.
+              onUpload={(blob) => photoActions.addPhoto(blob).catch(() => setToast(galleryError))}
+              // Remove/cover/caption: toast AND re-throw so PhotoManager keeps its UI open
+              // for a retry instead of closing optimistically on a denied write.
+              onRemove={(id) =>
+                photoActions.removePhotoById(id).catch((err) => {
+                  setToast(galleryError);
+                  throw err;
+                })
+              }
+              onSetCover={(id) =>
+                photoActions.setCover(id).catch((err) => {
+                  setToast(galleryError);
+                  throw err;
+                })
+              }
+              onSetCaption={(id, caption) =>
+                photoActions.setCaption(id, caption).catch((err) => {
+                  setToast(galleryError);
+                  throw err;
+                })
+              }
             />
           ) : activity.photos.length > 0 ? (
             <PhotoGallery photos={activity.photos} showCover />

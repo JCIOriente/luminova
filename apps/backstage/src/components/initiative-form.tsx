@@ -39,6 +39,9 @@ interface InitiativeFormProps {
   isSaving: boolean;
   onSubmit: (data: InitiativeInput) => void;
   lockStatus?: boolean;
+  /** Whether the caller may set `featured` — Admin/ProjectManager only, mirroring
+   *  the rules' `featuredUpdateSafe`. A direction/perm editor sees it disabled. */
+  canFeature?: boolean;
 }
 
 export function InitiativeForm({
@@ -48,6 +51,7 @@ export function InitiativeForm({
   isSaving,
   onSubmit,
   lockStatus = false,
+  canFeature = false,
 }: InitiativeFormProps) {
   const {
     register,
@@ -185,22 +189,27 @@ export function InitiativeForm({
           </Select>
         </Field>
       )}
-      <div className="flex flex-col gap-1">
-        <Controller
-          control={control}
-          name="featured"
-          render={({ field }) => (
-            <Checkbox
-              checked={field.value}
-              onChange={field.onChange}
-              label="Destacar en /programas"
-            />
-          )}
-        />
-        <p className="text-[12px] text-ink-3">
-          Las iniciativas destacadas aparecen en la página pública de programas al finalizar.
-        </p>
-      </div>
+      {/* `featured` curation is Admin/ProjectManager-only (rules' featuredUpdateSafe);
+          a non-curator can never set it here, so hide the control entirely. The form
+          still submits the initiative's current value (unchanged), which the rule allows. */}
+      {canFeature && (
+        <div className="flex flex-col gap-1">
+          <Controller
+            control={control}
+            name="featured"
+            render={({ field }) => (
+              <Checkbox
+                checked={field.value}
+                onChange={field.onChange}
+                label="Destacar en /programas"
+              />
+            )}
+          />
+          <p className="text-[12px] text-ink-3">
+            Las iniciativas destacadas aparecen en la página pública de programas al finalizar.
+          </p>
+        </div>
+      )}
       <Button as="button" type="submit" className="mt-1 w-full justify-center" disabled={isSaving}>
         {isSaving ? "Guardando…" : submitLabel}
       </Button>

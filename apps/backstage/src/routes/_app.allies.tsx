@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Button, Sheet, Dialog, Icon } from "@luminova/ui";
+import { Button, Sheet, Dialog, Icon, Toast } from "@luminova/ui";
+import { useDismissingToast } from "../lib/use-dismissing-toast";
 import { useAllies } from "../features/allies/hooks/use-allies";
 import { useAddAlly } from "../features/allies/hooks/use-add-ally";
 import { useUpdateAlly } from "../features/allies/hooks/use-update-ally";
@@ -10,6 +11,7 @@ import { useRemoveAllyLogo } from "../features/allies/hooks/use-remove-ally-logo
 import { AllyTable } from "../features/allies/components/ally-table";
 import { AllyForm } from "../features/allies/components/ally-form";
 import { PageHeader } from "../components/page-header";
+import { Can } from "../lib/authz/ability-context";
 import type { Ally, AllyInput } from "@luminova/types";
 
 export const Route = createFileRoute("/_app/allies")({
@@ -28,6 +30,7 @@ function AlliesPage() {
 
   const [editing, setEditing] = useState<Editing>(null);
   const [deleteTarget, setDeleteTarget] = useState<Ally | null>(null);
+  const [errorToast, setErrorToast] = useDismissingToast();
 
   const handleSubmit = async (data: AllyInput) => {
     if (editing === "new") {
@@ -40,8 +43,12 @@ function AlliesPage() {
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
-    await deleteAlly.mutateAsync(deleteTarget.id);
-    setDeleteTarget(null);
+    try {
+      await deleteAlly.mutateAsync(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch {
+      setErrorToast("No se pudo eliminar el aliado.");
+    }
   };
 
   return (
@@ -51,14 +58,16 @@ function AlliesPage() {
         title="Aliados"
         subtitle="Empresas y organizaciones que apoyan al capítulo."
         actions={
-          <Button
-            as="button"
-            type="button"
-            iconLeft={Icon.plus({ s: 18 })}
-            onClick={() => setEditing("new")}
-          >
-            Agregar aliado
-          </Button>
+          <Can I="create" a="Ally">
+            <Button
+              as="button"
+              type="button"
+              iconLeft={Icon.plus({ s: 18 })}
+              onClick={() => setEditing("new")}
+            >
+              Agregar aliado
+            </Button>
+          </Can>
         }
       />
 
@@ -125,6 +134,7 @@ function AlliesPage() {
           </Button>
         </div>
       </Dialog>
+      {errorToast && <Toast message={errorToast} icon={Icon.close({ s: 18 })} />}
     </div>
   );
 }

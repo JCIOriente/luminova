@@ -4,6 +4,8 @@ import {
   Button,
   Sheet,
   SegmentedControl,
+  Toast,
+  Icon,
   type ComboboxOption,
   type SegmentedOption,
 } from "@luminova/ui";
@@ -14,10 +16,12 @@ import type {
   Member,
 } from "@luminova/types";
 import { useAbility } from "../lib/authz/ability-context";
+import { useCan } from "../lib/authz/use-can";
 import { useAuth } from "../lib/auth/auth";
 import { CompletionWizard } from "../features/initiatives/components/completion-wizard";
 import { useCompleteInitiative } from "../features/initiatives/hooks/use-complete-initiative";
 import { useInitiativePhotos } from "../features/initiatives/hooks/use-initiative-photos";
+import { useDismissingToast } from "../lib/use-dismissing-toast";
 import { InitiativeForm } from "../components/initiative-form";
 import { InitiativeHero } from "../features/initiatives/components/initiative-hero";
 import { InitiativeSummary } from "../features/initiatives/components/initiative-summary";
@@ -66,6 +70,7 @@ function InitiativeDetailPage() {
 
   const canRead = ability.can("read", kind);
   const canUpdate = ability.can("update", kind);
+  const canFeature = useCan().canFeatureInitiatives;
   const canCreateActivity = ability.can("create", "Activity");
   const canReadMembers = ability.can("read", "Member");
 
@@ -83,6 +88,7 @@ function InitiativeDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [errorToast, setErrorToast] = useDismissingToast();
 
   const memberById = useMemo(
     () => new Map<string, Member>((members ?? []).map((m) => [m.id, m])),
@@ -120,22 +126,54 @@ function InitiativeDetailPage() {
 
   const handleUpdate = async (data: InitiativeInput) => {
     if (!canUpdate) return;
-    if (item.kind === "Program") await updateProgram.mutateAsync({ id: item.id, data });
-    else await updateProject.mutateAsync({ id: item.id, data });
-    setEditOpen(false);
+    try {
+      if (item.kind === "Program") await updateProgram.mutateAsync({ id: item.id, data });
+      else await updateProject.mutateAsync({ id: item.id, data });
+      setEditOpen(false);
+    } catch {
+      setErrorToast("No se pudo guardar. Revisa tus permisos e intenta de nuevo.");
+    }
   };
 
   const handleComplete = async (impact: InitiativeImpactInput) => {
     if (!canComplete || uid === null) return;
-    await completeInitiative.mutateAsync({ id: item.id, impact, uid });
-    setCompleteOpen(false);
+    try {
+      await completeInitiative.mutateAsync({ id: item.id, impact, uid });
+      setCompleteOpen(false);
+    } catch {
+      setErrorToast("No se pudo finalizar. Revisa tus permisos e intenta de nuevo.");
+    }
   };
 
   const handleCreateActivity = async (data: ActivityInput) => {
     if (!canCreateActivity) return;
     if (data.parentType !== item.kind || data.parentId !== item.id) return;
-    await createActivity.mutateAsync(data);
-    setCreateOpen(false);
+    try {
+      await createActivity.mutateAsync(data);
+      setCreateOpen(false);
+    } catch {
+      setErrorToast("No se pudo crear la actividad.");
+    }
+  };
+
+  // Photo mutations otherwise reject silently. Toast the failure and RE-THROW so
+  // PhotoManager keeps its caption/remove UI open for a retry instead of closing
+  // optimistically. Upload is excluded — ImageUploader surfaces its own inline error
+  // and keeps the crop open — so it only toasts.
+  const galleryError = "No se pudo actualizar la galería.";
+  const rethrowPhoto =
+    <A extends unknown[]>(fn: (...a: A) => Promise<void>) =>
+    (...a: A) =>
+      fn(...a).catch((err) => {
+        setErrorToast(galleryError);
+        throw err;
+      });
+  const photo = {
+    addPhoto: (...a: Parameters<typeof photoActions.addPhoto>) =>
+      photoActions.addPhoto(...a).catch(() => setErrorToast(galleryError)),
+    removePhotoById: rethrowPhoto(photoActions.removePhotoById),
+    setCover: rethrowPhoto(photoActions.setCover),
+    setCaption: rethrowPhoto(photoActions.setCaption),
   };
 
   const isSavingInitiative = updateProgram.isPending || updateProject.isPending;
@@ -197,10 +235,10 @@ function InitiativeDetailPage() {
               {canManagePhotos ? (
                 <PhotoManager
                   photos={item.photos}
-                  onUpload={photoActions.addPhoto}
-                  onRemove={photoActions.removePhotoById}
-                  onSetCover={photoActions.setCover}
-                  onSetCaption={photoActions.setCaption}
+                  onUpload={photo.addPhoto}
+                  onRemove={photo.removePhotoById}
+                  onSetCover={photo.setCover}
+                  onSetCaption={photo.setCaption}
                 />
               ) : (
                 <PhotoGallery photos={item.photos} showCover />
@@ -228,6 +266,7 @@ function InitiativeDetailPage() {
           submitLabel="Guardar"
           isSaving={isSavingInitiative}
           lockStatus={isCompleted}
+          canFeature={canFeature}
           onSubmit={(data) => void handleUpdate(data)}
         />
       </Sheet>
@@ -238,10 +277,10 @@ function InitiativeDetailPage() {
           isSaving={completeInitiative.isPending}
           onComplete={(impact) => void handleComplete(impact)}
           photos={item.photos}
-          onUploadPhoto={photoActions.addPhoto}
-          onRemovePhoto={photoActions.removePhotoById}
-          onSetCover={photoActions.setCover}
-          onSetCaption={photoActions.setCaption}
+          onUploadPhoto={photo.addPhoto}
+          onRemovePhoto={photo.removePhotoById}
+          onSetCover={photo.setCover}
+          onSetCaption={photo.setCaption}
         />
       </Sheet>
 
@@ -261,6 +300,7 @@ function InitiativeDetailPage() {
           onSubmit={(data) => void handleCreateActivity(data)}
         />
       </Sheet>
+      {errorToast && <Toast message={errorToast} icon={Icon.close({ s: 18 })} />}
     </div>
   );
 }

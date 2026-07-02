@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, Icon, EmptyState, Menu, MenuItem, Sheet } from "@luminova/ui";
+import { Button, Icon, EmptyState, Menu, MenuItem, Sheet, Toast } from "@luminova/ui";
+import { useDismissingToast } from "../lib/use-dismissing-toast";
 import type { ComboboxOption } from "@luminova/ui";
 import type { InitiativeInput, Member } from "@luminova/types";
 import { useAbility } from "../lib/authz/ability-context";
+import { useCan } from "../lib/authz/use-can";
 import { PageHeader } from "../components/page-header";
 import { InitiativeForm } from "../components/initiative-form";
 import { InitiativeCard } from "../components/initiative-card";
@@ -34,6 +36,7 @@ function sheetTitle(editing: Editing): string {
 function InitiativesPage() {
   const termId = currentTermKey();
   const ability = useAbility();
+  const canFeature = useCan().canFeatureInitiatives;
   const navigate = useNavigate();
   const canReadProgram = ability.can("read", "Program");
   const canReadProject = ability.can("read", "Project");
@@ -62,6 +65,7 @@ function InitiativesPage() {
     query: "",
   });
   const [editing, setEditing] = useState<Editing>(null);
+  const [errorToast, setErrorToast] = useDismissingToast();
 
   const memberById = useMemo(
     () => new Map<string, Member>((members ?? []).map((m) => [m.id, m])),
@@ -91,9 +95,13 @@ function InitiativesPage() {
   const handleSubmit = async (data: InitiativeInput) => {
     if (!editing) return;
     if (!ability.can("create", editing.kind)) return;
-    if (editing.kind === "Program") await createProgram.mutateAsync(data);
-    else await createProject.mutateAsync(data);
-    setEditing(null);
+    try {
+      if (editing.kind === "Program") await createProgram.mutateAsync(data);
+      else await createProject.mutateAsync(data);
+      setEditing(null);
+    } catch {
+      setErrorToast("No se pudo crear. Revisa tus permisos e intenta de nuevo.");
+    }
   };
 
   const isSaving = createProgram.isPending || createProject.isPending;
@@ -170,10 +178,12 @@ function InitiativesPage() {
             defaultValues={undefined}
             submitLabel="Crear"
             isSaving={isSaving}
+            canFeature={canFeature}
             onSubmit={(data) => void handleSubmit(data)}
           />
         )}
       </Sheet>
+      {errorToast && <Toast message={errorToast} icon={Icon.close({ s: 18 })} />}
     </div>
   );
 }

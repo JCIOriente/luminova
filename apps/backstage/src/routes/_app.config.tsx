@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Skeleton, EmptyState, Icon, Toast } from "@luminova/ui";
+import { useDismissingToast } from "../lib/use-dismissing-toast";
 import { useSiteConfig } from "../features/site-config/hooks/use-site-config";
 import { useUpdateSiteConfig } from "../features/site-config/hooks/use-update-site-config";
 import {
@@ -9,6 +9,7 @@ import {
 } from "../features/site-config/repositories/site-config-mapper";
 import { SiteConfigForm } from "../features/site-config/components/site-config-form";
 import { PageHeader } from "../components/page-header";
+import { useCan } from "../lib/authz/use-can";
 import type { SiteConfigInput } from "@luminova/types";
 
 export const Route = createFileRoute("/_app/config")({
@@ -40,20 +41,36 @@ const BLANK_CONFIG: SiteConfigInput = {
 };
 
 function ConfigPage() {
+  const { isAdmin } = useCan();
   const { data, isLoading, isError } = useSiteConfig();
   const updateSiteConfig = useUpdateSiteConfig();
-  const [toast, setToast] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!toast) return;
-    const id = setTimeout(() => setToast(null), 2800);
-    return () => clearTimeout(id);
-  }, [toast]);
+  const [toast, setToast] = useDismissingToast<{ message: string; ok: boolean }>();
 
   const handleSubmit = async (formData: SiteConfigInput) => {
-    await updateSiteConfig.mutateAsync({ data: formData, version: data?.version ?? 0 });
-    setToast("Configuración guardada correctamente.");
+    try {
+      await updateSiteConfig.mutateAsync({ data: formData, version: data?.version ?? 0 });
+      setToast({ message: "Configuración guardada correctamente.", ok: true });
+    } catch {
+      setToast({ message: "No se pudo guardar la configuración.", ok: false });
+    }
   };
+
+  // siteConfig write is Admin-role-only (firestore.rules); don't render an editor
+  // whose Save can only ever be denied. Read is world-public, so no query to skip.
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow="Capítulo JCI Oriente"
+          title="Configuración"
+          subtitle="Edita los datos del sitio público."
+        />
+        <p role="alert" className="text-ink-3">
+          Solo un administrador puede editar la configuración del sitio.
+        </p>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -86,7 +103,12 @@ function ConfigPage() {
         subtitle="Edita los datos del sitio público."
       />
       <SiteConfigForm defaultValues={defaultValues} lastSaved={lastSaved} onSubmit={handleSubmit} />
-      {toast && <Toast message={toast} icon={Icon.check({ s: 18 })} />}
+      {toast && (
+        <Toast
+          message={toast.message}
+          icon={toast.ok ? Icon.check({ s: 18 }) : Icon.close({ s: 18 })}
+        />
+      )}
     </div>
   );
 }

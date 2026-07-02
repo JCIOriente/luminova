@@ -22,6 +22,10 @@ interface MemberFormProps {
   onSubmit: (data: MemberInput) => Promise<void>;
   showPreview?: boolean;
   avatarSeed?: string;
+  /** Whether the editor may assign power-granting cargos — Admin only (rules'
+   *  `cargoGrantsEmpty` / `createPositionsSafe`). Non-Admin sees only grant-free
+   *  cargos plus the current selection. */
+  allowPowerGrants?: boolean;
   children?: ReactNode;
 }
 
@@ -51,6 +55,7 @@ export function MemberForm({
   onSubmit,
   showPreview,
   avatarSeed,
+  allowPowerGrants = false,
   children,
 }: MemberFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
@@ -69,10 +74,20 @@ export function MemberForm({
   const currentCargoId = watch("cargoId");
   const currentComisionIds = watch("comisionIds");
   const term = currentTermKey();
+  // Keep the member's ORIGINALLY-assigned cargo selectable for a non-Admin even if it
+  // grants power — but off the static default, not the reactive selection, so switching
+  // away and back still works (matches MemberPositionsForm).
+  const assignedCargoId = defaultValues?.cargoId ?? null;
+  // If that assigned cargo grants power and the editor isn't Admin, any positions write
+  // is rule-denied (cargoGrantsEmpty) — lock the cargo/comisiones so bio edits still save
+  // (the mapper omits the unchanged slot) but a futile positions change can't be attempted.
+  const positionsLocked =
+    !allowPowerGrants && (positions.find((p) => p.id === assignedCargoId)?.grants.length ?? 0) > 0;
   const activeCargoOptions = positions
     .filter(
       (p) => p.active && p.category !== "Comision" && (p.term === null || String(p.term) === term),
     )
+    .filter((p) => allowPowerGrants || p.grants.length === 0 || p.id === assignedCargoId)
     .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
   const assignedInactiveCargo =
     currentCargoId && !activeCargoOptions.some((o) => o.value === currentCargoId)
@@ -180,6 +195,7 @@ export function MemberForm({
                 value={field.value}
                 onChange={field.onChange}
                 placeholder="Sin cargo"
+                disabled={positionsLocked}
               />
             )}
           />
@@ -198,10 +214,17 @@ export function MemberForm({
                 options={comisionOptions}
                 value={field.value}
                 onChange={field.onChange}
+                disabled={positionsLocked}
               />
             )}
           />
         </Field>
+        {positionsLocked && (
+          <p role="note" className="text-[12px] text-ink-3">
+            Solo un Admin puede cambiar el cargo de un miembro con permisos. Puedes editar el resto
+            de sus datos.
+          </p>
+        )}
         <Field
           label="Fecha de ingreso"
           htmlFor="joinDate"

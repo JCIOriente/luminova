@@ -24,6 +24,7 @@ describe("MemberPositionsForm", () => {
       <MemberPositionsForm
         positions={positions}
         gender="Masculino"
+        allowPowerGrants={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={onSubmit}
       />,
@@ -38,6 +39,7 @@ describe("MemberPositionsForm", () => {
       <MemberPositionsForm
         positions={positions}
         gender="Masculino"
+        allowPowerGrants={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={onSubmit}
       />,
@@ -67,6 +69,7 @@ describe("MemberPositionsForm", () => {
       <MemberPositionsForm
         positions={[cce]}
         gender="Femenino"
+        allowPowerGrants={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -76,12 +79,70 @@ describe("MemberPositionsForm", () => {
     expect(screen.queryByText(/Comisióna/)).not.toBeInTheDocument();
   });
 
+  const powerCargo: Position = { ...pos("presidente", "CEL"), grants: ["Admin"] };
+
+  it("hides power-granting cargos from a non-Admin", async () => {
+    render(
+      <MemberPositionsForm
+        positions={[powerCargo]}
+        gender="Masculino"
+        allowPowerGrants={false}
+        defaultValues={{ cargoId: null, comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    expect(screen.queryByText("presidente")).not.toBeInTheDocument();
+  });
+
+  it("shows power-granting cargos to an Admin", async () => {
+    render(
+      <MemberPositionsForm
+        positions={[powerCargo]}
+        gender="Masculino"
+        allowPowerGrants
+        defaultValues={{ cargoId: null, comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    expect(await screen.findByText("presidente")).toBeInTheDocument();
+  });
+
+  it("locks the form for a non-Admin editing a member whose assigned cargo grants power", () => {
+    render(
+      <MemberPositionsForm
+        positions={[powerCargo]}
+        gender="Masculino"
+        allowPowerGrants={false}
+        defaultValues={{ cargoId: "presidente", comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /guardar/i })).toBeDisabled();
+    expect(screen.getByText(/Solo un Admin puede cambiar los cargos/i)).toBeInTheDocument();
+  });
+
+  it("does NOT lock when the editor may assign power grants (Admin)", () => {
+    render(
+      <MemberPositionsForm
+        positions={[powerCargo]}
+        gender="Masculino"
+        allowPowerGrants
+        defaultValues={{ cargoId: "presidente", comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /guardar/i })).not.toBeDisabled();
+  });
+
   it("shows error alert when onSubmit throws", async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error("fail"));
     render(
       <MemberPositionsForm
         positions={positions}
         gender="Masculino"
+        allowPowerGrants={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={onSubmit}
       />,

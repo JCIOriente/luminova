@@ -160,8 +160,11 @@ export function RoleEditor({ role, onSubmit, onDelete }: RoleEditorProps) {
           disabled={saving}
           className="w-full justify-center text-error"
           onClick={() => {
+            if (!onDelete) return;
             setSaving(true);
-            void onDelete?.().finally(() => setSaving(false));
+            onDelete()
+              .catch(() => setError("No se pudo eliminar el rol."))
+              .finally(() => setSaving(false));
           }}
         >
           Eliminar rol

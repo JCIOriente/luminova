@@ -36,10 +36,16 @@ function PhotoThumbnail({
 
   const isDisabled = disabled || busy;
 
+  // The action callbacks reject on a failed write; the consumer surfaces the error
+  // toast, and we swallow here so `void handler()` doesn't leave an unhandled rejection.
+  // Crucially, the success-only UI transitions (close editor / close confirm) run inside
+  // `try` AFTER the await, so a rejection leaves the editor/confirm open for a retry.
   async function handleSetCover() {
     setBusy(true);
     try {
       await onSetCover(photo.id);
+    } catch {
+      /* toast surfaced by caller; nothing to keep open here */
     } finally {
       setBusy(false);
     }
@@ -52,6 +58,8 @@ function PhotoThumbnail({
     try {
       await onSetCaption(photo.id, captionValue);
       setEditingCaption(false);
+    } catch {
+      /* keep the editor open with the typed value so the user can retry */
     } finally {
       setBusy(false);
       committingRef.current = false;
@@ -71,9 +79,11 @@ function PhotoThumbnail({
     setBusy(true);
     try {
       await onRemove(photo.id);
+      setConfirmingRemove(false);
+    } catch {
+      /* keep the confirm open so the failed removal can be retried */
     } finally {
       setBusy(false);
-      setConfirmingRemove(false);
     }
   }
 

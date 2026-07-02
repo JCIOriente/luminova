@@ -7,14 +7,17 @@ import { buildPermissionsOverview } from "../features/positions/lib/permissions-
 import { PermisosView } from "../features/positions/components/permisos-view";
 import { RoleManager } from "../features/permissions/components/role-manager";
 import { PageHeader } from "../components/page-header";
-import { useAbility } from "../lib/authz/ability-context";
+import { useCan } from "../lib/authz/use-can";
 
 export const Route = createFileRoute("/_app/permisos")({
   component: PermisosPage,
 });
 
 function PermisosPage() {
-  const isAdmin = useAbility().can("manage", "all");
+  // roles-collection writes are Admin-role-only (hasAnyRole(['Admin'])), not the
+  // manage:all perm — gate on the role so a manage:all-perm custom role doesn't see
+  // a RoleManager whose every write the rules deny.
+  const isAdmin = useCan().isAdmin;
   // Gate the reads on isAdmin: a non-Admin who types /permisos directly shouldn't
   // fire collection queries Firestore would deny anyway (least-privilege).
   const { data: positions, isLoading: positionsLoading } = usePositions({ enabled: isAdmin });

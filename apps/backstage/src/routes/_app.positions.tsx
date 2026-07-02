@@ -10,7 +10,8 @@ import { useSeedPositions } from "../features/positions/hooks/use-seed-positions
 import { PositionForm } from "../features/positions/components/position-form";
 import { PositionSection } from "../features/positions/components/position-table";
 import { PageHeader } from "../components/page-header";
-import { Can, useAbility } from "../lib/authz/ability-context";
+import { Can } from "../lib/authz/ability-context";
+import { useCan } from "../lib/authz/use-can";
 
 export const Route = createFileRoute("/_app/positions")({
   component: PositionsPage,
@@ -36,8 +37,9 @@ function PositionsPage() {
   const updatePosition = useUpdatePosition();
   const deletePosition = useDeletePosition();
   const seedPositions = useSeedPositions();
-  const ability = useAbility();
-  const isAdmin = ability.can("manage", "all");
+  // Grants + seed are power-grant writes the rules gate on the Admin *role*
+  // (hasAnyRole(['Admin'])), not the manage:all perm — use the role-based capability.
+  const { isAdmin, canAssignPowerGrants } = useCan();
 
   const [editing, setEditing] = useState<Editing>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Position | null>(null);
@@ -178,7 +180,7 @@ function PositionsPage() {
             key={editing === "new" ? "new" : editing.id}
             defaultValues={editing === "new" ? undefined : positionToInput(editing)}
             submitLabel={editing === "new" ? "Crear" : "Guardar"}
-            canEditGrants={isAdmin}
+            canEditGrants={canAssignPowerGrants}
             onSubmit={handleSubmit}
           />
         )}

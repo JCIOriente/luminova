@@ -60,7 +60,9 @@ export function ActivityCard({
             {activity.status}
           </Badge>
         </div>
-        {canManage && (
+        {/* A Cancelada activity has no manageable action (edit hidden to match the
+            detail page; cancel is impossible) — don't render an empty actions menu. */}
+        {canManage && activity.status !== "Cancelada" && (
           <div className="absolute top-3 right-3">
             <Menu
               align="end"
@@ -85,14 +87,10 @@ export function ActivityCard({
               }
             >
               <MenuItem onSelect={() => onEdit(activity)}>Editar</MenuItem>
-              {activity.status !== "Cancelada" && (
-                <>
-                  <MenuSeparator />
-                  <MenuItem danger onSelect={() => onCancel(activity)}>
-                    Cancelar actividad
-                  </MenuItem>
-                </>
-              )}
+              <MenuSeparator />
+              <MenuItem danger onSelect={() => onCancel(activity)}>
+                Cancelar actividad
+              </MenuItem>
             </Menu>
           </div>
         )}

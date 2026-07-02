@@ -16,11 +16,16 @@ export function MemberPositionsForm({
   positions,
   gender,
   defaultValues,
+  allowPowerGrants,
   onSubmit,
 }: {
   positions: Position[];
   gender: MemberGender | undefined;
   defaultValues: PositionsInput;
+  /** Whether the caller may assign power-granting cargos. Only Admin may (rules'
+   *  `cargoGrantsEmpty`); a non-Admin sees only grant-free cargos (plus the current
+   *  assignment, so an existing selection still renders). */
+  allowPowerGrants: boolean;
   onSubmit: (data: PositionsInput) => Promise<void>;
 }) {
   const [formError, setFormError] = useState<string | null>(null);
@@ -31,10 +36,17 @@ export function MemberPositionsForm({
   } = useForm<PositionsInput>({ resolver: zodResolver(positionsSchema), defaultValues });
 
   const term = currentTermKey();
+  // A non-Admin can't write positions at all for a member whose current cargo grants
+  // power: the write re-stamps that cargoId and the rules' `cargoGrantsEmpty` denies it
+  // (comisiones can't be changed either — the whole slot is rejected). Lock the form.
+  const assignedCargoHasGrants =
+    (positions.find((p) => p.id === defaultValues.cargoId)?.grants.length ?? 0) > 0;
+  const locked = !allowPowerGrants && assignedCargoHasGrants;
   const cargoOptions = positions
     .filter(
       (p) => p.active && p.category !== "Comision" && (p.term === null || String(p.term) === term),
     )
+    .filter((p) => allowPowerGrants || p.grants.length === 0 || p.id === defaultValues.cargoId)
     .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
   const comisionOptions = positions
     .filter((p) => p.active && p.category === "Comision")
@@ -62,6 +74,7 @@ export function MemberPositionsForm({
               value={field.value}
               onChange={field.onChange}
               placeholder="Sin cargo"
+              disabled={locked}
             />
           )}
         />
@@ -76,16 +89,27 @@ export function MemberPositionsForm({
               options={comisionOptions}
               value={field.value}
               onChange={field.onChange}
+              disabled={locked}
             />
           )}
         />
       </Field>
+      {locked && (
+        <p role="note" className="text-[12px] text-ink-3">
+          Solo un Admin puede cambiar los cargos de un miembro con permisos.
+        </p>
+      )}
       {formError && (
         <div role="alert" className="text-[13px] text-error">
           {formError}
         </div>
       )}
-      <Button as="button" type="submit" disabled={isSubmitting} className="w-full justify-center">
+      <Button
+        as="button"
+        type="submit"
+        disabled={isSubmitting || locked}
+        className="w-full justify-center"
+      >
         {isSubmitting ? "Guardando…" : "Guardar cargos"}
       </Button>
     </form>

@@ -8,6 +8,9 @@ import { MemberRowMenu } from "./member-row-menu";
 vi.mock("../../../lib/authz/ability-context", () => ({
   Can: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
+vi.mock("../../../lib/authz/action-gate", () => ({
+  ActionGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 function member(p: Partial<Member>): Member {
   return {

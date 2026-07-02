@@ -11,7 +11,13 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import { currentTermKey, MEMBER_STATUSES, type Member, type MemberInput } from "@luminova/types";
+import {
+  currentTermKey,
+  MEMBER_STATUSES,
+  type Member,
+  type MemberInput,
+  type TermPositions,
+} from "@luminova/types";
 import { toMemberCreateDoc, toMemberUpdateDoc } from "./member-mapper";
 
 export class MemberRepository {
@@ -53,8 +59,17 @@ export class MemberRepository {
     return ref.id;
   }
 
-  async update(id: string, data: MemberInput): Promise<void> {
-    await updateDoc(doc(this.collection, id), toMemberUpdateDoc(data, this.currentUid()));
+  async update(
+    id: string,
+    data: MemberInput,
+    // Required (may be null) so a caller can't silently forget it and reintroduce the
+    // re-gate bug: an omitted current slot makes the mapper always re-stamp positions.
+    currentPositions: Pick<TermPositions, "cargoId" | "comisionIds"> | null,
+  ): Promise<void> {
+    await updateDoc(
+      doc(this.collection, id),
+      toMemberUpdateDoc(data, this.currentUid(), currentPositions),
+    );
   }
 
   /** ExecutiveCommittee org-chart edit: writes ONLY the current term's assignment
