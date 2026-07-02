@@ -1232,6 +1232,18 @@ describe("firestore.rules — initiative featured create-gate", () => {
       }),
     );
   });
+  it("featured:false does not bypass the other create guards (parenthesization)", async () => {
+    // Regression pin: if the featured arm ever loses its parens, `&& A || B`
+    // re-associates and a featured:false create would skip every other guard.
+    await assertFails(
+      setDoc(doc(asCustom("cust-uid", ["create:Project"]), "projects/p_feat_c5"), {
+        termId: "2026",
+        title: "X",
+        featured: false,
+        status: "Finalizado",
+      }),
+    );
+  });
   it("allows Admin creating featured:true", async () => {
     await assertSucceeds(
       setDoc(doc(as("u", ["Admin"]), "projects/p_feat_admin_create"), {

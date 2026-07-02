@@ -3,6 +3,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import type { ShowcasePerson } from "@luminova/types/engine";
 import {
   activityParentRefs,
+  activityProjectionUnchanged,
   activityShowcasePhotos,
   projectInitiative,
   rosterMemberIds,
@@ -272,5 +273,44 @@ describe("activityParentRefs", () => {
   it("ignores path-unsafe or malformed parent ids", () => {
     expect(activityParentRefs(undefined, { parentType: "Program", parentId: "a/b" })).toEqual([]);
     expect(activityParentRefs(undefined, { parentType: "Bogus", parentId: "g1" })).toEqual([]);
+  });
+});
+
+describe("activityProjectionUnchanged", () => {
+  const base = () => ({
+    parentType: "Project",
+    parentId: "p1",
+    status: "Ejecutada",
+    photos: [{ id: "ph1", url: "https://x/1.jpg", caption: null, uploadedAt: ts(1000) }],
+    title: "Actividad",
+    hasCheckIns: false,
+  });
+
+  it("is unchanged when only non-projected fields differ (hasCheckIns, title)", () => {
+    expect(activityProjectionUnchanged(base(), { ...base(), hasCheckIns: true, title: "Otro" })).toBe(
+      true,
+    );
+  });
+
+  it("is changed when status flips", () => {
+    expect(activityProjectionUnchanged(base(), { ...base(), status: "Programada" })).toBe(false);
+  });
+
+  it("is changed when photos content differs", () => {
+    expect(
+      activityProjectionUnchanged(base(), {
+        ...base(),
+        photos: [{ id: "ph1", url: "https://x/1.jpg", caption: "pie", uploadedAt: ts(1000) }],
+      }),
+    ).toBe(false);
+  });
+
+  it("is changed when the parent moves", () => {
+    expect(activityProjectionUnchanged(base(), { ...base(), parentId: "p2" })).toBe(false);
+  });
+
+  it("treats create and delete as changed (missing side)", () => {
+    expect(activityProjectionUnchanged(undefined, base())).toBe(false);
+    expect(activityProjectionUnchanged(base(), undefined)).toBe(false);
   });
 });

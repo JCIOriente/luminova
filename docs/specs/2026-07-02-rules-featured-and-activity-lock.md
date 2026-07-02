@@ -42,11 +42,18 @@ query the `checkIns` collection.
 - **A. Beacon-maintained `hasCheckIns: boolean` on the activity doc (CHOSEN).**
   `awardPoints` already fires on every `checkIns/{id}` write. After engine work it
   recomputes the flag from a `count()` aggregate over `checkIns where activityId ==`
-  inside a transaction and writes it only when the value flips (write-skip guard,
-  #103 pattern — every `activities` write fires `onActivityWritten` showcase
-  re-projection, so unconditional writes would amplify). Idempotent under
-  at-least-once redelivery: recompute-from-truth, never increment. Rules read the
-  flag via `resource.data` — free.
+  inside a transaction and writes it **unconditionally** — the write is the
+  transaction's write-write conflict anchor. (First draft skipped the write when
+  the value matched; the adversarial design review broke that: a skip commits
+  read-only, and a `count()==0` read locks no documents, so a racing delete-sync
+  with a stale count could clobber a fresher create-sync and strand the flag —
+  same class as the #100 points race.) Amplification is suppressed at the
+  consumer instead: `onActivityWritten` short-circuits via a new
+  `activityProjectionUnchanged(before, after)` guard when none of the
+  projection-consumed fields (`parentType`/`parentId`/`status`/`photos`) changed —
+  `hasCheckIns` is never projected. Idempotent under at-least-once redelivery:
+  recompute-from-truth, never increment. Rules read the flag via
+  `resource.data` — free.
 - **B. Monotonic flag (set true on first check-in, never cleared).** Simpler, but a
   full undo (delete all check-ins — supported since #117) would leave the activity
   locked forever, diverging from the client repository's live-count behavior. Rejected.
@@ -93,9 +100,8 @@ export async function syncActivityCheckInFlag(db: Firestore, activityId: string)
 ```
 
 Transaction: `tx.get(activities/{id})` + `tx.get(count query)`; missing activity → no-op;
-`desired = count > 0`; write `{ hasCheckIns: desired }` only when it differs from the
-stored value (strict `!== true/false` comparison so a non-boolean legacy value gets a
-corrective write, mirroring the totalPoints guard).
+unconditional `tx.update(ref, { hasCheckIns: count > 0 })` (conflict anchor — see the
+design decision above; a non-boolean legacy value is overwritten as a side effect).
 
 `awardPoints` trigger: after the existing engine branches, extract `activityId` from
 the after-doc (falling back to before-doc on delete), validate with `isCleanId`, and
@@ -131,9 +137,14 @@ code change: the repository keeps its live-count guard.
    - direction-branch editor on a locked parented activity: echo passes, locked-field
      change denied.
 2. **Beacon emulator** (`activity-lock.emulator.test.ts`, runs in existing
-   `test:emulator` job): create → flag true; delete last → flag false; unchanged →
-   zero issued writes (proxy counter, delta-based); missing activity → no throw;
-   malformed check-in doc with valid activityId → still flips.
+   `test:emulator` job): create → flag true; delete last → flag false; matching
+   stored value → write STILL issued (proxy counter — pins the conflict anchor);
+   stale-slow-read delete-sync racing a fresh create-sync → final flag reflects the
+   surviving check-in; missing activity → no throw; malformed check-in doc with
+   valid activityId → still flips.
+3. **Beacon unit** (`project-initiative.test.ts`): `activityProjectionUnchanged` —
+   hasCheckIns/title-only diff → unchanged; status/photos/parent diff → changed;
+   create/delete (missing side) → changed.
 
 ## Gates
 

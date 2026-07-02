@@ -278,11 +278,19 @@ interface Activity {
   endAt: Timestamp | null
   photos: Photo[]
   status: 'Programada' | 'Ejecutada' | 'Cancelada'
+  hasCheckIns?: boolean           // beacon-only mirror (awardPoints); rules lock below
 }
 ```
 
 > **Invariant A:** `category === 'ProjectExecution'` ⟺ `parentId !== null`. Enforced
 > in `activitySchema.superRefine`.
+
+> **Activity lock:** once any check-in references the activity, beacon's `awardPoints`
+> mirrors `hasCheckIns: true` onto the doc (count-recomputed, transactional,
+> write-skip-if-unchanged) and `firestore.rules` locks `category`/`startAt`/
+> `parentId`/`parentType` for every client writer — these feed the points derivation.
+> Clients can never write `hasCheckIns` itself. The client repository keeps its
+> live-count guard for the trigger-latency window.
 
 ### pointRules/{pointRuleId}
 

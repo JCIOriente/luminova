@@ -8,6 +8,7 @@ import {
   type ShowcasePerson,
   type ShowcasePhoto,
 } from "@luminova/types/engine";
+import { isDeepStrictEqual } from "node:util";
 import { isCleanId } from "../award-points/ids.js";
 import { hasToMillis } from "../firestore-util.js";
 
@@ -71,6 +72,23 @@ export function activityShowcasePhotos(
 export interface ShowcaseParentRef {
   kind: InitiativeKind;
   id: string;
+}
+
+// The only activity fields the showcase projection consumes (activityParentRefs +
+// activityShowcasePhotos). awardPoints mirrors `hasCheckIns` onto activities on
+// EVERY check-in write, so onActivityWritten must be able to tell a
+// projection-relevant edit from that mirror churn and skip the re-projection.
+const ACTIVITY_PROJECTION_FIELDS = ["parentType", "parentId", "status", "photos"] as const;
+
+/** True when an activity update left every projection-consumed field deep-equal —
+ *  the showcase output cannot have changed, so re-projection can be skipped.
+ *  Creates and deletes (a missing side) always count as changed. */
+export function activityProjectionUnchanged(
+  before: Record<string, unknown> | undefined,
+  after: Record<string, unknown> | undefined,
+): boolean {
+  if (!before || !after) return false;
+  return ACTIVITY_PROJECTION_FIELDS.every((f) => isDeepStrictEqual(before[f], after[f]));
 }
 
 /**
