@@ -287,9 +287,9 @@ describe("activityProjectionUnchanged", () => {
   });
 
   it("is unchanged when only non-projected fields differ (hasCheckIns, title)", () => {
-    expect(activityProjectionUnchanged(base(), { ...base(), hasCheckIns: true, title: "Otro" })).toBe(
-      true,
-    );
+    expect(
+      activityProjectionUnchanged(base(), { ...base(), hasCheckIns: true, title: "Otro" }),
+    ).toBe(true);
   });
 
   it("is changed when status flips", () => {
