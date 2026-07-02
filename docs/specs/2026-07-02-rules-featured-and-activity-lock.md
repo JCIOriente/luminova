@@ -78,7 +78,8 @@ function activityLockSafe() {
     || (unchanged('category')
         && unchanged('startAt')
         && unchanged('parentId')
-        && unchanged('parentType'));
+        && unchanged('parentType')
+        && unchanged('termId'));
 }
 ```
 
@@ -86,6 +87,9 @@ function activityLockSafe() {
   the type alone re-points the same id at the other collection and changes
   `resolvePointRuleCode` input. (Audit named category/startAt/parentId; parentType
   is the same invariant.)
+- `termId` locks too (/code-review finding): it selects the point-rule table and
+  buckets the aggregate — the same derivation the lock protects. The client update
+  mapper never sends termId, so no legit flow is affected.
 - Legacy docs without the field read as unlocked (`get(..., false)`) — correct,
   they predate check-ins or the flag backfills on the next check-in write.
 - Echo-unchanged writes pass: the backstage mapper always sends all fields; equal

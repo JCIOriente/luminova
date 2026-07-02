@@ -411,4 +411,16 @@ describe("processCheckInDelete", () => {
     expect(store.rows.size).toBe(0);
     expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 0, byMonth: {} });
   });
+
+  it("redelivery: still recomputes (via the activity's term) when the row is already gone", async () => {
+    // A prior attempt deleted the participation row but died before the recompute;
+    // the event redelivers (awardPoints runs with retry: true). getParticipation now
+    // returns null — the aggregate must still be repaired, not skipped.
+    store.reports.add("p1");
+    await processCheckIn(store, checkIn);
+    store.rows.clear();
+    store.aggregates.set("m1__2026", { cumulative: 999, byMonth: { "2026-06": 999 } });
+    await processCheckInDelete(store, checkIn);
+    expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 0, byMonth: {} });
+  });
 });

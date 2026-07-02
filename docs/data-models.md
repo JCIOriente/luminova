@@ -286,11 +286,12 @@ interface Activity {
 > in `activitySchema.superRefine`.
 
 > **Activity lock:** once any check-in references the activity, beacon's `awardPoints`
-> mirrors `hasCheckIns: true` onto the doc (count-recomputed, transactional,
-> write-skip-if-unchanged) and `firestore.rules` locks `category`/`startAt`/
-> `parentId`/`parentType` for every client writer — these feed the points derivation.
-> Clients can never write `hasCheckIns` itself. The client repository keeps its
-> live-count guard for the trigger-latency window.
+> mirrors `hasCheckIns: true` onto the doc (count-recomputed in a transaction whose
+> flag write is deliberately **unconditional** — it is the write-write conflict anchor
+> that serializes racing syncs) and `firestore.rules` locks `category`/`startAt`/
+> `parentId`/`parentType`/`termId` for every client writer — these feed the points
+> derivation. Clients can never write `hasCheckIns` itself. The client repository
+> keeps its live-count guard for the trigger-latency window.
 
 ### pointRules/{pointRuleId}
 

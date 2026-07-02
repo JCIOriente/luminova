@@ -1,10 +1,11 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { initializeApp, deleteApp } from "firebase-admin/app";
-import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import type { Participation } from "@luminova/types/engine";
 import { createFirestoreStore } from "./firestore-store.js";
 import { processCheckIn } from "./process.js";
 import type { CheckIn } from "./check-in.js";
+import { countTxWritesTo, slowReadsDb } from "./emulator-tx-proxies.js";
 
 // Runs against the Firestore emulator (FIRESTORE_EMULATOR_HOST set by
 // `firebase emulators:exec`). Exercises the REAL admin-SDK store, so the
@@ -46,87 +47,6 @@ function confirmedRow(id: string, pts: number): Participation {
     voidReason: null,
     createdAt: TS,
   };
-}
-
-// Delays every Firestore read (the participations query AND any transaction
-// read) so a recompute reads an early snapshot but writes late — the ordering
-// that turns the lost-update window into a permanent corruption. A non-atomic
-// read-then-write loses the concurrently-added row under this; a transactional
-// recompute detects the conflict, retries, and re-reads.
-function slowReadsDb(real: Firestore, delayMs: number): Firestore {
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const wrapQuery = (q: any): any =>
-    new Proxy(q, {
-      get(t, p) {
-        if (p === "where") return (...a: unknown[]) => wrapQuery(t.where(...a));
-        if (p === "get")
-          return async () => {
-            const r = await t.get();
-            await sleep(delayMs);
-            return r;
-          };
-        const v = Reflect.get(t, p, t);
-        return typeof v === "function" ? v.bind(t) : v;
-      },
-    });
-  const wrapTx = (tx: any): any =>
-    new Proxy(tx, {
-      get(t, p) {
-        if (p === "get")
-          return async (ref: unknown) => {
-            const r = await t.get(ref);
-            await sleep(delayMs);
-            return r;
-          };
-        const v = Reflect.get(t, p, t);
-        return typeof v === "function" ? v.bind(t) : v;
-      },
-    });
-  return new Proxy(real, {
-    get(t, p) {
-      if (p === "collection")
-        return (name: string) =>
-          name === "participations" ? wrapQuery(t.collection(name)) : t.collection(name);
-      if (p === "runTransaction")
-        return (fn: (tx: unknown) => unknown, opts?: unknown) =>
-          (t as any).runTransaction((tx: unknown) => fn(wrapTx(tx)), opts);
-      const v = Reflect.get(t, p, t);
-      return typeof v === "function" ? v.bind(t) : v;
-    },
-  }) as Firestore;
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-}
-
-// Counts how many times the transaction issues a write to a specific doc path —
-// asserts the skip-if-unchanged guard at the source (whether a write is ISSUED),
-// independent of Firestore's no-op-identical-write optimization (the emulator
-// does not bump updateTime on an identical merge, so updateTime can't tell).
-function countWritesTo(real: Firestore, path: string): { db: Firestore; writes: () => number } {
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  let count = 0;
-  const wrapTx = (tx: any): any =>
-    new Proxy(tx, {
-      get(t, p) {
-        if (p === "set")
-          return (ref: { path?: string }, ...rest: unknown[]) => {
-            if (ref?.path === path) count += 1;
-            return t.set(ref, ...rest);
-          };
-        const v = Reflect.get(t, p, t);
-        return typeof v === "function" ? v.bind(t) : v;
-      },
-    });
-  const proxied = new Proxy(real, {
-    get(t, p) {
-      if (p === "runTransaction")
-        return (fn: (tx: unknown) => unknown, opts?: unknown) =>
-          (t as any).runTransaction((tx: unknown) => fn(wrapTx(tx)), opts);
-      const v = Reflect.get(t, p, t);
-      return typeof v === "function" ? v.bind(t) : v;
-    },
-  }) as Firestore;
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-  return { db: proxied, writes: () => count };
 }
 
 async function clear(name: string): Promise<void> {
@@ -185,7 +105,7 @@ describe("recomputeAggregate concurrency (emulator)", () => {
   });
 
   it("issues a members write only when totalPoints changes (no claims-sync amplification)", async () => {
-    const counter = countWritesTo(db, `members/${M}`);
+    const counter = countTxWritesTo(db, `members/${M}`);
     const counted = createFirestoreStore(counter.db);
 
     // Assert deltas, not absolutes: the unchanged case must issue ZERO members

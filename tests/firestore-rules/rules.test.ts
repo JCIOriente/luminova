@@ -1277,6 +1277,13 @@ describe("firestore.rules — activity lock (hasCheckIns)", () => {
       }),
     );
   });
+  it("denies Admin changing termId on a locked activity", async () => {
+    // termId prices the point rules and buckets the aggregate — same derivation
+    // inputs the lock protects.
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), { termId: "2027" }),
+    );
+  });
   it("denies Admin re-parenting a locked activity", async () => {
     await assertFails(
       updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), {

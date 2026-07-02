@@ -316,19 +316,21 @@ service cloud.firestore {
 
     // Once an activity has check-ins, the fields that feed the points derivation
     // (category → point rule, startAt → punctuality factor, parentId/parentType →
-    // rule resolution + report gate) are locked for EVERY client writer — mutating
-    // them would silently change what already-awarded points mean. Rules cannot
-    // query checkIns, so beacon's awardPoints trigger mirrors their existence onto
-    // the activity doc as `hasCheckIns` (recomputed from a count() per checkIns
-    // write; admin SDK bypasses these rules). The flag lands with trigger latency —
-    // the client repository's live-count guard covers that window; this gate closes
-    // the persistent bypass. Legacy docs without the field read as unlocked.
+    // rule resolution + report gate, termId → point-rule table + aggregate bucket)
+    // are locked for EVERY client writer — mutating them would silently change
+    // what already-awarded points mean. Rules cannot query checkIns, so beacon's
+    // awardPoints trigger mirrors their existence onto the activity doc as
+    // `hasCheckIns` (recomputed from a count() per checkIns write; admin SDK
+    // bypasses these rules). The flag lands with trigger latency — the client
+    // repository's live-count guard covers that window; this gate closes the
+    // persistent bypass. Legacy docs without the field read as unlocked.
     function activityLockSafe() {
       return resource.data.get('hasCheckIns', false) != true
         || (unchanged('category')
             && unchanged('startAt')
             && unchanged('parentId')
-            && unchanged('parentType'));
+            && unchanged('parentType')
+            && unchanged('termId'));
     }
 
     match /activities/{activityId} {

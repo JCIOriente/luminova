@@ -1,7 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { initializeApp, deleteApp } from "firebase-admin/app";
-import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { syncActivityCheckInFlag } from "./activity-lock.js";
+import { countTxWritesTo, slowReadsDb } from "./emulator-tx-proxies.js";
 
 // Fail closed: the admin SDK silently targets PROD if the emulator host is
 // unset, so refuse to run outside `pnpm test:emulator`.
@@ -24,67 +25,6 @@ const ACTIVITY = {
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-// Delays every transaction read so a sync reads an early snapshot but commits
-// late — the ordering that would let a stale count clobber a fresher flag if the
-// write were conditional. Same technique as the recompute-race test.
-function slowReadsDb(real: Firestore, delayMs: number): Firestore {
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const wrapTx = (tx: any): any =>
-    new Proxy(tx, {
-      get(t, p) {
-        if (p === "get")
-          return async (ref: unknown) => {
-            const r = await t.get(ref);
-            await sleep(delayMs);
-            return r;
-          };
-        const v = Reflect.get(t, p, t);
-        return typeof v === "function" ? v.bind(t) : v;
-      },
-    });
-  return new Proxy(real, {
-    get(t, p) {
-      if (p === "runTransaction")
-        return (fn: (tx: unknown) => unknown, opts?: unknown) =>
-          (t as any).runTransaction((tx: unknown) => fn(wrapTx(tx)), opts);
-      const v = Reflect.get(t, p, t);
-      return typeof v === "function" ? v.bind(t) : v;
-    },
-  }) as Firestore;
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-}
-
-// Counts transaction update() calls to one doc path — asserts the flag write is
-// ALWAYS issued: it is the transaction's write-write conflict anchor (a
-// skip-if-unchanged sync commits read-only and cannot serialize racing syncs).
-function countUpdatesTo(real: Firestore, path: string): { db: Firestore; writes: () => number } {
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  let count = 0;
-  const wrapTx = (tx: any): any =>
-    new Proxy(tx, {
-      get(t, p) {
-        if (p === "update")
-          return (ref: { path?: string }, ...rest: unknown[]) => {
-            if (ref?.path === path) count += 1;
-            return t.update(ref, ...rest);
-          };
-        const v = Reflect.get(t, p, t);
-        return typeof v === "function" ? v.bind(t) : v;
-      },
-    });
-  const proxied = new Proxy(real, {
-    get(t, p) {
-      if (p === "runTransaction")
-        return (fn: (tx: unknown) => unknown, opts?: unknown) =>
-          (t as any).runTransaction((tx: unknown) => fn(wrapTx(tx)), opts);
-      const v = Reflect.get(t, p, t);
-      return typeof v === "function" ? v.bind(t) : v;
-    },
-  }) as Firestore;
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-  return { db: proxied, writes: () => count };
-}
 
 async function clear(name: string): Promise<void> {
   const snap = await db.collection(name).get();
@@ -129,7 +69,7 @@ describe("syncActivityCheckInFlag (emulator)", () => {
   });
 
   it("always issues the flag write, even when the stored value matches (conflict anchor)", async () => {
-    const counter = countUpdatesTo(db, "activities/a1");
+    const counter = countTxWritesTo(db, "activities/a1");
     await db.doc("activities/a1").set({ ...ACTIVITY, hasCheckIns: true });
     await db.doc("checkIns/c1").set({ memberId: "m1", activityId: "a1", role: "Attendee" });
 
