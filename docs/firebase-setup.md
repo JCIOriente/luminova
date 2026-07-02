@@ -32,8 +32,8 @@ Each app reads its Firebase config from its own `apps/<app>/.env.local` (templat
 ## Initial Setup (one-time)
 
 ```bash
-# Install Firebase CLI globally
-npm install -g firebase-tools
+# Install Firebase CLI globally (CI/CD pins 15.22.1 — see docs/ci-cd.md; match it locally)
+npm install -g firebase-tools@15.22.1
 
 # Login
 firebase login
@@ -188,26 +188,24 @@ firebase emulators:start --import=./emulator-data
 
 ## Deploying
 
-### Deploy Everything
+**The normal path is the CD pipeline** — see `docs/ci-cd.md`. Merging to `main` with
+green CI triggers the keyless (WIF/OIDC) Deploy workflow, which deploys only the
+changed surfaces in order (rules → functions → hosting, with a preview → smoke →
+promote flow for hosting), each job gated on a `production` environment approval.
+
+The commands below are the **manual owner fallback** (first-run validation,
+emergencies). They use human credentials (`firebase login`) and skip the smoke gate —
+prefer the pipeline. For rollback, see `docs/ci-cd.md` section 9 (note: there is **no**
+`firebase hosting:rollback` command).
+
+### Manual Fallback Scripts (root `package.json`)
 
 ```bash
-pnpm build
-firebase deploy
-```
-
-### Deploy Hosting Only
-
-```bash
-pnpm --filter spotlight build
-pnpm --filter backstage build
-firebase deploy --only hosting
-```
-
-### Deploy Functions Only
-
-```bash
-pnpm --filter beacon build
-firebase deploy --only functions
+pnpm deploy:rules       # firestore (rules + indexes) + storage rules
+pnpm deploy:indexes     # firestore composite indexes only
+pnpm deploy:functions   # beacon (predeploy rebuilds apps/beacon/dist)
+pnpm deploy:hosting     # builds spotlight + backstage (emulator flag off), deploys both targets
+pnpm deploy:all         # rules → functions → hosting
 ```
 
 ### Deploy Specific Hosting Target
@@ -220,8 +218,11 @@ firebase deploy --only hosting:jcioriente-backstage
 ## Firestore Rules Deploy
 
 ```bash
-firebase deploy --only firestore:rules
+pnpm deploy:rules   # firebase deploy --only firestore,storage
 ```
+
+(The CD pipeline deploys rules automatically when `firestore.rules`, `storage.rules`,
+`firestore.indexes.json`, or `firebase.json` change — `docs/ci-cd.md` section 3.)
 
 > **Runbook — claim/rule changes need a token refresh.** Custom claims (`roles`, `perms`)
 > are baked into each user's ID token and cached until it refreshes (~1h, or on re-login).
@@ -234,22 +235,37 @@ firebase deploy --only firestore:rules
 
 ## Firestore Rules Summary
 
-| Collection | Public read | Authenticated read | Authenticated write | Notes |
-|------------|-------------|-------------------|---------------------|-------|
-| `projects` | yes | yes | yes | — |
-| `board` | yes | yes | yes | — |
-| `members` | no | yes | yes | — |
-| `events` | no | yes | yes | — |
-| `pointRules` | no | yes | yes | — |
-| `allies` | no | yes | yes | — |
-| `memberPoints` | no | yes | **no** | Writes only via beacon Admin SDK Cloud Function |
-| everything else | no | no | no | Denied |
+Summary only — `firestore.rules` is the source of truth. Writes gate on the coarse
+`perms` custom claim (`canDo(action, subject)`, e.g. `manage:all` for Admin — see the
+seeding note above), plus per-collection invariants; some authorities stay role-based.
 
-Rules are tested by `@luminova/firestore-rules-tests`. Run:
+| Collection | Public read | Signed-in read | Client write | Notes |
+|------------|-------------|----------------|--------------|-------|
+| `board`, `siteConfig/current` | yes | yes | Admin role only | no delete |
+| `showcase`, `allyShowcase` | yes | yes | **no** | beacon-written public projections |
+| `projects`, `programs` | no | yes | perm-gated (+ direction on update) | initiative invariants (final-report lock, `featured` Admin/PM-only); no delete |
+| `activities` | no | yes | perm-gated (+ parent direction on update) | no delete |
+| `members` | no | `read:Member` perm or own doc | perm-gated + invariants | positions/claims trust gates; self `profilePicture`; EC positions-only; no delete |
+| `allies` | no | `read:Ally` perm | perm-gated | no delete |
+| `positions`, `roles` | no | yes | Admin-gated where grants/perms change | feed custom claims via beacon triggers; no delete |
+| `events`, `pointRules` | no | yes | perm-gated | no delete |
+| `terms` | no | yes | Admin role only | no delete |
+| `checkIns` | no | yes | create/delete bound to the check-in window | Scanner limited to Attendee on own events; no update |
+| `participations`, `memberPoints` | no | yes | **no** | engine ledger — beacon Admin SDK only |
+| everything else | no | no | no | default deny |
+
+Rules are tested by `@luminova/firestore-rules-tests` (Firestore) and
+`@luminova/storage-rules-tests` (Storage). Each package script wraps
+`firebase emulators:exec` itself (emulator lock + boot retry, project
+`demo-rules-test`), so just run:
 
 ```bash
-firebase emulators:exec --only firestore "pnpm --filter @luminova/firestore-rules-tests test"
+pnpm --filter @luminova/firestore-rules-tests test
+pnpm --filter @luminova/storage-rules-tests test
 ```
+
+A dev emulator already running on port 4010 conflicts with the test emulator — stop it
+first (or run the tests with a transiently bumped `emulators.firestore.port`).
 
 ## Console Checklist (manual, one-time)
 
@@ -260,7 +276,9 @@ firebase emulators:exec --only firestore "pnpm --filter @luminova/firestore-rule
    - For local dev, copy the debug token printed in the browser console into
      `VITE_APPCHECK_DEBUG_TOKEN` and register it under App Check → Apps → Manage debug tokens.
    - Leave enforcement OFF until both apps send valid tokens in production.
-3. Authentication → Users → create the initial admin user (email/password).
+3. Initial admin user — do **not** create it in the console (the console cannot set the
+   `roles`/`perms` custom claims the rules gate on); run `pnpm seed:production` instead
+   (see Production Bootstrap Script below).
 
 ## Firestore Indexes
 
@@ -276,39 +294,58 @@ Current `firestore.indexes.json` — add composite indexes as needed:
         { "fieldPath": "active", "order": "ASCENDING" },
         { "fieldPath": "name", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "participations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "memberId", "order": "ASCENDING" },
+        { "fieldPath": "termId", "order": "ASCENDING" },
+        { "fieldPath": "state", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
 }
 ```
 
+This file is the **single source of truth** for composite indexes: the CD pipeline
+deploys indexes without `--force`, so an index that exists in prod but not in the file
+fails the deploy loud instead of being silently deleted. If you ever create an index in
+the console, mirror it here (see `docs/ci-cd.md` section 9). Manual deploy:
+`pnpm deploy:indexes`.
+
 ## Storage Rules
 
-Default Storage rules should restrict to authenticated users:
+`storage.rules` (deployed via `pnpm deploy:rules` or the CD pipeline) — summary; the
+file is the source of truth:
 
-```
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /members/{allPaths=**} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
-```
+| Path | Read | Write |
+|------|------|-------|
+| `members/{id}/profile.jpg` | signed-in | Admin/Membership or the member themself; JPEG ≤ 5 MB |
+| `projects\|programs\|activities/{id}/photos/*` | signed-in | initiative/activity editors (direction or Admin/PM); JPEG ≤ 5 MB |
+| `allies/{id}/logo` | **public** (backs a no-auth `<img>` on spotlight) | Admin/Membership; PNG/JPEG ≤ 2 MB |
+| everything else | denied | denied |
 
-## Backfill Script
+Delete rules deliberately never touch `request.resource` (it is null on delete —
+validating it would error, deny every delete, and orphan the blob). Tested by
+`@luminova/storage-rules-tests` (see Firestore Rules Summary above).
 
-For migrating existing Firestore data when schema changes:
+## Production Bootstrap Script
+
+`pnpm seed:production` bootstraps prod **once**: the president Auth user + member doc
+(Admin via the Presidente cargo), the built-in role docs, and `siteConfig/current`.
+It requires Application Default Credentials and refuses to run if any emulator env var
+is set:
 
 ```bash
-# Preview changes (dry run)
-node tools/scripts/backfill-firestore.mjs --dry-run
-
-# Apply changes
-GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json \
-  node tools/scripts/backfill-firestore.mjs
+gcloud auth application-default login
+# or GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
+pnpm seed:production
 ```
+
+Re-runs are a no-op for the president (a `meta/bootstrap` doc guards it); `siteConfig`
+is re-written each run.
 
 For wiping production data, see the runbook at `tools/scripts/wipe-prod.md`.
 

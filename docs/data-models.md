@@ -8,11 +8,12 @@ All Firestore collections. Used by Backstage frontend and Beacon functions.
 interface Position {
   id: string                     // auto-generated Firestore ID
   title: string                  // display name (masculine / neutral form)
-  titleFemale?: string           // gendered display variant; picked by member.gender === 'Femenino'
+  titleFemale?: string | null    // explicit feminine override; derived by femaleTitle() when absent
+  sigla?: string | null          // comisión acronym; unused for CEL/JDL
   category: 'CEL' | 'JDL' | 'Comision'
-  grants: Role[]                 // permission roles this cargo confers (claims sync lands in K4)
+  grants: Role[]                 // permission roles this cargo confers (synced to claims by beacon)
   term: number | null            // calendar year (JDL only); null for CEL + Comision
-  description?: string
+  description: string
   active: boolean                // default: true — false = soft deleted
   deletedAt: Timestamp | null    // null = active, Timestamp = soft deleted
 }
@@ -23,7 +24,7 @@ interface Position {
 - `JDL` — Board direcciones created per term (`term = <year>`); one set per gestión.
 - `Comision` — Evergreen ad-hoc commissions (`term = null`); created on demand.
 
-**`grants`**: the permission `Role[]` this position confers. Only Admin may write a non-empty `grants` array — enforced by Firestore rules to prevent Executive Committee self-escalation. Claims sync is deferred to K4.
+**`grants`**: the permission `Role[]` this position confers. Only Admin may write a non-empty `grants` array — enforced by Firestore rules to prevent Executive Committee self-escalation. The beacon `onMemberWritten` trigger syncs grants into Auth custom claims; power grants are honored only when the assignment's `assignedBy` is a live Admin.
 
 **Soft delete**: `active: false` + `deletedAt: serverTimestamp()`. `getAll()` returns soft-deleted documents too (needed for historical assignment resolution — the UI filters `active === true` where applicable).
 
@@ -48,9 +49,12 @@ interface Member {
   joinDate: Timestamp         // membership start date (required)
   birthdate: Timestamp        // required
   status: 'Activo' | 'Inactivo' | 'Desafiliado'  // membership standing (default 'Activo')
-  profilePicture: string | null  // Firebase Storage URL or null (upload deferred — set null on create)
-  totalPoints: number         // default: 0 — updated by aggregation
+  profilePicture: string | null  // Firebase Storage URL or null (uploaded via admin drawer or self on /me)
+  totalPoints: number         // default: 0 — mirrors MemberPoints.cumulative (engine-written)
+  isPastPresident?: boolean   // eligibility flag (no Mejor Miembro accrual); missing = false
   uid?: string                // linked Firebase Auth uid — set by provisionMemberLogin (admin SDK); absent until invited; immutable once set
+  roleIds?: string[]          // custom role ids assigned directly (Admin-only)
+  permissionOverrides?: PermissionOverrides // per-member coarse perm grants/revocations
   positions?: {               // one cargo + N comisiones per term; key = calendar year string
     [term: string]: {
       cargoId: string | null    // single CEL/JDL assignment for the term (null = none)
@@ -71,7 +75,7 @@ standing — a `Desafiliado` member is **not** deleted and still appears in the 
 
 **`assignedBy`**: the uid of whoever wrote the term's assignment. The beacon `onMemberWritten` trigger uses it as a trust gate: power-conferring grants (`Position.grants` non-empty) are included in the recomputed `roles` custom claim only when `assignedBy` is an Admin. Absent on pre-K4 docs → treated as untrusted (power grants dropped; member receives only `['Member']`).
 
-**Custom claims (`roles`)**: recomputed by the beacon `onMemberWritten` trigger (`onDocumentWritten('members/{id}')`) on every member write. The result is `['Member', ...trusted current-term grants]` in canonical `ROLES` order. An existing `Scanner` role (event-scoped, set by `setUserRoles`) is preserved and `scannerEventIds` carried through unchanged. Only applies to provisioned members (`uid` present).
+**Custom claims (`roles` + `perms`)**: recomputed by the beacon `onMemberWritten` trigger (`onDocumentWritten('members/{id}')`) on every member write. The `roles` claim is `['Member', ...trusted current-term grants]` in canonical `ROLES` order; the `perms` claim holds the coarse `action:Subject` permissions resolved from role definitions (`roles` collection) + `permissionOverrides` (cap 30, fail-closed). An existing `Scanner` role (event-scoped, set by `setUserRoles`) is preserved and `scannerEventIds` carried through unchanged. Only applies to provisioned members (`uid` present). The `onRoleWritten` trigger re-syncs claims when a role definition changes.
 
 **Soft delete**: Never hard-delete members. Set `active: false` and `deletedAt: serverTimestamp()`.
 
@@ -85,44 +89,20 @@ standing — a `Desafiliado` member is **not** deleted and still appears in the 
 
 ---
 
-## events/{eventId}
+## events/{eventId} — LEGACY
 
-```typescript
-interface Event {
-  id: string
-  type: 'Program' | 'Project' | 'Activity' | 'Gala'
-  name: string                // required
-  description?: string
-  scope: 'National' | 'Local' // default: 'Local'
-  directorId: string          // member ID — required
-  coDirectorIds: string[]     // member IDs
-  collaboratorIds: string[]   // member IDs
-  participantIds: string[]    // member IDs
-  parentId?: string           // only for type='Activity' — references another event
-  startDate: Timestamp
-  endDate: Timestamp          // must be >= startDate
-}
-```
-
-**Validation**: `endDate >= startDate` enforced at form level (Zod) and should be checked in functions.
+The v2 `Event` model (`type`/`scope`/`director` + role arrays) was superseded by the
+Recognition Engine's `programs` / `projects` / `activities` collections (below). The
+`events` collection still has rules (read: signed-in; create/update: perm-gated;
+delete: denied) but no feature reads or writes it anymore.
 
 ---
 
-## pointRules/{ruleId}
+## pointRules/{pointRuleId}
 
-```typescript
-interface PointRule {
-  id: string
-  type: 'Program' | 'Project' | 'Activity' | 'Gala'
-  role: 'Director' | 'CoDirector' | 'Collaborator' | 'Participant'
-  points: number              // non-negative integer
-  description: string         // e.g. "Director de Programa Nacional"
-}
-```
-
-**Query used in beacon**: `where('type', '==', event.type)` to get all rules for an event type.
-
-**Matrix**: Each `type × role` combination can have one rule. 4 types × 4 roles = 16 possible rules.
+Superseded model note: the original `type × role` rule matrix was replaced by the
+engine's fixed 16-code `PointRuleCode` matrix — see **pointRules** under the
+Recognition Engine section below.
 
 ---
 
@@ -135,6 +115,8 @@ interface Ally {
   contactPerson: string       // required, min 3 chars (label "Encargado")
   phone: string               // required
   email: string               // valid email
+  logoUrl: string | null      // Firebase Storage URL (backstage upload) or null
+  category: AllyCategory | null // public chip; feeds the allyShowcase projection
   active: boolean             // system — soft-delete flag (default true)
   deletedAt: Timestamp | null // system — set on soft-delete (serverTimestamp)
 }
@@ -146,47 +128,48 @@ system-managed — never written by the edit form.
 
 **Query used**: `where('active','==',true)`, sorted client-side by `companyName` (es locale).
 
+The beacon `onAllyWritten` trigger projects public fields (name + logo + category) into
+the world-readable `allyShowcase` collection for the spotlight allies wall;
+`contactPerson`/`phone`/`email` never leave `/allies`.
+
 ---
 
-## memberPoints/{year}/{month}/{eventId}
+## memberPoints/{memberId__termId}
 
-**Write-protected**: Only Cloud Functions (beacon) write to this collection. Client has read-only access.
-
-```typescript
-interface MemberPoints {
-  director: string            // memberId
-  name: string                // event name (denormalized for display)
-  coDirectorIds: string[]
-  collaboratorIds: string[]
-  participantIds: string[]
-  points: Record<string, number>  // memberId → total points for this event
-  updatedAt: Timestamp        // serverTimestamp()
-}
-```
-
-**Path structure**: `memberPoints/{year}/{month}/{eventId}`
-- `year`: full year string e.g. `"2025"`
-- `month`: zero-padded month e.g. `"01"` through `"12"`
-- `eventId`: same as the event document ID
-
-**Example path**: `memberPoints/2025/03/abc123def456`
+**Write-protected**: only Cloud Functions (beacon) write here; clients read-only. The
+old `memberPoints/{year}/{month}/{eventId}` event-keyed layout is gone — the aggregate
+is per member per term. See **memberPoints** under the Recognition Engine section below
+for the current shape.
 
 ---
 
 ## Firestore Security Rules Summary
 
+Since the dynamic-permissions epic (N1), most gates are **permission-based**
+(`canDo('<action>', '<Subject>')` against the `perms` custom claim) rather than
+hard-coded role checks. `firestore.rules` is the source of truth; summary:
+
 | Collection | Read | Create / Update | Delete |
 |---|---|---|---|
-| `members` | Admin / Membership / Treasury / ExecutiveCommittee, or self (own `uid`) | Admin/Membership (general); ExecutiveCommittee (positions-only); self (profilePicture only) | never (soft-delete only) |
-| `positions` | signed-in | Admin, or ExecutiveCommittee with empty/unchanged `grants` | never (soft-delete only) |
-| `events` | signed-in | signed-in | signed-in |
-| `pointRules` | signed-in | Admin only | never |
-| `allies` | signed-in | signed-in | never (soft-delete only) |
+| `members` | perm `read:Member`, or self (own `uid`) | perm-gated (`create/update:Member`); ExecutiveCommittee (positions-only); self (profilePicture only) | never (soft-delete only) |
+| `positions` | signed-in | perm-gated; non-empty `grants` = Admin-only | never (soft-delete only) |
+| `roles` | signed-in | Admin (custom roles only; built-ins seeded via admin SDK; `locked` role immutable) | never |
+| `allies` | perm `read:Ally` | perm-gated | never (soft-delete only) |
+| `events` (legacy) | signed-in | perm-gated | never |
+| `pointRules` | signed-in | perm-gated (`PointRule`) | never |
+| `terms` | signed-in | Admin | never |
+| `programs` / `projects` | signed-in | perm-gated initiative rules (+ direction constraints) | never |
+| `activities` | signed-in | perm-gated, or parent-initiative direction (`directionUids`) | never |
+| `checkIns` | signed-in | `checkIn:Attendance` holders, or Scanner (Attendee-only on assigned activities); bound to the activity's check-in window | same authority as create (undo); update never |
+| `participations` | signed-in | engine only (`if false`) | never |
 | `memberPoints` | signed-in | engine only (`if false`) | never |
+| `showcase` / `allyShowcase` | public | engine only (`if false`) | never |
+| `siteConfig/current` | public | Admin | Admin (`write`) |
+| `board` | public | Admin | never |
 | `*` | deny | deny | deny |
 
 > **members write rules (three tiers):**
-> 1. Admin / Membership — full update (excluding `totalPoints` and `uid`, which are immutable from client writes).
+> 1. Permission holders (`update:Member`) — full update (excluding `totalPoints` and `uid`, which are immutable from client writes).
 > 2. ExecutiveCommittee — may update only the `positions` map; all other fields must be unchanged.
 > 3. Self — may update only `profilePicture` (own doc via matching `uid`).
 >
@@ -203,25 +186,14 @@ interface MemberPoints {
 
 ## TypeScript Shared Types
 
-Located in `packages/types/src/models.ts`:
+All shared types + their Zod schemas live in the **`@luminova/types`** built package,
+one module per entity in `packages/types/src/` (`member.ts`, `ally.ts`, `position.ts`,
+`role-definition.ts`, `site-config.ts`, `permission.ts`, …). There is no `models.ts`
+barrel; import from `@luminova/types`.
 
-```typescript
-export type EventType = 'Program' | 'Project' | 'Activity' | 'Gala'
-export type EventRole = 'Director' | 'CoDirector' | 'Collaborator' | 'Participant'
-export type EventScope = 'National' | 'Local'
-
-export interface Member { ... }
-export interface Event { ... }
-export interface PointRule { ... }
-export interface Ally { ... }
-export interface MemberPoints { ... }
-```
-
-Zod input schemas live in each feature's `types/` folder in Backstage (not in the shared package).
-
-> **Note:** the `members`/`allies` types + their zod schemas now live in the
-> **`@luminova/types`** built package (F2). The Recognition Engine entities below
-> (F3) live in `@luminova/types/engine` (a pure, beacon-safe subpath).
+The Recognition Engine entities below (F3) live in `@luminova/types/engine`
+(`packages/types/src/engine/`) — a pure, framework-free subpath that is safe for
+beacon (admin SDK) as well as the frontends.
 
 ---
 
@@ -250,7 +222,8 @@ interface Term {
 > **A1 update:** the `Term` doc id is the year (`terms/2026`); the `year` field was
 > dropped as redundant, and the two convention dates are nullable (unknown when a
 > term opens). `terms` rules are now live (read: signed-in; create/update: Admin;
-> delete: denied), as is `pointRules` write = Admin. The Point Rules admin seeds a
+> delete: denied); `pointRules` create/update are perm-gated (`canDo(…, 'PointRule')`,
+delete denied). The Point Rules admin seeds a
 > current-year term + the 16 rules from `DEFAULT_POINT_VALUES` / `POINT_RULE_LABELS`.
 
 ```typescript
@@ -263,14 +236,25 @@ interface BoardSeat {
 
 ### programs/{programId} · projects/{projectId}
 
-Distinct collections (different at their core + distinct point codes). Engine-minimal
-— the rich Project dossier (phases/budget/SDG/evidence/public projection) is **C1**.
+Distinct collections (different at their core + distinct point codes). Both are the
+shared `InitiativeCore` shape verbatim (C1-lite); the award-dossier fields
+(phases/budget/SDG/readiness) remain **C1-dossier**, still pending.
 
 ```typescript
-interface Program { id; termId; title; roster; finalReport; status }  // Program ≠ Project
-interface Project { id; termId; title; roster; finalReport; status }
-interface InitiativeRoster { directorId: string; coDirectorId: string | null; teamIds: string[] }
-interface FinalReport { filedAt: Timestamp; filedBy: string }  // null until filed → gate B
+interface InitiativeCore {          // Program and Project are this shape verbatim
+  id; termId; title; description
+  category: AreaOfOpportunity       // Desarrollo Individual/Comunitario, Negocios, Cooperación
+  startDate: Timestamp; endDate: Timestamp
+  roster: InitiativeRoster
+  photos: Photo[]                   // gallery metadata; binaries in Storage
+  impact: InitiativeImpact | null   // completion-wizard capture; null until Finalizado
+  finalReport: FinalReport | null   // null until filed → gate B
+  status: InitiativeStatus
+  directionUids: string[]           // engine-mirrored direction uids (rules direction branch)
+  featured: boolean                 // curated showcase flag
+}
+interface InitiativeRoster { directorId: string; coDirectorIds: string[]; teamIds: string[] }
+interface FinalReport { filedAt: Timestamp; filedBy: string }
 type InitiativeStatus = 'Planificacion' | 'EnEjecucion' | 'Finalizado'
 ```
 
@@ -283,11 +267,16 @@ The **unified attendable unit**. Institutional categories have `parentId === nul
 interface Activity {
   id: string
   termId: string
+  title: string
+  description: string | null
+  location: string | null         // free-text venue: physical address or virtual link
   category: 'Assembly' | 'Course' | 'Anniversary' | 'TM' | 'NationalEvent' | 'ProjectExecution'
   parentType: 'Program' | 'Project' | null
   parentId: string | null         // null ⟺ institutional
-  organizers: { directorId: string | null; coDirectorId: string | null }
+  organizers: { directorId: string | null; coDirectorIds: string[] }
   startAt: Timestamp              // punctuality reference for check-in
+  endAt: Timestamp | null
+  photos: Photo[]
   status: 'Programada' | 'Ejecutada' | 'Cancelada'
 }
 ```
@@ -324,14 +313,18 @@ interface CheckIn {
 }
 ```
 
-Rules: read = signed-in; create = Admin/ProjectManager, or Scanner when
-`activityId ∈ token.scannerEventIds`; **immutable** (no update/delete — a
+Rules: read = signed-in; create = `checkIn:Attendance` permission holders
+(Admin/ProjectManager or a custom role), or Scanner (Attendee-only) when
+`activityId ∈ token.scannerEventIds`; non-Admin creators are bound to the activity's
+check-in day (same Bolivia-local day — Admin may backdate), and for everyone the
+activity must not be Cancelada nor its parent Finalizado. **No update** — but **delete is allowed** with the same authority +
+window binding (undo a mis-scan; the beacon reconciles points on delete). A role
 correction is a new check-in that overwrites the deterministic
-`participations/{activityId__memberId__role}` row). `awardPoints` (beacon,
+`participations/{activityId__memberId__role}` row. `awardPoints` (beacon,
 `onDocumentWritten('checkIns/{id}')`) reads the activity + `pointRules/{termId__code}`,
-derives the row, and recomputes `memberPoints/{memberId}` + mirrors
-`members.totalPoints`. Two more triggers (`confirmOnProgramReport`,
-`confirmOnProjectReport`) flip a parented initiative's rows confirmed when its
+derives the row, and transactionally recomputes `memberPoints/{memberId__termId}` +
+mirrors `members.totalPoints`. The `onProgramWritten`/`onProjectWritten` triggers
+reconcile roster rows and flip a parented initiative's rows confirmed when its
 `finalReport` is filed.
 
 ### participations/{participationId} — ledger (engine-written, client read-only)
@@ -355,7 +348,7 @@ interface Participation {
 }
 ```
 
-### memberPoints/{memberId} — derived aggregate (engine-written)
+### memberPoints/{memberId__termId} — derived aggregate (engine-written)
 
 ```typescript
 interface MemberPoints {
@@ -395,13 +388,8 @@ query (`memberId == · termId == · state == confirmed`) needs a composite index
    `isPastPresident` stored on Member. Past-presidents don't accrue; CEL + last
    winner accrue but are excluded from the leaderboard (A6).
 
-### firestore.rules implications (documented — edits land with A1/A2/D1, NOT this PR)
+### firestore.rules
 
-| Collection | Client read | Client write |
-|---|---|---|
-| `terms` | signed-in | Admin only |
-| `pointRules` | signed-in | Admin only |
-| `programs` / `projects` | signed-in | ProjectManager/Admin |
-| `activities` | signed-in | ProjectManager/Admin |
-| `participations` | signed-in (points are transparent) | **`if false`** — engine only |
-| `memberPoints` | signed-in (already public, F1) | **`if false`** — engine only |
+All engine rules are live in `firestore.rules` — see the **Firestore Security Rules
+Summary** table above for the current read/write matrix (`terms`, `pointRules`,
+`programs`/`projects`, `activities`, `checkIns`, `participations`, `memberPoints`).

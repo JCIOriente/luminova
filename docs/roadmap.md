@@ -8,16 +8,20 @@ PR, one at a time or in parallel where dependencies allow. `[P]` = parallel-safe
 ⬜ not started. The `#` column strikes through (`~~A1~~ ✅`) completed items and
 notes the merged PR.
 
-_Last synced: 2026-06-30 — large batch merged since the 2026-06-10 sync (PRs #44–#114,
-all merged; #113 CD pipeline open). Highlights:_
+_Last synced: 2026-07-01 — large batch merged since the 2026-06-10 sync (PRs #44–#119,
+all merged except #118 which is still open). Highlights:_
 
+- **NEW — Real board dashboard (B3, #115):** killed `overview-mock.ts`; the `/` dashboard now
+  renders real aggregates + honest empty/loading states.
 - **NEW — Backstage design-system polish (FX7):** Mi panel v2 (#111, black hero + credential
   card + QR modal), Actividades as a DS card grid + `Activity.location` physical/virtual (#112),
-  activity-detail tabs + check-in scan modal restyle + datetime-helper consolidation (#114).
+  activity-detail tabs + check-in scan modal restyle + datetime-helper consolidation (#114),
+  rich activity Resumen + ActivityForm description fix (#116), DS check-in tab — attendance
+  charts + roster table + undo (#117).
   Pattern: generate the screen via frontend-design on claude.ai/design, implement through DesignSync.
-- **NEW — Keyless CD pipeline (I7, PR #113 open):** Firebase deploy via WIF/OIDC (no stored key),
-  approval-gated `production` env, path-filtered rules→functions→hosting, hosting preview→smoke→promote.
-  Blocked on owner gcloud/WIF provisioning.
+- **NEW — Keyless CD pipeline (I7, #113 + hardening #119 MERGED):** Firebase deploy via WIF/OIDC
+  (no stored key), approval-gated `production` env, path-filtered rules→functions→hosting,
+  hosting preview→smoke→promote. WIF/IAM provisioned; canonical reference: `docs/ci-cd.md`.
 - **C Projects:** **C1-lite COMPLETE** (slices 1–6: schema #49 · `/initiatives` grid #51 ·
   detail #55 · activity detail #62 · completion wizard #63 · galleries #64) — absorbs **H2 ✅**.
   **C4 Spotlight public showcase SHIPPED** (`/impacto` #66 + executed-activity photo roll-up #69).
@@ -170,7 +174,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/A t
 |---|------|-----|----------|-------|
 | B1 🟡 | **Member home** — DONE core (#20). `/me`: points + rank + **personal QR** + participation ledger (redesigned in FX7 #111). **NEXT slice (active, retention focus):** upcoming-events feed + milestones (birthday/anniversary — we store `birthdate`/`joinDate` and use neither). Cheap, emotional, gives a member a reason to return between events; pairs with K1 notifications. | F1, A5 | `[S]` | the reason a member opens the app |
 | ~~B2~~ ✅ | **Role-aware board home (layout)** — DONE (#45). Pure `boardHomeLayout(roles)` orders/hides the Overview widgets per role (Admin full · Membership members-first · Treasury money-first · ProjectManager events/projects-first · ExecutiveCommittee read-only); multi-role = highest-precedence layout + union of visible widgets. **Layout only — the widgets it arranges are still mock data (see B3).** **Side effect:** Overview grid → vertical stack (re-grid within each role's order deferred). | F1 | `[S]` | — |
-| **B3** ⬜ **P0** | **Real board dashboard (kill the mock)** — the dashboard at `/` (`components/overview/overview-mock.ts`, first screen on every board login) renders **fabricated** KPIs, trends, attendance charts, an upcoming-events list, and an activity feed. Only Members/Allies counts are real. **Highest-leverage trust fix:** wire real aggregates (member/ally counts already live · real upcoming activities · real recent check-ins / activity feed) + **honest empty/loading states** for anything without a backend yet (notifications → K1, money → J5). A smaller truthful dashboard beats the current fiction. Fake-but-pretty erodes trust the day someone acts on an invented number. | A*, D1 | `[S]` | inverted-risk: the polished screen is the dishonest one |
+| ~~B3~~ ✅ | **Real board dashboard (kill the mock)** — DONE (#115). `overview-mock.ts` deleted; the `/` dashboard renders real aggregates via pure selectors (member/ally counts · real upcoming activities · real recent check-ins / activity feed) + **honest empty/loading states** for anything without a backend yet (notifications → K1, money → J5). | A*, D1 | `[S]` | was the highest-leverage trust fix |
 
 ## C. Projects & Recognition Submissions (reframed)
 
@@ -211,7 +215,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/A t
 | ~~FX4~~ ✅ | **Sidebar collapse** — DONE (#37). 72px icon-rail w/ per-item tooltips, header toggle, `_app` grid driven by the persisted `ui-prefs` `sidebarCollapsed` | — | `[P]` | — |
 | FX6 ✅ | **Auth hardening** — DONE. Remember-me → Firebase auth persistence (local/session); branded password recovery (`/forgot-password` enumeration-safe request + `/reset` verify-oobCode → set new password with live requirements checklist); password policy (min 6 + lower/upper/digit) on login **and** reset; blue brand panel + entrance motion for recovery pages; footnote → CEL (`jci.orienteolm@gmail.com`). reCAPTCHA = App Check (see G4, code-complete; keys pending). | — | `[P]` | `/security-review`; spec+plan in `docs/superpowers/` |
 | FX5 ✅ | **Login redesign** — DONE. `/login` split-screen (dark brand panel + ripple + "Sé el cambio" / light form card) from Claude Design handoff; reuses `@luminova/ui` (`RippleBackground`, `LogoLockup`, `Button`, `Field`, `Input`, new `Checkbox`; added `lock`/`eye`/`eyeOff` icons). Email/password auth unchanged. SSO omitted; "¿La olvidaste?" + "Recordarme" visual-only (deferred). | — | `[P]` | `react-best-practices`; brand side hides < `lg` |
-| FX7 🟡 | **Backstage DS polish** — restyle existing screens to the JCI Oriente design system (generate via frontend-design on claude.ai/design → implement via DesignSync). **Done:** Mi panel v2 (#111, black hero + credential card + QR modal), Actividades DS card grid + `Activity.location` physical/virtual (#112), activity-detail tabs + check-in scan modal + datetime-helper consolidation (#114). **Remaining:** roll the DS pass across the rest (Overview/B3, Members, Leaderboard, Allies, Initiatives). | — | `[P]` | `frontend-design` → DesignSync; consolidate datetime helpers when touched |
+| FX7 🟡 | **Backstage DS polish** — restyle existing screens to the JCI Oriente design system (generate via frontend-design on claude.ai/design → implement via DesignSync). **Done:** Mi panel v2 (#111, black hero + credential card + QR modal), Actividades DS card grid + `Activity.location` physical/virtual (#112), activity-detail tabs + check-in scan modal + datetime-helper consolidation (#114), rich activity Resumen + ActivityForm description fix (#116), DS check-in tab (#117), Overview via B3 (#115). **Remaining:** roll the DS pass across the rest (Members, Leaderboard, Allies, Initiatives). | — | `[P]` | `frontend-design` → DesignSync; consolidate datetime helpers when touched |
 
 ## G. Security & data hardening (non-role)
 
@@ -245,7 +249,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/A t
 | ~~I4~~ ✅ | First prod deploy (hosting + functions) — DONE (#43). Both Hosting sites + rules + beacon functions LIVE. | F1, G* | `[S]` | gate on access + hardening |
 | I5 🟡 | Bump remaining Dependabot/audit advisories — **batch cleared in #97** (undici/uuid/protobufjs) + #75 (form-data) | — | `[P]` | `secure-dep-vetting`; recheck periodically |
 | ~~I6~~ ✅ | **`pnpm deploy:indexes`** — Firestore composite indexes for the new queries deployed (owner op completed 2026-06-24, surfaced by the points-race + permissions work). | — | `[P]` | owner op, not a PR |
-| I7 🟡 | **Keyless CD pipeline** (PR #113 open) — Firebase deploy via WIF/OIDC (no stored service-account key), approval-gated `production` env, path-filtered rules→functions→hosting, hosting preview→smoke→promote. **Blocked on owner gcloud/WIF provisioning.** GOTCHA: no `firebase hosting:rollback` command exists. Terraform/staging deferred (solo-dev scale). | I0 | `[S]` | owner provisioning gates merge |
+| ~~I7~~ ✅ | **Keyless CD pipeline** — DONE (#113 + hardening #119). Firebase deploy via WIF/OIDC (no stored service-account key), approval-gated `production` env, path-filtered rules→functions→hosting, hosting preview→smoke→promote. WIF/IAM + GitHub `production` env provisioned 2026-07-01. Canonical reference: `docs/ci-cd.md`. GOTCHA: no `firebase hosting:rollback` command exists (smoke-then-promote + Console version restore instead). Terraform/staging deferred (solo-dev scale). | I0 | `[S]` | — |
 
 ## J. Finance & Treasury (membership dues — v1 = record offline, not full accounting)
 
@@ -343,23 +347,21 @@ F2/F3 (types + engine model) unblock the most and can't be designed piecemeal.
    FX2 dark mode, FX4 sidebar collapse, FX1 table filtering, E1/E5/E6 widgets,
    G1 soft-delete guard, G3 env placeholders, H1 uploads, I5 dependabot.
 
-**Where we are (2026-06-30):** Foundations (F1/F2/F3), the whole Recognition Engine (A),
-member surface (B1/B2), Projects-lite (C1-lite + C4 public showcase), admin CRUD (D1),
-all UI widgets (E), UI polish + backstage DS pass (F, incl. FX7 #111/#112/#114), media (H),
-the permissions/positions epic (N), the spotlight CMS (M), the performance track (L1–L3),
-and CI (I0) are **shipped and live**. Keyless CD (I7 #113) is open, blocked on owner WIF setup.
+**Where we are (2026-07-01):** Foundations (F1/F2/F3), the whole Recognition Engine (A),
+member surface (B1/B2 + real dashboard B3 #115), Projects-lite (C1-lite + C4 public showcase),
+admin CRUD (D1), all UI widgets (E), UI polish + backstage DS pass (F, incl. FX7
+#111/#112/#114/#116/#117), media (H), the permissions/positions epic (N), the spotlight
+CMS (M), the performance track (L1–L3), CI (I0), and the keyless CD pipeline (I7 #113/#119)
+are **shipped and live**.
 
-**Product diagnosis (2026-06-30):** the engine is real but two surfaces are dishonest/incomplete —
-(1) the board dashboard at `/` is **mock data** (B3), and (2) the live leaderboard runs without its
-`duesStatus` eligibility gate because **Finance (J) is unbuilt**, so it currently awards points to
-members who aren't al día. Cold-start / empty states are also unscoped (the mock exists to make the
-dashboard "look alive" — real empty states fix that honestly).
+**Product diagnosis (2026-07-01):** the engine is real and the board dashboard is now honest
+(B3 done), but the live leaderboard still runs without its `duesStatus` eligibility gate
+because **Finance (J) is unbuilt**, so it currently awards points to members who aren't
+al día. Closing that gap is the biggest remaining correctness item.
 
 **Active now (this cycle):**
 
-1. **B3 — Real board dashboard (P0).** Kill `overview-mock.ts`; wire real aggregates + honest
-   empty/loading states. Cheapest fix, largest credibility payoff.
-2. **B1 retention slice.** Upcoming-events feed + birthday/anniversary milestones on `/me`
+1. **B1 retention slice.** Upcoming-events feed + birthday/anniversary milestones on `/me`
    (stored-but-unused `birthdate`/`joinDate`). A reason to return between events.
 
 **What's genuinely left after that (recommended order):**
@@ -374,8 +376,9 @@ dashboard "look alive" — real empty states fix that honestly).
 4. **Smaller wins, parallel anytime:** FX7 DS pass on remaining screens · **L4 SSG/prerender**
    (biggest spotlight FCP/LCP win — brainstorm first) · L5 critical CSS · D2 Reports · D4/N5 real
    Settings page · G1 soft-delete write-guard · G3 env placeholders · A4 offline check-in (low pri).
-5. **Owner ops (not PRs):** I7 WIF/gcloud provisioning (unblocks CD) · App Check keys + enforcement
-   (G4) · I3 storage wipe. (CI required + ruleset active + indexes deployed — done 2026-06-24.)
+5. **Owner ops (not PRs):** App Check keys + enforcement (G4) · I3 storage wipe.
+   (CI required + ruleset active + indexes deployed — done 2026-06-24; CD WIF/IAM
+   provisioning — done 2026-07-01.)
 
 Pick an item → `prompt-refine` → `superpowers:brainstorming` → `writing-plans` →
 subagent TDD, branch off `main`.
