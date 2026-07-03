@@ -4,11 +4,11 @@ import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestor
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { createFirestoreStore, parseInitiativeWrite } from "./award-points/firestore-store.js";
 import { syncActivityCheckInFlag } from "./award-points/activity-lock.js";
-import { isCleanId } from "./award-points/ids.js";
-import { validateCheckIn } from "./award-points/check-in.js";
+import { checkInActivityIds, validateCheckIn } from "./award-points/check-in.js";
 import {
   processCheckIn,
   processCheckInDelete,
+  processCheckInUpdate,
   processInitiativeWrite,
 } from "./award-points/process.js";
 import {
@@ -98,23 +98,29 @@ export const awardPoints = onDocumentWritten(
   { document: "checkIns/{id}", retry: true },
   async (event) => {
     const store = createFirestoreStore(db());
-    const after = event.data?.after;
-    const before = event.data?.before;
-    // .data() re-decodes the proto on every call — capture once for both uses.
-    const raw = after?.exists ? after.data() : before?.exists ? before.data() : undefined;
-    if (after?.exists) {
-      const checkIn = validateCheckIn(raw);
+    // .data() re-decodes the proto on every call — capture each side once.
+    const beforeRaw = event.data?.before?.exists ? event.data.before.data() : undefined;
+    const afterRaw = event.data?.after?.exists ? event.data.after.data() : undefined;
+    if (beforeRaw !== undefined && afterRaw !== undefined) {
+      // Rules deny client updates — this is the admin-SDK/console path. An
+      // identity change re-keys the participation id, so the update handler
+      // reconciles the old row away instead of orphaning it.
+      await processCheckInUpdate(store, beforeRaw, afterRaw);
+    } else if (afterRaw !== undefined) {
+      const checkIn = validateCheckIn(afterRaw);
       if (checkIn !== null) await processCheckIn(store, checkIn);
-    } else if (before?.exists) {
-      const checkIn = validateCheckIn(raw);
+    } else if (beforeRaw !== undefined) {
+      const checkIn = validateCheckIn(beforeRaw);
       if (checkIn !== null) await processCheckInDelete(store, checkIn);
     }
     // Mirror check-in existence onto the activity for the rules-side field lock.
     // Runs even when validateCheckIn rejected the doc (a malformed check-in still
     // matches the count query) and after the engine work so a mirror failure never
     // pre-empts points — errors propagate on purpose so the retry redoes both.
-    const activityId = ((raw ?? {}) as { activityId?: unknown }).activityId;
-    if (isCleanId(activityId)) await syncActivityCheckInFlag(db(), activityId);
+    // An identity move re-syncs BOTH activities (the old one's count dropped).
+    for (const activityId of checkInActivityIds(beforeRaw, afterRaw)) {
+      await syncActivityCheckInFlag(db(), activityId);
+    }
   },
 );
 

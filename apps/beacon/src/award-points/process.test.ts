@@ -4,7 +4,12 @@ import type { Participation } from "@luminova/types/engine";
 import type { EngineStore } from "./store.js";
 import type { ActivityRef } from "./derive.js";
 import type { MemberAggregate } from "./aggregate.js";
-import { processCheckIn, processCheckInDelete, processInitiativeWrite } from "./process.js";
+import {
+  processCheckIn,
+  processCheckInDelete,
+  processCheckInUpdate,
+  processInitiativeWrite,
+} from "./process.js";
 import { participationId } from "./participation-id.js";
 import { aggregateFromRows } from "./aggregate.js";
 import type { CheckIn } from "./check-in.js";
@@ -422,5 +427,61 @@ describe("processCheckInDelete", () => {
     store.aggregates.set("m1__2026", { cumulative: 999, byMonth: { "2026-06": 999 } });
     await processCheckInDelete(store, checkIn);
     expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 0, byMonth: {} });
+  });
+});
+
+describe("processCheckInUpdate", () => {
+  const rawOf = (c: CheckIn) => ({ ...c }) as unknown;
+
+  it("identity change (memberId) deletes the old row and recomputes both members", async () => {
+    await processCheckIn(store, checkIn);
+    const moved: CheckIn = { ...checkIn, memberId: "m2" };
+    await processCheckInUpdate(store, rawOf(checkIn), rawOf(moved));
+    expect(store.rows.has("a1__m1__Attendee")).toBe(false);
+    expect(store.rows.has("a1__m2__Attendee")).toBe(true);
+    expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 0, byMonth: {} });
+    expect(store.aggregates.get("m2__2026")).toEqual({ cumulative: 3, byMonth: { "2026-06": 3 } });
+  });
+
+  it("identity change (activityId) moves the row across activities", async () => {
+    store.activities.set("a2", { ...activity, id: "a2" });
+    await processCheckIn(store, checkIn);
+    const moved: CheckIn = { ...checkIn, activityId: "a2" };
+    await processCheckInUpdate(store, rawOf(checkIn), rawOf(moved));
+    expect(store.rows.has("a1__m1__Attendee")).toBe(false);
+    expect(store.rows.has("a2__m1__Attendee")).toBe(true);
+    expect(store.rows.size).toBe(1);
+  });
+
+  it("identity-unchanged update recomputes in place (no delete, single row)", async () => {
+    await processCheckIn(store, checkIn);
+    const later: CheckIn = { ...checkIn, checkInAt: Timestamp.fromMillis(startAt.toMillis() + 60_000) };
+    await processCheckInUpdate(store, rawOf(checkIn), rawOf(later));
+    expect(store.rows.size).toBe(1);
+    expect(store.rows.has("a1__m1__Attendee")).toBe(true);
+    expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 3, byMonth: { "2026-06": 3 } });
+  });
+
+  it("valid → malformed removes the derived row (doc no longer parses)", async () => {
+    await processCheckIn(store, checkIn);
+    await processCheckInUpdate(store, rawOf(checkIn), { memberId: "m1", role: "Boss" });
+    expect(store.rows.size).toBe(0);
+    expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 0, byMonth: {} });
+  });
+
+  it("malformed → valid creates the row (malformed create never produced one)", async () => {
+    await processCheckInUpdate(store, { activityId: "a1" }, rawOf(checkIn));
+    expect(store.rows.has("a1__m1__Attendee")).toBe(true);
+    expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 3, byMonth: { "2026-06": 3 } });
+  });
+
+  it("is idempotent when the update event is redelivered (retry: true)", async () => {
+    await processCheckIn(store, checkIn);
+    const moved: CheckIn = { ...checkIn, memberId: "m2" };
+    await processCheckInUpdate(store, rawOf(checkIn), rawOf(moved));
+    await processCheckInUpdate(store, rawOf(checkIn), rawOf(moved));
+    expect(store.rows.size).toBe(1);
+    expect(store.aggregates.get("m1__2026")).toEqual({ cumulative: 0, byMonth: {} });
+    expect(store.aggregates.get("m2__2026")).toEqual({ cumulative: 3, byMonth: { "2026-06": 3 } });
   });
 });
