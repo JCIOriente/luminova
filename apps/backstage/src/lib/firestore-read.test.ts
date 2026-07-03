@@ -41,6 +41,19 @@ describe("parseDoc", () => {
     expect(caught.message).toContain("m2");
   });
 
+  it("redacts the failing field value from stored issues (PII must not reach logs)", () => {
+    let caught: unknown;
+    try {
+      parseDoc(schema, fakeDoc("m3", { name: 4242 }));
+    } catch (error) {
+      caught = error;
+    }
+    if (!(caught instanceof DocParseError)) throw new Error("expected DocParseError");
+    for (const issue of caught.issues) {
+      expect(issue).not.toHaveProperty("input");
+    }
+  });
+
   it("keeps the document key even if a schema output carries a body id", () => {
     const withId = z.object({ id: z.string(), name: z.string() });
     expect(parseDoc(withId, fakeDoc("real-id", { id: "forged", name: "Ana" })).id).toBe("real-id");

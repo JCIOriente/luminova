@@ -13,15 +13,24 @@ interface QuerySnapshotLike {
 }
 
 /** A doc failed its read-schema. Thrown on single-doc reads so the failure
- *  surfaces as the query error state instead of a raw-cast crash mid-render. */
+ *  surfaces as the query error state instead of a raw-cast crash mid-render.
+ *  Issues are stored without zod's `input` echo — it carries the failing field
+ *  VALUE (member email/phone/birthdate), which must not reach console logs. */
 export class DocParseError extends Error {
+  readonly issues: Omit<z.core.$ZodIssue, "input">[];
+
   constructor(
     readonly collection: string,
     readonly docId: string,
-    readonly issues: z.core.$ZodIssue[],
+    issues: z.core.$ZodIssue[],
   ) {
     super(`Malformed ${collection} doc ${docId}`);
     this.name = "DocParseError";
+    this.issues = issues.map((issue) => {
+      const redacted = { ...issue };
+      delete (redacted as { input?: unknown }).input;
+      return redacted;
+    });
   }
 }
 
