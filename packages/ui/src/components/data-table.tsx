@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { cn } from "../lib/cn";
+import { cardSurfaceClasses } from "./card";
 import { Icon } from "./icons";
 import { Input } from "./input";
 import { Select } from "./select";
@@ -182,7 +183,7 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-card border border-line bg-surface">
+      <div className={cn(cardSurfaceClasses, "overflow-hidden")}>
         <Table>
           <TableHeader>
             <TableRow className="bg-surface-2 hover:bg-surface-2">
