@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { positionDocSchema, termPositionsDocSchema } from "./position-doc-schema";
-
-const ts = { toMillis: () => 0, toDate: () => new Date(0) };
+import { fakeTimestamp, without } from "./doc-schema-test-helpers.js";
 
 const validDoc = {
   title: "Director de Membresía",
@@ -42,8 +41,8 @@ describe("positionDocSchema", () => {
   });
 
   it("accepts deletedAt as a real Timestamp-like value", () => {
-    const parsed = positionDocSchema.parse({ ...validDoc, deletedAt: ts });
-    expect(parsed.deletedAt).toBe(ts);
+    const parsed = positionDocSchema.parse({ ...validDoc, deletedAt: fakeTimestamp });
+    expect(parsed.deletedAt).toBe(fakeTimestamp);
   });
 });
 
@@ -60,23 +59,19 @@ describe("termPositionsDocSchema", () => {
   });
 
   it("defaults comisionIds to [] when absent (legacy slot)", () => {
-    const rest: Partial<typeof validTermPositions> = { ...validTermPositions };
-    delete rest.comisionIds;
-    const parsed = termPositionsDocSchema.parse(rest);
+    const parsed = termPositionsDocSchema.parse(without(validTermPositions, "comisionIds"));
     expect(parsed.comisionIds).toEqual([]);
   });
 
   it("leaves assignedBy undefined when absent (pre-K4 docs)", () => {
-    const rest: Partial<typeof validTermPositions> = { ...validTermPositions };
-    delete rest.assignedBy;
-    const parsed = termPositionsDocSchema.parse(rest);
+    const parsed = termPositionsDocSchema.parse(without(validTermPositions, "assignedBy"));
     expect(parsed.assignedBy).toBeUndefined();
   });
 
   it("rejects a malformed doc (cargoId missing entirely)", () => {
-    const rest: Partial<typeof validTermPositions> = { ...validTermPositions };
-    delete rest.cargoId;
-    expect(termPositionsDocSchema.safeParse(rest).success).toBe(false);
+    expect(termPositionsDocSchema.safeParse(without(validTermPositions, "cargoId")).success).toBe(
+      false,
+    );
   });
 
   it("strips unknown extra fields", () => {

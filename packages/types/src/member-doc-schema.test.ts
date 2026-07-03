@@ -1,15 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { memberDocSchema } from "./member-doc-schema";
-
-const ts = { toMillis: () => 0, toDate: () => new Date(0) };
+import { fakeTimestamp, without } from "./doc-schema-test-helpers.js";
 
 const validDoc = {
   name: "Ana Pérez",
   email: "ana@example.com",
   phone: "77712345",
   profession: "Ingeniera",
-  joinDate: ts,
-  birthdate: ts,
+  joinDate: fakeTimestamp,
+  birthdate: fakeTimestamp,
   status: "Activo",
   profilePicture: "https://example.com/p.jpg",
   totalPoints: 42,
@@ -35,16 +34,12 @@ describe("memberDocSchema", () => {
   });
 
   it("defaults profilePicture to null when absent", () => {
-    const rest: Partial<typeof validDoc> = { ...validDoc };
-    delete rest.profilePicture;
-    const parsed = memberDocSchema.parse(rest);
+    const parsed = memberDocSchema.parse(without(validDoc, "profilePicture"));
     expect(parsed.profilePicture).toBeNull();
   });
 
   it("defaults totalPoints to 0 when absent", () => {
-    const rest: Partial<typeof validDoc> = { ...validDoc };
-    delete rest.totalPoints;
-    const parsed = memberDocSchema.parse(rest);
+    const parsed = memberDocSchema.parse(without(validDoc, "totalPoints"));
     expect(parsed.totalPoints).toBe(0);
   });
 
@@ -67,9 +62,7 @@ describe("memberDocSchema", () => {
   });
 
   it("leaves gender undefined when absent (pre-K2 docs)", () => {
-    const rest: Partial<typeof validDoc> = { ...validDoc };
-    delete rest.gender;
-    const parsed = memberDocSchema.parse(rest);
+    const parsed = memberDocSchema.parse(without(validDoc, "gender"));
     expect(parsed.gender).toBeUndefined();
   });
 });

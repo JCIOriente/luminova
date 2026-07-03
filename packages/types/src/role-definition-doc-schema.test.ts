@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { roleDefinitionDocSchema } from "./role-definition-doc-schema";
-
-const ts = { toMillis: () => 0, toDate: () => new Date(0) };
+import { fakeTimestamp } from "./doc-schema-test-helpers.js";
 
 const validDoc = {
   name: "Administrador",
@@ -54,7 +53,7 @@ describe("roleDefinitionDocSchema", () => {
   });
 
   it("accepts deletedAt as a real Timestamp-like value", () => {
-    const parsed = roleDefinitionDocSchema.parse({ ...validDoc, deletedAt: ts });
-    expect(parsed.deletedAt).toBe(ts);
+    const parsed = roleDefinitionDocSchema.parse({ ...validDoc, deletedAt: fakeTimestamp });
+    expect(parsed.deletedAt).toBe(fakeTimestamp);
   });
 });

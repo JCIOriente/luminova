@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { allyDocSchema } from "./ally-doc-schema";
-
-const ts = { toMillis: () => 0, toDate: () => new Date(0) };
+import { fakeTimestamp, without } from "./doc-schema-test-helpers.js";
 
 const validDoc = {
   companyName: "Acme Bolivia",
@@ -26,16 +25,12 @@ describe("allyDocSchema", () => {
   });
 
   it("defaults logoUrl to null when absent (pre-logo docs)", () => {
-    const rest: Partial<typeof validDoc> = { ...validDoc };
-    delete rest.logoUrl;
-    const parsed = allyDocSchema.parse(rest);
+    const parsed = allyDocSchema.parse(without(validDoc, "logoUrl"));
     expect(parsed.logoUrl).toBeNull();
   });
 
   it("defaults category to null when absent (pre-category docs)", () => {
-    const rest: Partial<typeof validDoc> = { ...validDoc };
-    delete rest.category;
-    const parsed = allyDocSchema.parse(rest);
+    const parsed = allyDocSchema.parse(without(validDoc, "category"));
     expect(parsed.category).toBeNull();
   });
 
@@ -45,8 +40,8 @@ describe("allyDocSchema", () => {
   });
 
   it("accepts deletedAt as a real Timestamp-like value", () => {
-    const parsed = allyDocSchema.parse({ ...validDoc, deletedAt: ts });
-    expect(parsed.deletedAt).toBe(ts);
+    const parsed = allyDocSchema.parse({ ...validDoc, deletedAt: fakeTimestamp });
+    expect(parsed.deletedAt).toBe(fakeTimestamp);
   });
 
   it("rejects an unknown category", () => {

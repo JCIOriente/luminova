@@ -1,11 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { siteConfigDocSchema } from "./site-config-doc-schema";
-
-const ts = { toMillis: () => 0, toDate: () => new Date(0) };
+import { fakeTimestamp, without } from "./doc-schema-test-helpers.js";
 
 const validDoc = {
   version: 3,
-  updatedAt: ts,
+  updatedAt: fakeTimestamp,
   hero: { motto: "Juventud que transforma", submotto: "Bolivia Oriente" },
   stats: {
     programCount: 4,
@@ -63,16 +62,12 @@ describe("siteConfigDocSchema", () => {
   });
 
   it("defaults hero when absent (legacy pre-hero docs)", () => {
-    const rest: Partial<typeof validDoc> = { ...validDoc };
-    delete rest.hero;
-    const parsed = siteConfigDocSchema.parse(rest);
+    const parsed = siteConfigDocSchema.parse(without(validDoc, "hero"));
     expect(parsed.hero).toEqual({ motto: "", submotto: "" });
   });
 
   it("leaves linktree undefined when absent", () => {
-    const rest: Partial<typeof validDoc> = { ...validDoc };
-    delete rest.linktree;
-    const parsed = siteConfigDocSchema.parse(rest);
+    const parsed = siteConfigDocSchema.parse(without(validDoc, "linktree"));
     expect(parsed.linktree).toBeUndefined();
   });
 
@@ -104,8 +99,6 @@ describe("siteConfigDocSchema", () => {
   });
 
   it("rejects a missing required field (contact)", () => {
-    const rest: Partial<typeof validDoc> = { ...validDoc };
-    delete rest.contact;
-    expect(siteConfigDocSchema.safeParse(rest).success).toBe(false);
+    expect(siteConfigDocSchema.safeParse(without(validDoc, "contact")).success).toBe(false);
   });
 });
