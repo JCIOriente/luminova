@@ -1,8 +1,8 @@
-import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { Card } from "./card";
 import { Icon } from "./icons";
-import { Input } from "./input";
+import { SearchInput } from "./search-input";
 import { Select } from "./select";
 import { IconButton } from "./icon-button";
 import { Skeleton } from "./skeleton";
@@ -106,7 +106,6 @@ export function DataTable<T>({
   pageSizeOptions = [8, 16, 32],
   paginationLabel = "registros",
 }: DataTableProps<T>) {
-  const searchId = useId();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState>({ columnId: "", dir: null });
   const [activeChipIds, setActiveChipIds] = useState<string[]>(
@@ -140,22 +139,13 @@ export function DataTable<T>({
       {(searchText || (chips && chips.length > 0)) && (
         <div className="flex flex-wrap items-center gap-3">
           {searchText && (
-            <div className="relative min-w-[220px] flex-1">
-              <label htmlFor={searchId} className="sr-only">
-                {searchPlaceholder}
-              </label>
-              <span className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-3">
-                {Icon.search({ s: 18 })}
-              </span>
-              <Input
-                id={searchId}
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={searchPlaceholder}
-                className="h-11 pl-11"
-              />
-            </div>
+            <SearchInput
+              label={searchPlaceholder}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="min-w-[220px] flex-1"
+            />
           )}
           {chips && chips.length > 0 && (
             <div className="flex flex-wrap gap-2">

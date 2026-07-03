@@ -6,13 +6,14 @@ Shared component library for `apps/spotlight` and `apps/backstage`. Bespoke,
 token-driven components styled with **pure Tailwind v4 utility classes** (no
 semantic CSS classes). Consumed as **raw TypeScript source** (no build step).
 
-## What's here now (36 components)
+## What's here now (37 components)
 
 Full inventory + source paths + design tokens live in **`DESIGN.md`** (the
 ingest manifest for Claude Design). Quick map:
 
 - **Form / inputs:** Button (polymorphic `a|button`, `variant`
-  primary/secondary/ghost, `onDark`/`onBlue`, `sm`), Input, Textarea, Select,
+  primary/secondary/ghost, `onDark`/`onBlue`, `sm`), Input, SearchInput
+  (leading icon, sr-only `label`, `size` md/sm), Textarea, Select,
   Field (label + error), Checkbox (label + branded box), Combobox (single-select
   + search), MultiSelect (chips).
 - **Feedback / status:** Badge (tones), Skeleton, Toast (presentational),

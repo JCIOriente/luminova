@@ -57,7 +57,7 @@ build step.
 
 ---
 
-## Components (36 — shipped)
+## Components (37 — shipped)
 
 All exported from `src/index.ts` except the QR pair (deep-imported to stay in lazy
 chunks). Paths are relative to `packages/ui/src/`.
@@ -68,6 +68,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 | ----------------------------------------------------------------------------------------------- | ----------------------------------- |
 | `Button` (variants: primary/secondary/ghost, `onDark`/`onBlue`, `sm`; polymorphic `a`/`button`) | `components/button.tsx`             |
 | `Input`                                                                                         | `components/input.tsx`              |
+| `SearchInput` (leading icon; `label` sr-only required, `size` md/sm)                            | `components/search-input.tsx`       |
 | `Textarea`                                                                                      | `components/textarea.tsx`           |
 | `Select`                                                                                        | `components/select.tsx`             |
 | `Field` (label + error wrapper)                                                                 | `components/field.tsx`              |

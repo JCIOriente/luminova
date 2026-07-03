@@ -1,5 +1,5 @@
 import { AREAS_OF_OPPORTUNITY, AREA_OF_OPPORTUNITY_LABELS } from "@luminova/types";
-import { Icon, Input, Select, SegmentedControl } from "@luminova/ui";
+import { SearchInput, Select, SegmentedControl } from "@luminova/ui";
 import type { InitiativeFilter, InitiativeTab } from "../features/initiatives/lib/filter";
 
 interface InitiativeFiltersProps {
@@ -71,22 +71,15 @@ export function InitiativeFilters({ filter, counts, onChange }: InitiativeFilter
           ))}
         </Select>
 
-        <div className="relative ml-auto w-full max-w-[260px]">
-          <label htmlFor="initiative-search" className="sr-only">
-            Buscar por título
-          </label>
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3">
-            {Icon.search({ s: 16 })}
-          </span>
-          <Input
-            id="initiative-search"
-            type="search"
-            placeholder="Buscar…"
-            value={filter.query}
-            onChange={(e) => set({ query: e.target.value })}
-            className="h-10 pl-9"
-          />
-        </div>
+        <SearchInput
+          id="initiative-search"
+          label="Buscar por título"
+          size="sm"
+          placeholder="Buscar…"
+          value={filter.query}
+          onChange={(e) => set({ query: e.target.value })}
+          className="ml-auto w-full max-w-[260px]"
+        />
       </div>
     </div>
   );

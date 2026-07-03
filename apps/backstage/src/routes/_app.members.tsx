@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Button, Input, Icon, Dialog, Toast, EmptyState } from "@luminova/ui";
+import { Button, Icon, Dialog, SearchInput, Toast, EmptyState } from "@luminova/ui";
 import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
 import { usePositions } from "../features/positions/hooks/use-positions";
@@ -169,19 +169,13 @@ function MembersPage() {
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[240px] flex-1">
-          <span className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-3">
-            {Icon.search({ s: 18 })}
-          </span>
-          <Input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre, rol o correo…"
-            aria-label="Buscar miembros"
-            className="h-11 pl-11"
-          />
-        </div>
+        <SearchInput
+          label="Buscar miembros"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nombre, rol o correo…"
+          className="min-w-[240px] flex-1"
+        />
         <MemberStatusFilter value={status} counts={counts} onChange={setStatus} />
       </div>
 
