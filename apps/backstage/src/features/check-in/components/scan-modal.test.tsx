@@ -32,9 +32,7 @@ describe("ScanModal", () => {
 
   it("moves initial focus inside the dialog (close button)", async () => {
     renderModal();
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Cerrar" })).toHaveFocus(),
-    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cerrar" })).toHaveFocus());
   });
 
   it("closes on Escape", async () => {
