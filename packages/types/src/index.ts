@@ -60,5 +60,10 @@ export type {
 export { LINKTREE_ICONS, LINKTREE_SOCIAL_PLATFORMS } from "./site-config.js";
 export { siteConfigSchema, type SiteConfigInput } from "./site-config-schema.js";
 export { clientTimestampSchema } from "./client-timestamp-schema.js";
+export { positionDocSchema, termPositionsDocSchema } from "./position-doc-schema.js";
+export { memberDocSchema } from "./member-doc-schema.js";
+export { allyDocSchema } from "./ally-doc-schema.js";
+export { roleDefinitionDocSchema } from "./role-definition-doc-schema.js";
+export { siteConfigDocSchema } from "./site-config-doc-schema.js";
 export { CEL_POSITIONS, type CelPositionSeed } from "./cel-positions.js";
 export { CEL_POSITION_TITLES } from "./cel-position-titles.js";
