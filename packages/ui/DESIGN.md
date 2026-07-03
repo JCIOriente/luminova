@@ -92,7 +92,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 
 | Component                                     | Source                   |
 | --------------------------------------------- | ------------------------ |
-| `Dialog`                                      | `components/dialog.tsx`  |
+| `Dialog` — `hideHeader` (sr-only title, for self-chromed modals), `overlayClassName`/`contentClassName` overrides | `components/dialog.tsx` |
 | `Sheet` — `size sm|md|lg|xl (440/560/680/800px, default sm)` | `components/sheet.tsx`   |
 | `Popover` (Radix; backs Combobox/MultiSelect) | `components/popover.tsx` |
 | `Menu` / `MenuItem` / `MenuSeparator` (Radix DropdownMenu; row/⋯ action menus, keyboard nav) | `components/menu.tsx` |
