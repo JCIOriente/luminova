@@ -4,6 +4,9 @@
   },
   "targets": {
     "jci-oriente": {
+      "storage": {
+        "default": ["jci-oriente.firebasestorage.app"]
+      },
       "hosting": {
         "jcioriente": [
           "jcioriente"
