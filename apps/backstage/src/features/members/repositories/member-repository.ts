@@ -19,7 +19,7 @@ import {
   type MemberInput,
   type TermPositions,
 } from "@luminova/types";
-import { parseDoc, parseDocs } from "../../../lib/firestore-read";
+import { parseDoc, parseDocOrNull, parseDocs } from "../../../lib/firestore-read";
 import { toMemberCreateDoc, toMemberUpdateDoc } from "./member-mapper";
 
 export class MemberRepository {
@@ -41,10 +41,8 @@ export class MemberRepository {
 
   async getById(id: string): Promise<Member | null> {
     const snapshot = await getDoc(doc(this.collection, id));
-    if (!snapshot.exists()) return null;
-    const member = parseDoc(memberDocSchema, snapshot);
-    if (!member.active) return null;
-    return member;
+    const member = parseDocOrNull(memberDocSchema, snapshot);
+    return member?.active ? member : null;
   }
 
   /** The active member linked to an Auth uid (self-view), or null. */

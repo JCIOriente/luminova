@@ -11,7 +11,7 @@ import {
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
 import { allyDocSchema, type Ally, type AllyInput } from "@luminova/types";
-import { parseDoc, parseDocs } from "../../../lib/firestore-read";
+import { parseDocOrNull, parseDocs } from "../../../lib/firestore-read";
 import { toAllyCreateDoc, toAllyUpdateDoc } from "./ally-mapper";
 
 export class AllyRepository {
@@ -27,10 +27,8 @@ export class AllyRepository {
 
   async getById(id: string): Promise<Ally | null> {
     const snapshot = await getDoc(doc(this.collection, id));
-    if (!snapshot.exists()) return null;
-    const ally = parseDoc(allyDocSchema, snapshot);
-    if (!ally.active) return null;
-    return ally;
+    const ally = parseDocOrNull(allyDocSchema, snapshot);
+    return ally?.active ? ally : null;
   }
 
   async create(data: AllyInput): Promise<string> {

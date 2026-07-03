@@ -1,7 +1,7 @@
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
 import { memberPointsDocSchema, type MemberPoints } from "@luminova/types/engine";
-import { parseDoc, parseDocs } from "../../../lib/firestore-read";
+import { parseDocOrNull, parseDocs } from "../../../lib/firestore-read";
 
 export class MemberPointsRepository {
   private readonly db = getFirebase().db;
@@ -9,8 +9,7 @@ export class MemberPointsRepository {
   /** The member's aggregate for a term, or null if none accrued yet. */
   async getByMemberAndTerm(memberId: string, termId: string): Promise<MemberPoints | null> {
     const snapshot = await getDoc(doc(this.db, "memberPoints", `${memberId}__${termId}`));
-    if (!snapshot.exists()) return null;
-    return parseDoc(memberPointsDocSchema, snapshot);
+    return parseDocOrNull(memberPointsDocSchema, snapshot);
   }
 
   /** Every member's aggregate for a term (drives the leaderboard). */

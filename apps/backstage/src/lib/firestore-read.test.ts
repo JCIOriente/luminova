@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { DocParseError, parseDoc, parseDocData, parseDocs } from "./firestore-read";
+import { DocParseError, parseDoc, parseDocData, parseDocOrNull, parseDocs } from "./firestore-read";
 
 const schema = z.object({ name: z.string(), points: z.number().default(0) });
 
@@ -33,13 +33,34 @@ describe("parseDoc", () => {
     } catch (error) {
       caught = error;
     }
-    expect(caught).toBeInstanceOf(DocParseError);
-    const parseError = caught as DocParseError;
-    expect(parseError.collection).toBe("members");
-    expect(parseError.docId).toBe("m2");
-    expect(parseError.issues.length).toBeGreaterThan(0);
-    expect(parseError.message).toContain("members");
-    expect(parseError.message).toContain("m2");
+    if (!(caught instanceof DocParseError)) throw new Error("expected DocParseError");
+    expect(caught.collection).toBe("members");
+    expect(caught.docId).toBe("m2");
+    expect(caught.issues.length).toBeGreaterThan(0);
+    expect(caught.message).toContain("members");
+    expect(caught.message).toContain("m2");
+  });
+
+  it("keeps the document key even if a schema output carries a body id", () => {
+    const withId = z.object({ id: z.string(), name: z.string() });
+    expect(parseDoc(withId, fakeDoc("real-id", { id: "forged", name: "Ana" })).id).toBe("real-id");
+  });
+});
+
+describe("parseDocOrNull", () => {
+  const existing = (id: string, data: unknown) => ({ ...fakeDoc(id, data), exists: () => true });
+  const missing = (id: string) => ({ ...fakeDoc(id, undefined), exists: () => false });
+
+  it("returns null for a missing doc", () => {
+    expect(parseDocOrNull(schema, missing("gone"))).toBeNull();
+  });
+
+  it("parses an existing doc", () => {
+    expect(parseDocOrNull(schema, existing("m1", { name: "Ana" }))).toEqual({
+      id: "m1",
+      name: "Ana",
+      points: 0,
+    });
   });
 });
 

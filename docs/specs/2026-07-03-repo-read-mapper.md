@@ -49,6 +49,8 @@ Principles:
   | Field | Default | Why |
   |---|---|---|
   | `Activity.location` | `null` | pre-field docs (today's `parseActivity`) |
+  | `Activity.description` | `null` | docs predate the field (added in `abe48c4`, C1-lite slice 1) |
+  | `Ally.logoUrl` / `Ally.category` | `null` | allies may predate the logo (#83) and category fields |
   | `Activity.photos` | `[]` | pre-photos-feature docs |
   | `Activity.hasCheckIns` | optional | beacon-only mirror, absent pre-feature |
   | `Member.gender` etc. | optional | pre-K2 docs (already optional in type) |

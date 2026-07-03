@@ -34,12 +34,20 @@ export function parseDocData<T>(schema: z.ZodType<T>, snap: SnapshotLike): T {
   return result.data;
 }
 
-/** Parse one doc and inject its id. Throws DocParseError on schema mismatch. */
 export function parseDoc<T extends object>(
   schema: z.ZodType<T>,
   snap: SnapshotLike,
 ): { id: string } & T {
-  return { id: snap.id, ...parseDocData(schema, snap) };
+  // id last: the document key must win even if a schema ever emits a body `id`.
+  return { ...parseDocData(schema, snap), id: snap.id };
+}
+
+/** Single-get convenience: null for a missing doc, parseDoc otherwise. */
+export function parseDocOrNull<T extends object>(
+  schema: z.ZodType<T>,
+  snap: SnapshotLike & { exists(): boolean },
+): ({ id: string } & T) | null {
+  return snap.exists() ? parseDoc(schema, snap) : null;
 }
 
 /** Parse a query result. A malformed doc is logged and skipped — one bad doc

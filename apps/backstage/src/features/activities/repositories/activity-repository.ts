@@ -19,7 +19,7 @@ import {
   moveCover,
   setCaption as relabel,
 } from "../../initiatives/repositories/photo-array";
-import { parseDoc, parseDocs } from "../../../lib/firestore-read";
+import { parseDocOrNull, parseDocs } from "../../../lib/firestore-read";
 
 export class ActivityRepository {
   private readonly db = getFirebase().db;
@@ -35,8 +35,7 @@ export class ActivityRepository {
 
   async getById(id: string): Promise<Activity | null> {
     const snapshot = await getDoc(doc(this.collection, id));
-    if (!snapshot.exists()) return null;
-    return parseDoc(activityDocSchema, snapshot);
+    return parseDocOrNull(activityDocSchema, snapshot);
   }
 
   /** Number of check-ins referencing this activity (engine-safety guard input). */
