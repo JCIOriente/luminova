@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { Photo } from "@luminova/types";
-import { Badge, ImageUploader, Input } from "@luminova/ui";
+import { Badge, Card, ImageUploader, Input } from "@luminova/ui";
 
 interface PhotoManagerProps {
   photos: Photo[];
@@ -89,14 +89,14 @@ function PhotoThumbnail({
 
   return (
     <figure className="relative">
-      <div className="aspect-[3/2] overflow-hidden rounded-card border border-line">
+      <Card padding="none" className="aspect-[3/2] overflow-hidden">
         <img
           src={photo.url}
           alt={photo.caption ?? "Foto"}
           loading="lazy"
           className="h-full w-full object-cover"
         />
-      </div>
+      </Card>
 
       {isCover && (
         <Badge tone="amber" className="absolute top-2 left-2">

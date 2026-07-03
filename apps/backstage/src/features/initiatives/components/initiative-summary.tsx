@@ -1,4 +1,4 @@
-import { Icon, ProgressBar } from "@luminova/ui";
+import { Card, Icon, ProgressBar } from "@luminova/ui";
 import { formatMonthYear } from "../../../lib/datetime";
 import type { Progress } from "../lib/derive";
 import type { InitiativeListItem } from "../lib/initiative-list-item";
@@ -11,7 +11,7 @@ interface InitiativeSummaryProps {
 export function InitiativeSummary({ item, progress }: InitiativeSummaryProps) {
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+      <Card as="section" className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-ink-1">Avance</h2>
           <span className="text-[20px] font-semibold tabular-nums text-ink-1">{progress.pct}%</span>
@@ -22,9 +22,9 @@ export function InitiativeSummary({ item, progress }: InitiativeSummaryProps) {
           {progress.total === 1 ? "actividad ejecutada" : "actividades ejecutadas"},{" "}
           {progress.pending} {progress.pending === 1 ? "pendiente" : "pendientes"}
         </p>
-      </section>
+      </Card>
 
-      <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+      <Card as="section" className="flex flex-col gap-3">
         <h2 className="text-[15px] font-semibold text-ink-1">Cronograma</h2>
         <ul className="flex flex-col gap-3">
           <li className="flex items-center gap-3">
@@ -54,7 +54,7 @@ export function InitiativeSummary({ item, progress }: InitiativeSummaryProps) {
             </span>
           </li>
         </ul>
-      </section>
+      </Card>
     </div>
   );
 }

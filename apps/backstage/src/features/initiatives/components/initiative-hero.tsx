@@ -1,5 +1,5 @@
 import { AREA_OF_OPPORTUNITY_LABELS } from "@luminova/types";
-import { Badge } from "@luminova/ui";
+import { Badge, Card } from "@luminova/ui";
 import type { ReactNode } from "react";
 import { COVER_STRIP, areaTone, statusLabel, statusTone } from "../lib/derive";
 import { formatMonthYear } from "../../../lib/datetime";
@@ -16,7 +16,7 @@ export function InitiativeHero({ item, closingSoon, actions }: InitiativeHeroPro
   const closedAt = item.finalReport ? formatMonthYear(item.finalReport.filedAt) : null;
 
   return (
-    <header className="flex flex-col gap-4 overflow-hidden rounded-card border border-line bg-surface">
+    <Card as="header" padding="none" className="flex flex-col gap-4 overflow-hidden">
       {cover ? (
         <img src={cover} alt="" className="h-44 w-full object-cover" />
       ) : (
@@ -52,6 +52,6 @@ export function InitiativeHero({ item, closingSoon, actions }: InitiativeHeroPro
           </p>
         </div>
       </div>
-    </header>
+    </Card>
   );
 }

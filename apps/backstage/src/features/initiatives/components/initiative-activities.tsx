@@ -1,5 +1,5 @@
 import type { Activity } from "@luminova/types";
-import { Badge, Button, EmptyState, Icon } from "@luminova/ui";
+import { Badge, Button, EmptyState, Icon, cardInteractiveClasses, cardSurfaceClasses, cn } from "@luminova/ui";
 import { Link } from "@tanstack/react-router";
 import { ACTIVITY_STATUS_TONE } from "../../activities/lib/status-tone";
 import { formatMonthYear } from "../../../lib/datetime";
@@ -44,7 +44,7 @@ export function InitiativeActivities({
               <Link
                 to="/activities/$id"
                 params={{ id: activity.id }}
-                className="group flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-3 transition-[transform,box-shadow] duration-200 ease-expo hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-24px_rgba(19,15,45,0.35)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue motion-reduce:hover:translate-y-0"
+                className={cn(cardSurfaceClasses, cardInteractiveClasses, "group flex items-center gap-3 px-4 py-3")}
               >
                 <span className="flex flex-1 flex-col gap-0.5">
                   <span className="text-[14px] font-semibold text-ink-1">{activity.title}</span>
