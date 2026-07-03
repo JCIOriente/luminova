@@ -21,7 +21,10 @@ interface InitiativeCardProps {
   onOpen?: () => void;
 }
 
-const shellClasses = cn(cardSurfaceClasses, "group relative flex flex-col overflow-hidden text-left");
+const shellClasses = cn(
+  cardSurfaceClasses,
+  "group relative flex flex-col overflow-hidden text-left",
+);
 const interactiveShellClasses = cn(shellClasses, cardInteractiveClasses, "cursor-pointer");
 
 export function InitiativeCard({

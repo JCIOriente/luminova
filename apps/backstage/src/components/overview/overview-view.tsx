@@ -229,11 +229,7 @@ export function OverviewView({
         <h2 className="mb-3 text-[16px] font-semibold text-ink-1">Accesos rápidos</h2>
         <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
           {QUICK_ACTIONS.map((q) => (
-            <button
-              key={q.id}
-              type="button"
-              className={quickActionCardClasses}
-            >
+            <button key={q.id} type="button" className={quickActionCardClasses}>
               <span className="flex size-[42px] items-center justify-center rounded-[12px] bg-jci-blue/10 text-jci-blue">
                 {Icon[q.icon]({ s: 21 })}
               </span>
