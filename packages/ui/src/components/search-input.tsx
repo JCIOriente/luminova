@@ -18,27 +18,24 @@ interface SearchInputProps extends Omit<ComponentPropsWithRef<"input">, "size"> 
 export function SearchInput({ label, size = "md", className, ...props }: SearchInputProps) {
   const generatedId = useId();
   const id = props.id ?? generatedId;
+  const s = SIZE[size];
   return (
     <div className={cn("relative", className)}>
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
       <span
-        className={cn(
-          "pointer-events-none absolute top-1/2 -translate-y-1/2 text-ink-3",
-          SIZE[size].icon,
-        )}
+        className={cn("pointer-events-none absolute top-1/2 -translate-y-1/2 text-ink-3", s.icon)}
       >
-        {Icon.search({ s: SIZE[size].iconSize })}
+        {Icon.search({ s: s.iconSize })}
       </span>
       <Input
         {...props}
         id={id}
         type="search"
-        className={cn(
-          SIZE[size].input,
-          "[&::-webkit-search-cancel-button]:appearance-none",
-        )}
+        // WebKit renders its own clear (x) control on type=search; suppress it
+        // so the field looks identical across browsers.
+        className={cn(s.input, "[&::-webkit-search-cancel-button]:appearance-none")}
       />
     </div>
   );
