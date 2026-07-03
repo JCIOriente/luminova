@@ -215,7 +215,7 @@ export function OverviewView({
             ))}
           </div>
         )}
-      </section>
+      </Card>
     ),
     quickActions: () => (
       <section>

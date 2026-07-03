@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import {
   Button,
+  Card,
   Sheet,
   SegmentedControl,
   Toast,
@@ -230,7 +231,7 @@ function InitiativeDetailPage() {
             ) : (
               <InitiativeSummary item={item} progress={progress} />
             )}
-            <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+            <Card as="section" className="flex flex-col gap-3">
               <h2 className="text-[15px] font-semibold text-ink-1">Destacadas</h2>
               {canManagePhotos ? (
                 <PhotoManager
@@ -243,7 +244,7 @@ function InitiativeDetailPage() {
               ) : (
                 <PhotoGallery photos={item.photos} showCover />
               )}
-            </section>
+            </Card>
           </div>
           <aside>
             <InitiativeTeamRail team={team} />

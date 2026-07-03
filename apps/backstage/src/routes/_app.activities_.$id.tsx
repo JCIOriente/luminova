@@ -1,7 +1,16 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Dialog, EmptyState, Icon, SegmentedControl, Sheet, Toast } from "@luminova/ui";
+import {
+  Button,
+  Card,
+  Dialog,
+  EmptyState,
+  Icon,
+  SegmentedControl,
+  Sheet,
+  Toast,
+} from "@luminova/ui";
 import type { ComboboxOption, SegmentedOption } from "@luminova/ui";
 import type { ActivityInput, Member } from "@luminova/types";
 import { currentTermKey } from "@luminova/types";
@@ -221,7 +230,7 @@ function ActivityDetailPage() {
       {activeTab === "resumen" && (
         <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
           <div className="flex flex-col gap-6">
-            <section className="rounded-card border border-line bg-surface p-5">
+            <Card as="section">
               <h2 className="font-mono text-[10.5px] tracking-[0.12em] text-ink-3 uppercase">
                 Sobre la actividad
               </h2>
@@ -234,7 +243,7 @@ function ActivityDetailPage() {
                   Edita la actividad para agregar una descripción.
                 </p>
               )}
-            </section>
+            </Card>
             <ActivityTeam director={director} coDirectors={coDirectors} />
           </div>
           <ActivityDetails activity={activity} />
