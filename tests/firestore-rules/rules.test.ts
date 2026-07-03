@@ -1121,6 +1121,39 @@ describe("firestore.rules — positions", () => {
       }),
     );
   });
+  it("denies creating a Comision position with grants — even Admin (chips-only)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "positions/com_priv"), {
+        title: "Comité Sombra",
+        sigla: "CS",
+        category: "Comision",
+        grants: ["Membership"],
+        term: null,
+        description: "Escalación.",
+        active: true,
+        deletedAt: null,
+      }),
+    );
+  });
+  it("allows Admin creating a plain Comision (empty grants)", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["Admin"]), "positions/com_plain"), {
+        title: "Comité de Conducta",
+        sigla: "CC",
+        category: "Comision",
+        grants: [],
+        term: null,
+        description: "Ética.",
+        active: true,
+        deletedAt: null,
+      }),
+    );
+  });
+  it("denies flipping a power position to Comision while keeping its grants", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "positions/pos1"), { category: "Comision" }),
+    );
+  });
   it("denies ExecutiveCommittee mutating grants on an existing position", async () => {
     await assertFails(
       updateDoc(doc(as("u", ["ExecutiveCommittee"]), "positions/pos1"), { grants: ["Admin"] }),

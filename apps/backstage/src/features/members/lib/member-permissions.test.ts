@@ -20,9 +20,13 @@ describe("effectiveRoles", () => {
   it("always includes Member", () => {
     expect(effectiveRoles({ positions: {} }, byId, "2026")).toEqual(["Member"]);
   });
-  it("unions current-term cargo + comisión grants in ROLES order", () => {
+  it("takes grants from the current-term cargo, in ROLES order", () => {
     const member = { positions: { "2026": { cargoId: "pres", comisionIds: ["etica"] } } };
     expect(effectiveRoles(member, byId, "2026")).toEqual(["Admin", "Member"]);
+  });
+  it("ignores comisión grants — comisiones are chips-only (mirrors claims-sync)", () => {
+    const member = { positions: { "2026": { cargoId: null, comisionIds: ["pres"] } } };
+    expect(effectiveRoles(member, byId, "2026")).toEqual(["Member"]);
   });
   it("ignores other terms", () => {
     const member = { positions: { "2025": { cargoId: "pres", comisionIds: [] } } };

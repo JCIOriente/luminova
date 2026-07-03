@@ -153,7 +153,11 @@ describe("syncMemberClaims", () => {
     expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: [] });
   });
 
-  it("unions grants from cargo + comisión, deduped and ROLES-ordered, with perms", async () => {
+  it("honors ONLY the cargo's grants — comisión grants are never power, even Admin-assigned", async () => {
+    // Comisiones are chips-only (position-schema forbids Comision grants; rules
+    // enforce it). A console-written power comisión — or a power cargo's id
+    // smuggled into comisionIds, which rules never grant-check — must not mint
+    // claims, and rules cannot iterate comisionIds to gate it themselves.
     const { deps, writes } = fakeDeps({
       positions: {
         "pos-tes": { grants: ["Treasury", "ExecutiveCommittee"] },
@@ -172,8 +176,27 @@ describe("syncMemberClaims", () => {
       },
       "2026",
     );
-    const roles: Role[] = ["Membership", "Treasury", "ExecutiveCommittee", "Member"];
+    const roles: Role[] = ["Treasury", "ExecutiveCommittee", "Member"];
     expect(writes["target-uid"]).toEqual({ roles, perms: permsFor(roles) });
+  });
+
+  it("a power cargo id smuggled into comisionIds confers nothing (no cargo assigned)", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-pres": { grants: ["Admin"] } },
+      userRoles: { "admin-uid": ["Admin"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: {
+          "2026": { cargoId: null, comisionIds: ["pos-pres"], assignedBy: "admin-uid" },
+        },
+      },
+      "2026",
+    );
+    expect(writes["target-uid"]).toBeUndefined(); // stays ['Member'] → no-op
   });
 
   it("includes perms from a directly-assigned custom role", async () => {
