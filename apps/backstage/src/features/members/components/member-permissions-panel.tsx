@@ -14,7 +14,7 @@ export function MemberPermissionsPanel({ roles }: { roles: Role[] }) {
         Cargos asignados
       </h2>
       <p className="text-[12px] text-ink-3">
-        Permisos que otorgan los cargos y comisiones asignados.
+        Permisos que otorga el cargo asignado.
       </p>
       <ul className="flex flex-col gap-3">
         {roles.map((role) => {

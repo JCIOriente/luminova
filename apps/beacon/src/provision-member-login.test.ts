@@ -123,3 +123,45 @@ describe("provisionMember", () => {
     ).rejects.toMatchObject({ code: "failed-precondition" });
   });
 });
+
+describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
+  it("strips stale org roles when adopting a pre-existing auth account, keeping Scanner", async () => {
+    const claimsWrites: Record<string, unknown>[] = [];
+    const { deps } = fakeDeps({
+      member: { email: "a@b.co", active: true },
+      usersByEmail: {
+        "a@b.co": {
+          uid: "orphan",
+          email: "a@b.co",
+          customClaims: { roles: ["Admin", "Scanner"], scannerEventIds: ["e1"] },
+        },
+      },
+    });
+    const spied: ProvisionDeps = {
+      ...deps,
+      setClaims: async (_uid, claims) => {
+        claimsWrites.push(claims);
+      },
+    };
+    await provisionMember(spied, "m1");
+    expect(claimsWrites).toEqual([{ roles: ["Scanner", "Member"], scannerEventIds: ["e1"] }]);
+  });
+
+  it("keeps merge semantics on a same-uid re-provision (linked member, claims-sync owns them)", async () => {
+    const claimsWrites: Record<string, unknown>[] = [];
+    const { deps } = fakeDeps({
+      member: { email: "a@b.co", active: true, uid: "u1" },
+      usersByEmail: {
+        "a@b.co": { uid: "u1", email: "a@b.co", customClaims: { roles: ["Admin", "Member"] } },
+      },
+    });
+    const spied: ProvisionDeps = {
+      ...deps,
+      setClaims: async (_uid, claims) => {
+        claimsWrites.push(claims);
+      },
+    };
+    await provisionMember(spied, "m1");
+    expect(claimsWrites).toEqual([{ roles: ["Admin", "Member"] }]);
+  });
+});

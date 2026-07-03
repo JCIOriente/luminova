@@ -58,7 +58,9 @@ export interface ProvisionDeps {
  *  stored uid does not match the Auth user its email resolves to — silently
  *  overwriting would orphan the old Auth account with its claims (possibly Admin)
  *  still live and no member doc backing them. Relinking after an email change is a
- *  deliberate console op. Same-uid re-provision stays allowed (resend invite). */
+ *  deliberate console op. Same-uid re-provision stays allowed (resend invite).
+ *  A failure after createUser leaves an unlinked Auth user — no compensation
+ *  needed: the next run resolves it by email and adopts it (linkedUid null). */
 export async function provisionMember(
   deps: ProvisionDeps,
   memberId: string,
@@ -85,7 +87,26 @@ export async function provisionMember(
   // Bootstrap the base Member claim; onMemberWritten (fired by the uid write below)
   // recomputes ['Member', ...trusted grants] from positions, healing pre-assigned
   // members. Both authorities share the same ['Member', ...] base — no conflict.
-  await deps.setClaims(user.uid, nextClaims(user.customClaims as RawClaims | undefined, "Member"));
+  // A FRESH adopt (member had no uid, the email resolved a pre-existing Auth
+  // account) must not inherit that account's org roles — an orphaned account may
+  // still carry Admin, and merging would elevate this login until the claims-sync
+  // self-heal lands (or forever, if it fails). Keep only Member + Scanner, the two
+  // roles claims-sync itself preserves. A linked re-provision keeps merge
+  // semantics: those claims are already claims-sync-owned.
+  const existingClaims = user.customClaims as RawClaims | undefined;
+  const bootstrap =
+    linkedUid === null
+      ? nextClaims(
+          {
+            ...existingClaims,
+            roles: Array.isArray(existingClaims?.roles)
+              ? (existingClaims.roles as unknown[]).filter((r) => r === "Scanner" || r === "Member")
+              : [],
+          },
+          "Member",
+        )
+      : nextClaims(existingClaims, "Member");
+  await deps.setClaims(user.uid, bootstrap);
   await deps.linkUid(memberId, user.uid);
   const actionLink = await deps.passwordResetLink(targetEmail);
 
