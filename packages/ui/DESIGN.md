@@ -57,7 +57,7 @@ build step.
 
 ---
 
-## Components (35 — shipped)
+## Components (36 — shipped)
 
 All exported from `src/index.ts` except the QR pair (deep-imported to stay in lazy
 chunks). Paths are relative to `packages/ui/src/`.
@@ -118,6 +118,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 
 | Component                                             | Source                          |
 | ----------------------------------------------------- | ------------------------------- |
+| `Card` (`as`, `padding` md/sm/none, `interactive`; + `cardSurfaceClasses`/`cardInteractiveClasses` for button/link hosts) | `components/card.tsx` |
 | `SectionHeader`                                       | `components/section-header.tsx` |
 | `ArrowLink`                                           | `components/arrow-link.tsx`     |
 | `LogoLockup`                                          | `components/logo-lockup.tsx`    |
