@@ -50,13 +50,13 @@ export function parseDocs<T extends object>(
 ): ({ id: string } & T)[] {
   const rows: ({ id: string } & T)[] = [];
   for (const doc of snapshot.docs) {
-    const result = schema.safeParse(doc.data());
-    if (result.success) {
-      rows.push({ id: doc.id, ...result.data });
-    } else {
+    try {
+      rows.push(parseDoc(schema, doc));
+    } catch (error) {
+      if (!(error instanceof DocParseError)) throw error;
       console.error(
-        `[backstage] Malformed ${doc.ref.parent.id} doc skipped: ${doc.id}`,
-        result.error.issues,
+        `[backstage] Malformed ${error.collection} doc skipped: ${error.docId}`,
+        error.issues,
       );
     }
   }

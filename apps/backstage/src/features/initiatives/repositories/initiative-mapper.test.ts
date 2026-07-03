@@ -104,23 +104,4 @@ describe("initiativeToInput", () => {
     });
   });
 
-  it("defaults featured to false for a pre-feature doc that lacks the field", () => {
-    const core = {
-      id: "i1",
-      termId: "2026",
-      title: VALID_INPUT.title,
-      description: VALID_INPUT.description,
-      category: VALID_INPUT.category,
-      startDate: Timestamp.fromDate(new Date("2026-02-01T00:00:00Z")),
-      endDate: Timestamp.fromDate(new Date("2026-08-31T00:00:00Z")),
-      roster: { ...VALID_INPUT.roster },
-      status: VALID_INPUT.status,
-      photos: [] as never[],
-      impact: null,
-      finalReport: null,
-      directionUids: [] as string[],
-      featured: undefined as unknown as boolean,
-    };
-    expect(initiativeToInput(core).featured).toBe(false);
-  });
 });

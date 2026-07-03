@@ -56,9 +56,6 @@ export function initiativeToInput(p: InitiativeCore): Partial<InitiativeInput> {
     endDate: p.endDate.toDate().toISOString().slice(0, 10),
     roster: p.roster,
     status: p.status,
-    // Pre-feature initiative docs lack `featured` (runtime undefined despite the
-    // required type) — default to false so the edit form never binds undefined into
-    // the Checkbox or fails the z.boolean() submit.
-    featured: p.featured ?? false,
+    featured: p.featured,
   };
 }
