@@ -190,6 +190,7 @@ project owner via `gcloud`. All identifiers below are non-secret.
 | Pool → SA binding | `roles/iam.workloadIdentityUser` for `principalSet://.../attribute.repository/JCIOriente/luminova` |
 | Runtime SA (gen2 actAs) | `953870918238-compute@developer.gserviceaccount.com` ← `roles/iam.serviceAccountUser` |
 | App Engine default SA (CLI preflight actAs) | `jci-oriente@appspot.gserviceaccount.com` ← `roles/iam.serviceAccountUser` (added 2026-07-03) |
+| Billing account binding | `billingAccounts/016148-904C31-A656A9` ← `roles/billing.viewer` for the deploy SA (added 2026-07-03) |
 
 > **Functions-deploy preflight gotcha.** firebase-tools hardcodes an
 > `iam.serviceAccounts.actAs` check on `<project>@appspot.gserviceaccount.com`
@@ -203,6 +204,16 @@ project owner via `gcloud`. All identifiers below are non-secret.
 `cloudfunctions.admin`, `run.admin`, `artifactregistry.admin`,
 `cloudbuild.builds.editor`, `eventarc.admin`, `serviceusage.serviceUsageConsumer`,
 `firebasestorage.viewer` (added 2026-07-03).
+
+> **Billing-probe gotcha.** Before a gen2 functions deploy the CLI calls
+> `cloudbilling.../projects/<p>/billingInfo` (`lib/gcp/cloudbilling.js`,
+> throws on 403 — only 429/5xx are retried). Two requirements: the
+> **Cloud Billing API** must be enabled on the project, and the deploy SA needs
+> `billing.resourceAssociations.list`. That permission is **not grantable at
+> project level** (rejected with "Role roles/billing.viewer is not supported for
+> this resource") and is absent from project custom-role support — the only home
+> is `roles/billing.viewer` on the **billing account** (read-only: cost/linkage
+> visibility, no spend control).
 
 > **Storage-rules deploy gotcha.** With the object form `"storage": {"rules": ...}`
 > the CLI resolves the default bucket via the **v1alpha**
@@ -220,7 +231,8 @@ Optional repo secret `DEPLOY_WEBHOOK_URL` (unset → `notify` is a no-op).
 
 **Enabled APIs:** `iamcredentials`, `sts`, `firebasehosting`, `firebaserules`,
 `cloudfunctions`, `run`, `eventarc`, `artifactregistry`, `cloudbuild`, `firestore`,
-`storage`, `serviceusage`.
+`storage`, `serviceusage`, `cloudbilling` (added 2026-07-03 — functions-deploy
+billing probe).
 
 ---
 
@@ -246,7 +258,8 @@ gcloud services enable \
   firebasehosting.googleapis.com firebaserules.googleapis.com \
   cloudfunctions.googleapis.com run.googleapis.com eventarc.googleapis.com \
   artifactregistry.googleapis.com cloudbuild.googleapis.com \
-  firestore.googleapis.com storage.googleapis.com serviceusage.googleapis.com
+  firestore.googleapis.com storage.googleapis.com serviceusage.googleapis.com \
+  cloudbilling.googleapis.com
 
 # --- 2. deploy service account ---
 gcloud iam service-accounts create "$DEPLOY_SA" \
@@ -284,6 +297,11 @@ gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
 # appspot SA: satisfies the firebase-tools functions-deploy preflight (see gotcha above)
 gcloud iam service-accounts add-iam-policy-binding "${PROJECT_ID}@appspot.gserviceaccount.com" \
   --member="serviceAccount:${DEPLOY_SA_EMAIL}" --role="roles/iam.serviceAccountUser" --quiet
+# billing account (NOT project — see billing-probe gotcha above): functions-deploy billing read
+export BILLING_ACCOUNT=$(gcloud billing projects describe "$PROJECT_ID" \
+  --format="value(billingAccountName)" | cut -d/ -f2)
+gcloud billing accounts add-iam-policy-binding "$BILLING_ACCOUNT" \
+  --member="serviceAccount:${DEPLOY_SA_EMAIL}" --role="roles/billing.viewer"
 
 # --- 6. GitHub production environment (via gh; owner id from `gh api user`) ---
 gh api -X PUT "repos/${GH_REPO}/environments/production" --input - <<JSON
