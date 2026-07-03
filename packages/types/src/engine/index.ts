@@ -33,7 +33,7 @@ export type {
   ActivityStatus,
   InitiativeKind,
 } from "./activity.js";
-export { ACTIVITY_CATEGORIES, ACTIVITY_STATUSES } from "./activity.js";
+export { ACTIVITY_CATEGORIES, ACTIVITY_STATUSES, INITIATIVE_KINDS } from "./activity.js";
 export type { PointRule, PointRuleCode } from "./point-rule.js";
 export { POINT_RULE_CODES, DEFAULT_POINT_VALUES, POINT_RULE_LABELS } from "./point-rule.js";
 export type {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ACTIVITY_CATEGORIES } from "./activity.js";
+import { ACTIVITY_CATEGORIES, INITIATIVE_KINDS } from "./activity.js";
 
 export const activitySchema = z
   .object({
@@ -7,7 +7,7 @@ export const activitySchema = z
     description: z.string(),
     location: z.string().max(300, "Máximo 300 caracteres."),
     category: z.enum(ACTIVITY_CATEGORIES),
-    parentType: z.enum(["Program", "Project"]).nullable(),
+    parentType: z.enum(INITIATIVE_KINDS).nullable(),
     parentId: z.string().min(1).nullable(),
     startAt: z.string().min(1, "Requerido."),
     endAt: z.string().min(1).nullable(),

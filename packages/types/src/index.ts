@@ -11,6 +11,7 @@ export {
 } from "./permission.js";
 export { BUILT_IN_ROLE_PERMS, ROLE_LABELS, type RoleDefinition } from "./role-definition.js";
 export type { PermissionOverrides } from "./permission-overrides.js";
+export { permissionOverridesSchema } from "./permission-overrides-schema.js";
 export {
   roleDefinitionSchema,
   permissionCodeSchema,

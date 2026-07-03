@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { timestampSchema } from "./timestamp-schema.js";
 import { photoDocSchema } from "./initiative-doc-schema.js";
-import { ACTIVITY_CATEGORIES, ACTIVITY_STATUSES } from "./activity.js";
+import { ACTIVITY_CATEGORIES, ACTIVITY_STATUSES, INITIATIVE_KINDS } from "./activity.js";
 import type { Activity } from "./activity.js";
 
 export const activityDocSchema = z.object({
@@ -10,7 +10,7 @@ export const activityDocSchema = z.object({
   description: z.string().nullable(),
   location: z.string().nullable().default(null),
   category: z.enum(ACTIVITY_CATEGORIES),
-  parentType: z.enum(["Program", "Project"]).nullable(),
+  parentType: z.enum(INITIATIVE_KINDS).nullable(),
   parentId: z.string().nullable(),
   organizers: z.object({
     directorId: z.string().nullable(),
