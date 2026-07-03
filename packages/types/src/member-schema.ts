@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MEMBER_STATUSES, MEMBER_GENDERS } from "./member.js";
-import { permissionCodeSchema } from "./role-definition-schema.js";
+import { permissionOverridesSchema } from "./permission-overrides-schema.js";
 
 const dateString = z
   .string()
@@ -24,12 +24,7 @@ export const memberSchema = z.object({
   cargoId: z.string().min(1).nullable(),
   comisionIds: z.array(z.string().min(1)),
   roleIds: z.array(z.string().min(1)).optional(),
-  permissionOverrides: z
-    .object({
-      grant: z.array(permissionCodeSchema),
-      revoke: z.array(permissionCodeSchema),
-    })
-    .optional(),
+  permissionOverrides: permissionOverridesSchema.optional(),
 });
 
 export type MemberInput = z.infer<typeof memberSchema>;

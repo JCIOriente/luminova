@@ -1,4 +1,5 @@
 export type { Timestamp } from "./timestamp.js";
+export { timestampSchema, isTimestampLike } from "./timestamp-schema.js";
 export type {
   InitiativeRoster,
   FinalReport,
@@ -32,7 +33,7 @@ export type {
   ActivityStatus,
   InitiativeKind,
 } from "./activity.js";
-export { ACTIVITY_CATEGORIES, ACTIVITY_STATUSES } from "./activity.js";
+export { ACTIVITY_CATEGORIES, ACTIVITY_STATUSES, INITIATIVE_KINDS } from "./activity.js";
 export type { PointRule, PointRuleCode } from "./point-rule.js";
 export { POINT_RULE_CODES, DEFAULT_POINT_VALUES, POINT_RULE_LABELS } from "./point-rule.js";
 export type {
@@ -55,3 +56,9 @@ export {
   type EvaluateEligibilityInput,
   type EligibilityResult,
 } from "./eligibility.js";
+export { photoDocSchema, initiativeDocSchema } from "./initiative-doc-schema.js";
+export { activityDocSchema } from "./activity-doc-schema.js";
+export { termDocSchema } from "./term-doc-schema.js";
+export { memberPointsDocSchema } from "./member-points-doc-schema.js";
+export { participationDocSchema } from "./participation-doc-schema.js";
+export { pointRuleDocSchema } from "./point-rule-doc-schema.js";

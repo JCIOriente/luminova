@@ -7,12 +7,13 @@ import {
   query,
   where,
   serverTimestamp,
-  type Timestamp,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
 import { checkInSchema, type CheckInInput } from "@luminova/types";
 import type { ParticipationRole } from "@luminova/types/engine";
+import { parseDocs } from "../../../lib/firestore-read";
 import type { CheckInRecord } from "../roster";
+import { checkInRecordDocSchema } from "./check-in-record-schema";
 
 function checkInId(activityId: string, memberId: string, role: ParticipationRole): string {
   return `${activityId}__${memberId}__${role}`;
@@ -25,16 +26,7 @@ export class CheckInRepository {
   /** Roster for an activity (who has checked in). */
   async getByActivity(activityId: string): Promise<CheckInRecord[]> {
     const snapshot = await getDocs(query(this.collection, where("activityId", "==", activityId)));
-    return snapshot.docs.map((d) => {
-      // Firestore doc shape; checkInAt is null only in the brief window before the
-      // server timestamp resolves on a just-written row.
-      const data = d.data() as {
-        memberId: string;
-        role: CheckInRecord["role"];
-        checkInAt: Timestamp | null;
-      };
-      return { memberId: data.memberId, role: data.role, checkInAt: data.checkInAt ?? null };
-    });
+    return parseDocs(checkInRecordDocSchema, snapshot);
   }
 
   /** Write a check-in. Deterministic id (idempotent) + server timestamp. The

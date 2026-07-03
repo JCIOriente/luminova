@@ -10,7 +10,8 @@ import {
   limit,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import type { Position, PositionInput } from "@luminova/types";
+import { positionDocSchema, type Position, type PositionInput } from "@luminova/types";
+import { parseDocs } from "../../../lib/firestore-read";
 import { toPositionCreateDoc, toPositionUpdateDoc } from "./position-mapper";
 
 export class PositionRepository {
@@ -24,13 +25,10 @@ export class PositionRepository {
   async getAll(): Promise<Position[]> {
     const snapshot = await getDocs(query(this.collection));
     const order: Record<string, number> = { CEL: 0, JDL: 1, Comision: 2 };
-    return snapshot.docs
-      .map((d) => ({ id: d.id, ...(d.data() as Omit<Position, "id">) }))
-      .sort(
-        (a, b) =>
-          (order[a.category] ?? 3) - (order[b.category] ?? 3) ||
-          a.title.localeCompare(b.title, "es"),
-      );
+    return parseDocs(positionDocSchema, snapshot).sort(
+      (a, b) =>
+        (order[a.category] ?? 3) - (order[b.category] ?? 3) || a.title.localeCompare(b.title, "es"),
+    );
   }
 
   async create(data: PositionInput): Promise<string> {

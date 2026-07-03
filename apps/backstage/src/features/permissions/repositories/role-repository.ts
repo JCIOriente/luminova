@@ -9,7 +9,12 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import type { RoleDefinition, RoleDefinitionInput } from "@luminova/types";
+import {
+  roleDefinitionDocSchema,
+  type RoleDefinition,
+  type RoleDefinitionInput,
+} from "@luminova/types";
+import { parseDocs } from "../../../lib/firestore-read";
 
 /** A new custom role doc: identity fields are fixed (built-ins are seeded by the
  *  beacon admin SDK, never the client — firestore.rules enforces builtIn:false). */
@@ -32,12 +37,10 @@ export class RoleRepository {
   /** Active roles, built-ins first then customs, each alphabetical. */
   async getAll(): Promise<RoleDefinition[]> {
     const snapshot = await getDocs(query(this.collection, where("active", "==", true)));
-    return snapshot.docs
-      .map((d) => ({ id: d.id, ...(d.data() as Omit<RoleDefinition, "id">) }))
-      .sort((a, b) => {
-        if (a.builtIn !== b.builtIn) return a.builtIn ? -1 : 1;
-        return a.name.localeCompare(b.name, "es");
-      });
+    return parseDocs(roleDefinitionDocSchema, snapshot).sort((a, b) => {
+      if (a.builtIn !== b.builtIn) return a.builtIn ? -1 : 1;
+      return a.name.localeCompare(b.name, "es");
+    });
   }
 
   async create(data: RoleDefinitionInput): Promise<string> {

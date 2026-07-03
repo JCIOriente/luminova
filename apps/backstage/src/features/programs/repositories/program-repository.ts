@@ -10,7 +10,13 @@ import {
   arrayUnion,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import type { Program, ProgramInput, InitiativeImpactInput, Photo } from "@luminova/types";
+import {
+  initiativeDocSchema,
+  type Program,
+  type ProgramInput,
+  type InitiativeImpactInput,
+  type Photo,
+} from "@luminova/types";
 import {
   toInitiativeCreateDoc,
   toInitiativeUpdateDoc,
@@ -21,21 +27,21 @@ import {
   moveCover,
   setCaption as relabel,
 } from "../../initiatives/repositories/photo-array";
+import { parseDocOrNull, parseDocs } from "../../../lib/firestore-read";
 
 export class ProgramRepository {
   private readonly collection = collection(getFirebase().db, "programs");
 
   async getByTerm(termId: string): Promise<Program[]> {
     const snapshot = await getDocs(query(this.collection, where("termId", "==", termId)));
-    return snapshot.docs
-      .map((d) => ({ id: d.id, ...(d.data() as Omit<Program, "id">) }))
-      .sort((a, b) => a.title.localeCompare(b.title, "es"));
+    return parseDocs(initiativeDocSchema, snapshot).sort((a, b) =>
+      a.title.localeCompare(b.title, "es"),
+    );
   }
 
   async getById(id: string): Promise<Program | null> {
     const snapshot = await getDoc(doc(this.collection, id));
-    if (!snapshot.exists()) return null;
-    return { id: snapshot.id, ...(snapshot.data() as Omit<Program, "id">) };
+    return parseDocOrNull(initiativeDocSchema, snapshot);
   }
 
   async create(data: ProgramInput, termId: string): Promise<string> {

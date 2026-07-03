@@ -14,10 +14,12 @@ import { getFirebase } from "@luminova/firebase";
 import {
   currentTermKey,
   MEMBER_STATUSES,
+  memberDocSchema,
   type Member,
   type MemberInput,
   type TermPositions,
 } from "@luminova/types";
+import { parseDoc, parseDocOrNull, parseDocs } from "../../../lib/firestore-read";
 import { toMemberCreateDoc, toMemberUpdateDoc } from "./member-mapper";
 
 export class MemberRepository {
@@ -32,17 +34,13 @@ export class MemberRepository {
   /** Active (non-soft-deleted) members, sorted by name. */
   async getAll(): Promise<Member[]> {
     const snapshot = await getDocs(query(this.collection, where("active", "==", true)));
-    return snapshot.docs
-      .map((d) => ({ id: d.id, ...(d.data() as Omit<Member, "id">) }))
-      .sort((a, b) => a.name.localeCompare(b.name, "es"));
+    return parseDocs(memberDocSchema, snapshot).sort((a, b) => a.name.localeCompare(b.name, "es"));
   }
 
   async getById(id: string): Promise<Member | null> {
     const snapshot = await getDoc(doc(this.collection, id));
-    if (!snapshot.exists()) return null;
-    const data = snapshot.data() as Omit<Member, "id">;
-    if (!data.active) return null;
-    return { id: snapshot.id, ...data };
+    const member = parseDocOrNull(memberDocSchema, snapshot);
+    return member?.active ? member : null;
   }
 
   /** The active member linked to an Auth uid (self-view), or null. */
@@ -51,7 +49,7 @@ export class MemberRepository {
       query(this.collection, where("uid", "==", uid), where("active", "==", true), limit(1)),
     );
     const d = snapshot.docs[0];
-    return d ? { id: d.id, ...(d.data() as Omit<Member, "id">) } : null;
+    return d ? parseDoc(memberDocSchema, d) : null;
   }
 
   async create(data: MemberInput): Promise<string> {

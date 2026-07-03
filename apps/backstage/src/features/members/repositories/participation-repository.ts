@@ -1,6 +1,7 @@
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import type { Participation } from "@luminova/types/engine";
+import { participationDocSchema, type Participation } from "@luminova/types/engine";
+import { parseDocs } from "../../../lib/firestore-read";
 import { byMonthThenPoints } from "./participation-sort";
 
 export class ParticipationRepository {
@@ -11,8 +12,6 @@ export class ParticipationRepository {
     const snapshot = await getDocs(
       query(this.collection, where("memberId", "==", memberId), where("termId", "==", termId)),
     );
-    return snapshot.docs
-      .map((d) => ({ id: d.id, ...(d.data() as Omit<Participation, "id">) }))
-      .sort(byMonthThenPoints);
+    return parseDocs(participationDocSchema, snapshot).sort(byMonthThenPoints);
   }
 }

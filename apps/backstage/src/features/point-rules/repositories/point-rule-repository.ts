@@ -1,7 +1,8 @@
 import { collection, doc, getDocs, query, where, writeBatch, updateDoc } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import { pointRuleSchema } from "@luminova/types";
+import { pointRuleSchema, pointRuleDocSchema } from "@luminova/types";
 import type { PointRule } from "@luminova/types";
+import { parseDocs } from "../../../lib/firestore-read";
 import { toSeedRules, byMatrixOrder } from "./point-rule-mapper";
 
 export class PointRuleRepository {
@@ -11,9 +12,7 @@ export class PointRuleRepository {
   /** Rules for a term, in matrix order. */
   async getAllByTerm(termId: string): Promise<PointRule[]> {
     const snapshot = await getDocs(query(this.collection, where("termId", "==", termId)));
-    return snapshot.docs
-      .map((d) => ({ id: d.id, ...(d.data() as Omit<PointRule, "id">) }))
-      .sort(byMatrixOrder);
+    return parseDocs(pointRuleDocSchema, snapshot).sort(byMatrixOrder);
   }
 
   /** Bootstrap the term doc (if missing) + the 16 rules. Idempotent (deterministic ids). */

@@ -1,7 +1,8 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import type { SiteConfig, SiteConfigInput } from "@luminova/types";
+import { siteConfigDocSchema, type SiteConfig, type SiteConfigInput } from "@luminova/types";
 import { toSiteConfigDoc } from "./site-config-mapper";
+import { parseDocData } from "../../../lib/firestore-read";
 
 const DOC_PATH = "current";
 
@@ -10,7 +11,7 @@ export class SiteConfigRepository {
 
   async get(): Promise<SiteConfig | null> {
     const snap = await getDoc(this.ref);
-    return snap.exists() ? (snap.data() as SiteConfig) : null;
+    return snap.exists() ? parseDocData(siteConfigDocSchema, snap) : null;
   }
 
   async update(data: SiteConfigInput, currentVersion: number): Promise<void> {

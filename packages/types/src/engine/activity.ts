@@ -14,7 +14,8 @@ export type ActivityCategory = (typeof ACTIVITY_CATEGORIES)[number];
 export const ACTIVITY_STATUSES = ["Programada", "Ejecutada", "Cancelada"] as const;
 export type ActivityStatus = (typeof ACTIVITY_STATUSES)[number];
 
-export type InitiativeKind = "Program" | "Project";
+export const INITIATIVE_KINDS = ["Program", "Project"] as const;
+export type InitiativeKind = (typeof INITIATIVE_KINDS)[number];
 
 /** Activity-level direction (informational on parented activities — awards nothing; see spec decision 9). */
 export interface ActivityOrganizers {
