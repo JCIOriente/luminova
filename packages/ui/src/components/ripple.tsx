@@ -168,7 +168,7 @@ export function RippleBackground({
   );
 }
 
-export function RippleDivider({ color = "rgba(19,15,45,0.18)" }: { color?: string }) {
+export function RippleDivider({ color = "var(--color-line-strong)" }: { color?: string }) {
   return (
     <div className="flex justify-center py-2" aria-hidden="true">
       <div style={{ width: 56, height: 56, opacity: 0.55 }}>

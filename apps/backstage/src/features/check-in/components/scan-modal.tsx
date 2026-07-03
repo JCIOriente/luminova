@@ -108,7 +108,7 @@ export function ScanModal({
       <div className="px-5 pt-4 pb-5">
         <div className="relative aspect-square w-full overflow-hidden rounded-[14px] bg-black">
           <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-25">
-            <RippleSVG rings={5} stroke={4} size={300} color="#57BCBC" />
+            <RippleSVG rings={5} stroke={4} size={300} color="var(--color-jci-teal)" />
           </div>
           <Suspense
             fallback={

@@ -20,7 +20,7 @@ function ProgramasHero() {
         alignItems: "center",
       }}
     >
-      <RippleBackground variant="hero" color="#0097D7" />
+      <RippleBackground variant="hero" />
       <div className="container" style={{ position: "relative", zIndex: 1, width: "100%" }}>
         <div style={{ maxWidth: 920 }}>
           <div className="eyebrow no-rule" style={{ color: "var(--jci-teal)", display: "flex" }}>

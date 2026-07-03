@@ -38,7 +38,7 @@ export function BrandSide({
         }}
       />
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <RippleBackground variant="hero-center" color="#ffffff" opacity={blue ? 0.16 : 0.1} />
+        <RippleBackground variant="hero-center" color="var(--color-jci-white)" opacity={blue ? 0.16 : 0.1} />
       </div>
 
       <LogoLockup variant={blue ? "on-blue" : "inverted"} size="sm" />

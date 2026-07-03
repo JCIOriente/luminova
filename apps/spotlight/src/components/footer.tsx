@@ -28,7 +28,7 @@ export function Footer() {
   };
   return (
     <footer className="site-footer">
-      <RippleBackground variant="footer" color="#FFFFFF" opacity={0.045} />
+      <RippleBackground variant="footer" color="var(--color-jci-white)" opacity={0.045} />
       <div className="container" style={{ position: "relative", zIndex: 1 }}>
         <div className="footer-cols">
           <div className="footer-col">

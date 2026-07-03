@@ -49,7 +49,7 @@ function DetailHero({ item }: { item: ShowcaseItem }) {
           <div className="showcase-detail-hero-scrim" aria-hidden="true" />
         </>
       ) : (
-        <RippleBackground variant="hero" color="#0097D7" />
+        <RippleBackground variant="hero" />
       )}
       <div className="container showcase-detail-hero-body">
         <span className="showcase-detail-area">{areaLabel}</span>
@@ -73,7 +73,7 @@ function DetailContent({ item }: { item: ShowcaseItem }) {
       <DetailHero item={item} />
 
       <section className="section bg-blue" style={{ position: "relative", overflow: "hidden" }}>
-        <RippleBackground variant="subtle" color="#FFFFFF" opacity={0.06} />
+        <RippleBackground variant="subtle" color="var(--color-jci-white)" opacity={0.06} />
         <div className="container" style={{ position: "relative", zIndex: 1 }}>
           <ImpactBand impact={item.impact} />
         </div>

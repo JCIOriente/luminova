@@ -41,7 +41,7 @@ export function MemberPointsSummary({
   return (
     <div className="relative isolate flex flex-col gap-6 overflow-hidden rounded-[20px] bg-jci-black px-7 py-7 text-on-dark-1 shadow-[0_26px_60px_-34px_rgba(19,15,45,0.55)] sm:px-9 sm:py-8">
       <RippleSVG
-        color="#ffffff"
+        color="var(--color-jci-white)"
         size={520}
         className="pointer-events-none absolute top-1/2 -right-28 -z-10 size-[520px] -translate-y-1/2 opacity-[0.06] motion-safe:animate-ripple-spin"
       />

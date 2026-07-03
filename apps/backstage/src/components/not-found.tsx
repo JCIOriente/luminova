@@ -24,7 +24,7 @@ export function NotFound() {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
       >
-        <RippleBackground variant="hero-center" color="#57BCBC" opacity={0.13} />
+        <RippleBackground variant="hero-center" color="var(--color-jci-teal)" opacity={0.13} />
       </div>
 
       <div className="motion-safe:animate-rise">

@@ -15,7 +15,7 @@ export function AreaCard({
   return (
     <article className="area-card">
       <div className="ripple-hover">
-        <RippleSVG rings={4} stroke={5} color="#0097D7" size={200} />
+        <RippleSVG rings={4} stroke={5} size={200} />
       </div>
       <div
         style={{

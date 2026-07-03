@@ -73,7 +73,7 @@ export function EnlacesPage() {
         paddingBottom: 64,
       }}
     >
-      <RippleBackground variant="hero-center" color="#0097D7" opacity={0.14} />
+      <RippleBackground variant="hero-center" opacity={0.14} />
       <div
         style={{
           position: "relative",
