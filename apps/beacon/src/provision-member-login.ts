@@ -48,10 +48,26 @@ export interface ProvisionUser {
 export interface ProvisionDeps {
   getMember(memberId: string): Promise<Record<string, unknown> | null>;
   getUserByEmail(email: string): Promise<ProvisionUser | null>;
+  /** Null ONLY when the account does not exist — transient Auth errors must
+   *  throw, or a blip would misread a live linked account as safely deleted. */
+  getUserByUid(uid: string): Promise<ProvisionUser | null>;
   createUser(email: string): Promise<ProvisionUser>;
   setClaims(uid: string, claims: ReturnType<typeof nextClaims>): Promise<void>;
   linkUid(memberId: string, uid: string): Promise<void>;
   passwordResetLink(email: string): Promise<string>;
+}
+
+/** Claims carried over when adopting an Auth account not currently linked to
+ *  the member (fresh provision, or replacing a stale link whose account was
+ *  deleted). An orphaned account may still hold org roles (even Admin) —
+ *  only Member and Scanner (with its scannerEventIds; same email = same
+ *  person, so event-scoped scan authority travels) survive. Everything else
+ *  must be re-earned through claims-sync. */
+function adoptedClaims(existing: RawClaims | undefined): RawClaims {
+  const roles = Array.isArray(existing?.roles)
+    ? existing.roles.filter((r) => r === "Member" || r === "Scanner")
+    : [];
+  return { ...existing, roles };
 }
 
 /** Provision (or re-provision) a member's login. Refuses to relink a member whose
@@ -76,10 +92,16 @@ export async function provisionMember(
 
   let user = await deps.getUserByEmail(email);
   if (linkedUid !== null && user?.uid !== linkedUid) {
-    throw new HttpsError(
-      "failed-precondition",
-      "member is already linked to a different login; unlink it explicitly before re-provisioning",
-    );
+    // The stored link points elsewhere. Only a still-live account can be
+    // orphaned; if it was deleted out-of-band, relinking by email is the
+    // self-heal, not a conflict.
+    if ((await deps.getUserByUid(linkedUid)) !== null) {
+      throw new HttpsError(
+        "failed-precondition",
+        "member is already linked to a different login; unlink it explicitly before re-provisioning",
+        { reason: "linked-to-different-login" },
+      );
+    }
   }
   if (!user) user = await deps.createUser(email);
   const targetEmail = user.email ?? email;
@@ -87,26 +109,14 @@ export async function provisionMember(
   // Bootstrap the base Member claim; onMemberWritten (fired by the uid write below)
   // recomputes ['Member', ...trusted grants] from positions, healing pre-assigned
   // members. Both authorities share the same ['Member', ...] base — no conflict.
-  // A FRESH adopt (member had no uid, the email resolved a pre-existing Auth
-  // account) must not inherit that account's org roles — an orphaned account may
-  // still carry Admin, and merging would elevate this login until the claims-sync
-  // self-heal lands (or forever, if it fails). Keep only Member + Scanner, the two
-  // roles claims-sync itself preserves. A linked re-provision keeps merge
-  // semantics: those claims are already claims-sync-owned.
+  // Adopting a not-currently-linked account de-elevates it first (see
+  // adoptedClaims); a same-uid re-provision keeps merge semantics — those
+  // claims are already claims-sync-owned.
   const existingClaims = user.customClaims as RawClaims | undefined;
-  const bootstrap =
-    linkedUid === null
-      ? nextClaims(
-          {
-            ...existingClaims,
-            roles: Array.isArray(existingClaims?.roles)
-              ? (existingClaims.roles as unknown[]).filter((r) => r === "Scanner" || r === "Member")
-              : [],
-          },
-          "Member",
-        )
-      : nextClaims(existingClaims, "Member");
-  await deps.setClaims(user.uid, bootstrap);
+  await deps.setClaims(
+    user.uid,
+    nextClaims(user.uid === linkedUid ? existingClaims : adoptedClaims(existingClaims), "Member"),
+  );
   await deps.linkUid(memberId, user.uid);
   const actionLink = await deps.passwordResetLink(targetEmail);
 

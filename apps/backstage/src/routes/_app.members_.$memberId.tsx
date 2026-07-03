@@ -30,6 +30,7 @@ import { MemberPositionHistory } from "../features/members/components/member-pos
 import { MemberPointsSummary } from "../features/members/components/member-points-summary";
 import { ParticipationLedger } from "../features/members/components/participation-ledger";
 import { effectiveRoles } from "../features/members/lib/member-permissions";
+import { provisionErrorMessage } from "../features/members/lib/provision-error";
 import { memberFormDefaults } from "../features/members/lib/member-form-defaults";
 
 // qrcode.react (~13 kB gz) lazy so it leaves the always-loaded index shell.
@@ -210,17 +211,17 @@ function InviteAccess({ member }: { member: Member }) {
   const provision = useProvisionMemberLogin();
   const [open, setOpen] = useState(false);
   const [link, setLink] = useState<string | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const label = member.uid ? "Reenviar acceso" : "Invitar acceso";
 
   const invite = () => {
-    setError(false);
+    setError(null);
     provision.mutate(member.id, {
       onSuccess: (result) => {
         setLink(result.actionLink);
         setOpen(true);
       },
-      onError: () => setError(true),
+      onError: (err) => setError(provisionErrorMessage(err, "No se pudo generar el acceso.")),
     });
   };
 
@@ -237,7 +238,7 @@ function InviteAccess({ member }: { member: Member }) {
       </Button>
       {error && (
         <p role="alert" className="text-[12px] text-error">
-          No se pudo generar el acceso.
+          {error}
         </p>
       )}
       <Dialog open={open} onOpenChange={setOpen} title="Acceso de miembro">

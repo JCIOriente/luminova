@@ -150,6 +150,34 @@ blocks non-Admin positions writes outright.
   existing positions suite green. Claims built via the real seed producer
   (`permsForRoles`), as the suite already does.
 
+## Review-pass addenda (applied)
+
+- **Stale-link self-heal** (code-review): the uid-conflict guard originally
+  also fired when the linked Auth account had been deleted out-of-band,
+  dead-ending re-provision. It now checks the stored uid via
+  `getUserByUid` (null strictly on `auth/user-not-found`; transient errors
+  propagate) and rejects only when that account is still live. Adopting any
+  not-currently-linked account de-elevates it (`adoptedClaims`: Member +
+  Scanner/scannerEventIds survive — same email = same person, so Scanner's
+  event scope travels; org roles are re-earned via claims-sync).
+- **Actionable conflict error**: the rejection carries
+  `details.reason = "linked-to-different-login"`; both backstage call sites
+  surface a Spanish console-unlink instruction via `provisionErrorMessage`
+  instead of the generic toast.
+- **Legacy power comisiones** (docs creatable before the invariant) are
+  deliberately client-locked by `comisionGrantsEmpty()` — even soft-delete —
+  until their grants are emptied (rules test documents this). They confer
+  nothing regardless (claims-sync ignores comisión grants).
+
+## Deploy notes
+
+1. Data check before/after deploy: `positions` where `category == 'Comision'`
+   and `grants != []` → empty the grants via console/admin SDK (client writes
+   to such docs are rules-locked by design).
+2. Run the `recomputeAllClaims` callable after deploy: members holding roles
+   through a power comisión keep stale Auth claims until their member doc is
+   next written; the recompute converges everyone to cargo-only immediately.
+
 ## Gates
 
 /simplify → beacon `run ci` (unit + emulator) + rules suite →

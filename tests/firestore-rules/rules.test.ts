@@ -341,6 +341,18 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // Pre-invariant artifact: a Comision doc carrying grants (was creatable by
+    // Admin before comisionGrantsEmpty). Exercises the deliberate lockout.
+    await setDoc(doc(db, "positions/com_legacy_power"), {
+      title: "Comité Legado",
+      sigla: "CL",
+      category: "Comision",
+      grants: ["Membership"],
+      term: null,
+      description: "Pre-invariante.",
+      active: true,
+      deletedAt: null,
+    });
     await setDoc(doc(db, "positions/pos_soft"), {
       title: "Vocal",
       titleFemale: "Vocal",
@@ -1152,6 +1164,20 @@ describe("firestore.rules — positions", () => {
   it("denies flipping a power position to Comision while keeping its grants", async () => {
     await assertFails(
       updateDoc(doc(as("u", ["Admin"]), "positions/pos1"), { category: "Comision" }),
+    );
+  });
+  // Deliberate fail-closed: a legacy power comisión (possible before the
+  // invariant) is client-unwritable — even soft-delete — until an admin-SDK/
+  // console repair empties its grants. Documented in the design spec.
+  it("locks a legacy power comisión until its grants are repaired via console", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "positions/com_legacy_power"), {
+        active: false,
+        deletedAt: new Date(),
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "positions/com_legacy_power"), { grants: [] }),
     );
   });
   it("denies ExecutiveCommittee mutating grants on an existing position", async () => {

@@ -8,6 +8,7 @@ import { useAddMember } from "../features/members/hooks/use-add-member";
 import { useUpdateMember } from "../features/members/hooks/use-update-member";
 import { useSetMemberStatus } from "../features/members/hooks/use-set-member-status";
 import { useProvisionMemberLogin } from "../features/members/hooks/use-provision-member-login";
+import { provisionErrorMessage } from "../features/members/lib/provision-error";
 import { requestPasswordReset } from "../lib/auth/request-password-reset";
 import { MemberTable } from "../features/members/components/member-table";
 import { MemberStatusFilter } from "../features/members/components/member-status-filter";
@@ -105,8 +106,8 @@ function MembersPage() {
       } catch {
         setToast("Acceso creado, pero el correo no se envió.");
       }
-    } catch {
-      setToast("No se pudo enviar la invitación.");
+    } catch (err) {
+      setToast(provisionErrorMessage(err, "No se pudo enviar la invitación."));
     }
   };
 
