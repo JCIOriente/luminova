@@ -189,6 +189,14 @@ project owner via `gcloud`. All identifiers below are non-secret.
 | Attribute condition | `assertion.repository == 'JCIOriente/luminova' && assertion.ref == 'refs/heads/main'` |
 | Pool → SA binding | `roles/iam.workloadIdentityUser` for `principalSet://.../attribute.repository/JCIOriente/luminova` |
 | Runtime SA (gen2 actAs) | `953870918238-compute@developer.gserviceaccount.com` ← `roles/iam.serviceAccountUser` |
+| App Engine default SA (CLI preflight actAs) | `jci-oriente@appspot.gserviceaccount.com` ← `roles/iam.serviceAccountUser` (added 2026-07-03) |
+
+> **Functions-deploy preflight gotcha.** firebase-tools hardcodes an
+> `iam.serviceAccounts.actAs` check on `<project>@appspot.gserviceaccount.com`
+> (`lib/deploy/functions/checkIam.js`) before every functions deploy — even though
+> all beacon functions are gen2 and actually run as the compute default SA. The
+> deploy SA therefore needs `serviceAccountUser` on **both** SAs: appspot to pass
+> the preflight, compute for the real gen2 actAs.
 
 **Deploy SA project roles (least-privilege):**
 `firebasehosting.admin`, `firebaserules.admin`, `datastore.indexAdmin`,
@@ -272,6 +280,9 @@ for ROLE in \
 done
 export RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
+  --member="serviceAccount:${DEPLOY_SA_EMAIL}" --role="roles/iam.serviceAccountUser" --quiet
+# appspot SA: satisfies the firebase-tools functions-deploy preflight (see gotcha above)
+gcloud iam service-accounts add-iam-policy-binding "${PROJECT_ID}@appspot.gserviceaccount.com" \
   --member="serviceAccount:${DEPLOY_SA_EMAIL}" --role="roles/iam.serviceAccountUser" --quiet
 
 # --- 6. GitHub production environment (via gh; owner id from `gh api user`) ---
