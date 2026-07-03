@@ -21,9 +21,7 @@ describe("checkInRecordDocSchema", () => {
     expect(
       checkInRecordDocSchema.parse({ memberId: "m1", role: "Attendee", checkInAt: null }).checkInAt,
     ).toBeNull();
-    expect(
-      checkInRecordDocSchema.parse({ memberId: "m1", role: "Attendee" }).checkInAt,
-    ).toBeNull();
+    expect(checkInRecordDocSchema.parse({ memberId: "m1", role: "Attendee" }).checkInAt).toBeNull();
   });
 
   it("rejects an unknown role", () => {

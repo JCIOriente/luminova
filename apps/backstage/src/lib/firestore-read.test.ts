@@ -88,7 +88,9 @@ describe("parseDocData", () => {
 
 describe("parseDocs", () => {
   it("maps every valid doc with its id", () => {
-    const snapshot = { docs: [fakeDoc("a", { name: "A" }), fakeDoc("b", { name: "B", points: 3 })] };
+    const snapshot = {
+      docs: [fakeDoc("a", { name: "A" }), fakeDoc("b", { name: "B", points: 3 })],
+    };
     expect(parseDocs(schema, snapshot)).toEqual([
       { id: "a", name: "A", points: 0 },
       { id: "b", name: "B", points: 3 },
@@ -98,7 +100,11 @@ describe("parseDocs", () => {
   it("skips malformed docs, logs them, and keeps the rest", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const snapshot = {
-      docs: [fakeDoc("good", { name: "A" }), fakeDoc("bad", {}), fakeDoc("also-good", { name: "C" })],
+      docs: [
+        fakeDoc("good", { name: "A" }),
+        fakeDoc("bad", {}),
+        fakeDoc("also-good", { name: "C" }),
+      ],
     };
     const rows = parseDocs(schema, snapshot);
     expect(rows.map((r) => r.id)).toEqual(["good", "also-good"]);

@@ -34,9 +34,7 @@ export class MemberRepository {
   /** Active (non-soft-deleted) members, sorted by name. */
   async getAll(): Promise<Member[]> {
     const snapshot = await getDocs(query(this.collection, where("active", "==", true)));
-    return parseDocs(memberDocSchema, snapshot).sort((a, b) =>
-      a.name.localeCompare(b.name, "es"),
-    );
+    return parseDocs(memberDocSchema, snapshot).sort((a, b) => a.name.localeCompare(b.name, "es"));
   }
 
   async getById(id: string): Promise<Member | null> {

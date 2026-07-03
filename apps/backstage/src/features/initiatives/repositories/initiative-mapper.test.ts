@@ -103,5 +103,4 @@ describe("initiativeToInput", () => {
       featured: true,
     });
   });
-
 });

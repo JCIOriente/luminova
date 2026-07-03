@@ -27,8 +27,7 @@ export class PositionRepository {
     const order: Record<string, number> = { CEL: 0, JDL: 1, Comision: 2 };
     return parseDocs(positionDocSchema, snapshot).sort(
       (a, b) =>
-        (order[a.category] ?? 3) - (order[b.category] ?? 3) ||
-        a.title.localeCompare(b.title, "es"),
+        (order[a.category] ?? 3) - (order[b.category] ?? 3) || a.title.localeCompare(b.title, "es"),
     );
   }
 
