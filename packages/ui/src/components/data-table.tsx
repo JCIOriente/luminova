@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { cn } from "../lib/cn";
-import { cardSurfaceClasses } from "./card";
+import { Card } from "./card";
 import { Icon } from "./icons";
 import { Input } from "./input";
 import { Select } from "./select";
@@ -183,7 +183,7 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className={cn(cardSurfaceClasses, "overflow-hidden")}>
+      <Card padding="none" className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="bg-surface-2 hover:bg-surface-2">
@@ -349,7 +349,7 @@ export function DataTable<T>({
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

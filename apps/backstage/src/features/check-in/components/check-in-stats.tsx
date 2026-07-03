@@ -5,7 +5,7 @@ export function CheckInStats({ attendance }: { attendance: Attendance }) {
   const { present, capacity, pct, remaining } = attendance;
 
   return (
-    <Card padding="none" className="flex flex-col items-center gap-5 px-5 py-5 sm:flex-row">
+    <Card className="flex flex-col items-center gap-5 sm:flex-row">
       <div
         className="relative grid size-28 shrink-0 place-items-center rounded-full"
         style={{

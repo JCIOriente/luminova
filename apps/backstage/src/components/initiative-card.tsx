@@ -44,7 +44,8 @@ export function InitiativeCard({
       className={cn(
         cardSurfaceClasses,
         "group relative flex flex-col overflow-hidden text-left",
-        interactive && cn(cardInteractiveClasses, "cursor-pointer"),
+        interactive && cardInteractiveClasses,
+        interactive && "cursor-pointer",
       )}
     >
       {cover ? (

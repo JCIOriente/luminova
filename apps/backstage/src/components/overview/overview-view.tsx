@@ -8,6 +8,7 @@ import {
   Icon,
   KpiCard,
   LineChart,
+  cardInteractiveClasses,
   cardSurfaceClasses,
   cn,
 } from "@luminova/ui";
@@ -27,6 +28,12 @@ const FEED_DOT: Record<FeedTone, string> = {
   teal: "bg-jci-teal/16 text-teal-ink",
   green: "bg-ok/14 text-ok",
 };
+
+const quickActionCardClasses = cn(
+  cardSurfaceClasses,
+  cardInteractiveClasses,
+  "group flex flex-col items-start gap-3.5 p-[18px] text-left",
+);
 
 const QUICK_ACTIONS = [
   {
@@ -225,10 +232,7 @@ export function OverviewView({
             <button
               key={q.id}
               type="button"
-              className={cn(
-                cardSurfaceClasses,
-                "group flex flex-col items-start gap-3.5 p-[18px] text-left transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[0_18px_40px_-24px_rgba(19,15,45,0.22)]",
-              )}
+              className={quickActionCardClasses}
             >
               <span className="flex size-[42px] items-center justify-center rounded-[12px] bg-jci-blue/10 text-jci-blue">
                 {Icon[q.icon]({ s: 21 })}

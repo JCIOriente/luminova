@@ -4,6 +4,12 @@ import { Link } from "@tanstack/react-router";
 import { ACTIVITY_STATUS_TONE } from "../../activities/lib/status-tone";
 import { formatMonthYear } from "../../../lib/datetime";
 
+const activityRowClasses = cn(
+  cardSurfaceClasses,
+  cardInteractiveClasses,
+  "group flex items-center gap-3 px-4 py-3",
+);
+
 interface InitiativeActivitiesProps {
   activities: Activity[];
   canCreate: boolean;
@@ -44,7 +50,7 @@ export function InitiativeActivities({
               <Link
                 to="/activities/$id"
                 params={{ id: activity.id }}
-                className={cn(cardSurfaceClasses, cardInteractiveClasses, "group flex items-center gap-3 px-4 py-3")}
+                className={activityRowClasses}
               >
                 <span className="flex flex-1 flex-col gap-0.5">
                   <span className="text-[14px] font-semibold text-ink-1">{activity.title}</span>

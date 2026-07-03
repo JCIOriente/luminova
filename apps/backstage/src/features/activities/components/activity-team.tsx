@@ -29,7 +29,7 @@ function ContactButton({
 
 function PersonCard({ member }: { member: Member }) {
   return (
-    <Card padding="none" className="flex items-center gap-3 px-4 py-3">
+    <Card padding="row" className="flex items-center gap-3">
       <Avatar src={member.profilePicture} name={member.name} size={36} />
       <div className="flex min-w-0 flex-col">
         <span className="truncate text-[13px] font-semibold text-ink-1">{member.name}</span>
@@ -51,7 +51,7 @@ export function ActivityTeam({ director, coDirectors }: ActivityTeamProps) {
       </h2>
 
       {director && (
-        <Card padding="none" className="flex items-center gap-3 px-4 py-3">
+        <Card padding="row" className="flex items-center gap-3">
           <Avatar src={director.profilePicture} name={director.name} size={44} />
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-[15px] font-semibold text-ink-1">{director.name}</span>

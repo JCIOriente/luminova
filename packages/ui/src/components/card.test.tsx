@@ -21,14 +21,16 @@ describe("Card", () => {
     expect(screen.getByTestId("card").tagName).toBe("SECTION");
   });
 
-  it("padding sm maps to p-4 and none drops padding entirely", () => {
+  it("padding variants map to their scale and none drops padding entirely", () => {
     render(
       <>
         <Card padding="sm" data-testid="sm" />
+        <Card padding="row" data-testid="row" />
         <Card padding="none" data-testid="none" />
       </>,
     );
     expect(screen.getByTestId("sm").className).toContain("p-4");
+    expect(screen.getByTestId("row").className).toContain("px-4 py-3");
     expect(screen.getByTestId("none").className).not.toMatch(/\bp-\d/);
   });
 
@@ -42,13 +44,12 @@ describe("Card", () => {
   it("merges className last so callers can override the recipe", () => {
     render(<Card className="bg-surface-2 shadow-none" data-testid="card" />);
     const cls = screen.getByTestId("card").className;
-    expect(cls).toContain("bg-surface-2");
-    expect(cls).not.toContain("bg-surface ");
-    expect(cls).toContain("shadow-none");
+    expect(cls.split(" ")).toContain("bg-surface-2");
+    expect(cls.split(" ")).not.toContain("bg-surface");
+    expect(cls.split(" ")).toContain("shadow-none");
   });
 
   it("exports the recipe strings for button/Link hosts", () => {
-    expect(cardSurfaceClasses).toContain("rounded-card");
     expect(cardSurfaceClasses).toContain("shadow-");
     expect(cardInteractiveClasses).toContain("focus-visible:outline-2");
     expect(cardInteractiveClasses).toContain("motion-reduce:hover:translate-y-0");

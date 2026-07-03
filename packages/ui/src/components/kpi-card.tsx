@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "../lib/cn";
+import { cardSurfaceClasses } from "./card";
 import { Icon } from "./icons";
 import { Sparkline } from "./sparkline-chart";
 
@@ -33,7 +34,12 @@ export function KpiCard({
   spark?: readonly number[];
 }) {
   return (
-    <div className="flex flex-col gap-3.5 rounded-card border border-line bg-surface p-[18px] shadow-[0_1px_2px_rgba(19,15,45,0.05)] transition-[transform,box-shadow,border-color] duration-200 ease-expo hover:-translate-y-[3px] hover:border-line-strong hover:shadow-[0_22px_48px_-26px_rgba(19,15,45,0.28)]">
+    <div
+      className={cn(
+        cardSurfaceClasses,
+        "flex flex-col gap-3.5 p-[18px] transition-[transform,box-shadow,border-color] duration-200 ease-expo hover:-translate-y-[3px] hover:border-line-strong hover:shadow-[0_22px_48px_-26px_rgba(19,15,45,0.28)]",
+      )}
+    >
       <div className="flex items-center gap-[11px]">
         <span
           className={cn(

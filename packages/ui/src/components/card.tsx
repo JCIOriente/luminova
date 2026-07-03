@@ -12,6 +12,7 @@ type CardElement = "div" | "section" | "article" | "aside" | "header";
 const PADDING = {
   md: "p-5",
   sm: "p-4",
+  row: "px-4 py-3",
   none: "",
 } as const;
 
