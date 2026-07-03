@@ -1,13 +1,12 @@
 import { describe, it, expect } from "vitest";
+import { fakeTimestamp } from "../doc-schema-test-helpers.js";
 import { photoDocSchema, initiativeDocSchema } from "./initiative-doc-schema";
-
-const ts = { toMillis: () => 0, toDate: () => new Date(0) };
 
 const validPhoto = {
   id: "photo-1",
   url: "https://example.com/p.jpg",
   caption: "Equipo en jornada",
-  uploadedAt: ts,
+  uploadedAt: fakeTimestamp,
   uploadedBy: "member-1",
 };
 
@@ -16,8 +15,8 @@ const requiredDoc = {
   title: "Jornada en La Cuchilla",
   description: "Descripción de la iniciativa.",
   category: "DesarrolloComunitario",
-  startDate: ts,
-  endDate: ts,
+  startDate: fakeTimestamp,
+  endDate: fakeTimestamp,
   roster: {
     directorId: "member-1",
     coDirectorIds: ["member-2"],
@@ -35,7 +34,7 @@ const validDoc = {
     custom: [{ label: "Kits entregados", value: "40" }],
     closingSummary: "Cierre exitoso.",
   },
-  finalReport: { filedAt: ts, filedBy: "member-1" },
+  finalReport: { filedAt: fakeTimestamp, filedBy: "member-1" },
   directionUids: ["member-1", "member-2"],
   featured: true,
 };

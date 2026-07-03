@@ -1,14 +1,13 @@
 import { describe, it, expect } from "vitest";
+import { fakeTimestamp } from "../doc-schema-test-helpers.js";
 import { memberPointsDocSchema } from "./member-points-doc-schema";
-
-const ts = { toMillis: () => 0, toDate: () => new Date(0) };
 
 const validDoc = {
   memberId: "member-1",
   termId: "2026",
   cumulative: 42,
   byMonth: { "2026-01": 10, "2026-02": 32 },
-  updatedAt: ts,
+  updatedAt: fakeTimestamp,
 };
 
 describe("memberPointsDocSchema", () => {

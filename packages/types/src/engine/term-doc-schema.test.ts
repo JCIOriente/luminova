@@ -1,12 +1,11 @@
 import { describe, it, expect } from "vitest";
+import { fakeTimestamp } from "../doc-schema-test-helpers.js";
 import { termDocSchema } from "./term-doc-schema";
-
-const ts = { toMillis: () => 0, toDate: () => new Date(0) };
 
 const requiredDoc = {
   board: [{ memberId: "member-1", title: "Presidente", isExecutiveCommittee: true }],
-  conventionDate: ts,
-  pointsCutoffAt: ts,
+  conventionDate: fakeTimestamp,
+  pointsCutoffAt: fakeTimestamp,
   bestMemberId: "member-1",
   status: "Activo",
 };

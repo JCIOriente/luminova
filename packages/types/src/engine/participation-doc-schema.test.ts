@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { fakeTimestamp } from "../doc-schema-test-helpers.js";
 import { participationDocSchema } from "./participation-doc-schema";
-
-const ts = { toMillis: () => 0, toDate: () => new Date(0) };
 
 const validDoc = {
   memberId: "member-1",
@@ -17,9 +16,9 @@ const validDoc = {
   monthBucket: "2026-01",
   state: "confirmed",
   gates: { attendanceRegistered: true, finalReportFiled: true },
-  checkInAt: ts,
+  checkInAt: fakeTimestamp,
   voidReason: null,
-  createdAt: ts,
+  createdAt: fakeTimestamp,
 };
 
 describe("participationDocSchema", () => {

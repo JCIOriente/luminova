@@ -1,13 +1,12 @@
 import { describe, it, expect } from "vitest";
+import { fakeTimestamp } from "../doc-schema-test-helpers.js";
 import { activityDocSchema } from "./activity-doc-schema";
-
-const ts = { toMillis: () => 0, toDate: () => new Date(0) };
 
 const validPhoto = {
   id: "photo-1",
   url: "https://example.com/p.jpg",
   caption: null,
-  uploadedAt: ts,
+  uploadedAt: fakeTimestamp,
   uploadedBy: "member-1",
 };
 
@@ -19,8 +18,8 @@ const requiredDoc = {
   parentType: null,
   parentId: null,
   organizers: { directorId: "member-1", coDirectorIds: ["member-2"] },
-  startAt: ts,
-  endAt: ts,
+  startAt: fakeTimestamp,
+  endAt: fakeTimestamp,
   status: "Programada",
 };
 
