@@ -18,8 +18,8 @@ Baseline measured on `main` (gzip transfer sizes unless noted):
 
 | Lever | spotlight | backstage |
 |-------|-----------|-----------|
-| Initial JS (`index-*.js`) | **91 kB gz** | **103 kB gz** |
-| Initial CSS (`index-*.css`) | 12 kB gz | 11 kB gz |
+| Initial JS (`index-*.js`) | **94 kB gz** | **99.7 kB gz** |
+| Initial CSS (`index-*.css`) | 13.4 kB gz | 12.5 kB gz |
 | Largest route chunk | `about` 21 kB gz | `_app` 8 kB gz |
 | Firebase SDK | `firestore-lite` 39 kB gz, **lazy** (data routes only) | full SDK in the `index` shell |
 | Fonts (woff2, self-hosted, latin only) | Jakarta 26 kB + Arvo reg/italic 16 kB ea. | none (system-ui — fastest) |
@@ -59,8 +59,8 @@ machine-enforced yet — hold them by judgment + `bundle-budget-watcher`:
 
 | Budget | spotlight | backstage |
 |--------|-----------|-----------|
-| Initial JS (`index` chunk) | ≤ **100 kB gz** (now 91) | ≤ **115 kB gz** (now 103, monitor) |
-| Initial CSS | ≤ 15 kB gz (now 12) | ≤ 15 kB gz (now 11) |
+| Initial JS (`index` chunk) | ≤ **100 kB gz** (now 94) | ≤ **115 kB gz** (now 99.7, monitor) |
+| Initial CSS | ≤ 15 kB gz (now 13.4) | ≤ 15 kB gz (now 12.5) |
 | Any single route chunk | ≤ 40 kB gz | ≤ 40 kB gz |
 | New runtime dependency | justify if it adds > 10 kB gz to any initial chunk | same |
 
