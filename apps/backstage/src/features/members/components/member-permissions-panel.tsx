@@ -4,7 +4,7 @@ import { PERMISSION_ROLE_INFO } from "../../positions/lib/permission-labels";
 
 export function MemberPermissionsPanel({ roles }: { roles: Role[] }) {
   return (
-    <Card aria-labelledby="cargos-asignados-title" className="flex flex-col gap-3">
+    <Card as="section" aria-labelledby="cargos-asignados-title" className="flex flex-col gap-3">
       <h2
         id="cargos-asignados-title"
         className="text-[12px] font-medium tracking-[0.02em] text-ink-3 uppercase"

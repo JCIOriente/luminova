@@ -22,7 +22,7 @@ export function MemberPositionHistory({
   if (pastTerms.length === 0) return null;
 
   return (
-    <Card aria-labelledby="historial-cargos-title" className="flex flex-col gap-3">
+    <Card as="section" aria-labelledby="historial-cargos-title" className="flex flex-col gap-3">
       <h2
         id="historial-cargos-title"
         className="text-[12px] font-medium tracking-[0.02em] text-ink-3 uppercase"

@@ -33,7 +33,7 @@ export function FieldArrayRows<TForm extends FieldValues>({
         <Card
           key={field.id}
           padding="none"
-          className="flex items-start gap-3 bg-surface-2 p-3"
+          className="flex items-start gap-3 bg-surface-2 p-3 shadow-none"
         >
           <div className="min-w-0 flex-1">{renderRow(index)}</div>
           <div className="flex shrink-0 items-center gap-1">

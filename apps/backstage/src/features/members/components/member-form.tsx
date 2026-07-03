@@ -135,7 +135,7 @@ export function MemberForm({
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-6">
       {showPreview && (
-        <Card padding="none" className="flex items-center gap-3 bg-surface-2 p-3.5">
+        <Card padding="none" className="flex items-center gap-3 bg-surface-2 p-3.5 shadow-none">
           <span
             className="flex size-11 shrink-0 items-center justify-center rounded-full text-[14px] font-semibold text-white"
             style={{ backgroundColor: avatarColor(seed) }}

@@ -183,7 +183,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           </Field>
         </div>
 
-        <Card padding="sm" className="mt-5 flex flex-col gap-4 bg-surface-2">
+        <Card padding="sm" className="mt-5 flex flex-col gap-4 bg-surface-2 shadow-none">
           <span className="text-[12px] font-semibold tracking-[0.02em] text-ink-3 uppercase">
             Premio destacado
           </span>

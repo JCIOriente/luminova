@@ -21,6 +21,9 @@ interface InitiativeCardProps {
   onOpen?: () => void;
 }
 
+const shellClasses = cn(cardSurfaceClasses, "group relative flex flex-col overflow-hidden text-left");
+const interactiveShellClasses = cn(shellClasses, cardInteractiveClasses, "cursor-pointer");
+
 export function InitiativeCard({
   item,
   pct,
@@ -41,12 +44,7 @@ export function InitiativeCard({
   return (
     <Tag
       {...(interactive ? { type: "button" as const, onClick: onOpen } : {})}
-      className={cn(
-        cardSurfaceClasses,
-        "group relative flex flex-col overflow-hidden text-left",
-        interactive && cardInteractiveClasses,
-        interactive && "cursor-pointer",
-      )}
+      className={interactive ? interactiveShellClasses : shellClasses}
     >
       {cover ? (
         <img src={cover} alt="" className="h-28 w-full object-cover" />

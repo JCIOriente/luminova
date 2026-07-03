@@ -118,7 +118,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 
 | Component                                             | Source                          |
 | ----------------------------------------------------- | ------------------------------- |
-| `Card` (`as`, `padding` md/sm/none, `interactive`; + `cardSurfaceClasses`/`cardInteractiveClasses` for button/link hosts) | `components/card.tsx` |
+| `Card` (`as`, `padding` md/sm/row/none, `interactive`; + `cardSurfaceClasses`/`cardInteractiveClasses` for button/link hosts) | `components/card.tsx` |
 | `SectionHeader`                                       | `components/section-header.tsx` |
 | `ArrowLink`                                           | `components/arrow-link.tsx`     |
 | `LogoLockup`                                          | `components/logo-lockup.tsx`    |

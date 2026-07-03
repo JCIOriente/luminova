@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Button, cardSurfaceClasses, cn, Sheet } from "@luminova/ui";
+import { Badge, Button, Card, Sheet } from "@luminova/ui";
 import type { RoleDefinition, RoleDefinitionInput } from "@luminova/types";
 import { useRoles } from "../hooks/use-roles";
 import { useAddRole, useUpdateRole, useDeleteRole } from "../hooks/use-save-role";
@@ -44,7 +44,7 @@ export function RoleManager() {
       {isLoading ? (
         <p className="text-ink-3">Cargando roles…</p>
       ) : (
-        <ul className={cn(cardSurfaceClasses, "flex flex-col divide-y divide-line")}>
+        <Card as="ul" padding="none" className="flex flex-col divide-y divide-line">
           {(roles ?? []).map((role) => (
             <li key={role.id} className="flex items-center justify-between gap-3 px-4 py-3">
               <div className="flex flex-col gap-0.5">
@@ -64,7 +64,7 @@ export function RoleManager() {
               </Button>
             </li>
           ))}
-        </ul>
+        </Card>
       )}
 
       <Sheet

@@ -107,7 +107,7 @@ export function RoleEditor({ role, onSubmit, onDelete }: RoleEditorProps) {
             {perms.size}/{PERMISSION_CAP}
           </span>
         </div>
-        <Card padding="none" className="overflow-x-auto">
+        <Card padding="none" className="overflow-x-auto shadow-none">
           <Table>
             <TableHeader>
               <TableRow>
