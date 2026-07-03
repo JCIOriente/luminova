@@ -67,7 +67,7 @@ function adoptedClaims(existing: RawClaims | undefined): RawClaims {
   const roles = Array.isArray(existing?.roles)
     ? existing.roles.filter((r) => r === "Member" || r === "Scanner")
     : [];
-  return { ...existing, roles };
+  return { roles, scannerEventIds: existing?.scannerEventIds };
 }
 
 /** Provision (or re-provision) a member's login. Refuses to relink a member whose
