@@ -59,5 +59,6 @@ export type {
 } from "./site-config.js";
 export { LINKTREE_ICONS, LINKTREE_SOCIAL_PLATFORMS } from "./site-config.js";
 export { siteConfigSchema, type SiteConfigInput } from "./site-config-schema.js";
+export { clientTimestampSchema } from "./client-timestamp-schema.js";
 export { CEL_POSITIONS, type CelPositionSeed } from "./cel-positions.js";
 export { CEL_POSITION_TITLES } from "./cel-position-titles.js";

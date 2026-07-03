@@ -1,4 +1,5 @@
 export type { Timestamp } from "./timestamp.js";
+export { timestampSchema, isTimestampLike } from "./timestamp-schema.js";
 export type {
   InitiativeRoster,
   FinalReport,
