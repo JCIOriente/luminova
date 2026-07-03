@@ -1,4 +1,4 @@
-import { Skeleton } from "@luminova/ui";
+import { Card, Skeleton } from "@luminova/ui";
 import { PERMISSION_ROLE_INFO } from "../lib/permission-labels";
 import type { PermissionRow } from "../lib/permissions-overview";
 
@@ -23,7 +23,7 @@ export function PermisosView({ rows, isLoading }: PermisosViewProps) {
       {rows.map((row) => {
         const info = PERMISSION_ROLE_INFO[row.role];
         return (
-          <article key={row.role} className="rounded-card border border-line bg-surface p-5">
+          <Card as="article" key={row.role}>
             <h2 className="text-[15px] font-semibold text-ink-1">{info.label}</h2>
             <p className="mt-1 text-[13.5px] text-ink-3">{info.description}</p>
             <dl className="mt-4 flex flex-col gap-2 text-[13.5px]">
@@ -40,7 +40,7 @@ export function PermisosView({ rows, isLoading }: PermisosViewProps) {
                 </dd>
               </div>
             </dl>
-          </article>
+          </Card>
         );
       })}
     </div>

@@ -1,5 +1,6 @@
 import {
   Badge,
+  Card,
   EmptyState,
   Icon,
   Table,
@@ -48,18 +49,18 @@ export function ParticipationLedger({
 
   if (rows.length === 0) {
     return (
-      <section className="rounded-card border border-line bg-surface px-6 py-8">
+      <Card as="section" padding="none" className="px-6 py-8">
         <EmptyState
           icon={Icon.spark({ s: 40 })}
           title="Sin participaciones registradas"
           description="Las participaciones aparecerán aquí cuando se registre asistencia."
         />
-      </section>
+      </Card>
     );
   }
 
   return (
-    <section className="rounded-card border border-line bg-surface">
+    <Card as="section" padding="none">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-4">
         <div>
           <h2 className="text-[15px] font-semibold text-ink-1">Proyectos y actividades</h2>
@@ -142,6 +143,6 @@ export function ParticipationLedger({
           <span className="ml-1 text-[12px] font-medium text-ink-3">pts</span>
         </span>
       </div>
-    </section>
+    </Card>
   );
 }

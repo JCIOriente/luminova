@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import {
   Button,
+  Card,
   Checkbox,
   Field,
   Input,
@@ -106,7 +107,7 @@ export function RoleEditor({ role, onSubmit, onDelete }: RoleEditorProps) {
             {perms.size}/{PERMISSION_CAP}
           </span>
         </div>
-        <div className="overflow-x-auto rounded-card border border-line">
+        <Card padding="none" className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -139,7 +140,7 @@ export function RoleEditor({ role, onSubmit, onDelete }: RoleEditorProps) {
               ))}
             </TableBody>
           </Table>
-        </div>
+        </Card>
       </div>
 
       {error && (

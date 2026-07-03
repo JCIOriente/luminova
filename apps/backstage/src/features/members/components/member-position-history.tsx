@@ -1,3 +1,4 @@
+import { Card } from "@luminova/ui";
 import { type Member, type MemberGender, type Position, type TermPositions } from "@luminova/types";
 import { MemberCargoChips } from "./member-cargo-chips";
 
@@ -21,10 +22,7 @@ export function MemberPositionHistory({
   if (pastTerms.length === 0) return null;
 
   return (
-    <section
-      aria-labelledby="historial-cargos-title"
-      className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5"
-    >
+    <Card aria-labelledby="historial-cargos-title" className="flex flex-col gap-3">
       <h2
         id="historial-cargos-title"
         className="text-[12px] font-medium tracking-[0.02em] text-ink-3 uppercase"
@@ -45,6 +43,6 @@ export function MemberPositionHistory({
           </li>
         ))}
       </ul>
-    </section>
+    </Card>
   );
 }

@@ -3,6 +3,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  Card,
   Combobox,
   DatePicker,
   Field,
@@ -134,7 +135,7 @@ export function MemberForm({
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-6">
       {showPreview && (
-        <div className="flex items-center gap-3 rounded-card border border-line bg-surface-2 p-3.5">
+        <Card padding="none" className="flex items-center gap-3 bg-surface-2 p-3.5">
           <span
             className="flex size-11 shrink-0 items-center justify-center rounded-full text-[14px] font-semibold text-white"
             style={{ backgroundColor: avatarColor(seed) }}
@@ -147,7 +148,7 @@ export function MemberForm({
             </div>
             <div className="truncate text-[13px] text-ink-3">{previewRole}</div>
           </div>
-        </div>
+        </Card>
       )}
 
       <div className="flex flex-col gap-4">
