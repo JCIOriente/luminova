@@ -455,7 +455,10 @@ describe("processCheckInUpdate", () => {
 
   it("identity-unchanged update recomputes in place (no delete, single row)", async () => {
     await processCheckIn(store, checkIn);
-    const later: CheckIn = { ...checkIn, checkInAt: Timestamp.fromMillis(startAt.toMillis() + 60_000) };
+    const later: CheckIn = {
+      ...checkIn,
+      checkInAt: Timestamp.fromMillis(startAt.toMillis() + 60_000),
+    };
     await processCheckInUpdate(store, rawOf(checkIn), rawOf(later));
     expect(store.rows.size).toBe(1);
     expect(store.rows.has("a1__m1__Attendee")).toBe(true);

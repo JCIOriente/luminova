@@ -82,7 +82,9 @@ describe("provisionMember", () => {
       member: { ...active, uid: "old-uid" },
       usersByEmail: { "old@x.co": { uid: "old-uid" } },
     });
-    await expect(provisionMember(deps, "m1")).rejects.toMatchObject({ code: "failed-precondition" });
+    await expect(provisionMember(deps, "m1")).rejects.toMatchObject({
+      code: "failed-precondition",
+    });
     expect(calls.createUser).toEqual([]);
     expect(calls.linkUid).toEqual([]);
   });
@@ -90,7 +92,9 @@ describe("provisionMember", () => {
   it("self-heals a stale link when the linked account was deleted — adopts by email, de-elevated", async () => {
     const { deps, calls } = fakeDeps({
       member: { ...active, uid: "dead-uid" },
-      usersByEmail: { "a@b.co": { uid: "u2", email: "a@b.co", customClaims: { roles: ["Admin"] } } },
+      usersByEmail: {
+        "a@b.co": { uid: "u2", email: "a@b.co", customClaims: { roles: ["Admin"] } },
+      },
     });
     const result = await provisionMember(deps, "m1");
     expect(result.email).toBe("a@b.co");
@@ -129,7 +133,9 @@ describe("provisionMember", () => {
   it("reuses an existing auth user for an unlinked member (pre-created account)", async () => {
     const { deps, calls } = fakeDeps({
       member: active,
-      usersByEmail: { "a@b.co": { uid: "u9", email: "a@b.co", customClaims: { roles: ["Scanner"] } } },
+      usersByEmail: {
+        "a@b.co": { uid: "u9", email: "a@b.co", customClaims: { roles: ["Scanner"] } },
+      },
     });
     await provisionMember(deps, "m1");
     expect(calls.createUser).toEqual([]);
