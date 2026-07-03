@@ -10,7 +10,8 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
-import type { Ally, AllyInput } from "@luminova/types";
+import { allyDocSchema, type Ally, type AllyInput } from "@luminova/types";
+import { parseDoc, parseDocs } from "../../../lib/firestore-read";
 import { toAllyCreateDoc, toAllyUpdateDoc } from "./ally-mapper";
 
 export class AllyRepository {
@@ -19,17 +20,17 @@ export class AllyRepository {
   /** Active (non-soft-deleted) allies, sorted by company name. */
   async getAll(): Promise<Ally[]> {
     const snapshot = await getDocs(query(this.collection, where("active", "==", true)));
-    return snapshot.docs
-      .map((d) => ({ id: d.id, ...(d.data() as Omit<Ally, "id">) }))
-      .sort((a, b) => a.companyName.localeCompare(b.companyName, "es"));
+    return parseDocs(allyDocSchema, snapshot).sort((a, b) =>
+      a.companyName.localeCompare(b.companyName, "es"),
+    );
   }
 
   async getById(id: string): Promise<Ally | null> {
     const snapshot = await getDoc(doc(this.collection, id));
     if (!snapshot.exists()) return null;
-    const data = snapshot.data() as Omit<Ally, "id">;
-    if (!data.active) return null;
-    return { id: snapshot.id, ...data };
+    const ally = parseDoc(allyDocSchema, snapshot);
+    if (!ally.active) return null;
+    return ally;
   }
 
   async create(data: AllyInput): Promise<string> {
