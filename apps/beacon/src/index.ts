@@ -117,10 +117,13 @@ export const awardPoints = onDocumentWritten(
     // Runs even when validateCheckIn rejected the doc (a malformed check-in still
     // matches the count query) and after the engine work so a mirror failure never
     // pre-empts points — errors propagate on purpose so the retry redoes both.
-    // An identity move re-syncs BOTH activities (the old one's count dropped).
-    for (const activityId of checkInActivityIds(beforeRaw, afterRaw)) {
-      await syncActivityCheckInFlag(db(), activityId);
-    }
+    // An identity move re-syncs BOTH activities (the old one's count dropped) —
+    // independent transactions on distinct docs, so run them concurrently.
+    await Promise.all(
+      checkInActivityIds(beforeRaw, afterRaw).map((activityId) =>
+        syncActivityCheckInFlag(db(), activityId),
+      ),
+    );
   },
 );
 

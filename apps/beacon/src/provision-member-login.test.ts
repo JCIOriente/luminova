@@ -4,6 +4,7 @@ import {
   nextClaims,
   provisionMember,
   type ProvisionDeps,
+  type ProvisionUser,
 } from "./provision-member-login";
 
 describe("validateProvisionInput", () => {
@@ -32,13 +33,10 @@ describe("nextClaims", () => {
   });
 });
 
-interface FakeUser {
-  uid: string;
-  email?: string;
-  customClaims?: Record<string, unknown>;
-}
-
-function fakeDeps(opts: { member?: Record<string, unknown> | null; usersByEmail?: Record<string, FakeUser> }) {
+function fakeDeps(opts: {
+  member?: Record<string, unknown> | null;
+  usersByEmail?: Record<string, ProvisionUser>;
+}) {
   const calls = { createUser: [] as string[], setClaims: [] as string[], linkUid: [] as string[] };
   const users = opts.usersByEmail ?? {};
   const deps: ProvisionDeps = {

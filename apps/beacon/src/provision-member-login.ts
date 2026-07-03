@@ -1,9 +1,10 @@
-import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { isValidRole, type Role } from "@luminova/auth/roles";
 import { requireAdmin } from "./callable-auth.js";
+import { firestoreProvisionDeps } from "./provision-deps.js";
+import { ensureApp } from "./runtime.js";
 
 export interface ProvisionInput {
   memberId: string;
@@ -38,7 +39,7 @@ export function nextClaims(
   return scannerEventIds ? { roles, scannerEventIds } : { roles };
 }
 
-interface ProvisionUser {
+export interface ProvisionUser {
   uid: string;
   email?: string;
   customClaims?: Record<string, unknown>;
@@ -91,33 +92,9 @@ export async function provisionMember(
   return { email: targetEmail, actionLink } as const;
 }
 
-function ensureApp() {
-  if (!getApps().length) initializeApp();
-}
-
 export const provisionMemberLogin = onCall(async (request) => {
   requireAdmin(request);
   const { memberId } = validateProvisionInput(request.data);
   ensureApp();
-  const db = getFirestore();
-  const auth = getAuth();
-
-  return provisionMember(
-    {
-      getMember: async (id) => {
-        const snap = await db.doc(`members/${id}`).get();
-        return snap.exists ? (snap.data() as Record<string, unknown>) : null;
-      },
-      getUserByEmail: (email) => auth.getUserByEmail(email).catch(() => null),
-      // Tolerate a concurrent create (a parallel invite would otherwise throw
-      // auth/email-already-exists).
-      createUser: (email) => auth.createUser({ email }).catch(() => auth.getUserByEmail(email)),
-      setClaims: (uid, claims) => auth.setCustomUserClaims(uid, claims),
-      linkUid: async (id, uid) => {
-        await db.doc(`members/${id}`).update({ uid });
-      },
-      passwordResetLink: (email) => auth.generatePasswordResetLink(email),
-    },
-    memberId,
-  );
+  return provisionMember(firestoreProvisionDeps(getFirestore(), getAuth()), memberId);
 });
