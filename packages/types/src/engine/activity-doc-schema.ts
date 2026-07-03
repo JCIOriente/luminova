@@ -7,7 +7,7 @@ import type { Activity } from "./activity.js";
 export const activityDocSchema = z.object({
   termId: z.string(),
   title: z.string(),
-  description: z.string().nullable(),
+  description: z.string().nullable().default(null),
   location: z.string().nullable().default(null),
   category: z.enum(ACTIVITY_CATEGORIES),
   parentType: z.enum(INITIATIVE_KINDS).nullable(),

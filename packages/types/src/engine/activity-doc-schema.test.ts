@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fakeTimestamp } from "../doc-schema-test-helpers.js";
+import { fakeTimestamp, without } from "../doc-schema-test-helpers.js";
 import { activityDocSchema } from "./activity-doc-schema";
 
 const validPhoto = {
@@ -45,6 +45,10 @@ describe("activityDocSchema", () => {
     const parsed = activityDocSchema.parse(requiredDoc);
     expect(parsed.location).toBeNull();
     expect(parsed.photos).toEqual([]);
+  });
+
+  it("defaults description to null for docs predating the field", () => {
+    expect(activityDocSchema.parse(without(requiredDoc, "description")).description).toBeNull();
   });
 
   it("leaves hasCheckIns undefined when absent (pre-feature docs)", () => {
