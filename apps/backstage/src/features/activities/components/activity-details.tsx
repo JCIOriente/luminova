@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import type { Activity } from "@luminova/types";
-import { Icon } from "@luminova/ui";
+import { Card, Icon } from "@luminova/ui";
 import { CATEGORY_LABELS } from "../category-labels";
 import { formatDate, formatTime } from "../../../lib/datetime";
 
@@ -20,7 +20,7 @@ function Row({ icon, label, value }: { icon: ReactElement; label: string; value:
 
 export function ActivityDetails({ activity }: ActivityDetailsProps) {
   return (
-    <aside className="rounded-card border border-line bg-surface px-5 py-4">
+    <Card as="aside" padding="none" className="px-5 py-4">
       <h2 className="font-mono text-[10.5px] tracking-[0.12em] text-ink-3 uppercase">Detalles</h2>
       <div className="mt-2 divide-y divide-line">
         <Row icon={Icon.calendar({ s: 17 })} label="Fecha" value={formatDate(activity.startAt)} />
@@ -36,6 +36,6 @@ export function ActivityDetails({ activity }: ActivityDetailsProps) {
           value={CATEGORY_LABELS[activity.category]}
         />
       </div>
-    </aside>
+    </Card>
   );
 }
