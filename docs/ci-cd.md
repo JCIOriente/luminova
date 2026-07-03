@@ -193,7 +193,18 @@ project owner via `gcloud`. All identifiers below are non-secret.
 **Deploy SA project roles (least-privilege):**
 `firebasehosting.admin`, `firebaserules.admin`, `datastore.indexAdmin`,
 `cloudfunctions.admin`, `run.admin`, `artifactregistry.admin`,
-`cloudbuild.builds.editor`, `eventarc.admin`, `serviceusage.serviceUsageConsumer`.
+`cloudbuild.builds.editor`, `eventarc.admin`, `serviceusage.serviceUsageConsumer`,
+`firebasestorage.viewer` (added 2026-07-03).
+
+> **Storage-rules deploy gotcha.** With the object form `"storage": {"rules": ...}`
+> the CLI resolves the default bucket via the **v1alpha**
+> `firebasestorage.../defaultBucket` endpoint, which 404s for this SA even with
+> `firebasestorage.viewer` granted (alpha endpoint appears to require broader
+> Firebase-level read, e.g. `firebase.projects.get`; Google masks the 403 as 404).
+> `firebase.json` therefore pins the bucket explicitly via a `storage` **target**
+> (`target: "default"` → `.firebaserc` → `jci-oriente.firebasestorage.app`), which
+> skips that endpoint entirely — the release then goes through `firebaserules.admin`
+> only. Do not revert `storage` to the object form.
 
 **GitHub `production` environment:** required reviewer `arkgast`; deployments restricted
 to `main`; variables `WIF_PROVIDER`, `WIF_SERVICE_ACCOUNT`, `GCP_PROJECT_ID`.
@@ -254,7 +265,8 @@ gcloud iam service-accounts add-iam-policy-binding "$DEPLOY_SA_EMAIL" \
 for ROLE in \
   roles/firebasehosting.admin roles/firebaserules.admin roles/datastore.indexAdmin \
   roles/cloudfunctions.admin roles/run.admin roles/artifactregistry.admin \
-  roles/cloudbuild.builds.editor roles/eventarc.admin roles/serviceusage.serviceUsageConsumer ; do
+  roles/cloudbuild.builds.editor roles/eventarc.admin roles/serviceusage.serviceUsageConsumer \
+  roles/firebasestorage.viewer ; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${DEPLOY_SA_EMAIL}" --role="$ROLE" --condition=None --quiet
 done
