@@ -31,34 +31,32 @@ type MemberLike = {
   permissionOverrides?: { grant: PermissionCode[]; revoke: PermissionCode[] };
 };
 
-/** Union of grants from the term's positions, gating power-conferring positions
- *  (non-empty grants) on an Admin `assignedBy`. The assigner lookup is performed
- *  at most once and only when a power position is actually present.
+/** Grants from the term's CARGO only, gated on an Admin `assignedBy`. Comisiones
+ *  never confer power: the catalog forbids Comision grants (schema + rules), and
+ *  `comisionIds` is the one slot rules cannot grant-check (no array iteration), so
+ *  honoring it would let a console-written power comisión — or a power cargo's id
+ *  smuggled into comisionIds — mint claims. Ignoring it entirely also means a
+ *  permitted non-Admin positions edit (which restamps the shared `assignedBy`)
+ *  can no longer strip Admin-granted power: rules already deny non-Admin writes
+ *  while a power cargo is assigned.
  *
- *  The loop is intentionally sequential so that the early-exit (assignerIsAdmin =
- *  false stops accumulating grants) is preserved — parallel fetches would not
- *  short-circuit. `getUserRoles` reads the assigner's LIVE claims, so a later
- *  Firestore write that re-invokes this function re-evaluates trust: if the
- *  assigner has since lost Admin, their previously granted power positions are
- *  revoked and claims reflect current org state (by design). */
+ *  The assigner lookup runs only when the cargo actually confers power.
+ *  `getUserRoles` reads the assigner's LIVE claims, so a later Firestore write
+ *  that re-invokes this function re-evaluates trust: if the assigner has since
+ *  lost Admin, their previously granted power cargo is revoked and claims
+ *  reflect current org state (by design). */
 async function resolveTrustedGrants(
   deps: ClaimsSyncDeps,
-  positionIds: string[],
+  cargoId: string | null,
   assignedBy: string | undefined,
 ): Promise<Role[]> {
-  const grants = new Set<Role>();
-  let assignerIsAdmin: boolean | null = null;
-  for (const id of positionIds) {
-    const position = await deps.getPosition(id);
-    if (!position || position.grants.length === 0) continue;
-    if (assignerIsAdmin === null) {
-      assignerIsAdmin = assignedBy
-        ? (await deps.getUserRoles(assignedBy)).includes("Admin")
-        : false;
-    }
-    if (assignerIsAdmin) for (const grant of position.grants) grants.add(grant);
-  }
-  return [...grants];
+  if (cargoId === null || cargoId.length === 0) return [];
+  const position = await deps.getPosition(cargoId);
+  if (!position || position.grants.length === 0) return [];
+  const assignerIsAdmin = assignedBy
+    ? (await deps.getUserRoles(assignedBy)).includes("Admin")
+    : false;
+  return assignerIsAdmin ? [...new Set(position.grants)] : [];
 }
 
 function sameList(a: readonly string[], b: readonly string[]): boolean {
@@ -93,10 +91,7 @@ export async function syncMemberClaims(
 ): Promise<void> {
   if (!member.uid) return;
   const term = member.positions?.[termKey];
-  const positionIds = term
-    ? [term.cargoId, ...term.comisionIds].filter((id): id is string => id !== null && id.length > 0)
-    : [];
-  const trustedGrants = await resolveTrustedGrants(deps, positionIds, term?.assignedBy);
+  const trustedGrants = await resolveTrustedGrants(deps, term?.cargoId ?? null, term?.assignedBy);
 
   const existing = await deps.getExistingClaims(member.uid);
   const hadScanner = existing.roles.includes("Scanner");

@@ -237,15 +237,26 @@ service cloud.firestore {
 
     // grants feed Auth custom claims (K4 trigger) — only Admin may confer power,
     // else ExecutiveCommittee could mint an Admin-granting cargo for itself.
+    // Comisiones are chips-only, for EVERY writer (structural invariant, not an
+    // authority tier): position-schema already rejects Comision grants client-side,
+    // and claims-sync ignores comisión grants — because members.comisionIds is the
+    // one grant path these rules cannot loop-check, a power comisión would ride on
+    // the shared per-term assignedBy and break the cargo trust gate's assumptions.
+    function comisionGrantsEmpty() {
+      return request.resource.data.get('category', '') != 'Comision'
+        || request.resource.data.get('grants', []) == [];
+    }
     match /positions/{positionId} {
       allow read: if signedIn();
       // Authorization is perm-based; the power-grant authority (who may confer
       // non-empty grants → claims) stays Admin-role-only, as before.
       allow create: if canDo('create', 'Position')
-        && (hasAnyRole(['Admin']) || request.resource.data.grants == []);
+        && (hasAnyRole(['Admin']) || request.resource.data.grants == [])
+        && comisionGrantsEmpty();
       allow update: if canDo('update', 'Position')
         && (hasAnyRole(['Admin']) || unchanged('grants'))
-        && softDeleteSafe();
+        && softDeleteSafe()
+        && comisionGrantsEmpty();
       allow delete: if false;
     }
 

@@ -6,7 +6,7 @@ import {
   type PointRuleCode,
 } from "@luminova/types/engine";
 import type { EngineStore, InitiativeWrite } from "./store.js";
-import type { CheckIn } from "./check-in.js";
+import { checkInIdentityChanged, validateCheckIn, type CheckIn } from "./check-in.js";
 import { deriveParticipation, monthBucketFromMillis } from "./derive.js";
 import { participationId } from "./participation-id.js";
 import { deriveRosterRow, desiredRosterRoles } from "./derive-roster.js";
@@ -36,6 +36,24 @@ export async function processCheckIn(store: EngineStore, checkIn: CheckIn): Prom
   if (row === null) return;
   await store.setParticipation(row);
   await store.recomputeAggregate(checkIn.memberId, activity.termId);
+}
+
+/** A check-in doc was updated in place. Rules forbid client updates, so this only
+ *  fires on admin-SDK/console writes — defense in depth: an identity change
+ *  (memberId/activityId/role) re-keys the deterministic participation id, so the
+ *  old row must be reconciled away or it stays orphaned, keeping its points.
+ *  Delete-then-create halves are each idempotent → safe under redelivery. */
+export async function processCheckInUpdate(
+  store: EngineStore,
+  beforeRaw: unknown,
+  afterRaw: unknown,
+): Promise<void> {
+  const prev = validateCheckIn(beforeRaw);
+  const next = validateCheckIn(afterRaw);
+  if (prev !== null && (next === null || checkInIdentityChanged(prev, next))) {
+    await processCheckInDelete(store, prev);
+  }
+  if (next !== null) await processCheckIn(store, next);
 }
 
 /** A check-in was deleted — remove its derived row and recompute. */

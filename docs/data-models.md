@@ -24,7 +24,7 @@ interface Position {
 - `JDL` — Board direcciones created per term (`term = <year>`); one set per gestión.
 - `Comision` — Evergreen ad-hoc commissions (`term = null`); created on demand.
 
-**`grants`**: the permission `Role[]` this position confers. Only Admin may write a non-empty `grants` array — enforced by Firestore rules to prevent Executive Committee self-escalation. The beacon `onMemberWritten` trigger syncs grants into Auth custom claims; power grants are honored only when the assignment's `assignedBy` is a live Admin.
+**`grants`**: the permission `Role[]` this position confers. Only Admin may write a non-empty `grants` array — enforced by Firestore rules to prevent Executive Committee self-escalation. **Comisiones are chips-only**: `category: 'Comision'` requires `grants: []` for every writer (position-schema client-side, `comisionGrantsEmpty()` in rules server-side), and the beacon claims-sync honors **cargo grants only** — `comisionIds` never confers claims. Power grants are honored only when the assignment's `assignedBy` is a live Admin.
 
 **Soft delete**: `active: false` + `deletedAt: serverTimestamp()`. `getAll()` returns soft-deleted documents too (needed for historical assignment resolution — the UI filters `active === true` where applicable).
 
@@ -73,7 +73,7 @@ standing — a `Desafiliado` member is **not** deleted and still appears in the 
 
 **`positions` map**: dot-path field updates (`positions.2026.cargoId`) preserve history across terms. The term key is the calendar year string (e.g. `"2026"`).
 
-**`assignedBy`**: the uid of whoever wrote the term's assignment. The beacon `onMemberWritten` trigger uses it as a trust gate: power-conferring grants (`Position.grants` non-empty) are included in the recomputed `roles` custom claim only when `assignedBy` is an Admin. Absent on pre-K4 docs → treated as untrusted (power grants dropped; member receives only `['Member']`).
+**`assignedBy`**: the uid of whoever wrote the term's assignment. The beacon `onMemberWritten` trigger uses it as a trust gate: the **cargo's** power grants (`Position.grants` non-empty) are included in the recomputed `roles` custom claim only when `assignedBy` is an Admin (`comisionIds` never confers claims — comisiones are chips-only). Absent on pre-K4 docs → treated as untrusted (power grants dropped; member receives only `['Member']`). Because the field is shared per term and rules force it to the writer, non-Admin positions writes are denied outright while a power cargo is assigned — a permitted edit can never silently restamp away Admin-granted power.
 
 **Custom claims (`roles` + `perms`)**: recomputed by the beacon `onMemberWritten` trigger (`onDocumentWritten('members/{id}')`) on every member write. The `roles` claim is `['Member', ...trusted current-term grants]` in canonical `ROLES` order; the `perms` claim holds the coarse `action:Subject` permissions resolved from role definitions (`roles` collection) + `permissionOverrides` (cap 30, fail-closed). An existing `Scanner` role (event-scoped, set by `setUserRoles`) is preserved and `scannerEventIds` carried through unchanged. Only applies to provisioned members (`uid` present). The `onRoleWritten` trigger re-syncs claims when a role definition changes.
 
@@ -178,9 +178,9 @@ hard-coded role checks. `firestore.rules` is the source of truth; summary:
 > - `positions.<currentTerm>.assignedBy` must equal `request.auth.uid` (writer stamps themselves).
 > - Non-Admin writers may only assign a cargo whose `grants` array is empty (no power conferral); Admin is unrestricted.
 > - These constraints close the "ride-along" attack where a non-Admin sneaks a power cargo under a different term key in the same write.
-> - Comisión `grants` are not loop-checkable in rules — the beacon claims-sync trust gate is their backstop.
+> - Comisión `grants` are not loop-checkable in rules — instead the invariant is structural: comisiones can never hold grants (`comisionGrantsEmpty()` on positions writes) and claims-sync ignores `comisionIds` for grants entirely.
 >
-> **positions write rule:** Admin may write any field including `grants`. ExecutiveCommittee may create/update only when `grants` is empty or unchanged — prevents self-escalation.
+> **positions write rule:** Admin may write any field including `grants`, except that a `Comision`-category position must keep `grants: []` (all tiers, structural invariant). ExecutiveCommittee may create/update only when `grants` is empty or unchanged — prevents self-escalation.
 
 ---
 
