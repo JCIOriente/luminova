@@ -15,7 +15,7 @@ each source file take only:
 
 - which components exist and their **names**,
 - their **props / variants / states** (e.g. Button has primary/secondary/ghost,
-  `onDark`/`onBlue`, `sm`; Badge has tones; KpiCard has tone + trend),
+  `onDark`/`onBlue`, `sm`; Badge has tones; KpiCard has tone + trend + optional icon),
 - their **structure / parts** (e.g. Table = Header/Body/Row/Head/Cell).
 
 **Do not copy the existing Tailwind utility classes or visual styling** — that is
@@ -103,7 +103,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 |-----------|--------|
 | `Table` (+ `TableHeader/Body/Row/Head/Cell`) | `components/table.tsx` |
 | `DataTable` (client search / sort / filter-chips / skeleton + empty; composes `Table`) | `components/data-table.tsx` |
-| `KpiCard` (tone + trend) | `components/kpi-card.tsx` |
+| `KpiCard` (tone + trend, icon optional) | `components/kpi-card.tsx` |
 | `LineChart` | `components/line-chart-view.tsx` (data: `components/line-chart.ts`) |
 | `Sparkline` | `components/sparkline-chart.tsx` (data: `components/sparkline.ts`) |
 | `ProgressBar` (`value` 0–100 clamped, `label?`, `className?`; ARIA progressbar role) | `components/progress-bar.tsx` |

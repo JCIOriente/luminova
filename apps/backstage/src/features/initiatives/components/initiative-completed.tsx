@@ -24,7 +24,6 @@ export function InitiativeCompleted({ impact, activities }: InitiativeCompletedP
         <h2 className="text-[15px] font-semibold text-ink-1">Logros del proyecto</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <KpiCard
-           
             label="Personas impactadas"
             value={NUMBER_ES_BO.format(impact.personsImpacted)}
           />
