@@ -1,4 +1,4 @@
-import { Card, Icon } from "@luminova/ui";
+import { Badge, Card, Icon } from "@luminova/ui";
 import type { Attendance } from "../lib/attendance";
 
 export function CheckInStats({ attendance }: { attendance: Attendance }) {
@@ -46,14 +46,14 @@ export function CheckInStats({ attendance }: { attendance: Attendance }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-pill bg-jci-blue/10 px-3 py-1.5 text-[12px] font-medium text-jci-blue">
-            {Icon.check({ s: 15 })}
+          <Badge tone="blue">
+            {Icon.check({ s: 14 })}
             {present} registrados
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-pill bg-ink-1/[0.04] px-3 py-1.5 text-[12px] font-medium text-ink-3">
-            {Icon.clock({ s: 15 })}
+          </Badge>
+          <Badge tone="gray">
+            {Icon.clock({ s: 14 })}
             {remaining} por llegar
-          </span>
+          </Badge>
         </div>
       </div>
     </Card>

@@ -1,7 +1,6 @@
 import type { Activity, InitiativeImpact } from "@luminova/types";
-import { Card, EmptyState } from "@luminova/ui";
+import { Card, EmptyState, KpiCard } from "@luminova/ui";
 import { groupActivityPhotos } from "../lib/gallery";
-import { InitiativeStatCard } from "./initiative-stat-card";
 import { PhotoGallery } from "./photo-gallery";
 
 const NUMBER_ES_BO = new Intl.NumberFormat("es-BO");
@@ -24,17 +23,14 @@ export function InitiativeCompleted({ impact, activities }: InitiativeCompletedP
       <section className="flex flex-col gap-3">
         <h2 className="text-[15px] font-semibold text-ink-1">Logros del proyecto</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <InitiativeStatCard
+          <KpiCard
+           
             label="Personas impactadas"
             value={NUMBER_ES_BO.format(impact.personsImpacted)}
           />
-          <InitiativeStatCard label="Voluntarios" value={NUMBER_ES_BO.format(impact.volunteers)} />
+          <KpiCard label="Voluntarios" value={NUMBER_ES_BO.format(impact.volunteers)} />
           {impact.custom.map((metric, i) => (
-            <InitiativeStatCard
-              key={`${metric.label}-${i}`}
-              label={metric.label}
-              value={metric.value}
-            />
+            <KpiCard key={`${metric.label}-${i}`} label={metric.label} value={metric.value} />
           ))}
         </div>
       </section>
