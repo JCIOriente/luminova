@@ -56,3 +56,9 @@ export {
   type EvaluateEligibilityInput,
   type EligibilityResult,
 } from "./eligibility.js";
+export { photoDocSchema, initiativeDocSchema } from "./initiative-doc-schema.js";
+export { activityDocSchema } from "./activity-doc-schema.js";
+export { termDocSchema } from "./term-doc-schema.js";
+export { memberPointsDocSchema } from "./member-points-doc-schema.js";
+export { participationDocSchema } from "./participation-doc-schema.js";
+export { pointRuleDocSchema } from "./point-rule-doc-schema.js";
