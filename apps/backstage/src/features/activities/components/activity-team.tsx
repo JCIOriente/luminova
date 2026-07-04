@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Member } from "@luminova/types";
-import { Avatar, Icon } from "@luminova/ui";
+import { Avatar, Card, Icon } from "@luminova/ui";
 
 interface ActivityTeamProps {
   director: Member | null;
@@ -29,7 +29,7 @@ function ContactButton({
 
 function PersonCard({ member }: { member: Member }) {
   return (
-    <div className="flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-3">
+    <Card padding="row" className="flex items-center gap-3">
       <Avatar src={member.profilePicture} name={member.name} size={36} />
       <div className="flex min-w-0 flex-col">
         <span className="truncate text-[13px] font-semibold text-ink-1">{member.name}</span>
@@ -37,7 +37,7 @@ function PersonCard({ member }: { member: Member }) {
           <span className="truncate text-[12px] text-ink-3">{member.profession}</span>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -51,7 +51,7 @@ export function ActivityTeam({ director, coDirectors }: ActivityTeamProps) {
       </h2>
 
       {director && (
-        <div className="flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-3">
+        <Card padding="row" className="flex items-center gap-3">
           <Avatar src={director.profilePicture} name={director.name} size={44} />
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-[15px] font-semibold text-ink-1">{director.name}</span>
@@ -72,7 +72,7 @@ export function ActivityTeam({ director, coDirectors }: ActivityTeamProps) {
               </ContactButton>
             )}
           </div>
-        </div>
+        </Card>
       )}
 
       {coDirectors.length > 0 && (

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
-import { Icon } from "@luminova/ui";
+import { Card, Icon } from "@luminova/ui";
 import { PageHeader } from "../components/page-header";
 import { currentTermKey, positionTitle } from "@luminova/types";
 import { encodeMemberQr } from "../lib/member-qr";
@@ -90,7 +90,7 @@ export function MemberHome() {
           joinYear={joinYear}
           role={role}
         />
-        <section className="flex flex-col rounded-card border border-line bg-surface">
+        <Card as="section" padding="none" className="flex flex-col">
           <header className="flex items-center justify-between border-b border-line px-6 py-4">
             <div>
               <h2 className="text-[15px] font-semibold text-ink-1">Check-in</h2>
@@ -114,7 +114,7 @@ export function MemberHome() {
               check-in. <span className="font-semibold text-jci-blue">Toca para ampliar.</span>
             </p>
           </button>
-        </section>
+        </Card>
       </div>
 
       <ParticipationLedger

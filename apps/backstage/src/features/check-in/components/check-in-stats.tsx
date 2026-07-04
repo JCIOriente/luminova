@@ -1,11 +1,11 @@
-import { Icon } from "@luminova/ui";
+import { Card, Icon } from "@luminova/ui";
 import type { Attendance } from "../lib/attendance";
 
 export function CheckInStats({ attendance }: { attendance: Attendance }) {
   const { present, capacity, pct, remaining } = attendance;
 
   return (
-    <div className="flex flex-col items-center gap-5 rounded-card border border-line bg-surface px-5 py-5 sm:flex-row">
+    <Card className="flex flex-col items-center gap-5 sm:flex-row">
       <div
         className="relative grid size-28 shrink-0 place-items-center rounded-full"
         style={{
@@ -56,6 +56,6 @@ export function CheckInStats({ attendance }: { attendance: Attendance }) {
           </span>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

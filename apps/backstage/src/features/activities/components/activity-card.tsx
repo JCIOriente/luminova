@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Avatar, Badge, Icon, Menu, MenuItem, MenuSeparator, RippleSVG } from "@luminova/ui";
+import { Avatar, Badge, Card, Icon, Menu, MenuItem, MenuSeparator, RippleSVG } from "@luminova/ui";
 import type { Activity } from "@luminova/types";
 import { CATEGORY_LABELS } from "../category-labels";
 import { ACTIVITY_STATUS_TONE } from "../lib/status-tone";
@@ -36,7 +36,7 @@ export function ActivityCard({
   const showCheckInClosed = !checkInOpen && activity.status !== "Cancelada";
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-card border border-line bg-surface">
+    <Card as="article" padding="none" className="flex flex-col overflow-hidden">
       <div className={`relative h-28 ${TONE_COVER_BG[tone]}`}>
         <div className="pointer-events-none absolute -right-6 -bottom-10 opacity-50">
           <RippleSVG
@@ -138,6 +138,6 @@ export function ActivityCard({
           </div>
         )}
       </div>
-    </article>
+    </Card>
   );
 }

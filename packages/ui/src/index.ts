@@ -2,6 +2,7 @@ export { Button, type ButtonProps } from "./components/button";
 export { IconButton, type IconButtonProps } from "./components/icon-button";
 export { SegmentedControl, type SegmentedOption } from "./components/segmented-control";
 export { Badge, type BadgeTone } from "./components/badge";
+export { Card, cardSurfaceClasses, cardInteractiveClasses } from "./components/card";
 export { ArrowLink } from "./components/arrow-link";
 export { Icon, ArrowRight } from "./components/icons";
 export { Input, fieldControlClasses } from "./components/input";

@@ -6,7 +6,7 @@ import {
   type FieldArray,
   type FieldValues,
 } from "react-hook-form";
-import { Icon, IconButton } from "@luminova/ui";
+import { Card, Icon, IconButton } from "@luminova/ui";
 
 interface FieldArrayRowsProps<TForm extends FieldValues> {
   control: Control<TForm>;
@@ -30,9 +30,10 @@ export function FieldArrayRows<TForm extends FieldValues>({
   return (
     <div className="flex flex-col gap-3">
       {fields.map((field, index) => (
-        <div
+        <Card
           key={field.id}
-          className="flex items-start gap-3 rounded-[12px] border border-line bg-surface-2 p-3"
+          padding="none"
+          className="flex items-start gap-3 bg-surface-2 p-3 shadow-none"
         >
           <div className="min-w-0 flex-1">{renderRow(index)}</div>
           <div className="flex shrink-0 items-center gap-1">
@@ -63,7 +64,7 @@ export function FieldArrayRows<TForm extends FieldValues>({
               {Icon.close({ s: 16 })}
             </IconButton>
           </div>
-        </div>
+        </Card>
       ))}
       <button
         type="button"

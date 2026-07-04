@@ -1,6 +1,17 @@
 import { Fragment, type ReactNode } from "react";
 import type { Role } from "@luminova/auth/roles";
-import { Badge, Button, type ChartSeries, Icon, KpiCard, LineChart } from "@luminova/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  type ChartSeries,
+  Icon,
+  KpiCard,
+  LineChart,
+  cardInteractiveClasses,
+  cardSurfaceClasses,
+  cn,
+} from "@luminova/ui";
 import { PageHeader } from "../page-header";
 import { boardHomeLayout, type WidgetKey } from "./board-home-layout";
 import { relativeTimeEs } from "../../lib/datetime";
@@ -17,6 +28,12 @@ const FEED_DOT: Record<FeedTone, string> = {
   teal: "bg-jci-teal/16 text-teal-ink",
   green: "bg-ok/14 text-ok",
 };
+
+const quickActionCardClasses = cn(
+  cardSurfaceClasses,
+  cardInteractiveClasses,
+  "group flex flex-col items-start gap-3.5 p-[18px] text-left",
+);
 
 const QUICK_ACTIONS = [
   {
@@ -121,7 +138,7 @@ export function OverviewView({
       </div>
     ),
     chart: () => (
-      <section className="rounded-[16px] border border-line bg-surface shadow-[0_1px_2px_rgba(19,15,45,0.05)]">
+      <Card as="section" padding="none">
         <div className="flex flex-wrap items-center justify-between gap-4 px-[22px] pt-5 pb-4">
           <div>
             <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-ink-1">
@@ -137,10 +154,10 @@ export function OverviewView({
             <LineChart series={chartSeries} height={280} />
           )}
         </div>
-      </section>
+      </Card>
     ),
     upcomingEvents: () => (
-      <section className="rounded-[16px] border border-line bg-surface shadow-[0_1px_2px_rgba(19,15,45,0.05)]">
+      <Card as="section" padding="none">
         <div className="flex items-center justify-between px-[22px] pt-5 pb-2">
           <h2 className="text-[16px] font-semibold text-ink-1">Próximos eventos</h2>
         </div>
@@ -176,10 +193,10 @@ export function OverviewView({
             ))
           )}
         </div>
-      </section>
+      </Card>
     ),
     recentActivity: () => (
-      <section className="rounded-[16px] border border-line bg-surface px-[22px] py-5 shadow-[0_1px_2px_rgba(19,15,45,0.05)]">
+      <Card as="section" padding="none" className="px-[22px] py-5">
         <h2 className="mb-4 text-[16px] font-semibold text-ink-1">Actividad reciente</h2>
         {model.feed.length === 0 ? (
           <p className="py-6 text-center text-[13px] text-ink-3">Sin actividad reciente.</p>
@@ -205,18 +222,14 @@ export function OverviewView({
             ))}
           </div>
         )}
-      </section>
+      </Card>
     ),
     quickActions: () => (
       <section>
         <h2 className="mb-3 text-[16px] font-semibold text-ink-1">Accesos rápidos</h2>
         <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
           {QUICK_ACTIONS.map((q) => (
-            <button
-              key={q.id}
-              type="button"
-              className="group flex flex-col items-start gap-3.5 rounded-[14px] border border-line bg-surface p-[18px] text-left shadow-[0_1px_2px_rgba(19,15,45,0.05)] transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[0_18px_40px_-24px_rgba(19,15,45,0.22)]"
-            >
+            <button key={q.id} type="button" className={quickActionCardClasses}>
               <span className="flex size-[42px] items-center justify-center rounded-[12px] bg-jci-blue/10 text-jci-blue">
                 {Icon[q.icon]({ s: 21 })}
               </span>

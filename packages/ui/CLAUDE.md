@@ -6,7 +6,7 @@ Shared component library for `apps/spotlight` and `apps/backstage`. Bespoke,
 token-driven components styled with **pure Tailwind v4 utility classes** (no
 semantic CSS classes). Consumed as **raw TypeScript source** (no build step).
 
-## What's here now (31 components)
+## What's here now (36 components)
 
 Full inventory + source paths + design tokens live in **`DESIGN.md`** (the
 ingest manifest for Claude Design). Quick map:
@@ -22,7 +22,9 @@ ingest manifest for Claude Design). Quick map:
 - **Data display:** Table (+ TableHeader/Body/Row/Head/Cell), DataTable
   (client-side search / sort / filter-chips / skeleton + empty, composes Table),
   KpiCard (tone + trend), LineChart, Sparkline.
-- **Structure / brand:** Icon set + ArrowRight, ArrowLink, SectionHeader,
+- **Structure / brand:** Card (the DS card shell: `as`, `padding` md/sm/row/none,
+  `interactive`; + `cardSurfaceClasses`/`cardInteractiveClasses` for button/Link
+  hosts), Icon set + ArrowRight, ArrowLink, SectionHeader,
   ImgSlot, LogoLockup (PNG assets in `src/assets/`), Reveal
   (IntersectionObserver), Ripple (RippleSVG/RippleBackground/RippleDivider).
 - **Domain widgets (deep-import):** QrCode (`@luminova/ui/qr-code`), QrScanner

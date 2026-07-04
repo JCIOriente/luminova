@@ -1,4 +1,4 @@
-import { Avatar } from "@luminova/ui";
+import { Avatar, Card } from "@luminova/ui";
 import type { InitiativeTeam, TeamPerson } from "../lib/team";
 
 interface InitiativeTeamRailProps {
@@ -10,7 +10,7 @@ export function InitiativeTeamRail({ team }: InitiativeTeamRailProps) {
   const hasMembers = team.members.length > 0;
 
   return (
-    <aside className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5">
+    <Card as="aside" className="flex flex-col gap-4">
       <h2 className="text-[15px] font-semibold text-ink-1">Equipo</h2>
 
       {team.director ? (
@@ -44,7 +44,7 @@ export function InitiativeTeamRail({ team }: InitiativeTeamRailProps) {
           ))}
         </div>
       )}
-    </aside>
+    </Card>
   );
 }
 

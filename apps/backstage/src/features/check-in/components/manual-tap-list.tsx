@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Avatar, Icon, Input } from "@luminova/ui";
+import { Avatar, Card, Icon, Input } from "@luminova/ui";
 import type { Member } from "@luminova/types";
 
 interface ManualTapListProps {
@@ -30,7 +30,7 @@ export function ManualTapList({ members, checkedInIds, onTap }: ManualTapListPro
   return (
     // p-3 around the 52px Input makes the tile's rest height match the 76px
     // scan card beside it (12 + 52 + 12); results grow inside the tile only.
-    <div className="flex flex-col gap-2 rounded-card border border-line bg-surface p-3">
+    <Card padding="none" className="flex flex-col gap-2 p-3">
       <Input
         placeholder="o registra a un miembro por su nombre…"
         value={search}
@@ -68,6 +68,6 @@ export function ManualTapList({ members, checkedInIds, onTap }: ManualTapListPro
             })}
           </ul>
         ))}
-    </div>
+    </Card>
   );
 }

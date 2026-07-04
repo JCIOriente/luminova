@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { Activity } from "@luminova/types";
-import { Badge, Icon, RippleSVG } from "@luminova/ui";
+import { Badge, Card, Icon, RippleSVG } from "@luminova/ui";
 import { CATEGORY_LABELS } from "../category-labels";
 import { ACTIVITY_STATUS_TONE } from "../lib/status-tone";
 import { CATEGORY_TONE, TONE_COVER_BG, TONE_RIPPLE_COLOR } from "../lib/category-tone";
@@ -24,7 +24,7 @@ export function ActivityDetailHero({ activity, parentTitle, actions }: ActivityD
       : `${formatDateTime(activity.startAt)} — ${formatDateTime(activity.endAt)}`;
 
   return (
-    <header className="overflow-hidden rounded-card border border-line bg-surface">
+    <Card as="header" padding="none" className="overflow-hidden">
       <div className={`relative h-40 ${TONE_COVER_BG[tone]}`}>
         {cover ? (
           <img src={cover} alt="" className="absolute inset-0 size-full object-cover" />
@@ -87,6 +87,6 @@ export function ActivityDetailHero({ activity, parentTitle, actions }: ActivityD
           )}
         </div>
       </div>
-    </header>
+    </Card>
   );
 }

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Badge, Icon, ImageUploader } from "@luminova/ui";
+import { Badge, Card, Icon, ImageUploader } from "@luminova/ui";
 import { useMemberPhoto } from "../hooks/use-member-photo";
 
 const CHAPTER = "JCI Oriente";
@@ -31,7 +31,7 @@ export function MemberCredentialCard({
   const { onUpload, onRemove } = useMemberPhoto(memberId);
 
   return (
-    <section className="flex flex-col rounded-card border border-line bg-surface">
+    <Card as="section" padding="none" className="flex flex-col">
       <header className="flex items-center justify-between border-b border-line px-6 py-4">
         <div>
           <h2 className="text-[15px] font-semibold text-ink-1">Tu credencial</h2>
@@ -68,6 +68,6 @@ export function MemberCredentialCard({
           </Row>
         </div>
       </div>
-    </section>
+    </Card>
   );
 }

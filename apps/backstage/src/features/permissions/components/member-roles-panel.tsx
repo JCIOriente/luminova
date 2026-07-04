@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Badge, Button, MultiSelect } from "@luminova/ui";
+import { Badge, Button, Card, MultiSelect } from "@luminova/ui";
 import {
   ALL_PERMISSION_CODES,
   PERMISSION_CAP,
@@ -88,7 +88,7 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
   };
 
   return (
-    <section className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5">
+    <Card as="section" className="flex flex-col gap-4">
       <div>
         <h2 className="text-[12px] font-medium uppercase tracking-[0.02em] text-ink-3">
           Roles y permisos personalizados
@@ -167,6 +167,6 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
           </span>
         )}
       </div>
-    </section>
+    </Card>
   );
 }

@@ -1,5 +1,5 @@
 import type { Activity, InitiativeImpact } from "@luminova/types";
-import { EmptyState } from "@luminova/ui";
+import { Card, EmptyState } from "@luminova/ui";
 import { groupActivityPhotos } from "../lib/gallery";
 import { InitiativeStatCard } from "./initiative-stat-card";
 import { PhotoGallery } from "./photo-gallery";
@@ -16,10 +16,10 @@ export function InitiativeCompleted({ impact, activities }: InitiativeCompletedP
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+      <Card as="section" className="flex flex-col gap-3">
         <h2 className="text-[15px] font-semibold text-ink-1">Resumen de cierre</h2>
         <p className="max-w-2xl text-[14px] leading-relaxed text-ink-2">{impact.closingSummary}</p>
-      </section>
+      </Card>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-[15px] font-semibold text-ink-1">Logros del proyecto</h2>

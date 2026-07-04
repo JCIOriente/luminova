@@ -1,5 +1,5 @@
 import type { Photo } from "@luminova/types";
-import { Badge, EmptyState } from "@luminova/ui";
+import { Badge, Card, EmptyState } from "@luminova/ui";
 
 interface PhotoGalleryProps {
   photos: Photo[];
@@ -15,14 +15,14 @@ export function PhotoGallery({ photos, showCover = false }: PhotoGalleryProps) {
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {photos.map((photo, index) => (
         <figure key={photo.id} className="relative">
-          <div className="aspect-[3/2] overflow-hidden rounded-card border border-line">
+          <Card padding="none" className="aspect-[3/2] overflow-hidden">
             <img
               src={photo.url}
               alt={photo.caption ?? "Foto"}
               loading="lazy"
               className="h-full w-full object-cover"
             />
-          </div>
+          </Card>
           {showCover && index === 0 && (
             <Badge tone="amber" className="absolute top-2 left-2">
               Portada

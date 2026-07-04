@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
-import { Badge, Button, Dialog, type BadgeTone } from "@luminova/ui";
+import { Badge, Button, Card, Dialog, type BadgeTone } from "@luminova/ui";
 import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
 import { subject } from "@luminova/auth/ability";
 import { useAbility } from "../lib/authz/ability-context";
@@ -138,7 +138,7 @@ function MemberProfilePage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <div className="flex flex-col gap-6">
           {positions && canEdit && (
-            <section className="rounded-card border border-line bg-surface p-5">
+            <Card as="section">
               <MemberForm
                 positions={positions}
                 defaultValues={memberFormDefaults(member)}
@@ -148,11 +148,11 @@ function MemberProfilePage() {
                 onSubmit={handleEdit}
                 avatarSeed={member.name}
               />
-            </section>
+            </Card>
           )}
 
           {positions && showPositionsOnly && (
-            <section className="rounded-card border border-line bg-surface p-5">
+            <Card as="section">
               <h2 className="mb-4 text-[12px] font-medium tracking-[0.02em] text-ink-3 uppercase">
                 Cargos
               </h2>
@@ -166,7 +166,7 @@ function MemberProfilePage() {
                 }}
                 onSubmit={handleSetPositions}
               />
-            </section>
+            </Card>
           )}
 
           <MemberPointsSummary
@@ -195,12 +195,12 @@ function MemberProfilePage() {
             positionsById={positionsById}
             currentTermKey={termKey}
           />
-          <div className="flex flex-col items-center gap-3 rounded-card border border-line bg-surface px-6 py-5">
+          <Card padding="none" className="flex flex-col items-center gap-3 px-6 py-5">
             <Suspense fallback={<div className="size-[176px]" />}>
               <QrCode value={encodeMemberQr(member.id)} size={176} />
             </Suspense>
             <p className="text-[12px] text-ink-3">QR personal · escanéalo en el check-in</p>
-          </div>
+          </Card>
         </aside>
       </div>
     </div>

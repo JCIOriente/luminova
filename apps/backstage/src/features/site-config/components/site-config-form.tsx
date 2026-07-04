@@ -8,7 +8,7 @@ import {
   type LinktreeSocialPlatform,
   type SiteConfigInput,
 } from "@luminova/types";
-import { Button, Checkbox, Field, Icon, Input, Select, Textarea, cn } from "@luminova/ui";
+import { Button, Card, Checkbox, Field, Icon, Input, Select, Textarea, cn } from "@luminova/ui";
 import { CollapsibleSection } from "./collapsible-section";
 import { FieldArrayRows } from "./field-array-rows";
 
@@ -183,7 +183,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           </Field>
         </div>
 
-        <div className="mt-5 flex flex-col gap-4 rounded-[12px] border border-line bg-surface-2 p-4">
+        <Card padding="sm" className="mt-5 flex flex-col gap-4 bg-surface-2 shadow-none">
           <span className="text-[12px] font-semibold tracking-[0.02em] text-ink-3 uppercase">
             Premio destacado
           </span>
@@ -211,7 +211,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
               />
             </Field>
           </div>
-        </div>
+        </Card>
       </CollapsibleSection>
 
       <CollapsibleSection

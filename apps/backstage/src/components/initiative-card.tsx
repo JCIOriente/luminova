@@ -1,5 +1,13 @@
 import type { Member } from "@luminova/types";
-import { AvatarStack, Badge, Icon, ProgressBar } from "@luminova/ui";
+import {
+  AvatarStack,
+  Badge,
+  Icon,
+  ProgressBar,
+  cardInteractiveClasses,
+  cardSurfaceClasses,
+  cn,
+} from "@luminova/ui";
 import { AREA_OF_OPPORTUNITY_LABELS } from "@luminova/types";
 import { COVER_STRIP, areaTone, statusLabel, statusTone } from "../features/initiatives/lib/derive";
 import { formatMonthYear } from "../lib/datetime";
@@ -12,6 +20,12 @@ interface InitiativeCardProps {
   memberById: Map<string, Member>;
   onOpen?: () => void;
 }
+
+const shellClasses = cn(
+  cardSurfaceClasses,
+  "group relative flex flex-col overflow-hidden text-left",
+);
+const interactiveShellClasses = cn(shellClasses, cardInteractiveClasses, "cursor-pointer");
 
 export function InitiativeCard({
   item,
@@ -33,11 +47,7 @@ export function InitiativeCard({
   return (
     <Tag
       {...(interactive ? { type: "button" as const, onClick: onOpen } : {})}
-      className={`group relative flex flex-col overflow-hidden rounded-card border border-line bg-surface text-left transition-[transform,box-shadow] duration-200 ease-expo ${
-        interactive
-          ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-24px_rgba(19,15,45,0.35)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue motion-reduce:hover:translate-y-0"
-          : ""
-      }`}
+      className={interactive ? interactiveShellClasses : shellClasses}
     >
       {cover ? (
         <img src={cover} alt="" className="h-28 w-full object-cover" />

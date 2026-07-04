@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Skeleton } from "@luminova/ui";
+import { Card, Skeleton } from "@luminova/ui";
 import { currentTermKey } from "@luminova/types";
 import { useAuth } from "../lib/auth/auth";
 import { isMemberOnly } from "../lib/authz/is-member-only";
@@ -39,9 +39,9 @@ function DashboardPage() {
     initiatives.isError
   ) {
     return (
-      <div className="rounded-[16px] border border-line bg-surface p-8 text-center text-[13px] text-ink-3">
+      <Card padding="none" className="p-8 text-center text-[13px] text-ink-3">
         No se pudo cargar el panel. Revisa tu conexión e intenta recargar la página.
-      </div>
+      </Card>
     );
   }
 

@@ -1,12 +1,10 @@
+import { Card } from "@luminova/ui";
 import type { Role } from "@luminova/types";
 import { PERMISSION_ROLE_INFO } from "../../positions/lib/permission-labels";
 
 export function MemberPermissionsPanel({ roles }: { roles: Role[] }) {
   return (
-    <section
-      aria-labelledby="cargos-asignados-title"
-      className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5"
-    >
+    <Card as="section" aria-labelledby="cargos-asignados-title" className="flex flex-col gap-3">
       <h2
         id="cargos-asignados-title"
         className="text-[12px] font-medium tracking-[0.02em] text-ink-3 uppercase"
@@ -25,6 +23,6 @@ export function MemberPermissionsPanel({ roles }: { roles: Role[] }) {
           );
         })}
       </ul>
-    </section>
+    </Card>
   );
 }

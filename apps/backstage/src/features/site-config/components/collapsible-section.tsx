@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from "react";
-import { Badge, Icon, cn } from "@luminova/ui";
+import { Badge, Card, Icon, cn } from "@luminova/ui";
 
 interface CollapsibleSectionProps {
   num: string;
@@ -24,7 +24,7 @@ export function CollapsibleSection({
   const bodyId = useId();
 
   return (
-    <section className="overflow-hidden rounded-card border border-line bg-surface">
+    <Card as="section" padding="none" className="overflow-hidden">
       <button
         type="button"
         aria-expanded={open}
@@ -57,6 +57,6 @@ export function CollapsibleSection({
           {children}
         </div>
       )}
-    </section>
+    </Card>
   );
 }
