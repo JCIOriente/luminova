@@ -26,7 +26,7 @@ export function KpiCard({
   trend,
   spark,
 }: {
-  icon: ReactNode;
+  icon?: ReactNode;
   tone?: KpiTone;
   label: string;
   value: ReactNode;
@@ -41,14 +41,16 @@ export function KpiCard({
       )}
     >
       <div className="flex items-center gap-[11px]">
-        <span
-          className={cn(
-            "flex size-[38px] shrink-0 items-center justify-center rounded-[11px]",
-            TONE[tone].tile,
-          )}
-        >
-          {icon}
-        </span>
+        {icon && (
+          <span
+            className={cn(
+              "flex size-[38px] shrink-0 items-center justify-center rounded-[11px]",
+              TONE[tone].tile,
+            )}
+          >
+            {icon}
+          </span>
+        )}
         <span className="text-[13px] font-medium leading-tight text-ink-3">{label}</span>
       </div>
       <div className="flex items-end justify-between gap-2.5">

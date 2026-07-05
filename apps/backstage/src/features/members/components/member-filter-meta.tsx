@@ -1,3 +1,4 @@
+import { Button } from "@luminova/ui";
 import type { StatusFilter } from "../lib/member-filter";
 
 interface MemberFilterMetaProps {
@@ -54,13 +55,9 @@ export function MemberFilterMeta({
       {hasStatus && <Chip label={`Estado: ${status}`} onRemove={onClearStatus} />}
       {hasSearch && <Chip label={`Buscar: "${search.trim()}"`} onRemove={onClearSearch} />}
       {anyActive && (
-        <button
-          type="button"
-          onClick={onClearAll}
-          className="font-semibold text-jci-blue transition-colors hover:text-jci-navy"
-        >
+        <Button as="button" variant="link" tone="brand" onClick={onClearAll}>
           Limpiar todo
-        </button>
+        </Button>
       )}
     </div>
   );
