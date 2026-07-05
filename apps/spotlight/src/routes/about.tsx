@@ -31,7 +31,7 @@ function AboutHero() {
         alignItems: "center",
       }}
     >
-      <RippleBackground variant="hero-corner-tl" color="#FFFFFF" opacity={0.08} />
+      <RippleBackground variant="hero-corner-tl" color="var(--color-jci-white)" opacity={0.08} />
       <div className="container" style={{ position: "relative", zIndex: 1 }}>
         <div className="eyebrow no-rule" style={{ color: "rgba(255,255,255,0.75)" }}>
           Quiénes Somos

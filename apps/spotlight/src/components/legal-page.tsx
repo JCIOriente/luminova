@@ -20,7 +20,7 @@ export function LegalPage({ eyebrow, title, intro, updatedLabel, sections }: Leg
       <section
         style={{ position: "relative", overflow: "hidden", paddingTop: 160, paddingBottom: 24 }}
       >
-        <RippleBackground variant="subtle" color="#0097D7" opacity={0.06} />
+        <RippleBackground variant="subtle" opacity={0.06} />
         <div className="container" style={{ position: "relative", zIndex: 1, maxWidth: 760 }}>
           <div className="eyebrow">{eyebrow}</div>
           <h1 className="t-display" style={{ marginTop: 18, marginBottom: 0 }}>

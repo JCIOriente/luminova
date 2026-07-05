@@ -62,7 +62,7 @@ function HomeHero() {
         alignItems: "center",
       }}
     >
-      <RippleBackground variant="hero" color="#0097D7" />
+      <RippleBackground variant="hero" />
       <div className="container" style={{ position: "relative", zIndex: 1, width: "100%" }}>
         <div style={{ maxWidth: 920 }}>
           <h1 className="t-display" style={{ marginTop: 0, marginBottom: 0, color: "#fff" }}>
@@ -227,7 +227,7 @@ function HomeImpact() {
   const config = useSiteConfig();
   return (
     <section className="section bg-blue" style={{ position: "relative", overflow: "hidden" }}>
-      <RippleBackground variant="subtle" color="#FFFFFF" opacity={0.06} />
+      <RippleBackground variant="subtle" color="var(--color-jci-white)" opacity={0.06} />
       <div className="container" style={{ position: "relative", zIndex: 1 }}>
         <div style={{ maxWidth: 720 }}>
           <div className="eyebrow" style={{ color: "rgba(255,255,255,0.75)" }}>
@@ -305,7 +305,7 @@ function HomeCTA() {
       className="bg-dark"
       style={{ position: "relative", overflow: "hidden", padding: "120px 0" }}
     >
-      <RippleBackground variant="cta" color="#0097D7" opacity={0.07} />
+      <RippleBackground variant="cta" opacity={0.07} />
       <div className="container" style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
         <div
           className="eyebrow no-rule"

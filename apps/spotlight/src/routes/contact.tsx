@@ -153,7 +153,7 @@ function ContactHero() {
     <section
       style={{ position: "relative", overflow: "hidden", paddingTop: 160, paddingBottom: 32 }}
     >
-      <RippleBackground variant="subtle" color="#0097D7" opacity={0.06} />
+      <RippleBackground variant="subtle" opacity={0.06} />
       <div className="container" style={{ position: "relative", zIndex: 1 }}>
         <div className="eyebrow">Contacto</div>
         <h1 className="t-display" style={{ marginTop: 18, marginBottom: 0, maxWidth: 900 }}>
@@ -380,7 +380,7 @@ function ContactMap() {
             <g transform="translate(600 180)">
               <circle cx="0" cy="0" r="44" fill="rgba(0,151,215,0.14)" />
               <circle cx="0" cy="0" r="24" fill="rgba(0,151,215,0.28)" />
-              <circle cx="0" cy="0" r="10" fill="#0097D7" />
+              <circle cx="0" cy="0" r="10" style={{ fill: "var(--color-jci-blue)" }} />
               <circle cx="0" cy="0" r="4" fill="#fff" />
             </g>
           </svg>
