@@ -12,8 +12,8 @@ function Row({ icon, label, value }: { icon: ReactElement; label: string; value:
   return (
     <div className="flex items-center gap-3 py-2.5">
       <span className="text-ink-3">{icon}</span>
-      <span className="text-[13px] text-ink-3">{label}</span>
-      <span className="ml-auto text-right text-[13px] font-semibold text-ink-1">{value}</span>
+      <span className="text-ui-sm text-ink-3">{label}</span>
+      <span className="ml-auto text-right text-ui-sm font-semibold text-ink-1">{value}</span>
     </div>
   );
 }
@@ -21,7 +21,7 @@ function Row({ icon, label, value }: { icon: ReactElement; label: string; value:
 export function ActivityDetails({ activity }: ActivityDetailsProps) {
   return (
     <Card as="aside" padding="none" className="px-5 py-4">
-      <h2 className="font-mono text-[10.5px] tracking-[0.12em] text-ink-3 uppercase">Detalles</h2>
+      <h2 className="font-mono text-ui-2xs tracking-[0.12em] text-ink-3 uppercase">Detalles</h2>
       <div className="mt-2 divide-y divide-line">
         <Row icon={Icon.calendar({ s: 17 })} label="Fecha" value={formatDate(activity.startAt)} />
         <Row

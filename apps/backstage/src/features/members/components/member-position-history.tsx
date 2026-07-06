@@ -25,14 +25,14 @@ export function MemberPositionHistory({
     <Card as="section" aria-labelledby="historial-cargos-title" className="flex flex-col gap-3">
       <h2
         id="historial-cargos-title"
-        className="text-[12px] font-medium tracking-[0.02em] text-ink-3 uppercase"
+        className="text-ui-xs font-medium tracking-[0.02em] text-ink-3 uppercase"
       >
         Historial
       </h2>
       <ul className="flex flex-col gap-3">
         {pastTerms.map(({ key, termPositions }) => (
           <li key={key} className="flex items-center gap-3">
-            <span data-testid="history-term" className="tabular-nums text-[13px] text-ink-3">
+            <span data-testid="history-term" className="tabular-nums text-ui-sm text-ink-3">
               {key}
             </span>
             <MemberCargoChips

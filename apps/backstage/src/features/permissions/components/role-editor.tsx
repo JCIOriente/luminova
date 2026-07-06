@@ -98,11 +98,11 @@ export function RoleEditor({ role, onSubmit, onDelete }: RoleEditorProps) {
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-[12px] font-medium uppercase tracking-[0.02em] text-ink-3">
+          <span className="text-ui-xs font-medium uppercase tracking-[0.02em] text-ink-3">
             Permisos
           </span>
           <span
-            className={`text-[12px] tabular-nums ${perms.size > PERMISSION_CAP ? "text-error" : "text-ink-3"}`}
+            className={`text-ui-xs tabular-nums ${perms.size > PERMISSION_CAP ? "text-error" : "text-ink-3"}`}
           >
             {perms.size}/{PERMISSION_CAP}
           </span>
@@ -144,7 +144,7 @@ export function RoleEditor({ role, onSubmit, onDelete }: RoleEditorProps) {
       </div>
 
       {error && (
-        <div role="alert" className="text-[13px] text-error">
+        <div role="alert" className="text-ui-sm text-error">
           {error}
         </div>
       )}
@@ -172,7 +172,7 @@ export function RoleEditor({ role, onSubmit, onDelete }: RoleEditorProps) {
         </Button>
       )}
       {locked && (
-        <p className="text-[12px] text-ink-3">
+        <p className="text-ui-xs text-ink-3">
           El rol Administrador está protegido y no se puede editar.
         </p>
       )}

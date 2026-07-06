@@ -99,16 +99,16 @@ export function MemberInviteDrawer({
     >
       {done ? (
         <div className="flex flex-col gap-5">
-          <p className="text-[15px] font-semibold text-ink-1">
+          <p className="text-ui-lg font-semibold text-ink-1">
             {actionMessage(done.name, "created")}
           </p>
           {done.provisioned && done.emailSent ? (
-            <p className="text-[14px] text-ink-2">
+            <p className="text-ui-md text-ink-2">
               {`Invitación enviada a ${done.email}. Recibirá un correo para crear su contraseña y acceder a la app.`}
             </p>
           ) : done.provisioned && !done.emailSent ? (
             <>
-              <p role="alert" className="text-[14px] text-error">
+              <p role="alert" className="text-ui-md text-error">
                 El correo no se pudo enviar. Comparte el enlace de acceso manualmente.
               </p>
               <Button
@@ -126,13 +126,13 @@ export function MemberInviteDrawer({
                 {copyState === "copied" ? "Enlace copiado" : "Copiar enlace de acceso"}
               </Button>
               {copyState === "failed" && (
-                <code className="text-[12px] break-all select-all text-ink-2">
+                <code className="text-ui-xs break-all select-all text-ink-2">
                   {done.actionLink}
                 </code>
               )}
             </>
           ) : (
-            <p className="text-[14px] text-ink-2">
+            <p className="text-ui-md text-ink-2">
               Aún no tiene acceso a la app. Podrás invitarlo desde el menú de su fila.
             </p>
           )}

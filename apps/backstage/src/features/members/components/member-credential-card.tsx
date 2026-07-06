@@ -7,9 +7,9 @@ const CITY = "Santa Cruz de la Sierra, Bolivia";
 
 function Row({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-3.5 border-t border-line py-3 text-[14px]">
+    <div className="flex items-center gap-3.5 border-t border-line py-3 text-ui-md">
       <span className="flex shrink-0 text-ink-3">{icon}</span>
-      <span className="w-[112px] shrink-0 text-[12.5px] text-ink-3">{label}</span>
+      <span className="w-[112px] shrink-0 text-ui-xs text-ink-3">{label}</span>
       <span className="min-w-0 font-medium text-ink-1">{children}</span>
     </div>
   );
@@ -34,8 +34,8 @@ export function MemberCredentialCard({
     <Card as="section" padding="none" className="flex flex-col">
       <header className="flex items-center justify-between border-b border-line px-6 py-4">
         <div>
-          <h2 className="text-[15px] font-semibold text-ink-1">Tu credencial</h2>
-          <div className="mt-0.5 text-[12px] text-ink-3">Identidad de miembro · {CHAPTER}</div>
+          <h2 className="text-ui-lg font-semibold text-ink-1">Tu credencial</h2>
+          <div className="mt-0.5 text-ui-xs text-ink-3">Identidad de miembro · {CHAPTER}</div>
         </div>
         <span className="text-ink-3">{Icon.user({ s: 20 })}</span>
       </header>

@@ -32,13 +32,13 @@ export function CollapsibleSection({
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors duration-200 ease-expo hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-jci-blue"
       >
-        <span className="font-mono text-[12px] font-semibold text-jci-blue">{num}</span>
+        <span className="font-mono text-ui-xs font-semibold text-jci-blue">{num}</span>
         <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-jci-blue/12 text-jci-blue">
           {icon}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold text-ink-1">{title}</span>
-          <span className="block truncate text-[13px] text-ink-3">{desc}</span>
+          <span className="block truncate text-ui-sm text-ink-3">{desc}</span>
         </span>
         {count !== undefined && <Badge tone="blue">{count}</Badge>}
         <span className="text-ink-3">

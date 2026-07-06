@@ -20,11 +20,11 @@ function Cell({
 }) {
   return (
     <div className="min-w-0 sm:px-9 sm:first:pl-0">
-      <div className="mb-4 font-mono text-[10.5px] tracking-[0.16em] text-on-dark-3 uppercase">
+      <div className="mb-4 font-mono text-ui-2xs tracking-[0.16em] text-on-dark-3 uppercase">
         {eyebrow}
       </div>
       <div className="leading-[0.95]">{children}</div>
-      <div className="mt-3.5 text-[13.5px] leading-snug text-on-dark-2">{label}</div>
+      <div className="mt-3.5 text-ui-sm leading-snug text-on-dark-2">{label}</div>
     </div>
   );
 }
@@ -71,17 +71,17 @@ export function MemberPointsSummary({
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/15 pt-5">
         {last ? (
           <div className="flex items-center gap-3">
-            <span className="font-mono text-[10px] tracking-[0.14em] text-on-dark-3 uppercase">
+            <span className="font-mono text-ui-2xs tracking-[0.14em] text-on-dark-3 uppercase">
               Último registro
             </span>
-            <span className="text-[13.5px] font-medium tabular-nums text-on-dark-1">
+            <span className="text-ui-md font-medium tabular-nums text-on-dark-1">
               {last[0]} · <span className="font-semibold text-jci-yellow">+{last[1]} pts</span>
             </span>
           </div>
         ) : (
-          <span className="text-[13.5px] text-on-dark-3">Sin registros todavía</span>
+          <span className="text-ui-sm text-on-dark-3">Sin registros todavía</span>
         )}
-        <span className="font-serif text-[16px] text-jci-teal italic">Inspira.</span>
+        <span className="font-serif text-ui-lg text-jci-teal italic">Inspira.</span>
       </div>
     </div>
   );

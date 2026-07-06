@@ -16,18 +16,18 @@ export function CheckInStats({ attendance }: { attendance: Attendance }) {
           <span className="text-[26px] leading-none font-semibold tabular-nums text-ink-1">
             {present}
           </span>
-          <span className="mt-1 text-[11px] text-ink-3">presentes</span>
+          <span className="mt-1 text-ui-2xs text-ink-3">presentes</span>
         </div>
       </div>
 
       <div className="flex w-full flex-1 flex-col gap-3">
-        <p className="flex flex-wrap items-baseline gap-x-2 text-[15px] text-ink-2">
+        <p className="flex flex-wrap items-baseline gap-x-2 text-ui-lg text-ink-2">
           <strong className="text-[22px] font-semibold tabular-nums text-ink-1">{pct}%</strong>
           de asistencia
           <span className="text-ink-4" aria-hidden="true">
             ·
           </span>
-          <span className="text-[13px] text-ink-3 tabular-nums">
+          <span className="text-ui-sm text-ink-3 tabular-nums">
             {present} de {capacity} esperados
           </span>
         </p>

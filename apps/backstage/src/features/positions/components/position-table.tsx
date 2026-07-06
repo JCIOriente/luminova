@@ -96,7 +96,7 @@ export function PositionSection({
 }: PositionSectionProps) {
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-ink-3">{title}</h2>
+      <h2 className="text-ui-sm font-semibold uppercase tracking-[0.1em] text-ink-3">{title}</h2>
       {positions.length === 0 ? (
         <EmptyState
           title={variant === "cargo" ? "Sin cargos en esta categoría." : "Sin comisiones."}

@@ -169,12 +169,12 @@ export function InitiativeForm({
           <Input type="hidden" {...register("status")} />
           <div
             id="status-locked"
-            className="flex items-center gap-2 rounded-[10px] border border-line bg-surface-2 px-3 py-2 text-[14px] text-ink-2"
+            className="flex items-center gap-2 rounded-[10px] border border-line bg-surface-2 px-3 py-2 text-ui-md text-ink-2"
           >
             <span>{statusLabel("Finalizado")}</span>
             <span aria-hidden>🔒</span>
           </div>
-          <p className="mt-1 text-[12px] text-ink-3">
+          <p className="mt-1 text-ui-xs text-ink-3">
             No se puede reabrir una iniciativa finalizada.
           </p>
         </Field>
@@ -205,7 +205,7 @@ export function InitiativeForm({
               />
             )}
           />
-          <p className="text-[12px] text-ink-3">
+          <p className="text-ui-xs text-ink-3">
             Las iniciativas destacadas aparecen en la página pública de programas al finalizar.
           </p>
         </div>

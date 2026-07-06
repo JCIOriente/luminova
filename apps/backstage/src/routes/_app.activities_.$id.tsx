@@ -193,7 +193,7 @@ function ActivityDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link to="/activities" className="text-[13px] text-ink-3 hover:text-ink-1">
+      <Link to="/activities" className="text-ui-sm text-ink-3 hover:text-ink-1">
         ← Volver a Actividades
       </Link>
 
@@ -231,15 +231,15 @@ function ActivityDetailPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
           <div className="flex flex-col gap-6">
             <Card as="section">
-              <h2 className="font-mono text-[10.5px] tracking-[0.12em] text-ink-3 uppercase">
+              <h2 className="font-mono text-ui-2xs tracking-[0.12em] text-ink-3 uppercase">
                 Sobre la actividad
               </h2>
               {activity.description ? (
-                <p className="mt-3 text-[14px] leading-relaxed whitespace-pre-line text-ink-2">
+                <p className="mt-3 text-ui-md leading-relaxed whitespace-pre-line text-ink-2">
                   {activity.description}
                 </p>
               ) : (
-                <p className="mt-3 text-[13px] text-ink-3">
+                <p className="mt-3 text-ui-sm text-ink-3">
                   Edita la actividad para agregar una descripción.
                 </p>
               )}
@@ -289,7 +289,7 @@ function ActivityDetailPage() {
       {activeTab === "check-in" && (
         <div className="flex flex-col gap-4">
           {!canReadMembers && (
-            <p className="mx-auto max-w-md text-center text-[13px] text-ink-3">
+            <p className="mx-auto max-w-md text-center text-ui-sm text-ink-3">
               Modo escáner: registra asistencia con el lector QR.
             </p>
           )}

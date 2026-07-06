@@ -31,8 +31,8 @@ export function RoleManager() {
     <section className="flex flex-col gap-4">
       <header className="flex items-center justify-between">
         <div>
-          <h2 className="text-[15px] font-semibold text-ink-1">Roles</h2>
-          <p className="text-[13px] text-ink-3">
+          <h2 className="text-ui-lg font-semibold text-ink-1">Roles</h2>
+          <p className="text-ui-sm text-ink-3">
             Roles predefinidos y personalizados con sus permisos.
           </p>
         </div>
@@ -55,7 +55,7 @@ export function RoleManager() {
                   </Badge>
                   {role.locked && <Badge tone="gray">Protegido</Badge>}
                 </div>
-                <span className="text-[12px] text-ink-3">
+                <span className="text-ui-xs text-ink-3">
                   {role.permissions.length} permiso{role.permissions.length === 1 ? "" : "s"}
                 </span>
               </div>

@@ -90,17 +90,17 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
   return (
     <Card as="section" className="flex flex-col gap-4">
       <div>
-        <h2 className="text-[12px] font-medium uppercase tracking-[0.02em] text-ink-3">
+        <h2 className="text-ui-xs font-medium uppercase tracking-[0.02em] text-ink-3">
           Roles y permisos personalizados
         </h2>
-        <p className="text-[12px] text-ink-3">
+        <p className="text-ui-xs text-ink-3">
           Asigna roles personalizados u otorga/revoca permisos puntuales. Los cargos siguen
           confiriendo sus roles automáticamente.
         </p>
       </div>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-medium text-ink-2">Roles personalizados</span>
+        <span className="text-ui-sm font-medium text-ink-2">Roles personalizados</span>
         <MultiSelect
           options={customRoleOptions}
           value={roleIds}
@@ -110,7 +110,7 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-medium text-ink-2">Permisos adicionales (otorgar)</span>
+        <span className="text-ui-sm font-medium text-ink-2">Permisos adicionales (otorgar)</span>
         <MultiSelect
           options={CODE_OPTIONS}
           value={grant}
@@ -120,7 +120,7 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-medium text-ink-2">Permisos revocados</span>
+        <span className="text-ui-sm font-medium text-ink-2">Permisos revocados</span>
         <MultiSelect
           options={CODE_OPTIONS}
           value={revoke}
@@ -131,15 +131,15 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
 
       <div className="flex flex-col gap-2 border-t border-line pt-3">
         <div className="flex items-center justify-between">
-          <span className="text-[12px] font-medium uppercase tracking-[0.02em] text-ink-3">
+          <span className="text-ui-xs font-medium uppercase tracking-[0.02em] text-ink-3">
             Permisos efectivos
           </span>
-          <span className={`text-[12px] tabular-nums ${overCap ? "text-error" : "text-ink-3"}`}>
+          <span className={`text-ui-xs tabular-nums ${overCap ? "text-error" : "text-ink-3"}`}>
             {effective.length}/{PERMISSION_CAP}
           </span>
         </div>
         {effective.length === 0 ? (
-          <p className="text-[12px] text-ink-3">Sin permisos efectivos.</p>
+          <p className="text-ui-xs text-ink-3">Sin permisos efectivos.</p>
         ) : (
           <ul className="flex flex-wrap gap-1.5">
             {effective.map((code) => (
@@ -150,7 +150,7 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
           </ul>
         )}
         {overCap && (
-          <p role="alert" className="text-[12px] text-error">
+          <p role="alert" className="text-ui-xs text-error">
             Excede el máximo de {PERMISSION_CAP} permisos efectivos. Reduce roles u otorgamientos.
           </p>
         )}
@@ -160,9 +160,9 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
         <Button as="button" onClick={onSave} disabled={overCap || save.isPending}>
           {save.isPending ? "Guardando…" : "Guardar"}
         </Button>
-        {saved && !save.isPending && <span className="text-[12px] text-ink-3">Guardado.</span>}
+        {saved && !save.isPending && <span className="text-ui-xs text-ink-3">Guardado.</span>}
         {save.isError && (
-          <span role="alert" className="text-[12px] text-error">
+          <span role="alert" className="text-ui-xs text-error">
             No se pudo guardar.
           </span>
         )}

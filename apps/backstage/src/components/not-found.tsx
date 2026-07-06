@@ -30,7 +30,7 @@ export function NotFound() {
       <div className="motion-safe:animate-rise">
         <LogoLockup variant="inverted" size="sm" />
 
-        <p className="mt-9 font-mono text-[11px] tracking-[0.22em] text-jci-blue-75 uppercase">
+        <p className="mt-9 font-mono text-ui-2xs tracking-[0.22em] text-jci-blue-75 uppercase">
           Error 404
         </p>
 
@@ -52,7 +52,7 @@ export function NotFound() {
         <h1 className="mt-1 text-2xl font-light -tracking-[0.02em] text-on-dark-1">
           Página no encontrada
         </h1>
-        <p className="mx-auto mt-3 max-w-sm text-[15px] leading-relaxed text-on-dark-3">
+        <p className="mx-auto mt-3 max-w-sm text-ui-lg leading-relaxed text-on-dark-3">
           Esta ruta no existe o fue movida. Volvamos al panel.
         </p>
 

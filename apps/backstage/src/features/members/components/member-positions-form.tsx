@@ -95,12 +95,12 @@ export function MemberPositionsForm({
         />
       </Field>
       {locked && (
-        <p role="note" className="text-[12px] text-ink-3">
+        <p role="note" className="text-ui-xs text-ink-3">
           Solo un Admin puede cambiar los cargos de un miembro con permisos.
         </p>
       )}
       {formError && (
-        <div role="alert" className="text-[13px] text-error">
+        <div role="alert" className="text-ui-sm text-error">
           {formError}
         </div>
       )}

@@ -24,9 +24,9 @@ export function PermisosView({ rows, isLoading }: PermisosViewProps) {
         const info = PERMISSION_ROLE_INFO[row.role];
         return (
           <Card as="article" key={row.role}>
-            <h2 className="text-[15px] font-semibold text-ink-1">{info.label}</h2>
-            <p className="mt-1 text-[13.5px] text-ink-3">{info.description}</p>
-            <dl className="mt-4 flex flex-col gap-2 text-[13.5px]">
+            <h2 className="text-ui-lg font-semibold text-ink-1">{info.label}</h2>
+            <p className="mt-1 text-ui-sm text-ink-3">{info.description}</p>
+            <dl className="mt-4 flex flex-col gap-2 text-ui-sm">
               <div className="flex gap-2">
                 <dt className="text-ink-3">Otorgado por:</dt>
                 <dd className="text-ink-2">

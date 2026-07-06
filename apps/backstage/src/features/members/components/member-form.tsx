@@ -52,7 +52,7 @@ const EMPTY = {
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <h3 className="text-[12px] font-medium tracking-[0.02em] text-ink-3 uppercase">{children}</h3>
+    <h3 className="text-ui-xs font-medium tracking-[0.02em] text-ink-3 uppercase">{children}</h3>
   );
 }
 
@@ -137,7 +137,7 @@ export function MemberForm({
       {showPreview && (
         <Card padding="none" className="flex items-center gap-3 bg-surface-2 p-3.5 shadow-none">
           <span
-            className="flex size-11 shrink-0 items-center justify-center rounded-full text-[14px] font-semibold text-white"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full text-ui-md font-semibold text-white"
             style={{ backgroundColor: avatarColor(seed) }}
           >
             {initials(previewName || "")}
@@ -146,7 +146,7 @@ export function MemberForm({
             <div className="truncate font-semibold text-ink-1">
               {previewName?.trim() || "Nuevo miembro"}
             </div>
-            <div className="truncate text-[13px] text-ink-3">{previewRole}</div>
+            <div className="truncate text-ui-sm text-ink-3">{previewRole}</div>
           </div>
         </Card>
       )}
@@ -229,7 +229,7 @@ export function MemberForm({
           />
         </Field>
         {positionsLocked && (
-          <p role="note" className="text-[12px] text-ink-3">
+          <p role="note" className="text-ui-xs text-ink-3">
             Solo un Admin puede cambiar el cargo de un miembro con permisos. Puedes editar el resto
             de sus datos.
           </p>
@@ -262,7 +262,7 @@ export function MemberForm({
       {children}
 
       {formError && (
-        <div role="alert" className="text-[13px] text-error">
+        <div role="alert" className="text-ui-sm text-error">
           {formError}
         </div>
       )}

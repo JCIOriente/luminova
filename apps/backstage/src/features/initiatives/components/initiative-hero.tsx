@@ -36,9 +36,9 @@ export function InitiativeHero({ item, closingSoon, actions }: InitiativeHeroPro
               </Badge>
             )}
             {closedAt && (
-              <span className="text-[12px] font-medium text-ink-3">Cerrado en {closedAt}</span>
+              <span className="text-ui-xs font-medium text-ink-3">Cerrado en {closedAt}</span>
             )}
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-4">
+            <span className="text-ui-2xs font-semibold uppercase tracking-wide text-ink-4">
               {item.kind === "Program" ? "Programa" : "Proyecto"}
             </span>
           </div>
@@ -47,9 +47,7 @@ export function InitiativeHero({ item, closingSoon, actions }: InitiativeHeroPro
 
         <div>
           <h1 className="text-[24px] font-semibold leading-tight text-ink-1">{item.title}</h1>
-          <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-ink-2">
-            {item.description}
-          </p>
+          <p className="mt-2 max-w-2xl text-ui-md leading-relaxed text-ink-2">{item.description}</p>
         </div>
       </div>
     </Card>

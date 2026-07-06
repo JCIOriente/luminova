@@ -69,7 +69,7 @@ export function AppSidebar() {
         {visibleGroups.map((group) => (
           <div key={group.label} className="contents">
             {!collapsed && (
-              <div className="px-3 pt-4 pb-2 font-mono text-[10px] tracking-[0.16em] text-ink-3 uppercase">
+              <div className="px-3 pt-4 pb-2 font-mono text-ui-2xs tracking-[0.16em] text-ink-3 uppercase">
                 {group.label}
               </div>
             )}
@@ -78,7 +78,7 @@ export function AppSidebar() {
                 <Link
                   to={item.to}
                   activeOptions={{ exact: item.exact ?? false }}
-                  className={`group relative flex items-center gap-3 rounded-[10px] py-2.5 text-[14px] font-medium text-ink-2 transition-colors hover:bg-ink-1/[0.04] hover:text-ink-1 [&.active]:bg-jci-blue/10 [&.active]:font-semibold [&.active]:text-jci-blue ${collapsed ? "justify-center px-2" : "px-3"}`}
+                  className={`group relative flex items-center gap-3 rounded-[10px] py-2.5 text-ui-md font-medium text-ink-2 transition-colors hover:bg-ink-1/[0.04] hover:text-ink-1 [&.active]:bg-jci-blue/10 [&.active]:font-semibold [&.active]:text-jci-blue ${collapsed ? "justify-center px-2" : "px-3"}`}
                 >
                   <span className="absolute -left-3 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r bg-jci-blue opacity-0 transition-opacity group-[.active]:opacity-100" />
                   <span className="flex size-[22px] shrink-0 items-center justify-center">
@@ -115,12 +115,12 @@ export function AppSidebar() {
         <div
           className={`flex items-center gap-2.5 rounded-[11px] p-2 ${collapsed ? "justify-center" : ""}`}
         >
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-jci-navy text-[13px] font-semibold text-white">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-jci-navy text-ui-sm font-semibold text-white">
             {initials(label)}
           </span>
           {!collapsed && (
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13.5px] font-semibold text-ink-1">{label}</div>
+              <div className="truncate text-ui-md font-semibold text-ink-1">{label}</div>
               <Button as="button" variant="link" tone="danger" onClick={onLogout}>
                 Cerrar sesión
               </Button>

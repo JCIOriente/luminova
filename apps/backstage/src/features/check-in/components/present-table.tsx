@@ -20,7 +20,7 @@ const columns: DataTableColumn<RosterEntry>[] = [
         <Avatar src={e.src} name={e.name} size={32} />
         <span className="flex flex-col">
           <span className="font-semibold text-ink-1">{e.name}</span>
-          {e.profession && <span className="text-[12px] text-ink-3">{e.profession}</span>}
+          {e.profession && <span className="text-ui-xs text-ink-3">{e.profession}</span>}
         </span>
       </span>
     ),

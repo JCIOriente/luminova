@@ -186,7 +186,7 @@ function InitiativeDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link to="/initiatives" className="text-[13px] text-ink-3 hover:text-ink-1">
+      <Link to="/initiatives" className="text-ui-sm text-ink-3 hover:text-ink-1">
         ← Volver a Proyectos
       </Link>
 
@@ -232,7 +232,7 @@ function InitiativeDetailPage() {
               <InitiativeSummary item={item} progress={progress} />
             )}
             <Card as="section" className="flex flex-col gap-3">
-              <h2 className="text-[15px] font-semibold text-ink-1">Destacadas</h2>
+              <h2 className="text-ui-lg font-semibold text-ink-1">Destacadas</h2>
               {canManagePhotos ? (
                 <PhotoManager
                   photos={item.photos}

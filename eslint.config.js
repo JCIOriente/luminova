@@ -42,6 +42,17 @@ export default tseslint.config(
           selector: "JSXOpeningElement[name.name='table']",
           message: "Use <Table> from @luminova/ui instead of a raw <table>.",
         },
+        {
+          // Compact type scale (packages/ui/src/theme.css): sub-18px font sizes
+          // are owned by text-ui-2xs/xs/sm/md/lg. An arbitrary text-[Npx] with
+          // N<18 is a regression — map it (<=11->2xs, 12->xs, 13->sm, 14->md,
+          // 15/16/17->lg). Sizes >=18px (hero/stat/date numerals) don't match
+          // and stay allowed. Spotlight uses the fluid brand scale (0 sub-18
+          // arbitrary sizes today), so this is effectively a backstage guard.
+          selector: "Literal[value=/text-\\[(?:[0-9]|1[0-7])(?:\\.[0-9]+)?px\\]/]",
+          message:
+            "Arbitrary sub-18px font-size: use the text-ui-* compact scale from @luminova/ui (see DESIGN.md).",
+        },
       ],
     },
   },

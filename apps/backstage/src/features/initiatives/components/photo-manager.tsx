@@ -111,7 +111,7 @@ function PhotoThumbnail({
             aria-label="Hacer portada"
             disabled={isDisabled}
             onClick={() => void handleSetCover()}
-            className="min-h-11 min-w-11 rounded-[8px] px-2 text-[13px] font-medium text-ink-2 transition-colors hover:text-ink-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-11 min-w-11 rounded-[8px] px-2 text-ui-sm font-medium text-ink-2 transition-colors hover:text-ink-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue disabled:cursor-not-allowed disabled:opacity-50"
           >
             Hacer portada
           </button>
@@ -137,7 +137,7 @@ function PhotoThumbnail({
               onBlur={() => {
                 if (!committingRef.current) void commitCaption();
               }}
-              className="h-9 text-[13px]"
+              className="h-9 text-ui-sm"
             />
           </div>
         ) : (
@@ -146,14 +146,14 @@ function PhotoThumbnail({
             aria-label="Editar descripción"
             disabled={isDisabled}
             onClick={() => setEditingCaption(true)}
-            className="min-h-11 min-w-11 rounded-[8px] px-2 text-[13px] font-medium text-ink-2 transition-colors hover:text-ink-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-11 min-w-11 rounded-[8px] px-2 text-ui-sm font-medium text-ink-2 transition-colors hover:text-ink-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue disabled:cursor-not-allowed disabled:opacity-50"
           >
             {photo.caption ? "Editar pie" : "Añadir pie"}
           </button>
         )}
 
         {confirmingRemove ? (
-          <span className="flex items-center gap-1.5 text-[13px]">
+          <span className="flex items-center gap-1.5 text-ui-sm">
             <span className="text-ink-2">¿Quitar?</span>
             <button
               type="button"
@@ -180,7 +180,7 @@ function PhotoThumbnail({
             aria-label="Quitar foto"
             disabled={isDisabled}
             onClick={() => setConfirmingRemove(true)}
-            className="min-h-11 min-w-11 ml-auto rounded-[8px] px-2 text-[13px] font-medium text-error transition-colors hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-11 min-w-11 ml-auto rounded-[8px] px-2 text-ui-sm font-medium text-error transition-colors hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue disabled:cursor-not-allowed disabled:opacity-50"
           >
             Quitar
           </button>

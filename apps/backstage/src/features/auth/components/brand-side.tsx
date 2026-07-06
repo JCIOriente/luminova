@@ -50,7 +50,7 @@ export function BrandSide({
       <div className="max-w-[480px] animate-rise motion-reduce:animate-none">
         <div
           className={cn(
-            "mb-6 inline-flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-[0.22em] before:h-px before:w-6 before:bg-current before:opacity-70",
+            "mb-6 inline-flex items-center gap-2.5 font-mono text-ui-2xs uppercase tracking-[0.22em] before:h-px before:w-6 before:bg-current before:opacity-70",
             blue ? "text-white/85" : "text-jci-blue-75",
           )}
         >
@@ -59,13 +59,13 @@ export function BrandSide({
         <h2 className="text-[clamp(40px,4.6vw,60px)] font-light leading-[1.02] -tracking-[0.03em]">
           {title}
         </h2>
-        <p className="mt-4 font-serif text-[17px] italic text-on-dark-3">
+        <p className="mt-4 font-serif text-ui-lg italic text-on-dark-3">
           A fire shared never dies.
         </p>
-        <p className="mt-6 max-w-[420px] text-[16.5px] leading-[1.62] text-on-dark-2">{lead}</p>
+        <p className="mt-6 max-w-[420px] text-ui-lg leading-[1.62] text-on-dark-2">{lead}</p>
       </div>
 
-      <div className="flex w-full items-center gap-4 font-mono text-[10.5px] uppercase tracking-[0.16em] text-on-dark-3">
+      <div className="flex w-full items-center gap-4 font-mono text-ui-2xs uppercase tracking-[0.16em] text-on-dark-3">
         {META.map((label, i) => (
           <span key={label} className="inline-flex items-center gap-4">
             {i > 0 && (

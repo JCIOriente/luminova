@@ -40,13 +40,13 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         <LogoLockup variant="default" size="sm" />
       </div>
 
-      <div className="mb-4 font-mono text-[10.5px] uppercase tracking-[0.2em] text-jci-blue">
+      <div className="mb-4 font-mono text-ui-2xs uppercase tracking-[0.2em] text-jci-blue">
         Backstage · Acceso privado
       </div>
       <h1 className="text-[31px] font-normal leading-[1.1] -tracking-[0.025em] text-ink-1">
         Bienvenida de nuevo
       </h1>
-      <p className="mt-2.5 text-[14.5px] leading-[1.5] text-ink-3">
+      <p className="mt-2.5 text-ui-md leading-[1.5] text-ink-3">
         Inicia sesión para coordinar a la directiva de JCI Oriente.
       </p>
 
@@ -71,12 +71,12 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <label htmlFor="password" className="text-[13px] font-semibold text-ink-1">
+            <label htmlFor="password" className="text-ui-sm font-semibold text-ink-1">
               Contraseña
             </label>
             <Link
               to="/forgot-password"
-              className="text-[12.5px] font-semibold text-jci-blue transition-colors hover:text-jci-blue-2"
+              className="text-ui-xs font-semibold text-jci-blue transition-colors hover:text-jci-blue-2"
             >
               ¿La olvidaste?
             </Link>
@@ -108,7 +108,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
             <div
               id="password-err"
               role="alert"
-              className="flex items-center gap-1.5 text-[13px] text-error"
+              className="flex items-center gap-1.5 text-ui-sm text-error"
             >
               {Icon.close({ s: 13 })}
               {errors.password.message}
@@ -119,7 +119,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         <Checkbox checked={remember} onChange={setRemember} label="Recordarme" />
 
         {formError && (
-          <div role="alert" className="text-[13px] text-error">
+          <div role="alert" className="text-ui-sm text-error">
             {formError}
           </div>
         )}
@@ -141,7 +141,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         </Button>
       </form>
 
-      <p className="mt-9 text-[12.5px] leading-[1.5] text-ink-3">
+      <p className="mt-9 text-ui-xs leading-[1.5] text-ink-3">
         ¿Aún no tienes acceso? La cuenta la crea la directiva.{" "}
         <a
           href="mailto:jci.orienteolm@gmail.com"

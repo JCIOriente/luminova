@@ -66,14 +66,14 @@ export function InitiativeCard({
               Por cerrar
             </Badge>
           )}
-          <span className="ml-auto text-[11px] font-semibold uppercase tracking-wide text-ink-4">
+          <span className="ml-auto text-ui-2xs font-semibold uppercase tracking-wide text-ink-4">
             {item.kind === "Program" ? "Programa" : "Proyecto"}
           </span>
         </div>
 
         <div>
-          <h3 className="text-[15px] font-semibold leading-snug text-ink-1">{item.title}</h3>
-          <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-ink-2">
+          <h3 className="text-ui-lg font-semibold leading-snug text-ink-1">{item.title}</h3>
+          <p className="mt-1 line-clamp-2 text-ui-sm leading-relaxed text-ink-2">
             {item.description}
           </p>
         </div>
@@ -81,11 +81,11 @@ export function InitiativeCard({
         <div className="mt-auto flex flex-col gap-3 pt-1">
           <div className="flex items-center gap-2">
             <ProgressBar value={pct} label={`Avance ${pct}%`} className="flex-1" />
-            <span className="text-[12px] font-semibold tabular-nums text-ink-2">{pct}%</span>
+            <span className="text-ui-xs font-semibold tabular-nums text-ink-2">{pct}%</span>
           </div>
           <div className="flex items-center justify-between">
             <AvatarStack people={people} max={3} />
-            <span className="flex items-center gap-1.5 text-[12px] font-medium text-ink-3">
+            <span className="flex items-center gap-1.5 text-ui-xs font-medium text-ink-3">
               {Icon.calendar({ s: 14 })}
               {formatMonthYear(item.endDate)}
             </span>

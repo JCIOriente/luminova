@@ -63,8 +63,8 @@ export function ParticipationLedger({
     <Card as="section" padding="none">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-4">
         <div>
-          <h2 className="text-[15px] font-semibold text-ink-1">Proyectos y actividades</h2>
-          <div className="mt-0.5 text-[12px] text-ink-3">
+          <h2 className="text-ui-lg font-semibold text-ink-1">Proyectos y actividades</h2>
+          <div className="mt-0.5 text-ui-xs text-ink-3">
             {plural(activityCount, "actividad", "actividades")}
             {projects.length > 0 && ` · ${plural(projects.length, "iniciativa", "iniciativas")}`}
           </div>
@@ -102,7 +102,7 @@ export function ParticipationLedger({
                   {row.activityTitle ?? POINT_RULE_LABELS[row.pointRuleCode]}
                 </div>
                 {row.activityTitle && (
-                  <div className="mt-0.5 text-[12.5px] text-ink-3">
+                  <div className="mt-0.5 text-ui-xs text-ink-3">
                     {POINT_RULE_LABELS[row.pointRuleCode]}
                   </div>
                 )}
@@ -125,7 +125,7 @@ export function ParticipationLedger({
                 </Badge>
               </TableCell>
               <TableCell>
-                <span className="font-mono text-[12px] tracking-[0.02em] text-ink-2">
+                <span className="font-mono text-ui-xs tracking-[0.02em] text-ink-2">
                   {row.monthBucket}
                 </span>
               </TableCell>
@@ -135,12 +135,12 @@ export function ParticipationLedger({
       </Table>
 
       <div className="flex items-center justify-between border-t border-line px-6 py-4">
-        <span className="text-[13px] font-medium text-ink-3">
+        <span className="text-ui-sm font-medium text-ink-3">
           Total confirmado · temporada {termId}
         </span>
-        <span className="text-[16px] font-semibold text-ink-1 tabular-nums">
+        <span className="text-ui-lg font-semibold text-ink-1 tabular-nums">
           {totalPoints}
-          <span className="ml-1 text-[12px] font-medium text-ink-3">pts</span>
+          <span className="ml-1 text-ui-xs font-medium text-ink-3">pts</span>
         </span>
       </div>
     </Card>

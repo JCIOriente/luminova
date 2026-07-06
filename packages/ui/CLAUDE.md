@@ -51,10 +51,18 @@ not shadcn's separate theme-var system (as Tooltip/Popover/Dialog do).
 Single source of truth. Tailwind v4 `@theme` block: brand colors + sanctioned
 tints (`jci-blue-75/50/25`, `jci-teal-50`, `jci-navy-50`) + ink/surface/line +
 on-dark inks (`on-dark-1/2/3`) (all `--color-*` → `text-ink-2`, `bg-surface`,
-`border-line`, `text-on-dark-2` utilities), fonts (`font-sans/serif/mono`), brand
-type scale (`text-display/title/subtitle/quote`), radii (`rounded-card/pill`),
-easing (`ease-expo`), and the `ripple-spin` / `toast-in` animations. Exported as
-`@luminova/ui/theme.css`.
+`border-line`, `text-on-dark-2` utilities), fonts (`font-sans/serif/mono`), radii
+(`rounded-card/pill`), easing (`ease-expo`), and the `ripple-spin` / `toast-in`
+animations. Exported as `@luminova/ui/theme.css`.
+
+**Two type scales.** Brand/fluid (`text-display/title/subtitle/quote`,
+`clamp()`) for marketing + hero. **Compact/fixed** for backstage density —
+`text-ui-2xs` 11px · `text-ui-xs` 12 · `text-ui-sm` 13 (workhorse) · `text-ui-md`
+14 · `text-ui-lg` 15, each with a bundled default line-height (`leading-*` still
+overrides). Named by size, not role — pick by size, carry intent with weight +
+color. Floor 11px. App code must not reintroduce arbitrary `text-[Npx]` for
+N<18 (an `eslint` `no-restricted-syntax` rule enforces it); sizes ≥18px are
+component-owned display literals. Full table + rationale in `DESIGN.md`.
 
 ## Claude Design sync
 

@@ -44,13 +44,13 @@ function PermisosPage() {
         title="Permisos"
         subtitle="Quién puede hacer qué, según los cargos asignados."
         actions={
-          <Link to="/positions" className="text-[14px] text-jci-blue hover:underline">
+          <Link to="/positions" className="text-ui-md text-jci-blue hover:underline">
             Editar permisos →
           </Link>
         }
       />
       <PermisosView rows={rows} isLoading={isLoading} />
-      <p className="text-[12px] text-ink-3">
+      <p className="text-ui-xs text-ink-3">
         Refleja los cargos del catálogo. Los permisos efectivos de cada miembro se sincronizan al
         iniciar sesión.
       </p>
