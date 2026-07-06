@@ -6,7 +6,10 @@ export const BOLIVIA_OFFSET_MS = 4 * 60 * 60 * 1000;
 // Activity instants are the input wall-clock pinned to UTC (see activity-mapper),
 // so every formatter renders in UTC to show exactly what was scheduled,
 // independent of the viewer's timezone.
-const DATE_TIME = new Intl.DateTimeFormat("es-BO", {
+// Marked /* @__PURE__ */ so each consuming app tree-shakes the formatters it
+// never calls (spotlight uses only the month formatters; backstage never uses
+// MONTH_YEAR_LONG). Bundlers otherwise keep bare `new X()` as a side effect.
+const DATE_TIME = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
   day: "numeric",
   month: "short",
   year: "numeric",
@@ -15,24 +18,27 @@ const DATE_TIME = new Intl.DateTimeFormat("es-BO", {
   hour12: false,
   timeZone: "UTC",
 });
-const MONTH_SHORT = new Intl.DateTimeFormat("es-BO", { month: "short", timeZone: "UTC" });
-const MONTH_YEAR = new Intl.DateTimeFormat("es-BO", {
+const MONTH_SHORT = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
+  month: "short",
+  timeZone: "UTC",
+});
+const MONTH_YEAR = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
   month: "short",
   year: "numeric",
   timeZone: "UTC",
 });
-const MONTH_YEAR_LONG = new Intl.DateTimeFormat("es-BO", {
+const MONTH_YEAR_LONG = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
   month: "long",
   year: "numeric",
   timeZone: "UTC",
 });
-const DATE_ONLY = new Intl.DateTimeFormat("es-BO", {
+const DATE_ONLY = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
   day: "numeric",
   month: "short",
   year: "numeric",
   timeZone: "UTC",
 });
-const TIME_ONLY = new Intl.DateTimeFormat("es-BO", {
+const TIME_ONLY = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
