@@ -5,7 +5,7 @@ import { useShowcaseItem } from "../showcase/use-showcase";
 import { ImpactBand } from "../components/showcase/impact-band";
 import { PhotoGallery } from "../components/showcase/photo-gallery";
 import { TeamCredits } from "../components/showcase/team-credits";
-import { formatDateRange } from "../components/showcase/format";
+import { formatDateRange } from "@luminova/utils/datetime";
 import { NotFound } from "../components/not-found";
 
 export const Route = createFileRoute("/impacto/$id")({
