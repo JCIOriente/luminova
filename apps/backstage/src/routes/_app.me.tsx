@@ -12,6 +12,7 @@ import { useMemberPointsByTerm } from "../features/members/hooks/use-member-poin
 import { useActivitiesByTerm } from "../features/activities/hooks/use-activities-by-term";
 import { useInitiativesByTerm } from "../features/initiatives/hooks/use-initiatives-by-term";
 import { usePositions } from "../features/positions/hooks/use-positions";
+import { joinYear } from "../features/members/lib/member-display";
 import { summarizeParticipations } from "../features/members/lib/participation-summary";
 import { MemberPointsSummary } from "../features/members/components/member-points-summary";
 import { MemberCredentialCard } from "../features/members/components/member-credential-card";
@@ -68,7 +69,7 @@ export function MemberHome() {
   const cargoId = member.positions?.[termId]?.cargoId ?? null;
   const cargo = cargoId ? positionsById.get(cargoId) : null;
   const role = cargo ? positionTitle(cargo, member.gender) : "Miembro";
-  const joinYear = member.joinDate ? member.joinDate.toDate().getFullYear() : null;
+  const memberJoinYear = member.joinDate ? joinYear(member.joinDate) : null;
   const qrValue = encodeMemberQr(member.id);
 
   return (
@@ -87,7 +88,7 @@ export function MemberHome() {
           memberId={member.id}
           name={member.name}
           src={member.profilePicture}
-          joinYear={joinYear}
+          joinYear={memberJoinYear}
           role={role}
         />
         <Card as="section" padding="none" className="flex flex-col">

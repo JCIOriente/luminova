@@ -17,6 +17,7 @@
     "@luminova/firebase": "workspace:*",
     "@luminova/types": "workspace:*",
     "@luminova/ui": "workspace:*",
+    "@luminova/utils": "workspace:*",
     "@tanstack/react-router": "^1.170.11",
     "clsx": "^2.1.1",
     "firebase": "12.14.0",

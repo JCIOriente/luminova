@@ -3,7 +3,12 @@ import type { Activity, Ally, Member, MemberPoints } from "@luminova/types";
 import type { KpiTrend } from "@luminova/ui";
 import type { InitiativeListItem } from "../../features/initiatives/lib/initiative-list-item";
 import { filterActivities } from "../../features/activities/lib/activity-filter";
-import { BOLIVIA_OFFSET_MS, formatDateChip, formatTime, monthKeyToLabel } from "../../lib/datetime";
+import {
+  BOLIVIA_OFFSET_MS,
+  formatDateChip,
+  formatTime,
+  monthKeyToLabel,
+} from "@luminova/utils/datetime";
 
 type DashboardKpi = { value: number; trend: KpiTrend | undefined };
 

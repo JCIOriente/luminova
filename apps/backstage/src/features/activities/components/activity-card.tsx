@@ -4,7 +4,7 @@ import type { Activity } from "@luminova/types";
 import { CATEGORY_LABELS } from "../category-labels";
 import { ACTIVITY_STATUS_TONE } from "../lib/status-tone";
 import { CATEGORY_TONE, TONE_COVER_BG, TONE_RIPPLE_COLOR } from "../lib/category-tone";
-import { formatDateChip, formatDateTime } from "../../../lib/datetime";
+import { formatDateChip, formatDateTime } from "@luminova/utils/datetime";
 import { locationKind } from "../lib/location-kind";
 
 export interface CardDirector {

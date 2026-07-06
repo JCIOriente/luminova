@@ -1,5 +1,5 @@
 import type { Activity } from "@luminova/types";
-import { boliviaDayKey } from "../../../lib/datetime";
+import { boliviaDayKey } from "@luminova/utils/datetime";
 
 type WindowActivity = Pick<Activity, "startAt" | "status">;
 

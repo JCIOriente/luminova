@@ -10,7 +10,7 @@ import {
 } from "@luminova/ui";
 import { AREA_OF_OPPORTUNITY_LABELS } from "@luminova/types";
 import { COVER_STRIP, areaTone, statusLabel, statusTone } from "../features/initiatives/lib/derive";
-import { formatMonthYear } from "../lib/datetime";
+import { formatMonthYear } from "@luminova/utils/datetime";
 import type { InitiativeListItem } from "../features/initiatives/lib/initiative-list-item";
 
 interface InitiativeCardProps {
