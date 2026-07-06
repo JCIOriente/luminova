@@ -33,6 +33,7 @@ export type { ChartSeries } from "./components/line-chart";
 export { KpiCard, type KpiTone, type KpiTrend } from "./components/kpi-card";
 export { Skeleton } from "./components/skeleton";
 export { EmptyState } from "./components/empty-state";
+export { ErrorState } from "./components/error-state";
 export { Popover } from "./components/popover";
 export { Combobox, type ComboboxOption } from "./components/combobox";
 export { DatePicker, DateTimePicker } from "./components/date-picker";
