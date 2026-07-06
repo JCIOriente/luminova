@@ -13,7 +13,7 @@ interface MemberFilterMetaProps {
 
 function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-pill border border-line bg-surface px-3 py-1 text-[12.5px] font-medium text-ink-2">
+    <span className="inline-flex items-center gap-1.5 rounded-pill border border-line bg-surface px-3 py-1 text-ui-xs font-medium text-ink-2">
       {label}
       <button
         type="button"
@@ -48,7 +48,7 @@ export function MemberFilterMeta({
   const anyActive = hasSearch || hasStatus;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-ink-3">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-ui-sm text-ink-3">
       <span>
         Mostrando {shown} de {total}
       </span>

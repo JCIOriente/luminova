@@ -7,18 +7,18 @@ export function MemberPermissionsPanel({ roles }: { roles: Role[] }) {
     <Card as="section" aria-labelledby="cargos-asignados-title" className="flex flex-col gap-3">
       <h2
         id="cargos-asignados-title"
-        className="text-[12px] font-medium tracking-[0.02em] text-ink-3 uppercase"
+        className="text-ui-xs font-medium tracking-[0.02em] text-ink-3 uppercase"
       >
         Cargos asignados
       </h2>
-      <p className="text-[12px] text-ink-3">Permisos que otorga el cargo asignado.</p>
+      <p className="text-ui-xs text-ink-3">Permisos que otorga el cargo asignado.</p>
       <ul className="flex flex-col gap-3">
         {roles.map((role) => {
           const info = PERMISSION_ROLE_INFO[role];
           return (
             <li key={role} className="flex flex-col gap-0.5">
               <span className="font-semibold text-ink-1">{info.label}</span>
-              <span className="text-[13px] text-ink-2">{info.description}</span>
+              <span className="text-ui-sm text-ink-2">{info.description}</span>
             </li>
           );
         })}

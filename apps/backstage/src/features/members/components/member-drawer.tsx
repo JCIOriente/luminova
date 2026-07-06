@@ -34,8 +34,8 @@ const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
 function Detail({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-[12px] font-medium tracking-[0.02em] text-ink-3 uppercase">{label}</dt>
-      <dd className="text-[15px] text-ink-1">{value}</dd>
+      <dt className="text-ui-xs font-medium tracking-[0.02em] text-ink-3 uppercase">{label}</dt>
+      <dd className="text-ui-lg text-ink-1">{value}</dd>
     </div>
   );
 }
@@ -98,7 +98,7 @@ function ViewBody({
         <Link
           to="/members/$memberId"
           params={{ memberId: member.id }}
-          className="text-center text-[14px] font-semibold text-jci-blue transition-colors hover:text-jci-navy"
+          className="text-center text-ui-md font-semibold text-jci-blue transition-colors hover:text-jci-navy"
         >
           Ver perfil completo
         </Link>
