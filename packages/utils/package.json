@@ -1,0 +1,21 @@
+{
+  "name": "@luminova/utils",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./datetime": "./src/datetime.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc --noEmit",
+    "ci": "eslint . && tsc --noEmit && vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@luminova/types": "workspace:*"
+  }
+}
