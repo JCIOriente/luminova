@@ -13,6 +13,7 @@ import { computeAttendance } from "../lib/attendance";
 import { canRemoveEntry } from "../lib/can-remove-entry";
 import { decodeMemberQr } from "../../../lib/member-qr";
 import { useAbility } from "../../../lib/authz/ability-context";
+import { QueryErrorState } from "../../../components/query-error-state";
 
 interface ActivityCheckInProps {
   activityId: string;
@@ -24,7 +25,7 @@ interface ActivityCheckInProps {
 const DISMISS_MS = 2800;
 
 export function ActivityCheckIn({ activityId, members, open = true }: ActivityCheckInProps) {
-  const { data: checkIns } = useActivityCheckIns(activityId);
+  const { data: checkIns, isError, error, refetch } = useActivityCheckIns(activityId);
   const create = useCreateCheckIn(activityId);
   const remove = useRemoveCheckIn(activityId);
   const ability = useAbility();
@@ -120,6 +121,7 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
       />
     );
   }
+  if (isError) return <QueryErrorState error={error} onRetry={() => refetch()} />;
 
   return (
     <div className="flex flex-col gap-5">

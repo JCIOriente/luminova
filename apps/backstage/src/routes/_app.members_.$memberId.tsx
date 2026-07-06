@@ -7,6 +7,7 @@ import { useAbility } from "../lib/authz/ability-context";
 import { ActionGate } from "../lib/authz/action-gate";
 import { useCan } from "../lib/authz/use-can";
 import { PageHeader } from "../components/page-header";
+import { QueryErrorState } from "../components/query-error-state";
 import { encodeMemberQr } from "../lib/member-qr";
 import { useMember } from "../features/members/hooks/use-member";
 import { useMemberPoints } from "../features/members/hooks/use-member-points";
@@ -58,7 +59,7 @@ function MemberProfilePage() {
   const termId = currentTermKey();
   const ability = useAbility();
   const gate = useCan();
-  const { data: member, isLoading } = useMember(memberId);
+  const { data: member, isLoading, isError, error, refetch } = useMember(memberId);
   const { data: positions } = usePositions();
   const { data: points } = useMemberPoints(memberId, termId);
   const { data: participations } = useMemberParticipations(memberId, termId);
@@ -90,6 +91,7 @@ function MemberProfilePage() {
   );
 
   if (isLoading) return <p className="text-ink-3">Cargando…</p>;
+  if (isError) return <QueryErrorState error={error} onRetry={() => refetch()} />;
   if (!member) {
     return (
       <div className="flex flex-col gap-4">

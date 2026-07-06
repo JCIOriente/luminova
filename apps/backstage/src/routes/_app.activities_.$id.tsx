@@ -26,6 +26,7 @@ import { useUpdateActivity } from "../features/activities/hooks/use-update-activ
 import { useCancelActivity } from "../features/activities/hooks/use-cancel-activity";
 import { ActivityRepository } from "../features/activities/repositories/activity-repository";
 import { ActivityLockedError } from "../features/activities/repositories/activity-guard";
+import { QueryErrorState } from "../components/query-error-state";
 import { ActivityForm } from "../features/activities/components/activity-form";
 import { ActivityDetailHero } from "../features/activities/components/activity-detail-hero";
 import { ActivityTeam } from "../features/activities/components/activity-team";
@@ -61,7 +62,13 @@ function ActivityDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [toast, setToast] = useDismissingToast();
 
-  const { data: activity, isLoading } = useActivity(id, { enabled: canRead });
+  const {
+    data: activity,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useActivity(id, { enabled: canRead });
   const { data: members } = useMembers({ enabled: canReadMembers });
   // Programs/projects only feed the parent link + the edit sheet's parent picker;
   // skip the reads on parentless activities until the edit sheet is opened.
@@ -128,6 +135,7 @@ function ActivityDetailPage() {
     );
   }
   if (isLoading) return <p className="text-ink-3">Cargando…</p>;
+  if (isError) return <QueryErrorState error={error} onRetry={() => refetch()} />;
   if (!activity) {
     return (
       <div className="flex flex-col gap-4">

@@ -24,6 +24,7 @@ import { useCompleteInitiative } from "../features/initiatives/hooks/use-complet
 import { useInitiativePhotos } from "../features/initiatives/hooks/use-initiative-photos";
 import { useDismissingToast } from "../lib/use-dismissing-toast";
 import { InitiativeForm } from "../components/initiative-form";
+import { QueryErrorState } from "../components/query-error-state";
 import { InitiativeHero } from "../features/initiatives/components/initiative-hero";
 import { InitiativeSummary } from "../features/initiatives/components/initiative-summary";
 import { InitiativeTeamRail } from "../features/initiatives/components/initiative-team-rail";
@@ -74,7 +75,13 @@ function InitiativeDetailPage() {
   const canCreateActivity = ability.can("create", "Activity");
   const canReadMembers = ability.can("read", "Member");
 
-  const { data: item, isLoading } = useInitiative(initiativeType, id, { enabled: canRead });
+  const {
+    data: item,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useInitiative(initiativeType, id, { enabled: canRead });
   const { data: activities } = useActivitiesByTerm(termId, { enabled: canRead });
   const { data: members } = useMembers({ enabled: canReadMembers });
 
@@ -99,6 +106,7 @@ function InitiativeDetailPage() {
   );
 
   if (isLoading) return <p className="text-ink-3">Cargando…</p>;
+  if (isError) return <QueryErrorState error={error} onRetry={() => refetch()} />;
   if (!item) {
     return (
       <div className="flex flex-col gap-4">
