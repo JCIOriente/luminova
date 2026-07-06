@@ -96,13 +96,13 @@ export function AllyForm({
           disabled={isSubmitting}
         />
       ) : (
-        <p className="text-[13px] text-ink-2">
+        <p className="text-ui-sm text-ink-2">
           Guarda el aliado y vuelve a editarlo para añadir su logo.
         </p>
       )}
 
       {formError && (
-        <div role="alert" className="text-[13px] text-error">
+        <div role="alert" className="text-ui-sm text-error">
           {formError}
         </div>
       )}

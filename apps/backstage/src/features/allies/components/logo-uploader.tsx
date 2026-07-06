@@ -52,7 +52,7 @@ export function LogoUploader({ currentSrc, onUpload, onRemove, disabled }: LogoU
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[13px] font-medium text-ink-1">Logo</span>
+      <span className="text-ui-sm font-medium text-ink-1">Logo</span>
       {currentSrc && (
         <img
           src={currentSrc}
@@ -66,20 +66,20 @@ export function LogoUploader({ currentSrc, onUpload, onRemove, disabled }: LogoU
         accept="image/png,image/jpeg"
         disabled={disabled || busy}
         onChange={(e) => void onFile(e)}
-        className="h-auto py-2 text-[13px]"
+        className="h-auto py-2 text-ui-sm"
       />
       {currentSrc && (
         <button
           type="button"
           disabled={disabled || busy}
           onClick={() => void handleRemove()}
-          className="self-start text-[13px] font-medium text-error transition-colors hover:opacity-80 disabled:opacity-50"
+          className="self-start text-ui-sm font-medium text-error transition-colors hover:opacity-80 disabled:opacity-50"
         >
           Quitar logo
         </button>
       )}
       {error && (
-        <div role="alert" className="text-[13px] text-error">
+        <div role="alert" className="text-ui-sm text-error">
           {error}
         </div>
       )}

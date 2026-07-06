@@ -29,19 +29,19 @@ export function ForgotPasswordForm() {
   if (sent) {
     return (
       <div className="flex w-full max-w-[392px] flex-col">
-        <div className="mb-4 font-mono text-[10.5px] uppercase tracking-[0.2em] text-jci-blue">
+        <div className="mb-4 font-mono text-ui-2xs uppercase tracking-[0.2em] text-jci-blue">
           Backstage · Recuperación
         </div>
         <h1 className="text-[31px] font-normal leading-[1.1] -tracking-[0.025em] text-ink-1">
           Revisa tu correo
         </h1>
-        <p className="mt-2.5 text-[14.5px] leading-[1.5] text-ink-3">
+        <p className="mt-2.5 text-ui-md leading-[1.5] text-ink-3">
           Si existe una cuenta con ese correo, te enviamos un enlace para restablecer tu contraseña.
           Revisa también la carpeta de spam.
         </p>
         <Link
           to="/login"
-          className="mt-8 text-[13px] font-semibold text-jci-blue hover:text-jci-blue-2"
+          className="mt-8 text-ui-sm font-semibold text-jci-blue hover:text-jci-blue-2"
         >
           ← Volver a iniciar sesión
         </Link>
@@ -51,13 +51,13 @@ export function ForgotPasswordForm() {
 
   return (
     <div className="flex w-full max-w-[392px] flex-col">
-      <div className="mb-4 font-mono text-[10.5px] uppercase tracking-[0.2em] text-jci-blue">
+      <div className="mb-4 font-mono text-ui-2xs uppercase tracking-[0.2em] text-jci-blue">
         Backstage · Recuperación
       </div>
       <h1 className="text-[31px] font-normal leading-[1.1] -tracking-[0.025em] text-ink-1">
         ¿Olvidaste tu contraseña?
       </h1>
-      <p className="mt-2.5 text-[14.5px] leading-[1.5] text-ink-3">
+      <p className="mt-2.5 text-ui-md leading-[1.5] text-ink-3">
         Ingresa tu correo y te enviaremos un enlace para crear una nueva.
       </p>
 
@@ -99,7 +99,7 @@ export function ForgotPasswordForm() {
 
       <Link
         to="/login"
-        className="mt-9 text-[13px] font-semibold text-jci-blue hover:text-jci-blue-2"
+        className="mt-9 text-ui-sm font-semibold text-jci-blue hover:text-jci-blue-2"
       >
         ← Volver a iniciar sesión
       </Link>

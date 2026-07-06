@@ -11,8 +11,8 @@ export function PasswordChecklist({ value }: { value: string }) {
             key={rule.id}
             className={
               ok
-                ? "flex items-center gap-2 text-[12.5px] text-ok"
-                : "flex items-center gap-2 text-[12.5px] text-ink-3"
+                ? "flex items-center gap-2 text-ui-xs text-ok"
+                : "flex items-center gap-2 text-ui-xs text-ink-3"
             }
           >
             <span aria-hidden="true">{ok ? Icon.check({ s: 13 }) : Icon.close({ s: 13 })}</span>
