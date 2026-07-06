@@ -60,9 +60,9 @@ animations. Exported as `@luminova/ui/theme.css`.
 `text-ui-2xs` 11px · `text-ui-xs` 12 · `text-ui-sm` 13 (workhorse) · `text-ui-md`
 14 · `text-ui-lg` 15, each with a bundled default line-height (`leading-*` still
 overrides). Named by size, not role — pick by size, carry intent with weight +
-color. Floor 11px. Backstage must not reintroduce arbitrary `text-[Npx]` for
-N<18 (a grep gate in `tools/scripts/check-type-scale.sh` enforces it); sizes
-≥18px are component-owned display literals. Full table + rationale in `DESIGN.md`.
+color. Floor 11px. App code must not reintroduce arbitrary `text-[Npx]` for
+N<18 (an `eslint` `no-restricted-syntax` rule enforces it); sizes ≥18px are
+component-owned display literals. Full table + rationale in `DESIGN.md`.
 
 ## Claude Design sync
 
