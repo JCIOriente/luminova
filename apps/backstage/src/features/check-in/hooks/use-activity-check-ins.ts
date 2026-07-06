@@ -7,5 +7,9 @@ export function useActivityCheckIns(activityId: string | null) {
     queryKey: checkInKeys.byActivity(activityId ?? "none"),
     queryFn: () => new CheckInRepository().getByActivity(activityId as string),
     enabled: !!activityId,
+    // Live roster: opt out of the global 5-min staleTime / focus-off policy so two
+    // operators scanning the same event from different devices converge on refocus.
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 }

@@ -1,6 +1,7 @@
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { isPermissionDenied } from "./firestore-errors";
 import { DocParseError } from "./firestore-read";
+import { retryQuery } from "./query-retry";
 
 // Central chokepoint: every query failure passes through here. A permission-denied (rules
 // rejected the read because the token lacks the required `perms` claim) otherwise surfaces
@@ -25,4 +26,19 @@ const queryCache = new QueryCache({
   },
 });
 
-export const queryClient = new QueryClient({ queryCache });
+// Admin-app defaults (audit item 10, docs/specs/2026-07-06-query-client-defaults-design.md).
+// Reference data tolerates brief staleness; tab-refocus refetch storms add cost with no gain.
+// Live screens (e.g. the check-in roster) opt back into freshness per-hook.
+export const queryClient = new QueryClient({
+  queryCache,
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+      retry: retryQuery,
+    },
+    // Firestore writes are non-idempotent — a retried check-in could double-write.
+    mutations: { retry: false },
+  },
+});
