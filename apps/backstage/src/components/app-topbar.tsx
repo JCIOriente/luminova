@@ -10,9 +10,9 @@ export function AppTopbar() {
   return (
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-[18px] border-b border-line bg-surface/80 px-7 backdrop-blur-[10px] backdrop-saturate-150">
       <div className="flex min-w-0 items-center gap-2.5">
-        <span className="text-[13.5px] font-medium text-ink-3">Backstage</span>
+        <span className="text-ui-sm font-medium text-ink-3">Backstage</span>
         <span className="text-ink-3">{Icon.chevRight({ s: 14 })}</span>
-        <span className="text-[14.5px] font-semibold text-ink-1">{current}</span>
+        <span className="text-ui-lg font-semibold text-ink-1">{current}</span>
       </div>
       <div className="flex-1" />
       <button
@@ -22,8 +22,8 @@ export function AppTopbar() {
         className="flex h-[38px] w-[268px] items-center gap-2.5 rounded-[10px] border border-line bg-surface-2 px-3 text-ink-3 transition-colors hover:border-line-strong hover:text-ink-2"
       >
         {Icon.search({ s: 17 })}
-        <span className="flex-1 text-left text-[13.5px]">Buscar en Backstage…</span>
-        <kbd className="rounded-[6px] border border-line-strong px-1.5 py-0.5 font-mono text-[10.5px] text-ink-3">
+        <span className="flex-1 text-left text-ui-sm">Buscar en Backstage…</span>
+        <kbd className="rounded-[6px] border border-line-strong px-1.5 py-0.5 font-mono text-ui-2xs text-ink-3">
           ⌘K
         </kbd>
       </button>

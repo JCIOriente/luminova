@@ -86,5 +86,5 @@ export function InitiativeFilters({ filter, counts, onChange }: InitiativeFilter
 }
 
 function Count({ n }: { n: number }) {
-  return <span className="ml-1 text-[11px] font-semibold opacity-70 tabular-nums">{n}</span>;
+  return <span className="ml-1 text-ui-2xs font-semibold opacity-70 tabular-nums">{n}</span>;
 }
