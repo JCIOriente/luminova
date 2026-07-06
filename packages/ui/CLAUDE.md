@@ -6,7 +6,7 @@ Shared component library for `apps/spotlight` and `apps/backstage`. Bespoke,
 token-driven components styled with **pure Tailwind v4 utility classes** (no
 semantic CSS classes). Consumed as **raw TypeScript source** (no build step).
 
-## What's here now (37 components)
+## What's here now (38 components)
 
 Full inventory + source paths + design tokens live in **`DESIGN.md`** (the
 ingest manifest for Claude Design). Quick map:
@@ -17,7 +17,7 @@ ingest manifest for Claude Design). Quick map:
   Field (label + error), Checkbox (label + branded box), Combobox (single-select
   + search), MultiSelect (chips).
 - **Feedback / status:** Badge (tones), Skeleton, Toast (presentational),
-  Tooltip (Radix + tokens), EmptyState.
+  Tooltip (Radix + tokens), EmptyState, ErrorState (EmptyState + optional `onRetry`).
 - **Overlays:** Dialog, Sheet, Popover (Radix; backs Combobox/MultiSelect),
   CommandPalette (⌘K; cmdk dialog + groups + fuzzy filter).
 - **Data display:** Table (+ TableHeader/Body/Row/Head/Cell), DataTable
