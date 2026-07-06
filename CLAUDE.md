@@ -22,7 +22,7 @@ Two public-facing and admin apps + one serverless backend, deployed to Firebase.
 | `packages/firebase` | `@luminova/firebase` | Firebase client singleton (auth, firestore, storage) |
 | `packages/types` | `@luminova/types` | Shared TypeScript types and data models |
 | `packages/auth` | `@luminova/auth` | CASL-based roles, permissions, ability builder |
-| `packages/utils` | `@luminova/utils` | Zero-dep, Intl-only shared helpers (es-BO datetime with the Bolivia UTC pin) consumed by both apps |
+| `packages/utils` | `@luminova/utils` | Intl-only shared helpers, no runtime deps (es-BO datetime with the Bolivia UTC pin) consumed by both apps |
 
 ## Runtime
 

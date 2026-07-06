@@ -1,12 +1,8 @@
-// Run the whole suite as a non-UTC viewer (Bolivia, UTC-4). Set before any Date
-// or Intl use so ICU resolves the default zone to it. Every UTC-pinned formatter
-// must render the scheduled wall-clock unchanged despite this offset; the two
-// spotlight formatters folded in here are the regression guard for the audit bug.
-// `process` is a Node/vitest runtime global; declared locally to keep this package
-// free of an @types/node dependency.
-declare const process: { env: Record<string, string | undefined> };
-process.env.TZ = "America/La_Paz";
-
+// The suite runs as a non-UTC viewer (Bolivia, UTC-4) via TZ in vitest.config.ts
+// — set at the config layer so even the module-scope formatters below are
+// constructed under that zone. Every UTC-pinned formatter must render the
+// scheduled wall-clock unchanged despite the offset; the two spotlight formatters
+// folded in here are the regression guard for the audit bug.
 import { describe, expect, it } from "vitest";
 import type { Timestamp } from "@luminova/types";
 import {

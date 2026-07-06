@@ -6,9 +6,11 @@ export const BOLIVIA_OFFSET_MS = 4 * 60 * 60 * 1000;
 // Activity instants are the input wall-clock pinned to UTC (see activity-mapper),
 // so every formatter renders in UTC to show exactly what was scheduled,
 // independent of the viewer's timezone.
-// Marked /* @__PURE__ */ so each consuming app tree-shakes the formatters it
-// never calls (spotlight uses only the month formatters; backstage never uses
-// MONTH_YEAR_LONG). Bundlers otherwise keep bare `new X()` as a side effect.
+// Marked /* @__PURE__ */ so an app tree-shakes the formatters backing functions
+// it never calls (spotlight omits formatDateTime/formatDate/formatTime/
+// formatDateChip → drops DATE_TIME/DATE_ONLY/TIME_ONLY). Bundlers otherwise keep
+// bare `new X()` as a side effect. Formatters referenced by a called function
+// (e.g. MONTH_YEAR_LONG via formatMonthYear) stay regardless.
 const DATE_TIME = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
   day: "numeric",
   month: "short",
