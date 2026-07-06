@@ -179,7 +179,7 @@ export function OverviewView({
                   </span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-ui-lg font-semibold text-ink-1">{e.title}</div>
+                  <div className="text-ui-md font-semibold text-ink-1">{e.title}</div>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-ui-xs text-ink-3">
                     <span>{e.time}</span>
                     <span className="size-[3px] rounded-full bg-ink-3" />
