@@ -55,6 +55,44 @@ Styling model: **pure Tailwind v4 utility classes** driven by these tokens (no
 semantic CSS classes). Components are consumed as **raw TypeScript source** — no
 build step.
 
+### Type scale — two families
+
+**Brand scale (fluid; marketing / hero).** `clamp()`-based, scales with the
+viewport. Use on spotlight and admin hero surfaces.
+
+| Utility          | Value                      | Use                        |
+| ---------------- | -------------------------- | -------------------------- |
+| `text-display`   | `clamp(40px, 6.8vw, 72px)` | Hero statements            |
+| `text-title`     | `clamp(32px, 4.4vw, 48px)` | Page / section titles      |
+| `text-subtitle`  | `clamp(20px, 1.7vw, 24px)` | Standfirsts, lead-ins      |
+| `text-quote`     | `clamp(22px, 2.6vw, 32px)` | Pull quotes                |
+
+**Compact admin scale (fixed px; density).** Five steps for `apps/backstage`
+tables, forms, cards, meta. **Named by size, not role** — one size legitimately
+carries several roles (13px is body _and_ label _and_ caption), so pick the
+token by size and carry intent with weight + color + tracking. Each ships a
+default `line-height`; an explicit `leading-*` utility still overrides it
+(Tailwind v4). Reading tiers (`xs`/`sm`) run `1.5` for wrapping comfort;
+single-line tiers (`2xs`/`lg`) run tight so badges and headings don't bloat.
+Floor is **11px** — never smaller.
+
+| Utility       | Size / LH | Typical use                                             |
+| ------------- | --------- | ------------------------------------------------------- |
+| `text-ui-2xs` | 11 / 1.35 | Uppercase eyebrows, tags, badges, kbd, month abbr (600) |
+| `text-ui-xs`  | 12 / 1.5  | Helper text, secondary meta, timestamps                 |
+| `text-ui-sm`  | 13 / 1.5  | **Workhorse** — table body, form labels, descriptions   |
+| `text-ui-md`  | 14 / 1.45 | Emphasized body, nav items, values                      |
+| `text-ui-lg`  | 15 / 1.3  | Member names, section subheads, small headings (600)    |
+
+Sizes **≥18px** (page/hero titles, KPI stat numerals, date-chip day numbers)
+stay **component-owned literals**, deliberately outside this scale — a compact
+density scale shouldn't own one-off display type. See the type-density preview
+at `packages/ui/preview/type-density.html`.
+
+**A11y note (pre-existing, tracked):** `ink-3` on white is ~3.76:1 and `ink-4`
+~2.1:1 — below WCAG AA 4.5:1 for normal text. The compact scale is color-neutral
+(it changed no ink pairings); recoloring `ink-3` is a separate token decision.
+
 ---
 
 ## Components (37 — shipped)
