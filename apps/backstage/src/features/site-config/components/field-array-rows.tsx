@@ -69,7 +69,7 @@ export function FieldArrayRows<TForm extends FieldValues>({
       <button
         type="button"
         onClick={() => append(makeBlank())}
-        className="flex w-full items-center justify-center gap-2 rounded-[12px] border-[1.5px] border-dashed border-line-strong py-2.5 text-[13px] font-semibold text-jci-blue transition-colors duration-200 ease-expo hover:border-jci-blue hover:bg-jci-blue/[0.04] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-jci-blue"
+        className="flex w-full items-center justify-center gap-2 rounded-[12px] border-[1.5px] border-dashed border-line-strong py-2.5 text-ui-sm font-semibold text-jci-blue transition-colors duration-200 ease-expo hover:border-jci-blue hover:bg-jci-blue/[0.04] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-jci-blue"
       >
         {Icon.plus({ s: 16 })}
         {addLabel}

@@ -35,7 +35,7 @@ const EMPTY: PositionInput = {
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <h3 className="text-[12px] font-medium tracking-[0.02em] text-ink-3 uppercase">{children}</h3>
+    <h3 className="text-ui-xs font-medium tracking-[0.02em] text-ink-3 uppercase">{children}</h3>
   );
 }
 
@@ -178,7 +178,7 @@ export function PositionForm({
       )}
 
       {formError && (
-        <div role="alert" className="text-[13px] text-error">
+        <div role="alert" className="text-ui-sm text-error">
           {formError}
         </div>
       )}

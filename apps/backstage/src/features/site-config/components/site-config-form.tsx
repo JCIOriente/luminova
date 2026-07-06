@@ -184,7 +184,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
         </div>
 
         <Card padding="sm" className="mt-5 flex flex-col gap-4 bg-surface-2 shadow-none">
-          <span className="text-[12px] font-semibold tracking-[0.02em] text-ink-3 uppercase">
+          <span className="text-ui-xs font-semibold tracking-[0.02em] text-ink-3 uppercase">
             Premio destacado
           </span>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -383,7 +383,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           </Field>
 
           <div>
-            <span className="mb-2 block text-[13px] font-semibold text-ink-1">Redes sociales</span>
+            <span className="mb-2 block text-ui-sm font-semibold text-ink-1">Redes sociales</span>
             <div className="flex flex-col gap-3">
               {CONTACT_SOCIALS.map(({ key, label }) => (
                 <Field
@@ -403,7 +403,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           </div>
 
           <div>
-            <span className="mb-2 block text-[13px] font-semibold text-ink-1">Enlaces</span>
+            <span className="mb-2 block text-ui-sm font-semibold text-ink-1">Enlaces</span>
             <FieldArrayRows
               control={control}
               name="contact.links"
@@ -461,7 +461,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           </div>
 
           <div>
-            <span className="mb-2 block text-[13px] font-semibold text-ink-1">Botones</span>
+            <span className="mb-2 block text-ui-sm font-semibold text-ink-1">Botones</span>
             <FieldArrayRows
               control={control}
               name="linktree.links"
@@ -556,7 +556,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           </div>
 
           <div>
-            <span className="mb-2 block text-[13px] font-semibold text-ink-1">Redes sociales</span>
+            <span className="mb-2 block text-ui-sm font-semibold text-ink-1">Redes sociales</span>
             <div className="flex flex-col gap-3">
               {LINKTREE_SOCIAL_PLATFORMS.map((platform, index) => (
                 <Field
@@ -579,7 +579,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
 
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
-          <div className="flex min-w-0 items-center gap-2.5 text-[13px]">
+          <div className="flex min-w-0 items-center gap-2.5 text-ui-sm">
             <span
               className={cn(
                 "size-2 shrink-0 rounded-full",
