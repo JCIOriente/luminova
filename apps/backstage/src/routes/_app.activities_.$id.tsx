@@ -21,8 +21,7 @@ import { useAuth } from "../lib/auth/auth";
 import { useActivity } from "../features/activities/hooks/use-activity";
 import { useActivityPhotos } from "../features/activities/hooks/use-activity-photos";
 import { useMembers } from "../features/members/hooks/use-members";
-import { useProgramsByTerm } from "../features/programs/hooks/use-programs-by-term";
-import { useProjectsByTerm } from "../features/projects/hooks/use-projects-by-term";
+import { useInitiativesOfType } from "../features/initiatives/hooks/use-initiatives-of-type";
 import { useUpdateActivity } from "../features/activities/hooks/use-update-activity";
 import { useCancelActivity } from "../features/activities/hooks/use-cancel-activity";
 import { ActivityRepository } from "../features/activities/repositories/activity-repository";
@@ -37,7 +36,8 @@ import { isCheckInOpen } from "../features/activities/lib/check-in-window";
 import { activityKeys } from "../features/activities/hooks/activity-keys";
 import { PhotoManager } from "../features/initiatives/components/photo-manager";
 import { PhotoGallery } from "../features/initiatives/components/photo-gallery";
-import { useInitiative, INITIATIVE_TYPE } from "../features/initiatives/hooks/use-initiative";
+import { useInitiative } from "../features/initiatives/hooks/use-initiative";
+import { INITIATIVE_TYPE } from "../features/initiatives/lib/initiative-kind";
 import { useDismissingToast } from "../lib/use-dismissing-toast";
 
 export const Route = createFileRoute("/_app/activities_/$id")({ component: ActivityDetailPage });
@@ -66,8 +66,12 @@ function ActivityDetailPage() {
   // Programs/projects only feed the parent link + the edit sheet's parent picker;
   // skip the reads on parentless activities until the edit sheet is opened.
   const needsInitiatives = activity?.parentId != null || editOpen;
-  const { data: programs } = useProgramsByTerm(termId, { enabled: canRead && needsInitiatives });
-  const { data: projects } = useProjectsByTerm(termId, { enabled: canRead && needsInitiatives });
+  const { data: programs } = useInitiativesOfType("program", termId, {
+    enabled: canRead && needsInitiatives,
+  });
+  const { data: projects } = useInitiativesOfType("project", termId, {
+    enabled: canRead && needsInitiatives,
+  });
 
   const update = useUpdateActivity(termId);
   const cancelActivity = useCancelActivity(termId);

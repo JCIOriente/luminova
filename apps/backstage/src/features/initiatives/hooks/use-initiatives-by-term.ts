@@ -1,14 +1,13 @@
 import { useMemo } from "react";
-import { useProgramsByTerm } from "../../programs/hooks/use-programs-by-term";
-import { useProjectsByTerm } from "../../projects/hooks/use-projects-by-term";
+import { useInitiativesOfType } from "./use-initiatives-of-type";
 import { tagKind, type InitiativeListItem } from "../lib/initiative-list-item";
 
 export function useInitiativesByTerm(
   termId: string,
   opts: { includePrograms: boolean; includeProjects: boolean },
 ) {
-  const programs = useProgramsByTerm(termId, { enabled: opts.includePrograms });
-  const projects = useProjectsByTerm(termId, { enabled: opts.includeProjects });
+  const programs = useInitiativesOfType("program", termId, { enabled: opts.includePrograms });
+  const projects = useInitiativesOfType("project", termId, { enabled: opts.includeProjects });
 
   const data = useMemo<InitiativeListItem[] | undefined>(() => {
     if (

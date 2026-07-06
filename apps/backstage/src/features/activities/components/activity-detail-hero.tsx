@@ -7,7 +7,7 @@ import { ACTIVITY_STATUS_TONE } from "../lib/status-tone";
 import { CATEGORY_TONE, TONE_COVER_BG, TONE_RIPPLE_COLOR } from "../lib/category-tone";
 import { locationKind } from "../lib/location-kind";
 import { formatDateTime } from "../../../lib/datetime";
-import { INITIATIVE_TYPE } from "../../initiatives/hooks/use-initiative";
+import { INITIATIVE_TYPE } from "../../initiatives/lib/initiative-kind";
 
 interface ActivityDetailHeroProps {
   activity: Activity;
