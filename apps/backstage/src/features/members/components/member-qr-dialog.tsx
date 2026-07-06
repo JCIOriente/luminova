@@ -28,7 +28,7 @@ export function MemberQrDialog({
             <QrCode value={value} size={320} />
           </Suspense>
         </div>
-        <p className="text-[13px] font-medium text-ink-2">{name}</p>
+        <p className="text-ui-sm font-medium text-ink-2">{name}</p>
       </div>
     </Dialog>
   );

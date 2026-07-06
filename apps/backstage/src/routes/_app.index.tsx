@@ -39,7 +39,7 @@ function DashboardPage() {
     initiatives.isError
   ) {
     return (
-      <Card padding="none" className="p-8 text-center text-[13px] text-ink-3">
+      <Card padding="none" className="p-8 text-center text-ui-sm text-ink-3">
         No se pudo cargar el panel. Revisa tu conexión e intenta recargar la página.
       </Card>
     );

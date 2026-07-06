@@ -117,7 +117,7 @@ function MemberProfilePage() {
 
   return (
     <div className="flex flex-col gap-6 motion-reduce:animate-none">
-      <Link to="/members" className="text-[13px] text-ink-3 hover:text-ink-1">
+      <Link to="/members" className="text-ui-sm text-ink-3 hover:text-ink-1">
         ← Volver a Miembros
       </Link>
 
@@ -153,7 +153,7 @@ function MemberProfilePage() {
 
           {positions && showPositionsOnly && (
             <Card as="section">
-              <h2 className="mb-4 text-[12px] font-medium tracking-[0.02em] text-ink-3 uppercase">
+              <h2 className="mb-4 text-ui-xs font-medium tracking-[0.02em] text-ink-3 uppercase">
                 Cargos
               </h2>
               <MemberPositionsForm
@@ -199,7 +199,7 @@ function MemberProfilePage() {
             <Suspense fallback={<div className="size-[176px]" />}>
               <QrCode value={encodeMemberQr(member.id)} size={176} />
             </Suspense>
-            <p className="text-[12px] text-ink-3">QR personal · escanéalo en el check-in</p>
+            <p className="text-ui-xs text-ink-3">QR personal · escanéalo en el check-in</p>
           </Card>
         </aside>
       </div>
@@ -237,16 +237,16 @@ function InviteAccess({ member }: { member: Member }) {
         {provision.isPending ? "Generando…" : label}
       </Button>
       {error && (
-        <p role="alert" className="text-[12px] text-error">
+        <p role="alert" className="text-ui-xs text-error">
           {error}
         </p>
       )}
       <Dialog open={open} onOpenChange={setOpen} title="Acceso de miembro">
         <div className="flex flex-col gap-3">
-          <p className="text-[13px] text-ink-2">
+          <p className="text-ui-sm text-ink-2">
             Comparte este enlace con el miembro para que cree su contraseña e inicie sesión.
           </p>
-          <code className="block w-full overflow-x-auto rounded-[8px] bg-ink-1/[0.04] px-3 py-2 text-[12px] text-ink-2">
+          <code className="block w-full overflow-x-auto rounded-[8px] bg-ink-1/[0.04] px-3 py-2 text-ui-xs text-ink-2">
             {link}
           </code>
           <Button

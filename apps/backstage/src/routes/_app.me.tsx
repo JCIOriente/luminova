@@ -93,8 +93,8 @@ export function MemberHome() {
         <Card as="section" padding="none" className="flex flex-col">
           <header className="flex items-center justify-between border-b border-line px-6 py-4">
             <div>
-              <h2 className="text-[15px] font-semibold text-ink-1">Check-in</h2>
-              <div className="mt-0.5 text-[12px] text-ink-3">Acceso a eventos</div>
+              <h2 className="text-ui-lg font-semibold text-ink-1">Check-in</h2>
+              <div className="mt-0.5 text-ui-xs text-ink-3">Acceso a eventos</div>
             </div>
             <span className="text-ink-3">{Icon.qr({ s: 20 })}</span>
           </header>
@@ -109,7 +109,7 @@ export function MemberHome() {
                 <QrCode value={qrValue} size={168} />
               </Suspense>
             </div>
-            <p className="max-w-[220px] text-[12.5px] leading-relaxed text-ink-3">
+            <p className="max-w-[220px] text-ui-xs leading-relaxed text-ink-3">
               <span className="font-semibold text-ink-2">Tu QR personal.</span> Muéstralo en el
               check-in. <span className="font-semibold text-jci-blue">Toca para ampliar.</span>
             </p>

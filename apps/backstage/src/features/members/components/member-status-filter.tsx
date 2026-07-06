@@ -24,7 +24,7 @@ export function MemberStatusFilter({ value, counts, onChange }: MemberStatusFilt
         label: (
           <>
             {label}
-            <span className="ml-1.5 text-[11px] font-semibold opacity-70 tabular-nums">
+            <span className="ml-1.5 text-ui-2xs font-semibold opacity-70 tabular-nums">
               {counts[v]}
             </span>
           </>

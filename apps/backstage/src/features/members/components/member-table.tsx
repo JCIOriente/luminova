@@ -44,14 +44,14 @@ function buildColumns(
       cell: (member) => (
         <div className="flex min-w-0 items-center gap-3">
           <span
-            className="flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold text-white"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-ui-xs font-semibold text-white"
             style={{ backgroundColor: avatarColor(member.id) }}
           >
             {initials(member.name)}
           </span>
           <div className="min-w-0">
             <div className="truncate font-semibold text-ink-1">{member.name}</div>
-            <div className="truncate text-[12px] text-ink-3">{member.email}</div>
+            <div className="truncate text-ui-xs text-ink-3">{member.email}</div>
           </div>
         </div>
       ),
