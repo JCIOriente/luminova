@@ -3,30 +3,23 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Timestamp } from "firebase/firestore";
 import { uploadInitiativePhoto, deleteInitiativePhoto } from "@luminova/firebase";
 import type { Photo } from "@luminova/types";
-import { ProgramRepository } from "../../programs/repositories/program-repository";
-import { ProjectRepository } from "../../projects/repositories/project-repository";
-import { programKeys } from "../../programs/hooks/program-keys";
-import { projectKeys } from "../../projects/hooks/project-keys";
+import { InitiativeRepository } from "../repositories/initiative-repository";
+import { INITIATIVE_CONFIG, type InitiativeType } from "../lib/initiative-kind";
+import { initiativeKeys, initiativeDetailKey } from "./initiative-keys";
 import { useCurrentMember } from "../../members/hooks/use-current-member";
-import { KIND, initiativeDetailKey, type InitiativeType } from "./use-initiative";
 
 export function useInitiativePhotos(type: InitiativeType, id: string, termId: string) {
   const qc = useQueryClient();
   const { data: member } = useCurrentMember();
-  const repo = useMemo(
-    () => (type === "program" ? new ProgramRepository() : new ProjectRepository()),
-    [type],
-  );
-  const kind = KIND[type];
+  const repo = useMemo(() => new InitiativeRepository(type), [type]);
+  const { kind, collection } = INITIATIVE_CONFIG[type];
 
   const invalidate = useCallback(async () => {
     await Promise.all([
-      qc.invalidateQueries({
-        queryKey: type === "program" ? programKeys.byTerm(termId) : projectKeys.byTerm(termId),
-      }),
+      qc.invalidateQueries({ queryKey: initiativeKeys(collection).byTerm(termId) }),
       qc.invalidateQueries({ queryKey: initiativeDetailKey(type, id) }),
     ]);
-  }, [qc, type, termId, id]);
+  }, [qc, collection, type, termId, id]);
 
   const addPhoto = useCallback(
     async (blob: Blob, caption: string | null = null) => {

@@ -36,13 +36,12 @@ import { currentTermKey } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useActivitiesByTerm } from "../features/activities/hooks/use-activities-by-term";
 import { useCreateActivity } from "../features/activities/hooks/use-create-activity";
-import { useUpdateProgram } from "../features/programs/hooks/use-update-program";
-import { useUpdateProject } from "../features/projects/hooks/use-update-project";
+import { useUpdateInitiative } from "../features/initiatives/hooks/use-update-initiative";
+import { useInitiative } from "../features/initiatives/hooks/use-initiative";
 import {
-  useInitiative,
-  KIND,
+  INITIATIVE_CONFIG,
   type InitiativeType,
-} from "../features/initiatives/hooks/use-initiative";
+} from "../features/initiatives/lib/initiative-kind";
 import { initiativeToInput } from "../features/initiatives/repositories/initiative-mapper";
 import {
   computeProgress,
@@ -63,7 +62,7 @@ type Tab = "resumen" | "actividades";
 function InitiativeDetailPage() {
   const { type, id } = Route.useParams();
   const initiativeType = type as InitiativeType;
-  const kind = KIND[initiativeType];
+  const kind = INITIATIVE_CONFIG[initiativeType].kind;
   const termId = currentTermKey();
   const ability = useAbility();
   const { user } = useAuth();
@@ -79,8 +78,7 @@ function InitiativeDetailPage() {
   const { data: activities } = useActivitiesByTerm(termId, { enabled: canRead });
   const { data: members } = useMembers({ enabled: canReadMembers });
 
-  const updateProgram = useUpdateProgram(termId);
-  const updateProject = useUpdateProject(termId);
+  const updateInitiative = useUpdateInitiative(initiativeType, termId);
   const completeInitiative = useCompleteInitiative(initiativeType, termId);
   const createActivity = useCreateActivity(termId);
   const photoActions = useInitiativePhotos(initiativeType, id, item?.termId ?? termId);
@@ -128,8 +126,7 @@ function InitiativeDetailPage() {
   const handleUpdate = async (data: InitiativeInput) => {
     if (!canUpdate) return;
     try {
-      if (item.kind === "Program") await updateProgram.mutateAsync({ id: item.id, data });
-      else await updateProject.mutateAsync({ id: item.id, data });
+      await updateInitiative.mutateAsync({ id: item.id, data });
       setEditOpen(false);
     } catch {
       setErrorToast("No se pudo guardar. Revisa tus permisos e intenta de nuevo.");
@@ -177,7 +174,7 @@ function InitiativeDetailPage() {
     setCaption: rethrowPhoto(photoActions.setCaption),
   };
 
-  const isSavingInitiative = updateProgram.isPending || updateProject.isPending;
+  const isSavingInitiative = updateInitiative.isPending;
 
   const tabs: readonly SegmentedOption<Tab>[] = [
     { value: "resumen", label: "Resumen" },

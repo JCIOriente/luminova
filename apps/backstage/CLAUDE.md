@@ -56,7 +56,11 @@ import { MemberRepository } from '../repositories'
 
 ## Repository Pattern
 
-One class per Firestore collection:
+One class per Firestore collection — **one exception**: `InitiativeRepository`
+serves both `programs` and `projects` (identical `InitiativeCore` schema), taking
+the initiative `type` in its constructor and resolving the collection from
+`INITIATIVE_CONFIG`. Fold two collections onto one class only when they share the
+exact same schema and access pattern.
 ```ts
 class MemberRepository {
   private collection = collection(db, 'members')
@@ -147,7 +151,7 @@ import { collection, doc, getDocs, addDoc } from 'firebase/firestore'
 
 - **Toolchain.** Node 24, pnpm, Vite, React 19, TS 5.7 strict, TanStack Router + Query v5, RHF + Zod. Consumes `@luminova/ui`, `@luminova/firebase`, `@luminova/types`.
 - **CI gate.** `backstage-ci` = prettier-check → eslint → tsc → vite build → vitest → knip → size-limit. Run via `pnpm --filter backstage run ci` (rolled into `pnpm pr-tests`). Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin.
-- **Invariants.** Auth guard via `beforeLoad` (not in component). No barrel files in features. Soft-delete only (never hard delete). One repository class per collection.
+- **Invariants.** Auth guard via `beforeLoad` (not in component). No barrel files in features. Soft-delete only (never hard delete). One repository class per collection (lone exception: `InitiativeRepository` covers `programs`+`projects` — same schema; see Repository Pattern).
 - **Sensitive surfaces → REQUIRE `/security-review` + `firestore-security-reviewer`.** Auth flow (`_auth.login`, `_app.tsx` guard), every `repositories/*` Firestore access, any change to `firestore.rules`.
 - **Performance.** Auth-gated (login wall) → load perf is monitored, not aggressively tuned. Budgets: initial JS ≤ 115 kB gz (now ~103 — full Firebase SDK lives in the shell; `qrcode.react` split into a lazy `qr-code` chunk), CSS ≤ 15 kB gz. Renders in `system-ui` on purpose — **do not add a webfont**. `index.html` preconnects the auth/Firestore/Storage origins. Follow `docs/performance.md`; dispatch `bundle-budget-watcher` after dep/route changes.
 - **Heaviest skills.** `react-best-practices` (auto), `ui-ux-pro-max` (a11y for tables/forms), `/security-review`.

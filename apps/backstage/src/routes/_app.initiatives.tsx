@@ -14,8 +14,8 @@ import { currentTermKey } from "@luminova/types";
 import { useMembers } from "../features/members/hooks/use-members";
 import { useActivitiesByTerm } from "../features/activities/hooks/use-activities-by-term";
 import { useInitiativesByTerm } from "../features/initiatives/hooks/use-initiatives-by-term";
-import { useCreateProgram } from "../features/programs/hooks/use-create-program";
-import { useCreateProject } from "../features/projects/hooks/use-create-project";
+import { useCreateInitiative } from "../features/initiatives/hooks/use-create-initiative";
+import { INITIATIVE_TYPE } from "../features/initiatives/lib/initiative-kind";
 import { computeProgress, isClosingSoon } from "../features/initiatives/lib/derive";
 import {
   filterInitiatives,
@@ -55,8 +55,8 @@ function InitiativesPage() {
   const { data: activities } = useActivitiesByTerm(termId);
   const { data: members } = useMembers({ enabled: canReadMembers });
 
-  const createProgram = useCreateProgram(termId);
-  const createProject = useCreateProject(termId);
+  const createProgram = useCreateInitiative("program", termId);
+  const createProject = useCreateInitiative("project", termId);
 
   const [filter, setFilter] = useState<InitiativeFilter>({
     tab: "todos",
@@ -158,7 +158,7 @@ function InitiativesPage() {
               onOpen={() =>
                 void navigate({
                   to: "/initiatives/$type/$id",
-                  params: { type: item.kind === "Program" ? "program" : "project", id: item.id },
+                  params: { type: INITIATIVE_TYPE[item.kind], id: item.id },
                 })
               }
             />
