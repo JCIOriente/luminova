@@ -10,7 +10,7 @@ import {
 } from "@luminova/ui";
 import { Link } from "@tanstack/react-router";
 import { ACTIVITY_STATUS_TONE } from "../../activities/lib/status-tone";
-import { formatMonthYear } from "../../../lib/datetime";
+import { formatMonthYear } from "@luminova/utils/datetime";
 
 const activityRowClasses = cn(
   cardSurfaceClasses,

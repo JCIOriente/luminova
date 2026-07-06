@@ -1,5 +1,5 @@
 import type { Activity } from "@luminova/types";
-import { BOLIVIA_OFFSET_MS } from "../../../lib/datetime";
+import { BOLIVIA_OFFSET_MS } from "@luminova/utils/datetime";
 
 export const ACTIVITY_TABS = ["proximos", "mes", "todas"] as const;
 export type ActivityTab = (typeof ACTIVITY_TABS)[number];

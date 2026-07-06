@@ -14,7 +14,7 @@ import {
 } from "@luminova/ui";
 import { PageHeader } from "../page-header";
 import { boardHomeLayout, type WidgetKey } from "./board-home-layout";
-import { relativeTimeEs } from "../../lib/datetime";
+import { relativeTimeEs } from "@luminova/utils/datetime";
 import type { DashboardModel, FeedTone } from "./dashboard-model";
 
 const WHITESPACE = /\s+/;

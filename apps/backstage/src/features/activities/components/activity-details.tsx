@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import type { Activity } from "@luminova/types";
 import { Card, Icon } from "@luminova/ui";
 import { CATEGORY_LABELS } from "../category-labels";
-import { formatDate, formatTime } from "../../../lib/datetime";
+import { formatDate, formatTime } from "@luminova/utils/datetime";
 
 interface ActivityDetailsProps {
   activity: Activity;

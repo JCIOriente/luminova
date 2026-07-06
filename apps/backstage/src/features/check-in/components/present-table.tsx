@@ -1,6 +1,6 @@
 import { Avatar, DataTable, EmptyState, Icon, type DataTableColumn } from "@luminova/ui";
 import type { RosterEntry } from "../roster";
-import { formatTime } from "../../../lib/datetime";
+import { formatTime } from "@luminova/utils/datetime";
 
 interface PresentTableProps {
   entries: RosterEntry[];

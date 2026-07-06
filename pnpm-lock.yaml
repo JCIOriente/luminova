@@ -75,6 +75,9 @@ importers:
       '@luminova/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@luminova/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@tanstack/react-query':
         specifier: ^5.101.0
         version: 5.101.0(react@19.2.7)
@@ -170,6 +173,9 @@ importers:
       '@luminova/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@luminova/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@tanstack/react-router':
         specifier: ^1.170.11
         version: 1.170.11(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
