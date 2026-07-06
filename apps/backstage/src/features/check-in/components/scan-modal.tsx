@@ -42,11 +42,11 @@ function ScanFeedback({ result, onDismiss }: { result: ScanResult; onDismiss: ()
           </span>
         )}
         <div className="flex flex-col gap-0.5">
-          <span className="text-[17px] font-semibold" aria-live="assertive">
+          <span className="text-ui-lg font-semibold" aria-live="assertive">
             {result.title}
           </span>
-          {result.name && <span className="text-[14px] text-white/85">{result.name}</span>}
-          <span className="mt-1 text-[12px] text-white/70">Toca para continuar</span>
+          {result.name && <span className="text-ui-md text-white/85">{result.name}</span>}
+          <span className="mt-1 text-ui-xs text-white/70">Toca para continuar</span>
         </div>
       </div>
     </button>
@@ -88,12 +88,12 @@ export function ScanModal({
       contentClassName={SCAN_CONTENT}
     >
       <div className="flex items-center justify-between gap-3 px-5 pt-4">
-        <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-on-dark-2">
+        <span className="inline-flex items-center gap-1.5 text-ui-xs font-medium text-on-dark-2">
           <span className="size-2 animate-pulse rounded-full bg-jci-teal" />
           En vivo
         </span>
         <div className="flex items-center gap-3">
-          <span className="text-[12px] text-on-dark-3 tabular-nums">{presentCount} presentes</span>
+          <span className="text-ui-xs text-on-dark-3 tabular-nums">{presentCount} presentes</span>
           <button
             type="button"
             onClick={onClose}
@@ -123,7 +123,7 @@ export function ScanModal({
           <span className={`${CORNER} right-[16%] bottom-[16%] border-r-2 border-b-2`} />
           {scan && <ScanFeedback result={scan} onDismiss={onDismissScan} />}
         </div>
-        <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[12px] text-on-dark-3">
+        <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-ui-xs text-on-dark-3">
           {Icon.qr({ s: 14 })}
           Apunta la cámara al QR del carnet del miembro
         </p>

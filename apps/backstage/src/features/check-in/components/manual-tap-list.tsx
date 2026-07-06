@@ -39,7 +39,7 @@ export function ManualTapList({ members, checkedInIds, onTap }: ManualTapListPro
       />
       {term &&
         (matches.length === 0 ? (
-          <p className="px-1 text-[13px] text-ink-3">Sin resultados</p>
+          <p className="px-1 text-ui-sm text-ink-3">Sin resultados</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {matches.map((member) => {
@@ -50,7 +50,7 @@ export function ManualTapList({ members, checkedInIds, onTap }: ManualTapListPro
                     type="button"
                     disabled={done}
                     onClick={() => onTap(member.id)}
-                    className="flex min-h-11 w-full items-center gap-3 rounded-[10px] border border-line bg-surface px-4 py-2 text-left text-[14px] text-ink-1 transition-colors hover:border-jci-blue disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex min-h-11 w-full items-center gap-3 rounded-[10px] border border-line bg-surface px-4 py-2 text-left text-ui-md text-ink-1 transition-colors hover:border-jci-blue disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Avatar src={member.profilePicture} name={member.name} size={28} />
                     <span className="flex-1 truncate">{member.name}</span>

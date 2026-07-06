@@ -137,8 +137,8 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
             {Icon.qr({ s: 22 })}
           </span>
           <span className="flex flex-1 flex-col">
-            <span className="text-[15px] font-semibold">Escanear carnets</span>
-            <span className="text-[12.5px] text-on-dark-2">Abre el lector de QR</span>
+            <span className="text-ui-lg font-semibold">Escanear carnets</span>
+            <span className="text-ui-xs text-on-dark-2">Abre el lector de QR</span>
           </span>
           <span aria-hidden="true">{Icon.arrowRight({ s: 18 })}</span>
         </button>
