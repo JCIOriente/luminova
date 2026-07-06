@@ -49,7 +49,7 @@ export function ActivityDetailHero({ activity, parentTitle, actions }: ActivityD
       <div className="flex flex-col gap-3 px-5 pt-4 pb-5">
         <div className="flex items-start gap-3">
           <div className="flex flex-1 flex-col gap-1.5">
-            <span className="flex items-center gap-1.5 font-mono text-[10.5px] tracking-[0.12em] text-ink-3 uppercase">
+            <span className="flex items-center gap-1.5 font-mono text-ui-2xs tracking-[0.12em] text-ink-3 uppercase">
               <span
                 className="inline-block size-1.5 rounded-full"
                 style={{ background: TONE_RIPPLE_COLOR[tone] }}
@@ -62,7 +62,7 @@ export function ActivityDetailHero({ activity, parentTitle, actions }: ActivityD
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] text-ink-2">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-ui-sm text-ink-2">
           <span className="flex items-center gap-1.5 tabular-nums">
             {Icon.calendar({ s: 15 })}
             {dateRange}
