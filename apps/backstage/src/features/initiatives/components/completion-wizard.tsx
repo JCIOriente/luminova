@@ -61,7 +61,7 @@ export function CompletionWizard({
       noValidate
       className="flex flex-col gap-4"
     >
-      <p className="text-[13px] text-ink-3">Paso {step} de 3</p>
+      <p className="text-ui-sm text-ink-3">Paso {step} de 3</p>
 
       {step === 1 && (
         <>
@@ -177,7 +177,7 @@ export function CompletionWizard({
 
       {step === 3 && (
         <>
-          <p className="text-[13px] font-medium text-ink-1">Destacadas (opcional)</p>
+          <p className="text-ui-sm font-medium text-ink-1">Destacadas (opcional)</p>
           <PhotoManager
             photos={photos}
             onUpload={onUploadPhoto}

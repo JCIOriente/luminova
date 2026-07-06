@@ -29,7 +29,7 @@ export function PhotoGallery({ photos, showCover = false }: PhotoGalleryProps) {
             </Badge>
           )}
           {photo.caption && (
-            <figcaption className="mt-1 text-[13px] text-ink-2">{photo.caption}</figcaption>
+            <figcaption className="mt-1 text-ui-sm text-ink-2">{photo.caption}</figcaption>
           )}
         </figure>
       ))}

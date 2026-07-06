@@ -32,7 +32,7 @@ export function InitiativeActivities({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[15px] font-semibold text-ink-1">Actividades</h2>
+        <h2 className="text-ui-lg font-semibold text-ink-1">Actividades</h2>
         {canCreate && (
           <Button
             as="button"
@@ -61,8 +61,8 @@ export function InitiativeActivities({
                 className={activityRowClasses}
               >
                 <span className="flex flex-1 flex-col gap-0.5">
-                  <span className="text-[14px] font-semibold text-ink-1">{activity.title}</span>
-                  <span className="flex items-center gap-1.5 text-[12px] text-ink-3">
+                  <span className="text-ui-md font-semibold text-ink-1">{activity.title}</span>
+                  <span className="flex items-center gap-1.5 text-ui-xs text-ink-3">
                     {Icon.calendar({ s: 14 })}
                     {formatMonthYear(activity.startAt)}
                   </span>
