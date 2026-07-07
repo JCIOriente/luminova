@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { Card, Icon } from "@luminova/ui";
 import { PageHeader } from "../components/page-header";
+import { QueryErrorState } from "../components/query-error-state";
 import { currentTermKey, positionTitle } from "@luminova/types";
 import { encodeMemberQr } from "../lib/member-qr";
 import { pointsRank } from "../lib/points-rank";
@@ -33,7 +34,7 @@ export const Route = createFileRoute("/_app/me")({ component: MemberHome });
 
 export function MemberHome() {
   const termId = currentTermKey();
-  const { data: member, isLoading } = useCurrentMember();
+  const { data: member, isLoading, isError, error, refetch } = useCurrentMember();
   const memberId = member?.id ?? "";
   const { data: points } = useMemberPoints(memberId, termId);
   const { data: participations } = useMemberParticipations(memberId, termId);
@@ -62,6 +63,7 @@ export function MemberHome() {
   );
 
   if (isLoading) return <p className="text-ink-3">Cargando…</p>;
+  if (isError) return <QueryErrorState error={error} onRetry={() => refetch()} />;
   if (!member) {
     return <p className="text-ink-2">Tu usuario no está vinculado a un perfil de miembro.</p>;
   }

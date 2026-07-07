@@ -125,6 +125,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 | `Toast`                              | `components/toast.tsx`       |
 | `Tooltip` (Radix primitive + tokens) | `components/tooltip.tsx`     |
 | `EmptyState`                         | `components/empty-state.tsx` |
+| `ErrorState` (EmptyState + optional `onRetry`) | `components/error-state.tsx` |
 
 ### Overlays
 

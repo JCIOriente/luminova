@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Badge, Button, Card, Sheet } from "@luminova/ui";
 import type { RoleDefinition, RoleDefinitionInput } from "@luminova/types";
+import { QueryErrorState } from "../../../components/query-error-state";
 import { useRoles } from "../hooks/use-roles";
 import { useAddRole, useUpdateRole, useDeleteRole } from "../hooks/use-save-role";
 import { RoleEditor } from "./role-editor";
@@ -10,7 +11,7 @@ type Editing = RoleDefinition | "new" | null;
 /** Admin surface to author custom roles + edit built-in roles' coarse perms.
  *  Mounted under the `/permisos` Admin gate. */
 export function RoleManager() {
-  const { data: roles, isLoading } = useRoles({ enabled: true });
+  const { data: roles, isLoading, isError, error, refetch } = useRoles({ enabled: true });
   const addRole = useAddRole();
   const updateRole = useUpdateRole();
   const deleteRole = useDeleteRole();
@@ -43,6 +44,8 @@ export function RoleManager() {
 
       {isLoading ? (
         <p className="text-ink-3">Cargando roles…</p>
+      ) : isError ? (
+        <QueryErrorState error={error} onRetry={() => refetch()} />
       ) : (
         <Card as="ul" padding="none" className="flex flex-col divide-y divide-line">
           {(roles ?? []).map((role) => (
