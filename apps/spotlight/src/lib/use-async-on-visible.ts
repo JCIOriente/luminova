@@ -54,6 +54,7 @@ export function useAsyncOnVisible<T>(
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- generic hook: re-runs on `visible` plus caller-supplied `deps` (the intended trigger, mirrors useMemo/useCallback); fetcher/empty are read from refs refreshed every render, so there is no stale closure.
   }, [visible, ...deps]);
 
   useEffect(() => () => observerRef.current?.disconnect(), []);
