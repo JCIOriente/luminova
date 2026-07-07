@@ -11,8 +11,11 @@ function useCachedSeed<T>(cache: ResourceCache<T>): T | null {
   return seed;
 }
 
-// Seed from the localStorage cache, revalidate via the given base hook, and
-// suppress the loading skeleton when the seed was a cache hit (instant paint).
+// Seed from the localStorage cache, revalidate via the given base hook, and — on
+// a cache hit — suppress both the loading skeleton (instant paint) and a failed
+// revalidation's error (stale-while-revalidate: keep the cached data on screen
+// instead of clobbering it). On a miss both pass through as usual. useAsync
+// retains the seed as its `data` on error, so the cached content stays rendered.
 function useCached<T, S extends Async<T>>(
   useBase: (fetcher: () => Promise<T>, empty: T, deps: []) => S,
   cache: ResourceCache<T>,
@@ -22,7 +25,8 @@ function useCached<T, S extends Async<T>>(
 ): S {
   const cached = useCachedSeed(cache);
   const state = useBase(withCache(cache, fetcher, label), cached ?? fallback, []);
-  return { ...state, loading: state.loading && cached === null };
+  const miss = cached === null;
+  return { ...state, loading: state.loading && miss, error: state.error && miss };
 }
 
 /**

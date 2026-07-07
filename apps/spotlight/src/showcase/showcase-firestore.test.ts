@@ -4,6 +4,8 @@ import { sortByCompletedDesc, showcaseListCache, featuredCache } from "./showcas
 import { mockStorage } from "../test/mock-storage";
 import type { ShowcaseItem } from "@luminova/types/engine";
 
+// Partial fixture — only the fields under test (sort key + cache Timestamps);
+// the double-cast stands in for the ~10 unrelated ShowcaseItem fields.
 const item = (id: string, ms: number, featured = false) =>
   ({
     id,
@@ -34,5 +36,13 @@ describe.each([
     expect(first?.completedAt.toMillis()).toBe(1_700_000_000_000);
     expect(first?.startDate.toMillis()).toBe(1_699_999_999_000);
     expect(first?.endDate.toMillis()).toBe(1_699_999_999_500);
+  });
+});
+
+describe("showcaseListCache malformed entry", () => {
+  it("treats a malformed cached entry as a miss (safe refetch, not NaN dates)", () => {
+    const store = mockStorage();
+    store.set("jci.showcase.v1", JSON.stringify([{ id: "x", featured: true, completedAt: null }]));
+    expect(showcaseListCache.read()).toBeNull();
   });
 });

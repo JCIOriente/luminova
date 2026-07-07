@@ -69,6 +69,36 @@ describe("useCachedAsync", () => {
     await waitFor(() => expect(result.current.data).toEqual([3, 4]));
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps showing cached content when a background revalidation fails (SWR, no error flash)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const store = mockStorage();
+    store.set("k", JSON.stringify([1, 2]));
+    const cache = makeResourceCache<number[]>({ key: "k" });
+    const fetcher = vi.fn(() => Promise.reject(new Error("offline")));
+    const { result } = renderHook(() => useCachedAsync(cache, fetcher, [], "k"));
+
+    // cached content paints, clean state
+    expect(result.current.data).toEqual([1, 2]);
+    expect(result.current.error).toBe(false);
+
+    // the background read fails — stale content and clean state persist
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    expect(result.current.data).toEqual([1, 2]);
+    expect(result.current.error).toBe(false);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("surfaces the error when the fetch fails on a cache miss", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockStorage();
+    const cache = makeResourceCache<number[]>({ key: "k" });
+    const fetcher = vi.fn(() => Promise.reject(new Error("offline")));
+    const { result } = renderHook(() => useCachedAsync(cache, fetcher, [], "k"));
+
+    await waitFor(() => expect(result.current.error).toBe(true));
+    expect(result.current.loading).toBe(false);
+  });
 });
 
 describe("useCachedAsyncOnVisible", () => {

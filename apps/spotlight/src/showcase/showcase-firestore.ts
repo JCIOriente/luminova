@@ -49,14 +49,23 @@ function serializeShowcase(items: ShowcaseItem[]): CachedShowcaseItem[] {
 }
 
 function reviveShowcase(raw: unknown): ShowcaseItem[] {
-  // raw is the JSON.parse output of a serializeShowcase array.
+  // raw is the JSON.parse output of a serializeShowcase array. Validate the
+  // millis fields before trusting them: a drifted/tampered cache with a
+  // missing Timestamp would otherwise yield Timestamp.fromMillis(undefined) ==
+  // NaN dates. Throwing here is caught by makeResourceCache.read() → null →
+  // a clean refetch instead of silently rendering Invalid Date.
   const cached = raw as CachedShowcaseItem[];
-  return cached.map((it) => ({
-    ...it,
-    startDate: Timestamp.fromMillis(it.startDate),
-    endDate: Timestamp.fromMillis(it.endDate),
-    completedAt: Timestamp.fromMillis(it.completedAt),
-  }));
+  return cached.map((it) => {
+    if (![it.startDate, it.endDate, it.completedAt].every((n) => Number.isFinite(n))) {
+      throw new Error("malformed showcase cache entry");
+    }
+    return {
+      ...it,
+      startDate: Timestamp.fromMillis(it.startDate),
+      endDate: Timestamp.fromMillis(it.endDate),
+      completedAt: Timestamp.fromMillis(it.completedAt),
+    };
+  });
 }
 
 const makeShowcaseCache = (key: string) =>
