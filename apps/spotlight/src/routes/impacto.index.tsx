@@ -85,6 +85,10 @@ function ImpactoPage() {
             <p className="showcase-empty">
               No pudimos cargar los proyectos en este momento. Vuelve a intentarlo más tarde.
             </p>
+          ) : data.length === 0 ? (
+            <p className="showcase-empty">
+              Pronto compartiremos aquí nuestros proyectos ejecutados.
+            </p>
           ) : (
             <ShowcaseGrid items={data} />
           )}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { SiteConfig } from "@luminova/types";
 import { fetchSiteConfig } from "./site-config-firestore";
 import { SITE_CONFIG_DEFAULTS } from "./defaults";
+import { makeResourceCache, dedupe } from "../lib/cached-resource";
 
 export const CACHE_KEY = "jci.siteConfig.v1";
 
@@ -20,49 +21,40 @@ function withDefaults(c: Partial<Resolved> | null | undefined): Resolved {
   };
 }
 
+const cache = makeResourceCache<Resolved>({
+  key: CACHE_KEY,
+  revive: (raw) => withDefaults(raw as Partial<Resolved>),
+});
+
 export function readCache(): Resolved | null {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    return raw ? withDefaults(JSON.parse(raw) as Partial<Resolved>) : null;
-  } catch {
-    return null;
-  }
+  return cache.read();
 }
 
 export function writeCache(config: Resolved): void {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(config));
-  } catch {
-    /* quota / private mode — ignore, fall back to network each load */
-  }
+  cache.write(config);
 }
 
 // Collapse the concurrent mounts on a page (the hook is called once per section)
 // into a single Firestore read + a single cache write, shared across instances.
-let inflight: Promise<Resolved | null> | null = null;
-
-function revalidateOnce(): Promise<Resolved | null> {
-  inflight ??= fetchSiteConfig()
-    .then((fresh) => {
-      if (!fresh) return null;
-      const resolved = withDefaults({
-        hero: fresh.hero,
-        stats: fresh.stats,
-        timeline: fresh.timeline,
-        mvv: fresh.mvv,
-        reasons: fresh.reasons,
-        contact: fresh.contact,
-        linktree: fresh.linktree,
-      });
-      writeCache(resolved);
-      return resolved;
-    })
-    .catch(() => null)
-    .finally(() => {
-      inflight = null;
+const revalidateOnce = dedupe(async (): Promise<Resolved | null> => {
+  try {
+    const fresh = await fetchSiteConfig();
+    if (!fresh) return null;
+    const resolved = withDefaults({
+      hero: fresh.hero,
+      stats: fresh.stats,
+      timeline: fresh.timeline,
+      mvv: fresh.mvv,
+      reasons: fresh.reasons,
+      contact: fresh.contact,
+      linktree: fresh.linktree,
     });
-  return inflight;
-}
+    writeCache(resolved);
+    return resolved;
+  } catch {
+    return null;
+  }
+});
 
 export function useSiteConfig(): Resolved {
   const [config, setConfig] = useState<Resolved>(() => readCache() ?? SITE_CONFIG_DEFAULTS);
