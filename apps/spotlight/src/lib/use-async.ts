@@ -26,6 +26,7 @@ export function useAsync<T>(fetcher: () => Promise<T>, empty: T, deps: Dependenc
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- generic hook: caller-supplied `deps` is the intended re-run trigger (mirrors useMemo/useCallback); fetcher/empty are read from refs refreshed every render, so there is no stale closure.
   }, deps);
   return state;
 }

@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import prettier from "eslint-config-prettier";
+import reactHooks from "eslint-plugin-react-hooks";
 
 export default tseslint.config(
   {
@@ -15,6 +16,23 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   prettier,
+  {
+    // eslint-plugin-react-hooks: enforce the Rules of Hooks and complete effect
+    // dependency lists across both apps and the shared packages (including the
+    // hand-rolled hooks in packages/ui and spotlight's lib/). Both rules are
+    // "error" so the `pnpm lint` gate (in every *-ci script and the CI `checks`
+    // job) actually blocks — bare `eslint .` exits 0 on warnings, so "warn" would
+    // have no teeth. Only the two classic rules are wired; the plugin's
+    // recommended-latest additionally enables the React Compiler lint suite
+    // (immutability/purity/set-state-in-effect/…), which is a separate, larger
+    // initiative and out of scope for this guardrail.
+    files: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
+    plugins: { "react-hooks": reactHooks },
+    rules: {
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "error",
+    },
+  },
   {
     // App code must consume @luminova/ui for elements that have a shared
     // component. These elements always have an equivalent, so a raw tag is a
