@@ -59,14 +59,8 @@ function reviveShowcase(raw: unknown): ShowcaseItem[] {
   }));
 }
 
-export const showcaseListCache = makeResourceCache<ShowcaseItem[]>({
-  key: "jci.showcase.v1",
-  serialize: serializeShowcase,
-  revive: reviveShowcase,
-});
+const makeShowcaseCache = (key: string) =>
+  makeResourceCache<ShowcaseItem[]>({ key, serialize: serializeShowcase, revive: reviveShowcase });
 
-export const featuredCache = makeResourceCache<ShowcaseItem[]>({
-  key: "jci.showcase.featured.v1",
-  serialize: serializeShowcase,
-  revive: reviveShowcase,
-});
+export const showcaseListCache = makeShowcaseCache("jci.showcase.v1");
+export const featuredCache = makeShowcaseCache("jci.showcase.featured.v1");

@@ -1,15 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeResourceCache, dedupe, withCache } from "./cached-resource";
-
-function mockStorage() {
-  const store = new Map<string, string>();
-  vi.stubGlobal("localStorage", {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => store.set(k, v),
-    removeItem: (k: string) => store.delete(k),
-  });
-  return store;
-}
+import { mockStorage } from "../test/mock-storage";
 
 afterEach(() => {
   vi.unstubAllGlobals();

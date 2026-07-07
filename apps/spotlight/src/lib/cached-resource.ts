@@ -45,11 +45,9 @@ export function makeResourceCache<T>(opts: {
 export function dedupe<T>(fn: () => Promise<T>): () => Promise<T> {
   let inflight: Promise<T> | null = null;
   return () => {
-    inflight ??= Promise.resolve()
-      .then(fn)
-      .finally(() => {
-        inflight = null;
-      });
+    inflight ??= fn().finally(() => {
+      inflight = null;
+    });
     return inflight;
   };
 }

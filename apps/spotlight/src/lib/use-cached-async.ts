@@ -1,21 +1,35 @@
-import { useMemo, useRef } from "react";
+import { useState } from "react";
 import { useAsync, type Async } from "./use-async";
 import { useAsyncOnVisible, type AsyncOnVisible } from "./use-async-on-visible";
 import { withCache, type ResourceCache } from "./cached-resource";
 
-// Read the cache exactly once per mount. A miss is a real null (lists never
-// cache as null), so `cached === null` cleanly distinguishes hit from miss.
+// Read the cache exactly once per mount (useState's lazy initializer). A miss is
+// a real null — our cached resources are always arrays, never null — so
+// `cached === null` cleanly distinguishes a hit from a miss.
 function useCachedSeed<T>(cache: ResourceCache<T>): T | null {
-  const box = useRef<{ value: T | null } | null>(null);
-  if (box.current === null) box.current = { value: cache.read() };
-  return box.current.value;
+  const [seed] = useState(() => cache.read());
+  return seed;
+}
+
+// Seed from the localStorage cache, revalidate via the given base hook, and
+// suppress the loading skeleton when the seed was a cache hit (instant paint).
+function useCached<T, S extends Async<T>>(
+  useBase: (fetcher: () => Promise<T>, empty: T, deps: []) => S,
+  cache: ResourceCache<T>,
+  fetcher: () => Promise<T>,
+  fallback: T,
+  label: string,
+): S {
+  const cached = useCachedSeed(cache);
+  const state = useBase(withCache(cache, fetcher, label), cached ?? fallback, []);
+  return { ...state, loading: state.loading && cached === null };
 }
 
 /**
- * SWR over a public firestore-lite read: seed from the localStorage cache, then
- * revalidate once. A cache hit paints instantly (loading:false, no skeleton); a
- * miss shows the skeleton until the fetch resolves. The wrapped fetcher writes
- * fresh values back through the cache and DEV-logs failures.
+ * SWR over a public firestore-lite read: a cache hit paints instantly
+ * (loading:false, no skeleton); a miss shows the skeleton until the fetch
+ * resolves. Fresh values are written back through the cache and failures are
+ * DEV-logged at the data-layer boundary.
  */
 export function useCachedAsync<T>(
   cache: ResourceCache<T>,
@@ -23,10 +37,7 @@ export function useCachedAsync<T>(
   fallback: T,
   label: string,
 ): Async<T> {
-  const cached = useCachedSeed(cache);
-  const wrapped = useMemo(() => withCache(cache, fetcher, label), [cache, fetcher, label]);
-  const state = useAsync(wrapped, cached ?? fallback, []);
-  return { ...state, loading: state.loading && cached === null };
+  return useCached(useAsync, cache, fetcher, fallback, label);
 }
 
 /**
@@ -40,8 +51,5 @@ export function useCachedAsyncOnVisible<T>(
   fallback: T,
   label: string,
 ): AsyncOnVisible<T> {
-  const cached = useCachedSeed(cache);
-  const wrapped = useMemo(() => withCache(cache, fetcher, label), [cache, fetcher, label]);
-  const state = useAsyncOnVisible(wrapped, cached ?? fallback, []);
-  return { ...state, loading: state.loading && cached === null };
+  return useCached(useAsyncOnVisible, cache, fetcher, fallback, label);
 }

@@ -2,16 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useCachedAsync, useCachedAsyncOnVisible } from "./use-cached-async";
 import { makeResourceCache } from "./cached-resource";
-
-function mockStorage() {
-  const store = new Map<string, string>();
-  vi.stubGlobal("localStorage", {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => store.set(k, v),
-    removeItem: (k: string) => store.delete(k),
-  });
-  return store;
-}
+import { mockStorage } from "../test/mock-storage";
 
 type Cb = (entries: IntersectionObserverEntry[]) => void;
 let lastCallback: Cb | null = null;

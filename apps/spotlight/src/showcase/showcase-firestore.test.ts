@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Timestamp } from "firebase/firestore/lite";
 import { sortByCompletedDesc, showcaseListCache, featuredCache } from "./showcase-firestore";
+import { mockStorage } from "../test/mock-storage";
 import type { ShowcaseItem } from "@luminova/types/engine";
 
 const item = (id: string, ms: number, featured = false) =>
@@ -11,16 +12,6 @@ const item = (id: string, ms: number, featured = false) =>
     endDate: Timestamp.fromMillis(ms - 500),
     completedAt: Timestamp.fromMillis(ms),
   }) as unknown as ShowcaseItem;
-
-function mockStorage() {
-  const store = new Map<string, string>();
-  vi.stubGlobal("localStorage", {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => store.set(k, v),
-    removeItem: (k: string) => store.delete(k),
-  });
-  return store;
-}
 
 afterEach(() => vi.unstubAllGlobals());
 
