@@ -1,10 +1,21 @@
-import { describe, expect, it } from "vitest";
-import { Timestamp } from "firebase/firestore";
-import { selectFeatured, sortByCompletedDesc } from "./showcase-firestore";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { Timestamp } from "firebase/firestore/lite";
+import { sortByCompletedDesc, showcaseListCache, featuredCache } from "./showcase-firestore";
+import { mockStorage } from "../test/mock-storage";
 import type { ShowcaseItem } from "@luminova/types/engine";
 
+// Partial fixture — only the fields under test (sort key + cache Timestamps);
+// the double-cast stands in for the ~10 unrelated ShowcaseItem fields.
 const item = (id: string, ms: number, featured = false) =>
-  ({ id, completedAt: Timestamp.fromMillis(ms), featured }) as unknown as ShowcaseItem;
+  ({
+    id,
+    featured,
+    startDate: Timestamp.fromMillis(ms - 1000),
+    endDate: Timestamp.fromMillis(ms - 500),
+    completedAt: Timestamp.fromMillis(ms),
+  }) as unknown as ShowcaseItem;
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("sortByCompletedDesc", () => {
   it("orders newest completedAt first", () => {
@@ -13,18 +24,25 @@ describe("sortByCompletedDesc", () => {
   });
 });
 
-describe("selectFeatured", () => {
-  it("keeps only featured items, newest completedAt first", () => {
-    const out = selectFeatured([
-      item("a", 100, true),
-      item("plain", 400, false),
-      item("c", 300, true),
-      item("b", 200, true),
-    ]);
-    expect(out.map((i) => i.id)).toEqual(["c", "b", "a"]);
+describe.each([
+  ["showcaseListCache", showcaseListCache],
+  ["featuredCache", featuredCache],
+])("%s Timestamp round-trip", (_name, cache) => {
+  it("preserves Timestamp fields through JSON (millis serialize / revive)", () => {
+    mockStorage();
+    cache.write([item("a", 1_700_000_000_000)]);
+    const first = cache.read()?.[0];
+    expect(first?.completedAt).toBeInstanceOf(Timestamp);
+    expect(first?.completedAt.toMillis()).toBe(1_700_000_000_000);
+    expect(first?.startDate.toMillis()).toBe(1_699_999_999_000);
+    expect(first?.endDate.toMillis()).toBe(1_699_999_999_500);
   });
+});
 
-  it("returns [] when nothing is featured", () => {
-    expect(selectFeatured([item("a", 100, false), item("b", 200, false)])).toEqual([]);
+describe("showcaseListCache malformed entry", () => {
+  it("treats a malformed cached entry as a miss (safe refetch, not NaN dates)", () => {
+    const store = mockStorage();
+    store.set("jci.showcase.v1", JSON.stringify([{ id: "x", featured: true, completedAt: null }]));
+    expect(showcaseListCache.read()).toBeNull();
   });
 });

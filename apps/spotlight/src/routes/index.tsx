@@ -6,9 +6,8 @@ import { ProgramsSkeleton } from "../components/programs-skeleton";
 
 import { useSiteConfig } from "../site-config/use-site-config";
 import { currentYearsActive } from "../site-config/defaults";
-import { fetchAllies } from "../allies/ally-showcase-firestore";
-import { useAsyncOnVisible } from "../lib/use-async-on-visible";
-import { ALLY_CATEGORY_LABELS, type AllyShowcaseItem } from "@luminova/types/engine";
+import { useAlliesOnVisible } from "../allies/use-allies";
+import { ALLY_CATEGORY_LABELS } from "@luminova/types/engine";
 
 const LazyHomePrograms = lazy(() => import("../components/home-programs"));
 
@@ -261,12 +260,7 @@ function HomeImpact() {
 }
 
 function HomeAllies() {
-  const {
-    ref,
-    data: allies,
-    loading,
-    error,
-  } = useAsyncOnVisible(fetchAllies, [] as AllyShowcaseItem[], []);
+  const { ref, data: allies, loading, error } = useAlliesOnVisible();
   const ready = !loading && !error && allies.length > 0;
   return (
     <section ref={ref} className="section" style={{ paddingTop: 80, paddingBottom: 80 }}>
