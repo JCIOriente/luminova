@@ -1066,9 +1066,10 @@ describe("firestore.rules — public + deny-all", () => {
   it("allows a signed-in user to read projects", async () => {
     await assertSucceeds(getDoc(doc(as("u", ["Member"]), "projects/p1")));
   });
-  it("denies read of the removed board collection (falls through to deny-all)", async () => {
+  it("denies read + write of the removed board collection (falls through to deny-all)", async () => {
     await assertFails(getDoc(doc(anon(), "board/b1")));
     await assertFails(getDoc(doc(as("u", ["Admin"]), "board/b1")));
+    await assertFails(setDoc(doc(as("u", ["Admin"]), "board/b1"), { title: "X" }));
   });
   it("denies access to an unlisted collection", async () => {
     await assertFails(getDoc(doc(as("u", ["Admin"]), "settings/s1")));
