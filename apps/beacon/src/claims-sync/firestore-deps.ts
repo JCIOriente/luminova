@@ -1,8 +1,9 @@
 import type { Auth, UserRecord } from "firebase-admin/auth";
-import type { DocumentData, Firestore } from "firebase-admin/firestore";
+import type { Firestore } from "firebase-admin/firestore";
 import { isValidRole, type Role } from "@luminova/auth/roles";
 import { isValidPermissionCode, type PermissionCode } from "@luminova/types/permission";
 import { chunk } from "../chunk.js";
+import { isActiveRoleDoc, permsFromRoleDoc } from "./role-doc.js";
 import type { ClaimsSyncDeps } from "./sync.js";
 
 function rolesFromClaims(claims: Record<string, unknown> | undefined): Role[] {
@@ -17,15 +18,6 @@ function permsFromClaims(
   return Array.isArray(raw)
     ? raw.filter((p): p is PermissionCode => isValidPermissionCode(p))
     : undefined;
-}
-
-export function permsFromRoleDoc(data: DocumentData | undefined): PermissionCode[] {
-  const raw = data?.permissions;
-  return Array.isArray(raw) ? raw.filter((p): p is PermissionCode => isValidPermissionCode(p)) : [];
-}
-
-export function isActiveRoleDoc(data: DocumentData | undefined): boolean {
-  return data?.active !== false && (data?.deletedAt === null || data?.deletedAt === undefined);
 }
 
 async function getUserOrNull(auth: Auth, uid: string): Promise<UserRecord | null> {
@@ -98,11 +90,11 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): ClaimsSyncDeps {
       const out: { permissions: PermissionCode[] }[] = [];
       for (const batch of chunk(refs, 300)) {
         const snaps = await db.getAll(...batch);
-        for (const s of snaps) {
-          if (s.exists && isActiveRoleDoc(s.data())) {
-            out.push({ permissions: permsFromRoleDoc(s.data()) });
-          }
-        }
+        out.push(
+          ...snaps
+            .filter((s) => s.exists && isActiveRoleDoc(s.data()))
+            .map((s) => ({ permissions: permsFromRoleDoc(s.data()) })),
+        );
       }
       return out;
     },

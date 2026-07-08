@@ -27,6 +27,7 @@ import { syncMemberClaims } from "./claims-sync/sync.js";
 import { roleClaimsChanged } from "./claims-sync/role-change.js";
 import { parseMember, MEMBER_SYNC_FIELDS } from "./claims-sync/parse-member.js";
 import { currentTermKey } from "./runtime.js";
+import { chunk } from "./chunk.js";
 
 // Initialize the default app once at module load. Doing this lazily inside the
 // handler races the functions runtime's admin stub (getApps() can report a stub
@@ -44,8 +45,8 @@ async function resolveMembers(
 ): Promise<Map<string, ShowcasePerson>> {
   const unique = [...new Set(ids)].filter((id) => id.length > 0);
   const people = new Map<string, ShowcasePerson>();
-  for (let i = 0; i < unique.length; i += 300) {
-    const refs = unique.slice(i, i + 300).map((id) => database.doc(`members/${id}`));
+  for (const batch of chunk(unique, 300)) {
+    const refs = batch.map((id) => database.doc(`members/${id}`));
     const snaps = await database.getAll(...refs);
     for (const snap of snaps) {
       const p = showcasePerson(snap.get("name"), snap.get("profilePicture"));

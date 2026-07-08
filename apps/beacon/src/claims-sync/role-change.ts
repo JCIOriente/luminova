@@ -1,5 +1,5 @@
 import type { DocumentData } from "firebase-admin/firestore";
-import { isActiveRoleDoc, permsFromRoleDoc } from "./firestore-deps.js";
+import { isActiveRoleDoc, permsFromRoleDoc } from "./role-doc.js";
 
 function permsEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
