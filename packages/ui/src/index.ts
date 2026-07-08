@@ -20,6 +20,7 @@ export { ProgressBar } from "./components/progress-bar";
 export { ImageUploader } from "./components/image-uploader";
 export { LogoLockup } from "./components/logo-lockup";
 export { RippleSVG, RippleBackground, RippleDivider } from "./components/ripple";
+export { NotFoundBackdrop, Numeral404, NUMERAL_GRADIENT } from "./components/not-found-chrome";
 export { Toast } from "./components/toast";
 export { Tooltip } from "./components/tooltip";
 export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./components/table";

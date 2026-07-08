@@ -166,6 +166,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 | `Icon` + `ArrowRight` (icon set)                      | `components/icons.tsx`          |
 | `Reveal` (scroll-in animation)                        | `components/reveal.tsx`         |
 | `Ripple` (`RippleSVG/RippleBackground/RippleDivider`) | `components/ripple.tsx`         |
+| `NotFoundBackdrop` + `Numeral404` (`fontSize`, `className?`) + `NUMERAL_GRADIENT` — shared 404-page chrome | `components/not-found-chrome.tsx` |
 
 ### Domain widgets (deep-import only)
 
