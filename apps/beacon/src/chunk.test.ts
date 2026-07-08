@@ -15,7 +15,10 @@ describe("chunk", () => {
   });
 
   it("splits an exact multiple into equal batches", () => {
-    expect(chunk([1, 2, 3, 4], 2)).toEqual([[1, 2], [3, 4]]);
+    expect(chunk([1, 2, 3, 4], 2)).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
   });
 
   it("bounds each getAll-sized batch at 300 for a large input", () => {
