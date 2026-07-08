@@ -30,9 +30,7 @@ export function NotFound() {
           Error 404
         </div>
 
-        <div style={{ marginTop: 10 }}>
-          <Numeral404 fontSize="clamp(120px, 26vw, 280px)" />
-        </div>
+        <Numeral404 fontSize="clamp(120px, 26vw, 280px)" className="mt-[10px]" />
 
         <h1
           className="t-title"

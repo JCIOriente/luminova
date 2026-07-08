@@ -7,7 +7,7 @@ import { RippleBackground } from "./ripple";
 // numeral — lives here. rgba(87,188,188,.85) is jci-teal at 85%: a var() can't be
 // used inside a background-clip gradient stop, so the literal is centralized here
 // rather than duplicated across two apps.
-export const NUMERAL_GRADIENT = "linear-gradient(180deg, #ffffff 0%, rgba(87,188,188,0.85) 100%)";
+const NUMERAL_GRADIENT = "linear-gradient(180deg, #ffffff 0%, rgba(87,188,188,0.85) 100%)";
 
 const AMBIENT_WASH =
   "radial-gradient(120% 90% at 50% 11%, rgba(0,151,215,0.20), transparent 55%), radial-gradient(70% 60% at 50% 81%, rgba(239,196,15,0.10), transparent 60%)";
