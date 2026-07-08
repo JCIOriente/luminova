@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { MEMBER_STATUSES, MEMBER_GENDERS } from "./member.js";
-import { permissionOverridesSchema } from "./permission-overrides-schema.js";
 
 const dateString = z
   .string()
@@ -23,8 +22,6 @@ export const memberSchema = z.object({
   isPastPresident: z.boolean().optional(),
   cargoId: z.string().min(1).nullable(),
   comisionIds: z.array(z.string().min(1)),
-  roleIds: z.array(z.string().min(1)).optional(),
-  permissionOverrides: permissionOverridesSchema.optional(),
 });
 
 export type MemberInput = z.infer<typeof memberSchema>;
