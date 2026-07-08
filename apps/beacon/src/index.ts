@@ -250,7 +250,10 @@ export const onRoleWritten = onDocumentWritten(
     // event.time is stable across retries (unlike now()) — avoids a year-boundary
     // retry resolving positions under a different term key.
     const termKey = String(new Date(event.time).getUTCFullYear());
-    const builtInKey = builtInKeyFromRoleDoc(data);
+    // Scan by whichever side is built-in: a built-in->custom edit (builtInKey
+    // removed) must still re-sync every position-holder to drop the now-removed
+    // built-in perms, not fall through to the roleIds filter that misses them.
+    const builtInKey = builtInKeyFromRoleDoc(afterData) ?? builtInKeyFromRoleDoc(beforeData);
     const members = database.collection("members").select(...MEMBER_SYNC_FIELDS);
     const query = builtInKey
       ? members
