@@ -11,3 +11,7 @@ export function permsFromRoleDoc(data: DocumentData | undefined): PermissionCode
 export function isActiveRoleDoc(data: DocumentData | undefined): boolean {
   return data?.active !== false && (data?.deletedAt === null || data?.deletedAt === undefined);
 }
+
+export function builtInKeyFromRoleDoc(data: DocumentData | undefined): string | null {
+  return typeof data?.builtInKey === "string" ? data.builtInKey : null;
+}

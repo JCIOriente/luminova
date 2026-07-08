@@ -1,10 +1,14 @@
 import type { DocumentData } from "firebase-admin/firestore";
-import { isActiveRoleDoc, permsFromRoleDoc } from "./role-doc.js";
+import { builtInKeyFromRoleDoc, isActiveRoleDoc, permsFromRoleDoc } from "./role-doc.js";
 
+// Compare as sets, not arrays: permsFromRoleDoc does not dedup and the rules do
+// not enforce uniqueness, so a dropped-permission edit that leaves a duplicate
+// behind (["X","Y"] -> ["X","X"]) keeps array length constant — an array-wise
+// "equal" would misread that real revocation as unchanged and strand stale claims.
 function permsEqual(a: readonly string[], b: readonly string[]): boolean {
-  if (a.length !== b.length) return false;
-  const set = new Set(a);
-  return b.every((p) => set.has(p));
+  const setA = new Set(a);
+  const setB = new Set(b);
+  return setA.size === setB.size && [...setA].every((p) => setB.has(p));
 }
 
 /**
@@ -24,16 +28,18 @@ export function roleClaimsChanged(
 ): boolean {
   if (!before || !after) return true;
 
-  const beforeKey = typeof before.builtInKey === "string" ? before.builtInKey : null;
-  const afterKey = typeof after.builtInKey === "string" ? after.builtInKey : null;
-  if (beforeKey !== afterKey) return true;
+  if (builtInKeyFromRoleDoc(before) !== builtInKeyFromRoleDoc(after)) return true;
 
   const beforeActive = isActiveRoleDoc(before);
   const afterActive = isActiveRoleDoc(after);
   if (beforeActive !== afterActive) return true;
 
-  // Both inactive → contributes nothing regardless of its perms.
+  // Both inactive → contributes nothing regardless of its perms or builtIn flag.
   if (!beforeActive) return false;
+
+  // A built-in role contributes perms only while builtIn === true (the gate in
+  // getRoleDocsByBuiltInKeys), so a flip of that flag changes what holders resolve.
+  if ((before.builtIn === true) !== (after.builtIn === true)) return true;
 
   return !permsEqual(permsFromRoleDoc(before), permsFromRoleDoc(after));
 }

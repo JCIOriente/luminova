@@ -25,6 +25,7 @@ import type { ShowcasePerson } from "@luminova/types/engine";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
 import { roleClaimsChanged } from "./claims-sync/role-change.js";
+import { builtInKeyFromRoleDoc } from "./claims-sync/role-doc.js";
 import { parseMember, MEMBER_SYNC_FIELDS } from "./claims-sync/parse-member.js";
 import { currentTermKey } from "./runtime.js";
 import { chunk } from "./chunk.js";
@@ -232,14 +233,15 @@ export const onMemberWritten = onDocumentWritten("members/{id}", async (event) =
 // Per-member try/catch isolates a single Auth failure so it can't re-trigger the
 // whole fan-out (retry storm); longer timeout + projection bound the scan.
 // roleClaimsChanged skips the whole members scan for metadata-only edits (or a
-// redelivered no-op write) — nothing the claims depend on changed.
+// redelivered no-op write) — nothing the claims depend on changed. A metadata-only
+// edit therefore no longer re-drives the scan, so recomputeAllClaims (not an
+// incidental rename) is the backstop for a member stranded by an earlier partial
+// failure. Snapshot.data() is undefined when the doc side didn't exist (create/delete).
 export const onRoleWritten = onDocumentWritten(
   { document: "roles/{id}", timeoutSeconds: 540, memory: "512MiB" },
   async (event) => {
-    const after = event.data?.after;
-    const before = event.data?.before;
-    const beforeData = before?.exists ? before.data() : undefined;
-    const afterData = after?.exists ? after.data() : undefined;
+    const beforeData = event.data?.before?.data();
+    const afterData = event.data?.after?.data();
     const data = afterData ?? beforeData;
     if (!data) return;
     if (!roleClaimsChanged(beforeData, afterData)) return;
@@ -248,7 +250,7 @@ export const onRoleWritten = onDocumentWritten(
     // event.time is stable across retries (unlike now()) — avoids a year-boundary
     // retry resolving positions under a different term key.
     const termKey = String(new Date(event.time).getUTCFullYear());
-    const builtInKey = typeof data.builtInKey === "string" ? data.builtInKey : null;
+    const builtInKey = builtInKeyFromRoleDoc(data);
     const members = database.collection("members").select(...MEMBER_SYNC_FIELDS);
     const query = builtInKey
       ? members

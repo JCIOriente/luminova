@@ -28,6 +28,20 @@ describe("roleClaimsChanged", () => {
     expect(roleClaimsChanged(before, after)).toBe(false);
   });
 
+  it("is true when a permission is revoked but a duplicate keeps array length equal", () => {
+    // ["read","manage"] -> ["read","read"] drops manage:Member; length stays 2, so
+    // an array-wise compare would wrongly read it as unchanged.
+    const before = { permissions: ["read:Member", "manage:Member"] };
+    const after = { permissions: ["read:Member", "read:Member"] };
+    expect(roleClaimsChanged(before, after)).toBe(true);
+  });
+
+  it("is true when the builtIn flag flips on an active role", () => {
+    const before = { permissions: ["read:Member"], builtInKey: "Admin", builtIn: true };
+    const after = { permissions: ["read:Member"], builtInKey: "Admin", builtIn: false };
+    expect(roleClaimsChanged(before, after)).toBe(true);
+  });
+
   it("is true when the role is deactivated (active flips)", () => {
     const before = { permissions: ["read:Member"], active: true };
     const after = { permissions: ["read:Member"], active: false };
