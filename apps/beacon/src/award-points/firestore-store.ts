@@ -26,7 +26,7 @@ export function parseInitiativeWrite(data: unknown): InitiativeWrite | null {
   const coDirectorIds = Array.isArray(r.coDirectorIds)
     ? [...new Set(r.coDirectorIds.filter(isCleanId))]
     : [];
-  const teamIds = Array.isArray(r.teamIds) ? r.teamIds.filter(isCleanId) : [];
+  const teamIds = Array.isArray(r.teamIds) ? [...new Set(r.teamIds.filter(isCleanId))] : [];
 
   const finalReport = raw.finalReport as { filedAt?: unknown } | null | undefined;
   const reportFiled = finalReport != null;

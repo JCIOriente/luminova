@@ -2,6 +2,7 @@ import type { Auth, UserRecord } from "firebase-admin/auth";
 import type { DocumentData, Firestore } from "firebase-admin/firestore";
 import { isValidRole, type Role } from "@luminova/auth/roles";
 import { isValidPermissionCode, type PermissionCode } from "@luminova/types/permission";
+import { chunk } from "../chunk.js";
 import type { ClaimsSyncDeps } from "./sync.js";
 
 function rolesFromClaims(claims: Record<string, unknown> | undefined): Role[] {
@@ -18,12 +19,12 @@ function permsFromClaims(
     : undefined;
 }
 
-function permsFromRoleDoc(data: DocumentData | undefined): PermissionCode[] {
+export function permsFromRoleDoc(data: DocumentData | undefined): PermissionCode[] {
   const raw = data?.permissions;
   return Array.isArray(raw) ? raw.filter((p): p is PermissionCode => isValidPermissionCode(p)) : [];
 }
 
-function isActiveRoleDoc(data: DocumentData | undefined): boolean {
+export function isActiveRoleDoc(data: DocumentData | undefined): boolean {
   return data?.active !== false && (data?.deletedAt === null || data?.deletedAt === undefined);
 }
 
@@ -90,11 +91,20 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): ClaimsSyncDeps {
     },
     getRolesByIds: async (ids) => {
       if (ids.length === 0) return [];
+      // roleIds is Admin-writable but rules impose no size cap, so bound the
+      // getAll fan-out in 300-ref batches (mirrors resolveMembers) rather than
+      // splatting an unbounded ref list into a single getAll call.
       const refs = ids.map((id) => db.doc(`roles/${id}`));
-      const snaps = await db.getAll(...refs);
-      return snaps
-        .filter((s) => s.exists && isActiveRoleDoc(s.data()))
-        .map((s) => ({ permissions: permsFromRoleDoc(s.data()) }));
+      const out: { permissions: PermissionCode[] }[] = [];
+      for (const batch of chunk(refs, 300)) {
+        const snaps = await db.getAll(...batch);
+        for (const s of snaps) {
+          if (s.exists && isActiveRoleDoc(s.data())) {
+            out.push({ permissions: permsFromRoleDoc(s.data()) });
+          }
+        }
+      }
+      return out;
     },
     setClaims: async (uid, next) => {
       await auth.setCustomUserClaims(uid, next);

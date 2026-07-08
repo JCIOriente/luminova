@@ -24,6 +24,7 @@ import { projectAlly } from "./showcase/project-ally.js";
 import type { ShowcasePerson } from "@luminova/types/engine";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
+import { roleClaimsChanged } from "./claims-sync/role-change.js";
 import { parseMember, MEMBER_SYNC_FIELDS } from "./claims-sync/parse-member.js";
 import { currentTermKey } from "./runtime.js";
 
@@ -229,13 +230,18 @@ export const onMemberWritten = onDocumentWritten("members/{id}", async (event) =
 // role: all provisioned members (rare, admin-only edit). Idempotent per member.
 // Per-member try/catch isolates a single Auth failure so it can't re-trigger the
 // whole fan-out (retry storm); longer timeout + projection bound the scan.
+// roleClaimsChanged skips the whole members scan for metadata-only edits (or a
+// redelivered no-op write) — nothing the claims depend on changed.
 export const onRoleWritten = onDocumentWritten(
   { document: "roles/{id}", timeoutSeconds: 540, memory: "512MiB" },
   async (event) => {
     const after = event.data?.after;
     const before = event.data?.before;
-    const data = after?.exists ? after.data() : before?.data();
+    const beforeData = before?.exists ? before.data() : undefined;
+    const afterData = after?.exists ? after.data() : undefined;
+    const data = afterData ?? beforeData;
     if (!data) return;
+    if (!roleClaimsChanged(beforeData, afterData)) return;
     const database = db();
     const deps = firestoreClaimsDeps(database, getAuth());
     // event.time is stable across retries (unlike now()) — avoids a year-boundary

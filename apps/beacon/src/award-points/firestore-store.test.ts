@@ -104,6 +104,14 @@ describe("parseInitiativeWrite", () => {
     });
     expect(out?.roster.coDirectorIds).toEqual(["m2", "m3"]);
   });
+
+  it("dedupes a team member id repeated in the array", () => {
+    const out = parseInitiativeWrite({
+      termId: "2026",
+      roster: { directorId: "d1", coDirectorIds: [], teamIds: ["m2", "m2", "m3"] },
+    });
+    expect(out?.roster.teamIds).toEqual(["m2", "m3"]);
+  });
 });
 
 describe("createFirestoreStore — directionUids mirror", () => {
