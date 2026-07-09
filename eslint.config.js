@@ -71,6 +71,23 @@ export default tseslint.config(
           message:
             "Arbitrary sub-18px font-size: use the text-ui-* compact scale from @luminova/ui (see DESIGN.md).",
         },
+        {
+          // Colors live in packages/ui/src/theme.css as tokens (--color-*), which
+          // generate utilities (text-jci-blue, bg-surface-2, border-line). A raw
+          // hex/rgb literal inside a Tailwind arbitrary-value color utility
+          // (text-[#…], bg-[rgba(…)], border-[#…], from-[#…]) bypasses the token —
+          // it can't be remapped by dark mode and drifts from the palette. The
+          // `-[` anchor ties this to a utility, so structural arbitrary values
+          // (grid-cols-[…], data-[state=…]) don't match. Where a color literal is
+          // genuinely unavoidable (a gradient color stop or SVG fill that can't
+          // take a var()), it belongs in an inline style={{…}} derived from a
+          // token and centralized once — that path is a `style` object, not a
+          // className string Literal, so it isn't matched here. See
+          // docs/reuse-first-ui.md.
+          selector: "Literal[value=/-\\[(?:#[0-9a-fA-F]{3,8}|rgba?\\()/]",
+          message:
+            "Raw hex/rgb color in className: use a theme.css token utility (e.g. text-jci-blue, bg-surface-2, border-line). See docs/reuse-first-ui.md.",
+        },
       ],
     },
   },
