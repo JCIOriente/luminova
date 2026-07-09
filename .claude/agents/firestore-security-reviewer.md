@@ -46,9 +46,9 @@ Checklist:
 10. **Rules mirror client invariants.** A write-invariant enforced only in a
     repository — a field frozen once dependent data exists (activity
     `category`/`startAt`/`parentId` locked once check-ins exist, to protect
-    already-computed points), a create-gate (only Admin/ProjectManager may set
-    `featured`), soft-delete — MUST also be enforced in `firestore.rules` AND
-    covered by a rules test. A direct client/SDK write bypasses repository code,
+    already-computed points) or a create-gate (only Admin/ProjectManager may set
+    `featured`) — MUST also be enforced in `firestore.rules` AND covered by a
+    rules test. A direct client/SDK write bypasses repository code,
     so a repo-only invariant is unenforced. Repo enforces but rules don't →
     **High** (Critical if it gates public exposure or points integrity). This is
     distinct from #3 (forged identity/grant fields on create); here the field is

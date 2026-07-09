@@ -111,7 +111,7 @@ permission-denied vs missing-index vs network failure are indistinguishable in p
 
 **RULE.** Never swallow a caught error silently. Log it (`console.error(context, err)`)
 or propagate it alongside any state you set — beacon's per-member re-sync `catch`
-(`apps/beacon/src/index.ts:267`, `console.error("onRoleWritten member re-sync failed", …)`)
+(`apps/beacon/src/index.ts:268`, `console.error("onRoleWritten member re-sync failed", …)`)
 is the shape to copy. An intentional swallow MUST carry a one-line comment justifying it
 (see the "Swallow + log" comment at `apps/beacon/src/index.ts:277`).
 
@@ -148,7 +148,7 @@ exists with no consumer. Claim and reality diverge, and everyone trusts the clai
 | Drift that shipped | Resolution |
 |---|---|
 | `CLAUDE.md` claimed `eslint-plugin-react-hooks` ran on every `.tsx` — it wasn't installed anywhere | Item 11: wired for real in root `eslint.config.js:32-33`, both rules `"error"` (only `error` blocks CI — `pnpm lint` is a bare `eslint .`, warnings exit 0) |
-| `text-ui-*` type tokens defined, but arbitrary `text-[Npx]` still allowed everywhere | Item 6: 226-site sweep + `no-restricted-syntax` sub-18px ban (`eslint.config.js:45`) |
+| `text-ui-*` type tokens defined, but arbitrary `text-[Npx]` still allowed everywhere | Item 6: 226-site sweep + the sub-18px selector in the `no-restricted-syntax` block (`eslint.config.js`, block head at :45) |
 | `board` collection world-readable in `firestore.rules` with **zero** repository consumer | Item 14 (PR #144): removed; tests flipped to assert deny-all |
 | Main-branch ruleset had correct required checks but `enforcement: "disabled"` — gated nothing | Flipped to `active`; verify `enforcement == active`, not just that checks are listed |
 
