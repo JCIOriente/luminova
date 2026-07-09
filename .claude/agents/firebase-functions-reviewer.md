@@ -33,6 +33,18 @@ Walk this checklist against the changed function code:
 9. **Path correctness.** `year`/`month` derived from event `startDate`, not now().
 10. **No client-only globals** (window, etc.) — this is a Node environment.
 11. **Determinism.** No reliance on document write order across triggers.
+12. **Bounded fan-out.** Every `db.getAll(...refs)` and every collection scan must
+    be size-bounded — batch refs with `chunk()` at 300 (`apps/beacon/src/chunk.ts`),
+    or scope with `where`/`.limit`. An unbounded `getAll` over an Admin-writable id
+    list, or a full members-collection scan triggered by an unrelated write, → High
+    (cost / 540s timeout). (Audit item 15: `onRoleWritten` unbounded members scan;
+    `getRolesByIds` unbounded `getAll`.)
+13. **Update-path guards.** A trigger that branches only on create/delete
+    (`after.exists` / `before.exists`) must also handle an UPDATE that changes
+    identifying fields — otherwise the prior derived row is orphaned. Verify an
+    identity-field change (e.g. a checkIn's `memberId`/`activityId`/`role`)
+    reconciles the OLD aggregate, not just writes the new one. (Audit item 3b:
+    `awardPoints` guarded create/delete only.)
 
 Cite the relevant `apps/beacon/CLAUDE.md` invariant when a finding violates it.
 End with a one-line verdict: ship / fix-then-ship / block.
