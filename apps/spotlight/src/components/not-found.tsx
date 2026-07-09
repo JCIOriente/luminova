@@ -1,7 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Button, Icon, RippleBackground } from "@luminova/ui";
-
-const NUMERAL_GRADIENT = "linear-gradient(180deg, #ffffff 0%, rgba(87,188,188,0.85) 100%)";
+import { Button, Icon, NotFoundBackdrop, Numeral404 } from "@luminova/ui";
 
 export function NotFound() {
   const navigate = useNavigate();
@@ -19,30 +17,7 @@ export function NotFound() {
         color: "var(--jci-white)",
       }}
     >
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "radial-gradient(120% 90% at 50% 12%, rgba(0,151,215,0.20), transparent 55%), radial-gradient(70% 60% at 50% 80%, rgba(239,196,15,0.10), transparent 60%)",
-        }}
-      />
-      <div
-        aria-hidden="true"
-        className="motion-safe:animate-pulse"
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: "43%",
-          width: 440,
-          height: 440,
-          transform: "translate(-50%, -50%)",
-          background: "radial-gradient(circle, rgba(239,196,15,0.18), transparent 62%)",
-          filter: "blur(6px)",
-        }}
-      />
-      <RippleBackground variant="hero-center" color="var(--color-jci-teal)" opacity={0.13} />
+      <NotFoundBackdrop />
 
       <div
         className="container motion-safe:animate-rise"
@@ -55,23 +30,7 @@ export function NotFound() {
           Error 404
         </div>
 
-        <div
-          aria-hidden="true"
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "clamp(120px, 26vw, 280px)",
-            lineHeight: 0.9,
-            letterSpacing: "-0.04em",
-            marginTop: 10,
-            background: NUMERAL_GRADIENT,
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            color: "transparent",
-            textShadow: "0 0 60px rgba(0,151,215,0.25)",
-          }}
-        >
-          404
-        </div>
+        <Numeral404 fontSize="clamp(120px, 26vw, 280px)" className="mt-[10px]" />
 
         <h1
           className="t-title"

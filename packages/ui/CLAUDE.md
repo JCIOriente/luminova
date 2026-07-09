@@ -6,7 +6,7 @@ Shared component library for `apps/spotlight` and `apps/backstage`. Bespoke,
 token-driven components styled with **pure Tailwind v4 utility classes** (no
 semantic CSS classes). Consumed as **raw TypeScript source** (no build step).
 
-## What's here now (38 components)
+## What's here now (40 components)
 
 Full inventory + source paths + design tokens live in **`DESIGN.md`** (the
 ingest manifest for Claude Design). Quick map:
