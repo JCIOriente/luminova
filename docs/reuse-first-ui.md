@@ -198,6 +198,11 @@ Barrel: `packages/ui/src/index.ts` — explicit named exports, no `export *`.
 Full manifest with props/variants: `packages/ui/DESIGN.md`. Import
 `import { Button, DataTable } from "@luminova/ui"`.
 
+> The **barrel is the canonical list** (`DESIGN.md` mirrors it for design-tool
+> ingest). The table below is not a third registry to keep in sync — it exists
+> only to carry the "reach for X, don't build Y" guidance. If a name here
+> disagrees with the barrel, the barrel wins; fix this table when you notice.
+
 ### Form controls
 
 | Component | Use it for | Don't build instead |
@@ -334,15 +339,32 @@ graph (backstage index budget).
 | Bundle discipline | `bundle-budget-watcher` agent + `check-bundle-budget.sh` in CI `checks` | New dep/route blowing the gz index budget (why QR is deep-import) |
 | Review gates | `react-best-practices` (auto on `.tsx`), `/code-review`, `/security-review` where triggers match | Everything else |
 
-### The raw-hex guard's known gap
+### The raw-hex guard's known gaps
 
-The selector only fires on **string `Literal`s**. A hex typed inside a template
-literal (`` cn(`text-[#fff]`) ``) is a `TemplateElement`, not a `Literal`, so it
-slips through — the same known gap the sub-18px type guard has. Templates are
-rare for static class strings here; review still covers them.
+The guard is deliberately narrow (favouring zero false-positives over total
+coverage). Two things it does **not** catch — still a color literal, still to
+be avoided, just not yet mechanically blocked:
+
+1. **Template literals.** A hex inside `` cn(`text-[#fff]`) `` is a
+   `TemplateElement`, not a `Literal`, so it slips through — the same gap the
+   sub-18px type guard has. Rare for static class strings; review covers it.
+2. **A color buried mid-value in a multi-value arbitrary utility** — chiefly
+   `shadow-[0_8px_24px_-12px_rgba(19,15,45,.45)]` and
+   `bg-[linear-gradient(…,#fff)]`. The selector anchors the color at `-[` to
+   avoid matching structural arbitraries, so a literal that appears after other
+   tokens inside the brackets isn't seen. A handful of elevation shadows in
+   backstage use this form today. Broadening the selector would flag them, but
+   they have no shadow-color token to migrate to yet — that's the follow-up
+   below, not this guard.
 
 ### Proposed (TODO — not yet wired)
 
+- **Shadow-color tokens + broadened hex guard**: add elevation/shadow color
+  tokens to `theme.css`, migrate the existing `shadow-[…rgba(…)]` literals
+  (backstage: activity-card, scan-modal, member-points-summary), then widen the
+  selector to `-\[[^\]]*(?:#[0-9a-fA-F]{3,8}|rgba?\()` so buried color literals
+  are caught too (re-run the false-positive grep for `content-[`/`url(#`/`mask-[`
+  first).
 - **DESIGN.md count gate**: a script diffing barrel exports vs `DESIGN.md` rows
   (and the `(N — shipped)` heading) would catch the drift in section 7
   mechanically.
@@ -352,10 +374,9 @@ rare for static class strings here; review still covers them.
 ## 7. Known drift (as of this writing) — fix when touched
 
 The manifest/inventory counts and rows are hand-maintained and have drifted;
-listed here so a reader trusts the barrel over the manifest until reconciled.
-Two open PRs (beacon hardening + a dedup/trim that adds shared 404 chrome and
-revises these counts) are in flight, so **fix the count in coordination with
-those merges**, not in isolation.
+listed here so a reader trusts **the barrel (`index.ts`) as the source of
+truth** over the manifest until reconciled. Fix the counts as part of the next
+change that touches the component set, not as an isolated churn commit.
 
 1. **Component counts disagree**: `DESIGN.md` heading says
    "Components (37 — shipped)" and `packages/ui/CLAUDE.md` says "38 components",
