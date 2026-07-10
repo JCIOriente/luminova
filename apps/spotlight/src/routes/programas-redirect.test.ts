@@ -6,6 +6,8 @@ describe("/programas", () => {
   it("redirects to /impacto", () => {
     expect.assertions(2);
     try {
+      // beforeLoad throws before touching its ctx; typing the full router
+      // context for a throw-assertion isn't worth it.
       Route.options.beforeLoad!({} as never);
     } catch (e) {
       expect(isRedirect(e)).toBe(true);

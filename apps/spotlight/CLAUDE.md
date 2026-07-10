@@ -59,7 +59,7 @@ Public-facing marketing website for JCI Oriente. No authentication. No Firebase 
 - **Contact form = client-side only** — validate fields, show success toast, reset form. No API call.
 - **Real org data** — use actual names, stats, and content (not placeholder lorem ipsum)
 - **Responsive** — mobile-first, works on all screen sizes
-- **Public jargon** — umbrella word "proyectos"; "programa" only for annual institutional programs; "iniciativa" banned. See docs/specs/2026-07-10-impacto-unification-design.md.
+- **Public jargon** — umbrella word "proyectos"; "programa" only for annual institutional programs; "iniciativa" banned (eslint no-restricted-syntax guard, spotlight-only). "programa" misuse isn't lintable — reviewed by hand. See docs/specs/2026-07-10-impacto-unification-design.md.
 
 ## Layout
 

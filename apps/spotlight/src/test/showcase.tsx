@@ -28,6 +28,9 @@ export function renderWithRouter(ui: ReactNode, extraPaths: string[] = ["/impact
   return render(<RouterProvider router={router} />);
 }
 
+// Shallow merge: override nested fields (impact, team) wholesale. The closing
+// cast is the fixture's contract — it fills only the fields the showcase UI
+// reads, not the full Firestore document shape.
 export function makeShowcaseItem(overrides: Partial<ShowcaseItem> = {}): ShowcaseItem {
   return {
     id: "x",

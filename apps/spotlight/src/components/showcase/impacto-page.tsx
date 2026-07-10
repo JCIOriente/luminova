@@ -83,7 +83,12 @@ export function ImpactoPage() {
       <section className="section bg-soft">
         <div className="container">
           {loading ? (
-            <div className="showcase-grid" aria-busy="true" aria-label="Cargando proyectos">
+            <div
+              className="showcase-grid"
+              role="status"
+              aria-busy="true"
+              aria-label="Cargando proyectos"
+            >
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="showcase-card-skeleton" />
               ))}

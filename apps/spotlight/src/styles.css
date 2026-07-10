@@ -1058,11 +1058,15 @@
     gap: 8px;
     padding: 22px 24px 26px;
   }
-  .showcase-card-area {
+  /* Chip host layout shared by the card + detail area labels */
+  .showcase-card-area,
+  .showcase-detail-area {
     align-self: flex-start;
     display: inline-flex;
     align-items: center;
     gap: 10px;
+  }
+  .showcase-card-area {
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.1em;
@@ -1184,10 +1188,6 @@
     max-width: 880px;
   }
   .showcase-detail-area {
-    align-self: flex-start;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
     font-family: var(--font-sans);
     font-size: 11px;
     font-weight: 600;

@@ -13,7 +13,7 @@ const mkItem = (kind: ShowcaseItem["kind"]) =>
     endDate: Timestamp.fromMillis(86400000),
     completedAt: Timestamp.fromMillis(86400000),
     impact: { personsImpacted: 10, volunteers: 2, custom: [], closingSummary: "resumen" },
-  } as Partial<ShowcaseItem>);
+  });
 
 describe("DetailContent kind awareness", () => {
   it("shows Programa anual chip and El programa eyebrow for Program", async () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { makeShowcaseItem, renderWithRouter } from "../../test/showcase";
 import { ImpactoPage } from "./impacto-page";
@@ -15,6 +15,12 @@ vi.mock("../../showcase/use-showcase", () => ({
 const mk = (id: string, featured: boolean) => makeShowcaseItem({ id, title: `T-${id}`, featured });
 
 describe("ImpactoPage", () => {
+  beforeEach(() => {
+    listState.data = [];
+    listState.loading = false;
+    listState.error = null;
+  });
+
   it("labels the count stat proyectos completados", async () => {
     listState.data = [mk("a", false), mk("b", true)];
     renderWithRouter(<ImpactoPage />);
