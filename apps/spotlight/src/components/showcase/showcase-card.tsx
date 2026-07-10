@@ -5,6 +5,7 @@ import { AREA_OF_OPPORTUNITY_LABELS, type AreaOfOpportunity } from "@luminova/ty
 import type { ShowcaseItem } from "@luminova/types/engine";
 import { formatMonthYear } from "@luminova/utils/datetime";
 import { formatES } from "./format";
+import { ProgramFlag } from "./program-flag";
 
 const AREA_TINT: Record<AreaOfOpportunity, "blue" | "teal" | "navy"> = {
   DesarrolloIndividual: "blue",
@@ -35,7 +36,7 @@ export const ShowcaseCard = memo(function ShowcaseCard({ item }: { item: Showcas
       <div className="showcase-card-body">
         <span className="showcase-card-area">
           {areaLabel}
-          {item.kind === "Program" && <span className="showcase-flag">Programa anual</span>}
+          <ProgramFlag kind={item.kind} />
         </span>
         <h3 className="t-h4 showcase-card-title">{item.title}</h3>
         <p className="showcase-card-impact t-num">

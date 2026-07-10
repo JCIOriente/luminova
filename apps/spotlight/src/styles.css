@@ -1002,23 +1002,19 @@
     gap: 24px;
   }
   /* Destacados band — same card, 2-col scale (design tweak: hierarchy by scale + surface) */
-  .showcase-featured-band .showcase-grid {
+  .showcase-grid-featured {
     grid-template-columns: repeat(2, 1fr);
     gap: 32px;
   }
-  .showcase-featured-band .showcase-card-body {
+  .showcase-grid-featured .showcase-card-body {
     padding: 26px 28px 30px;
   }
-  .showcase-featured-band .showcase-card-title {
+  .showcase-grid-featured .showcase-card-title {
     font-size: 24px;
   }
   @media (max-width: 720px) {
-    .showcase-featured-band .showcase-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-  @media (max-width: 720px) {
-    .showcase-grid {
+    .showcase-grid,
+    .showcase-grid-featured {
       grid-template-columns: 1fr;
     }
   }

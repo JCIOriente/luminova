@@ -1,16 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import {
-  RouterProvider,
-  createRootRoute,
-  createRoute,
-  createRouter,
-  createMemoryHistory,
-  Outlet,
-} from "@tanstack/react-router";
-import type { ReactNode } from "react";
-import { Timestamp } from "firebase/firestore";
-import type { ShowcaseItem } from "@luminova/types/engine";
+import { screen } from "@testing-library/react";
+import { makeShowcaseItem, renderWithRouter } from "../../test/showcase";
 import { ImpactoPage } from "./impacto-page";
 
 const listState = vi.hoisted(() => ({
@@ -22,40 +12,7 @@ vi.mock("../../showcase/use-showcase", () => ({
   useShowcaseList: () => listState,
 }));
 
-const mk = (id: string, featured: boolean): ShowcaseItem =>
-  ({
-    id,
-    kind: "Project",
-    featured,
-    title: `T-${id}`,
-    description: "d",
-    category: "DesarrolloComunitario",
-    startDate: Timestamp.fromMillis(0),
-    endDate: Timestamp.fromMillis(0),
-    completedAt: Timestamp.fromMillis(1),
-    impact: { personsImpacted: 10, volunteers: 2, custom: [], closingSummary: "s" },
-    photos: [],
-    team: { director: null, coDirectors: [], members: [] },
-  }) as unknown as ShowcaseItem;
-
-function renderWithRouter(ui: ReactNode) {
-  const rootRoute = createRootRoute({ component: () => <Outlet /> });
-  const indexRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/",
-    component: () => <>{ui}</>,
-  });
-  const detailRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/impacto/$id",
-    component: () => null,
-  });
-  const router = createRouter({
-    routeTree: rootRoute.addChildren([indexRoute, detailRoute]),
-    history: createMemoryHistory({ initialEntries: ["/"] }),
-  });
-  return render(<RouterProvider router={router} />);
-}
+const mk = (id: string, featured: boolean) => makeShowcaseItem({ id, title: `T-${id}`, featured });
 
 describe("ImpactoPage", () => {
   it("labels the count stat proyectos completados", async () => {

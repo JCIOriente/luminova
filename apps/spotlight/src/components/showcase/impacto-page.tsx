@@ -58,14 +58,14 @@ function ImpactoHero({ count, personsImpacted }: { count: number; personsImpacte
 export function ImpactoPage() {
   const { data, loading, error } = useShowcaseList();
 
-  const { count, personsImpacted } = useMemo(
+  const { count, personsImpacted, featured } = useMemo(
     () => ({
       count: data.length,
       personsImpacted: data.reduce((sum, it) => sum + it.impact.personsImpacted, 0),
+      featured: data.filter((it) => it.featured),
     }),
     [data],
   );
-  const featured = useMemo(() => data.filter((it) => it.featured), [data]);
 
   return (
     <>
@@ -74,8 +74,8 @@ export function ImpactoPage() {
         <section className="section" aria-label="Proyectos destacados">
           <div className="container">
             <div className="eyebrow">Destacados</div>
-            <div className="showcase-featured-band" style={{ marginTop: 36 }}>
-              <ShowcaseCardGrid items={featured} />
+            <div style={{ marginTop: 36 }}>
+              <ShowcaseCardGrid items={featured} variant="featured" />
             </div>
           </div>
         </section>

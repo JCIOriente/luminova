@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { RippleBackground, Reveal } from "@luminova/ui";
 import { AREA_OF_OPPORTUNITY_LABELS, type ShowcaseItem } from "@luminova/types/engine";
 import { ImpactBand } from "./impact-band";
+import { ProgramFlag } from "./program-flag";
 import { PhotoGallery } from "./photo-gallery";
 import { TeamCredits } from "./team-credits";
 import { formatDateRange } from "@luminova/utils/datetime";
@@ -48,7 +49,7 @@ function DetailHero({ item }: { item: ShowcaseItem }) {
       <div className="container showcase-detail-hero-body">
         <span className="showcase-detail-area">
           {areaLabel}
-          {item.kind === "Program" && <span className="showcase-flag">Programa anual</span>}
+          <ProgramFlag kind={item.kind} />
         </span>
         <h1 className="t-display showcase-detail-title">{item.title}</h1>
         <p className="showcase-detail-dates">{dates}</p>
