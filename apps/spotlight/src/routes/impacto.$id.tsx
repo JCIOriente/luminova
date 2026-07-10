@@ -52,7 +52,10 @@ function DetailHero({ item }: { item: ShowcaseItem }) {
         <RippleBackground variant="hero" />
       )}
       <div className="container showcase-detail-hero-body">
-        <span className="showcase-detail-area">{areaLabel}</span>
+        <span className="showcase-detail-area">
+          {areaLabel}
+          {item.kind === "Program" && <span className="showcase-flag">Programa anual</span>}
+        </span>
         <h1 className="t-display showcase-detail-title">{item.title}</h1>
         <p className="showcase-detail-dates">{dates}</p>
       </div>
@@ -60,7 +63,7 @@ function DetailHero({ item }: { item: ShowcaseItem }) {
   );
 }
 
-function DetailContent({ item }: { item: ShowcaseItem }) {
+export function DetailContent({ item }: { item: ShowcaseItem }) {
   const { description, team } = item;
   const { closingSummary } = item.impact;
   const descTrimmed = description.trim();
@@ -83,7 +86,9 @@ function DetailContent({ item }: { item: ShowcaseItem }) {
         <section className="section">
           <div className="container">
             <Reveal>
-              <div className="eyebrow">El proyecto</div>
+              <div className="eyebrow">
+                {item.kind === "Program" ? "El programa" : "El proyecto"}
+              </div>
               <div className="showcase-detail-summary" style={{ marginTop: 28 }}>
                 {showDescription && <p>{description}</p>}
                 <p>{closingSummary}</p>

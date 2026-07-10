@@ -1173,12 +1173,19 @@
   }
   .showcase-detail-area {
     align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     font-family: var(--font-sans);
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--jci-teal);
+  }
+  .showcase-detail-area .showcase-flag {
+    color: var(--jci-teal);
+    border-color: color-mix(in srgb, var(--jci-teal) 55%, transparent);
   }
   .showcase-detail-title {
     margin: 18px 0 0;
