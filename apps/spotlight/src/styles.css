@@ -1048,11 +1048,28 @@
   }
   .showcase-card-area {
     align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--jci-blue);
+  }
+  .showcase-flag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border: 1px solid var(--jci-teal);
+    border-radius: 999px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--jci-teal) 55%, var(--jci-black));
+    white-space: nowrap;
   }
   .showcase-card-title {
     margin: 2px 0 0;

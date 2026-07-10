@@ -13,10 +13,15 @@ import { Timestamp } from "firebase/firestore";
 import { ShowcaseGrid } from "./showcase-grid";
 import type { ShowcaseItem } from "@luminova/types/engine";
 
-const mk = (id: string, ms: number, category: ShowcaseItem["category"]): ShowcaseItem =>
+const mk = (
+  id: string,
+  ms: number,
+  category: ShowcaseItem["category"],
+  kind: ShowcaseItem["kind"] = "Project",
+): ShowcaseItem =>
   ({
     id,
-    kind: "Project",
+    kind,
     title: `T-${id}`,
     description: "d",
     category,
@@ -60,5 +65,17 @@ describe("ShowcaseGrid", () => {
     );
     expect(await screen.findByText("T-a")).toBeInTheDocument();
     expect(await screen.findByText("T-b")).toBeInTheDocument();
+  });
+  it("renders the Programa anual chip only for Program kind", async () => {
+    renderWithRouter(
+      <ShowcaseGrid
+        items={[
+          mk("prog", 2, "DesarrolloIndividual", "Program"),
+          mk("proj", 1, "DesarrolloComunitario"),
+        ]}
+      />,
+    );
+    expect(await screen.findByText("Programa anual")).toBeInTheDocument();
+    expect(screen.getAllByText("Programa anual")).toHaveLength(1);
   });
 });
