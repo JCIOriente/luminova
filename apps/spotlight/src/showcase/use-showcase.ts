@@ -16,10 +16,6 @@ export function useShowcaseList(): Async<ShowcaseItem[]> {
   return useCachedAsync(showcaseListCache, fetchShowcaseList, EMPTY, "showcase");
 }
 
-export function useFeaturedList(): Async<ShowcaseItem[]> {
-  return useCachedAsync(featuredCache, fetchFeatured, EMPTY, "featured");
-}
-
 export function useFeaturedListOnVisible(): AsyncOnVisible<ShowcaseItem[]> {
   return useCachedAsyncOnVisible(featuredCache, fetchFeatured, EMPTY, "featured");
 }
