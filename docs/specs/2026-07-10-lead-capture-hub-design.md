@@ -74,6 +74,22 @@ App Check enforcement is a tracked fast-follow. Flagged for `/security-review` +
 3. **Prospectos inbox**: backstage `features/leads` (repository + hooks + `_app.leads` route +
    `LeadTable` + status/intent filters + pipeline actions), permission-gated nav entry.
 
+## Deferred / owner-ops (from PR1 security review)
+
+- **App Check deploy-sequencing (High).** The schema gate bounds a lead's *shape*, not its
+  *volume*. Until Firebase App Check is enforced on spotlight (or a rate-limited write proxy lands),
+  `leads` is an open unauthenticated write endpoint reachable via the public client config — the
+  client honeypot in PR2 does **not** protect a direct-SDK caller. **Do not deploy PR1's rules to
+  prod ahead of App Check enforcement without consciously accepting the spam/storage exposure
+  window.** Provisioning App Check + adding `request.app != null` to the create gate is the tracked
+  fast-follow.
+- **Email format at the rules layer (Low).** Create only checks `email is string` + size ≤200; the
+  zod `.email()` is client-only. No sink reads `lead.email` yet (inbox-only, beacon untouched). Add a
+  `matches()` regex in the rule **before** any future notification/automation consumes the field.
+- **Injection-safe rendering in PR3 (Low).** `name`/`email`/`message` are stored unescaped. The
+  backstage table is React (auto-escaped) so no live XSS — but if the Prospectos inbox adds CSV/
+  spreadsheet export or an unescaped `mailto:`/`href`, escape on export (formula/attribute injection).
+
 ## Verification
 
 See the plan file; per-PR: rules tests green, emulator round-trip (form write → doc → inbox),

@@ -9,10 +9,12 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import {
+  collection,
   deleteDoc,
   deleteField,
   doc,
   getDoc,
+  getDocs,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -1862,6 +1864,24 @@ describe("firestore.rules — leads (public contact-form capture)", () => {
   it("allows an anonymous visitor to create a well-formed lead", async () => {
     await assertSucceeds(setDoc(doc(anon(), "leads/anon_ok"), validLead()));
   });
+  it("allows a signed-in visitor to create a well-formed lead", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("member-uid", ["Member"]), "leads/signedin_ok"), validLead()),
+    );
+  });
+  it("denies a create missing the deletedAt key (would break read-schema parse)", async () => {
+    await assertFails(
+      setDoc(doc(anon(), "leads/nodelkey"), {
+        name: "Ada Lovelace",
+        email: "ada@example.com",
+        intent: "Alianza",
+        message: "Sin deletedAt.",
+        status: "Nuevo",
+        source: "web",
+        createdAt: serverTimestamp(),
+      }),
+    );
+  });
   it("denies a create carrying an unexpected field", async () => {
     await assertFails(setDoc(doc(anon(), "leads/extra"), validLead({ phone: "77712345" })));
   });
@@ -1894,6 +1914,9 @@ describe("firestore.rules — leads (public contact-form capture)", () => {
 
   it("denies an anonymous read (leads carry PII)", async () => {
     await assertFails(getDoc(doc(anon(), "leads/lead_new")));
+  });
+  it("denies an anonymous list query (read gates list too)", async () => {
+    await assertFails(getDocs(collection(anon(), "leads")));
   });
   it("denies a signed-in member without read:Lead", async () => {
     await assertFails(getDoc(doc(as("u", ["Member"]), "leads/lead_new")));
@@ -1940,6 +1963,11 @@ describe("firestore.rules — leads (public contact-form capture)", () => {
   });
   it("denies un-setting deletedAt on a soft-deleted lead", async () => {
     await assertFails(updateDoc(doc(as("u", ["Admin"]), "leads/lead_deleted"), { deletedAt: null }));
+  });
+  it("denies stripping the deletedAt key via deleteField() on a live lead", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "leads/lead_new"), { deletedAt: deleteField() }),
+    );
   });
   it("denies hard delete even for Admin", async () => {
     await assertFails(deleteDoc(doc(as("u", ["Admin"]), "leads/lead_new")));
