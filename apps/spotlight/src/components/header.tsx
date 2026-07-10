@@ -5,7 +5,7 @@ import { LogoLockup, Button, Icon } from "@luminova/ui";
 
 // Add a route here whenever its hero sits over a colored background, or the
 // navbar text will fall back to dark and lose contrast on that page.
-const DARK_HERO_ROUTES = ["/", "/programas", "/impacto"];
+const DARK_HERO_ROUTES = ["/", "/impacto"];
 const BLUE_HERO_ROUTES = ["/about"];
 const BLUE_HERO_PREFIXES = ["/impacto/"];
 
@@ -85,13 +85,6 @@ export function Header() {
               Quiénes Somos
             </a>
             <a
-              href="/programas"
-              onClick={(e) => go(e, "/programas")}
-              className={clsx("nav-link", pathname === "/programas" && "active")}
-            >
-              Programas
-            </a>
-            <a
               href="/impacto"
               onClick={(e) => go(e, "/impacto")}
               className={clsx("nav-link", pathname === "/impacto" && "active")}
@@ -141,9 +134,6 @@ export function Header() {
             </a>
             <a href="/about" onClick={(e) => go(e, "/about")} className="mobile-nav-link">
               Quiénes Somos
-            </a>
-            <a href="/programas" onClick={(e) => go(e, "/programas")} className="mobile-nav-link">
-              Programas
             </a>
             <a href="/impacto" onClick={(e) => go(e, "/impacto")} className="mobile-nav-link">
               Impacto
