@@ -5,12 +5,8 @@ items 1–15, all shipped) — for each: the mistake, a real example from this r
 and the guard that enforces it. Read before writing code; these are the ways we've
 actually broken things, not hypotheticals.
 
-Grounded in the repo as of 2026-07 (`main`, post-item-15). Line numbers verified against
+Grounded in the repo as of 2026-07 (`main`, post-#147). Line numbers verified against
 that state.
-
-> **Prerequisite / merge order.** This doc references `docs/reuse-first-ui.md` and the
-> `raw-hex` eslint rule, which land with PR #147 (open). Merge #147 first; until then
-> those two pointers run slightly ahead of `main`. Everything else is on `main` today.
 
 ---
 
@@ -35,8 +31,8 @@ Before building anything UI-shaped, check the catalog first.
 
 **GUARD.**
 - UI: `docs/reuse-first-ui.md` (component quick-index + pre-add checklist) backed by the
-  `eslint.config.js` raw-element / sub-18px-type rules (and raw-hex, with #147) — start
-  there, it's the canonical UI reuse doc; this section doesn't repeat it.
+  `eslint.config.js` raw-element / raw-hex / sub-18px-type rules — start there, it's the
+  canonical UI reuse doc; this section doesn't repeat it.
 - Non-UI (repositories, hooks, utils): **human review + `/simplify`** — no mechanical guard.
 
 ## 2. Rules lagging code
@@ -170,7 +166,7 @@ rules contract).
 
 | # | Pattern | Mechanism | Where |
 |---|---|---|---|
-| 1 | Duplicate UI | raw-element + sub-18px-type `no-restricted-syntax` (all `"error"`; raw-hex adds with #147) | `eslint.config.js`; runs in CI `checks` job (`.github/workflows/ci.yml`) |
+| 1 | Duplicate UI | raw-element + raw-hex + sub-18px-type `no-restricted-syntax` (all `"error"`) | `eslint.config.js`; runs in CI `checks` job (`.github/workflows/ci.yml`) |
 | 1 | Duplicate UI (dead exports) | `pnpm knip` (unused exports) | CI `checks` job + `pnpm pr-tests` |
 | 1 | Duplicate non-UI | **human review + `/simplify` only** | — |
 | 2 | Rules lagging code | `firestore-security-reviewer` agent; `security-review-gate.sh` PR hard-gate; rules test suite | `.claude/agents/firestore-security-reviewer.md`; `.claude/hooks/security-review-gate.sh`; `tests/firestore-rules/` run by CI `emulator` job |
@@ -179,7 +175,7 @@ rules contract).
 | 6 | Unbounded fan-out | `firebase-functions-reviewer` agent (beacon); **human review** (frontend) | `.claude/agents/firebase-functions-reviewer.md` |
 | 7 | Config/policy drift | mirror + seed-contract tests; **human review** for doc claims | `packages/types/src/role-definition.mirror.test.ts`; `tests/firestore-rules/seed-contract.test.ts`; CI `checks` job |
 | — | Hooks correctness (item 11) | `react-hooks/rules-of-hooks` + `exhaustive-deps`, both `"error"` | `eslint.config.js:32-33` via CI `checks` |
-| — | firebase-lite discipline | `no-restricted-imports` (spotlight must use `firebase/firestore/lite`) | `eslint.config.js:84` |
+| — | firebase-lite discipline | `no-restricted-imports` (spotlight must use `firebase/firestore/lite`) | `eslint.config.js:101` |
 | — | Bundle regressions | `bundle-budget-watcher` agent + budget script | `.claude/agents/bundle-budget-watcher.md`; `tools/scripts/check-bundle-budget.sh` in CI `checks` |
 | — | Commit/PR hygiene | `branch-guard.sh`, `pre-commit.sh`, `post-pr-create.sh`, `stop.sh` | `.claude/hooks/` |
 
