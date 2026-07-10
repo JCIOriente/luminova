@@ -43,6 +43,18 @@ Checklist:
 8. **Repository discipline.** One class per collection; no ad-hoc `collection()`
    calls scattered in components.
 9. **PII handling.** Member email/phone not logged or exposed beyond need.
+10. **Rules mirror client invariants.** A write-invariant enforced only in a
+    repository — a field frozen once dependent data exists (activity
+    `category`/`startAt`/`parentId` locked once check-ins exist, to protect
+    already-computed points) or a create-gate (only Admin/ProjectManager may set
+    `featured`) — MUST also be enforced in `firestore.rules` AND covered by a
+    rules test. A direct client/SDK write bypasses repository code,
+    so a repo-only invariant is unenforced. Repo enforces but rules don't →
+    **High** (Critical if it gates public exposure or points integrity). This is
+    distinct from #3 (forged identity/grant fields on create); here the field is
+    legitimately writable but must be *locked/gated at the rules layer too*.
+    (Audit 2026-07: item 1 `featured` create-gate, item 2 activity lock, item 3b
+    `awardPoints` update path.)
 
 Cross-reference `apps/backstage/CLAUDE.md`. End with verdict: ship / fix / block,
 and explicitly note if `/security-review` must also run.

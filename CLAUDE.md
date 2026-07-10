@@ -293,6 +293,13 @@ None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops g
 - **Codegen-drift gate.** Any artifact generated on one boundary and consumed on another (e.g. `@luminova/types` shared schemas, generated Firestore types) gets a CI check that regenerates and fails on diff.
 - **Performance budget.** Frontend changes hold the bundle budgets + Core-Web-Vitals targets in `docs/performance.md` and follow its Claude guardrails. After any dep/route change, dispatch `bundle-budget-watcher` and note the `index`-chunk gz delta; a budget breach must be a conscious, noted decision.
 - **Docs layout.** `docs/specs/` (designs), `docs/plans/` (impl plans), `docs/status/` (handoffs), `docs/tooling/skill-development-log.md` (skill history).
+- **Recurring pitfalls (2026-07 audit) — guardrails.** The mistake-classes that each recurred across multiple audit findings, now standing rules. Detail + real examples + the enforcing guard for each in `docs/engineering-guardrails.md`.
+  1. **Extract, don't copy.** Same logic in 2+ places → parameterize/extract (rule of three), consolidate-when-touched — never copy-paste a feature/hook/shell. UI duplication has its own guide (linked from `docs/engineering-guardrails.md` #1).
+  2. **Rules mirror code.** Any repository write-invariant (a locked/gated field, soft-delete) MUST also be enforced in `firestore.rules` with a rules test — a direct write bypasses client code. Dispatch `firestore-security-reviewer`.
+  3. **Three query states.** Every data view handles loading / **error** / absent; never gate on `!data` alone (renders an infinite skeleton or a false "no encontrado"). Use `ErrorState` / backstage `QueryErrorState`; permission-denied = no retry.
+  4. **No silent catch.** Never swallow a caught error — `console.error` (or surface it); an intentional ignore needs a one-line justifying comment. A prod rules/index regression must not be invisible.
+  5. **Bound every query.** Server-side `where`/`.limit`; batch `getAll` fan-out with `chunk()` at 300 (`apps/beacon/src/chunk.ts`) — no unbounded collection scan or ref splat. Dispatch `firebase-functions-reviewer` for beacon.
+  6. **Claim == reality.** A guard named in CLAUDE.md/docs MUST actually exist and be wired (CI/hook/eslint), else it's a lie that gates nothing; orphaned `firestore.rules` collections with no consumer get removed.
 
 ## Reference Docs
 
@@ -302,5 +309,6 @@ None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops g
 - `docs/firebase-setup.md` — emulator and deploy instructions
 - `docs/ci-cd.md` — CI + keyless CD pipeline: trust model, as-provisioned WIF/IAM inventory, deploy flow, validation, rollback
 - `docs/performance.md` — perf budgets, Core-Web-Vitals targets, optimization playbook + the Claude guardrails for keeping the frontends fast
+- `docs/engineering-guardrails.md` — the recurring audit mistake-classes, each with its rule + real example + enforcing guard (expands the "Recurring pitfalls" rules above)
 - `packages/ui/DESIGN.md` — design-system manifest (tokens + full component catalog) for **Claude Design** (claude.ai/design) ingest; link this repo there to sync the design system
 - `docs/reuse-first-ui.md` — reuse-first UI guide: color-token table (no raw hex), `@luminova/ui` component quick-index, compact type scale, pre-add checklist; backed by the eslint raw-element/raw-hex/sub-18px-type guards
