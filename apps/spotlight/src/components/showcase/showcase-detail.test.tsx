@@ -11,7 +11,7 @@ import {
 import type { ReactNode } from "react";
 import { Timestamp } from "firebase/firestore";
 import type { ShowcaseItem } from "@luminova/types/engine";
-import { DetailContent } from "./impacto.$id";
+import { DetailContent } from "./showcase-detail";
 
 const mkItem = (kind: ShowcaseItem["kind"]): ShowcaseItem =>
   ({

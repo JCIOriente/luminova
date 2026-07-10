@@ -11,14 +11,14 @@ import {
 import type { ReactNode } from "react";
 import { Timestamp } from "firebase/firestore";
 import type { ShowcaseItem } from "@luminova/types/engine";
-import { ImpactoPage } from "./impacto.index";
+import { ImpactoPage } from "./impacto-page";
 
 const listState = vi.hoisted(() => ({
   data: [] as unknown[],
   loading: false,
   error: null as Error | null,
 }));
-vi.mock("../showcase/use-showcase", () => ({
+vi.mock("../../showcase/use-showcase", () => ({
   useShowcaseList: () => listState,
 }));
 
