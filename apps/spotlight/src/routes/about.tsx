@@ -147,7 +147,7 @@ function AboutComite() {
         <SectionHeader
           eyebrow="Comité Ejecutivo"
           title="El equipo que dirige el año en curso."
-          subtitle="Las personas detrás de cada programa y cada decisión. Próximamente con perfiles completos."
+          subtitle="Las personas detrás de cada proyecto y cada decisión. Próximamente con perfiles completos."
         />
         <div className="grid-4" style={{ marginTop: 56 }}>
           {COMITE.map((role, i) => (

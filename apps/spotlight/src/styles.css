@@ -1001,8 +1001,20 @@
     grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
     gap: 24px;
   }
+  /* Destacados band — same card, 2-col scale (design tweak: hierarchy by scale + surface) */
+  .showcase-grid-featured {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 32px;
+  }
+  .showcase-grid-featured .showcase-card-body {
+    padding: 26px 28px 30px;
+  }
+  .showcase-grid-featured .showcase-card-title {
+    font-size: 24px;
+  }
   @media (max-width: 720px) {
-    .showcase-grid {
+    .showcase-grid,
+    .showcase-grid-featured {
       grid-template-columns: 1fr;
     }
   }
@@ -1046,13 +1058,34 @@
     gap: 8px;
     padding: 22px 24px 26px;
   }
-  .showcase-card-area {
+  /* Chip host layout shared by the card + detail area labels */
+  .showcase-card-area,
+  .showcase-detail-area {
     align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .showcase-card-area {
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--jci-blue);
+  }
+  .showcase-flag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border: 1px solid var(--jci-teal);
+    border-radius: 999px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--jci-teal) 55%, var(--jci-black));
+    white-space: nowrap;
   }
   .showcase-card-title {
     margin: 2px 0 0;
@@ -1155,13 +1188,16 @@
     max-width: 880px;
   }
   .showcase-detail-area {
-    align-self: flex-start;
     font-family: var(--font-sans);
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--jci-teal);
+  }
+  .showcase-detail-area .showcase-flag {
+    color: var(--jci-teal);
+    border-color: color-mix(in srgb, var(--jci-teal) 55%, transparent);
   }
   .showcase-detail-title {
     margin: 18px 0 0;

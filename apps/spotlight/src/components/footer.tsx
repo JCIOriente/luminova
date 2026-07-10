@@ -68,8 +68,8 @@ export function Footer() {
                 </a>
               </li>
               <li>
-                <a href="/programas" onClick={(e) => go(e, "/programas")}>
-                  Programas
+                <a href="/impacto" onClick={(e) => go(e, "/impacto")}>
+                  Impacto
                 </a>
               </li>
               <li>

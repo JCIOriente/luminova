@@ -23,6 +23,7 @@
       "target": "jcioriente",
       "public": "apps/spotlight/dist",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "redirects": [{ "source": "/programas", "destination": "/impacto", "type": 301 }],
       "rewrites": [{ "source": "**", "destination": "/index.html" }],
       "headers": [
         { "source": "**", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },

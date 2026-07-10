@@ -289,7 +289,7 @@ function ContactBody({ onSubmit }: { onSubmit: () => void }) {
                 >
                   <li>· Personas de 18 a 40 años que buscan unirse al capítulo.</li>
                   <li>· Empresas e instituciones interesadas en una alianza.</li>
-                  <li>· Medios de comunicación cubriendo nuestros programas.</li>
+                  <li>· Medios de comunicación cubriendo nuestros proyectos.</li>
                 </ul>
               </div>
             </div>

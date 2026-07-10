@@ -1,51 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
-import {
-  RouterProvider,
-  createRootRoute,
-  createRoute,
-  createRouter,
-  createMemoryHistory,
-  Outlet,
-} from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { screen } from "@testing-library/react";
 import { Timestamp } from "firebase/firestore";
 import { ShowcaseGrid } from "./showcase-grid";
 import type { ShowcaseItem } from "@luminova/types/engine";
+import { makeShowcaseItem, renderWithRouter } from "../../test/showcase";
 
-const mk = (id: string, ms: number, category: ShowcaseItem["category"]): ShowcaseItem =>
-  ({
-    id,
-    kind: "Project",
-    title: `T-${id}`,
-    description: "d",
-    category,
-    startDate: Timestamp.fromMillis(0),
-    endDate: Timestamp.fromMillis(0),
-    completedAt: Timestamp.fromMillis(ms),
-    impact: { personsImpacted: 10, volunteers: 2, custom: [], closingSummary: "s" },
-    photos: [],
-    team: { director: null, coDirectors: [], members: [] },
-  }) as unknown as ShowcaseItem;
-
-function renderWithRouter(ui: ReactNode) {
-  const rootRoute = createRootRoute({ component: () => <Outlet /> });
-  const indexRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/",
-    component: () => <>{ui}</>,
-  });
-  const detailRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/impacto/$id",
-    component: () => null,
-  });
-  const router = createRouter({
-    routeTree: rootRoute.addChildren([indexRoute, detailRoute]),
-    history: createMemoryHistory({ initialEntries: ["/"] }),
-  });
-  return render(<RouterProvider router={router} />);
-}
+const mk = (
+  id: string,
+  ms: number,
+  category: ShowcaseItem["category"],
+  kind: ShowcaseItem["kind"] = "Project",
+): ShowcaseItem =>
+  makeShowcaseItem({ id, title: `T-${id}`, category, kind, completedAt: Timestamp.fromMillis(ms) });
 
 describe("ShowcaseGrid", () => {
   it("renders empty state when no items", async () => {
@@ -60,5 +26,17 @@ describe("ShowcaseGrid", () => {
     );
     expect(await screen.findByText("T-a")).toBeInTheDocument();
     expect(await screen.findByText("T-b")).toBeInTheDocument();
+  });
+  it("renders the Programa anual chip only for Program kind", async () => {
+    renderWithRouter(
+      <ShowcaseGrid
+        items={[
+          mk("prog", 2, "DesarrolloIndividual", "Program"),
+          mk("proj", 1, "DesarrolloComunitario"),
+        ]}
+      />,
+    );
+    expect(await screen.findByText("Programa anual")).toBeInTheDocument();
+    expect(screen.getAllByText("Programa anual")).toHaveLength(1);
   });
 });

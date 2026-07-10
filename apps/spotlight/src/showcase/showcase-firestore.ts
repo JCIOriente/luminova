@@ -14,7 +14,7 @@ export async function fetchShowcaseList(): Promise<ShowcaseItem[]> {
 }
 
 /**
- * Curated highlights for /programas: only featured docs, filtered server-side so
+ * Curated highlights for the home featured teaser: only featured docs, filtered server-side so
  * we don't download the whole collection. `completedAt` sort stays client-side
  * (equality-only query → no composite index required).
  */
