@@ -23,7 +23,7 @@ function Terminos() {
       heading: "2. Uso del sitio",
       body: (
         <p style={{ margin: 0 }}>
-          Este sitio tiene fines informativos sobre el capítulo, sus programas e impacto. Te
+          Este sitio tiene fines informativos sobre el capítulo, sus proyectos e impacto. Te
           comprometes a usarlo de forma lícita y a no intentar dañar, sobrecargar o vulnerar su
           funcionamiento ni el de sus servicios asociados.
         </p>

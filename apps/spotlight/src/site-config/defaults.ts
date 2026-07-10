@@ -68,7 +68,7 @@ export const SITE_CONFIG_DEFAULTS: Omit<SiteConfig, "version" | "updatedAt"> = {
     {
       number: "02",
       title: "Proyectos con impacto medible",
-      body: "No reuniones que no van a ningún lado: programas estructurados con cohortes, indicadores y resultados publicados al cierre de año.",
+      body: "No reuniones que no van a ningún lado: proyectos estructurados con cohortes, indicadores y resultados publicados al cierre de año.",
     },
     {
       number: "03",
