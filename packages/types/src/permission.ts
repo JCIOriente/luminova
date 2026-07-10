@@ -14,6 +14,7 @@ export const SUBJECTS = [
   "Activity",
   "Position",
   "Role",
+  "Lead",
   "all",
 ] as const;
 export type Subject = (typeof SUBJECTS)[number];

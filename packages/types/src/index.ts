@@ -26,6 +26,9 @@ export { positionSchema, type PositionInput } from "./position-schema.js";
 export { memberSchema, type MemberInput } from "./member-schema.js";
 export type { Ally } from "./ally.js";
 export { allySchema, type AllyInput } from "./ally-schema.js";
+export type { Lead, LeadIntent, LeadStatus } from "./lead.js";
+export { LEAD_INTENTS, LEAD_STATUSES } from "./lead.js";
+export { leadSchema, type LeadInput } from "./lead-schema.js";
 
 export * from "./engine/index.js";
 export { pointRuleSchema, type PointRuleInput } from "./engine/point-rule-schema.js";
@@ -64,6 +67,7 @@ export { clientTimestampSchema } from "./client-timestamp-schema.js";
 export { positionDocSchema, termPositionsDocSchema } from "./position-doc-schema.js";
 export { memberDocSchema } from "./member-doc-schema.js";
 export { allyDocSchema } from "./ally-doc-schema.js";
+export { leadDocSchema } from "./lead-doc-schema.js";
 export { roleDefinitionDocSchema } from "./role-definition-doc-schema.js";
 export { siteConfigDocSchema } from "./site-config-doc-schema.js";
 export { CEL_POSITIONS, type CelPositionSeed } from "./cel-positions.js";
