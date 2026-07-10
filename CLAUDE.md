@@ -303,3 +303,4 @@ None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops g
 - `docs/ci-cd.md` — CI + keyless CD pipeline: trust model, as-provisioned WIF/IAM inventory, deploy flow, validation, rollback
 - `docs/performance.md` — perf budgets, Core-Web-Vitals targets, optimization playbook + the Claude guardrails for keeping the frontends fast
 - `packages/ui/DESIGN.md` — design-system manifest (tokens + full component catalog) for **Claude Design** (claude.ai/design) ingest; link this repo there to sync the design system
+- `docs/reuse-first-ui.md` — reuse-first UI guide: color-token table (no raw hex), `@luminova/ui` component quick-index, compact type scale, pre-add checklist; backed by the eslint raw-element/raw-hex/sub-18px-type guards
