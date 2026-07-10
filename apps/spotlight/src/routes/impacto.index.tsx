@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { RippleBackground } from "@luminova/ui";
 import { useShowcaseList } from "../showcase/use-showcase";
 import { ShowcaseGrid } from "../components/showcase/showcase-grid";
+import { ShowcaseCardGrid } from "../components/showcase/showcase-card-grid";
 import { formatES } from "../components/showcase/format";
 
 export const Route = createFileRoute("/impacto/")({
@@ -35,8 +36,8 @@ function ImpactoHero({ count, personsImpacted }: { count: number; personsImpacte
             className="t-subtitle"
             style={{ marginTop: 22, maxWidth: 620, color: "rgba(255,255,255,0.78)" }}
           >
-            Un archivo curado de los proyectos y programas que JCI Oriente ha completado — con su
-            gente, sus cifras y su evidencia.
+            Un archivo curado de los proyectos que JCI Oriente ha realizado — con su gente, sus
+            cifras y su evidencia. Algunos son programas anuales que repetimos cada gestión.
           </p>
         </div>
 
@@ -45,7 +46,7 @@ function ImpactoHero({ count, personsImpacted }: { count: number; personsImpacte
             <div className="mini-stats">
               <div className="mini-stat">
                 <div className="v t-num">{formatES(count)}</div>
-                <div className="l">iniciativas completadas</div>
+                <div className="l">proyectos completados</div>
               </div>
               <div className="mini-stat">
                 <div className="v t-num">{formatES(personsImpacted)}</div>
@@ -59,7 +60,7 @@ function ImpactoHero({ count, personsImpacted }: { count: number; personsImpacte
   );
 }
 
-function ImpactoPage() {
+export function ImpactoPage() {
   const { data, loading, error } = useShowcaseList();
 
   const { count, personsImpacted } = useMemo(
@@ -69,14 +70,25 @@ function ImpactoPage() {
     }),
     [data],
   );
+  const featured = useMemo(() => data.filter((it) => it.featured), [data]);
 
   return (
     <>
       <ImpactoHero count={count} personsImpacted={personsImpacted} />
-      <section className="section">
+      {!loading && !error && featured.length > 0 && (
+        <section className="section" aria-label="Proyectos destacados">
+          <div className="container">
+            <div className="eyebrow">Destacados</div>
+            <div className="showcase-featured-band" style={{ marginTop: 36 }}>
+              <ShowcaseCardGrid items={featured} />
+            </div>
+          </div>
+        </section>
+      )}
+      <section className="section bg-soft">
         <div className="container">
           {loading ? (
-            <div className="showcase-grid" aria-busy="true">
+            <div className="showcase-grid" aria-busy="true" aria-label="Cargando proyectos">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="showcase-card-skeleton" />
               ))}
@@ -90,7 +102,12 @@ function ImpactoPage() {
               Pronto compartiremos aquí nuestros proyectos ejecutados.
             </p>
           ) : (
-            <ShowcaseGrid items={data} />
+            <>
+              <div className="eyebrow">Todos los proyectos</div>
+              <div style={{ marginTop: 36 }}>
+                <ShowcaseGrid items={data} />
+              </div>
+            </>
           )}
         </div>
       </section>
