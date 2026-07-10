@@ -2,7 +2,7 @@ import { Skeleton } from "@luminova/ui";
 
 export function ProgramsSkeleton() {
   return (
-    <div className="program-grid" aria-busy="true" aria-label="Cargando programas">
+    <div className="program-grid" aria-busy="true" aria-label="Cargando proyectos">
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="program-card overflow-hidden">
           <Skeleton className="h-[200px] rounded-none" />

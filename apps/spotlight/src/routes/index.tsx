@@ -99,10 +99,10 @@ function HomeHero() {
               iconRight={<Icon.arrowRight />}
               onClick={(e) => {
                 e.preventDefault();
-                scrollToId("programas");
+                scrollToId("proyectos");
               }}
             >
-              Ver nuestros programas
+              Ver nuestros proyectos
             </Button>
           </div>
         </div>
@@ -115,7 +115,7 @@ function HomeHero() {
             </div>
             <div className="mini-stat">
               <div className="v t-num">{config.stats.programCount}</div>
-              <div className="l">programas insignia activos</div>
+              <div className="l">programas anuales</div>
             </div>
             <div className="mini-stat">
               <div className="v t-num">{config.stats.countries}</div>
@@ -190,7 +190,7 @@ function HomeAreas() {
 function HomePrograms() {
   const navigate = useNavigate();
   return (
-    <section id="programas" className="section">
+    <section id="proyectos" className="section">
       <div className="container">
         <div
           style={{
@@ -201,7 +201,7 @@ function HomePrograms() {
             flexWrap: "wrap",
           }}
         >
-          <SectionHeader eyebrow="Programas insignia" title="Cinco programas. Un compromiso." />
+          <SectionHeader eyebrow="Proyectos destacados" title="El trabajo que nos enorgullece." />
           <ArrowLink
             href="/impacto"
             onClick={(e) => {
