@@ -41,6 +41,10 @@ const siteContactDocSchema = z.object({
   location: z.string(),
   meetingSchedule: z.string(),
   mapUrl: z.string(),
+  // New channels — default "" so a pre-existing siteConfig doc (written before
+  // these fields) still parses; the president fills them in the backstage editor.
+  whatsapp: z.string().default(""),
+  broadcastChannel: z.string().default(""),
   socials: siteSocialsDocSchema,
   links: z.array(siteLinkDocSchema),
 });

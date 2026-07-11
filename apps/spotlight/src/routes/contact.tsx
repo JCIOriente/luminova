@@ -11,9 +11,11 @@ import {
   Field,
   Toast,
 } from "@luminova/ui";
+import { LEAD_INTENTS, leadSchema, type LeadIntent } from "@luminova/types";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { safeHref } from "../site-config/safe-href";
 import { SocialIconLinks } from "../components/social-icon-links";
+import { submitLead } from "../leads/submit-lead";
 
 export const Route = createFileRoute("/contact")({
   component: Contact,
@@ -22,11 +24,21 @@ export const Route = createFileRoute("/contact")({
 interface FormState {
   name: string;
   email: string;
-  subject: string;
+  intent: LeadIntent;
   message: string;
 }
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
+type SubmitStatus = "idle" | "submitting" | "error";
+
+// Higher-intent labels than the bare enum value; the value sent to Firestore is
+// the LeadIntent (firestore.rules pins these exact strings).
+const INTENT_LABELS: Record<LeadIntent, string> = {
+  Membresía: "Quiero ser miembro",
+  Alianza: "Propuesta de alianza",
+  Prensa: "Prensa / comunicación",
+  Otro: "Otro",
+};
 
 const LABEL_META = {
   fontSize: 12,
@@ -36,42 +48,54 @@ const LABEL_META = {
   fontWeight: 600,
 };
 
-function ContactForm({ onSubmit }: { onSubmit: () => void }) {
+const EMPTY_FORM: FormState = { name: "", email: "", intent: "Membresía", message: "" };
+
+function ContactForm({ onSuccess }: { onSuccess: () => void }) {
   const config = useSiteConfig();
-  const [form, setForm] = useState<FormState>({
-    name: "",
-    email: "",
-    subject: "Membresía",
-    message: "",
-  });
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [status, setStatus] = useState<SubmitStatus>("idle");
+  // Honeypot: a hidden field no human fills. A bot that auto-fills it gets a
+  // silent success with no write. Not a substitute for App Check (see the leads
+  // rule) — just cheap first-line noise reduction.
+  const [botTrap, setBotTrap] = useState("");
 
   function update(key: keyof FormState, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
+    if (status === "error") setStatus("idle");
   }
 
-  function validate(): boolean {
-    const e: FormErrors = {};
-    if (!form.name.trim()) e.name = "Ingresa tu nombre.";
-    if (!form.email.trim()) e.email = "Ingresa tu email.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Email no válido.";
-    if (!form.message.trim()) e.message = "Cuéntanos qué te trae por aquí.";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  }
-
-  function submit(ev: React.FormEvent) {
+  async function submit(ev: React.FormEvent) {
     ev.preventDefault();
-    if (!validate()) return;
-    const subject = `[Web] ${form.subject} — ${form.name}`;
-    const body = `Nombre: ${form.name}\nEmail: ${form.email}\nAsunto: ${form.subject}\n\nMensaje:\n${form.message}`;
-    window.location.href = `mailto:${config.contact.email}?subject=${encodeURIComponent(
-      subject,
-    )}&body=${encodeURIComponent(body)}`;
-    onSubmit();
-    setForm({ name: "", email: "", subject: "Membresía", message: "" });
+    const parsed = leadSchema.safeParse(form);
+    if (!parsed.success) {
+      const fieldErrors = parsed.error.flatten().fieldErrors;
+      setErrors({
+        name: fieldErrors.name?.[0],
+        email: fieldErrors.email?.[0],
+        message: fieldErrors.message?.[0],
+      });
+      return;
+    }
+    if (botTrap) {
+      setForm(EMPTY_FORM);
+      onSuccess();
+      return;
+    }
+    setStatus("submitting");
+    try {
+      await submitLead(parsed.data);
+      setForm(EMPTY_FORM);
+      setStatus("idle");
+      onSuccess();
+    } catch (err) {
+      console.error("No se pudo enviar el mensaje de contacto", err);
+      setStatus("error");
+    }
   }
+
+  const submitting = status === "submitting";
 
   return (
     <form className="contact-card" onSubmit={submit} noValidate aria-describedby="form-help">
@@ -100,16 +124,17 @@ function ContactForm({ onSubmit }: { onSubmit: () => void }) {
         </Field>
       </div>
       <div style={{ marginTop: 16 }}>
-        <Field label="Asunto" htmlFor="ct-subject" required>
+        <Field label="¿Qué te trae por aquí?" htmlFor="ct-intent" required>
           <Select
-            id="ct-subject"
-            value={form.subject}
-            onChange={(e) => update("subject", e.target.value)}
+            id="ct-intent"
+            value={form.intent}
+            onChange={(e) => update("intent", e.target.value)}
           >
-            <option>Membresía</option>
-            <option>Alianza institucional</option>
-            <option>Prensa / Comunicación</option>
-            <option>Otro</option>
+            {LEAD_INTENTS.map((value) => (
+              <option key={value} value={value}>
+                {INTENT_LABELS[value]}
+              </option>
+            ))}
           </Select>
         </Field>
       </div>
@@ -126,11 +151,40 @@ function ContactForm({ onSubmit }: { onSubmit: () => void }) {
           />
         </Field>
       </div>
+      <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", top: "-9999px" }}>
+        <label htmlFor="ct-company">No llenar</label>
+        <Input
+          id="ct-company"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          value={botTrap}
+          onChange={(e) => setBotTrap(e.target.value)}
+        />
+      </div>
       <div style={{ marginTop: 24 }}>
-        <Button as="button" type="submit" variant="primary" iconRight={<Icon.arrowRight />}>
-          Enviar mensaje
+        <Button
+          as="button"
+          type="submit"
+          variant="primary"
+          disabled={submitting}
+          iconRight={<Icon.arrowRight />}
+        >
+          {submitting ? "Enviando…" : "Enviar mensaje"}
         </Button>
       </div>
+      {status === "error" ? (
+        <p
+          role="alert"
+          style={{ marginTop: 14, marginBottom: 0, fontSize: 13, color: "var(--danger)" }}
+        >
+          No pudimos enviar tu mensaje. Vuelve a intentarlo o escríbenos a{" "}
+          <a href={`mailto:${config.contact.email}`} style={{ textDecoration: "underline" }}>
+            {config.contact.email}
+          </a>
+          .
+        </p>
+      ) : null}
       <p
         id="form-help"
         style={{ marginTop: 18, marginBottom: 0, fontSize: 13, color: "var(--ink-3)" }}
@@ -145,6 +199,41 @@ function ContactForm({ onSubmit }: { onSubmit: () => void }) {
         en un plazo máximo de 48 horas hábiles.
       </p>
     </form>
+  );
+}
+
+function ChannelCTAs() {
+  const config = useSiteConfig();
+  const whatsappHref = safeHref(config.contact.whatsapp);
+  const channelHref = safeHref(config.contact.broadcastChannel);
+  if (whatsappHref === "#" && channelHref === "#") return null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 36 }}>
+      {whatsappHref !== "#" ? (
+        <Button
+          as="a"
+          href={whatsappHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="primary"
+          iconLeft={<Icon.whatsapp />}
+        >
+          Escríbenos por WhatsApp
+        </Button>
+      ) : null}
+      {channelHref !== "#" ? (
+        <Button
+          as="a"
+          href={channelHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          iconLeft={<Icon.megaphone />}
+        >
+          Únete a Difusión Oriente
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
@@ -168,7 +257,7 @@ function ContactHero() {
   );
 }
 
-function ContactBody({ onSubmit }: { onSubmit: () => void }) {
+function ContactBody({ onSuccess }: { onSuccess: () => void }) {
   const config = useSiteConfig();
   const mapHref = safeHref(config.contact.mapUrl);
   return (
@@ -177,6 +266,7 @@ function ContactBody({ onSubmit }: { onSubmit: () => void }) {
         <div className="contact-grid">
           <Reveal>
             <div>
+              <ChannelCTAs />
               <h2
                 className="t-h4"
                 style={{
@@ -295,7 +385,7 @@ function ContactBody({ onSubmit }: { onSubmit: () => void }) {
             </div>
           </Reveal>
           <Reveal delay={120}>
-            <ContactForm onSubmit={onSubmit} />
+            <ContactForm onSuccess={onSuccess} />
           </Reveal>
         </div>
       </div>
@@ -436,8 +526,8 @@ function Contact() {
     <>
       <ContactHero />
       <ContactBody
-        onSubmit={() => {
-          setToast("Abrimos tu correo para que envíes el mensaje. Te responderemos a la brevedad.");
+        onSuccess={() => {
+          setToast("¡Mensaje enviado! Te contactaremos muy pronto.");
           setTimeout(() => setToast(null), 4000);
         }}
       />

@@ -34,6 +34,8 @@ const BLANK_CONFIG: SiteConfigInput = {
     location: "",
     meetingSchedule: "",
     mapUrl: "",
+    whatsapp: "",
+    broadcastChannel: "",
     socials: { instagram: "", facebook: "", tiktok: "", linkedin: "" },
     links: [],
   },
