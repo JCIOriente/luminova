@@ -4,7 +4,8 @@
 set -uo pipefail
 
 input=$(cat)
-cmd=$(printf '%s' "$input" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).tool_input?.command||"")}catch{process.stdout.write("")}})')
+. "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
+cmd=$(hook_cmd "$input")
 
 case "$cmd" in
   *"gh pr create"*) ;;
@@ -12,7 +13,6 @@ case "$cmd" in
 esac
 
 # Diff the tree the PR was opened from (its worktree), not the primary checkout.
-. "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
 hook_enter_tree "$input" || exit 0
 
 # Resolve the repo's default branch instead of assuming master — a stale

@@ -2,6 +2,14 @@
 # Shared hook helpers. Sourced by the hooks in this dir — NOT a hook itself
 # (underscore-prefixed, never registered in settings.json).
 
+# hook_cmd <raw-hook-input-json>
+# Echo the payload's `.tool_input.command` string (empty on parse error / absent).
+# Kept separate from hook_tree_root's `.cwd` parse on purpose: folding both into
+# one node pass was rejected as newline/NUL-split fragile.
+hook_cmd() {
+  printf '%s' "$1" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).tool_input?.command||"")}catch{process.stdout.write("")}})'
+}
+
 # hook_tree_root <raw-hook-input-json>
 # Echo the git worktree root of the tree a hook should operate on.
 #

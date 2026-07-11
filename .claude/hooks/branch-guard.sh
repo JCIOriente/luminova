@@ -8,6 +8,7 @@
 set -uo pipefail
 
 input=$(cat)
+. "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
 
 # Fast path: this hook fires on EVERY Bash call. Skip the node spawn entirely
 # unless the raw payload even mentions a commit. (May false-positive on a
@@ -18,7 +19,7 @@ case "$input" in
   *) exit 0 ;;
 esac
 
-cmd=$(printf '%s' "$input" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).tool_input?.command||"")}catch{process.stdout.write("")}})')
+cmd=$(hook_cmd "$input")
 
 # Authoritative filter: match `git commit` only in command position (start of
 # line, or after a shell separator) so we don't block/warn on a harmless
@@ -26,6 +27,11 @@ cmd=$(printf '%s' "$input" | node -e 'let s="";process.stdin.on("data",d=>s+=d).
 if ! printf '%s' "$cmd" | grep -qE '(^|[[:space:]]|[;&|(])git[[:space:]]+commit([[:space:]]|$)'; then
   exit 0
 fi
+
+# Resolve the branch through the same tree path as the other hooks. The inherited
+# cwd already tracks the worktree, so this is a consistency no-op — hence `|| true`:
+# a cd failure must NOT skip the main/master hard block below.
+hook_enter_tree "$input" || true
 
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 
