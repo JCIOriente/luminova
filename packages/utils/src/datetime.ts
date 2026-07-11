@@ -46,6 +46,11 @@ const TIME_ONLY = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
   hour12: false,
   timeZone: "UTC",
 });
+const DAY_MONTH = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+});
 
 /** Calendar chip for an activity cover: 3-letter uppercase month + day-of-month. */
 export function formatDateChip(ts: Timestamp): { month: string; day: string } {
@@ -64,6 +69,11 @@ export function formatDateTime(ts: Timestamp): string {
 /** Date only, "14 jun 2026", for detail fact rows. */
 export function formatDate(ts: Timestamp): string {
   return DATE_ONLY.format(ts.toDate());
+}
+
+/** Day + short month, no year, e.g. "14 jun" — for recurring dates like birthdays. */
+export function formatDayMonth(ts: Timestamp): string {
+  return stripDot(DAY_MONTH.format(ts.toDate()));
 }
 
 /** Time only, "19:00", for detail fact rows. */
@@ -114,6 +124,38 @@ export function formatDateRange(start: Timestamp, end: Timestamp): string {
   }
   const startLabel = stripDot(MONTH_YEAR.format(startDate));
   return `${startLabel} – ${endLabel}`;
+}
+
+// Bolivia-local calendar parts of `now` (birthdays/anniversaries are read in the
+// viewer's local day, unlike the UTC-pinned scheduled instants above).
+function boliviaParts(now: Date): { year: number; month: number; day: number } {
+  const b = new Date(now.getTime() - BOLIVIA_OFFSET_MS);
+  return { year: b.getUTCFullYear(), month: b.getUTCMonth(), day: b.getUTCDate() };
+}
+
+/**
+ * Whole days until the next month/day anniversary of a UTC-pinned date, counted
+ * in Bolivia local time. 0 = the anniversary is today.
+ */
+export function daysUntilNextAnniversary(ts: Timestamp, now: Date): number {
+  const d = ts.toDate();
+  const today = boliviaParts(now);
+  const todayUtc = Date.UTC(today.year, today.month, today.day);
+  let next = Date.UTC(today.year, d.getUTCMonth(), d.getUTCDate());
+  if (next < todayUtc) next = Date.UTC(today.year + 1, d.getUTCMonth(), d.getUTCDate());
+  return Math.round((next - todayUtc) / 86_400_000);
+}
+
+/** Completed whole years from a UTC-pinned date to Bolivia-local today. */
+export function fullYearsBetween(ts: Timestamp, now: Date): number {
+  const d = ts.toDate();
+  const today = boliviaParts(now);
+  let years = today.year - d.getUTCFullYear();
+  const beforeAnniversary =
+    today.month < d.getUTCMonth() ||
+    (today.month === d.getUTCMonth() && today.day < d.getUTCDate());
+  if (beforeAnniversary) years -= 1;
+  return Math.max(0, years);
 }
 
 /** Spanish relative time for the activity feed. Coarse buckets, no external dep. */

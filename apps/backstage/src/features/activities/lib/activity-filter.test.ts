@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Timestamp } from "firebase/firestore";
 import type { Activity } from "@luminova/types";
-import { filterActivities } from "./activity-filter";
+import { filterActivities, upcomingActivities } from "./activity-filter";
 
 function activity(id: string, iso: string, status: Activity["status"] = "Programada"): Activity {
   return {
@@ -50,5 +50,15 @@ describe("filterActivities", () => {
   it("mes keeps the current UTC calendar month only", () => {
     const ids = filterActivities(rows, "mes", now).map((a) => a.id);
     expect(ids.sort()).toEqual(["future", "futureCancelled", "past"]);
+  });
+});
+
+describe("upcomingActivities", () => {
+  it("returns upcoming activities soonest-first", () => {
+    expect(upcomingActivities(rows, now).map((a) => a.id)).toEqual(["future", "nextMonth"]);
+  });
+
+  it("caps at the limit when given", () => {
+    expect(upcomingActivities(rows, now, 1).map((a) => a.id)).toEqual(["future"]);
   });
 });

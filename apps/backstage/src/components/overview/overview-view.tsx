@@ -13,6 +13,7 @@ import {
   cn,
 } from "@luminova/ui";
 import { PageHeader } from "../page-header";
+import { EventDateChip } from "../event-date-chip";
 import { boardHomeLayout, type WidgetKey } from "./board-home-layout";
 import { relativeTimeEs } from "@luminova/utils/datetime";
 import type { DashboardModel, FeedTone } from "./dashboard-model";
@@ -170,14 +171,7 @@ export function OverviewView({
                 key={e.id}
                 className="flex items-center gap-4 rounded-[12px] px-3 py-3.5 transition-colors hover:bg-ink-1/[0.04]"
               >
-                <div className="flex size-[52px] shrink-0 flex-col items-center justify-center rounded-[11px] border border-line bg-surface-2">
-                  <span className="text-ui-2xs font-bold tracking-[0.1em] text-jci-blue uppercase">
-                    {e.month}
-                  </span>
-                  <span className="text-[21px] font-medium leading-none tracking-[-0.02em] text-ink-1">
-                    {e.day}
-                  </span>
-                </div>
+                <EventDateChip month={e.month} day={e.day} />
                 <div className="min-w-0 flex-1">
                   <div className="text-ui-md font-semibold text-ink-1">{e.title}</div>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-ui-xs text-ink-3">
