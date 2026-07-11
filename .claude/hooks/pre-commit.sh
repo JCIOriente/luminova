@@ -4,7 +4,8 @@
 set -uo pipefail
 
 input=$(cat)
-cmd=$(printf '%s' "$input" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).tool_input?.command||"")}catch{process.stdout.write("")}})')
+. "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
+cmd=$(hook_cmd "$input")
 
 # Only act on git commit invocations.
 case "$cmd" in
@@ -19,7 +20,6 @@ if printf '%s' "$cmd" | grep -qE -- '(--no-verify|[[:space:]]-n([[:space:]]|$))'
 fi
 
 # Format/stage the tree the commit actually runs in — never the primary checkout.
-. "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
 hook_enter_tree "$input" \
   || { echo "pre-commit: WARN — could not enter a working dir; format/lint gate skipped." >&2; exit 0; }
 

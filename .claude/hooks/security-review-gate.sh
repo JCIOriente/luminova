@@ -9,6 +9,7 @@
 set -uo pipefail
 
 input=$(cat)
+. "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
 
 # Fast path: this hook fires on EVERY Bash call. Skip the node spawn unless the
 # raw payload even mentions the command. (Authoritative parse re-checks below.)
@@ -17,7 +18,7 @@ case "$input" in
   *) exit 0 ;;
 esac
 
-cmd=$(printf '%s' "$input" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).tool_input?.command||"")}catch{process.stdout.write("")}})')
+cmd=$(hook_cmd "$input")
 
 # Authoritative filter: match `gh pr create` in command position (start of line
 # or after a shell separator) so a harmless `echo "gh pr create"` doesn't block.
@@ -28,7 +29,6 @@ fi
 # Diff the tree the command actually runs in — a worktree-based `gh pr create`
 # must be diffed against its OWN branch, never the primary checkout (which may
 # sit on another branch, silently inspecting the wrong tree and skipping the gate).
-. "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
 hook_enter_tree "$input" \
   || { echo "security-review-gate: WARN — could not enter a working dir; gate skipped." >&2; exit 0; }
 
