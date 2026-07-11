@@ -94,6 +94,10 @@ export interface SiteContact {
   location: string;
   meetingSchedule: string;
   mapUrl: string;
+  /** wa.me (or https) link for one-tap direct WhatsApp chat. Empty = hidden. */
+  whatsapp: string;
+  /** Difusión Oriente WhatsApp broadcast-channel invite URL. Empty = hidden. */
+  broadcastChannel: string;
   socials: SiteSocials;
   links: SiteLink[];
 }

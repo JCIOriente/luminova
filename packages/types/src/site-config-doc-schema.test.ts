@@ -22,6 +22,8 @@ const validDoc = {
     location: "Santa Cruz de la Sierra",
     meetingSchedule: "Martes 19:00",
     mapUrl: "https://maps.example.com/x",
+    whatsapp: "https://wa.me/59170000000",
+    broadcastChannel: "https://whatsapp.com/channel/abc",
     socials: {
       instagram: "https://instagram.com/jcioriente",
       facebook: "https://facebook.com/jcioriente",
@@ -64,6 +66,13 @@ describe("siteConfigDocSchema", () => {
   it("defaults hero when absent (legacy pre-hero docs)", () => {
     const parsed = siteConfigDocSchema.parse(without(validDoc, "hero"));
     expect(parsed.hero).toEqual({ motto: "", submotto: "" });
+  });
+
+  it("defaults whatsapp/broadcastChannel to '' on a pre-channels contact doc", () => {
+    const legacyContact = without(without(validDoc.contact, "whatsapp"), "broadcastChannel");
+    const parsed = siteConfigDocSchema.parse({ ...validDoc, contact: legacyContact });
+    expect(parsed.contact.whatsapp).toBe("");
+    expect(parsed.contact.broadcastChannel).toBe("");
   });
 
   it("leaves linktree undefined when absent", () => {
