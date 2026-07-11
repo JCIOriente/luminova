@@ -8,7 +8,17 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { deleteDoc, deleteField, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  deleteField,
+  doc,
+  getDoc,
+  getDocs,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
 // Build claims with the REAL seed producer (not a local re-implementation), so every
 // role-based context exercises the exact perms a seeded user receives → this whole suite
 // is a "seed-output ⊨ firestore.rules" contract. The packages/types drift guard proves the
@@ -371,6 +381,26 @@ beforeAll(async () => {
       category: "University",
     });
     await setDoc(doc(db, "siteConfig/current"), { version: 1, stats: {}, allies: [] });
+    // Lead fixtures (public contact-form capture). One per triage path so the
+    // suite's single seed pass leaves each pristine for its own assertion.
+    const LEAD_SEED = {
+      name: "Prospecto",
+      email: "prospecto@example.com",
+      intent: "Membresía",
+      message: "Quiero unirme a JCI Oriente.",
+      status: "Nuevo",
+      source: "web",
+      createdAt: new Date("2026-07-01T00:00:00Z"),
+      deletedAt: null,
+    };
+    await setDoc(doc(db, "leads/lead_new"), LEAD_SEED);
+    await setDoc(doc(db, "leads/lead_triage"), LEAD_SEED);
+    await setDoc(doc(db, "leads/lead_softdel"), LEAD_SEED);
+    await setDoc(doc(db, "leads/lead_deleted"), {
+      ...LEAD_SEED,
+      status: "Cerrado",
+      deletedAt: DELETED_AT,
+    });
   });
 });
 
@@ -1807,5 +1837,145 @@ describe("firestore.rules — siteConfig", () => {
         allies: [],
       }),
     );
+  });
+});
+
+describe("firestore.rules — leads (public contact-form capture)", () => {
+  // A well-formed submission as the spotlight write path builds it. `createdAt`
+  // is a serverTimestamp so it resolves to request.time (the create rule pins it).
+  function validLead(overrides: Record<string, unknown> = {}) {
+    return {
+      name: "Ada Lovelace",
+      email: "ada@example.com",
+      intent: "Alianza",
+      message: "Propuesta de alianza institucional.",
+      status: "Nuevo",
+      source: "web",
+      createdAt: serverTimestamp(),
+      deletedAt: null,
+      ...overrides,
+    };
+  }
+  // A signed-in Member holding an explicit read:Lead grant (custom role path).
+  function asReader(uid: string) {
+    return env.authenticatedContext(uid, { roles: ["Member"], perms: ["read:Lead"] }).firestore();
+  }
+
+  it("allows an anonymous visitor to create a well-formed lead", async () => {
+    await assertSucceeds(setDoc(doc(anon(), "leads/anon_ok"), validLead()));
+  });
+  it("allows a signed-in visitor to create a well-formed lead", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("member-uid", ["Member"]), "leads/signedin_ok"), validLead()),
+    );
+  });
+  it("denies a create missing the deletedAt key (would break read-schema parse)", async () => {
+    await assertFails(
+      setDoc(doc(anon(), "leads/nodelkey"), {
+        name: "Ada Lovelace",
+        email: "ada@example.com",
+        intent: "Alianza",
+        message: "Sin deletedAt.",
+        status: "Nuevo",
+        source: "web",
+        createdAt: serverTimestamp(),
+      }),
+    );
+  });
+  it("denies a create carrying an unexpected field", async () => {
+    await assertFails(setDoc(doc(anon(), "leads/extra"), validLead({ phone: "77712345" })));
+  });
+  it("denies an over-long name (>100)", async () => {
+    await assertFails(setDoc(doc(anon(), "leads/longname"), validLead({ name: "a".repeat(101) })));
+  });
+  it("denies an over-long message (>2000)", async () => {
+    await assertFails(
+      setDoc(doc(anon(), "leads/longmsg"), validLead({ message: "x".repeat(2001) })),
+    );
+  });
+  it("denies an empty name", async () => {
+    await assertFails(setDoc(doc(anon(), "leads/emptyname"), validLead({ name: "" })));
+  });
+  it("denies an unknown intent", async () => {
+    await assertFails(setDoc(doc(anon(), "leads/badintent"), validLead({ intent: "Spam" })));
+  });
+  it("denies a status other than Nuevo on create", async () => {
+    await assertFails(setDoc(doc(anon(), "leads/prestatus"), validLead({ status: "Contactado" })));
+  });
+  it("denies a source other than 'web'", async () => {
+    await assertFails(setDoc(doc(anon(), "leads/badsource"), validLead({ source: "api" })));
+  });
+  it("denies a forged (non-request.time) createdAt", async () => {
+    await assertFails(
+      setDoc(doc(anon(), "leads/forgedts"), validLead({ createdAt: new Date("2020-01-01") })),
+    );
+  });
+  it("denies a create born soft-deleted", async () => {
+    await assertFails(
+      setDoc(doc(anon(), "leads/predeleted"), validLead({ deletedAt: new Date() })),
+    );
+  });
+
+  it("denies an anonymous read (leads carry PII)", async () => {
+    await assertFails(getDoc(doc(anon(), "leads/lead_new")));
+  });
+  it("denies an anonymous list query (read gates list too)", async () => {
+    await assertFails(getDocs(collection(anon(), "leads")));
+  });
+  it("denies a signed-in member without read:Lead", async () => {
+    await assertFails(getDoc(doc(as("u", ["Member"]), "leads/lead_new")));
+  });
+  it("allows an Admin to read (manage:all)", async () => {
+    await assertSucceeds(getDoc(doc(as("u", ["Admin"]), "leads/lead_new")));
+  });
+  it("allows a custom read:Lead holder to read", async () => {
+    await assertSucceeds(getDoc(doc(asReader("reader"), "leads/lead_new")));
+  });
+
+  it("allows an Admin to advance the pipeline status", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "leads/lead_triage"), { status: "Contactado" }),
+    );
+  });
+  it("denies advancing to an unknown status", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "leads/lead_new"), { status: "Archivado" }),
+    );
+  });
+  it("denies mutating the submitted PII (name) on update", async () => {
+    await assertFails(updateDoc(doc(as("u", ["Admin"]), "leads/lead_new"), { name: "Hijack" }));
+  });
+  it("denies changing another field alongside status", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "leads/lead_new"), {
+        status: "Contactado",
+        email: "evil@example.com",
+      }),
+    );
+  });
+  it("denies a signed-in member without update:Lead from triaging", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Member"]), "leads/lead_new"), { status: "Contactado" }),
+    );
+  });
+  it("allows an Admin to soft-delete (set deletedAt)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "leads/lead_softdel"), {
+        deletedAt: new Date("2026-07-05T00:00:00Z"),
+      }),
+    );
+  });
+  it("denies un-setting deletedAt on a soft-deleted lead", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "leads/lead_deleted"), { deletedAt: null }),
+    );
+  });
+  it("denies stripping the deletedAt key via deleteField() on a live lead", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "leads/lead_new"), { deletedAt: deleteField() }),
+    );
+  });
+  it("denies hard delete even for Admin", async () => {
+    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "leads/lead_new")));
   });
 });

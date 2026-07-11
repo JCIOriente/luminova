@@ -19,6 +19,8 @@ const valid = {
     location: "Santa Cruz",
     meetingSchedule: "Miércoles 19:30",
     mapUrl: "https://maps.app.goo.gl/abc",
+    whatsapp: "https://wa.me/59170000000",
+    broadcastChannel: "",
     socials: {
       instagram: "https://instagram.com/jci.oriente",
       facebook: "https://facebook.com/jci",

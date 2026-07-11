@@ -381,6 +381,30 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
               {...register("contact.mapUrl")}
             />
           </Field>
+          <Field
+            label="WhatsApp (chat directo)"
+            htmlFor="contactWhatsapp"
+            hint="Enlace wa.me, ej. https://wa.me/59170000000. Vacío = se oculta."
+            error={err(errors.contact?.whatsapp?.message)}
+          >
+            <Input
+              id="contactWhatsapp"
+              aria-invalid={attempted && !!errors.contact?.whatsapp}
+              {...register("contact.whatsapp")}
+            />
+          </Field>
+          <Field
+            label="Canal Difusión Oriente"
+            htmlFor="contactBroadcast"
+            hint="Enlace de invitación al canal de difusión de WhatsApp. Vacío = se oculta."
+            error={err(errors.contact?.broadcastChannel?.message)}
+          >
+            <Input
+              id="contactBroadcast"
+              aria-invalid={attempted && !!errors.contact?.broadcastChannel}
+              {...register("contact.broadcastChannel")}
+            />
+          </Field>
 
           <div>
             <span className="mb-2 block text-ui-sm font-semibold text-ink-1">Redes sociales</span>
