@@ -5,6 +5,7 @@ import {
   updateDoc,
   query,
   where,
+  orderBy,
   limit,
   serverTimestamp,
 } from "firebase/firestore";
@@ -12,10 +13,11 @@ import { getFirebase } from "@luminova/firebase";
 import { leadDocSchema, type Lead, type LeadStatus } from "@luminova/types";
 import { parseDocs } from "../../../lib/firestore-read";
 
-// Bound the read: JCI Oriente lead volume is small. A `where("deletedAt","==",null)`
-// + `createdAt desc` order would need a composite index, so we cap at 500 live
-// leads and sort newest-first client-side instead. Revisit with pagination + a
-// composite index if the inbox ever approaches the cap.
+// Bound the read: newest 500 live leads. The `where + orderBy` needs the composite
+// index in firestore.indexes.json (leads: deletedAt ASC, createdAt DESC) — deploy
+// it before this query runs in prod. Ordering server-side means the cap drops the
+// OLDEST leads, not arbitrary doc-ID ones; revisit with pagination if the inbox
+// ever nears the cap.
 const LEAD_READ_CAP = 500;
 
 export class LeadRepository {
@@ -24,11 +26,14 @@ export class LeadRepository {
   /** Live (non-soft-deleted) leads, newest first. */
   async getAll(): Promise<Lead[]> {
     const snapshot = await getDocs(
-      query(this.collection, where("deletedAt", "==", null), limit(LEAD_READ_CAP)),
+      query(
+        this.collection,
+        where("deletedAt", "==", null),
+        orderBy("createdAt", "desc"),
+        limit(LEAD_READ_CAP),
+      ),
     );
-    return parseDocs(leadDocSchema, snapshot).sort(
-      (a, b) => b.createdAt.toMillis() - a.createdAt.toMillis(),
-    );
+    return parseDocs(leadDocSchema, snapshot);
   }
 
   /** Advance the triage pipeline (Nuevo -> Contactado -> Cerrado). */

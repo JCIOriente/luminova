@@ -22,6 +22,7 @@ import {
   type StatusFilter,
 } from "../features/leads/lib/lead-filter";
 import { PageHeader } from "../components/page-header";
+import { QueryErrorState } from "../components/query-error-state";
 import { useAbility } from "../lib/authz/ability-context";
 import { useDismissingToast } from "../lib/use-dismissing-toast";
 
@@ -34,7 +35,8 @@ const NO_LEADS: Lead[] = [];
 function LeadsPage() {
   const ability = useAbility();
   const canRead = ability.can("read", "Lead");
-  const { data: leads, isLoading, isError } = useLeads();
+  const canUpdate = ability.can("update", "Lead");
+  const { data: leads, isLoading, isError, error, refetch } = useLeads({ enabled: canRead });
   const updateStatus = useUpdateLeadStatus();
   const deleteLead = useDeleteLead();
 
@@ -122,13 +124,12 @@ function LeadsPage() {
       />
 
       {isError ? (
-        <p role="alert" className="text-error">
-          No se pudieron cargar los prospectos.
-        </p>
+        <QueryErrorState error={error} onRetry={() => void refetch()} />
       ) : (
         <LeadTable
           leads={filtered}
           isLoading={isLoading}
+          canUpdate={canUpdate}
           onStatusChange={handleStatusChange}
           onDelete={setDeleteTarget}
           emptyState={

@@ -16,6 +16,8 @@ interface LeadTableProps {
   leads: Lead[];
   isLoading?: boolean;
   emptyState?: React.ReactNode;
+  /** When false, the status/delete controls render read-only (no update:Lead perm). */
+  canUpdate: boolean;
   onStatusChange: (lead: Lead, status: LeadStatus) => void;
   onDelete: (lead: Lead) => void;
 }
@@ -27,7 +29,14 @@ const INTENT_TONE: Record<LeadIntent, BadgeTone> = {
   Otro: "gray",
 };
 
+const STATUS_TONE: Record<LeadStatus, BadgeTone> = {
+  Nuevo: "blue",
+  Contactado: "amber",
+  Cerrado: "green",
+};
+
 function buildColumns(
+  canUpdate: boolean,
   onStatusChange: (lead: Lead, status: LeadStatus) => void,
 ): DataTableColumn<Lead>[] {
   return [
@@ -77,25 +86,35 @@ function buildColumns(
       id: "status",
       header: "Estado",
       sortValue: (lead) => lead.status,
-      cell: (lead) => (
-        <Select
-          aria-label={`Estado de ${lead.name}`}
-          value={lead.status}
-          onChange={(e) => onStatusChange(lead, e.target.value as LeadStatus)}
-        >
-          {LEAD_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </Select>
-      ),
+      cell: (lead) =>
+        canUpdate ? (
+          <Select
+            aria-label={`Estado de ${lead.name}`}
+            value={lead.status}
+            onChange={(e) => onStatusChange(lead, e.target.value as LeadStatus)}
+          >
+            {LEAD_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <Badge tone={STATUS_TONE[lead.status]}>{lead.status}</Badge>
+        ),
     },
   ];
 }
 
-export function LeadTable({ leads, isLoading, emptyState, onStatusChange, onDelete }: LeadTableProps) {
-  const columns = useMemo(() => buildColumns(onStatusChange), [onStatusChange]);
+export function LeadTable({
+  leads,
+  isLoading,
+  emptyState,
+  canUpdate,
+  onStatusChange,
+  onDelete,
+}: LeadTableProps) {
+  const columns = useMemo(() => buildColumns(canUpdate, onStatusChange), [canUpdate, onStatusChange]);
   return (
     <DataTable
       rows={leads}
@@ -114,18 +133,22 @@ export function LeadTable({ leads, isLoading, emptyState, onStatusChange, onDele
           />
         )
       }
-      rowActions={(lead) => (
-        <Button
-          as="button"
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label={`Eliminar prospecto de ${lead.name}`}
-          onClick={() => onDelete(lead)}
-        >
-          {Icon.close({ s: 16 })}
-        </Button>
-      )}
+      rowActions={
+        canUpdate
+          ? (lead) => (
+              <Button
+                as="button"
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={`Eliminar prospecto de ${lead.name}`}
+                onClick={() => onDelete(lead)}
+              >
+                {Icon.close({ s: 16 })}
+              </Button>
+            )
+          : undefined
+      }
     />
   );
 }
