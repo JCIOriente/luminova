@@ -79,6 +79,15 @@ export const SITE_CONFIG_CONTENT = {
     email: "jci.orienteolm@gmail.com",
     location: "Santa Cruz de la Sierra, Bolivia",
     meetingSchedule: "Cada miércoles · 19:30 hrs",
+    mapUrl: "https://maps.app.goo.gl/VtmEnphZxKmfD4bA9",
+    whatsapp: "",
+    broadcastChannel: "",
+    socials: {
+      instagram: "https://www.instagram.com/jci.oriente",
+      facebook: "https://www.facebook.com/JCI.Oriente.Bolivia",
+      tiktok: "https://www.tiktok.com/@jci_oriente",
+      linkedin: "https://www.linkedin.com/company/jci-oriente",
+    },
     links: [
       { label: "JCI Worldwide ↗", url: "https://jci.cc" },
       { label: "JCI Bolivia ↗", url: "#" },
