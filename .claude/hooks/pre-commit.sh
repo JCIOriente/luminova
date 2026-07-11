@@ -18,14 +18,9 @@ if printf '%s' "$cmd" | grep -qE -- '(--no-verify|[[:space:]]-n([[:space:]]|$))'
   exit 0
 fi
 
-# `.cwd` tracks the real working directory — including a worktree — so we format
-# and stage the tree the commit actually runs in, not the primary checkout that
-# CLAUDE_PROJECT_DIR points at (which may sit on another branch). Fall back to
-# CLAUDE_PROJECT_DIR when `.cwd` is absent or unusable.
-hookcwd=$(printf '%s' "$input" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).cwd||"")}catch{process.stdout.write("")}})')
-cd "${hookcwd:-${CLAUDE_PROJECT_DIR:-.}}" 2>/dev/null \
-  || cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null \
-  || exit 0
+# Format/stage the tree the commit actually runs in — never the primary checkout.
+. "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
+cd "$(hook_tree_root "$input")" 2>/dev/null || exit 0
 
 echo "pre-commit: auto-formatting…" >&2
 pnpm run format:fix >/dev/null 2>&1 || true

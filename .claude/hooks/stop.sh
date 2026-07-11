@@ -3,7 +3,11 @@
 # Read-only, never blocks.
 set -uo pipefail
 
-cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
+input=$(cat)
+
+# Report the worktree the session is working in, not the primary checkout.
+. "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
+cd "$(hook_tree_root "$input")" 2>/dev/null || exit 0
 
 status=$(git status -sb 2>/dev/null || echo "")
 count=$(printf '%s\n' "$status" | grep -cE '^[ MARCD?]{2} ' || true)
