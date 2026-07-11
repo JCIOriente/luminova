@@ -18,7 +18,10 @@ if printf '%s' "$cmd" | grep -qE -- '(--no-verify|[[:space:]]-n([[:space:]]|$))'
   exit 0
 fi
 
-cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
+# Format/stage the tree the commit actually runs in — never the primary checkout.
+. "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
+hook_enter_tree "$input" \
+  || { echo "pre-commit: WARN — could not enter a working dir; format/lint gate skipped." >&2; exit 0; }
 
 echo "pre-commit: auto-formatting…" >&2
 pnpm run format:fix >/dev/null 2>&1 || true
