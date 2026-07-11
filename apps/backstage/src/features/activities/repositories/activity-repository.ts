@@ -61,12 +61,16 @@ export class ActivityRepository {
           startAt: existing.startAt.toMillis(),
           parentType: existing.parentType,
           parentId: existing.parentId,
+          termId: existing.termId,
         },
         {
           category: data.category,
           startAt: new Date(`${data.startAt}:00Z`).getTime(),
           parentType: data.parentType,
           parentId: data.parentId,
+          // The edit form cannot change term; the update mapper never sends termId.
+          // Sourced from the existing doc so this stays unchanged (matches rules).
+          termId: existing.termId,
         },
       );
       if (changed) throw new ActivityLockedError();

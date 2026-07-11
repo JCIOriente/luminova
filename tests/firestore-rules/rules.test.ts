@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-import { afterAll, beforeAll, describe, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   assertFails,
   assertSucceeds,
@@ -42,14 +42,39 @@ const DELETED_AT = new Date("2026-01-01T00:00:00Z");
 // the exact same startAt value.
 const LOCK_TS = new Date("2026-06-10T18:00:00Z");
 
+const RULES_SOURCE = readFileSync(
+  resolve(fileURLToPath(new URL("../../firestore.rules", import.meta.url))),
+  "utf8",
+);
+
+/** Field names the rules' activityLockSafe() gate marks unchanged() — parsed from the
+ *  real rules source so the deny-probe loop below can never lag the rules it protects.
+ *  packages/types/src/activity-locked-fields.rules.test.ts cross-checks this exact set
+ *  against the canonical ACTIVITY_LOCKED_FIELDS (the client guard derives from the same). */
+function parseActivityLockedFields(source: string): string[] {
+  const fn = source.match(/function activityLockSafe\(\)[\s\S]*?\n\s{4}\}/);
+  if (!fn) throw new Error("activityLockSafe() not found in firestore.rules");
+  return [...fn[0].matchAll(/unchanged\('([^']+)'\)/g)].map((m) => m[1]);
+}
+const RULES_LOCKED_FIELDS = parseActivityLockedFields(RULES_SOURCE);
+
+/** One drift value per locked field (must differ from the act_locked fixture). Keyed so a
+ *  new rules-locked field with no probe here trips the parity assertion below. */
+const LOCKED_FIELD_DRIFT: Record<string, unknown> = {
+  category: "Course",
+  startAt: new Date("2026-06-11T18:00:00Z"),
+  parentId: "p_dir",
+  parentType: "Project",
+  termId: "2027",
+};
+
 beforeAll(async () => {
-  const rulesPath = resolve(fileURLToPath(new URL("../../firestore.rules", import.meta.url)));
   env = await initializeTestEnvironment({
     projectId: "demo-rules-test",
     firestore: {
       host: "127.0.0.1",
       port: Number(process.env.FIRESTORE_EMULATOR_PORT ?? 4010),
-      rules: readFileSync(rulesPath, "utf8"),
+      rules: RULES_SOURCE,
     },
   });
   await env.clearFirestore();
@@ -1356,33 +1381,21 @@ describe("firestore.rules — initiative featured create-gate", () => {
 });
 
 describe("firestore.rules — activity lock (hasCheckIns)", () => {
-  it("denies Admin changing category on a locked activity", async () => {
-    await assertFails(
-      updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), { category: "Course" }),
-    );
+  it("has a drift value for every field activityLockSafe() locks (no probe lags the rules)", () => {
+    expect(RULES_LOCKED_FIELDS.length).toBeGreaterThan(0);
+    expect(new Set(Object.keys(LOCKED_FIELD_DRIFT))).toEqual(new Set(RULES_LOCKED_FIELDS));
   });
-  it("denies Admin changing startAt on a locked activity", async () => {
-    await assertFails(
-      updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), {
-        startAt: new Date("2026-06-11T18:00:00Z"),
-      }),
-    );
-  });
-  it("denies Admin changing termId on a locked activity", async () => {
-    // termId prices the point rules and buckets the aggregate — same derivation
-    // inputs the lock protects.
-    await assertFails(
-      updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), { termId: "2027" }),
-    );
-  });
-  it("denies Admin re-parenting a locked activity", async () => {
-    await assertFails(
-      updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), {
-        parentType: "Project",
-        parentId: "p_dir",
-      }),
-    );
-  });
+  // One denied-update probe generated per field the rules actually lock — add a field to
+  // activityLockSafe() and it is probed automatically (given a LOCKED_FIELD_DRIFT value).
+  for (const field of RULES_LOCKED_FIELDS) {
+    it(`denies Admin changing ${field} on a locked activity`, async () => {
+      await assertFails(
+        updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), {
+          [field]: LOCKED_FIELD_DRIFT[field],
+        }),
+      );
+    });
+  }
   it("allows Admin editing title on a locked activity", async () => {
     await assertSucceeds(
       updateDoc(doc(as("u", ["Admin"]), "activities/act_locked"), { title: "Renombrada" }),

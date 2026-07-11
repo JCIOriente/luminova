@@ -6,6 +6,7 @@ const current = {
   startAt: 1000,
   parentType: null,
   parentId: null,
+  termId: "2026",
 };
 
 describe("lockedFieldsChanged", () => {
@@ -18,6 +19,9 @@ describe("lockedFieldsChanged", () => {
   it("flags a re-parented activity (parentType/parentId)", () => {
     expect(lockedFieldsChanged(current, { ...current, parentType: "Project" })).toBe(true);
     expect(lockedFieldsChanged(current, { ...current, parentId: "p1" })).toBe(true);
+  });
+  it("flags a changed termId (matches the rules-side lock)", () => {
+    expect(lockedFieldsChanged(current, { ...current, termId: "2027" })).toBe(true);
   });
   it("allows unchanged locked fields", () => {
     expect(lockedFieldsChanged(current, { ...current })).toBe(false);
