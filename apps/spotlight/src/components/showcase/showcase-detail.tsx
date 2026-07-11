@@ -30,7 +30,7 @@ function DetailHero({ item }: { item: ShowcaseItem }) {
   const dates = formatDateRange(item.startDate, item.endDate);
 
   return (
-    <section className="showcase-detail-hero">
+    <section className={cover ? "showcase-detail-hero" : "showcase-detail-hero no-cover"}>
       {cover ? (
         <>
           <img
@@ -51,7 +51,7 @@ function DetailHero({ item }: { item: ShowcaseItem }) {
           {areaLabel}
           <ProgramFlag kind={item.kind} />
         </span>
-        <h1 className="t-display showcase-detail-title">{item.title}</h1>
+        <h1 className="showcase-detail-title">{item.title}</h1>
         <p className="showcase-detail-dates">{dates}</p>
       </div>
     </section>
@@ -65,15 +65,19 @@ export function DetailContent({ item }: { item: ShowcaseItem }) {
   const summaryTrimmed = closingSummary.trim();
   const showDescription = descTrimmed !== "" && descTrimmed !== summaryTrimmed;
   const hasTeam = team.director !== null || team.coDirectors.length > 0 || team.members.length > 0;
+  const isProgram = item.kind === "Program";
 
   return (
     <>
       <DetailHero item={item} />
 
-      <section className="section bg-blue" style={{ position: "relative", overflow: "hidden" }}>
+      <section className="section bg-blue showcase-detail-impact">
         <RippleBackground variant="subtle" color="var(--color-jci-white)" opacity={0.06} />
-        <div className="container" style={{ position: "relative", zIndex: 1 }}>
-          <ImpactBand impact={item.impact} />
+        <div className="container showcase-detail-impact-body">
+          <div className="eyebrow">Impacto</div>
+          <div className="showcase-detail-band-wrap">
+            <ImpactBand impact={item.impact} />
+          </div>
         </div>
       </section>
 
@@ -81,12 +85,12 @@ export function DetailContent({ item }: { item: ShowcaseItem }) {
         <section className="section">
           <div className="container">
             <Reveal>
-              <div className="eyebrow">
-                {item.kind === "Program" ? "El programa" : "El proyecto"}
-              </div>
-              <div className="showcase-detail-summary" style={{ marginTop: 28 }}>
-                {showDescription && <p>{description}</p>}
-                <p>{closingSummary}</p>
+              <div className="detail-rail">
+                <div className="eyebrow">{isProgram ? "El programa" : "El proyecto"}</div>
+                <div className="showcase-detail-summary">
+                  {showDescription && <p>{description}</p>}
+                  <p>{closingSummary}</p>
+                </div>
               </div>
             </Reveal>
           </div>
@@ -96,25 +100,38 @@ export function DetailContent({ item }: { item: ShowcaseItem }) {
       {item.photos.length > 0 && (
         <section className="section bg-soft">
           <div className="container">
-            <div className="eyebrow">Galería</div>
-            <div style={{ marginTop: 36 }}>
+            <div className="detail-section-head">
+              <div className="eyebrow">Galería</div>
+              <span className="detail-count">
+                {item.photos.length} {item.photos.length === 1 ? "foto" : "fotos"}
+              </span>
+            </div>
+            <div className="detail-section-body">
               <PhotoGallery photos={item.photos} title={item.title} />
             </div>
           </div>
         </section>
       )}
 
-      <section className="section">
-        <div className="container">
-          {hasTeam && (
-            <div className="grid-2" style={{ alignItems: "start" }}>
-              <div>
+      {hasTeam && (
+        <section className="section">
+          <div className="container">
+            <Reveal>
+              <div className="team-header">
                 <div className="eyebrow">Equipo</div>
+                <h2 className="team-heading">
+                  Las personas detrás {isProgram ? "del programa" : "del proyecto"}
+                </h2>
               </div>
               <TeamCredits team={team} />
-            </div>
-          )}
-          <div style={{ marginTop: hasTeam ? 64 : 0 }}>
+            </Reveal>
+          </div>
+        </section>
+      )}
+
+      <section className="detail-footer">
+        <div className="container">
+          <div className="detail-footer-rule">
             <BackLink>Ver todos los proyectos</BackLink>
           </div>
         </div>
