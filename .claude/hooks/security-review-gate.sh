@@ -29,7 +29,7 @@ fi
 # must be diffed against its OWN branch, never the primary checkout (which may
 # sit on another branch, silently inspecting the wrong tree and skipping the gate).
 . "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
-cd "$(hook_tree_root "$input")" 2>/dev/null \
+hook_enter_tree "$input" \
   || { echo "security-review-gate: WARN — could not enter a working dir; gate skipped." >&2; exit 0; }
 
 # Resolve the repo default branch from origin/HEAD (fallback main) instead of

@@ -20,7 +20,8 @@ fi
 
 # Format/stage the tree the commit actually runs in — never the primary checkout.
 . "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
-cd "$(hook_tree_root "$input")" 2>/dev/null || exit 0
+hook_enter_tree "$input" \
+  || { echo "pre-commit: WARN — could not enter a working dir; format/lint gate skipped." >&2; exit 0; }
 
 echo "pre-commit: auto-formatting…" >&2
 pnpm run format:fix >/dev/null 2>&1 || true

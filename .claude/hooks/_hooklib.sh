@@ -18,3 +18,10 @@ hook_tree_root() {
   cwd=$(printf '%s' "$1" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).cwd||"")}catch{process.stdout.write("")}})')
   git -C "${cwd:-.}" rev-parse --show-toplevel 2>/dev/null || printf '%s' "${cwd:-.}"
 }
+
+# hook_enter_tree <raw-hook-input-json>
+# cd into hook_tree_root, silently. Returns cd's status so each caller chooses
+# its own failure handling (default: `|| exit 0`).
+hook_enter_tree() {
+  cd "$(hook_tree_root "$1")" 2>/dev/null
+}

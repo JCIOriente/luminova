@@ -13,7 +13,7 @@ esac
 
 # Diff the tree the PR was opened from (its worktree), not the primary checkout.
 . "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
-cd "$(hook_tree_root "$input")" 2>/dev/null || exit 0
+hook_enter_tree "$input" || exit 0
 
 # Resolve the repo's default branch instead of assuming master — a stale
 # origin/master ref (this repo has one) would otherwise give a bogus merge-base
