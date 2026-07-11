@@ -1002,16 +1002,21 @@
     grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
     gap: 24px;
   }
-  /* Destacados band — same card, 2-col scale (design tweak: hierarchy by scale + surface) */
+  /* Destacados band — same card, 3-col scale (design tweak: hierarchy by scale + surface) */
   .showcase-grid-featured {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 32px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 28px;
   }
   .showcase-grid-featured .showcase-card-body {
-    padding: 26px 28px 30px;
+    padding: 22px 24px 26px;
   }
   .showcase-grid-featured .showcase-card-title {
-    font-size: 24px;
+    font-size: 20px;
+  }
+  @media (max-width: 1024px) {
+    .showcase-grid-featured {
+      grid-template-columns: repeat(2, 1fr);
+    }
   }
   @media (max-width: 720px) {
     .showcase-grid,

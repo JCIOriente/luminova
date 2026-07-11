@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import clsx from "clsx";
 import { LogoLockup, Button, Icon } from "@luminova/ui";
+import { BACKSTAGE_URL } from "../config/external-links";
 
 // Add a route here whenever its hero sits over a colored background, or the
 // navbar text will fall back to dark and lose contrast on that page.
-const DARK_HERO_ROUTES = ["/", "/impacto"];
+const DARK_HERO_ROUTES = ["/", "/impacto", "/enlaces"];
 const BLUE_HERO_ROUTES = ["/about"];
 const BLUE_HERO_PREFIXES = ["/impacto/"];
 
@@ -98,6 +99,9 @@ export function Header() {
             >
               Contacto
             </a>
+            <a href={BACKSTAGE_URL} className="nav-link">
+              Ingresar
+            </a>
             <Button
               href="/contact"
               onClick={(e) => go(e, "/contact")}
@@ -140,6 +144,9 @@ export function Header() {
             </a>
             <a href="/contact" onClick={(e) => go(e, "/contact")} className="mobile-nav-link">
               Contacto
+            </a>
+            <a href={BACKSTAGE_URL} className="mobile-nav-link">
+              Ingresar
             </a>
           </div>
           <div style={{ marginTop: "auto", paddingTop: 24 }}>
