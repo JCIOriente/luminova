@@ -61,6 +61,8 @@ export const siteConfigSchema = z.object({
     location: reqText,
     meetingSchedule: reqText,
     mapUrl: optionalSafeUrl,
+    whatsapp: optionalSafeUrl,
+    broadcastChannel: optionalSafeUrl,
     socials: z.object({
       instagram: optionalSafeUrl,
       facebook: optionalSafeUrl,

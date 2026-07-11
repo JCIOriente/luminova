@@ -46,6 +46,8 @@ const input = {
     location: "SC",
     meetingSchedule: "Mié",
     mapUrl: "https://maps.app.goo.gl/abc",
+    whatsapp: "https://wa.me/59170000000",
+    broadcastChannel: "https://whatsapp.com/channel/abc",
     socials: { instagram: "https://instagram.com/jci", facebook: "", tiktok: "", linkedin: "" },
     links: [{ label: "JCI", url: "https://jci.cc" }],
   },

@@ -47,8 +47,9 @@ Public-facing marketing website for JCI Oriente. No authentication. No Firebase 
 - FAQ tabs: General / Membership / Programs
 
 ### ContactPage (`/contact`)
-- Contact form: name, email, subject, message, interest
-- Form submission: client-side toast only — **no backend call**
+- Contact form: name, email, intent, message (+ hidden honeypot)
+- Form submission: persists a `leads` doc via `submitLead` (lite `addDoc`) — three states (submitting / success toast / error), then reset
+- Reach hub: WhatsApp direct-chat + Difusión Oriente channel CTAs (from `siteConfig.contact.whatsapp` / `broadcastChannel`, `safeHref`-guarded, hidden when empty)
 - Contact info: address, email, phone, hours
 - Social media: Facebook, Instagram, LinkedIn
 
@@ -56,7 +57,7 @@ Public-facing marketing website for JCI Oriente. No authentication. No Firebase 
 
 - **No auth** — zero Firebase imports in this app
 - **No TanStack Query** — no async data fetching needed
-- **Contact form = client-side only** — validate fields, show success toast, reset form. No API call.
+- **Contact form persists a lead** — validate with `leadSchema`, write one `leads` doc via `submitLead` (lite `addDoc`), then success toast + reset. This is the site's ONE write; the `leads` create rule (firestore.rules) is the trust boundary. Handle all three states (submitting / success / error) — never swallow the write error.
 - **Real org data** — use actual names, stats, and content (not placeholder lorem ipsum)
 - **Responsive** — mobile-first, works on all screen sizes
 - **Public jargon** — umbrella word "proyectos"; "programa" only for annual institutional programs; "iniciativa" banned (eslint no-restricted-syntax guard, spotlight-only). "programa" misuse isn't lintable — reviewed by hand. See docs/specs/2026-07-10-impacto-unification-design.md.
@@ -73,7 +74,7 @@ Footer: 4-column grid — quick links, programs, contact info, social links.
 
 - **Toolchain.** Node 24, pnpm, Vite, React 19, TS 5.7 strict, TanStack Router, Tailwind v4. Consumes `@luminova/ui`.
 - **CI gate.** `spotlight-ci` = prettier-check → eslint → tsc → vite build → vitest → knip (unused) → size-limit. Run via `pnpm --filter spotlight run ci` (rolled into `pnpm pr-tests`). Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin.
-- **Invariants (CI-enforceable).** The showcase may read the public `showcase` Firestore collection via `@luminova/firebase`'s `getFirestoreLite()` (lite SDK, one-shot reads only — no realtime listeners, no auth, no writes). No other Firebase service may be imported; `getFirebase()` is forbidden here. No `@tanstack/react-query`. Contact form client-side only — no network call.
+- **Invariants (CI-enforceable).** Firestore access is lite-SDK only, via `@luminova/firebase`'s `getFirestoreLite()` — one-shot reads (the public `showcase` collection) plus the single `leads` **create** the contact form performs (`submitLead`, `addDoc`). No realtime listeners, no auth reads, no other collection written. No other Firebase service may be imported; `getFirebase()` is forbidden here (eslint steers `@luminova/firebase` → `/lite`). No `@tanstack/react-query`.
 - **Heaviest skills.** `frontend-design` then `ui-ux-pro-max` (brand identity); `react-best-practices` (auto on `.tsx`).
 - **Performance.** Public-facing → load perf is the priority. Budgets: initial JS ≤ 100 kB gz, CSS ≤ 15 kB gz, any route chunk ≤ 40 kB gz. LCP is hero **text** (no raster hero); the sans woff2 is preloaded via `preloadJakartaLatin()` in `vite.config.ts` — don't duplicate. Keep firebase on `@luminova/firebase/lite`, fonts latin-only, below-fold reads on `useAsyncOnVisible`. Follow `docs/performance.md`; dispatch `bundle-budget-watcher` after dep/route changes.
 - **Sensitive surfaces.** None (no auth, no backend). Dispatch `bundle-budget-watcher` after dep/route additions.
