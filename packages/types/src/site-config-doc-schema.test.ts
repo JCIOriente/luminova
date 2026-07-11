@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { siteConfigDocSchema } from "./site-config-doc-schema";
 import { fakeTimestamp, without } from "./doc-schema-test-helpers.js";
+// The plain-Node seed scripts can't import this workspace package, so the shared
+// siteConfig/current seed content is authored in tools/scripts/lib/site-config-seed-data.mjs.
+// This package OWNS the read schema, so it owns the proof the seed satisfies it — parse the
+// real seed content through the real schema. Any required field added here that the seed
+// lags (the exact drift that shipped a doc missing contact.mapUrl/socials) fails this test.
+// Runs in the fast `checks` CI job (no emulator).
+import { SITE_CONFIG_CONTENT } from "../../../tools/scripts/lib/site-config-seed-data.mjs";
 
 const validDoc = {
   version: 3,
@@ -109,5 +116,10 @@ describe("siteConfigDocSchema", () => {
 
   it("rejects a missing required field (contact)", () => {
     expect(siteConfigDocSchema.safeParse(without(validDoc, "contact")).success).toBe(false);
+  });
+
+  it("the shared seed content (site-config-seed-data.mjs) satisfies the read schema", () => {
+    const seededDoc = { version: 1, updatedAt: fakeTimestamp, ...SITE_CONFIG_CONTENT };
+    expect(siteConfigDocSchema.safeParse(seededDoc).success).toBe(true);
   });
 });

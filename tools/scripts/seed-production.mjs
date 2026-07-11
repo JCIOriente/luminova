@@ -109,6 +109,21 @@ async function main() {
     `✓ ${touched} member(s) touched — onMemberWritten will re-mint roles + perms (~1-2 min).`,
   );
 
+  // Seed siteConfig/current with default org facts — runs on EVERY invocation
+  // (idempotent, merge) BEFORE the bootstrap guard, so an already-seeded org gets
+  // any newly-added fields backfilled (e.g. contact.mapUrl / contact.socials) and
+  // spotlight keeps parsing against the strict read schema. Content is shared with
+  // the emulator seed.
+  await db.doc("siteConfig/current").set(
+    {
+      version: 1,
+      updatedAt: Timestamp.now(),
+      ...SITE_CONFIG_CONTENT,
+    },
+    { merge: true },
+  );
+  console.log("✓ siteConfig/current seeded.");
+
   // Guard before prompting so a re-run doesn't make the operator re-enter
   // everything; seedPresident also guards this internally (without `force`).
   const existing = await db.doc("meta/bootstrap").get();
@@ -133,19 +148,6 @@ async function main() {
     rl.close();
     process.exit(1);
   }
-
-  // Seed siteConfig/current with default org facts (idempotent — safe to re-run).
-  // Content is shared with the emulator seed; allies stored as string[] (the backstage
-  // mapper inflates them to {nombre} row objects).
-  await db.doc("siteConfig/current").set(
-    {
-      version: 1,
-      updatedAt: Timestamp.now(),
-      ...SITE_CONFIG_CONTENT,
-    },
-    { merge: true },
-  );
-  console.log("✓ siteConfig/current seeded.");
 
   console.log(`Seeding the initial president for project ${projectId} (term ${TERM}).\n`);
   const name = await ask("President full name", nonEmpty);
