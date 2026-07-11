@@ -32,3 +32,11 @@ export function filterActivities(activities: Activity[], tab: ActivityTab, now: 
     );
   });
 }
+
+/** Upcoming activities, soonest first, optionally capped. */
+export function upcomingActivities(activities: Activity[], now: Date, limit?: number): Activity[] {
+  const sorted = filterActivities(activities, "proximos", now).sort(
+    (a, b) => a.startAt.toMillis() - b.startAt.toMillis(),
+  );
+  return limit === undefined ? sorted : sorted.slice(0, limit);
+}

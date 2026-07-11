@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { Card, Icon } from "@luminova/ui";
 import { PageHeader } from "../components/page-header";
+import { WidgetHeader } from "../components/widget-header";
 import { QueryErrorState } from "../components/query-error-state";
 import { currentTermKey, positionTitle } from "@luminova/types";
 import { encodeMemberQr } from "../lib/member-qr";
@@ -51,7 +52,7 @@ export function MemberHome() {
   });
   const { data: positions } = usePositions();
   const [qrOpen, setQrOpen] = useState(false);
-  const now = useMemo(() => new Date(), []);
+  const now = new Date();
 
   const summary = useMemo(
     () => summarizeParticipations(participations ?? [], activities ?? [], initiatives ?? []),
@@ -100,13 +101,7 @@ export function MemberHome() {
           role={role}
         />
         <Card as="section" padding="none" className="flex flex-col">
-          <header className="flex items-center justify-between border-b border-line px-6 py-4">
-            <div>
-              <h2 className="text-ui-lg font-semibold text-ink-1">Check-in</h2>
-              <div className="mt-0.5 text-ui-xs text-ink-3">Acceso a eventos</div>
-            </div>
-            <span className="text-ink-3">{Icon.qr({ s: 20 })}</span>
-          </header>
+          <WidgetHeader title="Check-in" subtitle="Acceso a eventos" icon={Icon.qr({ s: 20 })} />
           <button
             type="button"
             onClick={() => setQrOpen(true)}

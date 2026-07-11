@@ -3,10 +3,7 @@ import { daysUntilNextAnniversary, formatDayMonth } from "@luminova/utils/dateti
 
 export type UpcomingBirthday = { id: string; name: string; label: string; days: number };
 
-/**
- * Fellow members' next birthdays, soonest first. Excludes the current member and
- * inactive members; exposes day/month only (no birth year) for the community strip.
- */
+// Exposes day/month only (no birth year) — privacy: don't reveal a member's birth year.
 export function upcomingBirthdays(
   members: Member[],
   excludeId: string,

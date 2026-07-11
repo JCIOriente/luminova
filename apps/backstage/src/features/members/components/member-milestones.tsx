@@ -2,6 +2,7 @@ import type { Member } from "@luminova/types";
 import { Card, Icon } from "@luminova/ui";
 import { daysUntilNextAnniversary, fullYearsBetween } from "@luminova/utils/datetime";
 import { upcomingBirthdays } from "../lib/milestones";
+import { WidgetHeader } from "../../../components/widget-header";
 import { QueryErrorState } from "../../../components/query-error-state";
 
 function birthdayLine(days: number): string {
@@ -45,13 +46,11 @@ export function MemberMilestones({
 
   return (
     <Card as="section" padding="none" className="flex flex-col">
-      <header className="flex items-center justify-between border-b border-line px-6 py-4">
-        <div>
-          <h2 className="text-ui-lg font-semibold text-ink-1">Momentos</h2>
-          <div className="mt-0.5 text-ui-xs text-ink-3">Tus fechas y las del equipo</div>
-        </div>
-        <span className="text-ink-3">{Icon.spark({ s: 20 })}</span>
-      </header>
+      <WidgetHeader
+        title="Momentos"
+        subtitle="Tus fechas y las del equipo"
+        icon={Icon.spark({ s: 20 })}
+      />
 
       <div className="flex flex-col gap-2 px-6 py-4">
         <p className="flex items-center gap-2 text-ui-sm font-semibold text-ink-1">

@@ -1,7 +1,9 @@
 import type { Activity } from "@luminova/types";
 import { Card, Icon } from "@luminova/ui";
 import { formatDateChip, formatTime } from "@luminova/utils/datetime";
-import { filterActivities } from "../../activities/lib/activity-filter";
+import { upcomingActivities } from "../../activities/lib/activity-filter";
+import { EventDateChip } from "../../../components/event-date-chip";
+import { WidgetHeader } from "../../../components/widget-header";
 import { QueryErrorState } from "../../../components/query-error-state";
 
 export function MemberUpcomingEvents({
@@ -21,21 +23,15 @@ export function MemberUpcomingEvents({
   now: Date;
   limit?: number;
 }) {
-  const upcoming = activities
-    ? filterActivities(activities, "proximos", now)
-        .sort((a, b) => a.startAt.toMillis() - b.startAt.toMillis())
-        .slice(0, limit)
-    : [];
+  const upcoming = activities ? upcomingActivities(activities, now, limit) : [];
 
   return (
     <Card as="section" padding="none" className="flex flex-col">
-      <header className="flex items-center justify-between border-b border-line px-6 py-4">
-        <div>
-          <h2 className="text-ui-lg font-semibold text-ink-1">Próximos eventos</h2>
-          <div className="mt-0.5 text-ui-xs text-ink-3">Lo que viene en la gestión</div>
-        </div>
-        <span className="text-ink-3">{Icon.calendar({ s: 20 })}</span>
-      </header>
+      <WidgetHeader
+        title="Próximos eventos"
+        subtitle="Lo que viene en la gestión"
+        icon={Icon.calendar({ s: 20 })}
+      />
 
       <div className="flex-1 px-3 py-3">
         {isError ? (
@@ -49,15 +45,8 @@ export function MemberUpcomingEvents({
             {upcoming.map((a) => {
               const chip = formatDateChip(a.startAt);
               return (
-                <li key={a.id} className="flex items-center gap-4 rounded-[12px] px-3 py-3">
-                  <div className="flex size-[48px] shrink-0 flex-col items-center justify-center rounded-[11px] border border-line bg-surface-2">
-                    <span className="text-ui-2xs font-bold tracking-[0.1em] text-jci-blue uppercase">
-                      {chip.month}
-                    </span>
-                    <span className="text-ui-lg font-medium leading-none text-ink-1">
-                      {chip.day}
-                    </span>
-                  </div>
+                <li key={a.id} className="flex items-center gap-4 rounded-card px-3 py-3">
+                  <EventDateChip month={chip.month} day={chip.day} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-ui-sm font-semibold text-ink-1">{a.title}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-ui-xs text-ink-3">

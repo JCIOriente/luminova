@@ -2,7 +2,7 @@ import { monthBucketFromMillis } from "@luminova/types";
 import type { Activity, Ally, Member, MemberPoints } from "@luminova/types";
 import type { KpiTrend } from "@luminova/ui";
 import type { InitiativeListItem } from "../../features/initiatives/lib/initiative-list-item";
-import { filterActivities } from "../../features/activities/lib/activity-filter";
+import { upcomingActivities } from "../../features/activities/lib/activity-filter";
 import {
   BOLIVIA_OFFSET_MS,
   formatDateChip,
@@ -120,9 +120,7 @@ export function buildDashboardModel(input: BuildInput): DashboardModel {
   const { members, allies, activities, memberPoints, initiatives, now } = input;
   const monthKey = monthBucketFromMillis(now.getTime());
   const activeMembers = members.filter((m) => m.active);
-  const upcoming = filterActivities(activities, "proximos", now).sort(
-    (a, b) => a.startAt.toMillis() - b.startAt.toMillis(),
-  );
+  const upcoming = upcomingActivities(activities, now);
   const joined = activeMembers.filter(
     (m) => m.joinDate && monthBucketFromMillis(m.joinDate.toMillis()) === monthKey,
   ).length;
