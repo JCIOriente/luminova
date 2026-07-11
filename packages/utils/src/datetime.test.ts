@@ -8,12 +8,14 @@ import type { Timestamp } from "@luminova/types";
 import {
   BOLIVIA_OFFSET_MS,
   boliviaDayKey,
+  daysUntilNextAnniversary,
   formatDate,
   formatDateChip,
   formatDateRange,
   formatDateTime,
   formatMonthYear,
   formatTime,
+  fullYearsBetween,
   monthKeyToLabel,
   relativeTimeEs,
 } from "./datetime";
@@ -132,5 +134,37 @@ describe("relativeTimeEs", () => {
   });
   it("returns days for older", () => {
     expect(relativeTimeEs(new Date(now.getTime() - 4 * 86400_000), now)).toBe("Hace 4 d");
+  });
+});
+
+describe("daysUntilNextAnniversary", () => {
+  const bday = ts("1992-07-10T00:00:00Z"); // stored UTC-midnight date
+
+  it("counts days to the next month/day, 0 on the day", () => {
+    expect(daysUntilNextAnniversary(bday, new Date("2026-07-05T16:00:00Z"))).toBe(5);
+    expect(daysUntilNextAnniversary(bday, new Date("2026-07-10T16:00:00Z"))).toBe(0);
+  });
+
+  it("rolls to next year once this year's date has passed", () => {
+    expect(daysUntilNextAnniversary(bday, new Date("2026-07-11T16:00:00Z"))).toBe(364);
+  });
+
+  it("reads today in Bolivia local time, not UTC", () => {
+    // 2026-07-10T02:00Z is still Jul 9 in Bolivia (UTC-4) → 1 day to the 10th
+    expect(daysUntilNextAnniversary(bday, new Date("2026-07-10T02:00:00Z"))).toBe(1);
+  });
+});
+
+describe("fullYearsBetween", () => {
+  const now = new Date("2026-07-10T16:00:00Z"); // Bolivia Jul 10, 2026
+
+  it("counts completed years past the anniversary", () => {
+    expect(fullYearsBetween(ts("2020-03-15T00:00:00Z"), now)).toBe(6);
+  });
+  it("subtracts a year before the anniversary", () => {
+    expect(fullYearsBetween(ts("2020-12-01T00:00:00Z"), now)).toBe(5);
+  });
+  it("counts the year on the anniversary day", () => {
+    expect(fullYearsBetween(ts("2020-07-10T00:00:00Z"), now)).toBe(6);
   });
 });
