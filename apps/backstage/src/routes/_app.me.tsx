@@ -7,6 +7,7 @@ import { currentTermKey, positionTitle } from "@luminova/types";
 import { encodeMemberQr } from "../lib/member-qr";
 import { pointsRank } from "../lib/points-rank";
 import { useCurrentMember } from "../features/members/hooks/use-current-member";
+import { useMembers } from "../features/members/hooks/use-members";
 import { useMemberPoints } from "../features/members/hooks/use-member-points";
 import { useMemberParticipations } from "../features/members/hooks/use-member-participations";
 import { useMemberPointsByTerm } from "../features/members/hooks/use-member-points-by-term";
@@ -17,6 +18,8 @@ import { joinYear } from "../features/members/lib/member-display";
 import { summarizeParticipations } from "../features/members/lib/participation-summary";
 import { MemberPointsSummary } from "../features/members/components/member-points-summary";
 import { MemberCredentialCard } from "../features/members/components/member-credential-card";
+import { MemberMilestones } from "../features/members/components/member-milestones";
+import { MemberUpcomingEvents } from "../features/members/components/member-upcoming-events";
 import { ParticipationLedger } from "../features/members/components/participation-ledger";
 
 // qrcode.react (~13 kB gz) lazy so it leaves the always-loaded index shell.
@@ -39,13 +42,16 @@ export function MemberHome() {
   const { data: points } = useMemberPoints(memberId, termId);
   const { data: participations } = useMemberParticipations(memberId, termId);
   const { data: allPoints } = useMemberPointsByTerm(termId);
-  const { data: activities } = useActivitiesByTerm(termId);
+  const activitiesQuery = useActivitiesByTerm(termId);
+  const activities = activitiesQuery.data;
+  const membersQuery = useMembers();
   const { data: initiatives } = useInitiativesByTerm(termId, {
     includePrograms: true,
     includeProjects: true,
   });
   const { data: positions } = usePositions();
   const [qrOpen, setQrOpen] = useState(false);
+  const now = useMemo(() => new Date(), []);
 
   const summary = useMemo(
     () => summarizeParticipations(participations ?? [], activities ?? [], initiatives ?? []),
@@ -118,6 +124,26 @@ export function MemberHome() {
             </p>
           </button>
         </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+        <MemberUpcomingEvents
+          activities={activities}
+          isLoading={activitiesQuery.isLoading}
+          isError={activitiesQuery.isError}
+          error={activitiesQuery.error}
+          onRetry={() => activitiesQuery.refetch()}
+          now={now}
+        />
+        <MemberMilestones
+          member={member}
+          members={membersQuery.data}
+          membersLoading={membersQuery.isLoading}
+          membersError={membersQuery.isError}
+          membersErrorValue={membersQuery.error}
+          onRetryMembers={() => membersQuery.refetch()}
+          now={now}
+        />
       </div>
 
       <ParticipationLedger

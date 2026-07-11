@@ -1,11 +1,23 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { Timestamp } from "firebase/firestore";
 
 vi.mock("../features/members/hooks/use-current-member", () => ({
   useCurrentMember: () => ({
-    data: { id: "m1", name: "Ana", status: "Activo" },
+    data: {
+      id: "m1",
+      name: "Ana",
+      status: "Activo",
+      active: true,
+      birthdate: Timestamp.fromDate(new Date("1992-07-01T00:00:00Z")),
+      joinDate: Timestamp.fromDate(new Date("2020-03-15T00:00:00Z")),
+    },
     isLoading: false,
+    isError: false,
   }),
+}));
+vi.mock("../features/members/hooks/use-members", () => ({
+  useMembers: () => ({ data: [], isLoading: false, isError: false }),
 }));
 vi.mock("../features/members/hooks/use-member-points", () => ({
   useMemberPoints: () => ({

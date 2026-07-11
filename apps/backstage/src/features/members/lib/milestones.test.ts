@@ -35,8 +35,9 @@ describe("upcomingBirthdays", () => {
     ];
     const result = upcomingBirthdays(members, "self", now, 2);
     expect(result).toHaveLength(2);
-    expect(result[0].label).not.toContain("1992");
-    expect(result[0].label).toMatch(/8.*jul/i);
-    expect(result[0].days).toBe(3);
+    const [first] = result;
+    expect(first?.label).not.toContain("1992");
+    expect(first?.label).toMatch(/8.*jul/i);
+    expect(first?.days).toBe(3);
   });
 });
