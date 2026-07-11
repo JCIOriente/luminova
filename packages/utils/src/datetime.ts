@@ -46,6 +46,11 @@ const TIME_ONLY = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
   hour12: false,
   timeZone: "UTC",
 });
+const DAY_MONTH = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+});
 
 /** Calendar chip for an activity cover: 3-letter uppercase month + day-of-month. */
 export function formatDateChip(ts: Timestamp): { month: string; day: string } {
@@ -64,6 +69,11 @@ export function formatDateTime(ts: Timestamp): string {
 /** Date only, "14 jun 2026", for detail fact rows. */
 export function formatDate(ts: Timestamp): string {
   return DATE_ONLY.format(ts.toDate());
+}
+
+/** Day + short month, no year, e.g. "14 jun" — for recurring dates like birthdays. */
+export function formatDayMonth(ts: Timestamp): string {
+  return stripDot(DAY_MONTH.format(ts.toDate()));
 }
 
 /** Time only, "19:00", for detail fact rows. */

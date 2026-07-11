@@ -13,6 +13,7 @@ import {
   formatDateChip,
   formatDateRange,
   formatDateTime,
+  formatDayMonth,
   formatMonthYear,
   formatTime,
   fullYearsBetween,
@@ -134,6 +135,16 @@ describe("relativeTimeEs", () => {
   });
   it("returns days for older", () => {
     expect(relativeTimeEs(new Date(now.getTime() - 4 * 86400_000), now)).toBe("Hace 4 d");
+  });
+});
+
+describe("formatDayMonth", () => {
+  it("renders day + short month with no year", () => {
+    const out = formatDayMonth(ts("1992-07-10T00:00:00Z"));
+    expect(out).toContain("10");
+    expect(out).toMatch(/jul/i);
+    expect(out).not.toContain("1992");
+    expect(out.endsWith(".")).toBe(false);
   });
 });
 
