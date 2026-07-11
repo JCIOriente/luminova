@@ -12,7 +12,8 @@ type Subject =
   | "Attendance"
   | "Program"
   | "Project"
-  | "Position";
+  | "Position"
+  | "Lead";
 
 export interface NavItem {
   to:
@@ -26,6 +27,7 @@ export interface NavItem {
     | "/initiatives"
     | "/positions"
     | "/permisos"
+    | "/leads"
     | "/config";
   label: string;
   icon: IconKey;
@@ -55,6 +57,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/members", label: "Miembros", icon: "user", subject: "Member" },
       { to: "/allies", label: "Aliados", icon: "handshake", subject: "Ally" },
+      { to: "/leads", label: "Prospectos", icon: "mail", subject: "Lead" },
       { to: "/point-rules", label: "Reglas de puntos", icon: "target", subject: "PointRule" },
       {
         to: "/leaderboard",

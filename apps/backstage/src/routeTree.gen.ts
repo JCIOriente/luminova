@@ -20,6 +20,7 @@ import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
 import { Route as AppPermisosRouteImport } from './routes/_app.permisos'
 import { Route as AppMembersRouteImport } from './routes/_app.members'
 import { Route as AppMeRouteImport } from './routes/_app.me'
+import { Route as AppLeadsRouteImport } from './routes/_app.leads'
 import { Route as AppLeaderboardRouteImport } from './routes/_app.leaderboard'
 import { Route as AppInitiativesRouteImport } from './routes/_app.initiatives'
 import { Route as AppConfigRouteImport } from './routes/_app.config'
@@ -82,6 +83,11 @@ const AppMeRoute = AppMeRouteImport.update({
   path: '/me',
   getParentRoute: () => AppRoute,
 } as any)
+const AppLeadsRoute = AppLeadsRouteImport.update({
+  id: '/leads',
+  path: '/leads',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppLeaderboardRoute = AppLeaderboardRouteImport.update({
   id: '/leaderboard',
   path: '/leaderboard',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/config': typeof AppConfigRoute
   '/initiatives': typeof AppInitiativesRoute
   '/leaderboard': typeof AppLeaderboardRoute
+  '/leads': typeof AppLeadsRoute
   '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
   '/permisos': typeof AppPermisosRoute
@@ -149,6 +156,7 @@ export interface FileRoutesByTo {
   '/config': typeof AppConfigRoute
   '/initiatives': typeof AppInitiativesRoute
   '/leaderboard': typeof AppLeaderboardRoute
+  '/leads': typeof AppLeadsRoute
   '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
   '/permisos': typeof AppPermisosRoute
@@ -170,6 +178,7 @@ export interface FileRoutesById {
   '/_app/config': typeof AppConfigRoute
   '/_app/initiatives': typeof AppInitiativesRoute
   '/_app/leaderboard': typeof AppLeaderboardRoute
+  '/_app/leads': typeof AppLeadsRoute
   '/_app/me': typeof AppMeRoute
   '/_app/members': typeof AppMembersRoute
   '/_app/permisos': typeof AppPermisosRoute
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
     | '/config'
     | '/initiatives'
     | '/leaderboard'
+    | '/leads'
     | '/me'
     | '/members'
     | '/permisos'
@@ -211,6 +221,7 @@ export interface FileRouteTypes {
     | '/config'
     | '/initiatives'
     | '/leaderboard'
+    | '/leads'
     | '/me'
     | '/members'
     | '/permisos'
@@ -231,6 +242,7 @@ export interface FileRouteTypes {
     | '/_app/config'
     | '/_app/initiatives'
     | '/_app/leaderboard'
+    | '/_app/leads'
     | '/_app/me'
     | '/_app/members'
     | '/_app/permisos'
@@ -329,6 +341,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMeRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/leads': {
+      id: '/_app/leads'
+      path: '/leads'
+      fullPath: '/leads'
+      preLoaderRoute: typeof AppLeadsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/leaderboard': {
       id: '/_app/leaderboard'
       path: '/leaderboard'
@@ -394,6 +413,7 @@ interface AppRouteChildren {
   AppConfigRoute: typeof AppConfigRoute
   AppInitiativesRoute: typeof AppInitiativesRoute
   AppLeaderboardRoute: typeof AppLeaderboardRoute
+  AppLeadsRoute: typeof AppLeadsRoute
   AppMeRoute: typeof AppMeRoute
   AppMembersRoute: typeof AppMembersRoute
   AppPermisosRoute: typeof AppPermisosRoute
@@ -411,6 +431,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppConfigRoute: AppConfigRoute,
   AppInitiativesRoute: AppInitiativesRoute,
   AppLeaderboardRoute: AppLeaderboardRoute,
+  AppLeadsRoute: AppLeadsRoute,
   AppMeRoute: AppMeRoute,
   AppMembersRoute: AppMembersRoute,
   AppPermisosRoute: AppPermisosRoute,

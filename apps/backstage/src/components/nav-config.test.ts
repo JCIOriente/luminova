@@ -9,6 +9,7 @@ describe("nav-config", () => {
       "/me",
       "/members",
       "/allies",
+      "/leads",
       "/point-rules",
       "/leaderboard",
       "/positions",
