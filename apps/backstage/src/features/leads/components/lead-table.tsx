@@ -114,7 +114,10 @@ export function LeadTable({
   onStatusChange,
   onDelete,
 }: LeadTableProps) {
-  const columns = useMemo(() => buildColumns(canUpdate, onStatusChange), [canUpdate, onStatusChange]);
+  const columns = useMemo(
+    () => buildColumns(canUpdate, onStatusChange),
+    [canUpdate, onStatusChange],
+  );
   return (
     <DataTable
       rows={leads}

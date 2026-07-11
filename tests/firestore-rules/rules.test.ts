@@ -1889,7 +1889,9 @@ describe("firestore.rules — leads (public contact-form capture)", () => {
     await assertFails(setDoc(doc(anon(), "leads/longname"), validLead({ name: "a".repeat(101) })));
   });
   it("denies an over-long message (>2000)", async () => {
-    await assertFails(setDoc(doc(anon(), "leads/longmsg"), validLead({ message: "x".repeat(2001) })));
+    await assertFails(
+      setDoc(doc(anon(), "leads/longmsg"), validLead({ message: "x".repeat(2001) })),
+    );
   });
   it("denies an empty name", async () => {
     await assertFails(setDoc(doc(anon(), "leads/emptyname"), validLead({ name: "" })));
@@ -1909,7 +1911,9 @@ describe("firestore.rules — leads (public contact-form capture)", () => {
     );
   });
   it("denies a create born soft-deleted", async () => {
-    await assertFails(setDoc(doc(anon(), "leads/predeleted"), validLead({ deletedAt: new Date() })));
+    await assertFails(
+      setDoc(doc(anon(), "leads/predeleted"), validLead({ deletedAt: new Date() })),
+    );
   });
 
   it("denies an anonymous read (leads carry PII)", async () => {
@@ -1962,7 +1966,9 @@ describe("firestore.rules — leads (public contact-form capture)", () => {
     );
   });
   it("denies un-setting deletedAt on a soft-deleted lead", async () => {
-    await assertFails(updateDoc(doc(as("u", ["Admin"]), "leads/lead_deleted"), { deletedAt: null }));
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "leads/lead_deleted"), { deletedAt: null }),
+    );
   });
   it("denies stripping the deletedAt key via deleteField() on a live lead", async () => {
     await assertFails(

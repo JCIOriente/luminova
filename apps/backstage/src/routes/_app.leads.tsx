@@ -157,7 +157,12 @@ function LeadsPage() {
         }
       >
         <div className="flex justify-end gap-3">
-          <Button as="button" type="button" variant="secondary" onClick={() => setDeleteTarget(null)}>
+          <Button
+            as="button"
+            type="button"
+            variant="secondary"
+            onClick={() => setDeleteTarget(null)}
+          >
             Cancelar
           </Button>
           <Button as="button" type="button" onClick={() => void confirmDelete()}>
