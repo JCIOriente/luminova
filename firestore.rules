@@ -449,6 +449,54 @@ service cloud.firestore {
       allow write: if hasAnyRole(['Admin']);
     }
 
+    // Public lead capture (spotlight contact form). Unauthenticated visitors may
+    // CREATE a well-formed lead — the repo's only public write surface — but never
+    // read (leads carry PII emails). Admins (read:Lead / manage:all) triage them in
+    // the backstage Prospectos inbox.
+    //
+    // The strict schema gate below bounds a lead's SHAPE (field set, sizes, enum
+    // pins) — NOT its volume. Volume/abuse mitigation (Firebase App Check
+    // `request.app != null`, or a rate-limited write proxy) is a tracked fast-follow:
+    // spotlight App Check isn't provisioned yet, so gating on request.app now would
+    // deny every write. Until it lands, `leads` is an open unauthenticated write
+    // endpoint reachable directly via the public client config — do NOT deploy these
+    // rules to prod ahead of that mitigation without consciously accepting the spam/
+    // storage exposure window. See docs/specs/2026-07-10-lead-capture-hub-design.md
+    //
+    // intent/status literals mirror LEAD_INTENTS/LEAD_STATUSES in
+    // packages/types/src/lead.ts — keep in sync (a TS-only addition silently drifts).
+    function leadCreateValid() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['name', 'email', 'intent', 'message', 'status', 'source', 'createdAt', 'deletedAt'])
+        && d.name is string && d.name.size() >= 1 && d.name.size() <= 100
+        && d.email is string && d.email.size() >= 1 && d.email.size() <= 200
+        && d.message is string && d.message.size() >= 1 && d.message.size() <= 2000
+        && d.intent in ['Membresía', 'Alianza', 'Prensa', 'Otro']
+        && d.status == 'Nuevo'
+        && d.source == 'web'
+        && d.createdAt == request.time
+        // Require the key present (not just .get-absent) so every lead carries a
+        // deletedAt — a doc missing the key would pass here but break leadDocSchema
+        // on read (PR3 inbox), a zero-auth way to make a lead silently disappear.
+        && 'deletedAt' in d && d.deletedAt == null;
+    }
+    match /leads/{leadId} {
+      allow create: if leadCreateValid();
+      allow read: if canDo('read', 'Lead');
+      // Triage only: an admin advances the pipeline (status) or soft-deletes
+      // (deletedAt, immutable once set). The submitted PII (name/email/message) is
+      // never client-mutable. `leads` has no `active` field, so softDeleteSafe()
+      // (which reads resource.data.active) can't be reused — guard deletedAt directly.
+      // 'deletedAt' in ... forbids stripping the key via deleteField() (would break
+      // leadDocSchema on read, same drift as the create guard closes).
+      allow update: if canDo('update', 'Lead')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'deletedAt'])
+        && request.resource.data.status in ['Nuevo', 'Contactado', 'Cerrado']
+        && 'deletedAt' in request.resource.data
+        && (resource.data.get('deletedAt', null) == null || unchanged('deletedAt'));
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
