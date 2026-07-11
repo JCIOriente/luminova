@@ -1,6 +1,7 @@
-// Data mirror of apps/backstage/src/features/positions/lib/cel-seed.ts (the TS
-// source of truth — keep in sync). `.mjs` ops scripts cannot import the TS, so
-// the fixed CEL catalog is duplicated here as plain data. CEL cargos are stable.
+// Data mirror of CEL_POSITIONS in @luminova/types (packages/types/src/cel-positions.ts)
+// — the canonical source of truth (apps/backstage/.../cel-seed.ts just re-exports it).
+// `.mjs` ops scripts cannot import the workspace TS, so the fixed CEL catalog is duplicated
+// here as plain data. Kept in sync by packages/types/src/cel-seed.mirror.test.ts.
 export const CEL_SEED = [
   {
     title: "Presidente",
