@@ -174,7 +174,7 @@ function ContactForm({ onSuccess }: { onSuccess: () => void }) {
         </Button>
       </div>
       {status === "error" ? (
-        <p role="alert" style={{ marginTop: 14, marginBottom: 0, fontSize: 13, color: "var(--danger, #b3261e)" }}>
+        <p role="alert" style={{ marginTop: 14, marginBottom: 0, fontSize: 13, color: "var(--danger)" }}>
           No pudimos enviar tu mensaje. Vuelve a intentarlo o escríbenos a{" "}
           <a href={`mailto:${config.contact.email}`} style={{ textDecoration: "underline" }}>
             {config.contact.email}
