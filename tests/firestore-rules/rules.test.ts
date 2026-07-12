@@ -24,6 +24,7 @@ import {
 // is a "seed-output ⊨ firestore.rules" contract. The packages/types drift guard proves the
 // .mjs mirror matches the canonical @luminova/types table.
 import { permsForRoles } from "../../tools/scripts/lib/role-seed.mjs";
+import { parseActivityLockedFields } from "../../tools/scripts/lib/rules-locked-fields.mjs";
 
 let env: RulesTestEnvironment;
 
@@ -51,11 +52,6 @@ const RULES_SOURCE = readFileSync(
  *  real rules source so the deny-probe loop below can never lag the rules it protects.
  *  packages/types/src/activity-locked-fields.rules.test.ts cross-checks this exact set
  *  against the canonical ACTIVITY_LOCKED_FIELDS (the client guard derives from the same). */
-function parseActivityLockedFields(source: string): string[] {
-  const fn = source.match(/function activityLockSafe\(\)[\s\S]*?\n\s{4}\}/);
-  if (!fn) throw new Error("activityLockSafe() not found in firestore.rules");
-  return [...fn[0].matchAll(/unchanged\('([^']+)'\)/g)].map((m) => m[1]);
-}
 const RULES_LOCKED_FIELDS = parseActivityLockedFields(RULES_SOURCE);
 
 /** One drift value per locked field (must differ from the act_locked fixture). Keyed so a

@@ -35,10 +35,10 @@ const handlers = {
 // actually exercised (the previous suite mocked both to always-render children, making
 // every "is visible" assertion unconditionally true). uid="admin" so no uid-scoped
 // conditional grant muddies the coarse gates under test.
-function renderMenu(m: Member, claims: AuthClaims) {
+function renderMenu(m: Member, claims: AuthClaims, overrides?: Partial<typeof handlers>) {
   return render(
     <AbilityProvider claims={claims} uid="admin">
-      <MemberRowMenu member={m} {...handlers} />
+      <MemberRowMenu member={m} {...handlers} {...overrides} />
     </AbilityProvider>,
   );
 }
@@ -65,11 +65,7 @@ describe("MemberRowMenu", () => {
   it("fires onSetStatus with Desafiliado from the Desafiliar item", async () => {
     const onSetStatus = vi.fn();
     const m = member({ status: "Activo" });
-    render(
-      <AbilityProvider claims={ADMIN} uid="admin">
-        <MemberRowMenu member={m} {...handlers} onSetStatus={onSetStatus} />
-      </AbilityProvider>,
-    );
+    renderMenu(m, ADMIN, { onSetStatus });
     await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
     await userEvent.click(screen.getByText("Desafiliar"));
     expect(onSetStatus).toHaveBeenCalledWith(m, "Desafiliado");

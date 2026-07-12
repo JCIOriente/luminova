@@ -13,9 +13,18 @@ describe("tools/scripts/lib/cel-seed.mjs mirror is in sync with canonical", () =
     expect(MIRROR_SEED).toEqual(CEL_POSITIONS);
   });
 
-  it("toPositionDoc adds the seed-only fields onto each canonical entry", () => {
+  it("toPositionDoc normalizes optional titleFemale/sigla to null, matching toPositionCreateDoc", () => {
     for (const entry of CEL_POSITIONS) {
-      expect(toPositionDoc(entry)).toEqual({ ...entry, active: true, deletedAt: null });
+      // Mirrors position-mapper.ts toPositionCreateDoc: Firestore rejects undefined, so the
+      // optional fields must land as null — else seeded docs drift from app-created ones.
+      expect(toPositionDoc(entry)).toEqual({
+        ...entry,
+        titleFemale: entry.titleFemale ?? null,
+        sigla: entry.sigla ?? null,
+        active: true,
+        deletedAt: null,
+      });
+      expect(toPositionDoc(entry)).toHaveProperty("sigla", null);
     }
   });
 });

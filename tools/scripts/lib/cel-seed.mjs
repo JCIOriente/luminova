@@ -69,7 +69,15 @@ export const CEL_SEED = [
   },
 ];
 
-// Mirror of toPositionCreateDoc in position-mapper.ts.
+// Mirror of toPositionCreateDoc in position-mapper.ts — must normalize the optional
+// override/sigla to null (Firestore rejects undefined), or seeded CEL docs would lack
+// the `sigla` field that app-created positions carry as null.
 export function toPositionDoc(entry) {
-  return { ...entry, active: true, deletedAt: null };
+  return {
+    ...entry,
+    titleFemale: entry.titleFemale ?? null,
+    sigla: entry.sigla ?? null,
+    active: true,
+    deletedAt: null,
+  };
 }

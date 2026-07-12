@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { parseActivityLockedFields } from "../../../tools/scripts/lib/rules-locked-fields.mjs";
 import { ACTIVITY_LOCKED_FIELDS } from "./engine/activity.js";
 
 // firestore.rules cannot import this workspace package, so its activityLockSafe() gate
@@ -16,14 +17,10 @@ const RULES_SOURCE = readFileSync(
   "utf8",
 );
 
-function rulesLockedFields(source: string): string[] {
-  const fn = source.match(/function activityLockSafe\(\)[\s\S]*?\n\s{4}\}/);
-  if (!fn) throw new Error("activityLockSafe() not found in firestore.rules");
-  return [...fn[0].matchAll(/unchanged\('([^']+)'\)/g)].map((m) => m[1]);
-}
-
 describe("firestore.rules activityLockSafe() is in sync with canonical ACTIVITY_LOCKED_FIELDS", () => {
   it("locks exactly the canonical field set (order-independent)", () => {
-    expect(new Set(rulesLockedFields(RULES_SOURCE))).toEqual(new Set(ACTIVITY_LOCKED_FIELDS));
+    expect(new Set(parseActivityLockedFields(RULES_SOURCE))).toEqual(
+      new Set(ACTIVITY_LOCKED_FIELDS),
+    );
   });
 });
