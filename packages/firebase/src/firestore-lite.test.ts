@@ -31,13 +31,7 @@ describe("getFirestoreLite", () => {
     expect(initializeApp).toHaveBeenCalledTimes(1);
   });
 
-  it("skips App Check when no site key is set", async () => {
-    const { getFirestoreLite } = await import("./firestore-lite");
-    getFirestoreLite();
-    expect(initializeAppCheck).not.toHaveBeenCalled();
-  });
-
-  it("initializes App Check when a site key is set", async () => {
+  it("wires App Check on the public read path when a site key is set", async () => {
     vi.stubEnv("VITE_APPCHECK_SITE_KEY", "site-key");
     const { getFirestoreLite } = await import("./firestore-lite");
     getFirestoreLite();

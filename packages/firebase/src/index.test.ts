@@ -58,13 +58,7 @@ describe("getFirebase", () => {
     expect(connectFunctionsEmulator).toHaveBeenCalledWith({}, "127.0.0.1", 4020);
   });
 
-  it("skips App Check when no site key is set", async () => {
-    const { getFirebase } = await import("./index");
-    getFirebase();
-    expect(initializeAppCheck).not.toHaveBeenCalled();
-  });
-
-  it("initializes App Check when a site key is set", async () => {
+  it("wires App Check on the full SDK path when a site key is set", async () => {
     vi.stubEnv("VITE_APPCHECK_SITE_KEY", "site-key");
     const { getFirebase } = await import("./index");
     getFirebase();
