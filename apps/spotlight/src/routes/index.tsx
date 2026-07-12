@@ -154,7 +154,7 @@ function HomeAbout() {
               </p>
               <figure className="pullquote" style={{ marginTop: 36, marginBottom: 0 }}>
                 <blockquote className="t-quote" style={{ margin: 0 }}>
-                  {`“Más de ${config.stats.membersWorldwide} miembros en ${config.stats.countries} países, 17 organizaciones en Bolivia, 1 capítulo activo en Santa Cruz.”`}
+                  {`“Más de ${config.stats.membersWorldwide} miembros en ${config.stats.countries} países y 17 organizaciones en Bolivia. En Santa Cruz, JCI Oriente aporta a esa red desde 1993.”`}
                 </blockquote>
                 <cite>Red JCI · 2025</cite>
               </figure>
@@ -262,32 +262,33 @@ function HomeImpact() {
 function HomeAllies() {
   const { ref, data: allies, loading, error } = useAlliesOnVisible();
   const ready = !loading && !error && allies.length > 0;
+  // Until allies load (or when there are none) render a zero-height sentinel that
+  // still carries the on-visible ref, so the section never leaves an empty gap.
+  if (!ready) return <div ref={ref} aria-hidden style={{ height: 1 }} />;
   return (
     <section ref={ref} className="section" style={{ paddingTop: 80, paddingBottom: 80 }}>
-      {ready ? (
-        <div className="container">
-          <div style={{ textAlign: "center" }}>
-            <div className="t-label" style={{ color: "var(--ink-3)" }}>
-              Confían en nosotros
-            </div>
-            <div className="ally-strip" style={{ marginTop: 32 }}>
-              {allies.map((ally) => (
-                <figure key={ally.id} className="ally-card">
-                  <img
-                    className="ally-logo"
-                    src={ally.logoUrl}
-                    alt={ally.name}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <figcaption className="ally-name">{ally.name}</figcaption>
-                  <span className="ally-chip">{ALLY_CATEGORY_LABELS[ally.category]}</span>
-                </figure>
-              ))}
-            </div>
+      <div className="container">
+        <div style={{ textAlign: "center" }}>
+          <div className="t-label" style={{ color: "var(--ink-3)" }}>
+            Confían en nosotros
+          </div>
+          <div className="ally-strip" style={{ marginTop: 32 }}>
+            {allies.map((ally) => (
+              <figure key={ally.id} className="ally-card">
+                <img
+                  className="ally-logo"
+                  src={ally.logoUrl}
+                  alt={ally.name}
+                  loading="lazy"
+                  decoding="async"
+                />
+                <figcaption className="ally-name">{ally.name}</figcaption>
+                <span className="ally-chip">{ALLY_CATEGORY_LABELS[ally.category]}</span>
+              </figure>
+            ))}
           </div>
         </div>
-      ) : null}
+      </div>
     </section>
   );
 }

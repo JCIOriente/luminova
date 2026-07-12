@@ -49,8 +49,8 @@ const cardBase: React.CSSProperties = {
   borderRadius: 16,
   textDecoration: "none",
   color: "#fff",
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.22)",
+  background: "rgba(255,255,255,0.11)",
   backdropFilter: "blur(12px)",
 };
 
@@ -96,7 +96,7 @@ export function EnlacesPage() {
             textAlign: "center",
           }}
         >
-          <LogoLockup variant="inverted" />
+          <LogoLockup variant="inverted" size="lg" />
           {linktree.handle ? (
             <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.92)" }}>
               {linktree.handle}
@@ -164,7 +164,7 @@ export function EnlacesPage() {
                 </span>
                 <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
                   <span style={{ fontSize: 15.5, fontWeight: 600 }}>{link.title}</span>
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.72)" }}>
                     {link.description}
                   </span>
                 </span>
@@ -195,9 +195,9 @@ export function EnlacesPage() {
                     borderRadius: "50%",
                     display: "grid",
                     placeItems: "center",
-                    background: "rgba(255,255,255,0.07)",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    color: "rgba(255,255,255,0.85)",
+                    background: "rgba(255,255,255,0.11)",
+                    border: "1px solid rgba(255,255,255,0.22)",
+                    color: "rgba(255,255,255,0.92)",
                     textDecoration: "none",
                   }}
                 >
