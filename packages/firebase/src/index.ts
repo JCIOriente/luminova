@@ -3,7 +3,7 @@ import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
 import { connectStorageEmulator, getStorage, type FirebaseStorage } from "firebase/storage";
 import { connectFunctionsEmulator, getFunctions, type Functions } from "firebase/functions";
-import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
+import { initAppCheck } from "./app-check.js";
 import {
   firebaseConfig,
   readFirebaseEnv,
@@ -30,18 +30,7 @@ export function getFirebase(): FirebaseServices {
 
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig());
 
-  const debugToken = readFirebaseEnv("VITE_APPCHECK_DEBUG_TOKEN");
-  if (debugToken) {
-    (globalThis as { FIREBASE_APPCHECK_DEBUG_TOKEN?: string }).FIREBASE_APPCHECK_DEBUG_TOKEN =
-      debugToken;
-  }
-  const siteKey = readFirebaseEnv("VITE_APPCHECK_SITE_KEY");
-  if (siteKey) {
-    initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider(siteKey),
-      isTokenAutoRefreshEnabled: true,
-    });
-  }
+  initAppCheck(app);
 
   const auth = getAuth(app);
   const db = getFirestore(app);

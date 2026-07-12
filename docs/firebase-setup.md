@@ -59,10 +59,8 @@ VITE_FIREBASE_PROJECT_ID=jci-oriente
 VITE_FIREBASE_STORAGE_BUCKET=jci-oriente.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=953870918238
 VITE_FIREBASE_APP_ID=<per-app appId from Web Apps table above>
-# App Check (reCAPTCHA v3) — paste the real site key once created; blank disables App Check
+# App Check (reCAPTCHA v3) — paste the real site key once created; blank (as here for local dev) disables App Check
 VITE_APPCHECK_SITE_KEY=
-# Per-developer App Check debug token for local dev
-VITE_APPCHECK_DEBUG_TOKEN=
 VITE_FIREBASE_EMULATOR_ENABLED=false
 ```
 
@@ -77,11 +75,10 @@ For local emulator, the Firebase CLI handles credentials automatically.
 
 App Check uses **reCAPTCHA v3** to protect the Firebase backend from abuse.
 
-- Setting `VITE_APPCHECK_SITE_KEY` in `.env.local` enables App Check for that app. Leaving it blank disables App Check.
-- For local development, copy the debug token printed in the browser console into `VITE_APPCHECK_DEBUG_TOKEN` and register it under Firebase Console → App Check → Apps → Manage debug tokens.
-- Enforcement is currently **OFF** and should remain off until real reCAPTCHA v3 site keys are configured for both apps in production.
+- Setting `VITE_APPCHECK_SITE_KEY` enables App Check for that app; leaving it blank disables it. Prod builds carry the real site keys (`.env.production`); local `.env.local` leaves the key blank, so App Check is off in local dev and you develop against the emulators without a token.
+- Enforcement is **ON** in production for Firestore and Storage. Every deployed client must send a valid token — that is why the lite read path (`getFirestoreLite`) also initializes App Check, not just the full SDK.
 
-The `@luminova/firebase` package initializes App Check automatically when `VITE_APPCHECK_SITE_KEY` is set.
+The `@luminova/firebase` package initializes App Check automatically when `VITE_APPCHECK_SITE_KEY` is set (shared `initAppCheck` helper, used by both `getFirebase` and `getFirestoreLite`).
 
 ## Emulators
 
@@ -272,10 +269,9 @@ first (or run the tests with a transiently bumped `emulators.firestore.port`).
 1. Authentication → Sign-in method → enable **Email/Password**. No other providers.
 2. App Check:
    - Register a reCAPTCHA v3 site key for each web app (spotlight, backstage).
-   - Paste each key into the matching app's `.env.local` as `VITE_APPCHECK_SITE_KEY`.
-   - For local dev, copy the debug token printed in the browser console into
-     `VITE_APPCHECK_DEBUG_TOKEN` and register it under App Check → Apps → Manage debug tokens.
-   - Leave enforcement OFF until both apps send valid tokens in production.
+   - Paste each key into the matching app's `.env.production` as `VITE_APPCHECK_SITE_KEY`.
+   - Leave `.env.local` blank to develop with App Check off against the emulators.
+   - Enable enforcement (Firestore + Storage) only after confirming deployed clients send valid tokens.
 3. Initial admin user — do **not** create it in the console (the console cannot set the
    `roles`/`perms` custom claims the rules gate on); run `pnpm seed:production` instead
    (see Production Bootstrap Script below).
@@ -374,20 +370,21 @@ to the member's inbox.
 ## App Check (reCAPTCHA v3) & Password Reset
 
 The Firebase client (`@luminova/firebase`) already initializes App Check with the
-reCAPTCHA v3 provider when `VITE_APPCHECK_SITE_KEY` is set, and supports a
-per-developer debug token. To turn it on and wire the branded reset flow:
+reCAPTCHA v3 provider when `VITE_APPCHECK_SITE_KEY` is set. To turn it on and wire
+the branded reset flow:
 
 1. **reCAPTCHA v3 key** — in the Firebase console, App Check → register the web app
    with a **reCAPTCHA v3** provider; copy the site key.
-2. **Env** — set `VITE_APPCHECK_SITE_KEY` for prod builds. For local dev, register a
-   debug token (App Check → Manage debug tokens) and set `VITE_APPCHECK_DEBUG_TOKEN`.
+2. **Env** — set `VITE_APPCHECK_SITE_KEY` in `.env.production` for prod builds. Leave
+   `.env.local` blank so local dev runs against the emulators with App Check off.
 3. **Reset action URL** — Authentication → Templates → **Password reset** →
    "Customize action URL" → `https://<backstage-host>/reset`. Without this the reset
    email link lands on Firebase's default page instead of our branded `/reset` route
    (which reads `?mode=resetPassword&oobCode=…`).
 4. **Localize** the password-reset email template to Spanish.
-5. **Enforcement (roadmap G4)** — once keys are verified in prod, enable App Check
-   **enforcement** for Authentication and Firestore. Do this only after confirming
-   real traffic carries valid tokens, or you will lock out the app.
+5. **Enforcement** — **enabled** for Firestore and Storage. Both frontends send a
+   valid token (backstage via the full SDK, spotlight via `getFirestoreLite`). Only
+   enable enforcement for a product after confirming real traffic carries valid
+   tokens, or you will lock out the app.
 6. **Password policy** — the seeded admin account's password must satisfy the policy
    (min 6 + lower + upper + digit) or it can no longer sign in.

@@ -21,7 +21,7 @@ Baseline measured on `main` (gzip transfer sizes unless noted):
 | Initial JS (`index-*.js`) | **94 kB gz** | **99.7 kB gz** |
 | Initial CSS (`index-*.css`) | 13.4 kB gz | 12.5 kB gz |
 | Largest route chunk | `about` 21 kB gz | `_app` 8 kB gz |
-| Firebase SDK | `firestore-lite` 39 kB gz, **lazy** (data routes only) | full SDK in the `index` shell |
+| Firebase SDK | `firestore-lite` + `app-check` ~46 kB gz, **lazy** (data routes only) | full SDK in the `index` shell |
 | Fonts (woff2, self-hosted, latin only) | Jakarta 26 kB + Arvo reg/italic 16 kB ea. | none (system-ui — fastest) |
 
 What's already in place (don't redo these):
