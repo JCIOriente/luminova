@@ -44,7 +44,7 @@ export function ActivityCard({
             stroke={5}
             size={150}
             color={TONE_RIPPLE_COLOR[tone]}
-            className="motion-safe:animate-spin [animation-duration:60s]"
+            className="motion-safe:animate-ripple-spin"
           />
         </div>
         <div className="absolute top-3 left-3 flex flex-col items-center rounded-card bg-surface px-3 py-1.5 shadow-[0_8px_24px_-12px_rgba(19,15,45,0.45)]">

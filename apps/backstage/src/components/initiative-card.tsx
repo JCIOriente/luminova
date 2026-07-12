@@ -19,6 +19,9 @@ interface InitiativeCardProps {
   closingSoon: boolean;
   memberById: Map<string, Member>;
   onOpen?: () => void;
+  /** Admin/ProjectManager only (mirrors rules' featuredUpdateSafe) — shows the star quick-toggle. */
+  canFeature?: boolean;
+  onToggleFeatured?: (next: boolean) => void;
 }
 
 const shellClasses = cn(
@@ -33,6 +36,8 @@ export function InitiativeCard({
   closingSoon,
   memberById,
   onOpen,
+  canFeature = false,
+  onToggleFeatured,
 }: InitiativeCardProps) {
   const cover = item.photos[0]?.url ?? null;
   const rosterIds = [item.roster.directorId, ...item.roster.coDirectorIds, ...item.roster.teamIds];
@@ -43,8 +48,9 @@ export function InitiativeCard({
 
   const interactive = Boolean(onOpen);
   const Tag = interactive ? "button" : "div";
+  const showFeatureToggle = canFeature && Boolean(onToggleFeatured);
 
-  return (
+  const card = (
     <Tag
       {...(interactive ? { type: "button" as const, onClick: onOpen } : {})}
       className={interactive ? interactiveShellClasses : shellClasses}
@@ -93,5 +99,33 @@ export function InitiativeCard({
         </div>
       </div>
     </Tag>
+  );
+
+  if (!showFeatureToggle) return card;
+
+  return (
+    <div className="relative">
+      {card}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFeatured?.(!item.featured);
+        }}
+        aria-pressed={item.featured}
+        title={item.featured ? "Quitar de destacados" : "Destacar en programas"}
+        className={cn(
+          "absolute right-2 top-2 z-10 flex size-8 items-center justify-center rounded-pill shadow-[0_8px_24px_-12px_rgba(19,15,45,0.55)] transition-colors",
+          item.featured
+            ? "bg-jci-blue text-white hover:bg-jci-blue/90"
+            : "bg-surface/90 text-ink-3 backdrop-blur hover:text-jci-blue",
+        )}
+      >
+        <span className="sr-only">
+          {item.featured ? "Quitar de destacados" : "Destacar en programas"}
+        </span>
+        {Icon.spark({ s: 16 })}
+      </button>
+    </div>
   );
 }
