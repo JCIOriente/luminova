@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Timestamp } from "firebase/firestore";
 import { toActivityCreateDoc, toActivityUpdateDoc } from "./activity-mapper";
-import type { ActivityInput } from "@luminova/types";
+import { ACTIVITY_LOCKED_FIELDS, type ActivityInput } from "@luminova/types";
 
 const BASIC_INPUT: ActivityInput = {
   title: "Asamblea General",
@@ -118,6 +118,7 @@ describe("toActivityUpdateDoc", () => {
 
   it("update doc never touches photos/termId/status", () => {
     const docData = toActivityUpdateDoc(BASIC_INPUT);
+    // Strict allowlist tripwire — any new key is a conscious decision.
     expect(Object.keys(docData).sort()).toEqual([
       "category",
       "description",
@@ -129,5 +130,12 @@ describe("toActivityUpdateDoc", () => {
       "startAt",
       "title",
     ]);
+    // The named invariant made explicit (not just implied by the allowlist). termId is
+    // withheld because it's an ACTIVITY_LOCKED_FIELDS derivation input the update path must
+    // never carry — tie it to the shared constant so the two can't silently disagree.
+    expect(ACTIVITY_LOCKED_FIELDS).toContain("termId");
+    for (const forbidden of ["photos", "termId", "status"]) {
+      expect(docData).not.toHaveProperty(forbidden);
+    }
   });
 });

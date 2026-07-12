@@ -111,7 +111,9 @@ describe("boliviaDayKey", () => {
     expect(boliviaDayKey(Date.parse("2026-06-15T03:30:00Z"))).toBe("2026-06-14");
   });
   it("exposes the UTC-4 offset", () => {
-    expect(BOLIVIA_OFFSET_MS).toBe(4 * 60 * 60 * 1000);
+    // Independent geographic oracle: the resolved literal (4h in ms), NOT the source's own
+    // `4 * 60 * 60 * 1000` expression — echoing that is algebraically always green.
+    expect(BOLIVIA_OFFSET_MS).toBe(14_400_000);
   });
 });
 

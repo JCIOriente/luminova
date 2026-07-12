@@ -1,19 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { ROLES, isValidRole, hasRole, hasAnyRole, type AuthClaims } from "./roles";
+import { isValidRole, hasRole, hasAnyRole, type AuthClaims } from "./roles";
+
+// The canonical ROLES catalog is derivation-guarded in packages/types
+// (role-definition.test.ts: every role has a BUILT_IN_ROLE_PERMS entry). A retyped
+// literal pin here would only duplicate that closed-enum change-detector in a second
+// package — dropped per the 2026-07-11 test-quality audit (#11). This file keeps the
+// behavioral guards (validation + role checks) whose oracles are independent.
 
 describe("roles", () => {
-  it("lists the seven permission roles", () => {
-    expect(ROLES).toEqual([
-      "Admin",
-      "Membership",
-      "Treasury",
-      "ExecutiveCommittee",
-      "ProjectManager",
-      "Scanner",
-      "Member",
-    ]);
-  });
-
   it("validates known role names", () => {
     expect(isValidRole("Treasury")).toBe(true);
     expect(isValidRole("isCEL")).toBe(false);

@@ -61,6 +61,9 @@ describe("memberSchema", () => {
   });
 
   it("exposes the three Spanish status values", () => {
+    // Persisted-contract pin: these Spanish values are stored verbatim in member docs, so
+    // a rename silently breaks every existing document. This literal is the intentional
+    // tripwire — if it goes red, that IS the point (migrate the data, don't retype it).
     expect(MEMBER_STATUSES).toEqual(["Activo", "Inactivo", "Desafiliado"]);
   });
 });
