@@ -60,6 +60,7 @@ describe("toInitiativeUpdateDoc", () => {
 
   it("update doc never touches photos/impact/finalReport/directionUids", () => {
     const docData = toInitiativeUpdateDoc(VALID_INPUT);
+    // Strict allowlist tripwire — any new key is a conscious decision.
     expect(Object.keys(docData).sort()).toEqual([
       "category",
       "description",
@@ -70,6 +71,10 @@ describe("toInitiativeUpdateDoc", () => {
       "status",
       "title",
     ]);
+    // The named invariant made explicit, not just implied by the allowlist.
+    for (const forbidden of ["photos", "impact", "finalReport", "directionUids"]) {
+      expect(docData).not.toHaveProperty(forbidden);
+    }
   });
 });
 

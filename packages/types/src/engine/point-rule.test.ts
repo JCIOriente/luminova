@@ -13,7 +13,12 @@ describe("POINT_RULE_LABELS", () => {
     expect(Object.keys(POINT_RULE_LABELS).sort()).toEqual(Object.keys(DEFAULT_POINT_VALUES).sort());
   });
 
-  it("matches the matrix wording for a sample", () => {
+  // Spot-check of two representative labels — NOT a full cross-check. The canonical
+  // wording matrix lives in docs/reference/points-matrix.md, whose row labels are not
+  // keyed by code and drift stylistically ("Co dirección" vs "Codirección"), so a
+  // machine cross-check would be brittle rather than honest. Renamed so it stops
+  // implying an oracle it doesn't have; label coverage is guarded above.
+  it("spot-checks two representative label strings", () => {
     expect(POINT_RULE_LABELS.DirectProgram).toBe("Dirección de programa");
     expect(POINT_RULE_LABELS.PaymentPlanAdhesion).toBe("Adhesión a un plan de pago");
   });

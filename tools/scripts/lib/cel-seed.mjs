@@ -1,6 +1,7 @@
-// Data mirror of apps/backstage/src/features/positions/lib/cel-seed.ts (the TS
-// source of truth — keep in sync). `.mjs` ops scripts cannot import the TS, so
-// the fixed CEL catalog is duplicated here as plain data. CEL cargos are stable.
+// Data mirror of CEL_POSITIONS in @luminova/types (packages/types/src/cel-positions.ts)
+// — the canonical source of truth (apps/backstage/.../cel-seed.ts just re-exports it).
+// `.mjs` ops scripts cannot import the workspace TS, so the fixed CEL catalog is duplicated
+// here as plain data. Kept in sync by packages/types/src/cel-seed.mirror.test.ts.
 export const CEL_SEED = [
   {
     title: "Presidente",
@@ -68,7 +69,15 @@ export const CEL_SEED = [
   },
 ];
 
-// Mirror of toPositionCreateDoc in position-mapper.ts.
+// Mirror of toPositionCreateDoc in position-mapper.ts — must normalize the optional
+// override/sigla to null (Firestore rejects undefined), or seeded CEL docs would lack
+// the `sigla` field that app-created positions carry as null.
 export function toPositionDoc(entry) {
-  return { ...entry, active: true, deletedAt: null };
+  return {
+    ...entry,
+    titleFemale: entry.titleFemale ?? null,
+    sigla: entry.sigla ?? null,
+    active: true,
+    deletedAt: null,
+  };
 }

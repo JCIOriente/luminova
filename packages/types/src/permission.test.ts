@@ -6,6 +6,13 @@ import {
   isValidPermissionCode,
   PERMISSION_CAP,
 } from "./permission.js";
+import { ROLES } from "./permission-role.js";
+
+// Firebase caps the entire custom-claims payload at 1000 bytes. The `perms` claim a
+// member carries is `{ roles, perms }`, and PERMISSION_CAP bounds perms.length so the
+// serialized claim fits. Assert that real constraint from the real vocabulary — not the
+// magic number — so bumping the cap can only pass if the worst-case claim still fits.
+const FIREBASE_CLAIMS_BYTE_LIMIT = 1000;
 
 describe("permission vocabulary", () => {
   it("accepts well-formed codes", () => {
@@ -28,7 +35,14 @@ describe("permission vocabulary", () => {
     expect(new Set(ALL_PERMISSION_CODES).size).toBe(ALL_PERMISSION_CODES.length);
   });
 
-  it("caps effective perms at 30", () => {
-    expect(PERMISSION_CAP).toBe(30);
+  it("keeps the worst-case perms claim within Firebase's 1000-byte limit", () => {
+    const longestCode = ALL_PERMISSION_CODES.reduce((a, b) => (b.length > a.length ? b : a));
+    // Worst case: a member holding every role, with a full cap of the longest code.
+    const worstCaseClaim = {
+      roles: [...ROLES],
+      perms: Array<string>(PERMISSION_CAP).fill(longestCode),
+    };
+    const bytes = Buffer.byteLength(JSON.stringify(worstCaseClaim), "utf8");
+    expect(bytes).toBeLessThan(FIREBASE_CLAIMS_BYTE_LIMIT);
   });
 });

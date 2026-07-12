@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { RoleDefinition } from "@luminova/types";
+import { BUILT_IN_ROLE_PERMS, type RoleDefinition } from "@luminova/types";
 import { previewEffectivePerms } from "./effective-preview";
 
 const role = (over: Partial<RoleDefinition>): RoleDefinition => ({
@@ -23,7 +23,9 @@ describe("previewEffectivePerms", () => {
       allRoles: [],
       overrides: { grant: [], revoke: [] },
     });
-    expect(out).toEqual(["manage:Payment", "read:Member", "read:MemberPoints"]);
+    // Assert the contract — falls back to the canonical seed snapshot — not a hand copy
+    // of its values, so a Treasury perms change surfaces as intent, not a stale mismatch.
+    expect(out).toEqual(BUILT_IN_ROLE_PERMS.Treasury);
   });
 
   it("prefers a live built-in role doc over the seed snapshot", () => {

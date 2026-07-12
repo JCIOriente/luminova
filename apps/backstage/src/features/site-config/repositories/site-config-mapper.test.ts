@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toSiteConfigDoc, toSiteConfigInput, EMPTY_LINKTREE } from "./site-config-mapper";
-import type { SiteConfig, LinktreeLink } from "@luminova/types";
+import { LINKTREE_SOCIAL_PLATFORMS, type SiteConfig, type LinktreeLink } from "@luminova/types";
 
 const linktree = {
   handle: "@jci.oriente",
@@ -83,16 +83,9 @@ describe("site-config mapper", () => {
   it("fills a default linktree when the stored doc lacks one", () => {
     expect(toSiteConfigInput(docFrom({})).linktree).toEqual(EMPTY_LINKTREE);
   });
-  it("normalizes socials to the six platforms in order", () => {
+  it("normalizes socials to the canonical platforms in order", () => {
     const result = toSiteConfigInput(docFrom({ linktree: { ...linktree, socials: [] } }));
-    expect(result.linktree.socials.map((s) => s.platform)).toEqual([
-      "instagram",
-      "facebook",
-      "tiktok",
-      "linkedin",
-      "whatsapp",
-      "youtube",
-    ]);
+    expect(result.linktree.socials.map((s) => s.platform)).toEqual([...LINKTREE_SOCIAL_PLATFORMS]);
   });
   it("generates an id for a link missing one", () => {
     const noId = { ...linktree.links[0], id: "" } as LinktreeLink;

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ACTIVITY_CAPACITY, computeAttendance } from "./attendance";
+import { computeAttendance } from "./attendance";
 
 describe("computeAttendance", () => {
   it("defaults capacity to 30", () => {
-    expect(DEFAULT_ACTIVITY_CAPACITY).toBe(30);
+    // Behavioral oracle (not a constant echo): the default flows through computeAttendance.
     expect(computeAttendance(0).capacity).toBe(30);
   });
 

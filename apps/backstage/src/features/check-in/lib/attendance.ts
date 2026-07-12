@@ -3,7 +3,7 @@
  * to JCI Bolivia. Used as the attendance denominator until per-activity capacity
  * (and public sign-up) lands in a later iteration.
  */
-export const DEFAULT_ACTIVITY_CAPACITY = 30;
+const DEFAULT_ACTIVITY_CAPACITY = 30;
 
 export interface Attendance {
   present: number;
