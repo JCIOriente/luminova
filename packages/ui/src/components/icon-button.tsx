@@ -1,4 +1,4 @@
-import type { MouseEventHandler, ReactNode } from "react";
+import { forwardRef, type ComponentPropsWithoutRef, type Ref, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 
 type IconButtonVariant = "subtle" | "ghost" | "danger";
@@ -11,22 +11,15 @@ interface CommonProps {
   "aria-label": string;
   variant?: IconButtonVariant;
   size?: IconButtonSize;
-  className?: string;
-  onClick?: MouseEventHandler;
 }
 
-interface AnchorIconButton extends CommonProps {
-  as?: "a";
-  href?: string;
-  target?: string;
-  rel?: string;
-}
-
-interface NativeIconButton extends CommonProps {
-  as: "button";
-  type?: "button" | "submit" | "reset";
-  disabled?: boolean;
-}
+// Extend the native element props (minus our styling props) so a Radix `asChild`
+// trigger's injected onPointerDown/onKeyDown/ref/aria-expanded pass through — this
+// component is documented as a menu/overlay trigger. See button.tsx for the same fix.
+type AnchorIconButton = CommonProps &
+  Omit<ComponentPropsWithoutRef<"a">, keyof CommonProps> & { as?: "a" };
+type NativeIconButton = CommonProps &
+  Omit<ComponentPropsWithoutRef<"button">, keyof CommonProps> & { as: "button" };
 
 export type IconButtonProps = AnchorIconButton | NativeIconButton;
 
@@ -49,35 +42,38 @@ const VARIANT: Record<IconButtonVariant, string> = {
  * and menu/overlay triggers — not for text CTAs (use `Button`). `aria-label` is
  * required; focus-visible and `type` are handled here.
  */
-export function IconButton(props: IconButtonProps) {
-  const { children, variant = "subtle", size = "sm", className, onClick } = props;
-  const cls = cn(BASE, SIZE[size], VARIANT[variant], className);
-  const label = props["aria-label"];
+export const IconButton = forwardRef<HTMLButtonElement | HTMLAnchorElement, IconButtonProps>(
+  function IconButton(props, ref) {
+    const { children, variant = "subtle", size = "sm", className, as, ...rest } = props;
+    const cls = cn(BASE, SIZE[size], VARIANT[variant], className);
 
-  if (props.as === "button") {
+    // See button.tsx: `as` is destructured out (erasing the discriminant) so `rest`
+    // and the forwardRef `Ref<Button | Anchor>` need per-branch assertions; the
+    // runtime `as` check makes them sound.
+    if (as === "button") {
+      const buttonProps = rest as ComponentPropsWithoutRef<"button">;
+      return (
+        <button
+          ref={ref as Ref<HTMLButtonElement>}
+          {...buttonProps}
+          type={buttonProps.type ?? "button"}
+          className={cls}
+        >
+          {children}
+        </button>
+      );
+    }
+
+    const anchorProps = rest as ComponentPropsWithoutRef<"a">;
     return (
-      <button
+      <a
+        ref={ref as Ref<HTMLAnchorElement>}
+        {...anchorProps}
+        href={anchorProps.href ?? "#"}
         className={cls}
-        type={props.type ?? "button"}
-        disabled={props.disabled}
-        aria-label={label}
-        onClick={onClick}
       >
         {children}
-      </button>
+      </a>
     );
-  }
-
-  return (
-    <a
-      className={cls}
-      href={props.href ?? "#"}
-      target={props.target}
-      rel={props.rel}
-      aria-label={label}
-      onClick={onClick}
-    >
-      {children}
-    </a>
-  );
-}
+  },
+);

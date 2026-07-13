@@ -98,9 +98,11 @@ export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonPr
       </>
     );
 
+    // Casts: destructuring `as` out of the union above erases TS's discriminant, so
+    // `rest` can't auto-narrow — assert it to the branch's element attrs. And
+    // forwardRef gives `Ref<Button | Anchor>` which is invariant, so the per-branch
+    // ref needs a matching assertion. The runtime `as` check makes both sound.
     if (as === "button") {
-      // Narrow the union rest to native <button> attrs so the injected trigger
-      // props (onPointerDown/onKeyDown/aria-expanded/data-state) spread through.
       const buttonProps = rest as ComponentPropsWithoutRef<"button">;
       return (
         <button
