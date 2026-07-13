@@ -1,4 +1,4 @@
-import type { MouseEventHandler, ReactNode } from "react";
+import { forwardRef, type ComponentPropsWithoutRef, type Ref, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "link";
@@ -13,24 +13,18 @@ interface CommonProps {
   tone?: ButtonTone;
   iconLeft?: ReactNode;
   iconRight?: ReactNode;
-  className?: string;
   children: ReactNode;
-  onClick?: MouseEventHandler;
-  "aria-label"?: string;
 }
 
-interface AnchorButton extends CommonProps {
-  as?: "a";
-  href?: string;
-  target?: string;
-  rel?: string;
-}
-
-interface NativeButton extends CommonProps {
-  as: "button";
-  type?: "button" | "submit" | "reset";
-  disabled?: boolean;
-}
+// Extend the native element props (minus our styling props) so every DOM / event /
+// aria / data attribute — including the onPointerDown / onKeyDown / ref / aria-expanded
+// a Radix `asChild` trigger injects — passes straight through. Without this, a Button
+// used as a Menu/Popover trigger was a dead control: Radix opens on pointerdown, which
+// the old whitelist-only Button dropped.
+type AnchorButton = CommonProps &
+  Omit<ComponentPropsWithoutRef<"a">, keyof CommonProps> & { as?: "a" };
+type NativeButton = CommonProps &
+  Omit<ComponentPropsWithoutRef<"button">, keyof CommonProps> & { as: "button" };
 
 export type ButtonProps = AnchorButton | NativeButton;
 
@@ -73,62 +67,69 @@ function variantClasses(
   }
 }
 
-export function Button(props: ButtonProps) {
-  const {
-    variant = "primary",
-    size = "md",
-    onDark = false,
-    onBlue = false,
-    tone = "brand",
-    iconLeft,
-    iconRight,
-    className,
-    children,
-  } = props;
+export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonProps>(
+  function Button(props, ref) {
+    const {
+      variant = "primary",
+      size = "md",
+      onDark = false,
+      onBlue = false,
+      tone = "brand",
+      iconLeft,
+      iconRight,
+      className,
+      children,
+      as,
+      ...rest
+    } = props;
 
-  const cls = cn(
-    BASE,
-    variantClasses(variant, onDark, onBlue, tone),
-    size === "sm" && variant !== "link" && "h-[42px] px-[18px] text-sm",
-    className,
-  );
+    const cls = cn(
+      BASE,
+      variantClasses(variant, onDark, onBlue, tone),
+      size === "sm" && variant !== "link" && "h-[42px] px-[18px] text-sm",
+      className,
+    );
 
-  const inner = (
-    <>
-      {iconLeft}
-      <span>{children}</span>
-      {iconRight}
-    </>
-  );
+    const inner = (
+      <>
+        {iconLeft}
+        <span>{children}</span>
+        {iconRight}
+      </>
+    );
 
-  if (props.as === "button") {
+    // Casts: destructuring `as` out of the union above erases TS's discriminant, so
+    // `rest` can't auto-narrow — assert it to the branch's element attrs. And
+    // forwardRef gives `Ref<Button | Anchor>` which is invariant, so the per-branch
+    // ref needs a matching assertion. The runtime `as` check makes both sound.
+    if (as === "button") {
+      const buttonProps = rest as ComponentPropsWithoutRef<"button">;
+      return (
+        <button
+          ref={ref as Ref<HTMLButtonElement>}
+          {...buttonProps}
+          type={buttonProps.type ?? "button"}
+          className={cn(
+            cls,
+            buttonProps.disabled &&
+              "cursor-not-allowed opacity-[0.55] hover:translate-y-0 hover:shadow-none",
+          )}
+        >
+          {inner}
+        </button>
+      );
+    }
+
+    const anchorProps = rest as ComponentPropsWithoutRef<"a">;
     return (
-      <button
-        className={cn(
-          cls,
-          props.disabled &&
-            "cursor-not-allowed opacity-[0.55] hover:translate-y-0 hover:shadow-none",
-        )}
-        type={props.type ?? "button"}
-        onClick={props.onClick}
-        disabled={props.disabled}
-        aria-label={props["aria-label"]}
+      <a
+        ref={ref as Ref<HTMLAnchorElement>}
+        {...anchorProps}
+        href={anchorProps.href ?? "#"}
+        className={cls}
       >
         {inner}
-      </button>
+      </a>
     );
-  }
-
-  return (
-    <a
-      className={cls}
-      href={props.href ?? "#"}
-      target={props.target}
-      rel={props.rel}
-      aria-label={props["aria-label"]}
-      onClick={props.onClick}
-    >
-      {inner}
-    </a>
-  );
-}
+  },
+);
