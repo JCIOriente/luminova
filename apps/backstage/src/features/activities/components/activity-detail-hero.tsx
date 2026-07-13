@@ -35,7 +35,7 @@ export function ActivityDetailHero({ activity, parentTitle, actions }: ActivityD
               stroke={5}
               size={240}
               color={TONE_RIPPLE_COLOR[tone]}
-              className="motion-safe:animate-spin [animation-duration:60s]"
+              className="motion-safe:animate-ripple-spin"
             />
           </div>
         )}

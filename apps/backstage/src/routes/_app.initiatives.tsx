@@ -15,6 +15,7 @@ import { useMembers } from "../features/members/hooks/use-members";
 import { useActivitiesByTerm } from "../features/activities/hooks/use-activities-by-term";
 import { useInitiativesByTerm } from "../features/initiatives/hooks/use-initiatives-by-term";
 import { useCreateInitiative } from "../features/initiatives/hooks/use-create-initiative";
+import { useToggleFeatured } from "../features/initiatives/hooks/use-toggle-featured";
 import { INITIATIVE_TYPE } from "../features/initiatives/lib/initiative-kind";
 import { computeProgress, isClosingSoon } from "../features/initiatives/lib/derive";
 import {
@@ -57,6 +58,7 @@ function InitiativesPage() {
 
   const createProgram = useCreateInitiative("program", termId);
   const createProject = useCreateInitiative("project", termId);
+  const toggleFeatured = useToggleFeatured(termId);
 
   const [filter, setFilter] = useState<InitiativeFilter>({
     tab: "todos",
@@ -155,6 +157,16 @@ function InitiativesPage() {
               pct={cardData.get(item.id)?.pct ?? 0}
               closingSoon={cardData.get(item.id)?.closingSoon ?? false}
               memberById={memberById}
+              canFeature={canFeature}
+              isTogglingFeatured={
+                toggleFeatured.isPending && toggleFeatured.variables?.id === item.id
+              }
+              onToggleFeatured={(next) =>
+                toggleFeatured.mutate(
+                  { type: INITIATIVE_TYPE[item.kind], id: item.id, featured: next },
+                  { onError: () => setErrorToast("No se pudo actualizar el destacado.") },
+                )
+              }
               onOpen={() =>
                 void navigate({
                   to: "/initiatives/$type/$id",

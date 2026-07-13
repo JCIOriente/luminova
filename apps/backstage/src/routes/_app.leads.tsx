@@ -95,15 +95,17 @@ function LeadsPage() {
         subtitle="Personas que nos escribieron desde el sitio público."
       />
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <SearchInput
           label="Buscar prospectos"
+          className="sm:flex-1"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nombre, email o mensaje…"
         />
         <Select
           aria-label="Filtrar por intento"
+          className="sm:w-64"
           value={intent}
           onChange={(e) => setIntent(e.target.value as IntentFilter)}
         >

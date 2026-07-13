@@ -336,6 +336,34 @@ beforeAll(async () => {
       impact: null,
       status: "EnEjecucion",
     });
+    // Finalized targets for the featured quick-toggle (curation happens after
+    // completion). finalReport + impact are non-null so a featured-only write
+    // survives finalizedRequiresReport() / initiativeWriteSafe(). Two docs, like
+    // p_feat/p_dir: p_final_ok absorbs the Admin success (persists featured:true),
+    // p_final_dir stays pristine (featured:false) so the direction-deny is real —
+    // the suite seeds once with no per-test reset.
+    const finalReport = { filedAt: new Date("2026-05-01T00:00:00Z"), filedBy: "owner-uid" };
+    const impact = { personsImpacted: 1, volunteers: 1, custom: [], closingSummary: "x" };
+    await setDoc(doc(db, "projects/p_final_ok"), {
+      termId: "2026",
+      title: "Finalizado destacable",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: ["owner-uid"],
+      finalReport,
+      impact,
+      status: "Finalizado",
+      featured: false,
+    });
+    await setDoc(doc(db, "projects/p_final_dir"), {
+      termId: "2026",
+      title: "Finalizado (dir)",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: ["owner-uid"],
+      finalReport,
+      impact,
+      status: "Finalizado",
+      featured: false,
+    });
     await setDoc(doc(db, "memberPoints/2025/03/e1"), { points: 5 });
     await setDoc(doc(db, "positions/pos1"), {
       title: "Tesorero",
@@ -768,6 +796,16 @@ describe("firestore.rules — initiative direction branch", () => {
   it("denies a direction-only editor setting featured true (program)", async () => {
     await assertFails(
       updateDoc(doc(as("owner-uid", ["Member"]), "programs/prog_dir"), { featured: true }),
+    );
+  });
+  it("lets Admin toggle featured on a finalized initiative", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_final_ok"), { featured: true }),
+    );
+  });
+  it("denies a direction-only editor toggling featured on a finalized initiative", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_final_dir"), { featured: true }),
     );
   });
   it("lets a direction-only editor update other fields while featured is untouched", async () => {
