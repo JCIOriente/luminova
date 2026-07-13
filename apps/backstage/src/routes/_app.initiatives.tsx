@@ -158,6 +158,9 @@ function InitiativesPage() {
               closingSoon={cardData.get(item.id)?.closingSoon ?? false}
               memberById={memberById}
               canFeature={canFeature}
+              isTogglingFeatured={
+                toggleFeatured.isPending && toggleFeatured.variables?.id === item.id
+              }
               onToggleFeatured={(next) =>
                 toggleFeatured.mutate(
                   { type: INITIATIVE_TYPE[item.kind], id: item.id, featured: next },

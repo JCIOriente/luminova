@@ -22,6 +22,9 @@ interface InitiativeCardProps {
   /** Admin/ProjectManager only (mirrors rules' featuredUpdateSafe) — shows the star quick-toggle. */
   canFeature?: boolean;
   onToggleFeatured?: (next: boolean) => void;
+  /** True while THIS card's featured write is in flight — disables its star to
+   *  block a stale-value double-click (item.featured only updates after refetch). */
+  isTogglingFeatured?: boolean;
 }
 
 const shellClasses = cn(
@@ -38,6 +41,7 @@ export function InitiativeCard({
   onOpen,
   canFeature = false,
   onToggleFeatured,
+  isTogglingFeatured = false,
 }: InitiativeCardProps) {
   const cover = item.photos[0]?.url ?? null;
   const rosterIds = [item.roster.directorId, ...item.roster.coDirectorIds, ...item.roster.teamIds];
@@ -112,18 +116,16 @@ export function InitiativeCard({
           e.stopPropagation();
           onToggleFeatured?.(!item.featured);
         }}
+        disabled={isTogglingFeatured}
         aria-pressed={item.featured}
-        title={item.featured ? "Quitar de destacados" : "Destacar en programas"}
+        aria-label={item.featured ? "Quitar de destacados" : "Destacar en programas"}
         className={cn(
-          "absolute right-2 top-2 z-10 flex size-8 items-center justify-center rounded-pill shadow-[0_8px_24px_-12px_rgba(19,15,45,0.55)] transition-colors",
+          "absolute right-2 top-2 z-10 flex size-8 items-center justify-center rounded-pill shadow-[0_8px_24px_-12px_rgba(19,15,45,0.55)] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jci-blue disabled:cursor-not-allowed disabled:opacity-[0.55]",
           item.featured
             ? "bg-jci-blue text-white hover:bg-jci-blue/90"
             : "bg-surface/90 text-ink-3 backdrop-blur hover:text-jci-blue",
         )}
       >
-        <span className="sr-only">
-          {item.featured ? "Quitar de destacados" : "Destacar en programas"}
-        </span>
         {Icon.spark({ s: 16 })}
       </button>
     </div>
