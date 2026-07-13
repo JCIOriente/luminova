@@ -455,13 +455,15 @@ service cloud.firestore {
     // the backstage Prospectos inbox.
     //
     // The strict schema gate below bounds a lead's SHAPE (field set, sizes, enum
-    // pins) — NOT its volume. Volume/abuse mitigation (Firebase App Check
-    // `request.app != null`, or a rate-limited write proxy) is a tracked fast-follow:
-    // spotlight App Check isn't provisioned yet, so gating on request.app now would
-    // deny every write. Until it lands, `leads` is an open unauthenticated write
-    // endpoint reachable directly via the public client config — do NOT deploy these
-    // rules to prod ahead of that mitigation without consciously accepting the spam/
-    // storage exposure window. See docs/specs/2026-07-10-lead-capture-hub-design.md
+    // pins). Volume/abuse mitigation is now handled at the product layer: App Check
+    // enforcement is ENABLED for Firestore, so a tokenless (bot) write is rejected
+    // before these rules even evaluate, while the spotlight contact form sends a
+    // valid reCAPTCHA-v3 token via getFirestoreLite's initAppCheck. That closes the
+    // "tracked fast-follow" from the design spec. A rules-level `request.app != null`
+    // gate would be redundant with enforcement AND untestable here — the pinned
+    // @firebase/rules-unit-testing has no App Check token injection, so it would only
+    // break the anon-create success tests below. See
+    // docs/specs/2026-07-10-lead-capture-hub-design.md and docs/firebase-setup.md.
     //
     // intent/status literals mirror LEAD_INTENTS/LEAD_STATUSES in
     // packages/types/src/lead.ts — keep in sync (a TS-only addition silently drifts).
