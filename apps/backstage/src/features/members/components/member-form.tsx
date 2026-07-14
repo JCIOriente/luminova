@@ -9,6 +9,7 @@ import {
   Field,
   Input,
   MultiSelect,
+  SegmentedControl,
   Select,
   initials,
 } from "@luminova/ui";
@@ -82,6 +83,11 @@ export function MemberForm({
   const gender = watch("gender");
   const currentCargoId = watch("cargoId");
   const currentComisionIds = watch("comisionIds");
+  // A member whose cargo is a CEL position belongs to the Comité Ejecutivo Local, not a
+  // comisión. Show that as a locked chip (derived from the cargo — never persisted to
+  // comisionIds; the submit handler clears them).
+  const isExecutiveCommitteeCargo =
+    positions.find((p) => p.id === currentCargoId)?.category === "CEL";
   const term = currentTermKey();
   // Keep the member's ORIGINALLY-assigned cargo selectable for a non-Admin even if it
   // grants power — but off the static default, not the reactive selection, so switching
@@ -125,8 +131,10 @@ export function MemberForm({
 
   const submit = handleSubmit(async (data) => {
     setFormError(null);
+    // CEL membership is derived from the cargo, never stored as a comisión.
+    const payload = isExecutiveCommitteeCargo ? { ...data, comisionIds: [] } : data;
     try {
-      await onSubmit(data);
+      await onSubmit(payload);
     } catch {
       setFormError("No se pudo guardar. Intenta de nuevo.");
     }
@@ -160,14 +168,18 @@ export function MemberForm({
           <Input id="email" type="email" {...register("email")} />
         </Field>
         <Field label="Género" htmlFor="gender" required error={errors.gender?.message}>
-          <Select id="gender" {...register("gender")}>
-            <option value="">Seleccionar…</option>
-            {MEMBER_GENDERS.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </Select>
+          <Controller
+            control={control}
+            name="gender"
+            render={({ field }) => (
+              <SegmentedControl
+                aria-label="Género"
+                options={MEMBER_GENDERS.map((g) => ({ value: g as string, label: g }))}
+                value={field.value ?? ""}
+                onChange={field.onChange}
+              />
+            )}
+          />
         </Field>
         <Field label="Teléfono" htmlFor="phone" error={errors.phone?.message}>
           <Input
@@ -221,20 +233,35 @@ export function MemberForm({
           htmlFor="comisionIds"
           error={errors.comisionIds?.message}
         >
-          <Controller
-            control={control}
-            name="comisionIds"
-            render={({ field }) => (
-              <MultiSelect
-                id="comisionIds"
-                options={comisionOptions}
-                value={field.value}
-                onChange={field.onChange}
-                disabled={positionsLocked}
-              />
-            )}
-          />
+          {isExecutiveCommitteeCargo ? (
+            <div
+              role="note"
+              className="flex items-center gap-2 rounded-card bg-surface-2 px-3 py-2 text-ui-sm text-ink-2"
+            >
+              <span aria-hidden="true">🔒</span>
+              Comité Ejecutivo Local
+            </div>
+          ) : (
+            <Controller
+              control={control}
+              name="comisionIds"
+              render={({ field }) => (
+                <MultiSelect
+                  id="comisionIds"
+                  options={comisionOptions}
+                  value={field.value}
+                  onChange={field.onChange}
+                  disabled={positionsLocked}
+                />
+              )}
+            />
+          )}
         </Field>
+        {isExecutiveCommitteeCargo && (
+          <p role="note" className="text-ui-xs text-ink-3">
+            Asignado automáticamente por su cargo del Comité Ejecutivo Local.
+          </p>
+        )}
         {positionsLocked && (
           <p role="note" className="text-ui-xs text-ink-3">
             Solo un Admin puede cambiar el cargo de un miembro con permisos. Puedes editar el resto

@@ -27,7 +27,7 @@ const mockedRequestPasswordReset = vi.mocked(requestPasswordReset);
 async function fill() {
   fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: "Ana Gómez" } });
   fireEvent.change(screen.getByLabelText(/Correo/), { target: { value: "ana@jci.bo" } });
-  fireEvent.change(screen.getByLabelText(/Género/), { target: { value: "Femenino" } });
+  fireEvent.click(screen.getByRole("button", { name: "Femenino" }));
   await pickDate(/Fecha de nacimiento/, "1990-01-15");
 }
 
