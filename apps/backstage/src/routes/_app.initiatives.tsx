@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, Icon, EmptyState, Menu, MenuItem, Sheet, Toast } from "@luminova/ui";
+import { Button, Icon, EmptyState, SegmentedControl, Sheet, Toast } from "@luminova/ui";
 import { useDismissingToast } from "../lib/use-dismissing-toast";
 import type { ComboboxOption } from "@luminova/ui";
 import type { InitiativeInput, Member } from "@luminova/types";
@@ -15,7 +15,6 @@ import { useMembers } from "../features/members/hooks/use-members";
 import { useActivitiesByTerm } from "../features/activities/hooks/use-activities-by-term";
 import { useInitiativesByTerm } from "../features/initiatives/hooks/use-initiatives-by-term";
 import { useCreateInitiative } from "../features/initiatives/hooks/use-create-initiative";
-import { useToggleFeatured } from "../features/initiatives/hooks/use-toggle-featured";
 import { INITIATIVE_TYPE } from "../features/initiatives/lib/initiative-kind";
 import { computeProgress, isClosingSoon } from "../features/initiatives/lib/derive";
 import {
@@ -58,7 +57,11 @@ function InitiativesPage() {
 
   const createProgram = useCreateInitiative("program", termId);
   const createProject = useCreateInitiative("project", termId);
-  const toggleFeatured = useToggleFeatured(termId);
+
+  const kindOptions = [
+    ...(canManageProject ? [{ value: "Project" as const, label: "Proyecto" }] : []),
+    ...(canManageProgram ? [{ value: "Program" as const, label: "Programa" }] : []),
+  ];
 
   const [filter, setFilter] = useState<InitiativeFilter>({
     tab: "todos",
@@ -115,24 +118,16 @@ function InitiativesPage() {
         title="Proyectos"
         actions={
           (canManageProgram || canManageProject) && (
-            <Menu
-              trigger={
-                <Button as="button" type="button" iconLeft={Icon.plus({ s: 18 })}>
-                  Nuevo
-                </Button>
+            <Button
+              as="button"
+              type="button"
+              iconLeft={Icon.plus({ s: 18 })}
+              onClick={() =>
+                setEditing({ mode: "new", kind: canManageProject ? "Project" : "Program" })
               }
             >
-              {canManageProject && (
-                <MenuItem onSelect={() => setEditing({ mode: "new", kind: "Project" })}>
-                  Nuevo proyecto
-                </MenuItem>
-              )}
-              {canManageProgram && (
-                <MenuItem onSelect={() => setEditing({ mode: "new", kind: "Program" })}>
-                  Nuevo programa
-                </MenuItem>
-              )}
-            </Menu>
+              Nuevo
+            </Button>
           )
         }
       />
@@ -157,16 +152,6 @@ function InitiativesPage() {
               pct={cardData.get(item.id)?.pct ?? 0}
               closingSoon={cardData.get(item.id)?.closingSoon ?? false}
               memberById={memberById}
-              canFeature={canFeature}
-              isTogglingFeatured={
-                toggleFeatured.isPending && toggleFeatured.variables?.id === item.id
-              }
-              onToggleFeatured={(next) =>
-                toggleFeatured.mutate(
-                  { type: INITIATIVE_TYPE[item.kind], id: item.id, featured: next },
-                  { onError: () => setErrorToast("No se pudo actualizar el destacado.") },
-                )
-              }
               onOpen={() =>
                 void navigate({
                   to: "/initiatives/$type/$id",
@@ -184,15 +169,28 @@ function InitiativesPage() {
         title={sheetTitle(editing)}
       >
         {editing !== null && (
-          <InitiativeForm
-            key={`new-${editing.kind}`}
-            memberOptions={memberOptions}
-            defaultValues={undefined}
-            submitLabel="Crear"
-            isSaving={isSaving}
-            canFeature={canFeature}
-            onSubmit={(data) => void handleSubmit(data)}
-          />
+          <div className="flex flex-col gap-4">
+            {kindOptions.length > 1 && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-ui-sm font-medium text-ink-2">Tipo</span>
+                <SegmentedControl
+                  aria-label="Tipo de iniciativa"
+                  options={kindOptions}
+                  value={editing.kind}
+                  onChange={(kind) => setEditing({ mode: "new", kind })}
+                />
+              </div>
+            )}
+            <InitiativeForm
+              key="new"
+              memberOptions={memberOptions}
+              defaultValues={undefined}
+              submitLabel="Crear"
+              isSaving={isSaving}
+              canFeature={canFeature}
+              onSubmit={(data) => void handleSubmit(data)}
+            />
+          </div>
         )}
       </Sheet>
       {errorToast && <Toast message={errorToast} icon={Icon.close({ s: 18 })} />}
