@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TerminosRouteImport } from './routes/terminos'
 import { Route as PrivacidadRouteImport } from './routes/privacidad'
 import { Route as LinktreeRouteImport } from './routes/linktree'
-import { Route as EnlacesRouteImport } from './routes/enlaces'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
@@ -33,11 +32,6 @@ const PrivacidadRoute = PrivacidadRouteImport.update({
 const LinktreeRoute = LinktreeRouteImport.update({
   id: '/linktree',
   path: '/linktree',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EnlacesRoute = EnlacesRouteImport.update({
-  id: '/enlaces',
-  path: '/enlaces',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -75,7 +69,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
-  '/enlaces': typeof EnlacesRoute
   '/linktree': typeof LinktreeRoute
   '/privacidad': typeof PrivacidadRoute
   '/terminos': typeof TerminosRoute
@@ -87,7 +80,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
-  '/enlaces': typeof EnlacesRoute
   '/linktree': typeof LinktreeRoute
   '/privacidad': typeof PrivacidadRoute
   '/terminos': typeof TerminosRoute
@@ -100,7 +92,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
-  '/enlaces': typeof EnlacesRoute
   '/linktree': typeof LinktreeRoute
   '/privacidad': typeof PrivacidadRoute
   '/terminos': typeof TerminosRoute
@@ -114,7 +105,6 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
-    | '/enlaces'
     | '/linktree'
     | '/privacidad'
     | '/terminos'
@@ -126,7 +116,6 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
-    | '/enlaces'
     | '/linktree'
     | '/privacidad'
     | '/terminos'
@@ -138,7 +127,6 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
-    | '/enlaces'
     | '/linktree'
     | '/privacidad'
     | '/terminos'
@@ -151,7 +139,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   ContactRoute: typeof ContactRoute
-  EnlacesRoute: typeof EnlacesRoute
   LinktreeRoute: typeof LinktreeRoute
   PrivacidadRoute: typeof PrivacidadRoute
   TerminosRoute: typeof TerminosRoute
@@ -181,13 +168,6 @@ declare module '@tanstack/react-router' {
       path: '/linktree'
       fullPath: '/linktree'
       preLoaderRoute: typeof LinktreeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/enlaces': {
-      id: '/enlaces'
-      path: '/enlaces'
-      fullPath: '/enlaces'
-      preLoaderRoute: typeof EnlacesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -239,7 +219,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   ContactRoute: ContactRoute,
-  EnlacesRoute: EnlacesRoute,
   LinktreeRoute: LinktreeRoute,
   PrivacidadRoute: PrivacidadRoute,
   TerminosRoute: TerminosRoute,
