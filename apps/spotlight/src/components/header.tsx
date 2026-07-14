@@ -6,7 +6,7 @@ import { BACKSTAGE_URL } from "../config/external-links";
 
 // Add a route here whenever its hero sits over a colored background, or the
 // navbar text will fall back to dark and lose contrast on that page.
-const DARK_HERO_ROUTES = ["/", "/impacto", "/enlaces"];
+const DARK_HERO_ROUTES = ["/", "/impacto", "/linktree"];
 const BLUE_HERO_ROUTES = ["/about"];
 const BLUE_HERO_PREFIXES = ["/impacto/"];
 

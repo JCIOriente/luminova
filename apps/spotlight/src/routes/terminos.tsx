@@ -62,9 +62,11 @@ function Terminos() {
       heading: "6. Formulario de contacto",
       body: (
         <p style={{ margin: 0 }}>
-          El formulario de contacto abre tu cliente de correo para escribirnos; no constituye una
-          inscripción formal ni garantiza la aceptación como miembro. Responderemos a las consultas
-          según nuestra disponibilidad.
+          Al enviar el formulario de contacto, tu mensaje se registra de forma segura en nuestra
+          base de datos para que podamos responderte; no constituye una inscripción formal ni
+          garantiza la aceptación como miembro. Responderemos a las consultas según nuestra
+          disponibilidad. El tratamiento de tus datos se detalla en la{" "}
+          <a href="/privacidad">Política de privacidad</a>.
         </p>
       ),
     },

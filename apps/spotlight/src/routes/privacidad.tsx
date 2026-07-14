@@ -24,10 +24,10 @@ function Privacidad() {
       heading: "2. Qué datos recolectamos",
       body: (
         <p style={{ margin: 0 }}>
-          Este sitio es informativo. El formulario de contacto funciona en tu propio navegador y
-          abre tu cliente de correo para que nos escribas: no almacenamos los datos del formulario
-          en ningún servidor. Solo conocemos los datos que decidas enviarnos voluntariamente por
-          correo (nombre, correo electrónico y el mensaje que redactes).
+          Cuando completas el formulario de contacto, registramos los datos que nos envías —nombre,
+          correo electrónico, motivo de contacto y tu mensaje— en nuestra base de datos (Cloud
+          Firestore, de Google) para poder atender tu solicitud. No recopilamos ningún otro dato
+          personal de forma automática mientras navegas.
         </p>
       ),
     },
@@ -35,9 +35,9 @@ function Privacidad() {
       heading: "3. Cómo usamos tu información",
       body: (
         <p style={{ margin: 0 }}>
-          Usamos los datos que nos envías por correo únicamente para responder tu consulta, evaluar
-          solicitudes de membresía o coordinar alianzas y prensa. No vendemos ni compartimos tu
-          información con terceros con fines comerciales.
+          Usamos los datos que nos envías por el formulario únicamente para responder tu consulta,
+          evaluar solicitudes de membresía o coordinar alianzas y prensa. No vendemos ni compartimos
+          tu información con terceros con fines comerciales.
         </p>
       ),
     },
@@ -56,9 +56,11 @@ function Privacidad() {
       heading: "5. Servicios de terceros",
       body: (
         <p style={{ margin: 0 }}>
-          El sitio se aloja en Firebase Hosting (Google) y puede enlazar a plataformas externas como
-          Instagram, Facebook, TikTok, LinkedIn y Google Maps. Al seguir esos enlaces aplican las
-          políticas de privacidad de cada plataforma, sobre las que no tenemos control.
+          El sitio se aloja en Firebase (Google) y los mensajes del formulario se guardan en Cloud
+          Firestore, protegido con Firebase App Check para prevenir usos automatizados. El sitio
+          también puede enlazar a plataformas externas como Instagram, Facebook, TikTok, LinkedIn y
+          Google Maps; al seguir esos enlaces aplican las políticas de privacidad de cada
+          plataforma, sobre las que no tenemos control.
         </p>
       ),
     },

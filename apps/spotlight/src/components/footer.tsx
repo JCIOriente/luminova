@@ -76,8 +76,8 @@ export function Footer() {
                 <a href={BACKSTAGE_URL}>Portal de miembros</a>
               </li>
               <li>
-                <a href="/enlaces" onClick={(e) => go(e, "/enlaces")}>
-                  Enlaces
+                <a href="/linktree" onClick={(e) => go(e, "/linktree")}>
+                  Linktree
                 </a>
               </li>
             </ul>
