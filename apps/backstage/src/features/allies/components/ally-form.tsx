@@ -69,7 +69,14 @@ export function AllyForm({
         <Input id="contactPerson" {...register("contactPerson")} />
       </Field>
       <Field label="Teléfono" htmlFor="phone" required error={errors.phone?.message}>
-        <Input id="phone" {...register("phone")} />
+        <Input
+          id="phone"
+          inputMode="numeric"
+          maxLength={8}
+          autoComplete="tel-national"
+          placeholder="8 dígitos"
+          {...register("phone")}
+        />
       </Field>
       <Field label="Correo" htmlFor="email" required error={errors.email?.message}>
         <Input id="email" type="email" {...register("email")} />

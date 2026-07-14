@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MEMBER_STATUSES, MEMBER_GENDERS } from "./member.js";
+import { boliviaPhoneOptional } from "./phone.js";
 
 const dateString = z
   .string()
@@ -13,7 +14,7 @@ const dateString = z
 export const memberSchema = z.object({
   name: z.string().min(3, "Mínimo 3 caracteres."),
   email: z.string().email("Correo inválido."),
-  phone: z.string().optional(),
+  phone: boliviaPhoneOptional,
   gender: z.enum(MEMBER_GENDERS, { message: "Requerido." }),
   profession: z.string().optional(),
   joinDate: dateString,

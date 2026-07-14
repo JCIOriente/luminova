@@ -5,7 +5,7 @@ import { MEMBER_STATUSES } from "./member";
 const valid = {
   name: "Ana Pérez",
   email: "ana@jci.bo",
-  phone: "777",
+  phone: "70012345",
   gender: "Femenino" as const,
   profession: "Ingeniera",
   joinDate: "2020-03-15",
@@ -18,6 +18,14 @@ const valid = {
 describe("memberSchema", () => {
   it("accepts a valid member", () => {
     expect(memberSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("rejects a phone that is not 8 digits", () => {
+    expect(memberSchema.safeParse({ ...valid, phone: "777" }).success).toBe(false);
+  });
+
+  it("accepts a blank phone (optional)", () => {
+    expect(memberSchema.safeParse({ ...valid, phone: "" }).success).toBe(true);
   });
 
   it("accepts omitted optional phone and profession", () => {
