@@ -7,6 +7,8 @@ export const ACTIVITY_CATEGORIES = [
   "Anniversary",
   "TM",
   "NationalEvent",
+  "Cash",
+  "Confra",
   "ProjectExecution",
 ] as const;
 export type ActivityCategory = (typeof ACTIVITY_CATEGORIES)[number];

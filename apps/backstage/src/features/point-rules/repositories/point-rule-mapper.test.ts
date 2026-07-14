@@ -4,9 +4,9 @@ import type { PointRule } from "@luminova/types";
 import { toSeedRules, byMatrixOrder } from "./point-rule-mapper";
 
 describe("toSeedRules", () => {
-  it("produces 16 rules with matrix points, labels, deterministic ids and termId", () => {
+  it("produces one rule per matrix code with points, labels, deterministic ids and termId", () => {
     const rules = toSeedRules("2026");
-    expect(rules).toHaveLength(16);
+    expect(rules).toHaveLength(POINT_RULE_CODES.length);
     const direct = rules.find((r) => r.code === "DirectProgram")!;
     expect(direct).toEqual({
       id: "2026__DirectProgram",
