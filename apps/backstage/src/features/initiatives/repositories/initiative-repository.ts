@@ -60,11 +60,6 @@ export class InitiativeRepository {
     await updateDoc(doc(this.collection, id), toInitiativeUpdateDoc(data));
   }
 
-  /** Featured-only write for the list quick-toggle (rules' featuredUpdateSafe gates it). */
-  async setFeatured(id: string, featured: boolean): Promise<void> {
-    await updateDoc(doc(this.collection, id), { featured });
-  }
-
   /** The completion wizard's atomic trio write — the engine confirmation gate. */
   async complete(id: string, impact: InitiativeImpactInput, uid: string): Promise<void> {
     await updateDoc(doc(this.collection, id), toInitiativeCompleteDoc(impact, uid));
