@@ -9,7 +9,7 @@ describe("POINT_RULE_LABELS", () => {
     }
   });
 
-  it("covers exactly the 16 codes (parallel to DEFAULT_POINT_VALUES)", () => {
+  it("covers exactly the codes in DEFAULT_POINT_VALUES", () => {
     expect(Object.keys(POINT_RULE_LABELS).sort()).toEqual(Object.keys(DEFAULT_POINT_VALUES).sort());
   });
 

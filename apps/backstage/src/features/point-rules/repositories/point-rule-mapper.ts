@@ -1,7 +1,7 @@
 import { POINT_RULE_CODES, DEFAULT_POINT_VALUES, POINT_RULE_LABELS } from "@luminova/types";
 import type { PointRule, PointRuleCode } from "@luminova/types";
 
-/** The 16 rules to seed for a term, with deterministic ids (idempotent re-seed). */
+/** One rule per matrix code to seed for a term, with deterministic ids (idempotent re-seed). */
 export function toSeedRules(termId: string): PointRule[] {
   return POINT_RULE_CODES.map((code) => ({
     id: `${termId}__${code}`,
