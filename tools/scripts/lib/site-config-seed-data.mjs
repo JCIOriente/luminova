@@ -90,8 +90,7 @@ export const SITE_CONFIG_CONTENT = {
     },
     links: [
       { label: "JCI Worldwide ↗", url: "https://jci.cc" },
-      { label: "JCI Bolivia ↗", url: "#" },
-      { label: "JCI Americas ↗", url: "#" },
+      { label: "JCI Bolivia ↗", url: "https://jcibolivia.org/" },
     ],
   },
 };

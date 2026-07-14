@@ -14,7 +14,6 @@ import {
 import { LEAD_INTENTS, leadSchema, type LeadIntent } from "@luminova/types";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { safeHref } from "../site-config/safe-href";
-import { SocialIconLinks } from "../components/social-icon-links";
 import { submitLead } from "../leads/submit-lead";
 
 export const Route = createFileRoute("/contact")({
@@ -259,7 +258,6 @@ function ContactHero() {
 
 function ContactBody({ onSuccess }: { onSuccess: () => void }) {
   const config = useSiteConfig();
-  const mapHref = safeHref(config.contact.mapUrl);
   return (
     <section className="section" style={{ paddingTop: 56 }}>
       <div className="container">
@@ -277,47 +275,9 @@ function ContactBody({ onSuccess }: { onSuccess: () => void }) {
                   color: "var(--ink-3)",
                 }}
               >
-                Canales directos
+                Visítanos
               </h2>
               <div style={{ marginTop: 8 }}>
-                <div className="contact-row">
-                  <span className="ico">
-                    <Icon.mail />
-                  </span>
-                  <div>
-                    <div style={LABEL_META}>Email</div>
-                    <a
-                      href={`mailto:${config.contact.email}`}
-                      style={{ fontSize: 16, fontWeight: 500 }}
-                    >
-                      {config.contact.email}
-                    </a>
-                  </div>
-                </div>
-                <div className="contact-row">
-                  <span className="ico">
-                    <Icon.pin />
-                  </span>
-                  <div>
-                    <div style={LABEL_META}>Sede</div>
-                    <div style={{ fontSize: 16, fontWeight: 500 }}>{config.contact.location}</div>
-                    {mapHref !== "#" ? (
-                      <a
-                        href={mapHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          fontSize: 13,
-                          color: "var(--jci-blue)",
-                          marginTop: 2,
-                          display: "inline-block",
-                        }}
-                      >
-                        Ver en Google Maps ↗
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
                 <div className="contact-row">
                   <span className="ico">
                     <Icon.phone />
@@ -331,24 +291,6 @@ function ContactBody({ onSuccess }: { onSuccess: () => void }) {
                       Bajo confirmación previa con el comité.
                     </div>
                   </div>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 36 }}>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "var(--ink-3)",
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    fontWeight: 600,
-                    marginBottom: 14,
-                  }}
-                >
-                  Redes sociales
-                </div>
-                <div className="social-row">
-                  <SocialIconLinks />
                 </div>
               </div>
 

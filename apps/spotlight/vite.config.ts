@@ -61,4 +61,24 @@ export default defineConfig({
   ],
   server: { port: 5173 },
   preview: { port: 4173 },
+  build: {
+    rollupOptions: {
+      output: {
+        // Pin the site-data layer (firebase lite SDK + App Check + @luminova/firebase
+        // glue + the site-config SWR cache) into its own chunk. The shell (Footer →
+        // useSiteConfig) loads it eagerly regardless, so a dedicated file keeps it out
+        // of the index budget — without an explicit group rolldown's heuristic inlines
+        // it into index on small graph changes.
+        manualChunks(id) {
+          if (
+            id.includes("firebase") ||
+            id.includes("/site-config/") ||
+            id.includes("cached-resource")
+          ) {
+            return "site-data";
+          }
+        },
+      },
+    },
+  },
 });

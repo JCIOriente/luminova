@@ -5,8 +5,8 @@ import type { LinktreeIcon, LinktreeSocialPlatform } from "@luminova/types";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { safeHref } from "../site-config/safe-href";
 
-export const Route = createFileRoute("/enlaces")({
-  component: EnlacesPage,
+export const Route = createFileRoute("/linktree")({
+  component: LinktreePage,
 });
 
 const LINK_ICON: Record<LinktreeIcon, (p: { s?: number }) => ReactNode> = {
@@ -54,7 +54,7 @@ const cardBase: React.CSSProperties = {
   backdropFilter: "blur(12px)",
 };
 
-export function EnlacesPage() {
+export function LinktreePage() {
   const config = useSiteConfig();
   const linktree = config.linktree;
   if (!linktree) return null;
