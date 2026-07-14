@@ -96,7 +96,12 @@ export function InitiativeForm({
             control={control}
             name="startDate"
             render={({ field }) => (
-              <DatePicker id="startDate" value={field.value} onChange={field.onChange} />
+              <DatePicker
+                id="startDate"
+                value={field.value}
+                onChange={field.onChange}
+                disabled={statusLocked}
+              />
             )}
           />
         </Field>
@@ -105,7 +110,12 @@ export function InitiativeForm({
             control={control}
             name="endDate"
             render={({ field }) => (
-              <DatePicker id="endDate" value={field.value} onChange={field.onChange} />
+              <DatePicker
+                id="endDate"
+                value={field.value}
+                onChange={field.onChange}
+                disabled={statusLocked}
+              />
             )}
           />
         </Field>
@@ -126,6 +136,7 @@ export function InitiativeForm({
               value={field.value || null}
               onChange={(v) => field.onChange(v ?? "")}
               placeholder="Elegir director"
+              disabled={statusLocked}
             />
           )}
         />
@@ -145,6 +156,7 @@ export function InitiativeForm({
               value={field.value}
               onChange={field.onChange}
               placeholder="Elegir codirectores (opcional)"
+              disabled={statusLocked}
             />
           )}
         />
@@ -160,10 +172,16 @@ export function InitiativeForm({
               value={field.value}
               onChange={field.onChange}
               placeholder="Elegir equipo"
+              disabled={statusLocked}
             />
           )}
         />
       </Field>
+      {statusLocked && (
+        <p className="text-ui-xs text-ink-3">
+          Una iniciativa finalizada no permite cambiar el equipo, la dirección ni las fechas.
+        </p>
+      )}
       {statusLocked ? (
         <Field label="Estado" htmlFor="status-locked">
           <Input type="hidden" {...register("status")} />

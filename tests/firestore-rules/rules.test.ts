@@ -775,6 +775,25 @@ describe("firestore.rules — initiative direction branch", () => {
       }),
     );
   });
+  it("locks the roster once finalReport is filed (even Admin)", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), {
+        roster: { directorId: "m2", coDirectorIds: [], teamIds: [] },
+      }),
+    );
+  });
+  it("locks start/end dates once finalReport is filed (even Admin)", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), {
+        startDate: new Date("2026-01-01T00:00:00Z"),
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), {
+        endDate: new Date("2026-02-01T00:00:00Z"),
+      }),
+    );
+  });
   it("still allows title edits on a completed initiative", async () => {
     await assertSucceeds(
       updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), { title: "Done (renombrado)" }),
