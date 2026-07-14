@@ -8,7 +8,7 @@ const ALLY: Ally = {
   id: "a1",
   companyName: "ACME",
   contactPerson: "Ana Lopez",
-  phone: "1",
+  phone: "70012345",
   email: "a@b.co",
   logoUrl: null,
   category: null,
@@ -78,7 +78,7 @@ describe("AllyForm", () => {
     render(<AllyForm submitLabel="Crear" onSubmit={onSubmit} />);
     await userEvent.type(screen.getByLabelText(/empresa/i), "Acme Bolivia");
     await userEvent.type(screen.getByLabelText(/encargado/i), "Ana Pérez");
-    await userEvent.type(screen.getByLabelText(/teléfono/i), "777");
+    await userEvent.type(screen.getByLabelText(/teléfono/i), "70012345");
     await userEvent.type(screen.getByLabelText(/correo/i), "contacto@acme.bo");
     await userEvent.click(screen.getByRole("button", { name: /crear/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -86,7 +86,7 @@ describe("AllyForm", () => {
       expect.objectContaining({
         companyName: "Acme Bolivia",
         contactPerson: "Ana Pérez",
-        phone: "777",
+        phone: "70012345",
         email: "contacto@acme.bo",
       }),
     );

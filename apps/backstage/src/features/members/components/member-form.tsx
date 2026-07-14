@@ -170,7 +170,14 @@ export function MemberForm({
           </Select>
         </Field>
         <Field label="Teléfono" htmlFor="phone" error={errors.phone?.message}>
-          <Input id="phone" {...register("phone")} />
+          <Input
+            id="phone"
+            inputMode="numeric"
+            maxLength={8}
+            autoComplete="tel-national"
+            placeholder="8 dígitos"
+            {...register("phone")}
+          />
         </Field>
         <Field label="Profesión" htmlFor="profession" error={errors.profession?.message}>
           <Input id="profession" {...register("profession")} />

@@ -4,7 +4,7 @@ import { allySchema } from "./ally-schema";
 const valid = {
   companyName: "Acme Bolivia",
   contactPerson: "Ana Pérez",
-  phone: "777",
+  phone: "70012345",
   email: "contacto@acme.bo",
 };
 
@@ -23,6 +23,10 @@ describe("allySchema", () => {
 
   it("rejects an empty phone", () => {
     expect(allySchema.safeParse({ ...valid, phone: "" }).success).toBe(false);
+  });
+
+  it("rejects a phone that is not 8 digits", () => {
+    expect(allySchema.safeParse({ ...valid, phone: "777" }).success).toBe(false);
   });
 
   it("rejects an invalid email", () => {

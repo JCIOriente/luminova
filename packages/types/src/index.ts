@@ -24,6 +24,12 @@ export type { Position, PositionCategory, TermPositions } from "./position.js";
 export { POSITION_CATEGORIES, positionTitle, currentTermKey, femaleTitle } from "./position.js";
 export { positionSchema, type PositionInput } from "./position-schema.js";
 export { memberSchema, type MemberInput } from "./member-schema.js";
+export {
+  BOLIVIA_PHONE_LENGTH,
+  isBoliviaPhone,
+  boliviaPhoneRequired,
+  boliviaPhoneOptional,
+} from "./phone.js";
 export type { Ally } from "./ally.js";
 export { allySchema, type AllyInput } from "./ally-schema.js";
 export type { Lead, LeadIntent, LeadStatus } from "./lead.js";
