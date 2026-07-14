@@ -260,11 +260,12 @@ type InitiativeStatus = 'Planificacion' | 'EnEjecucion' | 'Finalizado'
 
 > **Initiative lock:** once `finalReport` is filed (the initiative is Finalizado /
 > closed), `firestore.rules` `initiativeWriteSafe()` pins `finalReport`, `status`,
-> `impact`, `roster`, `startDate` and `endDate` — a closed initiative's direction,
-> team and dates can no longer change (they'd desync the confirmed participation
-> rows, which only re-derive at the null→set `finalReport` transition). The
-> backstage initiative-form disables those fields when finalized; keep the two sets
-> in lockstep.
+> `impact`, `roster`, `startDate` and `endDate`. The `roster` (direction + team) is
+> locked because it drives the confirmed participation rows, which only re-derive at
+> the null→set `finalReport` transition — a post-close roster edit would silently
+> change the implied point recipients. `startDate`/`endDate` are frozen as the
+> historical record of a completed initiative. The backstage initiative-form
+> disables those fields when finalized; keep the two sets in lockstep.
 
 ### activities/{activityId}
 
