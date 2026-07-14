@@ -30,6 +30,18 @@ const positions: Position[] = [
     active: true,
     deletedAt: null,
   },
+  {
+    id: "pos-jdl",
+    title: "Director de Área",
+    titleFemale: "Directora de Área",
+    category: "JDL",
+    grants: [],
+    term: null,
+    sigla: null,
+    description: "Dirige un área.",
+    active: true,
+    deletedAt: null,
+  },
 ];
 
 const comisionWithSigla: Position = {
@@ -66,10 +78,10 @@ describe("MemberForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("renders the gender select and requires it on submit", async () => {
+  it("renders the gender toggle and requires it on submit", async () => {
     const onSubmit = vi.fn();
     render(<MemberForm positions={[]} submitLabel="Crear" onSubmit={onSubmit} />);
-    expect(screen.getByLabelText("Género *")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Género" })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/nombre/i), "Ana Pérez");
     await userEvent.type(screen.getByLabelText(/correo/i), "ana@jci.bo");
     await pickDate(/fecha de ingreso/i, "2020-03-15");
@@ -81,7 +93,7 @@ describe("MemberForm", () => {
 
   it("shows gendered cargo labels and excludes comisiones from the cargo options", async () => {
     render(<MemberForm positions={positions} submitLabel="Crear" onSubmit={vi.fn()} />);
-    await userEvent.selectOptions(screen.getByLabelText("Género *"), "Femenino");
+    await userEvent.click(screen.getByRole("button", { name: "Femenino" }));
     await userEvent.click(screen.getByLabelText("Cargo"));
     expect(await screen.findByText("Presidenta")).toBeInTheDocument();
     expect(screen.queryByText("Comisión de Eventos")).not.toBeInTheDocument();
@@ -92,11 +104,11 @@ describe("MemberForm", () => {
     render(<MemberForm positions={positions} submitLabel="Crear" onSubmit={onSubmit} />);
     await userEvent.type(screen.getByLabelText(/nombre/i), "Ana Pérez");
     await userEvent.type(screen.getByLabelText(/correo/i), "ana@jci.bo");
-    await userEvent.selectOptions(screen.getByLabelText("Género *"), "Femenino");
+    await userEvent.click(screen.getByRole("button", { name: "Femenino" }));
     await pickDate(/fecha de ingreso/i, "2020-03-15");
     await pickDate(/fecha de nacimiento/i, "1992-07-15");
     await userEvent.click(screen.getByLabelText("Cargo"));
-    await userEvent.click(await screen.findByText("Presidenta"));
+    await userEvent.click(await screen.findByText("Directora de Área"));
     await userEvent.click(screen.getByLabelText("Comisiones (pertenece a)"));
     await userEvent.click(await screen.findByText("Comisión de Eventos"));
     await userEvent.click(screen.getByRole("button", { name: /crear/i }));
@@ -109,9 +121,28 @@ describe("MemberForm", () => {
         joinDate: "2020-03-15",
         birthdate: "1992-07-15",
         status: "Activo",
-        cargoId: "pos-pres",
+        cargoId: "pos-jdl",
         comisionIds: ["pos-eventos"],
       }),
+    );
+  });
+
+  it("locks comisiones as Comité Ejecutivo Local and clears them for a CEL cargo", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<MemberForm positions={positions} submitLabel="Crear" onSubmit={onSubmit} />);
+    await userEvent.type(screen.getByLabelText(/nombre/i), "Ana Pérez");
+    await userEvent.type(screen.getByLabelText(/correo/i), "ana@jci.bo");
+    await userEvent.click(screen.getByRole("button", { name: "Femenino" }));
+    await pickDate(/fecha de ingreso/i, "2020-03-15");
+    await pickDate(/fecha de nacimiento/i, "1992-07-15");
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    await userEvent.click(await screen.findByText("Presidenta"));
+    expect(screen.getByText("Comité Ejecutivo Local")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Comisiones (pertenece a)")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /crear/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ cargoId: "pos-pres", comisionIds: [] }),
     );
   });
 

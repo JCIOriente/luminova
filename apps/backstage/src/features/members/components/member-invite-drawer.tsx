@@ -20,6 +20,7 @@ interface DoneState {
   provisioned: boolean;
   emailSent: boolean;
   actionLink: string | null;
+  errorDetail: string | null;
 }
 
 function today(): string {
@@ -66,11 +67,13 @@ export function MemberInviteDrawer({
     let provisioned = false;
     let emailSent = false;
     let actionLink: string | null = null;
+    let errorDetail: string | null = null;
     if (sendAccess) {
       // The member is already created; if provisioning fails, fall through to the
       // done screen with provisioned=false ("aún no tiene acceso, invítalo desde su
       // fila") instead of throwing — a thrown error reads as a create failure and
-      // would invite a duplicate-create retry.
+      // would invite a duplicate-create retry. Surface the real cause (App Check,
+      // quota, config) instead of swallowing it — this is the only diagnostic we get.
       try {
         const result = await onProvision(id);
         provisioned = true;
@@ -78,14 +81,23 @@ export function MemberInviteDrawer({
         try {
           await requestPasswordReset(data.email);
           emailSent = true;
-        } catch {
-          emailSent = false;
+        } catch (err) {
+          console.error("No se pudo enviar el correo de acceso", err);
+          errorDetail = err instanceof Error ? err.message : String(err);
         }
-      } catch {
-        provisioned = false;
+      } catch (err) {
+        console.error("No se pudo aprovisionar el acceso del miembro", err);
+        errorDetail = err instanceof Error ? err.message : String(err);
       }
     }
-    setDone({ name: data.name, email: data.email, provisioned, emailSent, actionLink });
+    setDone({
+      name: data.name,
+      email: data.email,
+      provisioned,
+      emailSent,
+      actionLink,
+      errorDetail,
+    });
   };
 
   return (
@@ -111,6 +123,9 @@ export function MemberInviteDrawer({
               <p role="alert" className="text-ui-md text-error">
                 El correo no se pudo enviar. Comparte el enlace de acceso manualmente.
               </p>
+              {done.errorDetail && (
+                <p className="text-ui-xs text-ink-3">Detalle: {done.errorDetail}</p>
+              )}
               <Button
                 as="button"
                 type="button"
@@ -132,9 +147,14 @@ export function MemberInviteDrawer({
               )}
             </>
           ) : (
-            <p className="text-ui-md text-ink-2">
-              Aún no tiene acceso a la app. Podrás invitarlo desde el menú de su fila.
-            </p>
+            <>
+              <p className="text-ui-md text-ink-2">
+                Aún no tiene acceso a la app. Podrás invitarlo desde el menú de su fila.
+              </p>
+              {done.errorDetail && (
+                <p className="text-ui-xs text-ink-3">Detalle: {done.errorDetail}</p>
+              )}
+            </>
           )}
           <div className="flex flex-col gap-3">
             <Button as="button" type="button" onClick={reset} className="w-full justify-center">
