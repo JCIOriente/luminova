@@ -10,13 +10,18 @@ interface SegmentedControlProps<T extends string> {
   options: readonly SegmentedOption<T>[];
   value: T;
   onChange: (value: T) => void;
+  id?: string;
   "aria-label"?: string;
+  "aria-labelledby"?: string;
+  "aria-required"?: boolean;
   className?: string;
 }
 
 /**
  * Single-select pill toggle group (e.g. period/view filters). Controlled:
  * pass `value` + `onChange`. For navigational tabs that change route, use links.
+ * Pass `id` + `aria-label`/`aria-labelledby` (+ `aria-required`) when it stands in
+ * for a labeled form control so the group is named and its required state exposed.
  */
 export function SegmentedControl<T extends string>({
   options,
@@ -26,11 +31,7 @@ export function SegmentedControl<T extends string>({
   ...rest
 }: SegmentedControlProps<T>) {
   return (
-    <div
-      role="group"
-      aria-label={rest["aria-label"]}
-      className={cn("inline-flex gap-2", className)}
-    >
+    <div role="group" className={cn("inline-flex gap-2", className)} {...rest}>
       {options.map((opt) => {
         const active = opt.value === value;
         return (

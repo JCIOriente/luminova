@@ -72,7 +72,7 @@ export function AllyForm({
         <Input
           id="phone"
           inputMode="numeric"
-          maxLength={8}
+          maxLength={16}
           autoComplete="tel-national"
           placeholder="8 dígitos"
           {...register("phone")}

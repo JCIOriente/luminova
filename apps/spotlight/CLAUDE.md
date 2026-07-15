@@ -15,7 +15,7 @@ Public-facing marketing website for JCI Oriente. No authentication. No Firebase 
 | `impacto.index.tsx` | `/impacto` | Completed-work showcase: featured band + area-filtered archive (single `showcase` fetch) |
 | `impacto.$id.tsx` | `/impacto/$id` | Showcase detail; "Programa anual" chip when `kind === "Program"` |
 | `programas.index.tsx` | `/programas` | Redirect → `/impacto` (legacy URL) |
-| `enlaces.tsx` | `/enlaces` | Linktree |
+| `linktree.tsx` | `/linktree` | Linktree |
 | `privacidad.tsx` / `terminos.tsx` | `/privacidad` `/terminos` | Legal |
 
 ## Key Content

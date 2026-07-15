@@ -74,6 +74,7 @@ export function MemberForm({
     control,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<MemberInput>({
     resolver: zodResolver(memberSchema),
@@ -84,8 +85,10 @@ export function MemberForm({
   const currentCargoId = watch("cargoId");
   const currentComisionIds = watch("comisionIds");
   // A member whose cargo is a CEL position belongs to the Comité Ejecutivo Local, not a
-  // comisión. Show that as a locked chip (derived from the cargo — never persisted to
-  // comisionIds; the submit handler clears them).
+  // comisión. Show that as a locked chip (derived from the cargo). comisionIds is cleared
+  // only when the user actively switches TO a CEL cargo (see the Cargo onChange) — never
+  // force-cleared at submit, so a bio edit of a legacy CEL member with stored comisiones
+  // doesn't trigger a positions write the editor may not be allowed to make.
   const isExecutiveCommitteeCargo =
     positions.find((p) => p.id === currentCargoId)?.category === "CEL";
   const term = currentTermKey();
@@ -131,10 +134,8 @@ export function MemberForm({
 
   const submit = handleSubmit(async (data) => {
     setFormError(null);
-    // CEL membership is derived from the cargo, never stored as a comisión.
-    const payload = isExecutiveCommitteeCargo ? { ...data, comisionIds: [] } : data;
     try {
-      await onSubmit(payload);
+      await onSubmit(data);
     } catch {
       setFormError("No se pudo guardar. Intenta de nuevo.");
     }
@@ -173,7 +174,9 @@ export function MemberForm({
             name="gender"
             render={({ field }) => (
               <SegmentedControl
+                id="gender"
                 aria-label="Género"
+                aria-required
                 options={MEMBER_GENDERS.map((g) => ({ value: g as string, label: g }))}
                 value={field.value ?? ""}
                 onChange={field.onChange}
@@ -185,7 +188,7 @@ export function MemberForm({
           <Input
             id="phone"
             inputMode="numeric"
-            maxLength={8}
+            maxLength={16}
             autoComplete="tel-national"
             placeholder="8 dígitos"
             {...register("phone")}
@@ -221,7 +224,14 @@ export function MemberForm({
                 id="cargoId"
                 options={cargoOptions}
                 value={field.value}
-                onChange={field.onChange}
+                onChange={(v) => {
+                  field.onChange(v);
+                  // Switching to a CEL cargo drops any picked comisiones (CEL members
+                  // belong to the Comité Ejecutivo Local, not a comisión).
+                  if (positions.find((p) => p.id === v)?.category === "CEL") {
+                    setValue("comisionIds", []);
+                  }
+                }}
                 placeholder="Sin cargo"
                 disabled={positionsLocked}
               />
