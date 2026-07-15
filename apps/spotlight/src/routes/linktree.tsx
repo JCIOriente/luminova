@@ -4,6 +4,7 @@ import { Icon, LogoLockup, RippleBackground } from "@luminova/ui";
 import type { LinktreeIcon, LinktreeSocialPlatform } from "@luminova/types";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { safeHref } from "../site-config/safe-href";
+import { useInstallPrompt } from "../hooks/use-install-prompt";
 
 export const Route = createFileRoute("/linktree")({
   component: LinktreePage,
@@ -57,6 +58,7 @@ const cardBase: React.CSSProperties = {
 
 export function LinktreePage() {
   const config = useSiteConfig();
+  const { canInstall, promptInstall } = useInstallPrompt();
   const linktree = config.linktree;
   if (!linktree) return null;
   const links = linktree.links.filter((l) => l.active);
@@ -186,6 +188,34 @@ export function LinktreePage() {
             );
           })}
         </nav>
+
+        {canInstall ? (
+          <button
+            type="button"
+            onClick={promptInstall}
+            className="text-ui-md"
+            style={{
+              marginTop: 14,
+              width: "100%",
+              padding: "15px 20px",
+              borderRadius: 16,
+              border: "1px dashed rgba(255,255,255,0.35)",
+              background: "transparent",
+              color: "var(--jci-white)",
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+            }}
+          >
+            <span aria-hidden="true" style={{ display: "grid", placeItems: "center" }}>
+              {Icon.download({ s: 19 })}
+            </span>
+            Instalar app
+          </button>
+        ) : null}
 
         <div style={{ marginTop: 32, display: "flex", gap: 14, justifyContent: "center" }}>
           {linktree.socials
