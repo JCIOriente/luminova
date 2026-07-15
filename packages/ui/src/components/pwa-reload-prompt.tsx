@@ -12,6 +12,8 @@ interface PWAReloadPromptProps {
   onDismiss: () => void;
 }
 
+const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jci-white/70";
+
 /**
  * Presentational PWA update / offline-ready prompt. State comes from the app's
  * `useRegisterSW` (the `virtual:pwa-register/react` module is app-scoped and
@@ -26,50 +28,37 @@ export function PWAReloadPrompt({
 }: PWAReloadPromptProps) {
   if (!needRefresh && !offlineReady) return null;
 
-  if (needRefresh) {
-    return (
-      <Toast
-        message={
-          <span className="flex items-center gap-3">
-            Nueva versión disponible
+  return (
+    <Toast
+      message={
+        <span className="flex items-center gap-3">
+          {needRefresh ? "Nueva versión disponible" : "La app está lista para usarse sin conexión"}
+          {needRefresh && (
             <button
               type="button"
               onClick={onReload}
               className={cn(
                 "rounded-pill bg-jci-white px-3.5 py-1.5 text-[13px] font-semibold text-jci-black",
                 "transition-colors hover:bg-jci-white/90",
+                focusRing,
               )}
             >
               Recargar
             </button>
-            <DismissButton onDismiss={onDismiss} />
-          </span>
-        }
-      />
-    );
-  }
-
-  return (
-    <Toast
-      message={
-        <span className="flex items-center gap-3">
-          La app está lista para usarse sin conexión
-          <DismissButton onDismiss={onDismiss} />
+          )}
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Cerrar"
+            className={cn(
+              "rounded text-on-dark-3 transition-colors hover:text-jci-white",
+              focusRing,
+            )}
+          >
+            Cerrar
+          </button>
         </span>
       }
     />
-  );
-}
-
-function DismissButton({ onDismiss }: { onDismiss: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onDismiss}
-      aria-label="Cerrar"
-      className="text-on-dark-3 transition-colors hover:text-jci-white"
-    >
-      Cerrar
-    </button>
   );
 }

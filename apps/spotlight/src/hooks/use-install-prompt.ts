@@ -1,39 +1,60 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   readonly userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-/**
- * Captures the Chromium `beforeinstallprompt` event so a page can offer its own
- * "install" affordance. `canInstall` is false where the event never fires
- * (iOS Safari, or when the app is already installed), so callers render the
- * button only when a real prompt is available.
- */
-export function useInstallPrompt() {
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
+// Module-scope capture: `beforeinstallprompt` fires once per page load, often
+// before the (code-split) page that shows the install button has mounted. A
+// component-scoped listener would miss it and lose it on unmount, so we stash
+// the event here and register the listener at import time. main.tsx imports this
+// module eagerly so the listener is attached before the event can fire.
+let deferredPrompt: BeforeInstallPromptEvent | null = null;
+const listeners = new Set<() => void>();
 
-  useEffect(() => {
-    const onPrompt = (event: Event) => {
-      event.preventDefault();
-      setDeferred(event as BeforeInstallPromptEvent);
-    };
-    const onInstalled = () => setDeferred(null);
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
-  }, []);
+function notify() {
+  for (const listener of listeners) listener();
+}
 
-  const promptInstall = async () => {
-    if (!deferred) return;
-    await deferred.prompt();
-    await deferred.userChoice;
-    setDeferred(null);
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredPrompt = event as BeforeInstallPromptEvent;
+    notify();
+  });
+  window.addEventListener("appinstalled", () => {
+    deferredPrompt = null;
+    notify();
+  });
+}
+
+function subscribe(onChange: () => void) {
+  listeners.add(onChange);
+  return () => {
+    listeners.delete(onChange);
   };
+}
 
-  return { canInstall: deferred !== null, promptInstall };
+async function promptInstall() {
+  const event = deferredPrompt;
+  if (!event) return;
+  // Clear before awaiting: prompt() is single-use, so a second click must be a
+  // no-op rather than reject on the consumed event.
+  deferredPrompt = null;
+  notify();
+  try {
+    await event.prompt();
+  } catch {
+    // Browser already consumed or dismissed the prompt — nothing to recover.
+  }
+}
+
+export function useInstallPrompt() {
+  const canInstall = useSyncExternalStore(
+    subscribe,
+    () => deferredPrompt !== null,
+    () => false,
+  );
+  return { canInstall, promptInstall };
 }

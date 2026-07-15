@@ -7,6 +7,9 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { NotFound } from "./components/not-found";
+// Eager import: registers the beforeinstallprompt listener at startup so the
+// event isn't missed before the (lazy) /linktree page mounts.
+import "./hooks/use-install-prompt";
 
 const router = createRouter({
   routeTree,

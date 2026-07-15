@@ -193,7 +193,7 @@ export function LinktreePage() {
           <button
             type="button"
             onClick={promptInstall}
-            className="text-ui-md"
+            className="lt-link text-ui-md"
             style={{
               marginTop: 14,
               width: "100%",
