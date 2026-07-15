@@ -30,10 +30,7 @@ export function AreaCard({
       <h3 className="t-h4" style={{ margin: 0 }}>
         {title}
       </h3>
-      <p
-        className="t-body"
-        style={{ margin: 0, color: "var(--ink-2)", fontSize: 15, lineHeight: 1.55 }}
-      >
+      <p className="text-ui-lg" style={{ margin: 0, color: "var(--ink-2)", lineHeight: 1.55 }}>
         {description}
       </p>
     </article>

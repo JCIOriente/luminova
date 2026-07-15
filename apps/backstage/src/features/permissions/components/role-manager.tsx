@@ -30,7 +30,7 @@ export function RoleManager() {
 
   return (
     <section className="flex flex-col gap-4">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-ui-lg font-semibold text-ink-1">Roles</h2>
           <p className="text-ui-sm text-ink-3">

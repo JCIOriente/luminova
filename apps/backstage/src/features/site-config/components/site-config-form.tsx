@@ -85,7 +85,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
   const err = (message: string | undefined) => (attempted ? message : undefined);
 
   return (
-    <form noValidate onSubmit={submit} className="flex flex-col gap-4 pb-28">
+    <form noValidate onSubmit={submit} className="flex flex-col gap-4">
       <CollapsibleSection
         num="01"
         icon={Icon.megaphone({ s: 18 })}
@@ -601,8 +601,8 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
         </div>
       </CollapsibleSection>
 
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
+      <div className="sticky bottom-0 z-10 border-t border-line bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5 text-ui-sm">
             <span
               className={cn(

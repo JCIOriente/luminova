@@ -16,6 +16,9 @@ export interface DataTableColumn<T> {
   cell: (row: T) => ReactNode;
   sortValue?: (row: T) => string | number;
   sortable?: boolean;
+  /** Applied to both the TableHead and TableCell — e.g. `hidden md:table-cell`
+   *  to drop low-priority columns on narrow viewports. */
+  className?: string;
 }
 
 export interface FilterChip {
@@ -186,7 +189,11 @@ export function DataTable<T>({
                     ? "ascending"
                     : "descending";
                 return (
-                  <TableHead key={column.id} aria-sort={isSortable ? ariaSort : undefined}>
+                  <TableHead
+                    key={column.id}
+                    aria-sort={isSortable ? ariaSort : undefined}
+                    className={column.className}
+                  >
                     {isSortable ? (
                       <button
                         type="button"
@@ -227,7 +234,7 @@ export function DataTable<T>({
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={`skeleton-${i}`}>
                   {columns.map((column) => (
-                    <TableCell key={column.id}>
+                    <TableCell key={column.id} className={column.className}>
                       <Skeleton className="h-4 w-3/4" />
                     </TableCell>
                   ))}
@@ -258,7 +265,9 @@ export function DataTable<T>({
                   className={onRowClick ? "cursor-pointer" : undefined}
                 >
                   {columns.map((column) => (
-                    <TableCell key={column.id}>{column.cell(row)}</TableCell>
+                    <TableCell key={column.id} className={column.className}>
+                      {column.cell(row)}
+                    </TableCell>
                   ))}
                   {rowActions && (
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>

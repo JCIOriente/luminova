@@ -117,7 +117,10 @@ export function CompletionWizard({
 
           <div className="flex flex-col gap-3">
             {fields.map((f, i) => (
-              <div key={f.id} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+              <div
+                key={f.id}
+                className="grid grid-cols-[1fr_auto] items-end gap-2 sm:grid-cols-[1fr_1fr_auto]"
+              >
                 <Field
                   label="Etiqueta"
                   htmlFor={`custom-label-${i}`}
@@ -125,17 +128,20 @@ export function CompletionWizard({
                 >
                   <Input id={`custom-label-${i}`} {...register(`custom.${i}.label`)} />
                 </Field>
-                <Field
-                  label="Valor"
-                  htmlFor={`custom-value-${i}`}
-                  error={errors.custom?.[i]?.value?.message}
-                >
-                  <Input id={`custom-value-${i}`} {...register(`custom.${i}.value`)} />
-                </Field>
+                <div className="col-span-2 sm:col-span-1">
+                  <Field
+                    label="Valor"
+                    htmlFor={`custom-value-${i}`}
+                    error={errors.custom?.[i]?.value?.message}
+                  >
+                    <Input id={`custom-value-${i}`} {...register(`custom.${i}.value`)} />
+                  </Field>
+                </div>
                 <Button
                   as="button"
                   type="button"
                   variant="ghost"
+                  className="col-start-2 row-start-1 sm:col-start-auto sm:row-start-auto"
                   onClick={() => remove(i)}
                   aria-label={`Quitar métrica ${i + 1}`}
                 >

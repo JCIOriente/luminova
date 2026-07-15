@@ -31,7 +31,7 @@ export function SegmentedControl<T extends string>({
   ...rest
 }: SegmentedControlProps<T>) {
   return (
-    <div role="group" className={cn("inline-flex gap-2", className)} {...rest}>
+    <div role="group" className={cn("inline-flex flex-wrap gap-2", className)} {...rest}>
       {options.map((opt) => {
         const active = opt.value === value;
         return (

@@ -35,7 +35,7 @@ function Detail({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-ui-xs font-medium tracking-[0.02em] text-ink-3 uppercase">{label}</dt>
-      <dd className="text-ui-lg text-ink-1">{value}</dd>
+      <dd className="text-ui-lg break-words text-ink-1">{value}</dd>
     </div>
   );
 }
@@ -65,7 +65,7 @@ function ViewBody({
         </div>
       </div>
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-5">
+      <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-5">
         <Detail label="Correo" value={member.email} />
         <Detail label="Cargo" value={memberPositionLabel(member, positionsById, termKey)} />
         <Detail label="Teléfono" value={member.phone || "—"} />

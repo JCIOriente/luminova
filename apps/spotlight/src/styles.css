@@ -374,6 +374,7 @@
     display: flex;
     flex-direction: column;
     padding: 32px 24px;
+    overflow-y: auto;
     animation: navIn 200ms ease-out;
   }
   @keyframes navIn {
@@ -636,7 +637,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 56px;
+    gap: clamp(24px, 5vw, 56px);
     flex-wrap: wrap;
   }
   .ally-card {
@@ -644,7 +645,7 @@
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    width: 160px;
+    flex: 0 1 min(160px, 40vw);
     margin: 0;
   }
   .ally-logo {
@@ -773,6 +774,10 @@
     padding-top: 32px;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
   }
+  /* Two-stat variant — must precede the mobile query so 1fr still wins there. */
+  .mini-stats-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
   @media (max-width: 720px) {
     .mini-stats {
       grid-template-columns: 1fr;
@@ -870,7 +875,7 @@
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-card);
-    padding: 40px;
+    padding: clamp(20px, 5vw, 40px);
   }
   .contact-row {
     display: flex;
@@ -951,7 +956,9 @@
       scroll-snap-type: x mandatory;
     }
     .program-grid {
-      grid-template-columns: repeat(5, 78%);
+      grid-template-columns: none;
+      grid-auto-flow: column;
+      grid-auto-columns: 78%;
       gap: 16px;
     }
     .program-grid > * {
@@ -1251,7 +1258,8 @@
     }
   }
   .showcase-detail-area {
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 6px 12px;
     padding: 9px 16px;
     border: 1px solid rgba(255, 255, 255, 0.24);
     border-radius: var(--radius-pill);
@@ -1288,7 +1296,8 @@
   .showcase-detail-dates {
     display: inline-flex;
     align-items: center;
-    gap: 14px;
+    flex-wrap: wrap;
+    gap: 6px 14px;
     margin: 30px 0 0;
     font-family: var(--font-sans);
     font-variant-numeric: tabular-nums;
@@ -1462,6 +1471,12 @@
   .gallery-item:hover .gallery-caption,
   .gallery-item:focus-within .gallery-caption {
     opacity: 1;
+  }
+  /* Touch devices never hover — keep captions visible. */
+  @media (hover: none) {
+    .gallery-caption {
+      opacity: 1;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .gallery-item img,
@@ -1667,6 +1682,11 @@
     font-family: var(--font-serif);
     font-size: clamp(20px, 2.4vw, 26px);
     color: var(--ink-3);
+  }
+  /* Detail loading/error render on the dark hero backdrop (nav stays legible). */
+  .bg-dark .showcase-detail-loading,
+  .bg-dark .showcase-empty {
+    color: var(--color-on-dark-3);
   }
 
   /* /enlaces linktree cards */

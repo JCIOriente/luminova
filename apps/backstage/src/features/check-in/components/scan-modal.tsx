@@ -14,8 +14,8 @@ export interface ScanResult {
 
 const SCAN_STYLES: Record<ScanStatus, string> = {
   pending: "bg-ink-1/85",
-  success: "bg-emerald-500/95",
-  duplicate: "bg-amber-500/95",
+  success: "bg-ok/95",
+  duplicate: "bg-warn/95",
   error: "bg-error/95",
 };
 

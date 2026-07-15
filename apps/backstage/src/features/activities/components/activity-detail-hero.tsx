@@ -47,7 +47,7 @@ export function ActivityDetailHero({ activity, parentTitle, actions }: ActivityD
       </div>
 
       <div className="flex flex-col gap-3 px-5 pt-4 pb-5">
-        <div className="flex items-start gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
           <div className="flex flex-1 flex-col gap-1.5">
             <span className="flex items-center gap-1.5 font-mono text-ui-2xs tracking-[0.12em] text-ink-3 uppercase">
               <span
