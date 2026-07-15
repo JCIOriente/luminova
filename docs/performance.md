@@ -14,20 +14,29 @@ Claude follows on every change** so the apps stay fast.
 
 ## 1. Current state
 
-Baseline measured on `main` (gzip transfer sizes unless noted):
+Measured with `gzip -c` (the tool the CI gate uses) unless noted. **Eager JS** is
+the honest metric: the entry `<script>` **plus** every `<link rel="modulepreload">`
+in the built `dist/index.html`, summed — not just `index-*.js`. Rolldown hoists
+chunks out of `index` and modulepreloads them separately (spotlight's firebase
+`site-data` chunk, backstage's `icons` chunk), so an `index`-only number
+understates what the browser fetches before paint.
 
 | Lever | spotlight | backstage |
 |-------|-----------|-----------|
-| Initial JS (`index-*.js`) | **94 kB gz** | **99.7 kB gz** |
-| Initial CSS (`index-*.css`) | 13.4 kB gz | 12.5 kB gz |
-| Largest route chunk | `about` 21 kB gz | `_app` 8 kB gz |
-| Firebase SDK | `firestore-lite` + `app-check` ~46 kB gz, **lazy** (data routes only) | full SDK in the `index` shell |
+| **Eager JS** (entry + modulepreloads) | **104 kB gz** | **278 kB gz** (icons chunk preloaded — PR2) |
+| — of which `index-*.js` | 99 kB gz | 99 kB gz |
+| Initial CSS (`index-*.css`) | 14.5 kB gz | 13 kB gz |
+| Largest route chunk | `contact` 20 kB gz | `_app` 8 kB gz |
+| Firebase SDK | `firestore-lite` + `app-check` ~38 kB gz `site-data` chunk, **fully async** (loads after paint on every route) | full SDK in the `index` shell |
 | Fonts (woff2, self-hosted, latin only) | Jakarta 26 kB + Arvo reg/italic 16 kB ea. | none (system-ui — fastest) |
 
 What's already in place (don't redo these):
 
 - **Firebase lite SDK** on spotlight via `@luminova/firebase/lite` — read-only `getFirestoreLite()`,
-  split into its own lazy chunk (378 kB→40 kB gz public firebase).
+  split into its own async `site-data` chunk (378 kB→~38 kB gz public firebase). `useSiteConfig`
+  **dynamic-imports** the firestore reader inside its effect, so the shell (`Footer`) no longer drags
+  firebase + App Check into the eager graph — it loads off the critical path, after first paint.
+  This dropped spotlight eager JS from **140 kB → 104 kB gz** (−36 kB).
 - **Latin-only self-hosted fonts** + `font-display: swap`; the above-the-fold sans woff2 is
   **preloaded** by the `preloadJakartaLatin()` Vite plugin in `apps/spotlight/vite.config.ts`.
 - **Route + SDK code-splitting** — TanStack `autoCodeSplitting: true`; each route is its own chunk.
@@ -37,7 +46,7 @@ What's already in place (don't redo these):
   LCP on spotlight is hero **text** (no raster hero) → gated by font+CSS, which the preload covers.
 - **Immutable asset caching + preconnect** — `firebase.json` pins `/assets/**` to
   `public, max-age=31536000, immutable` and HTML/routes to `no-cache`; both apps `preconnect` to the
-  Firebase origins they hit (Storage on spotlight; auth + Firestore + Storage on backstage).
+  Firebase origins they hit (Firestore + Storage on spotlight; auth + Firestore + Storage on backstage).
 
 ---
 
@@ -52,19 +61,21 @@ What's already in place (don't redo these):
 | **CLS** (Cumulative Layout Shift) | < 0.1 | `aspect-ratio`/`width`+`height` on media, reserved space |
 | **INP** (Interaction to Next Paint) | < 200 ms | code-split, lazy heavy components, small main-thread bundle |
 
-**Bundle budgets** (gzip). The **initial JS/CSS budgets are a hard CI gate** —
+**Bundle budgets** (gzip). The **eager-JS + initial-CSS budgets are a hard CI gate** —
 `tools/scripts/check-bundle-budget.sh` runs in the CI `checks` job (see `docs/ci-cd.md`
-section 2) and fails on any breach. The route-chunk and new-dep lines are not
+section 2) and fails on any breach. The gate sums **eager JS** (entry `<script>` +
+every `modulepreload` in the built `index.html`), so it is no longer blind to
+chunks hoisted out of `index`. The route-chunk and new-dep lines are not
 machine-enforced yet — hold them by judgment + `bundle-budget-watcher`:
 
 | Budget | spotlight | backstage |
 |--------|-----------|-----------|
-| Initial JS (`index` chunk) | ≤ **100 kB gz** (now 94) | ≤ **115 kB gz** (now 99.7, monitor) |
-| Initial CSS | ≤ 15 kB gz (now 13.4) | ≤ 15 kB gz (now 12.5) |
+| Eager JS (entry + modulepreloads) | ≤ **108 kB gz** (now 104) | ≤ **285 kB gz** (now 278 — provisional, PR2 re-baselines after trimming the eager `icons` chunk) |
+| Initial CSS (`index` chunk) | ≤ 15 kB gz (now 14.5) | ≤ 15 kB gz (now 13) |
 | Any single route chunk | ≤ 40 kB gz | ≤ 40 kB gz |
-| New runtime dependency | justify if it adds > 10 kB gz to any initial chunk | same |
+| New runtime dependency | justify if it adds > 10 kB gz to eager JS | same |
 
-Breaching an initial-chunk budget fails CI. A deliberate breach means raising the budget **both**
+Breaching the eager-JS budget fails CI. A deliberate breach means raising the budget **both**
 here and in `tools/scripts/check-bundle-budget.sh` (the script hardcodes these numbers — keep the
 two in sync), as a conscious, noted decision in the PR with the `bundle-budget-watcher` report
 attached. Route-chunk/dep breaches aren't CI-blocked but need the same conscious note.
