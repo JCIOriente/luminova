@@ -107,7 +107,7 @@ export function OverviewView({
 
   const widgets: Record<Exclude<WidgetKey, "headerActions">, () => ReactNode> = {
     kpis: () => (
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           icon={Icon.user({ s: 20 })}
           tone="blue"

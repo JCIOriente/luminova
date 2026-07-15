@@ -78,7 +78,7 @@ export function InitiativeFilters({ filter, counts, onChange }: InitiativeFilter
           placeholder="Buscar…"
           value={filter.query}
           onChange={(e) => set({ query: e.target.value })}
-          className="ml-auto w-full max-w-[260px]"
+          className="w-full max-w-[260px] sm:ml-auto"
         />
       </div>
     </div>

@@ -44,17 +44,20 @@ const columns: DataTableColumn<Ally>[] = [
   {
     id: "contact",
     header: "Encargado",
+    className: "hidden md:table-cell",
     sortValue: (ally) => ally.contactPerson,
     cell: (ally) => <span className="text-ink-2">{ally.contactPerson}</span>,
   },
   {
     id: "phone",
     header: "Teléfono",
+    className: "hidden lg:table-cell",
     cell: (ally) => <span className="tabular-nums text-ink-2">{ally.phone}</span>,
   },
   {
     id: "email",
     header: "Correo",
+    className: "hidden lg:table-cell",
     cell: (ally) => <span className="text-ink-2">{ally.email}</span>,
   },
 ];

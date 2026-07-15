@@ -28,11 +28,18 @@ const THEME_OPTIONS: readonly { value: ThemePref; label: string }[] = [
   { value: "system", label: "Sistema" },
 ];
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  /** Off-canvas mobile drawer: always expanded, the header toggle closes it. */
+  drawer?: boolean;
+  onClose?: () => void;
+}
+
+export function AppSidebar({ drawer = false, onClose }: AppSidebarProps) {
   const navigate = useNavigate();
   const { user, claims } = useAuth();
   const ability = useAbility();
-  const collapsed = useSyncExternalStore(subscribe, getSidebarCollapsed, getSidebarCollapsed);
+  const collapsedPref = useSyncExternalStore(subscribe, getSidebarCollapsed, getSidebarCollapsed);
+  const collapsed = drawer ? false : collapsedPref;
   const theme = useSyncExternalStore(subscribe, getThemePref, getThemePref);
   const label = user?.email ?? "—";
 
@@ -54,15 +61,27 @@ export function AppSidebar() {
         className={`flex h-16 shrink-0 items-center border-b border-line ${collapsed ? "justify-center px-2" : "justify-between px-[18px]"}`}
       >
         {!collapsed && <LogoLockup size="sm" />}
-        <IconButton
-          as="button"
-          variant="subtle"
-          size="sm"
-          aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
-          onClick={() => setSidebarCollapsed(!collapsed)}
-        >
-          {Icon.sidebarLeft({ s: 20 })}
-        </IconButton>
+        {drawer ? (
+          <IconButton
+            as="button"
+            variant="subtle"
+            size="sm"
+            aria-label="Cerrar menú"
+            onClick={onClose}
+          >
+            {Icon.close({ s: 20 })}
+          </IconButton>
+        ) : (
+          <IconButton
+            as="button"
+            variant="subtle"
+            size="sm"
+            aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
+            onClick={() => setSidebarCollapsed(!collapsed)}
+          >
+            {Icon.sidebarLeft({ s: 20 })}
+          </IconButton>
+        )}
       </div>
 
       <nav className="scroll flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
@@ -77,6 +96,7 @@ export function AppSidebar() {
               const link = (
                 <Link
                   to={item.to}
+                  onClick={drawer ? onClose : undefined}
                   activeOptions={{ exact: item.exact ?? false }}
                   className={`group relative flex items-center gap-3 rounded-[10px] py-2.5 text-ui-md font-medium text-ink-2 transition-colors hover:bg-ink-1/[0.04] hover:text-ink-1 [&.active]:bg-jci-blue/10 [&.active]:font-semibold [&.active]:text-jci-blue ${collapsed ? "justify-center px-2" : "px-3"}`}
                 >

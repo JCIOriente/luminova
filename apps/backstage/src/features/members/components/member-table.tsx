@@ -59,6 +59,7 @@ function buildColumns(
     {
       id: "role",
       header: "Cargo",
+      className: "hidden sm:table-cell",
       sortValue: roleLabel,
       cell: (member) => (
         <MemberCargoChips
@@ -81,6 +82,7 @@ function buildColumns(
     {
       id: "joinDate",
       header: "Desde",
+      className: "hidden md:table-cell",
       sortValue: (member) => (member.joinDate ? joinYear(member.joinDate) : 0),
       cell: (member) => (
         <span className="tabular-nums text-ink-2">
@@ -91,6 +93,7 @@ function buildColumns(
     {
       id: "points",
       header: "Puntos",
+      className: "hidden md:table-cell",
       sortValue: (member) => member.totalPoints ?? 0,
       cell: (member) => <span className="tabular-nums text-ink-2">{member.totalPoints ?? 0}</span>,
     },

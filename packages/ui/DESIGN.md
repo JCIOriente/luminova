@@ -133,6 +133,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 | --------------------------------------------- | ------------------------ |
 | `Dialog` — `hideHeader` (sr-only title, for self-chromed modals), `overlayClassName`/`contentClassName` overrides | `components/dialog.tsx` |
 | `Sheet` — `size sm|md|lg|xl (440/560/680/800px, default sm)` | `components/sheet.tsx`   |
+| `Drawer` — chrome-free edge drawer, `side left|right (default left)`, sr-only `title`, `className` sets panel width | `components/drawer.tsx` |
 | `Popover` (Radix; backs Combobox/MultiSelect) | `components/popover.tsx` |
 | `Menu` / `MenuItem` / `MenuSeparator` (Radix DropdownMenu; row/⋯ action menus, keyboard nav) | `components/menu.tsx` |
 | `CommandPalette` (⌘K; cmdk dialog + groups + fuzzy filter) | `components/command-palette.tsx` |

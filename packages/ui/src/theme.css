@@ -173,6 +173,26 @@
     }
   }
 
+  /* Left-side slide-over (Drawer) — mirror of the Sheet slide */
+  --animate-sheet-in-left: sheet-in-left 280ms var(--ease-expo);
+  --animate-sheet-out-left: sheet-out-left 200ms ease-in;
+  @keyframes sheet-in-left {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+  @keyframes sheet-out-left {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-100%);
+    }
+  }
+
   /* Floating menu / popover pop (scale + fade from the trigger edge) */
   --animate-menu-in: menu-in 140ms var(--ease-expo);
   --animate-menu-out: menu-out 100ms ease-in;

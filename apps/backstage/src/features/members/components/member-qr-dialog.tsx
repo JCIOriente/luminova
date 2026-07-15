@@ -23,9 +23,9 @@ export function MemberQrDialog({
       description="Muéstralo en el check-in para registrar tu asistencia."
     >
       <div className="flex flex-col items-center gap-4">
-        <div className="rounded-[16px] border border-line bg-jci-white p-5">
-          <Suspense fallback={<div className="size-[320px]" />}>
-            <QrCode value={value} size={320} />
+        <div className="w-full max-w-[320px] rounded-[16px] border border-line bg-jci-white p-5">
+          <Suspense fallback={<div className="aspect-square w-full" />}>
+            <QrCode value={value} size={280} className="h-auto w-full" />
           </Suspense>
         </div>
         <p className="text-ui-sm font-medium text-ink-2">{name}</p>

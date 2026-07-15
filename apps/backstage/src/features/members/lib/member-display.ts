@@ -1,6 +1,8 @@
 import type { Timestamp } from "firebase/firestore";
 import { positionTitle, type Member, type MemberGender } from "@luminova/types";
 
+// Deliberate raw hex: avatar identity needs ~10 distinct hues and the token
+// palette has no such set — don't swap for brand tokens or invent new ones.
 const PALETTE = [
   "#1F4789",
   "#2563EB",
