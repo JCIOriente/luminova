@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { boliviaPhoneOptional, boliviaPhoneRequired, isBoliviaPhone } from "./phone.js";
+import {
+  boliviaPhoneOptional,
+  boliviaPhoneRequired,
+  isBoliviaPhone,
+  normalizeBoliviaPhone,
+} from "./phone.js";
 
 describe("isBoliviaPhone", () => {
   it("accepts exactly 8 digits", () => {
@@ -9,15 +14,35 @@ describe("isBoliviaPhone", () => {
     expect(isBoliviaPhone("7001234")).toBe(false);
     expect(isBoliviaPhone("700123456")).toBe(false);
   });
-  it("rejects non-digits", () => {
-    expect(isBoliviaPhone("7001-345")).toBe(false);
-    expect(isBoliviaPhone("+59170012345")).toBe(false);
+  it("rejects a value with too few real digits", () => {
+    expect(isBoliviaPhone("7001-345")).toBe(false); // 7 digits after stripping
+  });
+});
+
+describe("normalizeBoliviaPhone", () => {
+  it("strips spaces, dashes and parens", () => {
+    expect(normalizeBoliviaPhone("7001-2345")).toBe("70012345");
+    expect(normalizeBoliviaPhone(" 700 123 45 ")).toBe("70012345");
+  });
+  it("drops a leading Bolivia country code", () => {
+    expect(normalizeBoliviaPhone("+591 700 00000")).toBe("70000000");
+    expect(normalizeBoliviaPhone("59170012345")).toBe("70012345");
+  });
+  it("leaves a bare 8-digit number untouched", () => {
+    expect(normalizeBoliviaPhone("70012345")).toBe("70012345");
   });
 });
 
 describe("boliviaPhoneRequired", () => {
-  it("accepts 8 digits", () => {
-    expect(boliviaPhoneRequired.safeParse("70012345").success).toBe(true);
+  it("accepts 8 digits and returns them", () => {
+    const r = boliviaPhoneRequired.safeParse("70012345");
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toBe("70012345");
+  });
+  it("normalizes a formatted / country-code value", () => {
+    const r = boliviaPhoneRequired.safeParse("+591 700 00000");
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toBe("70000000");
   });
   it("reports Requerido on empty", () => {
     const r = boliviaPhoneRequired.safeParse("");
@@ -38,8 +63,10 @@ describe("boliviaPhoneOptional", () => {
   it("accepts an empty string (blank field)", () => {
     expect(boliviaPhoneOptional.safeParse("").success).toBe(true);
   });
-  it("accepts 8 digits", () => {
-    expect(boliviaPhoneOptional.safeParse("70012345").success).toBe(true);
+  it("accepts and normalizes a provided value", () => {
+    const r = boliviaPhoneOptional.safeParse("+591 700 00000");
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toBe("70000000");
   });
   it("rejects a wrong-length non-empty value", () => {
     expect(boliviaPhoneOptional.safeParse("123").success).toBe(false);
