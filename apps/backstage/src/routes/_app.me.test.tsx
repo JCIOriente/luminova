@@ -45,7 +45,7 @@ vi.mock("../features/positions/hooks/use-positions", () => ({
   usePositions: () => ({ data: [] }),
 }));
 
-import { MemberHome } from "./_app.me";
+import { MemberHome } from "../components/member-home";
 
 describe("MemberHome", () => {
   it("renders points, QR and rank for the current member", () => {
