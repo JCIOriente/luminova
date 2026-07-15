@@ -22,6 +22,7 @@ export { LogoLockup } from "./components/logo-lockup";
 export { RippleSVG, RippleBackground, RippleDivider } from "./components/ripple";
 export { NotFoundBackdrop, Numeral404 } from "./components/not-found-chrome";
 export { Toast } from "./components/toast";
+export { PWAReloadPrompt } from "./components/pwa-reload-prompt";
 export { Tooltip } from "./components/tooltip";
 export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./components/table";
 export { DataTable, type DataTableColumn, type FilterChip } from "./components/data-table";

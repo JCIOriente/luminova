@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { imagetools } from "vite-imagetools";
+import { VitePWA } from "vite-plugin-pwa";
 
 // Preload the above-the-fold latin Plus Jakarta Sans woff2 so the browser fetches
 // it before CSS parse/layout (kills the swap delay on hero text). The emitted name
@@ -58,6 +59,40 @@ export default defineConfig({
       namedExports: false,
     }),
     preloadJakartaLatin(),
+    VitePWA({
+      registerType: "prompt",
+      includeAssets: ["favicon.svg", "favicon.ico", "apple-touch-icon-180x180.png"],
+      manifest: {
+        name: "JCI Oriente",
+        short_name: "JCI Oriente",
+        description: "JCI Oriente — Junior Chamber International, Bolivia Oriente.",
+        lang: "es",
+        theme_color: "#0A1733",
+        background_color: "#ffffff",
+        display: "standalone",
+        start_url: "/",
+        scope: "/",
+        icons: [
+          { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },
+          { src: "pwa-512x512.png", sizes: "512x512", type: "image/png" },
+          {
+            src: "maskable-icon-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
+        ],
+      },
+      // App-shell precache ONLY. No runtimeCaching for firestore/googleapis by
+      // design — the lite reads must stay live. png excluded from globPatterns
+      // so the 647 kB og-image.png is not precached.
+      workbox: {
+        globPatterns: ["**/*.{js,css,html,svg,woff2}"],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+      },
+      devOptions: { enabled: false },
+    }),
   ],
   server: { port: 5173 },
   preview: { port: 4173 },
