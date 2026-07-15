@@ -1,5 +1,5 @@
 import { isValidRole, type AuthClaims, type Role } from "@luminova/auth/roles";
-import { isValidPermissionCode, type PermissionCode } from "@luminova/types";
+import { isValidPermissionCode, type PermissionCode } from "@luminova/types/permission";
 
 export function decodeClaims(tokenClaims: Record<string, unknown> | null | undefined): AuthClaims {
   if (!tokenClaims || !Array.isArray(tokenClaims.roles)) {
