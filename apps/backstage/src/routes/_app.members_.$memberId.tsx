@@ -127,7 +127,7 @@ function MemberProfilePage() {
         eyebrow="Miembro"
         title={member.name}
         actions={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             {member.status && <Badge tone={STATUS_TONE[member.status]}>{member.status}</Badge>}
             {/* provisionMemberLogin is requireAdmin (role), not the manage:all perm. */}
             <ActionGate role={["Admin"]}>
@@ -239,7 +239,7 @@ function InviteAccess({ member }: { member: Member }) {
         {provision.isPending ? "Generando…" : label}
       </Button>
       {error && (
-        <p role="alert" className="text-ui-xs text-error">
+        <p role="alert" className="basis-full text-right text-ui-xs text-error">
           {error}
         </p>
       )}

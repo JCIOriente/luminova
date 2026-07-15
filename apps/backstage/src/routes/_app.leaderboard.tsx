@@ -52,7 +52,6 @@ function LeaderboardPage() {
 
       <SegmentedControl
         aria-label="Periodo"
-        className="flex-wrap"
         value={view}
         onChange={setView}
         options={[

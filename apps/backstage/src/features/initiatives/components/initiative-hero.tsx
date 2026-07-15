@@ -24,7 +24,7 @@ export function InitiativeHero({ item, closingSoon, actions }: InitiativeHeroPro
       )}
 
       <div className="flex flex-col gap-3 px-5 pb-5">
-        <div className="flex items-start gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
           <div className="flex flex-1 flex-wrap items-center gap-2">
             <Badge tone={areaTone(item.category)} dot>
               {AREA_OF_OPPORTUNITY_LABELS[item.category]}

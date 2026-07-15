@@ -65,6 +65,7 @@ function buildColumns(
     {
       id: "message",
       header: "Mensaje",
+      className: "hidden lg:table-cell",
       sortable: false,
       cell: (lead) => (
         <p className="m-0 line-clamp-2 max-w-md text-ui-sm text-ink-2" title={lead.message}>
@@ -75,6 +76,7 @@ function buildColumns(
     {
       id: "createdAt",
       header: "Recibido",
+      className: "hidden md:table-cell",
       sortValue: (lead) => lead.createdAt.toMillis(),
       cell: (lead) => (
         <span className="whitespace-nowrap text-ui-xs text-ink-3">
