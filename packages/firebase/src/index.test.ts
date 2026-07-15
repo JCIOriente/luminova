@@ -5,20 +5,11 @@ const getApps = vi.fn(() => []);
 const getApp = vi.fn(() => ({ name: "app" }));
 const getAuth = vi.fn(() => ({}));
 const connectAuthEmulator = vi.fn();
-const getFirestore = vi.fn(() => ({}));
-const connectFirestoreEmulator = vi.fn();
-const getStorage = vi.fn(() => ({}));
-const connectStorageEmulator = vi.fn();
-const getFunctions = vi.fn(() => ({}));
-const connectFunctionsEmulator = vi.fn();
 const initializeAppCheck = vi.fn();
 const ReCaptchaV3Provider = vi.fn();
 
 vi.mock("firebase/app", () => ({ initializeApp, getApps, getApp }));
 vi.mock("firebase/auth", () => ({ getAuth, connectAuthEmulator }));
-vi.mock("firebase/firestore", () => ({ getFirestore, connectFirestoreEmulator }));
-vi.mock("firebase/storage", () => ({ getStorage, connectStorageEmulator }));
-vi.mock("firebase/functions", () => ({ getFunctions, connectFunctionsEmulator }));
 vi.mock("firebase/app-check", () => ({ initializeAppCheck, ReCaptchaV3Provider }));
 
 beforeEach(() => {
@@ -33,8 +24,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("getFirebase", () => {
-  it("initializes the app once and memoizes services", async () => {
+describe("getFirebase (auth shell)", () => {
+  it("initializes the app once and memoizes the shell", async () => {
     const { getFirebase } = await import("./index");
     const first = getFirebase();
     const second = getFirebase();
@@ -42,23 +33,25 @@ describe("getFirebase", () => {
     expect(first).toBe(second);
   });
 
-  it("does not connect emulators when the flag is off", async () => {
+  it("exposes only app + auth (firestore/storage/functions live behind subpaths)", async () => {
     const { getFirebase } = await import("./index");
-    getFirebase();
-    expect(connectFirestoreEmulator).not.toHaveBeenCalled();
+    expect(Object.keys(getFirebase()).sort()).toEqual(["app", "auth"]);
   });
 
-  it("connects emulators when the flag is on", async () => {
+  it("does not connect the auth emulator when the flag is off", async () => {
+    const { getFirebase } = await import("./index");
+    getFirebase();
+    expect(connectAuthEmulator).not.toHaveBeenCalled();
+  });
+
+  it("connects the auth emulator when the flag is on", async () => {
     vi.stubEnv("VITE_FIREBASE_EMULATOR_ENABLED", "true");
     const { getFirebase } = await import("./index");
     getFirebase();
-    expect(connectFirestoreEmulator).toHaveBeenCalledWith({}, "127.0.0.1", 4010);
     expect(connectAuthEmulator).toHaveBeenCalled();
-    expect(connectStorageEmulator).toHaveBeenCalledWith({}, "127.0.0.1", 9199);
-    expect(connectFunctionsEmulator).toHaveBeenCalledWith({}, "127.0.0.1", 4020);
   });
 
-  it("wires App Check on the full SDK path when a site key is set", async () => {
+  it("wires App Check on the shell when a site key is set", async () => {
     vi.stubEnv("VITE_APPCHECK_SITE_KEY", "site-key");
     const { getFirebase } = await import("./index");
     getFirebase();
