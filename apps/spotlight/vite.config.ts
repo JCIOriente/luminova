@@ -65,16 +65,17 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // Pin the site-data layer (firebase lite SDK + App Check + @luminova/firebase
-        // glue + the site-config SWR cache) into its own chunk. The shell (Footer →
-        // useSiteConfig) loads it eagerly regardless, so a dedicated file keeps it out
-        // of the index budget — without an explicit group rolldown's heuristic inlines
-        // it into index on small graph changes.
+        // glue + the site-config firestore reader) into its own chunk. useSiteConfig
+        // now dynamic-imports site-config-firestore inside its effect, so this chunk
+        // loads async after paint — off the critical path — rather than eager. The
+        // explicit group keeps rolldown from inlining firebase back into index on
+        // small graph changes. Match `site-config-firestore` specifically, NOT the
+        // whole /site-config/ folder: `use-site-config` (the hook) and `defaults`
+        // are rendered synchronously by the eager shell, so they must stay in index —
+        // grouping them here would drag firebase back into the eager set. Likewise
+        // `cached-resource` (the tiny sync cache reader) stays in index.
         manualChunks(id) {
-          if (
-            id.includes("firebase") ||
-            id.includes("/site-config/") ||
-            id.includes("cached-resource")
-          ) {
+          if (id.includes("firebase") || id.includes("site-config-firestore")) {
             return "site-data";
           }
         },

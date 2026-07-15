@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import type { SiteConfig } from "@luminova/types";
-import { fetchSiteConfig } from "./site-config-firestore";
 import { SITE_CONFIG_DEFAULTS } from "./defaults";
 import { makeResourceCache, dedupe } from "../lib/cached-resource";
 
@@ -38,6 +37,11 @@ export function writeCache(config: Resolved): void {
 // into a single Firestore read + a single cache write, shared across instances.
 const revalidateOnce = dedupe(async (): Promise<Resolved | null> => {
   try {
+    // Dynamic import keeps firebase/lite + App Check out of the eager module
+    // graph. The hook renders instantly from cache/defaults and only reaches
+    // for the network here, in a useEffect — so the SDK loads off the critical
+    // path, after first paint.
+    const { fetchSiteConfig } = await import("./site-config-firestore");
     const fresh = await fetchSiteConfig();
     if (!fresh) return null;
     const resolved = withDefaults({
