@@ -4,9 +4,11 @@ import clsx from "clsx";
 import { LogoLockup, Button, Icon } from "@luminova/ui";
 import { BACKSTAGE_URL } from "../config/external-links";
 
-// Add a route here whenever its hero sits over a colored background, or the
-// navbar text will fall back to dark and lose contrast on that page.
-const DARK_HERO_ROUTES = ["/", "/impacto", "/linktree"];
+// Enumerate the LIGHT-hero routes; everything else — including unknown paths,
+// whose catch-all 404 renders on jci-black — defaults to light nav text. Add a
+// route here whenever its hero sits over a white/light background, or the
+// navbar text will stay light and lose contrast on that page.
+const LIGHT_HERO_ROUTES = ["/contact", "/privacidad", "/terminos"];
 const BLUE_HERO_ROUTES = ["/about"];
 const BLUE_HERO_PREFIXES = ["/impacto/"];
 
@@ -14,8 +16,8 @@ function overToneFor(pathname: string): "dark" | "blue" | null {
   const p = pathname.replace(/\/+$/, "") || "/";
   if (BLUE_HERO_ROUTES.includes(p) || BLUE_HERO_PREFIXES.some((prefix) => p.startsWith(prefix)))
     return "blue";
-  if (DARK_HERO_ROUTES.includes(p)) return "dark";
-  return null;
+  if (LIGHT_HERO_ROUTES.includes(p)) return null;
+  return "dark";
 }
 
 export function Header() {
@@ -127,7 +129,7 @@ export function Header() {
               className="hamburger"
               aria-label="Cerrar menú"
               onClick={() => setMobileOpen(false)}
-              style={{ color: "#fff" }}
+              style={{ color: "var(--jci-white)" }}
             >
               <Icon.close />
             </button>

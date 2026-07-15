@@ -38,7 +38,7 @@ function ImpactoHero({ count, personsImpacted }: { count: number; personsImpacte
 
         {count > 0 && (
           <div style={{ marginTop: 56 }}>
-            <div className="mini-stats">
+            <div className="mini-stats mini-stats-2">
               <div className="mini-stat">
                 <div className="v t-num">{formatES(count)}</div>
                 <div className="l">proyectos completados</div>

@@ -31,8 +31,8 @@ export function AreaCard({
         {title}
       </h3>
       <p
-        className="t-body"
-        style={{ margin: 0, color: "var(--ink-2)", fontSize: 15, lineHeight: 1.55 }}
+        className="t-body text-ui-lg"
+        style={{ margin: 0, color: "var(--ink-2)", lineHeight: 1.55 }}
       >
         {description}
       </p>
