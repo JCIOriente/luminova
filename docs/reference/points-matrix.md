@@ -19,6 +19,8 @@ La **Evaluación del Mejor Miembro Individual** tiene como objetivo reconocer el
 | Asistencia a evento nacional (actividad, proyecto o programa) | 5 |
 | Asistencia a aniversario (Local o Nacional) | 5 |
 | Asistencia a TM (Local o Nacional) | 6 |
+| Asistencia a recaudación | 3 |
+| Asistencia a confraternización | 3 |
 | Fungir como Head Trainer | 7 |
 | Fungir como Assistant Trainer | 5 |
 | Adhesión a un plan de pago | 5 |

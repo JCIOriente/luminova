@@ -15,7 +15,7 @@ export class PointRuleRepository {
     return parseDocs(pointRuleDocSchema, snapshot).sort(byMatrixOrder);
   }
 
-  /** Bootstrap the term doc (if missing) + the 16 rules. Idempotent (deterministic ids). */
+  /** Bootstrap the term doc (if missing) + one rule per matrix code. Idempotent (deterministic ids). */
   async seed(termId: string): Promise<void> {
     const batch = writeBatch(this.db);
     batch.set(

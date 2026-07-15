@@ -10,6 +10,8 @@ export const CATEGORY_TONE: Record<ActivityCategory, CoverTone> = {
   Anniversary: "blue",
   TM: "teal",
   NationalEvent: "navy",
+  Cash: "teal",
+  Confra: "blue",
   ProjectExecution: "blue",
 };
 

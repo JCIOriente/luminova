@@ -15,6 +15,8 @@ const ATTEND_BY_CATEGORY: Record<ActivityCategory, PointRuleCode> = {
   NationalEvent: "AttendNationalEvent",
   Anniversary: "AttendAnniversary",
   TM: "AttendTM",
+  Cash: "AttendCash",
+  Confra: "AttendConfra",
 };
 
 /**
