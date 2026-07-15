@@ -16,7 +16,7 @@ const SOCIAL_STYLE: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  color: "#fff",
+  color: "var(--jci-white)",
 };
 
 export function Footer() {
@@ -34,10 +34,10 @@ export function Footer() {
           <div className="footer-col">
             <LogoLockup variant="inverted" size="sm" loading="lazy" />
             <p
+              className="text-ui-lg"
               style={{
                 marginTop: 22,
-                fontSize: 15,
-                color: "rgba(255,255,255,0.7)",
+                color: "var(--color-on-dark-2)",
                 lineHeight: 1.55,
                 maxWidth: 320,
               }}

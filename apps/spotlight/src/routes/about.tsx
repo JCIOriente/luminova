@@ -24,7 +24,7 @@ function AboutHero() {
       style={{
         position: "relative",
         overflow: "hidden",
-        paddingTop: 180,
+        paddingTop: "clamp(130px, 24vw, 180px)",
         paddingBottom: 110,
         minHeight: "56vh",
         display: "flex",
@@ -33,12 +33,12 @@ function AboutHero() {
     >
       <RippleBackground variant="hero-corner-tl" color="var(--color-jci-white)" opacity={0.08} />
       <div className="container" style={{ position: "relative", zIndex: 1 }}>
-        <div className="eyebrow no-rule" style={{ color: "rgba(255,255,255,0.75)" }}>
+        <div className="eyebrow no-rule" style={{ color: "var(--color-on-dark-2)" }}>
           Quiénes Somos
         </div>
         <h1
           className="t-display"
-          style={{ color: "#fff", marginTop: 22, marginBottom: 0, maxWidth: 1000 }}
+          style={{ color: "var(--jci-white)", marginTop: 22, marginBottom: 0, maxWidth: 1000 }}
         >
           Desarrollando líderes en el Oriente boliviano desde 1993.
         </h1>
@@ -104,12 +104,8 @@ function AboutMVV() {
                   {it.title}
                 </h3>
                 <p
-                  style={{
-                    margin: 0,
-                    color: "var(--ink-2)",
-                    fontSize: 15.5,
-                    lineHeight: 1.6,
-                  }}
+                  className="text-ui-lg"
+                  style={{ margin: 0, color: "var(--ink-2)", lineHeight: 1.6 }}
                 >
                   {config.mvv[it.field]}
                 </p>
@@ -166,7 +162,7 @@ function AboutComite() {
                   <div className="t-h4" style={{ marginTop: 10 }}>
                     Nombre Apellido
                   </div>
-                  <div style={{ fontSize: 14, color: "var(--ink-3)", marginTop: 6 }}>
+                  <div className="text-ui-md" style={{ color: "var(--ink-3)", marginTop: 6 }}>
                     Próximamente
                   </div>
                 </div>
@@ -199,12 +195,8 @@ function AboutWhyJoin() {
                   {r.title}
                 </h3>
                 <p
-                  style={{
-                    margin: 0,
-                    color: "var(--ink-2)",
-                    fontSize: 15.5,
-                    lineHeight: 1.6,
-                  }}
+                  className="text-ui-lg"
+                  style={{ margin: 0, color: "var(--ink-2)", lineHeight: 1.6 }}
                 >
                   {r.body}
                 </p>

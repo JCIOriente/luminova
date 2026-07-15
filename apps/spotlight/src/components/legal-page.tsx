@@ -18,7 +18,12 @@ export function LegalPage({ eyebrow, title, intro, updatedLabel, sections }: Leg
   return (
     <>
       <section
-        style={{ position: "relative", overflow: "hidden", paddingTop: 160, paddingBottom: 24 }}
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          paddingTop: "clamp(120px, 22vw, 160px)",
+          paddingBottom: 24,
+        }}
       >
         <RippleBackground variant="subtle" opacity={0.06} />
         <div className="container" style={{ position: "relative", zIndex: 1, maxWidth: 760 }}>

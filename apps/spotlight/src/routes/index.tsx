@@ -54,8 +54,8 @@ function HomeHero() {
       style={{
         position: "relative",
         overflow: "hidden",
-        paddingTop: 140,
-        paddingBottom: 100,
+        paddingTop: "clamp(110px, 20vw, 140px)",
+        paddingBottom: "clamp(64px, 14vw, 100px)",
         minHeight: "92vh",
         display: "flex",
         alignItems: "center",
@@ -64,7 +64,10 @@ function HomeHero() {
       <RippleBackground variant="hero" />
       <div className="container" style={{ position: "relative", zIndex: 1, width: "100%" }}>
         <div style={{ maxWidth: 920 }}>
-          <h1 className="t-display" style={{ marginTop: 0, marginBottom: 0, color: "#fff" }}>
+          <h1
+            className="t-display"
+            style={{ marginTop: 0, marginBottom: 0, color: "var(--jci-white)" }}
+          >
             {config.hero.motto}
           </h1>
           {config.hero.submotto ? (
@@ -77,7 +80,7 @@ function HomeHero() {
           ) : null}
           <p
             className="t-subtitle"
-            style={{ marginTop: 24, maxWidth: 620, color: "rgba(255,255,255,0.78)" }}
+            style={{ marginTop: 24, maxWidth: 620, color: "var(--color-on-dark-2)" }}
           >
             Capítulo Santa Cruz de la Cámara Junior Internacional. Desarrollando líderes con
             propósito desde 1993.
@@ -229,10 +232,13 @@ function HomeImpact() {
       <RippleBackground variant="subtle" color="var(--color-jci-white)" opacity={0.06} />
       <div className="container" style={{ position: "relative", zIndex: 1 }}>
         <div style={{ maxWidth: 720 }}>
-          <div className="eyebrow" style={{ color: "rgba(255,255,255,0.75)" }}>
+          <div className="eyebrow" style={{ color: "var(--color-on-dark-2)" }}>
             Trayectoria
           </div>
-          <h2 className="t-title" style={{ color: "#fff", marginTop: 20, marginBottom: 0 }}>
+          <h2
+            className="t-title"
+            style={{ color: "var(--jci-white)", marginTop: 20, marginBottom: 0 }}
+          >
             Más de tres décadas de impacto medible.
           </h2>
         </div>
@@ -266,7 +272,7 @@ function HomeAllies() {
   // still carries the on-visible ref, so the section never leaves an empty gap.
   if (!ready) return <div ref={ref} aria-hidden style={{ height: 1 }} />;
   return (
-    <section ref={ref} className="section" style={{ paddingTop: 80, paddingBottom: 80 }}>
+    <section ref={ref} className="section">
       <div className="container">
         <div style={{ textAlign: "center" }}>
           <div className="t-label" style={{ color: "var(--ink-3)" }}>
@@ -298,7 +304,7 @@ function HomeCTA() {
   return (
     <section
       className="bg-dark"
-      style={{ position: "relative", overflow: "hidden", padding: "120px 0" }}
+      style={{ position: "relative", overflow: "hidden", padding: "clamp(72px, 14vw, 120px) 0" }}
     >
       <RippleBackground variant="cta" opacity={0.07} />
       <div className="container" style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
@@ -311,7 +317,7 @@ function HomeCTA() {
         <h2
           className="t-title"
           style={{
-            color: "#fff",
+            color: "var(--jci-white)",
             marginTop: 18,
             marginBottom: 0,
             maxWidth: 820,
@@ -325,7 +331,7 @@ function HomeCTA() {
           className="t-subtitle"
           style={{
             marginTop: 22,
-            color: "rgba(255,255,255,0.78)",
+            color: "var(--color-on-dark-2)",
             maxWidth: 620,
             marginLeft: "auto",
             marginRight: "auto",

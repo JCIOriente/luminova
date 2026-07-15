@@ -40,7 +40,6 @@ const INTENT_LABELS: Record<LeadIntent, string> = {
 };
 
 const LABEL_META = {
-  fontSize: 12,
   color: "var(--ink-3)",
   letterSpacing: "0.04em",
   textTransform: "uppercase" as const,
@@ -98,7 +97,7 @@ function ContactForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form className="contact-card" onSubmit={submit} noValidate aria-describedby="form-help">
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Nombre" htmlFor="ct-name" required error={errors.name}>
           <Input
             id="ct-name"
@@ -239,7 +238,12 @@ function ChannelCTAs() {
 function ContactHero() {
   return (
     <section
-      style={{ position: "relative", overflow: "hidden", paddingTop: 160, paddingBottom: 32 }}
+      style={{
+        position: "relative",
+        overflow: "hidden",
+        paddingTop: "clamp(120px, 22vw, 160px)",
+        paddingBottom: 32,
+      }}
     >
       <RippleBackground variant="subtle" opacity={0.06} />
       <div className="container" style={{ position: "relative", zIndex: 1 }}>
@@ -283,11 +287,13 @@ function ContactBody({ onSuccess }: { onSuccess: () => void }) {
                     <Icon.phone />
                   </span>
                   <div>
-                    <div style={LABEL_META}>Reuniones</div>
+                    <div className="text-ui-xs" style={LABEL_META}>
+                      Reuniones
+                    </div>
                     <div style={{ fontSize: 16, fontWeight: 500 }}>
                       {config.contact.meetingSchedule}
                     </div>
-                    <div style={{ fontSize: 13, color: "var(--ink-3)", marginTop: 2 }}>
+                    <div className="text-ui-sm" style={{ color: "var(--ink-3)", marginTop: 2 }}>
                       Bajo confirmación previa con el comité.
                     </div>
                   </div>
@@ -348,12 +354,12 @@ function ContactMap() {
             border: "1px solid var(--line)",
             position: "relative",
             background: "var(--surface-2)",
-            height: 360,
+            height: "clamp(240px, 50vw, 360px)",
           }}
         >
           <svg
             viewBox="0 0 1200 360"
-            preserveAspectRatio="none"
+            preserveAspectRatio="xMidYMid slice"
             width="100%"
             height="100%"
             aria-hidden="true"
@@ -376,7 +382,7 @@ function ContactMap() {
                 />
               </pattern>
             </defs>
-            <rect width="1200" height="360" fill="#EEF2F6" />
+            <rect width="1200" height="360" style={{ fill: "var(--surface-3)" }} />
             <rect width="1200" height="360" fill="url(#map-grid)" />
             <rect width="1200" height="360" fill="url(#map-grid-2)" />
             <path
@@ -413,7 +419,7 @@ function ContactMap() {
               <circle cx="0" cy="0" r="44" fill="rgba(0,151,215,0.14)" />
               <circle cx="0" cy="0" r="24" fill="rgba(0,151,215,0.28)" />
               <circle cx="0" cy="0" r="10" style={{ fill: "var(--color-jci-blue)" }} />
-              <circle cx="0" cy="0" r="4" fill="#fff" />
+              <circle cx="0" cy="0" r="4" style={{ fill: "var(--jci-white)" }} />
             </g>
           </svg>
           <div
@@ -445,7 +451,7 @@ function ContactMap() {
                 right: 24,
                 bottom: 24,
                 background: "var(--jci-blue)",
-                color: "#fff",
+                color: "var(--jci-white)",
                 padding: "10px 16px",
                 borderRadius: 10,
                 fontSize: 13,

@@ -48,7 +48,8 @@ const cardBase: React.CSSProperties = {
   padding: "17px 20px",
   borderRadius: 16,
   textDecoration: "none",
-  color: "#fff",
+  color: "var(--jci-white)",
+  // Low-alpha white surface/border: no on-dark surface token exists — keep raw.
   border: "1px solid rgba(255,255,255,0.22)",
   background: "rgba(255,255,255,0.11)",
   backdropFilter: "blur(12px)",
@@ -98,12 +99,18 @@ export function LinktreePage() {
         >
           <LogoLockup variant="inverted" size="lg" />
           {linktree.handle ? (
-            <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.92)" }}>
+            <div
+              className="text-ui-md"
+              style={{ fontWeight: 600, color: "var(--color-on-dark-1)" }}
+            >
               {linktree.handle}
             </div>
           ) : null}
           {linktree.tagline || linktree.taglineAccent ? (
-            <p className="t-quote" style={{ fontStyle: "italic", color: "#fff", maxWidth: "24ch" }}>
+            <p
+              className="t-quote"
+              style={{ fontStyle: "italic", color: "var(--jci-white)", maxWidth: "24ch" }}
+            >
               {linktree.tagline}{" "}
               <b style={{ color: "var(--jci-blue)", fontStyle: "normal", fontWeight: 400 }}>
                 {linktree.taglineAccent}
@@ -131,11 +138,11 @@ export function LinktreePage() {
               >
                 {link.badge ? (
                   <span
+                    className="text-ui-2xs"
                     style={{
                       position: "absolute",
                       top: -8,
                       right: 16,
-                      fontSize: 9.5,
                       fontWeight: 700,
                       letterSpacing: "0.14em",
                       textTransform: "uppercase",
@@ -156,19 +163,23 @@ export function LinktreePage() {
                     borderRadius: 12,
                     display: "grid",
                     placeItems: "center",
-                    background: link.isPrimary ? "rgba(255,255,255,0.18)" : "rgba(0,151,215,0.16)",
-                    color: link.isPrimary ? "#fff" : "var(--jci-blue)",
+                    background: link.isPrimary
+                      ? "rgba(255,255,255,0.18)"
+                      : "color-mix(in srgb, var(--jci-blue) 16%, transparent)",
+                    color: link.isPrimary ? "var(--jci-white)" : "var(--jci-blue)",
                   }}
                 >
                   {IconFn({ s: 21 })}
                 </span>
                 <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
-                  <span style={{ fontSize: 15.5, fontWeight: 600 }}>{link.title}</span>
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.72)" }}>
+                  <span className="text-ui-lg" style={{ fontWeight: 600 }}>
+                    {link.title}
+                  </span>
+                  <span className="text-ui-xs" style={{ color: "var(--color-on-dark-2)" }}>
                     {link.description}
                   </span>
                 </span>
-                <span aria-hidden="true" style={{ color: "rgba(255,255,255,0.4)" }}>
+                <span aria-hidden="true" style={{ color: "var(--color-on-dark-3)" }}>
                   {Icon.chevRight({ s: 18 })}
                 </span>
               </a>
@@ -197,7 +208,7 @@ export function LinktreePage() {
                     placeItems: "center",
                     background: "rgba(255,255,255,0.11)",
                     border: "1px solid rgba(255,255,255,0.22)",
-                    color: "rgba(255,255,255,0.92)",
+                    color: "var(--color-on-dark-1)",
                     textDecoration: "none",
                   }}
                 >
@@ -208,13 +219,13 @@ export function LinktreePage() {
         </div>
 
         <footer
+          className="text-ui-2xs"
           style={{
             marginTop: 40,
             textAlign: "center",
-            fontSize: 11,
             letterSpacing: "0.16em",
             textTransform: "uppercase",
-            color: "rgba(255,255,255,0.45)",
+            color: "var(--color-on-dark-3)",
             lineHeight: 1.9,
           }}
         >

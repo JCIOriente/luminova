@@ -11,9 +11,11 @@ function ImpactoDetailPage() {
   const { id } = Route.useParams();
   const { data, loading, error } = useShowcaseItem(id);
 
+  // Loading/error render on the same dark backdrop as the loaded hero — the
+  // route is in BLUE_HERO_PREFIXES, so the nav is light and needs a dark bg.
   if (loading) {
     return (
-      <section className="section">
+      <section className="section bg-dark">
         <div className="container">
           <div className="showcase-detail-loading" aria-busy="true">
             Cargando…
@@ -25,7 +27,7 @@ function ImpactoDetailPage() {
 
   if (error) {
     return (
-      <section className="section">
+      <section className="section bg-dark" style={{ minHeight: "60vh" }}>
         <div className="container">
           <p className="showcase-empty">
             No pudimos cargar este proyecto en este momento. Vuelve a intentarlo más tarde.
