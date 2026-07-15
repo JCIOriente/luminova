@@ -6,6 +6,9 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="theme-color" content="#0A1733" />
 
+    <!-- Warm the Firestore origin: every page's first data read (site-config, showcase)
+         hits it cold via the lite REST transport. crossorigin — it's a CORS fetch. -->
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
     <!-- Warm the Firebase Storage origin that serves showcase / ally images (below-fold, no CORS). -->
     <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
     <link rel="canonical" href="https://jcioriente.web.app/" />
