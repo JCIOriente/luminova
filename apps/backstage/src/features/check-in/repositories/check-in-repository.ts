@@ -8,7 +8,7 @@ import {
   where,
   serverTimestamp,
 } from "firebase/firestore";
-import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import { checkInSchema, type CheckInInput } from "@luminova/types";
 import type { ParticipationRole } from "@luminova/types/engine";
 import { parseDocs } from "../../../lib/firestore-read";
@@ -20,7 +20,7 @@ function checkInId(activityId: string, memberId: string, role: ParticipationRole
 }
 
 export class CheckInRepository {
-  private readonly db = getFirebase().db;
+  private readonly db = getDb();
   private readonly collection = collection(this.db, "checkIns");
 
   /** Roster for an activity (who has checked in). */

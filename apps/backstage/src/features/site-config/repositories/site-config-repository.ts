@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import { siteConfigDocSchema, type SiteConfig, type SiteConfigInput } from "@luminova/types";
 import { toSiteConfigDoc } from "./site-config-mapper";
 import { parseDocData } from "../../../lib/firestore-read";
@@ -7,7 +7,7 @@ import { parseDocData } from "../../../lib/firestore-read";
 const DOC_PATH = "current";
 
 export class SiteConfigRepository {
-  private readonly ref = doc(getFirebase().db, "siteConfig", DOC_PATH);
+  private readonly ref = doc(getDb(), "siteConfig", DOC_PATH);
 
   async get(): Promise<SiteConfig | null> {
     const snap = await getDoc(this.ref);

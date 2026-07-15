@@ -9,13 +9,13 @@ import {
   writeBatch,
   limit,
 } from "firebase/firestore";
-import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import { positionDocSchema, type Position, type PositionInput } from "@luminova/types";
 import { parseDocs } from "../../../lib/firestore-read";
 import { toPositionCreateDoc, toPositionUpdateDoc } from "./position-mapper";
 
 export class PositionRepository {
-  private readonly collection = collection(getFirebase().db, "positions");
+  private readonly collection = collection(getDb(), "positions");
 
   /**
    * Full catalog — active and soft-deleted entries — CEL, then JDL, then comisiones; alphabetical
@@ -51,7 +51,7 @@ export class PositionRepository {
     if (!existing.empty) {
       throw new Error("Positions catalog is not empty; seed skipped.");
     }
-    const batch = writeBatch(getFirebase().db);
+    const batch = writeBatch(getDb());
     for (const entry of entries) {
       batch.set(doc(this.collection), toPositionCreateDoc(entry));
     }

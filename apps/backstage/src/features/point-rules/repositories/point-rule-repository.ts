@@ -1,12 +1,12 @@
 import { collection, doc, getDocs, query, where, writeBatch, updateDoc } from "firebase/firestore";
-import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import { pointRuleSchema, pointRuleDocSchema } from "@luminova/types";
 import type { PointRule } from "@luminova/types";
 import { parseDocs } from "../../../lib/firestore-read";
 import { toSeedRules, byMatrixOrder } from "./point-rule-mapper";
 
 export class PointRuleRepository {
-  private readonly db = getFirebase().db;
+  private readonly db = getDb();
   private readonly collection = collection(this.db, "pointRules");
 
   /** Rules for a term, in matrix order. */
