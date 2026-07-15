@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createFileRoute, redirect, Outlet, useLocation } from "@tanstack/react-router";
+import { Drawer } from "@luminova/ui";
 import { authRedirect } from "../lib/auth/guard";
 import { AppSidebar } from "../components/app-sidebar";
 import { AppTopbar } from "../components/app-topbar";
@@ -25,15 +26,6 @@ function AppLayout() {
     setDrawerOpen(false);
   }, [pathname]);
 
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDrawerOpen(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [drawerOpen]);
-
   return (
     <div
       className={`grid h-dvh grid-cols-1 grid-rows-[minmax(0,1fr)] bg-surface-2 ${collapsed ? "lg:grid-cols-[72px_1fr]" : "lg:grid-cols-[264px_1fr]"}`}
@@ -41,19 +33,15 @@ function AppLayout() {
       <div className="hidden lg:block">
         <AppSidebar />
       </div>
-      {drawerOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-jci-black/40 lg:hidden"
-          onClick={() => setDrawerOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-      <div
-        inert={!drawerOpen}
-        className={`fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-expo motion-reduce:transition-none lg:hidden ${drawerOpen ? "translate-x-0 shadow-[0_24px_64px_-24px_rgba(19,15,45,0.4)]" : "-translate-x-full"}`}
+      <Drawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        side="left"
+        title="Menú de navegación"
+        className="w-[264px]"
       >
         <AppSidebar drawer onClose={() => setDrawerOpen(false)} />
-      </div>
+      </Drawer>
       <div className="flex min-h-0 min-w-0 flex-col">
         <AppTopbar onOpenNav={() => setDrawerOpen(true)} />
         <main className="scroll flex-1 overflow-y-auto">

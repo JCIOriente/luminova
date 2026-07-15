@@ -26,6 +26,7 @@ export { Tooltip } from "./components/tooltip";
 export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./components/table";
 export { DataTable, type DataTableColumn, type FilterChip } from "./components/data-table";
 export { Sheet, type SheetSize } from "./components/sheet";
+export { Drawer } from "./components/drawer";
 export { Dialog } from "./components/dialog";
 export { Menu, MenuItem, MenuSeparator } from "./components/menu";
 export { Sparkline } from "./components/sparkline-chart";
