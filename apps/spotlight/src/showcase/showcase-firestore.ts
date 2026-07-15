@@ -24,10 +24,22 @@ export async function fetchFeatured(): Promise<ShowcaseItem[]> {
   return sortByCompletedDesc(snap.docs.map((d) => d.data() as ShowcaseItem));
 }
 
-export async function fetchShowcaseItem(id: string): Promise<ShowcaseItem | null> {
-  const db = getFirestoreLite();
-  const snap = await getDoc(doc(db, "showcase", id));
-  return snap.exists() ? (snap.data() as ShowcaseItem) : null;
+// Dedupe in-flight (and session-cache resolved) detail reads by id so the route
+// loader's warm-up and the component's useShowcaseItem share one round-trip
+// instead of firing two. Rejections evict so a failed read stays retryable.
+const itemFetches = new Map<string, Promise<ShowcaseItem | null>>();
+
+export function fetchShowcaseItem(id: string): Promise<ShowcaseItem | null> {
+  const inFlight = itemFetches.get(id);
+  if (inFlight) return inFlight;
+  const promise = (async () => {
+    const db = getFirestoreLite();
+    const snap = await getDoc(doc(db, "showcase", id));
+    return snap.exists() ? (snap.data() as ShowcaseItem) : null;
+  })();
+  itemFetches.set(id, promise);
+  promise.catch(() => itemFetches.delete(id));
+  return promise;
 }
 
 // Firestore Timestamp JSON round-trip is version-fragile, so the cache stores

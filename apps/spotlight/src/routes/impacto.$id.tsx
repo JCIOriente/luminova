@@ -4,6 +4,14 @@ import { BackLink, DetailContent } from "../components/showcase/showcase-detail"
 import { NotFound } from "../components/not-found";
 
 export const Route = createFileRoute("/impacto/$id")({
+  // Kick the detail read off during the route-match phase so a cold deep link
+  // stops serializing chunk → mount → fetch. autoCodeSplitting keeps this loader
+  // eager, so it runs in parallel with the component chunk download; the dynamic
+  // import keeps firestore-lite out of the always-loaded graph, and
+  // fetchShowcaseItem dedupes the in-flight promise the component then reuses.
+  loader: ({ params }) => {
+    void import("../showcase/showcase-firestore").then((m) => m.fetchShowcaseItem(params.id));
+  },
   component: ImpactoDetailPage,
 });
 
