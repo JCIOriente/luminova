@@ -17,9 +17,9 @@ export default defineConfig({
       registerType: "prompt",
       includeAssets: ["favicon.svg", "favicon.ico", "apple-touch-icon-180x180.png"],
       manifest: {
-        name: "JCI Backstage",
-        short_name: "Backstage",
-        description: "Panel de administración de JCI Oriente.",
+        name: "JCI Oriente",
+        short_name: "JCI Oriente",
+        description: "Junior Chamber International Oriente",
         lang: "es",
         theme_color: "#0A2A43",
         background_color: "#ffffff",

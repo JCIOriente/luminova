@@ -65,7 +65,7 @@ export default defineConfig({
       manifest: {
         name: "JCI Oriente",
         short_name: "JCI Oriente",
-        description: "JCI Oriente — Junior Chamber International, Bolivia Oriente.",
+        description: "Junior Chamber International Oriente",
         lang: "es",
         theme_color: "#0A1733",
         background_color: "#ffffff",
