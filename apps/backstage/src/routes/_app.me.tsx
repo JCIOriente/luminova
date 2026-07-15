@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Card, Icon } from "@luminova/ui";
 import { PageHeader } from "../components/page-header";
 import { WidgetHeader } from "../components/widget-header";
@@ -26,13 +26,11 @@ import { ParticipationLedger } from "../features/members/components/participatio
 // qrcode.react (~13 kB gz) lazy so it leaves the always-loaded index shell.
 const QrCode = lazy(() => import("@luminova/ui/qr-code").then((m) => ({ default: m.QrCode })));
 
-// The modal pulls in Radix Dialog — lazy-mount it on demand so it stays out of
-// the always-loaded /me shell.
-const MemberQrDialog = lazy(() =>
-  import("../features/members/components/member-qr-dialog").then((m) => ({
-    default: m.MemberQrDialog,
-  })),
-);
+// The modal stays code-split out of the always-loaded /me shell, but we warm
+// its chunk at idle (below) so the first open is instant instead of stalling
+// on a cold fetch — otherwise the dialog animates in a beat after the tap.
+const importQrDialog = () => import("../features/members/components/member-qr-dialog");
+const MemberQrDialog = lazy(() => importQrDialog().then((m) => ({ default: m.MemberQrDialog })));
 
 export const Route = createFileRoute("/_app/me")({ component: MemberHome });
 
@@ -53,6 +51,17 @@ export function MemberHome() {
   const { data: positions } = usePositions();
   const [qrOpen, setQrOpen] = useState(false);
   const now = new Date();
+
+  useEffect(() => {
+    const idle = window.requestIdleCallback;
+    const warm = () => void importQrDialog();
+    if (idle) {
+      const id = idle(warm);
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(warm, 200);
+    return () => window.clearTimeout(id);
+  }, []);
 
   const summary = useMemo(
     () => summarizeParticipations(participations ?? [], activities ?? [], initiatives ?? []),
