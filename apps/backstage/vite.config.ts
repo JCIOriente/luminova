@@ -15,14 +15,14 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "prompt",
-      includeAssets: ["favicon.svg", "favicon.ico", "apple-touch-icon-180x180.png"],
+      includeAssets: ["favicon-16.png", "favicon-32.png", "apple-touch-icon-180x180.png"],
       manifest: {
         name: "JCI Oriente",
         short_name: "JCI Oriente",
         description: "Junior Chamber International Oriente",
         lang: "es",
-        theme_color: "#0A2A43",
-        background_color: "#ffffff",
+        theme_color: "#130F2D",
+        background_color: "#130F2D",
         display: "standalone",
         start_url: "/",
         scope: "/",

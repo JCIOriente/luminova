@@ -61,14 +61,14 @@ export default defineConfig({
     preloadJakartaLatin(),
     VitePWA({
       registerType: "prompt",
-      includeAssets: ["favicon.svg", "favicon.ico", "apple-touch-icon-180x180.png"],
+      includeAssets: ["favicon-16.png", "favicon-32.png", "apple-touch-icon-180x180.png"],
       manifest: {
         name: "JCI Oriente",
         short_name: "JCI Oriente",
         description: "Junior Chamber International Oriente",
         lang: "es",
-        theme_color: "#0A1733",
-        background_color: "#ffffff",
+        theme_color: "#0097D7",
+        background_color: "#0097D7",
         display: "standalone",
         start_url: "/",
         scope: "/",
