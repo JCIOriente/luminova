@@ -49,15 +49,21 @@ service cloud.firestore {
       return signedIn() && request.auth.uid in resource.data.get('directionUids', []);
     }
     // directionUids is beacon-written; termId is immutable; once the final report
-    // is filed the completion trio (finalReport/status/impact) is locked — clearing
-    // the report would silently un-confirm awarded points.
+    // is filed the initiative is CLOSED (Finalizado): the completion trio
+    // (finalReport/status/impact) is locked — clearing the report would silently
+    // un-confirm awarded points — and so are the roster (director/co-directors/team)
+    // and the start/end dates, which must not change on a closed initiative. Mirror
+    // of the backstage initiative-form lock; keep the two field sets in lockstep.
     function initiativeWriteSafe() {
       return unchangedOrAbsent('directionUids')
         && unchangedOrAbsent('termId')
         && (resource.data.get('finalReport', null) == null
             || (unchangedOrAbsent('finalReport')
                 && unchangedOrAbsent('status')
-                && unchangedOrAbsent('impact')));
+                && unchangedOrAbsent('impact')
+                && unchangedOrAbsent('roster')
+                && unchangedOrAbsent('startDate')
+                && unchangedOrAbsent('endDate')));
     }
 
     // Rules derive the current term from request.time.year() (UTC int) so they can

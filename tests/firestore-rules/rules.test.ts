@@ -775,6 +775,44 @@ describe("firestore.rules — initiative direction branch", () => {
       }),
     );
   });
+  it("locks the roster once finalReport is filed (even Admin)", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), {
+        roster: { directorId: "m2", coDirectorIds: [], teamIds: [] },
+      }),
+    );
+  });
+  it("locks start/end dates once finalReport is filed (even Admin)", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), {
+        startDate: new Date("2026-01-01T00:00:00Z"),
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), {
+        endDate: new Date("2026-02-01T00:00:00Z"),
+      }),
+    );
+  });
+  it("locks roster/dates for a direction-only editor too (not just Admin)", async () => {
+    // p_done.directionUids includes owner-uid → isDirection() passes, but the
+    // finalized lock still denies the roster/date write.
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_done"), {
+        roster: { directorId: "m2", coDirectorIds: [], teamIds: [] },
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "projects/p_done"), {
+        startDate: new Date("2026-01-01T00:00:00Z"),
+      }),
+    );
+  });
+  it("locks a partial roster merge (teamIds-only dot-path) once finalReport is filed", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), { "roster.teamIds": ["m9"] }),
+    );
+  });
   it("still allows title edits on a completed initiative", async () => {
     await assertSucceeds(
       updateDoc(doc(as("u", ["Admin"]), "projects/p_done"), { title: "Done (renombrado)" }),
