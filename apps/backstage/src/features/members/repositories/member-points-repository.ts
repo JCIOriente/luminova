@@ -1,10 +1,10 @@
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
-import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import { memberPointsDocSchema, type MemberPoints } from "@luminova/types/engine";
 import { parseDocOrNull, parseDocs } from "../../../lib/firestore-read";
 
 export class MemberPointsRepository {
-  private readonly db = getFirebase().db;
+  private readonly db = getDb();
 
   /** The member's aggregate for a term, or null if none accrued yet. */
   async getByMemberAndTerm(memberId: string, termId: string): Promise<MemberPoints | null> {

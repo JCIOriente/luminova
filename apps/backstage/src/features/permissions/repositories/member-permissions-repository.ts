@@ -1,4 +1,4 @@
-import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import { doc, updateDoc } from "firebase/firestore";
 import type { PermissionOverrides } from "@luminova/types";
 
@@ -10,7 +10,7 @@ export class MemberPermissionsRepository {
     memberId: string,
     data: { roleIds: string[]; permissionOverrides: PermissionOverrides },
   ): Promise<void> {
-    await updateDoc(doc(getFirebase().db, "members", memberId), {
+    await updateDoc(doc(getDb(), "members", memberId), {
       roleIds: data.roleIds,
       permissionOverrides: data.permissionOverrides,
     });

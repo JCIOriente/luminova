@@ -1,11 +1,11 @@
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import { participationDocSchema, type Participation } from "@luminova/types/engine";
 import { parseDocs } from "../../../lib/firestore-read";
 import { byMonthThenPoints } from "./participation-sort";
 
 export class ParticipationRepository {
-  private readonly collection = collection(getFirebase().db, "participations");
+  private readonly collection = collection(getDb(), "participations");
 
   /** A member's participation ledger for a term, newest month first. */
   async getByMemberAndTerm(memberId: string, termId: string): Promise<Participation[]> {
