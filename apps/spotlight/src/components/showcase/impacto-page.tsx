@@ -24,12 +24,15 @@ function ImpactoHero({ count, personsImpacted }: { count: number; personsImpacte
           <div className="eyebrow no-rule" style={{ color: "var(--jci-teal)", display: "flex" }}>
             Impacto
           </div>
-          <h1 className="t-display" style={{ marginTop: 20, marginBottom: 0, color: "#fff" }}>
+          <h1
+            className="t-display"
+            style={{ marginTop: 20, marginBottom: 0, color: "var(--jci-white)" }}
+          >
             Lo que construimos juntos.
           </h1>
           <p
             className="t-subtitle"
-            style={{ marginTop: 22, maxWidth: 620, color: "rgba(255,255,255,0.78)" }}
+            style={{ marginTop: 22, maxWidth: 620, color: "var(--color-on-dark-2)" }}
           >
             Un archivo curado de los proyectos que JCI Oriente ha realizado — con su gente, sus
             cifras y su evidencia. Algunos son programas anuales que repetimos cada gestión.
