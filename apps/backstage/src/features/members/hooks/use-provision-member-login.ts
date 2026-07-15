@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { httpsCallable } from "firebase/functions";
-import { getFirebase } from "@luminova/firebase";
+import { getFunctionsService } from "@luminova/firebase/functions";
 
 interface ProvisionResult {
   email: string;
@@ -11,7 +11,7 @@ export function useProvisionMemberLogin() {
   return useMutation({
     mutationFn: async (memberId: string) => {
       const fn = httpsCallable<{ memberId: string }, ProvisionResult>(
-        getFirebase().functions,
+        getFunctionsService(),
         "provisionMemberLogin",
       );
       return (await fn({ memberId })).data;

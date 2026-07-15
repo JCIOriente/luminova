@@ -70,7 +70,7 @@ machine-enforced yet — hold them by judgment + `bundle-budget-watcher`:
 
 | Budget | spotlight | backstage |
 |--------|-----------|-----------|
-| Eager JS (entry + modulepreloads) | ≤ **108 kB gz** (now 104) | ≤ **285 kB gz** (now 278 — provisional, PR2 re-baselines after trimming the eager `icons` chunk) |
+| Eager JS (entry + modulepreloads) | ≤ **108 kB gz** (now 104) | ≤ **162 kB gz** (now 157 — full Firebase SDK split so firestore/storage/functions load lazily; `/me` route de-eagered) |
 | Initial CSS (`index` chunk) | ≤ 15 kB gz (now 14.5) | ≤ 15 kB gz (now 13) |
 | Any single route chunk | ≤ 40 kB gz | ≤ 40 kB gz |
 | New runtime dependency | justify if it adds > 10 kB gz to eager JS | same |
@@ -130,6 +130,7 @@ By metric — technique → what it does → status here.
 
 | # | Lever | Effort | Impact | Status |
 |---|-------|--------|--------|--------|
+| 0 | **Backstage: split the full Firebase SDK out of the login path.** `@luminova/firebase` constructed auth + firestore + storage + functions + App Check eagerly, and `main.tsx` pulls the shell at module top level → the whole SDK was in first paint. Gave the package subpath exports `@luminova/firebase/db\|storage\|functions` (each acquires its service on demand from the already-initialized app via a shared `ensureApp()` that also wires App Check once); the `.` shell keeps only app + auth. Repositories/hooks import from the subpaths, so firestore/storage/functions now live only in the lazy feature route chunks. Also de-eagered `/me`: its stray `export function MemberHome` had disabled auto-code-splitting, dragging every member/initiative/activity hook (→ firestore) + zod doc-schemas into the entry — extracted to `components/member-home.tsx` so the route file is Route-only. **Honest eager JS 279 → 157 kB gz (−122): firestore (81) + zod schemas (18) + query-key/type chunks left first paint.** | M | **High (−122 kB gz off login first paint)** | ✅ done |
 | 1 | **Backstage: lazy-load `QrCode`** (`@luminova/ui/qr-code`). `qrcode.react` was eager in the backstage `index` shell because two routes (`_app.me`, `_app.members_.$memberId`) imported it statically → rolldown hoisted it shared. Made it `lazy()` + `<Suspense>` (176×176 placeholder, no layout shift) like the sibling `QrScanner`. Result: `qrcode.react` now in its own `qr-code` chunk (6.1 kB gz), loaded only when a QR renders. **Index `index-*.js` 108.66 → 102.88 kB gz (−5.78).** | S | **Med (−5.78 kB gz off every backstage page)** | ✅ done |
 | 2 | Lazy-load the `/impacto/$id` lightbox (open-on-demand) | S | Low-Med | ✅ done |
 | 3 | `decoding="async"` on the lazy `<img>`s (+ `fetchPriority="high"` on the impacto detail hero) | XS | Low | ✅ done |

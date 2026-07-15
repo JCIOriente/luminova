@@ -9,7 +9,7 @@ import {
   limit,
   serverTimestamp,
 } from "firebase/firestore";
-import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import { leadDocSchema, type Lead, type LeadStatus } from "@luminova/types";
 import { parseDocs } from "../../../lib/firestore-read";
 
@@ -21,7 +21,7 @@ import { parseDocs } from "../../../lib/firestore-read";
 const LEAD_READ_CAP = 500;
 
 export class LeadRepository {
-  private readonly collection = collection(getFirebase().db, "leads");
+  private readonly collection = collection(getDb(), "leads");
 
   /** Live (non-soft-deleted) leads, newest first. */
   async getAll(): Promise<Lead[]> {

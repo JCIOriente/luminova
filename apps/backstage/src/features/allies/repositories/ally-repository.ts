@@ -9,13 +9,13 @@ import {
   where,
   serverTimestamp,
 } from "firebase/firestore";
-import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import { allyDocSchema, type Ally, type AllyInput } from "@luminova/types";
 import { parseDocOrNull, parseDocs } from "../../../lib/firestore-read";
 import { toAllyCreateDoc, toAllyUpdateDoc } from "./ally-mapper";
 
 export class AllyRepository {
-  private readonly collection = collection(getFirebase().db, "allies");
+  private readonly collection = collection(getDb(), "allies");
 
   /** Active (non-soft-deleted) allies, sorted by company name. */
   async getAll(): Promise<Ally[]> {

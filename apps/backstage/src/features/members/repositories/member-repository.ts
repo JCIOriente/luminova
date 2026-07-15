@@ -11,6 +11,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import {
   currentTermKey,
   MEMBER_STATUSES,
@@ -23,7 +24,7 @@ import { parseDoc, parseDocOrNull, parseDocs } from "../../../lib/firestore-read
 import { toMemberCreateDoc, toMemberUpdateDoc } from "./member-mapper";
 
 export class MemberRepository {
-  private readonly collection = collection(getFirebase().db, "members");
+  private readonly collection = collection(getDb(), "members");
 
   private currentUid(): string {
     const uid = getFirebase().auth.currentUser?.uid;

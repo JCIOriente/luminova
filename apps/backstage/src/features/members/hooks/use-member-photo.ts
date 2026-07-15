@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { uploadMemberPhoto, deleteMemberPhoto } from "@luminova/firebase";
+import { uploadMemberPhoto, deleteMemberPhoto } from "@luminova/firebase/storage";
 import { MemberRepository } from "../repositories/member-repository";
 import { memberKeys } from "./member-keys";
 

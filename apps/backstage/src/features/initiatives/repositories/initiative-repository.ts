@@ -9,7 +9,7 @@ import {
   where,
   arrayUnion,
 } from "firebase/firestore";
-import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import {
   initiativeDocSchema,
   type InitiativeCore,
@@ -36,7 +36,7 @@ export class InitiativeRepository {
   private readonly collection;
 
   constructor(type: InitiativeType) {
-    this.collection = collection(getFirebase().db, INITIATIVE_CONFIG[type].collection);
+    this.collection = collection(getDb(), INITIATIVE_CONFIG[type].collection);
   }
 
   async getByTerm(termId: string): Promise<InitiativeCore[]> {

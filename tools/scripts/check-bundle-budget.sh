@@ -94,11 +94,13 @@ check_css() {
 # Budgets: docs/performance.md section 2 (gzip). Eager JS = entry + modulepreloads.
 check_eager_js "spotlight eager JS" "apps/spotlight/dist" 108
 check_css      "spotlight index CSS" "apps/spotlight/dist/assets/index-*.css" 15
-# Backstage eager budget is PROVISIONAL: it reflects the honest eager total the
-# rewritten gate now sees (the ~127 kB `icons-*.js` chunk is modulepreloaded, so
-# it counts). PR2 re-baselines it after trimming the eager icons chunk; until
-# then this just stops the honest number from turning CI red with no code change.
-check_eager_js "backstage eager JS" "apps/backstage/dist" 285
+# Backstage eager budget re-baselined by PR2: the full Firebase SDK was split so
+# firestore/storage/functions leave the login-path graph (they now load only in
+# lazy feature route chunks), and the `/me` route's stray non-Route export — which
+# had disabled its auto-code-splitting and dragged all member/initiative hooks
+# (→ firestore) + zod doc-schemas eager — was extracted. Honest eager total fell
+# from ~279 kB to ~157 kB; budget set at 162 kB (small headroom).
+check_eager_js "backstage eager JS" "apps/backstage/dist" 162
 check_css      "backstage index CSS" "apps/backstage/dist/assets/index-*.css" 15
 
 if [ "$fail" -ne 0 ]; then

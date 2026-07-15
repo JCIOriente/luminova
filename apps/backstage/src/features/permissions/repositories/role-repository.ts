@@ -1,4 +1,4 @@
-import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import {
   addDoc,
   collection,
@@ -32,7 +32,7 @@ function toCreateDoc(data: RoleDefinitionInput): Omit<RoleDefinition, "id"> {
 }
 
 export class RoleRepository {
-  private readonly collection = collection(getFirebase().db, "roles");
+  private readonly collection = collection(getDb(), "roles");
 
   /** Active roles, built-ins first then customs, each alphabetical. */
   async getAll(): Promise<RoleDefinition[]> {

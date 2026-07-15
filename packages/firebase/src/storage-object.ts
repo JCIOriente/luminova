@@ -1,5 +1,5 @@
 import { getDownloadURL, ref, uploadBytes, deleteObject } from "firebase/storage";
-import { getStorageService } from "./index";
+import { getStorageService } from "./storage.js";
 
 export async function uploadObject(
   path: string,

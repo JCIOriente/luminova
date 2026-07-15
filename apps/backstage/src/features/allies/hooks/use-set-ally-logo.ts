@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { uploadAllyLogo } from "@luminova/firebase";
+import { uploadAllyLogo } from "@luminova/firebase/storage";
 import { AllyRepository } from "../repositories/ally-repository";
 import { allyKeys } from "./ally-keys";
 

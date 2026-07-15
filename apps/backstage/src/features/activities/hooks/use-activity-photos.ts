@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { uploadActivityPhoto, deleteActivityPhoto } from "@luminova/firebase";
+import { uploadActivityPhoto, deleteActivityPhoto } from "@luminova/firebase/storage";
 import { usePhotoCrud, type PhotoCrud } from "../../../lib/use-photo-crud";
 import { ActivityRepository } from "../repositories/activity-repository";
 import { activityKeys } from "./activity-keys";

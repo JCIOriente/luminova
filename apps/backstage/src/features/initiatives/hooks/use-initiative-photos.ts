@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { uploadInitiativePhoto, deleteInitiativePhoto } from "@luminova/firebase";
+import { uploadInitiativePhoto, deleteInitiativePhoto } from "@luminova/firebase/storage";
 import { usePhotoCrud, type PhotoCrud } from "../../../lib/use-photo-crud";
 import { InitiativeRepository } from "../repositories/initiative-repository";
 import { INITIATIVE_CONFIG, type InitiativeType } from "../lib/initiative-kind";

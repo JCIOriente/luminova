@@ -6,7 +6,7 @@ const getDownloadURL = vi.fn(async () => "https://example.test/download");
 const deleteObject = vi.fn(async () => undefined);
 
 vi.mock("firebase/storage", () => ({ ref, uploadBytes, getDownloadURL, deleteObject }));
-vi.mock("./index", () => ({ getStorageService: () => ({}) }));
+vi.mock("./storage", () => ({ getStorageService: () => ({}) }));
 
 beforeEach(() => {
   vi.clearAllMocks();

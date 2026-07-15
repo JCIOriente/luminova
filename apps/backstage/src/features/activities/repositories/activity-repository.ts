@@ -10,7 +10,7 @@ import {
   getCountFromServer,
   arrayUnion,
 } from "firebase/firestore";
-import { getFirebase } from "@luminova/firebase";
+import { getDb } from "@luminova/firebase/db";
 import { activityDocSchema, type Activity, type ActivityInput, type Photo } from "@luminova/types";
 import { toActivityCreateDoc, toActivityUpdateDoc } from "./activity-mapper";
 import { lockedFieldsChanged, ActivityLockedError } from "./activity-guard";
@@ -22,7 +22,7 @@ import {
 import { parseDocOrNull, parseDocs } from "../../../lib/firestore-read";
 
 export class ActivityRepository {
-  private readonly db = getFirebase().db;
+  private readonly db = getDb();
   private readonly collection = collection(this.db, "activities");
 
   /** Activities for a term, newest start first. */
