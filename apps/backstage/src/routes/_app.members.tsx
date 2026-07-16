@@ -99,9 +99,13 @@ function MembersPage() {
     if (provision.isPending) return;
     try {
       // Provisioning enqueues the invite email server-side (beacon → Trigger
-      // Email extension), so a successful call means the invite is on its way.
-      await provision.mutateAsync(member.id);
-      setToast(actionMessage(member.name, "invited"));
+      // Email extension); emailSent reflects whether that enqueue succeeded.
+      const { emailSent } = await provision.mutateAsync(member.id);
+      setToast(
+        emailSent
+          ? actionMessage(member.name, "invited")
+          : "Acceso creado, pero el correo no se envió.",
+      );
     } catch (err) {
       setToast(provisionErrorMessage(err, "No se pudo enviar la invitación."));
     }

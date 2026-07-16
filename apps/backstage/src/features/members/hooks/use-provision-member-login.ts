@@ -5,6 +5,9 @@ import { getFunctionsService } from "@luminova/firebase/functions";
 interface ProvisionResult {
   email: string;
   actionLink: string;
+  /** False when the member was provisioned but the invite email couldn't be
+   *  enqueued — the UI should then surface the manual access link. */
+  emailSent: boolean;
 }
 
 export function useProvisionMemberLogin() {

@@ -37,7 +37,7 @@ describe("MemberInviteDrawer", () => {
         positions={[]}
         onClose={() => {}}
         onCreate={onCreate}
-        onProvision={async () => ({ email: "", actionLink: "" })}
+        onProvision={async () => ({ email: "", actionLink: "", emailSent: true })}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
@@ -51,7 +51,11 @@ describe("MemberInviteDrawer", () => {
     const onCreate = vi.fn().mockResolvedValue("new-id");
     const onProvision = vi
       .fn()
-      .mockResolvedValue({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
+      .mockResolvedValue({
+        email: "ana@jci.bo",
+        actionLink: "https://example.com/link",
+        emailSent: true,
+      });
     renderWithAbility(
       <MemberInviteDrawer
         open
@@ -75,7 +79,11 @@ describe("MemberInviteDrawer", () => {
   it("skips provisioning when access is unchecked", async () => {
     const onProvision = vi
       .fn()
-      .mockResolvedValue({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
+      .mockResolvedValue({
+        email: "ana@jci.bo",
+        actionLink: "https://example.com/link",
+        emailSent: true,
+      });
     renderWithAbility(
       <MemberInviteDrawer
         open
@@ -100,7 +108,11 @@ describe("MemberInviteDrawer", () => {
         positions={[]}
         onClose={() => {}}
         onCreate={async () => "id3"}
-        onProvision={async () => ({ email: "ana@jci.bo", actionLink: "https://example.com/link" })}
+        onProvision={async () => ({
+          email: "ana@jci.bo",
+          actionLink: "https://example.com/link",
+          emailSent: true,
+        })}
       />,
     );
     await fill();
@@ -110,6 +122,27 @@ describe("MemberInviteDrawer", () => {
     );
     expect(screen.getByText(/recibirá un correo para crear su contraseña/i)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("warns and offers the manual link when provisioned but the email failed", async () => {
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={[]}
+        onClose={() => {}}
+        onCreate={async () => "id5"}
+        onProvision={async () => ({
+          email: "ana@jci.bo",
+          actionLink: "https://example.com/link",
+          emailSent: false,
+        })}
+      />,
+    );
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent(/el correo no se pudo enviar/i);
+    expect(screen.getByRole("button", { name: "Copiar enlace de acceso" })).toBeInTheDocument();
   });
 
   it("falls back to the no-access screen with a detail when provisioning fails", async () => {

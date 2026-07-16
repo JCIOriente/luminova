@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   validateProvisionInput,
   nextClaims,
@@ -123,7 +123,7 @@ describe("provisionMember", () => {
       usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
     });
     const result = await provisionMember(deps, "m1");
-    expect(result).toEqual({ email: "a@b.co", actionLink: "link:a@b.co" });
+    expect(result).toEqual({ email: "a@b.co", actionLink: "link:a@b.co", emailSent: true });
     expect(calls.createUser).toEqual([]);
     expect(calls.setClaims).toEqual(["u1"]);
     expect(calls.linkUid).toEqual(["u1"]);
@@ -132,7 +132,7 @@ describe("provisionMember", () => {
   it("provisions an unlinked member, creating the auth user when absent", async () => {
     const { deps, calls } = fakeDeps({ member: active });
     const result = await provisionMember(deps, "m1");
-    expect(result).toEqual({ email: "a@b.co", actionLink: "link:a@b.co" });
+    expect(result).toEqual({ email: "a@b.co", actionLink: "link:a@b.co", emailSent: true });
     expect(calls.createUser).toEqual(["a@b.co"]);
     expect(calls.setClaims).toEqual(["new-a@b.co"]);
     expect(calls.linkUid).toEqual(["new-a@b.co"]);
@@ -230,5 +230,22 @@ describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
     expect(calls.invites).toEqual([
       { to: "a@b.co", name: "Ada Lovelace", actionLink: result.actionLink },
     ]);
+    expect(result.emailSent).toBe(true);
+  });
+
+  it("still provisions (emailSent=false) when the invite email fails to enqueue", async () => {
+    const { deps } = fakeDeps({ member: { email: "a@b.co", active: true, name: "Ada" } });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const spied: ProvisionDeps = {
+      ...deps,
+      sendInviteEmail: async () => {
+        throw new Error("firestore unavailable");
+      },
+    };
+    const result = await provisionMember(spied, "m1");
+    expect(result.emailSent).toBe(false);
+    expect(result.email).toBe("a@b.co");
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });

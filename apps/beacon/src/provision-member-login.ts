@@ -82,7 +82,7 @@ function adoptedClaims(existing: RawClaims | undefined): RawClaims {
 export async function provisionMember(
   deps: ProvisionDeps,
   memberId: string,
-): Promise<{ email: string; actionLink: string }> {
+): Promise<{ email: string; actionLink: string; emailSent: boolean }> {
   const member = await deps.getMember(memberId);
   if (member === null) throw new HttpsError("not-found", "member not found");
   if (member.active !== true) throw new HttpsError("failed-precondition", "member is not active");
@@ -123,9 +123,19 @@ export async function provisionMember(
   const actionLink = await deps.passwordResetLink(targetEmail);
   const name =
     typeof member.name === "string" && member.name.length > 0 ? member.name : targetEmail;
-  await deps.sendInviteEmail({ to: targetEmail, name, actionLink });
+  // Best-effort: the member is already fully provisioned (Auth + claims + uid), so
+  // a mail-enqueue failure must NOT fail the whole call — that would tell the admin
+  // "provisioning failed" for an account that actually has access. Surface it via
+  // emailSent instead so the UI can offer the manual access link.
+  let emailSent = false;
+  try {
+    await deps.sendInviteEmail({ to: targetEmail, name, actionLink });
+    emailSent = true;
+  } catch (err) {
+    console.error("invite email enqueue failed", { memberId, err });
+  }
 
-  return { email: targetEmail, actionLink } as const;
+  return { email: targetEmail, actionLink, emailSent } as const;
 }
 
 export const provisionMemberLogin = onCall(async (request) => {

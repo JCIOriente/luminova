@@ -10,13 +10,16 @@ interface MemberInviteDrawerProps {
   positions: Position[];
   onClose: () => void;
   onCreate: (data: MemberInput) => Promise<string>;
-  onProvision: (memberId: string) => Promise<{ email: string; actionLink: string }>;
+  onProvision: (
+    memberId: string,
+  ) => Promise<{ email: string; actionLink: string; emailSent: boolean }>;
 }
 
 interface DoneState {
   name: string;
   email: string;
   provisioned: boolean;
+  emailSent: boolean;
   actionLink: string | null;
   errorDetail: string | null;
 }
@@ -63,6 +66,7 @@ export function MemberInviteDrawer({
   const handleSubmit = async (data: MemberInput) => {
     const id = await onCreate(data);
     let provisioned = false;
+    let emailSent = false;
     let actionLink: string | null = null;
     let errorDetail: string | null = null;
     if (sendAccess) {
@@ -75,9 +79,9 @@ export function MemberInviteDrawer({
         const result = await onProvision(id);
         provisioned = true;
         // The invite email is enqueued server-side (beacon → Trigger Email
-        // extension) as part of provisioning, so a successful provision means
-        // the email is on its way. The action link stays available as a manual
-        // fallback in case delivery is delayed.
+        // extension). `emailSent` reflects whether that enqueue succeeded, so a
+        // provisioned member whose email failed still gets the manual link.
+        emailSent = result.emailSent;
         actionLink = result.actionLink;
       } catch (err) {
         console.error("No se pudo aprovisionar el acceso del miembro", err);
@@ -88,6 +92,7 @@ export function MemberInviteDrawer({
       name: data.name,
       email: data.email,
       provisioned,
+      emailSent,
       actionLink,
       errorDetail,
     });
@@ -109,9 +114,16 @@ export function MemberInviteDrawer({
           </p>
           {done.provisioned ? (
             <>
-              <p className="text-ui-md text-ink-2">
-                {`Invitación enviada a ${done.email}. Recibirá un correo para crear su contraseña y acceder a la app.`}
-              </p>
+              {done.emailSent ? (
+                <p className="text-ui-md text-ink-2">
+                  {`Invitación enviada a ${done.email}. Recibirá un correo para crear su contraseña y acceder a la app.`}
+                </p>
+              ) : (
+                <p role="alert" className="text-ui-md text-error">
+                  El acceso se creó, pero el correo no se pudo enviar. Comparte el enlace de acceso
+                  manualmente.
+                </p>
+              )}
               <Button
                 as="button"
                 type="button"
