@@ -4,11 +4,18 @@ import {
   Badge,
   EmptyState,
   Icon,
+  IconButton,
   initials,
   type DataTableColumn,
   type BadgeTone,
 } from "@luminova/ui";
-import { currentTermKey, type Member, type MemberStatus, type Position } from "@luminova/types";
+import {
+  boliviaWhatsAppUrl,
+  currentTermKey,
+  type Member,
+  type MemberStatus,
+  type Position,
+} from "@luminova/types";
 import { avatarColor, joinYear } from "../lib/member-display";
 import { MemberRowMenu } from "./member-row-menu";
 import { MemberCargoChips } from "./member-cargo-chips";
@@ -100,6 +107,30 @@ function buildColumns(
   ];
 }
 
+function MemberWhatsAppAction({ member }: { member: Member }) {
+  const url = boliviaWhatsAppUrl(member.phone);
+  if (!url) {
+    return (
+      <IconButton as="button" variant="ghost" disabled aria-label="Sin teléfono registrado">
+        {Icon.whatsapp({ s: 18 })}
+      </IconButton>
+    );
+  }
+  return (
+    <IconButton
+      as="a"
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      variant="ghost"
+      aria-label={`Escribir a ${member.name} por WhatsApp`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {Icon.whatsapp({ s: 18 })}
+    </IconButton>
+  );
+}
+
 export function MemberTable({
   members,
   pageSize,
@@ -132,13 +163,16 @@ export function MemberTable({
         )
       }
       rowActions={(member) => (
-        <MemberRowMenu
-          member={member}
-          onView={onView}
-          onEdit={onEdit}
-          onProvision={onProvision}
-          onSetStatus={onSetStatus}
-        />
+        <div className="flex items-center gap-1">
+          <MemberWhatsAppAction member={member} />
+          <MemberRowMenu
+            member={member}
+            onView={onView}
+            onEdit={onEdit}
+            onProvision={onProvision}
+            onSetStatus={onSetStatus}
+          />
+        </div>
       )}
     />
   );

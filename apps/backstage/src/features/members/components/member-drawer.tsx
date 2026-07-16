@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { Avatar, Badge, Button, ImageUploader, Sheet, type BadgeTone } from "@luminova/ui";
+import type { ReactNode } from "react";
+import { Avatar, Badge, Button, Icon, ImageUploader, Sheet, type BadgeTone } from "@luminova/ui";
 import {
+  boliviaWhatsAppUrl,
   currentTermKey,
   positionTitle,
   type Member,
@@ -31,12 +33,28 @@ const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
   Desafiliado: "red",
 };
 
-function Detail({ label, value }: { label: string; value: string | number }) {
+function Detail({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-ui-xs font-medium tracking-[0.02em] text-ink-3 uppercase">{label}</dt>
       <dd className="text-ui-lg break-words text-ink-1">{value}</dd>
     </div>
+  );
+}
+
+function PhoneValue({ phone }: { phone?: string }) {
+  const url = boliviaWhatsAppUrl(phone);
+  if (!url) return <>{phone || "—"}</>;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 text-jci-blue hover:underline"
+    >
+      {Icon.whatsapp({ s: 16 })}
+      {phone}
+    </a>
   );
 }
 
@@ -68,7 +86,7 @@ function ViewBody({
       <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-5">
         <Detail label="Correo" value={member.email} />
         <Detail label="Cargo" value={memberPositionLabel(member, positionsById, termKey)} />
-        <Detail label="Teléfono" value={member.phone || "—"} />
+        <Detail label="Teléfono" value={<PhoneValue phone={member.phone} />} />
         <Detail label="Profesión" value={member.profession || "—"} />
         <Detail label="Miembro desde" value={member.joinDate ? joinYear(member.joinDate) : "—"} />
         <Detail label="Puntos" value={member.totalPoints ?? 0} />

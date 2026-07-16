@@ -91,6 +91,17 @@ export function Footer() {
               <li>
                 <span style={{ color: "rgba(255,255,255,0.55)" }}>{config.contact.location}</span>
               </li>
+              {config.contact.whatsapp && safeHref(config.contact.whatsapp) !== "#" && (
+                <li>
+                  <a
+                    href={safeHref(config.contact.whatsapp)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    WhatsApp
+                  </a>
+                </li>
+              )}
               <li>
                 <a href="/contact" onClick={(e) => go(e, "/contact")}>
                   Escríbenos →
