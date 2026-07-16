@@ -25,7 +25,6 @@ import {
 const THEME_OPTIONS: readonly { value: ThemePref; label: string }[] = [
   { value: "light", label: "Claro" },
   { value: "dark", label: "Oscuro" },
-  { value: "system", label: "Sistema" },
 ];
 
 interface AppSidebarProps {
