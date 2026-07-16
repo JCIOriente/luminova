@@ -1,9 +1,9 @@
-export type ThemePref = "light" | "dark" | "system";
+export type ThemePref = "light" | "dark";
 
 const THEME_KEY = "luminova.theme";
 const SIDEBAR_KEY = "luminova.sidebarCollapsed";
 
-const DEFAULT_THEME: ThemePref = "system";
+const DEFAULT_THEME: ThemePref = "light";
 const DEFAULT_SIDEBAR_COLLAPSED = false;
 
 const listeners = new Set<() => void>();
@@ -30,7 +30,9 @@ function emit(): void {
 
 export function getThemePref(): ThemePref {
   const raw = readStorage(THEME_KEY);
-  return raw === "light" || raw === "dark" || raw === "system" ? raw : DEFAULT_THEME;
+  // A previously persisted "system" (option now removed) is no longer valid and
+  // falls through to the light default; an explicit "dark" choice still sticks.
+  return raw === "light" || raw === "dark" ? raw : DEFAULT_THEME;
 }
 
 export function setThemePref(value: ThemePref): void {

@@ -12,8 +12,8 @@ beforeEach(() => {
 });
 
 describe("ui-prefs theme", () => {
-  it("defaults to system on empty storage", () => {
-    expect(getThemePref()).toBe("system");
+  it("defaults to light on empty storage", () => {
+    expect(getThemePref()).toBe("light");
   });
 
   it("round-trips a theme value through localStorage", () => {
@@ -23,9 +23,14 @@ describe("ui-prefs theme", () => {
     expect(getThemePref()).toBe("light");
   });
 
-  it("falls back to system on corrupt storage", () => {
+  it("falls back to light on corrupt storage", () => {
     window.localStorage.setItem("luminova.theme", "neon");
-    expect(getThemePref()).toBe("system");
+    expect(getThemePref()).toBe("light");
+  });
+
+  it("migrates a previously persisted 'system' choice to light", () => {
+    window.localStorage.setItem("luminova.theme", "system");
+    expect(getThemePref()).toBe("light");
   });
 });
 
