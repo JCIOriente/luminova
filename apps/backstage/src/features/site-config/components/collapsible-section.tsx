@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { Badge, Card, Icon, cn } from "@luminova/ui";
 
 interface CollapsibleSectionProps {
@@ -8,6 +8,10 @@ interface CollapsibleSectionProps {
   desc: string;
   count?: number;
   defaultOpen?: boolean;
+  /** Forces the section open (e.g. a submit surfaced an error inside it); the
+   *  user may still collapse it again afterwards. */
+  forceOpen?: boolean;
+  id?: string;
   children: ReactNode;
 }
 
@@ -18,13 +22,19 @@ export function CollapsibleSection({
   desc,
   count,
   defaultOpen = false,
+  forceOpen = false,
+  id,
   children,
 }: CollapsibleSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const bodyId = useId();
 
+  useEffect(() => {
+    if (forceOpen) setOpen(true);
+  }, [forceOpen]);
+
   return (
-    <Card as="section" padding="none" className="overflow-hidden">
+    <Card as="section" id={id} padding="none" className="overflow-hidden">
       <button
         type="button"
         aria-expanded={open}

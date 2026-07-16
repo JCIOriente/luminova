@@ -57,6 +57,29 @@ const stampFormatter = new Intl.DateTimeFormat("es-BO", {
   minute: "2-digit",
 });
 
+// Top-level sections in render order — each maps to a key in the RHF error tree
+// and an id we scroll to when its section holds the first invalid field.
+const SECTION_META = [
+  { key: "hero", id: "cfg-hero" },
+  { key: "stats", id: "cfg-stats" },
+  { key: "timeline", id: "cfg-timeline" },
+  { key: "mvv", id: "cfg-mvv" },
+  { key: "reasons", id: "cfg-reasons" },
+  { key: "contact", id: "cfg-contact" },
+  { key: "linktree", id: "cfg-linktree" },
+] as const;
+
+/** Count actual field-level errors, not top-level sections — the RHF error tree
+ *  is nested, so a leaf is any node carrying a string `message`. */
+function countLeafErrors(node: unknown): number {
+  if (!node || typeof node !== "object") return 0;
+  if (typeof (node as { message?: unknown }).message === "string") return 1;
+  return Object.values(node as Record<string, unknown>).reduce<number>(
+    (total, child) => total + countLeafErrors(child),
+    0,
+  );
+}
+
 export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfigFormProps) {
   const [attempted, setAttempted] = useState(false);
   const {
@@ -71,27 +94,41 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
   });
 
   const stamp = useMemo(() => stampFormatter.format(lastSaved), [lastSaved]);
-  const errorCount = Object.keys(errors).length;
+  const errorCount = countLeafErrors(errors);
   const hasErrors = attempted && errorCount > 0;
+  const sectionHasError = (key: (typeof SECTION_META)[number]["key"]) => attempted && !!errors[key];
 
-  const submit = handleSubmit(async (data) => {
-    await onSubmit(data);
-    // Re-baseline the form to the saved values so isDirty clears and Discard
-    // restores what was actually persisted (RHF ignores defaultValues prop changes).
-    reset(data);
-    setAttempted(false);
-  });
+  const submit = handleSubmit(
+    async (data) => {
+      await onSubmit(data);
+      // Re-baseline the form to the saved values so isDirty clears and Discard
+      // restores what was actually persisted (RHF ignores defaultValues prop changes).
+      reset(data);
+      setAttempted(false);
+    },
+    // On invalid submit, reveal + scroll to the first section holding an error —
+    // collapsed sections are unmounted, so otherwise the bad field is invisible.
+    (formErrors) => {
+      const first = SECTION_META.find((s) => formErrors[s.key]);
+      if (!first) return;
+      requestAnimationFrame(() => {
+        document.getElementById(first.id)?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      });
+    },
+  );
 
   const err = (message: string | undefined) => (attempted ? message : undefined);
 
   return (
     <form noValidate onSubmit={submit} className="flex flex-col gap-4">
       <CollapsibleSection
+        id="cfg-hero"
         num="01"
         icon={Icon.megaphone({ s: 18 })}
         title="Portada"
         desc="Lema y sublema del encabezado de inicio"
         defaultOpen
+        forceOpen={sectionHasError("hero")}
       >
         <div className="flex flex-col gap-4">
           <Field
@@ -113,10 +150,12 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
+        id="cfg-stats"
         num="02"
         icon={Icon.barChart({ s: 18 })}
         title="Estadísticas"
         desc="Cifras de impacto en la página de inicio"
+        forceOpen={sectionHasError("stats")}
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
@@ -215,10 +254,12 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
+        id="cfg-timeline"
         num="03"
         icon={Icon.calendar({ s: 18 })}
         title="Hitos"
         desc="Línea de tiempo de la historia del capítulo"
+        forceOpen={sectionHasError("timeline")}
       >
         <FieldArrayRows
           control={control}
@@ -264,10 +305,12 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
+        id="cfg-mvv"
         num="04"
         icon={Icon.compass({ s: 18 })}
         title="Misión · Visión · Valores"
         desc="Declaraciones institucionales"
+        forceOpen={sectionHasError("mvv")}
       >
         <div className="flex flex-col gap-4">
           <Field label="Misión" htmlFor="mision" error={err(errors.mvv?.mision?.message)}>
@@ -295,10 +338,12 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
+        id="cfg-reasons"
         num="05"
         icon={Icon.spark({ s: 18 })}
         title="Razones"
         desc="Motivos para unirse al capítulo"
+        forceOpen={sectionHasError("reasons")}
       >
         <FieldArrayRows
           control={control}
@@ -333,10 +378,12 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
+        id="cfg-contact"
         num="06"
         icon={Icon.mail({ s: 18 })}
         title="Contacto"
         desc="Correo, ubicación y enlaces del capítulo"
+        forceOpen={sectionHasError("contact")}
       >
         <div className="flex flex-col gap-4">
           <Field label="Correo" htmlFor="contactEmail" error={err(errors.contact?.email?.message)}>
@@ -466,10 +513,12 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       </CollapsibleSection>
 
       <CollapsibleSection
+        id="cfg-linktree"
         num="07"
         icon={Icon.globe({ s: 18 })}
         title="Enlaces (Linktree)"
         desc="Página pública /enlaces — botones, redes y encabezado"
+        forceOpen={sectionHasError("linktree")}
       >
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
