@@ -505,6 +505,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Outbound email queue for the Trigger Email extension. Written ONLY by
+    // beacon (Admin SDK) on member invite; the extension reads/updates it with
+    // Admin privileges. No client ever touches it — invite mail carries the
+    // password-reset link, so a client write would be an account-takeover vector.
+    match /mail/{doc} {
+      allow read, write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

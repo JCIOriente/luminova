@@ -37,7 +37,12 @@ function fakeDeps(opts: {
   member?: Record<string, unknown> | null;
   usersByEmail?: Record<string, ProvisionUser>;
 }) {
-  const calls = { createUser: [] as string[], setClaims: [] as string[], linkUid: [] as string[] };
+  const calls = {
+    createUser: [] as string[],
+    setClaims: [] as string[],
+    linkUid: [] as string[],
+    invites: [] as { to: string; name: string; actionLink: string }[],
+  };
   const users = opts.usersByEmail ?? {};
   const deps: ProvisionDeps = {
     getMember: async () => opts.member ?? null,
@@ -56,6 +61,9 @@ function fakeDeps(opts: {
     },
     getUserByUid: async (uid) => Object.values(users).find((u) => u.uid === uid) ?? null,
     passwordResetLink: async (email) => `link:${email}`,
+    sendInviteEmail: async (input) => {
+      calls.invites.push(input);
+    },
   };
   return { deps, calls };
 }
@@ -212,5 +220,15 @@ describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
     };
     await provisionMember(spied, "m1");
     expect(claimsWrites).toEqual([{ roles: ["Admin", "Member"] }]);
+  });
+
+  it("enqueues a branded invite email with the member's name and reset link", async () => {
+    const { deps, calls } = fakeDeps({
+      member: { email: "a@b.co", active: true, name: "Ada Lovelace" },
+    });
+    const result = await provisionMember(deps, "m1");
+    expect(calls.invites).toEqual([
+      { to: "a@b.co", name: "Ada Lovelace", actionLink: result.actionLink },
+    ]);
   });
 });

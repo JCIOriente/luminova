@@ -17,13 +17,6 @@ function renderWithAbility(ui: ReactElement) {
   });
 }
 
-vi.mock("../../../lib/auth/request-password-reset", () => ({
-  requestPasswordReset: vi.fn().mockResolvedValue(undefined),
-}));
-
-import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
-const mockedRequestPasswordReset = vi.mocked(requestPasswordReset);
-
 async function fill() {
   fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: "Ana Gómez" } });
   fireEvent.change(screen.getByLabelText(/Correo/), { target: { value: "ana@jci.bo" } });
@@ -34,7 +27,6 @@ async function fill() {
 describe("MemberInviteDrawer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedRequestPasswordReset.mockResolvedValue(undefined);
   });
 
   it("blocks submit and stays on the form when required fields are empty", async () => {
@@ -74,9 +66,10 @@ describe("MemberInviteDrawer", () => {
     await waitFor(() => expect(screen.getByText("Ana Gómez fue agregada")).toBeInTheDocument());
     expect(onCreate).toHaveBeenCalledTimes(1);
     expect(onProvision).toHaveBeenCalledWith("new-id");
-    expect(mockedRequestPasswordReset).toHaveBeenCalledWith("ana@jci.bo");
     expect(screen.getByText(/Invitación enviada a ana@jci\.bo/)).toBeInTheDocument();
     expect(screen.getByText(/recibirá un correo/i)).toBeInTheDocument();
+    // The invite email is enqueued server-side; the manual copy link stays as a fallback.
+    expect(screen.getByRole("button", { name: "Copiar enlace de acceso" })).toBeInTheDocument();
   });
 
   it("skips provisioning when access is unchecked", async () => {
@@ -97,11 +90,10 @@ describe("MemberInviteDrawer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
     await waitFor(() => expect(screen.getByText("Ana Gómez fue agregada")).toBeInTheDocument());
     expect(onProvision).not.toHaveBeenCalled();
-    expect(mockedRequestPasswordReset).not.toHaveBeenCalled();
     expect(screen.getByText(/Aún no tiene acceso/)).toBeInTheDocument();
   });
 
-  it("shows email-sent copy when requestPasswordReset resolves", async () => {
+  it("shows the invite-sent confirmation when provisioning succeeds", async () => {
     renderWithAbility(
       <MemberInviteDrawer
         open
@@ -120,26 +112,21 @@ describe("MemberInviteDrawer", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("shows warning and copy-link button when requestPasswordReset rejects", async () => {
-    mockedRequestPasswordReset.mockRejectedValue(new Error("network error"));
+  it("falls back to the no-access screen with a detail when provisioning fails", async () => {
     renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}
         onClose={() => {}}
         onCreate={async () => "id4"}
-        onProvision={async () => ({
-          email: "ana@jci.bo",
-          actionLink: "https://example.com/action-link",
-        })}
+        onProvision={async () => {
+          throw new Error("App Check token invalid");
+        }}
       />,
     );
     await fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
-    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "El correo no se pudo enviar. Comparte el enlace de acceso manualmente.",
-    );
-    expect(screen.getByRole("button", { name: "Copiar enlace de acceso" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Aún no tiene acceso/)).toBeInTheDocument());
+    expect(screen.getByText(/App Check token invalid/)).toBeInTheDocument();
   });
 });

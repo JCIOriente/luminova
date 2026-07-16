@@ -2064,3 +2064,17 @@ describe("firestore.rules — leads (public contact-form capture)", () => {
     await assertFails(deleteDoc(doc(as("u", ["Admin"]), "leads/lead_new")));
   });
 });
+
+describe("firestore.rules — mail (Trigger Email queue, server-only)", () => {
+  it("denies an anonymous write (invite mail carries the reset link)", async () => {
+    await assertFails(setDoc(doc(anon(), "mail/x"), { to: ["a@b.co"], message: { subject: "s" } }));
+  });
+  it("denies an Admin write (only beacon Admin SDK enqueues)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "mail/y"), { to: ["a@b.co"], message: { subject: "s" } }),
+    );
+  });
+  it("denies an Admin read", async () => {
+    await assertFails(getDoc(doc(as("u", ["Admin"]), "mail/z")));
+  });
+});

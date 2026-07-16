@@ -1,6 +1,13 @@
 import type { Auth } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
 import type { ProvisionDeps } from "./provision-member-login.js";
+import { buildInviteEmail } from "./invite-email.js";
+
+// Where the password-reset link sends the member after they set a password.
+// Overridable per-environment; defaults to the backstage hosting domain.
+function backstageLoginUrl(): string {
+  return process.env.BACKSTAGE_URL ?? "https://jcioriente-backstage.web.app/login";
+}
 
 // Null only for the "account does not exist" outcome — a transient Auth error
 // must propagate, not read as deleted (the relink guard trusts that contract).
@@ -24,6 +31,11 @@ export function firestoreProvisionDeps(db: Firestore, auth: Auth): ProvisionDeps
     linkUid: async (id, uid) => {
       await db.doc(`members/${id}`).update({ uid });
     },
-    passwordResetLink: (email) => auth.generatePasswordResetLink(email),
+    passwordResetLink: (email) =>
+      auth.generatePasswordResetLink(email, { url: backstageLoginUrl(), handleCodeInApp: false }),
+    // Enqueue for the Trigger Email extension (watches the `mail` collection).
+    sendInviteEmail: async ({ to, name, actionLink }) => {
+      await db.collection("mail").add(buildInviteEmail(to, { name, actionLink }));
+    },
   };
 }

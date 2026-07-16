@@ -55,6 +55,8 @@ export interface ProvisionDeps {
   setClaims(uid: string, claims: ReturnType<typeof nextClaims>): Promise<void>;
   linkUid(memberId: string, uid: string): Promise<void>;
   passwordResetLink(email: string): Promise<string>;
+  /** Enqueue the branded invite email (via the Trigger Email extension). */
+  sendInviteEmail(input: { to: string; name: string; actionLink: string }): Promise<void>;
 }
 
 /** Claims carried over when adopting an Auth account not currently linked to
@@ -119,6 +121,9 @@ export async function provisionMember(
   );
   await deps.linkUid(memberId, user.uid);
   const actionLink = await deps.passwordResetLink(targetEmail);
+  const name =
+    typeof member.name === "string" && member.name.length > 0 ? member.name : targetEmail;
+  await deps.sendInviteEmail({ to: targetEmail, name, actionLink });
 
   return { email: targetEmail, actionLink } as const;
 }

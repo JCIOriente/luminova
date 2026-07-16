@@ -71,6 +71,47 @@ For local development with emulators, set `VITE_FIREBASE_EMULATOR_ENABLED=true`.
 Cloud Functions use Application Default Credentials — no env file needed.
 For local emulator, the Firebase CLI handles credentials automatically.
 
+- `BACKSTAGE_URL` (optional): the continue URL the invite password-reset link
+  returns to after the member sets a password. Defaults to
+  `https://jcioriente-backstage.web.app/login`. Set it (functions env) only if the
+  backstage domain changes.
+
+## Invite email (Trigger Email extension)
+
+When an Admin invites a member (`provisionMemberLogin`), beacon writes a document
+to the **`mail`** collection with a branded "you've been invited" email carrying
+the password-reset link. Delivery is handled by the Firebase **Trigger Email**
+extension (`firebase/firestore-send-email`) — beacon never sends SMTP itself, and
+the `mail` collection is locked to server-only in `firestore.rules`.
+
+**One-time setup (Firebase Console — owner):**
+
+1. **Install the extension.** Console → Extensions → search "Trigger Email from
+   Firestore" (`firebase/firestore-send-email`) → Install. Or CLI:
+   `firebase ext:install firebase/firestore-send-email --project <prod>`.
+2. **Config during install:**
+   - *Email documents collection*: `mail` (must match beacon).
+   - *SMTP connection URI*: for JCI's Google Workspace / Gmail, use
+     `smtps://<sender>@jci...:@smtp.gmail.com:465` — the **password is a Gmail
+     App Password** (Google Account → Security → App passwords; requires 2FA),
+     stored as the extension's `SMTP password` secret (never in the URI in the
+     repo).
+   - *Default FROM address*: the JCI sender (e.g. `no-reply@<domain>` or the
+     Workspace mailbox).
+3. **Authorize the reset continue URL.** Console → Authentication → Settings →
+   Authorized domains: ensure the backstage hosting domain (or the `BACKSTAGE_URL`
+   host) is listed so `generatePasswordResetLink` accepts it.
+4. **Verify prod isn't pointed at the emulator.** The deployed backstage build must
+   have `VITE_FIREBASE_EMULATOR_ENABLED` unset/false, otherwise auth actions run
+   against the emulator and no real mail is sent.
+
+**Test:** invite a member with a real inbox you control → a `mail/<id>` doc appears
+with a `delivery` field the extension populates (`SUCCESS` / error). The member
+receives the branded email and the reset link returns to backstage login.
+
+> Note: the user-initiated **forgot-password** flow still uses Firebase Auth's
+> built-in email (client `sendPasswordResetEmail`), independent of this extension.
+
 ## App Check
 
 App Check uses **reCAPTCHA v3** to protect the Firebase backend from abuse.

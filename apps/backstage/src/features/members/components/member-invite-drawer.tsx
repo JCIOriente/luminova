@@ -3,7 +3,6 @@ import { Button, Checkbox, Sheet } from "@luminova/ui";
 import { type MemberInput, type Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
 import { actionMessage } from "../lib/member-display";
-import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
 import { useCan } from "../../../lib/authz/use-can";
 
 interface MemberInviteDrawerProps {
@@ -18,7 +17,6 @@ interface DoneState {
   name: string;
   email: string;
   provisioned: boolean;
-  emailSent: boolean;
   actionLink: string | null;
   errorDetail: string | null;
 }
@@ -65,7 +63,6 @@ export function MemberInviteDrawer({
   const handleSubmit = async (data: MemberInput) => {
     const id = await onCreate(data);
     let provisioned = false;
-    let emailSent = false;
     let actionLink: string | null = null;
     let errorDetail: string | null = null;
     if (sendAccess) {
@@ -77,14 +74,11 @@ export function MemberInviteDrawer({
       try {
         const result = await onProvision(id);
         provisioned = true;
+        // The invite email is enqueued server-side (beacon → Trigger Email
+        // extension) as part of provisioning, so a successful provision means
+        // the email is on its way. The action link stays available as a manual
+        // fallback in case delivery is delayed.
         actionLink = result.actionLink;
-        try {
-          await requestPasswordReset(data.email);
-          emailSent = true;
-        } catch (err) {
-          console.error("No se pudo enviar el correo de acceso", err);
-          errorDetail = err instanceof Error ? err.message : String(err);
-        }
       } catch (err) {
         console.error("No se pudo aprovisionar el acceso del miembro", err);
         errorDetail = err instanceof Error ? err.message : String(err);
@@ -94,7 +88,6 @@ export function MemberInviteDrawer({
       name: data.name,
       email: data.email,
       provisioned,
-      emailSent,
       actionLink,
       errorDetail,
     });
@@ -114,18 +107,11 @@ export function MemberInviteDrawer({
           <p className="text-ui-lg font-semibold text-ink-1">
             {actionMessage(done.name, "created")}
           </p>
-          {done.provisioned && done.emailSent ? (
-            <p className="text-ui-md text-ink-2">
-              {`Invitación enviada a ${done.email}. Recibirá un correo para crear su contraseña y acceder a la app.`}
-            </p>
-          ) : done.provisioned && !done.emailSent ? (
+          {done.provisioned ? (
             <>
-              <p role="alert" className="text-ui-md text-error">
-                El correo no se pudo enviar. Comparte el enlace de acceso manualmente.
+              <p className="text-ui-md text-ink-2">
+                {`Invitación enviada a ${done.email}. Recibirá un correo para crear su contraseña y acceder a la app.`}
               </p>
-              {done.errorDetail && (
-                <p className="text-ui-xs text-ink-3">Detalle: {done.errorDetail}</p>
-              )}
               <Button
                 as="button"
                 type="button"
