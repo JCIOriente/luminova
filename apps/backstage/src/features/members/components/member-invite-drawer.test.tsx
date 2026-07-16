@@ -49,13 +49,11 @@ describe("MemberInviteDrawer", () => {
 
   it("creates the member then provisions login when access is checked, reaching done", async () => {
     const onCreate = vi.fn().mockResolvedValue("new-id");
-    const onProvision = vi
-      .fn()
-      .mockResolvedValue({
-        email: "ana@jci.bo",
-        actionLink: "https://example.com/link",
-        emailSent: true,
-      });
+    const onProvision = vi.fn().mockResolvedValue({
+      email: "ana@jci.bo",
+      actionLink: "https://example.com/link",
+      emailSent: true,
+    });
     renderWithAbility(
       <MemberInviteDrawer
         open
@@ -77,13 +75,11 @@ describe("MemberInviteDrawer", () => {
   });
 
   it("skips provisioning when access is unchecked", async () => {
-    const onProvision = vi
-      .fn()
-      .mockResolvedValue({
-        email: "ana@jci.bo",
-        actionLink: "https://example.com/link",
-        emailSent: true,
-      });
+    const onProvision = vi.fn().mockResolvedValue({
+      email: "ana@jci.bo",
+      actionLink: "https://example.com/link",
+      emailSent: true,
+    });
     renderWithAbility(
       <MemberInviteDrawer
         open
