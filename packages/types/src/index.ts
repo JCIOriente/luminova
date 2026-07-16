@@ -27,6 +27,7 @@ export { memberSchema, type MemberInput } from "./member-schema.js";
 export {
   BOLIVIA_PHONE_LENGTH,
   isBoliviaPhone,
+  boliviaWhatsAppUrl,
   boliviaPhoneRequired,
   boliviaPhoneOptional,
 } from "./phone.js";

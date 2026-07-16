@@ -22,6 +22,17 @@ export function isBoliviaPhone(value: string): boolean {
   return BOLIVIA_PHONE_REGEX.test(normalizeBoliviaPhone(value));
 }
 
+/**
+ * Build a wa.me chat link for a Bolivia phone (country code 591), optionally
+ * pre-filling `text`. Returns null when the phone is missing/invalid so callers
+ * can hide or disable the action instead of linking to a broken chat.
+ */
+export function boliviaWhatsAppUrl(value: string | undefined, text?: string): string | null {
+  if (!value || !isBoliviaPhone(value)) return null;
+  const base = `https://wa.me/591${normalizeBoliviaPhone(value)}`;
+  return text ? `${base}?text=${encodeURIComponent(text)}` : base;
+}
+
 /** Required phone: normalizes formatting/country code, then requires 8 digits (empty → "Requerido."). */
 export const boliviaPhoneRequired = z
   .string()

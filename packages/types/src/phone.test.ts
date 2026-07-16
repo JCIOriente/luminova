@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   boliviaPhoneOptional,
   boliviaPhoneRequired,
+  boliviaWhatsAppUrl,
   isBoliviaPhone,
   normalizeBoliviaPhone,
 } from "./phone.js";
@@ -70,5 +71,24 @@ describe("boliviaPhoneOptional", () => {
   });
   it("rejects a wrong-length non-empty value", () => {
     expect(boliviaPhoneOptional.safeParse("123").success).toBe(false);
+  });
+});
+
+describe("boliviaWhatsAppUrl", () => {
+  it("builds a wa.me link with the 591 country code", () => {
+    expect(boliviaWhatsAppUrl("70000000")).toBe("https://wa.me/59170000000");
+  });
+  it("normalizes formatting and a +591 prefix", () => {
+    expect(boliviaWhatsAppUrl("+591 700 00000")).toBe("https://wa.me/59170000000");
+  });
+  it("encodes a prefilled text", () => {
+    expect(boliviaWhatsAppUrl("70000000", "Hola JCI")).toBe(
+      "https://wa.me/59170000000?text=Hola%20JCI",
+    );
+  });
+  it("returns null for missing or invalid phones", () => {
+    expect(boliviaWhatsAppUrl(undefined)).toBeNull();
+    expect(boliviaWhatsAppUrl("")).toBeNull();
+    expect(boliviaWhatsAppUrl("123")).toBeNull();
   });
 });
