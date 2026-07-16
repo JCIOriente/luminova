@@ -138,7 +138,7 @@ export function DataTable<T>({
   const colSpan = columns.length + (rowActions ? 1 : 0);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       {(searchText || (chips && chips.length > 0)) && (
         <div className="flex flex-wrap items-center gap-3">
           {searchText && (
