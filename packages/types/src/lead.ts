@@ -13,6 +13,7 @@ export interface Lead {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   intent: LeadIntent;
   message: string;
   status: LeadStatus;

@@ -5,6 +5,7 @@ import { LEAD_INTENTS, LEAD_STATUSES, type Lead } from "./lead.js";
 export const leadDocSchema = z.object({
   name: z.string(),
   email: z.string(),
+  phone: z.string().optional(),
   intent: z.enum(LEAD_INTENTS),
   message: z.string(),
   status: z.enum(LEAD_STATUSES),

@@ -9,7 +9,13 @@ import {
   type DataTableColumn,
   type BadgeTone,
 } from "@luminova/ui";
-import { LEAD_STATUSES, type Lead, type LeadIntent, type LeadStatus } from "@luminova/types";
+import {
+  boliviaWhatsAppUrl,
+  LEAD_STATUSES,
+  type Lead,
+  type LeadIntent,
+  type LeadStatus,
+} from "@luminova/types";
 import { formatDateTime } from "@luminova/utils/datetime";
 
 interface LeadTableProps {
@@ -49,10 +55,21 @@ function buildColumns(
           <div className="truncate font-semibold text-ink-1">{lead.name}</div>
           <a
             href={`mailto:${lead.email}`}
-            className="truncate text-ui-xs text-ink-3 hover:text-ink-2"
+            className="block truncate text-ui-xs text-ink-3 hover:text-ink-2"
           >
             {lead.email}
           </a>
+          {boliviaWhatsAppUrl(lead.phone) && (
+            <a
+              href={boliviaWhatsAppUrl(lead.phone) ?? undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-ui-xs text-jci-blue hover:underline"
+            >
+              {Icon.whatsapp({ s: 13 })}
+              {lead.phone}
+            </a>
+          )}
         </div>
       ),
     },
@@ -138,9 +155,31 @@ export function LeadTable({
           />
         )
       }
-      rowActions={
-        canUpdate
-          ? (lead) => (
+      rowActions={(lead) => {
+        // Reply-by-WhatsApp is a read-level action (any inbox viewer), so it is
+        // not gated by canUpdate; delete is.
+        const waUrl = boliviaWhatsAppUrl(
+          lead.phone,
+          `Hola ${lead.name}, te escribimos de JCI Oriente sobre tu mensaje.`,
+        );
+        if (!waUrl && !canUpdate) return null;
+        return (
+          <div className="flex items-center gap-1">
+            {waUrl && (
+              <Button
+                as="a"
+                href={waUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="ghost"
+                size="sm"
+                aria-label={`Responder a ${lead.name} por WhatsApp`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {Icon.whatsapp({ s: 16 })}
+              </Button>
+            )}
+            {canUpdate && (
               <Button
                 as="button"
                 type="button"
@@ -151,9 +190,10 @@ export function LeadTable({
               >
                 {Icon.close({ s: 16 })}
               </Button>
-            )
-          : undefined
-      }
+            )}
+          </div>
+        );
+      }}
     />
   );
 }
