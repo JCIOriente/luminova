@@ -475,9 +475,11 @@ service cloud.firestore {
     // packages/types/src/lead.ts — keep in sync (a TS-only addition silently drifts).
     function leadCreateValid() {
       let d = request.resource.data;
-      return d.keys().hasOnly(['name', 'email', 'intent', 'message', 'status', 'source', 'createdAt', 'deletedAt'])
+      return d.keys().hasOnly(['name', 'email', 'phone', 'intent', 'message', 'status', 'source', 'createdAt', 'deletedAt'])
         && d.name is string && d.name.size() >= 1 && d.name.size() <= 100
         && d.email is string && d.email.size() >= 1 && d.email.size() <= 200
+        // phone is optional (WhatsApp contact); when present it must be a bounded string.
+        && (!('phone' in d) || (d.phone is string && d.phone.size() >= 1 && d.phone.size() <= 20))
         && d.message is string && d.message.size() >= 1 && d.message.size() <= 2000
         && d.intent in ['Membresía', 'Alianza', 'Prensa', 'Otro']
         && d.status == 'Nuevo'

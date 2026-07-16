@@ -23,6 +23,7 @@ export const Route = createFileRoute("/contact")({
 interface FormState {
   name: string;
   email: string;
+  phone: string;
   intent: LeadIntent;
   message: string;
 }
@@ -46,7 +47,7 @@ const LABEL_META = {
   fontWeight: 600,
 };
 
-const EMPTY_FORM: FormState = { name: "", email: "", intent: "Membresía", message: "" };
+const EMPTY_FORM: FormState = { name: "", email: "", phone: "", intent: "Membresía", message: "" };
 
 function ContactForm({ onSuccess }: { onSuccess: () => void }) {
   const config = useSiteConfig();
@@ -72,6 +73,7 @@ function ContactForm({ onSuccess }: { onSuccess: () => void }) {
       setErrors({
         name: fieldErrors.name?.[0],
         email: fieldErrors.email?.[0],
+        phone: fieldErrors.phone?.[0],
         message: fieldErrors.message?.[0],
       });
       return;
@@ -118,6 +120,26 @@ function ContactForm({ onSuccess }: { onSuccess: () => void }) {
             onChange={(e) => update("email", e.target.value)}
             aria-invalid={!!errors.email}
             aria-describedby={errors.email ? "ct-email-err" : undefined}
+          />
+        </Field>
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <Field
+          label="WhatsApp (opcional)"
+          htmlFor="ct-phone"
+          hint="Para contactarte más rápido por WhatsApp."
+          error={errors.phone}
+        >
+          <Input
+            id="ct-phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            value={form.phone}
+            onChange={(e) => update("phone", e.target.value)}
+            aria-invalid={!!errors.phone}
+            aria-describedby={errors.phone ? "ct-phone-err" : undefined}
+            placeholder="70000000"
           />
         </Field>
       </div>

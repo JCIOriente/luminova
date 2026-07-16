@@ -7,7 +7,8 @@ import { leadSchema, type LeadInput } from "@luminova/types";
  * public site performs — the lite SDK write path mirrors the read in
  * site-config-firestore.ts. The server-owned fields (status/source/createdAt/
  * deletedAt) are pinned here to exactly what firestore.rules `leadCreateValid()`
- * requires; the 8-key shape must stay in sync with that rule.
+ * requires; the key shape must stay in sync with that rule. `phone` is optional
+ * (WhatsApp contact) and only written when the visitor provided a valid one.
  */
 export async function submitLead(input: LeadInput): Promise<void> {
   const data = leadSchema.parse(input);
@@ -21,5 +22,6 @@ export async function submitLead(input: LeadInput): Promise<void> {
     source: "web",
     createdAt: serverTimestamp(),
     deletedAt: null,
+    ...(data.phone ? { phone: data.phone } : {}),
   });
 }

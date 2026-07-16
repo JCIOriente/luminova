@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { LEAD_INTENTS } from "./lead.js";
+import { boliviaPhoneOptional } from "./phone.js";
 
 /** Public contact-form input. The write path adds status/source/createdAt/deletedAt. */
 export const leadSchema = z.object({
@@ -10,6 +11,7 @@ export const leadSchema = z.object({
     .min(1, "Ingresa tu email.")
     .max(200, "Máximo 200 caracteres.")
     .email("Email no válido."),
+  phone: boliviaPhoneOptional,
   intent: z.enum(LEAD_INTENTS),
   message: z
     .string()

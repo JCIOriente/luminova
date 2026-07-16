@@ -1968,7 +1968,13 @@ describe("firestore.rules — leads (public contact-form capture)", () => {
     );
   });
   it("denies a create carrying an unexpected field", async () => {
-    await assertFails(setDoc(doc(anon(), "leads/extra"), validLead({ phone: "77712345" })));
+    await assertFails(setDoc(doc(anon(), "leads/extra"), validLead({ nickname: "Countess" })));
+  });
+  it("allows an optional phone (WhatsApp contact)", async () => {
+    await assertSucceeds(setDoc(doc(anon(), "leads/withphone"), validLead({ phone: "77712345" })));
+  });
+  it("denies an over-long phone (>20)", async () => {
+    await assertFails(setDoc(doc(anon(), "leads/longphone"), validLead({ phone: "1".repeat(21) })));
   });
   it("denies an over-long name (>100)", async () => {
     await assertFails(setDoc(doc(anon(), "leads/longname"), validLead({ name: "a".repeat(101) })));
