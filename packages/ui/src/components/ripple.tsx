@@ -7,6 +7,8 @@ interface RippleSVGProps {
   stroke?: number;
   size?: number;
   color?: string;
+  /** Per-ring palette (cycled `colors[i % colors.length]`); overrides `color`. */
+  colors?: string[];
   className?: string;
   style?: CSSProperties;
   rotateStep?: number;
@@ -20,6 +22,7 @@ export function RippleSVG({
   stroke = 6,
   size = 800,
   color = "var(--color-jci-blue)",
+  colors,
   className = "",
   style = {},
   rotateStep = 15,
@@ -28,14 +31,15 @@ export function RippleSVG({
   const cx = size / 2;
   const cy = size / 2;
   const items: ReactElement[] = [];
-  // stroke via style, not the attribute: var(--*) colors are invalid in
-  // SVG presentation attributes but valid in CSS.
-  const strokeStyle: CSSProperties = { stroke: color };
+  const palette = colors && colors.length > 0 ? colors : null;
 
   for (let i = 0; i < rings; i++) {
     const r = baseRadius + i * (stroke * 2);
     const baseRotate = i * rotateStep;
     const span = 90 - gapDeg;
+    // stroke via style, not the attribute: var(--*) colors are invalid in
+    // SVG presentation attributes but valid in CSS.
+    const strokeStyle: CSSProperties = { stroke: palette ? palette[i % palette.length] : color };
     for (let q = 0; q < 4; q++) {
       const startAng = q * 90 + gapDeg / 2;
       const endAng = startAng + span;
@@ -88,6 +92,8 @@ type RippleVariant =
 interface RippleBackgroundProps {
   variant?: RippleVariant;
   color?: string;
+  /** Per-ring palette (cycled); overrides `color`. */
+  colors?: string[];
   opacity?: number;
   spin?: boolean;
 }
@@ -95,6 +101,7 @@ interface RippleBackgroundProps {
 export function RippleBackground({
   variant = "subtle",
   color = "var(--color-jci-blue)",
+  colors,
   opacity,
   spin = true,
 }: RippleBackgroundProps) {
@@ -163,7 +170,7 @@ export function RippleBackground({
       )}
       style={{ ...style, opacity: opacity ?? 0.085 }}
     >
-      <RippleSVG rings={rings} stroke={stroke} color={color} size={800} />
+      <RippleSVG rings={rings} stroke={stroke} color={color} colors={colors} size={800} />
     </div>
   );
 }

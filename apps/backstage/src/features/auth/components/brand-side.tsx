@@ -10,6 +10,16 @@ interface BrandSideProps {
 
 const META = ["JCI Oriente", "Santa Cruz · Bolivia", "Desde 1993"];
 
+// The four brand hues, blue-weighted (per the JCI palette ratio) and cycled
+// per ring to build the multi-color ripple from the brand guidelines.
+const BRAND_RIPPLE = [
+  "var(--color-jci-blue)",
+  "var(--color-jci-teal)",
+  "var(--color-jci-navy)",
+  "var(--color-jci-blue)",
+  "var(--color-jci-yellow)",
+];
+
 export function BrandSide({
   tone = "dark",
   eyebrow = "Portal de la directiva",
@@ -40,12 +50,12 @@ export function BrandSide({
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <RippleBackground
           variant="hero-center"
-          color="var(--color-jci-white)"
-          opacity={blue ? 0.16 : 0.1}
+          colors={BRAND_RIPPLE}
+          opacity={blue ? 0.32 : 0.42}
         />
       </div>
 
-      <LogoLockup variant={blue ? "on-blue" : "inverted"} size="sm" />
+      <LogoLockup variant={blue ? "on-blue" : "inverted"} size="lg" />
 
       <div className="max-w-[480px] animate-rise motion-reduce:animate-none">
         <div
@@ -59,7 +69,7 @@ export function BrandSide({
         <h2 className="text-[clamp(40px,4.6vw,60px)] font-light leading-[1.02] -tracking-[0.03em]">
           {title}
         </h2>
-        <p className="mt-4 font-serif text-ui-lg italic text-on-dark-3">
+        <p className="mt-4 font-serif text-ui-lg italic text-on-dark-2">
           A fire shared never dies.
         </p>
         <p className="mt-6 max-w-[420px] text-ui-lg leading-[1.62] text-on-dark-2">{lead}</p>

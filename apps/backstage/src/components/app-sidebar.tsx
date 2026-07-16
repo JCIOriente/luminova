@@ -59,7 +59,7 @@ export function AppSidebar({ drawer = false, onClose }: AppSidebarProps) {
       <div
         className={`flex h-16 shrink-0 items-center border-b border-line ${collapsed ? "justify-center px-2" : "justify-between px-[18px]"}`}
       >
-        {!collapsed && <LogoLockup size="sm" />}
+        {!collapsed && <LogoLockup size="md" />}
         {drawer ? (
           <IconButton
             as="button"
