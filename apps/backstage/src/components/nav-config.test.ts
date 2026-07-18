@@ -32,6 +32,17 @@ describe("nav-config", () => {
     expect(new Set(CONTENT_ROUTES)).toEqual(new Set([...NAV_PATHS, ...AUTH_ROUTES]));
   });
 
+  it("puts every registered _app route — incl. dynamic detail routes — behind a nav gate", () => {
+    // canAccessRoute fails OPEN for a path with no matching nav item. The check
+    // above only covers static routes; assert the `$`-param detail routes resolve
+    // to a (parent) nav item too, so no future all-dynamic admin route can slip
+    // past the _app beforeLoad guard ungated. (claim == reality, guardrail #6.)
+    for (const path of REGISTERED_PATHS) {
+      if (AUTH_ROUTES.includes(path)) continue;
+      expect(navItemForPath(path), `no nav gate covers ${path}`).toBeDefined();
+    }
+  });
+
   it("gates initiatives on the Program subject (management tier, not the Member's read:Project)", () => {
     const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === "/initiatives");
     expect(item?.label).toBe("Proyectos");
@@ -78,7 +89,7 @@ describe("nav-config", () => {
     expect(item?.label).toBe("Reglas de puntos");
   });
 
-  it("lists the leaderboard ungated (public to all members)", () => {
+  it("leaves the leaderboard subject-free (gated by role allowlist, not by subject)", () => {
     const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === "/leaderboard");
     expect(item?.label).toBe("Clasificación");
     expect(item?.subject).toBeUndefined();
@@ -120,6 +131,17 @@ describe("isNavItemVisible — conditional grants must not leak", () => {
     for (const role of ["Membership", "Treasury", "Scanner"] as Role[]) {
       expect(canSee("/initiatives", claimsFor(role))).toBe(false);
     }
+  });
+
+  it("admits a perms-only custom role (manage:Position) to /positions, still excludes Members", () => {
+    // The built-in allowlist exists because Membership and a plain Member share the
+    // same coarse read:Position grant. `orCan` must still let a dynamic custom role
+    // that manages the org chart through — without re-admitting the Member.
+    const positionManager: AuthClaims = { roles: [], perms: ["manage:Position"] };
+    expect(canSee("/positions", positionManager)).toBe(true);
+    expect(canSee("/positions", claimsFor("Membership"))).toBe(true);
+    expect(canSee("/positions", claimsFor("Member"))).toBe(false);
+    expect(canSee("/positions", claimsFor("Treasury"))).toBe(false);
   });
 });
 

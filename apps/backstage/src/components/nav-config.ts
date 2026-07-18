@@ -1,6 +1,6 @@
 import { Icon } from "@luminova/ui";
 import { hasAnyRole, type Role, type AuthClaims } from "@luminova/auth/roles";
-import { buildAbility, subject, type AppAbility } from "@luminova/auth/ability";
+import { buildAbility, subject, type AppAbility, type Action } from "@luminova/auth/ability";
 
 type IconKey = keyof typeof Icon;
 
@@ -34,8 +34,14 @@ export interface NavItem {
   exact?: boolean;
   subject?: Subject;
   action?: "read" | "checkIn";
-  /** Optional role allowlist — item shows only if the caller has one of these. */
+  /** Optional role allowlist — item shows if the caller has one of these built-in
+   *  roles OR satisfies `orCan` (below). Used when the viewer set can't be named by
+   *  a perm alone (a built-in role shares a coarse read grant with plain Members). */
   roles?: Role[];
+  /** Escape hatch ORed with `roles`: a dynamic custom role (perms only, no built-in
+   *  role name) that holds this capability is admitted even when it matches no
+   *  `roles` entry — so the perms system isn't defeated by the built-in allowlist. */
+  orCan?: { action: Action; subject: Subject };
 }
 
 export interface NavGroup {
@@ -69,8 +75,13 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Cargos y comisiones",
         icon: "compass",
         subject: "Position",
-        // Members can read Position (chip resolution on /me) — keep the catalog page off their nav.
+        // Members can read Position (chip resolution on /me), and Membership shares
+        // ONLY that same read grant — so no perm cleanly separates catalog viewers
+        // from Members; hence the built-in allowlist. `orCan` re-admits a dynamic
+        // custom role that manages the org chart (manage:Position) but carries no
+        // built-in role name, so the route guard doesn't lock the perms system out.
         roles: ["Admin", "Membership", "ExecutiveCommittee"],
+        orCan: { action: "manage", subject: "Position" },
       },
       { to: "/permisos", label: "Permisos", icon: "lock", roles: ["Admin"] },
     ],
@@ -108,7 +119,11 @@ export function isNavItemVisible(item: NavItem, ability: AppAbility, claims: Aut
     // query that firestore.rules (correctly) denies. An empty instance matches
     // only UNCONDITIONAL grants — mirroring what the rules actually allow for a list.
     (!item.subject || ability.can(item.action ?? "read", subject(item.subject, {}))) &&
-    (!item.roles || hasAnyRole(claims, item.roles))
+    // Role allowlist ORed with the `orCan` capability, so a perms-only custom role
+    // isn't excluded by an allowlist that exists purely to name built-in roles.
+    (!item.roles ||
+      hasAnyRole(claims, item.roles) ||
+      (item.orCan !== undefined && ability.can(item.orCan.action, subject(item.orCan.subject, {}))))
   );
 }
 
