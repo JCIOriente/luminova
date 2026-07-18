@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { NAV_GROUPS, navItemForPath } from "./nav-config";
+import { buildAbility } from "@luminova/auth/ability";
+import type { AuthClaims, Role } from "@luminova/auth/roles";
+import { NAV_GROUPS, navItemForPath, isNavItemVisible, canAccessRoute } from "./nav-config";
+
+const SELF_UID = "uid-self";
+const claimsFor = (...roles: Role[]): AuthClaims => ({ roles });
+const navItem = (to: string) => NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === to)!;
+const canSee = (to: string, claims: AuthClaims) =>
+  isNavItemVisible(navItem(to), buildAbility(claims, SELF_UID), claims);
 
 // Derive the registered routes from the generated router tree (the single source of
 // truth), not a hand-typed mirror of NAV_GROUPS — so a nav entry pointing at a
@@ -24,11 +32,10 @@ describe("nav-config", () => {
     expect(new Set(CONTENT_ROUTES)).toEqual(new Set([...NAV_PATHS, ...AUTH_ROUTES]));
   });
 
-  it("gates initiatives on the Program OR Project subjects", () => {
+  it("gates initiatives on the Program subject (management tier, not the Member's read:Project)", () => {
     const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === "/initiatives");
     expect(item?.label).toBe("Proyectos");
-    expect(item?.subject).toBeUndefined();
-    expect(item?.anySubject).toEqual(["Program", "Project"]);
+    expect(item?.subject).toBe("Program");
   });
 
   it("lists Mi panel ungated", () => {
@@ -85,5 +92,71 @@ describe("nav-config", () => {
     expect(navItemForPath("/")?.label).toBe("Inicio");
     expect(navItemForPath("/members")?.label).toBe("Miembros");
     expect(navItemForPath("/unknown")).toBeUndefined();
+  });
+});
+
+describe("isNavItemVisible — conditional grants must not leak", () => {
+  it("hides Miembros from a plain Member (own-doc read is not collection read)", () => {
+    // The bug: CASL's type-level can('read','Member') is true for a Member because
+    // of the own-doc conditional grant, so the admin nav + route showed, then died
+    // on the unconditional list query firestore.rules denies.
+    expect(canSee("/members", claimsFor("Member"))).toBe(false);
+  });
+
+  it("shows Miembros to exactly the roles that hold unconditional read:Member", () => {
+    for (const role of ["Admin", "Membership", "Treasury", "ExecutiveCommittee"] as Role[]) {
+      expect(canSee("/members", claimsFor(role))).toBe(true);
+    }
+    for (const role of ["ProjectManager", "Scanner", "Member"] as Role[]) {
+      expect(canSee("/members", claimsFor(role))).toBe(false);
+    }
+  });
+
+  it("hides Proyectos from a plain Member despite their unconditional read:Project", () => {
+    expect(canSee("/initiatives", claimsFor("Member"))).toBe(false);
+    for (const role of ["Admin", "ExecutiveCommittee", "ProjectManager"] as Role[]) {
+      expect(canSee("/initiatives", claimsFor(role))).toBe(true);
+    }
+    for (const role of ["Membership", "Treasury", "Scanner"] as Role[]) {
+      expect(canSee("/initiatives", claimsFor(role))).toBe(false);
+    }
+  });
+});
+
+describe("canAccessRoute — route guard mirrors nav visibility", () => {
+  const MEMBER = claimsFor("Member");
+  const ADMIN = claimsFor("Admin");
+
+  it("lets any signed-in user reach the ungated home + panel", () => {
+    expect(canAccessRoute("/", MEMBER, SELF_UID)).toBe(true);
+    expect(canAccessRoute("/me", MEMBER, SELF_UID)).toBe(true);
+  });
+
+  it("blocks a plain Member from every management route", () => {
+    for (const path of [
+      "/members",
+      "/allies",
+      "/leads",
+      "/point-rules",
+      "/leaderboard",
+      "/positions",
+      "/permisos",
+      "/activities",
+      "/initiatives",
+      "/config",
+    ]) {
+      expect(canAccessRoute(path, MEMBER, SELF_UID)).toBe(false);
+    }
+  });
+
+  it("blocks a Member from management DETAIL routes too (path prefix match)", () => {
+    expect(canAccessRoute("/members/abc123", MEMBER, SELF_UID)).toBe(false);
+    expect(canAccessRoute("/initiatives/project/xy", MEMBER, SELF_UID)).toBe(false);
+  });
+
+  it("lets an Admin reach the management routes", () => {
+    for (const path of ["/members", "/config", "/permisos", "/initiatives"]) {
+      expect(canAccessRoute(path, ADMIN, SELF_UID)).toBe(true);
+    }
   });
 });

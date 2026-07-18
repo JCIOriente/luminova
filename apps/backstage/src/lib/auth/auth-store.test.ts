@@ -43,6 +43,16 @@ describe("createAuthStore", () => {
     expect(store.getState().claims).toEqual({ roles: ["Treasury"] });
   });
 
+  it("holds ready until claims decode for an authenticated user", async () => {
+    const store = createAuthStore({} as Auth);
+    store.subscribe(() => {});
+    lastCallback()(fakeUser("u1", { roles: ["Admin"] }));
+    // beforeLoad awaits ready THEN reads claims synchronously — so by the time
+    // ready resolves, claims must already be decoded, not the empty placeholder.
+    await store.ready;
+    expect(store.getState().claims).toEqual({ roles: ["Admin"] });
+  });
+
   it("becomes unauthenticated when null is emitted", () => {
     const store = createAuthStore({} as Auth);
     lastCallback()(null);
