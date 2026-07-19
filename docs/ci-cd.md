@@ -411,6 +411,36 @@ Effectively **$0**.
 | One hosting target shipped, the other didn't | Per-target promotion — one target's smoke failed and it was left on the old build while the other promoted; the job is red. Fix the failing build and re-run (redeploys both). |
 | Index deploy aborts on a delete prompt | An index exists in prod that isn't in `firestore.indexes.json` (see §9). Mirror it into the file, or intentionally remove it via the console first. |
 | A merged change never deployed | Usually a superseded/failed prior run. The `filter` diffs since the **last successful Deploy**, so the *next* green push self-heals it; to force it now, `workflow_dispatch surface=all` from `main`. |
+| CI job fails immediately with `ERR_PNPM_IGNORED_BUILDS` | A dependency (often transitive) ships a native install/build script pnpm blocks by default. The `Install deps` step (`tools/scripts/pnpm-install-guarded.sh`) names the packages — add each bare name to `allowBuilds:` in `pnpm-workspace.yaml`. See **Un-allowlisted native builds** below. |
+| PR checks stuck on "Expected — waiting for status", **no run** in the Actions tab | GitHub's merge-ref computation is wedged (`gh pr view <n> --json mergeable` → `UNKNOWN`). `pull_request` CI runs on that merge ref, so none fires. Confirm it's a glitch not a real conflict (`git rev-list --left-right --count origin/main...HEAD` → 0 behind, clean tree), then **close + reopen the PR** to force a recompute. See **Wedged merge ref** below. |
+
+### Un-allowlisted native builds (`ERR_PNPM_IGNORED_BUILDS`)
+
+pnpm refuses to run a dependency's install/build script unless the package is listed
+in `allowBuilds:` (`pnpm-workspace.yaml`) — a supply-chain safety default so a
+malicious `postinstall` can't run silently. When an un-listed one appears (direct or
+transitive), `pnpm install --frozen-lockfile` **exits 1 at the first step**, before
+lint/test — so both CI jobs die before posting their required `checks`/`emulator`
+statuses, which on a PR can read as a hung "Expected — waiting" check rather than a
+failure. The install step runs through `tools/scripts/pnpm-install-guarded.sh`, which
+translates the buried pnpm error into an explicit `::error::` listing the offending
+packages and the exact `allowBuilds:` lines to add. Fix: add each **bare** name (drop
+`@version`) as `<pkg>: true`, commit `pnpm-workspace.yaml`, push. Real case: PR #175
+pulled `sharp` transitively via `@vite-pwa/assets-generator`.
+
+### Wedged merge ref (checks stuck, zero runs)
+
+Distinct from the above — here CI **never fires at all**. GitHub tests a PR on an
+invisible merge commit (branch merged onto base); if its async mergeability
+computation wedges (`mergeable: UNKNOWN`, sometimes for hours), there is nothing to
+run CI on, and the required checks sit on "Expected — waiting for status" with a
+spinning "Checking for the ability to merge…". It's a GitHub-side flake, not a repo
+issue — no code fix prevents it. Remedy: verify there's no real conflict (0 commits
+behind `main`, clean merge-tree), then `gh pr close <n> && gh pr reopen <n>` to force
+a recompute; a `pull_request` run fires within seconds. (Reopen can fire a duplicate
+event the PR concurrency group cancels — a `CANCELLED` run beside a newer `SUCCESS` on
+the same SHA is normal.) **Tell them apart by the Actions tab:** a failed run there =
+install/lockfile; **zero** runs = this wedge.
 
 **Upgrading firebase-tools:** the version is pinned in **four** spots — `ci.yml` (cache
 key + `npm install -g`) and `.github/actions/firebase-setup/action.yml` (cache key +
