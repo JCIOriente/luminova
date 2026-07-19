@@ -266,7 +266,13 @@ detail-route-inherits-list-gate design.
    red/green `canAccessRoute` tests proving a direction-lead Member reaches
    `/initiatives/$type/$id` and `/activities/$id` while the LIST routes stay closed.
    C7 also relaxes the activity-detail in-component `Sin acceso` gate to admit a
-   parent-direction Member (`canRead || isParentDirection`).
+   parent-direction Member (`canRead || isParentDirection`). **Program parity
+   (`firestore-security-reviewer` follow-up):** both detail pages fetch the initiative /
+   parent unconditionally (mirroring `read: if signedIn()` on programs *and* projects) —
+   a plain Member holds unconditional `read:Project` but never `read:Program`, so gating
+   the fetch on `can("read", kind)` had left the Program-type director with a false
+   "no encontrado" / dead "Sin acceso". `isDirection` (from the loaded doc) still gates
+   the write actions.
 2. **C1 + C5 together** (`/leaderboard` gate): replaced the role allowlist with a single
    `subject:"Member"` empty-probe gate — PM/Scanner/Member hidden, custom `read:Member`
    role admitted. Mirrors the page's members query.

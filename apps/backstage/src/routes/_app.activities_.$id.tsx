@@ -85,12 +85,14 @@ function ActivityDetailPage() {
   const parentId = activity?.parentId ?? null;
   const photoActions = useActivityPhotos(id, termId);
   const galleryError = "No se pudo actualizar la galería.";
+  // Load the parent for any authenticated viewer (rules: `read: if signedIn()` on both
+  // programs and projects) so a parent-direction plain Member — who holds read:Project
+  // but never read:Program — can resolve direction on a Program-parented activity too.
+  // Gating this on ability.can("read", parentType) left the Program-parent hatch dead.
   const parentInitiative = useInitiative(
     parentType ? INITIATIVE_TYPE[parentType] : "project",
     parentId ?? "",
-    {
-      enabled: parentId !== null && ability.can("read", parentType ?? "Project"),
-    },
+    { enabled: parentId !== null },
   );
   const isParentDirection =
     uid !== null &&

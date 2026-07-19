@@ -75,13 +75,18 @@ function InitiativeDetailPage() {
   const canCreateActivity = ability.can("create", "Activity");
   const canReadMembers = ability.can("read", "Member");
 
+  // firestore.rules allow `read: if signedIn()` on both programs and projects, so load
+  // the initiative for any authenticated viewer. A direction-lead plain Member holds
+  // unconditional read:Project but never read:Program, so gating the fetch on
+  // ability.can("read", kind) gave a Program director a false "no encontrado" on their
+  // own program; isDirection (derived from the loaded doc) still gates the write actions.
   const {
     data: item,
     isLoading,
     isError,
     error,
     refetch,
-  } = useInitiative(initiativeType, id, { enabled: canRead });
+  } = useInitiative(initiativeType, id, { enabled: true });
   const { data: activities } = useActivitiesByTerm(termId, { enabled: canRead });
   const { data: members } = useMembers({ enabled: canReadMembers });
 
