@@ -135,6 +135,37 @@ describe("nav ⟷ rules: every OFFERED route's defining op is allowed by the emu
     }
   });
 
+  // The implication below is vacuous where no principal is offered a route, so assert the
+  // probe is actually exercised — a route that regresses to zero-visibility would otherwise
+  // go silently untested and could become a render-then-die page unnoticed.
+  it("every listRead/write route is offered to at least one principal (its probe runs)", () => {
+    for (const item of navItems) {
+      if (UNGATED.has(item.to)) continue;
+      const probe = ROUTE_GATING[item.to];
+      if (!probe || probe.kind === "curationOnly") continue;
+      const offered = PRINCIPALS.some((p) => navVisible(item, p));
+      expect(
+        offered,
+        `no principal is offered ${item.to} — its ${probe.kind} probe never runs`,
+      ).toBe(true);
+    }
+  });
+
+  // Assert the escalation invariant directly, not by the mere absence of a generated case: a
+  // perms-only principal (even manage:all) must NEVER be offered a role-gated admin-power
+  // route. These gate the claims-mint trust anchor (roles/, siteConfig); a perm unlocking
+  // them would be a self-elevation loop. Guards a future swap of the role gate for a perm gate.
+  it("no role-gated write route is offered to the perms-only manage:all escalation probe", () => {
+    const escalation = PRINCIPALS.find((p) => p.label === "custom(manage-all)")!;
+    for (const item of navItems) {
+      if (ROUTE_GATING[item.to]?.kind !== "write") continue;
+      expect(
+        navVisible(item, escalation),
+        `manage:all is offered ${item.to} — a perm must not unlock a role-gated trust anchor`,
+      ).toBe(false);
+    }
+  });
+
   for (const item of navItems) {
     if (UNGATED.has(item.to)) continue;
     const probe = ROUTE_GATING[item.to];

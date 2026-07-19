@@ -16,10 +16,12 @@ const RULES_SOURCE = readFileSync(
   "utf8",
 );
 
-// First path segment after `match /`. Skips the `{document=**}` wildcards (start with `{`).
+// First path segment after `match /`. The charset covers every legal Firestore collection
+// id character (letters, digits, `_`, `-`) so a future `match /point_rules/{id}` can't slip
+// past the orphan guard; the `{document=**}` wildcards start with `{` and are excluded.
 const STRUCTURAL = new Set(["databases"]); // `match /databases/{database}/documents`
 const collections = new Set(
-  [...RULES_SOURCE.matchAll(/match\s+\/([A-Za-z][A-Za-z0-9]*)/g)]
+  [...RULES_SOURCE.matchAll(/match\s+\/([A-Za-z][A-Za-z0-9_-]*)/g)]
     .map((m) => m[1]!)
     .filter((c) => !STRUCTURAL.has(c)),
 );
