@@ -1,8 +1,10 @@
-import { Icon } from "@luminova/ui";
+// Type-only import (erased at runtime) so this module carries NO runtime @luminova/ui
+// dependency — it must stay loadable from the isolated firestore-rules-tests package,
+// which imports NAV_GROUPS + ROUTE_GATING to reconcile the nav gates against the real
+// rules engine (tests/firestore-rules/nav-equivalence.test.ts).
+import type { IconKey } from "@luminova/ui";
 import { hasAnyRole, type Role, type AuthClaims } from "@luminova/auth/roles";
 import { buildAbility, subject, type AppAbility, type Action } from "@luminova/auth/ability";
-
-type IconKey = keyof typeof Icon;
 
 type Subject =
   | "Member"
@@ -178,3 +180,56 @@ export function canAccessRoute(pathname: string, claims: AuthClaims, uid: string
   const item = navItemForPath(pathname);
   return !item || isNavItemVisible(item, buildAbility(claims, uid), claims);
 }
+
+export type GatingProbe =
+  | { kind: "listRead"; collection: string }
+  | { kind: "write"; collection: string; op: "create" | "update" }
+  | { kind: "curationOnly"; note: string; collections: string[] };
+
+/** Which `firestore.rules` boundary each nav item's gate CLAIMS TO MIRROR — never *who*
+ *  is allowed (that stays in the rules + CASL). Consumed only by the emulator
+ *  reconciliation test (`tests/firestore-rules/nav-equivalence.test.ts`), which asserts,
+ *  per principal: `navVisible(item) ⟹ emulatorAllows(probe)` — no route is OFFERED whose
+ *  defining rules-gated op the real engine denies (no render-then-die, no perm-vs-role
+ *  escalation surface). NOT a policy table; it verifies nothing about who's allowed.
+ *
+ *  - `listRead`: the page fires an unfiltered LIST as its primary load; a denied list is a
+ *    dead page. The nav empty-instance probe already models "unconditional grant ⇒ can list".
+ *  - `write`: an admin-power route whose reason to exist is a rules-gated WRITE; the invariant
+ *    is that only principals who can perform it are offered the route (catches a future
+ *    perm-gate regression on a role-gated trust anchor).
+ *  - `curationOnly`: the gated collection is `read: if signedIn()` (or the route reads
+ *    several), so no single rules boundary mirrors the nav gate — the gate is UX curation
+ *    stricter than the rules. Excluded from the implication; visibility is pinned by
+ *    `nav-config` unit tests instead.
+ *
+ *  `/` and `/me` are ungated (`canAccessRoute` returns true) and are omitted; the test
+ *  asserts every other nav item has an entry so this map can't silently lag the nav. */
+export const ROUTE_GATING: Partial<Record<NavItem["to"], GatingProbe>> = {
+  "/members": { kind: "listRead", collection: "members" },
+  "/allies": { kind: "listRead", collection: "allies" },
+  "/leads": { kind: "listRead", collection: "leads" },
+  "/leaderboard": { kind: "listRead", collection: "members" },
+  "/permisos": { kind: "write", collection: "roles", op: "create" },
+  "/config": { kind: "write", collection: "siteConfig", op: "update" },
+  "/point-rules": {
+    kind: "curationOnly",
+    collections: ["pointRules"],
+    note: "pointRules read=signedIn; nav read:PointRule (Admin-only today) is curation, authoring writes are Admin-gated + covered by rules.test.ts",
+  },
+  "/positions": {
+    kind: "curationOnly",
+    collections: ["positions"],
+    note: "positions read=signedIn; viewer set is a role set (read:Position is overloaded by /me chips)",
+  },
+  "/activities": {
+    kind: "curationOnly",
+    collections: ["activities"],
+    note: "activities read=signedIn; nav read:Activity (incl. Scanner) is UX curation",
+  },
+  "/initiatives": {
+    kind: "curationOnly",
+    collections: ["programs", "projects"],
+    note: "programs read=signedIn; nav read:Program is a management-tier proxy for a programs+projects route",
+  },
+};

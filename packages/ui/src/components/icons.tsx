@@ -436,3 +436,5 @@ export const Icon = {
     </svg>
   ),
 } satisfies Record<string, IconFn>;
+
+export type IconKey = keyof typeof Icon;
