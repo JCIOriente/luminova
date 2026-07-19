@@ -70,12 +70,16 @@ function ActivityDetailPage() {
   const { data: members } = useMembers({ enabled: canReadMembers });
   // Programs/projects only feed the parent link + the edit sheet's parent picker;
   // skip the reads on parentless activities until the edit sheet is opened.
+  // programs/projects lists read collections that are `read: if signedIn()` in the rules
+  // and only feed the parent-title lookup + edit-sheet picker, so gate on need alone (not
+  // canRead(Activity)) — a parent-direction Member lacks read:Activity but must still see
+  // their parent's title. The edit picker stays behind canUpdate, so no write leaks.
   const needsInitiatives = activity?.parentId != null || editOpen;
   const { data: programs } = useInitiativesOfType("program", termId, {
-    enabled: canRead && needsInitiatives,
+    enabled: needsInitiatives,
   });
   const { data: projects } = useInitiativesOfType("project", termId, {
-    enabled: canRead && needsInitiatives,
+    enabled: needsInitiatives,
   });
 
   const update = useUpdateActivity(termId);
