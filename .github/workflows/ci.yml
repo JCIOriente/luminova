@@ -63,7 +63,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - if: steps.code.outputs.run == 'true'
-        run: pnpm install --frozen-lockfile
+        name: Install deps (guards un-allowlisted native builds)
+        run: bash tools/scripts/pnpm-install-guarded.sh
       - if: steps.code.outputs.run == 'true'
         run: pnpm format
       - if: steps.code.outputs.run == 'true'
@@ -133,7 +134,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - if: steps.filter.outputs.run == 'true'
-        run: pnpm install --frozen-lockfile
+        name: Install deps (guards un-allowlisted native builds)
+        run: bash tools/scripts/pnpm-install-guarded.sh
       # Firestore emulator runs on the JVM.
       - if: steps.filter.outputs.run == 'true'
         uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
