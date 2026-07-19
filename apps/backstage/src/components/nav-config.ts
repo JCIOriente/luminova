@@ -68,7 +68,13 @@ export const NAV_GROUPS: NavGroup[] = [
         to: "/leaderboard",
         label: "Clasificación",
         icon: "barChart",
-        roles: ["Admin", "Membership", "Treasury", "ExecutiveCommittee", "ProjectManager"],
+        // Gate on the page's actual gating read: the members list (memberPoints/terms are
+        // signedIn-only). The empty-probe admits exactly the UNCONDITIONAL read:Member
+        // holders — Admin/Membership/Treasury/ExecutiveCommittee AND any perms-only custom
+        // role carrying read:Member — mirroring what firestore.rules allow for that list.
+        // The old role allowlist both let ProjectManager in (no read:Member → the query
+        // died, C1) and locked perms-only custom roles out (C5); one capability fixes both.
+        subject: "Member",
       },
       {
         to: "/positions",
@@ -133,11 +139,42 @@ export function navItemForPath(pathname: string): NavItem | undefined {
   );
 }
 
+interface DetailGate {
+  /** Matched by path prefix — `"/initiatives/"` catches `/initiatives/project/xy` but
+   *  not the `/initiatives` list itself. */
+  prefix: string;
+  /** Unconditional read subject that admits the entitled viewers; omit = signed-in only. */
+  subject?: Subject;
+}
+
+/** A `$`-param DETAIL route's reachability mirrors firestore.rules' PER-DOCUMENT
+ *  `read: if signedIn()` — NOT the management-tier gate on its parent LIST. Inheriting
+ *  the list gate (via `navItemForPath`'s prefix match) wrongly redirected a direction-lead
+ *  plain Member off their own initiative/activity: the rules grant them `isDirection` /
+ *  `activityParentDirection` writes, but the list gate (Program / Activity) hid the route.
+ *  In-page `<Can>`/ability checks still narrow WRITES; this only restores READ reachability.
+ *  A prefix absent here (e.g. `/members/`) keeps inheriting its list gate by design. */
+const DETAIL_GATES: DetailGate[] = [
+  // Every direction-lead Member holds an unconditional read:Project (management roles do
+  // too); Scanner/roleless have no read:Project and no reason to open the initiative page.
+  { prefix: "/initiatives/", subject: "Project" },
+  // Activity detail must admit BOTH read:Activity holders (Scanner, ProjectManager) and
+  // parent-direction plain Members (read:Project, no read:Activity). Their union is broad
+  // enough that the honest mirror of the rules' `read: if signedIn()` is signed-in only;
+  // the page's own in-component gate ("Sin acceso") narrows what each principal sees.
+  { prefix: "/activities/", subject: undefined },
+];
+
 /** Route access mirrors nav visibility: a path a user can't see in the nav is a
  *  path they can't open directly. Ungated routes (`/`, `/me`) have no nav gate and
- *  always pass. Building the ability here keeps the `_app` beforeLoad guard a
- *  one-liner and makes nav + route-guard share ONE policy (they can't drift). */
+ *  always pass. Detail routes use their own `DETAIL_GATES` read gate (above). Building
+ *  the ability here keeps the `_app` beforeLoad guard a one-liner and makes nav +
+ *  route-guard share ONE policy (they can't drift). */
 export function canAccessRoute(pathname: string, claims: AuthClaims, uid: string): boolean {
+  const detail = DETAIL_GATES.find((d) => pathname.startsWith(d.prefix));
+  if (detail) {
+    return !detail.subject || buildAbility(claims, uid).can("read", subject(detail.subject, {}));
+  }
   const item = navItemForPath(pathname);
   return !item || isNavItemVisible(item, buildAbility(claims, uid), claims);
 }

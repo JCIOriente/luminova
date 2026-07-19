@@ -62,13 +62,11 @@ function ActivityDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [toast, setToast] = useDismissingToast();
 
-  const {
-    data: activity,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useActivity(id, { enabled: canRead });
+  // firestore.rules allow `read: if signedIn()` on an activity, so load it for any
+  // authenticated viewer — a parent-direction plain Member (who lacks read:Activity but
+  // whom the rules grant activityParentDirection writes) needs the doc + its parent to
+  // resolve their direction and manage photos. The access gate below still fences the view.
+  const { data: activity, isLoading, isError, error, refetch } = useActivity(id, { enabled: true });
   const { data: members } = useMembers({ enabled: canReadMembers });
   // Programs/projects only feed the parent link + the edit sheet's parent picker;
   // skip the reads on parentless activities until the edit sheet is opened.
@@ -125,15 +123,6 @@ function ActivityDetailPage() {
   });
   const locked = (checkInCount ?? 0) > 0;
 
-  if (!canRead) {
-    return (
-      <EmptyState
-        icon={Icon.calendar({ s: 40 })}
-        title="Sin acceso"
-        description="No tienes permiso para ver esta actividad."
-      />
-    );
-  }
   if (isLoading) return <p className="text-ink-3">Cargando…</p>;
   if (isError) return <QueryErrorState error={error} onRetry={() => refetch()} />;
   if (!activity) {
@@ -144,6 +133,20 @@ function ActivityDetailPage() {
           ← Volver a Actividades
         </Link>
       </div>
+    );
+  }
+  // Access is granted by read:Activity OR being a parent-initiative director; the latter
+  // is only known once the parent resolves, so wait for it rather than race the check false.
+  if (parentId !== null && parentInitiative.isLoading) {
+    return <p className="text-ink-3">Cargando…</p>;
+  }
+  if (!canRead && !isParentDirection) {
+    return (
+      <EmptyState
+        icon={Icon.calendar({ s: 40 })}
+        title="Sin acceso"
+        description="No tienes permiso para ver esta actividad."
+      />
     );
   }
 

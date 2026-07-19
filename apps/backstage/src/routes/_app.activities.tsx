@@ -43,7 +43,12 @@ function ActivitiesPage() {
   const { claims } = useAuth();
   const isAdmin = hasRole(claims, "Admin");
   const { data: activities, isLoading, isError } = useActivitiesByTerm(termId);
-  const { data: members } = useMembers();
+  // Scanner/ProjectManager reach this list via read:Activity but hold no read:Member, so
+  // an unconditional members list is denied by firestore.rules. Gate it (mirror the detail
+  // route) instead of firing a query whose permission-denied error was silently swallowed —
+  // director names simply omit for those principals. (guardrail #4: no silent catch.)
+  const canReadMembers = useAbility().can("read", "Member");
+  const { data: members } = useMembers({ enabled: canReadMembers });
   const { data: programs } = useInitiativesOfType("program", termId);
   const { data: projects } = useInitiativesOfType("project", termId);
   const create = useCreateActivity(termId);

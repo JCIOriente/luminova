@@ -56,16 +56,15 @@ describe("nav-config", () => {
     expect(item?.roles).toBeUndefined();
   });
 
-  it("gates the leaderboard to non-member roles (broken for plain Members until projection)", () => {
+  it("gates the leaderboard on unconditional read:Member, not a role allowlist", () => {
+    // The page's gating read is the members list (memberPoints/terms are signedIn-only);
+    // ProjectManager was on the old allowlist but holds no read:Member, so the members
+    // query the rules deny made it a dead page (C1). A perms-only custom role holding
+    // read:Member was locked out despite the rules allowing it (C5). One capability gate
+    // fixes both: the empty-probe admits exactly the unconditional read:Member holders.
     const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === "/leaderboard");
-    expect(item?.roles).toEqual([
-      "Admin",
-      "Membership",
-      "Treasury",
-      "ExecutiveCommittee",
-      "ProjectManager",
-    ]);
-    expect(item?.roles).not.toContain("Member");
+    expect(item?.subject).toBe("Member");
+    expect(item?.roles).toBeUndefined();
   });
 
   it("gates activities on the Activity subject (read)", () => {
@@ -89,10 +88,20 @@ describe("nav-config", () => {
     expect(item?.label).toBe("Reglas de puntos");
   });
 
-  it("leaves the leaderboard subject-free (gated by role allowlist, not by subject)", () => {
-    const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === "/leaderboard");
-    expect(item?.label).toBe("Clasificación");
-    expect(item?.subject).toBeUndefined();
+  it("shows the leaderboard to unconditional read:Member holders; hides PM/Scanner/Member", () => {
+    for (const role of ["Admin", "Membership", "Treasury", "ExecutiveCommittee"] as Role[]) {
+      expect(canSee("/leaderboard", claimsFor(role))).toBe(true);
+    }
+    // ProjectManager (no read:Member) and Scanner/Member (none/conditional) are hidden —
+    // the members query behind /leaderboard would be denied for them by firestore.rules.
+    for (const role of ["ProjectManager", "Scanner", "Member"] as Role[]) {
+      expect(canSee("/leaderboard", claimsFor(role))).toBe(false);
+    }
+  });
+
+  it("admits a perms-only custom role holding read:Member to the leaderboard (C5)", () => {
+    expect(canSee("/leaderboard", { roles: [], perms: ["read:Member"] })).toBe(true);
+    expect(canSee("/leaderboard", { roles: [], perms: ["manage:Position"] })).toBe(false);
   });
 
   it("groups items under Panel, Gestión, Reconocimiento and Sitio labels", () => {
@@ -171,14 +180,48 @@ describe("canAccessRoute — route guard mirrors nav visibility", () => {
     }
   });
 
-  it("blocks a Member from management DETAIL routes too (path prefix match)", () => {
+  it("keeps admin DETAIL routes that inherit a LIST gate blocked (members)", () => {
+    // Member detail has no relaxed gate, so it still inherits the /members list gate.
     expect(canAccessRoute("/members/abc123", MEMBER, SELF_UID)).toBe(false);
-    expect(canAccessRoute("/initiatives/project/xy", MEMBER, SELF_UID)).toBe(false);
   });
 
   it("lets an Admin reach the management routes", () => {
     for (const path of ["/members", "/config", "/permisos", "/initiatives"]) {
       expect(canAccessRoute(path, ADMIN, SELF_UID)).toBe(true);
     }
+  });
+});
+
+describe("canAccessRoute — detail routes mirror the per-doc read, not the list gate", () => {
+  // #183 made every `$`-param detail route inherit its parent LIST nav gate via the
+  // navItemForPath prefix match. That over-corrected: a direction-lead plain Member —
+  // whom firestore.rules grant isDirection / activityParentDirection writes on their own
+  // initiative/activity — was redirected off the page before it could render (C6/C7).
+  // Detail reachability must mirror the rules' per-doc `read: if signedIn()` instead.
+  const MEMBER = claimsFor("Member");
+  const SCANNER = claimsFor("Scanner");
+  const ROLELESS = claimsFor();
+
+  it("lets a Member reach an initiative DETAIL route via unconditional read:Project (C6)", () => {
+    expect(canAccessRoute("/initiatives/project/xy", MEMBER, SELF_UID)).toBe(true);
+    expect(canAccessRoute("/initiatives/program/xy", MEMBER, SELF_UID)).toBe(true);
+  });
+
+  it("keeps the initiatives LIST closed to a Member (admin catalog unchanged)", () => {
+    expect(canAccessRoute("/initiatives", MEMBER, SELF_UID)).toBe(false);
+  });
+
+  it("still blocks Scanner/roleless from initiative detail (no read:Project)", () => {
+    expect(canAccessRoute("/initiatives/project/xy", SCANNER, SELF_UID)).toBe(false);
+    expect(canAccessRoute("/initiatives/project/xy", ROLELESS, SELF_UID)).toBe(false);
+  });
+
+  it("lets any authenticated user reach an activity DETAIL route (rules read = signedIn) (C7)", () => {
+    expect(canAccessRoute("/activities/xy", MEMBER, SELF_UID)).toBe(true);
+    expect(canAccessRoute("/activities/xy", SCANNER, SELF_UID)).toBe(true);
+  });
+
+  it("keeps the activities LIST closed to a Member", () => {
+    expect(canAccessRoute("/activities", MEMBER, SELF_UID)).toBe(false);
   });
 });
