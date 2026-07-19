@@ -84,17 +84,6 @@ describe("AppSidebar", () => {
     expect(screen.getByLabelText("Expandir menú")).toBeInTheDocument();
   });
 
-  it("shows the Proyectos initiatives item when the caller can read Project but not Program", () => {
-    ability.can = (_action, subject) => subject === "Project";
-    setSidebarCollapsed(false);
-    render(<AppSidebar />);
-    expect(screen.getByText("Proyectos")).toBeInTheDocument();
-  });
-
-  it("hides the Proyectos initiatives item when the caller can read neither Program nor Project", () => {
-    ability.can = (_action, subject) => subject !== "Program" && subject !== "Project";
-    setSidebarCollapsed(false);
-    render(<AppSidebar />);
-    expect(screen.queryByText("Proyectos")).not.toBeInTheDocument();
-  });
+  // Per-item visibility (incl. the Proyectos/Miembros gating and the conditional-
+  // grant leak fix) is unit-tested against real abilities in nav-config.test.ts.
 });

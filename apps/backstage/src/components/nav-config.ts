@@ -1,6 +1,6 @@
 import { Icon } from "@luminova/ui";
-import { hasAnyRole, type Role } from "@luminova/auth/roles";
-import type { AppAbility } from "@luminova/auth/ability";
+import { hasAnyRole, type Role, type AuthClaims } from "@luminova/auth/roles";
+import { buildAbility, subject, type AppAbility, type Action } from "@luminova/auth/ability";
 
 type IconKey = keyof typeof Icon;
 
@@ -33,10 +33,15 @@ export interface NavItem {
   icon: IconKey;
   exact?: boolean;
   subject?: Subject;
-  anySubject?: Subject[];
   action?: "read" | "checkIn";
-  /** Optional role allowlist — item shows only if the caller has one of these. */
+  /** Optional role allowlist — item shows if the caller has one of these built-in
+   *  roles OR satisfies `orCan` (below). Used when the viewer set can't be named by
+   *  a perm alone (a built-in role shares a coarse read grant with plain Members). */
   roles?: Role[];
+  /** Escape hatch ORed with `roles`: a dynamic custom role (perms only, no built-in
+   *  role name) that holds this capability is admitted even when it matches no
+   *  `roles` entry — so the perms system isn't defeated by the built-in allowlist. */
+  orCan?: { action: Action; subject: Subject };
 }
 
 export interface NavGroup {
@@ -70,8 +75,13 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Cargos y comisiones",
         icon: "compass",
         subject: "Position",
-        // Members can read Position (chip resolution on /me) — keep the catalog page off their nav.
+        // Members can read Position (chip resolution on /me), and Membership shares
+        // ONLY that same read grant — so no perm cleanly separates catalog viewers
+        // from Members; hence the built-in allowlist. `orCan` re-admits a dynamic
+        // custom role that manages the org chart (manage:Position) but carries no
+        // built-in role name, so the route guard doesn't lock the perms system out.
         roles: ["Admin", "Membership", "ExecutiveCommittee"],
+        orCan: { action: "manage", subject: "Position" },
       },
       { to: "/permisos", label: "Permisos", icon: "lock", roles: ["Admin"] },
     ],
@@ -84,7 +94,12 @@ export const NAV_GROUPS: NavGroup[] = [
         to: "/initiatives",
         label: "Proyectos",
         icon: "briefcase",
-        anySubject: ["Program", "Project"],
+        // Program read = the management tier (Admin/ExecutiveCommittee/ProjectManager).
+        // Gate on Program, NOT Project: a plain Member carries an unconditional
+        // `read:Project` (for /me's participation names), which an OR-of-both gate
+        // would leak into this admin catalog. No role reads Project without also
+        // reading Program, so Program alone is the correct management signal.
+        subject: "Program",
       },
     ],
   },
@@ -94,15 +109,21 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-export function isNavItemVisible(
-  item: NavItem,
-  ability: AppAbility,
-  claims: Parameters<typeof hasAnyRole>[0],
-): boolean {
+export function isNavItemVisible(item: NavItem, ability: AppAbility, claims: AuthClaims): boolean {
   return (
-    (!item.subject || ability.can(item.action ?? "read", item.subject)) &&
-    (!item.anySubject || item.anySubject.some((s) => ability.can(item.action ?? "read", s))) &&
-    (!item.roles || hasAnyRole(claims, item.roles))
+    // Probe an EMPTY subject instance, not the bare subject type. A conditional
+    // grant — e.g. a Member's own-doc `can('read','Member',{uid})` — must NOT
+    // satisfy a collection-level nav gate: CASL's type-level `can('read','Member')`
+    // returns true whenever ANY conditional grant exists, which showed a plain
+    // Member the admin Miembros nav + route, then died on the unconditional list
+    // query that firestore.rules (correctly) denies. An empty instance matches
+    // only UNCONDITIONAL grants — mirroring what the rules actually allow for a list.
+    (!item.subject || ability.can(item.action ?? "read", subject(item.subject, {}))) &&
+    // Role allowlist ORed with the `orCan` capability, so a perms-only custom role
+    // isn't excluded by an allowlist that exists purely to name built-in roles.
+    (!item.roles ||
+      hasAnyRole(claims, item.roles) ||
+      (item.orCan !== undefined && ability.can(item.orCan.action, subject(item.orCan.subject, {}))))
   );
 }
 
@@ -110,4 +131,13 @@ export function navItemForPath(pathname: string): NavItem | undefined {
   return NAV_GROUPS.flatMap((g) => g.items).find((i) =>
     i.exact ? pathname === i.to : pathname === i.to || pathname.startsWith(`${i.to}/`),
   );
+}
+
+/** Route access mirrors nav visibility: a path a user can't see in the nav is a
+ *  path they can't open directly. Ungated routes (`/`, `/me`) have no nav gate and
+ *  always pass. Building the ability here keeps the `_app` beforeLoad guard a
+ *  one-liner and makes nav + route-guard share ONE policy (they can't drift). */
+export function canAccessRoute(pathname: string, claims: AuthClaims, uid: string): boolean {
+  const item = navItemForPath(pathname);
+  return !item || isNavItemVisible(item, buildAbility(claims, uid), claims);
 }

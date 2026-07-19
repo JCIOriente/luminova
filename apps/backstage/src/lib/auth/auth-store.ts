@@ -38,14 +38,18 @@ export function createAuthStore(auth: Auth, readyTimeoutMs: number = READY_TIMEO
   }
 
   onAuthStateChanged(auth, (user) => {
-    clearTimeout(timer);
     if (!user) {
+      clearTimeout(timer);
       emit({ status: "unauthenticated", user: null, claims: EMPTY_CLAIMS });
       resolveReady();
       return;
     }
+    // Flip to authenticated immediately (UI can paint the shell), but hold `ready`
+    // until claims decode — route guards read `getState().claims` synchronously in
+    // beforeLoad, so resolving before the token settles would race them (a
+    // privileged user momentarily looks role-less and gets bounced). The 8s timer
+    // stays armed as a backstop in case getIdTokenResult never settles.
     emit({ status: "authenticated", user, claims: EMPTY_CLAIMS });
-    resolveReady();
     void user
       .getIdTokenResult()
       .then((result) => {
@@ -55,6 +59,10 @@ export function createAuthStore(auth: Auth, readyTimeoutMs: number = READY_TIMEO
       })
       .catch(() => {
         /* keep empty claims on token failure */
+      })
+      .finally(() => {
+        clearTimeout(timer);
+        resolveReady();
       });
   });
 

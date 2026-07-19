@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { createFileRoute, redirect, Outlet, useLocation } from "@tanstack/react-router";
 import { Drawer } from "@luminova/ui";
 import { authRedirect } from "../lib/auth/guard";
+import { canAccessRoute } from "../components/nav-config";
 import { AppSidebar } from "../components/app-sidebar";
 import { AppTopbar } from "../components/app-topbar";
 import { CommandMenu } from "../components/command-menu";
@@ -10,9 +11,16 @@ import { getSidebarCollapsed, subscribe } from "../lib/ui-prefs";
 export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ context, location }) => {
     await context.auth.ready;
-    const { user } = context.auth.getState();
+    const { user, claims } = context.auth.getState();
     const target = authRedirect(user, location.href);
     if (target) throw redirect(target);
+    // One choke point for every _app child: a route the caller can't see in the
+    // nav is a route they can't open. Denied → home (`/`), which itself bounces a
+    // member-only user on to `/me`. `ready` now settles claims first, so this
+    // never bounces a privileged user mid-token-load.
+    if (user && !canAccessRoute(location.pathname, claims, user.uid)) {
+      throw redirect({ to: "/" });
+    }
   },
   component: AppLayout,
 });
