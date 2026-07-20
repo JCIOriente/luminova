@@ -5,7 +5,9 @@ export type { Role };
 
 export interface AuthClaims {
   roles: Role[];
-  /** Resolved effective coarse permission set. Absent on pre-backfill tokens. */
+  /** Resolved effective coarse permission set, minted by claims-sync. When absent
+   *  the member has zero coarse abilities — `buildAbility` does not fall back to a
+   *  role table. */
   perms?: PermissionCode[];
   scannerEventIds?: string[];
 }

@@ -8,7 +8,7 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigate,
 }));
 
-const currentClaims = { value: { roles: [] } as AuthClaims };
+const currentClaims = { value: roleClaims() };
 vi.mock("../lib/auth/auth", () => ({
   useAuth: () => ({ status: "authenticated", user: null, claims: currentClaims.value }),
 }));
@@ -17,7 +17,7 @@ import { CommandMenu } from "./command-menu";
 import { AbilityProvider } from "../lib/authz/ability-context";
 import { setCommandMenuOpen } from "./command-menu-store";
 import { roleClaims } from "@luminova/auth/test-helpers";
-import type { AuthClaims, Role } from "@luminova/auth/roles";
+import type { Role } from "@luminova/auth/roles";
 
 function renderWithRoles(ui: ReactElement, roles: Role[]) {
   currentClaims.value = roleClaims(...roles);

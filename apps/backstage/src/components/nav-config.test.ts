@@ -8,7 +8,7 @@ import type { PermissionCode } from "@luminova/types";
 import { NAV_GROUPS, navItemForPath, isNavItemVisible, canAccessRoute } from "./nav-config";
 
 const SELF_UID = "uid-self";
-const claimsFor = (...roles: Role[]): AuthClaims => roleClaims(...roles);
+const claimsFor = roleClaims;
 const navItem = (to: string) => NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === to)!;
 const canSee = (to: string, claims: AuthClaims) =>
   isNavItemVisible(navItem(to), buildAbility(claims, SELF_UID), claims);
