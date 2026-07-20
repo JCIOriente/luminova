@@ -222,6 +222,7 @@ Skills are stage-specific. Don't invoke them all at once — map each to its pha
 
 ### Rules
 
+- **Never decide the review set by judgment** — run the review router (below) and run what it lists.
 - **Never skip `secure-dep-vetting`** — it auto-triggers, do not override.
 - **Never skip `/security-review`** when touching auth, Firestore rules, or Cloud Functions code.
 - **`frontend-design` before `ui-ux-pro-max`** — vision first, validation second. Reversing creates "designed by committee" results.
@@ -245,8 +246,8 @@ Single source of truth for every harness tool. The **Skill Workflow** section ab
 |------|-------|------|
 | `branch-guard.sh` | `PreToolUse` Bash `git commit` | runs first: hard-blocks (exit 2) commits on `main`/`master` (ignores `--no-verify`); warns on branch names outside `feat/\|fix/\|chore/\|migration/` |
 | `pre-commit.sh` | `PreToolUse` Bash `git commit` | auto fmt-fix + re-stage, then lint/typecheck; blocks only if still failing. Honors `--no-verify` w/ warning |
-| `security-review-gate.sh` | `PreToolUse` Bash `gh pr create` | **hard gate** (exit 2): blocks the PR when the branch diff touches `apps/beacon`/`firestore.rules`/auth unless a fresh `Security-Reviewed: <sha>` commit trailer is in range (sha is HEAD-ancestor + no sensitive file changed after it). Diffs the **worktree the PR runs from** (PreToolUse `.cwd`), not the main checkout. feature-flow phase 3 stamps it; to stamp manually after a clean `/security-review`: `git commit --allow-empty -m 'chore: security-review' -m "Security-Reviewed: $(git rev-parse HEAD)"`. Enforcing counterpart to `post-pr-create.sh` |
-| `post-pr-create.sh` | `PostToolUse` Bash `gh pr create` | path-routes: if diff touches `apps/beacon`, auth routes, `firestore.rules`, or functions → leads with `/security-review` prompt. Always reminds `pnpm pr-tests` |
+| `review-gate.sh` | `PreToolUse` Bash `gh pr create` | **hard gate** (exit 2) on whichever rules the rubric marks `gate: "hard"`: blocks the PR unless a fresh review trailer covering them is in range — the trailer sha must be HEAD-ancestor and nothing in that review's scope may have changed after it. Freshness re-runs the router over `<sha>..HEAD`, so gate and checklist can't drift; trailer key names come from the rubric, not the shell. Diffs the **worktree the PR runs from** (PreToolUse `.cwd`), not the main checkout |
+| `review-router.sh` | `PostToolUse` Bash `gh pr create` | runs the **review router** (`review-route.mjs` over `.claude/review-routing.json`) on the branch diff and prints the exact mandated review set for THIS diff, split into ENFORCED vs REQUIRED, plus the stamp command. Always reminds `pnpm pr-tests`. Advisory counterpart to `review-gate.sh` |
 | `stop.sh` | `Stop` | prints `git status -sb` + uncommitted count; nudges checkpoint commit if >10 files. Read-only |
 
 ### MCP servers (`.mcp.json`)
@@ -261,9 +262,43 @@ None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops g
 | UI / aesthetic work (spotlight) | `frontend-design` → `ui-ux-pro-max` |
 | Add / upgrade / replace / **remove** / security-patch a dependency | `secure-dep-vetting` (auto) — full lifecycle; uses `pnpm audit` (CVEs) + `pnpm knip` (unused) |
 | `.tsx` edits | `react-best-practices` (auto) |
-| Touching auth / Firestore rules / Cloud Functions | `/security-review` + matching `-reviewer` subagent |
+| Deciding which reviews a change owes | `.claude/hooks/route.sh` — never your own judgment |
 | Bug / test failure | `superpowers:systematic-debugging` |
 | About to claim "done" | `superpowers:verification-before-completion` + dispatch relevant `-reviewer` |
+
+### Review routing (BINDING — no judgment call)
+
+Which reviews a diff needs is **not** decided per PR. It is computed from
+`.claude/review-routing.json` by `.claude/hooks/review-route.mjs`. Same diff →
+same review set, every time. Before opening any PR:
+
+1. **Route the diff.** Run it yourself; don't guess:
+   ```bash
+   .claude/hooks/route.sh
+   ```
+   (`review-router.sh` prints the same thing automatically right after
+   `gh pr create` — but routing *after* the PR is open is late. Route first.)
+2. **Run every review it lists.** ENFORCED and REQUIRED alike. "The diff looks
+   simple" is not an input to the rubric; the rubric already accounts for size
+   via its line thresholds.
+3. **Stamp the evidence** on a commit in range — one trailer, exactly the token set
+   the router printed. It prints the command; copy it. A stamp is honored only while
+   nothing in that review's scope changes after its sha — re-review and re-stamp
+   after later commits touching those paths. Keep the trailer in the commit
+   message's **last** paragraph (git trailer parsing).
+4. **Mirror it in the PR body** under a `## Reviews` heading, so review coverage is
+   visible without reading the git log.
+5. **Lighter review** (router verdict `lighter` or `minor`): the skills may be
+   skipped, never silently. The router prints the exception terms — follow them
+   verbatim; they live in the rubric, not here.
+
+Only the `hard` class is shell-enforced (`review-gate.sh` blocks `gh pr create`).
+The rest is enforced by this contract — a mandated review that was not run and not
+excepted is a process failure, not a judgment call. Never hand-write a review
+assessment in place of running the mandated skill.
+
+Changing the rubric = changing the contract: edit `.claude/review-routing.json`
+and its fixture tests together (`node --test .claude/hooks/review-route.test.mjs`).
 
 ### Ordering when several tools apply
 
@@ -285,8 +320,14 @@ None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops g
 
   ## Test plan
   - [ ] <stack>-ci pass
-  - [ ] /security-review run (if triggers match)
+
+  ## Reviews
+  - [ ] <every token the review router mandated for this diff>
+  <!-- or, for a lighter-review diff: -->
+  Review-Exception: <reason> — <correctness gate run + invariant asserted>
   ```
+  The Reviews list is not free-form: it is whatever `review-route.mjs` printed for
+  this diff. See "Review routing" under Skill Workflow.
   Run `pnpm pr-tests` locally right after opening.
 - **Worktree-first (MANDATORY).** Every feature/fix runs in its own git worktree — not optional, no exceptions. Create it **before** the first edit: `git worktree add .worktrees/<slug> -b <branch> main` (worktrees live in `.worktrees/`, which is gitignored and excluded from prettier/knip). Never edit, build, or run tests in the primary checkout. Tooling/config-only changes count too. Remove the worktree after the PR merges (`git worktree remove .worktrees/<slug>`).
 - **Branch per feature.** Every feature/fix gets its own branch off `main`, created **before** the first edit — never commit feature work directly to `main`/`master`. Branches `feat/ fix/ chore/ migration/` (e.g. `feat/shared-ui-components`); open a PR to integrate. Commits = Conventional Commits with module scope (`feat(backstage): …`). `master` always deployable.

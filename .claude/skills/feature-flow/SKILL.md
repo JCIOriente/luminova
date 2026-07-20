@@ -69,14 +69,27 @@ Default to the cheapest tier that fits; escalate deliberately, not reflexively.
 ## Phase 3 — Implement → clean → review
 
 1. Implement (TDD where it applies — `superpowers:test-driven-development`).
-2. `/simplify` on the diff — reuse, dead code, redundant vars. (Only once the feature is functionally done, not mid-iteration.)
-3. `/code-review` on the diff — correctness + reuse. It has caught CRITICALs the subagents missed; do not skip it.
-4. `/security-review` — **required** when the diff touches auth, `firestore.rules`, or `apps/beacon`. Dispatch the matching read-only subagent too: `firestore-security-reviewer` (rules/repositories/auth routes), `firebase-functions-reviewer` (beacon), `bundle-budget-watcher` (frontend deps/routes).
-   - **Stamp the review.** Once `/security-review` comes back clean, record the reviewed sha so `security-review-gate.sh` lets the PR through:
-     ```
-     git commit --allow-empty -m 'chore: security-review' -m "Security-Reviewed: $(git rev-parse HEAD)"
-     ```
-     (or add the `Security-Reviewed: <HEAD-sha>` trailer to the next real commit). The gate honors it only while no sensitive file changes after that sha — re-review and re-stamp if you touch a sensitive path again.
+2. **Route the diff.** Which reviews this change needs is computed, never judged:
+   ```
+   .claude/hooks/route.sh
+   ```
+   It prints the mandated set for THIS diff from `.claude/review-routing.json`.
+   Do not hand-pick reviews and do not skip one because the diff "looks simple" —
+   the rubric already accounts for size via its line thresholds.
+3. **Run every review it printed**, ENFORCED and REQUIRED alike. Ordering when
+   several apply: `/simplify` (only once the feature is functionally done, not
+   mid-iteration) → `/code-review` (it has caught CRITICALs the subagents missed;
+   never skip it) → `/security-review` + the read-only subagents the router named.
+4. **Stamp what you ran**, once, with the token set the router printed:
+   ```
+   git commit --allow-empty -m 'chore: reviews' -m "Reviews: $(git rev-parse HEAD) <tokens>"
+   ```
+   (or put that trailer in the last paragraph of the next real commit). The gate
+   honors a stamp only while no file in that review's scope changes after its sha —
+   re-review and re-stamp if you touch those paths again.
+5. If the router's verdict is `lighter` or `minor`, the skills may be skipped, but
+   the PR body MUST carry `Review-Exception: <reason>` plus the correctness gate
+   you ran. Follow the exception terms the router prints verbatim.
 
 Checkpoint-commit per milestone; never batch >10 modified files.
 
@@ -90,7 +103,9 @@ Checkpoint-commit per milestone; never batch >10 modified files.
 
   ## Test plan
   - [ ] <stack>-ci pass
-  - [ ] /security-review run (if triggers match)
+
+  ## Reviews
+  - [ ] <the token set `.claude/hooks/route.sh` printed for this diff>
   ```
 - Run `pnpm pr-tests` locally right after opening.
 - Conventional Commit with module scope (`feat(backstage): …`).
