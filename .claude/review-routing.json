@@ -13,9 +13,33 @@
       "\\.(test|spec)\\.[cm]?[jt]sx?$",
       "^packages/rules-test/"
     ],
-    "docs": ["^docs/", "\\.md$", "^LICENSE$", "(^|/)\\.gitignore$"],
-    "source": ["^apps/", "^packages/", "^\\.claude/", "^\\.github/", "^(tools/)?scripts/"],
+    "_docsComment": "Prose that is NOT inert is deliberately excluded: CLAUDE.md carries the binding review-routing contract and feature-flow/SKILL.md is the producer that stamps it, so a `docs-only` verdict would let the non-shell half of this whole mechanism be deleted unreviewed. Both fall through to `source` instead.",
+    "docs": [
+      "^docs/",
+      "^LICENSE$",
+      "(^|/)\\.gitignore$",
+      "\\.md$",
+      "!^CLAUDE\\.md$",
+      "!^\\.claude/skills/",
+      "!^\\.claude/agents/"
+    ],
+    "_sourceComment": "Root config files are guards in their own right — eslint.config.js enforces guardrails #1 and hooks-correctness, firestore.indexes.json backs guardrail #4's 'an index regression must not be invisible'. A 500-line change to any of them used to route nothing at all.",
+    "source": [
+      "^apps/",
+      "^packages/",
+      "^\\.claude/",
+      "^\\.github/",
+      "^(tools/)?scripts/",
+      "^CLAUDE\\.md$",
+      "^firestore\\.indexes\\.json$",
+      "^eslint\\.config\\.js$",
+      "^turbo\\.json$",
+      "^knip\\.json$",
+      "^tsconfig(\\.[a-z]+)?\\.json$",
+      "^vitest\\.config\\.[cm]?[jt]s$"
+    ],
     "deps": ["(^|/)package\\.json$", "^pnpm-lock\\.yaml$", "^pnpm-workspace\\.yaml$"],
+    "_authSurfaceComment": "firebase.json carries hosting headers and rewrites (a rewrite can point hosting at a function); the seed scripts mint PRODUCTION auth claims — 'seed scripts must mint perms not just roles' was a real bug class here; deploy.yml is the keyless-CD trust boundary (WIF/OIDC per docs/ci-cd.md). ci.yml stays advisory so ordinary CI edits keep their low friction.",
     "authSurface": [
       "^apps/beacon/",
       "firestore\\.rules",
@@ -25,11 +49,18 @@
       "^apps/backstage/src/routes/_app\\.tsx$",
       "^apps/backstage/src/components/nav-config\\.ts$",
       "/repositories/",
-      "/functions/"
+      "/functions/",
+      "^firebase\\.json$",
+      "^\\.firebaserc$",
+      "^tools/scripts/seed-.*\\.mjs$",
+      "^tools/scripts/lib/(role-seed|president-claims)\\.mjs$",
+      "^\\.github/workflows/deploy\\.yml$",
+      "^\\.github/actions/firebase-setup/"
     ],
-    "_reviewHarnessComment": "The whole hooks dir, not just the gate file: _hooklib.sh holds hook_is_pr_create / hook_merge_base / hook_route, so a one-line edit there disables the gate as thoroughly as editing the gate itself. An enforcement control that can be weakened unreviewed is not a control.",
+    "_reviewHarnessComment": "The whole hooks dir, not just the gate file: _hooklib.sh holds hook_is_pr_create / hook_merge_base / hook_route, so a one-line edit there disables the gate as thoroughly as editing the gate itself. .claude/agents/ is here for the same reason — docs/engineering-guardrails.md names those reviewers as the enforcing guard for mistake-classes 2 and 6, and gutting a reviewer's checklist used to score as 'docs-only, skip reviews'. An enforcement control that can be weakened unreviewed is not a control.",
     "reviewHarness": [
       "^\\.claude/hooks/",
+      "^\\.claude/agents/",
       "^\\.claude/review-routing\\.json$",
       "^\\.claude/settings\\.json$"
     ]
@@ -53,7 +84,8 @@
       "gate": "hard",
       "why": "auth / Firestore-rules / Cloud-Functions surface — a bad write here is a production data-access hole",
       "pathsRef": ["authSurface", "reviewHarness"],
-      "exceptPathsRef": ["tests"]
+      "_exceptComment": "Markdown under a sensitive dir (apps/beacon/README.md) cannot change deployed behavior — hard-gating it was a false mandate. The contract files that ARE load-bearing prose are carved out of `docs` below, so they never reach this exception.",
+      "exceptPathsRef": ["tests", "docs"]
     },
     {
       "token": "firestore-security-reviewer",
@@ -69,7 +101,7 @@
         "^apps/backstage/src/routes/_app\\.tsx$",
         "^apps/backstage/src/components/nav-config\\.ts$"
       ],
-      "exceptPathsRef": ["tests"]
+      "exceptPathsRef": ["tests", "docs"]
     },
     {
       "token": "firebase-functions-reviewer",
@@ -77,7 +109,7 @@
       "gate": "advisory",
       "why": "Cloud Functions readiness: admin-SDK-only, input validation, idempotency, bounded queries",
       "paths": ["^apps/beacon/"],
-      "exceptPathsRef": ["tests"]
+      "exceptPathsRef": ["tests", "docs"]
     },
     {
       "token": "code-review",

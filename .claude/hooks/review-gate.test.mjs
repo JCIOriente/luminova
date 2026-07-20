@@ -172,6 +172,40 @@ test("a space-separated token list is accepted, not silently blocked", () => {
   assert.equal(gate(), ALLOWED);
 });
 
+test("`gh pr create --head <other-branch>` is refused, not silently allowed", () => {
+  // The bypass: --head opens a PR for any pushed branch, but the gate can only
+  // evaluate the tree it stands in. From main (where the primary checkout of a
+  // worktree-first repo habitually sits) the evaluated diff is empty.
+  git("checkout", "-q", "main");
+  assert.equal(gate("gh pr create --head feat/rules --title x --body y"), BLOCKED);
+  assert.equal(gate("gh pr create -H feat/rules --fill"), BLOCKED);
+  assert.equal(gate("gh pr create --head=feat/rules --fill"), BLOCKED);
+});
+
+test("--head naming the branch you are actually on is allowed through the check", () => {
+  // Reaches the normal evaluation: docs-only branch, so nothing is owed.
+  git("checkout", "-q", "chore/docs-only");
+  assert.equal(gate("gh pr create --head chore/docs-only --fill"), ALLOWED);
+  // `owner:branch` form resolves to the same branch.
+  assert.equal(gate("gh pr create --head JCIOriente:chore/docs-only --fill"), ALLOWED);
+});
+
+test("a command that merely MENTIONS gh pr create in a quoted string is ignored", () => {
+  // Fresh UNSTAMPED sensitive branch: reusing an earlier branch would already
+  // carry a stamp, so the "still blocks" assertion would pass for the wrong reason.
+  git("checkout", "-q", "main");
+  git("checkout", "-qb", "feat/quoted-mention");
+  write("firestore.rules", "allow read;\n");
+  git("add", "-A");
+  commit("feat: rules");
+  // These used to block ordinary checkpoint commits with a PR-gate message, and
+  // made the advisory hook announce a PR that was never opened.
+  assert.equal(gate("git commit -m 'docs: how to use gh pr create here'"), ALLOWED);
+  assert.equal(gate('git commit -m "chore: explain gh pr create"'), ALLOWED);
+  // The real command is never itself quoted, so it still blocks.
+  assert.equal(gate('gh pr create --title "gh pr create" --body y'), BLOCKED);
+});
+
 test("a non-PR-create command is ignored entirely", () => {
   git("checkout", "-q", "feat/forge");
   const payload = JSON.stringify({

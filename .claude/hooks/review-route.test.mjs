@@ -93,6 +93,56 @@ test("code-review carries its user-invocation-only note into the checklist", () 
   assert.match(out, /note: \/code-review is user-invocation-only/);
 });
 
+test("a routed diff is never ALSO reported as lighter", () => {
+  // apps/beacon/README.md is docs-only AND used to trip the auth surface: the
+  // text said "may be skipped" while the gate blocked the same evaluation.
+  const r = route([["apps/beacon/README.md", 20, 3]]);
+  assert.equal(r.verdict, "lighter");
+  assert.deepEqual(r.reviews, []);
+  // And a genuinely mixed diff routes rather than claiming lighter.
+  const mixed = route([
+    ["docs/x.md", 10, 0],
+    ["firestore.rules", 20, 1],
+  ]);
+  assert.equal(mixed.verdict, "routed");
+  assert.ok(mixed.reviews.find((x) => x.token === "security-review"));
+});
+
+test("load-bearing prose is not `docs` — the contract can't be deleted as docs-only", () => {
+  for (const p of ["CLAUDE.md", ".claude/skills/feature-flow/SKILL.md"]) {
+    const t = tokens([[p, 40, 5]]);
+    assert.ok(t.includes("code-review"), `${p} -> ${t}`);
+    assert.ok(t.includes("simplify"), `${p} -> ${t}`);
+  }
+  // A reviewer subagent's checklist IS an enforcement control: hard-gated.
+  assert.deepEqual(
+    tokens([[".claude/agents/firestore-security-reviewer.md", 40, 5]], ["--gate-only"]),
+    ["security-review"],
+  );
+  // Ordinary docs stay lighter.
+  assert.equal(route([["docs/architecture.md", 40, 5]]).verdict, "lighter");
+});
+
+test("deploy/claims/hosting config is on the auth surface", () => {
+  for (const p of [
+    "firebase.json",
+    ".firebaserc",
+    "tools/scripts/seed-production.mjs",
+    "tools/scripts/lib/role-seed.mjs",
+    ".github/workflows/deploy.yml",
+  ]) {
+    assert.deepEqual(tokens([[p, 30, 4]], ["--gate-only"]), ["security-review"], p);
+  }
+  // ci.yml deliberately stays advisory — ordinary CI edits keep low friction.
+  assert.deepEqual(tokens([[".github/workflows/ci.yml", 30, 4]], ["--gate-only"]), []);
+});
+
+test("root config files route instead of vanishing into `minor`", () => {
+  for (const p of ["eslint.config.js", "turbo.json", "firestore.indexes.json", "knip.json"]) {
+    assert.ok(tokens([[p, 40, 10]]).includes("code-review"), p);
+  }
+});
+
 test("tools/scripts is product source, not an unrouted blind spot", () => {
   assert.ok(tokens([["tools/scripts/lib/role-seed.mjs", 30, 5]]).includes("code-review"));
 });

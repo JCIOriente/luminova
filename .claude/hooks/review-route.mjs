@@ -44,14 +44,21 @@ if (argv.includes("--trailer-keys")) {
   process.exit(0);
 }
 
-/** Resolve a rule's inline `paths` plus any `pathsRef` named sets into one list. */
+/** Resolve a rule's inline `paths` plus any `pathsRef` named sets into one
+ *  matcher. An entry prefixed `!` SUBTRACTS from the set, so a set can express
+ *  "prose, except the prose that is load-bearing" (`\.md$` but not CLAUDE.md)
+ *  in the one place the set is defined, instead of every rule re-stating it. */
 function resolveSet(rubric, inline, refs) {
   const named = (refs ?? []).flatMap((name) => {
     const set = rubric.pathSets?.[name];
     if (!set) throw new Error(`review-route: unknown pathSet '${name}'`);
     return set;
   });
-  return [...(inline ?? []), ...named];
+  const all = [...(inline ?? []), ...named];
+  return {
+    include: all.filter((p) => !p.startsWith("!")),
+    exclude: all.filter((p) => p.startsWith("!")).map((p) => p.slice(1)),
+  };
 }
 
 const ESCAPES = { n: "\n", t: "\t", r: "\r", b: "\b", f: "\f", v: "\v", a: "\x07" };
@@ -115,20 +122,23 @@ function parseNumstat(text) {
 
 const anyMatch = (patterns, path) => patterns.some((p) => new RegExp(p).test(path));
 
+/** A path is in a resolved set when something includes it and nothing subtracts it. */
+const inSet = (set, path) => anyMatch(set.include, path) && !anyMatch(set.exclude, path);
+
 function evaluate(rubric, files, { gateOnly }) {
   const lighterPaths = resolveSet(
     rubric,
     rubric.lighterReview.paths,
     rubric.lighterReview.pathsRef,
   );
-  const lighter = files.length > 0 && files.every((f) => anyMatch(lighterPaths, f.path));
+  const lighter = files.length > 0 && files.every((f) => inSet(lighterPaths, f.path));
 
   const rules = rubric.rules.filter((r) => !gateOnly || r.gate === "hard");
   const matched = [];
   for (const rule of rules) {
     const paths = resolveSet(rubric, rule.paths, rule.pathsRef);
     const except = resolveSet(rubric, rule.exceptPaths, rule.exceptPathsRef);
-    let hits = files.filter((f) => anyMatch(paths, f.path) && !anyMatch(except, f.path));
+    let hits = files.filter((f) => inSet(paths, f.path) && !inSet(except, f.path));
 
     if (rule.minChangedLines != null) {
       const changed = hits.reduce((n, f) => n + f.added + f.removed, 0);
@@ -155,17 +165,21 @@ function evaluate(rubric, files, { gateOnly }) {
     });
   }
 
-  // Three verdicts, never two. `minor` is the one that bit PR #187: a handful of
-  // sub-threshold non-test lines is neither "test-only" nor "route the full set",
-  // and without its own verdict it printed as an unexplained zero — which reads as
-  // "no review needed" and is exactly the silent skip this router exists to stop.
-  // Computed AFTER the gate-only filter so verdict and reviews always agree.
+  // `routed` OUTRANKS `lighter`: a diff can look docs-only and still trip a rule
+  // (apps/beacon/README.md matched the auth surface), and when it did the text
+  // said "reviews MAY be skipped" while the gate blocked that same evaluation.
+  // A checklist that contradicts the gate teaches people to ignore the checklist.
+  // `minor` is the verdict that bit PR #187: a handful of sub-threshold non-test
+  // lines is neither test-only nor fully routed, and without its own verdict it
+  // printed as an unexplained zero — read as "no review needed", the exact silent
+  // skip this router exists to stop. Computed AFTER the gate-only filter so
+  // verdict and reviews can never disagree.
   const verdict = !files.length
     ? "empty"
-    : lighter
-      ? "lighter"
-      : matched.length
-        ? "routed"
+    : matched.length
+      ? "routed"
+      : lighter
+        ? "lighter"
         : "minor";
 
   return { verdict, files: files.length, reviews: matched };

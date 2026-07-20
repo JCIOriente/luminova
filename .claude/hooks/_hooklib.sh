@@ -27,8 +27,25 @@ hook_cmd() {
 # about what counts as opening a PR (they did: one had the strict form, its twin
 # used a loose substring match).
 hook_is_pr_create() {
+  # Strip quoted segments first: `git commit -m 'docs: ... gh pr create ...'`
+  # merely MENTIONS the command, and matching it blocked ordinary checkpoint
+  # commits with a PR-gate message (and made the advisory hook announce a PR that
+  # was never opened — fabricated state fed to the model). The real command is
+  # never itself quoted, so `gh pr create --title "x"` still matches.
   printf '%s' "$1" |
+    sed "s/'[^']*'//g; s/\"[^\"]*\"//g" |
     grep -qE '(^|[[:space:]]|[;&|(])gh[[:space:]]+pr[[:space:]]+create([[:space:];&|)]|$)'
+}
+
+# hook_pr_head_branch <command-string>
+# Echo the value of `gh pr create`'s --head/-H flag, empty when absent. That flag
+# opens a PR for an arbitrary pushed branch, so the gate must not assume the diff
+# it evaluated (HEAD of the current tree) is the diff being proposed.
+hook_pr_head_branch() {
+  printf '%s' "$1" |
+    grep -oE '(^|[[:space:]])(--head|-H)([= ]|[[:space:]]+)[^[:space:]]+' |
+    tail -1 |
+    sed -E 's/.*(--head|-H)([= ]|[[:space:]]+)//; s/^["'"'"']//; s/["'"'"']$//'
 }
 
 # hook_tree_root <raw-hook-input-json>

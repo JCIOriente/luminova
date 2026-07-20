@@ -35,13 +35,37 @@ case "$input" in
   *) exit 0 ;;
 esac
 
-hook_is_pr_create "$(hook_cmd "$input")" || exit 0
+cmd=$(hook_cmd "$input")
+hook_is_pr_create "$cmd" || exit 0
 
 # Diff the tree the command actually runs in — a worktree-based `gh pr create`
 # must be diffed against its OWN branch, never the primary checkout (which may
 # sit on another branch, silently inspecting the wrong tree and skipping the gate).
 hook_enter_tree "$input" \
   || { echo "review-gate: WARN — could not enter a working dir; gate skipped." >&2; exit 0; }
+
+# `gh pr create --head <branch>` opens a PR for ANY pushed branch, while this gate
+# can only evaluate the tree it runs in. From the primary checkout — which under
+# this repo's worktree-first workflow habitually sits on main — the evaluated diff
+# is empty, nothing is owed, and an unreviewed branch sails through. That is the
+# one silent-skip path that needs no dishonesty, so refuse rather than guess:
+# evaluating the named branch would mean picking a worktree and a base for it.
+# MUST run after hook_enter_tree — the hook's own cwd is not the tree being
+# proposed, so comparing against it blocks the legitimate self-naming case.
+requested_head=$(hook_pr_head_branch "$cmd")
+if [ -n "$requested_head" ]; then
+  current=$(git branch --show-current 2>/dev/null || echo "")
+  # Accept `owner:branch` and a bare branch name alike.
+  if [ -z "$current" ] || [ "${requested_head##*:}" != "$current" ]; then
+    echo "review-gate: BLOCKED — refusing \`gh pr create --head ${requested_head}\` from a tree" >&2
+    echo "checked out at '${current:-detached HEAD}'. The gate can only review the branch it is" >&2
+    echo "standing on, so a --head PR would open unreviewed." >&2
+    echo "" >&2
+    echo "Open the PR from that branch's own worktree:" >&2
+    echo "  cd .worktrees/<slug> && gh pr create ..." >&2
+    exit 2
+  fi
+fi
 
 base=$(hook_merge_base)
 
