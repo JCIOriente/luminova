@@ -21,13 +21,12 @@ describe("buildAbility", () => {
     expect(a.can("update", "Member")).toBe(true);
     expect(a.can("read", "Ally")).toBe(true);
     expect(a.can("read", "MemberPoints")).toBe(true);
-    expect(a.can("manage", "Payment")).toBe(false);
   });
 
-  it("Treasury manages payments and reads members/points only", () => {
+  it("Treasury reads members/points only", () => {
     const a = ability({ roles: ["Treasury"] });
-    expect(a.can("manage", "Payment")).toBe(true);
     expect(a.can("read", "Member")).toBe(true);
+    expect(a.can("read", "MemberPoints")).toBe(true);
     expect(a.can("update", "Member")).toBe(false);
   });
 
@@ -119,9 +118,9 @@ describe("buildAbility", () => {
   });
 
   it("perms claim drives coarse access independently of roles", () => {
-    const a = ability({ roles: ["Member"], perms: ["read:Payment"] });
-    expect(a.can("read", "Payment")).toBe(true);
-    expect(a.can("update", "Payment")).toBe(false);
+    const a = ability({ roles: ["Member"], perms: ["read:Lead"] });
+    expect(a.can("read", "Lead")).toBe(true);
+    expect(a.can("update", "Lead")).toBe(false);
   });
 
   it("keeps conditional Member self-access from roles even when perms is present", () => {
@@ -145,7 +144,6 @@ describe("buildAbility", () => {
   // applyRole coarse grants exactly, so the pre-backfill path can't silently drift.
   it("Treasury fallback grants exactly its coarse perms and nothing more", () => {
     const a = ability({ roles: ["Treasury"] });
-    expect(a.can("manage", "Payment")).toBe(true);
     expect(a.can("read", "Member")).toBe(true);
     expect(a.can("read", "MemberPoints")).toBe(true);
     expect(a.can("update", "Member")).toBe(false);
@@ -159,7 +157,6 @@ describe("buildAbility", () => {
     expect(a.can("manage", "Position")).toBe(true);
     expect(a.can("create", "Event")).toBe(true); // reconciled with firestore.rules
     expect(a.can("update", "Member")).toBe(false);
-    expect(a.can("manage", "Payment")).toBe(false);
   });
 
   it("ProjectManager fallback manages initiatives + reads allies/events + checks in", () => {

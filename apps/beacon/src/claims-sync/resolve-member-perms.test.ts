@@ -13,7 +13,7 @@ const NO_OVERRIDES = { grant: [], revoke: [] } as const;
 describe("resolveMemberPerms", () => {
   it("falls back to the seed snapshot when a built-in role has no live doc", async () => {
     const out = await resolveMemberPerms(deps(), ["Treasury"], [], NO_OVERRIDES);
-    expect(out).toEqual(["manage:Payment", "read:Member", "read:MemberPoints"]);
+    expect(out).toEqual(["read:Member", "read:MemberPoints"]);
   });
 
   it("prefers the live built-in role doc over the seed snapshot", async () => {
@@ -45,7 +45,7 @@ describe("resolveMemberPerms", () => {
       grant: ["manage:Event"],
       revoke: ["read:Member"],
     });
-    expect(out).toEqual(["manage:Event", "manage:Payment", "read:MemberPoints"]);
+    expect(out).toEqual(["manage:Event", "read:MemberPoints"]);
   });
 
   it("returns empty for conditional-only roles (Member/Scanner) with no extras", async () => {

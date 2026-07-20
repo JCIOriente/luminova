@@ -28,7 +28,6 @@ export const SUBJECT_LABELS: Record<Exclude<Subject, "all" | "Role">, string> = 
   Event: "Eventos",
   PointRule: "Reglas de puntos",
   MemberPoints: "Puntos",
-  Payment: "Pagos",
   Attendance: "Asistencia",
   Program: "Programas",
   Project: "Proyectos",

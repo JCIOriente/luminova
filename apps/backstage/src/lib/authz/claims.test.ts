@@ -26,10 +26,10 @@ describe("decodeClaims", () => {
 
   it("decodes a valid perms claim, filtering unknown codes", () => {
     expect(
-      decodeClaims({ roles: ["Member"], perms: ["manage:Ally", "bogus:Code", "read:Payment"] }),
+      decodeClaims({ roles: ["Member"], perms: ["manage:Ally", "bogus:Code", "read:Member"] }),
     ).toEqual({
       roles: ["Member"],
-      perms: ["manage:Ally", "read:Payment"],
+      perms: ["manage:Ally", "read:Member"],
     });
   });
 

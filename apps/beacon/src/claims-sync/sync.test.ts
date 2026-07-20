@@ -238,10 +238,10 @@ describe("syncMemberClaims", () => {
       },
       "2026",
     );
-    // Treasury = manage:Payment, read:Member, read:MemberPoints; +manage:Event, -read:Member
+    // Treasury = read:Member, read:MemberPoints; +manage:Event, -read:Member
     expect(writes["target-uid"]).toEqual({
       roles: ["Treasury", "Member"],
-      perms: ["manage:Event", "manage:Payment", "read:MemberPoints"],
+      perms: ["manage:Event", "read:MemberPoints"],
     });
   });
 
