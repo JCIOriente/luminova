@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildAbility } from "@luminova/auth/ability";
 import type { AuthClaims, Role } from "@luminova/auth/roles";
+import type { PermissionCode } from "@luminova/types";
 import { NAV_GROUPS, navItemForPath, isNavItemVisible, canAccessRoute } from "./nav-config";
 
 const SELF_UID = "uid-self";
@@ -152,6 +153,52 @@ describe("isNavItemVisible — conditional grants must not leak", () => {
     expect(canSee("/positions", claimsFor("Member"))).toBe(false);
     expect(canSee("/positions", claimsFor("Treasury"))).toBe(false);
   });
+});
+
+describe("curationOnly routes — pinned visibility sets (nav-equivalence Check A skips these)", () => {
+  // These four gate on a `read: if signedIn()` collection, so no single firestore.rules
+  // boundary mirrors the nav gate (it's UX curation stricter than the rules) and
+  // nav-equivalence.test.ts (Check A) deliberately excludes them from its implication.
+  // Pin the EXACT built-in visibility set here so a gate regression on a curation route
+  // can't slip through un-probed. Keep in sync with the ROUTE_GATING `curationOnly` notes.
+  const ALL_ROLES: Role[] = [
+    "Admin",
+    "Membership",
+    "Treasury",
+    "ExecutiveCommittee",
+    "ProjectManager",
+    "Scanner",
+    "Member",
+  ];
+  const cases: { route: string; visible: Role[]; admits: PermissionCode }[] = [
+    {
+      route: "/positions",
+      visible: ["Admin", "Membership", "ExecutiveCommittee"],
+      admits: "manage:Position",
+    },
+    { route: "/point-rules", visible: ["Admin"], admits: "read:PointRule" },
+    {
+      route: "/activities",
+      visible: ["Admin", "ProjectManager", "Scanner"],
+      admits: "read:Activity",
+    },
+    {
+      route: "/initiatives",
+      visible: ["Admin", "ExecutiveCommittee", "ProjectManager"],
+      admits: "read:Program",
+    },
+  ];
+
+  for (const { route, visible, admits } of cases) {
+    it(`${route} is visible to exactly {${visible.join(", ")}} among built-in roles`, () => {
+      for (const role of ALL_ROLES) {
+        expect(canSee(route, claimsFor(role)), `${role} -> ${route}`).toBe(visible.includes(role));
+      }
+    });
+    it(`${route} still admits a perms-only custom role holding ${admits}`, () => {
+      expect(canSee(route, { roles: [], perms: [admits] })).toBe(true);
+    });
+  }
 });
 
 describe("canAccessRoute — route guard mirrors nav visibility", () => {

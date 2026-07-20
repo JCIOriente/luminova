@@ -51,6 +51,25 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+/** ROLE-GATE REGISTER — the three routes that gate on a built-in *role* instead of a
+ *  capability, and why a perm gate would be unsound for each. A role gate is the correct
+ *  tool ONLY when no server-side capability cleanly names the viewer set:
+ *
+ *  - `/permisos` + `/config` — mirror the rules' `hasAnyRole(['Admin'])` WRITE boundary on
+ *    the claims-mint trust anchors (`roles/`, `siteConfig/current`). These shape the very
+ *    perms the ability is built from, so gating them on a *perm* is a self-elevation loop
+ *    (a custom role handed that perm could unlock the tool that widens its own perms). Gate
+ *    on the Admin role; `nav-equivalence.test.ts`'s escalation probe asserts a perms-only
+ *    `manage:all` can NEVER reach them.
+ *  - `/positions` — positions read is `signedIn()`, so the viewer set is DEFINITIONALLY a
+ *    role set: `read:Position` is overloaded (every Member holds it for /me chip resolution),
+ *    so no capability separates catalog curators from Members. Uses `roles + orCan(manage:
+ *    Position)` so a dynamic custom role that manages the org chart is still admitted — a
+ *    hypothetical `read:PositionCatalog` capability would mirror nothing server-side, so it
+ *    stays `roles + orCan` by architect decision.
+ *
+ *  Every OTHER route gates on a capability (subject-read empty-instance probe), which mirrors
+ *  a real rules boundary and admits perms-only custom roles automatically. */
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Panel",
