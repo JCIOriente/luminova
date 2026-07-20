@@ -102,7 +102,7 @@ beforeAll(async () => {
       description: "",
       builtIn: true,
       builtInKey: "Treasury",
-      permissions: ["manage:Payment"],
+      permissions: ["read:Member", "read:MemberPoints"],
       locked: false,
       active: true,
       deletedAt: null,

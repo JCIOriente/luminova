@@ -38,7 +38,7 @@ export const BUILT_IN_ROLE_PERMS: Record<Role, PermissionCode[]> = {
     "read:MemberPoints",
     "read:Position",
   ],
-  Treasury: ["manage:Payment", "read:Member", "read:MemberPoints"],
+  Treasury: ["read:Member", "read:MemberPoints"],
   ExecutiveCommittee: [
     "read:Member",
     "read:Ally",

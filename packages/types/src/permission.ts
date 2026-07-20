@@ -7,7 +7,6 @@ export const SUBJECTS = [
   "Event",
   "PointRule",
   "MemberPoints",
-  "Payment",
   "Attendance",
   "Program",
   "Project",

@@ -44,9 +44,9 @@ beforeEach(() => {
 describe("MemberRolesPanel", () => {
   it("previews effective perms from the member's built-in roles (seed fallback)", () => {
     render(<MemberRolesPanel member={member} builtInRoleNames={["Treasury"]} />);
-    // Treasury → manage:Payment, read:Member, read:MemberPoints.
-    expect(screen.getByText("Gestionar Pagos")).toBeInTheDocument();
+    // Treasury → read:Member, read:MemberPoints.
     expect(screen.getByText("Ver Miembros")).toBeInTheDocument();
+    expect(screen.getByText("Ver Puntos")).toBeInTheDocument();
   });
 
   it("includes a directly-assigned custom role's perms in the preview", () => {

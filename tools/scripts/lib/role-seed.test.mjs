@@ -11,11 +11,7 @@ test("permsForRoles unions, dedupes, and sorts", () => {
   assert.deepEqual(permsForRoles(["Member", "Admin"]), ["manage:all"]);
   assert.deepEqual(permsForRoles(["Member"]), []);
   assert.deepEqual(permsForRoles(["Admin", "Admin"]), ["manage:all"]);
-  assert.deepEqual(permsForRoles(["Treasury"]), [
-    "manage:Payment",
-    "read:Member",
-    "read:MemberPoints",
-  ]);
+  assert.deepEqual(permsForRoles(["Treasury"]), ["read:Member", "read:MemberPoints"]);
 });
 
 test("buildBuiltInRoleDocs emits 7 docs; only Admin is locked", () => {

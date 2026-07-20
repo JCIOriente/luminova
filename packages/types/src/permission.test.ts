@@ -17,7 +17,7 @@ const FIREBASE_CLAIMS_BYTE_LIMIT = 1000;
 describe("permission vocabulary", () => {
   it("accepts well-formed codes", () => {
     expect(isValidPermissionCode("manage:Member")).toBe(true);
-    expect(isValidPermissionCode("read:Payment")).toBe(true);
+    expect(isValidPermissionCode("read:Lead")).toBe(true);
     expect(isValidPermissionCode("manage:all")).toBe(true);
     expect(isValidPermissionCode("checkIn:Attendance")).toBe(true);
   });
