@@ -246,7 +246,7 @@ Single source of truth for every harness tool. The **Skill Workflow** section ab
 |------|-------|------|
 | `branch-guard.sh` | `PreToolUse` Bash `git commit` | runs first: hard-blocks (exit 2) commits on `main`/`master` (ignores `--no-verify`); warns on branch names outside `feat/\|fix/\|chore/\|migration/` |
 | `pre-commit.sh` | `PreToolUse` Bash `git commit` | auto fmt-fix + re-stage, then lint/typecheck; blocks only if still failing. Honors `--no-verify` w/ warning |
-| `review-gate.sh` | `PreToolUse` Bash `gh pr create` | **hard gate** (exit 2) on the router's `hard` class (today `/security-review`): blocks the PR unless a fresh `Reviews: <sha> <tokens>` trailer (or legacy `Security-Reviewed: <sha>`) is in range — sha must be HEAD-ancestor and nothing in that review's scope may have changed after it. Freshness is decided by re-running the router over `<sha>..HEAD`, so gate and checklist can't drift. Diffs the **worktree the PR runs from** (PreToolUse `.cwd`), not the main checkout |
+| `review-gate.sh` | `PreToolUse` Bash `gh pr create` | **hard gate** (exit 2) on whichever rules the rubric marks `gate: "hard"`: blocks the PR unless a fresh review trailer covering them is in range — the trailer sha must be HEAD-ancestor and nothing in that review's scope may have changed after it. Freshness re-runs the router over `<sha>..HEAD`, so gate and checklist can't drift; trailer key names come from the rubric, not the shell. Diffs the **worktree the PR runs from** (PreToolUse `.cwd`), not the main checkout |
 | `review-router.sh` | `PostToolUse` Bash `gh pr create` | runs the **review router** (`review-route.mjs` over `.claude/review-routing.json`) on the branch diff and prints the exact mandated review set for THIS diff, split into ENFORCED vs REQUIRED, plus the stamp command. Always reminds `pnpm pr-tests`. Advisory counterpart to `review-gate.sh` |
 | `stop.sh` | `Stop` | prints `git status -sb` + uncommitted count; nudges checkpoint commit if >10 files. Read-only |
 
@@ -262,7 +262,7 @@ None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops g
 | UI / aesthetic work (spotlight) | `frontend-design` → `ui-ux-pro-max` |
 | Add / upgrade / replace / **remove** / security-patch a dependency | `secure-dep-vetting` (auto) — full lifecycle; uses `pnpm audit` (CVEs) + `pnpm knip` (unused) |
 | `.tsx` edits | `react-best-practices` (auto) |
-| Touching auth / Firestore rules / Cloud Functions | `/security-review` + matching `-reviewer` subagent |
+| Deciding which reviews a change owes | `.claude/hooks/route.sh` — never your own judgment |
 | Bug / test failure | `superpowers:systematic-debugging` |
 | About to claim "done" | `superpowers:verification-before-completion` + dispatch relevant `-reviewer` |
 
@@ -274,27 +274,23 @@ same review set, every time. Before opening any PR:
 
 1. **Route the diff.** Run it yourself; don't guess:
    ```bash
-   git diff --numstat $(git merge-base HEAD origin/main)...HEAD \
-     | node .claude/hooks/review-route.mjs --format text
+   .claude/hooks/route.sh
    ```
    (`review-router.sh` prints the same thing automatically right after
    `gh pr create` — but routing *after* the PR is open is late. Route first.)
 2. **Run every review it lists.** ENFORCED and REQUIRED alike. "The diff looks
    simple" is not an input to the rubric; the rubric already accounts for size
    via its line thresholds.
-3. **Stamp the evidence** on a commit in range, one trailer, tokens comma-separated:
-   ```bash
-   git commit --allow-empty -m 'chore: reviews' -m "Reviews: $(git rev-parse HEAD) security-review,code-review,simplify"
-   ```
-   A stamp is honored only while nothing in that review's scope changes after its
-   sha — re-review and re-stamp after later commits touching those paths. Keep the
-   trailer in the commit message's **last** paragraph (git trailer parsing).
+3. **Stamp the evidence** on a commit in range — one trailer, exactly the token set
+   the router printed. It prints the command; copy it. A stamp is honored only while
+   nothing in that review's scope changes after its sha — re-review and re-stamp
+   after later commits touching those paths. Keep the trailer in the commit
+   message's **last** paragraph (git trailer parsing).
 4. **Mirror it in the PR body** under a `## Reviews` heading, so review coverage is
    visible without reading the git log.
-5. **Lighter review** (router verdict `lighter` or `minor` — test-only, docs-only,
-   or sub-threshold source): the skills may be skipped, never silently. The PR body
-   MUST carry `Review-Exception: <reason>` plus the correctness gate you ran (full
-   test sweep + the invariant you assert, e.g. "zero refs remain") with its output.
+5. **Lighter review** (router verdict `lighter` or `minor`): the skills may be
+   skipped, never silently. The router prints the exception terms — follow them
+   verbatim; they live in the rubric, not here.
 
 Only the `hard` class is shell-enforced (`review-gate.sh` blocks `gh pr create`).
 The rest is enforced by this contract — a mandated review that was not run and not

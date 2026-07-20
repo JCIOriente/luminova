@@ -88,6 +88,11 @@ jobs:
         run: pnpm audit --audit-level=high
       - if: steps.code.outputs.run == 'true'
         run: pnpm test:seed
+      # The review rubric decides which reviews a PR owes; its fixture tests are
+      # the only thing stopping a rubric edit from silently widening or dropping a
+      # class. Gate them like any other guard (guardrail #6, claim == reality).
+      - if: steps.code.outputs.run == 'true'
+        run: pnpm test:harness
 
   emulator:
     name: emulator

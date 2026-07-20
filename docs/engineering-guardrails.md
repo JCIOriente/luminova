@@ -53,8 +53,9 @@ the same rigor as update — the K4 forged-`assignedBy` escalation lived in an u
 create rule. Never rely on "the form doesn't send that field".
 
 **GUARD.** `firestore-security-reviewer` agent (checklist item 10, rules ⇄ client
-invariant parity) + `.claude/hooks/security-review-gate.sh` (hard-blocks `gh pr create`
-on any beacon/rules/auth diff without a fresh `Security-Reviewed:` trailer).
+invariant parity) + `.claude/hooks/review-gate.sh` (hard-blocks `gh pr create` on any
+diff the review router marks `gate: "hard"` — beacon/rules/auth — without a fresh
+`Reviews:` trailer covering it).
 
 ## 3. Missing `isError` branch
 
@@ -168,8 +169,8 @@ rules contract).
 |---|---|---|---|
 | 1 | Duplicate UI | raw-element + raw-hex + sub-18px-type `no-restricted-syntax` (all `"error"`) | `eslint.config.js`; runs in CI `checks` job (`.github/workflows/ci.yml`) |
 | 1 | Duplicate UI (dead exports) | `pnpm knip` (unused exports) | CI `checks` job + `pnpm pr-tests` |
-| 1 | Duplicate non-UI | **human review + `/simplify` only** | — |
-| 2 | Rules lagging code | `firestore-security-reviewer` agent; `security-review-gate.sh` PR hard-gate; rules test suite | `.claude/agents/firestore-security-reviewer.md`; `.claude/hooks/security-review-gate.sh`; `tests/firestore-rules/` run by CI `emulator` job |
+| 1 | Duplicate non-UI | `/simplify` — no longer optional: the review router mandates it on any source diff over its line threshold | `.claude/review-routing.json`; `.claude/hooks/route.sh` |
+| 2 | Rules lagging code | `firestore-security-reviewer` agent; `review-gate.sh` PR hard-gate; rules test suite | `.claude/agents/firestore-security-reviewer.md`; `.claude/hooks/review-gate.sh`; `tests/firestore-rules/` run by CI `emulator` job |
 | 3 | Missing `isError` | **human review / `react-best-practices` only — no lint rule** | — |
 | 5 | Error swallowing | **human review only — no lint rule** | — |
 | 6 | Unbounded fan-out | `firebase-functions-reviewer` agent (beacon); **human review** (frontend) | `.claude/agents/firebase-functions-reviewer.md` |
@@ -177,7 +178,8 @@ rules contract).
 | — | Hooks correctness (item 11) | `react-hooks/rules-of-hooks` + `exhaustive-deps`, both `"error"` | `eslint.config.js:32-33` via CI `checks` |
 | — | firebase-lite discipline | `no-restricted-imports` (spotlight must use `firebase/firestore/lite`) | `eslint.config.js:101` |
 | — | Bundle regressions | `bundle-budget-watcher` agent + budget script | `.claude/agents/bundle-budget-watcher.md`; `tools/scripts/check-bundle-budget.sh` in CI `checks` |
-| — | Commit/PR hygiene | `branch-guard.sh`, `pre-commit.sh`, `post-pr-create.sh`, `stop.sh` | `.claude/hooks/` |
+| — | Commit/PR hygiene | `branch-guard.sh`, `pre-commit.sh`, `review-router.sh`, `stop.sh` | `.claude/hooks/` |
+| — | Review selection by judgment | deterministic review router: path/line rubric → mandated review set; hard-gated for the security class; fixture-tested in CI | `.claude/review-routing.json`; `.claude/hooks/review-route.mjs` + `review-gate.sh`; `pnpm test:harness` in CI `checks` |
 
 Honest gap summary: patterns **3** (missing `isError`) and **5** (error swallowing) have
 **no mechanical guard** — they are review-culture-only, which is exactly how they

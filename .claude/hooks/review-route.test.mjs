@@ -44,12 +44,12 @@ test("test-only diff → lighter review, zero reviews", () => {
     ["apps/backstage/src/features/members/hooks/use-members.test.ts", 80, 0],
     ["packages/rules-test/src/members.test.ts", 40, 2],
   ]);
-  assert.equal(r.lighter, true);
+  assert.equal(r.verdict, "lighter");
   assert.deepEqual(r.reviews, []);
 });
 
 test("docs-only diff → lighter review", () => {
-  assert.equal(route([["docs/engineering-guardrails.md", 30, 1]]).lighter, true);
+  assert.equal(route([["docs/engineering-guardrails.md", 30, 1]]).verdict, "lighter");
 });
 
 test("a rules TEST alone does not trip the security gate", () => {
@@ -63,7 +63,6 @@ test("tiny source tweak → no reviews, but verdict `minor` (still owes an excep
   const r = route([["apps/spotlight/src/lib/format.ts", 3, 2]]);
   assert.deepEqual(r.reviews, []);
   assert.equal(r.verdict, "minor");
-  assert.equal(r.lighter, false);
 });
 
 test("a `minor` verdict still demands Review-Exception in the text output", () => {
@@ -138,10 +137,30 @@ test("binary file (numstat `-`) contributes 0 changed lines, does not crash", ()
   assert.deepEqual(r.reviews, []);
 });
 
-test("empty diff → no reviews, not lighter (nothing to except)", () => {
+test("empty diff → verdict `empty`, no reviews (nothing to except)", () => {
   const r = JSON.parse(execFileSync("node", [ROUTER], { input: "", encoding: "utf8" }));
-  assert.equal(r.lighter, false);
+  assert.equal(r.verdict, "empty");
   assert.deepEqual(r.reviews, []);
+});
+
+test("--gate-only keeps verdict and reviews consistent (no advisory-only `routed` with []) ", () => {
+  // .tsx-only diff trips advisory rules but nothing hard.
+  const r = route([["apps/backstage/src/features/x/thing.tsx", 60, 3]], ["--gate-only"]);
+  assert.deepEqual(r.reviews, []);
+  assert.equal(r.verdict, "minor");
+});
+
+test("--format tokens emits one token per line (no second JSON parse needed)", () => {
+  const out = execFileSync("node", [ROUTER, "--gate-only", "--format", "tokens"], {
+    input: "30\t4\tfirestore.rules",
+    encoding: "utf8",
+  });
+  assert.equal(out, "security-review");
+});
+
+test("--trailer-keys reports the rubric vocabulary, current key first", () => {
+  const out = execFileSync("node", [ROUTER, "--trailer-keys"], { encoding: "utf8" });
+  assert.deepEqual(out.split("\n"), ["Reviews", "Security-Reviewed"]);
 });
 
 test("text output names the exact skills and the stamp command", () => {

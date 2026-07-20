@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
 # PreToolUse(Bash) — review hard gate before `gh pr create`.
 #
-# Scope: the HARD class in .claude/review-routing.json (today: /security-review —
-# auth / firestore.rules / apps/beacon / repositories). Everything else the router
-# mandates is enforced by the CLAUDE.md "Review routing" contract, not by exit 2:
-# hard-gating quality skills makes the agent thrash stamping trailers on trivial
-# diffs, and a gate that gets routed around is worse than an honest advisory.
+# Scope: whatever the rubric (.claude/review-routing.json) marks `gate: "hard"`.
+# The gate itself knows nothing about which reviews those are — it asks the
+# router and quotes the matched rules' own `why` back to the user. Everything
+# else the router mandates is enforced by the CLAUDE.md "Review routing"
+# contract, not by exit 2: hard-gating quality skills makes the agent thrash
+# stamping trailers on trivial diffs, and a gate that gets routed around is worse
+# than an honest advisory.
 #
-# Evidence: a commit trailer in range, either
+# Evidence: a commit trailer in range — key names come from the rubric
+# (`trailerKey` + `legacyTrailerKeys`), currently
 #     Reviews: <sha> security-review,code-review,simplify      (current)
 #     Security-Reviewed: <sha>                                 (legacy, == security-review)
 # accepted only while FRESH — the sha must be an ancestor of HEAD and no file in
-# that review's scope may have changed after it. Freshness is decided by re-running
-# the router over `<sha>..HEAD`, so the gate and the advisory checklist share one
-# definition of "security-sensitive" instead of two regexes that can drift.
+# that review's scope may have changed after it. Freshness re-runs the router
+# over `<sha>..HEAD`, so the gate and the advisory checklist share one definition
+# of what is sensitive.
 #
-# Producer side: feature-flow phase 3 stamps once /security-review runs clean.
+# Producer side: feature-flow phase 3 routes, reviews, and stamps the token set.
 set -uo pipefail
 
 input=$(cat)
@@ -28,13 +31,7 @@ case "$input" in
   *) exit 0 ;;
 esac
 
-cmd=$(hook_cmd "$input")
-
-# Authoritative filter: match `gh pr create` in command position (start of line
-# or after a shell separator) so a harmless `echo "gh pr create"` doesn't block.
-if ! printf '%s' "$cmd" | grep -qE '(^|[[:space:]]|[;&|(])gh[[:space:]]+pr[[:space:]]+create([[:space:];&|)]|$)'; then
-  exit 0
-fi
+hook_is_pr_create "$(hook_cmd "$input")" || exit 0
 
 # Diff the tree the command actually runs in — a worktree-based `gh pr create`
 # must be diffed against its OWN branch, never the primary checkout (which may
@@ -50,54 +47,70 @@ if [ -z "$base" ]; then
   exit 0
 fi
 
-owed=$(hook_tokens "$(hook_route "$base...HEAD" --gate-only)")
+owed=$(hook_route_tokens "$base...HEAD" --gate-only)
 
 # Nothing in the hard class touched — gate does not apply.
 [ -z "$owed" ] && exit 0
 
-# Candidate stamps, one `<sha> <token,token,...>` per line. The legacy
-# single-purpose trailer is normalized into the same shape.
-stamps=$(
-  {
-    git log "$base"..HEAD --format='%(trailers:key=Reviews,valueonly)' 2>/dev/null
-    git log "$base"..HEAD --format='%(trailers:key=Security-Reviewed,valueonly)' 2>/dev/null |
-      grep -v '^[[:space:]]*$' | sed 's/[[:space:]]*$/ security-review/'
-  } | grep -v '^[[:space:]]*$' || true
-)
+# Candidate stamps as `<sha> <token,token,...>`, one per line, gathered over the
+# rubric's trailer keys. The legacy single-purpose key carries no token list, so
+# its value is normalized into the same shape by appending the token it means.
+stamps=""
+first=1
+while IFS= read -r key; do
+  [ -z "$key" ] && continue
+  values=$(git log "$base"..HEAD --format="%(trailers:key=$key,valueonly)" 2>/dev/null |
+    grep -v '^[[:space:]]*$' || true)
+  [ -z "$values" ] && { first=0; continue; }
+  if [ "$first" = 1 ]; then
+    stamps="$stamps$values
+"
+  else
+    # Legacy keys predate multi-token stamps: `<sha>` alone means security-review.
+    stamps="$stamps$(printf '%s\n' "$values" | sed 's/[[:space:]]*$/ security-review/')
+"
+  fi
+  first=0
+done <<< "$(hook_trailer_keys)"
+
+# One router run per candidate stamp (not per token x stamp): a stamp's residual
+# is the set of hard reviews owed again for what landed after it, so every token
+# it covers is decided by that single evaluation.
+covered=""
+while IFS= read -r stamp; do
+  [ -z "$stamp" ] && continue
+  sha=${stamp%% *}
+  tokens=${stamp#* }
+  # Only honor a literal sha — a symbolic ref like HEAD/main/<tag> would
+  # trivially self-certify (always an ancestor of HEAD, empty diff after it).
+  printf '%s' "$sha" | grep -qiE '^[0-9a-f]{7,40}$' || continue
+  rsha=$(git rev-parse --verify --quiet "${sha}^{commit}" 2>/dev/null || echo "")
+  [ -z "$rsha" ] && continue
+  git merge-base --is-ancestor "$rsha" HEAD 2>/dev/null || continue
+  residual=$(hook_route_tokens "$rsha..HEAD" --gate-only)
+  while IFS= read -r token; do
+    [ -z "$token" ] && continue
+    printf '%s\n' "$residual" | grep -qx "$token" && continue
+    covered="$covered $token"
+  done <<< "$(printf '%s' "${tokens// /}" | tr ',' '\n')"
+done <<< "$stamps"
 
 unmet=""
 while IFS= read -r token; do
   [ -z "$token" ] && continue
-  covered=""
-  while IFS= read -r stamp; do
-    [ -z "$stamp" ] && continue
-    sha=${stamp%% *}
-    tokens=${stamp#* }
-    # Only honor a literal sha — a symbolic ref like HEAD/main/<tag> would
-    # trivially self-certify (always an ancestor of HEAD, empty diff after it).
-    printf '%s' "$sha" | grep -qiE '^[0-9a-f]{7,40}$' || continue
-    printf '%s' ",${tokens// /}," | grep -q ",$token," || continue
-    rsha=$(git rev-parse --verify --quiet "${sha}^{commit}" 2>/dev/null || echo "")
-    [ -z "$rsha" ] && continue
-    git merge-base --is-ancestor "$rsha" HEAD 2>/dev/null || continue
-    # Stale if the same review is owed again by what landed after the stamp.
-    if ! hook_tokens "$(hook_route "$rsha..HEAD" --gate-only)" | grep -qx "$token"; then
-      covered=1
-      break
-    fi
-  done <<< "$stamps"
-  [ -n "$covered" ] || unmet="$unmet $token"
+  printf '%s ' "$covered" | grep -q " $token " || unmet="$unmet $token"
 done <<< "$owed"
 
 [ -z "$unmet" ] && exit 0
 
 head=$(git rev-parse --short HEAD 2>/dev/null || echo HEAD)
 csv=$(printf '%s' "${unmet# }" | tr ' ' ',')
-echo "review-gate: BLOCKED — security-sensitive paths changed without a fresh review: $csv" >&2
+trailer=$(hook_trailer_keys | head -1)
+echo "review-gate: BLOCKED — this branch owes a review with no fresh stamp: $csv" >&2
 echo "" >&2
 hook_route "$base...HEAD" --format text >&2 2>/dev/null
 echo "" >&2
 echo "Run the blocked review(s) on the branch diff, then stamp the reviewed sha:" >&2
-echo "  git commit --allow-empty -m 'chore: reviews' -m 'Reviews: $head $csv'" >&2
+echo "  git commit --allow-empty -m 'chore: reviews' -m '$trailer: $head $csv'" >&2
 echo "A stamp is honored only while no file in that review's scope changes after its sha." >&2
 exit 2

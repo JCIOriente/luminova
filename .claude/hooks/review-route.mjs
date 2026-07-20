@@ -2,15 +2,21 @@
 // Deterministic review router: diff facts -> the review set that MUST run.
 //
 // Rubric lives in .claude/review-routing.json (single source of truth); this
-// file only evaluates it. Consumers: review-router.sh (advisory checklist on
-// `gh pr create`) and review-gate.sh (hard gate on the security class).
-// Keeping the path sets out of the hooks is the point — the two shells used to
-// carry copy-pasted regexes that could silently drift apart.
+// file only evaluates it. Consumers: route.sh (manual, pre-PR), review-router.sh
+// (advisory checklist after `gh pr create`) and review-gate.sh (hard gate).
+// Keeping the path sets, the trailer vocabulary and the exception terms out of
+// the shells is the point — they used to be copy-pasted and could drift apart.
 //
 // stdin : `git diff --numstat <base>...HEAD` output (added\tremoved\tpath).
 //         Binary files report `-` for the counts; treated as 0 changed lines.
-// stdout: --format json (default) | text (agent-facing checklist)
-// argv  : [--format json|text] [--gate-only]  (--gate-only => hard-gate tokens only)
+// argv  : --format json    (default) full evaluation
+//         --format text    agent-facing checklist
+//         --format tokens  one token per line (shells consume this directly, so
+//                          no second node process is needed just to parse JSON)
+//         --gate-only      restrict to the rubric's hard-gated rules
+//         --trailer-keys   print the rubric's trailer keys, current first, and
+//                          exit; stdin is not read. The shell asks the rubric
+//                          for the key names instead of hardcoding them.
 //
 // The gate asks the SAME question twice: `--gate-only` over the branch diff says
 // whether a hard review is owed, and `--gate-only` over `<reviewed-sha>..HEAD`
@@ -27,6 +33,23 @@ const RUBRIC_PATH = join(here, "..", "review-routing.json");
 const argv = process.argv.slice(2);
 const format = argv.includes("--format") ? argv[argv.indexOf("--format") + 1] : "json";
 const gateOnly = argv.includes("--gate-only");
+
+const rubric = JSON.parse(readFileSync(RUBRIC_PATH, "utf8"));
+
+if (argv.includes("--trailer-keys")) {
+  process.stdout.write([rubric.trailerKey, ...(rubric.legacyTrailerKeys ?? [])].join("\n"));
+  process.exit(0);
+}
+
+/** Resolve a rule's inline `paths` plus any `pathsRef` named sets into one list. */
+function resolveSet(rubric, inline, refs) {
+  const named = (refs ?? []).flatMap((name) => {
+    const set = rubric.pathSets?.[name];
+    if (!set) throw new Error(`review-route: unknown pathSet '${name}'`);
+    return set;
+  });
+  return [...(inline ?? []), ...named];
+}
 
 /** git's rename shorthand: `a/{old => new}/c.ts` and `old.ts => new.ts`. Expand
  *  to both sides so a rename INTO a sensitive path still routes. */
@@ -57,20 +80,22 @@ function parseNumstat(text) {
   return files;
 }
 
-const anyMatch = (patterns, path) => (patterns || []).some((p) => new RegExp(p).test(path));
+const anyMatch = (patterns, path) => patterns.some((p) => new RegExp(p).test(path));
 
-/** Files a rule is scoped to: matches `paths`, not excluded by `exceptPaths`. */
-function scopedFiles(rule, files) {
-  return files.filter((f) => anyMatch(rule.paths, f.path) && !anyMatch(rule.exceptPaths, f.path));
-}
+function evaluate(rubric, files, { gateOnly }) {
+  const lighterPaths = resolveSet(
+    rubric,
+    rubric.lighterReview.paths,
+    rubric.lighterReview.pathsRef,
+  );
+  const lighter = files.length > 0 && files.every((f) => anyMatch(lighterPaths, f.path));
 
-function evaluate(rubric, files) {
-  const lighter =
-    files.length > 0 && files.every((f) => anyMatch(rubric.lighterReview.paths, f.path));
-
+  const rules = rubric.rules.filter((r) => !gateOnly || r.gate === "hard");
   const matched = [];
-  for (const rule of rubric.rules) {
-    let hits = scopedFiles(rule, files);
+  for (const rule of rules) {
+    const paths = resolveSet(rubric, rule.paths, rule.pathsRef);
+    const except = resolveSet(rubric, rule.exceptPaths, rule.exceptPathsRef);
+    let hits = files.filter((f) => anyMatch(paths, f.path) && !anyMatch(except, f.path));
 
     if (rule.minChangedLines != null) {
       const changed = hits.reduce((n, f) => n + f.added + f.removed, 0);
@@ -86,7 +111,6 @@ function evaluate(rubric, files) {
     if (!hits.length) continue;
     matched.push({
       token: rule.token,
-      kind: rule.kind,
       invoke: rule.invoke,
       gate: rule.gate ?? "advisory",
       why: rule.why,
@@ -101,6 +125,7 @@ function evaluate(rubric, files) {
   // sub-threshold non-test lines is neither "test-only" nor "route the full set",
   // and without its own verdict it printed as an unexplained zero — which reads as
   // "no review needed" and is exactly the silent skip this router exists to stop.
+  // Computed AFTER the gate-only filter so verdict and reviews always agree.
   const verdict = !files.length
     ? "empty"
     : lighter
@@ -109,41 +134,34 @@ function evaluate(rubric, files) {
         ? "routed"
         : "minor";
 
-  return { verdict, lighter, files: files.length, reviews: matched };
+  return { verdict, files: files.length, reviews: matched };
 }
 
-const EXCEPTION_TERMS = [
-  "Full review skills MAY be skipped. They are not skipped silently:",
-  "  1. put `Review-Exception: <reason>` in the PR body",
-  "  2. record the correctness gate — full test sweep + the invariant you assert",
-  '     (e.g. "zero refs remain"), with the command output.',
-];
-
-function toText(result) {
+function toText(rubric, result) {
   const { reviews, verdict } = result;
   if (verdict === "empty") return "review-router: empty diff — nothing to route.";
 
+  const terms = rubric.lighterReview.exceptionTerms;
   if (verdict === "lighter") {
     return [
       "REVIEW ROUTING — lighter review allowed (test-only / docs-only diff).",
       "",
-      ...EXCEPTION_TERMS,
+      ...terms,
     ].join("\n");
   }
-
   if (verdict === "minor") {
     return [
       "REVIEW ROUTING — lighter review allowed (source changed, but under the",
       "code-review line threshold and outside every sensitive path).",
       "",
-      ...EXCEPTION_TERMS,
+      ...terms,
     ].join("\n");
   }
 
   const hard = reviews.filter((r) => r.gate === "hard");
   const soft = reviews.filter((r) => r.gate !== "hard");
   const line = (r) =>
-    `  - ${r.invoke}${r.kind === "subagent" ? "" : ""} — ${r.why}` +
+    `  - ${r.invoke} — ${r.why}` +
     `\n      triggered by: ${r.triggeredBy.join(", ")}` +
     (r.triggeredByCount > r.triggeredBy.length
       ? ` (+${r.triggeredByCount - r.triggeredBy.length} more)`
@@ -164,7 +182,7 @@ function toText(result) {
   out.push(
     "",
     "When they are all done, stamp one trailer on a commit in range:",
-    `  git commit --allow-empty -m 'chore: reviews' -m 'Reviews: <HEAD-sha> ${reviews
+    `  git commit --allow-empty -m 'chore: reviews' -m '${rubric.trailerKey}: <HEAD-sha> ${reviews
       .map((r) => r.token)
       .join(",")}'`,
     'and list the same set in the PR body under "## Reviews".',
@@ -176,8 +194,12 @@ let stdin = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (d) => (stdin += d));
 process.stdin.on("end", () => {
-  const rubric = JSON.parse(readFileSync(RUBRIC_PATH, "utf8"));
-  const result = evaluate(rubric, parseNumstat(stdin));
-  if (gateOnly) result.reviews = result.reviews.filter((r) => r.gate === "hard");
-  process.stdout.write(format === "text" ? toText(result) + "\n" : JSON.stringify(result));
+  const result = evaluate(rubric, parseNumstat(stdin), { gateOnly });
+  const rendered =
+    format === "text"
+      ? toText(rubric, result) + "\n"
+      : format === "tokens"
+        ? result.reviews.map((r) => r.token).join("\n")
+        : JSON.stringify(result);
+  process.stdout.write(rendered);
 });
