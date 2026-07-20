@@ -21,13 +21,14 @@
       "!^\\.claude/skills/",
       "!^\\.claude/agents/"
     ],
-    "_sourceComment": "Root config files are guards in their own right — eslint.config.js enforces guardrails #1 and hooks-correctness, firestore.indexes.json backs guardrail #4's 'an index regression must not be invisible'. A 500-line change to any of them used to route nothing at all.",
+    "_sourceComment": "Root config files are guards in their own right — eslint.config.js enforces guardrails #1 and hooks-correctness, firestore.indexes.json backs guardrail #4's 'an index regression must not be invisible'. A 500-line change to any of them used to route nothing at all. package.json is here because .claude/settings.json's permissions.allow grants by SCRIPT NAME: an edit to `\"typecheck\"` silently changes what an auto-approved command runs. RESIDUAL, accepted: minChangedLines means a <15-line scripts edit still routes nothing — closing that needs a hard gate on package.json, which would tax every dependency bump.",
     "source": [
       "^apps/",
       "^packages/",
       "^\\.claude/",
       "^\\.github/",
       "^(tools/)?scripts/",
+      "(^|/)package\\.json$",
       "(^|/)CLAUDE\\.md$",
       "^firestore\\.indexes\\.json$",
       "^eslint\\.config\\.js$",

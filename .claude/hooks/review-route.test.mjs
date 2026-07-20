@@ -161,6 +161,15 @@ test("root config files route instead of vanishing into `minor`", () => {
   }
 });
 
+test("package.json routes review — the allowlist grants by script NAME", () => {
+  // .claude/settings.json's permissions.allow says `Bash(pnpm typecheck)`; what
+  // that RUNS is defined in package.json. An edit there widens an auto-approved
+  // command, so it must not be invisible to the router.
+  const t = tokens([["package.json", 40, 10]]);
+  assert.ok(t.includes("code-review"), `${t}`);
+  assert.ok(t.includes("simplify"), `${t}`);
+});
+
 test("tools/scripts is product source, not an unrouted blind spot", () => {
   assert.ok(tokens([["tools/scripts/lib/role-seed.mjs", 30, 5]]).includes("code-review"));
 });
