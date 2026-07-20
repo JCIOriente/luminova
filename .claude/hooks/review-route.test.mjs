@@ -125,6 +125,13 @@ test("load-bearing prose is not `docs` — the contract can't be deleted as docs
   // it cannot change deployed behavior.
   assert.deepEqual(tokens([["packages/auth/CLAUDE.md", 95, 0]], ["--gate-only"]), []);
   assert.ok(tokens([["packages/auth/CLAUDE.md", 95, 0]]).includes("code-review"));
+  // feature-flow is the PRODUCER of the review stamp — editing it to stamp
+  // without reviewing is a control bypass, so it is hard-gated. Ordinary skills
+  // are not: they instruct, they do not enforce.
+  assert.deepEqual(tokens([[".claude/skills/feature-flow/SKILL.md", 40, 5]], ["--gate-only"]), [
+    "security-review",
+  ]);
+  assert.deepEqual(tokens([[".claude/skills/release-notes/SKILL.md", 40, 5]], ["--gate-only"]), []);
   // A reviewer subagent's checklist IS an enforcement control: hard-gated.
   assert.deepEqual(
     tokens([[".claude/agents/firestore-security-reviewer.md", 40, 5]], ["--gate-only"]),

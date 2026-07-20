@@ -59,6 +59,7 @@
     "reviewHarness": [
       "^\\.claude/hooks/",
       "^\\.claude/agents/",
+      "^\\.claude/skills/feature-flow/",
       "^\\.claude/review-routing\\.json$",
       "^\\.claude/settings\\.json$"
     ]
