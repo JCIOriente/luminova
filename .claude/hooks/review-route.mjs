@@ -51,6 +51,36 @@ function resolveSet(rubric, inline, refs) {
   return [...(inline ?? []), ...named];
 }
 
+const ESCAPES = { n: "\n", t: "\t", r: "\r", b: "\b", f: "\f", v: "\v", a: "\x07" };
+
+/** Undo git's C-style path quoting. With core.quotePath on (the default), any
+ *  path holding a non-ASCII byte, a quote, a backslash or a control char is
+ *  emitted as `"apps/beacon/src/\303\255ndex.ts"`. Every hard-gated pattern is
+ *  start-anchored, so that leading `"` made the path match NOTHING and the gate
+ *  exited 0 on an unreviewed Cloud Function — a silent fail-open, and an easy
+ *  accident in a repo whose domain vocabulary is Spanish. hook_route also sets
+ *  core.quotePath=false; this stays because that flag still quotes paths
+ *  containing `"`, `\`, or control characters. */
+function unquotePath(raw) {
+  if (raw.length < 2 || !raw.startsWith('"') || !raw.endsWith('"')) return raw;
+  const body = raw.slice(1, -1);
+  const bytes = [];
+  for (let i = 0; i < body.length; i++) {
+    if (body[i] !== "\\") {
+      bytes.push(...Buffer.from(body[i], "utf8"));
+      continue;
+    }
+    const next = body[++i];
+    if (next >= "0" && next <= "7") {
+      bytes.push(parseInt(body.slice(i, i + 3), 8));
+      i += 2;
+    } else {
+      bytes.push(...Buffer.from(ESCAPES[next] ?? next, "utf8"));
+    }
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
 /** git's rename shorthand: `a/{old => new}/c.ts` and `old.ts => new.ts`. Expand
  *  to both sides so a rename INTO a sensitive path still routes. */
 function expandPath(raw) {
@@ -75,7 +105,7 @@ function parseNumstat(text) {
     if (!raw) continue;
     const added = addedRaw === "-" ? 0 : Number(addedRaw) || 0;
     const removed = removedRaw === "-" ? 0 : Number(removedRaw) || 0;
-    for (const path of expandPath(raw)) files.push({ path, added, removed });
+    for (const path of expandPath(unquotePath(raw))) files.push({ path, added, removed });
   }
   return files;
 }
@@ -115,6 +145,7 @@ function evaluate(rubric, files, { gateOnly }) {
       gate: rule.gate ?? "advisory",
       why: rule.why,
       exempt: rule._exempt,
+      note: rule._userInvoked,
       // Cap the evidence list: a 200-file diff must not flood the hook output.
       triggeredBy: hits.slice(0, 8).map((f) => f.path),
       triggeredByCount: hits.length,
@@ -166,7 +197,8 @@ function toText(rubric, result) {
     (r.triggeredByCount > r.triggeredBy.length
       ? ` (+${r.triggeredByCount - r.triggeredBy.length} more)`
       : "") +
-    (r.exempt ? `\n      exempt: ${r.exempt}` : "");
+    (r.exempt ? `\n      exempt: ${r.exempt}` : "") +
+    (r.note ? `\n      note: ${r.note}` : "");
 
   const out = [`REVIEW ROUTING — this diff MUST get ${reviews.length} review(s). Not optional:`];
   if (hard.length) {

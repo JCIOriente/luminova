@@ -85,6 +85,14 @@ test("editing the gate or the rubric is itself security-sensitive", () => {
   }
 });
 
+test("code-review carries its user-invocation-only note into the checklist", () => {
+  const out = execFileSync("node", [ROUTER, "--format", "text"], {
+    input: "60\t12\tapps/backstage/src/features/x/thing.ts",
+    encoding: "utf8",
+  });
+  assert.match(out, /note: \/code-review is user-invocation-only/);
+});
+
 test("tools/scripts is product source, not an unrouted blind spot", () => {
   assert.ok(tokens([["tools/scripts/lib/role-seed.mjs", 30, 5]]).includes("code-review"));
 });
@@ -128,6 +136,42 @@ test("rename INTO a sensitive path is routed (both sides of the rename count)", 
     r.reviews.map((x) => x.token),
     ["security-review"],
   );
+});
+
+test("a C-quoted non-ASCII path still routes (gate must not fail open)", () => {
+  // git core.quotePath=true renders `apps/beacon/src/índex.ts` like this. The
+  // leading quote used to defeat every `^`-anchored rule => silent bypass.
+  const numstat = '1\t0\t"apps/beacon/src/\\303\\255ndex.ts"';
+  const r = JSON.parse(
+    execFileSync("node", [ROUTER, "--gate-only"], { input: numstat, encoding: "utf8" }),
+  );
+  assert.deepEqual(
+    r.reviews.map((x) => x.token),
+    ["security-review"],
+  );
+});
+
+test("quoted path decodes to the real name, escapes and all", () => {
+  const numstat = '1\t0\t"packages/auth/src/a\\tb\\"c.ts"';
+  const r = JSON.parse(execFileSync("node", [ROUTER], { input: numstat, encoding: "utf8" }));
+  assert.ok(r.reviews.find((x) => x.token === "security-review"));
+  assert.deepEqual(r.reviews[0].triggeredBy, ['packages/auth/src/a\tb"c.ts']);
+});
+
+test("a quoted path renamed INTO a sensitive dir routes too", () => {
+  const numstat = '10\t0\t"apps/backstage/src/features/x/{lib => repositories}/\\303\\261.ts"';
+  const r = JSON.parse(
+    execFileSync("node", [ROUTER, "--gate-only"], { input: numstat, encoding: "utf8" }),
+  );
+  assert.deepEqual(
+    r.reviews.map((x) => x.token),
+    ["security-review"],
+  );
+});
+
+test("an unquoted path containing a literal quote is not mangled", () => {
+  const r = route([['apps/spotlight/src/a"b.tsx', 30, 0]]);
+  assert.ok(r.reviews.find((x) => x.token === "react-best-practices"));
 });
 
 test("binary file (numstat `-`) contributes 0 changed lines, does not crash", () => {

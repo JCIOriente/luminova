@@ -83,7 +83,12 @@ hook_merge_base() {
 hook_route() {
   local range="$1"
   shift
-  git diff --numstat "$range" 2>/dev/null |
+  # core.quotePath=false: with quoting on, `apps/beacon/src/índex.ts` arrives as
+  # `"apps/beacon/src/\303\255ndex.ts"` and the leading quote defeats every
+  # start-anchored rule — the gate then sees no sensitive file and exits 0.
+  # review-route.mjs unquotes defensively too (this flag still quotes paths with
+  # `"`, `\`, or control chars).
+  git -c core.quotePath=false diff --numstat "$range" 2>/dev/null |
     node "$(dirname "${BASH_SOURCE[0]}")/review-route.mjs" "$@"
 }
 

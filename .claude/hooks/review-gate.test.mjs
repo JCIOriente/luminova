@@ -4,7 +4,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync, appendFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -14,12 +14,15 @@ const GATE = join(HOOKS, "review-gate.sh");
 
 let repo;
 const git = (...args) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
-const write = (f, s) => writeFileSync(join(repo, f), s);
+const write = (f, s) => {
+  mkdirSync(dirname(join(repo, f)), { recursive: true });
+  writeFileSync(join(repo, f), s);
+};
 const commit = (msg, ...extra) => git("commit", "-q", "-m", msg, ...extra);
 
 /** Run the gate exactly as the harness would, and return its exit code. */
-function gate() {
-  const payload = JSON.stringify({ cwd: repo, tool_input: { command: "gh pr create --fill" } });
+function gate(command = "gh pr create --fill") {
+  const payload = JSON.stringify({ cwd: repo, tool_input: { command } });
   try {
     execFileSync("bash", [GATE], { input: payload, stdio: ["pipe", "pipe", "pipe"] });
     return 0;
@@ -96,6 +99,24 @@ test("a branch touching nothing sensitive needs no stamp", () => {
   git("add", "-A");
   commit("docs: only");
   assert.equal(gate(), ALLOWED);
+});
+
+test("a non-ASCII sensitive filename is still blocked (no quotePath bypass)", () => {
+  git("checkout", "-q", "main");
+  git("checkout", "-qb", "feat/acentos");
+  // Identical content to the blocked case; only the NAME carries an accent.
+  write("apps/beacon/src/índex.ts", "export const f = 1;\n");
+  git("add", "-A");
+  commit("feat: función");
+  assert.equal(gate(), BLOCKED);
+});
+
+test("extra whitespace in the command does not skip the gate", () => {
+  // The cheap prefilter used to be stricter than the authoritative regex, so
+  // these forms slipped past a gate that should have blocked them.
+  assert.equal(gate("gh  pr create --fill"), BLOCKED);
+  assert.equal(gate("gh\tpr\tcreate --fill"), BLOCKED);
+  assert.equal(gate("cd /tmp && gh pr create --fill"), BLOCKED);
 });
 
 test("a non-PR-create command is ignored entirely", () => {

@@ -83,6 +83,7 @@
       "invoke": "/code-review",
       "gate": "advisory",
       "why": "correctness bugs in product or harness source",
+      "_userInvoked": "/code-review is user-invocation-only — the agent cannot launch it. The agent must either ASK the user to run it, or run an equivalent adversarial correctness pass via subagents and say in the PR which route it took. Never record this token as run when neither happened.",
       "pathsRef": ["source"],
       "exceptPathsRef": ["tests", "docs"],
       "minChangedLines": 15

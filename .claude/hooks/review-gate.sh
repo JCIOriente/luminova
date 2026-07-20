@@ -25,9 +25,13 @@ input=$(cat)
 . "$(dirname "${BASH_SOURCE[0]}")/_hooklib.sh"
 
 # Fast path: this hook fires on EVERY Bash call. Skip the node spawn unless the
-# raw payload even mentions the command. (Authoritative parse re-checks below.)
+# raw payload could possibly be the command. Matching on `create` alone is
+# deliberately LOOSER than the authoritative regex below: the old `gh pr create`
+# substring prefilter was STRICTER than the regex it guarded, so `gh  pr create`
+# (two spaces) or a tab skipped the gate entirely — a prefilter must never be
+# able to reject something the real check would have blocked.
 case "$input" in
-  *"gh pr create"*) ;;
+  *create*) ;;
   *) exit 0 ;;
 esac
 
