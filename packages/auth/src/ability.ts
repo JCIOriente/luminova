@@ -27,7 +27,7 @@ function applyConditional(role: Role, claims: AuthClaims, uid: string, can: Can)
       break;
     case "Member":
       can(["read", "update"], "Member", { uid });
-      can("read", ["MemberPoints", "Event", "Project", "Position"]);
+      can("read", ["MemberPoints", "Project", "Position"]);
       break;
     default:
       // Other built-in roles carry only coarse grants, applied via the perms claim.

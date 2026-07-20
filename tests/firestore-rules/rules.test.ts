@@ -85,7 +85,6 @@ beforeAll(async () => {
       deletedAt: DELETED_AT,
     });
     await setDoc(doc(db, "allies/a1"), { companyName: "ACME", active: true, deletedAt: null });
-    await setDoc(doc(db, "events/e1"), { title: "Gala" });
     await setDoc(doc(db, "pointRules/r1"), { points: 10 });
     await setDoc(doc(db, "roles/Admin"), {
       name: "Administrador",
@@ -112,7 +111,7 @@ beforeAll(async () => {
       description: "",
       builtIn: false,
       builtInKey: null,
-      permissions: ["read:Event"],
+      permissions: ["read:Position"],
       locked: false,
       active: true,
       deletedAt: null,
@@ -632,18 +631,6 @@ describe("firestore.rules — allies", () => {
         deletedAt: new Date("2026-02-01T00:00:00Z"),
       }),
     );
-  });
-});
-
-describe("firestore.rules — events", () => {
-  it("allows any signed-in user to read", async () => {
-    await assertSucceeds(getDoc(doc(as("u", ["Member"]), "events/e1")));
-  });
-  it("allows ProjectManager to write", async () => {
-    await assertSucceeds(updateDoc(doc(as("u", ["ProjectManager"]), "events/e1"), { title: "G2" }));
-  });
-  it("denies Treasury from writing events", async () => {
-    await assertFails(updateDoc(doc(as("u", ["Treasury"]), "events/e1"), { title: "G3" }));
   });
 });
 
@@ -1198,6 +1185,14 @@ describe("firestore.rules — public + deny-all", () => {
     await assertFails(getDoc(doc(as("u", ["Admin"]), "board/b1")));
     await assertFails(setDoc(doc(as("u", ["Admin"]), "board/b1"), { title: "X" }));
   });
+  it("denies read + write of the removed events collection (falls through to deny-all)", async () => {
+    await assertFails(getDoc(doc(anon(), "events/e1")));
+    await assertFails(getDoc(doc(as("u", ["Admin"]), "events/e1")));
+    await assertFails(setDoc(doc(as("u", ["Admin"]), "events/e1"), { title: "X" }));
+    await assertFails(
+      setDoc(doc(as("u", ["ExecutiveCommittee"]), "events/e2"), { title: "Asamblea" }),
+    );
+  });
   it("denies access to an unlisted collection", async () => {
     await assertFails(getDoc(doc(as("u", ["Admin"]), "settings/s1")));
   });
@@ -1689,7 +1684,7 @@ describe("firestore.rules — roles collection", () => {
     description: "",
     builtIn: false,
     builtInKey: null,
-    permissions: ["manage:Event"],
+    permissions: ["manage:Position"],
     locked: false,
     active: true,
     deletedAt: null,
@@ -1720,7 +1715,7 @@ describe("firestore.rules — roles collection", () => {
   it("allows Admin to edit a custom role's permissions", async () => {
     await assertSucceeds(
       updateDoc(doc(as("admin-uid", ["Admin"]), "roles/custom_existing"), {
-        permissions: ["read:Event", "manage:Ally"],
+        permissions: ["read:Position", "manage:Ally"],
       }),
     );
   });
@@ -1765,7 +1760,7 @@ describe("firestore.rules — member permission assignment (roleIds + overrides)
     await assertSucceeds(
       updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), {
         roleIds: ["custom1"],
-        permissionOverrides: { grant: ["manage:Event"], revoke: [] },
+        permissionOverrides: { grant: ["manage:Position"], revoke: [] },
       }),
     );
   });
@@ -1846,7 +1841,11 @@ describe("firestore.rules — perm-based coarse gates", () => {
 
   it("manage:all behaves as superuser for any subject", async () => {
     await assertSucceeds(
-      setDoc(doc(asCustom("su-uid", ["manage:all"]), "events/e_su"), { title: "X" }),
+      setDoc(doc(asCustom("su-uid", ["manage:all"]), "allies/a_su"), {
+        companyName: "X",
+        active: true,
+        deletedAt: null,
+      }),
     );
   });
 
@@ -1878,12 +1877,6 @@ describe("firestore.rules — perm-based coarse gates", () => {
     );
     await assertSucceeds(
       updateDoc(doc(as("mem-uid", ["Membership"]), "allies/a1"), { companyName: "Editado" }),
-    );
-  });
-
-  it("reconciled: ExecutiveCommittee (via perms) can create events", async () => {
-    await assertSucceeds(
-      setDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "events/e_ec"), { title: "Asamblea" }),
     );
   });
 

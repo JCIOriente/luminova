@@ -26,11 +26,11 @@ describe("parseMember", () => {
       uid: "u1",
       positions: {},
       roleIds: ["custom-1", "custom-2"],
-      permissionOverrides: { grant: ["manage:Event", "bogus:Code"], revoke: ["read:Member"] },
+      permissionOverrides: { grant: ["manage:Position", "bogus:Code"], revoke: ["read:Member"] },
     });
     expect(result.roleIds).toEqual(["custom-1", "custom-2"]);
     expect(result.permissionOverrides).toEqual({
-      grant: ["manage:Event"],
+      grant: ["manage:Position"],
       revoke: ["read:Member"],
     });
   });

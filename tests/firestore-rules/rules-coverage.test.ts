@@ -41,8 +41,6 @@ const KNOWN_UNSURFACED: Record<string, string> = {
   memberPoints: "engine-owned points ledger, read-only; shown inside /me + /leaderboard",
   showcase: "public spotlight projection (read:true), beacon-written; no backstage route",
   allyShowcase: "public spotlight projection (read:true), beacon-written; no backstage route",
-  events:
-    "ORPHAN — live create/update:Event arms with no consumer (audit C8); rules block removed in PR-D",
 };
 
 describe("rules coverage: no orphaned firestore.rules collection", () => {

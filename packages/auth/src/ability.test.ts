@@ -15,7 +15,7 @@ describe("buildAbility", () => {
     expect(a.can("delete", "Member")).toBe(true);
   });
 
-  it("Membership manages members, reads allies/events/points", () => {
+  it("Membership manages members, reads allies/points", () => {
     const a = ability({ roles: ["Membership"] });
     expect(a.can("create", "Member")).toBe(true);
     expect(a.can("update", "Member")).toBe(true);
@@ -30,20 +30,19 @@ describe("buildAbility", () => {
     expect(a.can("update", "Member")).toBe(false);
   });
 
-  it("ExecutiveCommittee reads broadly and writes events (reconciled with rules)", () => {
+  it("ExecutiveCommittee reads broadly and manages positions", () => {
     const a = ability({ roles: ["ExecutiveCommittee"] });
     expect(a.can("read", "Member")).toBe(true);
     expect(a.can("read", "Project")).toBe(true);
     expect(a.can("update", "Member")).toBe(false);
-    expect(a.can("create", "Event")).toBe(true);
+    expect(a.can("manage", "Position")).toBe(true);
   });
 
-  it("ProjectManager manages programs/projects and reads allies/events", () => {
+  it("ProjectManager manages programs/projects and reads allies", () => {
     const a = ability({ roles: ["ProjectManager"] });
     expect(a.can("manage", "Project")).toBe(true);
     expect(a.can("manage", "Program")).toBe(true);
     expect(a.can("read", "Ally")).toBe(true);
-    expect(a.can("read", "Event")).toBe(true);
     expect(a.can("update", "Member")).toBe(false);
   });
 
@@ -84,7 +83,7 @@ describe("buildAbility", () => {
     expect(a.can("update", subject("Member", { uid: UID }))).toBe(true);
     expect(a.can("update", subject("Member", { uid: "other" }))).toBe(false);
     expect(a.can("read", "MemberPoints")).toBe(true);
-    expect(a.can("read", "Event")).toBe(true);
+    expect(a.can("read", "Project")).toBe(true);
   });
 
   it("lets ExecutiveCommittee manage the position catalog", () => {
@@ -150,22 +149,19 @@ describe("buildAbility", () => {
     expect(a.can("read", "Ally")).toBe(false);
   });
 
-  it("ExecutiveCommittee fallback reads broadly, manages Position, writes Events", () => {
+  it("ExecutiveCommittee fallback reads broadly and manages Position", () => {
     const a = ability({ roles: ["ExecutiveCommittee"] });
-    for (const s of ["Member", "Ally", "Event", "MemberPoints", "Program", "Project"] as const)
+    for (const s of ["Member", "Ally", "MemberPoints", "Program", "Project"] as const)
       expect(a.can("read", s)).toBe(true);
     expect(a.can("manage", "Position")).toBe(true);
-    expect(a.can("create", "Event")).toBe(true); // reconciled with firestore.rules
     expect(a.can("update", "Member")).toBe(false);
   });
 
-  it("ProjectManager fallback manages initiatives + reads allies/events + checks in", () => {
+  it("ProjectManager fallback manages initiatives + reads allies + checks in", () => {
     const a = ability({ roles: ["ProjectManager"] });
     for (const s of ["Project", "Activity", "Program"] as const)
       expect(a.can("manage", s)).toBe(true);
     expect(a.can("read", "Ally")).toBe(true);
-    expect(a.can("read", "Event")).toBe(true);
-    expect(a.can("create", "Event")).toBe(true); // reconciled with firestore.rules
     expect(a.can("checkIn", "Attendance")).toBe(true);
     expect(a.can("manage", "Member")).toBe(false);
   });

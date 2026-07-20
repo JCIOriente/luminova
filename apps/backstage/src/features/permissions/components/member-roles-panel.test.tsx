@@ -8,7 +8,7 @@ const customRole: RoleDefinition = {
   description: "",
   builtIn: false,
   builtInKey: null,
-  permissions: ["manage:Event"],
+  permissions: ["manage:Position"],
   locked: false,
   active: true,
   deletedAt: null,
@@ -52,7 +52,7 @@ describe("MemberRolesPanel", () => {
   it("includes a directly-assigned custom role's perms in the preview", () => {
     const withRole = { ...member, roleIds: ["c1"] } as unknown as Member;
     render(<MemberRolesPanel member={withRole} builtInRoleNames={[]} />);
-    expect(screen.getByText("Gestionar Eventos")).toBeInTheDocument();
+    expect(screen.getByText("Gestionar Cargos")).toBeInTheDocument();
   });
 
   it("saves the current roleIds + overrides on Guardar", async () => {

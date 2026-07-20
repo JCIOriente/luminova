@@ -42,10 +42,10 @@ describe("resolveMemberPerms", () => {
 
   it("applies overrides on top of resolved role perms", async () => {
     const out = await resolveMemberPerms(deps(), ["Treasury"], [], {
-      grant: ["manage:Event"],
+      grant: ["manage:Position"],
       revoke: ["read:Member"],
     });
-    expect(out).toEqual(["manage:Event", "read:MemberPoints"]);
+    expect(out).toEqual(["manage:Position", "read:MemberPoints"]);
   });
 
   it("returns empty for conditional-only roles (Member/Scanner) with no extras", async () => {

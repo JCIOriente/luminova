@@ -4,9 +4,9 @@ import { roleDefinitionSchema } from "./role-definition-schema.js";
 describe("roleDefinitionSchema", () => {
   it("accepts a valid custom role", () => {
     const result = roleDefinitionSchema.safeParse({
-      name: "Coordinador de Eventos",
+      name: "Coordinador de Actividades",
       description: "",
-      permissions: ["manage:Event"],
+      permissions: ["manage:Activity"],
     });
     expect(result.success).toBe(true);
   });

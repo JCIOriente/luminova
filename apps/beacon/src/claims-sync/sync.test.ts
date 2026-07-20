@@ -204,7 +204,7 @@ describe("syncMemberClaims", () => {
       positions: {},
       userRoles: {},
       existing: { "target-uid": { roles: ["Member"] } },
-      customRoles: { "role-x": customRole("role-x", ["manage:Ally", "read:Event"]) },
+      customRoles: { "role-x": customRole("role-x", ["manage:Ally", "read:Position"]) },
     });
     await syncMemberClaims(
       deps,
@@ -218,7 +218,7 @@ describe("syncMemberClaims", () => {
     );
     expect(writes["target-uid"]).toEqual({
       roles: ["Member"],
-      perms: ["manage:Ally", "read:Event"],
+      perms: ["manage:Ally", "read:Position"],
     });
   });
 
@@ -234,14 +234,14 @@ describe("syncMemberClaims", () => {
         uid: "target-uid",
         positions: { "2026": { cargoId: "pos-tes", comisionIds: [], assignedBy: "admin-uid" } },
         roleIds: [],
-        permissionOverrides: { grant: ["manage:Event"], revoke: ["read:Member"] },
+        permissionOverrides: { grant: ["manage:Position"], revoke: ["read:Member"] },
       },
       "2026",
     );
-    // Treasury = read:Member, read:MemberPoints; +manage:Event, -read:Member
+    // Treasury = read:Member, read:MemberPoints; +manage:Position, -read:Member
     expect(writes["target-uid"]).toEqual({
       roles: ["Treasury", "Member"],
-      perms: ["manage:Event", "read:MemberPoints"],
+      perms: ["manage:Position", "read:MemberPoints"],
     });
   });
 

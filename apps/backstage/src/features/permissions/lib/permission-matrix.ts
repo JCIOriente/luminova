@@ -25,7 +25,6 @@ export const ACTION_LABELS: Record<Action, string> = {
 export const SUBJECT_LABELS: Record<Exclude<Subject, "all" | "Role">, string> = {
   Member: "Miembros",
   Ally: "Aliados",
-  Event: "Eventos",
   PointRule: "Reglas de puntos",
   MemberPoints: "Puntos",
   Attendance: "Asistencia",

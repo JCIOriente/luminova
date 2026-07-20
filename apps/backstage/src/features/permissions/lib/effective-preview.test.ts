@@ -49,8 +49,8 @@ describe("previewEffectivePerms", () => {
     const out = previewEffectivePerms({
       builtInRoleNames: ["Member"],
       selectedCustomRoleIds: ["c1"],
-      allRoles: [role({ id: "c1", permissions: ["manage:Ally", "read:Event"] })],
-      overrides: { grant: ["manage:Project"], revoke: ["read:Event"] },
+      allRoles: [role({ id: "c1", permissions: ["manage:Ally", "read:Position"] })],
+      overrides: { grant: ["manage:Project"], revoke: ["read:Position"] },
     });
     expect(out).toEqual(["manage:Ally", "manage:Project"]);
   });
