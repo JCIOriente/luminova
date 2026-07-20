@@ -25,9 +25,9 @@ describe("resolveEffectivePerms", () => {
   it("applies grants then revokes", () => {
     const out = resolveEffectivePerms({
       roleDocs: [role(["read:Member"])],
-      overrides: { grant: ["manage:Event"], revoke: ["read:Member"] },
+      overrides: { grant: ["manage:Position"], revoke: ["read:Member"] },
     });
-    expect(out).toEqual(["manage:Event"]);
+    expect(out).toEqual(["manage:Position"]);
   });
 
   it("revoke wins over grant for the same code", () => {

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Admin dashboard for JCI Oriente leadership. Manages members, events, point rules, and allies. Auth required for all routes except `/login`.
+Admin dashboard for JCI Oriente leadership. Manages members, activities, point rules, and allies. Auth required for all routes except `/login`.
 
 ## Routing (TanStack Router — file-based)
 
@@ -16,7 +16,7 @@ Routes live in `src/routes/`. File name = URL segment.
 | `_app.tsx` | — | Protected layout (sidebar) — redirects to `/login` if no auth |
 | `_app.index.tsx` | `/` | Dashboard |
 | `_app.members.tsx` | `/members` | Members management |
-| `_app.events.tsx` | `/events` | Events management |
+| `_app.activities.tsx` | `/activities` | Activities management |
 | `_app.point-rules.tsx` | `/point-rules` | Point rules matrix |
 | `_app.allies.tsx` | `/allies` | Partner management |
 | `_app.settings.tsx` | `/settings` | Settings placeholder |

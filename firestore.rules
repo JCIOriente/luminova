@@ -298,13 +298,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    match /events/{eventId} {
-      allow read: if signedIn();
-      allow create: if canDo('create', 'Event');
-      allow update: if canDo('update', 'Event');
-      allow delete: if false;
-    }
-
     match /pointRules/{ruleId} {
       allow read: if signedIn();
       allow create: if canDo('create', 'PointRule');

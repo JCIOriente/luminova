@@ -85,7 +85,7 @@ const ROLE_DOC = {
   description: "",
   builtIn: false,
   builtInKey: null,
-  permissions: ["manage:Event"],
+  permissions: ["manage:Position"],
   locked: false,
   active: true,
   deletedAt: null,

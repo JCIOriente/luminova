@@ -4,7 +4,6 @@ export type Action = (typeof ACTIONS)[number];
 export const SUBJECTS = [
   "Member",
   "Ally",
-  "Event",
   "PointRule",
   "MemberPoints",
   "Attendance",
