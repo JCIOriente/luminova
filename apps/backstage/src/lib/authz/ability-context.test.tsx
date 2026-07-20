@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { roleClaims } from "@luminova/auth/test-helpers";
 import type { AuthClaims } from "@luminova/auth/roles";
 import { AbilityProvider, Can } from "./ability-context";
 
@@ -18,7 +19,7 @@ function renderWith(claims: AuthClaims) {
 
 describe("AbilityProvider + Can", () => {
   it("renders the allowed branch for Membership", () => {
-    renderWith({ roles: ["Membership"] });
+    renderWith(roleClaims("Membership"));
     expect(screen.getByText("can-create-member")).toBeTruthy();
     expect(screen.queryByText("cannot-create-member")).toBeNull();
   });

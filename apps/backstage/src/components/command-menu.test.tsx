@@ -8,20 +8,21 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigate,
 }));
 
-const currentRoles = { value: [] as Role[] };
+const currentClaims = { value: { roles: [] } as AuthClaims };
 vi.mock("../lib/auth/auth", () => ({
-  useAuth: () => ({ status: "authenticated", user: null, claims: { roles: currentRoles.value } }),
+  useAuth: () => ({ status: "authenticated", user: null, claims: currentClaims.value }),
 }));
 
 import { CommandMenu } from "./command-menu";
 import { AbilityProvider } from "../lib/authz/ability-context";
 import { setCommandMenuOpen } from "./command-menu-store";
-import type { Role } from "@luminova/auth/roles";
+import { roleClaims } from "@luminova/auth/test-helpers";
+import type { AuthClaims, Role } from "@luminova/auth/roles";
 
 function renderWithRoles(ui: ReactElement, roles: Role[]) {
-  currentRoles.value = roles;
+  currentClaims.value = roleClaims(...roles);
   return render(
-    <AbilityProvider claims={{ roles }} uid="u1">
+    <AbilityProvider claims={currentClaims.value} uid="u1">
       {ui}
     </AbilityProvider>,
   );

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { subject } from "@casl/ability";
 import { buildAbility } from "./ability";
+import { roleClaims } from "./test-helpers";
 import type { AuthClaims, Role } from "./roles";
 
 const UID = "self-uid";
@@ -10,13 +11,13 @@ function ability(claims: AuthClaims) {
 
 describe("buildAbility", () => {
   it("Admin can manage everything", () => {
-    const a = ability({ roles: ["Admin"] });
+    const a = ability(roleClaims("Admin"));
     expect(a.can("manage", "all")).toBe(true);
     expect(a.can("delete", "Member")).toBe(true);
   });
 
   it("Membership manages members, reads allies/points", () => {
-    const a = ability({ roles: ["Membership"] });
+    const a = ability(roleClaims("Membership"));
     expect(a.can("create", "Member")).toBe(true);
     expect(a.can("update", "Member")).toBe(true);
     expect(a.can("read", "Ally")).toBe(true);
@@ -24,14 +25,14 @@ describe("buildAbility", () => {
   });
 
   it("Treasury reads members/points only", () => {
-    const a = ability({ roles: ["Treasury"] });
+    const a = ability(roleClaims("Treasury"));
     expect(a.can("read", "Member")).toBe(true);
     expect(a.can("read", "MemberPoints")).toBe(true);
     expect(a.can("update", "Member")).toBe(false);
   });
 
   it("ExecutiveCommittee reads broadly and manages positions", () => {
-    const a = ability({ roles: ["ExecutiveCommittee"] });
+    const a = ability(roleClaims("ExecutiveCommittee"));
     expect(a.can("read", "Member")).toBe(true);
     expect(a.can("read", "Project")).toBe(true);
     expect(a.can("update", "Member")).toBe(false);
@@ -39,7 +40,7 @@ describe("buildAbility", () => {
   });
 
   it("ProjectManager manages programs/projects and reads allies", () => {
-    const a = ability({ roles: ["ProjectManager"] });
+    const a = ability(roleClaims("ProjectManager"));
     expect(a.can("manage", "Project")).toBe(true);
     expect(a.can("manage", "Program")).toBe(true);
     expect(a.can("read", "Ally")).toBe(true);
@@ -47,7 +48,7 @@ describe("buildAbility", () => {
   });
 
   it("ProjectManager manages activities and can check in (operates the day-of)", () => {
-    const a = ability({ roles: ["ProjectManager"] });
+    const a = ability(roleClaims("ProjectManager"));
     expect(a.can("create", "Activity")).toBe(true);
     expect(a.can("read", "Activity")).toBe(true);
     expect(a.can("checkIn", "Attendance")).toBe(true);
@@ -87,18 +88,18 @@ describe("buildAbility", () => {
   });
 
   it("lets ExecutiveCommittee manage the position catalog", () => {
-    const ability = buildAbility({ roles: ["ExecutiveCommittee"] }, "u1");
+    const ability = buildAbility(roleClaims("ExecutiveCommittee"), "u1");
     expect(ability.can("manage", "Position")).toBe(true);
   });
 
   it("lets Membership read but not manage positions", () => {
-    const ability = buildAbility({ roles: ["Membership"] }, "u1");
+    const ability = buildAbility(roleClaims("Membership"), "u1");
     expect(ability.can("read", "Position")).toBe(true);
     expect(ability.can("create", "Position")).toBe(false);
   });
 
   it("additive roles union their abilities", () => {
-    const a = ability({ roles: ["Membership", "ProjectManager"] });
+    const a = ability(roleClaims("Membership", "ProjectManager"));
     expect(a.can("create", "Member")).toBe(true);
     expect(a.can("manage", "Project")).toBe(true);
   });
@@ -128,37 +129,37 @@ describe("buildAbility", () => {
     expect(a.can("update", subject("Member", { uid: "other" }))).toBe(false);
   });
 
-  it("falls back to role-derived abilities when perms is absent (pre-backfill)", () => {
-    const a = ability({ roles: ["Membership"] });
-    expect(a.can("manage", "Member")).toBe(true);
-    expect(a.can("read", "Ally")).toBe(true);
+  it("a roles-only claim (no perms) grants no coarse access — no fallback to the role table", () => {
+    const a = buildAbility({ roles: ["Membership"] }, UID);
+    expect(a.can("manage", "Member")).toBe(false);
+    expect(a.can("read", "Ally")).toBe(false);
   });
 
-  it("an empty perms claim grants no coarse access (does NOT fall back)", () => {
+  it("an empty perms claim grants no coarse access", () => {
     const a = ability({ roles: ["Membership"], perms: [] });
     expect(a.can("manage", "Member")).toBe(false);
   });
 
-  // Exhaustive fallback regression: BUILT_IN_ROLE_PERMS must reproduce the legacy
-  // applyRole coarse grants exactly, so the pre-backfill path can't silently drift.
-  it("Treasury fallback grants exactly its coarse perms and nothing more", () => {
-    const a = ability({ roles: ["Treasury"] });
+  // The perms `roleClaims` mints from BUILT_IN_ROLE_PERMS must reproduce each
+  // built-in role's coarse grants exactly, so seed→claims-sync→ability can't drift.
+  it("Treasury perms grant exactly its coarse access and nothing more", () => {
+    const a = ability(roleClaims("Treasury"));
     expect(a.can("read", "Member")).toBe(true);
     expect(a.can("read", "MemberPoints")).toBe(true);
     expect(a.can("update", "Member")).toBe(false);
     expect(a.can("read", "Ally")).toBe(false);
   });
 
-  it("ExecutiveCommittee fallback reads broadly and manages Position", () => {
-    const a = ability({ roles: ["ExecutiveCommittee"] });
+  it("ExecutiveCommittee perms read broadly and manage Position", () => {
+    const a = ability(roleClaims("ExecutiveCommittee"));
     for (const s of ["Member", "Ally", "MemberPoints", "Program", "Project"] as const)
       expect(a.can("read", s)).toBe(true);
     expect(a.can("manage", "Position")).toBe(true);
     expect(a.can("update", "Member")).toBe(false);
   });
 
-  it("ProjectManager fallback manages initiatives + reads allies + checks in", () => {
-    const a = ability({ roles: ["ProjectManager"] });
+  it("ProjectManager perms manage initiatives + read allies + check in", () => {
+    const a = ability(roleClaims("ProjectManager"));
     for (const s of ["Project", "Activity", "Program"] as const)
       expect(a.can("manage", s)).toBe(true);
     expect(a.can("read", "Ally")).toBe(true);
@@ -166,7 +167,7 @@ describe("buildAbility", () => {
     expect(a.can("manage", "Member")).toBe(false);
   });
 
-  it("ignores an unknown role string in the fallback without crashing", () => {
+  it("ignores an unknown role string without crashing", () => {
     const a = buildAbility({ roles: ["Ghost" as Role] }, UID);
     expect(a.can("read", "Member")).toBe(false);
   });

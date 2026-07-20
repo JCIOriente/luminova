@@ -1,10 +1,5 @@
 import { AbilityBuilder, createMongoAbility, subject, type MongoAbility } from "@casl/ability";
-import {
-  BUILT_IN_ROLE_PERMS,
-  type Action,
-  type Subject,
-  type PermissionCode,
-} from "@luminova/types";
+import { type Action, type Subject, type PermissionCode } from "@luminova/types";
 import type { AuthClaims, Role } from "./roles.js";
 
 export { subject };
@@ -42,13 +37,13 @@ function applyPerms(perms: readonly PermissionCode[], can: Can): void {
   }
 }
 
-/** Build the CASL ability from a member's claims. Coarse abilities come from the
- *  resolved `perms` claim; pre-backfill (perms absent) they fall back to the
- *  built-in role perm map so nothing breaks. Conditional grants always derive
- *  from the built-in `roles` claim. */
+/** Build the CASL ability from a member's claims. Coarse abilities come solely
+ *  from the resolved `perms` claim (minted by claims-sync as the single source of
+ *  coarse authority); an absent `perms` grants none. Conditional grants always
+ *  derive from the built-in `roles` claim, independent of `perms`. */
 export function buildAbility(claims: AuthClaims, uid: string): AppAbility {
   const builder = new AbilityBuilder<AppAbility>(createMongoAbility);
-  const perms = claims.perms ?? claims.roles.flatMap((role) => BUILT_IN_ROLE_PERMS[role] ?? []);
+  const perms = claims.perms ?? [];
   applyPerms(perms, builder.can);
   for (const role of claims.roles) applyConditional(role, claims, uid, builder.can);
   return builder.build();

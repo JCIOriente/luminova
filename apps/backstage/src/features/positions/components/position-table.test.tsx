@@ -3,12 +3,13 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { PositionSection } from "./position-table";
+import { roleClaims } from "@luminova/auth/test-helpers";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
 import type { Position } from "@luminova/types";
 
 function renderAsAdmin(ui: ReactElement) {
   return render(
-    <AbilityProvider claims={{ roles: ["Admin"] }} uid="admin">
+    <AbilityProvider claims={roleClaims("Admin")} uid="admin">
       {ui}
     </AbilityProvider>,
   );

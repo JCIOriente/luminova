@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import type { PointRule } from "@luminova/types";
 import type { Role } from "@luminova/auth/roles";
 import { PointRuleTable } from "./point-rule-table";
+import { roleClaims } from "@luminova/auth/test-helpers";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
 
 const rules: PointRule[] = [
@@ -26,7 +27,7 @@ const rules: PointRule[] = [
 
 function renderWith(roles: Role[], ui: ReactElement) {
   return render(
-    <AbilityProvider claims={{ roles }} uid="u">
+    <AbilityProvider claims={roleClaims(...roles)} uid="u">
       {ui}
     </AbilityProvider>,
   );

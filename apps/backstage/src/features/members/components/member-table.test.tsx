@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { Timestamp } from "firebase/firestore";
 import type { ReactElement } from "react";
 import { MemberTable } from "./member-table";
+import { roleClaims } from "@luminova/auth/test-helpers";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
 import { currentTermKey, type Member, type Position } from "@luminova/types";
 
@@ -19,7 +20,7 @@ const noop = {
 
 function renderAsAdmin(ui: ReactElement) {
   return render(
-    <AbilityProvider claims={{ roles: ["Admin"] }} uid="admin">
+    <AbilityProvider claims={roleClaims("Admin")} uid="admin">
       {ui}
     </AbilityProvider>,
   );
@@ -69,7 +70,7 @@ describe("MemberTable", () => {
 
   it("hides write actions for a read-only role", async () => {
     render(
-      <AbilityProvider claims={{ roles: ["Treasury"] }} uid="t">
+      <AbilityProvider claims={roleClaims("Treasury")} uid="t">
         <MemberTable members={[member]} pageSize={8} {...noop} />
       </AbilityProvider>,
     );
