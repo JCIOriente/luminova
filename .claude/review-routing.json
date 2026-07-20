@@ -111,16 +111,16 @@
       "invoke": "secure-dep-vetting",
       "gate": "advisory",
       "why": "latest secure version + Node 24 compat + CVE block",
-      "_exempt": "A package.json change that only adds/moves `workspace:*` entries is exempt — state that in the PR instead of running the skill.",
+      "_exempt": "Exempt when the edit carries NO dependency delta — only `workspace:*` entries moved, or a non-dependency field (scripts, engines) changed. State that in the PR instead of running the skill; never claim the skill ran.",
       "pathsRef": ["deps"]
     },
     {
       "token": "bundle-budget-watcher",
       "invoke": "Agent(bundle-budget-watcher)",
       "gate": "advisory",
-      "why": "new route / large module / dep change can breach the docs/performance.md budgets",
-      "paths": ["^apps/spotlight/src/routes/", "^apps/backstage/src/routes/"],
-      "pathsRef": ["deps"],
+      "why": "new route / large module / installed-dep change can breach the docs/performance.md budgets",
+      "_comment": "Keyed on the LOCKFILE, not package.json: under pnpm a real dependency change always moves pnpm-lock.yaml, while a package.json `scripts`/`engines` edit cannot change a single byte of shipped bundle. Triggering a full build agent on the latter is a false mandate, and false mandates are how a routing contract loses its authority.",
+      "paths": ["^apps/spotlight/src/routes/", "^apps/backstage/src/routes/", "^pnpm-lock\\.yaml$"],
       "exceptPathsRef": ["tests"],
       "alsoWhen": {
         "_comment": "…or a large module lands anywhere in the frontend, route or not.",

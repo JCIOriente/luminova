@@ -97,13 +97,22 @@ test("tools/scripts is product source, not an unrouted blind spot", () => {
   assert.ok(tokens([["tools/scripts/lib/role-seed.mjs", 30, 5]]).includes("code-review"));
 });
 
-test("dependency change → secure-dep-vetting + bundle-budget-watcher", () => {
+test("real dependency change (lockfile moves) → secure-dep-vetting + bundle-budget-watcher", () => {
   const t = tokens([
     ["package.json", 2, 1],
     ["pnpm-lock.yaml", 40, 8],
   ]);
   assert.ok(t.includes("secure-dep-vetting"));
   assert.ok(t.includes("bundle-budget-watcher"));
+});
+
+test("a scripts-only package.json edit does not summon the bundle agent", () => {
+  // No lockfile movement => no installed-dep change => zero bundle impact.
+  // secure-dep-vetting still routes (a hand-edited version pin must be checked),
+  // carrying its no-dependency-delta exemption note.
+  const t = tokens([["package.json", 2, 1]]);
+  assert.ok(t.includes("secure-dep-vetting"));
+  assert.ok(!t.includes("bundle-budget-watcher"));
 });
 
 test("new route file → bundle-budget-watcher", () => {
