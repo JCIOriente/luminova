@@ -4,7 +4,7 @@ export { SegmentedControl, type SegmentedOption } from "./components/segmented-c
 export { Badge, type BadgeTone } from "./components/badge";
 export { Card, cardSurfaceClasses, cardInteractiveClasses } from "./components/card";
 export { ArrowLink } from "./components/arrow-link";
-export { Icon, ArrowRight } from "./components/icons";
+export { Icon, ArrowRight, type IconKey } from "./components/icons";
 export { Input, fieldControlClasses } from "./components/input";
 export { SearchInput } from "./components/search-input";
 export { Textarea } from "./components/textarea";
