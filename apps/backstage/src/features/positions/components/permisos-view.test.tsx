@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { PermisosView } from "../features/positions/components/permisos-view";
+import { PermisosView } from "./permisos-view";
 
 it("renders a card per role with granting cargos and holders", () => {
   render(
