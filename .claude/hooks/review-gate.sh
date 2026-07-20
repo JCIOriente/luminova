@@ -51,7 +51,18 @@ if [ -z "$base" ]; then
   exit 0
 fi
 
-owed=$(hook_route_tokens "$base...HEAD" --gate-only)
+# A classifier failure must BLOCK, never wave the PR through. Without this, any
+# throw in review-route.mjs — an unknown pathSet, malformed rubric JSON, a bad
+# regex, the file missing — produced an empty `owed` and silently disabled the
+# gate. And since the rubric is itself hard-gated, a PR that breaks the rubric
+# would have turned off its own gate. A broken control is not a passing control.
+if ! owed=$(hook_route_tokens "$base...HEAD" --gate-only); then
+  echo "review-gate: BLOCKED — the review router failed to classify this diff." >&2
+  echo "The rubric or the evaluator is broken, so no review requirement could be" >&2
+  echo "determined. Fix .claude/review-routing.json / review-route.mjs, then retry:" >&2
+  echo "  .claude/hooks/route.sh" >&2
+  exit 2
+fi
 
 # Nothing in the hard class touched — gate does not apply.
 [ -z "$owed" ] && exit 0
@@ -83,20 +94,26 @@ done <<< "$(hook_trailer_keys)"
 covered=""
 while IFS= read -r stamp; do
   [ -z "$stamp" ] && continue
-  sha=${stamp%% *}
+  sha=$(printf '%s' "${stamp%% *}" | tr 'A-Z' 'a-z')
   tokens=${stamp#* }
-  # Only honor a literal sha — a symbolic ref like HEAD/main/<tag> would
-  # trivially self-certify (always an ancestor of HEAD, empty diff after it).
-  printf '%s' "$sha" | grep -qiE '^[0-9a-f]{7,40}$' || continue
+  # Only honor a literal object id. Hex shape alone is not enough: `git rev-parse`
+  # resolves NAMES too, so a tag or branch called `deadbeef` pointing at HEAD
+  # would self-certify the whole branch. Require the stamp to be an abbreviation
+  # of the commit it resolves to — a ref name is not a prefix of its own sha.
+  printf '%s' "$sha" | grep -qE '^[0-9a-f]{7,40}$' || continue
   rsha=$(git rev-parse --verify --quiet "${sha}^{commit}" 2>/dev/null || echo "")
   [ -z "$rsha" ] && continue
+  case "$rsha" in "$sha"*) ;; *) continue ;; esac
   git merge-base --is-ancestor "$rsha" HEAD 2>/dev/null || continue
-  residual=$(hook_route_tokens "$rsha..HEAD" --gate-only)
+  # A failed residual computation must not mark anything covered (fail closed).
+  residual=$(hook_route_tokens "$rsha..HEAD" --gate-only) || continue
   while IFS= read -r token; do
     [ -z "$token" ] && continue
     printf '%s\n' "$residual" | grep -qx "$token" && continue
     covered="$covered $token"
-  done <<< "$(printf '%s' "${tokens// /}" | tr ',' '\n')"
+    # Accept `a,b`, `a, b` and `a b` alike — a human copying the token set with
+    # spaces was silently blocked with no explanation.
+  done <<< "$(printf '%s' "$tokens" | tr ',' ' ' | tr -s ' ' '\n')"
 done <<< "$stamps"
 
 unmet=""

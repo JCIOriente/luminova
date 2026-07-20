@@ -31,7 +31,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const RUBRIC_PATH = join(here, "..", "review-routing.json");
 
 const argv = process.argv.slice(2);
-const format = argv.includes("--format") ? argv[argv.indexOf("--format") + 1] : "json";
+// lastIndexOf, not indexOf: hook_route_tokens appends its own `--format tokens`
+// after caller args, so a caller passing --format would otherwise win and hand
+// the gate a prose blob where it expects tokens — blocking every PR.
+const format = argv.includes("--format") ? argv[argv.lastIndexOf("--format") + 1] : "json";
 const gateOnly = argv.includes("--gate-only");
 
 const rubric = JSON.parse(readFileSync(RUBRIC_PATH, "utf8"));

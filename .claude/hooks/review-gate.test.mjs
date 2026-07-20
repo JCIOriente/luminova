@@ -4,7 +4,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, appendFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, cpSync, writeFileSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -117,6 +117,59 @@ test("extra whitespace in the command does not skip the gate", () => {
   assert.equal(gate("gh  pr create --fill"), BLOCKED);
   assert.equal(gate("gh\tpr\tcreate --fill"), BLOCKED);
   assert.equal(gate("cd /tmp && gh pr create --fill"), BLOCKED);
+});
+
+test("a broken rubric BLOCKS — a control that cannot classify must not pass", () => {
+  // The rubric is itself hard-gated, so a fail-open here would let a PR that
+  // breaks the rubric switch off its own gate. Run a COPY of the hooks dir with
+  // a corrupted rubric so the real one is untouched.
+  const sandbox = mkdtempSync(join(tmpdir(), "review-gate-broken-"));
+  cpSync(HOOKS, join(sandbox, "hooks"), { recursive: true });
+  writeFileSync(join(sandbox, "review-routing.json"), "{ this is not json");
+  git("checkout", "-q", "feat/rules"); // branch with an unstamped firestore.rules change
+
+  const payload = JSON.stringify({ cwd: repo, tool_input: { command: "gh pr create --fill" } });
+  let status = 0;
+  try {
+    execFileSync("bash", [join(sandbox, "hooks", "review-gate.sh")], {
+      input: payload,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch (e) {
+    status = e.status;
+  }
+  rmSync(sandbox, { recursive: true, force: true });
+  assert.equal(status, BLOCKED);
+});
+
+test("a hex-NAMED ref must not self-certify like a sha", () => {
+  // Fresh branch: an earlier branch's legitimate stamps would make this pass for
+  // the wrong reason. The ONLY stamp here names a tag that merely LOOKS like a sha.
+  git("checkout", "-q", "main");
+  git("checkout", "-qb", "feat/forged-tag");
+  write("firestore.rules", "allow read;\n");
+  git("add", "-A");
+  commit("feat: rules");
+  git("tag", "deadbeef", "HEAD");
+  commit("chore: forged tag stamp", "--allow-empty", "-m", "Reviews: deadbeef security-review");
+  const result = gate();
+  git("tag", "-d", "deadbeef");
+  assert.equal(result, BLOCKED);
+});
+
+test("a space-separated token list is accepted, not silently blocked", () => {
+  git("checkout", "-q", "main");
+  git("checkout", "-qb", "feat/spaces");
+  write("firestore.rules", "allow read;\n");
+  git("add", "-A");
+  commit("feat: rules");
+  commit(
+    "chore: reviews",
+    "--allow-empty",
+    "-m",
+    `Reviews: ${git("rev-parse", "HEAD")} security-review firestore-security-reviewer`,
+  );
+  assert.equal(gate(), ALLOWED);
 });
 
 test("a non-PR-create command is ignored entirely", () => {

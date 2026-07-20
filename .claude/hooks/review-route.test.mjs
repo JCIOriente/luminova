@@ -174,6 +174,33 @@ test("an unquoted path containing a literal quote is not mangled", () => {
   assert.ok(r.reviews.find((x) => x.token === "react-best-practices"));
 });
 
+test("a `tests/` dir inside deployable code is NOT exempt from the hard gate", () => {
+  // apps/beacon/src/tests/helper.ts ships to Cloud Functions; only top-level
+  // suites and *.test.* files are tests.
+  assert.deepEqual(tokens([["apps/beacon/src/tests/helper.ts", 40, 0]], ["--gate-only"]), [
+    "security-review",
+  ]);
+  assert.deepEqual(tokens([["tests/firestore-rules/rules.test.ts", 40, 0]], ["--gate-only"]), []);
+});
+
+test("editing _hooklib.sh is hard-gated — it can disable the gate", () => {
+  for (const p of [".claude/hooks/_hooklib.sh", ".claude/hooks/route.sh"]) {
+    assert.deepEqual(tokens([[p, 20, 5]], ["--gate-only"]), ["security-review"], p);
+  }
+});
+
+test("the LAST --format wins, so an appended --format tokens is authoritative", () => {
+  const out = execFileSync(
+    "node",
+    [ROUTER, "--format", "text", "--gate-only", "--format", "tokens"],
+    {
+      input: "30\t4\tfirestore.rules",
+      encoding: "utf8",
+    },
+  );
+  assert.equal(out, "security-review");
+});
+
 test("binary file (numstat `-`) contributes 0 changed lines, does not crash", () => {
   const numstat = "-\t-\tapps/spotlight/public/hero.webp";
   const r = JSON.parse(execFileSync("node", [ROUTER], { input: numstat, encoding: "utf8" }));

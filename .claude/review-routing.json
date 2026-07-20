@@ -6,9 +6,10 @@
 
   "pathSets": {
     "_comment": "Named sets referenced by rules via pathsRef / exceptPathsRef, so 'what is a test file' is spelled out ONCE. Adding e.g. .cts test support is a one-line edit here, not four edits that can silently disagree.",
+    "_testsComment": "Deliberately NOT `(^|/)tests?/` — a `tests/` directory anywhere exempted deployable code like apps/beacon/src/tests/helper.ts from the hard gate. Only the top-level suites, __tests__ dirs, and files named *.test.*/*.spec.* count as tests.",
     "tests": [
+      "^tests?/",
       "(^|/)__tests__/",
-      "(^|/)tests?/",
       "\\.(test|spec)\\.[cm]?[jt]sx?$",
       "^packages/rules-test/"
     ],
@@ -26,9 +27,9 @@
       "/repositories/",
       "/functions/"
     ],
+    "_reviewHarnessComment": "The whole hooks dir, not just the gate file: _hooklib.sh holds hook_is_pr_create / hook_merge_base / hook_route, so a one-line edit there disables the gate as thoroughly as editing the gate itself. An enforcement control that can be weakened unreviewed is not a control.",
     "reviewHarness": [
-      "^\\.claude/hooks/review-gate\\.sh$",
-      "^\\.claude/hooks/review-route\\.mjs$",
+      "^\\.claude/hooks/",
       "^\\.claude/review-routing\\.json$",
       "^\\.claude/settings\\.json$"
     ]
