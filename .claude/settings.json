@@ -11,10 +11,8 @@
       "Bash(pnpm format)",
       "Bash(pnpm test:harness)",
       "Bash(pnpm test:seed)",
-      "Bash(pnpm audit *)",
-      "Bash(pnpm ignored-builds)",
-      "Bash(pnpm prettier --check *)",
-      "Bash(pnpm exec tsc --noEmit *)"
+      "Bash(pnpm audit --audit-level=high)",
+      "Bash(pnpm ignored-builds)"
     ]
   },
   "hooks": {
