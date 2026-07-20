@@ -1,9 +1,7 @@
 {
   "_comment": "Single source of truth for review routing. Consumed by .claude/hooks/review-route.mjs, which review-router.sh (advisory checklist), review-gate.sh (hard gate) and route.sh (manual/pre-PR routing) all call. Never restate these path sets, the trailer vocabulary, or the exception terms in a hook, a skill, or a doc — that drift is exactly what this file exists to prevent (CLAUDE.md guardrail #1, extract-don't-copy).",
-
   "trailerKey": "Reviews",
   "legacyTrailerKeys": ["Security-Reviewed"],
-
   "pathSets": {
     "_comment": "Named sets referenced by rules via pathsRef / exceptPathsRef, so 'what is a test file' is spelled out ONCE. Adding e.g. .cts test support is a one-line edit here, not four edits that can silently disagree.",
     "_testsComment": "Deliberately NOT `(^|/)tests?/` — a `tests/` directory anywhere exempted deployable code like apps/beacon/src/tests/helper.ts from the hard gate. Only the top-level suites, __tests__ dirs, and files named *.test.*/*.spec.* count as tests.",
@@ -19,18 +17,19 @@
       "^LICENSE$",
       "(^|/)\\.gitignore$",
       "\\.md$",
-      "!^CLAUDE\\.md$",
+      "!(^|/)CLAUDE\\.md$",
       "!^\\.claude/skills/",
       "!^\\.claude/agents/"
     ],
-    "_sourceComment": "Root config files are guards in their own right — eslint.config.js enforces guardrails #1 and hooks-correctness, firestore.indexes.json backs guardrail #4's 'an index regression must not be invisible'. A 500-line change to any of them used to route nothing at all.",
+    "_sourceComment": "Root config files are guards in their own right — eslint.config.js enforces guardrails #1 and hooks-correctness, firestore.indexes.json backs guardrail #4's 'an index regression must not be invisible'. A 500-line change to any of them used to route nothing at all. package.json is here because .claude/settings.json's permissions.allow grants by SCRIPT NAME: an edit to `\"typecheck\"` silently changes what an auto-approved command runs. RESIDUAL, accepted: minChangedLines means a <15-line scripts edit still routes nothing — closing that needs a hard gate on package.json, which would tax every dependency bump.",
     "source": [
       "^apps/",
       "^packages/",
       "^\\.claude/",
       "^\\.github/",
       "^(tools/)?scripts/",
-      "^CLAUDE\\.md$",
+      "(^|/)package\\.json$",
+      "(^|/)CLAUDE\\.md$",
       "^firestore\\.indexes\\.json$",
       "^eslint\\.config\\.js$",
       "^turbo\\.json$",
@@ -61,11 +60,11 @@
     "reviewHarness": [
       "^\\.claude/hooks/",
       "^\\.claude/agents/",
+      "^\\.claude/skills/feature-flow/",
       "^\\.claude/review-routing\\.json$",
       "^\\.claude/settings\\.json$"
     ]
   },
-
   "lighterReview": {
     "_comment": "A diff whose every changed file matches one of these is eligible for the lighter-review exception, as is a diff that trips no rule at all (verdict `minor`).",
     "pathsRef": ["tests", "docs"],
@@ -76,7 +75,6 @@
       "     (e.g. \"zero refs remain\"), with the command output."
     ]
   },
-
   "rules": [
     {
       "token": "security-review",
@@ -84,8 +82,9 @@
       "gate": "hard",
       "why": "auth / Firestore-rules / Cloud-Functions surface — a bad write here is a production data-access hole",
       "pathsRef": ["authSurface", "reviewHarness"],
-      "_exceptComment": "Markdown under a sensitive dir (apps/beacon/README.md) cannot change deployed behavior — hard-gating it was a false mandate. The contract files that ARE load-bearing prose are carved out of `docs` below, so they never reach this exception.",
-      "exceptPathsRef": ["tests", "docs"]
+      "_exceptComment": "Markdown under a sensitive dir cannot change deployed behavior — hard-gating apps/beacon/README.md was a false mandate. Directory-scoped CLAUDE.md files are excepted here too: they ARE instructions (so they route code-review/simplify via `source`), but blocking a PR over prose is friction without a threat. The enforcement mechanism itself — .claude/hooks, .claude/agents, the rubric, settings.json — stays hard-gated via reviewHarness.",
+      "exceptPaths": ["\\.md$", "!^\\.claude/"],
+      "exceptPathsRef": ["tests"]
     },
     {
       "token": "firestore-security-reviewer",
@@ -101,7 +100,8 @@
         "^apps/backstage/src/routes/_app\\.tsx$",
         "^apps/backstage/src/components/nav-config\\.ts$"
       ],
-      "exceptPathsRef": ["tests", "docs"]
+      "exceptPathsRef": ["tests"],
+      "exceptPaths": ["\\.md$"]
     },
     {
       "token": "firebase-functions-reviewer",
@@ -109,7 +109,8 @@
       "gate": "advisory",
       "why": "Cloud Functions readiness: admin-SDK-only, input validation, idempotency, bounded queries",
       "paths": ["^apps/beacon/"],
-      "exceptPathsRef": ["tests", "docs"]
+      "exceptPathsRef": ["tests"],
+      "exceptPaths": ["\\.md$"]
     },
     {
       "token": "code-review",

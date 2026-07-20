@@ -109,11 +109,29 @@ test("a routed diff is never ALSO reported as lighter", () => {
 });
 
 test("load-bearing prose is not `docs` — the contract can't be deleted as docs-only", () => {
-  for (const p of ["CLAUDE.md", ".claude/skills/feature-flow/SKILL.md"]) {
+  // Directory-scoped guides auto-load into a future agent's context exactly like
+  // the root one, so they are instructions, not docs.
+  for (const p of [
+    "CLAUDE.md",
+    "apps/beacon/CLAUDE.md",
+    "packages/auth/CLAUDE.md",
+    ".claude/skills/feature-flow/SKILL.md",
+  ]) {
     const t = tokens([[p, 40, 5]]);
     assert.ok(t.includes("code-review"), `${p} -> ${t}`);
     assert.ok(t.includes("simplify"), `${p} -> ${t}`);
   }
+  // Prose inside a sensitive tree routes for review but must not BLOCK the PR —
+  // it cannot change deployed behavior.
+  assert.deepEqual(tokens([["packages/auth/CLAUDE.md", 95, 0]], ["--gate-only"]), []);
+  assert.ok(tokens([["packages/auth/CLAUDE.md", 95, 0]]).includes("code-review"));
+  // feature-flow is the PRODUCER of the review stamp — editing it to stamp
+  // without reviewing is a control bypass, so it is hard-gated. Ordinary skills
+  // are not: they instruct, they do not enforce.
+  assert.deepEqual(tokens([[".claude/skills/feature-flow/SKILL.md", 40, 5]], ["--gate-only"]), [
+    "security-review",
+  ]);
+  assert.deepEqual(tokens([[".claude/skills/release-notes/SKILL.md", 40, 5]], ["--gate-only"]), []);
   // A reviewer subagent's checklist IS an enforcement control: hard-gated.
   assert.deepEqual(
     tokens([[".claude/agents/firestore-security-reviewer.md", 40, 5]], ["--gate-only"]),
@@ -141,6 +159,15 @@ test("root config files route instead of vanishing into `minor`", () => {
   for (const p of ["eslint.config.js", "turbo.json", "firestore.indexes.json", "knip.json"]) {
     assert.ok(tokens([[p, 40, 10]]).includes("code-review"), p);
   }
+});
+
+test("package.json routes review — the allowlist grants by script NAME", () => {
+  // .claude/settings.json's permissions.allow says `Bash(pnpm typecheck)`; what
+  // that RUNS is defined in package.json. An edit there widens an auto-approved
+  // command, so it must not be invisible to the router.
+  const t = tokens([["package.json", 40, 10]]);
+  assert.ok(t.includes("code-review"), `${t}`);
+  assert.ok(t.includes("simplify"), `${t}`);
 });
 
 test("tools/scripts is product source, not an unrouted blind spot", () => {
