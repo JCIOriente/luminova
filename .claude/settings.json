@@ -3,6 +3,20 @@
   "worktree": {
     "symlinkDirectories": ["node_modules"]
   },
+  "permissions": {
+    "allow": [
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm knip)",
+      "Bash(pnpm format)",
+      "Bash(pnpm test:harness)",
+      "Bash(pnpm test:seed)",
+      "Bash(pnpm audit *)",
+      "Bash(pnpm ignored-builds)",
+      "Bash(pnpm prettier --check *)",
+      "Bash(pnpm exec tsc --noEmit *)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
