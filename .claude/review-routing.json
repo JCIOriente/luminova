@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "_comment": "Single source of truth for review routing. Consumed by .claude/hooks/review-route.mjs, which both review-router.sh (advisory checklist) and security-review-gate.sh (hard gate) call. Never duplicate these path sets in a hook — that drift is exactly what this file exists to prevent (CLAUDE.md guardrail #1, extract-don't-copy).",
+
+  "trailerKey": "Reviews",
+  "legacyTrailerKeys": ["Security-Reviewed"],
+
+  "lighterReview": {
+    "_comment": "A diff whose every changed file matches one of these is eligible for the lighter-review exception: full skills MAY be skipped, but the PR body MUST carry `Review-Exception: <reason>` and record the correctness gate (full test sweep + the stated invariant).",
+    "paths": [
+      "(^|/)__tests__/",
+      "(^|/)tests?/",
+      "\\.(test|spec)\\.[cm]?[jt]sx?$",
+      "^packages/rules-test/",
+      "^docs/",
+      "\\.md$",
+      "^LICENSE$",
+      "(^|/)\\.gitignore$"
+    ]
+  },
+
+  "rules": [
+    {
+      "token": "security-review",
+      "kind": "skill",
+      "invoke": "/security-review",
+      "gate": "hard",
+      "why": "auth / Firestore-rules / Cloud-Functions surface — a bad write here is a production data-access hole",
+      "paths": [
+        "^apps/beacon/",
+        "firestore\\.rules",
+        "^packages/auth/",
+        "^apps/backstage/src/routes/_auth",
+        "^apps/backstage/src/routes/_app\\.tsx$",
+        "^apps/backstage/src/components/nav-config\\.ts$",
+        "/repositories/",
+        "/functions/",
+        "storage\\.rules",
+        "^\\.claude/hooks/review-gate\\.sh$",
+        "^\\.claude/hooks/review-route\\.mjs$",
+        "^\\.claude/review-routing\\.json$",
+        "^\\.claude/settings\\.json$"
+      ],
+      "exceptPaths": ["\\.(test|spec)\\.[cm]?[jt]sx?$", "^packages/rules-test/"]
+    },
+    {
+      "token": "firestore-security-reviewer",
+      "kind": "subagent",
+      "invoke": "Agent(firestore-security-reviewer)",
+      "gate": "advisory",
+      "why": "rules ⟷ repository access alignment, least-privilege, soft-delete invariants",
+      "paths": [
+        "firestore\\.rules",
+        "storage\\.rules",
+        "/repositories/",
+        "^packages/auth/",
+        "^apps/backstage/src/routes/_auth",
+        "^apps/backstage/src/routes/_app\\.tsx$",
+        "^apps/backstage/src/components/nav-config\\.ts$"
+      ],
+      "exceptPaths": ["\\.(test|spec)\\.[cm]?[jt]sx?$"]
+    },
+    {
+      "token": "firebase-functions-reviewer",
+      "kind": "subagent",
+      "invoke": "Agent(firebase-functions-reviewer)",
+      "gate": "advisory",
+      "why": "Cloud Functions readiness: admin-SDK-only, input validation, idempotency, bounded queries",
+      "paths": ["^apps/beacon/"],
+      "exceptPaths": ["\\.(test|spec)\\.[cm]?[jt]sx?$"]
+    },
+    {
+      "token": "code-review",
+      "kind": "skill",
+      "invoke": "/code-review",
+      "gate": "advisory",
+      "why": "correctness bugs in product or harness source",
+      "paths": ["^apps/", "^packages/", "^\\.claude/", "^\\.github/", "^(tools/)?scripts/"],
+      "exceptPaths": [
+        "(^|/)__tests__/",
+        "(^|/)tests?/",
+        "\\.(test|spec)\\.[cm]?[jt]sx?$",
+        "^packages/rules-test/",
+        "\\.md$"
+      ],
+      "minChangedLines": 15
+    },
+    {
+      "token": "simplify",
+      "kind": "skill",
+      "invoke": "/simplify",
+      "gate": "advisory",
+      "why": "reuse / dead code / altitude cleanup before the diff freezes",
+      "paths": ["^apps/", "^packages/", "^\\.claude/", "^\\.github/", "^(tools/)?scripts/"],
+      "exceptPaths": [
+        "(^|/)__tests__/",
+        "(^|/)tests?/",
+        "\\.(test|spec)\\.[cm]?[jt]sx?$",
+        "^packages/rules-test/",
+        "\\.md$"
+      ],
+      "minChangedLines": 15
+    },
+    {
+      "token": "react-best-practices",
+      "kind": "skill",
+      "invoke": "react-best-practices",
+      "gate": "advisory",
+      "why": "React perf checks: barrel imports, re-render churn, async waterfalls",
+      "paths": ["\\.tsx$"],
+      "exceptPaths": ["\\.(test|spec)\\.[cm]?tsx$"]
+    },
+    {
+      "token": "secure-dep-vetting",
+      "kind": "skill",
+      "invoke": "secure-dep-vetting",
+      "gate": "advisory",
+      "why": "latest secure version + Node 24 compat + CVE block",
+      "_exempt": "A package.json change that only adds/moves `workspace:*` entries is exempt — state that in the PR instead of running the skill.",
+      "paths": ["(^|/)package\\.json$", "^pnpm-lock\\.yaml$", "^pnpm-workspace\\.yaml$"]
+    },
+    {
+      "token": "bundle-budget-watcher",
+      "kind": "subagent",
+      "invoke": "Agent(bundle-budget-watcher)",
+      "gate": "advisory",
+      "why": "new route / large module / dep change can breach the docs/performance.md budgets",
+      "paths": [
+        "^apps/spotlight/src/routes/",
+        "^apps/backstage/src/routes/",
+        "^pnpm-lock\\.yaml$",
+        "(^|/)package\\.json$"
+      ],
+      "exceptPaths": ["\\.(test|spec)\\.[cm]?[jt]sx?$"],
+      "alsoWhen": {
+        "_comment": "…or a large module lands anywhere in the frontend, route or not.",
+        "paths": ["^apps/spotlight/", "^apps/backstage/", "^packages/ui/"],
+        "addedLinesAtLeast": 200
+      }
+    }
+  ]
+}

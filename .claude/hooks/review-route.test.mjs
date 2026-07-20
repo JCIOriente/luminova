@@ -1,0 +1,164 @@
+// Fixture tests for the review router. Run: node --test .claude/hooks/
+// These are the acceptance cases from the routing contract — each asserts the
+// EXACT token set, so a rubric edit that silently widens or drops a class fails
+// here instead of in a PR that skipped a review.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const ROUTER = join(dirname(fileURLToPath(import.meta.url)), "review-route.mjs");
+
+/** files: [path, added, removed] */
+function route(files, args = []) {
+  const numstat = files.map(([p, a = 20, r = 0]) => `${a}\t${r}\t${p}`).join("\n");
+  return JSON.parse(execFileSync("node", [ROUTER, ...args], { input: numstat, encoding: "utf8" }));
+}
+const tokens = (files, args) =>
+  route(files, args)
+    .reviews.map((r) => r.token)
+    .sort();
+
+test("firestore.rules → security class, hard-gated", () => {
+  const t = tokens([["firestore.rules", 30, 4]]);
+  assert.ok(t.includes("security-review"));
+  assert.ok(t.includes("firestore-security-reviewer"));
+  assert.deepEqual(tokens([["firestore.rules", 30, 4]], ["--gate-only"]), ["security-review"]);
+});
+
+test("beacon function → security-review + functions reviewer, not firestore reviewer", () => {
+  const t = tokens([["apps/beacon/src/set-user-roles.ts", 40, 10]]);
+  assert.ok(t.includes("security-review"));
+  assert.ok(t.includes("firebase-functions-reviewer"));
+  assert.ok(!t.includes("firestore-security-reviewer"));
+});
+
+test("feature .tsx diff → code-review, simplify, react-best-practices; no security", () => {
+  const t = tokens([["apps/backstage/src/features/members/components/member-table.tsx", 60, 12]]);
+  assert.deepEqual(t, ["code-review", "react-best-practices", "simplify"]);
+});
+
+test("test-only diff → lighter review, zero reviews", () => {
+  const r = route([
+    ["apps/backstage/src/features/members/hooks/use-members.test.ts", 80, 0],
+    ["packages/rules-test/src/members.test.ts", 40, 2],
+  ]);
+  assert.equal(r.lighter, true);
+  assert.deepEqual(r.reviews, []);
+});
+
+test("docs-only diff → lighter review", () => {
+  assert.equal(route([["docs/engineering-guardrails.md", 30, 1]]).lighter, true);
+});
+
+test("a rules TEST alone does not trip the security gate", () => {
+  assert.deepEqual(
+    tokens([["packages/rules-test/src/members.test.ts", 50, 0]], ["--gate-only"]),
+    [],
+  );
+});
+
+test("tiny source tweak → no reviews, but verdict `minor` (still owes an exception)", () => {
+  const r = route([["apps/spotlight/src/lib/format.ts", 3, 2]]);
+  assert.deepEqual(r.reviews, []);
+  assert.equal(r.verdict, "minor");
+  assert.equal(r.lighter, false);
+});
+
+test("a `minor` verdict still demands Review-Exception in the text output", () => {
+  const out = execFileSync("node", [ROUTER, "--format", "text"], {
+    input: "3\t2\tapps/spotlight/src/lib/format.ts",
+    encoding: "utf8",
+  });
+  assert.match(out, /Review-Exception/);
+  assert.doesNotMatch(out, /MUST get 0 review/);
+});
+
+test("editing the gate or the rubric is itself security-sensitive", () => {
+  for (const p of [
+    ".claude/hooks/review-gate.sh",
+    ".claude/hooks/review-route.mjs",
+    ".claude/review-routing.json",
+    ".claude/settings.json",
+  ]) {
+    assert.deepEqual(tokens([[p, 20, 5]], ["--gate-only"]), ["security-review"], p);
+  }
+});
+
+test("tools/scripts is product source, not an unrouted blind spot", () => {
+  assert.ok(tokens([["tools/scripts/lib/role-seed.mjs", 30, 5]]).includes("code-review"));
+});
+
+test("dependency change → secure-dep-vetting + bundle-budget-watcher", () => {
+  const t = tokens([
+    ["package.json", 2, 1],
+    ["pnpm-lock.yaml", 40, 8],
+  ]);
+  assert.ok(t.includes("secure-dep-vetting"));
+  assert.ok(t.includes("bundle-budget-watcher"));
+});
+
+test("new route file → bundle-budget-watcher", () => {
+  assert.ok(
+    tokens([["apps/spotlight/src/routes/impacto.$id.tsx", 120, 0]]).includes(
+      "bundle-budget-watcher",
+    ),
+  );
+});
+
+test("large frontend module without a route or dep still trips the budget watcher", () => {
+  const t = tokens([["packages/ui/src/components/data-table.tsx", 260, 5]]);
+  assert.ok(t.includes("bundle-budget-watcher"));
+});
+
+test("repository change routes to security even outside backstage routes", () => {
+  const t = tokens([
+    ["apps/backstage/src/features/members/repositories/member-repository.ts", 25, 3],
+  ]);
+  assert.ok(t.includes("security-review"));
+  assert.ok(t.includes("firestore-security-reviewer"));
+});
+
+test("rename INTO a sensitive path is routed (both sides of the rename count)", () => {
+  const numstat = "10\t0\tapps/backstage/src/features/x/{lib => repositories}/thing.ts";
+  const r = JSON.parse(
+    execFileSync("node", [ROUTER, "--gate-only"], { input: numstat, encoding: "utf8" }),
+  );
+  assert.deepEqual(
+    r.reviews.map((x) => x.token),
+    ["security-review"],
+  );
+});
+
+test("binary file (numstat `-`) contributes 0 changed lines, does not crash", () => {
+  const numstat = "-\t-\tapps/spotlight/public/hero.webp";
+  const r = JSON.parse(execFileSync("node", [ROUTER], { input: numstat, encoding: "utf8" }));
+  assert.equal(r.files, 1);
+  assert.deepEqual(r.reviews, []);
+});
+
+test("empty diff → no reviews, not lighter (nothing to except)", () => {
+  const r = JSON.parse(execFileSync("node", [ROUTER], { input: "", encoding: "utf8" }));
+  assert.equal(r.lighter, false);
+  assert.deepEqual(r.reviews, []);
+});
+
+test("text output names the exact skills and the stamp command", () => {
+  const numstat = "30\t4\tfirestore.rules";
+  const out = execFileSync("node", [ROUTER, "--format", "text"], {
+    input: numstat,
+    encoding: "utf8",
+  });
+  assert.match(out, /\/security-review/);
+  assert.match(out, /firestore-security-reviewer/);
+  assert.match(out, /Reviews: <HEAD-sha>/);
+});
+
+test("lighter-review text demands the Review-Exception line", () => {
+  const out = execFileSync("node", [ROUTER, "--format", "text"], {
+    input: "10\t0\tdocs/x.md",
+    encoding: "utf8",
+  });
+  assert.match(out, /Review-Exception/);
+});

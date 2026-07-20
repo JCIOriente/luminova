@@ -33,3 +33,41 @@ hook_tree_root() {
 hook_enter_tree() {
   cd "$(hook_tree_root "$1")" 2>/dev/null
 }
+
+# hook_default_branch
+# Echo the repo's default branch. Resolved from origin/HEAD rather than assumed:
+# this repo carries a stale origin/master ref, and assuming it yields a bogus
+# merge-base and therefore a garbage diff range.
+hook_default_branch() {
+  local d
+  d=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')
+  printf '%s' "${d:-main}"
+}
+
+# hook_merge_base
+# Echo the merge-base of HEAD and the default branch; empty when undeterminable
+# (callers must treat empty as "range unknown" and skip rather than false-gate).
+hook_merge_base() {
+  local d
+  d=$(hook_default_branch)
+  git merge-base HEAD "origin/$d" 2>/dev/null || git merge-base HEAD "$d" 2>/dev/null || printf ''
+}
+
+# hook_route <git-diff-range> [classifier-args...]
+# Run the deterministic review router (review-route.mjs, rubric in
+# .claude/review-routing.json) over the numstat of the given range. The rubric is
+# the single source of truth for which paths demand which review — hooks must
+# call this instead of carrying their own path regexes, which is how the old
+# post-pr-create / security-review-gate path sets came to be copy-pasted twins.
+hook_route() {
+  local range="$1"
+  shift
+  git diff --numstat "$range" 2>/dev/null |
+    node "$(dirname "${BASH_SOURCE[0]}")/review-route.mjs" "$@"
+}
+
+# hook_tokens <router-json>
+# Echo one review token per line from a `hook_route --format json` payload.
+hook_tokens() {
+  printf '%s' "$1" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).reviews.map(r=>r.token).join("\n"))}catch{}})'
+}
