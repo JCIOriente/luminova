@@ -96,3 +96,13 @@ Deliberate absence/role-gate fixtures stay roles-only.
   removed (Payment, Event); a removed collection must leave `KNOWN_UNSURFACED` too.
 - **Rules mirror code** (guardrail #2): Check A enforces `navVisible ⟹ rules-allow` on every
   gated route; write-integrity stays in `rules.test.ts`.
+
+## Coherence contract
+
+The full "what moves with the rules, and the guard that enforces it" table is canonical in
+`docs/engineering-guardrails.md` (guardrail #2, "Rules lagging code") — the doc CLAUDE.md names
+for "which guard enforces this invariant." It covers Check A/B, the locked-fields and
+delete-denial parsers, the seed⇄claims mirror, the `perms`-claim ability contract, and the
+`curationOnly` pinned sets. This migration hardened three of those couplings (Check A `read:Lead`
+cross-check, the `parseDeleteDeniedCollections` parity guard, and the shared
+`collectionNameFromMatchLine` scraper).

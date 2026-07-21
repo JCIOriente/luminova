@@ -66,6 +66,7 @@ const PRINCIPALS: Principal[] = [
   custom("manage-all", ["manage:all"]), // escalation probe: must NOT be offered the role-gated admin routes
   custom("manage-Position", ["manage:Position"]), // org-chart custom role the /positions orCan re-admits
   custom("read-Member", ["read:Member"]), // must be offered /members + /leaderboard the rules let it list
+  custom("read-Lead", ["read:Lead"]), // must be offered /leads the rules let it list (no built-in role carries read:Lead, so this is the only nav↔rules cross-check of the read:Lead capability path)
   { label: "roleless", uid: "roleless-uid", roles: [], perms: [] },
 ];
 

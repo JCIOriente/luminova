@@ -25,6 +25,7 @@ import {
 // .mjs mirror matches the canonical @luminova/types table.
 import { permsForRoles } from "../../tools/scripts/lib/role-seed.mjs";
 import { parseActivityLockedFields } from "../../tools/scripts/lib/rules-locked-fields.mjs";
+import { parseDeleteDeniedCollections } from "../../tools/scripts/lib/rules-delete-denied.mjs";
 
 let env: RulesTestEnvironment;
 
@@ -604,9 +605,6 @@ describe("firestore.rules — members", () => {
       updateDoc(doc(as("bea-uid", ["Member"]), "members/m_deleted"), { name: "X" }),
     );
   });
-  it("denies hard delete even for Admin", async () => {
-    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "members/m1")));
-  });
 });
 
 describe("firestore.rules — allies", () => {
@@ -667,9 +665,6 @@ describe("firestore.rules — terms", () => {
   it("denies a non-Admin write", async () => {
     await assertFails(setDoc(doc(as("u", ["Membership"]), "terms/2028"), { status: "Activo" }));
   });
-  it("denies delete even for Admin", async () => {
-    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "terms/2026")));
-  });
 });
 
 describe("firestore.rules — activities", () => {
@@ -700,9 +695,6 @@ describe("firestore.rules — activities", () => {
       setDoc(doc(as("u", ["Member"]), "activities/act4"), { termId: "2026", category: "Assembly" }),
     );
   });
-  it("denies delete even for Admin", async () => {
-    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "activities/act1")));
-  });
 });
 
 describe("firestore.rules — programs", () => {
@@ -722,9 +714,6 @@ describe("firestore.rules — programs", () => {
   });
   it("denies a non-privileged role write", async () => {
     await assertFails(updateDoc(doc(as("u", ["Treasury"]), "programs/prog1"), { title: "Nope" }));
-  });
-  it("denies delete even for Admin", async () => {
-    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "programs/prog1")));
   });
 });
 
@@ -1750,9 +1739,6 @@ describe("firestore.rules — roles collection", () => {
       updateDoc(doc(as("admin-uid", ["Admin"]), "roles/Treasury"), { active: false }),
     );
   });
-  it("denies hard-deleting a role even for Admin", async () => {
-    await assertFails(deleteDoc(doc(as("admin-uid", ["Admin"]), "roles/custom_existing")));
-  });
 });
 
 describe("firestore.rules — member permission assignment (roleIds + overrides)", () => {
@@ -2059,7 +2045,41 @@ describe("firestore.rules — leads (public contact-form capture)", () => {
       updateDoc(doc(as("u", ["Admin"]), "leads/lead_new"), { deletedAt: deleteField() }),
     );
   });
-  it("denies hard delete even for Admin", async () => {
-    await assertFails(deleteDoc(doc(as("u", ["Admin"]), "leads/lead_new")));
+});
+
+describe("hard-delete denial — every collection the rules forbid client-deleting stays forbidden", () => {
+  // The client never hard-deletes any collection whose rules deny it (soft-delete via update
+  // where applicable), so those rules must stay a flat deny (guardrail #6). This is the single
+  // place that asserts it, one entry per collection with a seeded fixture to delete. The parity
+  // test wires the list to the rules so it can't drift: a new `delete: if false`/`write: if false`
+  // collection, or a loosened delete rule, makes parseDeleteDeniedCollections disagree and FAILS
+  // until this list is reconciled (a loosened delete is a red flag to review).
+  const DELETE_DENIED: { name: string; path: string }[] = [
+    { name: "members", path: "members/m1" },
+    { name: "roles", path: "roles/custom_existing" },
+    { name: "terms", path: "terms/2026" },
+    { name: "activities", path: "activities/act1" },
+    { name: "programs", path: "programs/prog1" },
+    { name: "leads", path: "leads/lead_new" },
+    { name: "projects", path: "projects/p1" },
+    { name: "positions", path: "positions/pos1" },
+    { name: "allies", path: "allies/a1" },
+    { name: "pointRules", path: "pointRules/r1" },
+    { name: "participations", path: "participations/part1" },
+    { name: "memberPoints", path: "memberPoints/2025/03/e1" },
+    { name: "showcase", path: "showcase/s1" },
+    { name: "allyShowcase", path: "allyShowcase/a1" },
+  ];
+
+  it("the rules' unconditional delete-deny set is EXACTLY the collections we cover (no drift)", () => {
+    expect(parseDeleteDeniedCollections(RULES_SOURCE)).toEqual(
+      DELETE_DENIED.map((c) => c.name).sort(),
+    );
   });
+
+  for (const { name, path } of DELETE_DENIED) {
+    it(`denies hard delete of ${name} even for Admin`, async () => {
+      await assertFails(deleteDoc(doc(as("u", ["Admin"]), path)));
+    });
+  }
 });

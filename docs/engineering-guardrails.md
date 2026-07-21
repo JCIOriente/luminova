@@ -57,6 +57,28 @@ invariant parity) + `.claude/hooks/review-gate.sh` (hard-blocks `gh pr create` o
 diff the review router marks `gate: "hard"` — beacon/rules/auth — without a fresh
 `Reviews:` trailer covering it).
 
+### Coherence contract — what moves with the rules (and the guard that enforces it)
+
+`firestore.rules` is the authority; the UI gates, the seed, and the shared types are all
+**derived from or cross-checked against it**, so a change on one side can't silently drift from
+another. Each coupling below is enforced by an emulator or unit test — none is a convention you
+have to remember. When you change the left column, the guard fails until the right column agrees.
+
+| Coupling | Derived / cross-checked by | Enforcing test |
+|---|---|---|
+| Gated nav route ↔ the rules op it claims to mirror | one principal fixture drives both the nav ability (`buildAbility`) and the emulator context | **Check A** `tests/firestore-rules/nav-equivalence.test.ts` (`navVisible ⟹ rules-allow`) — a new capability path needs a principal fixture (e.g. `read:Lead`) |
+| Set of rules collections ↔ the routes/allowlist that surface them | shared `collectionNameFromMatchLine` scrape of `match /<coll>/` names | **Check B** `tests/firestore-rules/rules-coverage.test.ts` (`ROUTE_GATING` ∪ `KNOWN_UNSURFACED` == rules collections) |
+| `activityLockSafe()` locked fields ↔ client `ACTIVITY_LOCKED_FIELDS` (`@luminova/types`) | `parseActivityLockedFields(rules)` | `packages/types/src/activity-locked-fields.rules.test.ts` (canonical ⇔ parsed) + the per-field deny loop in `rules.test.ts` |
+| Collections whose client delete is a flat deny ↔ the delete-denial coverage | `parseDeleteDeniedCollections(rules)` (`tools/scripts/lib/rules-delete-denied.mjs`) | `rules.test.ts` "no drift" parity test — add/loosen a `delete:if false`/`write:if false` rule → parity fails until reconciled |
+| Built-in role perms ↔ the seed ↔ claims-sync | `BUILT_IN_ROLE_PERMS` (`role-definition.ts`) mirrored by `permsForRoles` (`role-seed.mjs`); rules tests build claims via the **real** seed producer | `role-definition.mirror.test.ts` + the whole `rules.test.ts` suite (`seed-output ⊨ rules`) |
+| Coarse UI abilities ↔ the `perms` claim | `buildAbility` reads `claims.perms ?? []` (no role-table fallback); tests mint perms via `roleClaims(...)` | `packages/auth/src/ability.test.ts` |
+| `curationOnly` route visibility (Check A excludes these) | CASL ability unit level only (collections are `read:signedIn()`) | pinned exact role-sets in `apps/backstage/src/components/nav-config.test.ts` |
+
+The parse-driven guards live in `tools/scripts/lib/` with their own unit tests so a rules
+**format** change surfaces in one place, not as silent under-coverage. A new "rules deny X
+unconditionally" invariant should follow the same shape — a small parser + a parity test, never a
+hand-maintained mirror list. Deeper background on this migration: `docs/status/2026-07-20-authz-migration.md`.
+
 ## 3. Missing `isError` branch
 
 **The mistake.** A TanStack Query result checked only for `isLoading`/`!data` — a

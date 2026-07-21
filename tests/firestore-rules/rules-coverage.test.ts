@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ROUTE_GATING } from "../../apps/backstage/src/components/nav-config";
+import { collectionNameFromMatchLine } from "../../tools/scripts/lib/rules-collections.mjs";
 
 // Reverse-coverage / orphan detector. Extracts the COLLECTION NAMES from firestore.rules
 // (a lexical scrape of `match /X/{…}` segments — it makes NO claim about what any allow-arm
@@ -16,14 +17,14 @@ const RULES_SOURCE = readFileSync(
   "utf8",
 );
 
-// First path segment after `match /`. The charset covers every legal Firestore collection
-// id character (letters, digits, `_`, `-`) so a future `match /point_rules/{id}` can't slip
-// past the orphan guard; the `{document=**}` wildcards start with `{` and are excluded.
+// Collection name declared by each `match /<X>/…` line, via the shared extractor so this guard
+// and rules-delete-denied.mjs can't drift on the charset (both accept `_`/`-`; `{document=**}`
+// wildcards yield null). The documents root `databases` is structural, not a collection.
 const STRUCTURAL = new Set(["databases"]); // `match /databases/{database}/documents`
 const collections = new Set(
-  [...RULES_SOURCE.matchAll(/match\s+\/([A-Za-z][A-Za-z0-9_-]*)/g)]
-    .map((m) => m[1]!)
-    .filter((c) => !STRUCTURAL.has(c)),
+  RULES_SOURCE.split("\n")
+    .map(collectionNameFromMatchLine)
+    .filter((c): c is string => c !== null && !STRUCTURAL.has(c)),
 );
 
 const surfaced = new Set<string>();
