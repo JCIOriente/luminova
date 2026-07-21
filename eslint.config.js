@@ -96,6 +96,56 @@ export default tseslint.config(
     },
   },
   {
+    // Authz gates must ask the ability a question firestore.rules can also answer.
+    // `ability.can(action, "Member")` asks a subject-TYPE question, which is true whenever
+    // ANY rule for that subject exists — including the uid-scoped own-doc grants in
+    // packages/auth's applyConditional. That is how every member came to see Editar /
+    // Desactivar / Desafiliar on every row. Go through `useCan().can` or `<Can>` (which
+    // probe an empty instance and take the document's fields), or hand `subject(...)` in
+    // yourself. The allowlist below is the set of files that legitimately hold the raw
+    // ability: the nav/route policy and the helpers that already probe instances.
+    files: ["apps/backstage/src/**/*.{ts,tsx}"],
+    ignores: [
+      "apps/backstage/src/lib/authz/**",
+      "apps/backstage/src/components/nav-config.ts",
+      "apps/backstage/src/components/app-sidebar.tsx",
+      "apps/backstage/src/components/command-menu.tsx",
+      "apps/backstage/src/features/check-in/**",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...RESTRICTED_SYNTAX_BASE,
+        {
+          selector: "ImportSpecifier[imported.name='useAbility']",
+          message:
+            "Use useCan() (or <Can>) instead of the raw ability: its gates probe an empty subject instance, so a conditional own-doc grant can't answer a collection-level question.",
+        },
+      ],
+    },
+  },
+  {
+    // The files that DO hold the raw ability (allowlisted above) must still never ask it a
+    // subject-TYPE question — every `.can()` here passes `subject(...)`. Scoped to these
+    // files only: elsewhere `.can()` is `useCan().can`, whose whole job is to do the
+    // probing for the caller.
+    files: [
+      "apps/backstage/src/components/nav-config.ts",
+      "apps/backstage/src/lib/authz/probe.ts",
+      "apps/backstage/src/features/check-in/lib/can-remove-entry.ts",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.property.name='can'][arguments.1.type='Literal']",
+          message:
+            "Bare subject type in a .can() call: a conditional own-doc grant satisfies it. Pass subject(name, fields) so the question matches what firestore.rules can answer.",
+        },
+      ],
+    },
+  },
+  {
     // Public jargon (docs/specs/2026-07-10-impacto-unification-design.md):
     // "iniciativa" is banned from spotlight copy — the public umbrella word is
     // "proyecto". Backstage keeps its internal taxonomy vocabulary, so this is
