@@ -539,10 +539,16 @@ service cloud.firestore {
     match /notifications/{id} {
       allow read: if canDo('read', 'Notification');
       allow create: if canDo('create', 'Notification')
+        && request.resource.data.keys().hasOnly(['title', 'body', 'url', 'audience', 'createdBy', 'createdAt'])
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.createdAt == request.time
-        && !('stats' in request.resource.data)
-        && request.resource.data.audience.type in ['everyone', 'members', 'role'];
+        && request.resource.data.audience.type in ['everyone', 'members', 'role']
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 1 && request.resource.data.title.size() <= 120
+        && request.resource.data.body is string
+        && request.resource.data.body.size() >= 1 && request.resource.data.body.size() <= 1000
+        && (request.resource.data.url == null
+            || (request.resource.data.url is string && request.resource.data.url.size() <= 2000));
       allow update, delete: if false;
     }
 
@@ -558,12 +564,18 @@ service cloud.firestore {
 
     // A member's FCM device tokens. Owner-only; token id is the token string.
     match /members/{memberId}/fcmTokens/{token} {
-      allow read, create, delete: if signedIn() && request.auth.uid == memberId;
+      allow read, delete: if signedIn() && request.auth.uid == memberId;
+      allow create: if signedIn() && request.auth.uid == memberId
+        && request.resource.data.keys().hasOnly(['createdAt'])
+        && request.resource.data.createdAt == request.time;
       allow update: if false;
     }
 
-    // Anonymous spotlight device tokens. Public create with a bounded shape (no
-    // PII), self-delete by the same anon device. No read/list. Mirrors `leads`.
+    // Anonymous spotlight device tokens. The doc id IS the FCM token — a high-entropy
+    // capability string; there is no anon identity to scope to, so create is public
+    // (bounded shape, no PII) and delete is open (holding the token = controlling that
+    // device's subscription; there is no read/list to enumerate ids). Mirrors `leads`
+    // as a public-writable, no-PII collection.
     match /pushTokens/{token} {
       allow create: if request.resource.data.keys().hasOnly(['createdAt'])
         && request.resource.data.createdAt == request.time;

@@ -27,7 +27,6 @@ describe("sendNotification (emulator)", () => {
       body: "b",
       url: null,
       audience: { type: "members" },
-      createdBy: "x",
       createdAt: Timestamp.now(),
     });
     expect((await db.doc("members/m1/notifications/n1").get()).data()?.read).toBe(false);
@@ -43,7 +42,6 @@ describe("sendNotification (emulator)", () => {
       body: "b",
       url: null,
       audience: { type: "role", roleId: "ExecutiveCommittee" },
-      createdBy: "x",
       createdAt: Timestamp.now(),
     });
     expect((await db.doc("members/m1/notifications/n2").get()).exists).toBe(true);
@@ -58,7 +56,6 @@ describe("sendNotification (emulator)", () => {
       body: "b",
       url: null,
       audience: { type: "members" as const },
-      createdBy: "x",
       createdAt: Timestamp.now(),
     };
     await sendNotification(db, sender, "n3", doc);
@@ -84,7 +81,6 @@ describe("sendNotification (emulator)", () => {
       body: "b",
       url: null,
       audience: { type: "everyone" },
-      createdBy: "x",
       createdAt: Timestamp.now(),
     });
     const call = sender.sendEachForMulticast.mock.calls[0][0];
@@ -107,9 +103,22 @@ describe("sendNotification (emulator)", () => {
       body: "b",
       url: null,
       audience: { type: "bogus" },
-      createdBy: "x",
       createdAt: Timestamp.now(),
     } as never);
+    expect(sender.sendEachForMulticast).not.toHaveBeenCalled();
+    expect((await db.collection("members/m1/notifications").get()).size).toBe(0);
+  });
+
+  it("malformed payload (empty title) is a no-op (no throw, no writes)", async () => {
+    await member("m1", []);
+    const sender = { sendEachForMulticast: vi.fn() };
+    await sendNotification(db, sender, "n6", {
+      title: "",
+      body: "b",
+      url: null,
+      audience: { type: "members" },
+      createdAt: Timestamp.now(),
+    });
     expect(sender.sendEachForMulticast).not.toHaveBeenCalled();
     expect((await db.collection("members/m1/notifications").get()).size).toBe(0);
   });

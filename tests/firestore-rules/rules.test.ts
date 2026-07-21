@@ -2209,6 +2209,46 @@ describe("firestore.rules — notifications (composed message)", () => {
       ),
     );
   });
+  it("denies a create with an empty title", async () => {
+    await assertFails(
+      setDoc(
+        doc(as("exec-uid", ["Member"], ["create:Notification"]), "notifications/n_emptytitle"),
+        validNotification("exec-uid", { title: "" }),
+      ),
+    );
+  });
+  it("denies a create with a title over 120 chars", async () => {
+    await assertFails(
+      setDoc(
+        doc(as("exec-uid", ["Member"], ["create:Notification"]), "notifications/n_longtitle"),
+        validNotification("exec-uid", { title: "a".repeat(121) }),
+      ),
+    );
+  });
+  it("denies a create with an extra unknown field (hasOnly)", async () => {
+    await assertFails(
+      setDoc(
+        doc(as("exec-uid", ["Member"], ["create:Notification"]), "notifications/n_extra"),
+        validNotification("exec-uid", { foo: "x" }),
+      ),
+    );
+  });
+  it("denies a create whose url is not a string", async () => {
+    await assertFails(
+      setDoc(
+        doc(as("exec-uid", ["Member"], ["create:Notification"]), "notifications/n_numurl"),
+        validNotification("exec-uid", { url: 42 }),
+      ),
+    );
+  });
+  it("allows a create with a valid url string", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(as("exec-uid", ["Member"], ["create:Notification"]), "notifications/n_url"),
+        validNotification("exec-uid", { url: "https://jci.example/x" }),
+      ),
+    );
+  });
   it("allows a read:Notification holder to read", async () => {
     await assertSucceeds(
       getDoc(doc(as("reader", ["Member"], ["read:Notification"]), "notifications/n1")),
@@ -2275,6 +2315,14 @@ describe("firestore.rules — fcmTokens (member device tokens)", () => {
     await assertFails(
       setDoc(doc(as("m2", ["Member"], []), "members/m1/fcmTokens/tok_evil"), {
         createdAt: serverTimestamp(),
+      }),
+    );
+  });
+  it("denies the owner creating a token with an extra field beyond createdAt", async () => {
+    await assertFails(
+      setDoc(doc(as("m1", ["Member"], []), "members/m1/fcmTokens/tok_extra"), {
+        createdAt: serverTimestamp(),
+        email: "x@y.z",
       }),
     );
   });

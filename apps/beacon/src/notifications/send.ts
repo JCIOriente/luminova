@@ -1,9 +1,12 @@
-import { type Firestore, type DocumentReference } from "firebase-admin/firestore";
+import { Timestamp, type Firestore, type DocumentReference } from "firebase-admin/firestore";
 import { chunk } from "../chunk.js";
 import { parseAudience, memberQueryFilter, includesAnonTokens, type Audience } from "./audience.js";
 
 const READ_CHUNK = 300;
 const MULTICAST_CAP = 500;
+const WRITE_BATCH_CAP = 500;
+const ANON_TOKEN_SCAN_CAP = 10000;
+const MEMBER_SCAN_CAP = 10000;
 const DEAD_TOKEN_CODES = new Set([
   "messaging/registration-token-not-registered",
   "messaging/invalid-argument",
@@ -22,7 +25,6 @@ export interface NotificationInput {
   body: string;
   url: string | null;
   audience: unknown;
-  createdBy: string;
   createdAt: FirebaseFirestore.Timestamp;
 }
 
@@ -33,9 +35,15 @@ interface TokenRef {
 
 async function resolveMembers(db: Firestore, audience: Audience): Promise<string[]> {
   const filter = memberQueryFilter(audience);
-  let query: FirebaseFirestore.Query = db.collection("members").select("uid");
+  let query: FirebaseFirestore.Query = db
+    .collection("members")
+    .select("uid")
+    .limit(MEMBER_SCAN_CAP);
   if (filter) query = query.where(filter.field, filter.op, filter.value);
   const snap = await query.get();
+  if (snap.size === MEMBER_SCAN_CAP) {
+    console.error("notification member scan hit cap", { cap: MEMBER_SCAN_CAP });
+  }
   return snap.docs.map((d) => d.id);
 }
 
@@ -51,7 +59,12 @@ async function memberTokens(db: Firestore, memberIds: string[]): Promise<TokenRe
 }
 
 async function anonTokens(db: Firestore): Promise<TokenRef[]> {
-  const snap = await db.collection("pushTokens").get();
+  const snap = await db.collection("pushTokens").limit(ANON_TOKEN_SCAN_CAP).get();
+  if (snap.size === ANON_TOKEN_SCAN_CAP) {
+    console.error("pushTokens scan hit cap — anon broadcast truncated", {
+      cap: ANON_TOKEN_SCAN_CAP,
+    });
+  }
   return snap.docs.map((d) => ({ token: d.id, ref: d.ref }));
 }
 
@@ -61,7 +74,7 @@ async function fanOutInbox(
   id: string,
   input: NotificationInput,
 ): Promise<void> {
-  for (const batch of chunk(memberIds, MULTICAST_CAP)) {
+  for (const batch of chunk(memberIds, WRITE_BATCH_CAP)) {
     const writer = db.batch();
     for (const memberId of batch) {
       writer.set(db.doc(`members/${memberId}/notifications/${id}`), {
@@ -99,7 +112,9 @@ async function pushAndPrune(
           pushFailed += 1;
           const dead = batch[i];
           if (dead && r.error?.code && DEAD_TOKEN_CODES.has(r.error.code)) {
-            await dead.ref.delete().catch(() => undefined);
+            await dead.ref
+              .delete()
+              .catch((err) => console.error("dead token prune failed", { token: dead.token }, err));
           }
         }),
       );
@@ -124,13 +139,27 @@ export async function sendNotification(
     console.error("notification has malformed audience — skipping", { id });
     return;
   }
-  const memberIds = await resolveMembers(db, audience);
-  await fanOutInbox(db, memberIds, id, input);
-
-  const tokens = await memberTokens(db, memberIds);
-  if (includesAnonTokens(audience)) tokens.push(...(await anonTokens(db)));
-
-  const stats =
-    tokens.length > 0 ? await pushAndPrune(sender, tokens, input) : { pushSent: 0, pushFailed: 0 };
-  await db.doc(`notifications/${id}`).set({ stats }, { merge: true });
+  if (
+    typeof input.title !== "string" ||
+    input.title.length === 0 ||
+    typeof input.body !== "string" ||
+    input.body.length === 0 ||
+    !(input.createdAt instanceof Timestamp)
+  ) {
+    console.error("notification has malformed payload — skipping", { id });
+    return;
+  }
+  try {
+    const memberIds = await resolveMembers(db, audience);
+    await fanOutInbox(db, memberIds, id, input);
+    const tokens = await memberTokens(db, memberIds);
+    if (includesAnonTokens(audience)) tokens.push(...(await anonTokens(db)));
+    const stats =
+      tokens.length > 0
+        ? await pushAndPrune(sender, tokens, input)
+        : { pushSent: 0, pushFailed: 0 };
+    await db.doc(`notifications/${id}`).set({ stats }, { merge: true });
+  } catch (err) {
+    console.error("notification send failed", { id }, err);
+  }
 }

@@ -306,11 +306,10 @@ export const onNotificationCreated = onDocumentCreated(
     const data = event.data?.data();
     if (!data) return;
     await sendNotification(db(), getMessaging(), event.params.id, {
-      title: String(data.title ?? ""),
-      body: String(data.body ?? ""),
-      url: (data.url as string | null) ?? null,
+      title: data.title,
+      body: data.body,
+      url: data.url ?? null,
       audience: data.audience,
-      createdBy: String(data.createdBy ?? ""),
       createdAt: data.createdAt,
     });
   },
