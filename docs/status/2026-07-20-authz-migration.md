@@ -96,3 +96,25 @@ Deliberate absence/role-gate fixtures stay roles-only.
   removed (Payment, Event); a removed collection must leave `KNOWN_UNSURFACED` too.
 - **Rules mirror code** (guardrail #2): Check A enforces `navVisible ⟹ rules-allow` on every
   gated route; write-integrity stays in `rules.test.ts`.
+
+## Coherence contract — what must move together (and the guard that enforces it)
+
+`firestore.rules` is the authority; the UI gates, the seed, and the shared types are all
+**derived from or cross-checked against it** so a change on one side can't silently drift from
+another. Every coupling below is enforced by an emulator or unit test — none is a convention you
+have to remember. When you change the left column, the guard fails until the right column agrees.
+
+| Coupling | Derived / cross-checked by | Enforcing test | If you change the rules… |
+|---|---|---|---|
+| Gated nav route ↔ the rules op it claims to mirror | one principal fixture drives both the nav ability (`buildAbility`) and the emulator context | **Check A** `nav-equivalence.test.ts` (`navVisible ⟹ rules-allow`) | a new capability path needs a principal fixture (e.g. the `read:Lead` custom added here) or `/leads`-style paths go un-cross-checked |
+| The set of rules collections ↔ the routes/allowlist that surface them | lexical scrape of `match /<coll>/` names | **Check B** `rules-coverage.test.ts` (`ROUTE_GATING` ∪ `KNOWN_UNSURFACED` == rules collections) | add/remove a collection → update `ROUTE_GATING` or `KNOWN_UNSURFACED` or Check B fails |
+| `activityLockSafe()` locked fields ↔ client `ACTIVITY_LOCKED_FIELDS` (`@luminova/types`) | `parseActivityLockedFields(rules)` | `activity-locked-fields.rules.test.ts` (canonical ⇔ parsed) + the per-field deny loop in `rules.test.ts` | add/remove a locked field → change the canonical set or the parity fails |
+| Collections whose client delete is a flat deny ↔ the delete-denial coverage | `parseDeleteDeniedCollections(rules)` (`tools/scripts/lib/rules-delete-denied.mjs`) | `rules.test.ts` "no drift" parity test | add a `delete:if false`/`write:if false` collection, or loosen one → parity fails until coverage is updated (a loosened delete is a red flag to review) |
+| Built-in role perms ↔ the seed ↔ claims-sync | `BUILT_IN_ROLE_PERMS` (`role-definition.ts`) mirrored by `permsForRoles` (`role-seed.mjs`); rules tests build claims via the **real** seed producer | `role-definition.mirror.test.ts` + the whole `rules.test.ts` suite (`seed-output ⊨ rules`) | change a role's perms → change both mirrors or the mirror test fails |
+| Coarse UI abilities ↔ the `perms` claim (PR-B) | `buildAbility` reads `claims.perms ?? []` (no role-table fallback); tests mint perms via `roleClaims(...)` | `packages/auth/src/ability.test.ts` | absent `perms` grants zero coarse — a roles-only fixture is correct only for absence / role-name gates |
+| `curationOnly` route visibility (Check A excludes these) | CASL ability unit level only (collections are `read:signedIn()`) | pinned exact role-sets in `nav-config.test.ts` | changing one of these gates → update its pinned set |
+
+The parse-driven guards (`parseActivityLockedFields`, `parseDeleteDeniedCollections`) live in
+`tools/scripts/lib/` with their own unit tests so a rules **format** change surfaces in one place,
+not as silent under-coverage. Adding a new "rules deny X unconditionally" invariant should follow
+the same shape: a small parser + a parity test, never a hand-maintained mirror list.

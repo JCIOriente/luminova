@@ -25,6 +25,7 @@ import {
 // .mjs mirror matches the canonical @luminova/types table.
 import { permsForRoles } from "../../tools/scripts/lib/role-seed.mjs";
 import { parseActivityLockedFields } from "../../tools/scripts/lib/rules-locked-fields.mjs";
+import { parseDeleteDeniedCollections } from "../../tools/scripts/lib/rules-delete-denied.mjs";
 
 let env: RulesTestEnvironment;
 
@@ -2065,13 +2066,19 @@ describe("firestore.rules — leads (public contact-form capture)", () => {
 });
 
 describe("hard-delete denial — collections whose rules forbid client deletes stay forbidden", () => {
-  // Each collection here gates delete on `delete: if false` or a blanket `write: if false`
-  // (engine-owned ledgers/public projections). members/terms/activities/programs/roles/leads
-  // already pin this above; these are the remaining ones. Asserting the denial for even an
-  // Admin (the maximal client principal) means a future regression that loosens the delete
-  // rule can't slip through untested — the client never hard-deletes any of them (soft-delete
-  // via update where applicable), so the rule must stay a flat deny (guardrail #6).
-  const DELETE_DENIED: { name: string; path: string }[] = [
+  // The client never hard-deletes any collection whose rules deny it (soft-delete via update
+  // where applicable), so those rules must stay a flat deny (guardrail #6). The two lists below
+  // record WHERE each such collection's denial is asserted; the parity test wires them to the
+  // rules so neither can drift:
+  //   - a new `delete: if false` / `write: if false` collection → parseDeleteDeniedCollections
+  //     gains it, parity FAILS until it is covered here;
+  //   - a loosened delete rule → the collection leaves the parsed set, parity FAILS until it is
+  //     consciously removed from coverage (a red flag for review).
+
+  // Collections delete-denied in their own describe block above (against real fixtures).
+  const DELETE_DENIED_ELSEWHERE = ["members", "roles", "terms", "activities", "programs", "leads"];
+  // Collections delete-denied by the generated loop below (seeded fixture path per collection).
+  const DELETE_DENIED_HERE: { name: string; path: string }[] = [
     { name: "projects", path: "projects/p1" },
     { name: "positions", path: "positions/pos1" },
     { name: "allies", path: "allies/a1" },
@@ -2081,7 +2088,13 @@ describe("hard-delete denial — collections whose rules forbid client deletes s
     { name: "showcase", path: "showcase/s1" },
     { name: "allyShowcase", path: "allyShowcase/a1" },
   ];
-  for (const { name, path } of DELETE_DENIED) {
+
+  it("the rules' unconditional delete-deny set is EXACTLY the collections we cover (no drift)", () => {
+    const covered = [...DELETE_DENIED_ELSEWHERE, ...DELETE_DENIED_HERE.map((c) => c.name)].sort();
+    expect(parseDeleteDeniedCollections(RULES_SOURCE)).toEqual(covered);
+  });
+
+  for (const { name, path } of DELETE_DENIED_HERE) {
     it(`denies hard delete of ${name} even for Admin`, async () => {
       await assertFails(deleteDoc(doc(as("u", ["Admin"]), path)));
     });
