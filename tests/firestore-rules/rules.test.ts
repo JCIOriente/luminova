@@ -579,6 +579,51 @@ describe("firestore.rules — members", () => {
       }),
     );
   });
+  // Self-service profile (/me): a member owns their photo, birthdate, profession and
+  // phone. Everything else on the doc — name, email, status, positions, points, roles —
+  // is an institutional record the membership tier maintains.
+  it("allows the owning member to edit their own contact/personal fields", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), {
+        phone: "70011223",
+        profession: "Arquitecta",
+        birthdate: new Date("1996-04-02T00:00:00Z"),
+      }),
+    );
+  });
+  it("denies the owning member editing an institutional field alongside them", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), {
+        phone: "70011223",
+        status: "Desafiliado",
+      }),
+    );
+  });
+  it("denies the owning member a malformed phone", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { phone: "+591 700-112" }),
+    );
+  });
+  it("denies the owning member a non-timestamp birthdate", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { birthdate: "1996-04-02" }),
+    );
+  });
+  it("allows the owning member to clear their optional phone", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { phone: deleteField() }),
+    );
+  });
+  it("denies the owning member clearing their birthdate", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { birthdate: deleteField() }),
+    );
+  });
+  it("denies a non-owner member editing another member's contact fields", async () => {
+    await assertFails(
+      updateDoc(doc(as("stranger", ["Member"]), "members/m1"), { phone: "70011223" }),
+    );
+  });
   it("denies a non-owner member setting another member's profilePicture", async () => {
     await assertFails(
       updateDoc(doc(as("stranger", ["Member"]), "members/m1"), {

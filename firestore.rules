@@ -206,6 +206,28 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Shape guard for the self-service lane below. Mirrors memberSchema
+    // (packages/types/src/member-schema.ts + phone.ts): the phone is 8 national digits or
+    // blank, profession is free text, birthdate is a real date. The admin lane is not held
+    // to this — it writes the same fields through a form that already validates them,
+    // while a self-write is the one path a member reaches without that form.
+    function selfProfileValid() {
+      let d = request.resource.data;
+      // Only the fields this write TOUCHES are validated: a member's photo upload must not
+      // be denied by a legacy phone value stored before the format was enforced.
+      let changed = d.diff(resource.data).affectedKeys();
+      // .get(...) everywhere: clearing a field makes it ABSENT, and a bare d.phone would
+      // throw (a rule that errors denies), so a cleared optional field must read as blank.
+      return (!changed.hasAny(['profilePicture'])
+          || d.get('profilePicture', null) == null || d.profilePicture is string)
+        && (!changed.hasAny(['birthdate']) || d.get('birthdate', null) is timestamp)
+        && (!changed.hasAny(['profession'])
+          || (d.get('profession', '') is string && d.get('profession', '').size() <= 80))
+        && (!changed.hasAny(['phone'])
+          || (d.get('phone', '') is string
+              && (d.get('phone', '') == '' || d.get('phone', '').matches('^[0-9]{8}$'))));
+    }
+
     match /members/{memberId} {
       allow read: if canDo('read', 'Member')
         || (signedIn() && resource.data.uid == request.auth.uid);
@@ -220,12 +242,16 @@ service cloud.firestore {
         && updatePermissionAssignmentSafe()
         && softDeleteSafe()
         && (!positionsTouched() || positionsAssignmentSafe());
-      // A member may set only their own profilePicture (H1 self-upload on /me).
+      // Self-service profile (/me): a member owns their photo and their own contact and
+      // personal details. Everything else on the doc — name, email, status, positions,
+      // points, roles — is an institutional record only the membership tier writes.
       // .get('uid', '') so a member doc WITHOUT a uid compares false instead of
       // throwing — an erroring allow-rule must not deny an otherwise-valid update.
       allow update: if signedIn()
         && resource.data.get('uid', '') == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profilePicture'])
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['profilePicture', 'birthdate', 'profession', 'phone'])
+        && selfProfileValid()
         && softDeleteSafe();
       // ExecutiveCommittee may edit only position assignments (org chart), nothing else.
       allow update: if hasAnyRole(['ExecutiveCommittee'])
