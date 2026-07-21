@@ -9,7 +9,8 @@
     "./db": "./src/db.ts",
     "./storage": "./src/storage.ts",
     "./functions": "./src/functions.ts",
-    "./lite": "./src/firestore-lite.ts"
+    "./lite": "./src/firestore-lite.ts",
+    "./messaging": "./src/messaging.ts"
   },
   "scripts": {
     "lint": "eslint .",
