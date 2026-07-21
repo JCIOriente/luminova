@@ -22,3 +22,10 @@ describe("BUILT_IN_ROLE_PERMS", () => {
     expect(BUILT_IN_ROLE_PERMS.Member).toEqual([]);
   });
 });
+
+describe("ExecutiveCommittee notification grant", () => {
+  it("can create and read notifications", () => {
+    expect(BUILT_IN_ROLE_PERMS.ExecutiveCommittee).toContain("create:Notification");
+    expect(BUILT_IN_ROLE_PERMS.ExecutiveCommittee).toContain("read:Notification");
+  });
+});
