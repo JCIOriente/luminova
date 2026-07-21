@@ -24,7 +24,7 @@ export async function clearCollections(db: Firestore, names: string[]): Promise<
   await Promise.all(
     names.map(async (name) => {
       const snap = await db.collection(name).get();
-      await Promise.all(snap.docs.map((d) => db.recursiveDelete(d.ref)));
+      await Promise.all(snap.docs.map((d) => d.ref.delete()));
     }),
   );
 }

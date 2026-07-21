@@ -41,18 +41,29 @@ function toTokenRef(d: QueryDocumentSnapshot): TokenRef {
   return { token: d.id, ref: d.ref };
 }
 
-async function resolveMembers(db: Firestore, audience: Audience): Promise<string[]> {
+// Returns the AUTH UIDs of matching members — not member doc ids. Member docs are
+// created with a random id (addDoc) and the Auth uid is linked later as a `uid`
+// field (provision-member-login), so doc id != uid. The inbox subcollection and
+// fcmTokens live under members/{uid}/... (matching firestore.rules `auth.uid ==
+// memberId` and the client, which reads/writes under its own uid). Unprovisioned
+// members (no uid) have no Auth account → no inbox/push, so they are dropped.
+async function resolveMemberUids(db: Firestore, audience: Audience): Promise<string[]> {
   const filter = memberQueryFilter(audience);
-  let query: FirebaseFirestore.Query = db.collection("members").select().limit(SCAN_CAP);
+  let query: FirebaseFirestore.Query = db.collection("members").select("uid").limit(SCAN_CAP);
   if (filter) query = query.where(filter.field, filter.op, filter.value);
   const snap = await query.get();
   warnIfCapped(snap.size, SCAN_CAP, "notification member scan hit cap");
-  return snap.docs.map((d) => d.id);
+  const uids = new Set<string>();
+  for (const d of snap.docs) {
+    const uid = d.get("uid");
+    if (typeof uid === "string" && uid.length > 0) uids.add(uid);
+  }
+  return [...uids];
 }
 
-async function memberTokens(db: Firestore, memberIds: string[]): Promise<TokenRef[]> {
+async function memberTokens(db: Firestore, memberUids: string[]): Promise<TokenRef[]> {
   const out: TokenRef[] = [];
-  for (const batch of chunk(memberIds, READ_CHUNK)) {
+  for (const batch of chunk(memberUids, READ_CHUNK)) {
     const snaps = await Promise.all(
       batch.map((id) => db.collection(`members/${id}/fcmTokens`).get()),
     );
@@ -69,14 +80,14 @@ async function anonTokens(db: Firestore): Promise<TokenRef[]> {
 
 async function fanOutInbox(
   db: Firestore,
-  memberIds: string[],
+  memberUids: string[],
   id: string,
   input: NotificationInput,
 ): Promise<void> {
-  for (const batch of chunk(memberIds, WRITE_BATCH_CAP)) {
+  for (const batch of chunk(memberUids, WRITE_BATCH_CAP)) {
     const writer = db.batch();
-    for (const memberId of batch) {
-      writer.set(db.doc(`members/${memberId}/notifications/${id}`), {
+    for (const uid of batch) {
+      writer.set(db.doc(`members/${uid}/notifications/${id}`), {
         title: input.title,
         body: input.body,
         url: input.url,
@@ -151,10 +162,10 @@ export async function sendNotification(
     return;
   }
   try {
-    const memberIds = await resolveMembers(db, audience);
+    const memberUids = await resolveMemberUids(db, audience);
     const [, memberTokenRefs, anonTokenRefs] = await Promise.all([
-      fanOutInbox(db, memberIds, id, input),
-      memberTokens(db, memberIds),
+      fanOutInbox(db, memberUids, id, input),
+      memberTokens(db, memberUids),
       includesAnonTokens(audience) ? anonTokens(db) : Promise.resolve([] as TokenRef[]),
     ]);
     const tokens = [...memberTokenRefs, ...anonTokenRefs];
