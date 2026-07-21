@@ -2209,6 +2209,22 @@ describe("firestore.rules — notifications (composed message)", () => {
       ),
     );
   });
+  it("denies a role audience with no roleId", async () => {
+    await assertFails(
+      setDoc(
+        doc(as("exec-uid", ["Member"], ["create:Notification"]), "notifications/n_roleless"),
+        validNotification("exec-uid", { audience: { type: "role" } }),
+      ),
+    );
+  });
+  it("allows a role audience with a roleId", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(as("exec-uid", ["Member"], ["create:Notification"]), "notifications/n_role"),
+        validNotification("exec-uid", { audience: { type: "role", roleId: "ExecutiveCommittee" } }),
+      ),
+    );
+  });
   it("denies a create with an empty title", async () => {
     await assertFails(
       setDoc(
@@ -2280,6 +2296,11 @@ describe("firestore.rules — member inbox (per-member fan-out)", () => {
   it("allows the owner to flip only the read field", async () => {
     await assertSucceeds(
       updateDoc(doc(as("m1", ["Member"], []), "members/m1/notifications/n1"), { read: true }),
+    );
+  });
+  it("denies the owner setting read to a non-boolean", async () => {
+    await assertFails(
+      updateDoc(doc(as("m1", ["Member"], []), "members/m1/notifications/n1"), { read: "yes" }),
     );
   });
   it("denies the owner editing any other field (only read is mutable)", async () => {

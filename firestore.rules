@@ -543,6 +543,9 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.createdAt == request.time
         && request.resource.data.audience.type in ['everyone', 'members', 'role']
+        && (request.resource.data.audience.type != 'role'
+            || (request.resource.data.audience.roleId is string
+                && request.resource.data.audience.roleId.size() > 0))
         && request.resource.data.title is string
         && request.resource.data.title.size() >= 1 && request.resource.data.title.size() <= 120
         && request.resource.data.body is string
@@ -558,7 +561,8 @@ service cloud.firestore {
     match /members/{memberId}/notifications/{id} {
       allow read: if signedIn() && request.auth.uid == memberId;
       allow update: if signedIn() && request.auth.uid == memberId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && request.resource.data.read is bool;
       allow create, delete: if false;
     }
 
