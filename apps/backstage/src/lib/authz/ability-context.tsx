@@ -1,12 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { AbilityProvider as CaslAbilityProvider, useAbility as useCaslAbility } from "@casl/react";
-import {
-  buildAbility,
-  subject,
-  type Action,
-  type AppAbility,
-  type Subject,
-} from "@luminova/auth/ability";
+import { buildAbility, type Action, type AppAbility, type Subject } from "@luminova/auth/ability";
 import type { AuthClaims } from "@luminova/auth/roles";
 import { abilityAllows, type SubjectFields } from "./probe";
 

@@ -4,7 +4,6 @@ import { Button, Icon, EmptyState, SegmentedControl, Sheet, Toast } from "@lumin
 import { useDismissingToast } from "../../../lib/use-dismissing-toast";
 import type { ComboboxOption } from "@luminova/ui";
 import type { InitiativeInput, Member } from "@luminova/types";
-import { useAbility } from "../../../lib/authz/ability-context";
 import { useCan } from "../../../lib/authz/use-can";
 import { PageHeader } from "../../../components/page-header";
 import { InitiativeForm } from "../../../components/initiative-form";
@@ -29,14 +28,16 @@ function sheetTitle(editing: Editing): string {
 
 export function InitiativesPage() {
   const termId = currentTermKey();
-  const ability = useAbility();
-  const canFeature = useCan().canFeatureInitiatives;
+  const gate = useCan();
+  const canFeature = gate.canFeatureInitiatives;
   const navigate = useNavigate();
-  const canReadProgram = ability.can("read", "Program");
-  const canReadProject = ability.can("read", "Project");
-  const canManageProgram = ability.can("create", "Program");
-  const canManageProject = ability.can("create", "Project");
-  const canReadMembers = ability.can("read", "Member");
+  const canReadProgram = gate.can("read", "Program");
+  const canReadProject = gate.can("read", "Project");
+  const canManageProgram = gate.can("create", "Program");
+  const canManageProject = gate.can("create", "Project");
+  // Unconditional read:Member only — this fires an unfiltered members LIST, which the
+  // rules deny to a caller holding just the own-doc grant.
+  const canReadMembers = gate.can("read", "Member");
 
   const {
     data: items,
@@ -93,7 +94,7 @@ export function InitiativesPage() {
 
   const handleSubmit = async (data: InitiativeInput) => {
     if (!editing) return;
-    if (!ability.can("create", editing.kind)) return;
+    if (!gate.can("create", editing.kind)) return;
     try {
       if (editing.kind === "Program") await createProgram.mutateAsync(data);
       else await createProject.mutateAsync(data);

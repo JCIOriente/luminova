@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { CommandPalette, Icon, type CommandItem } from "@luminova/ui";
 import { useAuth } from "../lib/auth/auth";
 import { useAbility } from "../lib/authz/ability-context";
+import { useCan } from "../lib/authz/use-can";
 import { NAV_GROUPS, isNavItemVisible } from "./nav-config";
 import {
   getCommandMenuOpen,
@@ -14,6 +15,8 @@ import {
 export function CommandMenu() {
   const navigate = useNavigate();
   const { claims } = useAuth();
+  const gate = useCan();
+  // isNavItemVisible does its own empty-instance probing, so it takes the raw ability.
   const ability = useAbility();
   const open = useSyncExternalStore(subscribeCommandMenu, getCommandMenuOpen, getCommandMenuOpen);
 
@@ -49,7 +52,7 @@ export function CommandMenu() {
       icon: Icon.user({ s: 18 }),
       onSelect: () => navigate({ to: "/me" }),
     });
-    if (ability.can("create", "Activity")) {
+    if (gate.can("create", "Activity")) {
       actions.push({
         id: "action-create-activity",
         label: "Crear evento",
@@ -58,7 +61,7 @@ export function CommandMenu() {
         onSelect: () => navigate({ to: "/activities" }),
       });
     }
-    if (ability.can("create", "Member")) {
+    if (gate.can("create", "Member")) {
       actions.push({
         id: "action-invite-member",
         label: "Invitar miembro",
@@ -69,7 +72,7 @@ export function CommandMenu() {
     }
 
     return [...navItems, ...actions];
-  }, [ability, claims, navigate]);
+  }, [ability, gate, claims, navigate]);
 
   return <CommandPalette open={open} onOpenChange={setCommandMenuOpen} items={items} />;
 }

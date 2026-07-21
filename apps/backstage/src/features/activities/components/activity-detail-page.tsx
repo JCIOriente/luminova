@@ -14,9 +14,8 @@ import {
 import type { ComboboxOption, SegmentedOption } from "@luminova/ui";
 import type { ActivityInput, Member } from "@luminova/types";
 import { currentTermKey } from "@luminova/types";
-import { subject } from "@luminova/auth/ability";
 import { hasRole } from "@luminova/auth/roles";
-import { useAbility } from "../../../lib/authz/ability-context";
+import { useCan } from "../../../lib/authz/use-can";
 import { useAuth } from "../../../lib/auth/auth";
 import { useActivity } from "../hooks/use-activity";
 import { useActivityPhotos } from "../hooks/use-activity-photos";
@@ -48,14 +47,15 @@ type Tab = "resumen" | "galeria" | "check-in";
 export function ActivityDetailPage() {
   const { id } = route.useParams();
   const termId = currentTermKey();
-  const ability = useAbility();
+  const gate = useCan();
   const { user, claims } = useAuth();
   const uid = user?.uid ?? null;
   const isAdmin = hasRole(claims, "Admin");
 
-  const canRead = ability.can("read", "Activity");
-  const canUpdate = ability.can("update", "Activity");
-  const canReadMembers = ability.can("read", "Member");
+  const canRead = gate.can("read", "Activity");
+  const canUpdate = gate.can("update", "Activity");
+  // Unconditional read:Member only — an own-doc grant can't list the collection.
+  const canReadMembers = gate.can("read", "Member");
 
   const [tab, setTab] = useState<Tab>("resumen");
   const [editOpen, setEditOpen] = useState(false);
@@ -174,7 +174,7 @@ export function ActivityDetailPage() {
       : null;
   const parentTitle = parent?.title ?? null;
 
-  const canCheckIn = ability.can("checkIn", subject("Attendance", { eventId: activity.id }));
+  const canCheckIn = gate.can("checkIn", "Attendance", { eventId: activity.id });
   // parentId set but `parent` not yet resolved → parent?.status is undefined →
   // isCheckInOpen fails closed until programs/projects load.
   const parentStatus = activity.parentId === null ? null : parent?.status;

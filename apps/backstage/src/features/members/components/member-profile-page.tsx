@@ -2,8 +2,6 @@ import { Link, getRouteApi } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { Badge, Button, Card, Dialog, type BadgeTone } from "@luminova/ui";
 import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
-import { subject } from "@luminova/auth/ability";
-import { useAbility } from "../../../lib/authz/ability-context";
 import { ActionGate } from "../../../lib/authz/action-gate";
 import { useCan } from "../../../lib/authz/use-can";
 import { PageHeader } from "../../../components/page-header";
@@ -52,7 +50,6 @@ const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
 export function MemberProfilePage() {
   const { memberId } = route.useParams();
   const termId = currentTermKey();
-  const ability = useAbility();
   const gate = useCan();
   const { data: member, isLoading, isError, error, refetch } = useMember(memberId);
   const { data: positions } = usePositions();
@@ -98,7 +95,7 @@ export function MemberProfilePage() {
     );
   }
 
-  const canEdit = ability.can("update", subject("Member", { uid: member.uid }));
+  const canEdit = gate.can("update", "Member", { uid: member.uid });
   // The positions-only lane maps to the ExecutiveCommittee allow-rule (positions-only
   // member writes). Gate on the EC *role*, not the manage:Position perm — a custom
   // role with that perm but no EC claim would be denied at write.

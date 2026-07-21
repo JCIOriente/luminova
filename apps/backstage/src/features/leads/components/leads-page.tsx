@@ -22,15 +22,15 @@ import {
 } from "../lib/lead-filter";
 import { PageHeader } from "../../../components/page-header";
 import { QueryErrorState } from "../../../components/query-error-state";
-import { useAbility } from "../../../lib/authz/ability-context";
+import { useCan } from "../../../lib/authz/use-can";
 import { useDismissingToast } from "../../../lib/use-dismissing-toast";
 
 const NO_LEADS: Lead[] = [];
 
 export function LeadsPage() {
-  const ability = useAbility();
-  const canRead = ability.can("read", "Lead");
-  const canUpdate = ability.can("update", "Lead");
+  const gate = useCan();
+  const canRead = gate.can("read", "Lead");
+  const canUpdate = gate.can("update", "Lead");
   const { data: leads, isLoading, isError, error, refetch } = useLeads({ enabled: canRead });
   const updateStatus = useUpdateLeadStatus();
   const deleteLead = useDeleteLead();
