@@ -1,11 +1,14 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { AbilityProvider as CaslAbilityProvider, useAbility as useCaslAbility } from "@casl/react";
 import {
-  AbilityProvider as CaslAbilityProvider,
-  Can as CaslCan,
-  useAbility as useCaslAbility,
-} from "@casl/react";
-import { buildAbility, type AppAbility } from "@luminova/auth/ability";
+  buildAbility,
+  subject,
+  type Action,
+  type AppAbility,
+  type Subject,
+} from "@luminova/auth/ability";
 import type { AuthClaims } from "@luminova/auth/roles";
+import { abilityAllows, type SubjectFields } from "./probe";
 
 const EMPTY_CLAIMS: AuthClaims = { roles: [] };
 const ClaimsContext = createContext<AuthClaims>(EMPTY_CLAIMS);
@@ -38,4 +41,24 @@ export function useClaims(): AuthClaims {
   return useContext(ClaimsContext);
 }
 
-export const Can = CaslCan;
+interface CanProps {
+  /** The action being offered. */
+  I: Action;
+  a: Subject;
+  /** Fields of the specific document this control acts on. Omit for a collection-level
+   *  control (a toolbar button, a nav entry) — the gate then admits only unconditional
+   *  grant holders, mirroring the rules' unscoped allow. */
+  on?: SubjectFields;
+  /** Invert the gate — render only when the caller may NOT do it. */
+  not?: boolean;
+  children: ReactNode;
+}
+
+/** Perm gate. Deliberately NOT `@casl/react`'s `Can`: that one takes a subject TYPE, whose
+ *  answer a conditional own-doc grant satisfies. See `abilityAllows` for the full why.
+ *  Role-based rules (Admin / ExecutiveCommittee) use `ActionGate` instead. */
+export function Can({ I: action, a, on, not = false, children }: CanProps) {
+  const ability = useAbility();
+  const allowed = abilityAllows(ability, action, a, on);
+  return <>{allowed !== not ? children : null}</>;
+}

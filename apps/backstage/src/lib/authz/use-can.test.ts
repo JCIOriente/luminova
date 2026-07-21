@@ -41,6 +41,15 @@ describe("buildCan", () => {
     expect(can({ roles: ["Membership"] }).canFeatureInitiatives).toBe(false);
   });
 
+  // Same invariant the `<Can>` gate carries: a conditional own-doc grant answers only the
+  // per-document question, never the collection one.
+  it("a plain Member's own-doc grant does not answer the collection question", () => {
+    const gate = can({ roles: ["Member"] });
+    expect(gate.can("update", "Member")).toBe(false);
+    expect(gate.can("update", "Member", { uid: "self" })).toBe(true);
+    expect(gate.can("update", "Member", { uid: "other" })).toBe(false);
+  });
+
   it("empty claims deny everything (fail-closed)", () => {
     const gate = can({ roles: [] });
     expect(gate.can("read", "Member")).toBe(false);
