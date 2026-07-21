@@ -25,12 +25,23 @@ export async function requestPushToken(
   const permission = await Notification.requestPermission();
   if (permission !== "granted") return null;
   const messaging = getMessaging(ensureApp());
-  return getToken(messaging, { vapidKey, serviceWorkerRegistration: swReg }).catch(() => null);
+  // A token fetch can fail transiently (network, SW not yet active). null is the
+  // caller's "no token" signal — a non-error UX outcome — but log so a persistent
+  // failure is diagnosable rather than silent (guardrail: no silent catch).
+  return getToken(messaging, { vapidKey, serviceWorkerRegistration: swReg }).catch((err) => {
+    console.warn("FCM getToken failed", err);
+    return null;
+  });
 }
 
 /** Subscribe to foreground messages (OS notification is suppressed while the tab is
- *  focused). Returns an unsubscribe fn. */
-export function onForegroundMessage(handler: (payload: MessagePayload) => void): () => void {
+ *  focused). Resolves to an unsubscribe fn — a no-op when push is unsupported, so a
+ *  caller never trips getMessaging()'s unsupported-browser rejection (symmetric with
+ *  requestPushToken's guard). */
+export async function onForegroundMessage(
+  handler: (payload: MessagePayload) => void,
+): Promise<() => void> {
+  if (!(await isPushSupported())) return () => {};
   const messaging = getMessaging(ensureApp());
   return onMessage(messaging, handler);
 }
