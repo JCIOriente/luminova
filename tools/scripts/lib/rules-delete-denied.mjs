@@ -1,9 +1,12 @@
 // Parses the collections whose firestore.rules deny client delete unconditionally — an
 // `allow delete: if false` (or a blanket `allow write: if false`, which subsumes delete)
 // inside a `match /<collection>/...` block. The catch-all `match /{document=**}` default-deny
-// is excluded (it is not a real collection). Shared by tests/firestore-rules/rules.test.ts so
-// the delete-denial coverage set is DERIVED from the rules, never a hand-maintained mirror
-// that could silently lag a rules change (same discipline as parseActivityLockedFields).
+// and the `databases` documents root are excluded (neither is a real collection). Shared by
+// tests/firestore-rules/rules.test.ts so the delete-denial coverage set is DERIVED from the
+// rules, never a hand-maintained mirror that could silently lag a rules change (same
+// discipline as parseActivityLockedFields). Collection-name extraction is delegated to the
+// shared collectionNameFromMatchLine so this and the orphan guard can't drift on the charset.
+import { collectionNameFromMatchLine } from "./rules-collections.mjs";
 
 /**
  * @param {string} source firestore.rules contents
@@ -13,12 +16,9 @@ export function parseDeleteDeniedCollections(source) {
   const denied = new Set();
   let current = null;
   for (const line of source.split("\n")) {
-    const matchLine = line.match(/^\s*match\s+\/(\S+)/);
-    if (matchLine) {
-      // Segment before the first `/`: "leads" from "leads/{leadId}", "{document=**}" from the
-      // catch-all, "databases" from the documents root. Only a plain collection name counts.
-      const name = matchLine[1].split("/")[0];
-      current = /^[A-Za-z0-9_]+$/.test(name) && name !== "databases" ? name : null;
+    if (/^\s*match\b/.test(line)) {
+      const name = collectionNameFromMatchLine(line);
+      current = name && name !== "databases" ? name : null;
       continue;
     }
     if (current && /^\s*allow\s+[a-z, ]*\b(?:delete|write):\s*if\s+false\s*;/.test(line)) {
