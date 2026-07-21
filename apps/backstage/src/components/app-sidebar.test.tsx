@@ -11,11 +11,11 @@ vi.mock("../lib/auth/auth", () => ({
   useAuth: () => ({ user: { email: "ana@jci.org" }, claims: { roles: ["Admin"] } }),
 }));
 
-const ability: { can: (action: string, subject: string) => boolean } = {
-  can: () => true,
-};
+// The sidebar asks useCan().navItemVisible, which needs both halves of the context.
+const ability: { can: () => boolean } = { can: () => true };
 vi.mock("../lib/authz/ability-context", () => ({
   useAbility: () => ability,
+  useClaims: () => ({ roles: ["Admin"] }),
 }));
 
 vi.mock("../lib/auth/sign-out", () => ({

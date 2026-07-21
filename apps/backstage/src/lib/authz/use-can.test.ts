@@ -50,6 +50,14 @@ describe("buildCan", () => {
     expect(gate.can("update", "Member", { uid: "other" })).toBe(false);
   });
 
+  // subject() brands the object it is handed; branding a cached Firestore doc would leak
+  // CASL metadata into app state, so the probe copies first.
+  it("does not tag the caller's document with CASL subject metadata", () => {
+    const memberDoc = { uid: "self" };
+    can({ roles: ["Member"] }).can("update", "Member", memberDoc);
+    expect(Object.getOwnPropertyNames(memberDoc)).toEqual(["uid"]);
+  });
+
   it("empty claims deny everything (fail-closed)", () => {
     const gate = can({ roles: [] });
     expect(gate.can("read", "Member")).toBe(false);

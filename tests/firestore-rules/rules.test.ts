@@ -400,6 +400,17 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // Pre-format artifact: a phone stored before the 8-digit rule existed. The self
+    // lane must still let this member change their PHOTO — validating untouched fields
+    // would lock legacy members out of their own profile.
+    await setDoc(doc(db, "members/m_legacyphone"), {
+      name: "Eva",
+      totalPoints: 0,
+      uid: "eva-uid",
+      phone: "+591 700-112",
+      active: true,
+      deletedAt: null,
+    });
     // Pre-invariant artifact: a Comision doc carrying grants (was creatable by
     // Admin before comisionGrantsEmpty). Exercises the deliberate lockout.
     await setDoc(doc(db, "positions/com_legacy_power"), {
@@ -617,6 +628,41 @@ describe("firestore.rules — members", () => {
   it("denies the owning member clearing their birthdate", async () => {
     await assertFails(
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { birthdate: deleteField() }),
+    );
+  });
+  it("allows a member with a legacy phone to still change their photo", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("eva-uid", ["Member"]), "members/m_legacyphone"), {
+        profilePicture: "https://example/p.jpg",
+      }),
+    );
+  });
+  // Rewriting the SAME legacy value is a no-op (absent from affectedKeys) and stays
+  // allowed; changing it must land on the current format.
+  it("denies that same member changing the phone to another malformed value", async () => {
+    await assertFails(
+      updateDoc(doc(as("eva-uid", ["Member"]), "members/m_legacyphone"), {
+        phone: "+591 700-999",
+      }),
+    );
+  });
+  it("allows that same member replacing the legacy phone with 8 digits", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("eva-uid", ["Member"]), "members/m_legacyphone"), { phone: "70099887" }),
+    );
+  });
+  // The cap the Zod schema mirrors (packages/types/src/member-schema.ts).
+  it("allows a profession at the 80-character cap and denies 81", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { profession: "a".repeat(80) }),
+    );
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { profession: "a".repeat(81) }),
+    );
+  });
+  it("denies a soft-deleted member editing their own archived record", async () => {
+    await assertFails(
+      updateDoc(doc(as("bea-uid", ["Member"]), "members/m_deleted"), { phone: "70011223" }),
     );
   });
   it("denies a non-owner member editing another member's contact fields", async () => {

@@ -57,9 +57,13 @@ service firebase.storage {
       return isPmOrAdmin() || activityParentEditor(activityId);
     }
 
+    // Split like every other photo path below: isValidPhoto() reads request.resource,
+    // which is null on delete, so a combined `write` denied every removal and left the
+    // blob readable by any signed-in user while the UI reported success.
     match /members/{memberId}/profile.jpg {
       allow read: if request.auth != null;
-      allow write: if (isPrivileged() || ownsMember(memberId)) && isValidPhoto();
+      allow create, update: if (isPrivileged() || ownsMember(memberId)) && isValidPhoto();
+      allow delete: if isPrivileged() || ownsMember(memberId);
     }
 
     // Split write: create/update validate the incoming file; delete must NOT touch

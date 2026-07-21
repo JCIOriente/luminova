@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Badge, Card, Icon, ImageUploader } from "@luminova/ui";
+import { Avatar, Badge, Card, Icon, ImageUploader } from "@luminova/ui";
 import { useMemberPhoto } from "../hooks/use-member-photo";
 
 const CHAPTER = "JCI Oriente";
@@ -21,12 +21,17 @@ export function MemberCredentialCard({
   src,
   joinYear,
   role,
+  canEditPhoto,
 }: {
   memberId: string;
   name: string;
   src: string | null;
   joinYear: number | null;
   role: string;
+  /** Only the member the doc belongs to may change the photo (firestore.rules' self
+   *  lane). Everyone else gets the plain avatar — an uploader they can't use is the
+   *  lying-affordance this card used to show. */
+  canEditPhoto: boolean;
 }) {
   const { onUpload, onRemove } = useMemberPhoto(memberId);
 
@@ -42,7 +47,11 @@ export function MemberCredentialCard({
 
       <div className="px-6 py-5">
         <div className="flex items-center gap-4">
-          <ImageUploader currentSrc={src} name={name} onUpload={onUpload} onRemove={onRemove} />
+          {canEditPhoto ? (
+            <ImageUploader currentSrc={src} name={name} onUpload={onUpload} onRemove={onRemove} />
+          ) : (
+            <Avatar src={src} name={name} size={72} />
+          )}
           <div className="min-w-0">
             <div className="text-[20px] leading-tight font-semibold tracking-[-0.015em] text-ink-1">
               {name}

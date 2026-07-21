@@ -1,19 +1,16 @@
-import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, DatePicker, Field, ImageUploader, Input } from "@luminova/ui";
+import { Button, DatePicker, Field, Input } from "@luminova/ui";
 import { selfProfileSchema, type Member, type SelfProfileInput } from "@luminova/types";
 import { dateInputValue } from "../repositories/member-mapper";
-import { useMemberPhoto } from "../hooks/use-member-photo";
 import { useUpdateSelfProfile } from "../hooks/use-update-self-profile";
 
-/** The four fields a member owns about themselves. Deliberately NOT MemberForm: that form
+/** The fields a member owns about themselves. Deliberately NOT MemberForm: that form
  *  carries name, email, status and cargo, which the rules' self lane rejects — offering
- *  them here would be a form that can never save. */
+ *  them here would be a form that can never save. The photo is not here either: it is its
+ *  own write (setProfilePicture) and the credential card above already owns that control. */
 export function SelfProfileForm({ member }: { member: Member }) {
-  const { onUpload, onRemove } = useMemberPhoto(member.id);
   const updateProfile = useUpdateSelfProfile(member.id);
-  const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const {
     register,
     control,
@@ -28,24 +25,12 @@ export function SelfProfileForm({ member }: { member: Member }) {
     },
   });
 
-  const submit = handleSubmit(async (data) => {
-    setStatus("idle");
-    try {
-      await updateProfile.mutateAsync(data);
-      setStatus("saved");
-    } catch {
-      setStatus("error");
-    }
-  });
+  // The mutation already tracks pending/success/error — a parallel useState would be a
+  // second source of truth for "did the last save work".
+  const submit = handleSubmit((data) => updateProfile.mutateAsync(data).catch(() => {}));
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
-      <ImageUploader
-        currentSrc={member.profilePicture}
-        name={member.name}
-        onUpload={onUpload}
-        onRemove={onRemove}
-      />
       <Field label="Teléfono" htmlFor="self-phone" error={errors.phone?.message}>
         <Input
           id="self-phone"
@@ -76,12 +61,12 @@ export function SelfProfileForm({ member }: { member: Member }) {
       <p className="text-ui-xs text-ink-3">
         Tu nombre, correo, cargo y estado los administra la Dirección de Membresía.
       </p>
-      {status === "error" && (
+      {updateProfile.isError && (
         <div role="alert" className="text-ui-sm text-error">
           No se pudo guardar. Intenta de nuevo.
         </div>
       )}
-      {status === "saved" && (
+      {updateProfile.isSuccess && (
         <div role="status" className="text-ui-sm text-ink-2">
           Datos actualizados.
         </div>

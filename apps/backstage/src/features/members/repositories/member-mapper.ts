@@ -21,27 +21,26 @@ export function dateInputValue(timestamp: Timestamp): string {
   return `${year}-${month}-${day}`;
 }
 
-/** Editable fields shared by create and update. */
-function editableFields(data: MemberInput) {
-  return {
-    name: data.name,
-    email: data.email,
-    phone: data.phone ?? "",
-    gender: data.gender,
-    profession: data.profession ?? "",
-    joinDate: toTimestamp(data.joinDate),
-    birthdate: toTimestamp(data.birthdate),
-    status: data.status,
-  };
-}
-
 /** Self-service edit payload (/me): exactly the keys the rules' self lane accepts, so a
- *  stray field can't turn a member's own edit into a denied write. */
+ *  stray field can't turn a member's own edit into a denied write. The admin lane writes
+ *  the same three fields, so it composes this rather than restating the conventions. */
 export function toSelfProfileDoc(data: SelfProfileInput) {
   return {
     phone: data.phone ?? "",
     profession: data.profession ?? "",
     birthdate: toTimestamp(data.birthdate),
+  };
+}
+
+/** Editable fields shared by create and update. */
+function editableFields(data: MemberInput) {
+  return {
+    ...toSelfProfileDoc(data),
+    name: data.name,
+    email: data.email,
+    gender: data.gender,
+    joinDate: toTimestamp(data.joinDate),
+    status: data.status,
   };
 }
 

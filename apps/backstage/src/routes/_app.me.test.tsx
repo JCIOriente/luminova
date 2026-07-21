@@ -48,10 +48,17 @@ vi.mock("../features/initiatives/hooks/use-initiatives-by-term", () => ({
 vi.mock("../features/positions/hooks/use-positions", () => ({
   usePositions: () => ({ data: [] }),
 }));
+// The signed-in uid drives the self-service gate, which mirrors the rules' uid-keyed
+// self lane. Mutable so a test can put a DIFFERENT uid behind the same member doc.
+const auth = { uid: "self" };
+vi.mock("../lib/auth/auth", () => ({
+  useAuth: () => ({ user: { uid: auth.uid }, claims: { roles: ["Member"] }, loading: false }),
+}));
 
 import { MemberHome } from "../components/member-home";
 
 function renderHome(uid: string) {
+  auth.uid = uid;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
@@ -72,8 +79,8 @@ describe("MemberHome", () => {
     expect(screen.getAllByText("Miembro").length).toBeGreaterThan(0);
   });
 
-  // The self-service lane: the own-doc grant opens the four fields the rules' self lane
-  // accepts — and nothing the membership tier owns.
+  // The self-service lane offers exactly the fields the rules accept from a member —
+  // and none of the institutional ones the membership tier owns.
   it("offers the self-profile form to the member whose doc it is", () => {
     renderHome("self");
     expect(screen.getByText("Mi perfil")).toBeInTheDocument();
@@ -84,8 +91,12 @@ describe("MemberHome", () => {
     expect(screen.queryByLabelText(/Correo/)).not.toBeInTheDocument();
   });
 
-  it("withholds it from a viewer whose uid does not own the doc", () => {
+  // Gate keyed on doc ownership, mirroring the rules' `resource.data.uid ==
+  // request.auth.uid` — NOT on a role, which would withhold the form from a principal
+  // the rules would have accepted.
+  it("withholds the form and the photo uploader when the doc is not the caller's", () => {
     renderHome("someone-else");
     expect(screen.queryByText("Mi perfil")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/foto/i)).not.toBeInTheDocument();
   });
 });

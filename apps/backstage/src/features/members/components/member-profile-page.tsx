@@ -3,6 +3,7 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { Badge, Button, Card, Dialog, type BadgeTone } from "@luminova/ui";
 import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
 import { ActionGate } from "../../../lib/authz/action-gate";
+import { useAuth } from "../../../lib/auth/auth";
 import { useCan } from "../../../lib/authz/use-can";
 import { PageHeader } from "../../../components/page-header";
 import { QueryErrorState } from "../../../components/query-error-state";
@@ -51,6 +52,7 @@ export function MemberProfilePage() {
   const { memberId } = route.useParams();
   const termId = currentTermKey();
   const gate = useCan();
+  const uid = useAuth().user?.uid;
   const { data: member, isLoading, isError, error, refetch } = useMember(memberId);
   const { data: positions } = usePositions();
   const { data: points } = useMemberPoints(memberId, termId);
@@ -103,6 +105,9 @@ export function MemberProfilePage() {
   // member writes). Gate on the EC *role*, not the manage:Position perm — a custom
   // role with that perm but no EC claim would be denied at write.
   const showPositionsOnly = !canEdit && gate.hasRole(["ExecutiveCommittee"]);
+  // Member editing is split across two rules lanes; point the caller at the other one
+  // instead of leaving "where do I edit this" to depend on whose profile it is.
+  const isSelf = member.uid !== undefined && member.uid === uid;
 
   const handleEdit = (data: MemberInput) =>
     updateMember.mutateAsync({
@@ -145,6 +150,19 @@ export function MemberProfilePage() {
                 onSubmit={handleEdit}
                 avatarSeed={member.name}
               />
+            </Card>
+          )}
+
+          {isSelf && !canEdit && (
+            <Card as="section">
+              <p className="text-ui-sm text-ink-2">
+                Este es tu perfil. Puedes cambiar tu foto, teléfono, profesión y fecha de nacimiento
+                desde{" "}
+                <Link to="/me" className="font-semibold text-jci-blue hover:underline">
+                  Mi panel
+                </Link>
+                .
+              </p>
             </Card>
           )}
 

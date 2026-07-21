@@ -10,6 +10,9 @@ export function useUpdateSelfProfile(memberId: string) {
   return useMutation({
     mutationFn: (data: SelfProfileInput) =>
       new MemberRepository().updateSelfProfile(memberId, data),
+    // A permission-denied here means the rules' self lane and the form disagree — keep it
+    // in the console instead of only behind the form's generic message.
+    onError: (error) => console.error("self profile save failed", error),
     onSettled: () => queryClient.invalidateQueries({ queryKey: memberKeys.all }),
   });
 }

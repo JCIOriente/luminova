@@ -11,12 +11,19 @@ const dateString = z
     return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
   }, "Fecha inválida.");
 
+/** Mirrored by selfProfileValid() in firestore.rules — member-self-lane.rules.test.ts
+ *  fails if the two drift, so a member never hits a cap the form let them exceed. */
+export const PROFESSION_MAX_LENGTH = 80;
+
 export const memberSchema = z.object({
   name: z.string().min(3, "Mínimo 3 caracteres."),
   email: z.string().email("Correo inválido."),
   phone: boliviaPhoneOptional,
   gender: z.enum(MEMBER_GENDERS, { message: "Requerido." }),
-  profession: z.string().optional(),
+  profession: z
+    .string()
+    .max(PROFESSION_MAX_LENGTH, `Máximo ${PROFESSION_MAX_LENGTH} caracteres.`)
+    .optional(),
   joinDate: dateString,
   birthdate: dateString,
   status: z.enum(MEMBER_STATUSES),

@@ -1,10 +1,12 @@
 // Type-only import (erased at runtime) so this module carries NO runtime @luminova/ui
 // dependency — it must stay loadable from the isolated firestore-rules-tests package,
 // which imports NAV_GROUPS + ROUTE_GATING to reconcile the nav gates against the real
-// rules engine (tests/firestore-rules/nav-equivalence.test.ts).
+// rules engine (tests/firestore-rules/nav-equivalence.test.ts). lib/authz/probe is safe
+// to pull in for the same reason: it imports only @luminova/auth, no React, no UI.
 import type { IconKey } from "@luminova/ui";
 import { hasAnyRole, type Role, type AuthClaims } from "@luminova/auth/roles";
-import { buildAbility, subject, type AppAbility, type Action } from "@luminova/auth/ability";
+import { buildAbility, type AppAbility, type Action } from "@luminova/auth/ability";
+import { abilityAllows } from "../lib/authz/probe";
 
 type Subject =
   | "Member"
@@ -145,12 +147,12 @@ export function isNavItemVisible(item: NavItem, ability: AppAbility, claims: Aut
     // Member the admin Miembros nav + route, then died on the unconditional list
     // query that firestore.rules (correctly) denies. An empty instance matches
     // only UNCONDITIONAL grants — mirroring what the rules actually allow for a list.
-    (!item.subject || ability.can(item.action ?? "read", subject(item.subject, {}))) &&
+    (!item.subject || abilityAllows(ability, item.action ?? "read", item.subject)) &&
     // Role allowlist ORed with the `orCan` capability, so a perms-only custom role
     // isn't excluded by an allowlist that exists purely to name built-in roles.
     (!item.roles ||
       hasAnyRole(claims, item.roles) ||
-      (item.orCan !== undefined && ability.can(item.orCan.action, subject(item.orCan.subject, {}))))
+      (item.orCan !== undefined && abilityAllows(ability, item.orCan.action, item.orCan.subject)))
   );
 }
 
@@ -194,7 +196,7 @@ const DETAIL_GATES: DetailGate[] = [
 export function canAccessRoute(pathname: string, claims: AuthClaims, uid: string): boolean {
   const detail = DETAIL_GATES.find((d) => pathname.startsWith(d.prefix));
   if (detail) {
-    return !detail.subject || buildAbility(claims, uid).can("read", subject(detail.subject, {}));
+    return !detail.subject || abilityAllows(buildAbility(claims, uid), "read", detail.subject);
   }
   const item = navItemForPath(pathname);
   return !item || isNavItemVisible(item, buildAbility(claims, uid), claims);

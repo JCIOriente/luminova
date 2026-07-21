@@ -206,19 +206,25 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Shape guard for the self-service lane below. Mirrors memberSchema
-    // (packages/types/src/member-schema.ts + phone.ts): the phone is 8 national digits or
-    // blank, profession is free text, birthdate is a real date. The admin lane is not held
-    // to this — it writes the same fields through a form that already validates them,
-    // while a self-write is the one path a member reaches without that form.
-    function selfProfileValid() {
+    // The self-service lane's whole contract: which keys a member may write on their own
+    // doc, and the shape each must have. Both live here, in one place, because
+    // packages/types/src/member-self-lane.rules.test.ts parses this function and fails if
+    // it drifts from selfProfileSchema (rules mirror code — guardrail #2).
+    //
+    // Mirrors memberSchema (packages/types/src/member-schema.ts + phone.ts): the phone is
+    // 8 national digits or blank, profession is capped free text, birthdate is a real
+    // date. The admin lane is not held to this — it writes these fields through a form
+    // that already validates them, while a self-write is the one path a member reaches
+    // without that form.
+    //
+    // Only the keys a write TOUCHES are shape-checked: a member's photo upload must not be
+    // denied by a legacy phone value stored before the 8-digit format was enforced.
+    function selfProfileValid(changed) {
       let d = request.resource.data;
-      // Only the fields this write TOUCHES are validated: a member's photo upload must not
-      // be denied by a legacy phone value stored before the format was enforced.
-      let changed = d.diff(resource.data).affectedKeys();
       // .get(...) everywhere: clearing a field makes it ABSENT, and a bare d.phone would
       // throw (a rule that errors denies), so a cleared optional field must read as blank.
-      return (!changed.hasAny(['profilePicture'])
+      return changed.hasOnly(['profilePicture', 'birthdate', 'profession', 'phone'])
+        && (!changed.hasAny(['profilePicture'])
           || d.get('profilePicture', null) == null || d.profilePicture is string)
         && (!changed.hasAny(['birthdate']) || d.get('birthdate', null) is timestamp)
         && (!changed.hasAny(['profession'])
@@ -247,11 +253,12 @@ service cloud.firestore {
       // points, roles — is an institutional record only the membership tier writes.
       // .get('uid', '') so a member doc WITHOUT a uid compares false instead of
       // throwing — an erroring allow-rule must not deny an otherwise-valid update.
+      // active: a soft-deleted or desafiliado member's record is an institutional
+      // archive — softDeleteSafe() alone would still let them keep editing it.
       allow update: if signedIn()
         && resource.data.get('uid', '') == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['profilePicture', 'birthdate', 'profession', 'phone'])
-        && selfProfileValid()
+        && resource.data.get('active', true) == true
+        && selfProfileValid(request.resource.data.diff(resource.data).affectedKeys())
         && softDeleteSafe();
       // ExecutiveCommittee may edit only position assignments (org chart), nothing else.
       allow update: if hasAnyRole(['ExecutiveCommittee'])
