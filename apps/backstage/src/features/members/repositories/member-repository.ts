@@ -18,10 +18,11 @@ import {
   memberDocSchema,
   type Member,
   type MemberInput,
+  type SelfProfileInput,
   type TermPositions,
 } from "@luminova/types";
 import { parseDoc, parseDocOrNull, parseDocs } from "../../../lib/firestore-read";
-import { toMemberCreateDoc, toMemberUpdateDoc } from "./member-mapper";
+import { toMemberCreateDoc, toMemberUpdateDoc, toSelfProfileDoc } from "./member-mapper";
 
 export class MemberRepository {
   private readonly collection = collection(getDb(), "members");
@@ -69,6 +70,12 @@ export class MemberRepository {
       doc(this.collection, id),
       toMemberUpdateDoc(data, this.currentUid(), currentPositions),
     );
+  }
+
+  /** Self-service profile edit (/me). Separate from `update` because the rules' self lane
+   *  accepts only these keys — running the full form payload through it would deny. */
+  async updateSelfProfile(id: string, data: SelfProfileInput): Promise<void> {
+    await updateDoc(doc(this.collection, id), toSelfProfileDoc(data));
   }
 
   /** ExecutiveCommittee org-chart edit: writes ONLY the current term's assignment

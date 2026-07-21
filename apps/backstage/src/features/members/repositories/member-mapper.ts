@@ -1,5 +1,10 @@
 import { Timestamp } from "firebase/firestore";
-import { currentTermKey, type MemberInput, type TermPositions } from "@luminova/types";
+import {
+  currentTermKey,
+  type MemberInput,
+  type SelfProfileInput,
+  type TermPositions,
+} from "@luminova/types";
 
 function toTimestamp(dateString: string): Timestamp {
   // UTC midnight so a date-only value is stored consistently regardless of the
@@ -27,6 +32,16 @@ function editableFields(data: MemberInput) {
     joinDate: toTimestamp(data.joinDate),
     birthdate: toTimestamp(data.birthdate),
     status: data.status,
+  };
+}
+
+/** Self-service edit payload (/me): exactly the keys the rules' self lane accepts, so a
+ *  stray field can't turn a member's own edit into a denied write. */
+export function toSelfProfileDoc(data: SelfProfileInput) {
+  return {
+    phone: data.phone ?? "",
+    profession: data.profession ?? "",
+    birthdate: toTimestamp(data.birthdate),
   };
 }
 

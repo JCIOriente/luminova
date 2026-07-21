@@ -95,7 +95,10 @@ export function MemberProfilePage() {
     );
   }
 
-  const canEdit = gate.can("update", "Member", { uid: member.uid });
+  // Collection-level: MemberForm writes name/email/status/positions, which the rules'
+  // self lane rejects. Probing the own-doc grant here rendered a full form a plain member
+  // could never save — their four self-owned fields live on /me instead.
+  const canEdit = gate.can("update", "Member");
   // The positions-only lane maps to the ExecutiveCommittee allow-rule (positions-only
   // member writes). Gate on the EC *role*, not the manage:Position perm — a custom
   // role with that perm but no EC claim would be denied at write.

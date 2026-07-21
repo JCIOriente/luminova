@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Timestamp } from "firebase/firestore";
+import { AbilityProvider } from "../lib/authz/ability-context";
 
 vi.mock("../features/members/hooks/use-current-member", () => ({
   useCurrentMember: () => ({
@@ -9,6 +11,8 @@ vi.mock("../features/members/hooks/use-current-member", () => ({
       name: "Ana",
       status: "Activo",
       active: true,
+      uid: "self",
+      profilePicture: null,
       birthdate: Timestamp.fromDate(new Date("1992-07-01T00:00:00Z")),
       joinDate: Timestamp.fromDate(new Date("2020-03-15T00:00:00Z")),
     },
@@ -47,13 +51,41 @@ vi.mock("../features/positions/hooks/use-positions", () => ({
 
 import { MemberHome } from "../components/member-home";
 
+function renderHome(uid: string) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AbilityProvider claims={{ roles: ["Member"] }} uid={uid}>
+        <MemberHome />
+      </AbilityProvider>
+    </QueryClientProvider>,
+  );
+}
+
 describe("MemberHome", () => {
   it("renders points, QR and rank for the current member", () => {
-    render(<MemberHome />);
+    renderHome("self");
     expect(screen.getByText(/tu qr personal/i)).toBeInTheDocument();
     expect(screen.getByText("7")).toBeInTheDocument();
     expect(screen.getByText(/en el capítulo/i)).toBeInTheDocument();
     // No cargo assigned → falls back to the base role label.
     expect(screen.getAllByText("Miembro").length).toBeGreaterThan(0);
+  });
+
+  // The self-service lane: the own-doc grant opens the four fields the rules' self lane
+  // accepts — and nothing the membership tier owns.
+  it("offers the self-profile form to the member whose doc it is", () => {
+    renderHome("self");
+    expect(screen.getByText("Mi perfil")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Teléfono/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Profesión/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Fecha de nacimiento/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Estado/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Correo/)).not.toBeInTheDocument();
+  });
+
+  it("withholds it from a viewer whose uid does not own the doc", () => {
+    renderHome("someone-else");
+    expect(screen.queryByText("Mi perfil")).not.toBeInTheDocument();
   });
 });

@@ -23,7 +23,12 @@ export { MEMBER_GENDERS, type MemberGender } from "./member.js";
 export type { Position, PositionCategory, TermPositions } from "./position.js";
 export { POSITION_CATEGORIES, positionTitle, currentTermKey, femaleTitle } from "./position.js";
 export { positionSchema, type PositionInput } from "./position-schema.js";
-export { memberSchema, type MemberInput } from "./member-schema.js";
+export {
+  memberSchema,
+  selfProfileSchema,
+  type MemberInput,
+  type SelfProfileInput,
+} from "./member-schema.js";
 export {
   BOLIVIA_PHONE_LENGTH,
   isBoliviaPhone,
