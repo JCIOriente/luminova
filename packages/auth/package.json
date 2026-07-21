@@ -18,6 +18,11 @@
       "types": "./src/perms.ts",
       "import": "./dist/perms.js",
       "default": "./dist/perms.js"
+    },
+    "./test-helpers": {
+      "types": "./src/test-helpers.ts",
+      "import": "./dist/test-helpers.js",
+      "default": "./dist/test-helpers.js"
     }
   },
   "scripts": {

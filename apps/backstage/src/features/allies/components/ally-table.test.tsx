@@ -3,12 +3,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { AllyTable } from "./ally-table";
+import { roleClaims } from "@luminova/auth/test-helpers";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
 import type { Ally } from "@luminova/types";
 
 function renderAsAdmin(ui: ReactElement) {
   return render(
-    <AbilityProvider claims={{ roles: ["Admin"] }} uid="admin">
+    <AbilityProvider claims={roleClaims("Admin")} uid="admin">
       {ui}
     </AbilityProvider>,
   );
@@ -60,7 +61,7 @@ describe("AllyTable", () => {
 
   it("hides row actions for a role without write access", () => {
     render(
-      <AbilityProvider claims={{ roles: ["ExecutiveCommittee"] }} uid="e">
+      <AbilityProvider claims={roleClaims("ExecutiveCommittee")} uid="e">
         <AllyTable allies={[ally]} onEdit={vi.fn()} onDelete={vi.fn()} />
       </AbilityProvider>,
     );

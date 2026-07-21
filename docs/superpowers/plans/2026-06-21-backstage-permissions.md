@@ -10,6 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-21-backstage-permissions-design.md`
 
+> **Superseded (2026-07-20, PR-B #200):** the step below that has `buildAbility` consume
+> `claims.perms` **with role fallback** is out of date — the fallback was removed;
+> `buildAbility` now reads `claims.perms ?? []` (absent `perms` → zero coarse abilities).
+> Retained as the original plan; current contract in
+> `docs/status/2026-07-20-authz-migration.md`.
+
 **Branch:** `feat/backstage-permissions` (worktree `.worktrees/feat-backstage-permissions`). Slices ship as 4 stacked PRs; each slice ends with `/simplify` + `/code-review` + `/security-review` (where triggered) before its PR.
 
 ---

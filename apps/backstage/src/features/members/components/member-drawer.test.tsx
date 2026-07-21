@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { Timestamp } from "firebase/firestore";
 import { currentTermKey, type Member, type Position } from "@luminova/types";
 import { MemberDrawer } from "./member-drawer";
+import { roleClaims } from "@luminova/auth/test-helpers";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -53,7 +54,7 @@ describe("MemberDrawer view mode", () => {
   it("shows the member summary and switches to edit", () => {
     const onEditMode = vi.fn();
     render(
-      <AbilityProvider claims={{ roles: ["Admin"] }} uid="admin">
+      <AbilityProvider claims={roleClaims("Admin")} uid="admin">
         <MemberDrawer
           open
           mode="view"
@@ -74,7 +75,7 @@ describe("MemberDrawer view mode", () => {
 
   it("shows phone and profession labels and falls back to Miembro when no cargo is set", () => {
     render(
-      <AbilityProvider claims={{ roles: ["Admin"] }} uid="admin">
+      <AbilityProvider claims={roleClaims("Admin")} uid="admin">
         <MemberDrawer
           open
           mode="view"
@@ -98,7 +99,7 @@ describe("MemberDrawer view mode", () => {
       positions: { [currentTermKey()]: { cargoId: "pos-pres", comisionIds: ["pos-eventos"] } },
     };
     render(
-      <AbilityProvider claims={{ roles: ["Admin"] }} uid="admin">
+      <AbilityProvider claims={roleClaims("Admin")} uid="admin">
         <MemberDrawer
           open
           mode="view"

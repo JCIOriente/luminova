@@ -68,9 +68,13 @@ a data change.
   comparison is deliberately order-independent because Auth returns claims in
   arbitrary order. The `.sort()` is for stable diffs and readability, not
   idempotency.
-- **`claims.perms` is optional.** Pre-backfill tokens fall back to
-  `BUILT_IN_ROLE_PERMS`. Removing that fallback is a deliberate, separately
-  tracked migration — it breaks roles-only test fixtures across the repo.
+- **`claims.perms` is optional, and its absence grants zero coarse abilities.**
+  `buildAbility` reads `claims.perms ?? []` — there is **no** fallback to
+  `BUILT_IN_ROLE_PERMS` (removed in the capability-first migration's PR-B). A
+  roles-only claim yields only conditional grants. Tests therefore mint perms the
+  production way via `roleClaims(...)` from `@luminova/auth/test-helpers`; a bare
+  `{ roles: [...] }` fixture is correct only when asserting the absence of coarse
+  access or exercising a role-name gate.
 - **A perm is not a rules grant.** `can(...)` gates the *UI*; `firestore.rules`
   gates the *data*. See root `CLAUDE.md` guardrail #2 for the mirror requirement.
 

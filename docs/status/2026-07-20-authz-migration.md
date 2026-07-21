@@ -73,14 +73,22 @@ Check A excludes them.
 | **D** (#188) | Fully drop the orphaned `Event` subject + `/events` rules block; add a deny-all rules test (audit C8) | Open |
 | **E** (#190–#195) | Extract every backstage route-page component into `features/<area>/components/*-page.tsx` so route files export only `Route` (autoCodeSplitting invariant) → makes the page-level authz gates unit-testable; adds component-level gate tests. Six sub-PRs by area (E1 permissions, E2 recognition-lite, E3 activities, E4 initiatives, E5 dashboard/allies/leads, E6 config/members) | Open |
 | **F** (this PR) | Formalize the role-gate register (nav-config comments), pin the `curationOnly` visibility sets in `nav-config.test.ts`, and write this canonical roadmap | Open |
-| **B** | Remove `buildAbility`'s `BUILT_IN_ROLE_PERMS` fallback (`claims.perms ?? []`) | **Deferred** |
+| **B** | Remove `buildAbility`'s `BUILT_IN_ROLE_PERMS` fallback (`claims.perms ?? []`) | Open |
 
-### PR-B deferred — rationale
+### PR-B — outcome
 
-Removing the pre-backfill fallback breaks ~10 backstage test files that build **roles-only**
-claims (no `perms`). It has low value while nothing is deployed and `claims-sync` always
-mints perms. Revisit near go-live with a shared `roleClaims(...roles)` test helper that
-mints the perms the way production does.
+Done. `buildAbility` now trusts exactly one input for coarse abilities: the resolved
+`perms` claim; an absent `perms` grants none. This eliminated a latent
+`navVisible ⟹ rules-allow` drift vector — `firestore.rules` already read an absent
+`perms` as `[]` (deny) via `.get('perms', [])`, while `buildAbility` re-derived from the
+role table, so a hypothetical roles-only token would have seen UI the rules deny. Removing
+the fallback closes that gap; it never existed in production because `claims-sync` always
+mints `perms`.
+
+The ~10 roles-only fixtures that expected coarse abilities now derive perms the production
+way via a shared `roleClaims(...roles)` helper (`@luminova/auth/test-helpers`) — a thin
+adapter over `resolveEffectivePerms` mirroring `permsForRoles` in `role-seed.mjs`.
+Deliberate absence/role-gate fixtures stay roles-only.
 
 ## Guardrails this migration hardened
 

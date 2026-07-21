@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 import { Timestamp } from "firebase/firestore";
 import type { Member } from "@luminova/types";
 import type { AuthClaims } from "@luminova/auth/roles";
+import { roleClaims } from "@luminova/auth/test-helpers";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
 import { MemberRowMenu } from "./member-row-menu";
 
@@ -43,7 +44,7 @@ function renderMenu(m: Member, claims: AuthClaims, overrides?: Partial<typeof ha
   );
 }
 
-const ADMIN: AuthClaims = { roles: ["Admin"] };
+const ADMIN: AuthClaims = roleClaims("Admin");
 
 describe("MemberRowMenu", () => {
   it("shows Desactivar for an active member and Invitar when no uid", async () => {
@@ -76,7 +77,7 @@ describe("MemberRowMenu", () => {
   // Admin-only invite. (Plain Member is unsuitable here: its uid-scoped update:Member
   // grant makes the menu's unscoped <Can I="update"> permissive.)
   it("hides update- and Admin-gated items from a Treasury caller", async () => {
-    renderMenu(member({ status: "Activo" }), { roles: ["Treasury"] });
+    renderMenu(member({ status: "Activo" }), roleClaims("Treasury"));
     await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
     expect(screen.getByText("Ver perfil")).toBeInTheDocument();
     expect(screen.queryByText("Editar miembro")).not.toBeInTheDocument();

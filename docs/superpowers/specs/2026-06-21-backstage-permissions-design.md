@@ -4,6 +4,14 @@ Date: 2026-06-21
 Status: Approved (brainstorming) → ready for implementation plan
 Scope: `apps/backstage`, `apps/beacon`, `firestore.rules`, `@luminova/auth`, `@luminova/types`
 
+> **Superseded (2026-07-20, PR-B #200):** the `buildAbility` **back-compat fallback**
+> described below (Slicing item 1, Verification) was a deliberate pre-backfill shim and
+> has since been **removed** — `buildAbility` reads `claims.perms ?? []`, so an absent
+> `perms` grants zero coarse abilities (no role-table derivation). Tests mint perms the
+> production way via `roleClaims(...)` in `@luminova/auth/test-helpers`. This section is
+> retained as the original design record; current contract lives in
+> `docs/status/2026-07-20-authz-migration.md` and `packages/auth/CLAUDE.md`.
+
 ## Goal
 
 Make authorization editable at runtime without a code deploy. An Admin can:

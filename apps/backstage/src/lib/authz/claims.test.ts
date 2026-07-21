@@ -40,7 +40,7 @@ describe("decodeClaims", () => {
     });
   });
 
-  it("omits perms entirely when the claim is absent or non-array (pre-backfill → role fallback)", () => {
+  it("omits perms entirely when the claim is absent or non-array (→ zero coarse abilities)", () => {
     expect(decodeClaims({ roles: ["Membership"] })).toEqual({ roles: ["Membership"] });
     expect(decodeClaims({ roles: ["Membership"], perms: "manage:all" })).toEqual({
       roles: ["Membership"],
