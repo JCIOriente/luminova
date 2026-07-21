@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { DataTable, Input, Button, type DataTableColumn } from "@luminova/ui";
 import { pointRuleSchema } from "@luminova/types";
 import type { PointRule } from "@luminova/types";
-import { useAbility } from "../../../lib/authz/ability-context";
+import { useCan } from "../../../lib/authz/use-can";
 
 const pointsSchema = pointRuleSchema.shape.points;
 
@@ -39,8 +39,8 @@ function buildColumns(
 }
 
 export function PointRuleTable({ rules, onSave, isSaving }: PointRuleTableProps) {
-  const ability = useAbility();
-  const canEdit = ability.can("update", "PointRule");
+  const gate = useCan();
+  const canEdit = gate.can("update", "PointRule");
   const columns = useMemo(
     () => buildColumns(canEdit, onSave, isSaving),
     [canEdit, onSave, isSaving],

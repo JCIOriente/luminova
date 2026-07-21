@@ -1,5 +1,6 @@
-import { subject, type AppAbility } from "@luminova/auth/ability";
+import type { AppAbility } from "@luminova/auth/ability";
 import type { ParticipationRole } from "@luminova/types/engine";
+import { abilityAllows } from "../../../lib/authz/probe";
 
 /** May the caller undo THIS roster row? Mirrors the `checkIns` delete rule
  *  (firestore.rules): a coarse `checkIn:Attendance` holder (Admin/PM/custom) may
@@ -14,10 +15,10 @@ export function canRemoveEntry(
   activityId: string,
   entry: { role: ParticipationRole },
 ): boolean {
-  const isAttendanceManager = ability.can("checkIn", subject("Attendance", {}));
+  const isAttendanceManager = abilityAllows(ability, "checkIn", "Attendance");
   if (isAttendanceManager) return true;
   return (
     entry.role === "Attendee" &&
-    ability.can("checkIn", subject("Attendance", { eventId: activityId }))
+    abilityAllows(ability, "checkIn", "Attendance", { eventId: activityId })
   );
 }

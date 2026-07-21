@@ -21,6 +21,9 @@ import { MemberCredentialCard } from "../features/members/components/member-cred
 import { MemberMilestones } from "../features/members/components/member-milestones";
 import { MemberUpcomingEvents } from "../features/members/components/member-upcoming-events";
 import { ParticipationLedger } from "../features/members/components/participation-ledger";
+import { SelfProfileForm } from "../features/members/components/self-profile-form";
+import { useAuth } from "../lib/auth/auth";
+import { useCan } from "../lib/authz/use-can";
 
 // qrcode.react (~13 kB gz) lazy so it leaves the always-loaded index shell.
 const QrCode = lazy(() => import("@luminova/ui/qr-code").then((m) => ({ default: m.QrCode })));
@@ -33,6 +36,8 @@ const MemberQrDialog = lazy(() => importQrDialog().then((m) => ({ default: m.Mem
 
 export function MemberHome() {
   const termId = currentTermKey();
+  const gate = useCan();
+  const uid = useAuth().user?.uid;
   const { data: member, isLoading, isError, error, refetch } = useCurrentMember();
   const memberId = member?.id ?? "";
   const { data: points } = useMemberPoints(memberId, termId);
@@ -40,7 +45,9 @@ export function MemberHome() {
   const { data: allPoints } = useMemberPointsByTerm(termId);
   const activitiesQuery = useActivitiesByTerm(termId);
   const activities = activitiesQuery.data;
-  const membersQuery = useMembers();
+  // Chapter-wide milestones need the members LIST, which firestore.rules deny to a plain
+  // Member — firing it unconditionally guaranteed a permission-denied on every /me load.
+  const membersQuery = useMembers({ enabled: gate.can("read", "Member") });
   const { data: initiatives } = useInitiativesByTerm(termId, {
     includePrograms: true,
     includeProjects: true,
@@ -81,6 +88,12 @@ export function MemberHome() {
     return <p className="text-ink-2">Tu usuario no está vinculado a un perfil de miembro.</p>;
   }
 
+  // The rules' self lane keys on `resource.data.uid == request.auth.uid` and never looks
+  // at a role, so the honest mirror is doc ownership — NOT the CASL own-doc grant, which
+  // only members carrying the built-in Member role hold (a roles:["Treasury"] principal
+  // would lose a self-edit the rules would have accepted).
+  const canEditSelf = member.uid !== undefined && member.uid === uid;
+
   const cargoId = member.positions?.[termId]?.cargoId ?? null;
   const cargo = cargoId ? positionsById.get(cargoId) : null;
   const role = cargo ? positionTitle(cargo, member.gender) : "Miembro";
@@ -105,6 +118,7 @@ export function MemberHome() {
           src={member.profilePicture}
           joinYear={memberJoinYear}
           role={role}
+          canEditPhoto={canEditSelf}
         />
         <Card as="section" padding="none" className="flex flex-col">
           <WidgetHeader title="Check-in" subtitle="Acceso a eventos" icon={Icon.qr({ s: 20 })} />
@@ -152,6 +166,19 @@ export function MemberHome() {
         totalPoints={points?.cumulative ?? 0}
         termId={termId}
       />
+
+      {canEditSelf && (
+        <Card as="section" padding="none" className="flex flex-col">
+          <WidgetHeader
+            title="Mi perfil"
+            subtitle="Datos que administras tú"
+            icon={Icon.user({ s: 20 })}
+          />
+          <div className="px-6 py-5">
+            <SelfProfileForm member={member} />
+          </div>
+        </Card>
+      )}
 
       {qrOpen && (
         <Suspense fallback={null}>

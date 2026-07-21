@@ -10,10 +10,9 @@ import { ManualTapList } from "./manual-tap-list";
 import { ScanModal, type ScanResult } from "./scan-modal";
 import { alreadyCheckedIn, buildRosterEntries, type RosterEntry } from "../roster";
 import { computeAttendance } from "../lib/attendance";
-import { canRemoveEntry } from "../lib/can-remove-entry";
 import { decodeMemberQr } from "../../../lib/member-qr";
-import { useAbility } from "../../../lib/authz/ability-context";
 import { QueryErrorState } from "../../../components/query-error-state";
+import { useCan } from "../../../lib/authz/use-can";
 
 interface ActivityCheckInProps {
   activityId: string;
@@ -28,7 +27,7 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
   const { data: checkIns, isError, error, refetch } = useActivityCheckIns(activityId);
   const create = useCreateCheckIn(activityId);
   const remove = useRemoveCheckIn(activityId);
-  const ability = useAbility();
+  const gate = useCan();
 
   const roster = useMemo(() => buildRosterEntries(checkIns ?? [], members), [checkIns, members]);
   const checkedInIds = useMemo(() => (checkIns ?? []).map((c) => c.memberId), [checkIns]);
@@ -153,7 +152,7 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
       <PresentTable
         entries={roster}
         onRemove={onRemove}
-        canRemove={(entry) => canRemoveEntry(ability, activityId, entry)}
+        canRemove={(entry) => gate.canRemoveCheckIn(activityId, entry)}
       />
 
       {scanOpen && (

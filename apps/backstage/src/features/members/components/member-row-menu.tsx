@@ -35,6 +35,8 @@ export function MemberRowMenu({
         </button>
       }
     >
+      {/* Collection-level gates (no `on`): these act on ANOTHER member's doc, so the
+          own-doc conditional grant every member carries must not open them. */}
       <Can I="read" a="Member">
         <MenuItem onSelect={() => onView(member)}>Ver perfil</MenuItem>
       </Can>

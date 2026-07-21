@@ -53,6 +53,19 @@ const RESTRICTED_SYNTAX_BASE = [
   },
 ];
 
+// Asking a raw ability directly instead of going through lib/authz/probe. Matched on the
+// ability RECEIVER, not on `.can` generally, because `gate.can(action, "Subject")` — the
+// useCan API — is the correct spelling and must not be flagged. Shared by the two authz
+// blocks below, which cover disjoint file sets.
+const RAW_ABILITY_CALL_SELECTORS = [
+  {
+    selector:
+      "CallExpression[callee.object.name='ability'][callee.property.name='can'], CallExpression[callee.object.callee.name=/^(useAbility|buildAbility)$/][callee.property.name='can']",
+    message:
+      "Do not ask a raw ability directly — call abilityAllows(ability, action, subject, fields?) from lib/authz/probe, which probes an empty subject instance so a conditional own-doc grant can't answer a collection-level question.",
+  },
+];
+
 export default tseslint.config(
   {
     ignores: [
@@ -93,6 +106,52 @@ export default tseslint.config(
     ignores: ["**/*.test.tsx", "**/*.test.ts"],
     rules: {
       "no-restricted-syntax": ["error", ...RESTRICTED_SYNTAX_BASE],
+    },
+  },
+  {
+    // Authz gates must ask the ability a question firestore.rules can also answer.
+    // `ability.can(action, "Member")` asks a subject-TYPE question, which is true whenever
+    // ANY rule for that subject exists — including the uid-scoped own-doc grants in
+    // packages/auth's applyConditional. That is how every member came to see Editar /
+    // Desactivar / Desafiliar on every row. Go through `useCan().can` or `<Can>` (which
+    // probe an empty instance and take the document's fields), or hand `subject(...)` in
+    // yourself. Only the authz module itself and nav-config (which owns the route policy
+    // and needs buildAbility for the beforeLoad guard) may hold a raw ability.
+    // The two blocks below cover DISJOINT file sets on purpose: flat config REPLACES a
+    // rule's options when a later block matches the same file, so overlapping blocks
+    // would silently drop the earlier selectors (verified — it happened here first).
+    files: ["apps/backstage/src/**/*.{ts,tsx}"],
+    // Tests build abilities on purpose — that is how the gates get proven.
+    ignores: [
+      "apps/backstage/src/lib/authz/**",
+      "apps/backstage/src/components/nav-config.ts",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...RESTRICTED_SYNTAX_BASE,
+        ...RAW_ABILITY_CALL_SELECTORS,
+        {
+          // Namespace form too: `import * as ctx` then `ctx.useAbility()` was a verified
+          // way around a specifier-only ban.
+          selector:
+            "ImportSpecifier[imported.name=/^(useAbility|buildAbility)$/], ImportNamespaceSpecifier",
+          message:
+            "Use useCan() (or <Can>) instead of a raw ability: those probe an empty subject instance, so a conditional own-doc grant can't answer a collection-level question. Namespace imports are banned here because they hide which binding is taken.",
+        },
+      ],
+    },
+  },
+  {
+    // The files that legitimately HOLD a raw ability — the authz module and the nav/route
+    // policy. They may import it; they still may not ask it a subject-TYPE question.
+    // probe.ts is the one exemption: it is where the empty-instance probe lives.
+    files: ["apps/backstage/src/lib/authz/**", "apps/backstage/src/components/nav-config.ts"],
+    ignores: ["apps/backstage/src/lib/authz/probe.ts"],
+    rules: {
+      "no-restricted-syntax": ["error", ...RESTRICTED_SYNTAX_BASE, ...RAW_ABILITY_CALL_SELECTORS],
     },
   },
   {

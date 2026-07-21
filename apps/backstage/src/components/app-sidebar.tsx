@@ -10,9 +10,9 @@ import {
   initials,
 } from "@luminova/ui";
 import { useAuth } from "../lib/auth/auth";
-import { useAbility } from "../lib/authz/ability-context";
+import { useCan } from "../lib/authz/use-can";
 import { signOutUser } from "../lib/auth/sign-out";
-import { NAV_GROUPS, isNavItemVisible } from "./nav-config";
+import { NAV_GROUPS } from "./nav-config";
 import {
   getSidebarCollapsed,
   setSidebarCollapsed,
@@ -35,8 +35,8 @@ interface AppSidebarProps {
 
 export function AppSidebar({ drawer = false, onClose }: AppSidebarProps) {
   const navigate = useNavigate();
-  const { user, claims } = useAuth();
-  const ability = useAbility();
+  const { user } = useAuth();
+  const gate = useCan();
   const collapsedPref = useSyncExternalStore(subscribe, getSidebarCollapsed, getSidebarCollapsed);
   const collapsed = drawer ? false : collapsedPref;
   const theme = useSyncExternalStore(subscribe, getThemePref, getThemePref);
@@ -44,7 +44,7 @@ export function AppSidebar({ drawer = false, onClose }: AppSidebarProps) {
 
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => isNavItemVisible(item, ability, claims)),
+    items: group.items.filter((item) => gate.navItemVisible(item)),
   })).filter((group) => group.items.length > 0);
 
   const onLogout = async () => {

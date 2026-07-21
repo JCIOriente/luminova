@@ -16,7 +16,6 @@ import type {
   InitiativeInput,
   Member,
 } from "@luminova/types";
-import { useAbility } from "../../../lib/authz/ability-context";
 import { useCan } from "../../../lib/authz/use-can";
 import { useAuth } from "../../../lib/auth/auth";
 import { CompletionWizard } from "./completion-wizard";
@@ -53,14 +52,15 @@ export function InitiativeDetailPage() {
   const initiativeType = type as InitiativeType;
   const kind = INITIATIVE_CONFIG[initiativeType].kind;
   const termId = currentTermKey();
-  const ability = useAbility();
+  const gate = useCan();
   const { user } = useAuth();
   const uid = user?.uid ?? null;
 
-  const canUpdate = ability.can("update", kind);
-  const canFeature = useCan().canFeatureInitiatives;
-  const canCreateActivity = ability.can("create", "Activity");
-  const canReadMembers = ability.can("read", "Member");
+  const canUpdate = gate.can("update", kind);
+  const canFeature = gate.canFeatureInitiatives;
+  const canCreateActivity = gate.can("create", "Activity");
+  // Unconditional read:Member only — an own-doc grant can't list the collection.
+  const canReadMembers = gate.can("read", "Member");
 
   // firestore.rules allow `read: if signedIn()` on both programs and projects, so load
   // the initiative for any authenticated viewer. A direction-lead plain Member holds

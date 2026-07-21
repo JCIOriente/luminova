@@ -108,6 +108,7 @@ function ViewBody({
       )}
 
       <div className="mt-2 flex flex-col gap-3">
+        {/* Collection-level: the drawer edits whichever member the table row is. */}
         <Can I="update" a="Member">
           <Button as="button" type="button" onClick={onEditMode} className="w-full justify-center">
             Editar perfil

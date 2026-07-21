@@ -2,9 +2,8 @@ import { Link, getRouteApi } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { Badge, Button, Card, Dialog, type BadgeTone } from "@luminova/ui";
 import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
-import { subject } from "@luminova/auth/ability";
-import { useAbility } from "../../../lib/authz/ability-context";
 import { ActionGate } from "../../../lib/authz/action-gate";
+import { useAuth } from "../../../lib/auth/auth";
 import { useCan } from "../../../lib/authz/use-can";
 import { PageHeader } from "../../../components/page-header";
 import { QueryErrorState } from "../../../components/query-error-state";
@@ -52,8 +51,8 @@ const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
 export function MemberProfilePage() {
   const { memberId } = route.useParams();
   const termId = currentTermKey();
-  const ability = useAbility();
   const gate = useCan();
+  const uid = useAuth().user?.uid;
   const { data: member, isLoading, isError, error, refetch } = useMember(memberId);
   const { data: positions } = usePositions();
   const { data: points } = useMemberPoints(memberId, termId);
@@ -98,11 +97,17 @@ export function MemberProfilePage() {
     );
   }
 
-  const canEdit = ability.can("update", subject("Member", { uid: member.uid }));
+  // Collection-level: MemberForm writes name/email/status/positions, which the rules'
+  // self lane rejects. Probing the own-doc grant here rendered a full form a plain member
+  // could never save — their four self-owned fields live on /me instead.
+  const canEdit = gate.can("update", "Member");
   // The positions-only lane maps to the ExecutiveCommittee allow-rule (positions-only
   // member writes). Gate on the EC *role*, not the manage:Position perm — a custom
   // role with that perm but no EC claim would be denied at write.
   const showPositionsOnly = !canEdit && gate.hasRole(["ExecutiveCommittee"]);
+  // Member editing is split across two rules lanes; point the caller at the other one
+  // instead of leaving "where do I edit this" to depend on whose profile it is.
+  const isSelf = member.uid !== undefined && member.uid === uid;
 
   const handleEdit = (data: MemberInput) =>
     updateMember.mutateAsync({
@@ -145,6 +150,19 @@ export function MemberProfilePage() {
                 onSubmit={handleEdit}
                 avatarSeed={member.name}
               />
+            </Card>
+          )}
+
+          {isSelf && !canEdit && (
+            <Card as="section">
+              <p className="text-ui-sm text-ink-2">
+                Este es tu perfil. Puedes cambiar tu foto, teléfono, profesión y fecha de nacimiento
+                desde{" "}
+                <Link to="/me" className="font-semibold text-jci-blue hover:underline">
+                  Mi panel
+                </Link>
+                .
+              </p>
             </Card>
           )}
 

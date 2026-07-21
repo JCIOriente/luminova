@@ -72,10 +72,28 @@ describe("MemberRowMenu", () => {
     expect(onSetStatus).toHaveBeenCalledWith(m, "Desafiliado");
   });
 
+  // The reported bug: a member holding only read:Member saw Editar / Desactivar /
+  // Desafiliar on EVERY row, because the uid-scoped own-doc update grant answered the
+  // menu's collection-level question. The gate now probes an empty instance, so the
+  // own-doc grant cannot open a control that acts on another member's document — not
+  // even on the caller's OWN row, which is what /me is for.
+  it("hides write items from a plain Member with a coarse read:Member", async () => {
+    const claims: AuthClaims = { roles: ["Member"], perms: ["read:Member"] };
+    render(
+      <AbilityProvider claims={claims} uid="self">
+        <MemberRowMenu member={member({ status: "Activo", uid: "self" })} {...handlers} />
+      </AbilityProvider>,
+    );
+    await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
+    expect(screen.getByText("Ver perfil")).toBeInTheDocument();
+    expect(screen.queryByText("Editar miembro")).not.toBeInTheDocument();
+    expect(screen.queryByText("Desactivar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Desafiliar")).not.toBeInTheDocument();
+  });
+
   // The gates bite: a Treasury caller (read:Member, but no update:Member and not Admin)
   // sees the read-only item but neither the update-gated status controls nor the
-  // Admin-only invite. (Plain Member is unsuitable here: its uid-scoped update:Member
-  // grant makes the menu's unscoped <Can I="update"> permissive.)
+  // Admin-only invite.
   it("hides update- and Admin-gated items from a Treasury caller", async () => {
     renderMenu(member({ status: "Activo" }), roleClaims("Treasury"));
     await userEvent.click(screen.getByLabelText(/Acciones para Ana/));

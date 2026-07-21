@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { CommandPalette, Icon, type CommandItem } from "@luminova/ui";
-import { useAuth } from "../lib/auth/auth";
-import { useAbility } from "../lib/authz/ability-context";
-import { NAV_GROUPS, isNavItemVisible } from "./nav-config";
+import { useCan } from "../lib/authz/use-can";
+import { NAV_GROUPS } from "./nav-config";
 import {
   getCommandMenuOpen,
   setCommandMenuOpen,
@@ -13,8 +12,7 @@ import {
 
 export function CommandMenu() {
   const navigate = useNavigate();
-  const { claims } = useAuth();
-  const ability = useAbility();
+  const gate = useCan();
   const open = useSyncExternalStore(subscribeCommandMenu, getCommandMenuOpen, getCommandMenuOpen);
 
   useEffect(() => {
@@ -31,7 +29,7 @@ export function CommandMenu() {
   const items = useMemo<CommandItem[]>(() => {
     const navItems: CommandItem[] = NAV_GROUPS.flatMap((group) =>
       group.items
-        .filter((item) => isNavItemVisible(item, ability, claims))
+        .filter((item) => gate.navItemVisible(item))
         .map((item) => ({
           id: `nav-${item.to}`,
           label: item.label,
@@ -49,7 +47,7 @@ export function CommandMenu() {
       icon: Icon.user({ s: 18 }),
       onSelect: () => navigate({ to: "/me" }),
     });
-    if (ability.can("create", "Activity")) {
+    if (gate.can("create", "Activity")) {
       actions.push({
         id: "action-create-activity",
         label: "Crear evento",
@@ -58,7 +56,7 @@ export function CommandMenu() {
         onSelect: () => navigate({ to: "/activities" }),
       });
     }
-    if (ability.can("create", "Member")) {
+    if (gate.can("create", "Member")) {
       actions.push({
         id: "action-invite-member",
         label: "Invitar miembro",
@@ -69,7 +67,7 @@ export function CommandMenu() {
     }
 
     return [...navItems, ...actions];
-  }, [ability, claims, navigate]);
+  }, [gate, navigate]);
 
   return <CommandPalette open={open} onOpenChange={setCommandMenuOpen} items={items} />;
 }

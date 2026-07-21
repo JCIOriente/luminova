@@ -5,7 +5,8 @@ import type { ComboboxOption } from "@luminova/ui";
 import { ACTIVITY_CATEGORIES } from "@luminova/types";
 import type { Activity, ActivityInput } from "@luminova/types";
 import { STANDALONE_CATEGORIES } from "../lib/categories";
-import { Can, useAbility } from "../../../lib/authz/ability-context";
+import { Can } from "../../../lib/authz/ability-context";
+import { useCan } from "../../../lib/authz/use-can";
 import { useAuth } from "../../../lib/auth/auth";
 import { hasRole } from "@luminova/auth/roles";
 import { PageHeader } from "../../../components/page-header";
@@ -33,7 +34,8 @@ type Editing = Activity | "new" | null;
 
 export function ActivitiesPage() {
   const termId = currentTermKey();
-  const canManage = useAbility().can("update", "Activity");
+  const gate = useCan();
+  const canManage = gate.can("update", "Activity");
   const { claims } = useAuth();
   const isAdmin = hasRole(claims, "Admin");
   const { data: activities, isLoading, isError } = useActivitiesByTerm(termId);
@@ -41,7 +43,7 @@ export function ActivitiesPage() {
   // an unconditional members list is denied by firestore.rules. Gate it (mirror the detail
   // route) instead of firing a query whose permission-denied error was silently swallowed —
   // director names simply omit for those principals. (guardrail #4: no silent catch.)
-  const canReadMembers = useAbility().can("read", "Member");
+  const canReadMembers = gate.can("read", "Member");
   const { data: members } = useMembers({ enabled: canReadMembers });
   const { data: programs } = useInitiativesOfType("program", termId);
   const { data: projects } = useInitiativesOfType("project", termId);
