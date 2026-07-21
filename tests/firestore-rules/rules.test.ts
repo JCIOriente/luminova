@@ -2063,3 +2063,27 @@ describe("firestore.rules — leads (public contact-form capture)", () => {
     await assertFails(deleteDoc(doc(as("u", ["Admin"]), "leads/lead_new")));
   });
 });
+
+describe("hard-delete denial — collections whose rules forbid client deletes stay forbidden", () => {
+  // Each collection here gates delete on `delete: if false` or a blanket `write: if false`
+  // (engine-owned ledgers/public projections). members/terms/activities/programs/roles/leads
+  // already pin this above; these are the remaining ones. Asserting the denial for even an
+  // Admin (the maximal client principal) means a future regression that loosens the delete
+  // rule can't slip through untested — the client never hard-deletes any of them (soft-delete
+  // via update where applicable), so the rule must stay a flat deny (guardrail #6).
+  const DELETE_DENIED: { name: string; path: string }[] = [
+    { name: "projects", path: "projects/p1" },
+    { name: "positions", path: "positions/pos1" },
+    { name: "allies", path: "allies/a1" },
+    { name: "pointRules", path: "pointRules/r1" },
+    { name: "participations", path: "participations/part1" },
+    { name: "memberPoints", path: "memberPoints/2025/03/e1" },
+    { name: "showcase", path: "showcase/s1" },
+    { name: "allyShowcase", path: "allyShowcase/a1" },
+  ];
+  for (const { name, path } of DELETE_DENIED) {
+    it(`denies hard delete of ${name} even for Admin`, async () => {
+      await assertFails(deleteDoc(doc(as("u", ["Admin"]), path)));
+    });
+  }
+});
