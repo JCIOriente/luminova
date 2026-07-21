@@ -533,6 +533,44 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Composed notifications: only a create:Notification holder may compose; the
+    // create is the send trigger's input. stats is Admin-SDK-written (bypasses
+    // rules), so it must be absent on the client create. No client update/delete.
+    match /notifications/{id} {
+      allow read: if canDo('read', 'Notification');
+      allow create: if canDo('create', 'Notification')
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && !('stats' in request.resource.data)
+        && request.resource.data.audience.type in ['everyone', 'members', 'role'];
+      allow update, delete: if false;
+    }
+
+    // Per-member inbox fan-out. Admin-SDK writes the copies; the owner may read
+    // and may flip ONLY `read`. INBOX_MUTABLE_FIELDS in @luminova/types mirrors
+    // this hasOnly(['read']) — kept in lockstep by a rules cross-check test.
+    match /members/{memberId}/notifications/{id} {
+      allow read: if signedIn() && request.auth.uid == memberId;
+      allow update: if signedIn() && request.auth.uid == memberId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create, delete: if false;
+    }
+
+    // A member's FCM device tokens. Owner-only; token id is the token string.
+    match /members/{memberId}/fcmTokens/{token} {
+      allow read, create, delete: if signedIn() && request.auth.uid == memberId;
+      allow update: if false;
+    }
+
+    // Anonymous spotlight device tokens. Public create with a bounded shape (no
+    // PII), self-delete by the same anon device. No read/list. Mirrors `leads`.
+    match /pushTokens/{token} {
+      allow create: if request.resource.data.keys().hasOnly(['createdAt'])
+        && request.resource.data.createdAt == request.time;
+      allow delete: if true;
+      allow read, update: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

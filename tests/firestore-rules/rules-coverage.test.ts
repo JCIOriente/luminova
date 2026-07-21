@@ -42,6 +42,10 @@ const KNOWN_UNSURFACED: Record<string, string> = {
   memberPoints: "engine-owned points ledger, read-only; shown inside /me + /leaderboard",
   showcase: "public spotlight projection (read:true), beacon-written; no backstage route",
   allyShowcase: "public spotlight projection (read:true), beacon-written; no backstage route",
+  notifications:
+    "composed messages; surfaced by the /notificaciones compose route (PR3), not yet wired",
+  pushTokens:
+    "anonymous spotlight device tokens, public-create bounded shape; never a backstage route",
 };
 
 describe("rules coverage: no orphaned firestore.rules collection", () => {

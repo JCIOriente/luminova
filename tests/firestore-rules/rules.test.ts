@@ -461,6 +461,24 @@ beforeAll(async () => {
       status: "Cerrado",
       deletedAt: DELETED_AT,
     });
+    // Notification fixtures. `notifications/n1` is the composed message (read gated
+    // on read:Notification, no client update/delete); `members/m1/notifications/n1`
+    // is m1's Admin-SDK-written inbox copy (owner reads + flips `read` only).
+    await setDoc(doc(db, "notifications/n1"), {
+      title: "Aviso",
+      body: "Cuerpo",
+      url: null,
+      audience: { type: "everyone" },
+      createdBy: "exec-uid",
+      createdAt: new Date("2026-07-01T00:00:00Z"),
+    });
+    await setDoc(doc(db, "members/m1/notifications/n1"), {
+      title: "Aviso",
+      body: "Cuerpo",
+      url: null,
+      read: false,
+      createdAt: new Date("2026-07-01T00:00:00Z"),
+    });
   });
 });
 
@@ -2138,6 +2156,160 @@ describe("firestore.rules — leads (public contact-form capture)", () => {
   });
 });
 
+describe("firestore.rules — notifications (composed message)", () => {
+  // A holder of the coarse create:Notification perm (any role can carry it via a
+  // custom grant; ExecutiveCommittee gets it by seed). createdBy must equal the
+  // caller so the send trigger can attribute the compose.
+  function validNotification(uid: string, overrides: Record<string, unknown> = {}) {
+    return {
+      title: "Convocatoria",
+      body: "Reunión general el viernes.",
+      url: null,
+      audience: { type: "everyone" },
+      createdBy: uid,
+      createdAt: serverTimestamp(),
+      ...overrides,
+    };
+  }
+
+  it("allows a create:Notification holder to compose a valid notification", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(as("exec-uid", ["Member"], ["create:Notification"]), "notifications/n_ok"),
+        validNotification("exec-uid"),
+      ),
+    );
+  });
+  it("denies composing without the create:Notification perm", async () => {
+    await assertFails(
+      setDoc(doc(as("m1", ["Member"], []), "notifications/n_noperm"), validNotification("m1")),
+    );
+  });
+  it("denies a create that pre-sets stats (Admin-SDK-owned field)", async () => {
+    await assertFails(
+      setDoc(
+        doc(as("exec-uid", ["Member"], ["create:Notification"]), "notifications/n_stats"),
+        validNotification("exec-uid", { stats: { pushSent: 0, pushFailed: 0 } }),
+      ),
+    );
+  });
+  it("denies a create whose createdBy is not the caller", async () => {
+    await assertFails(
+      setDoc(
+        doc(as("exec-uid", ["Member"], ["create:Notification"]), "notifications/n_forge"),
+        validNotification("someone-else"),
+      ),
+    );
+  });
+  it("denies a create with an unknown audience type", async () => {
+    await assertFails(
+      setDoc(
+        doc(as("exec-uid", ["Member"], ["create:Notification"]), "notifications/n_badaud"),
+        validNotification("exec-uid", { audience: { type: "individuals" } }),
+      ),
+    );
+  });
+  it("allows a read:Notification holder to read", async () => {
+    await assertSucceeds(
+      getDoc(doc(as("reader", ["Member"], ["read:Notification"]), "notifications/n1")),
+    );
+  });
+  it("denies a read without read:Notification", async () => {
+    await assertFails(getDoc(doc(as("noread", ["Member"], []), "notifications/n1")));
+  });
+  it("denies any client update (even with the perm)", async () => {
+    await assertFails(
+      updateDoc(
+        doc(
+          as("exec-uid", ["Member"], ["create:Notification", "read:Notification"]),
+          "notifications/n1",
+        ),
+        { title: "Editado" },
+      ),
+    );
+  });
+});
+
+describe("firestore.rules — member inbox (per-member fan-out)", () => {
+  it("allows the owner to read their own inbox copy", async () => {
+    await assertSucceeds(getDoc(doc(as("m1", ["Member"], []), "members/m1/notifications/n1")));
+  });
+  it("denies a non-owner reading another member's inbox copy", async () => {
+    await assertFails(getDoc(doc(as("m2", ["Member"], []), "members/m1/notifications/n1")));
+  });
+  it("allows the owner to flip only the read field", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("m1", ["Member"], []), "members/m1/notifications/n1"), { read: true }),
+    );
+  });
+  it("denies the owner editing any other field (only read is mutable)", async () => {
+    await assertFails(
+      updateDoc(doc(as("m1", ["Member"], []), "members/m1/notifications/n1"), { title: "hax" }),
+    );
+  });
+  it("denies the owner touching read alongside another field", async () => {
+    await assertFails(
+      updateDoc(doc(as("m1", ["Member"], []), "members/m1/notifications/n1"), {
+        read: true,
+        title: "hax",
+      }),
+    );
+  });
+  it("denies a non-owner marking someone else's inbox copy read", async () => {
+    await assertFails(
+      updateDoc(doc(as("m2", ["Member"], []), "members/m1/notifications/n1"), { read: true }),
+    );
+  });
+});
+
+describe("firestore.rules — fcmTokens (member device tokens)", () => {
+  it("allows the owner to create and delete their own token", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("m1", ["Member"], []), "members/m1/fcmTokens/tok1"), {
+        createdAt: serverTimestamp(),
+      }),
+    );
+    await assertSucceeds(deleteDoc(doc(as("m1", ["Member"], []), "members/m1/fcmTokens/tok1")));
+  });
+  it("denies a non-owner creating a token under another member", async () => {
+    await assertFails(
+      setDoc(doc(as("m2", ["Member"], []), "members/m1/fcmTokens/tok_evil"), {
+        createdAt: serverTimestamp(),
+      }),
+    );
+  });
+});
+
+describe("firestore.rules — pushTokens (anonymous spotlight devices)", () => {
+  it("allows an anonymous device to create a bounded token and self-delete it", async () => {
+    await assertSucceeds(setDoc(doc(anon(), "pushTokens/tok1"), { createdAt: serverTimestamp() }));
+    await assertSucceeds(deleteDoc(doc(anon(), "pushTokens/tok1")));
+  });
+  it("denies a create carrying an extra field (PII bound)", async () => {
+    await assertFails(
+      setDoc(doc(anon(), "pushTokens/tok2"), { createdAt: serverTimestamp(), email: "x@y.z" }),
+    );
+  });
+});
+
+// Rules↔types inbox-lock lockstep guard: the members/{memberId}/notifications update
+// rule may permit only the fields in INBOX_MUTABLE_FIELDS (@luminova/types). The
+// rules-test package can't import @luminova/types, so parse the hasOnly([...]) field
+// list from RULES_SOURCE and assert it equals ["read"] — same discipline as the
+// activity-locked-fields cross-check.
+describe("firestore.rules — inbox lock cross-check", () => {
+  it("inbox update hasOnly matches INBOX_MUTABLE_FIELDS", () => {
+    const m = RULES_SOURCE.match(
+      /members\/\{memberId\}\/notifications[\s\S]*?hasOnly\(\[([^\]]*)\]\)/,
+    );
+    const fields = m![1]
+      .split(",")
+      .map((s) => s.trim().replace(/['"]/g, ""))
+      .filter(Boolean);
+    expect(fields).toEqual(["read"]);
+  });
+});
+
 describe("hard-delete denial — every collection the rules forbid client-deleting stays forbidden", () => {
   // The client never hard-deletes any collection whose rules deny it (soft-delete via update
   // where applicable), so those rules must stay a flat deny (guardrail #6). This is the single
@@ -2147,6 +2319,7 @@ describe("hard-delete denial — every collection the rules forbid client-deleti
   // until this list is reconciled (a loosened delete is a red flag to review).
   const DELETE_DENIED: { name: string; path: string }[] = [
     { name: "members", path: "members/m1" },
+    { name: "notifications", path: "notifications/n1" },
     { name: "roles", path: "roles/custom_existing" },
     { name: "terms", path: "terms/2026" },
     { name: "activities", path: "activities/act1" },
