@@ -41,6 +41,14 @@ export { allySchema, type AllyInput } from "./ally-schema.js";
 export type { Lead, LeadIntent, LeadStatus } from "./lead.js";
 export { LEAD_INTENTS, LEAD_STATUSES } from "./lead.js";
 export { leadSchema, type LeadInput } from "./lead-schema.js";
+export { audienceSchema, notificationCreateSchema, INBOX_MUTABLE_FIELDS } from "./notification.js";
+export type {
+  Audience,
+  NotificationCreate,
+  NotificationStats,
+  NotificationDoc,
+  InboxDoc,
+} from "./notification.js";
 
 export * from "./engine/index.js";
 export { pointRuleSchema, type PointRuleInput } from "./engine/point-rule-schema.js";
