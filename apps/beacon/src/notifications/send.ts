@@ -1,12 +1,12 @@
-import { Timestamp, type Firestore, type DocumentReference } from "firebase-admin/firestore";
+import type { Firestore, DocumentReference, QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { chunk } from "../chunk.js";
+import { hasToMillis } from "../firestore-util.js";
 import { parseAudience, memberQueryFilter, includesAnonTokens, type Audience } from "./audience.js";
 
 const READ_CHUNK = 300;
 const MULTICAST_CAP = 500;
 const WRITE_BATCH_CAP = 500;
-const ANON_TOKEN_SCAN_CAP = 10000;
-const MEMBER_SCAN_CAP = 10000;
+const SCAN_CAP = 10000;
 const DEAD_TOKEN_CODES = new Set([
   "messaging/registration-token-not-registered",
   "messaging/invalid-argument",
@@ -33,17 +33,20 @@ interface TokenRef {
   ref: DocumentReference;
 }
 
+function warnIfCapped(size: number, cap: number, message: string): void {
+  if (size === cap) console.error(message, { cap });
+}
+
+function toTokenRef(d: QueryDocumentSnapshot): TokenRef {
+  return { token: d.id, ref: d.ref };
+}
+
 async function resolveMembers(db: Firestore, audience: Audience): Promise<string[]> {
   const filter = memberQueryFilter(audience);
-  let query: FirebaseFirestore.Query = db
-    .collection("members")
-    .select("uid")
-    .limit(MEMBER_SCAN_CAP);
+  let query: FirebaseFirestore.Query = db.collection("members").select().limit(SCAN_CAP);
   if (filter) query = query.where(filter.field, filter.op, filter.value);
   const snap = await query.get();
-  if (snap.size === MEMBER_SCAN_CAP) {
-    console.error("notification member scan hit cap", { cap: MEMBER_SCAN_CAP });
-  }
+  warnIfCapped(snap.size, SCAN_CAP, "notification member scan hit cap");
   return snap.docs.map((d) => d.id);
 }
 
@@ -53,19 +56,15 @@ async function memberTokens(db: Firestore, memberIds: string[]): Promise<TokenRe
     const snaps = await Promise.all(
       batch.map((id) => db.collection(`members/${id}/fcmTokens`).get()),
     );
-    for (const snap of snaps) for (const d of snap.docs) out.push({ token: d.id, ref: d.ref });
+    for (const snap of snaps) for (const d of snap.docs) out.push(toTokenRef(d));
   }
   return out;
 }
 
 async function anonTokens(db: Firestore): Promise<TokenRef[]> {
-  const snap = await db.collection("pushTokens").limit(ANON_TOKEN_SCAN_CAP).get();
-  if (snap.size === ANON_TOKEN_SCAN_CAP) {
-    console.error("pushTokens scan hit cap — anon broadcast truncated", {
-      cap: ANON_TOKEN_SCAN_CAP,
-    });
-  }
-  return snap.docs.map((d) => ({ token: d.id, ref: d.ref }));
+  const snap = await db.collection("pushTokens").limit(SCAN_CAP).get();
+  warnIfCapped(snap.size, SCAN_CAP, "pushTokens scan hit cap — anon broadcast truncated");
+  return snap.docs.map(toTokenRef);
 }
 
 async function fanOutInbox(
@@ -142,18 +141,23 @@ export async function sendNotification(
   if (
     typeof input.title !== "string" ||
     input.title.length === 0 ||
+    input.title.length > 120 ||
     typeof input.body !== "string" ||
     input.body.length === 0 ||
-    !(input.createdAt instanceof Timestamp)
+    input.body.length > 1000 ||
+    !hasToMillis(input.createdAt)
   ) {
     console.error("notification has malformed payload — skipping", { id });
     return;
   }
   try {
     const memberIds = await resolveMembers(db, audience);
-    await fanOutInbox(db, memberIds, id, input);
-    const tokens = await memberTokens(db, memberIds);
-    if (includesAnonTokens(audience)) tokens.push(...(await anonTokens(db)));
+    const [, memberTokenRefs, anonTokenRefs] = await Promise.all([
+      fanOutInbox(db, memberIds, id, input),
+      memberTokens(db, memberIds),
+      includesAnonTokens(audience) ? anonTokens(db) : Promise.resolve([] as TokenRef[]),
+    ]);
+    const tokens = [...memberTokenRefs, ...anonTokenRefs];
     const stats =
       tokens.length > 0
         ? await pushAndPrune(sender, tokens, input)
