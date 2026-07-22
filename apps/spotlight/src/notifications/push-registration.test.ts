@@ -31,7 +31,9 @@ describe("enablePush", () => {
 
     expect(result).toBe("tok-123");
     expect(register).toHaveBeenCalledTimes(1);
-    expect(register).toHaveBeenCalledWith(expect.stringMatching(/^\/firebase-messaging-sw\.js\?/));
+    expect(register).toHaveBeenCalledWith(expect.stringMatching(/^\/firebase-messaging-sw\.js\?/), {
+      scope: "/firebase-cloud-messaging-push-scope",
+    });
     expect(doc).toHaveBeenCalledWith({ __db: true }, "pushTokens", "tok-123");
     expect(setDoc).toHaveBeenCalledTimes(1);
     expect(setDoc).toHaveBeenCalledWith(expect.anything(), { createdAt: "SERVER_TS" });

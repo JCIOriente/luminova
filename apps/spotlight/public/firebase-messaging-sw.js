@@ -22,10 +22,11 @@ messaging.onBackgroundMessage((payload) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url ?? "/";
+  const target = new URL(url, self.location.origin).href;
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
-      const hit = wins.find((w) => w.url === url);
-      return hit ? hit.focus() : clients.openWindow(url);
+      const hit = wins.find((w) => w.url === target);
+      return hit ? hit.focus() : clients.openWindow(target);
     }),
   );
 });

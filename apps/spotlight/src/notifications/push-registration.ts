@@ -22,6 +22,7 @@ function swConfigQuery(): string {
 export async function enablePush(): Promise<string | null> {
   const reg = await navigator.serviceWorker.register(
     `/firebase-messaging-sw.js?${swConfigQuery()}`,
+    { scope: "/firebase-cloud-messaging-push-scope" },
   );
   const token = await requestPushToken(import.meta.env.VITE_FIREBASE_VAPID_KEY ?? "", reg);
   if (!token) return null;
