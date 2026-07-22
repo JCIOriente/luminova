@@ -26,10 +26,14 @@ function persistDismissed(): void {
  *  "Activar" so it never enters the login-path eager graph. */
 export function PushPrompt() {
   const uid = getFirebase().auth.currentUser?.uid;
-  const promptable =
-    typeof Notification !== "undefined" && Notification.permission === "default" && !isDismissed();
-
-  const [visible, setVisible] = useState(promptable);
+  // Lazy init: the permission + localStorage read only decides the initial mount
+  // state, so compute it once — not on every re-render (busy/toast updates).
+  const [visible, setVisible] = useState(
+    () =>
+      typeof Notification !== "undefined" &&
+      Notification.permission === "default" &&
+      !isDismissed(),
+  );
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const unsubscribe = useRef<(() => void) | null>(null);
