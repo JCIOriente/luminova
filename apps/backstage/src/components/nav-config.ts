@@ -17,7 +17,8 @@ type Subject =
   | "Program"
   | "Project"
   | "Position"
-  | "Lead";
+  | "Lead"
+  | "Notification";
 
 export interface NavItem {
   to:
@@ -32,6 +33,7 @@ export interface NavItem {
     | "/positions"
     | "/permisos"
     | "/leads"
+    | "/notificaciones"
     | "/config";
   label: string;
   icon: IconKey;
@@ -42,9 +44,13 @@ export interface NavItem {
    *  roles OR satisfies `orCan` (below). Used when the viewer set can't be named by
    *  a perm alone (a built-in role shares a coarse read grant with plain Members). */
   roles?: Role[];
-  /** Escape hatch ORed with `roles`: a dynamic custom role (perms only, no built-in
-   *  role name) that holds this capability is admitted even when it matches no
-   *  `roles` entry — so the perms system isn't defeated by the built-in allowlist. */
+  /** Top-level escape hatch ORed with the whole (subject AND roles) gate: a principal
+   *  holding this capability is admitted on its own, even when it matches no `roles`
+   *  entry AND lacks the item's `subject` read. Two uses: (1) a dynamic custom role
+   *  (perms only, no built-in role name) that manages a role-gated catalog isn't excluded
+   *  by the built-in allowlist (/positions); (2) an item whose `subject` read is
+   *  restrictive still admits a second capability (/notificaciones gates history on
+   *  read:Notification, but a compose-only principal holds only create:Notification). */
   orCan?: { action: Action; subject: Subject };
 }
 
@@ -86,6 +92,16 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: "/members", label: "Miembros", icon: "user", subject: "Member" },
       { to: "/allies", label: "Aliados", icon: "handshake", subject: "Ally" },
       { to: "/leads", label: "Prospectos", icon: "mail", subject: "Lead" },
+      {
+        to: "/notificaciones",
+        label: "Notificaciones",
+        icon: "bell",
+        // read:Notification admits history viewers; orCan create:Notification re-admits a
+        // compose-only principal (no read) — each op is conditionally in-page-gated, so the
+        // nav gate is read OR create (mirrors the /positions orCan escape-hatch pattern).
+        subject: "Notification",
+        orCan: { action: "create", subject: "Notification" },
+      },
       { to: "/point-rules", label: "Reglas de puntos", icon: "target", subject: "PointRule" },
       {
         to: "/leaderboard",
@@ -139,6 +155,13 @@ export const NAV_GROUPS: NavGroup[] = [
 ];
 
 export function isNavItemVisible(item: NavItem, ability: AppAbility, claims: AuthClaims): boolean {
+  // `orCan` is a TOP-LEVEL escape hatch ORed with the whole (subject AND roles) gate:
+  // a capability that admits the item on its own. This matters when the item's `subject`
+  // read is restrictive — /notificaciones gates history on read:Notification, so a
+  // compose-only principal (create:Notification, no read) would fail the subject clause;
+  // the escape hatch admits them without widening that gate. For /positions it is
+  // behavior-identical to ORing inside the roles clause, since manage:Position ⊇ read.
+  if (item.orCan && abilityAllows(ability, item.orCan.action, item.orCan.subject)) return true;
   return (
     // Probe an EMPTY subject instance, not the bare subject type. A conditional
     // grant — e.g. a Member's own-doc `can('read','Member',{uid})` — must NOT
@@ -148,11 +171,9 @@ export function isNavItemVisible(item: NavItem, ability: AppAbility, claims: Aut
     // query that firestore.rules (correctly) denies. An empty instance matches
     // only UNCONDITIONAL grants — mirroring what the rules actually allow for a list.
     (!item.subject || abilityAllows(ability, item.action ?? "read", item.subject)) &&
-    // Role allowlist ORed with the `orCan` capability, so a perms-only custom role
-    // isn't excluded by an allowlist that exists purely to name built-in roles.
-    (!item.roles ||
-      hasAnyRole(claims, item.roles) ||
-      (item.orCan !== undefined && abilityAllows(ability, item.orCan.action, item.orCan.subject)))
+    // Built-in role allowlist. A perms-only custom role that should still reach the item
+    // is re-admitted by `orCan` (handled above), so the allowlist doesn't defeat perms.
+    (!item.roles || hasAnyRole(claims, item.roles))
   );
 }
 
@@ -230,6 +251,11 @@ export const ROUTE_GATING: Partial<Record<NavItem["to"], GatingProbe>> = {
   "/members": { kind: "listRead", collection: "members" },
   "/allies": { kind: "listRead", collection: "allies" },
   "/leads": { kind: "listRead", collection: "leads" },
+  "/notificaciones": {
+    kind: "curationOnly",
+    collections: ["notifications"],
+    note: "compose page: create:Notification gates the composer, read:Notification gates the sent-history list — each op is conditionally in-page-gated, so nav visibility (read OR create) mirrors no single rules boundary",
+  },
   "/leaderboard": { kind: "listRead", collection: "members" },
   "/permisos": { kind: "write", collection: "roles", op: "create" },
   "/config": { kind: "write", collection: "siteConfig", op: "update" },

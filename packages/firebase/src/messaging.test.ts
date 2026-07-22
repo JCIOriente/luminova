@@ -5,6 +5,7 @@ vi.mock("firebase/messaging", () => ({
   getMessaging: vi.fn(),
   getToken: vi.fn(),
   onMessage: vi.fn(),
+  deleteToken: vi.fn(),
 }));
 
 import { getMessaging } from "firebase/messaging";
@@ -21,6 +22,14 @@ describe("requestPushToken", () => {
     const { requestPushToken } = await import("./messaging.js");
     const swReg = {} as ServiceWorkerRegistration;
     expect(await requestPushToken("vapid", swReg)).toBeNull();
+    expect(getMessaging).not.toHaveBeenCalled();
+  });
+});
+
+describe("revokePushToken", () => {
+  it("resolves without touching messaging when push is unsupported", async () => {
+    const { revokePushToken } = await import("./messaging.js");
+    await expect(revokePushToken()).resolves.toBeUndefined();
     expect(getMessaging).not.toHaveBeenCalled();
   });
 });

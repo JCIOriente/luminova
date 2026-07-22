@@ -2,6 +2,7 @@ import { useLocation } from "@tanstack/react-router";
 import { Icon, IconButton } from "@luminova/ui";
 import { sectionTitle } from "./breadcrumb";
 import { openCommandMenu } from "./command-menu-store";
+import { NotificationBell } from "../features/notifications/components/notification-bell";
 
 export function AppTopbar({ onOpenNav }: { onOpenNav: () => void }) {
   const { pathname } = useLocation();
@@ -47,9 +48,7 @@ export function AppTopbar({ onOpenNav }: { onOpenNav: () => void }) {
           ⌘K
         </kbd>
       </button>
-      <IconButton as="button" variant="subtle" size="md" aria-label="Notificaciones">
-        {Icon.bell({ s: 20 })}
-      </IconButton>
+      <NotificationBell />
     </header>
   );
 }

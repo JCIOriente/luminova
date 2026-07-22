@@ -11,7 +11,7 @@ export type Audience = z.infer<typeof audienceSchema>;
 export const notificationCreateSchema = z.object({
   title: z.string().min(1).max(120),
   body: z.string().min(1).max(1000),
-  url: z.string().url().nullable(),
+  url: z.string().url().max(2000).nullable(),
   audience: audienceSchema,
 });
 export type NotificationCreate = z.infer<typeof notificationCreateSchema>;

@@ -59,6 +59,9 @@ VITE_FIREBASE_PROJECT_ID=jci-oriente
 VITE_FIREBASE_STORAGE_BUCKET=jci-oriente.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=953870918238
 VITE_FIREBASE_APP_ID=<per-app appId from Web Apps table above>
+# Web Push (FCM) public VAPID key — project-level, same value for both apps.
+# See "Push Notifications (FCM Web Push)" below. Public; ships in the client bundle.
+VITE_FIREBASE_VAPID_KEY=<Web Push certificate public key>
 # App Check (reCAPTCHA v3) — paste the real site key once created; blank (as here for local dev) disables App Check
 VITE_APPCHECK_SITE_KEY=
 VITE_FIREBASE_EMULATOR_ENABLED=false
@@ -388,3 +391,71 @@ the branded reset flow:
    tokens, or you will lock out the app.
 6. **Password policy** — the seeded admin account's password must satisfy the policy
    (min 6 + lower + upper + digit) or it can no longer sign in.
+
+## Push Notifications (FCM Web Push)
+
+The notifications feature (spec `docs/specs/2026-07-21-notifications-design.md`) uses
+Firebase Cloud Messaging web push. Two one-time Console owner ops enable it; the code
+is otherwise complete.
+
+### 1. Enable the Cloud Messaging API (V1)
+
+`firebase-admin`'s `sendEachForMulticast` (the beacon `onNotificationCreated` trigger)
+calls this API to send. Modern Firebase projects usually enable it automatically.
+
+```bash
+gcloud services enable fcm.googleapis.com --project jci-oriente
+```
+
+Or: Google Cloud Console → **APIs & Services → Library** → "Firebase Cloud Messaging
+API" → **Enable**. (The deprecated "Cloud Messaging API (Legacy)" is **not** needed.)
+
+### 2. Generate the Web Push (VAPID) key pair
+
+Firebase Console → **⚙️ Project settings → Cloud Messaging → Web configuration →
+Web Push certificates → Generate key pair**. Copy the **public** key (the private half
+stays in Firebase). If a pair already exists, reuse it — regenerating invalidates every
+issued token.
+
+The Web Push certificate is **project-level**, so the same public key is used by both
+web apps (backstage + spotlight).
+
+### 3. Wire the key
+
+Set the same value in **both** apps' `.env.local` (gitignored):
+
+```bash
+# apps/backstage/.env.local  AND  apps/spotlight/.env.local
+VITE_FIREBASE_VAPID_KEY=<public key from step 2>
+```
+
+Vite inlines `import.meta.env` at build time — restart the dev server / redeploy after
+changing it.
+
+### 4. Grant the compose permission to existing members
+
+`create:Notification` / `read:Notification` are seeded to **ExecutiveCommittee** (and
+Admin via `manage:all`). Existing deployments need the perms pushed into live claims:
+re-seed the ExecutiveCommittee role doc's `permissions` (or run the `recomputeAllClaims`
+callable) so those members can compose. New/re-seeded environments get it automatically.
+
+### 5. Verify
+
+- **Emulators can't deliver push** (there is no FCM emulator — `getToken` still hits real
+  FCM, but delivery needs a deployed/real environment). Test against a deployed build or
+  with `VITE_FIREBASE_EMULATOR_ENABLED=false` + real Firestore.
+- **Backstage:** load the app (installed PWA or a supported browser), accept "Activa
+  notificaciones", grant OS permission → a token doc appears at
+  `members/{uid}/fcmTokens/{token}`. Compose at `/notificaciones` → the device gets a push
+  + an inbox entry (bell).
+- **Spotlight:** on iOS, web push requires an **installed** PWA (Add to Home Screen, iOS
+  16.4+); Android/desktop work in-browser. Accept the prompt → a `pushTokens/{token}` doc
+  appears; an "Everyone" broadcast reaches it.
+
+### Service worker note
+
+Each app serves a standalone `public/firebase-messaging-sw.js` (background handler) that
+is registered at the dedicated scope `/firebase-cloud-messaging-push-scope` so it coexists
+with the vite-plugin-pwa workbox precache SW at `/` (two registrations cannot share a
+scope). Firebase config is passed to it via the registration query string (a static SW
+can't read `import.meta.env`); the values are the public web config, no secrets.

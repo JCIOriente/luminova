@@ -1,0 +1,105 @@
+import { useEffect, useRef, useState } from "react";
+import { Button, Card, Icon, Toast } from "@luminova/ui";
+import { getFirebase } from "@luminova/firebase";
+import { useDismissingToast } from "../../../lib/use-dismissing-toast";
+import { readStorage, writeStorage } from "../../../lib/safe-storage";
+
+const DISMISS_KEY = "backstage.push.prompt.dismissed";
+
+function isDismissed(): boolean {
+  return readStorage(DISMISS_KEY) === "1";
+}
+
+function persistDismissed(): void {
+  // Non-fatal on failure: the prompt just reappears next session.
+  writeStorage(DISMISS_KEY, "1");
+}
+
+/** Soft opt-in for web push. Shown post-login on every _app page ONLY while the OS
+ *  permission is still "default" and the user hasn't dismissed it. The push
+ *  registration module (and firebase/messaging behind it) is dynamically imported on
+ *  "Activar" so it never enters the login-path eager graph. */
+export function PushPrompt() {
+  const uid = getFirebase().auth.currentUser?.uid;
+  // Lazy init: the permission + localStorage read only decides the initial mount
+  // state, so compute it once — not on every re-render (busy/toast updates).
+  const [visible, setVisible] = useState(
+    () =>
+      typeof Notification !== "undefined" &&
+      Notification.permission === "default" &&
+      !isDismissed(),
+  );
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useDismissingToast(4000);
+  const unsubscribe = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      unsubscribe.current?.();
+    };
+  }, []);
+
+  if (!uid) return null;
+
+  const dismiss = () => {
+    persistDismissed();
+    setVisible(false);
+  };
+
+  const activate = async () => {
+    setBusy(true);
+    try {
+      const { enablePush, listenForeground } = await import("../../../lib/push-registration");
+      const token = await enablePush(uid);
+      setVisible(false);
+      if (token) {
+        persistDismissed();
+        unsubscribe.current = await listenForeground((title, body) =>
+          setToast(`${title}: ${body}`),
+        );
+        setToast("Notificaciones activadas.");
+      } else {
+        setToast("No se pudieron activar las notificaciones.");
+      }
+    } catch (err) {
+      console.error("enablePush failed", err);
+      setVisible(false);
+      setToast("No se pudieron activar las notificaciones.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      {visible && (
+        <Card
+          as="aside"
+          padding="md"
+          className="fixed right-4 bottom-4 z-[80] w-[320px] max-w-[calc(100vw-2rem)]"
+        >
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 inline-flex text-jci-blue" aria-hidden="true">
+              {Icon.bell({ s: 20 })}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-ui-sm font-semibold text-ink-1">Activa las notificaciones</p>
+              <p className="mt-1 text-ui-xs text-ink-3">
+                Recibe avisos de la organización directamente en este dispositivo.
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <Button as="button" size="sm" onClick={activate} disabled={busy}>
+                  Activar
+                </Button>
+                <Button as="button" variant="secondary" size="sm" onClick={dismiss} disabled={busy}>
+                  Ahora no
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+      {toast && <Toast message={toast} />}
+    </>
+  );
+}

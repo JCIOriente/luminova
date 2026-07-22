@@ -181,6 +181,24 @@ export default tseslint.config(
     },
   },
   {
+    // The FCM background service worker is a static file copied verbatim to the
+    // dist root (it can't be a module — a SW registered by the browser can't read
+    // import.meta.env). It runs in the ServiceWorkerGlobalScope and pulls firebase
+    // via importScripts (compat CDN build), so declare those globals rather than
+    // let no-undef flag every `self`/`clients`/`firebase`/`importScripts`.
+    files: ["apps/*/public/firebase-messaging-sw.js"],
+    languageOptions: {
+      globals: {
+        self: "readonly",
+        clients: "readonly",
+        importScripts: "readonly",
+        firebase: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+      },
+    },
+  },
+  {
     // Spotlight is the public, no-auth site. It must only touch Firestore via the
     // lite SDK; importing the @luminova/firebase barrel pulls the full firebase
     // SDK (auth/storage/functions) into the public bundle. Steer to the /lite
