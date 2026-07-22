@@ -99,7 +99,7 @@ export function PushPrompt() {
         maxWidth: 420,
         padding: 20,
         borderRadius: 16,
-        background: "var(--surface-1)",
+        background: "var(--surface)",
         border: "1px solid var(--line)",
         boxShadow: "0 18px 48px -16px rgba(19,15,45,0.45)",
       }}
