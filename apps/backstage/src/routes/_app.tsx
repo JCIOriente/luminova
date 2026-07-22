@@ -6,6 +6,7 @@ import { canAccessRoute } from "../components/nav-config";
 import { AppSidebar } from "../components/app-sidebar";
 import { AppTopbar } from "../components/app-topbar";
 import { CommandMenu } from "../components/command-menu";
+import { PushPrompt } from "../features/notifications/components/push-prompt";
 import { getSidebarCollapsed, subscribe } from "../lib/ui-prefs";
 
 export const Route = createFileRoute("/_app")({
@@ -59,6 +60,7 @@ function AppLayout() {
         </main>
       </div>
       <CommandMenu />
+      <PushPrompt />
     </div>
   );
 }
