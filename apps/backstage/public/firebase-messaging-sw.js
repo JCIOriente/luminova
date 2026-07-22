@@ -27,11 +27,14 @@ messaging.onBackgroundMessage((payload) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url ?? "/";
+  // WindowClient.url is absolute; resolve the (possibly relative) target so the
+  // focus-existing-tab match works instead of always opening a duplicate.
+  const target = new URL(url, self.location.origin).href;
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
-      const hit = wins.find((w) => w.url === url);
+      const hit = wins.find((w) => w.url === target);
       if (hit) return hit.focus();
-      return clients.openWindow(url);
+      return clients.openWindow(target);
     }),
   );
 });

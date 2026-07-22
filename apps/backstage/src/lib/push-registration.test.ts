@@ -54,7 +54,9 @@ describe("enablePush", () => {
     const result = await enablePush("uid-9");
 
     expect(result).toBe("tok-123");
-    expect(swRegister).toHaveBeenCalledWith(expect.stringContaining("/firebase-messaging-sw.js?"));
+    expect(swRegister).toHaveBeenCalledWith(expect.stringContaining("/firebase-messaging-sw.js?"), {
+      scope: "/firebase-cloud-messaging-push-scope",
+    });
     expect(fcmTokenRepositoryCtor).toHaveBeenCalledWith("uid-9");
     expect(fcmAdd).toHaveBeenCalledWith("tok-123");
   });

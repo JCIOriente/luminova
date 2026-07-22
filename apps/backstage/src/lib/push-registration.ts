@@ -24,7 +24,14 @@ function swConfigQuery(): string {
 }
 
 async function registerFcmSw(): Promise<ServiceWorkerRegistration> {
-  return navigator.serviceWorker.register(`/firebase-messaging-sw.js?${swConfigQuery()}`);
+  // Register at FCM's dedicated sub-scope, NOT "/" — the workbox precache SW owns
+  // "/", and two registrations can't share a scope (they'd evict each other across
+  // the opt-in/reload cycle). Background push is delivered to whichever registration
+  // getToken subscribed with, so the FCM SW here receives push while workbox keeps
+  // page/precache control.
+  return navigator.serviceWorker.register(`/firebase-messaging-sw.js?${swConfigQuery()}`, {
+    scope: "/firebase-cloud-messaging-push-scope",
+  });
 }
 
 /** Opt in: register the FCM SW, get a token, persist it under the member's uid.
