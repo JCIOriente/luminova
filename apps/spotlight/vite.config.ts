@@ -109,7 +109,28 @@ export default defineConfig({
         // are rendered synchronously by the eager shell, so they must stay in index —
         // grouping them here would drag firebase back into the eager set. Likewise
         // `cached-resource` (the tiny sync cache reader) stays in index.
+        //
+        // The firebase/messaging SDK and our @luminova/firebase/messaging wrapper
+        // (packages/firebase/src/messaging.ts) must NOT ride in `site-data` — that
+        // chunk is pulled by `Footer`→`useSiteConfig` on every page, so folding
+        // messaging in ships the ~5 kB gz SDK to every visitor. The generic
+        // `firebase` match below would otherwise capture it, so return early
+        // (undefined) for every messaging id: that lets rolldown colocate it with
+        // its ONLY importer — the dynamic import("./push-registration") from the
+        // push opt-in — landing it in the lazy `push-registration` chunk instead.
+        // Do NOT force it into a named chunk: forcing `@firebase/messaging` into its
+        // own chunk makes rolldown relocate the SHARED firebase-app/installations
+        // core into that chunk too, which `site-data` then imports back — an eager
+        // reverse edge that loads messaging's chunk on every page anyway.
         manualChunks(id) {
+          if (
+            id.includes("@firebase/messaging") ||
+            id.includes("firebase/messaging") ||
+            id.includes("firebase/src/messaging") ||
+            id.includes("firebase/dist/messaging")
+          ) {
+            return;
+          }
           if (id.includes("firebase") || id.includes("site-config-firestore")) {
             return "site-data";
           }
