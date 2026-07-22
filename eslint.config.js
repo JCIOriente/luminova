@@ -80,6 +80,22 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   prettier,
   {
+    // FCM background service worker (public/firebase-messaging-sw.js) runs in the
+    // ServiceWorkerGlobalScope with the firebase compat SDK loaded via importScripts
+    // — it is NOT part of the app module graph. Declare its ambient globals so
+    // no-undef doesn't flag self/clients/importScripts/URL/firebase.
+    files: ["apps/spotlight/public/firebase-messaging-sw.js"],
+    languageOptions: {
+      globals: {
+        self: "readonly",
+        clients: "readonly",
+        importScripts: "readonly",
+        URL: "readonly",
+        firebase: "readonly",
+      },
+    },
+  },
+  {
     // eslint-plugin-react-hooks: enforce the Rules of Hooks and complete effect
     // dependency lists across both apps and the shared packages (including the
     // hand-rolled hooks in packages/ui and spotlight's lib/). Both rules are
