@@ -1,4 +1,5 @@
 import {
+  deleteToken,
   getMessaging,
   getToken,
   isSupported,
@@ -32,6 +33,18 @@ export async function requestPushToken(
     console.warn("FCM getToken failed", err);
     return null;
   });
+}
+
+/** Delete the device's current FCM token (kills the physical push subscription, not just
+ *  the Firestore token doc). No-op when push is unsupported; never throws — a cleanup
+ *  failure must not block sign-out, but it is logged (guardrail: no silent catch). */
+export async function revokePushToken(): Promise<void> {
+  if (!(await isPushSupported())) return;
+  try {
+    await deleteToken(getMessaging(ensureApp()));
+  } catch (err) {
+    console.warn("FCM deleteToken failed", err);
+  }
 }
 
 /** Subscribe to foreground messages (OS notification is suppressed while the tab is

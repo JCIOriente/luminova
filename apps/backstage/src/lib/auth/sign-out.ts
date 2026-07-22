@@ -13,7 +13,9 @@ export async function signOutUser(): Promise<void> {
       const token = storedPushToken();
       if (token) await disablePush(uid, token);
     } catch (err) {
-      console.warn("push token cleanup on sign-out failed", err);
+      // Security-relevant: a failed token cleanup leaves a signed-out device subscribed
+      // (guardrail: no silent catch). Still best-effort — must not block sign-out.
+      console.error("push token cleanup on sign-out failed", err);
     }
   }
   await signOut(auth);

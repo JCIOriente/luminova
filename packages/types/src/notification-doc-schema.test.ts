@@ -24,6 +24,13 @@ describe("notificationDocSchema", () => {
     expect(parsed.stats).toBeNull();
   });
 
+  it("accepts a just-composed doc with NO stats key, yielding stats === null", () => {
+    const justComposed: Record<string, unknown> = { ...validDoc };
+    delete justComposed.stats;
+    const parsed = notificationDocSchema.parse(justComposed);
+    expect(parsed.stats).toBeNull();
+  });
+
   it("accepts a members audience", () => {
     expect(
       notificationDocSchema.safeParse({ ...validDoc, audience: { type: "members" } }).success,

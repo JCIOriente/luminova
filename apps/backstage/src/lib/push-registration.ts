@@ -1,6 +1,10 @@
 import { getDb } from "@luminova/firebase/db";
 import { doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
-import { requestPushToken, onForegroundMessage } from "@luminova/firebase/messaging";
+import {
+  requestPushToken,
+  revokePushToken,
+  onForegroundMessage,
+} from "@luminova/firebase/messaging";
 
 // Reached ONLY via a dynamic import() from the opt-in prompt, so the static
 // `@luminova/firebase/messaging` import here (and firebase/messaging behind it)
@@ -39,9 +43,12 @@ export async function enablePush(uid: string): Promise<string | null> {
   return token;
 }
 
-/** Remove a device token (e.g. on logout). */
+/** Remove a device token (e.g. on logout). Drops both the Firestore token doc AND the
+ *  physical FCM subscription (revokePushToken), so a signed-out device stops receiving
+ *  push — deleting only the doc would leave the browser subscription alive. */
 export async function disablePush(uid: string, token: string): Promise<void> {
   await deleteDoc(doc(getDb(), `members/${uid}/fcmTokens/${token}`));
+  await revokePushToken();
   try {
     localStorage.removeItem(TOKEN_KEY);
   } catch {

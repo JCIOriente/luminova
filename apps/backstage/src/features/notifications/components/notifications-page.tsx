@@ -132,6 +132,7 @@ function ComposeForm() {
           id="url"
           type="url"
           inputMode="url"
+          maxLength={2000}
           placeholder="https://…"
           {...register("url", { setValueAs: (v) => (v === "" ? null : v) })}
         />

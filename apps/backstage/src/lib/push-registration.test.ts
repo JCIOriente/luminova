@@ -1,18 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { requestPushToken, onForegroundMessage, getDb, doc, setDoc, deleteDoc } = vi.hoisted(() => ({
-  requestPushToken:
-    vi.fn<(vapid: string, reg: ServiceWorkerRegistration) => Promise<string | null>>(),
-  onForegroundMessage: vi.fn<(handler: (p: unknown) => void) => Promise<() => void>>(
-    async () => () => {},
-  ),
-  getDb: vi.fn<() => unknown>(() => ({})),
-  doc: vi.fn<(db: unknown, path: string) => { path: string }>((_db, path) => ({ path })),
-  setDoc: vi.fn<(ref: unknown, data: unknown) => Promise<void>>(async () => undefined),
-  deleteDoc: vi.fn<(ref: unknown) => Promise<void>>(async () => undefined),
-}));
+const { requestPushToken, revokePushToken, onForegroundMessage, getDb, doc, setDoc, deleteDoc } =
+  vi.hoisted(() => ({
+    requestPushToken:
+      vi.fn<(vapid: string, reg: ServiceWorkerRegistration) => Promise<string | null>>(),
+    revokePushToken: vi.fn<() => Promise<void>>(async () => undefined),
+    onForegroundMessage: vi.fn<(handler: (p: unknown) => void) => Promise<() => void>>(
+      async () => () => {},
+    ),
+    getDb: vi.fn<() => unknown>(() => ({})),
+    doc: vi.fn<(db: unknown, path: string) => { path: string }>((_db, path) => ({ path })),
+    setDoc: vi.fn<(ref: unknown, data: unknown) => Promise<void>>(async () => undefined),
+    deleteDoc: vi.fn<(ref: unknown) => Promise<void>>(async () => undefined),
+  }));
 
-vi.mock("@luminova/firebase/messaging", () => ({ requestPushToken, onForegroundMessage }));
+vi.mock("@luminova/firebase/messaging", () => ({
+  requestPushToken,
+  revokePushToken,
+  onForegroundMessage,
+}));
 vi.mock("@luminova/firebase/db", () => ({ getDb }));
 vi.mock("firebase/firestore", () => ({
   doc,
@@ -67,5 +73,11 @@ describe("disablePush", () => {
     expect(deleteDoc).toHaveBeenCalledWith(
       expect.objectContaining({ path: "members/uid-9/fcmTokens/tok-123" }),
     );
+  });
+
+  it("revokes the physical FCM subscription, not just the Firestore doc", async () => {
+    await disablePush("uid-9", "tok-123");
+
+    expect(revokePushToken).toHaveBeenCalledTimes(1);
   });
 });

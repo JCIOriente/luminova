@@ -154,6 +154,18 @@ describe("isNavItemVisible — conditional grants must not leak", () => {
     expect(canSee("/positions", claimsFor("Member"))).toBe(false);
     expect(canSee("/positions", claimsFor("Treasury"))).toBe(false);
   });
+
+  it("shows /notificaciones to a compose-only principal (create:Notification, no read)", () => {
+    // The page's history list gates on read:Notification, but a compose-only principal
+    // holds only create:Notification. The item's `subject: Notification` read would hide
+    // them, so `orCan(create:Notification)` (a top-level escape hatch) must re-admit them —
+    // otherwise the composer they CAN use is unreachable. A read:Notification-only principal
+    // stays visible via the subject clause; a principal with neither is hidden.
+    expect(canSee("/notificaciones", { roles: [], perms: ["create:Notification"] })).toBe(true);
+    expect(canSee("/notificaciones", { roles: [], perms: ["read:Notification"] })).toBe(true);
+    expect(canSee("/notificaciones", { roles: [], perms: ["read:Member"] })).toBe(false);
+    expect(canSee("/notificaciones", claimsFor("Member"))).toBe(false);
+  });
 });
 
 describe("curationOnly routes — pinned visibility sets (nav-equivalence Check A skips these)", () => {

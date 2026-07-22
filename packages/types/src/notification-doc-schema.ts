@@ -9,7 +9,10 @@ const notificationStatsSchema = z.object({
 
 /** Read-schema for a composed `notifications/{id}` doc. The doc id is injected by
  *  `parseDocs`, so it is intentionally absent here (matches the other doc-schemas).
- *  `stats` is null until the beacon fan-out writes the delivery tally. */
+ *  `stats` is absent on a just-composed doc (the rules forbid it on create; the beacon
+ *  fan-out writes it later via merge), so the key must be optional AND nullable and
+ *  normalize to `null` — otherwise a fresh notification fails validation and parseDocs
+ *  silently drops it from the sent-history table. */
 export const notificationDocSchema = z.object({
   title: z.string(),
   body: z.string(),
@@ -17,7 +20,7 @@ export const notificationDocSchema = z.object({
   audience: audienceSchema,
   createdBy: z.string(),
   createdAt: clientTimestampSchema,
-  stats: notificationStatsSchema.nullable(),
+  stats: notificationStatsSchema.nullish().transform((v) => v ?? null),
 }) satisfies z.ZodType<Omit<NotificationDoc, "id">>;
 
 /** Read-schema for a member's inbox copy at `members/{uid}/notifications/{id}`.
