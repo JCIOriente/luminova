@@ -1,23 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Card, Icon, Toast } from "@luminova/ui";
 import { getFirebase } from "@luminova/firebase";
+import { useDismissingToast } from "../../../lib/use-dismissing-toast";
+import { readStorage, writeStorage } from "../../../lib/safe-storage";
 
 const DISMISS_KEY = "backstage.push.prompt.dismissed";
 
 function isDismissed(): boolean {
-  try {
-    return localStorage.getItem(DISMISS_KEY) === "1";
-  } catch {
-    return false;
-  }
+  return readStorage(DISMISS_KEY) === "1";
 }
 
 function persistDismissed(): void {
-  try {
-    localStorage.setItem(DISMISS_KEY, "1");
-  } catch {
-    // Non-fatal: the prompt just reappears next session.
-  }
+  // Non-fatal on failure: the prompt just reappears next session.
+  writeStorage(DISMISS_KEY, "1");
 }
 
 /** Soft opt-in for web push. Shown post-login on every _app page ONLY while the OS
@@ -35,7 +30,7 @@ export function PushPrompt() {
       !isDismissed(),
   );
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useDismissingToast(4000);
   const unsubscribe = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -43,12 +38,6 @@ export function PushPrompt() {
       unsubscribe.current?.();
     };
   }, []);
-
-  useEffect(() => {
-    if (!toast) return;
-    const id = setTimeout(() => setToast(null), 4000);
-    return () => clearTimeout(id);
-  }, [toast]);
 
   if (!uid) return null;
 

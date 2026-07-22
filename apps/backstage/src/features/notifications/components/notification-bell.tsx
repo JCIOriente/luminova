@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Icon, IconButton, Popover, EmptyState, Skeleton } from "@luminova/ui";
-import { relativeTimeEs } from "@luminova/utils";
+import { relativeTimeEs } from "@luminova/utils/datetime";
 import type { InboxDoc } from "@luminova/types";
 import { QueryErrorState } from "../../../components/query-error-state";
 import { useInbox, unreadCount } from "../hooks/use-inbox";

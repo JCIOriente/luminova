@@ -1,30 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { requestPushToken, revokePushToken, onForegroundMessage, getDb, doc, setDoc, deleteDoc } =
-  vi.hoisted(() => ({
+const { requestPushToken, revokePushToken, onForegroundMessage, fcmAdd, fcmRemove } = vi.hoisted(
+  () => ({
     requestPushToken:
       vi.fn<(vapid: string, reg: ServiceWorkerRegistration) => Promise<string | null>>(),
     revokePushToken: vi.fn<() => Promise<void>>(async () => undefined),
     onForegroundMessage: vi.fn<(handler: (p: unknown) => void) => Promise<() => void>>(
       async () => () => {},
     ),
-    getDb: vi.fn<() => unknown>(() => ({})),
-    doc: vi.fn<(db: unknown, path: string) => { path: string }>((_db, path) => ({ path })),
-    setDoc: vi.fn<(ref: unknown, data: unknown) => Promise<void>>(async () => undefined),
-    deleteDoc: vi.fn<(ref: unknown) => Promise<void>>(async () => undefined),
-  }));
+    fcmAdd: vi.fn<(token: string) => Promise<void>>(async () => undefined),
+    fcmRemove: vi.fn<(token: string) => Promise<void>>(async () => undefined),
+  }),
+);
 
 vi.mock("@luminova/firebase/messaging", () => ({
   requestPushToken,
   revokePushToken,
   onForegroundMessage,
 }));
-vi.mock("@luminova/firebase/db", () => ({ getDb }));
-vi.mock("firebase/firestore", () => ({
-  doc,
-  setDoc,
-  deleteDoc,
-  serverTimestamp: () => "SERVER_TIME",
+
+const fcmTokenRepositoryCtor = vi.fn<(uid: string) => void>();
+vi.mock("../features/notifications/repositories/fcm-token-repository", () => ({
+  FcmTokenRepository: class {
+    constructor(uid: string) {
+      fcmTokenRepositoryCtor(uid);
+    }
+    add(token: string) {
+      return fcmAdd(token);
+    }
+    remove(token: string) {
+      return fcmRemove(token);
+    }
+  },
 }));
 
 const swRegister = vi.fn(async () => ({ scope: "/" }) as unknown as ServiceWorkerRegistration);
@@ -48,11 +55,8 @@ describe("enablePush", () => {
 
     expect(result).toBe("tok-123");
     expect(swRegister).toHaveBeenCalledWith(expect.stringContaining("/firebase-messaging-sw.js?"));
-    expect(doc).toHaveBeenCalledWith(expect.anything(), "members/uid-9/fcmTokens/tok-123");
-    expect(setDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "members/uid-9/fcmTokens/tok-123" }),
-      { createdAt: "SERVER_TIME" },
-    );
+    expect(fcmTokenRepositoryCtor).toHaveBeenCalledWith("uid-9");
+    expect(fcmAdd).toHaveBeenCalledWith("tok-123");
   });
 
   it("writes nothing and returns null when no token is granted", async () => {
@@ -61,7 +65,7 @@ describe("enablePush", () => {
     const result = await enablePush("uid-9");
 
     expect(result).toBeNull();
-    expect(setDoc).not.toHaveBeenCalled();
+    expect(fcmAdd).not.toHaveBeenCalled();
   });
 });
 
@@ -69,10 +73,8 @@ describe("disablePush", () => {
   it("deletes the token doc for the uid", async () => {
     await disablePush("uid-9", "tok-123");
 
-    expect(doc).toHaveBeenCalledWith(expect.anything(), "members/uid-9/fcmTokens/tok-123");
-    expect(deleteDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "members/uid-9/fcmTokens/tok-123" }),
-    );
+    expect(fcmTokenRepositoryCtor).toHaveBeenCalledWith("uid-9");
+    expect(fcmRemove).toHaveBeenCalledWith("tok-123");
   });
 
   it("revokes the physical FCM subscription, not just the Firestore doc", async () => {
