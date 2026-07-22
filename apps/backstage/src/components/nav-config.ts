@@ -17,7 +17,8 @@ type Subject =
   | "Program"
   | "Project"
   | "Position"
-  | "Lead";
+  | "Lead"
+  | "Notification";
 
 export interface NavItem {
   to:
@@ -32,6 +33,7 @@ export interface NavItem {
     | "/positions"
     | "/permisos"
     | "/leads"
+    | "/notificaciones"
     | "/config";
   label: string;
   icon: IconKey;
@@ -86,6 +88,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: "/members", label: "Miembros", icon: "user", subject: "Member" },
       { to: "/allies", label: "Aliados", icon: "handshake", subject: "Ally" },
       { to: "/leads", label: "Prospectos", icon: "mail", subject: "Lead" },
+      { to: "/notificaciones", label: "Notificaciones", icon: "bell", subject: "Notification" },
       { to: "/point-rules", label: "Reglas de puntos", icon: "target", subject: "PointRule" },
       {
         to: "/leaderboard",
@@ -230,6 +233,7 @@ export const ROUTE_GATING: Partial<Record<NavItem["to"], GatingProbe>> = {
   "/members": { kind: "listRead", collection: "members" },
   "/allies": { kind: "listRead", collection: "allies" },
   "/leads": { kind: "listRead", collection: "leads" },
+  "/notificaciones": { kind: "listRead", collection: "notifications" },
   "/leaderboard": { kind: "listRead", collection: "members" },
   "/permisos": { kind: "write", collection: "roles", op: "create" },
   "/config": { kind: "write", collection: "siteConfig", op: "update" },

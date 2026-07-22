@@ -18,6 +18,7 @@ import { Route as AuthForgotPasswordRouteImport } from './routes/_auth.forgot-pa
 import { Route as AppPositionsRouteImport } from './routes/_app.positions'
 import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
 import { Route as AppPermisosRouteImport } from './routes/_app.permisos'
+import { Route as AppNotificacionesRouteImport } from './routes/_app.notificaciones'
 import { Route as AppMembersRouteImport } from './routes/_app.members'
 import { Route as AppMeRouteImport } from './routes/_app.me'
 import { Route as AppLeadsRouteImport } from './routes/_app.leads'
@@ -71,6 +72,11 @@ const AppPointRulesRoute = AppPointRulesRouteImport.update({
 const AppPermisosRoute = AppPermisosRouteImport.update({
   id: '/permisos',
   path: '/permisos',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNotificacionesRoute = AppNotificacionesRouteImport.update({
+  id: '/notificaciones',
+  path: '/notificaciones',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMembersRoute = AppMembersRouteImport.update({
@@ -139,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/leads': typeof AppLeadsRoute
   '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
+  '/notificaciones': typeof AppNotificacionesRoute
   '/permisos': typeof AppPermisosRoute
   '/point-rules': typeof AppPointRulesRoute
   '/positions': typeof AppPositionsRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/leads': typeof AppLeadsRoute
   '/me': typeof AppMeRoute
   '/members': typeof AppMembersRoute
+  '/notificaciones': typeof AppNotificacionesRoute
   '/permisos': typeof AppPermisosRoute
   '/point-rules': typeof AppPointRulesRoute
   '/positions': typeof AppPositionsRoute
@@ -181,6 +189,7 @@ export interface FileRoutesById {
   '/_app/leads': typeof AppLeadsRoute
   '/_app/me': typeof AppMeRoute
   '/_app/members': typeof AppMembersRoute
+  '/_app/notificaciones': typeof AppNotificacionesRoute
   '/_app/permisos': typeof AppPermisosRoute
   '/_app/point-rules': typeof AppPointRulesRoute
   '/_app/positions': typeof AppPositionsRoute
@@ -204,6 +213,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/me'
     | '/members'
+    | '/notificaciones'
     | '/permisos'
     | '/point-rules'
     | '/positions'
@@ -224,6 +234,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/me'
     | '/members'
+    | '/notificaciones'
     | '/permisos'
     | '/point-rules'
     | '/positions'
@@ -245,6 +256,7 @@ export interface FileRouteTypes {
     | '/_app/leads'
     | '/_app/me'
     | '/_app/members'
+    | '/_app/notificaciones'
     | '/_app/permisos'
     | '/_app/point-rules'
     | '/_app/positions'
@@ -325,6 +337,13 @@ declare module '@tanstack/react-router' {
       path: '/permisos'
       fullPath: '/permisos'
       preLoaderRoute: typeof AppPermisosRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/notificaciones': {
+      id: '/_app/notificaciones'
+      path: '/notificaciones'
+      fullPath: '/notificaciones'
+      preLoaderRoute: typeof AppNotificacionesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/members': {
@@ -416,6 +435,7 @@ interface AppRouteChildren {
   AppLeadsRoute: typeof AppLeadsRoute
   AppMeRoute: typeof AppMeRoute
   AppMembersRoute: typeof AppMembersRoute
+  AppNotificacionesRoute: typeof AppNotificacionesRoute
   AppPermisosRoute: typeof AppPermisosRoute
   AppPointRulesRoute: typeof AppPointRulesRoute
   AppPositionsRoute: typeof AppPositionsRoute
@@ -434,6 +454,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppLeadsRoute: AppLeadsRoute,
   AppMeRoute: AppMeRoute,
   AppMembersRoute: AppMembersRoute,
+  AppNotificacionesRoute: AppNotificacionesRoute,
   AppPermisosRoute: AppPermisosRoute,
   AppPointRulesRoute: AppPointRulesRoute,
   AppPositionsRoute: AppPositionsRoute,
