@@ -44,6 +44,8 @@ export const BUILT_IN_ROLE_PERMS: Record<Role, PermissionCode[]> = {
     "read:Program",
     "read:Project",
     "manage:Position",
+    "create:Notification",
+    "read:Notification",
   ],
   ProjectManager: [
     "manage:Project",

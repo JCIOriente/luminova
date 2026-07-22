@@ -1,7 +1,8 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { getMessaging } from "firebase-admin/messaging";
+import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { createFirestoreStore, parseInitiativeWrite } from "./award-points/firestore-store.js";
 import { syncActivityCheckInFlag } from "./award-points/activity-lock.js";
 import { checkInActivityIds, validateCheckIn } from "./award-points/check-in.js";
@@ -29,6 +30,7 @@ import { builtInKeyFromRoleDoc } from "./claims-sync/role-doc.js";
 import { parseMember, MEMBER_SYNC_FIELDS } from "./claims-sync/parse-member.js";
 import { currentTermKey } from "./runtime.js";
 import { chunk } from "./chunk.js";
+import { sendNotification } from "./notifications/send.js";
 
 // Initialize the default app once at module load. Doing this lazily inside the
 // handler races the functions runtime's admin stub (getApps() can report a stub
@@ -292,6 +294,26 @@ export const onAllyWritten = onDocumentWritten("allies/{id}", async (event) => {
     console.error("allyShowcase projection failed", { id: event.params.id, err });
   }
 });
+
+// Compose = create of notifications/{id}. Fan out inbox copies + best-effort FCM.
+// retry:false (the onDocumentCreated default, stated for intent) — push is not
+// idempotent (a redeliver would double-notify); sendNotification swallows push
+// failures so a transient FCM error never throws a retry. The inbox fan-out is
+// idempotent (deterministic doc id) if a redelivery ever occurs anyway.
+export const onNotificationCreated = onDocumentCreated(
+  { document: "notifications/{id}", retry: false },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+    await sendNotification(db(), getMessaging(), event.params.id, {
+      title: data.title,
+      body: data.body,
+      url: data.url ?? null,
+      audience: data.audience,
+      createdAt: data.createdAt,
+    });
+  },
+);
 
 export { setUserRoles } from "./set-user-roles.js";
 export { seedRoles, recomputeAllClaims } from "./recompute-claims.js";

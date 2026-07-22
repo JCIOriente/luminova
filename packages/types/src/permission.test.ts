@@ -46,3 +46,13 @@ describe("permission vocabulary", () => {
     expect(bytes).toBeLessThan(FIREBASE_CLAIMS_BYTE_LIMIT);
   });
 });
+
+describe("Notification subject", () => {
+  it("is a known subject", () => {
+    expect(SUBJECTS).toContain("Notification");
+  });
+  it("accepts create:Notification and read:Notification", () => {
+    expect(isValidPermissionCode("create:Notification")).toBe(true);
+    expect(isValidPermissionCode("read:Notification")).toBe(true);
+  });
+});
