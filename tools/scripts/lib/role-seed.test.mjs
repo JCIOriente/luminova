@@ -8,8 +8,13 @@ import { permsForRoles, buildBuiltInRoleDocs } from "./role-seed.mjs";
 // workspace package; this plain-Node runner cannot).
 
 test("permsForRoles unions, dedupes, and sorts", () => {
-  assert.deepEqual(permsForRoles(["Member", "Admin"]), ["manage:all"]);
-  assert.deepEqual(permsForRoles(["Member"]), []);
+  assert.deepEqual(permsForRoles(["Member", "Admin"]), [
+    "manage:all",
+    "read:Activity",
+    "read:Member",
+    "read:Program",
+  ]);
+  assert.deepEqual(permsForRoles(["Member"]), ["read:Activity", "read:Member", "read:Program"]);
   assert.deepEqual(permsForRoles(["Admin", "Admin"]), ["manage:all"]);
   assert.deepEqual(permsForRoles(["Treasury"]), ["read:Member", "read:MemberPoints"]);
 });

@@ -68,7 +68,8 @@ describe("syncMemberClaims", () => {
       },
       "2026",
     );
-    expect(writes["target-uid"]).toBeUndefined(); // already ['Member'] + [] perms → no-op
+    // Membership can't confer Admin: the member is recomputed to a plain Member claim.
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
   });
 
   it("honors power grants when assignedBy is Admin", async () => {
@@ -102,7 +103,8 @@ describe("syncMemberClaims", () => {
       { uid: "target-uid", positions: { "2026": { cargoId: "pos-pres", comisionIds: [] } } },
       "2026",
     );
-    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: [] }); // Admin revoked
+    // Admin revoked → back to a plain Member claim (which carries the Member reads).
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
   });
 
   it("preserves Scanner + scannerEventIds while recomputing org roles + perms", async () => {
@@ -136,7 +138,7 @@ describe("syncMemberClaims", () => {
     expect(writes).toEqual({});
   });
 
-  it("revokes to ['Member'] (empty perms) when the current-term cargo is cleared", async () => {
+  it("revokes to a plain Member claim when the current-term cargo is cleared", async () => {
     const { deps, writes } = fakeDeps({
       positions: {},
       userRoles: {},
@@ -150,7 +152,7 @@ describe("syncMemberClaims", () => {
       },
       "2026",
     );
-    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: [] });
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
   });
 
   it("honors ONLY the cargo's grants — comisión grants are never power, even Admin-assigned", async () => {
@@ -196,7 +198,8 @@ describe("syncMemberClaims", () => {
       },
       "2026",
     );
-    expect(writes["target-uid"]).toBeUndefined(); // stays ['Member'] → no-op
+    // The smuggled power id confers nothing: the member stays a plain Member.
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
   });
 
   it("includes perms from a directly-assigned custom role", async () => {
@@ -216,9 +219,10 @@ describe("syncMemberClaims", () => {
       },
       "2026",
     );
+    // Union of the custom role's perms with the Member built-in reads.
     expect(writes["target-uid"]).toEqual({
       roles: ["Member"],
-      perms: ["manage:Ally", "read:Position"],
+      perms: ["manage:Ally", "read:Activity", "read:Member", "read:Position", "read:Program"],
     });
   });
 
@@ -238,10 +242,11 @@ describe("syncMemberClaims", () => {
       },
       "2026",
     );
-    // Treasury = read:Member, read:MemberPoints; +manage:Position, -read:Member
+    // Treasury+Member reads = read:Member, read:MemberPoints, read:Activity, read:Program;
+    // +manage:Position, -read:Member.
     expect(writes["target-uid"]).toEqual({
       roles: ["Treasury", "Member"],
-      perms: ["manage:Position", "read:MemberPoints"],
+      perms: ["manage:Position", "read:Activity", "read:MemberPoints", "read:Program"],
     });
   });
 
@@ -262,8 +267,12 @@ describe("syncMemberClaims", () => {
       },
       "2026",
     );
-    // Live Treasury doc was edited down to just read:Member (not the seed default).
-    expect(writes["target-uid"]).toEqual({ roles: ["Treasury", "Member"], perms: ["read:Member"] });
+    // Live Treasury doc was edited down to just read:Member (not the seed default, so
+    // read:MemberPoints is absent); Member's seed reads still union in.
+    expect(writes["target-uid"]).toEqual({
+      roles: ["Treasury", "Member"],
+      perms: ["read:Activity", "read:Member", "read:Program"],
+    });
   });
 
   it("fail-closed: writes empty perms (not stale claims) when effective perms exceed the cap", async () => {
@@ -328,7 +337,8 @@ describe("syncMemberClaims", () => {
       positions: { "2026": { cargoId: "pos-pres", assignedBy: "membership-uid" } },
     });
     await syncMemberClaims(deps, member, "2026");
-    expect(writes["target-uid"]).toBeUndefined(); // no Admin escalation
+    // No Admin escalation: recomputed to a plain Member claim.
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
   });
 });
 

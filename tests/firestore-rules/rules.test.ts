@@ -496,8 +496,8 @@ describe("firestore.rules — members", () => {
   it("allows a member to read their own profile", async () => {
     await assertSucceeds(getDoc(doc(as("owner-uid", ["Member"]), "members/m1")));
   });
-  it("denies a member reading another profile", async () => {
-    await assertFails(getDoc(doc(as("stranger", ["Member"]), "members/m1")));
+  it("allows a member to read another profile (Member holds read:Member — roster access)", async () => {
+    await assertSucceeds(getDoc(doc(as("stranger", ["Member"]), "members/m1")));
   });
   it("allows Membership to create with totalPoints 0", async () => {
     await assertSucceeds(
