@@ -93,7 +93,10 @@ check_css() {
 
 # Budgets: docs/performance.md section 2 (gzip). Eager JS = entry + modulepreloads.
 check_eager_js "spotlight eager JS" "apps/spotlight/dist" 108
-check_css      "spotlight index CSS" "apps/spotlight/dist/assets/index-*.css" 15
+# Bumped 15→17 for the /about "El Masthead" Directiva section (real permanent
+# leadership page section, token-based hand-authored gradients/clip layout; +1.1 kB
+# gz). Conscious budget decision per docs/performance.md; still leaves ~1 kB headroom.
+check_css      "spotlight index CSS" "apps/spotlight/dist/assets/index-*.css" 17
 # Backstage eager budget re-baselined by PR2: the full Firebase SDK was split so
 # firestore/storage/functions leave the login-path graph (they now load only in
 # lazy feature route chunks), and the `/me` route's stray non-Route export — which

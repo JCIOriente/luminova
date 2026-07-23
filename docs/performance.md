@@ -71,7 +71,7 @@ machine-enforced yet — hold them by judgment + `bundle-budget-watcher`:
 | Budget | spotlight | backstage |
 |--------|-----------|-----------|
 | Eager JS (entry + modulepreloads) | ≤ **108 kB gz** (now 104) | ≤ **162 kB gz** (now 157 — full Firebase SDK split so firestore/storage/functions load lazily; `/me` route de-eagered) |
-| Initial CSS (`index` chunk) | ≤ 15 kB gz (now 14.5) | ≤ 15 kB gz (now 13) |
+| Initial CSS (`index` chunk) | ≤ **17 kB gz** (now 16 — +1.1 kB for the /about "El Masthead" Directiva section: token-based hand-authored gradients/ledger/chip layout, a permanent leadership page section) | ≤ 15 kB gz (now 13) |
 | Any single route chunk | ≤ 40 kB gz | ≤ 40 kB gz |
 | New runtime dependency | justify if it adds > 10 kB gz to eager JS | same |
 
