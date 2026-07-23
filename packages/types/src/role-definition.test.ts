@@ -17,9 +17,13 @@ describe("BUILT_IN_ROLE_PERMS", () => {
       for (const code of codes) expect(isValidPermissionCode(code)).toBe(true);
   });
 
-  it("Scanner and Member have no coarse perms (conditional only)", () => {
+  it("Scanner has no coarse perms (conditional only)", () => {
     expect(BUILT_IN_ROLE_PERMS.Scanner).toEqual([]);
-    expect(BUILT_IN_ROLE_PERMS.Member).toEqual([]);
+  });
+
+  it("Member carries only read-only, member-facing coarse perms", () => {
+    expect(BUILT_IN_ROLE_PERMS.Member).toEqual(["read:Member", "read:Activity", "read:Program"]);
+    for (const code of BUILT_IN_ROLE_PERMS.Member) expect(code.startsWith("read:")).toBe(true);
   });
 });
 

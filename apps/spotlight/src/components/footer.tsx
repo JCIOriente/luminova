@@ -73,7 +73,9 @@ export function Footer() {
                 </a>
               </li>
               <li>
-                <a href={BACKSTAGE_URL}>Portal de miembros</a>
+                <a href={BACKSTAGE_URL} target="_blank" rel="noopener noreferrer">
+                  Portal de miembros
+                </a>
               </li>
               <li>
                 <a href="/linktree" onClick={(e) => go(e, "/linktree")}>

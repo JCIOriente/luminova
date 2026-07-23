@@ -18,9 +18,11 @@ export interface RoleDefinition {
   deletedAt: Timestamp | null;
 }
 
-/** Coarse, non-conditional perms each built-in role confers. Conditional grants
- *  (own-profile read/update, scanner event scope, attendance check-in scope)
- *  live in CASL + firestore.rules, NOT here — so Scanner/Member are empty.
+/** Coarse, non-conditional perms each built-in role confers. Object-scoped grants
+ *  (own-profile read/update, scanner event scope, attendance check-in scope) live in
+ *  CASL + firestore.rules, NOT here — so Scanner is empty. Member carries only the
+ *  coarse reads that light up its member-facing nav pages (roster, leaderboard,
+ *  activities, projects); its own-doc read/update stays object-scoped in CASL.
  *
  *  Canonical SEED for the editable `roles/` docs (beacon seeds from this). Once a
  *  built-in role doc is seeded it becomes the live source of truth (admins may
@@ -55,7 +57,11 @@ export const BUILT_IN_ROLE_PERMS: Record<Role, PermissionCode[]> = {
     "checkIn:Attendance",
   ],
   Scanner: [],
-  Member: [],
+  // Member-facing read access: roster + leaderboard (read:Member — the members
+  // read rule keys on this capability), activities and projects catalogs
+  // (read:Activity / read:Program — both collections are signed-in-readable, so
+  // these only light up the backstage nav). Read-only; every write stays gated.
+  Member: ["read:Member", "read:Activity", "read:Program"],
 };
 
 /** Spanish display labels for the built-in roles — used when seeding the role docs

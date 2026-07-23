@@ -39,7 +39,7 @@ export const BUILT_IN_ROLE_PERMS = {
     "checkIn:Attendance",
   ],
   Scanner: [],
-  Member: [],
+  Member: ["read:Member", "read:Activity", "read:Program"],
 };
 
 /** @type {Record<string, string>} */
