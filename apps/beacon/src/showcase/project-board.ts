@@ -72,7 +72,7 @@ export function projectBoard(
   if (!cargo) return null;
   const group = boardGroupFromCategory(cargo.category);
   if (!group) return null;
-  const title = typeof cargo.title === "string" ? cargo.title : "";
+  const title = typeof cargo.title === "string" ? cargo.title.trim() : "";
   if (title.length === 0) return null;
   const titleFemale = typeof cargo.titleFemale === "string" ? cargo.titleFemale : null;
   const gender = member.gender === "Femenino" ? "Femenino" : undefined;

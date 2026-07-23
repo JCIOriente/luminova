@@ -77,10 +77,13 @@ Admin-guarded custom-claim assignment.
 - **Deferred:** dues→points voiding (J4), roster auto-expansion of director/team
   rows (role arrives on the check-in fact in v1), term-window cutoff in the
   aggregate, prod composite indexes + functions bundling for deploy.
-- **Deferred (boardShowcase term rollover):** `onBoardMemberWritten` derives the
-  term from `currentTermKey()` at trigger time; a board member whose doc gets no
-  write after the UTC-year rollover keeps their prior-term entry live on the
-  public site until the next `members/{id}` write. Same class as the aggregate
-  term-window gap, but the stale data is public. Fix later with a scheduled
-  re-projection at term rollover (or drive it off the term ledger).
+- **Deferred (boardShowcase term rollover + cargo edits):** `onBoardMemberWritten`
+  derives the term from `currentTermKey()` at trigger time and resolves the cargo
+  title/category from `positions/{cargoId}` at member-write time, but only fires on
+  `members/{id}`. So (a) a board member whose doc gets no write after the UTC-year
+  rollover keeps their prior-term entry live, and (b) an edit to a cargo's
+  title/titleFemale/category in `positions/` does not re-project members holding it
+  until each member doc is re-written. Same class as the aggregate term-window gap,
+  but the stale data is public. Fix later with a scheduled re-projection at term
+  rollover and/or an `onDocumentWritten("positions/{id}")` re-projection.
 - **Heaviest skills.** `/security-review`, `secure-dep-vetting` (server deps).
