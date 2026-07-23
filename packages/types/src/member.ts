@@ -25,6 +25,9 @@ export interface Member {
   isPastPresident?: boolean;
   /** Missing on pre-K2 docs; required by the form from K2 on. */
   gender?: MemberGender;
+  /** Member opt-in to appear on the public Directiva projection (boardShowcase).
+   *  Self-set on /me. Missing = not published. */
+  publicProfile?: boolean;
   /** Position assignments keyed by term (year, e.g. "2026"). */
   positions?: Record<string, TermPositions>;
   /** Linked Firebase Auth uid (member self-login). Set by `provisionMemberLogin`

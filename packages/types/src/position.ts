@@ -1,6 +1,9 @@
 import type { Timestamp } from "firebase/firestore";
 import type { Role } from "./permission-role.js";
 import type { MemberGender } from "./member.js";
+import { femaleTitle, genderedTitle } from "./engine/title.js";
+
+export { femaleTitle };
 
 export const POSITION_CATEGORIES = ["CEL", "JDL", "Comision"] as const;
 export type PositionCategory = (typeof POSITION_CATEGORIES)[number];
@@ -33,26 +36,11 @@ export interface TermPositions {
   assignedBy?: string;
 }
 
-/** Derive the feminine form: feminize the FIRST word (-o→-a, -e→-a, else +a),
- *  keep the rest. Irregular multi-word titles need an explicit titleFemale. */
-export function femaleTitle(title: string): string {
-  if (!title) return title;
-  const words = title.split(" ");
-  const first = words[0] ?? "";
-  const rest = words.slice(1);
-  let f: string;
-  if (/o$/.test(first)) f = first.replace(/o$/, "a");
-  else if (/e$/.test(first)) f = first.replace(/e$/, "a");
-  else f = first + "a";
-  return [f, ...rest].join(" ");
-}
-
 export function positionTitle(
   position: Pick<Position, "title" | "titleFemale">,
   gender: MemberGender | undefined,
 ): string {
-  if (gender !== "Femenino") return position.title;
-  return position.titleFemale ?? femaleTitle(position.title);
+  return genderedTitle(position.title, position.titleFemale, gender);
 }
 
 export function currentTermKey(now = new Date()): string {

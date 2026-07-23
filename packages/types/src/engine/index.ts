@@ -22,6 +22,13 @@ export {
   type AllyCategory,
   type AllyShowcaseItem,
 } from "./ally-public.js";
+export {
+  BOARD_GROUPS,
+  boardGroupFromCategory,
+  type BoardGroup,
+  type BoardShowcaseItem,
+} from "./board-public.js";
+export { femaleTitle, genderedTitle } from "./title.js";
 export type { Term, BoardSeat, TermStatus } from "./term.js";
 export { TERM_STATUSES } from "./term.js";
 export type { Program } from "./program.js";

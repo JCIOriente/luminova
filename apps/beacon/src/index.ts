@@ -22,6 +22,7 @@ import {
   showcasePerson,
 } from "./showcase/project-initiative.js";
 import { projectAlly } from "./showcase/project-ally.js";
+import { projectBoard, currentCargoId, type BoardCargo } from "./showcase/project-board.js";
 import type { ShowcasePerson } from "@luminova/types/engine";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
@@ -292,6 +293,46 @@ export const onAllyWritten = onDocumentWritten("allies/{id}", async (event) => {
     await ref.set(item);
   } catch (err) {
     console.error("allyShowcase projection failed", { id: event.params.id, err });
+  }
+});
+
+async function readCargo(database: Firestore, cargoId: string): Promise<BoardCargo | null> {
+  const snap = await database.doc(`positions/${cargoId}`).get();
+  if (!snap.exists) return null;
+  return {
+    category: snap.get("category"),
+    title: snap.get("title"),
+    titleFemale: snap.get("titleFemale"),
+  };
+}
+
+// Curated public projection: mirror a member write into the world-read boardShowcase
+// collection (public fields only — name + gender-aware role + group + Storage photo
+// URL), or delete it when the member is no longer publicly showable (opted out, no
+// current-term CEL/JDL cargo, soft-deleted). Separate from onMemberWritten (claims
+// sync) to isolate concerns. Swallow + log like onAllyWritten: a permanent Firestore
+// error must not trigger an at-least-once retry storm; self-heals on the next member
+// write. grants/PII never leave /members — only public fields are projected.
+export const onBoardMemberWritten = onDocumentWritten("members/{id}", async (event) => {
+  try {
+    const database = db();
+    const ref = database.doc(`boardShowcase/${event.params.id}`);
+    const after = event.data?.after;
+    if (!after?.exists) {
+      await ref.delete();
+      return;
+    }
+    const member = after.data() as Record<string, unknown>;
+    const cargoId = currentCargoId(member, currentTermKey());
+    const cargo = cargoId ? await readCargo(database, cargoId) : null;
+    const item = projectBoard(event.params.id, member, cargo);
+    if (!item) {
+      await ref.delete();
+      return;
+    }
+    await ref.set(item);
+  } catch (err) {
+    console.error("boardShowcase projection failed", { id: event.params.id, err });
   }
 });
 
