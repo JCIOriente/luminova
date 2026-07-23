@@ -325,7 +325,9 @@ export const onBoardMemberWritten = onDocumentWritten("members/{id}", async (eve
     const member = after.data() as Record<string, unknown>;
     const cargoId = currentCargoId(member, currentTermKey());
     const cargo = cargoId ? await readCargo(database, cargoId) : null;
-    const item = projectBoard(event.params.id, member, cargo);
+    // GCLOUD_PROJECT is always set in the functions runtime + emulator; empty falls
+    // back to a fail-closed projectId (no photo URL matches → member not projected).
+    const item = projectBoard(event.params.id, member, cargo, process.env.GCLOUD_PROJECT ?? "");
     if (!item) {
       await ref.delete();
       return;

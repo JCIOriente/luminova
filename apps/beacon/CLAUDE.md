@@ -77,4 +77,10 @@ Admin-guarded custom-claim assignment.
 - **Deferred:** dues→points voiding (J4), roster auto-expansion of director/team
   rows (role arrives on the check-in fact in v1), term-window cutoff in the
   aggregate, prod composite indexes + functions bundling for deploy.
+- **Deferred (boardShowcase term rollover):** `onBoardMemberWritten` derives the
+  term from `currentTermKey()` at trigger time; a board member whose doc gets no
+  write after the UTC-year rollover keeps their prior-term entry live on the
+  public site until the next `members/{id}` write. Same class as the aggregate
+  term-window gap, but the stale data is public. Fix later with a scheduled
+  re-projection at term rollover (or drive it off the term ledger).
 - **Heaviest skills.** `/security-review`, `secure-dep-vetting` (server deps).

@@ -63,9 +63,13 @@ published). The member writes it through the existing self-service lane.
 A tokened Firebase Storage download URL renders publicly regardless of Storage
 security rules (the token is the capability), so the projection exposes that URL
 directly — no blob copy, no new Storage path, no `storage.rules` change. The URL
-is **host-constrained** to `firebasestorage.googleapis.com` / `storage.googleapis.com`
-(copying `isStorageLogoUrl` from `projectAlly`) so an insider cannot point the
-public `<img>` at an arbitrary URL via a direct member write.
+is **pinned to this project's own bucket AND this member's own object** —
+`https://firebasestorage.googleapis.com/v0/b/<projectId>.(appspot.com|firebasestorage.app)/o/members%2F<id>%2Fprofile.jpg`
+(`isMemberPhotoUrl`, projectId from `GCLOUD_PROJECT`). A bare hostname allowlist is
+insufficient: `firebasestorage.googleapis.com` is shared by every Firebase project,
+so an insider could otherwise point the public `<img>` at an attacker-controlled
+bucket via a direct member write. `cargoId` is likewise rejected if it contains `/`
+(it flows into a `positions/${cargoId}` doc-path template).
 
 ### Beacon trigger — `onBoardMemberWritten` (`members/{id}`)
 
