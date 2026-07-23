@@ -301,8 +301,9 @@ function AboutDirectiva() {
   const president = cel.find((m) => m.rank === 0) ?? null;
   const celRest = cel.filter((m) => m !== president);
   // Partial while fewer CEL cargos are published than the statutory count → invite
-  // "próximamente" once, on whichever band renders last.
+  // "próximamente" once, on whichever band renders last (decided here, in one place).
   const partial = cel.length < CEL_POSITION_TITLES.length;
+  const lastBand = jdl.length > 0 ? "jdl" : celRest.length > 0 ? "cel" : "hero";
   const startNum = president ? 2 : 1;
 
   return (
@@ -310,7 +311,7 @@ function AboutDirectiva() {
       <DirectivaHero
         year={year}
         president={president}
-        note={partial && celRest.length === 0 && jdl.length === 0}
+        note={partial && lastBand === "hero"}
       />
       {celRest.length > 0 && (
         <DirectivaLedger
@@ -318,10 +319,10 @@ function AboutDirectiva() {
           celCount={cel.length}
           members={celRest}
           startNum={startNum}
-          note={partial && jdl.length === 0}
+          note={partial && lastBand === "cel"}
         />
       )}
-      {jdl.length > 0 && <DirectivaDirecciones members={jdl} note={partial} />}
+      {jdl.length > 0 && <DirectivaDirecciones members={jdl} note={partial && lastBand === "jdl"} />}
     </section>
   );
 }

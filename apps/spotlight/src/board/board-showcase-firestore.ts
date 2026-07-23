@@ -10,5 +10,7 @@ export function sortByRank(items: BoardShowcaseItem[]): BoardShowcaseItem[] {
 export async function fetchBoard(): Promise<BoardShowcaseItem[]> {
   const db = getFirestoreLite();
   const snap = await getDocs(collection(db, "boardShowcase"));
+  // Trusted source: boardShowcase is written only by beacon (admin SDK, projectBoard)
+  // and is world-read/no-PII — same as the allyShowcase reader. The cast is safe.
   return sortByRank(snap.docs.map((d) => d.data() as BoardShowcaseItem));
 }
