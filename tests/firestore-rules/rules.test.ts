@@ -698,6 +698,13 @@ describe("firestore.rules — members", () => {
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: "yes" }),
     );
   });
+  it("denies an Admin setting another member's publicProfile (consent is owner-only)", async () => {
+    // m1.uid === "owner-uid"; the admin is a different uid, so only the institutional
+    // arm could apply — and it now pins publicProfile via unchanged().
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), { publicProfile: true }),
+    );
+  });
   it("denies a soft-deleted member editing their own archived record", async () => {
     await assertFails(
       updateDoc(doc(as("bea-uid", ["Member"]), "members/m_deleted"), { phone: "70011223" }),

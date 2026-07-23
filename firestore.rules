@@ -241,11 +241,17 @@ service cloud.firestore {
       allow create: if canDo('create', 'Member')
         && request.resource.data.totalPoints == 0
         && !('uid' in request.resource.data)
+        && !('publicProfile' in request.resource.data)
         && createPermissionAssignmentSafe()
         && createPositionsSafe();
+      // publicProfile is member-consent-only: it publishes their face/name to the
+      // public Directiva, so the institutional (membership-tier) arm may never set or
+      // change it — only the owner-only self-lane below can. unchanged() so an admin
+      // edit that doesn't touch it still passes.
       allow update: if canDo('update', 'Member')
         && unchanged('totalPoints')
         && unchanged('uid')
+        && unchanged('publicProfile')
         && updatePermissionAssignmentSafe()
         && softDeleteSafe()
         && (!positionsTouched() || positionsAssignmentSafe());
