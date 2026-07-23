@@ -511,6 +511,17 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("u", ["Membership"]), "members/new1"), { name: "B", totalPoints: 0 }),
     );
   });
+  it("denies create with publicProfile pre-set (consent is not institutionally stamped)", async () => {
+    // The identical payload without publicProfile succeeds above — so this isolates
+    // the create-arm !('publicProfile' in ...) guard, not some other missing field.
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_consent"), {
+        name: "B",
+        totalPoints: 0,
+        publicProfile: true,
+      }),
+    );
+  });
   it("denies create when totalPoints != 0", async () => {
     await assertFails(
       setDoc(doc(as("u", ["Membership"]), "members/new2"), { name: "B", totalPoints: 5 }),
