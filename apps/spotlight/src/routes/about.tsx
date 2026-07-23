@@ -1,9 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button, RippleBackground, SectionHeader, Reveal, ImgSlot, Icon, cn } from "@luminova/ui";
-import { CEL_POSITION_TITLES } from "@luminova/types";
+import { Button, RippleBackground, SectionHeader, Reveal, Icon, cn } from "@luminova/ui";
+import { CEL_POSITION_TITLES, currentTermKey } from "@luminova/types";
+import type { BoardShowcaseItem } from "@luminova/types/engine";
 import { TimelineItem } from "../components/cards";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { currentYearsActive } from "../site-config/defaults";
+import { useBoardOnVisible } from "../board/use-board";
 
 export const Route = createFileRoute("/about")({
   component: About,
@@ -14,8 +16,6 @@ const MVV_PRESENTATION = [
   { variant: "", icon: <Icon.compass />, title: "Visión", field: "vision" as const },
   { variant: "var-navy", icon: <Icon.spark />, title: "Valores", field: "valores" as const },
 ];
-
-const COMITE = CEL_POSITION_TITLES;
 
 function AboutHero() {
   return (
@@ -136,41 +136,192 @@ function AboutTimeline() {
   );
 }
 
-function AboutComite() {
+const CLOSING_NOTE = "Directiva completa — próximamente.";
+
+function Portrait({
+  item,
+  className,
+  tintTeal,
+}: {
+  item: BoardShowcaseItem;
+  className?: string;
+  tintTeal?: boolean;
+}) {
   return (
-    <section className="section bg-soft">
+    <div className={cn("portrait", tintTeal && "tint-teal", className)}>
+      <img
+        className="pic"
+        src={item.portraitUrl}
+        alt={`Retrato — ${item.name}`}
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+  );
+}
+
+function DirectivaHero({
+  year,
+  president,
+  note,
+}: {
+  year: string;
+  president: BoardShowcaseItem | null;
+  note: boolean;
+}) {
+  return (
+    <div className="dir-hero">
+      <RippleBackground variant="hero-corner-tl" color="var(--color-jci-white)" opacity={0.06} />
+      <div className="ghost-year t-num" aria-hidden>
+        {year}
+      </div>
+      <div className="container inner">
+        <Reveal>
+          <div className="eyebrow">La Directiva</div>
+          <h2 className="t-title" style={{ marginTop: 20 }}>
+            Las personas que dirigen la gestión.
+          </h2>
+          <p className="lede">
+            Un comité ejecutivo y un cuerpo de direcciones elegidos para servir al Oriente boliviano
+            durante {year}.
+          </p>
+        </Reveal>
+        {president && (
+          <Reveal delay={120}>
+            <div className="pres-spread">
+              <div className="pres-portrait-frame">
+                <Portrait item={president} className="pres-portrait" />
+              </div>
+              <div className="pres-meta">
+                <div className="rank t-num">01</div>
+                <div className="role">
+                  {president.title} · Gestión {year}
+                </div>
+                <h3 className="name">{president.name}</h3>
+                <blockquote className="mandate">
+                  “El servicio a la humanidad es la mejor obra de una vida.”
+                  <cite>Credo JCI</cite>
+                </blockquote>
+              </div>
+            </div>
+          </Reveal>
+        )}
+        {note && <div className="closing-note">{CLOSING_NOTE}</div>}
+      </div>
+    </div>
+  );
+}
+
+function DirectivaLedger({
+  year,
+  celCount,
+  members,
+  startNum,
+  note,
+}: {
+  year: string;
+  celCount: number;
+  members: BoardShowcaseItem[];
+  startNum: number;
+  note: boolean;
+}) {
+  return (
+    <div className="cel-band">
       <div className="container">
-        <SectionHeader
-          eyebrow="Comité Ejecutivo"
-          title="El equipo que dirige el año en curso."
-          subtitle="Las personas detrás de cada proyecto y cada decisión. Próximamente con perfiles completos."
-        />
-        <div className="grid-4" style={{ marginTop: 56 }}>
-          {COMITE.map((role, i) => (
-            <Reveal key={role} delay={i * 60}>
-              <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                <ImgSlot
-                  label={`retrato · ${role.toLowerCase()}`}
-                  tint={i % 2 ? "teal" : "blue"}
-                  aspect="1/1"
-                  style={{ borderRadius: 0, border: 0 }}
-                />
-                <div style={{ padding: 22 }}>
-                  <div className="t-label" style={{ color: "var(--jci-blue)" }}>
-                    {role}
-                  </div>
-                  <div className="t-h4" style={{ marginTop: 10 }}>
-                    Nombre Apellido
-                  </div>
-                  <div className="text-ui-md" style={{ color: "var(--ink-3)", marginTop: 6 }}>
-                    Próximamente
+        <div className="cel-head">
+          <div className="eyebrow">Comité Ejecutivo</div>
+          <div className="meta">
+            {celCount} {celCount === 1 ? "cargo" : "cargos"} · Gestión {year}
+          </div>
+        </div>
+        <div className="ledger">
+          {members.map((m, i) => {
+            const num = String(startNum + i).padStart(2, "0");
+            return (
+              <Reveal key={m.id} delay={i * 60}>
+                <div className="ledger-row">
+                  <div className="rank t-num">{num}</div>
+                  <Portrait item={m} tintTeal={i % 2 === 1} />
+                  <div className="who">
+                    <span className="role-label" data-rank={num}>
+                      {m.title}
+                    </span>
+                    <div className="name">{m.name}</div>
                   </div>
                 </div>
+              </Reveal>
+            );
+          })}
+        </div>
+        {note && <div className="closing-note">{CLOSING_NOTE}</div>}
+      </div>
+    </div>
+  );
+}
+
+function DirectivaDirecciones({ members, note }: { members: BoardShowcaseItem[]; note: boolean }) {
+  return (
+    <div className="jdl-band">
+      <div className="container">
+        <div style={{ textAlign: "center" }}>
+          <div className="eyebrow" style={{ justifyContent: "center" }}>
+            Direcciones
+          </div>
+          <p className="sub" style={{ marginLeft: "auto", marginRight: "auto" }}>
+            Las áreas que convierten el plan de la gestión en proyectos reales.
+          </p>
+        </div>
+        <div className="jdl-strip">
+          {members.map((m, i) => (
+            <Reveal key={m.id} delay={i * 80}>
+              <div className="jdl-chip">
+                <Portrait item={m} tintTeal />
+                <span className="role-label">{m.title}</span>
+                <div className="name">{m.name}</div>
               </div>
             </Reveal>
           ))}
         </div>
+        {note && <div className="closing-note">{CLOSING_NOTE}</div>}
       </div>
+    </div>
+  );
+}
+
+function AboutDirectiva() {
+  const { ref, data: board, loading, error } = useBoardOnVisible();
+  const ready = !loading && !error && board.length > 0;
+  // Until the board loads (or when nobody is published) render a zero-height sentinel
+  // that still carries the on-visible ref, so the page never leaves an empty gap.
+  if (!ready) return <div ref={ref} aria-hidden style={{ height: 1 }} />;
+
+  const year = currentTermKey();
+  const cel = board.filter((m) => m.group === "CEL");
+  const jdl = board.filter((m) => m.group === "JDL");
+  const president = cel.find((m) => m.rank === 0) ?? null;
+  const celRest = cel.filter((m) => m !== president);
+  // Partial while fewer CEL cargos are published than the statutory count → invite
+  // "próximamente" once, on whichever band renders last.
+  const partial = cel.length < CEL_POSITION_TITLES.length;
+  const startNum = president ? 2 : 1;
+
+  return (
+    <section ref={ref} className="directiva">
+      <DirectivaHero
+        year={year}
+        president={president}
+        note={partial && celRest.length === 0 && jdl.length === 0}
+      />
+      {celRest.length > 0 && (
+        <DirectivaLedger
+          year={year}
+          celCount={cel.length}
+          members={celRest}
+          startNum={startNum}
+          note={partial && jdl.length === 0}
+        />
+      )}
+      {jdl.length > 0 && <DirectivaDirecciones members={jdl} note={partial} />}
     </section>
   );
 }
@@ -228,7 +379,7 @@ function About() {
       <AboutStory />
       <AboutMVV />
       <AboutTimeline />
-      <AboutComite />
+      <AboutDirectiva />
       <AboutWhyJoin />
     </>
   );
