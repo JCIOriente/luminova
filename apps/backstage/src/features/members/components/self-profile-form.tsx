@@ -1,6 +1,6 @@
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, DatePicker, Field, Input } from "@luminova/ui";
+import { Button, Checkbox, DatePicker, Field, Input } from "@luminova/ui";
 import { selfProfileSchema, type Member, type SelfProfileInput } from "@luminova/types";
 import { dateInputValue } from "../repositories/member-mapper";
 import { useUpdateSelfProfile } from "../hooks/use-update-self-profile";
@@ -22,6 +22,7 @@ export function SelfProfileForm({ member }: { member: Member }) {
       phone: member.phone ?? "",
       profession: member.profession ?? "",
       birthdate: member.birthdate ? dateInputValue(member.birthdate) : "",
+      publicProfile: member.publicProfile ?? false,
     },
   });
 
@@ -58,6 +59,24 @@ export function SelfProfileForm({ member }: { member: Member }) {
           )}
         />
       </Field>
+      <div className="flex flex-col gap-2 border-t border-line pt-5">
+        <Controller
+          control={control}
+          name="publicProfile"
+          render={({ field }) => (
+            <Checkbox
+              id="self-public-profile"
+              checked={field.value ?? false}
+              onChange={field.onChange}
+              label="Mostrar mi perfil en la Directiva del sitio público"
+            />
+          )}
+        />
+        <p className="text-ui-xs text-ink-3">
+          Si tienes un cargo de directiva este año, tu foto y nombre aparecerán en la sección
+          Directiva de jcioriente.org. Puedes desactivarlo cuando quieras.
+        </p>
+      </div>
       <p className="text-ui-xs text-ink-3">
         Tu nombre, correo, cargo y estado los administra la Dirección de Membresía.
       </p>

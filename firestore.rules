@@ -223,7 +223,7 @@ service cloud.firestore {
       let d = request.resource.data;
       // .get(...) everywhere: clearing a field makes it ABSENT, and a bare d.phone would
       // throw (a rule that errors denies), so a cleared optional field must read as blank.
-      return changed.hasOnly(['profilePicture', 'birthdate', 'profession', 'phone'])
+      return changed.hasOnly(['profilePicture', 'birthdate', 'profession', 'phone', 'publicProfile'])
         && (!changed.hasAny(['profilePicture'])
           || d.get('profilePicture', null) == null || d.profilePicture is string)
         && (!changed.hasAny(['birthdate']) || d.get('birthdate', null) is timestamp)
@@ -231,7 +231,8 @@ service cloud.firestore {
           || (d.get('profession', '') is string && d.get('profession', '').size() <= 80))
         && (!changed.hasAny(['phone'])
           || (d.get('phone', '') is string
-              && (d.get('phone', '') == '' || d.get('phone', '').matches('^[0-9]{8}$'))));
+              && (d.get('phone', '') == '' || d.get('phone', '').matches('^[0-9]{8}$'))))
+        && (!changed.hasAny(['publicProfile']) || d.get('publicProfile', false) is bool);
     }
 
     match /members/{memberId} {

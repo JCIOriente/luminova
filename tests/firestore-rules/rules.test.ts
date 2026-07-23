@@ -685,6 +685,19 @@ describe("firestore.rules — members", () => {
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { profession: "a".repeat(81) }),
     );
   });
+  it("allows the owning member to opt in to the public Directiva (publicProfile)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: true }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: false }),
+    );
+  });
+  it("denies the owning member a non-bool publicProfile", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: "yes" }),
+    );
+  });
   it("denies a soft-deleted member editing their own archived record", async () => {
     await assertFails(
       updateDoc(doc(as("bea-uid", ["Member"]), "members/m_deleted"), { phone: "70011223" }),
