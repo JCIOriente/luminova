@@ -28,14 +28,26 @@ describe("projectBoard", () => {
       name: "Arnold Gandarillas",
       title: "Secretario",
       group: "CEL",
+      rank: 3,
       portraitUrl: PHOTO,
     });
   });
 
-  it("projects a JDL director into the JDL group", () => {
+  it("ranks CEL by statutory order, gender-invariant", () => {
+    const pres = project(
+      "m1",
+      { ...member, gender: "Femenino" },
+      { category: "CEL", title: "Presidente", titleFemale: "Presidenta" },
+    );
+    expect(pres?.title).toBe("Presidenta");
+    expect(pres?.rank).toBe(0);
+  });
+
+  it("projects a JDL director into the JDL group, ranked after all CEL", () => {
     const item = project("m1", member, { category: "JDL", title: "Director de Programas" });
     expect(item?.group).toBe("JDL");
     expect(item?.title).toBe("Director de Programas");
+    expect(item?.rank).toBe(1000);
   });
 
   it("uses the feminine title for a female member (derived)", () => {

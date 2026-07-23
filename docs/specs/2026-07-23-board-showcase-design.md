@@ -39,9 +39,14 @@ export interface BoardShowcaseItem {
   name: string;
   title: string;       // gender-aware Spanish role title, e.g. "Secretaria"
   group: BoardGroup;   // CEL | JDL — drives spotlight grouping
+  rank: number;        // gender-invariant sort rank (CEL 0..7 by statutory order; JDL 1000)
   portraitUrl: string; // host-constrained Firebase Storage download URL
 }
 ```
+
+`rank` is emitted by beacon (`boardRank`) from the cargo's **base** title, because the
+displayed `title` is gender-aware and cannot be reverse-matched to statutory order on
+the public side. Spotlight sorts by `rank`, then by `name` (JDL tie-break).
 
 `boardGroupFromCategory(category): BoardGroup | null` maps a `Position.category`
 (`"CEL" | "JDL" | "Comision"`) to the projected group, `null` for Comisión.

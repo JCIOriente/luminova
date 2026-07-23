@@ -1,5 +1,6 @@
 import {
   boardGroupFromCategory,
+  boardRank,
   genderedTitle,
   type BoardShowcaseItem,
 } from "@luminova/types/engine";
@@ -80,6 +81,7 @@ export function projectBoard(
     name,
     title: genderedTitle(title, titleFemale, gender),
     group,
+    rank: boardRank(group, title),
     portraitUrl: member.profilePicture,
   };
 }
