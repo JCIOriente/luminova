@@ -29,9 +29,12 @@ describe("roleDefinitionDocSchema", () => {
     expect(roleDefinitionDocSchema.safeParse(malformed).success).toBe(false);
   });
 
-  it("rejects an unknown permission code", () => {
-    const malformed = { ...validDoc, permissions: ["nope:Nope"] };
-    expect(roleDefinitionDocSchema.safeParse(malformed).success).toBe(false);
+  it("drops unknown/dropped permission codes on read and keeps the valid ones", () => {
+    // A role doc seeded before the `Event` subject was dropped still lists it; the
+    // whole doc must still parse (one dead code must not blank the roles UI).
+    const legacy = { ...validDoc, permissions: ["read:Member", "manage:Event", "nope:Nope"] };
+    const parsed = roleDefinitionDocSchema.parse(legacy);
+    expect(parsed.permissions).toEqual(["read:Member"]);
   });
 
   it("accepts a custom role with builtInKey null", () => {

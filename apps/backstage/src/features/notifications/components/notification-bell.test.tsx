@@ -82,7 +82,7 @@ describe("NotificationBell", () => {
     expect(navigate).toHaveBeenCalledWith({ to: "/members" });
   });
 
-  it("marks read even when the item has no url", async () => {
+  it("marks read and goes to the notifications page when the item has no url", async () => {
     const user = userEvent.setup();
     list.mockResolvedValue([inbox({ id: "n2", read: false, url: null })]);
     renderBell();
@@ -91,7 +91,22 @@ describe("NotificationBell", () => {
     await user.click(await screen.findByRole("button", { name: /Aviso/i }));
 
     await waitFor(() => expect(markRead).toHaveBeenCalledWith("n2"));
+    expect(navigate).toHaveBeenCalledWith({ to: "/notificaciones" });
+  });
+
+  it("opens an absolute url in a new tab (does not replace the PWA)", async () => {
+    const user = userEvent.setup();
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    list.mockResolvedValue([inbox({ id: "n3", read: false, url: "https://jci.org/evento" })]);
+    renderBell();
+
+    await user.click(await screen.findByLabelText(/sin leer|Notificaciones/i));
+    await user.click(await screen.findByRole("button", { name: /Aviso/i }));
+
+    await waitFor(() => expect(markRead).toHaveBeenCalledWith("n3"));
+    expect(open).toHaveBeenCalledWith("https://jci.org/evento", "_blank", "noopener,noreferrer");
     expect(navigate).not.toHaveBeenCalled();
+    open.mockRestore();
   });
 
   it("renders the empty state when the inbox is empty", async () => {

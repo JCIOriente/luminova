@@ -65,4 +65,9 @@ describe("memberDocSchema", () => {
     const parsed = memberDocSchema.parse(without(validDoc, "gender"));
     expect(parsed.gender).toBeUndefined();
   });
+
+  it("round-trips publicProfile so the consent toggle survives a read", () => {
+    expect(memberDocSchema.parse({ ...validDoc, publicProfile: true }).publicProfile).toBe(true);
+    expect(memberDocSchema.parse(without(validDoc, "publicProfile")).publicProfile).toBeUndefined();
+  });
 });

@@ -23,10 +23,15 @@ export function NotificationBell() {
 
   const onItemClick = (item: InboxDoc) => {
     if (!item.read) markRead.mutate(item.id);
-    if (!item.url) return;
     setOpen(false);
+    if (!item.url) {
+      // No link → take the reader to the notifications page (their full history).
+      void navigate({ to: "/notificaciones" });
+      return;
+    }
     if (isAbsoluteUrl(item.url)) {
-      window.location.href = item.url;
+      // External link → open in a new tab so the backstage PWA isn't replaced.
+      window.open(item.url, "_blank", "noopener,noreferrer");
     } else {
       // Author-supplied in-app path — not a statically known route, so the typed
       // router `to` needs a cast. Absolute urls take the branch above.

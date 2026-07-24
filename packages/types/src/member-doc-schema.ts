@@ -17,6 +17,7 @@ export const memberDocSchema = z.object({
   totalPoints: z.number().default(0),
   isPastPresident: z.boolean().optional(),
   gender: z.enum(MEMBER_GENDERS).optional(),
+  publicProfile: z.boolean().optional(),
   positions: z.record(z.string(), termPositionsDocSchema).optional(),
   uid: z.string().optional(),
   roleIds: z.array(z.string()).optional(),

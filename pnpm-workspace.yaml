@@ -32,14 +32,36 @@ overrides:
   # via firebase-admin>...>gaxios, which only uses v4() (random, no buf). Forced to the
   # latest major over the v8/v9 copies; v4 API is stable across these majors.
   "uuid": "^14.0.1"
-  # Patch protobufjs (<=7.6.2: schema-derived names shadow runtime-significant props).
-  # Transitive via firebase-admin>...>@grpc/proto-loader (^7.5.5). Forced to major 8.
-  "protobufjs": "^8.6.4"
+  # Patch protobufjs GHSA-j3f2-48v5-ccww (>=8.0.0 <=8.6.5: DoS via infinite loop in
+  # .proto option parsing). Transitive via firebase-admin>...>@grpc/proto-loader.
+  # Forced to major 8; >=8.6.6 is patched (resolves to latest 8.x, currently 8.7.1).
+  "protobufjs": "^8.6.6"
   # Patch websocket-driver <0.7.5 (GHSA-xv26-6w52-cph6 CRITICAL message corruption +
   # GHSA-mp7j-qc5w-4988 moderate resource-limit bypass). Transitive via
   # @firebase/database>faye-websocket (requires >=0.5.1, so 0.7.5 satisfies). 0.7.5 is
   # both latest and the patched release; freshly-published advisory fails audit repo-wide.
   "websocket-driver": "^0.7.5"
+  # Patch axios GHSA-hcpx-6fm6-wx23 / -7q8q-rj6j-mhjq / -mwf2-3pr3-8698 (<1.18.0:
+  # form-serializer maxDepth bypass + prototype-pollution + maxBodyLength bypass).
+  # Transitive via wait-on (dev only). >=1.18.0 patches all; scoped to the vuln line.
+  "axios@<1.18.0": ">=1.18.0"
+  # Patch body-parser GHSA-v422-hmwv-36x6 (<1.20.6: DoS when an invalid limit value
+  # silently disables size enforcement). Transitive via firebase-functions>express@4
+  # (apps/beacon); express 4 requires body-parser ~1.20.x, so stay in the 1.x line.
+  "body-parser@<1.20.6": "^1.20.6"
+  # Patch brace-expansion GHSA (>=3.0.0 <5.0.7: ReDoS). Only the v5 copy (via
+  # minimatch@10, which requires ^5.0.5) is vulnerable; scope the selector to the
+  # vulnerable 3.x/4.x/5.x range so the untouched v2 copy (minimatch@5) keeps v2.
+  "brace-expansion@>=3.0.0 <5.0.7": ">=5.0.7"
+  # Patch fast-uri GHSA (>=3.0.0 <=3.1.3). Transitive via ajv (workbox-build, dev),
+  # which requires fast-uri ^3.0.1 — stay in the 3.x line (3.1.4 is patched).
+  "fast-uri@>=3.0.0 <=3.1.3": "^3.1.4"
+  # Patch sharp <0.35.0 (native libvips advisory). Transitive via
+  # @vite-pwa/assets-generator (backstage icon regen, dev). >=0.35.0 patched; sharp
+  # must stay listed under allowBuilds below (native postinstall or CI hard-fails).
+  "sharp@<0.35.0": ">=0.35.0"
+  # Patch shell-quote GHSA (<=1.8.4). Transitive via concurrently (dev). >=1.8.5 patched.
+  "shell-quote@<1.8.5": ">=1.8.5"
 allowBuilds:
   "@firebase/util": true
   esbuild: true

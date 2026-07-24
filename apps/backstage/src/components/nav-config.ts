@@ -109,10 +109,11 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: "barChart",
         // Gate on the page's actual gating read: the members list (memberPoints/terms are
         // signedIn-only). The empty-probe admits exactly the UNCONDITIONAL read:Member
-        // holders — Admin/Membership/Treasury/ExecutiveCommittee AND any perms-only custom
-        // role carrying read:Member — mirroring what firestore.rules allow for that list.
-        // The old role allowlist both let ProjectManager in (no read:Member → the query
-        // died, C1) and locked perms-only custom roles out (C5); one capability fixes both.
+        // holders — Admin/Membership/Treasury/ExecutiveCommittee, plain Member (which now
+        // carries read:Member by default), AND any perms-only custom role carrying
+        // read:Member — mirroring what firestore.rules allow for that list. The old role
+        // allowlist both let ProjectManager in (no read:Member → the query died, C1) and
+        // locked perms-only custom roles out (C5); one capability fixes both.
         subject: "Member",
       },
       {
@@ -139,11 +140,12 @@ export const NAV_GROUPS: NavGroup[] = [
         to: "/initiatives",
         label: "Proyectos",
         icon: "briefcase",
-        // Program read = the management tier (Admin/ExecutiveCommittee/ProjectManager).
-        // Gate on Program, NOT Project: a plain Member carries an unconditional
-        // `read:Project` (for /me's participation names), which an OR-of-both gate
-        // would leak into this admin catalog. No role reads Project without also
-        // reading Program, so Program alone is the correct management signal.
+        // Gate on Program, NOT Project. `read:Project` is overloaded — a plain Member
+        // carries an unconditional one for /me's participation names — so a Project gate
+        // says nothing about who should see this catalog. `read:Program` is the honest
+        // signal for it: the management tier (Admin/ExecutiveCommittee/ProjectManager)
+        // plus plain Member, which now carries read:Program by default so members can
+        // browse the projects catalog. Reads are signed-in in rules; writes stay gated.
         subject: "Program",
       },
     ],

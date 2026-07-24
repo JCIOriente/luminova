@@ -4,6 +4,7 @@ import type { Action, AppAbility, Subject } from "@luminova/auth/ability";
 import type { ParticipationRole } from "@luminova/types/engine";
 import { isNavItemVisible, type NavItem } from "../../components/nav-config";
 import { canRemoveEntry } from "../../features/check-in/lib/can-remove-entry";
+import { isMemberOnly } from "./is-member-only";
 import { useAbility, useClaims } from "./ability-context";
 import { abilityAllows, type SubjectFields } from "./probe";
 
@@ -40,7 +41,14 @@ export function buildCan(ability: AppAbility, claims: AuthClaims): Can {
   return {
     can: (action, subject, on) => abilityAllows(ability, action, subject, on),
     hasRole: (roles) => hasAnyRole(claims, roles),
-    navItemVisible: (item) => isNavItemVisible(item, ability, claims),
+    // A member-only user is bounced from `/` to `/me` by _app.index, so the Inicio
+    // (dashboard) link is dead weight for them — hide it. This lives HERE, in the UI
+    // gate, not in nav-config's isNavItemVisible, because canAccessRoute reuses that
+    // function: hiding `/` there would deny route access to `/` and, since a denied
+    // route redirects to `/`, loop. Route access to `/` must stay open; only the nav
+    // affordance is hidden.
+    navItemVisible: (item) =>
+      isNavItemVisible(item, ability, claims) && !(item.to === "/" && isMemberOnly(claims)),
     canRemoveCheckIn: (activityId, entry) => canRemoveEntry(ability, activityId, entry),
     isAdmin: hasAnyRole(claims, ["Admin"]),
     canFeatureInitiatives: hasAnyRole(claims, ["Admin", "ProjectManager"]),

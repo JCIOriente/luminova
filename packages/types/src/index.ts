@@ -92,4 +92,4 @@ export { roleDefinitionDocSchema } from "./role-definition-doc-schema.js";
 export { notificationDocSchema, inboxDocSchema } from "./notification-doc-schema.js";
 export { siteConfigDocSchema } from "./site-config-doc-schema.js";
 export { CEL_POSITIONS, type CelPositionSeed } from "./cel-positions.js";
-export { CEL_POSITION_TITLES } from "./cel-position-titles.js";
+export { CEL_POSITION_TITLES } from "./engine/cel-titles.js";

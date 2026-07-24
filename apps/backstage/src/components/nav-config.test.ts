@@ -90,13 +90,20 @@ describe("nav-config", () => {
     expect(item?.label).toBe("Reglas de puntos");
   });
 
-  it("shows the leaderboard to unconditional read:Member holders; hides PM/Scanner/Member", () => {
-    for (const role of ["Admin", "Membership", "Treasury", "ExecutiveCommittee"] as Role[]) {
+  it("shows the leaderboard to unconditional read:Member holders (incl. plain Member); hides PM/Scanner", () => {
+    // Member now carries read:Member by default, so it joins the management roles here.
+    for (const role of [
+      "Admin",
+      "Membership",
+      "Treasury",
+      "ExecutiveCommittee",
+      "Member",
+    ] as Role[]) {
       expect(canSee("/leaderboard", claimsFor(role))).toBe(true);
     }
-    // ProjectManager (no read:Member) and Scanner/Member (none/conditional) are hidden —
-    // the members query behind /leaderboard would be denied for them by firestore.rules.
-    for (const role of ["ProjectManager", "Scanner", "Member"] as Role[]) {
+    // ProjectManager and Scanner hold no read:Member — the members query behind
+    // /leaderboard would be denied for them by firestore.rules.
+    for (const role of ["ProjectManager", "Scanner"] as Role[]) {
       expect(canSee("/leaderboard", claimsFor(role))).toBe(false);
     }
   });
@@ -118,25 +125,32 @@ describe("nav-config", () => {
 });
 
 describe("isNavItemVisible — conditional grants must not leak", () => {
-  it("hides Miembros from a plain Member (own-doc read is not collection read)", () => {
-    // The bug: CASL's type-level can('read','Member') is true for a Member because
-    // of the own-doc conditional grant, so the admin nav + route showed, then died
-    // on the unconditional list query firestore.rules denies.
-    expect(canSee("/members", claimsFor("Member"))).toBe(false);
+  it("does not let a conditional-only own-doc read:Member satisfy the collection gate", () => {
+    // The empty-instance probe's core guard: a Member whose ONLY read:Member is the
+    // own-doc conditional grant (no coarse perm) must NOT see the admin Miembros nav —
+    // CASL's type-level can('read','Member') is true for it, but the list query
+    // firestore.rules deny would die. A bare {roles:['Member'], perms:[]} isolates that
+    // conditional grant from the seeded coarse read:Member the role now also carries.
+    expect(canSee("/members", { roles: ["Member"], perms: [] })).toBe(false);
   });
 
-  it("shows Miembros to exactly the roles that hold unconditional read:Member", () => {
-    for (const role of ["Admin", "Membership", "Treasury", "ExecutiveCommittee"] as Role[]) {
+  it("shows Miembros to the unconditional read:Member roles, including a seeded plain Member", () => {
+    for (const role of [
+      "Admin",
+      "Membership",
+      "Treasury",
+      "ExecutiveCommittee",
+      "Member",
+    ] as Role[]) {
       expect(canSee("/members", claimsFor(role))).toBe(true);
     }
-    for (const role of ["ProjectManager", "Scanner", "Member"] as Role[]) {
+    for (const role of ["ProjectManager", "Scanner"] as Role[]) {
       expect(canSee("/members", claimsFor(role))).toBe(false);
     }
   });
 
-  it("hides Proyectos from a plain Member despite their unconditional read:Project", () => {
-    expect(canSee("/initiatives", claimsFor("Member"))).toBe(false);
-    for (const role of ["Admin", "ExecutiveCommittee", "ProjectManager"] as Role[]) {
+  it("shows Proyectos to a plain Member (read:Program by default) and the management tier", () => {
+    for (const role of ["Admin", "ExecutiveCommittee", "ProjectManager", "Member"] as Role[]) {
       expect(canSee("/initiatives", claimsFor(role))).toBe(true);
     }
     for (const role of ["Membership", "Treasury", "Scanner"] as Role[]) {
@@ -192,12 +206,12 @@ describe("curationOnly routes — pinned visibility sets (nav-equivalence Check 
     { route: "/point-rules", visible: ["Admin"], admits: "read:PointRule" },
     {
       route: "/activities",
-      visible: ["Admin", "ProjectManager", "Scanner"],
+      visible: ["Admin", "ProjectManager", "Scanner", "Member"],
       admits: "read:Activity",
     },
     {
       route: "/initiatives",
-      visible: ["Admin", "ExecutiveCommittee", "ProjectManager"],
+      visible: ["Admin", "ExecutiveCommittee", "ProjectManager", "Member"],
       admits: "read:Program",
     },
   ];
@@ -223,26 +237,32 @@ describe("canAccessRoute — route guard mirrors nav visibility", () => {
     expect(canAccessRoute("/me", MEMBER, SELF_UID)).toBe(true);
   });
 
-  it("blocks a plain Member from every management route", () => {
+  it("blocks a plain Member from the management routes it holds no read for", () => {
+    // A seeded Member now reads members/activities/programs, so /members, /leaderboard,
+    // /activities and /initiatives are legitimately open (see nav visibility tests). The
+    // routes below gate on reads/roles a Member still lacks.
     for (const path of [
-      "/members",
       "/allies",
       "/leads",
       "/point-rules",
-      "/leaderboard",
       "/positions",
       "/permisos",
-      "/activities",
-      "/initiatives",
       "/config",
     ]) {
       expect(canAccessRoute(path, MEMBER, SELF_UID)).toBe(false);
     }
   });
 
-  it("keeps admin DETAIL routes that inherit a LIST gate blocked (members)", () => {
-    // Member detail has no relaxed gate, so it still inherits the /members list gate.
-    expect(canAccessRoute("/members/abc123", MEMBER, SELF_UID)).toBe(false);
+  it("opens the member-facing routes a seeded Member now reads", () => {
+    for (const path of ["/members", "/leaderboard", "/activities", "/initiatives"]) {
+      expect(canAccessRoute(path, MEMBER, SELF_UID)).toBe(true);
+    }
+  });
+
+  it("keeps admin DETAIL routes that inherit a LIST gate blocked for a principal without the read", () => {
+    // A detail route with no relaxed gate inherits its parent LIST gate. Scanner holds
+    // no read:Member, so member detail stays blocked (mirrors the denied list query).
+    expect(canAccessRoute("/members/abc123", claimsFor("Scanner"), SELF_UID)).toBe(false);
   });
 
   it("lets an Admin reach the management routes", () => {
@@ -267,8 +287,8 @@ describe("canAccessRoute — detail routes mirror the per-doc read, not the list
     expect(canAccessRoute("/initiatives/program/xy", MEMBER, SELF_UID)).toBe(true);
   });
 
-  it("keeps the initiatives LIST closed to a Member (admin catalog unchanged)", () => {
-    expect(canAccessRoute("/initiatives", MEMBER, SELF_UID)).toBe(false);
+  it("opens the initiatives LIST to a Member (read:Program by default; detail also reachable)", () => {
+    expect(canAccessRoute("/initiatives", MEMBER, SELF_UID)).toBe(true);
   });
 
   it("still blocks Scanner/roleless from initiative detail (no read:Project)", () => {
@@ -281,7 +301,7 @@ describe("canAccessRoute — detail routes mirror the per-doc read, not the list
     expect(canAccessRoute("/activities/xy", SCANNER, SELF_UID)).toBe(true);
   });
 
-  it("keeps the activities LIST closed to a Member", () => {
-    expect(canAccessRoute("/activities", MEMBER, SELF_UID)).toBe(false);
+  it("opens the activities LIST to a Member (read:Activity by default)", () => {
+    expect(canAccessRoute("/activities", MEMBER, SELF_UID)).toBe(true);
   });
 });

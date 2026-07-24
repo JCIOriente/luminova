@@ -1718,4 +1718,326 @@
     background: var(--jci-blue, #0097d7);
     color: #fff;
   }
+
+  /* ============================================================
+     Directiva — "El Masthead" (about page leadership section)
+     ============================================================ */
+  .directiva .portrait {
+    position: relative;
+    overflow: hidden;
+    background: var(--jci-navy);
+  }
+  .directiva .portrait .pic {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: grayscale(1) contrast(1.03);
+    transition: filter 350ms ease-out;
+  }
+  .directiva .portrait::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+    opacity: 0.5;
+    background: linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--jci-blue) 70%, transparent),
+      color-mix(in srgb, var(--jci-navy) 82%, transparent)
+    );
+    transition: opacity 350ms ease-out;
+  }
+  .directiva .portrait.tint-teal::after {
+    background: linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--jci-teal) 72%, transparent),
+      color-mix(in srgb, var(--jci-navy) 84%, transparent)
+    );
+  }
+  .directiva .pres-portrait-frame:hover .pic,
+  .directiva .ledger-row:hover .pic,
+  .directiva .jdl-chip:hover .pic {
+    filter: grayscale(0) contrast(1);
+  }
+  .directiva .pres-portrait-frame:hover .portrait::after,
+  .directiva .ledger-row:hover .portrait::after,
+  .directiva .jdl-chip:hover .portrait::after {
+    opacity: 0;
+  }
+
+  /* Band A — statement + president hero */
+  .directiva .dir-hero {
+    position: relative;
+    overflow: hidden;
+    background: var(--jci-black);
+    color: var(--jci-white);
+    padding: clamp(88px, 12vw, 140px) 0 clamp(72px, 10vw, 120px);
+  }
+  .directiva .dir-hero .ghost-year {
+    position: absolute;
+    right: -0.06em;
+    bottom: -0.18em;
+    font-size: clamp(160px, 24vw, 320px);
+    font-weight: 200;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: rgba(255, 255, 255, 0.04);
+    -webkit-text-stroke: 1px rgba(255, 255, 255, 0.09);
+    user-select: none;
+    pointer-events: none;
+  }
+  .directiva .dir-hero .inner {
+    position: relative;
+    z-index: 1;
+  }
+  .directiva .dir-hero .eyebrow {
+    color: var(--color-on-dark-2);
+  }
+  .directiva .dir-hero .lede {
+    margin: 18px 0 0;
+    max-width: 560px;
+    color: var(--color-on-dark-2);
+    font-size: clamp(20px, 1.7vw, 24px);
+    line-height: 1.35;
+  }
+  .directiva .dir-hero h2 {
+    margin: 20px 0 0;
+    color: var(--jci-white);
+    max-width: 760px;
+  }
+  .directiva .pres-spread {
+    margin-top: clamp(56px, 8vw, 96px);
+    display: grid;
+    grid-template-columns: minmax(280px, 400px) 1fr;
+    gap: clamp(40px, 6vw, 72px);
+    align-items: end;
+  }
+  .directiva .pres-portrait-frame {
+    position: relative;
+  }
+  .directiva .pres-portrait-frame::before {
+    content: "";
+    position: absolute;
+    left: -16px;
+    top: 32px;
+    bottom: -16px;
+    width: 4px;
+    background: var(--jci-blue);
+  }
+  .directiva .pres-portrait {
+    aspect-ratio: 3 / 4;
+    width: 100%;
+    outline: 1px solid rgba(255, 255, 255, 0.14);
+    outline-offset: -1px;
+  }
+  .directiva .pres-meta .rank {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-on-dark-3);
+  }
+  .directiva .pres-meta .role {
+    margin-top: 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-on-dark-2);
+  }
+  .directiva .pres-meta .role::before {
+    content: "";
+    display: block;
+    width: 24px;
+    height: 2px;
+    background: var(--jci-yellow);
+  }
+  .directiva .pres-meta .name {
+    margin: 18px 0 0;
+    font-size: clamp(40px, 6.8vw, 72px);
+    line-height: 1.02;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    color: var(--jci-white);
+  }
+  .directiva .pres-meta .mandate {
+    margin: 26px 0 0;
+    max-width: 480px;
+    font-family: var(--font-serif);
+    font-size: clamp(17px, 1.6vw, 20px);
+    line-height: 1.55;
+    color: var(--color-on-dark-2);
+  }
+  .directiva .pres-meta .mandate cite {
+    display: block;
+    margin-top: 12px;
+    font-family: var(--font-sans);
+    font-style: normal;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-on-dark-3);
+  }
+  @media (max-width: 900px) {
+    .directiva .pres-spread {
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+    .directiva .pres-portrait-frame {
+      max-width: 320px;
+    }
+    .directiva .dir-hero .ghost-year {
+      font-size: clamp(120px, 40vw, 200px);
+      right: -0.04em;
+      top: 24px;
+      bottom: auto;
+    }
+  }
+
+  /* Band B — Comité Ejecutivo ledger (bone) */
+  .directiva .cel-band {
+    background: var(--bone);
+    padding: clamp(64px, 9vw, 110px) 0;
+  }
+  .directiva .cel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 40px;
+  }
+  .directiva .cel-head .meta {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+  }
+  .directiva .ledger {
+    border-bottom: 1px solid var(--line-strong);
+  }
+  .directiva .ledger-row {
+    display: grid;
+    grid-template-columns: 64px 96px 1fr;
+    gap: clamp(20px, 3vw, 36px);
+    align-items: center;
+    padding: 22px clamp(8px, 1.5vw, 20px);
+    border-top: 1px solid var(--line);
+    transition: background-color 250ms ease-out;
+  }
+  .directiva .ledger-row:hover {
+    background: var(--surface);
+  }
+  .directiva .ledger-row .rank {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-ink-4);
+    transition: color 250ms ease-out;
+  }
+  .directiva .ledger-row:hover .rank {
+    color: var(--jci-blue);
+  }
+  .directiva .ledger-row .portrait {
+    width: 96px;
+    aspect-ratio: 4 / 5;
+    border-radius: var(--radius-card);
+  }
+  .directiva .ledger-row .who .role-label {
+    color: var(--jci-blue);
+  }
+  .directiva .ledger-row .who .name {
+    margin-top: 10px;
+    font-size: clamp(24px, 3vw, 34px);
+    line-height: 1.08;
+    font-weight: 300;
+    letter-spacing: -0.015em;
+    color: var(--ink-1);
+  }
+  @media (max-width: 720px) {
+    .directiva .ledger-row {
+      grid-template-columns: 72px 1fr;
+      gap: 18px;
+      padding: 18px 4px;
+    }
+    .directiva .ledger-row .rank {
+      display: none;
+    }
+    .directiva .ledger-row .portrait {
+      width: 72px;
+    }
+    .directiva .ledger-row .who .role-label::before {
+      content: attr(data-rank) " · ";
+      color: var(--color-ink-4);
+      letter-spacing: 0.06em;
+    }
+    .directiva .ledger-row .who .name {
+      font-size: clamp(22px, 6vw, 28px);
+    }
+  }
+  .directiva .closing-note {
+    margin-top: 36px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+  }
+
+  /* Band C — Direcciones / JDL (surface) */
+  .directiva .jdl-band {
+    background: var(--surface);
+    padding: clamp(64px, 9vw, 110px) 0;
+  }
+  .directiva .jdl-band .eyebrow {
+    color: var(--color-teal-ink);
+  }
+  .directiva .jdl-band .sub {
+    margin: 14px 0 0;
+    max-width: 520px;
+    color: var(--ink-2);
+    font-size: 17px;
+  }
+  .directiva .jdl-strip {
+    margin-top: 48px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(24px, 4vw, 40px);
+  }
+  .directiva .jdl-chip {
+    width: min(240px, 44vw);
+    text-align: left;
+  }
+  .directiva .jdl-chip .portrait {
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    border-radius: var(--radius-card);
+    transition: transform 250ms ease-out;
+  }
+  .directiva .jdl-chip:hover .portrait {
+    transform: translateY(-2px);
+  }
+  .directiva .jdl-chip .role-label {
+    margin-top: 16px;
+    color: var(--color-teal-ink);
+  }
+  .directiva .jdl-chip .name {
+    margin-top: 8px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  .directiva .role-label {
+    display: block;
+    font-size: 12px;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
 }
