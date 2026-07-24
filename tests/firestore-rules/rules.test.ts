@@ -511,6 +511,17 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("u", ["Membership"]), "members/new1"), { name: "B", totalPoints: 0 }),
     );
   });
+  it("denies create with publicProfile pre-set (consent is not institutionally stamped)", async () => {
+    // The identical payload without publicProfile succeeds above — so this isolates
+    // the create-arm !('publicProfile' in ...) guard, not some other missing field.
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_consent"), {
+        name: "B",
+        totalPoints: 0,
+        publicProfile: true,
+      }),
+    );
+  });
   it("denies create when totalPoints != 0", async () => {
     await assertFails(
       setDoc(doc(as("u", ["Membership"]), "members/new2"), { name: "B", totalPoints: 5 }),
@@ -683,6 +694,26 @@ describe("firestore.rules — members", () => {
     );
     await assertFails(
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { profession: "a".repeat(81) }),
+    );
+  });
+  it("allows the owning member to opt in to the public Directiva (publicProfile)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: true }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: false }),
+    );
+  });
+  it("denies the owning member a non-bool publicProfile", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: "yes" }),
+    );
+  });
+  it("denies an Admin setting another member's publicProfile (consent is owner-only)", async () => {
+    // m1.uid === "owner-uid"; the admin is a different uid, so only the institutional
+    // arm could apply — and it now pins publicProfile via unchanged().
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), { publicProfile: true }),
     );
   });
   it("denies a soft-deleted member editing their own archived record", async () => {
