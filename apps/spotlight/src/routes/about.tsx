@@ -308,11 +308,7 @@ function AboutDirectiva() {
 
   return (
     <section ref={ref} className="directiva">
-      <DirectivaHero
-        year={year}
-        president={president}
-        note={partial && lastBand === "hero"}
-      />
+      <DirectivaHero year={year} president={president} note={partial && lastBand === "hero"} />
       {celRest.length > 0 && (
         <DirectivaLedger
           year={year}
@@ -322,7 +318,9 @@ function AboutDirectiva() {
           note={partial && lastBand === "cel"}
         />
       )}
-      {jdl.length > 0 && <DirectivaDirecciones members={jdl} note={partial && lastBand === "jdl"} />}
+      {jdl.length > 0 && (
+        <DirectivaDirecciones members={jdl} note={partial && lastBand === "jdl"} />
+      )}
     </section>
   );
 }
