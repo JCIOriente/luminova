@@ -474,6 +474,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Curated public projection of the current-term board (beacon admin SDK writes
+    // from onBoardMemberWritten; the public marketing site reads it without auth).
+    // Public fields only — name + role title + group + Storage photo URL; grants/PII
+    // never leave /members. Membership is opt-in (members.publicProfile).
+    match /boardShowcase/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // World-read singleton doc for the public marketing site; only Admin may
     // edit org facts (stats, allies, timeline, MVV, reasons, contact) via backstage.
     match /siteConfig/current {

@@ -1,14 +1,4 @@
-// Public-safe CEL cargo labels for unauthenticated surfaces (the public site).
-// Kept as a standalone literal — NOT derived from CEL_POSITIONS — so the RBAC
-// `grants` taxonomy never gets pulled into the public bundle. A test in
-// cel-positions.test.ts guards this list against drift from CEL_POSITIONS.
-export const CEL_POSITION_TITLES: readonly string[] = [
-  "Presidente",
-  "Vicepresidente Ejecutivo",
-  "Vicepresidente de Área",
-  "Secretario",
-  "Tesorero",
-  "Asesor Legal",
-  "Pasado Presidente",
-  "Asesor Presidencial",
-];
+// Canonical location moved to ./engine/cel-titles.js (zod-free, so beacon can rank
+// the boardShowcase by it). Re-exported here to preserve the public import path and
+// the cel-positions.test.ts drift guard.
+export { CEL_POSITION_TITLES } from "./engine/cel-titles.js";

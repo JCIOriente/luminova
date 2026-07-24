@@ -434,6 +434,13 @@ beforeAll(async () => {
       deletedAt: null,
     });
     await setDoc(doc(db, "showcase/s1"), { id: "s1", kind: "Project", title: "Eco" });
+    await setDoc(doc(db, "boardShowcase/b1"), {
+      id: "b1",
+      name: "Arnold Gandarillas",
+      title: "Secretario",
+      group: "CEL",
+      portraitUrl: "https://cdn/x.jpg",
+    });
     await setDoc(doc(db, "allyShowcase/a1"), {
       id: "a1",
       name: "Unifranz",
@@ -1661,6 +1668,18 @@ describe("allyShowcase (public read, beacon-only write)", () => {
   });
 });
 
+describe("boardShowcase (public read, beacon-only write)", () => {
+  it("allows anonymous read", async () => {
+    await assertSucceeds(getDoc(doc(anon(), "boardShowcase/b1")));
+  });
+  it("denies anonymous write", async () => {
+    await assertFails(setDoc(doc(anon(), "boardShowcase/b2"), { name: "x" }));
+  });
+  it("denies Admin write (beacon admin SDK only)", async () => {
+    await assertFails(setDoc(doc(as("u", ["Admin"]), "boardShowcase/b2"), { name: "x" }));
+  });
+});
+
 // Rules derive the term from request.time.year() (UTC); compute it from the client
 // clock so this suite can't rot when the calendar year rolls over.
 const TERM = String(new Date().getUTCFullYear());
@@ -2402,6 +2421,7 @@ describe("hard-delete denial — every collection the rules forbid client-deleti
     { name: "memberPoints", path: "memberPoints/2025/03/e1" },
     { name: "showcase", path: "showcase/s1" },
     { name: "allyShowcase", path: "allyShowcase/a1" },
+    { name: "boardShowcase", path: "boardShowcase/b1" },
   ];
 
   it("the rules' unconditional delete-deny set is EXACTLY the collections we cover (no drift)", () => {
