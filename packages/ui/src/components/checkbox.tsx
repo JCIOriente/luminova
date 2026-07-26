@@ -15,8 +15,15 @@ interface CheckboxProps {
 export function Checkbox({ checked, onChange, label, id, disabled, className }: CheckboxProps) {
   return (
     <label
+      // `relative` contains the `sr-only` (position:absolute) input below. Without a
+      // positioned ancestor its containing block is the initial containing block — in
+      // a nested-scroll layout (backstage `_app`: fixed `h-dvh` shell + inner
+      // `overflow-y-auto`) that decouples the input's box from the scroll content, so
+      // clicking the label focuses an input rendered far off-screen and the browser
+      // scroll-into-views the page to blank space. Containing it keeps the input at
+      // the label. (login is immune only because it doesn't scroll.)
       className={cn(
-        "inline-flex select-none items-center gap-2.5 text-[13.5px] font-medium text-ink-2",
+        "relative inline-flex select-none items-center gap-2.5 text-[13.5px] font-medium text-ink-2",
         disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
         className,
       )}

@@ -22,6 +22,15 @@ export {
   type AllyCategory,
   type AllyShowcaseItem,
 } from "./ally-public.js";
+export {
+  BOARD_GROUPS,
+  boardGroupFromCategory,
+  boardRank,
+  type BoardGroup,
+  type BoardShowcaseItem,
+} from "./board-public.js";
+export { femaleTitle, genderedTitle } from "./title.js";
+export { CEL_POSITION_TITLES } from "./cel-titles.js";
 export type { Term, BoardSeat, TermStatus } from "./term.js";
 export { TERM_STATUSES } from "./term.js";
 export type { Program } from "./program.js";

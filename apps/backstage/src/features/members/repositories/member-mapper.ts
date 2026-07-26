@@ -29,6 +29,9 @@ export function toSelfProfileDoc(data: SelfProfileInput) {
     phone: data.phone ?? "",
     profession: data.profession ?? "",
     birthdate: toTimestamp(data.birthdate),
+    // Consent toggle — only the self lane writes it. The admin lane composes this
+    // with a MemberInput (no publicProfile), so the key is omitted there.
+    ...(data.publicProfile !== undefined ? { publicProfile: data.publicProfile } : {}),
   };
 }
 

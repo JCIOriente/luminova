@@ -47,7 +47,7 @@ describe("previewEffectivePerms", () => {
 
   it("unions selected custom roles and applies overrides (grant then revoke)", () => {
     const out = previewEffectivePerms({
-      builtInRoleNames: ["Member"],
+      builtInRoleNames: [],
       selectedCustomRoleIds: ["c1"],
       allRoles: [role({ id: "c1", permissions: ["manage:Ally", "read:Position"] })],
       overrides: { grant: ["manage:Project"], revoke: ["read:Position"] },
@@ -57,7 +57,7 @@ describe("previewEffectivePerms", () => {
 
   it("ignores unknown custom role ids", () => {
     const out = previewEffectivePerms({
-      builtInRoleNames: ["Member"],
+      builtInRoleNames: [],
       selectedCustomRoleIds: ["missing"],
       allRoles: [],
       overrides: { grant: [], revoke: [] },

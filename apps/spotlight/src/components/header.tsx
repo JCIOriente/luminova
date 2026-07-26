@@ -101,7 +101,7 @@ export function Header() {
             >
               Contacto
             </a>
-            <a href={BACKSTAGE_URL} className="nav-link">
+            <a href={BACKSTAGE_URL} target="_blank" rel="noopener noreferrer" className="nav-link">
               Ingresar
             </a>
             <Button
@@ -147,7 +147,12 @@ export function Header() {
             <a href="/contact" onClick={(e) => go(e, "/contact")} className="mobile-nav-link">
               Contacto
             </a>
-            <a href={BACKSTAGE_URL} className="mobile-nav-link">
+            <a
+              href={BACKSTAGE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mobile-nav-link"
+            >
               Ingresar
             </a>
           </div>

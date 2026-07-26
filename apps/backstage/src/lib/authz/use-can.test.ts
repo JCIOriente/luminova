@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { buildAbility } from "@luminova/auth/ability";
 import type { AuthClaims } from "@luminova/auth/roles";
+import { NAV_GROUPS } from "../../components/nav-config";
 import { buildCan } from "./use-can";
 
 function can(claims: AuthClaims) {
   return buildCan(buildAbility(claims, "self"), claims);
 }
+
+const navItem = (to: string) => NAV_GROUPS.flatMap((g) => g.items).find((i) => i.to === to)!;
 
 describe("buildCan", () => {
   it("perm gate follows the resolved perms claim", () => {
@@ -62,5 +65,18 @@ describe("buildCan", () => {
     const gate = can({ roles: [] });
     expect(gate.can("read", "Member")).toBe(false);
     expect(gate.isAdmin).toBe(false);
+  });
+
+  // A member-only user is redirected from `/` to `/me` by _app.index, so the Inicio
+  // link is dead weight — the UI gate hides it while route access to `/` stays open.
+  it("hides the Inicio dashboard link for a member-only user but keeps Mi panel", () => {
+    const member = can({ roles: ["Member"], perms: ["read:Member"] });
+    expect(member.navItemVisible(navItem("/"))).toBe(false);
+    expect(member.navItemVisible(navItem("/me"))).toBe(true);
+  });
+
+  it("keeps the Inicio dashboard link for a privileged user", () => {
+    expect(can({ roles: ["Admin"] }).navItemVisible(navItem("/"))).toBe(true);
+    expect(can({ roles: ["Membership"] }).navItemVisible(navItem("/"))).toBe(true);
   });
 });

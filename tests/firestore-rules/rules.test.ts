@@ -434,6 +434,13 @@ beforeAll(async () => {
       deletedAt: null,
     });
     await setDoc(doc(db, "showcase/s1"), { id: "s1", kind: "Project", title: "Eco" });
+    await setDoc(doc(db, "boardShowcase/b1"), {
+      id: "b1",
+      name: "Arnold Gandarillas",
+      title: "Secretario",
+      group: "CEL",
+      portraitUrl: "https://cdn/x.jpg",
+    });
     await setDoc(doc(db, "allyShowcase/a1"), {
       id: "a1",
       name: "Unifranz",
@@ -496,12 +503,23 @@ describe("firestore.rules — members", () => {
   it("allows a member to read their own profile", async () => {
     await assertSucceeds(getDoc(doc(as("owner-uid", ["Member"]), "members/m1")));
   });
-  it("denies a member reading another profile", async () => {
-    await assertFails(getDoc(doc(as("stranger", ["Member"]), "members/m1")));
+  it("allows a member to read another profile (Member holds read:Member — roster access)", async () => {
+    await assertSucceeds(getDoc(doc(as("stranger", ["Member"]), "members/m1")));
   });
   it("allows Membership to create with totalPoints 0", async () => {
     await assertSucceeds(
       setDoc(doc(as("u", ["Membership"]), "members/new1"), { name: "B", totalPoints: 0 }),
+    );
+  });
+  it("denies create with publicProfile pre-set (consent is not institutionally stamped)", async () => {
+    // The identical payload without publicProfile succeeds above — so this isolates
+    // the create-arm !('publicProfile' in ...) guard, not some other missing field.
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_consent"), {
+        name: "B",
+        totalPoints: 0,
+        publicProfile: true,
+      }),
     );
   });
   it("denies create when totalPoints != 0", async () => {
@@ -676,6 +694,26 @@ describe("firestore.rules — members", () => {
     );
     await assertFails(
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { profession: "a".repeat(81) }),
+    );
+  });
+  it("allows the owning member to opt in to the public Directiva (publicProfile)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: true }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: false }),
+    );
+  });
+  it("denies the owning member a non-bool publicProfile", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: "yes" }),
+    );
+  });
+  it("denies an Admin setting another member's publicProfile (consent is owner-only)", async () => {
+    // m1.uid === "owner-uid"; the admin is a different uid, so only the institutional
+    // arm could apply — and it now pins publicProfile via unchanged().
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), { publicProfile: true }),
     );
   });
   it("denies a soft-deleted member editing their own archived record", async () => {
@@ -1661,6 +1699,18 @@ describe("allyShowcase (public read, beacon-only write)", () => {
   });
 });
 
+describe("boardShowcase (public read, beacon-only write)", () => {
+  it("allows anonymous read", async () => {
+    await assertSucceeds(getDoc(doc(anon(), "boardShowcase/b1")));
+  });
+  it("denies anonymous write", async () => {
+    await assertFails(setDoc(doc(anon(), "boardShowcase/b2"), { name: "x" }));
+  });
+  it("denies Admin write (beacon admin SDK only)", async () => {
+    await assertFails(setDoc(doc(as("u", ["Admin"]), "boardShowcase/b2"), { name: "x" }));
+  });
+});
+
 // Rules derive the term from request.time.year() (UTC); compute it from the client
 // clock so this suite can't rot when the calendar year rolls over.
 const TERM = String(new Date().getUTCFullYear());
@@ -2402,6 +2452,7 @@ describe("hard-delete denial — every collection the rules forbid client-deleti
     { name: "memberPoints", path: "memberPoints/2025/03/e1" },
     { name: "showcase", path: "showcase/s1" },
     { name: "allyShowcase", path: "allyShowcase/a1" },
+    { name: "boardShowcase", path: "boardShowcase/b1" },
   ];
 
   it("the rules' unconditional delete-deny set is EXACTLY the collections we cover (no drift)", () => {

@@ -37,7 +37,8 @@ describe("resolveMemberPerms", () => {
       ["role-x"],
       NO_OVERRIDES,
     );
-    expect(out).toEqual(["manage:Ally"]);
+    // Member now contributes its coarse reads; the custom role adds manage:Ally.
+    expect(out).toEqual(["manage:Ally", "read:Activity", "read:Member", "read:Program"]);
   });
 
   it("applies overrides on top of resolved role perms", async () => {
@@ -48,8 +49,13 @@ describe("resolveMemberPerms", () => {
     expect(out).toEqual(["manage:Position", "read:MemberPoints"]);
   });
 
-  it("returns empty for conditional-only roles (Member/Scanner) with no extras", async () => {
+  it("resolves the Member coarse reads for a plain Member/Scanner with no extras", async () => {
+    // Scanner is conditional-only (empty coarse); Member now carries its member-facing reads.
     const roles: Role[] = ["Member", "Scanner"];
-    expect(await resolveMemberPerms(deps(), roles, [], NO_OVERRIDES)).toEqual([]);
+    expect(await resolveMemberPerms(deps(), roles, [], NO_OVERRIDES)).toEqual([
+      "read:Activity",
+      "read:Member",
+      "read:Program",
+    ]);
   });
 });

@@ -36,11 +36,16 @@ export type MemberInput = z.infer<typeof memberSchema>;
 
 /** What a member may change about themselves on /me. Mirrors the self lane in
  *  firestore.rules; the photo is its own action, not a form field. Name, email, status,
- *  cargo and joinDate are institutional records the membership tier maintains. */
-export const selfProfileSchema = memberSchema.pick({
-  phone: true,
-  profession: true,
-  birthdate: true,
-});
+ *  cargo and joinDate are institutional records the membership tier maintains.
+ *  publicProfile is the member's opt-in to appear on the public Directiva (boardShowcase). */
+export const selfProfileSchema = memberSchema
+  .pick({
+    phone: true,
+    profession: true,
+    birthdate: true,
+  })
+  .extend({
+    publicProfile: z.boolean().optional(),
+  });
 
 export type SelfProfileInput = z.infer<typeof selfProfileSchema>;
