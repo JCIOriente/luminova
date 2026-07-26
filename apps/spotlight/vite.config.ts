@@ -85,7 +85,8 @@ export default defineConfig({
       },
       // App-shell precache ONLY. No runtimeCaching for firestore/googleapis by
       // design — the lite reads must stay live. png excluded from globPatterns
-      // so the 647 kB og-image.png is not precached.
+      // so the crawler-only OG share images (og-image-v2.png, og-linktree.png)
+      // are not precached — nothing in the app shell loads them.
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
         cleanupOutdatedCaches: true,
