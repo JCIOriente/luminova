@@ -96,7 +96,17 @@ export function ImageUploader({
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
         <Avatar src={currentSrc} name={name} size={64} />
-        <label className={cn(actionLink, "cursor-pointer", (disabled || busy) && "opacity-50")}>
+        {/* `relative` contains the sr-only file input — see checkbox.tsx: an
+            absolutely-positioned sr-only control with no positioned ancestor
+            decouples from a nested scroll container and scroll-jumps on focus. */}
+        <label
+          className={cn(
+            "relative",
+            actionLink,
+            "cursor-pointer",
+            (disabled || busy) && "opacity-50",
+          )}
+        >
           {currentSrc ? "Cambiar foto" : "Subir foto"}
           <input
             data-testid="image-file-input"
