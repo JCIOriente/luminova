@@ -152,8 +152,11 @@ function asImpact(v: unknown): InitiativeImpact | null {
  * and updates immediately, so the two public surfaces can disagree about one person until
  * then. Self-service renaming widens who can cause that (previously admins only). Closing it
  * needs a rename-gated fan-out in the members trigger: skip unless before.name != after.name,
- * then query programs+projects by directorId / coDirectorIds / teamIds and re-project each
- * hit (single-field queries, so no composite index).
+ * then query programs+projects on the NESTED roster paths — `roster.directorId ==`,
+ * `roster.coDirectorIds array-contains`, `roster.teamIds array-contains` (see parseRoster
+ * below; the bare top-level names match nothing and fail silently) — and re-project each hit.
+ * Single-field queries, so no composite index, but bound them with .limit() and batch the
+ * re-projection through chunk() rather than splatting the results (guardrail #5).
  *
  * The bar here stays "is this renderable" — deliberately weaker than memberName's form
  * pattern — because this projects LEGACY institutional names beacon does not control.
