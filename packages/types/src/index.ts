@@ -29,6 +29,7 @@ export {
   type MemberInput,
   type SelfProfileInput,
 } from "./member-schema.js";
+export { MEMBER_NAME_MAX_LENGTH } from "./member-name.js";
 export {
   BOLIVIA_PHONE_LENGTH,
   isBoliviaPhone,

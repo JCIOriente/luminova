@@ -211,11 +211,11 @@ service cloud.firestore {
     // packages/types/src/member-self-lane.rules.test.ts parses this function and fails if
     // it drifts from selfProfileSchema (rules mirror code — guardrail #2).
     //
-    // Mirrors memberSchema (packages/types/src/member-schema.ts + phone.ts): the phone is
-    // 8 national digits or blank, profession is capped free text, birthdate is a real
-    // date. The admin lane is not held to this — it writes these fields through a form
-    // that already validates them, while a self-write is the one path a member reaches
-    // without that form.
+    // Mirrors memberSchema (packages/types/src/member-schema.ts + phone.ts + member-name.ts):
+    // the name is a bounded letters-only string, the phone is 8 national digits or blank,
+    // profession is capped free text, birthdate is a real date. The admin lane is not held
+    // to this — it writes these fields through a form that already validates them, while a
+    // self-write is the one path a member reaches without that form.
     //
     // Only the keys a write TOUCHES are shape-checked: a member's photo upload must not be
     // denied by a legacy phone value stored before the 8-digit format was enforced.
@@ -223,9 +223,20 @@ service cloud.firestore {
       let d = request.resource.data;
       // .get(...) everywhere: clearing a field makes it ABSENT, and a bare d.phone would
       // throw (a rule that errors denies), so a cleared optional field must read as blank.
-      return changed.hasOnly(['profilePicture', 'birthdate', 'profession', 'phone', 'publicProfile'])
+      return changed.hasOnly(['profilePicture', 'name', 'birthdate', 'profession', 'phone', 'publicProfile'])
         && (!changed.hasAny(['profilePicture'])
           || d.get('profilePicture', null) == null || d.profilePicture is string)
+        // The name is world-readable (boardShowcase, showcase team credits) AND lands in the
+        // members CSV export, so the character set — not an escape at export time — is what
+        // makes a spreadsheet formula (leading =, +, -, @) unrepresentable. The form
+        // normalizes before writing; these rules see only the cleaned value, so a raw
+        // untrimmed or control-character name is denied here rather than repaired.
+        // Mirrors memberName (packages/types/src/member-name.ts) character for character.
+        && (!changed.hasAny(['name'])
+          || (d.get('name', '') is string
+              && d.get('name', '').size() >= 3
+              && d.get('name', '').size() <= 80
+              && d.get('name', '').matches("^[A-Za-zÀ-ÖØ-öø-ÿ]+[.]?(?:[ '-][A-Za-zÀ-ÖØ-öø-ÿ]+[.]?)*$")))
         && (!changed.hasAny(['birthdate']) || d.get('birthdate', null) is timestamp)
         && (!changed.hasAny(['profession'])
           || (d.get('profession', '') is string && d.get('profession', '').size() <= 80))
@@ -255,9 +266,11 @@ service cloud.firestore {
         && updatePermissionAssignmentSafe()
         && softDeleteSafe()
         && (!positionsTouched() || positionsAssignmentSafe());
-      // Self-service profile (/me): a member owns their photo and their own contact and
-      // personal details. Everything else on the doc — name, email, status, positions,
-      // points, roles — is an institutional record only the membership tier writes.
+      // Self-service profile (/me): a member owns their photo, their own name and their
+      // contact and personal details — the name so a member can correct a typo the
+      // membership tier made when enrolling them, without a round trip. Everything else on
+      // the doc — email, status, positions, points, roles — is an institutional record only
+      // the membership tier writes.
       // .get('uid', '') so a member doc WITHOUT a uid compares false instead of
       // throwing — an erroring allow-rule must not deny an otherwise-valid update.
       // active: a soft-deleted or desafiliado member's record is an institutional

@@ -6,6 +6,10 @@ import { termPositionsDocSchema } from "./position-doc-schema.js";
 import { permissionOverridesSchema } from "./permission-overrides-schema.js";
 
 export const memberDocSchema = z.object({
+  // Stays unbounded on purpose — do NOT mirror memberName's pattern here. This is the READ
+  // path: a legacy doc whose name predates the pattern must still parse, or parseDocs drops
+  // that member out of the roster, /me, the CSV and the ranking. Write-side bounds live in
+  // memberSchema and firestore.rules.
   name: z.string(),
   email: z.string(),
   phone: z.string().optional(),
