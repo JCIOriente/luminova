@@ -39,6 +39,23 @@ describe("membersToCsv", () => {
     },
   );
 
+  // A lone CR in an unquoted field ends the record, so the text after it would start a new
+  // row without ever passing through cell() — un-escaped, formula and all.
+  it("quotes a field containing a bare carriage return", () => {
+    const csv = membersToCsv([base], () => "Director\r=cmd|'/C calc'!A0");
+    expect(csv.split("\n")[1]).toContain(`"Director\r=cmd|'/C calc'!A0"`);
+  });
+
+  it("catches a formula hidden behind leading whitespace", () => {
+    const csv = membersToCsv([base], () => "  =cmd|'/C calc'!A0");
+    expect(csv.split("\n")[1]).toContain(`"'  =cmd|'/C calc'!A0"`);
+  });
+
+  it("leaves numeric columns unquoted so they stay sortable", () => {
+    const csv = membersToCsv([{ ...base, totalPoints: 12 }], () => "Tesorera");
+    expect(csv.split("\n")[1]).toMatch(/,12$/);
+  });
+
   it("neutralizes a formula in an admin-authored cargo title", () => {
     const csv = membersToCsv([base], () => "=cmd|'/C calc'!A1");
     expect(csv.split("\n")[1]).toContain(`"'=cmd|'/C calc'!A1"`);

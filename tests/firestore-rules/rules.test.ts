@@ -644,6 +644,23 @@ describe("firestore.rules — members", () => {
       updateDoc(doc(as("u", ["Membership"]), "members/m_legacyname"), { name: "Ana Rivas 3" }),
     );
   });
+  // The self-lane half of the same affordance: the OWNER of a legacy-named doc must be able
+  // to edit their own contact fields. Structurally the same check as the institutional arm,
+  // but on a different arm — assert it rather than infer it.
+  it("allows the owner of a legacy-invalid name to edit their own contact fields", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("legacyname-uid", ["Member"]), "members/m_legacyname"), {
+        phone: "70099887",
+      }),
+    );
+  });
+  it("denies the owner of a legacy-invalid name changing it to another invalid one", async () => {
+    await assertFails(
+      updateDoc(doc(as("legacyname-uid", ["Member"]), "members/m_legacyname"), {
+        name: "Ana Rivas 4",
+      }),
+    );
+  });
   it("allows Membership repairing a legacy-invalid name to a valid one", async () => {
     await assertSucceeds(
       updateDoc(doc(as("u", ["Membership"]), "members/m_legacyname"), { name: "Ana Rivas" }),
