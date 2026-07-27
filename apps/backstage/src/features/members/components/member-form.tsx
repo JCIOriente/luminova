@@ -21,6 +21,7 @@ import {
   type Position,
   MEMBER_STATUSES,
   MEMBER_GENDERS,
+  MEMBER_NAME_MAX_LENGTH,
 } from "@luminova/types";
 import { avatarColor } from "../lib/member-display";
 
@@ -163,7 +164,7 @@ export function MemberForm({
       <div className="flex flex-col gap-4">
         <SectionLabel>Datos personales</SectionLabel>
         <Field label="Nombre" htmlFor="name" required error={errors.name?.message}>
-          <Input id="name" {...register("name")} />
+          <Input id="name" maxLength={MEMBER_NAME_MAX_LENGTH} {...register("name")} />
         </Field>
         <Field label="Correo" htmlFor="email" required error={errors.email?.message}>
           <Input id="email" type="email" {...register("email")} />

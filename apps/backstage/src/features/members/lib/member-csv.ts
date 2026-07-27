@@ -3,6 +3,10 @@ import { joinYear } from "./member-display";
 
 const HEADER = ["Nombre", "Correo", "Cargo", "Estado", "Desde", "Puntos"];
 
+// No leading-formula guard (=, +, -, @) on purpose: a member name cannot represent one —
+// see MEMBER_NAME_PATTERN in @luminova/types, which always starts a name with a letter, and
+// is why the name is validated at the source rather than escaped here. Quote/comma escaping
+// stays for the Cargo column, which is admin-authored free text with no pattern.
 function cell(value: string | number): string {
   const s = String(value);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
