@@ -619,16 +619,18 @@ describe("firestore.rules — members", () => {
     );
   });
   it("denies the owning member changing another field alongside profilePicture", async () => {
+    // email, not name: the self lane accepts a well-formed name now, so a name companion
+    // would make this pass for the wrong reason instead of testing the key-set guard.
     await assertFails(
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), {
         profilePicture: "https://example/p.jpg",
-        name: "Hijack",
+        email: "hijack@example.com",
       }),
     );
   });
-  // Self-service profile (/me): a member owns their photo, birthdate, profession and
-  // phone. Everything else on the doc — name, email, status, positions, points, roles —
-  // is an institutional record the membership tier maintains.
+  // Self-service profile (/me): a member owns their photo, name, birthdate, profession and
+  // phone. Everything else on the doc — email, status, positions, points, roles — is an
+  // institutional record the membership tier maintains.
   it("allows the owning member to edit their own contact/personal fields", async () => {
     await assertSucceeds(
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), {
@@ -733,6 +735,86 @@ describe("firestore.rules — members", () => {
       }),
     );
   });
+  // /me self-rename. The name is world-readable (boardShowcase republishes on this very
+  // write) and lands in the members CSV, so the character set is the boundary — the form
+  // normalizes first, so these rules only ever legitimately see a cleaned value.
+  // NOTE: every allowed rename below must write a DIFFERENT value from the previous one —
+  // an identical write is absent from affectedKeys() and would pass vacuously.
+  it("allows the owning member to rename themselves", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "Ana María Rivas-Paz" }),
+    );
+  });
+  it("allows an apostrophe and a middle initial", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "Ana M. O'Brien" }),
+    );
+  });
+  it("allows a name at the cap and denies one past it", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "a".repeat(80) }),
+    );
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "a".repeat(81) }),
+    );
+  });
+  // 60 accented characters = 60 chars but 120 UTF-8 bytes. Succeeds iff the rules engine's
+  // String.size() counts CHARACTERS — pinning the semantics the zod cap (code units)
+  // assumes. If this ever flips, an accented name passes the form and dies as a generic
+  // "no se pudo guardar" with nothing else failing.
+  it("caps the name in characters, not UTF-8 bytes", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "ñ".repeat(60) }),
+    );
+  });
+  it("denies a name below the length floor", async () => {
+    await assertFails(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "Al" }));
+  });
+  it("denies an empty name", async () => {
+    await assertFails(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "" }));
+  });
+  it("denies clearing the name", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: deleteField() }),
+    );
+  });
+  it("denies a non-string name", async () => {
+    await assertFails(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: 12345 }));
+  });
+  // The whole point of the character class: a spreadsheet formula cannot be REPRESENTED as
+  // a name, which is why the CSV export needs no formula-prefix escape.
+  it("denies every spreadsheet formula prefix", async () => {
+    for (const prefix of ["=", "+", "-", "@", "\t", "\r"]) {
+      await assertFails(
+        updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: `${prefix}Ana Rivas` }),
+      );
+    }
+  });
+  it("denies digits, CSV structural characters and newlines in a name", async () => {
+    for (const bad of ["Ana Rivas 2", "Rivas, Ana", 'Ana "A" Rivas', "Ana\nRivas", "<b>Ana</b>"]) {
+      await assertFails(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: bad }));
+    }
+  });
+  // The form normalizes these away before writing; the rules have no normalizer, so the
+  // raw shapes are denied rather than repaired.
+  it("denies leading, trailing and doubled spaces", async () => {
+    for (const bad of [" Ana Rivas", "Ana Rivas ", "Ana  Rivas"]) {
+      await assertFails(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: bad }));
+    }
+  });
+  it("denies a rename bundled with an institutional field", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), {
+        name: "Ana Nueva",
+        status: "Desafiliado",
+      }),
+    );
+  });
+  it("denies a non-owner renaming another member", async () => {
+    await assertFails(
+      updateDoc(doc(as("stranger", ["Member"]), "members/m1"), { name: "Ana Secuestrada" }),
+    );
+  });
   it("allows soft-deleting a live member (active true -> false)", async () => {
     await assertSucceeds(
       updateDoc(doc(as("u", ["Membership"]), "members/m1"), {
@@ -748,8 +830,10 @@ describe("firestore.rules — members", () => {
     await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m_deleted"), { deletedAt: null }));
   });
   it("denies a Member from updating their own profile", async () => {
+    // A VALID name: "X" would be denied by the length floor even for a live owner, which
+    // would stop this from isolating the active gate it is named for.
     await assertFails(
-      updateDoc(doc(as("bea-uid", ["Member"]), "members/m_deleted"), { name: "X" }),
+      updateDoc(doc(as("bea-uid", ["Member"]), "members/m_deleted"), { name: "Bea Nueva" }),
     );
   });
 });
