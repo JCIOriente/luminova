@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parseSelfProfileLane } from "../../../tools/scripts/lib/rules-locked-fields.mjs";
+import {
+  parseSelfProfileLane,
+  parseMemberNameGate,
+} from "../../../tools/scripts/lib/rules-locked-fields.mjs";
 import { selfProfileSchema, PROFESSION_MAX_LENGTH } from "./member-schema.js";
 import { BOLIVIA_PHONE_LENGTH } from "./phone.js";
 import {
@@ -17,9 +20,12 @@ import {
 // the zod one surfaces to the member as a generic "no se pudo guardar", with nothing
 // failing in CI. Runs in the fast `checks` job (no emulator).
 
-const LANE = parseSelfProfileLane(
-  readFileSync(fileURLToPath(new URL("../../../firestore.rules", import.meta.url)), "utf8"),
+const RULES = readFileSync(
+  fileURLToPath(new URL("../../../firestore.rules", import.meta.url)),
+  "utf8",
 );
+const LANE = parseSelfProfileLane(RULES);
+const NAME_GATE = parseMemberNameGate(RULES);
 
 describe("firestore.rules members self lane is in sync with selfProfileSchema", () => {
   it("writes exactly the schema's fields plus the photo", () => {
@@ -39,13 +45,30 @@ describe("firestore.rules members self lane is in sync with selfProfileSchema", 
   });
 
   it("bounds the name at the same lengths the schema does", () => {
-    expect(LANE.nameMin).toBe(MEMBER_NAME_MIN_LENGTH);
-    expect(LANE.nameMax).toBe(MEMBER_NAME_MAX_LENGTH);
+    expect(NAME_GATE.min).toBe(MEMBER_NAME_MIN_LENGTH);
+    expect(NAME_GATE.max).toBe(MEMBER_NAME_MAX_LENGTH);
   });
 
   // Character-for-character, not "equivalent": a rules pattern that accepts one glyph the
   // form rejects (or vice versa) is a save that dies as a generic "no se pudo guardar".
   it("matches the name against the byte-identical pattern the schema does", () => {
-    expect(LANE.namePattern).toBe(MEMBER_NAME_PATTERN);
+    expect(NAME_GATE.pattern).toBe(MEMBER_NAME_PATTERN);
+  });
+
+  // The gate is only worth having if every writer passes through it. A lane that writes
+  // members.name without calling memberNameValid() leaves the CSV/boardShowcase invariant
+  // resting on client-side zod, which a direct authenticated write bypasses.
+  it("binds the name gate on every members write lane, not just the self lane", () => {
+    const block = RULES.match(/match \/members\/\{memberId\}[\s\S]*?\n {4}\}/);
+    expect(block).not.toBeNull();
+    const arms = (block?.[0] ?? "").split(/allow (?=create|update)/).slice(1);
+    // create + institutional update + self update + ExecutiveCommittee positions-only.
+    expect(arms).toHaveLength(4);
+    for (const arm of arms) {
+      const writesName = !arm.includes("hasOnly(['positions'])");
+      if (writesName) {
+        expect(arm).toMatch(/memberNameValid\(|selfProfileValid\(/);
+      }
+    }
   });
 });

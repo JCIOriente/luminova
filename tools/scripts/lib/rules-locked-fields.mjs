@@ -14,23 +14,44 @@ export function parseActivityLockedFields(source) {
   return [...fn[0].matchAll(/unchanged\('([^']+)'\)/g)].map((m) => m[1]);
 }
 
-/** The members self-service lane: which fields a member may write on their own doc, plus
- *  the shape bounds selfProfileValid() enforces. Mirrored by selfProfileSchema — see
- *  packages/types/src/member-self-lane.rules.test.ts.
+/** The members name gate. Its own function in firestore.rules because EVERY lane that
+ *  writes members.name calls it (self-service, institutional, create) — the value reaches
+ *  the world-readable boardShowcase projection and the un-escaped CSV export, so binding it
+ *  to one lane would leave the invariant resting on client-side zod. Mirrored by
+ *  memberName — see packages/types/src/member-self-lane.rules.test.ts.
  *
- *  The per-field probes are line-scoped (`[^\n]*`) on purpose, and that is what keeps them
- *  unambiguous — do not "simplify" them:
- *  - `profession` does not contain the substring `name` and vice versa, so the two
- *    `size() <=` probes cannot cross-match;
- *  - `[^\n]*` cannot cross a line boundary, so the `hasOnly([... 'name' ...])` line cannot
- *    satisfy the size/matches probes;
- *  - the name pattern is DOUBLE-quoted in the rules while the phone's is single-quoted,
- *    which is the only thing separating the two `matches()` probes.
+ *  Scoping the probes to memberNameValid()'s body is what makes them unambiguous: `name` is
+ *  the function's only parameter there, so a bare `name.size()` cannot collide with another
+ *  field's bound the way it would inside selfProfileValid() (where `profession` also
+ *  carries a `size() <=`). Do not move these probes back into the lane function.
  *  The pattern capture is greedy (`(.+)`, not `[^"]+`) so a future pattern containing a
  *  double quote is not silently truncated — the closing `"\)` anchors it.
  *
  * @param {string} source
- * @returns {{ fields: string[], professionMax: number, phoneDigits: number, nameMin: number, nameMax: number, namePattern: string }}
+ * @returns {{ min: number, max: number, pattern: string }}
+ */
+export function parseMemberNameGate(source) {
+  const fn = source.match(/function memberNameValid\(name\)[\s\S]*?\n\s{4}\}/);
+  if (!fn) throw new Error("memberNameValid() not found in firestore.rules");
+  const min = fn[0].match(/name\.size\(\) >= (\d+)/);
+  const max = fn[0].match(/name\.size\(\) <= (\d+)/);
+  const pattern = fn[0].match(/name\.matches\("(.+)"\)/);
+  if (!min || !max || !pattern) {
+    throw new Error("memberNameValid() bounds not found in firestore.rules");
+  }
+  return { min: Number(min[1]), max: Number(max[1]), pattern: pattern[1] };
+}
+
+/** The members self-service lane: which fields a member may write on their own doc, plus
+ *  the shape bounds selfProfileValid() enforces. Mirrored by selfProfileSchema — see
+ *  packages/types/src/member-self-lane.rules.test.ts. The name's bounds are NOT here —
+ *  they live in memberNameValid(), see parseMemberNameGate above.
+ *
+ *  The profession probe is line-scoped (`[^\n]*`) on purpose: `[^\n]*` cannot cross a line
+ *  boundary, so the `hasOnly([...])` key list cannot satisfy it.
+ *
+ * @param {string} source
+ * @returns {{ fields: string[], professionMax: number, phoneDigits: number }}
  */
 export function parseSelfProfileLane(source) {
   const guard = source.match(/function selfProfileValid\(changed\)[\s\S]*?\n\s{4}\}/);
@@ -38,10 +59,7 @@ export function parseSelfProfileLane(source) {
   const list = guard[0].match(/hasOnly\(\[([^\]]+)\]\)/);
   const professionMax = guard[0].match(/profession[^\n]*size\(\) <= (\d+)/);
   const phoneDigits = guard[0].match(/matches\('\^\[0-9\]\{(\d+)\}\$'\)/);
-  const nameMin = guard[0].match(/name[^\n]*size\(\) >= (\d+)/);
-  const nameMax = guard[0].match(/name[^\n]*size\(\) <= (\d+)/);
-  const namePattern = guard[0].match(/name[^\n]*matches\("(.+)"\)/);
-  if (!list || !professionMax || !phoneDigits || !nameMin || !nameMax || !namePattern) {
+  if (!list || !professionMax || !phoneDigits) {
     throw new Error("selfProfileValid() key set or bounds not found in firestore.rules");
   }
 
@@ -49,8 +67,5 @@ export function parseSelfProfileLane(source) {
     fields: [...list[1].matchAll(/'([^']+)'/g)].map((m) => m[1]),
     professionMax: Number(professionMax[1]),
     phoneDigits: Number(phoneDigits[1]),
-    nameMin: Number(nameMin[1]),
-    nameMax: Number(nameMax[1]),
-    namePattern: namePattern[1],
   };
 }

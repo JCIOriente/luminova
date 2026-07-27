@@ -206,16 +206,40 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Every writer of members.name passes through here — the self lane, the institutional
+    // lane and create alike. It is NOT a self-lane concern: the name is copied verbatim
+    // into the world-readable boardShowcase projection and into the members CSV export,
+    // whose cell() has no formula-prefix escape BECAUSE this gate makes a leading =, +, -
+    // or @ unrepresentable. Enforcing it only where the member writes would leave that
+    // invariant resting on the admin form's client-side zod, which any direct authenticated
+    // write bypasses — a claim that gates nothing (guardrail #6).
+    //
+    // Mirrors memberName (packages/types/src/member-name.ts) character for character;
+    // parseSelfProfileLane() parses this function and member-self-lane.rules.test.ts fails
+    // if the two drift (rules mirror code — guardrail #2). The form normalizes before
+    // writing, so these rules only ever legitimately see a cleaned value — a raw untrimmed
+    // or control-character name is denied here rather than repaired.
+    function memberNameValid(name) {
+      return name is string
+        && name.size() >= 3
+        && name.size() <= 80
+        && name.matches("^[A-Za-zÀ-ÖØ-öø-ÿ]+[.]?(?:[ '-][A-Za-zÀ-ÖØ-öø-ÿ]+[.]?)*$");
+    }
+
+    function nameTouched() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']);
+    }
+
     // The self-service lane's whole contract: which keys a member may write on their own
     // doc, and the shape each must have. Both live here, in one place, because
     // packages/types/src/member-self-lane.rules.test.ts parses this function and fails if
     // it drifts from selfProfileSchema (rules mirror code — guardrail #2).
     //
     // Mirrors memberSchema (packages/types/src/member-schema.ts + phone.ts + member-name.ts):
-    // the name is a bounded letters-only string, the phone is 8 national digits or blank,
-    // profession is capped free text, birthdate is a real date. The admin lane is not held
-    // to this — it writes these fields through a form that already validates them, while a
-    // self-write is the one path a member reaches without that form.
+    // the phone is 8 national digits or blank, profession is capped free text, birthdate is
+    // a real date. The admin lane is not held to these — it writes them through a form that
+    // already validates them, while a self-write is the one path a member reaches without
+    // that form. The name is the exception: memberNameValid() binds every lane.
     //
     // Only the keys a write TOUCHES are shape-checked: a member's photo upload must not be
     // denied by a legacy phone value stored before the 8-digit format was enforced.
@@ -226,17 +250,7 @@ service cloud.firestore {
       return changed.hasOnly(['profilePicture', 'name', 'birthdate', 'profession', 'phone', 'publicProfile'])
         && (!changed.hasAny(['profilePicture'])
           || d.get('profilePicture', null) == null || d.profilePicture is string)
-        // The name is world-readable (boardShowcase, showcase team credits) AND lands in the
-        // members CSV export, so the character set — not an escape at export time — is what
-        // makes a spreadsheet formula (leading =, +, -, @) unrepresentable. The form
-        // normalizes before writing; these rules see only the cleaned value, so a raw
-        // untrimmed or control-character name is denied here rather than repaired.
-        // Mirrors memberName (packages/types/src/member-name.ts) character for character.
-        && (!changed.hasAny(['name'])
-          || (d.get('name', '') is string
-              && d.get('name', '').size() >= 3
-              && d.get('name', '').size() <= 80
-              && d.get('name', '').matches("^[A-Za-zÀ-ÖØ-öø-ÿ]+[.]?(?:[ '-][A-Za-zÀ-ÖØ-öø-ÿ]+[.]?)*$")))
+        && (!changed.hasAny(['name']) || memberNameValid(d.get('name', '')))
         && (!changed.hasAny(['birthdate']) || d.get('birthdate', null) is timestamp)
         && (!changed.hasAny(['profession'])
           || (d.get('profession', '') is string && d.get('profession', '').size() <= 80))
@@ -253,16 +267,21 @@ service cloud.firestore {
         && request.resource.data.totalPoints == 0
         && !('uid' in request.resource.data)
         && !('publicProfile' in request.resource.data)
+        && memberNameValid(request.resource.data.get('name', ''))
         && createPermissionAssignmentSafe()
         && createPositionsSafe();
       // publicProfile is member-consent-only: it publishes their face/name to the
       // public Directiva, so the institutional (membership-tier) arm may never set or
       // change it — only the owner-only self-lane below can. unchanged() so an admin
       // edit that doesn't touch it still passes.
+      // nameTouched(): an admin editing only a phone must not be denied by a legacy name
+      // stored before this gate existed — an unchanged value is absent from affectedKeys().
+      // Setting a name, on any lane, must satisfy it.
       allow update: if canDo('update', 'Member')
         && unchanged('totalPoints')
         && unchanged('uid')
         && unchanged('publicProfile')
+        && (!nameTouched() || memberNameValid(request.resource.data.get('name', '')))
         && updatePermissionAssignmentSafe()
         && softDeleteSafe()
         && (!positionsTouched() || positionsAssignmentSafe());
