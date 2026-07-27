@@ -1,8 +1,9 @@
+import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Checkbox, DatePicker, Field, Input } from "@luminova/ui";
 import {
-  selfProfileSchema,
+  selfProfileSchemaFor,
   MEMBER_NAME_MAX_LENGTH,
   type Member,
   type SelfProfileInput,
@@ -16,13 +17,16 @@ import { useUpdateSelfProfile } from "../hooks/use-update-self-profile";
  *  (setProfilePicture) and the credential card above already owns that control. */
 export function SelfProfileForm({ member }: { member: Member }) {
   const updateProfile = useUpdateSelfProfile(member.id);
+  // Keyed on the stored name so an untouched legacy value doesn't block the other fields —
+  // see memberNameOrUnchanged. useMemo so the resolver isn't rebuilt every render.
+  const schema = useMemo(() => selfProfileSchemaFor(member.name), [member.name]);
   const {
     register,
     control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<SelfProfileInput>({
-    resolver: zodResolver(selfProfileSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       name: member.name,
       phone: member.phone ?? "",

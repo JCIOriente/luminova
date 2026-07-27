@@ -28,6 +28,14 @@ describe("memberDocSchema", () => {
     expect(parsed).toEqual(validDoc);
   });
 
+  // Structural, not a comment: swapping this READ schema's `name` for the write-side
+  // memberName compiles and passes every other test, while silently dropping any member
+  // whose stored name predates memberNameValid() out of parseDocs — and so out of the
+  // roster, /me, the CSV and the ranking. This case fails if someone does that.
+  it("parses a legacy name the write-side pattern would reject", () => {
+    expect(memberDocSchema.parse({ ...validDoc, name: "Ana Rivas 2" }).name).toBe("Ana Rivas 2");
+  });
+
   it("rejects a malformed doc (joinDate as ISO string instead of Timestamp)", () => {
     const malformed = { ...validDoc, joinDate: "2024-01-01" };
     expect(memberDocSchema.safeParse(malformed).success).toBe(false);

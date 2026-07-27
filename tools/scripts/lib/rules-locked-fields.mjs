@@ -5,20 +5,32 @@
 // cannot silently split the two parsers.
 
 /**
+ * Extract one rules-function body by name. The `\n\s{4}\}` terminator encodes the file's
+ * 4-space top-level function indentation — a single shared assumption rather than one per
+ * parser, so a reformat breaks (loudly) in one place instead of three.
+ *
+ * @param {string} source
+ * @param {string} signature exact `name(params)` as written in firestore.rules
+ * @returns {string}
+ */
+function ruleFunctionBody(source, signature) {
+  const escaped = signature.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const fn = source.match(new RegExp(`function ${escaped}[\\s\\S]*?\\n\\s{4}\\}`));
+  if (!fn) throw new Error(`${signature} not found in firestore.rules`);
+  return fn[0];
+}
+
+/**
  * @param {string} source
  * @returns {string[]}
  */
 export function parseActivityLockedFields(source) {
-  const fn = source.match(/function activityLockSafe\(\)[\s\S]*?\n\s{4}\}/);
-  if (!fn) throw new Error("activityLockSafe() not found in firestore.rules");
-  return [...fn[0].matchAll(/unchanged\('([^']+)'\)/g)].map((m) => m[1]);
+  const fn = ruleFunctionBody(source, "activityLockSafe()");
+  return [...fn.matchAll(/unchanged\('([^']+)'\)/g)].map((m) => m[1]);
 }
 
-/** The members name gate. Its own function in firestore.rules because EVERY lane that
- *  writes members.name calls it (self-service, institutional, create) — the value reaches
- *  the world-readable boardShowcase projection and the un-escaped CSV export, so binding it
- *  to one lane would leave the invariant resting on client-side zod. Mirrored by
- *  memberName — see packages/types/src/member-self-lane.rules.test.ts.
+/** The members name gate, mirrored by memberName — see
+ *  packages/types/src/member-self-lane.rules.test.ts.
  *
  *  Scoping the probes to memberNameValid()'s body is what makes them unambiguous: `name` is
  *  the function's only parameter there, so a bare `name.size()` cannot collide with another
@@ -31,11 +43,10 @@ export function parseActivityLockedFields(source) {
  * @returns {{ min: number, max: number, pattern: string }}
  */
 export function parseMemberNameGate(source) {
-  const fn = source.match(/function memberNameValid\(name\)[\s\S]*?\n\s{4}\}/);
-  if (!fn) throw new Error("memberNameValid() not found in firestore.rules");
-  const min = fn[0].match(/name\.size\(\) >= (\d+)/);
-  const max = fn[0].match(/name\.size\(\) <= (\d+)/);
-  const pattern = fn[0].match(/name\.matches\("(.+)"\)/);
+  const fn = ruleFunctionBody(source, "memberNameValid(name)");
+  const min = fn.match(/name\.size\(\) >= (\d+)/);
+  const max = fn.match(/name\.size\(\) <= (\d+)/);
+  const pattern = fn.match(/name\.matches\("(.+)"\)/);
   if (!min || !max || !pattern) {
     throw new Error("memberNameValid() bounds not found in firestore.rules");
   }
@@ -54,11 +65,10 @@ export function parseMemberNameGate(source) {
  * @returns {{ fields: string[], professionMax: number, phoneDigits: number }}
  */
 export function parseSelfProfileLane(source) {
-  const guard = source.match(/function selfProfileValid\(changed\)[\s\S]*?\n\s{4}\}/);
-  if (!guard) throw new Error("selfProfileValid() not found in firestore.rules");
-  const list = guard[0].match(/hasOnly\(\[([^\]]+)\]\)/);
-  const professionMax = guard[0].match(/profession[^\n]*size\(\) <= (\d+)/);
-  const phoneDigits = guard[0].match(/matches\('\^\[0-9\]\{(\d+)\}\$'\)/);
+  const guard = ruleFunctionBody(source, "selfProfileValid(changed)");
+  const list = guard.match(/hasOnly\(\[([^\]]+)\]\)/);
+  const professionMax = guard.match(/profession[^\n]*size\(\) <= (\d+)/);
+  const phoneDigits = guard.match(/matches\('\^\[0-9\]\{(\d+)\}\$'\)/);
   if (!list || !professionMax || !phoneDigits) {
     throw new Error("selfProfileValid() key set or bounds not found in firestore.rules");
   }

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@luminova/ui";
 import {
   memberSchema,
+  memberSchemaFor,
   positionTitle,
   currentTermKey,
   type MemberInput,
@@ -70,6 +71,14 @@ export function MemberForm({
   children,
 }: MemberFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
+  // On EDIT, don't re-validate a name the admin didn't touch: a member enrolled before
+  // memberNameValid() existed would otherwise be uneditable in every field. On CREATE there
+  // is no stored name, so the full validator applies. Mirrors touched('name') in the rules.
+  const storedName = defaultValues?.name;
+  const schema = useMemo(
+    () => (storedName === undefined ? memberSchema : memberSchemaFor(storedName)),
+    [storedName],
+  );
   const {
     register,
     control,
@@ -78,7 +87,7 @@ export function MemberForm({
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<MemberInput>({
-    resolver: zodResolver(memberSchema),
+    resolver: zodResolver(schema),
     defaultValues: { ...EMPTY, ...defaultValues },
   });
 

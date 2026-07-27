@@ -26,9 +26,9 @@ const member: Member = {
   deletedAt: null,
 };
 
-async function submitWithName(value: string) {
+async function submitWithName(value: string, on: Member = member) {
   const user = userEvent.setup();
-  render(<SelfProfileForm member={member} />);
+  render(<SelfProfileForm member={on} />);
   const input = screen.getByLabelText(/Nombre/);
   await user.clear(input);
   await user.type(input, value);
@@ -64,5 +64,37 @@ describe("SelfProfileForm", () => {
     await submitWithName("  ana   maría  rivas  ");
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
     expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ name: "ana maría rivas" }));
+  });
+
+  // The client mirror of touched('name'). Without it, a member enrolled before
+  // memberNameValid() existed cannot save ANY field — the form blocks on a name they never
+  // touched, and the rules' legacy affordance is unreachable from the UI.
+  describe("a member whose stored name predates the pattern", () => {
+    const legacy: Member = { ...member, name: "Ana Rivas 2" };
+
+    it("can still save other fields without touching the name", async () => {
+      const user = userEvent.setup();
+      render(<SelfProfileForm member={legacy} />);
+      await user.clear(screen.getByLabelText(/Profesión/));
+      await user.type(screen.getByLabelText(/Profesión/), "Ingeniera");
+      await user.click(screen.getByRole("button", { name: /Guardar/ }));
+      await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+      // Sent verbatim, not normalized: the rules see no diff on name, so the gate never runs.
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Ana Rivas 2", profession: "Ingeniera" }),
+      );
+    });
+
+    it("is still blocked from changing it to another invalid name", async () => {
+      await submitWithName("Ana Rivas 3", legacy);
+      expect(await screen.findByText(/Solo letras/)).toBeInTheDocument();
+      expect(mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it("can repair it to a valid one", async () => {
+      await submitWithName("Ana Rivas", legacy);
+      await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+      expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ name: "Ana Rivas" }));
+    });
   });
 });

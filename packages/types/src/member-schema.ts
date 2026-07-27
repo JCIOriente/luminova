@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MEMBER_STATUSES, MEMBER_GENDERS } from "./member.js";
 import { boliviaPhoneOptional } from "./phone.js";
-import { memberName } from "./member-name.js";
+import { memberName, memberNameOrUnchanged } from "./member-name.js";
 
 const dateString = z
   .string()
@@ -51,3 +51,15 @@ export const selfProfileSchema = memberSchema
   });
 
 export type SelfProfileInput = z.infer<typeof selfProfileSchema>;
+
+/** Edit-an-existing-member variants. They differ from the create schemas in one way: a name
+ *  the user did not touch is not re-validated, mirroring `touched('name')` in firestore.rules
+ *  so a member whose stored name predates that gate can still edit every other field.
+ *  See memberNameOrUnchanged. */
+export function memberSchemaFor(storedName: string) {
+  return memberSchema.extend({ name: memberNameOrUnchanged(storedName) });
+}
+
+export function selfProfileSchemaFor(storedName: string) {
+  return selfProfileSchema.extend({ name: memberNameOrUnchanged(storedName) });
+}

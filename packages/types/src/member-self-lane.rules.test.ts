@@ -61,14 +61,27 @@ describe("firestore.rules members self lane is in sync with selfProfileSchema", 
   it("binds the name gate on every members write lane, not just the self lane", () => {
     const block = RULES.match(/match \/members\/\{memberId\}[\s\S]*?\n {4}\}/);
     expect(block).not.toBeNull();
-    const arms = (block?.[0] ?? "").split(/allow (?=create|update)/).slice(1);
-    // create + institutional update + self update + ExecutiveCommittee positions-only.
-    expect(arms).toHaveLength(4);
+    // Strip comment lines first: split() attaches each arm's LEADING comment block to the
+    // PREVIOUS arm, so a comment mentioning memberNameValid( above an arm would otherwise
+    // satisfy the assertion for the arm before it.
+    const body = (block?.[0] ?? "").replace(/^\s*\/\/.*$/gm, "");
+    const arms = body.split(/allow (?=create|update)/).slice(1);
+    // >= the 4 that exist today (create, institutional update, self update, EC
+    // positions-only), so the split under-matching cannot make the loop vacuous. Not an
+    // equality: a new arm is a thing to gate, not a test failure.
+    expect(arms.length).toBeGreaterThanOrEqual(4);
     for (const arm of arms) {
       const writesName = !arm.includes("hasOnly(['positions'])");
       if (writesName) {
         expect(arm).toMatch(/memberNameValid\(|selfProfileValid\(/);
       }
     }
+  });
+
+  // The self arm satisfies the assertion above via selfProfileValid( alone, so without this
+  // the fast job would stay green if the name check were dropped from inside that function —
+  // only the emulator suite would catch it.
+  it("gates the name inside selfProfileValid, not just at the arm", () => {
+    expect(RULES).toMatch(/function selfProfileValid[\s\S]*?memberNameValid\([\s\S]*?\n {4}\}/);
   });
 });

@@ -28,4 +28,19 @@ describe("membersToCsv", () => {
     const csv = membersToCsv([base], roleLabel);
     expect(csv.split("\n")[1]).toContain('"Director, ""Área"""');
   });
+
+  // Escaped at the output boundary, not in the validators: memberNameValid() cannot cover a
+  // name stored before it existed, and Correo/Cargo carry no such pattern at all.
+  it.each(['=HYPERLINK("http://evil")', "+1+1", "-1+1", "@SUM(A1)"])(
+    "neutralizes the formula prefix in %j",
+    (formula) => {
+      const csv = membersToCsv([{ ...base, name: formula }], () => "Tesorera");
+      expect(csv.split("\n")[1]).toContain(`"'${formula.replace(/"/g, '""')}"`);
+    },
+  );
+
+  it("neutralizes a formula in an admin-authored cargo title", () => {
+    const csv = membersToCsv([base], () => "=cmd|'/C calc'!A1");
+    expect(csv.split("\n")[1]).toContain(`"'=cmd|'/C calc'!A1"`);
+  });
 });

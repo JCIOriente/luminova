@@ -88,8 +88,13 @@ service cloud.firestore {
       return assignedCargoId() == null
         || get(/databases/$(database)/documents/positions/$(assignedCargoId())).data.grants.size() == 0;
     }
-    function positionsTouched() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['positions']);
+    // "the write changes this field" — deliberately NOT unchanged(): that compares
+    // .get(field, null) on both sides, so writing an explicit null onto a doc that lacks
+    // the key reads as unchanged and skips the gate, while affectedKeys() counts it as
+    // added and forces validation. Use this to gate a shape check, unchanged() to pin a
+    // value the writer may not touch at all.
+    function touched(field) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([field]);
     }
     function positionsDelta() {
       return request.resource.data.get('positions', {})
@@ -206,28 +211,23 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Every writer of members.name passes through here — the self lane, the institutional
-    // lane and create alike. It is NOT a self-lane concern: the name is copied verbatim
-    // into the world-readable boardShowcase projection and into the members CSV export,
-    // whose cell() has no formula-prefix escape BECAUSE this gate makes a leading =, +, -
-    // or @ unrepresentable. Enforcing it only where the member writes would leave that
-    // invariant resting on the admin form's client-side zod, which any direct authenticated
-    // write bypasses — a claim that gates nothing (guardrail #6).
+    // Every client writer of members.name passes through here — the self lane, the
+    // institutional lane and create alike. It is NOT a self-lane concern: the name is copied
+    // verbatim into the world-readable boardShowcase projection, so it needs a length ceiling
+    // and a character set at the trust boundary. Enforcing it only where the member writes
+    // would leave that resting on the admin form's client-side zod, which any direct
+    // authenticated write bypasses — a claim that gates nothing (guardrail #6).
     //
     // Mirrors memberName (packages/types/src/member-name.ts) character for character;
-    // parseSelfProfileLane() parses this function and member-self-lane.rules.test.ts fails
-    // if the two drift (rules mirror code — guardrail #2). The form normalizes before
-    // writing, so these rules only ever legitimately see a cleaned value — a raw untrimmed
-    // or control-character name is denied here rather than repaired.
+    // parseMemberNameGate() parses this function and member-self-lane.rules.test.ts fails if
+    // the two drift (rules mirror code — guardrail #2). The form normalizes before writing,
+    // so these rules only ever legitimately see a cleaned value — a raw untrimmed or
+    // control-character name is denied here rather than repaired.
     function memberNameValid(name) {
       return name is string
         && name.size() >= 3
         && name.size() <= 80
-        && name.matches("^[A-Za-zÀ-ÖØ-öø-ÿ]+[.]?(?:[ '-][A-Za-zÀ-ÖØ-öø-ÿ]+[.]?)*$");
-    }
-
-    function nameTouched() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']);
+        && name.matches("^[A-Za-zÀ-ÖØ-öø-ÿĀ-ſ]+[.]?(?:[ '-][A-Za-zÀ-ÖØ-öø-ÿĀ-ſ]+[.]?)*$");
     }
 
     // The self-service lane's whole contract: which keys a member may write on their own
@@ -274,17 +274,17 @@ service cloud.firestore {
       // public Directiva, so the institutional (membership-tier) arm may never set or
       // change it — only the owner-only self-lane below can. unchanged() so an admin
       // edit that doesn't touch it still passes.
-      // nameTouched(): an admin editing only a phone must not be denied by a legacy name
+      // touched('name'): an admin editing only a phone must not be denied by a legacy name
       // stored before this gate existed — an unchanged value is absent from affectedKeys().
       // Setting a name, on any lane, must satisfy it.
       allow update: if canDo('update', 'Member')
         && unchanged('totalPoints')
         && unchanged('uid')
         && unchanged('publicProfile')
-        && (!nameTouched() || memberNameValid(request.resource.data.get('name', '')))
+        && (!touched('name') || memberNameValid(request.resource.data.get('name', '')))
         && updatePermissionAssignmentSafe()
         && softDeleteSafe()
-        && (!positionsTouched() || positionsAssignmentSafe());
+        && (!touched('positions') || positionsAssignmentSafe());
       // Self-service profile (/me): a member owns their photo, their own name and their
       // contact and personal details — the name so a member can correct a typo the
       // membership tier made when enrolling them, without a round trip. Everything else on

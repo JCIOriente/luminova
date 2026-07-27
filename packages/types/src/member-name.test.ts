@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { memberName, MEMBER_NAME_MAX_LENGTH, MEMBER_NAME_MIN_LENGTH } from "./member-name.js";
+import {
+  memberName,
+  memberNameOrUnchanged,
+  MEMBER_NAME_MAX_LENGTH,
+  MEMBER_NAME_MIN_LENGTH,
+} from "./member-name.js";
 
 const parse = (value: string) => memberName.safeParse(value);
 
@@ -10,15 +15,18 @@ describe("memberName", () => {
     ["an apostrophe", "Jean-Luc O'Brien"],
     ["a middle initial", "Ana M. Rivas"],
     ["three given names", "María José Rivas Paz"],
+    ["a Croatian surname (Latin Extended-A)", "Zvonko Matković"],
+    ["a Polish surname", "Łukasz Nowak"],
+    ["a Czech surname", "Ludmila Šimková"],
     ["exactly the max length", "a".repeat(MEMBER_NAME_MAX_LENGTH)],
     ["exactly the min length", "a".repeat(MEMBER_NAME_MIN_LENGTH)],
   ])("accepts %s", (_label, value) => {
     expect(parse(value).success).toBe(true);
   });
 
-  // The character class is the security boundary, not a cosmetic nicety: a name that
-  // cannot BEGIN with =, +, - or @ cannot be a spreadsheet formula, which is why the
-  // members CSV export needs no formula-prefix escape (features/members/lib/member-csv.ts).
+  // A name can never BEGIN with =, +, - or @. That is a property of the identity field,
+  // not the CSV defense — member-csv.ts escapes formula prefixes at the output boundary
+  // because it must also cover legacy names and the Correo/Cargo columns.
   it.each(["=", "+", "-", "@"])("rejects the formula prefix %j", (prefix) => {
     expect(parse(`${prefix}Ana Rivas`).success).toBe(false);
   });
@@ -45,9 +53,9 @@ describe("memberName", () => {
   // already cleaned — so these raw forms are denied server-side by design.
   it.each([
     ["collapses and trims whitespace", "  Ana   Rivas ", "Ana Rivas"],
-    ["folds a typographic apostrophe", "Ana O’Brien", "Ana O'Brien"],
-    ["composes NFD accents", "Aña Rivas", "Aña Rivas"],
-    ["folds a non-breaking space", "Ana Rivas", "Ana Rivas"],
+    ["folds a typographic apostrophe", "Ana O\u2019Brien", "Ana O'Brien"],
+    ["composes NFD accents", "An\u0303a Rivas", "A\u00f1a Rivas"],
+    ["folds a non-breaking space", "Ana\u00a0Rivas", "Ana Rivas"],
     // Control characters are \s, so they are repaired here rather than rejected — the
     // stored value still starts with a letter, so nothing reaches the CSV. The raw forms
     // are denied in firestore.rules, which never sees a normalizer.
@@ -62,5 +70,36 @@ describe("memberName", () => {
 
   it("counts the max length after normalization, not before", () => {
     expect(parse(`  ${"a".repeat(MEMBER_NAME_MAX_LENGTH)}  `).success).toBe(true);
+  });
+});
+
+// The client mirror of touched('name') in firestore.rules. Without it a member enrolled
+// before memberNameValid() existed cannot save ANY field, because React Hook Form validates
+// the whole schema against defaultValues seeded from the stored doc.
+describe("memberNameOrUnchanged", () => {
+  const LEGACY = "Ana Rivas 2";
+  const schema = memberNameOrUnchanged(LEGACY);
+
+  it("accepts the stored name verbatim even though the pattern rejects it", () => {
+    const result = schema.safeParse(LEGACY);
+    expect(result.success).toBe(true);
+    // Verbatim, not normalized — the rules must see no diff at all on this key.
+    expect(result.success && result.data).toBe(LEGACY);
+  });
+
+  it("still rejects a DIFFERENT invalid name", () => {
+    expect(schema.safeParse("Ana Rivas 3").success).toBe(false);
+  });
+
+  it("accepts a repair to a valid name, normalized", () => {
+    const result = schema.safeParse("  Ana   Rivas ");
+    expect(result.success).toBe(true);
+    expect(result.success && result.data).toBe("Ana Rivas");
+  });
+
+  it("validates normally when the stored name is already valid", () => {
+    const strict = memberNameOrUnchanged("Ana Rivas");
+    expect(strict.safeParse("Ana Rivas 2").success).toBe(false);
+    expect(strict.safeParse("Ana Rivas").success).toBe(true);
   });
 });

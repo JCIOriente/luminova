@@ -412,7 +412,7 @@ beforeAll(async () => {
       deletedAt: null,
     });
     // Pre-format artifact: a name stored before memberNameValid() existed. An admin
-    // editing any OTHER field on this member must not be denied by it — nameTouched()
+    // editing any OTHER field on this member must not be denied by it — touched('name')
     // gates on the diff, so an unchanged legacy name is never re-validated.
     await setDoc(doc(db, "members/m_legacyname"), {
       name: "Ana Rivas 2",
@@ -598,10 +598,9 @@ describe("firestore.rules — members", () => {
       updateDoc(doc(as("u", ["Membership"]), "members/m1"), { name: "Ana Rivas Paz" }),
     );
   });
-  // memberNameValid() binds EVERY lane, not just the member's own. The CSV export ships
-  // without a formula-prefix escape and boardShowcase publishes the name world-read, and
-  // both of those rest on this gate — leaving it to the admin form's client-side zod would
-  // make it bypassable by any direct authenticated write.
+  // memberNameValid() binds EVERY lane, not just the member's own: boardShowcase publishes
+  // the name world-read, so the bound belongs at the trust boundary. Leaving it to the admin
+  // form's client-side zod would make it bypassable by any direct authenticated write.
   it("denies Membership creating a member with a formula-shaped name", async () => {
     await assertFails(
       setDoc(doc(as("u", ["Membership"]), "members/new_formula"), {
@@ -634,7 +633,7 @@ describe("firestore.rules — members", () => {
     );
   });
   // The other half of the gate: it must bind a WRITE of the name, not the mere existence
-  // of a legacy one. Without nameTouched() this denies every admin edit to this member.
+  // of a legacy one. Without touched('name') this denies every admin edit to this member.
   it("allows Membership editing another field on a member with a legacy-invalid name", async () => {
     await assertSucceeds(
       updateDoc(doc(as("u", ["Membership"]), "members/m_legacyname"), { profession: "Arquitecta" }),
@@ -814,6 +813,14 @@ describe("firestore.rules — members", () => {
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "Ana M. O'Brien" }),
     );
   });
+  // Latin Extended-A, for the Croatian/Slavic surnames the Santa Cruz chapter carries. The
+  // mirror test only proves the rules and zod hold the SAME pattern string — this proves the
+  // rules engine's RE2 actually matches the widened rune ranges.
+  it("allows a Latin Extended-A surname", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "Zvonko Matkovi\u0107" }),
+    );
+  });
   it("allows a name at the cap and denies one past it", async () => {
     await assertSucceeds(
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "a".repeat(80) }),
@@ -845,8 +852,9 @@ describe("firestore.rules — members", () => {
   it("denies a non-string name", async () => {
     await assertFails(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: 12345 }));
   });
-  // The whole point of the character class: a spreadsheet formula cannot be REPRESENTED as
-  // a name, which is why the CSV export needs no formula-prefix escape.
+  // The character class means a spreadsheet formula cannot be REPRESENTED as a name. The
+  // CSV export escapes formula prefixes anyway — it must also cover legacy names and the
+  // columns that carry no pattern at all.
   it("denies every spreadsheet formula prefix", async () => {
     for (const prefix of ["=", "+", "-", "@", "\t", "\r"]) {
       await assertFails(

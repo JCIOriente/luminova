@@ -145,12 +145,15 @@ function asImpact(v: unknown): InitiativeImpact | null {
  * public page). `profilePicture` is member-controlled and rendered on a no-auth page,
  * so it is exposed only when it is an https URL — any other value projects null.
  *
- * KNOWN STALENESS (follow-up): the name here is a SNAPSHOT. This projection re-runs only
- * on an initiative/activity write, never on a members/{id} write, so a /me self-rename
- * does not rewrite past team credits — it self-heals on the next initiative edit.
- * boardShowcase, by contrast, IS member-write-driven and updates immediately. Closing the
- * gap needs a rename-gated fan-out in the members trigger (query programs+projects by
- * directorId / coDirectorIds / teamIds and re-project each hit); tracked separately.
+ * KNOWN STALENESS — deferred to a follow-up PR, not tracked anywhere else yet. The name
+ * here is a SNAPSHOT: this projection re-runs only on an initiative/activity write, never
+ * on a members/{id} write, so a /me self-rename does not rewrite past team credits — it
+ * self-heals on the next initiative edit. boardShowcase, by contrast, IS member-write-driven
+ * and updates immediately, so the two public surfaces can disagree about one person until
+ * then. Self-service renaming widens who can cause that (previously admins only). Closing it
+ * needs a rename-gated fan-out in the members trigger: skip unless before.name != after.name,
+ * then query programs+projects by directorId / coDirectorIds / teamIds and re-project each
+ * hit (single-field queries, so no composite index).
  *
  * The bar here stays "is this renderable" — deliberately weaker than memberName's form
  * pattern — because this projects LEGACY institutional names beacon does not control.

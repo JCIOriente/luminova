@@ -3,15 +3,23 @@ import { joinYear } from "./member-display";
 
 const HEADER = ["Nombre", "Correo", "Cargo", "Estado", "Desde", "Puntos"];
 
-// No leading-formula guard (=, +, -, @) on purpose: a member name cannot represent one. The
-// name always starts with a letter (MEMBER_NAME_PATTERN in @luminova/types), and that is
-// enforced in firestore.rules by memberNameValid() on EVERY write lane — self-service,
-// institutional and create — not just by this app's zod, so it holds against a direct
-// authenticated write too. Quote/comma escaping stays for the Cargo column, which comes
-// from admin-authored positions.title and carries no such pattern.
+// Spreadsheet apps evaluate a cell starting with = + - or @ as a formula, so a crafted value
+// becomes code on open. Escaping belongs HERE, at the output boundary, not in the field
+// validators: memberNameValid() bounds Nombre going forward, but it cannot cover names stored
+// before that gate, and it says nothing about the other columns — Correo passes
+// z.string().email() with a leading "-" ("-a@x.com"), and Cargo is unbounded positions.title.
+// A leading apostrophe is the portable "treat as text" marker; it forces quoting, which is
+// why the formula branch escapes quotes too.
+const FORMULA_PREFIX = /^[=+\-@\t\r]/;
+
 function cell(value: string | number): string {
-  const s = String(value);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  // Numbers are never formulas, and quoting one would turn a numeric column into text in the
+  // spreadsheet — Puntos must stay sortable.
+  if (typeof value === "number") return String(value);
+  // trimStart before testing: importers that strip leading whitespace (LibreOffice, most ETL)
+  // would otherwise evaluate " =cmd|..." — positions.title has no .trim() on it.
+  if (FORMULA_PREFIX.test(value.trimStart())) return `"'${value.replace(/"/g, '""')}"`;
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
 export function membersToCsv(members: Member[], roleLabel: (m: Member) => string): string {
