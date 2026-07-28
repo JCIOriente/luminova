@@ -1,24 +1,34 @@
+import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Checkbox, DatePicker, Field, Input } from "@luminova/ui";
-import { selfProfileSchema, type Member, type SelfProfileInput } from "@luminova/types";
+import {
+  selfProfileSchemaFor,
+  MEMBER_NAME_MAX_LENGTH,
+  type Member,
+  type SelfProfileInput,
+} from "@luminova/types";
 import { dateInputValue } from "../repositories/member-mapper";
 import { useUpdateSelfProfile } from "../hooks/use-update-self-profile";
 
 /** The fields a member owns about themselves. Deliberately NOT MemberForm: that form
- *  carries name, email, status and cargo, which the rules' self lane rejects — offering
- *  them here would be a form that can never save. The photo is not here either: it is its
- *  own write (setProfilePicture) and the credential card above already owns that control. */
+ *  carries email, status and cargo, which the rules' self lane rejects — offering them here
+ *  would be a form that can never save. The photo is not here either: it is its own write
+ *  (setProfilePicture) and the credential card above already owns that control. */
 export function SelfProfileForm({ member }: { member: Member }) {
   const updateProfile = useUpdateSelfProfile(member.id);
+  // Keyed on the stored name so an untouched legacy value doesn't block the other fields —
+  // see memberNameOrUnchanged. useMemo so the resolver isn't rebuilt every render.
+  const schema = useMemo(() => selfProfileSchemaFor(member.name), [member.name]);
   const {
     register,
     control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<SelfProfileInput>({
-    resolver: zodResolver(selfProfileSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
+      name: member.name,
       phone: member.phone ?? "",
       profession: member.profession ?? "",
       birthdate: member.birthdate ? dateInputValue(member.birthdate) : "",
@@ -32,6 +42,14 @@ export function SelfProfileForm({ member }: { member: Member }) {
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
+      <Field label="Nombre" htmlFor="self-name" required error={errors.name?.message}>
+        <Input
+          id="self-name"
+          maxLength={MEMBER_NAME_MAX_LENGTH}
+          autoComplete="name"
+          {...register("name")}
+        />
+      </Field>
       <Field label="Teléfono" htmlFor="self-phone" error={errors.phone?.message}>
         <Input
           id="self-phone"
@@ -78,7 +96,7 @@ export function SelfProfileForm({ member }: { member: Member }) {
         </p>
       </div>
       <p className="text-ui-xs text-ink-3">
-        Tu nombre, correo, cargo y estado los administra la Dirección de Membresía.
+        Tu correo, cargo y estado los administra la Dirección de Membresía.
       </p>
       {updateProfile.isError && (
         <div role="alert" className="text-ui-sm text-error">

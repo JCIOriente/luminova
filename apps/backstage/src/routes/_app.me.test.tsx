@@ -84,6 +84,7 @@ describe("MemberHome", () => {
   it("offers the self-profile form to the member whose doc it is", () => {
     renderHome("self");
     expect(screen.getByText("Mi perfil")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Nombre/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Teléfono/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Profesión/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Fecha de nacimiento/)).toBeInTheDocument();

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MEMBER_STATUSES, MEMBER_GENDERS } from "./member.js";
 import { boliviaPhoneOptional } from "./phone.js";
+import { memberName, memberNameOrUnchanged } from "./member-name.js";
 
 const dateString = z
   .string()
@@ -16,7 +17,7 @@ const dateString = z
 export const PROFESSION_MAX_LENGTH = 80;
 
 export const memberSchema = z.object({
-  name: z.string().min(3, "Mínimo 3 caracteres."),
+  name: memberName,
   email: z.string().email("Correo inválido."),
   phone: boliviaPhoneOptional,
   gender: z.enum(MEMBER_GENDERS, { message: "Requerido." }),
@@ -35,11 +36,12 @@ export const memberSchema = z.object({
 export type MemberInput = z.infer<typeof memberSchema>;
 
 /** What a member may change about themselves on /me. Mirrors the self lane in
- *  firestore.rules; the photo is its own action, not a form field. Name, email, status,
- *  cargo and joinDate are institutional records the membership tier maintains.
+ *  firestore.rules; the photo is its own action, not a form field. Email, status, cargo and
+ *  joinDate are institutional records the membership tier maintains.
  *  publicProfile is the member's opt-in to appear on the public Directiva (boardShowcase). */
 export const selfProfileSchema = memberSchema
   .pick({
+    name: true,
     phone: true,
     profession: true,
     birthdate: true,
@@ -49,3 +51,15 @@ export const selfProfileSchema = memberSchema
   });
 
 export type SelfProfileInput = z.infer<typeof selfProfileSchema>;
+
+/** Edit-an-existing-member variants. They differ from the create schemas in one way: a name
+ *  the user did not touch is not re-validated, mirroring `touched('name')` in firestore.rules
+ *  so a member whose stored name predates that gate can still edit every other field.
+ *  See memberNameOrUnchanged. */
+export function memberSchemaFor(storedName: string) {
+  return memberSchema.extend({ name: memberNameOrUnchanged(storedName) });
+}
+
+export function selfProfileSchemaFor(storedName: string) {
+  return selfProfileSchema.extend({ name: memberNameOrUnchanged(storedName) });
+}

@@ -144,6 +144,23 @@ function asImpact(v: unknown): InitiativeImpact | null {
  * no usable display name. An empty/non-string name is dropped (no blank credit on the
  * public page). `profilePicture` is member-controlled and rendered on a no-auth page,
  * so it is exposed only when it is an https URL — any other value projects null.
+ *
+ * KNOWN STALENESS — deferred to a follow-up PR, not tracked anywhere else yet. The name
+ * here is a SNAPSHOT: this projection re-runs only on an initiative/activity write, never
+ * on a members/{id} write, so a /me self-rename does not rewrite past team credits — it
+ * self-heals on the next initiative edit. boardShowcase, by contrast, IS member-write-driven
+ * and updates immediately, so the two public surfaces can disagree about one person until
+ * then. Self-service renaming widens who can cause that (previously admins only). Closing it
+ * needs a rename-gated fan-out in the members trigger: skip unless before.name != after.name,
+ * then query programs+projects on the NESTED roster paths — `roster.directorId ==`,
+ * `roster.coDirectorIds array-contains`, `roster.teamIds array-contains` (see parseRoster
+ * below; the bare top-level names match nothing and fail silently) — and re-project each hit.
+ * Single-field queries, so no composite index, but bound them with .limit() and batch the
+ * re-projection through chunk() rather than splatting the results (guardrail #5).
+ *
+ * The bar here stays "is this renderable" — deliberately weaker than memberName's form
+ * pattern — because this projects LEGACY institutional names beacon does not control.
+ * A stricter bar would silently un-publish an existing credit.
  */
 export function showcasePerson(name: unknown, photoUrl: unknown): ShowcasePerson | null {
   if (typeof name !== "string" || name.length === 0) return null;

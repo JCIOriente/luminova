@@ -99,6 +99,62 @@ describe("MemberForm", () => {
     expect(screen.queryByText("Comisión de Eventos")).not.toBeInTheDocument();
   });
 
+  // The admin half of memberSchemaFor: a member enrolled before memberNameValid() existed
+  // must stay editable. Without the per-member schema the form blocks on a name the admin
+  // never touched, making the rules' touched('name') affordance unreachable.
+  it("lets an admin edit a member whose stored name predates the pattern", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemberForm
+        positions={[]}
+        submitLabel="Guardar"
+        onSubmit={onSubmit}
+        defaultValues={{
+          name: "Ana Rivas 2",
+          email: "ana@jci.bo",
+          gender: "Femenino",
+          joinDate: "2020-03-15",
+          birthdate: "1992-07-15",
+          status: "Activo",
+          cargoId: null,
+          comisionIds: [],
+        }}
+      />,
+    );
+    await userEvent.clear(screen.getByLabelText(/profesión/i));
+    await userEvent.type(screen.getByLabelText(/profesión/i), "Ingeniera");
+    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    // Verbatim: the rules must see no diff on name, so the gate never runs.
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: "Ana Rivas 2" }));
+  });
+
+  it("still blocks an admin changing a legacy name to another invalid one", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <MemberForm
+        positions={[]}
+        submitLabel="Guardar"
+        onSubmit={onSubmit}
+        defaultValues={{
+          name: "Ana Rivas 2",
+          email: "ana@jci.bo",
+          gender: "Femenino",
+          joinDate: "2020-03-15",
+          birthdate: "1992-07-15",
+          status: "Activo",
+          cargoId: null,
+          comisionIds: [],
+        }}
+      />,
+    );
+    await userEvent.clear(screen.getByLabelText(/nombre/i));
+    await userEvent.type(screen.getByLabelText(/nombre/i), "Ana Rivas 3");
+    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    expect(await screen.findByText(/Solo letras/)).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("submits valid data with the chosen cargo and comisiones", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(<MemberForm positions={positions} submitLabel="Crear" onSubmit={onSubmit} />);

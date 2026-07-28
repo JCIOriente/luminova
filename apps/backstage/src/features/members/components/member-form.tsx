@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -15,12 +15,14 @@ import {
 } from "@luminova/ui";
 import {
   memberSchema,
+  memberSchemaFor,
   positionTitle,
   currentTermKey,
   type MemberInput,
   type Position,
   MEMBER_STATUSES,
   MEMBER_GENDERS,
+  MEMBER_NAME_MAX_LENGTH,
 } from "@luminova/types";
 import { avatarColor } from "../lib/member-display";
 
@@ -69,6 +71,14 @@ export function MemberForm({
   children,
 }: MemberFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
+  // On EDIT, don't re-validate a name the admin didn't touch: a member enrolled before
+  // memberNameValid() existed would otherwise be uneditable in every field. On CREATE there
+  // is no stored name, so the full validator applies. Mirrors touched('name') in the rules.
+  const storedName = defaultValues?.name;
+  const schema = useMemo(
+    () => (storedName === undefined ? memberSchema : memberSchemaFor(storedName)),
+    [storedName],
+  );
   const {
     register,
     control,
@@ -77,7 +87,7 @@ export function MemberForm({
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<MemberInput>({
-    resolver: zodResolver(memberSchema),
+    resolver: zodResolver(schema),
     defaultValues: { ...EMPTY, ...defaultValues },
   });
 
@@ -163,7 +173,7 @@ export function MemberForm({
       <div className="flex flex-col gap-4">
         <SectionLabel>Datos personales</SectionLabel>
         <Field label="Nombre" htmlFor="name" required error={errors.name?.message}>
-          <Input id="name" {...register("name")} />
+          <Input id="name" maxLength={MEMBER_NAME_MAX_LENGTH} {...register("name")} />
         </Field>
         <Field label="Correo" htmlFor="email" required error={errors.email?.message}>
           <Input id="email" type="email" {...register("email")} />

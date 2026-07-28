@@ -86,4 +86,15 @@ Admin-guarded custom-claim assignment.
   until each member doc is re-written. Same class as the aggregate term-window gap,
   but the stale data is public. Fix later with a scheduled re-projection at term
   rollover and/or an `onDocumentWritten("positions/{id}")` re-projection.
+- **Deferred (showcase team-credit names go stale on a rename):** `showcasePerson`
+  denormalizes `members/{id}.name` into `showcase/{initiativeId}.team[]`, but
+  `projectShowcase` runs only from `initiativeTrigger` / `onActivityWritten` — never on a
+  `members/{id}` write. So a rename leaves the old name in past team credits until that
+  initiative is next edited, while `boardShowcase` (member-write-driven) updates
+  immediately — the two public surfaces disagree in the meantime. Self-service renaming
+  (`/me`) widened who can cause this; previously only admins renamed. Fix later with a
+  rename-gated fan-out in the members trigger: skip unless `before.name != after.name`,
+  then query programs+projects on `roster.directorId` / `roster.coDirectorIds` /
+  `roster.teamIds` (nested paths — the bare names match nothing), bounded with `.limit()`
+  and re-projected through `chunk()`.
 - **Heaviest skills.** `/security-review`, `secure-dep-vetting` (server deps).

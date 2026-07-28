@@ -411,6 +411,16 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // Pre-format artifact: a name stored before memberNameValid() existed. An admin
+    // editing any OTHER field on this member must not be denied by it — touched('name')
+    // gates on the diff, so an unchanged legacy name is never re-validated.
+    await setDoc(doc(db, "members/m_legacyname"), {
+      name: "Ana Rivas 2",
+      totalPoints: 0,
+      uid: "legacyname-uid",
+      active: true,
+      deletedAt: null,
+    });
     // Pre-invariant artifact: a Comision doc carrying grants (was creatable by
     // Admin before comisionGrantsEmpty). Exercises the deliberate lockout.
     await setDoc(doc(db, "positions/com_legacy_power"), {
@@ -508,7 +518,7 @@ describe("firestore.rules — members", () => {
   });
   it("allows Membership to create with totalPoints 0", async () => {
     await assertSucceeds(
-      setDoc(doc(as("u", ["Membership"]), "members/new1"), { name: "B", totalPoints: 0 }),
+      setDoc(doc(as("u", ["Membership"]), "members/new1"), { name: "Bruno Paz", totalPoints: 0 }),
     );
   });
   it("denies create with publicProfile pre-set (consent is not institutionally stamped)", async () => {
@@ -516,7 +526,7 @@ describe("firestore.rules — members", () => {
     // the create-arm !('publicProfile' in ...) guard, not some other missing field.
     await assertFails(
       setDoc(doc(as("u", ["Membership"]), "members/new_consent"), {
-        name: "B",
+        name: "Bruno Paz",
         totalPoints: 0,
         publicProfile: true,
       }),
@@ -524,12 +534,12 @@ describe("firestore.rules — members", () => {
   });
   it("denies create when totalPoints != 0", async () => {
     await assertFails(
-      setDoc(doc(as("u", ["Membership"]), "members/new2"), { name: "B", totalPoints: 5 }),
+      setDoc(doc(as("u", ["Membership"]), "members/new2"), { name: "Bruno Paz", totalPoints: 5 }),
     );
   });
   it("denies a non-admin/non-membership role from creating", async () => {
     await assertFails(
-      setDoc(doc(as("u", ["Treasury"]), "members/new3"), { name: "B", totalPoints: 0 }),
+      setDoc(doc(as("u", ["Treasury"]), "members/new3"), { name: "Bruno Paz", totalPoints: 0 }),
     );
   });
   it("BLOCKING: denies Membership creating with a forged assignedBy + power cargo (escalation on create)", async () => {
@@ -544,7 +554,7 @@ describe("firestore.rules — members", () => {
   it("denies setting uid on create (uid is admin-SDK only)", async () => {
     await assertFails(
       setDoc(doc(as("mem-uid", ["Membership"]), "members/new_uid"), {
-        name: "X",
+        name: "Ximena Paz",
         totalPoints: 0,
         uid: "mem-uid",
       }),
@@ -553,7 +563,7 @@ describe("firestore.rules — members", () => {
   it("denies Membership creating with a power cargo even when self-stamped", async () => {
     await assertFails(
       setDoc(doc(as("mem-uid", ["Membership"]), "members/new_pow"), {
-        name: "X",
+        name: "Ximena Paz",
         totalPoints: 0,
         positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "mem-uid" } },
       }),
@@ -562,7 +572,7 @@ describe("firestore.rules — members", () => {
   it("allows Membership creating with self assignedBy + empty-grants cargo", async () => {
     await assertSucceeds(
       setDoc(doc(as("mem-uid", ["Membership"]), "members/new_ok"), {
-        name: "X",
+        name: "Ximena Paz",
         totalPoints: 0,
         positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "mem-uid" } },
       }),
@@ -571,7 +581,7 @@ describe("firestore.rules — members", () => {
   it("allows Admin creating with a power cargo + self assignedBy", async () => {
     await assertSucceeds(
       setDoc(doc(as("admin-uid", ["Admin"]), "members/new_admin"), {
-        name: "X",
+        name: "Ximena Paz",
         totalPoints: 0,
         positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
       }),
@@ -584,11 +594,81 @@ describe("firestore.rules — members", () => {
     await assertFails(updateDoc(doc(as("u", ["Membership"]), "members/m1"), { uid: "hijack" }));
   });
   it("allows Membership to update a normal field", async () => {
-    await assertSucceeds(updateDoc(doc(as("u", ["Membership"]), "members/m1"), { name: "Ana2" }));
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Membership"]), "members/m1"), { name: "Ana Rivas Paz" }),
+    );
+  });
+  // memberNameValid() binds EVERY lane, not just the member's own: boardShowcase publishes
+  // the name world-read, so the bound belongs at the trust boundary. Leaving it to the admin
+  // form's client-side zod would make it bypassable by any direct authenticated write.
+  it("denies Membership creating a member with a formula-shaped name", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_formula"), {
+        name: '=HYPERLINK("http://evil")',
+        totalPoints: 0,
+      }),
+    );
+  });
+  it("denies Membership creating a member with digits in the name", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_digits"), {
+        name: "Ana Rivas 2",
+        totalPoints: 0,
+      }),
+    );
+  });
+  it("denies Membership creating a member with a name below the length floor", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_short"), { name: "Al", totalPoints: 0 }),
+    );
+  });
+  it("denies Membership renaming a member to a formula-shaped name", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Membership"]), "members/m1"), { name: "=cmd|'/C calc'!A1" }),
+    );
+  });
+  it("denies Admin renaming a member to a name past the cap", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), { name: "a".repeat(81) }),
+    );
+  });
+  // The other half of the gate: it must bind a WRITE of the name, not the mere existence
+  // of a legacy one. Without touched('name') this denies every admin edit to this member.
+  it("allows Membership editing another field on a member with a legacy-invalid name", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Membership"]), "members/m_legacyname"), { profession: "Arquitecta" }),
+    );
+  });
+  it("denies Membership rewriting a legacy-invalid name to another invalid one", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Membership"]), "members/m_legacyname"), { name: "Ana Rivas 3" }),
+    );
+  });
+  // The self-lane half of the same affordance: the OWNER of a legacy-named doc must be able
+  // to edit their own contact fields. Structurally the same check as the institutional arm,
+  // but on a different arm — assert it rather than infer it.
+  it("allows the owner of a legacy-invalid name to edit their own contact fields", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("legacyname-uid", ["Member"]), "members/m_legacyname"), {
+        phone: "70099887",
+      }),
+    );
+  });
+  it("denies the owner of a legacy-invalid name changing it to another invalid one", async () => {
+    await assertFails(
+      updateDoc(doc(as("legacyname-uid", ["Member"]), "members/m_legacyname"), {
+        name: "Ana Rivas 4",
+      }),
+    );
+  });
+  it("allows Membership repairing a legacy-invalid name to a valid one", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Membership"]), "members/m_legacyname"), { name: "Ana Rivas" }),
+    );
   });
   it("allows Admin to update a member that has NO uid field", async () => {
     await assertSucceeds(
-      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_nouid"), { name: "Dora2" }),
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_nouid"), { name: "Dora Nueva" }),
     );
   });
   it("allows Admin to assign a power cargo to a uid-less member (self-stamped)", async () => {
@@ -619,16 +699,18 @@ describe("firestore.rules — members", () => {
     );
   });
   it("denies the owning member changing another field alongside profilePicture", async () => {
+    // email, not name: the self lane accepts a well-formed name now, so a name companion
+    // would make this pass for the wrong reason instead of testing the key-set guard.
     await assertFails(
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), {
         profilePicture: "https://example/p.jpg",
-        name: "Hijack",
+        email: "hijack@example.com",
       }),
     );
   });
-  // Self-service profile (/me): a member owns their photo, birthdate, profession and
-  // phone. Everything else on the doc — name, email, status, positions, points, roles —
-  // is an institutional record the membership tier maintains.
+  // Self-service profile (/me): a member owns their photo, name, birthdate, profession and
+  // phone. Everything else on the doc — email, status, positions, points, roles — is an
+  // institutional record the membership tier maintains.
   it("allows the owning member to edit their own contact/personal fields", async () => {
     await assertSucceeds(
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), {
@@ -733,6 +815,95 @@ describe("firestore.rules — members", () => {
       }),
     );
   });
+  // /me self-rename. The name is world-readable (boardShowcase republishes on this very
+  // write) and lands in the members CSV, so the character set is the boundary — the form
+  // normalizes first, so these rules only ever legitimately see a cleaned value.
+  // NOTE: every allowed rename below must write a DIFFERENT value from the previous one —
+  // an identical write is absent from affectedKeys() and would pass vacuously.
+  it("allows the owning member to rename themselves", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "Ana María Rivas-Paz" }),
+    );
+  });
+  it("allows an apostrophe and a middle initial", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "Ana M. O'Brien" }),
+    );
+  });
+  // Latin Extended-A, for the Croatian/Slavic surnames the Santa Cruz chapter carries. The
+  // mirror test only proves the rules and zod hold the SAME pattern string — this proves the
+  // rules engine's RE2 actually matches the widened rune ranges.
+  it("allows a Latin Extended-A surname", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "Zvonko Matkovi\u0107" }),
+    );
+  });
+  it("allows a name at the cap and denies one past it", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "a".repeat(80) }),
+    );
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "a".repeat(81) }),
+    );
+  });
+  // 60 accented characters = 60 chars but 120 UTF-8 bytes. Succeeds iff the rules engine's
+  // String.size() counts CHARACTERS — pinning the semantics the zod cap (code units)
+  // assumes. If this ever flips, an accented name passes the form and dies as a generic
+  // "no se pudo guardar" with nothing else failing.
+  it("caps the name in characters, not UTF-8 bytes", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "ñ".repeat(60) }),
+    );
+  });
+  it("denies a name below the length floor", async () => {
+    await assertFails(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "Al" }));
+  });
+  it("denies an empty name", async () => {
+    await assertFails(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: "" }));
+  });
+  it("denies clearing the name", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: deleteField() }),
+    );
+  });
+  it("denies a non-string name", async () => {
+    await assertFails(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: 12345 }));
+  });
+  // The character class means a spreadsheet formula cannot be REPRESENTED as a name. The
+  // CSV export escapes formula prefixes anyway — it must also cover legacy names and the
+  // columns that carry no pattern at all.
+  it("denies every spreadsheet formula prefix", async () => {
+    for (const prefix of ["=", "+", "-", "@", "\t", "\r"]) {
+      await assertFails(
+        updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: `${prefix}Ana Rivas` }),
+      );
+    }
+  });
+  it("denies digits, CSV structural characters and newlines in a name", async () => {
+    for (const bad of ["Ana Rivas 2", "Rivas, Ana", 'Ana "A" Rivas', "Ana\nRivas", "<b>Ana</b>"]) {
+      await assertFails(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: bad }));
+    }
+  });
+  // The form normalizes these away before writing; the rules have no normalizer, so the
+  // raw shapes are denied rather than repaired.
+  it("denies leading, trailing and doubled spaces", async () => {
+    for (const bad of [" Ana Rivas", "Ana Rivas ", "Ana  Rivas"]) {
+      await assertFails(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { name: bad }));
+    }
+  });
+  it("denies a rename bundled with an institutional field", async () => {
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), {
+        name: "Ana Nueva",
+        status: "Desafiliado",
+      }),
+    );
+  });
+  it("denies a non-owner renaming another member", async () => {
+    await assertFails(
+      updateDoc(doc(as("stranger", ["Member"]), "members/m1"), { name: "Ana Secuestrada" }),
+    );
+  });
   it("allows soft-deleting a live member (active true -> false)", async () => {
     await assertSucceeds(
       updateDoc(doc(as("u", ["Membership"]), "members/m1"), {
@@ -748,8 +919,10 @@ describe("firestore.rules — members", () => {
     await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m_deleted"), { deletedAt: null }));
   });
   it("denies a Member from updating their own profile", async () => {
+    // A VALID name: a 1-character one would be denied by the length floor even for a live owner, which
+    // would stop this from isolating the active gate it is named for.
     await assertFails(
-      updateDoc(doc(as("bea-uid", ["Member"]), "members/m_deleted"), { name: "X" }),
+      updateDoc(doc(as("bea-uid", ["Member"]), "members/m_deleted"), { name: "Bea Nueva" }),
     );
   });
 });
