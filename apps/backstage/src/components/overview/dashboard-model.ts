@@ -159,9 +159,7 @@ export function buildDashboardModel(input: BuildInput): DashboardModel {
             : { tone: "blue", label: "Programada" },
       };
     }),
-    // No self to exclude here (the dashboard is the chapter view, not a personal one),
-    // so pass an id no member can hold.
-    birthdays: upcomingBirthdays(members, "", now, UPCOMING_BIRTHDAY_LIMIT),
+    birthdays: upcomingBirthdays(members, undefined, now, UPCOMING_BIRTHDAY_LIMIT),
     feed: deriveActivityFeed({ members, activities, initiatives, now, limit: 8 }),
   };
 }

@@ -57,9 +57,18 @@ Gender-aware titles reuse a single source of truth: `femaleTitle` + a new
 
 ### Consent — `Member.publicProfile?: boolean`
 
-A member opts in via a toggle on their own `/me` credential page. Publication is
-consensual, not automatic on becoming board. Field defaults to absent (= not
-published). The member writes it through the existing self-service lane.
+A member controls publication via a toggle on their own `/me` credential page, and
+is the ONLY principal who may change it — the member writes it through the existing
+self-service lane; `firestore.rules` forbids the key on create from every client and
+pins it with `unchanged()` on every institutional update arm.
+
+**Amended 2026-08-01 (opt-out default).** New members are created publishable: the
+key is absent at create and beacon's `onMemberCreated` stamps
+`PUBLIC_PROFILE_DEFAULT = true` server-side. The default is stamped by the trigger,
+never by a client, so no creator can publish a person by authoring a doc. Members
+created before that change keep an absent field, which every consumer still reads as
+NOT published (`project-board.ts` uses `!== true`) — flipping those would be a
+consent decision requiring a deliberate backfill, not a read-time default.
 
 ### Photo — reuse the existing profile picture URL (no copy)
 

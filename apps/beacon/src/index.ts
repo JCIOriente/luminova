@@ -23,6 +23,10 @@ import {
 } from "./showcase/project-initiative.js";
 import { projectAlly } from "./showcase/project-ally.js";
 import { projectBoard, currentCargoId, type BoardCargo } from "./showcase/project-board.js";
+import {
+  needsPublicProfileDefault,
+  PUBLIC_PROFILE_DEFAULT,
+} from "./showcase/default-public-profile.js";
 import type { ShowcasePerson } from "@luminova/types/engine";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
@@ -228,6 +232,25 @@ export const onMemberWritten = onDocumentWritten("members/{id}", async (event) =
   const member = parseMember(after.data());
   if (!member.uid) return; // not provisioned → no Auth user to claim
   await syncMemberClaims(firestoreClaimsDeps(db(), getAuth()), member, currentTermKey());
+});
+
+// Stamp the org-wide publicProfile default on a brand-new member. It lives here, not in
+// the client mapper, because firestore.rules forbids `publicProfile` on create from every
+// client — a creator able to set it could author a doc with someone else's name and a
+// portrait it uploads, publishing a person who never consented. The member owns the flag
+// from /me onward, so this only ever fires on the create itself, and only when the key is
+// absent (an explicit value is a decision already made). The resulting update re-fires
+// onDocumentWritten triggers, not this one, so there is no write loop. Swallow + log like
+// the other projections: a permanent error must not drive an at-least-once retry storm.
+export const onMemberCreated = onDocumentCreated("members/{id}", async (event) => {
+  try {
+    if (!needsPublicProfileDefault(event.data?.data())) return;
+    await db().doc(`members/${event.params.id}`).update({
+      publicProfile: PUBLIC_PROFILE_DEFAULT,
+    });
+  } catch (err) {
+    console.error("publicProfile default stamp failed", { id: event.params.id, err });
+  }
 });
 
 // A role's permission set changed → re-sync the custom claims of every member who

@@ -50,10 +50,9 @@ describe("upcomingBirthdays", () => {
       member("a", "Ana", "1992-07-08T00:00:00Z"),
       member("b", "Beto", "1988-07-09T00:00:00Z"),
     ];
-    expect(upcomingBirthdays(members, "", now, UPCOMING_BIRTHDAY_LIMIT).map((r) => r.id)).toEqual([
-      "a",
-      "b",
-    ]);
+    expect(
+      upcomingBirthdays(members, undefined, now, UPCOMING_BIRTHDAY_LIMIT).map((r) => r.id),
+    ).toEqual(["a", "b"]);
   });
 });
 

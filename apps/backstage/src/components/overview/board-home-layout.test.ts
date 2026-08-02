@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boardHomeLayout, type WidgetKey } from "./board-home-layout";
+import { boardHomeLayout, LAYOUT_ROLES, type WidgetKey } from "./board-home-layout";
 
 const DEFAULT: WidgetKey[] = [
   "headerActions",
@@ -10,14 +10,6 @@ const DEFAULT: WidgetKey[] = [
   "recentActivity",
   "quickActions",
 ];
-
-const KNOWN_ROLES = [
-  "Admin",
-  "Membership",
-  "Treasury",
-  "ProjectManager",
-  "ExecutiveCommittee",
-] as const;
 
 describe("boardHomeLayout", () => {
   it("Admin gets the full default layout", () => {
@@ -37,7 +29,8 @@ describe("boardHomeLayout", () => {
   });
 
   it("every role's layout carries birthdays (chapter-wide, role-agnostic)", () => {
-    for (const role of KNOWN_ROLES) {
+    expect(LAYOUT_ROLES.length).toBeGreaterThan(0);
+    for (const role of LAYOUT_ROLES) {
       expect(boardHomeLayout([role])).toContain("birthdays");
     }
   });

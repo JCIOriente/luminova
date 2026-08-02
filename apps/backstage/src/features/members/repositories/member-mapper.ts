@@ -59,10 +59,8 @@ export function toMemberCreateDoc(
       [termKey]: { cargoId: data.cargoId, comisionIds: data.comisionIds, assignedBy },
     },
     profilePicture: null,
-    // Opt-out default: a new member is publishable on the public Directiva from day one
-    // (they still need a photo + a current-term cargo to actually project). Only the
-    // member can flip it afterwards — the rules' update arm pins it via unchanged().
-    publicProfile: true,
+    // publicProfile is deliberately absent: the rules' create arm rejects it from any
+    // client, and beacon's onMemberCreated stamps the org-wide default server-side.
     totalPoints: 0,
     active: true,
     deletedAt: null,

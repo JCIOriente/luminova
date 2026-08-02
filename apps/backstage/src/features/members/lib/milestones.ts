@@ -17,7 +17,8 @@ export function inDaysEs(days: number): string {
 // Exposes day/month only (no birth year) — privacy: don't reveal a member's birth year.
 export function upcomingBirthdays(
   members: Member[],
-  excludeId: string,
+  // Omitted on the chapter-wide dashboard, which has no "self" to leave out.
+  excludeId: string | undefined,
   now: Date,
   limit: number,
 ): UpcomingBirthday[] {

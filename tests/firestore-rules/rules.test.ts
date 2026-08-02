@@ -17,6 +17,7 @@ import {
   getDocs,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
 } from "firebase/firestore";
 // Build claims with the REAL seed producer (not a local re-implementation), so every
@@ -521,8 +522,11 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("u", ["Membership"]), "members/new1"), { name: "Bruno Paz", totalPoints: 0 }),
     );
   });
-  it("allows create with publicProfile true (the org-wide opt-out default)", async () => {
-    await assertSucceeds(
+  it("denies create with publicProfile pre-set (consent is not institutionally stamped)", async () => {
+    // The identical payload without publicProfile succeeds above — so this isolates
+    // the create-arm !('publicProfile' in ...) guard, not some other missing field.
+    // The org-wide default is stamped by beacon (admin SDK), never by a client.
+    await assertFails(
       setDoc(doc(as("u", ["Membership"]), "members/new_consent"), {
         name: "Bruno Paz",
         totalPoints: 0,
@@ -530,14 +534,40 @@ describe("firestore.rules — members", () => {
       }),
     );
   });
-  it("denies create with a non-bool publicProfile", async () => {
-    // The identical payload with a bool succeeds above — so this isolates the create-arm
-    // `publicProfile is bool` shape guard, not some other missing field.
+  it("denies create with publicProfile explicitly false (no client owns this key)", async () => {
     await assertFails(
-      setDoc(doc(as("u", ["Membership"]), "members/new_consent_bad"), {
+      setDoc(doc(as("u", ["Membership"]), "members/new_consent_false"), {
         name: "B",
         totalPoints: 0,
-        publicProfile: "yes",
+        publicProfile: false,
+      }),
+    );
+  });
+  it("denies create with publicProfile null (an explicit null still counts as present)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_consent_null"), {
+        name: "B",
+        totalPoints: 0,
+        publicProfile: null,
+      }),
+    );
+  });
+  it("allows the production create payload shape (mirrors toMemberCreateDoc)", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["Membership"]), "members/new_prod_shape"), {
+        name: "B",
+        email: "b@jci.bo",
+        gender: "Femenino",
+        phone: "",
+        profession: "",
+        status: "Activo",
+        joinDate: Timestamp.fromMillis(0),
+        birthdate: Timestamp.fromMillis(0),
+        positions: { "2026": { cargoId: null, comisionIds: [], assignedBy: "u" } },
+        profilePicture: null,
+        totalPoints: 0,
+        active: true,
+        deletedAt: null,
       }),
     );
   });

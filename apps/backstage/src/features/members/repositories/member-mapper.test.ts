@@ -27,7 +27,6 @@ describe("toMemberCreateDoc", () => {
       profession: "Ingeniera",
       status: "Activo",
       profilePicture: null,
-      publicProfile: true,
       totalPoints: 0,
       active: true,
       deletedAt: null,

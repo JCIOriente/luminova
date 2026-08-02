@@ -46,6 +46,11 @@ const ROLE_LAYOUTS: Partial<Record<Role, WidgetKey[]>> = {
   ExecutiveCommittee: ["kpis", "birthdays", "recentActivity", "chart"],
 };
 
+/** The roles that carry their own layout. Exported so the test that asserts the
+ *  role-agnostic widgets iterates THIS list — a role added below can't silently
+ *  escape the guard by being missing from a hand-written test fixture. */
+export const LAYOUT_ROLES = Object.keys(ROLE_LAYOUTS) as Role[];
+
 export function boardHomeLayout(roles: readonly Role[]): WidgetKey[] {
   const known = roles.filter((r) => ROLE_LAYOUTS[r] !== undefined);
   if (known.length === 0) return [...DEFAULT_LAYOUT];

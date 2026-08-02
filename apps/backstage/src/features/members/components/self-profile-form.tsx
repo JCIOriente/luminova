@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Checkbox, DatePicker, Field, Input } from "@luminova/ui";
 import {
@@ -24,7 +24,6 @@ export function SelfProfileForm({ member }: { member: Member }) {
     register,
     control,
     handleSubmit,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<SelfProfileInput>({
     resolver: zodResolver(schema),
@@ -44,7 +43,8 @@ export function SelfProfileForm({ member }: { member: Member }) {
   // The public projection (beacon projectBoard) drops a member with no portrait, so
   // consent alone publishes nothing. Without this the opt-in looks saved and simply
   // never appears — the exact silent failure that hid a director from the site.
-  const missingPhoto = watch("publicProfile") === true && !member.profilePicture;
+  const optedIn = useWatch({ control, name: "publicProfile" }) === true;
+  const missingPhoto = optedIn && !member.profilePicture;
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
@@ -97,8 +97,9 @@ export function SelfProfileForm({ member }: { member: Member }) {
           )}
         />
         <p className="text-ui-xs text-ink-3">
-          Si tienes un cargo de directiva este año, tu foto y nombre aparecerán en la sección
-          Directiva de jcioriente.org. Puedes desactivarlo cuando quieras.
+          Viene activado por defecto: si tienes un cargo de directiva este año, tu foto y nombre
+          aparecerán en la sección Directiva de jcioriente.org. Desmarca la casilla y guarda para
+          que no aparezcan.
         </p>
         {missingPhoto && (
           <p role="status" className="text-ui-xs font-medium text-warn">
