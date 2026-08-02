@@ -555,7 +555,8 @@ describe("firestore.rules — members", () => {
   it("allows the production create payload shape (mirrors toMemberCreateDoc)", async () => {
     await assertSucceeds(
       setDoc(doc(as("u", ["Membership"]), "members/new_prod_shape"), {
-        name: "B",
+        // A real name: the create arm now also runs memberNameValid (PR #214).
+        name: "Beto Rojas",
         email: "b@jci.bo",
         gender: "Femenino",
         phone: "",

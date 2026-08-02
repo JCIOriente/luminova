@@ -59,7 +59,12 @@ describe("toMemberCreateDoc", () => {
 });
 
 describe("toSelfProfileDoc", () => {
-  const self = { phone: "777", profession: "Ingeniera", birthdate: "1992-07-01" };
+  const self = {
+    name: "Ana Pérez",
+    phone: "777",
+    profession: "Ingeniera",
+    birthdate: "1992-07-01",
+  };
 
   it("omits publicProfile when the member never decided (legacy doc)", () => {
     // The bug this guards: coercing absent to false here records an explicit opt-out on
