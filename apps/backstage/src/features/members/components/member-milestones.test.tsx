@@ -52,6 +52,30 @@ describe("MemberMilestones", () => {
     expect(screen.queryByText(/1992/)).not.toBeInTheDocument();
   });
 
+  it("caps the list at three birthdays", () => {
+    render(
+      <MemberMilestones
+        {...base}
+        members={[
+          self,
+          member("a", "Ana", "1992-07-08T00:00:00Z", "2021-01-01T00:00:00Z"),
+          member("b", "Beto", "1988-07-09T00:00:00Z", "2021-01-01T00:00:00Z"),
+          member("c", "Cinthia", "1995-07-11T00:00:00Z", "2021-01-01T00:00:00Z"),
+          member("d", "Dario", "1991-07-12T00:00:00Z", "2021-01-01T00:00:00Z"),
+        ]}
+      />,
+    );
+    expect(screen.getByText("Ana")).toBeInTheDocument();
+    expect(screen.getByText("Cinthia")).toBeInTheDocument();
+    expect(screen.queryByText("Dario")).not.toBeInTheDocument();
+  });
+
+  it("says why the list is empty when the account can't read the directory", () => {
+    render(<MemberMilestones {...base} members={undefined} membersLoading membersUnavailable />);
+    expect(screen.getByText(/no tiene acceso al directorio/i)).toBeInTheDocument();
+    expect(screen.queryByText("Cargando…")).not.toBeInTheDocument();
+  });
+
   it("shows an error state distinct from empty when the members query fails", () => {
     render(
       <MemberMilestones

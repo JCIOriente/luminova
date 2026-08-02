@@ -30,6 +30,7 @@ const handlers = {
   onEdit: noop,
   onProvision: noop,
   onSetStatus: noop,
+  onUnpublish: noop,
 };
 
 // Render the menu behind the REAL Can/ActionGate wiring so the per-item authz gates are
@@ -70,6 +71,28 @@ describe("MemberRowMenu", () => {
     await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
     await userEvent.click(screen.getByText("Desafiliar"));
     expect(onSetStatus).toHaveBeenCalledWith(m, "Desafiliado");
+  });
+
+  it("offers the takedown only for a published member, and fires it", async () => {
+    const onUnpublish = vi.fn();
+    const m = member({ publicProfile: true });
+    renderMenu(m, ADMIN, { onUnpublish });
+    await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
+    await userEvent.click(screen.getByText("Revocar perfil público"));
+    expect(onUnpublish).toHaveBeenCalledWith(m);
+  });
+
+  it("hides the takedown when the member is not published", async () => {
+    renderMenu(member({ publicProfile: false }), ADMIN);
+    await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
+    expect(screen.queryByText("Revocar perfil público")).not.toBeInTheDocument();
+  });
+
+  it("hides the takedown from a non-Admin who can update members", async () => {
+    renderMenu(member({ publicProfile: true }), roleClaims("Membership"));
+    await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
+    expect(screen.getByText("Editar miembro")).toBeInTheDocument();
+    expect(screen.queryByText("Revocar perfil público")).not.toBeInTheDocument();
   });
 
   // The reported bug: a member holding only read:Member saw Editar / Desactivar /

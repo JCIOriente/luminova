@@ -28,7 +28,9 @@ Scanner scoped to the activity). On write:
 On a `checkIns` **delete**, the derived row is removed and the aggregate recomputed
 (and the flag re-mirrored).
 
-The trigger runs with `retry: true` — the only trigger that does. The flag mirror
+The trigger runs with `retry: true` — one of three that do (`onMemberCreated` and
+`onBoardMemberWritten` are the others; each states its justification at the call
+site). The flag mirror
 only recomputes on checkIns writes, so an unretried transient failure would strand
 the rules-side lock; the handler is idempotent under redelivery and step 1's
 no-throw contract prevents malformed-input retry storms.
@@ -97,4 +99,11 @@ Admin-guarded custom-claim assignment.
   then query programs+projects on `roster.directorId` / `roster.coDirectorIds` /
   `roster.teamIds` (nested paths — the bare names match nothing), bounded with `.limit()`
   and re-projected through `chunk()`.
+- **boardShowcase ordering (CLOSED):** `onBoardMemberWritten` used to project
+  `after.data()`, so a late-delivered invocation could re-publish a member from a stale
+  payload — silently undoing an opt-out or an Admin takedown until the next member write.
+  It now runs the whole projection inside a transaction that reads the LIVE member doc and
+  uses the event payload only for the doc id, so the last committed state wins and a
+  concurrent member write aborts and re-runs the projection. It also runs `retry: true`
+  and rethrows, because the delete branch is the takedown path.
 - **Heaviest skills.** `/security-review`, `secure-dep-vetting` (server deps).

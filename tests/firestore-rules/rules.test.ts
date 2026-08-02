@@ -17,6 +17,7 @@ import {
   getDocs,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
 } from "firebase/firestore";
 // Build claims with the REAL seed producer (not a local re-implementation), so every
@@ -524,11 +525,58 @@ describe("firestore.rules — members", () => {
   it("denies create with publicProfile pre-set (consent is not institutionally stamped)", async () => {
     // The identical payload without publicProfile succeeds above — so this isolates
     // the create-arm !('publicProfile' in ...) guard, not some other missing field.
+    // The org-wide default is stamped by beacon (admin SDK), never by a client.
     await assertFails(
       setDoc(doc(as("u", ["Membership"]), "members/new_consent"), {
         name: "Bruno Paz",
         totalPoints: 0,
         publicProfile: true,
+      }),
+    );
+  });
+  it("denies create with publicProfile explicitly false (no client owns this key)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_consent_false"), {
+        name: "B",
+        totalPoints: 0,
+        publicProfile: false,
+      }),
+    );
+  });
+  it("denies create with publicProfile null (an explicit null still counts as present)", async () => {
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_consent_null"), {
+        name: "B",
+        totalPoints: 0,
+        publicProfile: null,
+      }),
+    );
+  });
+  it("allows the production create payload shape (mirrors toMemberCreateDoc)", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("u", ["Membership"]), "members/new_prod_shape"), {
+        // A real name: the create arm now also runs memberNameValid (PR #214).
+        name: "Beto Rojas",
+        email: "b@jci.bo",
+        gender: "Femenino",
+        phone: "",
+        profession: "",
+        status: "Activo",
+        joinDate: Timestamp.fromMillis(0),
+        birthdate: Timestamp.fromMillis(0),
+        // Keyed off the client clock, like TERM below: createPositionsSafe() resolves the
+        // slot via request.time.year(), so a hardcoded year fails this suite in January.
+        positions: {
+          [String(new Date().getUTCFullYear())]: {
+            cargoId: null,
+            comisionIds: [],
+            assignedBy: "u",
+          },
+        },
+        profilePicture: null,
+        totalPoints: 0,
+        active: true,
+        deletedAt: null,
       }),
     );
   });
@@ -684,6 +732,26 @@ describe("firestore.rules — members", () => {
   it("still denies removing an existing uid via client update", async () => {
     await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m1"), { uid: deleteField() }));
   });
+  it("denies writing uid: null onto a member that has no uid", async () => {
+    // unchanged('uid') passed this (null == null on a key-less doc). A stored null then
+    // fails memberDocSchema, so parseDocs drops the member from every backstage list.
+    await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m_nouid"), { uid: null }));
+  });
+  it("allows an institutional edit that resends the same publicProfile value", async () => {
+    // The allowed branch of touched(): a same-value rewrite affects no key. This is what
+    // keeps an admin form from being bricked if publicProfile ever joins memberSchema.
+    // Set the value through the owner's lane first so the resend is genuinely a no-op —
+    // this suite seeds once, so the field's state here depends on nothing else.
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: false }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "members/m1"), {
+        publicProfile: false,
+        profession: "Ingeniera",
+      }),
+    );
+  });
   it("denies a signed-in user self-editing a uid-less member's profilePicture", async () => {
     await assertFails(
       updateDoc(doc(as("anyone", ["Member"]), "members/m_nouid"), {
@@ -791,7 +859,46 @@ describe("firestore.rules — members", () => {
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: "yes" }),
     );
   });
-  it("denies an Admin setting another member's publicProfile (consent is owner-only)", async () => {
+  it("allows an Admin to turn publication OFF (takedown for a member who can't reach /me)", async () => {
+    // Opt in first: false-onto-false touches no key, so the institutional arm would carry
+    // the write and this would pass without the takedown arm existing at all.
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: true }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), { publicProfile: false }),
+    );
+  });
+  it("denies the takedown arm any second field", async () => {
+    // Opt in first: writing false onto an already-false doc affects no key, so the
+    // institutional arm would accept it and the test would prove nothing.
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: true }),
+    );
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), {
+        publicProfile: false,
+        name: "Renamed",
+      }),
+    );
+    // Restore: this suite seeds once and never resets, so leaving m1 opted IN would make
+    // a later "deny an Admin setting publicProfile" test write an unchanged value — which
+    // touches no key and is legitimately allowed, i.e. a green test proving nothing.
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: false }),
+    );
+  });
+  it("denies an institutional writer an explicit null on a doc that lacks the key", async () => {
+    // unchanged() would pass this (null == null on a key-less doc) — touched() is what
+    // catches it. A null also fails memberDocSchema, dropping the member from the UI.
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_nouid"), { publicProfile: null }),
+    );
+  });
+  // Scope note: this proves the DIRECT write is denied, not that publication requires the
+  // member's participation — with the opt-out default, the institutional tier can still
+  // compose one via profilePicture + a board cargo. See the create-arm comment.
+  it("denies an Admin writing another member's publicProfile directly", async () => {
     // m1.uid === "owner-uid"; the admin is a different uid, so only the institutional
     // arm could apply — and it now pins publicProfile via unchanged().
     await assertFails(

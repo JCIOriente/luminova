@@ -9,6 +9,7 @@ interface MemberRowMenuProps {
   onEdit: (member: Member) => void;
   onProvision: (member: Member) => void;
   onSetStatus: (member: Member, status: MemberStatus) => void;
+  onUnpublish: (member: Member) => void;
 }
 
 export function MemberRowMenu({
@@ -17,6 +18,7 @@ export function MemberRowMenu({
   onEdit,
   onProvision,
   onSetStatus,
+  onUnpublish,
 }: MemberRowMenuProps) {
   return (
     <Menu
@@ -49,6 +51,17 @@ export function MemberRowMenu({
         <MenuItem onSelect={() => onProvision(member)}>
           {member.uid ? "Reenviar invitación" : "Invitar a la app"}
         </MenuItem>
+      </ActionGate>
+
+      {/* Takedown, Admin-role only — mirrors the rules arm that lets an Admin force
+          publicProfile to false and nothing else. Shown only when the member is actually
+          published, since the arm can only ever turn publication OFF. This is the only
+          path to un-publish someone who can no longer reach /me. */}
+      <ActionGate role={["Admin"]} when={member.publicProfile === true}>
+        {/* "Revocar el permiso", not "quitar del sitio": publicProfile defaults on, so
+            most members carry it while not actually being on the board page (that also
+            needs a cargo + portrait). The action revokes the flag either way. */}
+        <MenuItem onSelect={() => onUnpublish(member)}>Revocar perfil público</MenuItem>
       </ActionGate>
 
       <Can I="update" a="Member">

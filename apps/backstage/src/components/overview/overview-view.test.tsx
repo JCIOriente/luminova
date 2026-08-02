@@ -13,6 +13,7 @@ function makeModel(overrides: Partial<DashboardModel> = {}): DashboardModel {
     },
     pointsByMonth: [{ monthKey: "2026-06", label: "Jun", points: 88 }],
     upcomingEvents: [],
+    birthdays: [],
     feed: [],
     ...overrides,
   };
@@ -33,6 +34,26 @@ describe("OverviewView", () => {
     render(<OverviewView model={makeModel()} userName="Camila Áñez" now={new Date()} />);
     expect(screen.getByText("No hay eventos próximos.")).toBeInTheDocument();
     expect(screen.getByText("Sin actividad reciente.")).toBeInTheDocument();
+    expect(screen.getByText("Sin cumpleaños próximos.")).toBeInTheDocument();
+  });
+
+  it("lists upcoming birthdays with a day/month label and no birth year", () => {
+    render(
+      <OverviewView
+        model={makeModel({
+          birthdays: [
+            { id: "a", name: "Ana Pérez", label: "8 jul", days: 3 },
+            { id: "b", name: "Beto Rojas", label: "10 jul", days: 5 },
+          ],
+        })}
+        userName="Camila Áñez"
+        now={new Date()}
+      />,
+    );
+    expect(screen.getByText("Ana Pérez")).toBeInTheDocument();
+    expect(screen.getByText("8 jul")).toBeInTheDocument();
+    expect(screen.getByText("en 3 días")).toBeInTheDocument();
+    expect(screen.queryByText(/19\d{2}/)).not.toBeInTheDocument();
   });
 
   it("greets the user by first name", () => {

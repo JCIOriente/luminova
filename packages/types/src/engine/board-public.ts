@@ -19,6 +19,22 @@ export interface BoardShowcaseItem {
   portraitUrl: string;
 }
 
+/** Membership standings a member may be surfaced under, on the public Directiva and on
+ *  the internal birthday lists alike. Both surfaces ask the same question, so they call
+ *  the same predicate — a denylist in either place would surface a status added to
+ *  MEMBER_STATUSES later without anyone deciding to. `Desafiliado` is the excluded one:
+ *  `setStatus` writes `status` alone and leaves `active: true`, so an expelled member is
+ *  NOT soft-deleted and an `active`-only filter still shows them. */
+const SURFACEABLE_STATUSES = ["Activo", "Inactivo"];
+
+/** Whether a member in this standing may be surfaced. Takes `unknown` because beacon
+ *  reads raw admin-SDK data. An ABSENT status passes: docs predating the field are
+ *  ordinary members, and failing them closed would silently unpublish legacy board
+ *  members. Any other unrecognized value fails closed. */
+export function isSurfaceableStatus(status: unknown): boolean {
+  return status === undefined || SURFACEABLE_STATUSES.includes(status as string);
+}
+
 /** Map a Position.category to its public board group. Comisión → null (not shown). */
 export function boardGroupFromCategory(category: unknown): BoardGroup | null {
   return category === "CEL" || category === "JDL" ? category : null;

@@ -57,9 +57,34 @@ Gender-aware titles reuse a single source of truth: `femaleTitle` + a new
 
 ### Consent — `Member.publicProfile?: boolean`
 
-A member opts in via a toggle on their own `/me` credential page. Publication is
-consensual, not automatic on becoming board. Field defaults to absent (= not
-published). The member writes it through the existing self-service lane.
+A member controls publication via a toggle on their own `/me` credential page, and
+is the ONLY principal who may change it — the member writes it through the existing
+self-service lane; `firestore.rules` forbids the key on create from every client and
+pins it with `unchanged()` on every institutional update arm.
+
+**Membership standing.** `Activo` and `Inactivo` both publish — a suspended member still
+holds their cargo for the term, and the board page states who holds each post. Only
+`Desafiliado` drops (and it must be checked explicitly: `setStatus` writes `status` alone
+and leaves `active: true`, so an expelled member is not soft-deleted). The check is an
+allowlist, so any status added to `MEMBER_STATUSES` later stays unpublished until someone
+decides otherwise. Docs with no `status` at all predate the field and still publish.
+
+**Accepted consequence of opt-out.** The institutional tier can compose a publication
+without any act by the member: it may upload a portrait (`storage.rules` lets
+Admin/Membership write `members/{id}/profile.jpg`), point `profilePicture` at it, and
+assign a board cargo — the stamped default supplies the consent gate. The `uid`
+requirement guarantees the member always has a reachable `/me` opt-out, but they are
+published before exercising it. Requiring a member signal first would be opt-in, i.e. the
+prior design. If this becomes unacceptable, the cheapest partial mitigation is pinning
+`profilePicture` on the institutional update arm so the portrait half is member-owned.
+
+**Amended 2026-08-01 (opt-out default).** New members are created publishable: the
+key is absent at create and beacon's `onMemberCreated` stamps
+`PUBLIC_PROFILE_DEFAULT = true` server-side. The default is stamped by the trigger,
+never by a client, so no creator can publish a person by authoring a doc. Members
+created before that change keep an absent field, which every consumer still reads as
+NOT published (`project-board.ts` uses `!== true`) — flipping those would be a
+consent decision requiring a deliberate backfill, not a read-time default.
 
 ### Photo — reuse the existing profile picture URL (no copy)
 

@@ -1,4 +1,4 @@
-import { getApps, initializeApp } from "firebase-admin/app";
+import { getApp, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
@@ -23,6 +23,10 @@ import {
 } from "./showcase/project-initiative.js";
 import { projectAlly } from "./showcase/project-ally.js";
 import { projectBoard, currentCargoId, type BoardCargo } from "./showcase/project-board.js";
+import {
+  needsPublicProfileDefault,
+  PUBLIC_PROFILE_DEFAULT,
+} from "./showcase/default-public-profile.js";
 import type { ShowcasePerson } from "@luminova/types/engine";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
@@ -230,6 +234,40 @@ export const onMemberWritten = onDocumentWritten("members/{id}", async (event) =
   await syncMemberClaims(firestoreClaimsDeps(db(), getAuth()), member, currentTermKey());
 });
 
+// Stamp the org-wide publicProfile default on a brand-new member. It lives here, not in
+// the client mapper, because firestore.rules forbids `publicProfile` on create from every
+// client — a creator able to set it could author a doc with someone else's name and a
+// portrait it uploads, publishing a person who never consented. The member owns the flag
+// from /me onward, so this only ever fires on the create itself, and only when the key is
+// absent (an explicit value is a decision already made). The resulting update re-fires
+// onDocumentWritten triggers, not this one, so there is no write loop.
+// retry:true — unlike the projections this copies, it fires ONCE (on create) and never
+// again, so a swallowed transient failure would strand that member without a default
+// permanently and invisibly. Redelivery is safe: the transaction re-checks the LIVE doc,
+// so a stamp that already landed, a member who has since opted out, and a doc that was
+// deleted are all no-ops rather than retry fodder.
+export const onMemberCreated = onDocumentCreated(
+  { document: "members/{id}", retry: true },
+  async (event) => {
+    const created = event.data;
+    if (!created || !needsPublicProfileDefault(created.data())) return;
+    try {
+      const ref = created.ref;
+      // Re-read inside a transaction rather than trusting the create snapshot: delivery
+      // is at-least-once and can be arbitrarily delayed, so by now the member may have
+      // opted out from /me. Deciding off the stale snapshot would re-publish them.
+      await db().runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists || !needsPublicProfileDefault(snap.data())) return;
+        tx.update(ref, { publicProfile: PUBLIC_PROFILE_DEFAULT });
+      });
+    } catch (err) {
+      console.error("publicProfile default stamp failed", { id: event.params.id, err });
+      throw err;
+    }
+  },
+);
+
 // A role's permission set changed → re-sync the custom claims of every member who
 // holds it. Custom role: members whose roleIds array-contains the id. Built-in
 // role: all provisioned members (rare, admin-only edit). Idempotent per member.
@@ -296,8 +334,25 @@ export const onAllyWritten = onDocumentWritten("allies/{id}", async (event) => {
   }
 });
 
-async function readCargo(database: Firestore, cargoId: string): Promise<BoardCargo | null> {
-  const snap = await database.doc(`positions/${cargoId}`).get();
+/** The project id the portrait-URL allowlist pins against. Resolved from the same place
+ *  the admin SDK gets it, then the two env spellings the runtime may use — `db()` can be
+ *  perfectly healthy while any single one of these is unset. Empty means "cannot decide",
+ *  which the caller must NOT spell as "unpublish everyone". */
+function boardProjectId(): string {
+  return (
+    getApp().options.projectId ??
+    process.env.GCLOUD_PROJECT ??
+    process.env.GOOGLE_CLOUD_PROJECT ??
+    ""
+  );
+}
+
+async function readCargo(
+  database: Firestore,
+  cargoId: string,
+  tx: FirebaseFirestore.Transaction,
+): Promise<BoardCargo | null> {
+  const snap = await tx.get(database.doc(`positions/${cargoId}`));
   if (!snap.exists) return null;
   return {
     category: snap.get("category"),
@@ -310,33 +365,58 @@ async function readCargo(database: Firestore, cargoId: string): Promise<BoardCar
 // collection (public fields only — name + gender-aware role + group + Storage photo
 // URL), or delete it when the member is no longer publicly showable (opted out, no
 // current-term CEL/JDL cargo, soft-deleted). Separate from onMemberWritten (claims
-// sync) to isolate concerns. Swallow + log like onAllyWritten: a permanent Firestore
-// error must not trigger an at-least-once retry storm; self-heals on the next member
-// write. grants/PII never leave /members — only public fields are projected.
-export const onBoardMemberWritten = onDocumentWritten("members/{id}", async (event) => {
-  try {
-    const database = db();
-    const ref = database.doc(`boardShowcase/${event.params.id}`);
-    const after = event.data?.after;
-    if (!after?.exists) {
-      await ref.delete();
-      return;
+// sync) to isolate concerns. grants/PII never leave /members — only public fields are
+// projected.
+//
+// The whole projection runs in a transaction that reads the LIVE member doc, and the
+// event payload is used for nothing but the doc id. Gen2 triggers carry no cross-event
+// ordering guarantee, so deciding from the payload — or reading it outside a transaction
+// and writing after — lets a late or concurrent invocation re-publish a member from stale
+// state, silently undoing an opt-out or an Admin takedown until the next member write.
+// The transaction aborts and re-runs if the member doc changes before commit, so the last
+// committed state always wins.
+//
+// retry:true + rethrow: the delete branch IS the takedown path, and a swallowed transient
+// failure there leaves someone on the public site with only a log line. No malformed input
+// can fail permanently here — projectBoard returns null rather than throwing, and
+// currentCargoId already rejects empty/slash-bearing cargo ids — so there is no
+// retry-storm class to protect against.
+export const onBoardMemberWritten = onDocumentWritten(
+  { document: "members/{id}", retry: true },
+  async (event) => {
+    try {
+      // Without a project id no portrait URL can match, so EVERY member would project to
+      // null and each member write would delete one more person from the public page —
+      // silently, and with no re-projection mechanism to restore them. Skip instead:
+      // "cannot decide" must never be spelled "take everyone down".
+      const projectId = boardProjectId();
+      if (projectId.length === 0) {
+        console.error("boardShowcase projection skipped: no project id", {
+          id: event.params.id,
+        });
+        return;
+      }
+      const database = db();
+      const showcaseRef = database.doc(`boardShowcase/${event.params.id}`);
+      const memberRef = database.doc(`members/${event.params.id}`);
+      await database.runTransaction(async (tx) => {
+        const live = await tx.get(memberRef);
+        const member = live.exists ? (live.data() as Record<string, unknown>) : null;
+        const cargoId = member ? currentCargoId(member, currentTermKey()) : null;
+        const cargo = cargoId ? await readCargo(database, cargoId, tx) : null;
+        const item = member ? projectBoard(event.params.id, member, cargo, projectId) : null;
+        if (!item) {
+          tx.delete(showcaseRef);
+          return;
+        }
+        tx.set(showcaseRef, item);
+      });
+    } catch (err) {
+      console.error("boardShowcase projection failed", { id: event.params.id, err });
+      throw err;
     }
-    const member = after.data() as Record<string, unknown>;
-    const cargoId = currentCargoId(member, currentTermKey());
-    const cargo = cargoId ? await readCargo(database, cargoId) : null;
-    // GCLOUD_PROJECT is always set in the functions runtime + emulator; empty falls
-    // back to a fail-closed projectId (no photo URL matches → member not projected).
-    const item = projectBoard(event.params.id, member, cargo, process.env.GCLOUD_PROJECT ?? "");
-    if (!item) {
-      await ref.delete();
-      return;
-    }
-    await ref.set(item);
-  } catch (err) {
-    console.error("boardShowcase projection failed", { id: event.params.id, err });
-  }
-});
+  },
+);
 
 // Compose = create of notifications/{id}. Fan out inbox copies + best-effort FCM.
 // retry:false (the onDocumentCreated default, stated for intent) — push is not

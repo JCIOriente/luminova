@@ -156,6 +156,9 @@ export function MemberHome() {
           membersLoading={membersQuery.isLoading}
           membersError={membersQuery.isError}
           membersErrorValue={membersQuery.error}
+          // Read off the query itself, not off a second copy of the `enabled` gate:
+          // a gated query is pending-and-idle, and the two can't drift apart.
+          membersUnavailable={membersQuery.isPending && membersQuery.fetchStatus === "idle"}
           onRetryMembers={() => membersQuery.refetch()}
           now={now}
         />

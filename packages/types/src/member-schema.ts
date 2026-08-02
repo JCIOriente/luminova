@@ -37,8 +37,11 @@ export type MemberInput = z.infer<typeof memberSchema>;
 
 /** What a member may change about themselves on /me. Mirrors the self lane in
  *  firestore.rules; the photo is its own action, not a form field. Email, status, cargo and
- *  joinDate are institutional records the membership tier maintains.
- *  publicProfile is the member's opt-in to appear on the public Directiva (boardShowcase). */
+ *  joinDate are institutional records the membership tier maintains (the member owns their
+ *  own name via the self lane).
+ *  publicProfile controls appearing on the public Directiva (boardShowcase): opt-out for
+ *  members created from 2026-08 on (beacon stamps the default), absent = not published on
+ *  older docs. Only the member's own lane writes it; an Admin may force it off. */
 export const selfProfileSchema = memberSchema
   .pick({
     name: true,

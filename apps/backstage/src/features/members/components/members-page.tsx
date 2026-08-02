@@ -6,6 +6,7 @@ import { usePositions } from "../../positions/hooks/use-positions";
 import { useAddMember } from "../hooks/use-add-member";
 import { useUpdateMember } from "../hooks/use-update-member";
 import { useSetMemberStatus } from "../hooks/use-set-member-status";
+import { useUnpublishMember } from "../hooks/use-unpublish-member";
 import { useProvisionMemberLogin } from "../hooks/use-provision-member-login";
 import { provisionErrorMessage } from "../lib/provision-error";
 import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
@@ -37,6 +38,7 @@ export function MembersPage() {
   const addMember = useAddMember();
   const updateMember = useUpdateMember();
   const setMemberStatus = useSetMemberStatus();
+  const unpublishMember = useUnpublishMember();
   const provision = useProvisionMemberLogin();
 
   const [search, setSearch] = useState("");
@@ -202,6 +204,12 @@ export function MembersPage() {
           onEdit={(member) => setDrawer({ mode: "edit", member })}
           onProvision={(member) => void handleProvision(member)}
           onSetStatus={handleSetStatus}
+          onUnpublish={(member) =>
+            unpublishMember.mutate(member.id, {
+              onSuccess: () => setToast(`${member.name} ya no aparece en el sitio público.`),
+              onError: () => setToast("No se pudo quitar el perfil del sitio público."),
+            })
+          }
         />
       )}
 

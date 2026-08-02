@@ -71,7 +71,11 @@ describe("firestore.rules members self lane is in sync with selfProfileSchema", 
     // equality: a new arm is a thing to gate, not a test failure.
     expect(arms.length).toBeGreaterThanOrEqual(4);
     for (const arm of arms) {
-      const writesName = !arm.includes("hasOnly(['positions'])");
+      // An arm restricted to a hasOnly([...]) key set that excludes `name` cannot write
+      // one, so the gate is unreachable there — that covers the EC positions-only arm and
+      // the Admin publicProfile takedown arm. Anything else is a name writer.
+      const restrictedKeys = arm.match(/affectedKeys\(\)\.hasOnly\(\[([^\]]*)\]\)/)?.[1];
+      const writesName = restrictedKeys === undefined || restrictedKeys.includes("'name'");
       if (writesName) {
         expect(arm).toMatch(/memberNameValid\(|selfProfileValid\(/);
       }

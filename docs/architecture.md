@@ -58,7 +58,10 @@ within the same project and share one Firestore database and one Storage bucket
   `onProgramWritten` / `onProjectWritten` (roster → participation reconciliation +
   `showcase` projection), `onActivityWritten` (photo roll-up into the showcase),
   `onMemberWritten` (custom-claims sync: roles + perms), `onRoleWritten` (role-definition
-  claims re-sync), `onAllyWritten` (`allyShowcase` public projection)
+  claims re-sync), `onAllyWritten` (`allyShowcase` public projection),
+  `onMemberCreated` (stamps the `publicProfile` opt-out default — clients may not set it),
+  `onBoardMemberWritten` (`boardShowcase` public Directiva projection),
+  `onNotificationCreated` (inbox fan-out + best-effort FCM)
 - Callables: `setUserRoles`, `seedRoles`, `recomputeAllClaims`, `provisionMemberLogin`
 - Uses Firebase Admin SDK (server-side only)
 

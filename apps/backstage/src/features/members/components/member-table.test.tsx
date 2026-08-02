@@ -15,6 +15,7 @@ const noop = {
   onEdit: vi.fn(),
   onProvision: vi.fn(),
   onSetStatus: vi.fn(),
+  onUnpublish: vi.fn(),
   onDelete: vi.fn(),
 };
 

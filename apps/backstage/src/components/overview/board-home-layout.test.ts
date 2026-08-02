@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { boardHomeLayout, type WidgetKey } from "./board-home-layout";
+import { boardHomeLayout, LAYOUT_ROLES, type WidgetKey } from "./board-home-layout";
 
 const DEFAULT: WidgetKey[] = [
   "headerActions",
   "kpis",
   "chart",
   "upcomingEvents",
+  "birthdays",
   "recentActivity",
   "quickActions",
 ];
@@ -20,10 +21,18 @@ describe("boardHomeLayout", () => {
       "headerActions",
       "kpis",
       "quickActions",
+      "birthdays",
       "recentActivity",
       "chart",
       "upcomingEvents",
     ]);
+  });
+
+  it("every role's layout carries birthdays (chapter-wide, role-agnostic)", () => {
+    expect(LAYOUT_ROLES.length).toBeGreaterThan(0);
+    for (const role of LAYOUT_ROLES) {
+      expect(boardHomeLayout([role])).toContain("birthdays");
+    }
   });
 
   it("Treasury hides member quick actions and header create buttons", () => {

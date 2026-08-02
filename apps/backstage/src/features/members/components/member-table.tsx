@@ -31,6 +31,7 @@ interface MemberTableProps {
   onEdit: (member: Member) => void;
   onProvision: (member: Member) => void;
   onSetStatus: (member: Member, status: MemberStatus) => void;
+  onUnpublish: (member: Member) => void;
 }
 
 const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
@@ -142,6 +143,7 @@ export function MemberTable({
   onEdit,
   onProvision,
   onSetStatus,
+  onUnpublish,
 }: MemberTableProps) {
   const columns = useMemo(() => buildColumns(roleLabel, positionsById), [roleLabel, positionsById]);
   return (
@@ -171,6 +173,7 @@ export function MemberTable({
             onEdit={onEdit}
             onProvision={onProvision}
             onSetStatus={onSetStatus}
+            onUnpublish={onUnpublish}
           />
         </div>
       )}

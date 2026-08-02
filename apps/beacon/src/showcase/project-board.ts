@@ -2,6 +2,7 @@ import {
   boardGroupFromCategory,
   boardRank,
   genderedTitle,
+  isSurfaceableStatus,
   type BoardShowcaseItem,
 } from "@luminova/types/engine";
 
@@ -43,9 +44,14 @@ export function currentCargoId(member: Record<string, unknown>, termKey: string)
   const term = (positions as Record<string, unknown>)[termKey];
   if (!term || typeof term !== "object") return null;
   const cargoId = (term as { cargoId?: unknown }).cargoId;
-  // Reject a "/" — cargoId flows into a `positions/${cargoId}` doc-path template, and a
-  // slash would let untrusted member data reach into a nested/unintended reference.
+  // cargoId flows into a `positions/${cargoId}` doc-path template. A "/" would reach into
+  // a nested reference; the rest are ids the client SDK accepts but the SERVER rejects
+  // with a permanent INVALID_ARGUMENT — and this trigger runs retry:true, so a permanent
+  // throw is a redelivery loop. Screen them here so the projection stays no-throw.
   if (typeof cargoId !== "string" || cargoId.length === 0 || cargoId.includes("/")) return null;
+  if (cargoId === "." || cargoId === "..") return null;
+  if (cargoId.startsWith("__") && cargoId.endsWith("__")) return null;
+  if (new TextEncoder().encode(cargoId).length > 1500) return null;
   return cargoId;
 }
 
@@ -65,7 +71,15 @@ export function projectBoard(
   projectId: string,
 ): BoardShowcaseItem | null {
   if (member.publicProfile !== true) return null;
+  // No uid = no login = no /me = no way to switch publication off. Since the flag now
+  // defaults to on (stamped server-side at create), publishing an unprovisioned member
+  // would be publication with an unreachable opt-out — the self lane keys on
+  // `resource.data.uid == request.auth.uid`. Publish only members who can revoke it.
+  if (typeof member.uid !== "string" || member.uid.length === 0) return null;
   if (member.deletedAt != null || member.active === false) return null;
+  // Shared with the internal birthday lists — one allowlist, so a status added later
+  // can't surface itself on either.
+  if (!isSurfaceableStatus(member.status)) return null;
   const name = member.name;
   if (typeof name !== "string" || name.length === 0) return null;
   if (!isMemberPhotoUrl(member.profilePicture, id, projectId)) return null;

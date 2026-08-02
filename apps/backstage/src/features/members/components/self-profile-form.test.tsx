@@ -97,4 +97,31 @@ describe("SelfProfileForm", () => {
       expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ name: "Ana Rivas" }));
     });
   });
+
+  // Consent alone publishes nothing: the beacon projection drops a member with no
+  // portrait, which is exactly how a director stayed invisible after ticking the box.
+  describe("the public-profile photo warning", () => {
+    const PHOTO_WARNING = /te falta subir tu foto/i;
+    const opted = (o: Partial<Member> = {}): Member => ({ ...member, publicProfile: true, ...o });
+
+    it("warns when the member is opted in but has no photo", () => {
+      render(<SelfProfileForm member={opted()} />);
+      expect(screen.getByText(PHOTO_WARNING)).toBeInTheDocument();
+    });
+
+    it("drops the warning once a photo exists", () => {
+      render(<SelfProfileForm member={opted({ profilePicture: "https://example.test/p.jpg" })} />);
+      expect(screen.queryByText(PHOTO_WARNING)).not.toBeInTheDocument();
+    });
+
+    it("stays quiet when the member has opted out", () => {
+      render(<SelfProfileForm member={opted({ publicProfile: false })} />);
+      expect(screen.queryByText(PHOTO_WARNING)).not.toBeInTheDocument();
+    });
+
+    it("stays quiet for a legacy member who never decided", () => {
+      render(<SelfProfileForm member={{ ...member, publicProfile: undefined }} />);
+      expect(screen.queryByText(PHOTO_WARNING)).not.toBeInTheDocument();
+    });
+  });
 });

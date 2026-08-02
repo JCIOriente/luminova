@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Checkbox, DatePicker, Field, Input } from "@luminova/ui";
 import {
@@ -32,13 +32,23 @@ export function SelfProfileForm({ member }: { member: Member }) {
       phone: member.phone ?? "",
       profession: member.profession ?? "",
       birthdate: member.birthdate ? dateInputValue(member.birthdate) : "",
-      publicProfile: member.publicProfile ?? false,
+      // NOT `?? false`: a legacy doc has no publicProfile key, and RHF submits every
+      // default — so coercing absent to false would record an explicit opt-out on an
+      // unrelated phone edit, and beacon's "already decided" check would then skip that
+      // member forever. Left undefined, the mapper omits the key entirely.
+      publicProfile: member.publicProfile,
     },
   });
 
   // The mutation already tracks pending/success/error — a parallel useState would be a
   // second source of truth for "did the last save work".
   const submit = handleSubmit((data) => updateProfile.mutateAsync(data).catch(() => {}));
+
+  // The public projection (beacon projectBoard) drops a member with no portrait, so
+  // consent alone publishes nothing. Without this the opt-in looks saved and simply
+  // never appears — the exact silent failure that hid a director from the site.
+  const optedIn = useWatch({ control, name: "publicProfile" }) === true;
+  const missingPhoto = optedIn && !member.profilePicture;
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
@@ -91,9 +101,15 @@ export function SelfProfileForm({ member }: { member: Member }) {
           )}
         />
         <p className="text-ui-xs text-ink-3">
-          Si tienes un cargo de directiva este año, tu foto y nombre aparecerán en la sección
-          Directiva de jcioriente.org. Puedes desactivarlo cuando quieras.
+          Con la casilla marcada y un cargo de directiva este año, tu foto y nombre aparecen en la
+          sección Directiva de jcioriente.org. Puedes cambiarlo cuando quieras.
         </p>
+        {missingPhoto && (
+          <p role="status" className="text-ui-xs font-medium text-warn">
+            Te falta subir tu foto de perfil: sin foto no apareces en la Directiva del sitio
+            público, aunque dejes esta casilla marcada.
+          </p>
+        )}
       </div>
       <p className="text-ui-xs text-ink-3">
         Tu correo, cargo y estado los administra la Dirección de Membresía.

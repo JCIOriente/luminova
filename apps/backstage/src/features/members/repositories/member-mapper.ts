@@ -59,6 +59,8 @@ export function toMemberCreateDoc(
       [termKey]: { cargoId: data.cargoId, comisionIds: data.comisionIds, assignedBy },
     },
     profilePicture: null,
+    // publicProfile is deliberately absent: the rules' create arm rejects it from any
+    // client, and beacon's onMemberCreated stamps the org-wide default server-side.
     totalPoints: 0,
     active: true,
     deletedAt: null,

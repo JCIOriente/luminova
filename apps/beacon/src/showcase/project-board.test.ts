@@ -10,6 +10,7 @@ const member = {
   name: "Arnold Gandarillas",
   profilePicture: PHOTO,
   publicProfile: true,
+  uid: "auth-uid-1",
   gender: "Masculino",
   active: true,
   deletedAt: null,
@@ -67,6 +68,32 @@ describe("projectBoard", () => {
   it("drops a member who has not opted in", () => {
     expect(project("m1", { ...member, publicProfile: false }, celCargo)).toBeNull();
     expect(project("m1", { ...member, publicProfile: undefined }, celCargo)).toBeNull();
+  });
+
+  it("drops a member with no login: the /me opt-out they'd need is unreachable", () => {
+    expect(project("m1", { ...member, uid: undefined }, celCargo)).toBeNull();
+    expect(project("m1", { ...member, uid: "" }, celCargo)).toBeNull();
+  });
+
+  it("drops an expelled member (status wins over an untouched active flag)", () => {
+    expect(project("m1", { ...member, status: "Desafiliado" }, celCargo)).toBeNull();
+    expect(project("m1", { ...member, status: "Activo" }, celCargo)).not.toBeNull();
+  });
+
+  it("publishes a suspended member — Inactivo still holds the cargo for the term", () => {
+    expect(project("m1", { ...member, status: "Inactivo" }, celCargo)).not.toBeNull();
+  });
+
+  it("publishes a legacy doc that predates the status field", () => {
+    expect(project("m1", { ...member, status: undefined }, celCargo)).not.toBeNull();
+  });
+
+  it("drops an unknown status rather than publishing it by default", () => {
+    // The allowlist's whole point: a value added to MEMBER_STATUSES later, or a mangled
+    // direct-SDK write, must not publish itself.
+    expect(project("m1", { ...member, status: "Suspendido" }, celCargo)).toBeNull();
+    expect(project("m1", { ...member, status: "desafiliado" }, celCargo)).toBeNull();
+    expect(project("m1", { ...member, status: "Activo " }, celCargo)).toBeNull();
   });
 
   it("drops a member with no current-term board cargo", () => {
@@ -139,6 +166,17 @@ describe("currentCargoId", () => {
   it("returns null when positions is missing or malformed", () => {
     expect(currentCargoId({}, termKey)).toBeNull();
     expect(currentCargoId({ positions: [] }, termKey)).toBeNull();
+  });
+
+  it("rejects doc ids Firestore rejects permanently (the trigger runs retry:true)", () => {
+    // These pass client-side path validation and fail SERVER-side with INVALID_ARGUMENT,
+    // which under retry:true is a redelivery loop rather than a one-off error.
+    const at = (cargoId: string) => currentCargoId({ positions: { "2026": { cargoId } } }, termKey);
+    expect(at(".")).toBeNull();
+    expect(at("..")).toBeNull();
+    expect(at("__name__")).toBeNull();
+    expect(at("x".repeat(1501))).toBeNull();
+    expect(at("__notReserved")).toBe("__notReserved");
   });
 
   it("rejects a cargoId containing a slash (path-injection guard)", () => {
