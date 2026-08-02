@@ -50,6 +50,13 @@ interface Member {
   birthdate: Timestamp        // required
   status: 'Activo' | 'Inactivo' | 'Desafiliado'  // membership standing (default 'Activo')
   profilePicture: string | null  // Firebase Storage URL or null (uploaded via admin drawer or self on /me)
+  publicProfile?: boolean     // appear on the public Directiva (boardShowcase). Opt-OUT: beacon's
+                              // onMemberCreated stamps true at create (clients may not set it —
+                              // firestore.rules rejects the key on create). Only the member's own
+                              // /me lane may change it; an Admin may additionally force it to false
+                              // (takedown-only arm). Absent on pre-2026-08 docs = not published.
+                              // Publication also requires a uid, a pinned own-bucket photo, a
+                              // current-term CEL/JDL cargo, and status != 'Desafiliado'.
   totalPoints: number         // default: 0 — mirrors MemberPoints.cumulative (engine-written)
   isPastPresident?: boolean   // eligibility flag (no Mejor Miembro accrual); missing = false
   uid?: string                // linked Firebase Auth uid — set by provisionMemberLogin (admin SDK); absent until invited; immutable once set

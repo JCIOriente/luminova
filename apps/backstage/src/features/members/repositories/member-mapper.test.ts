@@ -33,8 +33,10 @@ describe("toMemberCreateDoc", () => {
     });
   });
 
-  it("keeps publicProfile off the update payload (rules pin it after create)", () => {
-    expect(toMemberUpdateDoc(input, "", null)).not.toHaveProperty("publicProfile");
+  it("omits publicProfile so the rules' create arm accepts the payload", () => {
+    // Not a type-level tautology: toSelfProfileDoc DOES emit the key when it is defined,
+    // and the create arm denies any create carrying it.
+    expect(toMemberCreateDoc(input, "")).not.toHaveProperty("publicProfile");
   });
 
   it("converts date strings to Timestamps", () => {

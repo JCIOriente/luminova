@@ -51,6 +51,10 @@ const members = [
   birthdate: ts("1992-07-01T00:00:00Z"),
   status: "Activo",
   profilePicture: null,
+  // Carried explicitly: this seed re-writes members with a full set() (no merge), so a
+  // re-seed would strip the default beacon's onMemberCreated stamped on the first run —
+  // and an overwrite is not a create, so the trigger would never put it back.
+  publicProfile: true,
   active: true,
   deletedAt: null,
   isPastPresident: false,

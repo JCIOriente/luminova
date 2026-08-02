@@ -25,8 +25,10 @@ export interface Member {
   isPastPresident?: boolean;
   /** Missing on pre-K2 docs; required by the form from K2 on. */
   gender?: MemberGender;
-  /** Member opt-in to appear on the public Directiva projection (boardShowcase).
-   *  Self-set on /me. Missing = not published. */
+  /** Whether the member appears on the public Directiva projection (boardShowcase).
+   *  Only the member writes it (on /me); an Admin may additionally force it to false
+   *  (takedown). Members created from 2026-08 on get `true` stamped server-side by
+   *  beacon's onMemberCreated — opt-out. Missing = not published (older docs). */
   publicProfile?: boolean;
   /** Position assignments keyed by term (year, e.g. "2026"). */
   positions?: Record<string, TermPositions>;

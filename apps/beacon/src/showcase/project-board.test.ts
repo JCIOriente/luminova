@@ -10,6 +10,7 @@ const member = {
   name: "Arnold Gandarillas",
   profilePicture: PHOTO,
   publicProfile: true,
+  uid: "auth-uid-1",
   gender: "Masculino",
   active: true,
   deletedAt: null,
@@ -67,6 +68,16 @@ describe("projectBoard", () => {
   it("drops a member who has not opted in", () => {
     expect(project("m1", { ...member, publicProfile: false }, celCargo)).toBeNull();
     expect(project("m1", { ...member, publicProfile: undefined }, celCargo)).toBeNull();
+  });
+
+  it("drops a member with no login: the /me opt-out they'd need is unreachable", () => {
+    expect(project("m1", { ...member, uid: undefined }, celCargo)).toBeNull();
+    expect(project("m1", { ...member, uid: "" }, celCargo)).toBeNull();
+  });
+
+  it("drops an expelled member (status wins over an untouched active flag)", () => {
+    expect(project("m1", { ...member, status: "Desafiliado" }, celCargo)).toBeNull();
+    expect(project("m1", { ...member, status: "Activo" }, celCargo)).not.toBeNull();
   });
 
   it("drops a member with no current-term board cargo", () => {

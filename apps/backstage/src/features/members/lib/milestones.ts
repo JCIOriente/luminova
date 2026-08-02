@@ -3,8 +3,9 @@ import { daysUntilNextAnniversary, formatDayMonth } from "@luminova/utils/dateti
 
 export type UpcomingBirthday = { id: string; name: string; label: string; days: number };
 
-/** How many upcoming birthdays every surface shows (/me + the board dashboard). One
- *  constant so the two lists can't drift apart. */
+/** How many upcoming birthdays every surface shows (/me + the board dashboard). The two
+ *  lists differ in membership on purpose — /me excludes you, the chapter dashboard does
+ *  not — but their LENGTH is one constant so they can't drift. */
 export const UPCOMING_BIRTHDAY_LIMIT = 3;
 
 /** "hoy" / "mañana" / "en N días" — shared by /me and the board dashboard list. */

@@ -65,7 +65,16 @@ export function projectBoard(
   projectId: string,
 ): BoardShowcaseItem | null {
   if (member.publicProfile !== true) return null;
+  // No uid = no login = no /me = no way to switch publication off. Since the flag now
+  // defaults to on (stamped server-side at create), publishing an unprovisioned member
+  // would be publication with an unreachable opt-out — the self lane keys on
+  // `resource.data.uid == request.auth.uid`. Publish only members who can revoke it.
+  if (typeof member.uid !== "string" || member.uid.length === 0) return null;
   if (member.deletedAt != null || member.active === false) return null;
+  // setStatus writes `status` only and leaves `active` true, so an expelled member is
+  // not soft-deleted. With publication defaulting to on, an unchecked status would keep
+  // them on the public Directiva until someone noticed.
+  if (member.status === "Desafiliado") return null;
   const name = member.name;
   if (typeof name !== "string" || name.length === 0) return null;
   if (!isMemberPhotoUrl(member.profilePicture, id, projectId)) return null;

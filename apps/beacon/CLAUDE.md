@@ -97,4 +97,14 @@ Admin-guarded custom-claim assignment.
   then query programs+projects on `roster.directorId` / `roster.coDirectorIds` /
   `roster.teamIds` (nested paths — the bare names match nothing), bounded with `.limit()`
   and re-projected through `chunk()`.
+- **Deferred (boardShowcase projects from the event payload, not a live read):**
+  `onBoardMemberWritten` projects `after.data()`. Gen2 Firestore triggers carry no
+  cross-event ordering guarantee, so if the create-event invocation is delivered AFTER
+  the `onMemberCreated` stamp's update-event invocation, the stale create payload (no
+  `publicProfile`) makes `projectBoard` return null and deletes the entry the newer
+  invocation just wrote — silently, until the next member write. Unreachable from
+  backstage today (`toMemberCreateDoc` writes `profilePicture: null`, so both passes
+  project null), but reachable from any admin-SDK path that creates a member already
+  carrying `positions` + a valid pinned portrait URL. Fix by re-reading the doc inside
+  the projection (one extra read per member write).
 - **Heaviest skills.** `/security-review`, `secure-dep-vetting` (server deps).

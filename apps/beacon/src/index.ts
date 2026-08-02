@@ -242,16 +242,32 @@ export const onMemberWritten = onDocumentWritten("members/{id}", async (event) =
 // absent (an explicit value is a decision already made). The resulting update re-fires
 // onDocumentWritten triggers, not this one, so there is no write loop. Swallow + log like
 // the other projections: a permanent error must not drive an at-least-once retry storm.
-export const onMemberCreated = onDocumentCreated("members/{id}", async (event) => {
-  try {
-    if (!needsPublicProfileDefault(event.data?.data())) return;
-    await db().doc(`members/${event.params.id}`).update({
-      publicProfile: PUBLIC_PROFILE_DEFAULT,
-    });
-  } catch (err) {
-    console.error("publicProfile default stamp failed", { id: event.params.id, err });
-  }
-});
+// retry:true — unlike the projections this copies, it fires ONCE (on create) and never
+// again, so a swallowed transient failure would strand that member without a default
+// permanently and invisibly. Redelivery is safe: the transaction re-checks the LIVE doc,
+// so a stamp that already landed, a member who has since opted out, and a doc that was
+// deleted are all no-ops rather than retry fodder.
+export const onMemberCreated = onDocumentCreated(
+  { document: "members/{id}", retry: true },
+  async (event) => {
+    const created = event.data;
+    if (!created || !needsPublicProfileDefault(created.data())) return;
+    try {
+      const ref = created.ref;
+      // Re-read inside a transaction rather than trusting the create snapshot: delivery
+      // is at-least-once and can be arbitrarily delayed, so by now the member may have
+      // opted out from /me. Deciding off the stale snapshot would re-publish them.
+      await db().runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists || !needsPublicProfileDefault(snap.data())) return;
+        tx.update(ref, { publicProfile: PUBLIC_PROFILE_DEFAULT });
+      });
+    } catch (err) {
+      console.error("publicProfile default stamp failed", { id: event.params.id, err });
+      throw err;
+    }
+  },
+);
 
 // A role's permission set changed → re-sync the custom claims of every member who
 // holds it. Custom role: members whose roleIds array-contains the id. Built-in

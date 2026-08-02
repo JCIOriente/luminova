@@ -32,7 +32,11 @@ export function SelfProfileForm({ member }: { member: Member }) {
       phone: member.phone ?? "",
       profession: member.profession ?? "",
       birthdate: member.birthdate ? dateInputValue(member.birthdate) : "",
-      publicProfile: member.publicProfile ?? false,
+      // NOT `?? false`: a legacy doc has no publicProfile key, and RHF submits every
+      // default — so coercing absent to false would record an explicit opt-out on an
+      // unrelated phone edit, and beacon's "already decided" check would then skip that
+      // member forever. Left undefined, the mapper omits the key entirely.
+      publicProfile: member.publicProfile,
     },
   });
 
@@ -97,9 +101,8 @@ export function SelfProfileForm({ member }: { member: Member }) {
           )}
         />
         <p className="text-ui-xs text-ink-3">
-          Viene activado por defecto: si tienes un cargo de directiva este año, tu foto y nombre
-          aparecerán en la sección Directiva de jcioriente.org. Desmarca la casilla y guarda para
-          que no aparezcan.
+          Con la casilla marcada y un cargo de directiva este año, tu foto y nombre aparecen en la
+          sección Directiva de jcioriente.org. Puedes cambiarlo cuando quieras.
         </p>
         {missingPhoto && (
           <p role="status" className="text-ui-xs font-medium text-warn">

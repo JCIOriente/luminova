@@ -277,19 +277,28 @@ service cloud.firestore {
         && createPositionsSafe();
       // publicProfile is member-consent-only: it publishes their face/name to the
       // public Directiva, so the institutional (membership-tier) arm may never set or
-      // change it — only the owner-only self-lane below can. unchanged() so an admin
-      // edit that doesn't touch it still passes.
+      // change it — only the owner-only self-lane below, or the Admin takedown arm after
+      // it, can. touched() rather than unchanged(): writing an explicit null onto a doc
+      // that lacks the key would pass a null == null comparison.
       // touched('name'): an admin editing only a phone must not be denied by a legacy name
       // stored before this gate existed — an unchanged value is absent from affectedKeys().
       // Setting a name, on any lane, must satisfy it.
       allow update: if canDo('update', 'Member')
         && unchanged('totalPoints')
-        && unchanged('uid')
-        && unchanged('publicProfile')
+        && !touched('uid')
+        && !touched('publicProfile')
         && (!touched('name') || memberNameValid(request.resource.data.get('name', '')))
         && updatePermissionAssignmentSafe()
         && softDeleteSafe()
         && (!touched('positions') || positionsAssignmentSafe());
+      // Takedown-only arm: an Admin may turn publication OFF and nothing else. Needed
+      // because publication now defaults on, so a member who has lost account access —
+      // or whose data-subject request arrives by email — must be removable by someone
+      // other than themselves. Strictly exposure-reducing: `== false` means this arm can
+      // never publish anyone, so it confers no new grant.
+      allow update: if hasAnyRole(['Admin'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['publicProfile'])
+        && request.resource.data.get('publicProfile', null) == false;
       // Self-service profile (/me): a member owns their photo, their own name and their
       // contact and personal details — the name so a member can correct a typo the
       // membership tier made when enrolling them, without a round trip. Everything else on
@@ -521,8 +530,10 @@ service cloud.firestore {
     // Curated public projection of the current-term board (beacon admin SDK writes
     // from onBoardMemberWritten; the public marketing site reads it without auth).
     // Public fields only — name + role title + group + Storage photo URL; grants/PII
-    // never leave /members. Membership is opt-OUT (members.publicProfile defaults true
-    // at create; only the member's own self lane can turn it off).
+    // never leave /members. Membership keys on members.publicProfile: beacon stamps it
+    // true on members created from 2026-08 on (opt-out), while older docs have no key and
+    // stay unpublished until their owner opts in. Only the owner turns it on; the owner
+    // or an Admin (takedown arm) turns it off.
     match /boardShowcase/{id} {
       allow read: if true;
       allow write: if false;
