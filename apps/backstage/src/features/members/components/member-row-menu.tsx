@@ -57,10 +57,11 @@ export function MemberRowMenu({
           publicProfile to false and nothing else. Shown only when the member is actually
           published, since the arm can only ever turn publication OFF. This is the only
           path to un-publish someone who can no longer reach /me. */}
-      <ActionGate role={["Admin"]}>
-        {member.publicProfile === true && (
-          <MenuItem onSelect={() => onUnpublish(member)}>Quitar del sitio público</MenuItem>
-        )}
+      <ActionGate role={["Admin"]} when={member.publicProfile === true}>
+        {/* "Revocar el permiso", not "quitar del sitio": publicProfile defaults on, so
+            most members carry it while not actually being on the board page (that also
+            needs a cargo + portrait). The action revokes the flag either way. */}
+        <MenuItem onSelect={() => onUnpublish(member)}>Revocar perfil público</MenuItem>
       </ActionGate>
 
       <Can I="update" a="Member">

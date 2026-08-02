@@ -2,6 +2,7 @@ import {
   boardGroupFromCategory,
   boardRank,
   genderedTitle,
+  isSurfaceableStatus,
   type BoardShowcaseItem,
 } from "@luminova/types/engine";
 
@@ -71,14 +72,9 @@ export function projectBoard(
   // `resource.data.uid == request.auth.uid`. Publish only members who can revoke it.
   if (typeof member.uid !== "string" || member.uid.length === 0) return null;
   if (member.deletedAt != null || member.active === false) return null;
-  // setStatus writes `status` only and leaves `active` true, so an expelled member is not
-  // soft-deleted. With publication defaulting to on, an unchecked status would keep them
-  // on the public Directiva until someone noticed. Allowlist, not `!== "Desafiliado"`: a
-  // status added to MEMBER_STATUSES later must not publish itself by default, and a
-  // direct-SDK write of "desafiliado" or "Desafiliado " must not evade the gate. Absent
-  // status still projects — legacy docs predate the field.
-  const status = member.status;
-  if (status !== undefined && status !== "Activo" && status !== "Inactivo") return null;
+  // Shared with the internal birthday lists — one allowlist, so a status added later
+  // can't surface itself on either.
+  if (!isSurfaceableStatus(member.status)) return null;
   const name = member.name;
   if (typeof name !== "string" || name.length === 0) return null;
   if (!isMemberPhotoUrl(member.profilePicture, id, projectId)) return null;

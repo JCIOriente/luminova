@@ -28,7 +28,9 @@ Scanner scoped to the activity). On write:
 On a `checkIns` **delete**, the derived row is removed and the aggregate recomputed
 (and the flag re-mirrored).
 
-The trigger runs with `retry: true` — the only trigger that does. The flag mirror
+The trigger runs with `retry: true` — one of three that do (`onMemberCreated` and
+`onBoardMemberWritten` are the others; each states its justification at the call
+site). The flag mirror
 only recomputes on checkIns writes, so an unretried transient failure would strand
 the rules-side lock; the handler is idempotent under redelivery and step 1's
 no-throw contract prevents malformed-input retry storms.

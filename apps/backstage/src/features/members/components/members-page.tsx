@@ -204,7 +204,12 @@ export function MembersPage() {
           onEdit={(member) => setDrawer({ mode: "edit", member })}
           onProvision={(member) => void handleProvision(member)}
           onSetStatus={handleSetStatus}
-          onUnpublish={(member) => unpublishMember.mutate(member.id)}
+          onUnpublish={(member) =>
+            unpublishMember.mutate(member.id, {
+              onSuccess: () => setToast(`${member.name} ya no aparece en el sitio público.`),
+              onError: () => setToast("No se pudo quitar el perfil del sitio público."),
+            })
+          }
         />
       )}
 

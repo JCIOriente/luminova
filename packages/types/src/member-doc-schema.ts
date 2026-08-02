@@ -16,7 +16,11 @@ export const memberDocSchema = z.object({
   profession: z.string().optional(),
   joinDate: clientTimestampSchema,
   birthdate: clientTimestampSchema,
-  status: z.enum(MEMBER_STATUSES),
+  // .default so a doc predating the field parses instead of being dropped by parseDocs.
+  // The public projection already treats an absent status as surfaceable; without this
+  // default such a member could be live on the public Directiva while being invisible in
+  // backstage — including to the Admin takedown action.
+  status: z.enum(MEMBER_STATUSES).default("Activo"),
   profilePicture: z.string().nullable().default(null),
   totalPoints: z.number().default(0),
   isPastPresident: z.boolean().optional(),

@@ -1,4 +1,4 @@
-import type { Member } from "@luminova/types";
+import { isSurfaceableStatus, type Member } from "@luminova/types";
 import { daysUntilNextAnniversary, formatDayMonth } from "@luminova/utils/datetime";
 
 export type UpcomingBirthday = { id: string; name: string; label: string; days: number };
@@ -27,8 +27,8 @@ export function upcomingBirthdays(
     members
       // status, not just active: setStatus writes `status` alone and leaves `active` true,
       // so an expelled member is not soft-deleted and would otherwise still be celebrated
-      // chapter-wide. Same rule the public projection applies.
-      .filter((m) => m.active && m.status !== "Desafiliado" && m.id !== excludeId)
+      // chapter-wide. Literally the same predicate the public projection applies.
+      .filter((m) => m.active && isSurfaceableStatus(m.status) && m.id !== excludeId)
       .map((m) => ({
         id: m.id,
         name: m.name,

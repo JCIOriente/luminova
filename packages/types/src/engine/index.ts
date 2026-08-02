@@ -26,6 +26,7 @@ export {
   BOARD_GROUPS,
   boardGroupFromCategory,
   boardRank,
+  isSurfaceableStatus,
   type BoardGroup,
   type BoardShowcaseItem,
 } from "./board-public.js";
