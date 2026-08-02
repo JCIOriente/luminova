@@ -62,6 +62,13 @@ is the ONLY principal who may change it — the member writes it through the exi
 self-service lane; `firestore.rules` forbids the key on create from every client and
 pins it with `unchanged()` on every institutional update arm.
 
+**Membership standing.** `Activo` and `Inactivo` both publish — a suspended member still
+holds their cargo for the term, and the board page states who holds each post. Only
+`Desafiliado` drops (and it must be checked explicitly: `setStatus` writes `status` alone
+and leaves `active: true`, so an expelled member is not soft-deleted). The check is an
+allowlist, so any status added to `MEMBER_STATUSES` later stays unpublished until someone
+decides otherwise. Docs with no `status` at all predate the field and still publish.
+
 **Accepted consequence of opt-out.** The institutional tier can compose a publication
 without any act by the member: it may upload a portrait (`storage.rules` lets
 Admin/Membership write `members/{id}/profile.jpg`), point `profilePicture` at it, and

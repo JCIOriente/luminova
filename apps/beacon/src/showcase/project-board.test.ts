@@ -80,6 +80,22 @@ describe("projectBoard", () => {
     expect(project("m1", { ...member, status: "Activo" }, celCargo)).not.toBeNull();
   });
 
+  it("publishes a suspended member — Inactivo still holds the cargo for the term", () => {
+    expect(project("m1", { ...member, status: "Inactivo" }, celCargo)).not.toBeNull();
+  });
+
+  it("publishes a legacy doc that predates the status field", () => {
+    expect(project("m1", { ...member, status: undefined }, celCargo)).not.toBeNull();
+  });
+
+  it("drops an unknown status rather than publishing it by default", () => {
+    // The allowlist's whole point: a value added to MEMBER_STATUSES later, or a mangled
+    // direct-SDK write, must not publish itself.
+    expect(project("m1", { ...member, status: "Suspendido" }, celCargo)).toBeNull();
+    expect(project("m1", { ...member, status: "desafiliado" }, celCargo)).toBeNull();
+    expect(project("m1", { ...member, status: "Activo " }, celCargo)).toBeNull();
+  });
+
   it("drops a member with no current-term board cargo", () => {
     expect(project("m1", member, null)).toBeNull();
   });

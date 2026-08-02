@@ -334,8 +334,12 @@ export const onAllyWritten = onDocumentWritten("allies/{id}", async (event) => {
   }
 });
 
-async function readCargo(database: Firestore, cargoId: string): Promise<BoardCargo | null> {
-  const snap = await database.doc(`positions/${cargoId}`).get();
+async function readCargo(
+  database: Firestore,
+  cargoId: string,
+  tx: FirebaseFirestore.Transaction,
+): Promise<BoardCargo | null> {
+  const snap = await tx.get(database.doc(`positions/${cargoId}`));
   if (!snap.exists) return null;
   return {
     category: snap.get("category"),
@@ -348,43 +352,51 @@ async function readCargo(database: Firestore, cargoId: string): Promise<BoardCar
 // collection (public fields only — name + gender-aware role + group + Storage photo
 // URL), or delete it when the member is no longer publicly showable (opted out, no
 // current-term CEL/JDL cargo, soft-deleted). Separate from onMemberWritten (claims
-// sync) to isolate concerns. Swallow + log like onAllyWritten: a permanent Firestore
-// error must not trigger an at-least-once retry storm; self-heals on the next member
-// write. grants/PII never leave /members — only public fields are projected.
-export const onBoardMemberWritten = onDocumentWritten("members/{id}", async (event) => {
-  try {
-    const database = db();
-    const ref = database.doc(`boardShowcase/${event.params.id}`);
-    const after = event.data?.after;
-    if (!after?.exists) {
-      await ref.delete();
-      return;
+// sync) to isolate concerns. grants/PII never leave /members — only public fields are
+// projected.
+//
+// The whole projection runs in a transaction that reads the LIVE member doc, and the
+// event payload is used for nothing but the doc id. Gen2 triggers carry no cross-event
+// ordering guarantee, so deciding from the payload — or reading it outside a transaction
+// and writing after — lets a late or concurrent invocation re-publish a member from stale
+// state, silently undoing an opt-out or an Admin takedown until the next member write.
+// The transaction aborts and re-runs if the member doc changes before commit, so the last
+// committed state always wins.
+//
+// retry:true + rethrow: the delete branch IS the takedown path, and a swallowed transient
+// failure there leaves someone on the public site with only a log line. No malformed input
+// can fail permanently here — projectBoard returns null rather than throwing, and
+// currentCargoId already rejects empty/slash-bearing cargo ids — so there is no
+// retry-storm class to protect against.
+export const onBoardMemberWritten = onDocumentWritten(
+  { document: "members/{id}", retry: true },
+  async (event) => {
+    try {
+      const database = db();
+      const showcaseRef = database.doc(`boardShowcase/${event.params.id}`);
+      const memberRef = database.doc(`members/${event.params.id}`);
+      await database.runTransaction(async (tx) => {
+        const live = await tx.get(memberRef);
+        const member = live.exists ? (live.data() as Record<string, unknown>) : null;
+        const cargoId = member ? currentCargoId(member, currentTermKey()) : null;
+        const cargo = cargoId ? await readCargo(database, cargoId, tx) : null;
+        // GCLOUD_PROJECT is always set in the functions runtime + emulator; empty falls
+        // back to a fail-closed projectId (no photo URL matches → member not projected).
+        const item = member
+          ? projectBoard(event.params.id, member, cargo, process.env.GCLOUD_PROJECT ?? "")
+          : null;
+        if (!item) {
+          tx.delete(showcaseRef);
+          return;
+        }
+        tx.set(showcaseRef, item);
+      });
+    } catch (err) {
+      console.error("boardShowcase projection failed", { id: event.params.id, err });
+      throw err;
     }
-    // Project the LIVE doc, not the event payload. Gen2 triggers carry no cross-event
-    // ordering guarantee, so an older invocation delivered late would re-publish from a
-    // stale payload — silently undoing an opt-out or an Admin takedown until the next
-    // member write. Costs one read per member write; publication is the wrong place to
-    // trade correctness for it.
-    const live = await after.ref.get();
-    if (!live.exists) {
-      await ref.delete();
-      return;
-    }
-    const member = live.data() as Record<string, unknown>;
-    const cargoId = currentCargoId(member, currentTermKey());
-    const cargo = cargoId ? await readCargo(database, cargoId) : null;
-    // GCLOUD_PROJECT is always set in the functions runtime + emulator; empty falls
-    // back to a fail-closed projectId (no photo URL matches → member not projected).
-    const item = projectBoard(event.params.id, member, cargo, process.env.GCLOUD_PROJECT ?? "");
-    if (!item) {
-      await ref.delete();
-      return;
-    }
-    await ref.set(item);
-  } catch (err) {
-    console.error("boardShowcase projection failed", { id: event.params.id, err });
-  }
-});
+  },
+);
 
 // Compose = create of notifications/{id}. Fan out inbox copies + best-effort FCM.
 // retry:false (the onDocumentCreated default, stated for intent) — push is not

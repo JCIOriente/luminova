@@ -97,14 +97,11 @@ Admin-guarded custom-claim assignment.
   then query programs+projects on `roster.directorId` / `roster.coDirectorIds` /
   `roster.teamIds` (nested paths — the bare names match nothing), bounded with `.limit()`
   and re-projected through `chunk()`.
-- **Deferred (boardShowcase projects from the event payload, not a live read):**
-  `onBoardMemberWritten` projects `after.data()`. Gen2 Firestore triggers carry no
-  cross-event ordering guarantee, so if the create-event invocation is delivered AFTER
-  the `onMemberCreated` stamp's update-event invocation, the stale create payload (no
-  `publicProfile`) makes `projectBoard` return null and deletes the entry the newer
-  invocation just wrote — silently, until the next member write. Unreachable from
-  backstage today (`toMemberCreateDoc` writes `profilePicture: null`, so both passes
-  project null), but reachable from any admin-SDK path that creates a member already
-  carrying `positions` + a valid pinned portrait URL. Fix by re-reading the doc inside
-  the projection (one extra read per member write).
+- **boardShowcase ordering (CLOSED):** `onBoardMemberWritten` used to project
+  `after.data()`, so a late-delivered invocation could re-publish a member from a stale
+  payload — silently undoing an opt-out or an Admin takedown until the next member write.
+  It now runs the whole projection inside a transaction that reads the LIVE member doc and
+  uses the event payload only for the doc id, so the last committed state wins and a
+  concurrent member write aborts and re-runs the projection. It also runs `retry: true`
+  and rethrows, because the delete branch is the takedown path.
 - **Heaviest skills.** `/security-review`, `secure-dep-vetting` (server deps).
