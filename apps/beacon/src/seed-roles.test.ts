@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ROLES } from "@luminova/auth/roles";
-import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
+import { BUILT_IN_ROLE_PERMS, ROLE_DESCRIPTIONS } from "@luminova/types/role-definition";
 import { buildBuiltInRoleDocs } from "./seed-roles.js";
 
 describe("buildBuiltInRoleDocs", () => {
@@ -22,6 +22,12 @@ describe("buildBuiltInRoleDocs", () => {
       expect(doc.permissions).toEqual(BUILT_IN_ROLE_PERMS[doc.builtInKey]);
       expect(doc.active).toBe(true);
       expect(doc.deletedAt).toBeNull();
+    }
+  });
+
+  it("seeds the canonical description for every built-in role", () => {
+    for (const doc of buildBuiltInRoleDocs()) {
+      expect(doc.description).toBe(ROLE_DESCRIPTIONS[doc.builtInKey]);
     }
   });
 });

@@ -1,6 +1,10 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { ROLES, type Role } from "@luminova/auth/roles";
-import { BUILT_IN_ROLE_PERMS, ROLE_LABELS } from "@luminova/types/role-definition";
+import {
+  BUILT_IN_ROLE_PERMS,
+  ROLE_DESCRIPTIONS,
+  ROLE_LABELS,
+} from "@luminova/types/role-definition";
 import type { PermissionCode } from "@luminova/types/permission";
 
 export interface SeedRoleDoc {
@@ -20,7 +24,7 @@ export function buildBuiltInRoleDocs(): SeedRoleDoc[] {
   return ROLES.map((role) => ({
     id: role,
     name: ROLE_LABELS[role],
-    description: "",
+    description: ROLE_DESCRIPTIONS[role],
     builtIn: true,
     builtInKey: role,
     permissions: BUILT_IN_ROLE_PERMS[role],
