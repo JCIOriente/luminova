@@ -289,6 +289,21 @@ graph (backstage index budget).
 
 `cn()` (class merge, `lib/cn.ts`) and `initials()` (`lib/initials.ts`).
 
+### Role display text (backstage)
+
+| Helper | Import path | Use for |
+|---|---|---|
+| `roleDisplay(key, roleDocs)` | `src/lib/role-display.ts` | A built-in role's Spanish name + description |
+| `roleOptions(roleDocs)` | `src/lib/role-display.ts` | The option list for a role/grants picker |
+
+These are the **only** supported way to obtain a role's label. Both resolve from the
+live `roles/{id}` doc (`useRoles()`), falling back to the `@luminova/types` seed
+snapshot only when no doc exists for the key. Never import `ROLE_LABELS` /
+`ROLE_DESCRIPTIONS` outside `role-display.ts`, and never hand-write a role→label map —
+that drift is exactly the bug this replaced, and `role-display.guard.test.ts` fails the
+build on it. `roleOptions` derives from the `ROLES` union, not the doc list, so a
+missing or inactive role doc can never hide a grant already stored on a cargo.
+
 ---
 
 ## 5. Decision checklist — before you add anything new
