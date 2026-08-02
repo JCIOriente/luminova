@@ -18,8 +18,9 @@ export interface RoleDisplay {
  *  `||` not `??`: seeded docs carry `description: ""` today, and an empty string must fall
  *  through to the snapshot rather than render blank.
  *
- *  This module is the ONE place in backstage allowed to import those constants —
- *  role-display.guard.test.ts enforces it. */
+ *  This module is the ONE place in backstage allowed to import those constants — the
+ *  `no-restricted-imports` block in the root eslint.config.js enforces it, and a pair of
+ *  `no-restricted-syntax` selectors alongside it reject a re-declared role -> label map. */
 export function roleDisplay(
   key: Role,
   roleDocs: readonly RoleDefinition[] | undefined,

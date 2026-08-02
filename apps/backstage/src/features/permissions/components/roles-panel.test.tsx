@@ -40,6 +40,17 @@ const customDoc: RoleDefinition = {
   deletedAt: null,
 };
 
+const unsyncedRow: RoleOverviewRow = {
+  role: null,
+  id: "ProjectManager",
+  builtInKey: "ProjectManager",
+  label: "Director de Proyecto",
+  description: "Gestionar proyectos.",
+  permissions: ["manage:Project"],
+  grantingCargos: [],
+  holders: [],
+};
+
 function rowFor(doc: RoleDefinition, over: Partial<RoleOverviewRow> = {}): RoleOverviewRow {
   return {
     role: doc,
@@ -101,26 +112,36 @@ describe("RolesPanel", () => {
   });
 
   it("marks a built-in role that has no seeded doc and offers no editor for it", () => {
-    render(
-      <RolesPanel
-        rows={[
-          {
-            role: null,
-            id: "ProjectManager",
-            builtInKey: "ProjectManager",
-            label: "Director de Proyecto",
-            description: "Gestionar proyectos.",
-            permissions: ["manage:Project"],
-            grantingCargos: [],
-            holders: [],
-          },
-        ]}
-      />,
-    );
+    render(<RolesPanel rows={[unsyncedRow]} />);
     expect(screen.getByText("Sin sincronizar")).toBeInTheDocument();
     expect(screen.getByText("Director de Proyecto")).toBeInTheDocument();
     // No doc to write to — updateRole on a missing doc would fail.
     expect(screen.queryByRole("button", { name: /editar|ver/i })).not.toBeInTheDocument();
+  });
+
+  // The badge reads builtInKey, NOT doc.builtIn: an unsynced built-in has no doc at all, so
+  // a doc-derived predicate labels a live power grant "Personalizado" — the opposite of the
+  // truth on the page whose job is "who can do what".
+  it.each([
+    ["a seeded built-in", () => rowFor(adminDoc), "Predefinido", "Personalizado"],
+    ["an unsynced built-in", () => unsyncedRow, "Predefinido", "Personalizado"],
+    ["a custom role", () => rowFor(customDoc), "Personalizado", "Predefinido"],
+  ])("badges %s as %s", (_name, row, expected, absent) => {
+    render(<RolesPanel rows={[row()]} />);
+    expect(screen.getByText(expected)).toBeInTheDocument();
+    expect(screen.queryByText(absent)).not.toBeInTheDocument();
+  });
+
+  it("keys rows so an unsynced built-in and a custom doc of the same id do not collide", () => {
+    // role-overview emits the unsynced row keyed by its ROLES key, so a custom doc whose id
+    // spells an unseeded key produces two rows sharing `row.id`.
+    const collidingCustom = { ...customDoc, id: "ProjectManager", name: "Proyectos (viejo)" };
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<RolesPanel rows={[unsyncedRow, rowFor(collidingCustom)]} />);
+    expect(screen.getByText("Director de Proyecto")).toBeInTheDocument();
+    expect(screen.getByText("Proyectos (viejo)")).toBeInTheDocument();
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 
   it("offers the editor for a seeded role", () => {

@@ -23,6 +23,9 @@ export const ACTION_LABELS: Record<Action, string> = {
 };
 
 export const SUBJECT_LABELS: Record<Exclude<Subject, "all" | "Role">, string> = {
+  /* eslint-disable-next-line no-restricted-syntax --
+     "Member" here is a CASL Subject (the members collection), not the Member role: this
+     map is keyed by Subject, so it is not a second source for a role's display name. */
   Member: "Miembros",
   Ally: "Aliados",
   PointRule: "Reglas de puntos",

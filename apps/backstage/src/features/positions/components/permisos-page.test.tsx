@@ -71,15 +71,43 @@ describe("PermisosPage — Admin-role gate", () => {
   });
 });
 
-describe("PermisosPage — query states", () => {
-  it("renders one skeleton block while any of the three queries is in flight", () => {
-    stubs.roles = { ...stubs.idle(), isLoading: true };
+// Each hook is pinned INDEPENDENTLY. Unioned with `||`, dropping any one term still leaves
+// the other two driving both branches, so a suite that only ever fails `roles` stays green
+// while a positions outage renders every row as "Ningún cargo lo otorga" — a wrong
+// authorization picture presented as fact, with no error block.
+const QUERIES = ["positions", "members", "roles"] as const;
+
+describe.each(QUERIES)("PermisosPage — the %s query alone drives both branches", (key) => {
+  it("puts the page in its single loading state", () => {
+    stubs[key] = { ...stubs.idle(), isLoading: true };
     const { container } = renderWith(admin, <PermisosPage />);
     expect(container.querySelectorAll(".animate-skeleton").length).toBeGreaterThan(0);
     expect(screen.queryByRole("heading", { name: "Roles" })).not.toBeInTheDocument();
     expect(screen.queryByText("No se pudo cargar")).not.toBeInTheDocument();
   });
 
+  it("puts the page in its single error state, surfacing that query's error", () => {
+    stubs[key] = { ...stubs.idle(), isError: true, error: new Error(`${key} boom`) };
+    const { container } = renderWith(admin, <PermisosPage />);
+    expect(screen.getAllByText("No se pudo cargar")).toHaveLength(1);
+    expect(screen.queryByRole("heading", { name: "Roles" })).not.toBeInTheDocument();
+    expect(container.querySelectorAll(".animate-skeleton")).toHaveLength(0);
+  });
+
+  it("lets the error branch win over a still-loading sibling", () => {
+    // isError is checked before isLoading: a partial outage must not paint a skeleton
+    // forever while one query retries.
+    stubs[key] = { ...stubs.idle(), isError: true, error: new Error(`${key} boom`) };
+    for (const other of QUERIES) {
+      if (other !== key) stubs[other] = { ...stubs.idle(), isLoading: true };
+    }
+    const { container } = renderWith(admin, <PermisosPage />);
+    expect(screen.getAllByText("No se pudo cargar")).toHaveLength(1);
+    expect(container.querySelectorAll(".animate-skeleton")).toHaveLength(0);
+  });
+});
+
+describe("PermisosPage — query states", () => {
   it("renders exactly one error block when several queries fail", () => {
     // RoleManager used to run its own useRoles with its own branches, so one outage
     // painted two error blocks on the same screen.

@@ -71,7 +71,9 @@ have both seeders write it.
 
 ### Merged `/permisos`
 
-Two panels collapse into one list, one row per role doc.
+Two panels collapse into one list: one row per role doc **plus one per `ROLES` key that has
+no doc yet** (constraint 3 below), so the row list is the union of the two, never just the
+docs.
 
 ```ts
 interface RoleOverviewRow {
@@ -123,35 +125,66 @@ seven "sin sincronizar" rows — strictly more informative than a blank page.
 
 ### Guard
 
-`role-display.guard.test.ts` walks `apps/backstage/src/**` and asserts:
+Two eslint rules in the root `eslint.config.js`, over the real TypeScript AST from
+`typescript-eslint`. They run on every `pnpm lint`, not only under vitest.
 
-1. No file other than `lib/role-display.ts` imports `ROLE_LABELS` or `ROLE_DESCRIPTIONS`.
-2. No file other than `lib/role-display.ts` contains an object literal binding **3 or
-   more** role keys to string literals — quoted (`"Admin":`) or bare. The threshold is 3,
-   not all 7, because the map that caused the bug listed exactly the five roles the old
-   `/permisos` rendered (`ROLES` minus `Member`/`Scanner`); an all-keys predicate would
-   have walked straight past it. `// role-labels-guard: allow` within three lines above a
-   literal opts it out, so the next legitimate per-role config (an icon map, a nav-target
-   map) does not fail CI naming a bug it isn't.
-3. No file other than `lib/role-display.ts` contains a multi-word canonical label
-   (derived as `Object.values(ROLE_LABELS).filter((l) => l.includes(" "))`), matched as a
-   complete quoted string.
+They replaced a hand-written source scanner (`role-display.guard.test.ts`, deleted). That
+scanner was unsound in three ways that mattered: its entry regex required the value to
+start with a quote, so it scored the actual `permission-labels.ts` — whose values are
+`{ label, description }` objects — as **0**; it had no regex-literal state, so a file
+containing `/[",\r\n]/` (`features/members/lib/member-csv.ts`) corrupted its brace depth
+from that point on; and its entry-boundary lookback read raw text, so a comment between
+two entries suppressed the following key. Text-scanning TypeScript was the problem, not
+the particular bugs.
 
-**What this guard does not catch.** The claims above were replayed against synthetic
-inputs (`describe("maxRoleEntriesPerObject")` in the guard file, including two explicit
-"does NOT catch" cases) rather than assumed, so this list is measured:
+**1. `no-restricted-imports`** — `ROLE_LABELS` / `ROLE_DESCRIPTIONS` may not be imported
+anywhere under `apps/backstage/src` except `lib/role-display.ts`. Both module specifiers
+are listed: the `@luminova/types` barrel **and** the `@luminova/types/role-definition`
+deep subpath, which `packages/types/package.json` exports separately and which would
+otherwise sidestep the rule by changing one string.
+
+**2. `no-restricted-syntax`** — two esquery selectors over a role-keyed property (bare
+`Admin:` or quoted `"Admin":`):
+
+- value is an **object literal carrying a `label` / `name` / `description` property** —
+  the shape that actually shipped;
+- value is a **string or template literal** — the flat-map shape.
+
+One entry is enough; there is no 3-key threshold, because the AST makes the shape
+unambiguous where the text scanner needed a count to suppress its own noise. The opt-out
+is the idiomatic `// eslint-disable-next-line no-restricted-syntax` with a reason (see
+`features/permissions/lib/permission-matrix.ts`, whose `SUBJECT_LABELS` is keyed by CASL
+*Subject*, and `Member` is both a Subject and a Role).
+
+**Measured coverage.** Verified by writing each shape to a file under
+`apps/backstage/src` and running `pnpm --filter backstage exec eslint` on it:
+
+| Shape | Result |
+|---|---|
+| The verbatim deleted `permission-labels.ts` | **14 errors** |
+| Flat `Admin: "…"` map, incl. a quoted key and a template-literal value | **4 errors** |
+| A map with `//` and `/* */` comments between entries | **3 errors** |
+| An object-valued map placed after `/[",\r\n]/` and `/"/g` | **3 errors** |
+| `import { ROLE_LABELS }` from the barrel and from `/role-definition` | **2 errors** |
+| `import * as T from "@luminova/types"` | **2 errors** (the `*` form is reported natively) |
+
+A config sweep over all 405 `.ts`/`.tsx` files under `apps/backstage/src` confirms every
+one resolves the syntax selectors, and every one but `lib/role-display.ts` resolves the
+import ban.
+
+**What these rules do not catch** — measured the same way, each scoring **0 errors**:
 
 - a `switch (role)` returning labels;
 - an array of `[role, label]` tuples, or a `Map` built from one;
-- a map of only one or two roles;
-- a single-word label typed inline;
-- a namespace import (`import * as T`) or a re-export from another package.
+- a role key bound to an identifier or a call (`Admin: ADMIN`, `Treasury: t("x")`);
+- a computed key (`["Ad" + "min"]: "…"`);
+- label text typed anywhere that is not a role-keyed property — JSX text, a lone `const`;
+- a label map living outside `apps/backstage/src` and re-exported in (the rules are
+  scoped to backstage; `packages/**`, `apps/beacon`, `apps/spotlight` are not covered).
 
-An eslint `no-restricted-imports` rule was considered and rejected — the file that caused
-this bug imports only `import type { Role }` and would have scored clean on the day it was
-written. The guard is a tripwire for the shape that already shipped, not a proof. The
-structural protection is that `roleDisplay`/`roleOptions` are the only way to obtain a
-label, so a hand-typed map has no call site to plug into.
+The rules are a tripwire for the shapes a person actually writes, not a proof. The
+structural protection is still that `roleDisplay` / `roleOptions` are the only way to
+obtain a label, so a hand-typed map has no call site to plug into.
 
 ## Out of scope (later PRs)
 

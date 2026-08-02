@@ -68,7 +68,12 @@ export function RolesPanel({ rows }: { rows: RoleOverviewRow[] }) {
         {rows.map((row) => {
           const doc = row.role;
           return (
-            <li key={row.id} className="flex flex-col gap-3 px-4 py-3">
+            // Not `row.id` alone: an unsynced built-in row is keyed by its ROLES key, and a
+            // custom doc whose id spells that same unseeded key would collide with it.
+            <li
+              key={`${row.builtInKey ?? "custom"}:${row.id}`}
+              className="flex flex-col gap-3 px-4 py-3"
+            >
               <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-2">
