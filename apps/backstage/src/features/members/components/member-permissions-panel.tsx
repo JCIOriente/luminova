@@ -1,8 +1,11 @@
 import { Card } from "@luminova/ui";
 import type { Role } from "@luminova/types";
-import { PERMISSION_ROLE_INFO } from "../../positions/lib/permission-labels";
+import { roleDisplay } from "../../../lib/role-display";
+import { useRoles } from "../../permissions/hooks/use-roles";
 
 export function MemberPermissionsPanel({ roles }: { roles: Role[] }) {
+  const { data: roleDocs } = useRoles();
+
   return (
     <Card as="section" aria-labelledby="cargos-asignados-title" className="flex flex-col gap-3">
       <h2
@@ -14,7 +17,7 @@ export function MemberPermissionsPanel({ roles }: { roles: Role[] }) {
       <p className="text-ui-xs text-ink-3">Permisos que otorga el cargo asignado.</p>
       <ul className="flex flex-col gap-3">
         {roles.map((role) => {
-          const info = PERMISSION_ROLE_INFO[role];
+          const info = roleDisplay(role, roleDocs);
           return (
             <li key={role} className="flex flex-col gap-0.5">
               <span className="font-semibold text-ink-1">{info.label}</span>

@@ -1,27 +1,22 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Field, Input, MultiSelect, Select, Textarea } from "@luminova/ui";
 import {
   positionSchema,
   POSITION_CATEGORIES,
-  ROLES,
   femaleTitle,
   type PositionCategory,
   type PositionInput,
 } from "@luminova/types";
-import { PERMISSION_ROLE_INFO } from "../lib/permission-labels";
+import { roleOptions } from "../../../lib/role-display";
+import { useRoles } from "../../permissions/hooks/use-roles";
 
 const CATEGORY_LABELS: Record<PositionCategory, string> = {
   CEL: "CEL",
   JDL: "JDL",
   Comision: "Comisión",
 };
-
-const GRANT_OPTIONS = ROLES.map((role) => ({
-  value: role,
-  label: PERMISSION_ROLE_INFO[role].label,
-}));
 
 const EMPTY: PositionInput = {
   title: "",
@@ -53,6 +48,8 @@ export function PositionForm({
   onSubmit,
 }: PositionFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
+  const { data: roleDocs } = useRoles();
+  const grantOptions = useMemo(() => roleOptions(roleDocs), [roleDocs]);
   const {
     register,
     control,
@@ -166,7 +163,7 @@ export function PositionForm({
               render={({ field }) => (
                 <MultiSelect
                   id="grants"
-                  options={GRANT_OPTIONS}
+                  options={grantOptions}
                   value={field.value}
                   onChange={field.onChange}
                   placeholder="Elegir permisos (opcional)"

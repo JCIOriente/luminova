@@ -2,16 +2,26 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PositionSection } from "./position-table";
 import { roleClaims } from "@luminova/auth/test-helpers";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
-import type { Position } from "@luminova/types";
+import { roleKeys } from "../../permissions/hooks/role-keys";
+import type { Position, RoleDefinition } from "@luminova/types";
 
-function renderAsAdmin(ui: ReactElement) {
+function testClient(roleDocs?: RoleDefinition[]) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (roleDocs) client.setQueryData(roleKeys.all, roleDocs);
+  return client;
+}
+
+function renderAsAdmin(ui: ReactElement, roleDocs?: RoleDefinition[]) {
   return render(
-    <AbilityProvider claims={roleClaims("Admin")} uid="admin">
-      {ui}
-    </AbilityProvider>,
+    <QueryClientProvider client={testClient(roleDocs)}>
+      <AbilityProvider claims={roleClaims("Admin")} uid="admin">
+        {ui}
+      </AbilityProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -120,17 +130,46 @@ describe("PositionSection", () => {
     expect(onDeactivate).toHaveBeenCalledWith(cargo);
   });
 
+  it("labels a cargo's grants from the live role doc, not a hardcoded map", () => {
+    const projectCargo = { ...cargo, id: "c2", grants: ["ProjectManager" as const] } as Position;
+    renderAsAdmin(
+      <PositionSection
+        title="Cargos"
+        variant="cargo"
+        positions={[projectCargo]}
+        onEdit={vi.fn()}
+        onDeactivate={vi.fn()}
+      />,
+      [
+        {
+          id: "ProjectManager",
+          name: "Dirección de Proyectos",
+          description: "",
+          builtIn: true,
+          builtInKey: "ProjectManager",
+          permissions: [],
+          locked: false,
+          active: true,
+          deletedAt: null,
+        },
+      ],
+    );
+    expect(screen.getByText(/Dirección de Proyectos/)).toBeInTheDocument();
+  });
+
   it("hides row actions for a role without write access", () => {
     render(
-      <AbilityProvider claims={{ roles: ["Member"] }} uid="m1">
-        <PositionSection
-          title="Cargos"
-          positions={[cargo]}
-          variant="cargo"
-          onEdit={vi.fn()}
-          onDeactivate={vi.fn()}
-        />
-      </AbilityProvider>,
+      <QueryClientProvider client={testClient()}>
+        <AbilityProvider claims={{ roles: ["Member"] }} uid="m1">
+          <PositionSection
+            title="Cargos"
+            positions={[cargo]}
+            variant="cargo"
+            onEdit={vi.fn()}
+            onDeactivate={vi.fn()}
+          />
+        </AbilityProvider>
+      </QueryClientProvider>,
     );
     expect(screen.queryByRole("button", { name: /editar tesorero/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /desactivar tesorero/i })).toBeNull();
