@@ -4,6 +4,11 @@ import type { KpiTrend } from "@luminova/ui";
 import type { InitiativeListItem } from "../../features/initiatives/lib/initiative-list-item";
 import { upcomingActivities } from "../../features/activities/lib/activity-filter";
 import {
+  UPCOMING_BIRTHDAY_LIMIT,
+  upcomingBirthdays,
+  type UpcomingBirthday,
+} from "../../features/members/lib/milestones";
+import {
   BOLIVIA_OFFSET_MS,
   formatDateChip,
   formatTime,
@@ -36,6 +41,8 @@ export type DashboardModel = {
   };
   pointsByMonth: PointsMonth[];
   upcomingEvents: UpcomingEventItem[];
+  /** Day/month only — never the birth year (same projection /me uses). */
+  birthdays: UpcomingBirthday[];
   feed: FeedItem[];
 };
 
@@ -152,6 +159,9 @@ export function buildDashboardModel(input: BuildInput): DashboardModel {
             : { tone: "blue", label: "Programada" },
       };
     }),
+    // No self to exclude here (the dashboard is the chapter view, not a personal one),
+    // so pass an id no member can hold.
+    birthdays: upcomingBirthdays(members, "", now, UPCOMING_BIRTHDAY_LIMIT),
     feed: deriveActivityFeed({ members, activities, initiatives, now, limit: 8 }),
   };
 }

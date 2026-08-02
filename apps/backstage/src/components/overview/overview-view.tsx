@@ -15,6 +15,7 @@ import {
 import { PageHeader } from "../page-header";
 import { EventDateChip } from "../event-date-chip";
 import { boardHomeLayout, type WidgetKey } from "./board-home-layout";
+import { inDaysEs } from "../../features/members/lib/milestones";
 import { relativeTimeEs } from "@luminova/utils/datetime";
 import type { DashboardModel, FeedTone } from "./dashboard-model";
 
@@ -183,6 +184,35 @@ export function OverviewView({
                 <Badge tone={e.status.tone} dot>
                   {e.status.label}
                 </Badge>
+              </div>
+            ))
+          )}
+        </div>
+      </Card>
+    ),
+    birthdays: () => (
+      <Card as="section" padding="none">
+        <div className="flex items-center justify-between px-[22px] pt-5 pb-2">
+          <h2 className="text-ui-lg font-semibold text-ink-1">Próximos cumpleaños</h2>
+        </div>
+        <div className="px-3 pb-3">
+          {model.birthdays.length === 0 ? (
+            <p className="px-3 py-8 text-center text-ui-sm text-ink-3">Sin cumpleaños próximos.</p>
+          ) : (
+            model.birthdays.map((b) => (
+              <div
+                key={b.id}
+                className="flex items-center justify-between gap-4 rounded-[12px] px-3 py-3 transition-colors hover:bg-ink-1/[0.04]"
+              >
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <span className="text-jci-blue">{Icon.heart({ s: 16 })}</span>
+                  <span className="truncate text-ui-md font-semibold text-ink-1">{b.name}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2 text-ui-xs text-ink-3">
+                  <span className="font-medium text-ink-2">{b.label}</span>
+                  <span className="size-[3px] rounded-full bg-ink-3" />
+                  <span>{inDaysEs(b.days)}</span>
+                </span>
               </div>
             ))
           )}

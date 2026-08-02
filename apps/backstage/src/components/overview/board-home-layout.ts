@@ -5,6 +5,7 @@ export type WidgetKey =
   | "kpis"
   | "chart"
   | "upcomingEvents"
+  | "birthdays"
   | "recentActivity"
   | "quickActions";
 
@@ -13,6 +14,7 @@ const DEFAULT_LAYOUT: WidgetKey[] = [
   "kpis",
   "chart",
   "upcomingEvents",
+  "birthdays",
   "recentActivity",
   "quickActions",
 ];
@@ -26,19 +28,22 @@ const PRECEDENCE: Role[] = [
   "Membership",
 ];
 
+// Birthdays are chapter-wide and role-agnostic — every layout carries them, so no
+// board member's home is missing the one thing the whole chapter looks at.
 const ROLE_LAYOUTS: Partial<Record<Role, WidgetKey[]>> = {
   Admin: DEFAULT_LAYOUT,
   Membership: [
     "headerActions",
     "kpis",
     "quickActions",
+    "birthdays",
     "recentActivity",
     "chart",
     "upcomingEvents",
   ],
-  Treasury: ["kpis", "recentActivity", "chart"],
-  ProjectManager: ["upcomingEvents", "quickActions", "kpis", "recentActivity"],
-  ExecutiveCommittee: ["kpis", "recentActivity", "chart"],
+  Treasury: ["kpis", "birthdays", "recentActivity", "chart"],
+  ProjectManager: ["upcomingEvents", "birthdays", "quickActions", "kpis", "recentActivity"],
+  ExecutiveCommittee: ["kpis", "birthdays", "recentActivity", "chart"],
 };
 
 export function boardHomeLayout(roles: readonly Role[]): WidgetKey[] {

@@ -47,7 +47,8 @@ export function MemberHome() {
   const activities = activitiesQuery.data;
   // Chapter-wide milestones need the members LIST, which firestore.rules deny to a plain
   // Member — firing it unconditionally guaranteed a permission-denied on every /me load.
-  const membersQuery = useMembers({ enabled: gate.can("read", "Member") });
+  const canReadMembers = gate.can("read", "Member");
+  const membersQuery = useMembers({ enabled: canReadMembers });
   const { data: initiatives } = useInitiativesByTerm(termId, {
     includePrograms: true,
     includeProjects: true,
@@ -156,6 +157,7 @@ export function MemberHome() {
           membersLoading={membersQuery.isLoading}
           membersError={membersQuery.isError}
           membersErrorValue={membersQuery.error}
+          membersUnavailable={!canReadMembers}
           onRetryMembers={() => membersQuery.refetch()}
           now={now}
         />

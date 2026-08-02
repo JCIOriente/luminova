@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Timestamp } from "firebase/firestore";
 import type { Member } from "@luminova/types";
-import { upcomingBirthdays } from "./milestones";
+import { UPCOMING_BIRTHDAY_LIMIT, inDaysEs, upcomingBirthdays } from "./milestones";
 
 function member(id: string, name: string, birthIso: string, active = true): Member {
   return {
@@ -39,5 +39,28 @@ describe("upcomingBirthdays", () => {
     expect(first?.label).not.toContain("1992");
     expect(first?.label).toMatch(/8.*jul/i);
     expect(first?.days).toBe(3);
+  });
+
+  it("shows three birthdays across every surface", () => {
+    expect(UPCOMING_BIRTHDAY_LIMIT).toBe(3);
+  });
+
+  it("keeps every member when no self is excluded (the chapter dashboard view)", () => {
+    const members = [
+      member("a", "Ana", "1992-07-08T00:00:00Z"),
+      member("b", "Beto", "1988-07-09T00:00:00Z"),
+    ];
+    expect(upcomingBirthdays(members, "", now, UPCOMING_BIRTHDAY_LIMIT).map((r) => r.id)).toEqual([
+      "a",
+      "b",
+    ]);
+  });
+});
+
+describe("inDaysEs", () => {
+  it("reads naturally for today, tomorrow and beyond", () => {
+    expect(inDaysEs(0)).toBe("hoy");
+    expect(inDaysEs(1)).toBe("mañana");
+    expect(inDaysEs(4)).toBe("en 4 días");
   });
 });

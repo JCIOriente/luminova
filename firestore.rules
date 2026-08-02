@@ -263,15 +263,19 @@ service cloud.firestore {
     match /members/{memberId} {
       allow read: if canDo('read', 'Member')
         || (signedIn() && resource.data.uid == request.auth.uid);
+      // publicProfile at create is the org-wide default (opt-out): a new member starts
+      // publishable and owns the switch from /me onward. Only the shape is gated here —
+      // a non-bool would break the beacon projection's `!== true` check.
       allow create: if canDo('create', 'Member')
         && request.resource.data.totalPoints == 0
         && !('uid' in request.resource.data)
-        && !('publicProfile' in request.resource.data)
+        && (!('publicProfile' in request.resource.data)
+            || request.resource.data.publicProfile is bool)
         && memberNameValid(request.resource.data.get('name', ''))
         && createPermissionAssignmentSafe()
         && createPositionsSafe();
-      // publicProfile is member-consent-only: it publishes their face/name to the
-      // public Directiva, so the institutional (membership-tier) arm may never set or
+      // After create, publicProfile is member-consent-only: it publishes their face/name
+      // to the public Directiva, so the institutional (membership-tier) arm may never
       // change it — only the owner-only self-lane below can. unchanged() so an admin
       // edit that doesn't touch it still passes.
       // touched('name'): an admin editing only a phone must not be denied by a legacy name

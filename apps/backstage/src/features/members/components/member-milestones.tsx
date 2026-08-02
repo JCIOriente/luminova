@@ -1,7 +1,7 @@
 import type { Member } from "@luminova/types";
 import { Card, Icon } from "@luminova/ui";
 import { daysUntilNextAnniversary, fullYearsBetween } from "@luminova/utils/datetime";
-import { upcomingBirthdays } from "../lib/milestones";
+import { UPCOMING_BIRTHDAY_LIMIT, inDaysEs, upcomingBirthdays } from "../lib/milestones";
 import { WidgetHeader } from "../../../components/widget-header";
 import { QueryErrorState } from "../../../components/query-error-state";
 
@@ -17,18 +17,13 @@ function anniversaryLine(years: number): string {
   return `${years} años como miembro`;
 }
 
-function inDays(days: number): string {
-  if (days === 0) return "hoy";
-  if (days === 1) return "mañana";
-  return `en ${days} días`;
-}
-
 export function MemberMilestones({
   member,
   members,
   membersLoading,
   membersError,
   membersErrorValue,
+  membersUnavailable = false,
   onRetryMembers,
   now,
 }: {
@@ -37,12 +32,16 @@ export function MemberMilestones({
   membersLoading: boolean;
   membersError: boolean;
   membersErrorValue: unknown;
+  /** The caller never ran the members query (no read:Member). Its own state: a disabled
+   *  TanStack query stays `pending` forever, so treating it as loading renders an
+   *  eternal skeleton instead of saying why the list is empty. */
+  membersUnavailable?: boolean;
   onRetryMembers: () => void;
   now: Date;
 }) {
   const birthdayDays = daysUntilNextAnniversary(member.birthdate, now);
   const years = fullYearsBetween(member.joinDate, now);
-  const others = members ? upcomingBirthdays(members, member.id, now, 5) : [];
+  const others = members ? upcomingBirthdays(members, member.id, now, UPCOMING_BIRTHDAY_LIMIT) : [];
 
   return (
     <Card as="section" padding="none" className="flex flex-col">
@@ -69,6 +68,10 @@ export function MemberMilestones({
         </h3>
         {membersError ? (
           <QueryErrorState error={membersErrorValue} onRetry={onRetryMembers} />
+        ) : membersUnavailable ? (
+          <p className="py-2 text-ui-xs text-ink-3">
+            Tu cuenta aún no tiene acceso al directorio de miembros.
+          </p>
         ) : membersLoading ? (
           <p className="py-2 text-ui-xs text-ink-3">Cargando…</p>
         ) : others.length === 0 ? (
@@ -81,7 +84,7 @@ export function MemberMilestones({
                 <span className="flex shrink-0 items-center gap-2 text-ui-xs text-ink-3">
                   <span className="font-medium text-ink-2">{b.label}</span>
                   <span>·</span>
-                  <span>{inDays(b.days)}</span>
+                  <span>{inDaysEs(b.days)}</span>
                 </span>
               </li>
             ))}

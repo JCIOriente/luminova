@@ -24,6 +24,7 @@ export function SelfProfileForm({ member }: { member: Member }) {
     register,
     control,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<SelfProfileInput>({
     resolver: zodResolver(schema),
@@ -39,6 +40,11 @@ export function SelfProfileForm({ member }: { member: Member }) {
   // The mutation already tracks pending/success/error — a parallel useState would be a
   // second source of truth for "did the last save work".
   const submit = handleSubmit((data) => updateProfile.mutateAsync(data).catch(() => {}));
+
+  // The public projection (beacon projectBoard) drops a member with no portrait, so
+  // consent alone publishes nothing. Without this the opt-in looks saved and simply
+  // never appears — the exact silent failure that hid a director from the site.
+  const missingPhoto = watch("publicProfile") === true && !member.profilePicture;
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
@@ -94,6 +100,12 @@ export function SelfProfileForm({ member }: { member: Member }) {
           Si tienes un cargo de directiva este año, tu foto y nombre aparecerán en la sección
           Directiva de jcioriente.org. Puedes desactivarlo cuando quieras.
         </p>
+        {missingPhoto && (
+          <p role="status" className="text-ui-xs font-medium text-warn">
+            Te falta subir tu foto de perfil: sin foto no apareces en la Directiva del sitio
+            público, aunque dejes esta casilla marcada.
+          </p>
+        )}
       </div>
       <p className="text-ui-xs text-ink-3">
         Tu correo, cargo y estado los administra la Dirección de Membresía.

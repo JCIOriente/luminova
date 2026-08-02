@@ -3,6 +3,17 @@ import { daysUntilNextAnniversary, formatDayMonth } from "@luminova/utils/dateti
 
 export type UpcomingBirthday = { id: string; name: string; label: string; days: number };
 
+/** How many upcoming birthdays every surface shows (/me + the board dashboard). One
+ *  constant so the two lists can't drift apart. */
+export const UPCOMING_BIRTHDAY_LIMIT = 3;
+
+/** "hoy" / "mañana" / "en N días" — shared by /me and the board dashboard list. */
+export function inDaysEs(days: number): string {
+  if (days === 0) return "hoy";
+  if (days === 1) return "mañana";
+  return `en ${days} días`;
+}
+
 // Exposes day/month only (no birth year) — privacy: don't reveal a member's birth year.
 export function upcomingBirthdays(
   members: Member[],

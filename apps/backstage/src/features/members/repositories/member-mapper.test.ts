@@ -27,10 +27,15 @@ describe("toMemberCreateDoc", () => {
       profession: "Ingeniera",
       status: "Activo",
       profilePicture: null,
+      publicProfile: true,
       totalPoints: 0,
       active: true,
       deletedAt: null,
     });
+  });
+
+  it("keeps publicProfile off the update payload (rules pin it after create)", () => {
+    expect(toMemberUpdateDoc(input, "", null)).not.toHaveProperty("publicProfile");
   });
 
   it("converts date strings to Timestamps", () => {

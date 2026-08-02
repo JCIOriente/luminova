@@ -6,9 +6,18 @@ const DEFAULT: WidgetKey[] = [
   "kpis",
   "chart",
   "upcomingEvents",
+  "birthdays",
   "recentActivity",
   "quickActions",
 ];
+
+const KNOWN_ROLES = [
+  "Admin",
+  "Membership",
+  "Treasury",
+  "ProjectManager",
+  "ExecutiveCommittee",
+] as const;
 
 describe("boardHomeLayout", () => {
   it("Admin gets the full default layout", () => {
@@ -20,10 +29,17 @@ describe("boardHomeLayout", () => {
       "headerActions",
       "kpis",
       "quickActions",
+      "birthdays",
       "recentActivity",
       "chart",
       "upcomingEvents",
     ]);
+  });
+
+  it("every role's layout carries birthdays (chapter-wide, role-agnostic)", () => {
+    for (const role of KNOWN_ROLES) {
+      expect(boardHomeLayout([role])).toContain("birthdays");
+    }
   });
 
   it("Treasury hides member quick actions and header create buttons", () => {

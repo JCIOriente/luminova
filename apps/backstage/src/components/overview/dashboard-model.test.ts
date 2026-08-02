@@ -9,8 +9,23 @@ import { buildDashboardModel, deriveActivityFeed, pointsByMonthSeries } from "./
 function mp(id: string, byMonth: Record<string, number>): MemberPoints {
   return { id, memberId: id, termId: "2026", cumulative: 0, byMonth } as MemberPoints;
 }
-function member(id: string, name: string, joinMs: number, active = true): Member {
-  return { id, name, active, joinDate: Timestamp.fromMillis(joinMs) } as Member;
+// birthdate is required on every member doc (memberDocSchema drops the ones that
+// lack it at read time), so the fixture carries one — the model reads it for the
+// birthdays list.
+function member(
+  id: string,
+  name: string,
+  joinMs: number,
+  active = true,
+  birthMs = Date.UTC(1990, 0, 1),
+): Member {
+  return {
+    id,
+    name,
+    active,
+    joinDate: Timestamp.fromMillis(joinMs),
+    birthdate: Timestamp.fromMillis(birthMs),
+  } as Member;
 }
 function activity(
   id: string,
@@ -131,5 +146,23 @@ describe("buildDashboardModel", () => {
       place: "Sede JCI",
       status: { tone: "blue", label: "Programada" },
     });
+  });
+
+  it("lists the next three birthdays chapter-wide, soonest first, without a birth year", () => {
+    const model = buildDashboardModel({
+      members: [
+        member("m1", "Ana", Date.UTC(2021, 0, 1), true, Date.UTC(1992, 5, 20)),
+        member("m2", "Beto", Date.UTC(2021, 0, 1), true, Date.UTC(1988, 5, 16)),
+        member("m3", "Cinthia", Date.UTC(2021, 0, 1), true, Date.UTC(1995, 5, 18)),
+        member("m4", "Dario", Date.UTC(2021, 0, 1), true, Date.UTC(1991, 6, 30)),
+      ],
+      allies: [],
+      activities: [],
+      memberPoints: [],
+      initiatives: [],
+      now,
+    });
+    expect(model.birthdays.map((b) => b.name)).toEqual(["Beto", "Cinthia", "Ana"]);
+    expect(model.birthdays[0]?.label).not.toMatch(/19\d{2}/);
   });
 });

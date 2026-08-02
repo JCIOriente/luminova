@@ -521,14 +521,23 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("u", ["Membership"]), "members/new1"), { name: "Bruno Paz", totalPoints: 0 }),
     );
   });
-  it("denies create with publicProfile pre-set (consent is not institutionally stamped)", async () => {
-    // The identical payload without publicProfile succeeds above — so this isolates
-    // the create-arm !('publicProfile' in ...) guard, not some other missing field.
-    await assertFails(
+  it("allows create with publicProfile true (the org-wide opt-out default)", async () => {
+    await assertSucceeds(
       setDoc(doc(as("u", ["Membership"]), "members/new_consent"), {
         name: "Bruno Paz",
         totalPoints: 0,
         publicProfile: true,
+      }),
+    );
+  });
+  it("denies create with a non-bool publicProfile", async () => {
+    // The identical payload with a bool succeeds above — so this isolates the create-arm
+    // `publicProfile is bool` shape guard, not some other missing field.
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_consent_bad"), {
+        name: "B",
+        totalPoints: 0,
+        publicProfile: "yes",
       }),
     );
   });
