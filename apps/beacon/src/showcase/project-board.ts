@@ -44,9 +44,14 @@ export function currentCargoId(member: Record<string, unknown>, termKey: string)
   const term = (positions as Record<string, unknown>)[termKey];
   if (!term || typeof term !== "object") return null;
   const cargoId = (term as { cargoId?: unknown }).cargoId;
-  // Reject a "/" — cargoId flows into a `positions/${cargoId}` doc-path template, and a
-  // slash would let untrusted member data reach into a nested/unintended reference.
+  // cargoId flows into a `positions/${cargoId}` doc-path template. A "/" would reach into
+  // a nested reference; the rest are ids the client SDK accepts but the SERVER rejects
+  // with a permanent INVALID_ARGUMENT — and this trigger runs retry:true, so a permanent
+  // throw is a redelivery loop. Screen them here so the projection stays no-throw.
   if (typeof cargoId !== "string" || cargoId.length === 0 || cargoId.includes("/")) return null;
+  if (cargoId === "." || cargoId === "..") return null;
+  if (cargoId.startsWith("__") && cargoId.endsWith("__")) return null;
+  if (new TextEncoder().encode(cargoId).length > 1500) return null;
   return cargoId;
 }
 

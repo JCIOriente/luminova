@@ -22,5 +22,7 @@ describe("isSurfaceableStatus", () => {
     expect(isSurfaceableStatus("Activo ")).toBe(false);
     expect(isSurfaceableStatus(null)).toBe(false);
     expect(isSurfaceableStatus(42)).toBe(false);
+    expect(isSurfaceableStatus({})).toBe(false);
+    expect(isSurfaceableStatus(["Activo"])).toBe(false);
   });
 });

@@ -168,6 +168,17 @@ describe("currentCargoId", () => {
     expect(currentCargoId({ positions: [] }, termKey)).toBeNull();
   });
 
+  it("rejects doc ids Firestore rejects permanently (the trigger runs retry:true)", () => {
+    // These pass client-side path validation and fail SERVER-side with INVALID_ARGUMENT,
+    // which under retry:true is a redelivery loop rather than a one-off error.
+    const at = (cargoId: string) => currentCargoId({ positions: { "2026": { cargoId } } }, termKey);
+    expect(at(".")).toBeNull();
+    expect(at("..")).toBeNull();
+    expect(at("__name__")).toBeNull();
+    expect(at("x".repeat(1501))).toBeNull();
+    expect(at("__notReserved")).toBe("__notReserved");
+  });
+
   it("rejects a cargoId containing a slash (path-injection guard)", () => {
     expect(
       currentCargoId({ positions: { "2026": { cargoId: "pos/../secret" } } }, termKey),

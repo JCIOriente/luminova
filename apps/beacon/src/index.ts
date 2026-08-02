@@ -1,4 +1,4 @@
-import { getApps, initializeApp } from "firebase-admin/app";
+import { getApp, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
@@ -334,6 +334,19 @@ export const onAllyWritten = onDocumentWritten("allies/{id}", async (event) => {
   }
 });
 
+/** The project id the portrait-URL allowlist pins against. Resolved from the same place
+ *  the admin SDK gets it, then the two env spellings the runtime may use — `db()` can be
+ *  perfectly healthy while any single one of these is unset. Empty means "cannot decide",
+ *  which the caller must NOT spell as "unpublish everyone". */
+function boardProjectId(): string {
+  return (
+    getApp().options.projectId ??
+    process.env.GCLOUD_PROJECT ??
+    process.env.GOOGLE_CLOUD_PROJECT ??
+    ""
+  );
+}
+
 async function readCargo(
   database: Firestore,
   cargoId: string,
@@ -372,6 +385,17 @@ export const onBoardMemberWritten = onDocumentWritten(
   { document: "members/{id}", retry: true },
   async (event) => {
     try {
+      // Without a project id no portrait URL can match, so EVERY member would project to
+      // null and each member write would delete one more person from the public page —
+      // silently, and with no re-projection mechanism to restore them. Skip instead:
+      // "cannot decide" must never be spelled "take everyone down".
+      const projectId = boardProjectId();
+      if (projectId.length === 0) {
+        console.error("boardShowcase projection skipped: no project id", {
+          id: event.params.id,
+        });
+        return;
+      }
       const database = db();
       const showcaseRef = database.doc(`boardShowcase/${event.params.id}`);
       const memberRef = database.doc(`members/${event.params.id}`);
@@ -380,11 +404,7 @@ export const onBoardMemberWritten = onDocumentWritten(
         const member = live.exists ? (live.data() as Record<string, unknown>) : null;
         const cargoId = member ? currentCargoId(member, currentTermKey()) : null;
         const cargo = cargoId ? await readCargo(database, cargoId, tx) : null;
-        // GCLOUD_PROJECT is always set in the functions runtime + emulator; empty falls
-        // back to a fail-closed projectId (no photo URL matches → member not projected).
-        const item = member
-          ? projectBoard(event.params.id, member, cargo, process.env.GCLOUD_PROJECT ?? "")
-          : null;
+        const item = member ? projectBoard(event.params.id, member, cargo, projectId) : null;
         if (!item) {
           tx.delete(showcaseRef);
           return;
