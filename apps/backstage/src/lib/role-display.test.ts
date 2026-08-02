@@ -37,7 +37,14 @@ describe("roleDisplay", () => {
   });
 
   it("ignores custom role docs when resolving a built-in key", () => {
-    const custom = doc({ id: "abc", name: "Impostor", builtIn: false, builtInKey: null });
+    // id spells the role key on purpose: an implementation matching on doc.id instead of
+    // builtInKey would return "Impostor" here and pass a fixture with a neutral id.
+    const custom = doc({
+      id: "ProjectManager",
+      name: "Impostor",
+      builtIn: false,
+      builtInKey: null,
+    });
     expect(roleDisplay("ProjectManager", [custom]).label).toBe("Director de Proyecto");
   });
 });
@@ -47,8 +54,17 @@ describe("roleOptions", () => {
     expect(roleOptions(undefined).map((o) => o.value)).toEqual([...ROLES]);
   });
 
-  it("labels from the live doc where one exists", () => {
+  it("stays total when only one role doc is loaded", () => {
+    // The failure mode this pins down: options derived from the doc list. MultiSelect
+    // renders chips by filtering options against the stored value, so a doc-derived list
+    // would hide a grant already live on a cargo — an Admin would authorize from a
+    // display that omits a real power grant.
+    expect(roleOptions([doc({})]).map((o) => o.value)).toEqual([...ROLES]);
+  });
+
+  it("labels from the live doc where one exists and the snapshot elsewhere", () => {
     const options = roleOptions([doc({})]);
     expect(options.find((o) => o.value === "ProjectManager")?.label).toBe("Proyectos");
+    expect(options.find((o) => o.value === "Treasury")?.label).toBe("Tesorería");
   });
 });

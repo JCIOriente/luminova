@@ -1,14 +1,37 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import type { AuthClaims } from "@luminova/auth/roles";
+import { ROLES } from "@luminova/types";
 
-const emptyQuery = { data: [], isLoading: false, isError: false, error: null, refetch: vi.fn() };
-vi.mock("../hooks/use-positions", () => ({ usePositions: () => emptyQuery }));
-vi.mock("../../members/hooks/use-members", () => ({ useMembers: () => emptyQuery }));
-vi.mock("../../permissions/hooks/use-roles", () => ({ useRoles: () => emptyQuery }));
-vi.mock("../../permissions/components/roles-panel", () => ({
-  RolesPanel: () => <div data-testid="roles-panel" />,
+interface QueryStub {
+  data: unknown[];
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+  refetch: () => void;
+}
+
+// One stub per hook, not one shared literal: the page owns three queries and the whole
+// point of the merge is that they collapse into ONE loading state and ONE error block.
+const stubs = vi.hoisted(() => {
+  const idle = (): QueryStub => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  });
+  return { positions: idle(), members: idle(), roles: idle(), idle };
+});
+
+vi.mock("../hooks/use-positions", () => ({ usePositions: () => stubs.positions }));
+vi.mock("../../members/hooks/use-members", () => ({ useMembers: () => stubs.members }));
+vi.mock("../../permissions/hooks/use-roles", () => ({ useRoles: () => stubs.roles }));
+vi.mock("../../permissions/hooks/use-save-role", () => ({
+  useAddRole: () => ({ mutateAsync: vi.fn() }),
+  useUpdateRole: () => ({ mutateAsync: vi.fn() }),
+  useDeleteRole: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock("@tanstack/react-router", async (orig) => ({
   ...(await orig<typeof import("@tanstack/react-router")>()),
@@ -26,16 +49,63 @@ function renderWith(claims: AuthClaims, ui: ReactElement) {
   );
 }
 
+const admin: AuthClaims = { roles: ["Admin"], perms: ["manage:all"] };
+
+beforeEach(() => {
+  stubs.positions = stubs.idle();
+  stubs.members = stubs.idle();
+  stubs.roles = stubs.idle();
+});
+
 describe("PermisosPage — Admin-role gate", () => {
   it("renders the single roles panel for an Admin", () => {
-    renderWith({ roles: ["Admin"], perms: ["manage:all"] }, <PermisosPage />);
+    renderWith(admin, <PermisosPage />);
     expect(screen.getByRole("heading", { name: /permisos/i })).toBeInTheDocument();
-    expect(screen.getByTestId("roles-panel")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Roles" })).toBeInTheDocument();
   });
 
   it("blocks a non-Admin (even with manage:all perm) with No autorizado", () => {
     renderWith({ roles: ["Member"], perms: ["manage:all"] }, <PermisosPage />);
     expect(screen.getByRole("alert")).toHaveTextContent(/no autorizado/i);
-    expect(screen.queryByTestId("roles-panel")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Roles" })).not.toBeInTheDocument();
+  });
+});
+
+describe("PermisosPage — query states", () => {
+  it("renders one skeleton block while any of the three queries is in flight", () => {
+    stubs.roles = { ...stubs.idle(), isLoading: true };
+    const { container } = renderWith(admin, <PermisosPage />);
+    expect(container.querySelectorAll(".animate-skeleton").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("heading", { name: "Roles" })).not.toBeInTheDocument();
+    expect(screen.queryByText("No se pudo cargar")).not.toBeInTheDocument();
+  });
+
+  it("renders exactly one error block when several queries fail", () => {
+    // RoleManager used to run its own useRoles with its own branches, so one outage
+    // painted two error blocks on the same screen.
+    stubs.roles = { ...stubs.idle(), isError: true, error: new Error("boom") };
+    stubs.members = { ...stubs.idle(), isError: true, error: new Error("boom") };
+    const { container } = renderWith(admin, <PermisosPage />);
+    expect(screen.getAllByText("No se pudo cargar")).toHaveLength(1);
+    expect(screen.queryByRole("heading", { name: "Roles" })).not.toBeInTheDocument();
+    expect(container.querySelectorAll(".animate-skeleton")).toHaveLength(0);
+  });
+
+  it("refetches all three queries from the single retry button", async () => {
+    stubs.roles = { ...stubs.idle(), isError: true, error: new Error("boom") };
+    renderWith(admin, <PermisosPage />);
+    screen.getByRole("button", { name: "Reintentar" }).click();
+    expect(stubs.positions.refetch).toHaveBeenCalledTimes(1);
+    expect(stubs.members.refetch).toHaveBeenCalledTimes(1);
+    expect(stubs.roles.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders every built-in role as unsynced when nothing is seeded yet", () => {
+    // The real pre-seed condition. A blank "no roles configured" page would hide that
+    // these roles are already grantable by a cargo and already mint perms via beacon's
+    // BUILT_IN_ROLE_PERMS fallback.
+    renderWith(admin, <PermisosPage />);
+    expect(screen.getAllByText("Sin sincronizar")).toHaveLength(ROLES.length);
+    expect(screen.getByText("Administrador")).toBeInTheDocument();
   });
 });

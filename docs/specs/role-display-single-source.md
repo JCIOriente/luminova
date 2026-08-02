@@ -75,46 +75,83 @@ Two panels collapse into one list, one row per role doc.
 
 ```ts
 interface RoleOverviewRow {
-  role: RoleDefinition;
+  role: RoleDefinition | null; // null = built-in key with no seeded doc
+  id: string;
+  builtInKey: Role | null;
+  label: string;
+  description: string;
+  permissions: PermissionCode[];
   grantingCargos: string[];
   holders: { id: string; name: string }[];
 }
 ```
 
-Two correctness constraints the old `buildPermissionsOverview` did not meet:
+The row carries **resolved display text**, not the doc. A panel reading `role.name` /
+`role.description` off the doc reintroduces the bug from the other end: production
+built-in docs carry `description: ""` (seeding is `create()`-only and backfills nothing),
+so `/permisos` would render every built-in with no description while the member panel,
+going through `roleDisplay`, shows the snapshot text. Same role, two screens, two answers.
+
+Correctness constraints the old `buildPermissionsOverview` did not meet:
 
 1. **"Otorgado por" is meaningless for a custom role.** `Position.grants` is
    `z.array(z.enum(ROLES))`, so a custom role's doc id can never appear in it. Custom
    roles are assigned through `members.roleIds`. Rows for custom roles render
    "Asignación directa", not an empty cargo list.
-2. **Holders must union both assignment paths.** `effectiveRoles` reads only
-   `member.positions[term].cargoId`. A custom role's holders come from
-   `members.roleIds`. Computing holders from cargos alone would report "Nadie aún" for
-   every custom role that has holders.
+2. **Holders are a union, not an XOR.** `effectiveRoles` reads only
+   `member.positions[term].cargoId`; `members.roleIds` is the other path. It is not the
+   custom-role path *exclusively* — beacon's `getRolesByIds` resolves a built-in doc id
+   too, so `roleIds: ["Admin"]` genuinely mints `manage:all`. Every row unions both, so a
+   directly-assigned Admin is never invisible on the page that lists Admin's holders. A
+   member holding a role by both paths still counts once.
+3. **A `ROLES` key with no doc still gets a row**, marked "sin sincronizar", labelled from
+   the snapshot and showing the perms it currently mints (`BUILT_IN_ROLE_PERMS`). It is
+   offered as a cargo grant and minted through beacon's fallback the moment it exists in
+   the union — dropping it from the page whose entire job is "who can do what" until
+   someone runs `seedRoles` would hide a live power grant. Such a row has no doc to write
+   to, so it renders no editor. This is why `buildRoleOverview` iterates `ROLES` as well
+   as the doc list, mirroring `roleOptions`.
 
 Holders render truncated — first 5, then "y N más" — because the `Member` row lists the
 entire chapter.
 
 The page owns all three queries (`useRoles`, `usePositions`, `useMembers`) and renders one
-loading state, one `QueryErrorState`, and an explicit empty state for "no role docs yet"
-(the real pre-seed condition). Today `RoleManager` runs its own `useRoles` with its own
-branches, so one outage paints two error blocks.
+loading state and one `QueryErrorState`. Today `RoleManager` runs its own `useRoles` with
+its own branches, so one outage paints two error blocks. There is deliberately **no** empty
+state: constraint 3 means the row list is never empty, so the pre-seed condition renders as
+seven "sin sincronizar" rows — strictly more informative than a blank page.
 
 ### Guard
 
 `role-display.guard.test.ts` walks `apps/backstage/src/**` and asserts:
 
 1. No file other than `lib/role-display.ts` imports `ROLE_LABELS` or `ROLE_DESCRIPTIONS`.
-2. No file other than `lib/role-display.ts` contains a multi-word canonical label
-   (derived as `Object.values(ROLE_LABELS).filter((l) => l.includes(" "))`), which is how
-   a re-declared label map would show up.
+2. No file other than `lib/role-display.ts` contains an object literal binding **3 or
+   more** role keys to string literals — quoted (`"Admin":`) or bare. The threshold is 3,
+   not all 7, because the map that caused the bug listed exactly the five roles the old
+   `/permisos` rendered (`ROLES` minus `Member`/`Scanner`); an all-keys predicate would
+   have walked straight past it. `// role-labels-guard: allow` within three lines above a
+   literal opts it out, so the next legitimate per-role config (an icon map, a nav-target
+   map) does not fail CI naming a bug it isn't.
+3. No file other than `lib/role-display.ts` contains a multi-word canonical label
+   (derived as `Object.values(ROLE_LABELS).filter((l) => l.includes(" "))`), matched as a
+   complete quoted string.
 
-**What this guard does not catch**, stated plainly rather than implied away: a
-single-word label typed inline, a namespace import (`import * as T`), or a re-export from
-another package. An eslint `no-restricted-imports` rule was considered and rejected — the
-file that caused this bug imports only `import type { Role }` and would have scored clean
-on the day it was written. The structural protection is that `roleDisplay`/`roleOptions`
-are the only way to obtain a label, so a hand-typed map has no call site to plug into.
+**What this guard does not catch.** The claims above were replayed against synthetic
+inputs (`describe("maxRoleEntriesPerObject")` in the guard file, including two explicit
+"does NOT catch" cases) rather than assumed, so this list is measured:
+
+- a `switch (role)` returning labels;
+- an array of `[role, label]` tuples, or a `Map` built from one;
+- a map of only one or two roles;
+- a single-word label typed inline;
+- a namespace import (`import * as T`) or a re-export from another package.
+
+An eslint `no-restricted-imports` rule was considered and rejected — the file that caused
+this bug imports only `import type { Role }` and would have scored clean on the day it was
+written. The guard is a tripwire for the shape that already shipped, not a proof. The
+structural protection is that `roleDisplay`/`roleOptions` are the only way to obtain a
+label, so a hand-typed map has no call site to plug into.
 
 ## Out of scope (later PRs)
 

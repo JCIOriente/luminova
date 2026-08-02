@@ -48,6 +48,9 @@ export function PositionForm({
   onSubmit,
 }: PositionFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
+  // Error deliberately unhandled: roleOptions derives from ROLES, so a roles outage costs
+  // snapshot labels but never an option — no stored grant can disappear from the picker,
+  // which is the only failure here that could change an authorization decision.
   const { data: roleDocs } = useRoles();
   const grantOptions = useMemo(() => roleOptions(roleDocs), [roleDocs]);
   const {

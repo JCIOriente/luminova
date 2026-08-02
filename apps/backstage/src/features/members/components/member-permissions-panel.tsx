@@ -4,6 +4,10 @@ import { roleDisplay } from "../../../lib/role-display";
 import { useRoles } from "../../permissions/hooks/use-roles";
 
 export function MemberPermissionsPanel({ roles }: { roles: Role[] }) {
+  // Error deliberately unhandled: roleDisplay degrades to the seed snapshot, which is the
+  // right label for every role an admin has not renamed. Blocking this read-only panel on
+  // a roles outage would hide the member's cargos entirely — strictly worse than a
+  // possibly-stale label. The authoritative surface for role text is /permisos.
   const { data: roleDocs } = useRoles();
 
   return (

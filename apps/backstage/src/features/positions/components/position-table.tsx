@@ -98,6 +98,9 @@ export function PositionSection({
   onEdit,
   onDeactivate,
 }: PositionSectionProps) {
+  // Error deliberately unhandled: grantsLabel degrades to the seed snapshot label rather
+  // than blanking the Permisos column. The cargo rows themselves come from usePositions,
+  // which does surface its error — a roles outage must not take the whole table down.
   const { data: roleDocs } = useRoles();
   const columns = useMemo(
     () => (variant === "cargo" ? cargoColumns(roleDocs) : COMISION_COLUMNS),

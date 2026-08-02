@@ -300,9 +300,26 @@ These are the **only** supported way to obtain a role's label. Both resolve from
 live `roles/{id}` doc (`useRoles()`), falling back to the `@luminova/types` seed
 snapshot only when no doc exists for the key. Never import `ROLE_LABELS` /
 `ROLE_DESCRIPTIONS` outside `role-display.ts`, and never hand-write a role→label map —
-that drift is exactly the bug this replaced, and `role-display.guard.test.ts` fails the
-build on it. `roleOptions` derives from the `ROLES` union, not the doc list, so a
-missing or inactive role doc can never hide a grant already stored on a cargo.
+that drift is exactly the bug this replaced. `roleOptions` derives from the `ROLES`
+union, not the doc list, so a missing or inactive role doc can never hide a grant
+already stored on a cargo.
+
+`role-display.guard.test.ts` fails the build on three specific shapes, and only those:
+
+| Shape | Caught? |
+|---|---|
+| Importing `ROLE_LABELS` / `ROLE_DESCRIPTIONS` outside `role-display.ts` | yes |
+| An object literal binding **3+** role keys to string literals (quoted keys included) | yes |
+| A canonical multi-word label typed as a complete quoted string | yes |
+| A `switch (role)` returning labels; an array of `[role, label]` tuples; a `Map` | **no** |
+| A 1–2 role partial map; a single-word label typed inline | **no** |
+| A namespace import (`import * as T`) or a re-export from another package | **no** |
+
+The guard is a tripwire for the shape that already shipped, not a proof. The real
+protection is structural: `roleDisplay` / `roleOptions` are the only way to obtain a
+label, so a hand-typed map has no call site to plug into. For a legitimate per-role
+config that is not labels (an icon map, a nav-target map), put
+`// role-labels-guard: allow` within three lines above the object literal.
 
 ---
 

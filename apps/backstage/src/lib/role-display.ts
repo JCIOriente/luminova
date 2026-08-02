@@ -24,11 +24,31 @@ export function roleDisplay(
   key: Role,
   roleDocs: readonly RoleDefinition[] | undefined,
 ): RoleDisplay {
-  const doc = roleDocs?.find((role) => role.builtInKey === key);
+  return displayOf(key, findDoc(key, roleDocs));
+}
+
+function findDoc(
+  key: Role,
+  roleDocs: readonly RoleDefinition[] | undefined,
+): RoleDefinition | null {
+  return roleDocs?.find((role) => role.builtInKey === key) ?? null;
+}
+
+function displayOf(key: Role, doc: RoleDefinition | null): RoleDisplay {
   return {
     label: doc?.name || ROLE_LABELS[key],
     description: doc?.description || ROLE_DESCRIPTIONS[key],
   };
+}
+
+/** Every built-in role paired with its live doc, or `null` where none is seeded — the
+ *  total list, keyed off ROLES rather than the doc list. Both consumers of "what are all
+ *  the built-in roles" route through here (`roleOptions` and the /permisos overview) so
+ *  the ROLES-is-total rule and the match-by-builtInKey rule each live in one place. */
+export function builtInRoles(
+  roleDocs: readonly RoleDefinition[] | undefined,
+): { key: Role; doc: RoleDefinition | null }[] {
+  return ROLES.map((key) => ({ key, doc: findDoc(key, roleDocs) }));
 }
 
 /** Options for a role picker, derived from ROLES rather than from the doc list.
@@ -41,5 +61,8 @@ export function roleDisplay(
 export function roleOptions(
   roleDocs: readonly RoleDefinition[] | undefined,
 ): { value: Role; label: string }[] {
-  return ROLES.map((role) => ({ value: role, label: roleDisplay(role, roleDocs).label }));
+  return builtInRoles(roleDocs).map(({ key, doc }) => ({
+    value: key,
+    label: displayOf(key, doc).label,
+  }));
 }
