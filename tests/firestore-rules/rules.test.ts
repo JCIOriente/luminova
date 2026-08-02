@@ -731,6 +731,26 @@ describe("firestore.rules — members", () => {
   it("still denies removing an existing uid via client update", async () => {
     await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m1"), { uid: deleteField() }));
   });
+  it("denies writing uid: null onto a member that has no uid", async () => {
+    // unchanged('uid') passed this (null == null on a key-less doc). A stored null then
+    // fails memberDocSchema, so parseDocs drops the member from every backstage list.
+    await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m_nouid"), { uid: null }));
+  });
+  it("allows an institutional edit that resends the same publicProfile value", async () => {
+    // The allowed branch of touched(): a same-value rewrite affects no key. This is what
+    // keeps an admin form from being bricked if publicProfile ever joins memberSchema.
+    // Set the value through the owner's lane first so the resend is genuinely a no-op —
+    // this suite seeds once, so the field's state here depends on nothing else.
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { publicProfile: false }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "members/m1"), {
+        publicProfile: false,
+        profession: "Ingeniera",
+      }),
+    );
+  });
   it("denies a signed-in user self-editing a uid-less member's profilePicture", async () => {
     await assertFails(
       updateDoc(doc(as("anyone", ["Member"]), "members/m_nouid"), {
@@ -874,7 +894,10 @@ describe("firestore.rules — members", () => {
       updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_nouid"), { publicProfile: null }),
     );
   });
-  it("denies an Admin setting another member's publicProfile (consent is owner-only)", async () => {
+  // Scope note: this proves the DIRECT write is denied, not that publication requires the
+  // member's participation — with the opt-out default, the institutional tier can still
+  // compose one via profilePicture + a board cargo. See the create-arm comment.
+  it("denies an Admin writing another member's publicProfile directly", async () => {
     // m1.uid === "owner-uid"; the admin is a different uid, so only the institutional
     // arm could apply — and it now pins publicProfile via unchanged().
     await assertFails(

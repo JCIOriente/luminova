@@ -240,8 +240,7 @@ export const onMemberWritten = onDocumentWritten("members/{id}", async (event) =
 // portrait it uploads, publishing a person who never consented. The member owns the flag
 // from /me onward, so this only ever fires on the create itself, and only when the key is
 // absent (an explicit value is a decision already made). The resulting update re-fires
-// onDocumentWritten triggers, not this one, so there is no write loop. Swallow + log like
-// the other projections: a permanent error must not drive an at-least-once retry storm.
+// onDocumentWritten triggers, not this one, so there is no write loop.
 // retry:true — unlike the projections this copies, it fires ONCE (on create) and never
 // again, so a swallowed transient failure would strand that member without a default
 // permanently and invisibly. Redelivery is safe: the transaction re-checks the LIVE doc,
@@ -361,7 +360,17 @@ export const onBoardMemberWritten = onDocumentWritten("members/{id}", async (eve
       await ref.delete();
       return;
     }
-    const member = after.data() as Record<string, unknown>;
+    // Project the LIVE doc, not the event payload. Gen2 triggers carry no cross-event
+    // ordering guarantee, so an older invocation delivered late would re-publish from a
+    // stale payload — silently undoing an opt-out or an Admin takedown until the next
+    // member write. Costs one read per member write; publication is the wrong place to
+    // trade correctness for it.
+    const live = await after.ref.get();
+    if (!live.exists) {
+      await ref.delete();
+      return;
+    }
+    const member = live.data() as Record<string, unknown>;
     const cargoId = currentCargoId(member, currentTermKey());
     const cargo = cargoId ? await readCargo(database, cargoId) : null;
     // GCLOUD_PROJECT is always set in the functions runtime + emulator; empty falls

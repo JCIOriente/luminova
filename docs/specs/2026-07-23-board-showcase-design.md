@@ -62,6 +62,15 @@ is the ONLY principal who may change it — the member writes it through the exi
 self-service lane; `firestore.rules` forbids the key on create from every client and
 pins it with `unchanged()` on every institutional update arm.
 
+**Accepted consequence of opt-out.** The institutional tier can compose a publication
+without any act by the member: it may upload a portrait (`storage.rules` lets
+Admin/Membership write `members/{id}/profile.jpg`), point `profilePicture` at it, and
+assign a board cargo — the stamped default supplies the consent gate. The `uid`
+requirement guarantees the member always has a reachable `/me` opt-out, but they are
+published before exercising it. Requiring a member signal first would be opt-in, i.e. the
+prior design. If this becomes unacceptable, the cheapest partial mitigation is pinning
+`profilePicture` on the institutional update arm so the portrait half is member-owned.
+
 **Amended 2026-08-01 (opt-out default).** New members are created publishable: the
 key is absent at create and beacon's `onMemberCreated` stamps
 `PUBLIC_PROFILE_DEFAULT = true` server-side. The default is stamped by the trigger,

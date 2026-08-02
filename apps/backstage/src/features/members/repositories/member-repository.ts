@@ -95,6 +95,13 @@ export class MemberRepository {
     await updateDoc(doc(this.collection, id), { profilePicture: url });
   }
 
+  /** Admin takedown: force the member off the public Directiva. Writes `false` and only
+   *  `false` — the rules arm backing this rejects any other value and any second field,
+   *  so publication can never be turned back on from here. */
+  async unpublishProfile(id: string): Promise<void> {
+    await updateDoc(doc(this.collection, id), { publicProfile: false });
+  }
+
   /** Change membership standing only (Activo/Inactivo/Desafiliado). */
   async setStatus(id: string, status: Member["status"]): Promise<void> {
     if (!MEMBER_STATUSES.includes(status)) {

@@ -14,6 +14,9 @@ vi.mock("../hooks/use-update-member", () => ({
 vi.mock("../hooks/use-set-member-status", () => ({
   useSetMemberStatus: () => ({ mutate: vi.fn() }),
 }));
+vi.mock("../hooks/use-unpublish-member", () => ({
+  useUnpublishMember: () => ({ mutate: vi.fn() }),
+}));
 vi.mock("../hooks/use-provision-member-login", () => ({
   useProvisionMemberLogin: () => ({ mutateAsync: vi.fn(), mutate: vi.fn(), isPending: false }),
 }));

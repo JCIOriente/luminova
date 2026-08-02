@@ -23,14 +23,19 @@ export function upcomingBirthdays(
   now: Date,
   limit: number,
 ): UpcomingBirthday[] {
-  return members
-    .filter((m) => m.active && m.id !== excludeId)
-    .map((m) => ({
-      id: m.id,
-      name: m.name,
-      label: formatDayMonth(m.birthdate),
-      days: daysUntilNextAnniversary(m.birthdate, now),
-    }))
-    .sort((a, b) => a.days - b.days || a.name.localeCompare(b.name, "es"))
-    .slice(0, limit);
+  return (
+    members
+      // status, not just active: setStatus writes `status` alone and leaves `active` true,
+      // so an expelled member is not soft-deleted and would otherwise still be celebrated
+      // chapter-wide. Same rule the public projection applies.
+      .filter((m) => m.active && m.status !== "Desafiliado" && m.id !== excludeId)
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
+        label: formatDayMonth(m.birthdate),
+        days: daysUntilNextAnniversary(m.birthdate, now),
+      }))
+      .sort((a, b) => a.days - b.days || a.name.localeCompare(b.name, "es"))
+      .slice(0, limit)
+  );
 }

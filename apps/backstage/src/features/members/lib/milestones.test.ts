@@ -41,8 +41,12 @@ describe("upcomingBirthdays", () => {
     expect(first?.days).toBe(3);
   });
 
-  it("shows three birthdays across every surface", () => {
-    expect(UPCOMING_BIRTHDAY_LIMIT).toBe(3);
+  it("excludes an expelled member (status wins over an untouched active flag)", () => {
+    const expelled = { ...member("x", "Expulsado", "1990-07-06T00:00:00Z"), status: "Desafiliado" };
+    const members = [expelled as Member, member("a", "Ana", "1992-07-08T00:00:00Z")];
+    expect(
+      upcomingBirthdays(members, "self", now, UPCOMING_BIRTHDAY_LIMIT).map((r) => r.id),
+    ).toEqual(["a"]);
   });
 
   it("keeps every member when no self is excluded (the chapter dashboard view)", () => {

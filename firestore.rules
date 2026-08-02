@@ -263,11 +263,17 @@ service cloud.firestore {
     match /members/{memberId} {
       allow read: if canDo('read', 'Member')
         || (signedIn() && resource.data.uid == request.auth.uid);
-      // No client may supply publicProfile at create. The org-wide opt-out DEFAULT is
-      // stamped server-side by beacon's onMemberCreated (admin SDK, rules bypassed) —
-      // if a creator could set it here, the membership tier could author a doc carrying
-      // someone else's name and a portrait it uploads, and publish a person who never
-      // consented. Keeping the key out of the create arm keeps publication owner-only.
+      // No client may supply publicProfile at create; the org-wide opt-out DEFAULT is
+      // stamped server-side by beacon's onMemberCreated (admin SDK, rules bypassed).
+      // What this guard buys, precisely: no client can PICK the value, so a forged doc
+      // can't be born published with a value the creator chose, and the flag can only
+      // ever be flipped afterwards by its owner (or an Admin turning it off).
+      // What it does NOT buy — publication is opt-out by product decision, so the
+      // institutional tier can still COMPOSE a publication for a member who never acted:
+      // it may set profilePicture and assign a board cargo, and the stamped default
+      // supplies the third gate. projectBoard additionally requires a uid, so the member
+      // always has a reachable /me opt-out — but they are published before using it.
+      // Making publication require a member signal again would mean reverting to opt-in.
       allow create: if canDo('create', 'Member')
         && request.resource.data.totalPoints == 0
         && !('uid' in request.resource.data)
@@ -285,6 +291,9 @@ service cloud.firestore {
       // Setting a name, on any lane, must satisfy it.
       allow update: if canDo('update', 'Member')
         && unchanged('totalPoints')
+        // touched(), not unchanged(): writing uid:null onto a member that has none passes
+        // a null == null comparison, and a null then fails memberDocSchema — dropping
+        // that member out of every backstage list with only a console.error.
         && !touched('uid')
         && !touched('publicProfile')
         && (!touched('name') || memberNameValid(request.resource.data.get('name', '')))
@@ -296,6 +305,8 @@ service cloud.firestore {
       // or whose data-subject request arrives by email — must be removable by someone
       // other than themselves. Strictly exposure-reducing: `== false` means this arm can
       // never publish anyone, so it confers no new grant.
+      // .get(...) per this file's convention: a deleteField() write leaves the key ABSENT,
+      // and a bare read would throw rather than deny cleanly.
       allow update: if hasAnyRole(['Admin'])
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['publicProfile'])
         && request.resource.data.get('publicProfile', null) == false;

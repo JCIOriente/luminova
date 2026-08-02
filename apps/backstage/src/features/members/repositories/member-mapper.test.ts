@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { Timestamp } from "firebase/firestore";
-import { toMemberCreateDoc, toMemberUpdateDoc, dateInputValue } from "./member-mapper";
+import {
+  toMemberCreateDoc,
+  toMemberUpdateDoc,
+  toSelfProfileDoc,
+  dateInputValue,
+} from "./member-mapper";
 import type { MemberInput } from "@luminova/types";
 
 const input: MemberInput = {
@@ -50,6 +55,23 @@ describe("toMemberCreateDoc", () => {
     const doc = toMemberCreateDoc({ ...input, phone: undefined, profession: undefined }, "");
     expect(doc.phone).toBe("");
     expect(doc.profession).toBe("");
+  });
+});
+
+describe("toSelfProfileDoc", () => {
+  const self = { phone: "777", profession: "Ingeniera", birthdate: "1992-07-01" };
+
+  it("omits publicProfile when the member never decided (legacy doc)", () => {
+    // The bug this guards: coercing absent to false here records an explicit opt-out on
+    // an unrelated edit, and beacon then treats that member as already decided forever.
+    expect(toSelfProfileDoc({ ...self, publicProfile: undefined })).not.toHaveProperty(
+      "publicProfile",
+    );
+  });
+
+  it("writes the decision the member actually made", () => {
+    expect(toSelfProfileDoc({ ...self, publicProfile: false }).publicProfile).toBe(false);
+    expect(toSelfProfileDoc({ ...self, publicProfile: true }).publicProfile).toBe(true);
   });
 });
 
