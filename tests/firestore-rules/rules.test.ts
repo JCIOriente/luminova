@@ -1417,10 +1417,6 @@ describe("firestore.rules — initiative direction branch", () => {
   });
 });
 
-function asClaims(uid: string, claims: Record<string, unknown>) {
-  return env.authenticatedContext(uid, claims).firestore();
-}
-
 describe("firestore.rules — checkIns", () => {
   it("allows any signed-in user to read", async () => {
     await assertSucceeds(getDoc(doc(as("u", ["Member"]), "checkIns/c1")));
@@ -1443,32 +1439,69 @@ describe("firestore.rules — checkIns", () => {
       }),
     );
   });
-  it("allows Scanner to create only for an in-scope activity", async () => {
-    const ctx = asClaims("s1", { roles: ["Scanner"], scannerEventIds: ["a1"] });
+  it("allows a Scanner to create an Attendee check-in", async () => {
     await assertSucceeds(
-      setDoc(doc(ctx, "checkIns/c_scan"), { memberId: "m1", activityId: "a1", role: "Attendee" }),
+      setDoc(doc(as("s1", ["Scanner"]), "checkIns/c_scan"), {
+        memberId: "m1",
+        activityId: "a1",
+        role: "Attendee",
+      }),
     );
   });
-  it("denies Scanner creating for an out-of-scope activity", async () => {
-    const ctx = asClaims("s2", { roles: ["Scanner"], scannerEventIds: ["other"] });
-    await assertFails(
-      setDoc(doc(ctx, "checkIns/c_bad"), { memberId: "m1", activityId: "a1", role: "Attendee" }),
+  it("allows a Scanner on any in-window activity (event scoping deliberately abandoned)", async () => {
+    // The scannerEventIds claim is gone. A Scanner's blast radius is now bounded by the
+    // check-in WINDOW and the Attendee conjunct, not by an event allowlist.
+    await assertSucceeds(
+      setDoc(doc(as("s_any", ["Scanner"]), "checkIns/c_scan_any"), {
+        memberId: "m1",
+        activityId: "a1",
+        role: "Attendee",
+      }),
     );
   });
-  it("denies Scanner registering a non-Attendee role (no self-award of director points)", async () => {
-    const ctx = asClaims("s3", { roles: ["Scanner"], scannerEventIds: ["a1"] });
+  // C2 regression: see the BLOCKING case below.
+  it("denies a Scanner registering a non-Attendee role (no self-award of director points)", async () => {
     await assertFails(
-      setDoc(doc(ctx, "checkIns/c_dir"), { memberId: "s3", activityId: "a1", role: "Director" }),
+      setDoc(doc(as("s3", ["Scanner"]), "checkIns/c_dir"), {
+        memberId: "s3",
+        activityId: "a1",
+        role: "Director",
+      }),
     );
   });
-  it("denies Scanner creating for a non-existent member (no phantom check-ins)", async () => {
-    const ctx = asClaims("s4", { roles: ["Scanner"], scannerEventIds: ["a1"] });
+  it("BLOCKING: a Scanner holding the coarse checkIn:Attendance perm still cannot register a Director row", async () => {
+    // C2: giving Scanner the coarse perm satisfies the rule's first arm, so the
+    // role == 'Attendee' clause on the Scanner-specific arm is never reached. 10 pts for
+    // DirectProgram vs 3 for AttendActivity — a scanner could self-award, and undo a real
+    // director's row through the matching delete arm.
     await assertFails(
-      setDoc(doc(ctx, "checkIns/c_ghost"), {
+      setDoc(doc(as("s_coarse", ["Scanner"]), "checkIns/c_coarse_dir"), {
+        memberId: "m1",
+        activityId: "a1",
+        role: "Director",
+      }),
+    );
+  });
+  it("denies a Scanner creating for a non-existent member (no phantom check-ins)", async () => {
+    await assertFails(
+      setDoc(doc(as("s4", ["Scanner"]), "checkIns/c_ghost"), {
         memberId: "ghost",
         activityId: "a1",
         role: "Attendee",
       }),
+    );
+  });
+  it("allows a Scanner that also holds manage:Attendance to register a Director row", async () => {
+    // The named escape hatch in the conjunct: a custom role granted manage:Attendance
+    // legitimately manages the whole roster, Scanner name or not.
+    await assertSucceeds(
+      setDoc(
+        doc(
+          as("s_mgr", ["Scanner"], ["checkIn:Attendance", "manage:Attendance", "read:Activity"]),
+          "checkIns/c_scan_mgr",
+        ),
+        { memberId: "m1", activityId: "a1", role: "Director" },
+      ),
     );
   });
   it("denies a plain Member from creating", async () => {
@@ -1558,13 +1591,8 @@ describe("firestore.rules — checkIns", () => {
   it("allows Admin to delete a check-in within the window (mis-scan correction)", async () => {
     await assertSucceeds(deleteDoc(doc(as("u", ["Admin"]), "checkIns/c_del_admin")));
   });
-  it("allows a Scanner to delete an Attendee row on an in-scope activity", async () => {
-    const ctx = asClaims("s1", { roles: ["Scanner"], scannerEventIds: ["a1"] });
-    await assertSucceeds(deleteDoc(doc(ctx, "checkIns/c_del_scan")));
-  });
-  it("denies a Scanner deleting on an out-of-scope activity", async () => {
-    const ctx = asClaims("s2", { roles: ["Scanner"], scannerEventIds: ["other"] });
-    await assertFails(deleteDoc(doc(ctx, "checkIns/c1")));
+  it("allows a Scanner to delete an Attendee row within the window", async () => {
+    await assertSucceeds(deleteDoc(doc(as("s1", ["Scanner"]), "checkIns/c_del_scan")));
   });
   it("denies a plain Member from deleting", async () => {
     await assertFails(deleteDoc(doc(as("u", ["Member"]), "checkIns/c1")));
@@ -1572,9 +1600,8 @@ describe("firestore.rules — checkIns", () => {
   it("denies a non-Admin delete once the activity's day has passed (window binds delete too)", async () => {
     await assertFails(deleteDoc(doc(as("u", ["ProjectManager"]), "checkIns/c_del_old")));
   });
-  it("denies a Scanner deleting a non-Attendee row even on an in-scope activity", async () => {
-    const ctx = asClaims("s1", { roles: ["Scanner"], scannerEventIds: ["a1"] });
-    await assertFails(deleteDoc(doc(ctx, "checkIns/c_del_director")));
+  it("denies a Scanner deleting a non-Attendee row (the delete-side conjunct)", async () => {
+    await assertFails(deleteDoc(doc(as("s1", ["Scanner"]), "checkIns/c_del_director")));
   });
   it("allows Admin to delete a past-day check-in (day-window bypass on delete)", async () => {
     await assertSucceeds(deleteDoc(doc(as("u", ["Admin"]), "checkIns/c_del_old_admin")));

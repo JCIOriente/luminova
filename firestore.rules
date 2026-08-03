@@ -493,25 +493,29 @@ service cloud.firestore {
     }
 
     match /checkIns/{checkInId} {
+      // Every check-in author holds checkIn:Attendance (Admin/PM/ActivityManager/Scanner or
+      // a custom role) and is bound to the activity's check-in window. A Scanner is then
+      // confined to Attendee rows on top of that — a CONJUNCT, not an alternative arm,
+      // because Scanner now holds the same coarse perm everyone else does: an OR would let
+      // that perm satisfy the gate and skip the restriction entirely (a scanner self-awarding
+      // 10-pt Director rows). manage:Attendance is the explicit escape hatch for a custom
+      // role that legitimately manages the whole roster. exists() rides in the Scanner
+      // conjunct — it was the Scanner arm's phantom-member guard and stays Scanner-scoped.
       allow read: if signedIn();
-      // checkIn:Attendance holders (Admin/PM, or a custom role) may register any
-      // role; a Scanner may only register attendance for its assigned activities
-      // (never director/team — that would self-award high-value points). All
-      // creators are bound to the activity's check-in window.
       allow create: if withinCheckInWindow(request.resource.data.activityId)
-        && (canDo('checkIn', 'Attendance')
-          || (hasAnyRole(['Scanner'])
-              && request.resource.data.role == 'Attendee'
-              && request.resource.data.activityId in request.auth.token.scannerEventIds
-              && exists(/databases/$(database)/documents/members/$(request.resource.data.memberId))));
-      // Undo a check-in (mis-scan correction). Same authority + window binding as
-      // create, but read from the existing doc (resource.data) since delete carries
-      // no request.resource. A Scanner may only undo Attendee rows on its own events.
+        && canDo('checkIn', 'Attendance')
+        && (!hasAnyRole(['Scanner'])
+            || canDo('manage', 'Attendance')
+            || (request.resource.data.role == 'Attendee'
+                && exists(/databases/$(database)/documents/members/$(request.resource.data.memberId))));
+      // Undo a check-in (mis-scan correction). Same authority + window binding as create,
+      // but read from the existing doc (resource.data) since delete carries no
+      // request.resource — so the Attendee conjunct reads resource.data.role.
       allow delete: if withinCheckInWindow(resource.data.activityId)
-        && (canDo('checkIn', 'Attendance')
-          || (hasAnyRole(['Scanner'])
-              && resource.data.role == 'Attendee'
-              && resource.data.activityId in request.auth.token.scannerEventIds));
+        && canDo('checkIn', 'Attendance')
+        && (!hasAnyRole(['Scanner'])
+            || canDo('manage', 'Attendance')
+            || resource.data.role == 'Attendee');
       allow update: if false;
     }
 
