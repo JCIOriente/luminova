@@ -28,7 +28,7 @@ export function useAbility(): AppAbility {
   return useCaslAbility<AppAbility>();
 }
 
-/** The decoded auth claims (roles/perms/scannerEventIds) mounted at __root.
+/** The decoded auth claims (roles/perms) mounted at __root.
  *  Rules gate some writes on the `roles` claim, not the coarse `perms` — the
  *  authz UI helpers need both. */
 export function useClaims(): AuthClaims {

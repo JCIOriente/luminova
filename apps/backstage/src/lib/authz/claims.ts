@@ -6,18 +6,9 @@ export function decodeClaims(tokenClaims: Record<string, unknown> | null | undef
     return { roles: [] };
   }
   const roles = tokenClaims.roles.filter((r): r is Role => isValidRole(r));
-  const rawEventIds = tokenClaims.scannerEventIds;
-  const scannerEventIds =
-    Array.isArray(rawEventIds) && rawEventIds.every((id) => typeof id === "string")
-      ? (rawEventIds as string[])
-      : undefined;
   const rawPerms = tokenClaims.perms;
   const perms = Array.isArray(rawPerms)
     ? rawPerms.filter((p): p is PermissionCode => isValidPermissionCode(p))
     : undefined;
-  return {
-    roles,
-    ...(perms ? { perms } : {}),
-    ...(scannerEventIds ? { scannerEventIds } : {}),
-  };
+  return { roles, ...(perms ? { perms } : {}) };
 }

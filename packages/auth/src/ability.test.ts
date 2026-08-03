@@ -16,12 +16,28 @@ describe("buildAbility", () => {
     expect(a.can("delete", "Member")).toBe(true);
   });
 
-  it("Membership manages members, reads allies/points", () => {
+  it("Membership manages members and reads points, but no longer allies", () => {
+    // The Ally trio moved to Secretaría with the nine-role table.
     const a = ability(roleClaims("Membership"));
     expect(a.can("create", "Member")).toBe(true);
     expect(a.can("update", "Member")).toBe(true);
-    expect(a.can("read", "Ally")).toBe(true);
     expect(a.can("read", "MemberPoints")).toBe(true);
+    expect(a.can("read", "Ally")).toBe(false);
+  });
+
+  it("Secretary owns the ally, lead and notification surfaces", () => {
+    const a = ability(roleClaims("Secretary"));
+    for (const s of ["Ally", "Lead", "Notification"] as const)
+      expect(a.can("manage", s), s).toBe(true);
+    expect(a.can("read", "Member")).toBe(false);
+  });
+
+  it("ActivityManager is the activity-only slice of ProjectManager", () => {
+    const a = ability(roleClaims("ActivityManager"));
+    expect(a.can("manage", "Activity")).toBe(true);
+    expect(a.can("checkIn", "Attendance")).toBe(true);
+    expect(a.can("manage", "Project")).toBe(false);
+    expect(a.can("read", "Member")).toBe(false);
   });
 
   it("Treasury reads members/points only", () => {
@@ -31,12 +47,12 @@ describe("buildAbility", () => {
     expect(a.can("update", "Member")).toBe(false);
   });
 
-  it("ExecutiveCommittee reads broadly and manages positions", () => {
+  it("ExecutiveCommittee reads broadly and no longer manages positions", () => {
     const a = ability(roleClaims("ExecutiveCommittee"));
     expect(a.can("read", "Member")).toBe(true);
     expect(a.can("read", "Project")).toBe(true);
     expect(a.can("update", "Member")).toBe(false);
-    expect(a.can("manage", "Position")).toBe(true);
+    expect(a.can("manage", "Position")).toBe(false);
   });
 
   it("ProjectManager manages programs/projects and reads allies", () => {
@@ -60,22 +76,20 @@ describe("buildAbility", () => {
     expect(a.can("checkIn", "Attendance")).toBe(false);
   });
 
-  it("Scanner can check in only assigned events", () => {
-    const a = ability({ roles: ["Scanner"], scannerEventIds: ["evt_1"] });
-    expect(a.can("checkIn", subject("Attendance", { eventId: "evt_1" }))).toBe(true);
-    expect(a.can("checkIn", subject("Attendance", { eventId: "evt_2" }))).toBe(false);
-  });
-
-  it("Scanner with no assigned events cannot check in", () => {
-    const a = ability({ roles: ["Scanner"] });
-    expect(a.can("checkIn", subject("Attendance", { eventId: "evt_1" }))).toBe(false);
-  });
-
-  it("Scanner can read activities (to reach check-in) but not the member directory", () => {
-    const a = ability({ roles: ["Scanner"], scannerEventIds: ["evt_1"] });
+  it("Scanner check-in and activity reads come from the perms claim, not a conditional grant", () => {
+    const a = ability(roleClaims("Scanner"));
+    expect(a.can("checkIn", "Attendance")).toBe(true);
     expect(a.can("read", "Activity")).toBe(true);
     expect(a.can("read", "Member")).toBe(false);
     expect(a.can("update", "Activity")).toBe(false);
+  });
+
+  it("a roles-only Scanner claim (no perms) grants nothing — event scoping is gone", () => {
+    // The old conditional grant meant {roles:['Scanner']} alone conferred a scoped
+    // checkIn. It no longer does: authority is the perms claim, full stop.
+    const a = ability({ roles: ["Scanner"] });
+    expect(a.can("checkIn", "Attendance")).toBe(false);
+    expect(a.can("read", "Activity")).toBe(false);
   });
 
   it("Member can read/update only their own profile", () => {
@@ -87,9 +101,9 @@ describe("buildAbility", () => {
     expect(a.can("read", "Project")).toBe(true);
   });
 
-  it("lets ExecutiveCommittee manage the position catalog", () => {
+  it("no longer lets ExecutiveCommittee manage the position catalog", () => {
     const ability = buildAbility(roleClaims("ExecutiveCommittee"), "u1");
-    expect(ability.can("manage", "Position")).toBe(true);
+    expect(ability.can("manage", "Position")).toBe(false);
   });
 
   it("lets Membership read but not manage positions", () => {
@@ -150,11 +164,11 @@ describe("buildAbility", () => {
     expect(a.can("read", "Ally")).toBe(false);
   });
 
-  it("ExecutiveCommittee perms read broadly and manage Position", () => {
+  it("ExecutiveCommittee perms read broadly and no longer manage Position", () => {
     const a = ability(roleClaims("ExecutiveCommittee"));
     for (const s of ["Member", "Ally", "MemberPoints", "Program", "Project"] as const)
       expect(a.can("read", s)).toBe(true);
-    expect(a.can("manage", "Position")).toBe(true);
+    expect(a.can("manage", "Position")).toBe(false);
     expect(a.can("update", "Member")).toBe(false);
   });
 

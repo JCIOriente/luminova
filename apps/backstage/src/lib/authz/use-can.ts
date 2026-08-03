@@ -24,7 +24,7 @@ export interface Can {
    *  command palette never have to hold a raw ability just to pass it along. */
   navItemVisible(item: NavItem): boolean;
   /** May the caller undo THIS roster row? (features/check-in/lib/can-remove-entry) */
-  canRemoveCheckIn(activityId: string, entry: { role: ParticipationRole }): boolean;
+  canRemoveCheckIn(entry: { role: ParticipationRole }): boolean;
   /** Shorthand for the Admin role (not the `manage:all` perm). */
   readonly isAdmin: boolean;
   /** May curate the public /programas page (rules' `featuredUpdateSafe`). Named
@@ -49,7 +49,7 @@ export function buildCan(ability: AppAbility, claims: AuthClaims): Can {
     // affordance is hidden.
     navItemVisible: (item) =>
       isNavItemVisible(item, ability, claims) && !(item.to === "/" && isMemberOnly(claims)),
-    canRemoveCheckIn: (activityId, entry) => canRemoveEntry(ability, activityId, entry),
+    canRemoveCheckIn: (entry) => canRemoveEntry(ability, claims, entry),
     isAdmin: hasAnyRole(claims, ["Admin"]),
     canFeatureInitiatives: hasAnyRole(claims, ["Admin", "ProjectManager"]),
     canAssignPowerGrants: hasAnyRole(claims, ["Admin"]),

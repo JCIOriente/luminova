@@ -11,15 +11,15 @@ export type AppAbility = MongoAbility<[Action, Subject | SubjectObject]>;
 type Can = AbilityBuilder<AppAbility>["can"];
 
 /** Conditional / object-scoped grants that can't be expressed as coarse perms.
- *  These stay hardcoded per built-in role name and are NOT editable in the UI. */
-function applyConditional(role: Role, claims: AuthClaims, uid: string, can: Can): void {
+ *  These stay hardcoded per built-in role name and are NOT editable in the UI.
+ *
+ *  Scanner used to live here with `checkIn Attendance { eventId ∈ scannerEventIds }`.
+ *  Event scoping was abandoned: Scanner now carries coarse `read:Activity` +
+ *  `checkIn:Attendance` in BUILT_IN_ROLE_PERMS, and the Attendee-only restriction is a
+ *  Scanner-specific conjunct in firestore.rules (mirrored by
+ *  features/check-in/lib/can-remove-entry.ts), not a CASL condition. */
+function applyConditional(role: Role, uid: string, can: Can): void {
   switch (role) {
-    case "Scanner":
-      can("checkIn", "Attendance", { eventId: { $in: claims.scannerEventIds ?? [] } });
-      // Reach the activity list + detail page (the new home of check-in). Activities
-      // are signed-in-readable in firestore.rules; this only opens the backstage UI.
-      can("read", "Activity");
-      break;
     case "Member":
       can(["read", "update"], "Member", { uid });
       can("read", ["MemberPoints", "Project", "Position"]);
@@ -45,6 +45,6 @@ export function buildAbility(claims: AuthClaims, uid: string): AppAbility {
   const builder = new AbilityBuilder<AppAbility>(createMongoAbility);
   const perms = claims.perms ?? [];
   applyPerms(perms, builder.can);
-  for (const role of claims.roles) applyConditional(role, claims, uid, builder.can);
+  for (const role of claims.roles) applyConditional(role, uid, builder.can);
   return builder.build();
 }
