@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { buildAbility } from "@luminova/auth/ability";
 import { roleClaims } from "@luminova/auth/test-helpers";
 import type { AuthClaims, Role } from "@luminova/auth/roles";
-import type { PermissionCode } from "@luminova/types";
+import { ROLES, type PermissionCode } from "@luminova/types";
 import { NAV_GROUPS, navItemForPath, isNavItemVisible, canAccessRoute } from "./nav-config";
 
 const SELF_UID = "uid-self";
@@ -188,15 +188,10 @@ describe("curationOnly routes — pinned visibility sets (nav-equivalence Check 
   // nav-equivalence.test.ts (Check A) deliberately excludes them from its implication.
   // Pin the EXACT built-in visibility set here so a gate regression on a curation route
   // can't slip through un-probed. Keep in sync with the ROUTE_GATING `curationOnly` notes.
-  const ALL_ROLES: Role[] = [
-    "Admin",
-    "Membership",
-    "Treasury",
-    "ExecutiveCommittee",
-    "ProjectManager",
-    "Scanner",
-    "Member",
-  ];
+  // Derived from ROLES, never hand-listed: these four routes have no rules boundary that
+  // mirrors their nav gate (curationOnly), so this pinned visibility set is their ONLY
+  // coverage. A role missing from the list is a route gate nothing probes.
+  const ALL_ROLES: Role[] = [...ROLES];
   const cases: { route: string; visible: Role[]; admits: PermissionCode }[] = [
     {
       route: "/positions",

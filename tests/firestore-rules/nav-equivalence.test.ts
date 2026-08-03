@@ -9,7 +9,7 @@ import {
 } from "@firebase/rules-unit-testing";
 import { collection, doc, getDocs, setDoc, type Firestore } from "firebase/firestore";
 import { buildAbility } from "@luminova/auth/ability";
-import type { AuthClaims } from "@luminova/auth/roles";
+import { ROLES, type AuthClaims } from "@luminova/auth/roles";
 // The SAME source of truth the app renders + guards routes from. This module carries no
 // runtime @luminova/ui dependency (type-only IconKey import), so it loads here.
 import {
@@ -53,15 +53,10 @@ const custom = (label: string, perms: string[]): Principal => ({
 });
 
 const PRINCIPALS: Principal[] = [
-  ...[
-    "Admin",
-    "Membership",
-    "Treasury",
-    "ExecutiveCommittee",
-    "ProjectManager",
-    "Scanner",
-    "Member",
-  ].map(canonical),
+  // Derived from ROLES, never hand-listed: a new built-in role must be probed against the
+  // nav⟷rules implication from the moment it exists, or its holder can be offered a route
+  // the rules deny (render-then-die) with no test noticing.
+  ...ROLES.map((role) => canonical(role)),
   // Adversarial custom roles (perms only, no built-in role NAME) — the C1/C5 axis:
   custom("manage-all", ["manage:all"]), // escalation probe: must NOT be offered the role-gated admin routes
   custom("manage-Position", ["manage:Position"]), // org-chart custom role the /positions orCan re-admits
