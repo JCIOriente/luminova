@@ -44,7 +44,7 @@ export const ROLE_LABELS = {
   Membership: "Membresía",
   Treasury: "Tesorería",
   ExecutiveCommittee: "Comité Ejecutivo",
-  ProjectManager: "Director de Proyecto",
+  ProjectManager: "Proyectos",
   ActivityManager: "Actividades",
   Secretary: "Secretaría",
   Scanner: "Escáner",

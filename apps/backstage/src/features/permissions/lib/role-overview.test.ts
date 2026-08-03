@@ -140,7 +140,7 @@ describe("buildRoleOverview", () => {
       // beacon's BUILT_IN_ROLE_PERMS fallback long before anyone runs seedRoles.
       const rows = buildRoleOverview([], [], [], "2026");
       const projectManager = rowFor(rows, "ProjectManager");
-      expect(projectManager.label).toBe("Director de Proyecto");
+      expect(projectManager.label).toBe("Proyectos");
       expect(projectManager.description).toBe(
         "Gestionar proyectos, programas y actividades; registrar asistencia.",
       );

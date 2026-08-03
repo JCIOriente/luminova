@@ -26,7 +26,7 @@ describe("roleDisplay", () => {
   });
 
   it("falls back to the snapshot when no doc exists for the key", () => {
-    expect(roleDisplay("ProjectManager", []).label).toBe("Director de Proyecto");
+    expect(roleDisplay("ProjectManager", []).label).toBe("Proyectos");
   });
 
   it("falls back to the snapshot when the doc carries an empty description", () => {
@@ -45,7 +45,7 @@ describe("roleDisplay", () => {
       builtIn: false,
       builtInKey: null,
     });
-    expect(roleDisplay("ProjectManager", [custom]).label).toBe("Director de Proyecto");
+    expect(roleDisplay("ProjectManager", [custom]).label).toBe("Proyectos");
   });
 });
 

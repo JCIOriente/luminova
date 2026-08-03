@@ -44,7 +44,7 @@ const unsyncedRow: RoleOverviewRow = {
   role: null,
   id: "ProjectManager",
   builtInKey: "ProjectManager",
-  label: "Director de Proyecto",
+  label: "Proyectos",
   description: "Gestionar proyectos.",
   permissions: ["manage:Project"],
   grantingCargos: [],
@@ -114,7 +114,7 @@ describe("RolesPanel", () => {
   it("marks a built-in role that has no seeded doc and offers no editor for it", () => {
     render(<RolesPanel rows={[unsyncedRow]} />);
     expect(screen.getByText("Sin sincronizar")).toBeInTheDocument();
-    expect(screen.getByText("Director de Proyecto")).toBeInTheDocument();
+    expect(screen.getByText("Proyectos")).toBeInTheDocument();
     // No doc to write to — updateRole on a missing doc would fail.
     expect(screen.queryByRole("button", { name: /editar|ver/i })).not.toBeInTheDocument();
   });
@@ -138,7 +138,7 @@ describe("RolesPanel", () => {
     const collidingCustom = { ...customDoc, id: "ProjectManager", name: "Proyectos (viejo)" };
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     render(<RolesPanel rows={[unsyncedRow, rowFor(collidingCustom)]} />);
-    expect(screen.getByText("Director de Proyecto")).toBeInTheDocument();
+    expect(screen.getByText("Proyectos")).toBeInTheDocument();
     expect(screen.getByText("Proyectos (viejo)")).toBeInTheDocument();
     expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();
