@@ -67,7 +67,8 @@ const RESTRICTED_SYNTAX_BASE = [
 //   1. `Admin: { label: "…", description: "…" }` — the shape that actually shipped.
 //   2. `Admin: "Administración"` — the flat shape.
 // Both key forms are covered (`Admin:` and `"Admin":`).
-const ROLE_KEY = "/^(Admin|Membership|Treasury|ExecutiveCommittee|ProjectManager|Scanner|Member)$/";
+const ROLE_KEY =
+  "/^(Admin|Membership|Treasury|ExecutiveCommittee|ProjectManager|ActivityManager|Secretary|Scanner|Member)$/";
 const ROLE_KEYED_PROPERTY = `Property:matches([key.name=${ROLE_KEY}], [key.value=${ROLE_KEY}])`;
 const ROLE_DISPLAY_MESSAGE =
   "Hand-written role -> label map. Call roleDisplay()/roleOptions() from apps/backstage/src/lib/role-display.ts, which reads the live roles/{id} doc. If this really is a per-role config that is not display text, add `// eslint-disable-next-line no-restricted-syntax` with a one-line reason.";

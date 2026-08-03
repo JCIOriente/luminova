@@ -28,6 +28,8 @@ export const PRECEDENCE: Role[] = [
   "Treasury",
   "ProjectManager",
   "Membership",
+  "Secretary",
+  "ActivityManager",
   "Scanner",
   "Member",
 ];
@@ -53,6 +55,12 @@ const ROLE_LAYOUTS: Record<Role, WidgetKey[]> = {
   Treasury: ["kpis", "birthdays", "recentActivity", "chart"],
   ProjectManager: ["upcomingEvents", "birthdays", "quickActions", "kpis", "recentActivity"],
   ExecutiveCommittee: ["kpis", "birthdays", "recentActivity", "chart"],
+  // Activity operations only (manage:Activity + checkIn:Attendance) — no member, points or
+  // ally capability, so no KPI tile and no points chart.
+  ActivityManager: ["upcomingEvents", "birthdays", "recentActivity"],
+  // Communications: allies, prospects, notifications. quickActions carries "Registrar
+  // aliado", which is theirs; kpis/chart read members + points, which they cannot.
+  Secretary: ["upcomingEvents", "birthdays", "quickActions", "recentActivity"],
   // Scanner reads activities and nothing else — no member, points or ally capability,
   // so no KPI tile, no points chart, no member quick actions.
   Scanner: ["upcomingEvents", "birthdays"],

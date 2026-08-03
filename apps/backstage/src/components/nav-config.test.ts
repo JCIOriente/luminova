@@ -194,14 +194,21 @@ describe("curationOnly routes — pinned visibility sets (nav-equivalence Check 
   const ALL_ROLES: Role[] = [...ROLES];
   const cases: { route: string; visible: Role[]; admits: PermissionCode }[] = [
     {
+      // ExecutiveCommittee drops out of this SINGLE-ROLE fixture because withdrawing
+      // manage:Position leaves it no Position capability, and the gate is
+      // (subject read AND roles), not roles alone. In production it still sees the route:
+      // every provisioned user also carries Member, whose CASL conditional grants an
+      // unconditional read on Position — which is exactly the read-only view the design
+      // intends for CEL. Assigning cargos stays Admin-only either way (the row actions gate
+      // on can("update","Position")).
       route: "/positions",
-      visible: ["Admin", "Membership", "ExecutiveCommittee"],
+      visible: ["Admin", "Membership"],
       admits: "manage:Position",
     },
-    { route: "/point-rules", visible: ["Admin"], admits: "read:PointRule" },
+    { route: "/point-rules", visible: ["Admin", "ExecutiveCommittee"], admits: "read:PointRule" },
     {
       route: "/activities",
-      visible: ["Admin", "ProjectManager", "Scanner", "Member"],
+      visible: ["Admin", "ProjectManager", "ActivityManager", "Scanner", "Member"],
       admits: "read:Activity",
     },
     {

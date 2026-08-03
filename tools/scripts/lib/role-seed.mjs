@@ -12,14 +12,7 @@
 /** @type {Record<string, string[]>} */
 export const BUILT_IN_ROLE_PERMS = {
   Admin: ["manage:all"],
-  Membership: [
-    "manage:Member",
-    "read:Ally",
-    "create:Ally",
-    "update:Ally",
-    "read:MemberPoints",
-    "read:Position",
-  ],
+  Membership: ["manage:Member", "read:MemberPoints", "read:Position"],
   Treasury: ["read:Member", "read:MemberPoints"],
   ExecutiveCommittee: [
     "read:Member",
@@ -27,19 +20,22 @@ export const BUILT_IN_ROLE_PERMS = {
     "read:MemberPoints",
     "read:Program",
     "read:Project",
-    "manage:Position",
-    "create:Notification",
     "read:Notification",
+    "create:Notification",
+    "read:Lead",
+    "read:PointRule",
   ],
   ProjectManager: [
     "manage:Project",
-    "manage:Activity",
     "manage:Program",
-    "read:Ally",
+    "manage:Activity",
     "checkIn:Attendance",
+    "read:Ally",
   ],
-  Scanner: [],
-  Member: ["read:Member", "read:Activity", "read:Program"],
+  ActivityManager: ["manage:Activity", "checkIn:Attendance"],
+  Secretary: ["manage:Notification", "manage:Lead", "manage:Ally"],
+  Scanner: ["read:Activity", "checkIn:Attendance"],
+  Member: ["read:Member", "read:MemberPoints", "read:Activity", "read:Program", "read:Project"],
 };
 
 /** @type {Record<string, string>} */
@@ -49,6 +45,8 @@ export const ROLE_LABELS = {
   Treasury: "Tesorería",
   ExecutiveCommittee: "Comité Ejecutivo",
   ProjectManager: "Director de Proyecto",
+  ActivityManager: "Actividades",
+  Secretary: "Secretaría",
   Scanner: "Escáner",
   Member: "Miembro",
 };
@@ -56,11 +54,13 @@ export const ROLE_LABELS = {
 /** @type {Record<string, string>} */
 export const ROLE_DESCRIPTIONS = {
   Admin: "Acceso total a la plataforma.",
-  Membership: "Crear y editar miembros; ver aliados, eventos y puntos.",
+  Membership: "Crear y editar miembros; ver puntos y cargos.",
   Treasury: "Gestionar pagos; ver miembros y puntos.",
-  ExecutiveCommittee: "Ver gestión del capítulo; administrar cargos y comisiones.",
+  ExecutiveCommittee: "Ver la gestión del capítulo; enviar notificaciones.",
   ProjectManager: "Gestionar proyectos, programas y actividades; registrar asistencia.",
-  Scanner: "Registrar asistencia en actividades asignadas.",
+  ActivityManager: "Crear y editar actividades; registrar asistencia.",
+  Secretary: "Comunicación del capítulo: notificaciones, prospectos y aliados.",
+  Scanner: "Registrar asistencia en las actividades del capítulo.",
   Member: "Ver y editar su propio perfil; ver puntos y eventos.",
 };
 
@@ -71,7 +71,7 @@ export function permsForRoles(roles) {
   return [...new Set(roles.flatMap((role) => BUILT_IN_ROLE_PERMS[role] ?? []))].sort();
 }
 
-/** The 7 built-in role docs (id = role name). Admin is locked. */
+/** The built-in role docs (id = role name), one per ROLES key. Admin is locked. */
 export function buildBuiltInRoleDocs() {
   return Object.entries(BUILT_IN_ROLE_PERMS).map(([role, permissions]) => ({
     id: role,
