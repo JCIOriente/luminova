@@ -40,6 +40,10 @@ function anon() {
 }
 
 const MEMBER_DOC = { name: "Ana", totalPoints: 0, uid: "owner-uid", active: true, deletedAt: null };
+
+// Rules derive the term from request.time.year() (UTC); compute it from the client
+// clock so this suite can't rot when the calendar year rolls over.
+const TERM = String(new Date().getUTCFullYear());
 const DELETED_AT = new Date("2026-01-01T00:00:00Z");
 // Fixed instant for the activity-lock fixtures so echo-update tests can resend
 // the exact same startAt value.
@@ -421,6 +425,18 @@ beforeAll(async () => {
       uid: "legacyname-uid",
       active: true,
       deletedAt: null,
+    });
+    // A member who ALREADY holds a power cargo. The C1 hole: nothing in
+    // positionsAssignmentSafe() looked at the cargo being REPLACED, so a manage:Member
+    // holder could overwrite this with a grant-free cargo and claims-sync would compute
+    // grants.length === 0 — silently stripping the Admin claim.
+    await setDoc(doc(db, "members/m_powercargo"), {
+      name: "Franco",
+      totalPoints: 0,
+      uid: "franco-uid",
+      active: true,
+      deletedAt: null,
+      positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
     });
     // Pre-invariant artifact: a Comision doc carrying grants (was creatable by
     // Admin before comisionGrantsEmpty). Exercises the deliberate lockout.
@@ -1049,9 +1065,17 @@ describe("firestore.rules — allies", () => {
   it("allows Admin to write allies", async () => {
     await assertSucceeds(updateDoc(doc(as("u", ["Admin"]), "allies/a1"), { companyName: "X" }));
   });
-  it("allows Membership to soft-delete an ally", async () => {
-    await assertSucceeds(
+  it("denies Membership writing allies (the Ally trio moved to Secretaría)", async () => {
+    await assertFails(
       updateDoc(doc(as("u", ["Membership"]), "allies/a1"), {
+        active: false,
+        deletedAt: new Date("2026-02-01T00:00:00Z"),
+      }),
+    );
+  });
+  it("allows Secretary to soft-delete an ally (manage:Ally)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Secretary"]), "allies/a1"), {
         active: false,
         deletedAt: new Date("2026-02-01T00:00:00Z"),
       }),
@@ -1621,9 +1645,24 @@ describe("firestore.rules — positions", () => {
   it("allows any signed-in user to read", async () => {
     await assertSucceeds(getDoc(doc(as("u", ["Member"]), "positions/pos1")));
   });
-  it("allows ExecutiveCommittee to create", async () => {
-    await assertSucceeds(
+  it("denies ExecutiveCommittee creating a position (manage:Position withdrawn)", async () => {
+    // Cargo/comisión curation is Admin-only now; CEL keeps read (positions read=signedIn).
+    await assertFails(
       setDoc(doc(as("u", ["ExecutiveCommittee"]), "positions/new1"), {
+        title: "Director de Comunicación",
+        titleFemale: "Directora de Comunicación",
+        category: "JDL",
+        grants: [],
+        term: 2026,
+        description: "Comunica.",
+        active: true,
+        deletedAt: null,
+      }),
+    );
+  });
+  it("allows Admin to create a grant-free position (the surviving authority)", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("admin-uid", ["Admin"]), "positions/new1"), {
         title: "Director de Comunicación",
         titleFemale: "Directora de Comunicación",
         category: "JDL",
@@ -1725,16 +1764,24 @@ describe("firestore.rules — positions", () => {
       updateDoc(doc(as("u", ["ExecutiveCommittee"]), "positions/pos1"), { grants: ["Admin"] }),
     );
   });
-  it("allows ExecutiveCommittee updating non-grants fields", async () => {
-    await assertSucceeds(
+  it("denies ExecutiveCommittee updating even non-grants fields (manage:Position withdrawn)", async () => {
+    await assertFails(
       updateDoc(doc(as("u", ["ExecutiveCommittee"]), "positions/pos1"), {
         description: "Actualizada.",
       }),
     );
   });
-  it("allows ExecutiveCommittee to soft-delete a live position", async () => {
-    await assertSucceeds(
+  it("denies ExecutiveCommittee soft-deleting a live position (manage:Position withdrawn)", async () => {
+    await assertFails(
       updateDoc(doc(as("u", ["ExecutiveCommittee"]), "positions/pos_soft"), {
+        active: false,
+        deletedAt: new Date(),
+      }),
+    );
+  });
+  it("allows Admin to soft-delete a live position (the surviving authority)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_soft"), {
         active: false,
         deletedAt: new Date(),
       }),
@@ -1991,19 +2038,24 @@ describe("boardShowcase (public read, beacon-only write)", () => {
   });
 });
 
-// Rules derive the term from request.time.year() (UTC); compute it from the client
-// clock so this suite can't rot when the calendar year rolls over.
-const TERM = String(new Date().getUTCFullYear());
-
 describe("firestore.rules — member positions assignment", () => {
-  it("allows ExecutiveCommittee to assign an empty-grants cargo with self assignedBy", async () => {
-    await assertSucceeds(
+  it("denies ExecutiveCommittee assigning any cargo (the positions-only lane is gone)", async () => {
+    // CEL used to have a dedicated hasOnly(['positions']) lane. It was deleted with
+    // manage:Position; cargo assignment is Admin + manage:Member only, until PR 4's flag.
+    await assertFails(
       updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
         positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" } },
       }),
     );
   });
-  it("denies ExecutiveCommittee assigning a power-conferring cargo (Treasury)", async () => {
+  it("allows Membership to assign a grant-free cargo with self assignedBy", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "mem-uid" } },
+      }),
+    );
+  });
+  it("denies ExecutiveCommittee assigning a cargo at all (no member-write lane)", async () => {
     await assertFails(
       updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
         positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "exec-uid" } },
@@ -2017,13 +2069,6 @@ describe("firestore.rules — member positions assignment", () => {
       }),
     );
   });
-  it("allows Admin to assign a power-conferring cargo", async () => {
-    await assertSucceeds(
-      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), {
-        positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
-      }),
-    );
-  });
   it("denies a forged assignedBy (not the caller's uid)", async () => {
     await assertFails(
       updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), {
@@ -2031,12 +2076,11 @@ describe("firestore.rules — member positions assignment", () => {
       }),
     );
   });
-  it("denies ExecutiveCommittee touching non-position fields", async () => {
+  it("denies ExecutiveCommittee any member write, positions or otherwise", async () => {
+    // The hasOnly(['positions']) lane was CEL's only member-write authority. With it gone,
+    // read:Member is all they hold.
     await assertFails(
-      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
-        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" } },
-        name: "Hacked",
-      }),
+      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), { name: "Hacked" }),
     );
   });
   it("still allows Membership to edit non-position fields without assignedBy", async () => {
@@ -2044,10 +2088,10 @@ describe("firestore.rules — member positions assignment", () => {
       updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), { name: "Renamed" }),
     );
   });
-  it("denies a forged assignedBy on the ExecutiveCommittee path", async () => {
+  it("denies a forged assignedBy on the manage:Member path", async () => {
     await assertFails(
-      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
-        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "not-exec" } },
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "not-mem" } },
       }),
     );
   });
@@ -2075,32 +2119,75 @@ describe("firestore.rules — member positions assignment", () => {
     // INTENTIONAL: rules cannot iterate comisionIds, so comisión grants are NOT
     // gated here. The beacon onMemberWritten trust gate honors comisión power
     // grants only when assignedBy is an Admin (see apps/beacon claims-sync).
+    // Membership, not ExecutiveCommittee: CEL no longer has a member-write lane at all,
+    // so an EC context would pass this test for the wrong reason.
     await assertSucceeds(
-      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
-        positions: { [TERM]: { cargoId: null, comisionIds: ["pos1"], assignedBy: "exec-uid" } },
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: null, comisionIds: ["pos1"], assignedBy: "mem-uid" } },
       }),
     );
   });
   it("denies a non-Admin assigning a dangling cargoId (get() on missing position fails closed)", async () => {
     await assertFails(
-      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
-        positions: { [TERM]: { cargoId: "pos_ghost", comisionIds: [], assignedBy: "exec-uid" } },
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos_ghost", comisionIds: [], assignedBy: "mem-uid" } },
       }),
     );
   });
-  it("allows the production dot-path write shape (EC, current term, empty-grants cargo)", async () => {
+  it("allows the production dot-path write shape (Membership, current term, grant-free cargo)", async () => {
     // setPositions / toMemberUpdateDoc emit positions.<term> dot-paths, not a full
     // positions map — assert that exact production shape passes the rules.
     await assertSucceeds(
-      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
-        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" },
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "mem-uid" },
       }),
     );
   });
   it("denies the dot-path shape under a non-current term (past-term immutability)", async () => {
     await assertFails(
-      updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
-        "positions.2099": { cargoId: "pos_soft", comisionIds: [], assignedBy: "exec-uid" },
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m1"), {
+        "positions.2099": { cargoId: "pos_soft", comisionIds: [], assignedBy: "mem-uid" },
+      }),
+    );
+  });
+  // LAST in this block on purpose: the suite seeds once and never resets, and this write
+  // leaves members/m1 holding a power cargo. A Membership success case running after it
+  // would be denied by currentCargoGrantsEmpty() — the C1 guard — not by its own subject.
+  it("allows Admin to assign a power-conferring cargo", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
+      }),
+    );
+  });
+});
+
+describe("firestore.rules — replacing an already-assigned power cargo (C1)", () => {
+  it("BLOCKING: denies Membership replacing an Admin-granting cargo with a grant-free one", async () => {
+    // The de-elevation attack: the NEW cargo is grant-free, so the old cargoGrantsEmpty()
+    // check passed. currentCargoGrantsEmpty() is what looks at resource.data — the cargo
+    // being displaced — and denies the write.
+    await assertFails(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m_powercargo"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "mem-uid" },
+      }),
+    );
+  });
+
+  it("BLOCKING: denies Membership clearing an Admin-granting cargo to null", async () => {
+    // cargoId: null makes cargoGrantsEmpty() short-circuit true; only the old-side guard
+    // catches it.
+    await assertFails(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m_powercargo"), {
+        [`positions.${TERM}`]: { cargoId: null, comisionIds: [], assignedBy: "mem-uid" },
+      }),
+    );
+  });
+
+  it("allows Admin to replace a power cargo (the legitimate hand-over)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_powercargo"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "admin-uid" },
       }),
     );
   });
@@ -2292,16 +2379,19 @@ describe("firestore.rules — perm-based coarse gates", () => {
     );
   });
 
-  it("reconciled: Membership (via perms) can still create + update allies", async () => {
+  it("reconciled: Secretary (via perms) can create + update allies", async () => {
+    // Membership held create/update:Ally until the nine-role table moved the whole ally
+    // surface to Secretaría; this is the same seed-mints-a-perm-the-rules-honour check,
+    // one role over.
     await assertSucceeds(
-      setDoc(doc(as("mem-uid", ["Membership"]), "allies/a_mem"), {
+      setDoc(doc(as("sec-uid", ["Secretary"]), "allies/a_sec"), {
         companyName: "Aliado",
         active: true,
         deletedAt: null,
       }),
     );
     await assertSucceeds(
-      updateDoc(doc(as("mem-uid", ["Membership"]), "allies/a1"), { companyName: "Editado" }),
+      updateDoc(doc(as("sec-uid", ["Secretary"]), "allies/a1"), { companyName: "Editado" }),
     );
   });
 

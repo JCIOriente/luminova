@@ -88,6 +88,16 @@ service cloud.firestore {
       return assignedCargoId() == null
         || get(/databases/$(database)/documents/positions/$(assignedCargoId())).data.grants.size() == 0;
     }
+    // The OTHER side of cargoGrantsEmpty(): the cargo being REPLACED. assignedCargoId()
+    // reads request.resource.data — the post-write cargo — so without this a manage:Member
+    // holder could overwrite a president's positions.<term> with a grant-free cargo,
+    // claims-sync would resolve grants.length == 0, and the Admin claim would be gone with
+    // no way back but the Firebase console. Update-only: create has no prior resource.
+    function currentCargoGrantsEmpty() {
+      let prior = resource.data.get('positions', {}).get(currentTermKey(), {}).get('cargoId', null);
+      return prior == null
+        || get(/databases/$(database)/documents/positions/$(prior)).data.grants.size() == 0;
+    }
     // "the write changes this field" — deliberately NOT unchanged(): that compares
     // .get(field, null) on both sides, so writing an explicit null onto a doc that lacks
     // the key reads as unchanged and skips the gate, while affectedKeys() counts it as
@@ -111,7 +121,7 @@ service cloud.firestore {
     function positionsAssignmentSafe() {
       return positionsDelta().hasOnly([currentTermKey()])
         && assignedBySelf()
-        && (hasAnyRole(['Admin']) || cargoGrantsEmpty());
+        && (hasAnyRole(['Admin']) || (cargoGrantsEmpty() && currentCargoGrantsEmpty()));
     }
     // Create has no prior resource to diff, so it can't use positionsDelta(); it
     // applies the same self-stamp + power-cargo-Admin-only gate to any positions it
@@ -324,11 +334,6 @@ service cloud.firestore {
         && resource.data.get('active', true) == true
         && selfProfileValid(request.resource.data.diff(resource.data).affectedKeys())
         && softDeleteSafe();
-      // ExecutiveCommittee may edit only position assignments (org chart), nothing else.
-      allow update: if hasAnyRole(['ExecutiveCommittee'])
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['positions'])
-        && softDeleteSafe()
-        && positionsAssignmentSafe();
       allow delete: if false;
     }
 
