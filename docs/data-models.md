@@ -82,7 +82,7 @@ standing — a `Desafiliado` member is **not** deleted and still appears in the 
 
 **`assignedBy`**: the uid of whoever wrote the term's assignment. The beacon `onMemberWritten` trigger uses it as a trust gate: the **cargo's** power grants (`Position.grants` non-empty) are included in the recomputed `roles` custom claim only when `assignedBy` is an Admin (`comisionIds` never confers claims — comisiones are chips-only). Absent on pre-K4 docs → treated as untrusted (power grants dropped; member receives only `['Member']`). Because the field is shared per term and rules force it to the writer, non-Admin positions writes are denied outright while a power cargo is assigned — a permitted edit can never silently restamp away Admin-granted power.
 
-**Custom claims (`roles` + `perms`)**: recomputed by the beacon `onMemberWritten` trigger (`onDocumentWritten('members/{id}')`) on every member write. The `roles` claim is `['Member', ...trusted current-term grants]` in canonical `ROLES` order; the `perms` claim holds the coarse `action:Subject` permissions resolved from role definitions (`roles` collection) + `permissionOverrides` (cap 30, fail-closed). An existing `Scanner` role (event-scoped, set by `setUserRoles`) is preserved and `scannerEventIds` carried through unchanged. Only applies to provisioned members (`uid` present). The `onRoleWritten` trigger re-syncs claims when a role definition changes.
+**Custom claims (`roles` + `perms`)**: recomputed by the beacon `onMemberWritten` trigger (`onDocumentWritten('members/{id}')`) on every member write. The `roles` claim is `['Member', ...trusted current-term grants]` in canonical `ROLES` order; the `perms` claim holds the coarse `action:Subject` permissions resolved from role definitions (`roles` collection) + `permissionOverrides` (cap 30, fail-closed). An existing `Scanner` role (set by `setUserRoles`) is preserved; event scoping was removed, so a Scanner's authority is the coarse `checkIn:Attendance` perm plus the Attendee-only conjunct in `firestore.rules`. Only applies to provisioned members (`uid` present). The `onRoleWritten` trigger re-syncs claims when a role definition changes.
 
 **Soft delete**: Never hard-delete members. Set `active: false` and `deletedAt: serverTimestamp()`.
 
@@ -158,7 +158,7 @@ hard-coded role checks. `firestore.rules` is the source of truth; summary:
 
 | Collection | Read | Create / Update | Delete |
 |---|---|---|---|
-| `members` | perm `read:Member`, or self (own `uid`) | perm-gated (`create/update:Member`); ExecutiveCommittee (positions-only); self (profilePicture only) | never (soft-delete only) |
+| `members` | perm `read:Member`, or self (own `uid`) | perm-gated (`create/update:Member`); self (profilePicture only) | never (soft-delete only) |
 | `positions` | signed-in | perm-gated; non-empty `grants` = Admin-only | never (soft-delete only) |
 | `roles` | signed-in | Admin (custom roles only; built-ins seeded via admin SDK; `locked` role immutable) | never |
 | `allies` | perm `read:Ally` | perm-gated | never (soft-delete only) |
@@ -167,7 +167,7 @@ hard-coded role checks. `firestore.rules` is the source of truth; summary:
 | `terms` | signed-in | Admin | never |
 | `programs` / `projects` | signed-in | perm-gated initiative rules (+ direction constraints) | never |
 | `activities` | signed-in | perm-gated, or parent-initiative direction (`directionUids`) | never |
-| `checkIns` | signed-in | `checkIn:Attendance` holders, or Scanner (Attendee-only on assigned activities); bound to the activity's check-in window | same authority as create (undo); update never |
+| `checkIns` | signed-in | `checkIn:Attendance` holders; a Scanner among them is confined to `Attendee` rows unless it also holds `manage:Attendance`; bound to the activity's check-in window | same authority as create (undo); update never |
 | `participations` | signed-in | engine only (`if false`) | never |
 | `memberPoints` | signed-in | engine only (`if false`) | never |
 | `showcase` / `allyShowcase` | public | engine only (`if false`) | never |
@@ -175,19 +175,44 @@ hard-coded role checks. `firestore.rules` is the source of truth; summary:
 | `board` | public | Admin | never |
 | `*` | deny | deny | deny |
 
-> **members write rules (three tiers):**
+> **members write rules (two tiers):**
 > 1. Permission holders (`update:Member`) — full update (excluding `totalPoints` and `uid`, which are immutable from client writes).
-> 2. ExecutiveCommittee — may update only the `positions` map; all other fields must be unchanged.
-> 3. Self — may update only `profilePicture` (own doc via matching `uid`).
+> 2. Self — may update only `profilePicture` (own doc via matching `uid`).
+>
+> The ExecutiveCommittee positions-only lane was removed with `manage:Position`: cargo
+> assignment is now Admin + `manage:Member` only.
 >
 > **Positions-update constraints (all tiers):** any write touching `positions` must satisfy `positionsAssignmentSafe()`:
 > - Only the **current term key** (`string(request.time.year())`) may change — past terms are read-only for all client writes (admin-SDK/console for historical corrections).
 > - `positions.<currentTerm>.assignedBy` must equal `request.auth.uid` (writer stamps themselves).
-> - Non-Admin writers may only assign a cargo whose `grants` array is empty (no power conferral); Admin is unrestricted.
+> - Non-Admin writers may only assign a cargo whose `grants` array is empty (no power conferral) **and** may only displace a cargo whose `grants` array is empty (`currentCargoGrantsEmpty()`) — otherwise a `manage:Member` holder could overwrite a president's cargo with a grant-free one and strip the Admin claim. Admin is unrestricted.
 > - These constraints close the "ride-along" attack where a non-Admin sneaks a power cargo under a different term key in the same write.
 > - Comisión `grants` are not loop-checkable in rules — instead the invariant is structural: comisiones can never hold grants (`comisionGrantsEmpty()` on positions writes) and claims-sync ignores `comisionIds` for grants entirely.
 >
-> **positions write rule:** Admin may write any field including `grants`, except that a `Comision`-category position must keep `grants: []` (all tiers, structural invariant). ExecutiveCommittee may create/update only when `grants` is empty or unchanged — prevents self-escalation.
+> **positions write rule:** position writes are `manage:Position` holders only (Admin, or a custom role granted it). Admin may write any field including `grants`, except that a `Comision`-category position must keep `grants: []` (all tiers, structural invariant).
+>
+> **built-in roles:** nine keys — `Admin`, `Membership`, `Treasury`, `ExecutiveCommittee`,
+> `ProjectManager`, `ActivityManager`, `Secretary`, `Scanner`, `Member` — with their coarse
+> perms in `packages/types/src/role-definition.ts` (`BUILT_IN_ROLE_PERMS`), mirrored for the
+> plain-Node seed scripts in `tools/scripts/lib/role-seed.mjs`. `seedRoles` only ever
+> CREATES; to move an existing production doc onto a new snapshot run the
+> `reseedBuiltInRolePerms` callable (see `apps/beacon/CLAUDE.md`). A role key added here
+> needs `seedRoles` FIRST (it creates the doc) and the reseed SECOND (it only updates) —
+> run in the other order and the new role stays permanently unsynced.
+>
+> **Deploy ordering for the nine-role rollout.** Rules and functions deploy separately; one
+> PR is not one atomic deploy.
+> 1. Deploy **functions** — `reseedBuiltInRolePerms` and the claims-sync changes.
+> 2. Run `seedRoles` (creates the two new role docs), then `reseedBuiltInRolePerms` with
+>    `dryRun: true`, review the preview, then run it with `confirm: "overwrite-builtin-roles"`.
+> 3. Run `recomputeAllClaims` — the observable backstop for members stranded by an
+>    `onRoleWritten` timeout.
+> 4. Deploy **rules** last.
+>
+> Rules-before-reseed leaves a window where the CEL positions lane is gone while CEL role
+> docs still carry `manage:Position`: the positions form renders for CEL users whose writes
+> are already denied — render-then-die. Hosting deploys after the reseed for the same
+> reason (a Scanner's UI check-in affordances read the reseeded `perms` claim).
 >
 > **roles display text:** a role doc's `name` and `description` are the **single source of truth** for what every UI surface renders — the cargo table, the cargo grants picker, the member permissions panel and `/permisos` all resolve through `roleDisplay()` (`apps/backstage/src/lib/role-display.ts`). `ROLE_LABELS` / `ROLE_DESCRIPTIONS` in `@luminova/types` are a **seed snapshot only**, read as a bootstrap fallback when no doc exists for a built-in key (fresh project, pre-seed); both seeders (`apps/beacon/src/seed-roles.ts`, `tools/scripts/lib/role-seed.mjs`) write them at create time and never clobber an admin's later rename. Two eslint rules in the root `eslint.config.js` (`no-restricted-imports` on the snapshot constants + `no-restricted-syntax` on a role-keyed label map) fail `pnpm lint` if another backstage module declares a second role table; `docs/reuse-first-ui.md` lists the shapes they do and do not catch.
 
@@ -341,8 +366,9 @@ interface CheckIn {
 ```
 
 Rules: read = signed-in; create = `checkIn:Attendance` permission holders
-(Admin/ProjectManager or a custom role), or Scanner (Attendee-only) when
-`activityId ∈ token.scannerEventIds`; non-Admin creators are bound to the activity's
+(Admin/ProjectManager/ActivityManager or a custom role); a Scanner is confined to
+`Attendee` rows (`manage:Attendance` is the escape hatch) — event scoping was removed;
+non-Admin creators are bound to the activity's
 check-in day (same Bolivia-local day — Admin may backdate), and for everyone the
 activity must not be Cancelada nor its parent Finalizado. **No update** — but **delete is allowed** with the same authority +
 window binding (undo a mis-scan; the beacon reconciles points on delete). A role

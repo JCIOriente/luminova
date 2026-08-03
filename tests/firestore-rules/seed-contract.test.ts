@@ -61,9 +61,31 @@ describe("seed claims satisfy firestore.rules", () => {
     await assertSucceeds(getDoc(doc(db, "allies/a1")));
   });
 
-  it("a seed:roles Membership grant can read allies (read:Ally)", async () => {
+  it("a seed:roles Membership grant is now DENIED allies (Secretaría owns them)", async () => {
     const db = as("mem-uid", { roles: ["Membership"], perms: permsForRoles(["Membership"]) });
+    await assertFails(getDoc(doc(db, "allies/a1")));
+  });
+
+  it("a seed:roles Membership grant still reads members (manage:Member)", async () => {
+    const db = as("mem-uid", { roles: ["Membership"], perms: permsForRoles(["Membership"]) });
+    await assertSucceeds(getDoc(doc(db, "members/m1")));
+  });
+
+  it("a seed:roles Secretary grant reads allies (manage:Ally covers read)", async () => {
+    // The new owner of the ally surface. Proves the seed producer mints a perm the rules
+    // actually honour — the PR #107 class of bug, one role over.
+    const db = as("sec-uid", { roles: ["Secretary"], perms: permsForRoles(["Secretary"]) });
     await assertSucceeds(getDoc(doc(db, "allies/a1")));
+  });
+
+  it("a seed:roles ActivityManager grant is denied members and allies", async () => {
+    // Activity-only slice: neither collection is in its capability set.
+    const db = as("act-uid", {
+      roles: ["ActivityManager"],
+      perms: permsForRoles(["ActivityManager"]),
+    });
+    await assertFails(getDoc(doc(db, "members/m1")));
+    await assertFails(getDoc(doc(db, "allies/a1")));
   });
 
   it("a seed:roles Treasury grant can read members (read:Member)", async () => {

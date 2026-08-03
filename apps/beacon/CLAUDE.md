@@ -45,6 +45,48 @@ affected members' aggregates.
 
 Admin-guarded custom-claim assignment.
 
+### `reseedBuiltInRolePerms` — `onCall`
+
+Admin-guarded. Moves the LIVE `roles/{id}` docs onto the current `BUILT_IN_ROLE_PERMS`
+snapshot. `seedRoles` uses `create()` and swallows `ALREADY_EXISTS` by design, so editing
+the snapshot alone never reaches production — this is the path that does.
+
+**OPERATOR SEQUENCE — both callables, in this order.** This one is **update-only**: it
+never creates a missing doc. A newly added built-in role (`ActivityManager`, `Secretary`)
+has no `roles/{id}` doc in production, so a reseed alone will never bring it into
+existence — it comes back as `skipped` reason `missing` (and in `failed`), and the role
+stays a "sin sincronizar" row on `/permisos` forever. Run:
+
+1. `seedRoles` — create-only; brings the new role docs into existence with their seed
+   perms, name and description. Leaves every existing doc untouched.
+2. `reseedBuiltInRolePerms` — update-only; moves the existing docs onto the new snapshot.
+3. `recomputeAllClaims` — the observable backstop (see BLAST RADIUS below).
+
+Skipping step 1 is the failure mode to watch for; skipping step 2 leaves every incumbent
+role on its old perms.
+
+- Writes **`permissions` only.** Never `name`, never `description`: the doc owns display
+  text, which is what lets a reseed coexist with role renaming. An operator re-running it
+  must not silently revert every rename.
+- Requires `confirm: "overwrite-builtin-roles"`. `requireAdmin` is the same gate the
+  read-only admin ops use; a destructive one should not be one click away.
+- `dryRun: true` writes nothing and returns per-doc `{id, current, proposed}`.
+- Skips `locked === true`. The admin SDK bypasses the `locked` rule the client is held to,
+  so `roles/Admin` is excluded explicitly rather than by assumption.
+- One `WriteBatch` (≤ 9 docs, far under the 500 limit). The doc-by-doc loop would leave half
+  the role set on new perms and half on old, with fan-outs already fired for the first half
+  and no rollback.
+- Returns `{ok, dryRun, applied: [{id, changedFields}], skipped, failed}`. `skipped` reasons
+  are `locked` / `unchanged` / `not-built-in` / `missing`; `failed` is the operator
+  shorthand for exactly the `missing` ids — run `seedRoles` first.
+
+**BLAST RADIUS.** `onRoleWritten` scans the **entire** members collection for any doc
+carrying a `builtInKey`. Five roles changing perms means five full scans × N members of
+sequential `getUser` plus possible `setCustomUserClaims`, inside a 540 s budget with
+`retry: false`. A timeout strands the members not yet reached in that scan. **Operator
+instruction: run `recomputeAllClaims` afterwards as the observable backstop.** Re-running
+the reseed is free — `roleClaimsChanged` short-circuits a no-op write.
+
 ## Architecture
 
 - **Pure helpers** (`award-points/derive.ts`, `aggregate.ts`, `check-in.ts`,
