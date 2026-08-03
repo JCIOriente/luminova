@@ -38,9 +38,9 @@ export const CEL_POSITIONS: CelPositionSeed[] = [
     title: "Secretario",
     titleFemale: "Secretaria",
     category: "CEL",
-    grants: ["Membership"],
+    grants: ["Secretary", "Membership"],
     term: null,
-    description: "Actas, registros y gestión de miembros.",
+    description: "Actas, comunicación del capítulo y gestión de miembros.",
   },
   {
     title: "Tesorero",
