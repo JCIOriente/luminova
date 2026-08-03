@@ -53,6 +53,35 @@ const RESTRICTED_SYNTAX_BASE = [
   },
 ];
 
+// A second hand-written role -> Spanish-label map is the bug this repo already shipped
+// (features/positions/lib/permission-labels.ts): a role rename in /permisos changed one
+// screen and not the others. roleDisplay()/roleOptions() in apps/backstage/src/lib/
+// role-display.ts are the only supported way to obtain a role's label.
+//
+// These run on the real TypeScript AST, which is why they replaced the hand-rolled text
+// scanner that used to live in role-display.guard.test.ts: that scanner scored the actual
+// permission-labels.ts as clean (its values are objects, not string literals) and lost
+// brace depth on any file containing a regex literal.
+//
+// Two shapes, because the map that shipped and the map you'd write next look different:
+//   1. `Admin: { label: "…", description: "…" }` — the shape that actually shipped.
+//   2. `Admin: "Administración"` — the flat shape.
+// Both key forms are covered (`Admin:` and `"Admin":`).
+const ROLE_KEY = "/^(Admin|Membership|Treasury|ExecutiveCommittee|ProjectManager|Scanner|Member)$/";
+const ROLE_KEYED_PROPERTY = `Property:matches([key.name=${ROLE_KEY}], [key.value=${ROLE_KEY}])`;
+const ROLE_DISPLAY_MESSAGE =
+  "Hand-written role -> label map. Call roleDisplay()/roleOptions() from apps/backstage/src/lib/role-display.ts, which reads the live roles/{id} doc. If this really is a per-role config that is not display text, add `// eslint-disable-next-line no-restricted-syntax` with a one-line reason.";
+const ROLE_LABEL_MAP_SELECTORS = [
+  {
+    selector: `${ROLE_KEYED_PROPERTY} > ObjectExpression > Property:matches([key.name=/^(label|name|description)$/], [key.value=/^(label|name|description)$/])`,
+    message: ROLE_DISPLAY_MESSAGE,
+  },
+  {
+    selector: `${ROLE_KEYED_PROPERTY}:matches([value.type="Literal"][value.raw=/^["']/], [value.type="TemplateLiteral"])`,
+    message: ROLE_DISPLAY_MESSAGE,
+  },
+];
+
 // Asking a raw ability directly instead of going through lib/authz/probe. Matched on the
 // ability RECEIVER, not on `.can` generally, because `gate.can(action, "Subject")` — the
 // useCan API — is the correct spelling and must not be flagged. Shared by the two authz
@@ -133,6 +162,10 @@ export default tseslint.config(
         "error",
         ...RESTRICTED_SYNTAX_BASE,
         ...RAW_ABILITY_CALL_SELECTORS,
+        // Spread here rather than declared in a block of their own: flat config REPLACES a
+        // rule's options when a later block matches the same file, so a separate backstage
+        // no-restricted-syntax block would silently drop everything above.
+        ...ROLE_LABEL_MAP_SELECTORS,
         {
           // Namespace form too: `import * as ctx` then `ctx.useAbility()` was a verified
           // way around a specifier-only ban.
@@ -151,7 +184,56 @@ export default tseslint.config(
     files: ["apps/backstage/src/lib/authz/**", "apps/backstage/src/components/nav-config.ts"],
     ignores: ["apps/backstage/src/lib/authz/probe.ts"],
     rules: {
-      "no-restricted-syntax": ["error", ...RESTRICTED_SYNTAX_BASE, ...RAW_ABILITY_CALL_SELECTORS],
+      "no-restricted-syntax": [
+        "error",
+        ...RESTRICTED_SYNTAX_BASE,
+        ...RAW_ABILITY_CALL_SELECTORS,
+        ...ROLE_LABEL_MAP_SELECTORS,
+      ],
+    },
+  },
+  {
+    // The two blocks above exempt test files (they build abilities and render raw elements
+    // on purpose) and lib/authz/probe.ts (the one place allowed to hold a raw ability),
+    // which would leave those files free to hand-write a label map. Give them the role
+    // selectors alone. authz tests are excluded because the authz block already carries the
+    // selectors for that directory — flat config replaces a rule's options, it never merges,
+    // so listing them here would drop the raw-ability selectors they currently get.
+    files: ["apps/backstage/src/**/*.test.{ts,tsx}", "apps/backstage/src/lib/authz/probe.ts"],
+    ignores: ["apps/backstage/src/lib/authz/**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": ["error", ...ROLE_LABEL_MAP_SELECTORS],
+    },
+  },
+  {
+    // The seed snapshot (ROLE_LABELS / ROLE_DESCRIPTIONS in @luminova/types) is read ONLY
+    // when a role doc does not exist yet. lib/role-display.ts owns that fallback; any other
+    // backstage module importing them is a second source of truth for a role's Spanish name.
+    // The deep subpath is listed alongside the barrel because packages/types/package.json
+    // exports "./role-definition" separately — banning only the barrel would be bypassed by
+    // changing one specifier.
+    files: ["apps/backstage/src/**/*.{ts,tsx}"],
+    ignores: ["apps/backstage/src/lib/role-display.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@luminova/types",
+              importNames: ["ROLE_LABELS", "ROLE_DESCRIPTIONS"],
+              message:
+                "Role display text has one source: roleDisplay()/roleOptions() in apps/backstage/src/lib/role-display.ts, which reads the live roles/{id} doc and falls back to this snapshot only when none is seeded.",
+            },
+            {
+              name: "@luminova/types/role-definition",
+              importNames: ["ROLE_LABELS", "ROLE_DESCRIPTIONS"],
+              message:
+                "Role display text has one source: roleDisplay()/roleOptions() in apps/backstage/src/lib/role-display.ts, which reads the live roles/{id} doc and falls back to this snapshot only when none is seeded.",
+            },
+          ],
+        },
+      ],
     },
   },
   {

@@ -6,6 +6,6 @@ export function useRoles(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: roleKeys.all,
     queryFn: () => new RoleRepository().getAll(),
-    enabled: options?.enabled,
+    enabled: options?.enabled ?? true,
   });
 }

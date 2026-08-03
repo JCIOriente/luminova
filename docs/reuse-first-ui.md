@@ -289,6 +289,49 @@ graph (backstage index budget).
 
 `cn()` (class merge, `lib/cn.ts`) and `initials()` (`lib/initials.ts`).
 
+### Role display text (backstage)
+
+| Helper | Import path | Use for |
+|---|---|---|
+| `roleDisplay(key, roleDocs)` | `src/lib/role-display.ts` | A built-in role's Spanish name + description |
+| `roleOptions(roleDocs)` | `src/lib/role-display.ts` | The option list for a role/grants picker |
+
+These are the **only** supported way to obtain a role's label. Both resolve from the
+live `roles/{id}` doc (`useRoles()`), falling back to the `@luminova/types` seed
+snapshot only when no doc exists for the key. Never import `ROLE_LABELS` /
+`ROLE_DESCRIPTIONS` outside `role-display.ts`, and never hand-write a role→label map —
+that drift is exactly the bug this replaced. `roleOptions` derives from the `ROLES`
+union, not the doc list, so a missing or inactive role doc can never hide a grant
+already stored on a cargo.
+
+Two eslint rules in the root `eslint.config.js` enforce this on every `pnpm lint`, over
+the real TypeScript AST (`no-restricted-imports` + two `no-restricted-syntax` esquery
+selectors, scoped to `apps/backstage/src/**` and exempting `lib/role-display.ts`). Each
+row below was measured by writing the shape to a file under `apps/backstage/src` and
+running `pnpm --filter backstage exec eslint` on it:
+
+| Shape | Caught? |
+|---|---|
+| Importing `ROLE_LABELS` / `ROLE_DESCRIPTIONS` outside `role-display.ts` — from `@luminova/types` **or** its `/role-definition` subpath | yes |
+| A namespace import (`import * as T from "@luminova/types"`) | yes |
+| `Admin: { label: "…", description: "…" }` — the shape that actually shipped | yes |
+| `Admin: "Administrador"`, quoted key `"Admin":`, or a template-literal value | yes |
+| Any of the above with comments between entries, or after a regex literal | yes |
+| Even a single role key — there is no 3-key threshold | yes |
+| A `switch (role)` returning labels; an array of `[role, label]` tuples; a `Map` | **no** |
+| A role key bound to an identifier or a call (`Admin: ADMIN`) | **no** |
+| A computed key (`["Ad" + "min"]: "…"`) | **no** |
+| Label text typed outside a role-keyed property — JSX text, a lone `const` | **no** |
+| A label map living outside `apps/backstage/src` and imported in | **no** |
+
+The rules are a tripwire for the shapes a person actually writes, not a proof. The real
+protection is structural: `roleDisplay` / `roleOptions` are the only way to obtain a
+label, so a hand-typed map has no call site to plug into. For a legitimate per-role
+config that is not display text (an icon map, a nav-target map), put
+`// eslint-disable-next-line no-restricted-syntax` with a one-line reason above the
+entry — as `features/permissions/lib/permission-matrix.ts` does for `SUBJECT_LABELS`,
+which is keyed by CASL Subject and only *looks* role-keyed because `Member` is both.
+
 ---
 
 ## 5. Decision checklist — before you add anything new

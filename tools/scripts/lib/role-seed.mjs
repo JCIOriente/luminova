@@ -53,6 +53,17 @@ export const ROLE_LABELS = {
   Member: "Miembro",
 };
 
+/** @type {Record<string, string>} */
+export const ROLE_DESCRIPTIONS = {
+  Admin: "Acceso total a la plataforma.",
+  Membership: "Crear y editar miembros; ver aliados, eventos y puntos.",
+  Treasury: "Gestionar pagos; ver miembros y puntos.",
+  ExecutiveCommittee: "Ver gestión del capítulo; administrar cargos y comisiones.",
+  ProjectManager: "Gestionar proyectos, programas y actividades; registrar asistencia.",
+  Scanner: "Registrar asistencia en actividades asignadas.",
+  Member: "Ver y editar su propio perfil; ver puntos y eventos.",
+};
+
 /** Effective coarse perms for a set of built-in roles: deduped, sorted union of
  *  each role's BUILT_IN_ROLE_PERMS. Mirrors resolveEffectivePerms in
  *  @luminova/auth for the built-in, no-override path the seeds use. */
@@ -65,7 +76,7 @@ export function buildBuiltInRoleDocs() {
   return Object.entries(BUILT_IN_ROLE_PERMS).map(([role, permissions]) => ({
     id: role,
     name: ROLE_LABELS[role],
-    description: "",
+    description: ROLE_DESCRIPTIONS[role],
     builtIn: true,
     builtInKey: role,
     permissions,

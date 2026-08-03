@@ -188,6 +188,8 @@ hard-coded role checks. `firestore.rules` is the source of truth; summary:
 > - Comisión `grants` are not loop-checkable in rules — instead the invariant is structural: comisiones can never hold grants (`comisionGrantsEmpty()` on positions writes) and claims-sync ignores `comisionIds` for grants entirely.
 >
 > **positions write rule:** Admin may write any field including `grants`, except that a `Comision`-category position must keep `grants: []` (all tiers, structural invariant). ExecutiveCommittee may create/update only when `grants` is empty or unchanged — prevents self-escalation.
+>
+> **roles display text:** a role doc's `name` and `description` are the **single source of truth** for what every UI surface renders — the cargo table, the cargo grants picker, the member permissions panel and `/permisos` all resolve through `roleDisplay()` (`apps/backstage/src/lib/role-display.ts`). `ROLE_LABELS` / `ROLE_DESCRIPTIONS` in `@luminova/types` are a **seed snapshot only**, read as a bootstrap fallback when no doc exists for a built-in key (fresh project, pre-seed); both seeders (`apps/beacon/src/seed-roles.ts`, `tools/scripts/lib/role-seed.mjs`) write them at create time and never clobber an admin's later rename. Two eslint rules in the root `eslint.config.js` (`no-restricted-imports` on the snapshot constants + `no-restricted-syntax` on a role-keyed label map) fail `pnpm lint` if another backstage module declares a second role table; `docs/reuse-first-ui.md` lists the shapes they do and do not catch.
 
 ---
 

@@ -1,7 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { RoleDefinition } from "@luminova/types";
+import { roleKeys } from "../../permissions/hooks/role-keys";
 import { PositionForm } from "./position-form";
+
+// PositionForm resolves its grant options from the live role docs via useRoles().
+function render(ui: ReactElement, roleDocs?: RoleDefinition[]) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (roleDocs) client.setQueryData(roleKeys.all, roleDocs);
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 describe("PositionForm", () => {
   it("renders all fields for an Admin caller (CEL default)", () => {
@@ -92,6 +103,36 @@ describe("PositionForm", () => {
         description: "Vela por el código de ética.",
       }),
     );
+  });
+});
+
+describe("PositionForm grant options are total", () => {
+  it("still renders a stored grant whose role doc is not in the cache", () => {
+    // The real-world consequence of deriving the option list from the doc list: MultiSelect
+    // renders chips by filtering options against the stored value, so Tesorería would
+    // silently vanish from the picker while `positions.grants` still carries it live.
+    render(
+      <PositionForm
+        submitLabel="Guardar"
+        canEditGrants
+        defaultValues={{ title: "Tesorero", description: "Gestiona pagos.", grants: ["Treasury"] }}
+        onSubmit={vi.fn()}
+      />,
+      [
+        {
+          id: "ProjectManager",
+          name: "Proyectos",
+          description: "",
+          builtIn: true,
+          builtInKey: "ProjectManager",
+          permissions: [],
+          locked: false,
+          active: true,
+          deletedAt: null,
+        },
+      ],
+    );
+    expect(screen.getByLabelText("Quitar Tesorería")).toBeInTheDocument();
   });
 });
 

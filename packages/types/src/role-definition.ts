@@ -75,3 +75,17 @@ export const ROLE_LABELS: Record<Role, string> = {
   Scanner: "Escáner",
   Member: "Miembro",
 };
+
+/** Spanish one-line descriptions for the built-in roles — seeded into the role doc's
+ *  `description` field. Like ROLE_LABELS this is a SEED SNAPSHOT: once a doc exists the
+ *  doc's own description is what every surface renders. Text carried verbatim from the
+ *  former apps/backstage PERMISSION_ROLE_INFO map. */
+export const ROLE_DESCRIPTIONS: Record<Role, string> = {
+  Admin: "Acceso total a la plataforma.",
+  Membership: "Crear y editar miembros; ver aliados, eventos y puntos.",
+  Treasury: "Gestionar pagos; ver miembros y puntos.",
+  ExecutiveCommittee: "Ver gestión del capítulo; administrar cargos y comisiones.",
+  ProjectManager: "Gestionar proyectos, programas y actividades; registrar asistencia.",
+  Scanner: "Registrar asistencia en actividades asignadas.",
+  Member: "Ver y editar su propio perfil; ver puntos y eventos.",
+};
