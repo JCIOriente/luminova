@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { boardHomeLayout, LAYOUT_ROLES, type WidgetKey } from "./board-home-layout";
+import { ROLES } from "@luminova/types";
+import { boardHomeLayout, LAYOUT_ROLES, PRECEDENCE, type WidgetKey } from "./board-home-layout";
 
 const DEFAULT: WidgetKey[] = [
   "headerActions",
@@ -62,11 +63,24 @@ describe("boardHomeLayout", () => {
     expect(out).toContain("quickActions");
   });
 
-  it("empty roles fall back to default", () => {
-    expect(boardHomeLayout([])).toEqual(DEFAULT);
+  it("every ROLES key carries its own layout (no role falls through to the full admin default)", () => {
+    // The old Partial<Record> meant an unlisted role got DEFAULT_LAYOUT — the FULL admin
+    // dashboard, KPI + chart included, for someone who may not be allowed to run those
+    // queries. Exhaustiveness is now a compile error; this pins the runtime side too.
+    expect([...LAYOUT_ROLES].sort()).toEqual([...ROLES].sort());
+    for (const role of ROLES) {
+      if (role === "Admin") continue; // Admin's layout IS the full default, by design.
+      expect(boardHomeLayout([role]), role).not.toEqual(DEFAULT);
+    }
   });
 
-  it("unknown role falls back to default", () => {
-    expect(boardHomeLayout(["Scanner"])).toEqual(DEFAULT);
+  it("PRECEDENCE ranks every ROLES key exactly once", () => {
+    // boardHomeLayout picks the lead layout from PRECEDENCE; a role missing from it can
+    // never lead, so a user holding only that role silently borrows another's ordering.
+    expect([...PRECEDENCE].sort()).toEqual([...ROLES].sort());
+  });
+
+  it("still falls back to the default when the caller has no roles at all", () => {
+    expect(boardHomeLayout([])).toEqual(DEFAULT);
   });
 });
