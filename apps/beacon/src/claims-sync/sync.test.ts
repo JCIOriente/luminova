@@ -6,7 +6,7 @@ import { ACTIONS, SUBJECTS } from "@luminova/types/permission";
 import { syncMemberClaims, type ClaimsSyncDeps, type MemberClaims } from "./sync.js";
 import { parseMember } from "./parse-member.js";
 
-type Claims = { roles: Role[]; perms?: PermissionCode[]; scannerEventIds?: string[] };
+type Claims = { roles: Role[]; perms?: PermissionCode[] };
 
 /** Expected coarse perms for a set of built-in roles via the seed snapshot
  *  (independent union+sort, so the assertion isn't tautological with the impl). */
@@ -107,11 +107,13 @@ describe("syncMemberClaims", () => {
     expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
   });
 
-  it("preserves Scanner + scannerEventIds while recomputing org roles + perms", async () => {
+  it("preserves the Scanner role while recomputing org roles + perms", async () => {
+    // The ROLE survives a positions-driven recompute (it is not position-derived); the
+    // removed scannerEventIds claim does not come back.
     const { deps, writes } = fakeDeps({
       positions: { "pos-tes": { grants: ["Treasury"] } },
       userRoles: { "admin-uid": ["Admin"] },
-      existing: { "target-uid": { roles: ["Member", "Scanner"], scannerEventIds: ["e1"] } },
+      existing: { "target-uid": { roles: ["Member", "Scanner"] } },
     });
     await syncMemberClaims(
       deps,
@@ -124,7 +126,6 @@ describe("syncMemberClaims", () => {
     expect(writes["target-uid"]).toEqual({
       roles: ["Treasury", "Scanner", "Member"],
       perms: permsFor(["Treasury", "Scanner", "Member"]),
-      scannerEventIds: ["e1"],
     });
   });
 
@@ -222,7 +223,15 @@ describe("syncMemberClaims", () => {
     // Union of the custom role's perms with the Member built-in reads.
     expect(writes["target-uid"]).toEqual({
       roles: ["Member"],
-      perms: ["manage:Ally", "read:Activity", "read:Member", "read:Position", "read:Program"],
+      perms: [
+        "manage:Ally",
+        "read:Activity",
+        "read:Member",
+        "read:MemberPoints",
+        "read:Position",
+        "read:Program",
+        "read:Project",
+      ],
     });
   });
 
@@ -242,11 +251,17 @@ describe("syncMemberClaims", () => {
       },
       "2026",
     );
-    // Treasury+Member reads = read:Member, read:MemberPoints, read:Activity, read:Program;
-    // +manage:Position, -read:Member.
+    // Treasury+Member reads = read:Member, read:MemberPoints, read:Activity, read:Program,
+    // read:Project; +manage:Position, -read:Member.
     expect(writes["target-uid"]).toEqual({
       roles: ["Treasury", "Member"],
-      perms: ["manage:Position", "read:Activity", "read:MemberPoints", "read:Program"],
+      perms: [
+        "manage:Position",
+        "read:Activity",
+        "read:MemberPoints",
+        "read:Program",
+        "read:Project",
+      ],
     });
   });
 
@@ -267,11 +282,11 @@ describe("syncMemberClaims", () => {
       },
       "2026",
     );
-    // Live Treasury doc was edited down to just read:Member (not the seed default, so
-    // read:MemberPoints is absent); Member's seed reads still union in.
+    // Live Treasury doc was edited down to just read:Member (not the seed default); Member's
+    // seed reads still union in, and they now include read:MemberPoints + read:Project.
     expect(writes["target-uid"]).toEqual({
       roles: ["Treasury", "Member"],
-      perms: ["read:Activity", "read:Member", "read:Program"],
+      perms: ["read:Activity", "read:Member", "read:MemberPoints", "read:Program", "read:Project"],
     });
   });
 

@@ -12,7 +12,6 @@ export interface ProvisionInput {
 
 interface RawClaims {
   roles?: unknown;
-  scannerEventIds?: unknown;
 }
 
 export function validateProvisionInput(data: unknown): ProvisionInput {
@@ -23,20 +22,13 @@ export function validateProvisionInput(data: unknown): ProvisionInput {
   return { memberId: raw.memberId };
 }
 
-/** Merge a role into existing custom claims without clobbering other roles or
- *  scannerEventIds. */
-export function nextClaims(
-  existing: RawClaims | undefined,
-  role: Role,
-): { roles: Role[]; scannerEventIds?: string[] } {
+/** Merge a role into existing custom claims without clobbering other roles. */
+export function nextClaims(existing: RawClaims | undefined, role: Role): { roles: Role[] } {
   const current = Array.isArray(existing?.roles)
     ? (existing.roles as unknown[]).filter((r): r is Role => isValidRole(r))
     : [];
   const roles = current.includes(role) ? current : [...current, role];
-  const scannerEventIds = Array.isArray(existing?.scannerEventIds)
-    ? (existing.scannerEventIds as unknown[]).filter((s): s is string => typeof s === "string")
-    : undefined;
-  return scannerEventIds ? { roles, scannerEventIds } : { roles };
+  return { roles };
 }
 
 export interface ProvisionUser {
@@ -60,14 +52,13 @@ export interface ProvisionDeps {
 /** Claims carried over when adopting an Auth account not currently linked to
  *  the member (fresh provision, or replacing a stale link whose account was
  *  deleted). An orphaned account may still hold org roles (even Admin) —
- *  only Member and Scanner (with its scannerEventIds; same email = same
- *  person, so event-scoped scan authority travels) survive. Everything else
- *  must be re-earned through claims-sync. */
+ *  only Member and Scanner survive. Everything else must be re-earned through
+ *  claims-sync. */
 function adoptedClaims(existing: RawClaims | undefined): RawClaims {
   const roles = Array.isArray(existing?.roles)
     ? existing.roles.filter((r) => r === "Member" || r === "Scanner")
     : [];
-  return { roles, scannerEventIds: existing?.scannerEventIds };
+  return { roles };
 }
 
 /** Provision (or re-provision) a member's login. Refuses to relink a member whose

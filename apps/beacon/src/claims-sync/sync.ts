@@ -7,7 +7,6 @@ import { resolveMemberPerms, type RolePermsDeps } from "./resolve-member-perms.j
 export interface MemberClaims {
   roles: Role[];
   perms: PermissionCode[];
-  scannerEventIds?: string[];
 }
 
 export interface ClaimsSyncDeps extends RolePermsDeps {
@@ -16,9 +15,7 @@ export interface ClaimsSyncDeps extends RolePermsDeps {
   /** The assigner's current claim roles (for the power-grant trust gate). */
   getUserRoles(uid: string): Promise<Role[]>;
   /** The target member's existing custom claims. */
-  getExistingClaims(
-    uid: string,
-  ): Promise<{ roles: Role[]; perms?: PermissionCode[]; scannerEventIds?: string[] }>;
+  getExistingClaims(uid: string): Promise<{ roles: Role[]; perms?: PermissionCode[] }>;
   setClaims(uid: string, claims: MemberClaims): Promise<void>;
   /** Structured error sink (defaults to console.error in the Firestore impl). */
   logError?(message: string, meta: Record<string, unknown>): void;
@@ -36,9 +33,13 @@ type MemberLike = {
  *  `comisionIds` is the one slot rules cannot grant-check (no array iteration), so
  *  honoring it would let a console-written power comisión — or a power cargo's id
  *  smuggled into comisionIds — mint claims. Ignoring it entirely also means a
- *  permitted non-Admin positions edit (which restamps the shared `assignedBy`)
- *  can no longer strip Admin-granted power: rules already deny non-Admin writes
- *  while a power cargo is assigned.
+ *  Ignoring it entirely also means a permitted non-Admin positions edit (which restamps
+ *  the shared `assignedBy`) can no longer strip Admin-granted power. That last part was
+ *  NOT true of the rules until currentCargoGrantsEmpty() landed: the rules denied
+ *  ASSIGNING a power cargo, never OVERWRITING one, so a manage:Member holder could
+ *  replace a president's cargo with a grant-free one and this function would resolve
+ *  grants.length == 0. The old-side guard in positionsAssignmentSafe() is what makes the
+ *  claim true; do not re-loosen it without re-reading this comment.
  *
  *  The assigner lookup runs only when the cargo actually confers power.
  *  `getUserRoles` reads the assigner's LIVE claims, so a later Firestore write
@@ -65,15 +66,8 @@ function sameList(a: readonly string[], b: readonly string[]): boolean {
   return b.every((x) => set.has(x));
 }
 
-function sameClaims(
-  a: { roles: Role[]; perms?: PermissionCode[]; scannerEventIds?: string[] },
-  b: MemberClaims,
-): boolean {
-  return (
-    sameList(a.roles, b.roles) &&
-    sameList(a.perms ?? [], b.perms) &&
-    sameList(a.scannerEventIds ?? [], b.scannerEventIds ?? [])
-  );
+function sameClaims(a: { roles: Role[]; perms?: PermissionCode[] }, b: MemberClaims): boolean {
+  return sameList(a.roles, b.roles) && sameList(a.perms ?? [], b.perms);
 }
 
 const EMPTY_OVERRIDES = { grant: [] as PermissionCode[], revoke: [] as PermissionCode[] };
@@ -116,10 +110,7 @@ export async function syncMemberClaims(
     perms = [];
   }
 
-  const next: MemberClaims =
-    hadScanner && existing.scannerEventIds
-      ? { roles, perms, scannerEventIds: existing.scannerEventIds }
-      : { roles, perms };
+  const next: MemberClaims = { roles, perms };
 
   // Order-independent compare: `existing` claims come from Auth and may not be in
   // canonical order, so a set/membership compare avoids a redundant write.
