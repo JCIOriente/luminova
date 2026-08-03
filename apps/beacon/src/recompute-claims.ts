@@ -5,6 +5,7 @@ import { ROLES } from "@luminova/auth/roles";
 import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
 import type { PermissionCode } from "@luminova/types/permission";
 import { requireAdmin } from "./callable-auth.js";
+import { permsFromRoleDoc } from "./claims-sync/role-doc.js";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
 import { parseMember, MEMBER_SYNC_FIELDS } from "./claims-sync/parse-member.js";
@@ -147,7 +148,8 @@ export const reseedBuiltInRolePerms = onCall(
     }
     ensureApp();
     const db = getFirestore();
-    // Bounded by ROLES.length (9) — no chunk() needed, and asserted by the unit test.
+    // Bounded by ROLES.length (9), well under the 300 chunk() convention — the unit test
+    // pins it against the 500 WriteBatch limit that the commit below actually depends on.
     const roleIds: string[] = [...ROLES];
     const snaps = await db.getAll(...roleIds.map((role) => db.doc(`roles/${role}`)));
     const snapshots: RoleSnapshot[] = snaps.map((snap, index) => ({
@@ -155,13 +157,15 @@ export const reseedBuiltInRolePerms = onCall(
       exists: snap.exists,
       builtInKey: typeof snap.get("builtInKey") === "string" ? snap.get("builtInKey") : null,
       locked: snap.get("locked") === true,
-      permissions: (snap.get("permissions") ?? []) as PermissionCode[],
+      // permsFromRoleDoc, not a cast: a console-edited doc whose `permissions` is not an
+      // array would make the Set construction below throw and abort the whole reseed.
+      permissions: permsFromRoleDoc(snap.data()),
     }));
     const plan = planRolePermReseed(snapshots);
 
     if (dryRun) {
       return {
-        ok: true as const,
+        ok: plan.failed.length === 0,
         dryRun: true as const,
         preview: plan.applied.map((entry) => ({
           id: entry.id,
@@ -174,6 +178,12 @@ export const reseedBuiltInRolePerms = onCall(
       };
     }
 
+    console.info("reseedBuiltInRolePerms", {
+      by: request.auth?.uid,
+      applied: plan.applied.map((entry) => entry.id),
+      skipped: plan.skipped,
+    });
+
     const batch = db.batch();
     for (const entry of plan.applied) {
       // update(), not set(): a missing doc must fail loudly rather than be created with a
@@ -182,8 +192,11 @@ export const reseedBuiltInRolePerms = onCall(
     }
     if (plan.applied.length > 0) await batch.commit();
 
+    // NOT unconditionally true: the documented #1 operator error — running this before
+    // seedRoles, so a newly added role has no doc to update — lands entirely in `failed`,
+    // and an `ok: true` there would read as success to anything scripting on it.
     return {
-      ok: true as const,
+      ok: plan.failed.length === 0,
       dryRun: false as const,
       applied: plan.applied.map(({ id, changedFields }) => ({ id, changedFields })),
       skipped: plan.skipped,

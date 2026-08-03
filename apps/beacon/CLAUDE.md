@@ -78,14 +78,26 @@ role on its old perms.
   and no rollback.
 - Returns `{ok, dryRun, applied: [{id, changedFields}], skipped, failed}`. `skipped` reasons
   are `locked` / `unchanged` / `not-built-in` / `missing`; `failed` is the operator
-  shorthand for exactly the `missing` ids — run `seedRoles` first.
+  shorthand for exactly the `missing` ids — run `seedRoles` first. **`ok` is false whenever
+  `failed` is non-empty**, so the skipped-step-1 mistake does not read as success.
 
-**BLAST RADIUS.** `onRoleWritten` scans the **entire** members collection for any doc
-carrying a `builtInKey`. Five roles changing perms means five full scans × N members of
-sequential `getUser` plus possible `setCustomUserClaims`, inside a 540 s budget with
-`retry: false`. A timeout strands the members not yet reached in that scan. **Operator
-instruction: run `recomputeAllClaims` afterwards as the observable backstop.** Re-running
+**BLAST RADIUS — cost.** `onRoleWritten` scans the **entire** members collection for any doc
+carrying a `builtInKey`, unbounded (no `.limit()`, no cursor). Every applied doc fires its
+own scan, and one `WriteBatch` lands them all at once — so the nine-role rollout is up to
+eight *concurrent* full scans, each doing a sequential `getUser` plus possible
+`setCustomUserClaims` per member, inside a 540 s budget with `retry: false`. A timeout
+strands the members that scan had not yet reached. **Operator instruction: run
+`recomputeAllClaims` afterwards as the observable backstop** — noting it is itself an
+unbounded scan, so on a large collection the backstop shares the failure mode. Re-running
 the reseed is free — `roleClaimsChanged` short-circuits a no-op write.
+
+**BLAST RADIUS — data exposure.** Reseeding `roles/Member` moves it from `[]` to five
+coarse reads including `read:Member`, and *every* provisioned user carries the `Member`
+role. The members read rule is `canDo('read','Member') || own uid`, so from that moment the
+whole member directory — email, phone, profession, birthdate, positions,
+permissionOverrides — is readable by any signed-in member. That is the larger irreversible
+consequence of this callable, deliberate per `docs/specs/builtin-role-set.md`, and it is not
+undone by re-running anything: reverting means editing `roles/Member` back down.
 
 ## Architecture
 
