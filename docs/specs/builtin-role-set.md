@@ -66,7 +66,7 @@ None of these is type-checked against `ROLES`. All four must be derived from it 
 | Site | Failure if left alone |
 |---|---|
 | `apps/backstage/src/lib/authz/is-member-only.ts:3` — `PRIVILEGED` is a bare `string[]` | A Secretary is classified member-only and bounced from `/` to `/me` every login, despite holding three management capabilities |
-| `apps/backstage/src/components/overview/board-home-layout.ts:33` — `Partial<Record<Role,…>>` + `PRECEDENCE` array | `boardHomeLayout` finds no known role, returns `DEFAULT_LAYOUT` (`:55-56`), so a Secretary-only user gets the **full** admin dashboard including KPI and chart widgets whose queries they may not be allowed to run |
+| `apps/backstage/src/components/overview/board-home-layout.ts` — `ROLE_LAYOUTS` as a `Partial<Record<Role,…>>` + the `PRECEDENCE` array | `boardHomeLayout` finds no known role and falls through to `DEFAULT_LAYOUT`, so a Secretary-only user gets the **full** admin dashboard including KPI and chart widgets whose queries they may not be allowed to run |
 | `tests/firestore-rules/nav-equivalence.test.ts` — `PRINCIPALS` literal | The nav⟷rules implication is never checked for either new role |
 | `apps/backstage/src/components/nav-config.test.ts` — `ALL_ROLES` literal | Pinned visibility sets never probe the new roles |
 
@@ -75,9 +75,9 @@ Copy the pattern from `apps/backstage/src/lib/role-display.ts` — `builtInRoles
 never as a shorter list — and from `features/permissions/lib/role-overview.ts`, which emits
 one row per `ROLES` key. (An earlier draft of this spec pointed at
 `permissions-overview.ts`'s `MANAGED_ROLES`; PR #216 deleted that file, so there is no such
-symbol to copy.) `board-home-layout.ts:49-52` already carries a
-comment warning about exactly this class of hand-written fixture — it guards roles that are
-*in* the map, not roles missing from it.
+symbol to copy.) The comment above `board-home-layout.ts`'s `ROLE_LAYOUTS` already warns
+about exactly this class of hand-written fixture — it guards roles that are *in* the map,
+not roles missing from it.
 
 ## B. The reseed callable
 
