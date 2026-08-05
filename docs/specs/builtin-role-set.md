@@ -98,9 +98,16 @@ production**. Without a reseed path this PR changes nothing for the live chapter
 - Requires an explicit `confirm: "overwrite-builtin-roles"` argument. `requireAdmin` is the
   same gate as the read-only admin ops; a destructive one should not be one click away.
 - Supports `dryRun`, returning per-doc `{id, current, proposed}` and writing nothing.
+  `current` is the RAW on-disk array, not the sanitized one.
 - Returns `{applied: [{id, changedFields}], skipped, failed}`, like `recomputeAllClaims` —
   the trigger itself is fire-and-forget, so the callable is the only place an operator can
-  see what happened.
+  see what happened. Which is also why the audit log is written only **after** a successful
+  `batch.commit()`: logged first, a throwing commit leaves a permanent record of changes
+  that never landed.
+- Skip reasons: `locked` / `unchanged` / `not-built-in` / `missing` / `inactive`. A
+  soft-deleted built-in is never revived; a doc whose `permissions` carries an invalid code
+  is applied (normalized) rather than reported `unchanged`, since the sanitizer would
+  otherwise make it indistinguishable from an up-to-date doc.
 
 **Blast radius, to be documented in `apps/beacon/CLAUDE.md`:** `onRoleWritten` scans the
 *entire* members collection for any doc carrying a `builtInKey`. Five roles change perms

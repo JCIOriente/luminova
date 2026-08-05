@@ -86,14 +86,21 @@ disappear from the nav of everyone whose authority came through that cargo, sile
   must not silently revert every rename.
 - Requires `confirm: "overwrite-builtin-roles"`. `requireAdmin` is the same gate the
   read-only admin ops use; a destructive one should not be one click away.
-- `dryRun: true` writes nothing and returns per-doc `{id, current, proposed}`.
+- `dryRun: true` writes nothing and returns per-doc `{id, current, proposed}`. `current` is
+  the **raw** on-disk array, junk included — not the sanitized one the claims pipeline would
+  read, which would describe a document state that does not exist.
+- A doc whose `permissions` carries a code `isValidPermissionCode` rejects is **applied**,
+  not reported `unchanged`, even when the sanitized set already matches. Otherwise the junk
+  is never normalized and that doc is indistinguishable from an up-to-date one.
+- A soft-deleted built-in (`active: false` / `deletedAt` set) is skipped `inactive`, never
+  revived.
 - Skips `locked === true`. The admin SDK bypasses the `locked` rule the client is held to,
   so `roles/Admin` is excluded explicitly rather than by assumption.
 - One `WriteBatch` (≤ 9 docs, far under the 500 limit). The doc-by-doc loop would leave half
   the role set on new perms and half on old, with fan-outs already fired for the first half
   and no rollback.
 - Returns `{ok, dryRun, applied: [{id, changedFields}], skipped, failed}`. `skipped` reasons
-  are `locked` / `unchanged` / `not-built-in` / `missing`; `failed` is the operator
+  are `locked` / `unchanged` / `not-built-in` / `missing` / `inactive`; `failed` is the operator
   shorthand for exactly the `missing` ids — run `seedRoles` first. **`ok` is false whenever
   `failed` is non-empty**, so the skipped-step-1 mistake does not read as success.
 

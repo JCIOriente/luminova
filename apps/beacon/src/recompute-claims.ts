@@ -5,7 +5,7 @@ import { ROLES } from "@luminova/auth/roles";
 import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
 import type { PermissionCode } from "@luminova/types/permission";
 import { requireAdmin } from "./callable-auth.js";
-import { permsFromRoleDoc } from "./claims-sync/role-doc.js";
+import { isActiveRoleDoc, permsFromRoleDoc } from "./claims-sync/role-doc.js";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
 import { parseMember, MEMBER_SYNC_FIELDS } from "./claims-sync/parse-member.js";
@@ -61,6 +61,16 @@ export interface RoleSnapshot {
   exists: boolean;
   builtInKey: string | null;
   locked: boolean;
+  /** `active !== false` and no `deletedAt`. A soft-deleted built-in must not be revived by
+   *  a reseed — and the write would fire onRoleWritten across every member for a role
+   *  nobody is supposed to hold. */
+  active: boolean;
+  /** EXACTLY what the doc holds, junk included. Carried alongside the sanitized view
+   *  because they answer different questions: `permissions` decides what the claims
+   *  pipeline would mint, `rawPermissions` is what is on disk. Reporting the sanitized
+   *  array as `current` described a document state that does not exist. */
+  rawPermissions: unknown[];
+  /** `rawPermissions` minus everything `isValidPermissionCode` rejects. */
   permissions: PermissionCode[];
 }
 
@@ -69,7 +79,10 @@ export interface ReseedPlan {
   /** `missing` means the doc does not exist. `update()` on a missing doc aborts the WHOLE
    *  batch, so those ids are excluded from the write and surfaced here instead — a reseed
    *  never CREATES. Fix by running `seedRoles` first. */
-  skipped: { id: string; reason: "locked" | "unchanged" | "not-built-in" | "missing" }[];
+  skipped: {
+    id: string;
+    reason: "locked" | "unchanged" | "not-built-in" | "missing" | "inactive";
+  }[];
   /** Operator shorthand: exactly the ids whose skip reason is `missing`, so the two-step
    *  `seedRoles` → reseed sequence is visible without reading every skip row. */
   failed: string[];
@@ -109,7 +122,16 @@ export function planRolePermReseed(snapshots: readonly RoleSnapshot[]): ReseedPl
       plan.skipped.push({ id: snapshot.id, reason: "locked" });
       continue;
     }
-    if (permsEqual(snapshot.permissions, proposed)) {
+    if (!snapshot.active) {
+      plan.skipped.push({ id: snapshot.id, reason: "inactive" });
+      continue;
+    }
+    // Compare on the SANITIZED set but let a malformed doc through anyway. A console-edited
+    // `["read:Member","manage:Evrything"]` sanitizes to a set equal to the snapshot, so a
+    // sanitized-only comparison reported `unchanged`, left the junk on disk forever, and
+    // was the one case an operator could not tell apart from a genuinely up-to-date doc.
+    const malformed = snapshot.rawPermissions.length !== snapshot.permissions.length;
+    if (!malformed && permsEqual(snapshot.permissions, proposed)) {
       plan.skipped.push({ id: snapshot.id, reason: "unchanged" });
       continue;
     }
@@ -152,24 +174,33 @@ export const reseedBuiltInRolePerms = onCall(
     // pins it against the 500 WriteBatch limit that the commit below actually depends on.
     const roleIds: string[] = [...ROLES];
     const snaps = await db.getAll(...roleIds.map((role) => db.doc(`roles/${role}`)));
-    const snapshots: RoleSnapshot[] = snaps.map((snap, index) => ({
-      id: roleIds[index] ?? snap.id,
-      exists: snap.exists,
-      builtInKey: typeof snap.get("builtInKey") === "string" ? snap.get("builtInKey") : null,
-      locked: snap.get("locked") === true,
-      // permsFromRoleDoc, not a cast: a console-edited doc whose `permissions` is not an
-      // array would make the Set construction below throw and abort the whole reseed.
-      permissions: permsFromRoleDoc(snap.data()),
-    }));
+    const snapshots: RoleSnapshot[] = snaps.map((snap, index) => {
+      const data = snap.data();
+      const rawPermissions: unknown[] = Array.isArray(data?.permissions) ? data.permissions : [];
+      return {
+        id: roleIds[index] ?? snap.id,
+        exists: snap.exists,
+        builtInKey: typeof snap.get("builtInKey") === "string" ? snap.get("builtInKey") : null,
+        locked: snap.get("locked") === true,
+        active: isActiveRoleDoc(data),
+        rawPermissions,
+        // permsFromRoleDoc, not a cast: a console-edited doc whose `permissions` is not an
+        // array would make the Set construction in permsEqual throw and abort the reseed.
+        permissions: permsFromRoleDoc(data),
+      };
+    });
     const plan = planRolePermReseed(snapshots);
 
     if (dryRun) {
       return {
         ok: plan.failed.length === 0,
         dryRun: true as const,
+        // `current` is the RAW array — what is actually on disk. Reporting the sanitized
+        // view here described a document state that does not exist, which is exactly the
+        // case (a doc carrying an invalid code) the operator most needs to see.
         preview: plan.applied.map((entry) => ({
           id: entry.id,
-          current: snapshots.find((s) => s.id === entry.id)?.permissions ?? [],
+          current: snapshots.find((s) => s.id === entry.id)?.rawPermissions ?? [],
           proposed: entry.proposed,
         })),
         applied: [],
@@ -178,12 +209,6 @@ export const reseedBuiltInRolePerms = onCall(
       };
     }
 
-    console.info("reseedBuiltInRolePerms", {
-      by: request.auth?.uid,
-      applied: plan.applied.map((entry) => entry.id),
-      skipped: plan.skipped,
-    });
-
     const batch = db.batch();
     for (const entry of plan.applied) {
       // update(), not set(): a missing doc must fail loudly rather than be created with a
@@ -191,6 +216,15 @@ export const reseedBuiltInRolePerms = onCall(
       batch.update(db.doc(`roles/${entry.id}`), { permissions: entry.proposed });
     }
     if (plan.applied.length > 0) await batch.commit();
+
+    // AFTER the commit, never before. Cloud Logging is the only place an operator sees what
+    // this callable did; logging the plan first meant a throwing commit left a permanent
+    // record of changes that never landed.
+    console.info("reseedBuiltInRolePerms", {
+      by: request.auth?.uid,
+      applied: plan.applied.map((entry) => entry.id),
+      skipped: plan.skipped,
+    });
 
     // NOT unconditionally true: the documented #1 operator error — running this before
     // seedRoles, so a newly added role has no doc to update — lands entirely in `failed`,
