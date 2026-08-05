@@ -30,8 +30,16 @@ describe("memberEditMode", () => {
     expect(modeFor(roleClaims("Membership"))).toBe("full");
   });
 
-  it("offers positions-only to a Position-capability holder with no member write (PR 4)", () => {
-    expect(modeFor({ roles: [], perms: ["manage:Position"] })).toBe("positions");
+  it("BLOCKING: a Position capability alone opens no member editor — wrong collection", () => {
+    // Both editors submit to members/{id}, gated by canDo('update','Member'). manage:Position
+    // governs the separate `positions` cargo catalog, and it is Admin-assignable per member
+    // from the profile's permissions panel — so returning "positions" for it rendered the
+    // Cargos form to someone whose every submit is PERMISSION_DENIED, permanently. The
+    // "positions" arm returns in PR 4 with the members-positions rules lane it maps to.
+    expect(modeFor({ roles: [], perms: ["manage:Position"] })).toBe("none");
     expect(modeFor({ roles: [], perms: ["read:Position"] })).toBe("none");
+    // Even riding on the Member role every provisioned user carries, which is what makes
+    // the profile page load in the first place.
+    expect(modeFor({ roles: ["Member"], perms: ["manage:Position"] })).toBe("none");
   });
 });

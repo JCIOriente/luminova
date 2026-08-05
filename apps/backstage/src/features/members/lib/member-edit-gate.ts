@@ -4,13 +4,14 @@ import type { Can } from "../../../lib/authz/use-can";
  *  form, or none. */
 export type MemberEditMode = "full" | "positions" | "none";
 
-/** Gates on the CAPABILITY, not the ExecutiveCommittee role. The role gate was written for
- *  the dedicated `hasOnly(['positions'])` allow-rule CEL used to hold; that rule is gone
- *  with `manage:Position`, so a role gate would render CEL an org-chart form whose every
- *  submit is denied — permanently, not just during the deploy window. Reading the
- *  capability means the positions editor goes dark now and lights up on its own once PR 4's
- *  flag restores a member-positions write lane keyed on `update:Position`. */
+/** Gates on the capability that governs the WRITE, not on a role and not on the subject the
+ *  form is named after. Both editors submit to `members/{id}`, whose update rule is
+ *  `canDo('update','Member')` (+ `positionsAssignmentSafe()`); `update:Position` governs the
+ *  separate `positions` cargo catalog, so reading it here rendered the Cargos form to a
+ *  principal whose every submit is denied — the render-then-die shape this gate exists to
+ *  remove, just relocated. Cargo assignment is Admin-only until PR 4 adds the
+ *  members-positions write lane keyed on `update:Position`; the `"positions"` arm comes back
+ *  then, together with the `firestore.rules` lane that makes it true. */
 export function memberEditMode(gate: Pick<Can, "can">): MemberEditMode {
-  if (gate.can("update", "Member")) return "full";
-  return gate.can("update", "Position") ? "positions" : "none";
+  return gate.can("update", "Member") ? "full" : "none";
 }
