@@ -19,7 +19,7 @@ export interface SeedRoleDoc {
   deletedAt: null;
 }
 
-/** The 7 built-in role docs to seed (id = role name). Admin is locked. */
+/** One seed doc per `ROLES` key (id = role name). Admin is locked. */
 export function buildBuiltInRoleDocs(): SeedRoleDoc[] {
   return ROLES.map((role) => ({
     id: role,

@@ -11,8 +11,9 @@ participation **facts** into the engine-only `participations` ledger and the
 ### `awardPoints` — `onDocumentWritten('checkIns/{id}')`
 
 The engine's entry point. A `checkIns/{id}` doc (`{ memberId, activityId, role,
-checkInAt }`) is written by an authorized client (Admin/ProjectManager, or a
-Scanner scoped to the activity). On write:
+checkInAt }`) is written by an authorized client — any `checkIn:Attendance` holder
+(Admin/ProjectManager/ActivityManager, or a custom role); a Scanner among them is
+confined to `Attendee` rows by a rules conjunct, with no event scoping. On write:
 
 1. `validateCheckIn` — reject malformed input (no throw → no retry storm).
 2. Read `activities/{activityId}` (category, parentType/parentId, startAt, termId)
@@ -64,6 +65,21 @@ stays a "sin sincronizar" row on `/permisos` forever. Run:
 
 Skipping step 1 is the failure mode to watch for; skipping step 2 leaves every incumbent
 role on its old perms.
+
+**OWNER-OP, after the reseed — the Secretario cargo, in this order.** The reseed strips the
+Ally trio (`read:Ally`, `create:Ally`, `update:Ally`) from `Membership`; `Secretary` is where
+those live now. But the code-side cargo mapping (`packages/types/src/cel-positions.ts`,
+`tools/scripts/lib/cel-seed.mjs`) reaches a **fresh project only** — `seedPresident` writes
+`CEL_SEED` just `if (snap.empty)`, and production `positions` is not empty. So in production
+this is a `/positions` edit someone types by hand (Admin-only; the reseed never touches
+`positions`):
+
+4. **ADD `Secretary` to the Secretario cargo's `grants`.**
+5. **THEN remove `Admin`** from that cargo.
+
+Doing 5 before 4, or skipping 4, leaves `create:Ally`/`update:Ally` and
+`manage:Lead`/`manage:Notification` with no holder but Admin — `/allies` and `/leads`
+disappear from the nav of everyone whose authority came through that cargo, silently.
 
 - Writes **`permissions` only.** Never `name`, never `description`: the doc owns display
   text, which is what lets a reseed coexist with role renaming. An operator re-running it

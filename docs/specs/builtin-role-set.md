@@ -52,6 +52,12 @@ top of the member CRUD it already does. Every other CEL cargo unchanged.
 `tools/scripts/lib/cel-seed.mjs` mirrors `cel-positions.ts`, guarded by
 `cel-seed.mirror.test.ts`; both change together or CI fails.
 
+> **This mapping does NOT ship to an existing chapter.** `seedPresident` writes `CEL_SEED`
+> only `if (snap.empty)` (`tools/scripts/lib/seed-president.mjs`), and production
+> `positions` is not empty. So the `Secretary` grant added to the Secretario cargo here
+> reaches a **fresh** project only. In production it is an owner-op — see
+> "Related owner-op" below, and do it in the stated order or ally management goes dark.
+
 ### Hand-written role lists that two new keys would slip past
 
 None of these is type-checked against `ROLES`. All four must be derived from it in this PR,
@@ -64,8 +70,12 @@ None of these is type-checked against `ROLES`. All four must be derived from it 
 | `tests/firestore-rules/nav-equivalence.test.ts` — `PRINCIPALS` literal | The nav⟷rules implication is never checked for either new role |
 | `apps/backstage/src/components/nav-config.test.ts` — `ALL_ROLES` literal | Pinned visibility sets never probe the new roles |
 
-`permissions-overview.ts`'s `MANAGED_ROLES` already derives correctly (`ROLES` minus an
-explicit unmanaged list). Copy that pattern. `board-home-layout.ts:49-52` already carries a
+Copy the pattern from `apps/backstage/src/lib/role-display.ts` — `builtInRoles()` /
+`roleOptions()` derive the total list from `ROLES` and treat a missing doc as a fallback,
+never as a shorter list — and from `features/permissions/lib/role-overview.ts`, which emits
+one row per `ROLES` key. (An earlier draft of this spec pointed at
+`permissions-overview.ts`'s `MANAGED_ROLES`; PR #216 deleted that file, so there is no such
+symbol to copy.) `board-home-layout.ts:49-52` already carries a
 comment warning about exactly this class of hand-written fixture — it guards roles that are
 *in* the map, not roles missing from it.
 
@@ -151,16 +161,41 @@ guardrail-6 lie.
 Rules and functions deploy separately; one PR is not one atomic deploy.
 
 1. Deploy **functions** — the new callable and the `sync.ts` comment fix.
-2. Run the **reseed**, then `recomputeAllClaims` to verify and catch stranded members.
-3. Deploy **rules** last.
+2. Run `seedRoles` (creates the two new role docs), then the **reseed**, then
+   `recomputeAllClaims` to verify and catch stranded members.
+3. In `/positions`, **ADD `Secretary` to the Secretario cargo's `grants`** — the code-side
+   seed mapping never reaches this chapter (see "Related owner-op").
+4. **THEN remove `Admin`** from that cargo.
+5. Deploy **rules** last.
+
+Steps 3 and 4 are not optional cleanup and they are not interchangeable. Step 2 strips the
+Ally trio from `Membership`; if step 3 has not happened, `create:Ally`/`update:Ally` and
+`manage:Lead`/`manage:Notification` are Admin-only, and step 4 then removes the last thing
+keeping ally management reachable for the CEL.
 
 Rules-before-reseed leaves a window where the CEL positions lane is gone while CEL role docs
 still carry `manage:Position`, so the positions-only form renders for CEL users whose writes
 are already denied — render-then-die.
 
-## Related owner-op
+## Related owner-op — the Secretario cargo, in this order
 
 In production the **Secretario cargo grants `Admin`** — widened by hand; the seed only ever
-gave it `Membership`. The user has decided to remove it. That is a `/positions` edit, not a
-code change: `positions.grants` writes are Admin-role-only. Unrelated to the reseed, which
-never touches `positions`.
+gave it `Membership`. The user has decided to remove it. Both steps below are `/positions`
+edits, not code changes: `positions.grants` writes are Admin-role-only, and the reseed never
+touches `positions`.
+
+**The seed change in `cel-positions.ts` / `cel-seed.mjs` does not reach this chapter.**
+`seedPresident` writes `CEL_SEED` only when the `positions` collection is empty, and it is
+not — the cargo docs were created at bootstrap and are prod data from then on. So adding
+`Secretary` to the Secretario cargo in code moves a fresh project and nothing else. In
+production someone has to type it.
+
+Order matters, because this PR also takes the Ally trio away from `Membership`:
+
+1. **In `/positions`, ADD `Secretary` to the Secretario cargo's `grants`.**
+2. **THEN remove `Admin` from that cargo.**
+
+Reversed — or with step 1 skipped — `create:Ally` / `update:Ally` / `manage:Lead` /
+`manage:Notification` are held by nobody but Admin: `/allies` and `/leads` vanish from the
+nav of everyone whose authority came through that cargo, and the chapter's ally and prospect
+management goes dark with no error to explain it.

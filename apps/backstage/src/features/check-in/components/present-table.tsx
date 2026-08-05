@@ -5,8 +5,8 @@ import { formatTime } from "@luminova/utils/datetime";
 interface PresentTableProps {
   entries: RosterEntry[];
   onRemove: (entry: RosterEntry) => void;
-  /** Per-row undo authority — a Scanner may only remove Attendee rows on its own
-   *  events (mirrors the checkIns delete rule). Hide the X when it would be denied. */
+  /** Per-row undo authority — a Scanner may only remove `Attendee` rows (event scoping
+   *  was removed; mirrors the checkIns delete rule). Hide the X when it would be denied. */
   canRemove: (entry: RosterEntry) => boolean;
 }
 

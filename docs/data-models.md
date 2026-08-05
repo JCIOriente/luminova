@@ -207,7 +207,14 @@ hard-coded role checks. `firestore.rules` is the source of truth; summary:
 >    `dryRun: true`, review the preview, then run it with `confirm: "overwrite-builtin-roles"`.
 > 3. Run `recomputeAllClaims` — the observable backstop for members stranded by an
 >    `onRoleWritten` timeout.
-> 4. Deploy **rules** last.
+> 4. In `/positions`, **ADD `Secretary` to the Secretario cargo's `grants`**, then
+>    **remove `Admin`** from it — in that order. The `cel-positions.ts` / `cel-seed.mjs`
+>    mapping only reaches a fresh project (`seedPresident` writes `CEL_SEED` just
+>    `if (snap.empty)`), so in an existing chapter this is an Admin-typed `/positions` edit.
+>    Step 2 takes the Ally trio off `Membership`; adding `Secretary` second — or not at all —
+>    leaves `create:Ally`/`update:Ally` and `manage:Lead`/`manage:Notification` Admin-only
+>    and drops `/allies` and `/leads` out of the CEL's nav.
+> 5. Deploy **rules** last.
 >
 > Rules-before-reseed leaves a window where the CEL positions lane is gone while CEL role
 > docs still carry `manage:Position`: the positions form renders for CEL users whose writes
