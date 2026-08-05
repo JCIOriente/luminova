@@ -80,7 +80,15 @@ describe("boardHomeLayout", () => {
     expect([...PRECEDENCE].sort()).toEqual([...ROLES].sort());
   });
 
-  it("still falls back to the default when the caller has no roles at all", () => {
-    expect(boardHomeLayout([])).toEqual(DEFAULT);
+  it("BLOCKING: a roleless principal gets the Member layout, never the admin default", () => {
+    // Claims that never minted (member doc without `uid`, a failed claims-sync, a token
+    // whose `roles` is not an array) decode to []. isMemberOnly requires the Member role,
+    // so they are NOT bounced to /me — they land here. DEFAULT_LAYOUT gave them the full
+    // admin dashboard with every capability-gated query disabled, i.e. fabricated zeros.
+    expect(boardHomeLayout([])).not.toEqual(DEFAULT);
+    expect(boardHomeLayout([])).toEqual(boardHomeLayout(["Member"]));
+    expect(boardHomeLayout([])).not.toContain("kpis");
+    expect(boardHomeLayout([])).not.toContain("chart");
+    expect(boardHomeLayout([])).not.toContain("headerActions");
   });
 });

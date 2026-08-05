@@ -15,7 +15,7 @@ import {
   monthKeyToLabel,
 } from "@luminova/utils/datetime";
 
-type DashboardKpi = { value: number; trend: KpiTrend | undefined };
+export type DashboardKpi = { value: number; trend: KpiTrend | undefined };
 
 type UpcomingEventItem = {
   id: string;
@@ -32,18 +32,23 @@ export type FeedItem = { id: string; tone: FeedTone; strong: string; text: strin
 
 export type PointsMonth = { monthKey: string; label: string; points: number };
 
+/** `null` means UNKNOWN, not zero: the query behind it is gated on a capability this
+ *  principal does not hold, so it never ran. Substituting `[]` and rendering the derived
+ *  count produced a fabricated "Aliados 0" for a chapter with 14 (guardrail #3 — a view
+ *  must distinguish absent from unreadable). Every `| null` member here is omitted from
+ *  the render rather than shown empty. */
 export type DashboardModel = {
   kpis: {
-    activeMembers: DashboardKpi;
+    activeMembers: DashboardKpi | null;
     upcomingEvents: DashboardKpi;
-    allies: DashboardKpi;
+    allies: DashboardKpi | null;
     pointsThisMonth: DashboardKpi;
   };
   pointsByMonth: PointsMonth[];
   upcomingEvents: UpcomingEventItem[];
   /** Day/month only — never the birth year (same projection /me uses). */
-  birthdays: UpcomingBirthday[];
-  feed: FeedItem[];
+  birthdays: UpcomingBirthday[] | null;
+  feed: FeedItem[] | null;
 };
 
 export function pointsByMonthSeries(memberPoints: MemberPoints[]): PointsMonth[] {
@@ -114,9 +119,11 @@ export function deriveActivityFeed({
     .slice(0, limit);
 }
 
+/** `members` / `allies` are `null` when the principal holds no `read:Member` / `read:Ally`,
+ *  so the query was never enabled. They are NOT interchangeable with `[]`. */
 type BuildInput = {
-  members: Member[];
-  allies: Ally[];
+  members: Member[] | null;
+  allies: Ally[] | null;
   activities: Activity[];
   memberPoints: MemberPoints[];
   initiatives: InitiativeListItem[];
@@ -126,21 +133,22 @@ type BuildInput = {
 export function buildDashboardModel(input: BuildInput): DashboardModel {
   const { members, allies, activities, memberPoints, initiatives, now } = input;
   const monthKey = monthBucketFromMillis(now.getTime());
-  const activeMembers = members.filter((m) => m.active);
+  const activeMembers = members?.filter((m) => m.active) ?? null;
   const upcoming = upcomingActivities(activities, now);
-  const joined = activeMembers.filter(
-    (m) => m.joinDate && monthBucketFromMillis(m.joinDate.toMillis()) === monthKey,
-  ).length;
+  const joined =
+    activeMembers?.filter(
+      (m) => m.joinDate && monthBucketFromMillis(m.joinDate.toMillis()) === monthKey,
+    ).length ?? 0;
   const pointsThisMonth = memberPoints.reduce((sum, mp) => sum + (mp.byMonth[monthKey] ?? 0), 0);
 
   return {
     kpis: {
-      activeMembers: {
+      activeMembers: activeMembers && {
         value: activeMembers.length,
         trend: joined > 0 ? { dir: "up", label: `+${joined} · este mes` } : undefined,
       },
       upcomingEvents: { value: upcoming.length, trend: undefined },
-      allies: { value: allies.length, trend: undefined },
+      allies: allies && { value: allies.length, trend: undefined },
       pointsThisMonth: { value: pointsThisMonth, trend: undefined },
     },
     pointsByMonth: pointsByMonthSeries(memberPoints),
@@ -159,7 +167,10 @@ export function buildDashboardModel(input: BuildInput): DashboardModel {
             : { tone: "blue", label: "Programada" },
       };
     }),
-    birthdays: upcomingBirthdays(members, undefined, now, UPCOMING_BIRTHDAY_LIMIT),
-    feed: deriveActivityFeed({ members, activities, initiatives, now, limit: 8 }),
+    // Both read the members collection, so they inherit its unknown-ness: "Sin cumpleaños
+    // próximos" for a principal who simply cannot see members is the same fabrication the
+    // Aliados tile was.
+    birthdays: members && upcomingBirthdays(members, undefined, now, UPCOMING_BIRTHDAY_LIMIT),
+    feed: members && deriveActivityFeed({ members, activities, initiatives, now, limit: 8 }),
   };
 }

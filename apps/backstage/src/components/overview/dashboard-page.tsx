@@ -45,12 +45,22 @@ export function DashboardPage() {
     );
   }
 
-  // A disabled query never resolves, so it must read as "settled, empty" here — gating the
-  // skeleton on `!members.data` alone would leave an ungated principal loading forever.
-  const membersData = canReadMembers ? members.data : [];
-  const alliesData = canReadAllies ? allies.data : [];
+  // A disabled query never resolves, so it must read as "settled" here or an ungated
+  // principal loads forever. It settles as NULL — never `[]`: the model treats null as
+  // "unknown, do not render", where `[]` would paint a fabricated "Aliados 0" over a
+  // chapter with 14 allies.
+  const membersData = canReadMembers ? members.data : null;
+  const alliesData = canReadAllies ? allies.data : null;
+  const membersPending = canReadMembers && !membersData;
+  const alliesPending = canReadAllies && !alliesData;
 
-  if (!membersData || !alliesData || !activities.data || !memberPoints.data || !initiatives.data) {
+  if (
+    membersPending ||
+    alliesPending ||
+    !activities.data ||
+    !memberPoints.data ||
+    !initiatives.data
+  ) {
     return (
       <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -62,8 +72,8 @@ export function DashboardPage() {
 
   const now = new Date();
   const model = buildDashboardModel({
-    members: membersData,
-    allies: alliesData,
+    members: membersData ?? null,
+    allies: alliesData ?? null,
     activities: activities.data,
     memberPoints: memberPoints.data,
     initiatives: initiatives.data,

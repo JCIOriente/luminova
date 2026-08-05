@@ -61,8 +61,9 @@ const ROLE_LAYOUTS: Record<Role, WidgetKey[]> = {
   // Communications: allies, prospects, notifications. quickActions carries "Registrar
   // aliado", which is theirs; kpis/chart read members + points, which they cannot.
   Secretary: ["upcomingEvents", "birthdays", "quickActions", "recentActivity"],
-  // Scanner reads activities and nothing else — no member, points or ally capability,
-  // so no KPI tile, no points chart, no member quick actions.
+  // Scanner's own grant is activity read + check-in and nothing else. It rides on top of
+  // Member in production, so it is not points- or member-blind — but the check-in operator
+  // is not who the KPI row, the points chart or the member quick actions are for.
   Scanner: ["upcomingEvents", "birthdays"],
   // A Member is bounced from / to /me by _app.index, so this is the degenerate landing
   // they should never reach; keep it to the two chapter-wide, read-only cards.
@@ -75,16 +76,21 @@ const ROLE_LAYOUTS: Record<Role, WidgetKey[]> = {
 export const LAYOUT_ROLES = Object.keys(ROLE_LAYOUTS) as Role[];
 
 export function boardHomeLayout(roles: readonly Role[]): WidgetKey[] {
-  const known = roles.filter((r) => ROLE_LAYOUTS[r] !== undefined);
-  if (known.length === 0) return [...DEFAULT_LAYOUT];
-
-  const lead = PRECEDENCE.find((r) => known.includes(r));
-  const leadLayout = lead ? ROLE_LAYOUTS[lead]! : DEFAULT_LAYOUT;
+  const lead = PRECEDENCE.find((r) => roles.includes(r));
+  // No recognized role means UNKNOWN authority, not full authority. `decodeClaims` drops
+  // anything outside ROLES, so a token whose claims never minted — a member doc with no
+  // `uid`, a failed claims-sync, a `roles` claim that is not an array — arrives here empty,
+  // and `isMemberOnly` requires the Member role so it does not bounce them to /me either.
+  // Returning DEFAULT_LAYOUT handed that user the full admin dashboard with every gated
+  // query disabled: fabricated zeros end to end. The most restricted layout is the honest
+  // answer. (PRECEDENCE is exhaustive over Role, so this branch is reachable only via the
+  // empty set — the exhaustiveness test pins that.)
+  if (!lead) return [...ROLE_LAYOUTS.Member];
 
   const visible = new Set<WidgetKey>();
-  for (const r of known) for (const w of ROLE_LAYOUTS[r]!) visible.add(w);
+  for (const r of roles) for (const w of ROLE_LAYOUTS[r]) visible.add(w);
 
-  const ordered = leadLayout.filter((w) => visible.has(w));
+  const ordered = ROLE_LAYOUTS[lead].filter((w) => visible.has(w));
   for (const w of DEFAULT_LAYOUT) {
     if (visible.has(w) && !ordered.includes(w)) ordered.push(w);
   }
