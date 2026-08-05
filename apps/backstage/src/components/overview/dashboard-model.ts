@@ -48,7 +48,10 @@ export type DashboardModel = {
   upcomingEvents: UpcomingEventItem[];
   /** Day/month only — never the birth year (same projection /me uses). */
   birthdays: UpcomingBirthday[] | null;
-  feed: FeedItem[] | null;
+  /** Never null: activities and initiatives are `signedIn()`-readable, so every principal
+   *  is entitled to some of this. Nulling the whole feed on an unreadable members
+   *  collection discarded the two thirds they could see. */
+  feed: FeedItem[];
 };
 
 export function pointsByMonthSeries(memberPoints: MemberPoints[]): PointsMonth[] {
@@ -63,8 +66,11 @@ export function pointsByMonthSeries(memberPoints: MemberPoints[]): PointsMonth[]
     .map(([monthKey, points]) => ({ monthKey, label: monthKeyToLabel(monthKey), points }));
 }
 
+/** `members` is `null` when the principal holds no `read:Member`. The member-join entries
+ *  are then omitted and the activity/initiative ones still emitted — they come from
+ *  `signedIn()`-readable collections, so withholding them states nothing true. */
 type FeedInput = {
-  members: Member[];
+  members: Member[] | null;
   activities: Activity[];
   initiatives: InitiativeListItem[];
   now: Date;
@@ -80,7 +86,7 @@ export function deriveActivityFeed({
 }: FeedInput): FeedItem[] {
   const items: FeedItem[] = [];
 
-  for (const m of members) {
+  for (const m of members ?? []) {
     if (!m.active || !m.joinDate) continue;
     items.push({
       id: m.id,
@@ -167,10 +173,10 @@ export function buildDashboardModel(input: BuildInput): DashboardModel {
             : { tone: "blue", label: "Programada" },
       };
     }),
-    // Both read the members collection, so they inherit its unknown-ness: "Sin cumpleaños
+    // Wholly members-derived, so it inherits that read's unknown-ness: "Sin cumpleaños
     // próximos" for a principal who simply cannot see members is the same fabrication the
-    // Aliados tile was.
+    // Aliados tile was. The feed is NOT wholly members-derived — see deriveActivityFeed.
     birthdays: members && upcomingBirthdays(members, undefined, now, UPCOMING_BIRTHDAY_LIMIT),
-    feed: members && deriveActivityFeed({ members, activities, initiatives, now, limit: 8 }),
+    feed: deriveActivityFeed({ members, activities, initiatives, now, limit: 8 }),
   };
 }

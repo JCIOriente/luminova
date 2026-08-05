@@ -97,10 +97,10 @@ describe("OverviewView", () => {
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 
-  it("omits the birthdays and activity cards when the members read never ran", () => {
+  it("omits the birthdays card when the members read never ran, but keeps the feed", () => {
     render(
       <OverviewView
-        model={makeModel({ birthdays: null, feed: null })}
+        model={makeModel({ birthdays: null })}
         userName="Camila Áñez"
         now={new Date()}
         roles={["Admin"]}
@@ -108,8 +108,13 @@ describe("OverviewView", () => {
     );
     expect(screen.queryByText("Próximos cumpleaños")).not.toBeInTheDocument();
     expect(screen.queryByText("Sin cumpleaños próximos.")).not.toBeInTheDocument();
-    expect(screen.queryByText("Actividad reciente")).not.toBeInTheDocument();
-    expect(screen.queryByText("Sin actividad reciente.")).not.toBeInTheDocument();
+    // Positive control: four negatives alone also pass against an OverviewView that renders
+    // nothing at all. makeModel leaves activeMembers non-null, so this proves the render
+    // survived and the two omissions above are real.
+    expect(screen.getByText("Miembros activos")).toBeInTheDocument();
+    // The feed is activity- and initiative-derived too, so an unreadable members collection
+    // must not take its card down with it.
+    expect(screen.getByText("Actividad reciente")).toBeInTheDocument();
   });
 
   it("greets the user by first name", () => {

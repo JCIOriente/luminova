@@ -230,36 +230,35 @@ export function OverviewView({
           </div>
         </Card>
       ),
-    recentActivity: () =>
-      model.feed === null ? null : (
-        <Card as="section" padding="none" className="px-[22px] py-5">
-          <h2 className="mb-4 text-ui-lg font-semibold text-ink-1">Actividad reciente</h2>
-          {model.feed.length === 0 ? (
-            <p className="py-6 text-center text-ui-sm text-ink-3">Sin actividad reciente.</p>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {model.feed.map((a) => (
-                <div key={`${a.tone}-${a.id}`} className="flex gap-3.5">
-                  <span
-                    className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full ${FEED_DOT[a.tone]}`}
-                  >
-                    {Icon.bell({ s: 15 })}
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-ui-sm leading-snug text-ink-2">
-                      <b className="font-semibold text-ink-1">{a.strong}</b>
-                      {a.text}
-                    </div>
-                    <div className="mt-1 text-ui-xs text-ink-3 tabular-nums">
-                      {relativeTimeEs(a.at, now)}
-                    </div>
+    recentActivity: () => (
+      <Card as="section" padding="none" className="px-[22px] py-5">
+        <h2 className="mb-4 text-ui-lg font-semibold text-ink-1">Actividad reciente</h2>
+        {model.feed.length === 0 ? (
+          <p className="py-6 text-center text-ui-sm text-ink-3">Sin actividad reciente.</p>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {model.feed.map((a) => (
+              <div key={`${a.tone}-${a.id}`} className="flex gap-3.5">
+                <span
+                  className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full ${FEED_DOT[a.tone]}`}
+                >
+                  {Icon.bell({ s: 15 })}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-ui-sm leading-snug text-ink-2">
+                    <b className="font-semibold text-ink-1">{a.strong}</b>
+                    {a.text}
+                  </div>
+                  <div className="mt-1 text-ui-xs text-ink-3 tabular-nums">
+                    {relativeTimeEs(a.at, now)}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      ),
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    ),
     quickActions: () => (
       <section>
         <h2 className="mb-3 text-ui-lg font-semibold text-ink-1">Accesos rápidos</h2>

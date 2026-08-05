@@ -34,8 +34,9 @@ export const PRECEDENCE: Role[] = [
   "Member",
 ];
 
-// Birthdays are chapter-wide and role-agnostic — every layout carries them, so no
-// board member's home is missing the one thing the whole chapter looks at.
+// `birthdays` derives from the members read, so it belongs only to layouts whose role
+// holds read:Member — see dashboard-model. Listing it for a role without that capability
+// promised a card that can never paint.
 //
 // EXHAUSTIVE Record, not Partial: an unlisted role used to fall through to
 // DEFAULT_LAYOUT, i.e. the full admin dashboard (KPIs + points chart) for someone who
@@ -53,18 +54,21 @@ const ROLE_LAYOUTS: Record<Role, WidgetKey[]> = {
     "upcomingEvents",
   ],
   Treasury: ["kpis", "birthdays", "recentActivity", "chart"],
-  ProjectManager: ["upcomingEvents", "birthdays", "quickActions", "kpis", "recentActivity"],
+  // No read:Member, so no birthdays; the KPI row still carries events, points and allies.
+  ProjectManager: ["upcomingEvents", "quickActions", "kpis", "recentActivity"],
   ExecutiveCommittee: ["kpis", "birthdays", "recentActivity", "chart"],
   // Activity operations only (manage:Activity + checkIn:Attendance) — no member, points or
-  // ally capability, so no KPI tile and no points chart.
-  ActivityManager: ["upcomingEvents", "birthdays", "recentActivity"],
+  // ally capability, so no KPI tile, no points chart and no birthdays.
+  ActivityManager: ["upcomingEvents", "recentActivity"],
   // Communications: allies, prospects, notifications. quickActions carries "Registrar
   // aliado", which is theirs; kpis/chart read members + points, which they cannot.
-  Secretary: ["upcomingEvents", "birthdays", "quickActions", "recentActivity"],
+  Secretary: ["upcomingEvents", "quickActions", "recentActivity"],
   // Scanner's own grant is activity read + check-in and nothing else. It rides on top of
-  // Member in production, so it is not points- or member-blind — but the check-in operator
-  // is not who the KPI row, the points chart or the member quick actions are for.
-  Scanner: ["upcomingEvents", "birthdays"],
+  // Member in production, where the union restores the member-derived cards — but the
+  // check-in operator is not who the KPI row, the points chart or the member quick actions
+  // are for. The feed stays: it is activity- and initiative-derived for a members-blind
+  // principal, so it paints on Scanner's own grant alone.
+  Scanner: ["upcomingEvents", "recentActivity"],
   // A Member is bounced from / to /me by _app.index, so this is the degenerate landing
   // they should never reach; keep it to the two chapter-wide, read-only cards.
   Member: ["upcomingEvents", "birthdays"],

@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { ROLES } from "@luminova/types";
+import { buildAbility } from "@luminova/auth/ability";
+import { roleClaims } from "@luminova/auth/test-helpers";
+import type { Role } from "@luminova/auth/roles";
+import { buildCan } from "../../lib/authz/use-can";
 import { boardHomeLayout, LAYOUT_ROLES, PRECEDENCE, type WidgetKey } from "./board-home-layout";
+
+// The exact question DashboardPage asks before enabling the members query — collection
+// level, so a conditional own-doc grant cannot answer it. Deriving the split from the
+// ability rather than a hand-written role list means a permission change moves this test.
+function canReadMembers(role: Role): boolean {
+  const claims = roleClaims(role);
+  return buildCan(buildAbility(claims, "u"), claims).can("read", "Member");
+}
 
 const DEFAULT: WidgetKey[] = [
   "headerActions",
@@ -29,10 +41,34 @@ describe("boardHomeLayout", () => {
     ]);
   });
 
-  it("every role's layout carries birthdays (chapter-wide, role-agnostic)", () => {
-    expect(LAYOUT_ROLES.length).toBeGreaterThan(0);
+  it("BLOCKING: birthdays is listed by exactly the roles whose members read can run", () => {
+    // `birthdays` is wholly members-derived (dashboard-model) and OverviewView drops the
+    // card when it is null, so listing it for a read:Member-less role promised a widget
+    // that provably never paints — ActivityManager's layout was three keys and rendered
+    // one card. The layout must not claim more than the principal can see.
+    const reading = LAYOUT_ROLES.filter(canReadMembers);
+    const blind = LAYOUT_ROLES.filter((r) => !canReadMembers(r));
+    expect(reading.length).toBeGreaterThan(0);
+    expect(blind.length).toBeGreaterThan(0);
+    for (const role of reading) {
+      expect(boardHomeLayout([role]), role).toContain("birthdays");
+    }
+    for (const role of blind) {
+      expect(boardHomeLayout([role]), role).not.toContain("birthdays");
+    }
+  });
+
+  it("the union restores birthdays when a members-blind role rides on top of Member", () => {
+    // Scanner holds no read:Member of its own, but in production it is always paired with
+    // Member. The widget union — not a birthdays entry in Scanner's own layout — is what
+    // brings the card back, so removing it above costs the real principal nothing.
+    expect(boardHomeLayout(["Scanner"])).not.toContain("birthdays");
+    expect(boardHomeLayout(["Scanner", "Member"])).toContain("birthdays");
+  });
+
+  it("every listed widget can paint: no layout is empty or down to a lone card", () => {
     for (const role of LAYOUT_ROLES) {
-      expect(boardHomeLayout([role])).toContain("birthdays");
+      expect(boardHomeLayout([role]).length, role).toBeGreaterThan(1);
     }
   });
 

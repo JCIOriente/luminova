@@ -97,6 +97,20 @@ describe("deriveActivityFeed", () => {
     });
     expect(feed).toEqual([]);
   });
+
+  it("BLOCKING: an unreadable members collection drops only the member entries", () => {
+    // members === null means no read:Member. activities and initiatives are
+    // signedIn()-readable, so the principal IS entitled to those rows; nulling the whole
+    // feed threw away two thirds of what they may see and left the card unrendered.
+    const feed = deriveActivityFeed({
+      members: null,
+      activities: [activity("a1", "Asamblea", t(5), "Ejecutada")],
+      initiatives: [initiative("i1", "Sonrisas", t(5))],
+      now,
+      limit: 8,
+    });
+    expect(feed.map((f) => f.id)).toEqual(["a1", "i1"]);
+  });
 });
 
 describe("buildDashboardModel", () => {
@@ -174,7 +188,7 @@ describe("buildDashboardModel", () => {
     const unknownSide = buildDashboardModel({
       members: null,
       allies: null,
-      activities: [],
+      activities: [activity("a1", "Asamblea", thisMonth(2), "Ejecutada")],
       memberPoints: [],
       initiatives: [],
       now,
@@ -182,7 +196,9 @@ describe("buildDashboardModel", () => {
     expect(unknownSide.kpis.allies).toBeNull();
     expect(unknownSide.kpis.activeMembers).toBeNull();
     expect(unknownSide.birthdays).toBeNull();
-    expect(unknownSide.feed).toBeNull();
+    // The feed is NOT members-only: the executed activity is signedIn()-readable, so it
+    // survives the unreadable members collection instead of taking the card down with it.
+    expect(unknownSide.feed.map((f) => f.id)).toEqual(["a1"]);
 
     const emptySide = buildDashboardModel({
       members: [],
