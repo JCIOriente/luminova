@@ -5,7 +5,12 @@ import { ROLES } from "@luminova/auth/roles";
 import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
 import type { PermissionCode } from "@luminova/types/permission";
 import { requireAdmin } from "./callable-auth.js";
-import { isActiveRoleDoc, permsFromRoleDoc } from "./claims-sync/role-doc.js";
+import {
+  isActiveRoleDoc,
+  permsFromRoleDoc,
+  rawPermsFromRoleDoc,
+  roleDocPermsMalformed,
+} from "./claims-sync/role-doc.js";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
 import { parseMember, MEMBER_SYNC_FIELDS } from "./claims-sync/parse-member.js";
@@ -72,6 +77,10 @@ export interface RoleSnapshot {
   rawPermissions: unknown[];
   /** `rawPermissions` minus everything `isValidPermissionCode` rejects. */
   permissions: PermissionCode[];
+  /** The two above disagree — see `roleDocPermsMalformed`. Such a doc must be rewritten
+   *  even when its sanitized set already matches the snapshot, or the junk is never
+   *  normalized and it is indistinguishable from an up-to-date doc. */
+  malformedPermissions: boolean;
 }
 
 export interface ReseedPlan {
@@ -130,8 +139,7 @@ export function planRolePermReseed(snapshots: readonly RoleSnapshot[]): ReseedPl
     // `["read:Member","manage:Evrything"]` sanitizes to a set equal to the snapshot, so a
     // sanitized-only comparison reported `unchanged`, left the junk on disk forever, and
     // was the one case an operator could not tell apart from a genuinely up-to-date doc.
-    const malformed = snapshot.rawPermissions.length !== snapshot.permissions.length;
-    if (!malformed && permsEqual(snapshot.permissions, proposed)) {
+    if (!snapshot.malformedPermissions && permsEqual(snapshot.permissions, proposed)) {
       plan.skipped.push({ id: snapshot.id, reason: "unchanged" });
       continue;
     }
@@ -176,17 +184,17 @@ export const reseedBuiltInRolePerms = onCall(
     const snaps = await db.getAll(...roleIds.map((role) => db.doc(`roles/${role}`)));
     const snapshots: RoleSnapshot[] = snaps.map((snap, index) => {
       const data = snap.data();
-      const rawPermissions: unknown[] = Array.isArray(data?.permissions) ? data.permissions : [];
       return {
         id: roleIds[index] ?? snap.id,
         exists: snap.exists,
         builtInKey: typeof snap.get("builtInKey") === "string" ? snap.get("builtInKey") : null,
         locked: snap.get("locked") === true,
         active: isActiveRoleDoc(data),
-        rawPermissions,
+        rawPermissions: rawPermsFromRoleDoc(data),
         // permsFromRoleDoc, not a cast: a console-edited doc whose `permissions` is not an
         // array would make the Set construction in permsEqual throw and abort the reseed.
         permissions: permsFromRoleDoc(data),
+        malformedPermissions: roleDocPermsMalformed(data),
       };
     });
     const plan = planRolePermReseed(snapshots);

@@ -97,6 +97,29 @@ describe("reseedBuiltInRolePerms (emulator) — the callable wrapper", () => {
     expect(after.get("description")).toBe("Texto que el operador escribió a mano.");
   });
 
+  it("normalizes a doc whose only drift is an invalid code, and previews it RAW", async () => {
+    // The sanitized view of this doc already equals the snapshot, so the pre-fix planner
+    // called it `unchanged` and the junk stayed on disk forever — the one case an operator
+    // could not tell apart from an up-to-date doc.
+    const junk = [...BUILT_IN_ROLE_PERMS.Treasury, "manage:Evrything"];
+    await db.doc("roles/Treasury").update({ permissions: junk });
+
+    const preview = await invoke({ dryRun: true }, ["Admin"]);
+    if (preview.dryRun) {
+      expect(preview.preview).toContainEqual({
+        id: "Treasury",
+        current: junk,
+        proposed: BUILT_IN_ROLE_PERMS.Treasury,
+      });
+    }
+
+    const result = await invoke({ confirm: CONFIRM }, ["Admin"]);
+    expect(result.applied).toContainEqual({ id: "Treasury", changedFields: ["permissions"] });
+    expect((await db.doc("roles/Treasury").get()).get("permissions")).toEqual(
+      BUILT_IN_ROLE_PERMS.Treasury,
+    );
+  });
+
   it("skips the locked Admin doc even on a real run", async () => {
     await db.doc("roles/Admin").update({ permissions: ["read:Member"] });
     const result = await invoke({ confirm: CONFIRM }, ["Admin"]);

@@ -10,11 +10,12 @@ function snap(over: Partial<RoleSnapshot> & { id: string }): RoleSnapshot {
     builtInKey: over.id,
     locked: false,
     active: true,
+    permissions,
     // Default the raw view to the sanitized one, so only a test that means to exercise a
     // malformed doc has to say so.
     rawPermissions: [...permissions],
+    malformedPermissions: false,
     ...over,
-    permissions,
   };
 }
 
@@ -71,6 +72,7 @@ describe("planRolePermReseed", () => {
         id: "Treasury",
         permissions: [...BUILT_IN_ROLE_PERMS.Treasury],
         rawPermissions: [...BUILT_IN_ROLE_PERMS.Treasury, "manage:Evrything"],
+        malformedPermissions: true,
       }),
     ]);
     expect(plan.skipped).toEqual([]);

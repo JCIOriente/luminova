@@ -15,7 +15,7 @@ import {
   monthKeyToLabel,
 } from "@luminova/utils/datetime";
 
-export type DashboardKpi = { value: number; trend: KpiTrend | undefined };
+type DashboardKpi = { value: number; trend: KpiTrend | undefined };
 
 type UpcomingEventItem = {
   id: string;

@@ -7,7 +7,6 @@ import {
   type ChartSeries,
   Icon,
   KpiCard,
-  type KpiTone,
   LineChart,
   cardInteractiveClasses,
   cardSurfaceClasses,
@@ -18,7 +17,7 @@ import { EventDateChip } from "../event-date-chip";
 import { boardHomeLayout, type WidgetKey } from "./board-home-layout";
 import { inDaysEs } from "../../features/members/lib/milestones";
 import { relativeTimeEs } from "@luminova/utils/datetime";
-import type { DashboardKpi, DashboardModel, FeedTone } from "./dashboard-model";
+import type { DashboardModel, FeedTone } from "./dashboard-model";
 
 const WHITESPACE = /\s+/;
 
@@ -107,61 +106,43 @@ export function OverviewView({
     </>
   );
 
-  // A null KPI is UNKNOWN — the query feeding it is gated on a capability this principal
-  // lacks and never ran. Omit the tile; rendering it would state a count (0) as fact.
-  const kpiTiles: {
-    key: string;
-    icon: ReactNode;
-    tone: KpiTone;
-    label: string;
-    kpi: DashboardKpi;
-  }[] = [];
-  if (model.kpis.activeMembers) {
-    kpiTiles.push({
-      key: "activeMembers",
-      icon: Icon.user({ s: 20 }),
-      tone: "blue",
-      label: "Miembros activos",
-      kpi: model.kpis.activeMembers,
-    });
-  }
-  kpiTiles.push({
-    key: "upcomingEvents",
-    icon: Icon.calendar({ s: 20 }),
-    tone: "teal",
-    label: "Próximos eventos",
-    kpi: model.kpis.upcomingEvents,
-  });
-  if (model.kpis.allies) {
-    kpiTiles.push({
-      key: "allies",
-      icon: Icon.handshake({ s: 20 }),
-      tone: "navy",
-      label: "Aliados",
-      kpi: model.kpis.allies,
-    });
-  }
-  kpiTiles.push({
-    key: "pointsThisMonth",
-    icon: Icon.barChart({ s: 20 }),
-    tone: "amber",
-    label: "Puntos otorgados (mes)",
-    kpi: model.kpis.pointsThisMonth,
-  });
-
   const widgets: Record<Exclude<WidgetKey, "headerActions">, () => ReactNode> = {
+    // A null KPI is UNKNOWN — the query feeding it is gated on a capability this principal
+    // lacks and never ran. Omit the tile; rendering it would state a count (0) as fact.
     kpis: () => (
       <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 lg:grid-cols-4">
-        {kpiTiles.map((t) => (
+        {model.kpis.activeMembers && (
           <KpiCard
-            key={t.key}
-            icon={t.icon}
-            tone={t.tone}
-            label={t.label}
-            value={t.kpi.value}
-            trend={t.kpi.trend}
+            icon={Icon.user({ s: 20 })}
+            tone="blue"
+            label="Miembros activos"
+            value={model.kpis.activeMembers.value}
+            trend={model.kpis.activeMembers.trend}
           />
-        ))}
+        )}
+        <KpiCard
+          icon={Icon.calendar({ s: 20 })}
+          tone="teal"
+          label="Próximos eventos"
+          value={model.kpis.upcomingEvents.value}
+          trend={model.kpis.upcomingEvents.trend}
+        />
+        {model.kpis.allies && (
+          <KpiCard
+            icon={Icon.handshake({ s: 20 })}
+            tone="navy"
+            label="Aliados"
+            value={model.kpis.allies.value}
+            trend={model.kpis.allies.trend}
+          />
+        )}
+        <KpiCard
+          icon={Icon.barChart({ s: 20 })}
+          tone="amber"
+          label="Puntos otorgados (mes)"
+          value={model.kpis.pointsThisMonth.value}
+          trend={model.kpis.pointsThisMonth.trend}
+        />
       </div>
     ),
     chart: () => (
