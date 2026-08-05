@@ -6,6 +6,7 @@ import { roleClaims } from "@luminova/auth/test-helpers";
 import type { AuthClaims, Role } from "@luminova/auth/roles";
 import { ROLES, type PermissionCode } from "@luminova/types";
 import { NAV_GROUPS, navItemForPath, isNavItemVisible, canAccessRoute } from "./nav-config";
+import { buildCan } from "../lib/authz/use-can";
 
 const SELF_UID = "uid-self";
 const claimsFor = roleClaims;
@@ -24,6 +25,17 @@ const REGISTERED_PATHS = [...ROUTE_TREE.matchAll(/fullPath: '([^']*)'/g)].map((m
 const AUTH_ROUTES = ["/login", "/forgot-password", "/reset"];
 const CONTENT_ROUTES = REGISTERED_PATHS.filter((p) => !p.includes("$"));
 const NAV_PATHS = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.to));
+
+// The built-in roles whose seeded perms carry an UNCONDITIONAL read:Member — the gate both
+// /members and /leaderboard use. Pinned once and probed against all of ROLES, so a new role
+// key is covered on both routes the moment it exists.
+const READ_MEMBER_ROLES: readonly Role[] = [
+  "Admin",
+  "Membership",
+  "Treasury",
+  "ExecutiveCommittee",
+  "Member",
+];
 
 describe("nav-config", () => {
   it("only points at routes registered in the generated route tree", () => {
@@ -90,21 +102,14 @@ describe("nav-config", () => {
     expect(item?.label).toBe("Reglas de puntos");
   });
 
-  it("shows the leaderboard to unconditional read:Member holders (incl. plain Member); hides PM/Scanner", () => {
-    // Member now carries read:Member by default, so it joins the management roles here.
-    for (const role of [
-      "Admin",
-      "Membership",
-      "Treasury",
-      "ExecutiveCommittee",
-      "Member",
-    ] as Role[]) {
-      expect(canSee("/leaderboard", claimsFor(role))).toBe(true);
-    }
-    // ProjectManager and Scanner hold no read:Member — the members query behind
-    // /leaderboard would be denied for them by firestore.rules.
-    for (const role of ["ProjectManager", "Scanner"] as Role[]) {
-      expect(canSee("/leaderboard", claimsFor(role))).toBe(false);
+  it("shows the leaderboard to exactly the unconditional read:Member roles", () => {
+    // Iterate ROLES, not a hand-typed subset: the two-role and five-role literals this
+    // replaced left ActivityManager and Secretary unprobed on both member-backed routes.
+    // Member now carries read:Member by default, so it joins the management roles here;
+    // ProjectManager, ActivityManager, Secretary and Scanner hold none, and the members
+    // query behind /leaderboard would be denied for them by firestore.rules.
+    for (const role of ROLES) {
+      expect(canSee("/leaderboard", claimsFor(role)), role).toBe(READ_MEMBER_ROLES.includes(role));
     }
   });
 
@@ -134,18 +139,9 @@ describe("isNavItemVisible — conditional grants must not leak", () => {
     expect(canSee("/members", { roles: ["Member"], perms: [] })).toBe(false);
   });
 
-  it("shows Miembros to the unconditional read:Member roles, including a seeded plain Member", () => {
-    for (const role of [
-      "Admin",
-      "Membership",
-      "Treasury",
-      "ExecutiveCommittee",
-      "Member",
-    ] as Role[]) {
-      expect(canSee("/members", claimsFor(role))).toBe(true);
-    }
-    for (const role of ["ProjectManager", "Scanner"] as Role[]) {
-      expect(canSee("/members", claimsFor(role))).toBe(false);
+  it("shows Miembros to exactly the unconditional read:Member roles, incl. a seeded plain Member", () => {
+    for (const role of ROLES) {
+      expect(canSee("/members", claimsFor(role)), role).toBe(READ_MEMBER_ROLES.includes(role));
     }
   });
 
@@ -156,6 +152,19 @@ describe("isNavItemVisible — conditional grants must not leak", () => {
     for (const role of ["Membership", "Treasury", "Scanner"] as Role[]) {
       expect(canSee("/initiatives", claimsFor(role))).toBe(false);
     }
+  });
+
+  it("BLOCKING: a real CEL principal sees /positions read-only (the decided behavior)", () => {
+    // The pinned curationOnly set below probes SINGLE-role principals, which do not exist
+    // in production — every provisioned user also carries Member. The spec explicitly
+    // decided CEL keeps /positions after losing manage:Position, read-only; that decision
+    // had no test until this one. Assert the real two-role claim, both halves: the route
+    // is reachable, and the row actions (gated on can("update","Position")) stay dark.
+    const cel = claimsFor("ExecutiveCommittee", "Member");
+    expect(canSee("/positions", cel)).toBe(true);
+    const gate = buildCan(buildAbility(cel, SELF_UID), cel);
+    expect(gate.can("update", "Position")).toBe(false);
+    expect(gate.can("read", "Position")).toBe(true);
   });
 
   it("admits a perms-only custom role (manage:Position) to /positions, still excludes Members", () => {
@@ -196,11 +205,10 @@ describe("curationOnly routes — pinned visibility sets (nav-equivalence Check 
     {
       // ExecutiveCommittee drops out of this SINGLE-ROLE fixture because withdrawing
       // manage:Position leaves it no Position capability, and the gate is
-      // (subject read AND roles), not roles alone. In production it still sees the route:
-      // every provisioned user also carries Member, whose CASL conditional grants an
-      // unconditional read on Position — which is exactly the read-only view the design
-      // intends for CEL. Assigning cargos stays Admin-only either way (the row actions gate
-      // on can("update","Position")).
+      // (subject read AND roles), not roles alone. A single-role CEL principal does not
+      // exist in production — the real two-role claim, and the read-only view the design
+      // intends for it, are asserted by "a real CEL principal sees /positions read-only"
+      // above. Do not read this row as the CEL verdict.
       route: "/positions",
       visible: ["Admin", "Membership"],
       admits: "manage:Position",

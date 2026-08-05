@@ -2082,7 +2082,10 @@ describe("firestore.rules — member positions assignment", () => {
       }),
     );
   });
-  it("denies ExecutiveCommittee assigning a cargo at all (no member-write lane)", async () => {
+  // Named for what it actually asserts: `pos1` is a POWER cargo, so the power-conferral
+  // guard denies this write for any non-Admin whether or not the CEL lane exists. The
+  // load-bearing "CEL cannot assign ANY cargo" case is the grant-free `pos_soft` one above.
+  it("denies ExecutiveCommittee assigning a power-conferring cargo", async () => {
     await assertFails(
       updateDoc(doc(as("exec-uid", ["ExecutiveCommittee"]), "members/m1"), {
         positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "exec-uid" } },
