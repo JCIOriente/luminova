@@ -10,6 +10,8 @@ up and doing the work. The chapter gets a permanent, auditable record of who did
 Built by and running at [JCI Oriente](https://jcioriente.web.app), the Santa Cruz de la
 Sierra chapter of Junior Chamber International. Open for any chapter to use or adapt.
 
+*[Leer en español](README.es.md) — versión resumida para capítulos.*
+
 ## The problem
 
 A volunteer chapter has no record of who showed up. Attendance lives in a WhatsApp
