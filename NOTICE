@@ -1,0 +1,34 @@
+Luminova
+Copyright 2026 JCI Oriente (Cámara Junior Internacional Oriente, Santa Cruz de la Sierra, Bolivia)
+
+This product includes software developed at JCI Oriente.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+---
+
+Trademarks and chapter content
+
+Per section 6 of the License, this license grants no rights to trade names,
+trademarks, service marks, or product names. The following are NOT covered by
+the Apache License and are NOT redistributed under it:
+
+  * The "JCI" and "Junior Chamber International" names and marks, which belong
+    to Junior Chamber International, Inc.
+  * The "JCI Oriente" name and the logo files under packages/ui/src/assets/.
+  * Chapter-specific content shipped as seed data — the organisation history,
+    mission, vision and values in tools/scripts/lib/site-config-seed-data.mjs
+    and apps/spotlight/src/site-config/defaults.ts.
+
+If you adapt this project for another chapter or organisation, replace those
+assets and that content with your own. Use of the JCI marks is governed by JCI's
+own brand policy, not by this repository.
