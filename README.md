@@ -117,8 +117,6 @@ Not built. Listed because the groundwork is visible in the code and people ask.
   spread across other screens.
 - **JCI award dossier export.** Projects are structured to become award submissions, but
   the export is blocked on award criteria we do not have yet.
-- **Known dead surface.** A legacy `events` collection still has security rules and no
-  reader. It is scheduled for removal.
 
 See [`docs/roadmap.md`](docs/roadmap.md) for the full picture.
 
@@ -210,17 +208,33 @@ Full developer guide, including the quality gate and the repository layout:
 Luminova is not multi-tenant. One deployment serves one chapter. To run it for yours,
 fork it and change these:
 
-1. **Firebase project.** Create your own, then set the project id and hosting targets in
-   `.firebaserc`, and the client config in `apps/*/.env.local.example` and
-   `apps/*/.env.production`.
+1. **Firebase project.** Create your own, then in `.firebaserc` set the default project id
+   and **all three target groups** — `hosting` (both sites) and `storage` (the
+   `default` target, which `firebase.json` points at for `storage.rules`). Miss the storage
+   target and `pnpm deploy:rules` either errors or keeps aiming at someone else's bucket,
+   leaving yours with no rules. Then set the client config in `apps/*/.env.local.example`
+   and `apps/*/.env.production`.
 2. **Chapter content.** The seeded site content — history, mission, vision, values,
    statistics, contact details — lives in
    `tools/scripts/lib/site-config-seed-data.mjs` and
    `apps/spotlight/src/site-config/defaults.ts`. Everything there is also editable from
    the admin `/config` screen once you are running.
-3. **Branding.** Replace the logo files in `packages/ui/src/assets/`. Design tokens are
-   in `packages/ui`. The JCI marks are **not** covered by this repository's license — see
-   [NOTICE](NOTICE).
+3. **Branding.** More places than you would expect, and missing one is visible to the
+   public:
+   - Logos in `packages/ui/src/assets/`; design tokens in `packages/ui`.
+   - Favicons, PWA icons and Apple touch icons in **both** `apps/spotlight/public/` and
+     `apps/backstage/public/`, plus the share images `og-image-v2.png` and
+     `og-linktree.png`.
+   - PWA `name` / `short_name` in `apps/spotlight/vite.config.ts` and
+     `apps/backstage/vite.config.ts` — this is what the app installs as on a phone.
+   - The notification fallback title in both `public/firebase-messaging-sw.js`.
+   - The hardcoded `https://jcioriente.web.app` in `apps/spotlight/index.html`
+     (`rel=canonical`, `og:url`, `og:image`, `twitter:image`),
+     `apps/spotlight/public/sitemap.xml` and `apps/spotlight/public/robots.txt`. Leave
+     these and your site tells search engines it is a copy of ours, and every WhatsApp
+     share renders our image.
+
+   The JCI marks are **not** covered by this repository's license — see [NOTICE](NOTICE).
 4. **Points matrix.** Defaults follow JCI Oriente's "Mejor Miembro Individual" scoring
    (`docs/reference/points-matrix.md`). The values are editable per term from
    `/point-rules`. The rule *codes* are an enum in `@luminova/types` — changing which

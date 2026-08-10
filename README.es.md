@@ -129,8 +129,6 @@ No está construido. Se lista porque los cimientos se ven en el código y la gen
 - **Exportación de expedientes para premios JCI.** Los proyectos están estructurados para
   convertirse en postulaciones, pero la exportación está frenada por criterios de premiación
   que aún no tenemos.
-- **Superficie muerta conocida.** Una colección heredada `events` conserva reglas de
-  seguridad y ningún lector. Está programada para eliminarse.
 
 El panorama completo está en [`docs/roadmap.md`](docs/roadmap.md) (en inglés).
 
@@ -139,17 +137,35 @@ El panorama completo está en [`docs/roadmap.md`](docs/roadmap.md) (en inglés).
 Luminova no es multi-inquilino. Un despliegue sirve a un capítulo. Para usarlo en el tuyo,
 haz un fork y cambia esto:
 
-1. **Proyecto de Firebase.** Crea el tuyo, y luego ajusta el id del proyecto y los destinos
-   de hosting en `.firebaserc`, y la configuración del cliente en
-   `apps/*/.env.local.example` y `apps/*/.env.production`.
+1. **Proyecto de Firebase.** Crea el tuyo, y luego en `.firebaserc` ajusta el id del
+   proyecto por defecto y **los tres grupos de destinos**: `hosting` (ambos sitios) y
+   `storage` (el destino `default`, al que `firebase.json` apunta para `storage.rules`).
+   Si te saltas el destino de storage, `pnpm deploy:rules` falla o sigue apuntando al
+   bucket de otro capítulo, y el tuyo queda sin reglas. Después ajusta la configuración del
+   cliente en `apps/*/.env.local.example` y `apps/*/.env.production`.
 2. **Contenido del capítulo.** El contenido inicial del sitio —historia, misión, visión,
    valores, estadísticas, datos de contacto— vive en
    `tools/scripts/lib/site-config-seed-data.mjs` y
    `apps/spotlight/src/site-config/defaults.ts`. Todo eso también se edita desde la pantalla
    `/config` una vez que esté funcionando.
-3. **Marca.** Reemplaza los logos en `packages/ui/src/assets/`. Los tokens de diseño están
-   en `packages/ui`. Las marcas de JCI **no** están cubiertas por la licencia de este
-   repositorio — ver [NOTICE](NOTICE).
+3. **Marca.** Está en más lugares de los que parece, y omitir uno se ve en público:
+   - Logos en `packages/ui/src/assets/`; tokens de diseño en `packages/ui`.
+   - Favicons, iconos PWA e iconos de Apple en **ambos** `apps/spotlight/public/` y
+     `apps/backstage/public/`, más las imágenes para compartir `og-image-v2.png` y
+     `og-linktree.png`.
+   - El `name` / `short_name` de la PWA en `apps/spotlight/vite.config.ts` y
+     `apps/backstage/vite.config.ts` — es el nombre con el que la app se instala en el
+     teléfono.
+   - El título por defecto de las notificaciones en ambos
+     `public/firebase-messaging-sw.js`.
+   - El `https://jcioriente.web.app` fijo en `apps/spotlight/index.html` (`rel=canonical`,
+     `og:url`, `og:image`, `twitter:image`), `apps/spotlight/public/sitemap.xml` y
+     `apps/spotlight/public/robots.txt`. Si los dejas, tu sitio le declara a los buscadores
+     que es una copia del nuestro, y cada vez que alguien comparta el enlace por WhatsApp
+     saldrá nuestra imagen.
+
+   Las marcas de JCI **no** están cubiertas por la licencia de este repositorio — ver
+   [NOTICE](NOTICE).
 4. **Matriz de puntos.** Los valores por defecto siguen la evaluación "Mejor Miembro
    Individual" de JCI Oriente (`docs/reference/points-matrix.md`). Los valores se editan por
    gestión desde `/point-rules`. Los *códigos* de las reglas son un enum en

@@ -120,8 +120,10 @@ resolve them.
 
 ## Making a change
 
-1. **Branch off `main`.** Prefixes: `feat/`, `fix/`, `chore/`, `migration/`.
-   Committing directly to `main` is blocked by a local hook.
+1. **Branch off `main`.** Prefixes: `feat/`, `fix/`, `chore/`, `migration/`. Nothing stops
+   you committing to `main` locally — the repo ships no git hook, and the guard that blocks
+   it (`.claude/hooks/branch-guard.sh`) only runs inside a Claude Code session. Branch
+   anyway; a PR from `main` will be sent back.
 2. **Conventional Commits with a module scope** — `feat(backstage): …`,
    `fix(beacon): …`, `chore: …`.
 3. **Write the test first** where there is something to assert. There are ~250 test

@@ -24,10 +24,19 @@ the Apache License and are NOT redistributed under it:
 
   * The "JCI" and "Junior Chamber International" names and marks, which belong
     to Junior Chamber International, Inc.
-  * The "JCI Oriente" name and the logo files under packages/ui/src/assets/.
+  * The "JCI Oriente" name wherever it appears, including the PWA name and
+    short_name in apps/spotlight/vite.config.ts and apps/backstage/vite.config.ts
+    and the notification fallback title in each app's
+    public/firebase-messaging-sw.js.
+  * The logo files under packages/ui/src/assets/, and the branded image assets
+    under apps/spotlight/public/ and apps/backstage/public/ — favicons, PWA and
+    Apple touch icons, og-image-v2.png and og-linktree.png.
   * Chapter-specific content shipped as seed data — the organisation history,
     mission, vision and values in tools/scripts/lib/site-config-seed-data.mjs
     and apps/spotlight/src/site-config/defaults.ts.
+
+This list is meant to be exhaustive as of the commit that introduced it. If you
+add branded assets, add them here too.
 
 If you adapt this project for another chapter or organisation, replace those
 assets and that content with your own. Use of the JCI marks is governed by JCI's

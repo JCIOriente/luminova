@@ -11,7 +11,9 @@ body:
         need does not exist yet, which is just as useful for us to know.
 
         The technical steps are in the "Adopting it for your chapter" section of the
-        [README](../../README.md).
+        [README](https://github.com/JCIOriente/luminova/blob/main/README.md#adopting-it-for-your-chapter),
+        or in Spanish in the
+        [README.es.md](https://github.com/JCIOriente/luminova/blob/main/README.es.md#adoptarlo-para-tu-cap%C3%ADtulo).
 
   - type: input
     id: chapter
