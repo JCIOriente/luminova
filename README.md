@@ -46,9 +46,8 @@ Everything listed here exists in the code today. Planned work is in the
 
 **Recognition engine**
 
-- Check-ins write to Firestore; a Cloud Function derives a participation ledger row,
-  recomputes the member's per-term aggregate in a transaction, and mirrors the total onto
-  the member record.
+- Each check-in produces one participation ledger row. The per-term aggregate is
+  recomputed in a transaction, so concurrent scans at a busy door cannot lose points.
 - A fixed per-term matrix of point-rule codes (directing, co-directing, team, assembly,
   course, national event, anniversary, trainer roles, and so on). Points are editable per
   term but not addable — the codes are an enum, not free-form rules.

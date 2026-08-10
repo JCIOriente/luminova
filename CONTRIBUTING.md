@@ -19,16 +19,10 @@ upstream, start with the "Adopting it for your chapter" section of the
 pnpm only. Never `npm install` or `yarn` in this repo — the lockfile and the
 workspace overrides in `pnpm-workspace.yaml` depend on it.
 
-On macOS (Apple Silicon), Homebrew's OpenJDK is keg-only and not on `PATH` by
-default:
-
-```bash
-brew install openjdk
-export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
-```
-
-`tools/scripts/emulators.sh` adds that path best-effort, so this is usually
-handled for you. It is listed here for the case where it is not.
+On macOS (Apple Silicon) Homebrew's OpenJDK is keg-only and not on `PATH`; the
+[Quickstart](README.md#quickstart) has the two lines that fix it.
+`tools/scripts/emulators.sh` also adds that path best-effort, so you usually will
+not need them.
 
 ## Setup
 
@@ -46,26 +40,16 @@ production.
 
 ## Run the stack
 
-```bash
-pnpm dev
-```
-
-One command brings up everything: the Firebase emulator suite (beacon is rebuilt
+`pnpm dev` brings up everything: the Firebase emulator suite (beacon is rebuilt
 first so function triggers are never stale), a one-time seed of Firestore and
 Auth, and both app dev servers wired to the emulators.
 
-| Surface | URL | Credentials |
-|---------|-----|-------------|
-| Spotlight (public site) | http://localhost:5173 | — |
-| Backstage (admin) | http://localhost:5174 | `admin@jci.cc` / `Secret1` |
-| Emulator UI | http://localhost:4100 | — |
+The URLs, the sign-in credentials, and the one manual first-run step are in the
+[Quickstart](README.md#quickstart). They live there and only there — a second copy
+of a table of ports and passwords is how the last one went stale.
 
-Ports: Firestore 4010 · Functions 4020 · Auth 4030 · Hosting 4000 · Storage 9199.
-
-**First run:** the seed deliberately does not create the points matrix. Open
-**Reglas de puntos** (`/point-rules`) in backstage and click **Inicializar** to
-seed the current term. Until you do, check-ins record attendance but award zero
-points.
+Emulator ports: Firestore 4010 · Functions 4020 · Auth 4030 · Hosting 4000 ·
+Storage 9199.
 
 Emulator state persists to `emulator-data/` via `--import` / `--export-on-exit`,
 so the seeded admin and anything you create survive restarts. `Ctrl-C` exports;
