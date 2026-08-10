@@ -97,10 +97,10 @@ Acceptance criteria and UX flows for each Backstage feature.
 ## Point Rules
 
 ### Point Rules Page (`/point-rules`)
-- Fixed 16-row **Mejor Miembro Individual** matrix per term — codes are the
+- Fixed 18-row **Mejor Miembro Individual** matrix per term — codes are the
   `PointRuleCode` enum in `@luminova/types/engine`, not free-form rules
 - Empty term → "Inicializar" button (perm `create:PointRule`) seeds the current-year
-  term + the 16 rows from `DEFAULT_POINT_VALUES` / `POINT_RULE_LABELS`
+  term + the 18 rows from `DEFAULT_POINT_VALUES` / `POINT_RULE_LABELS`
 - Editing is **points-only**, inline in the table — rows cannot be added or deleted
 - Editing a value does NOT retroactively affect already-awarded participations
   (each ledger row snapshots `basePoints` at award time)

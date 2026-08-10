@@ -40,7 +40,9 @@ within the same project and share one Firestore database and one Storage bucket
   `allyShowcase`) is read through the lightweight `firebase/firestore/lite` subpath via
   `@luminova/firebase/lite` (no Auth, no realtime)
 - Public routes do not require authentication
-- Contact form is client-side only (no backend)
+- Contact form writes a `leads` doc directly (the one public write the site performs) —
+  `src/leads/submit-lead.ts` via the lite SDK, gated by `leadCreateValid()` in
+  `firestore.rules`; triaged in backstage at `/leads`
 - Firebase web app registration: `1:953870918238:web:63d0034740735d618b4acf`
 
 ### backstage (Admin Dashboard)

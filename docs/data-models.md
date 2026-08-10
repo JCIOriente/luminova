@@ -108,7 +108,7 @@ delete: denied) but no feature reads or writes it anymore.
 ## pointRules/{pointRuleId}
 
 Superseded model note: the original `type × role` rule matrix was replaced by the
-engine's fixed 16-code `PointRuleCode` matrix — see **pointRules** under the
+engine's fixed 18-code `PointRuleCode` matrix — see **pointRules** under the
 Recognition Engine section below.
 
 ---
