@@ -196,8 +196,12 @@ every provisioned user in the chapter, via an unbounded no-retry members scan
 (`index.ts:298-311`) — and the restore is a second one. Nav and route access collapse for
 everyone (`nav-config.ts:88-146`) and the `members` list is denied below Treasury.
 
-An admin who wants that outcome should empty its `permissions` instead: same effect, no
-lifecycle asymmetry, still visible on the page. So the rules lane keeps a clause barring
+An admin who wants that outcome should empty its `permissions` instead — no lifecycle
+asymmetry, and still visible on the page. Not, however, the *same* effect, as an earlier draft
+claimed: `packages/auth/src/ability.ts` confers several CASL grants keyed on the `Member` role
+**name**, and those survive an emptied `permissions` array. The UI would keep offering
+surfaces whose writes the rules then deny. Emptying the array is the better of two imperfect
+options, not a clean equivalent. So the rules lane keeps a clause barring
 `active: false` when `builtInKey == 'Member'`, mirrored in the UI, with a rules test.
 The `locked` guard protects `roles/Admin` only and is not a substitute.
 
@@ -260,9 +264,15 @@ provisioned user through the unbounded no-retry scan at `index.ts:298-311`.
   `undefined`), so `parseDocs` already drops such a doc and it never produces a `/permisos`
   row. Both missing-field cases are therefore *already* invisible to the UI while
   `isActiveRoleDoc` keeps calling them live and the pipeline keeps minting their
-  `permissions` — a worse pre-existing state than described. What this PR adds is that no
-  client write can repair either one, and no UI affordance can even try, since the doc
-  renders no row. Hence deploy check 2 below, and the follow-up to have
+  `permissions` — a worse pre-existing state than described.
+
+  A second correction, to the sentence that replaced the first: such a doc is **not**
+  admin-SDK-only to repair. `request.resource.data` is the post-write state, so a targeted
+  client `updateDoc(ref, { deletedAt: null })` makes `('deletedAt' in d)` true and satisfies
+  the helper. What is missing is an *affordance*, not authority — the doc renders no row, so
+  no UI can offer the repair. Only a doc missing **both** fields is genuinely unrepairable
+  from the client, since healing either one alone still fails the other's `in` check. Hence
+  deploy check 2 below, and the follow-up to have
   `reseedBuiltInRolePerms`' dry run report docs missing these fields — it already walks every
   role doc, so the check is nearly free and replaces a prose instruction with a real signal.
 
@@ -308,7 +318,7 @@ deactivated role's name. Complete list of gates that therefore survive deactivat
 - `firestore.rules:177` `canCurateFeatured()` → `hasAnyRole(['Admin','ProjectManager'])`.
   A deactivated ProjectManager who is also `isDirection()` can still flip `featured` onto
   the public site.
-- `firestore.rules:507` **and `:516`** — the Scanner `Attendee`-only conjunct on the
+- `firestore.rules:561` **and `:570`** — the Scanner `Attendee`-only conjunct on the
   checkIns create *and* delete arms. Restrictive, so surviving is the safe direction; both
   arms get a test.
 - `use-can.ts:54` `canFeatureInitiatives`, `can-remove-entry.ts:21` (Scanner),
@@ -358,6 +368,33 @@ miss it** — each keys on `builtInKey == 'Member'`. The outcome is inert rather
 the same missing key makes `getRoleDocsByBuiltInKeys` fail to match the doc, so the key stays
 uncovered and the seed fallback mints `Member`'s perms whatever the doc's `active` says.
 Deactivating it would change nothing. Cosmetic inconsistency, not a hole.
+
+**The well-formedness half of `roleLifecycleSafe()` is collection-agnostic, and only `roles`
+got it.** The four remaining `softDeleteSafe()` lanes (members ×2, positions, allies) have
+neither an `active is bool` check nor the `active`↔`deletedAt` coupling, and the hazard is
+concrete rather than theoretical: a member doc carrying the *string* `"false"` in `active`
+passes `softDeleteSafe`, is dropped by `memberDocSchema` (so it is invisible in backstage),
+yet `apps/beacon/src/showcase/project-board.ts` tests `member.active === false` — so it would
+still be projected to the **public** board showcase. (`project-ally.ts` uses the safe
+`!== true` direction.) Generalizing here would mean four more write lanes, four more rules-test
+groups, and four repeats of the prod field audit that is already this PR's riskiest
+operational step — so the fork is deliberate. Owed its own pass.
+
+**The client mirror and beacon disagree on duplicate `builtInKey` docs.** Beacon returns an
+array and unions both docs' perms; `previewEffectivePerms` builds a `Map` and keeps only the
+last. Console-only, and the union itself is already listed as a residual — but the *divergence*
+between the two implementations is exactly the drift class this spec spent a section on.
+Worth noting that a shared pure helper in `packages/auth` (which both sides already import
+`resolveEffectivePerms` from, so there is no new dependency and no cycle) would remove the
+duplication of the subtle half while leaving the `isLiveRole` / `isActiveRoleDoc` predicate
+mirror where it must stay. That option was never weighed during design; it is not a rejected
+one.
+
+**Two cross-surface label inconsistencies, both deliberate but worth stating once.**
+`roleOptions` appends `" (desactivado)"` while `roleDisplay` does not, so on `/positions` the
+same deactivated role reads "… (desactivado)" in the grants picker and plain in the grants
+column, one screen apart. And baking the marker into the label string makes it unstyleable
+and only string-testable.
 
 **Other follow-ups:** `presidentClaims` mints perms from the static snapshot
 (`tools/scripts/lib/president-claims.mjs:16-18`), so re-running the president seed after a
