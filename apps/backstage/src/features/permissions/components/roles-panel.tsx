@@ -8,6 +8,7 @@ import {
   useReactivateRole,
 } from "../hooks/use-save-role";
 import { permissionLabel } from "../lib/permission-matrix";
+import { holdersPhrase } from "../lib/holders-phrase";
 import type { RoleOverviewRow } from "../lib/role-overview";
 import { RoleEditor } from "./role-editor";
 
@@ -39,6 +40,14 @@ function holdersLabel(holders: RoleOverviewRow["holders"], state: SectionState):
     .join(", ");
   const rest = holders.length - MAX_HOLDERS;
   return rest > 0 ? `${shown} y ${rest} más` : shown;
+}
+
+/** The holder count as a FACT or as unknown. `holders` is `[]` both when nobody holds the
+ *  role and when the members query never resolved — /permisos reaches the latter on
+ *  purpose (it keeps this panel alive through a members outage), so the two must not print
+ *  the same. */
+function holderCountOrNull(row: RoleOverviewRow, state: SectionState): number | null {
+  return state === "ok" ? row.holders.length : null;
 }
 
 function originLabel(row: RoleOverviewRow, state: SectionState): string {
@@ -82,9 +91,30 @@ export function RolesPanel({
     doc: RoleDefinition;
   } | null>(null);
 
+  const [reactivateError, setReactivateError] = useState<string | null>(null);
+  const [reactivateBusy, setReactivateBusy] = useState(false);
+
+  const openReactivate = (row: RoleOverviewRow, doc: RoleDefinition) => {
+    setReactivateError(null);
+    setReactivating({ row, doc });
+  };
+
   const confirmReactivate = async () => {
-    if (reactivating) await reactivateRole.mutateAsync(reactivating.doc.id);
-    setReactivating(null);
+    if (!reactivating) return;
+    setReactivateError(null);
+    setReactivateBusy(true);
+    try {
+      await reactivateRole.mutateAsync(reactivating.doc.id);
+      setReactivating(null);
+    } catch (error) {
+      // Nothing catches this globally — query-client.ts wires QueryCache only (no
+      // MutationCache.onError) and useReactivateRole sets no onError — so without this
+      // the rejection was an unhandled promise rejection: no message, dialog stuck open.
+      console.error("Failed to reactivate role", error);
+      setReactivateError("No se pudo reactivar el rol. Intenta de nuevo.");
+    } finally {
+      setReactivateBusy(false);
+    }
   };
 
   const submit = async (data: RoleDefinitionInput) => {
@@ -141,15 +171,36 @@ export function RolesPanel({
                     {row.permissions.length === 1 ? "" : "s"}
                     {!row.active && " · inactivo — se otorgarán al reactivar"}
                   </span>
+                  {/* Deactivation revokes PERMS, never name-keyed authority:
+                      computeMemberRoles is pure over positions.grants and reads no role
+                      doc, so the `roles` claim keeps the name and every gate keyed on it
+                      still fires — canCurateFeatured() (featured on the public site), the
+                      Scanner checkIns conjunct, the /positions nav allowlist, the board
+                      layout precedence. Only built-ins: computeMemberRoles filters through
+                      ROLES, so a custom role's name can never reach a claim. */}
+                  {!row.active && row.builtInKey !== null && (
+                    <span className="text-ui-xs text-warn">
+                      Desactivar no quita los accesos ligados al nombre del rol; para eso, edita los
+                      cargos que lo otorgan.
+                    </span>
+                  )}
+                  {!row.active && doc?.locked === true && (
+                    <span className="text-ui-xs text-warn">
+                      Rol protegido: reactívalo desde la consola de Firebase.
+                    </span>
+                  )}
                 </div>
                 {doc !== null && (
                   <div className="flex shrink-0 items-center gap-2">
-                    {!row.active && (
+                    {/* `!doc.locked` too: firestore.rules requires locked == false for ANY
+                        roles update, so on a locked doc this write is denied before it
+                        reaches roleLifecycleSafe(). Offering it would 403. */}
+                    {!row.active && !doc.locked && (
                       <Button
                         as="button"
                         variant="secondary"
                         size="sm"
-                        onClick={() => setReactivating({ row, doc })}
+                        onClick={() => openReactivate(row, doc)}
                       >
                         Reactivar rol
                       </Button>
@@ -196,7 +247,7 @@ export function RolesPanel({
           <RoleEditor
             key={editing === "new" ? "new" : editing.doc.id}
             role={editing === "new" ? null : editing.doc}
-            holderCount={editing === "new" ? 0 : editing.row.holders.length}
+            holderCount={editing === "new" ? 0 : holderCountOrNull(editing.row, holdersState)}
             onSubmit={submit}
             onDelete={editing !== "new" ? remove : undefined}
           />
@@ -209,12 +260,15 @@ export function RolesPanel({
       <Dialog
         open={reactivating !== null}
         onOpenChange={(open) => {
-          if (!open) setReactivating(null);
+          if (!open) {
+            setReactivating(null);
+            setReactivateError(null);
+          }
         }}
         title="Reactivar rol"
         description={
           reactivating
-            ? `¿Reactivar ${reactivating.row.label}? Volverá a otorgar estos permisos a ${reactivating.row.holders.length} ${reactivating.row.holders.length === 1 ? "miembro activo" : "miembros activos"}.`
+            ? `¿Reactivar ${reactivating.row.label}? Volverá a otorgar estos permisos a ${holdersPhrase(holderCountOrNull(reactivating.row, holdersState))}.`
             : undefined
         }
       >
@@ -231,17 +285,36 @@ export function RolesPanel({
                 ))}
               </ul>
             ))}
+          {reactivateError !== null && (
+            <div role="alert" className="text-ui-sm text-error">
+              {reactivateError}
+            </div>
+          )}
           <div className="flex justify-end gap-3">
             <Button
               as="button"
               type="button"
               variant="secondary"
-              onClick={() => setReactivating(null)}
+              disabled={reactivateBusy}
+              onClick={() => {
+                setReactivating(null);
+                setReactivateError(null);
+              }}
             >
               Cancelar
             </Button>
-            <Button as="button" type="button" onClick={() => void confirmReactivate()}>
-              Reactivar
+            {/* Deliberately NOT blocked while `holdersState` is degraded: /permisos keeps
+                this panel alive through a members outage precisely so a deactivated role
+                stays restorable. Blocking here would make the outage the thing that pins a
+                role dead — the bug the per-section degradation exists to avoid. The count
+                is labelled unknown instead. */}
+            <Button
+              as="button"
+              type="button"
+              disabled={reactivateBusy}
+              onClick={() => void confirmReactivate()}
+            >
+              {reactivateBusy ? "Reactivando…" : "Reactivar"}
             </Button>
           </div>
         </div>

@@ -123,6 +123,35 @@ describe("RoleEditor deactivation", () => {
     expect(screen.queryByRole("button", { name: "Desactivar rol" })).not.toBeInTheDocument();
   });
 
+  it("BLOCKING: reports an unknown holder count instead of 0 when the members query is degraded", () => {
+    // /permisos deliberately keeps the panel alive on membersError, so a null count means
+    // "not loaded", not "nobody". Printing 0 understates the blast radius of a write that
+    // fans out through an unbounded no-retry members scan.
+    render(
+      <RoleEditor
+        role={builtInTreasury}
+        holderCount={null}
+        onSubmit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/número desconocido de miembros activos/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Afecta a 0 miembros activos/)).not.toBeInTheDocument();
+  });
+
+  it("BLOCKING: never offers Desactivar rol on a ghost doc (active: true + deletedAt set)", () => {
+    // isLiveRole, not raw role.active: the ghost is dead to beacon's perms pipeline, so
+    // RolesPanel already offers "Reactivar rol" for it. Reading role.active here put both
+    // buttons on screen at once — the exact double-button the active conjunct prevents.
+    const ghost: RoleDefinition = {
+      ...builtInTreasury,
+      active: true,
+      deletedAt: { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"],
+    };
+    render(<RoleEditor role={ghost} onSubmit={vi.fn()} onDelete={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Desactivar rol" })).not.toBeInTheDocument();
+  });
+
   it("surfaces a failed deactivation without closing the form", async () => {
     const onDelete = vi.fn().mockRejectedValue(new Error("denied"));
     render(
