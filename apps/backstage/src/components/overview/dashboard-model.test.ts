@@ -97,6 +97,20 @@ describe("deriveActivityFeed", () => {
     });
     expect(feed).toEqual([]);
   });
+
+  it("BLOCKING: an unreadable members collection drops only the member entries", () => {
+    // members === null means no read:Member. activities and initiatives are
+    // signedIn()-readable, so the principal IS entitled to those rows; nulling the whole
+    // feed threw away two thirds of what they may see and left the card unrendered.
+    const feed = deriveActivityFeed({
+      members: null,
+      activities: [activity("a1", "Asamblea", t(5), "Ejecutada")],
+      initiatives: [initiative("i1", "Sonrisas", t(5))],
+      now,
+      limit: 8,
+    });
+    expect(feed.map((f) => f.id)).toEqual(["a1", "i1"]);
+  });
 });
 
 describe("buildDashboardModel", () => {
@@ -116,10 +130,11 @@ describe("buildDashboardModel", () => {
       initiatives: [],
       now,
     });
-    expect(model.kpis.activeMembers.value).toBe(2);
-    expect(model.kpis.activeMembers.trend).toEqual({ dir: "up", label: "+1 · este mes" });
-    expect(model.kpis.allies.value).toBe(2);
-    expect(model.kpis.allies.trend).toBeUndefined();
+    expect(model.kpis.activeMembers).toEqual({
+      value: 2,
+      trend: { dir: "up", label: "+1 · este mes" },
+    });
+    expect(model.kpis.allies).toEqual({ value: 2, trend: undefined });
     expect(model.kpis.upcomingEvents.value).toBe(1);
     expect(model.kpis.pointsThisMonth.value).toBe(40);
     expect(model.pointsByMonth.map((p) => p.points)).toEqual([10, 40]);
@@ -162,7 +177,55 @@ describe("buildDashboardModel", () => {
       initiatives: [],
       now,
     });
-    expect(model.birthdays.map((b) => b.name)).toEqual(["Beto", "Cinthia", "Ana"]);
-    expect(model.birthdays[0]?.label).not.toMatch(/19\d{2}/);
+    expect(model.birthdays?.map((b) => b.name)).toEqual(["Beto", "Cinthia", "Ana"]);
+    expect(model.birthdays?.[0]?.label).not.toMatch(/19\d{2}/);
+  });
+
+  it("BLOCKING: a null (never-run) query yields null, not a zero KPI", () => {
+    // `[]` and `null` are different facts. A principal without read:Ally never ran the
+    // query, so "0 aliados" is a fabrication; a principal WITH the capability and an empty
+    // collection genuinely has 0. Only the second may render a tile.
+    const unknownSide = buildDashboardModel({
+      members: null,
+      allies: null,
+      activities: [activity("a1", "Asamblea", thisMonth(2), "Ejecutada")],
+      memberPoints: [],
+      initiatives: [],
+      now,
+    });
+    expect(unknownSide.kpis.allies).toBeNull();
+    expect(unknownSide.kpis.activeMembers).toBeNull();
+    expect(unknownSide.birthdays).toBeNull();
+    // The feed is NOT members-only: the executed activity is signedIn()-readable, so it
+    // survives the unreadable members collection instead of taking the card down with it.
+    expect(unknownSide.feed.map((f) => f.id)).toEqual(["a1"]);
+
+    const emptySide = buildDashboardModel({
+      members: [],
+      allies: [],
+      activities: [],
+      memberPoints: [],
+      initiatives: [],
+      now,
+    });
+    expect(emptySide.kpis.allies).toEqual({ value: 0, trend: undefined });
+    expect(emptySide.kpis.activeMembers).toEqual({ value: 0, trend: undefined });
+    expect(emptySide.birthdays).toEqual([]);
+    expect(emptySide.feed).toEqual([]);
+  });
+
+  it("keeps the ungated KPIs when the members/allies reads are unknown", () => {
+    // The unknown side must not swallow the widgets that DID resolve — points and events
+    // are signed-in readable for everyone.
+    const model = buildDashboardModel({
+      members: null,
+      allies: null,
+      activities: [activity("a1", "Futuro", thisMonth(20), "Programada")],
+      memberPoints: [mp("m1", { "2026-06": 40 })],
+      initiatives: [],
+      now,
+    });
+    expect(model.kpis.upcomingEvents).toEqual({ value: 1, trend: undefined });
+    expect(model.kpis.pointsThisMonth).toEqual({ value: 40, trend: undefined });
   });
 });

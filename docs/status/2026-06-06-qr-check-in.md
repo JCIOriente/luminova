@@ -55,6 +55,11 @@ scans a member's personal QR (or taps a manual fallback), which writes a
 - **Scanner designation UI** — needs B1 uid-provisioning + D4 role UI. The
   Scanner-role + `scannerEventIds` path is rules-enforced + tested but has no UI;
   v1 is operated by Admin/PM (the `checkIns` rule already allows them).
+  > **2026-08-05 — no longer true.** `scannerEventIds` was removed with the built-in
+  > role set (`docs/specs/builtin-role-set.md` C2). Scanner now carries coarse
+  > `read:Activity` + `checkIn:Attendance`, and the only Scanner-specific restriction
+  > left in `firestore.rules` is the `role == 'Attendee'` conjunct — there is no event
+  > scoping to enforce or test.
 - **Director/team roles** — v1 manual tap = `Attendee`; other roles via the
   documented Admin/PM trust model (follow-up #7).
 - **Full Activity CRUD** (edit/delete, project/program parent combobox via E1/E5) — D1.

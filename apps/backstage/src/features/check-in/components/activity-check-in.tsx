@@ -152,7 +152,7 @@ export function ActivityCheckIn({ activityId, members, open = true }: ActivityCh
       <PresentTable
         entries={roster}
         onRemove={onRemove}
-        canRemove={(entry) => gate.canRemoveCheckIn(activityId, entry)}
+        canRemove={(entry) => gate.canRemoveCheckIn(entry)}
       />
 
       {scanOpen && (

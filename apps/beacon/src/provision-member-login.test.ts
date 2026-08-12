@@ -22,10 +22,9 @@ describe("nextClaims", () => {
   it("adds Member to empty claims", () => {
     expect(nextClaims(undefined, "Member")).toEqual({ roles: ["Member"] });
   });
-  it("merges Member without clobbering existing roles / scannerEventIds", () => {
-    expect(nextClaims({ roles: ["ProjectManager"], scannerEventIds: ["e1"] }, "Member")).toEqual({
+  it("merges Member without clobbering existing roles", () => {
+    expect(nextClaims({ roles: ["ProjectManager"] }, "Member")).toEqual({
       roles: ["ProjectManager", "Member"],
-      scannerEventIds: ["e1"],
     });
   });
   it("is idempotent when the role is already present", () => {
@@ -164,7 +163,7 @@ describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
         "a@b.co": {
           uid: "orphan",
           email: "a@b.co",
-          customClaims: { roles: ["Admin", "Scanner"], scannerEventIds: ["e1"] },
+          customClaims: { roles: ["Admin", "Scanner"] },
         },
       },
     });
@@ -175,7 +174,7 @@ describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
       },
     };
     await provisionMember(spied, "m1");
-    expect(claimsWrites).toEqual([{ roles: ["Scanner", "Member"], scannerEventIds: ["e1"] }]);
+    expect(claimsWrites).toEqual([{ roles: ["Scanner", "Member"] }]);
   });
 
   it("de-elevates when replacing a stale link with a different live account", async () => {

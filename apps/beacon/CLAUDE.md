@@ -11,8 +11,9 @@ participation **facts** into the engine-only `participations` ledger and the
 ### `awardPoints` — `onDocumentWritten('checkIns/{id}')`
 
 The engine's entry point. A `checkIns/{id}` doc (`{ memberId, activityId, role,
-checkInAt }`) is written by an authorized client (Admin/ProjectManager, or a
-Scanner scoped to the activity). On write:
+checkInAt }`) is written by an authorized client — any `checkIn:Attendance` holder
+(Admin/ProjectManager/ActivityManager, or a custom role); a Scanner among them is
+confined to `Attendee` rows by a rules conjunct, with no event scoping. On write:
 
 1. `validateCheckIn` — reject malformed input (no throw → no retry storm).
 2. Read `activities/{activityId}` (category, parentType/parentId, startAt, termId)
@@ -44,6 +45,82 @@ affected members' aggregates.
 ### `setUserRoles` — `onCall` (F1, unchanged)
 
 Admin-guarded custom-claim assignment.
+
+### `reseedBuiltInRolePerms` — `onCall`
+
+Admin-guarded. Moves the LIVE `roles/{id}` docs onto the current `BUILT_IN_ROLE_PERMS`
+snapshot. `seedRoles` uses `create()` and swallows `ALREADY_EXISTS` by design, so editing
+the snapshot alone never reaches production — this is the path that does.
+
+**OPERATOR SEQUENCE — both callables, in this order.** This one is **update-only**: it
+never creates a missing doc. A newly added built-in role (`ActivityManager`, `Secretary`)
+has no `roles/{id}` doc in production, so a reseed alone will never bring it into
+existence — it comes back as `skipped` reason `missing` (and in `failed`), and the role
+stays a "sin sincronizar" row on `/permisos` forever. Run:
+
+1. `seedRoles` — create-only; brings the new role docs into existence with their seed
+   perms, name and description. Leaves every existing doc untouched.
+2. `reseedBuiltInRolePerms` — update-only; moves the existing docs onto the new snapshot.
+3. `recomputeAllClaims` — the observable backstop (see BLAST RADIUS below).
+
+Skipping step 1 is the failure mode to watch for; skipping step 2 leaves every incumbent
+role on its old perms.
+
+**OWNER-OP, after the reseed — the Secretario cargo, in this order.** The reseed strips the
+Ally trio (`read:Ally`, `create:Ally`, `update:Ally`) from `Membership`; `Secretary` is where
+those live now. But the code-side cargo mapping (`packages/types/src/cel-positions.ts`,
+`tools/scripts/lib/cel-seed.mjs`) reaches a **fresh project only** — `seedPresident` writes
+`CEL_SEED` just `if (snap.empty)`, and production `positions` is not empty. So in production
+this is a `/positions` edit someone types by hand (Admin-only; the reseed never touches
+`positions`):
+
+4. **ADD `Secretary` to the Secretario cargo's `grants`.**
+5. **THEN remove `Admin`** from that cargo.
+
+Doing 5 before 4, or skipping 4, leaves `create:Ally`/`update:Ally` and
+`manage:Lead`/`manage:Notification` with no holder but Admin — `/allies` and `/leads`
+disappear from the nav of everyone whose authority came through that cargo, silently.
+
+- Writes **`permissions` only.** Never `name`, never `description`: the doc owns display
+  text, which is what lets a reseed coexist with role renaming. An operator re-running it
+  must not silently revert every rename.
+- Requires `confirm: "overwrite-builtin-roles"`. `requireAdmin` is the same gate the
+  read-only admin ops use; a destructive one should not be one click away.
+- `dryRun: true` writes nothing and returns per-doc `{id, current, proposed}`. `current` is
+  the **raw** on-disk array, junk included — not the sanitized one the claims pipeline would
+  read, which would describe a document state that does not exist.
+- A doc whose `permissions` carries a code `isValidPermissionCode` rejects is **applied**,
+  not reported `unchanged`, even when the sanitized set already matches. Otherwise the junk
+  is never normalized and that doc is indistinguishable from an up-to-date one.
+- A soft-deleted built-in (`active: false` / `deletedAt` set) is skipped `inactive`, never
+  revived.
+- Skips `locked === true`. The admin SDK bypasses the `locked` rule the client is held to,
+  so `roles/Admin` is excluded explicitly rather than by assumption.
+- One `WriteBatch` (≤ 9 docs, far under the 500 limit). The doc-by-doc loop would leave half
+  the role set on new perms and half on old, with fan-outs already fired for the first half
+  and no rollback.
+- Returns `{ok, dryRun, applied: [{id, changedFields}], skipped, failed}`. `skipped` reasons
+  are `locked` / `unchanged` / `not-built-in` / `missing` / `inactive`; `failed` is the operator
+  shorthand for exactly the `missing` ids — run `seedRoles` first. **`ok` is false whenever
+  `failed` is non-empty**, so the skipped-step-1 mistake does not read as success.
+
+**BLAST RADIUS — cost.** `onRoleWritten` scans the **entire** members collection for any doc
+carrying a `builtInKey`, unbounded (no `.limit()`, no cursor). Every applied doc fires its
+own scan, and one `WriteBatch` lands them all at once — so the nine-role rollout is up to
+eight *concurrent* full scans, each doing a sequential `getUser` plus possible
+`setCustomUserClaims` per member, inside a 540 s budget with `retry: false`. A timeout
+strands the members that scan had not yet reached. **Operator instruction: run
+`recomputeAllClaims` afterwards as the observable backstop** — noting it is itself an
+unbounded scan, so on a large collection the backstop shares the failure mode. Re-running
+the reseed is free — `roleClaimsChanged` short-circuits a no-op write.
+
+**BLAST RADIUS — data exposure.** Reseeding `roles/Member` moves it from `[]` to five
+coarse reads including `read:Member`, and *every* provisioned user carries the `Member`
+role. The members read rule is `canDo('read','Member') || own uid`, so from that moment the
+whole member directory — email, phone, profession, birthdate, positions,
+permissionOverrides — is readable by any signed-in member. That is the larger irreversible
+consequence of this callable, deliberate per `docs/specs/builtin-role-set.md`, and it is not
+undone by re-running anything: reverting means editing `roles/Member` back down.
 
 ## Architecture
 

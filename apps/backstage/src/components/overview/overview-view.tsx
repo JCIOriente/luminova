@@ -107,15 +107,19 @@ export function OverviewView({
   );
 
   const widgets: Record<Exclude<WidgetKey, "headerActions">, () => ReactNode> = {
+    // A null KPI is UNKNOWN — the query feeding it is gated on a capability this principal
+    // lacks and never ran. Omit the tile; rendering it would state a count (0) as fact.
     kpis: () => (
       <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          icon={Icon.user({ s: 20 })}
-          tone="blue"
-          label="Miembros activos"
-          value={model.kpis.activeMembers.value}
-          trend={model.kpis.activeMembers.trend}
-        />
+        {model.kpis.activeMembers && (
+          <KpiCard
+            icon={Icon.user({ s: 20 })}
+            tone="blue"
+            label="Miembros activos"
+            value={model.kpis.activeMembers.value}
+            trend={model.kpis.activeMembers.trend}
+          />
+        )}
         <KpiCard
           icon={Icon.calendar({ s: 20 })}
           tone="teal"
@@ -123,13 +127,15 @@ export function OverviewView({
           value={model.kpis.upcomingEvents.value}
           trend={model.kpis.upcomingEvents.trend}
         />
-        <KpiCard
-          icon={Icon.handshake({ s: 20 })}
-          tone="navy"
-          label="Aliados"
-          value={model.kpis.allies.value}
-          trend={model.kpis.allies.trend}
-        />
+        {model.kpis.allies && (
+          <KpiCard
+            icon={Icon.handshake({ s: 20 })}
+            tone="navy"
+            label="Aliados"
+            value={model.kpis.allies.value}
+            trend={model.kpis.allies.trend}
+          />
+        )}
         <KpiCard
           icon={Icon.barChart({ s: 20 })}
           tone="amber"
@@ -190,35 +196,40 @@ export function OverviewView({
         </div>
       </Card>
     ),
-    birthdays: () => (
-      <Card as="section" padding="none">
-        <div className="flex items-center justify-between px-[22px] pt-5 pb-2">
-          <h2 className="text-ui-lg font-semibold text-ink-1">Próximos cumpleaños</h2>
-        </div>
-        <div className="px-3 pb-3">
-          {model.birthdays.length === 0 ? (
-            <p className="px-3 py-8 text-center text-ui-sm text-ink-3">Sin cumpleaños próximos.</p>
-          ) : (
-            model.birthdays.map((b) => (
-              <div
-                key={b.id}
-                className="flex items-center justify-between gap-4 rounded-[12px] px-3 py-3 transition-colors hover:bg-ink-1/[0.04]"
-              >
-                <span className="flex min-w-0 items-center gap-2.5">
-                  <span className="text-jci-blue">{Icon.heart({ s: 16 })}</span>
-                  <span className="truncate text-ui-md font-semibold text-ink-1">{b.name}</span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2 text-ui-xs text-ink-3">
-                  <span className="font-medium text-ink-2">{b.label}</span>
-                  <span className="size-[3px] rounded-full bg-ink-3" />
-                  <span>{inDaysEs(b.days)}</span>
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </Card>
-    ),
+    // Null = the members read this derives from was never allowed to run. Omit the whole
+    // card: "Sin cumpleaños próximos" would be a claim about data we did not fetch.
+    birthdays: () =>
+      model.birthdays === null ? null : (
+        <Card as="section" padding="none">
+          <div className="flex items-center justify-between px-[22px] pt-5 pb-2">
+            <h2 className="text-ui-lg font-semibold text-ink-1">Próximos cumpleaños</h2>
+          </div>
+          <div className="px-3 pb-3">
+            {model.birthdays.length === 0 ? (
+              <p className="px-3 py-8 text-center text-ui-sm text-ink-3">
+                Sin cumpleaños próximos.
+              </p>
+            ) : (
+              model.birthdays.map((b) => (
+                <div
+                  key={b.id}
+                  className="flex items-center justify-between gap-4 rounded-[12px] px-3 py-3 transition-colors hover:bg-ink-1/[0.04]"
+                >
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <span className="text-jci-blue">{Icon.heart({ s: 16 })}</span>
+                    <span className="truncate text-ui-md font-semibold text-ink-1">{b.name}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2 text-ui-xs text-ink-3">
+                    <span className="font-medium text-ink-2">{b.label}</span>
+                    <span className="size-[3px] rounded-full bg-ink-3" />
+                    <span>{inDaysEs(b.days)}</span>
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      ),
     recentActivity: () => (
       <Card as="section" padding="none" className="px-[22px] py-5">
         <h2 className="mb-4 text-ui-lg font-semibold text-ink-1">Actividad reciente</h2>

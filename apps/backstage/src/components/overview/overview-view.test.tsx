@@ -21,7 +21,14 @@ function makeModel(overrides: Partial<DashboardModel> = {}): DashboardModel {
 
 describe("OverviewView", () => {
   it("renders real KPI values from the model", () => {
-    render(<OverviewView model={makeModel()} userName="Camila Áñez" now={new Date()} />);
+    render(
+      <OverviewView
+        model={makeModel()}
+        userName="Camila Áñez"
+        now={new Date()}
+        roles={["Admin"]}
+      />,
+    );
     expect(screen.getByText("142")).toBeInTheDocument();
     expect(screen.getByText("6")).toBeInTheDocument();
     expect(screen.getByText("88")).toBeInTheDocument();
@@ -31,7 +38,14 @@ describe("OverviewView", () => {
   });
 
   it("shows honest empty states when lists are empty", () => {
-    render(<OverviewView model={makeModel()} userName="Camila Áñez" now={new Date()} />);
+    render(
+      <OverviewView
+        model={makeModel()}
+        userName="Camila Áñez"
+        now={new Date()}
+        roles={["Admin"]}
+      />,
+    );
     expect(screen.getByText("No hay eventos próximos.")).toBeInTheDocument();
     expect(screen.getByText("Sin actividad reciente.")).toBeInTheDocument();
     expect(screen.getByText("Sin cumpleaños próximos.")).toBeInTheDocument();
@@ -48,6 +62,7 @@ describe("OverviewView", () => {
         })}
         userName="Camila Áñez"
         now={new Date()}
+        roles={["Admin"]}
       />,
     );
     expect(screen.getByText("Ana Pérez")).toBeInTheDocument();
@@ -56,8 +71,61 @@ describe("OverviewView", () => {
     expect(screen.queryByText(/19\d{2}/)).not.toBeInTheDocument();
   });
 
+  it("omits a null KPI tile entirely instead of rendering it as 0", () => {
+    // null = the query behind the tile is gated on a capability this principal lacks and
+    // never ran. A 0 there is a fabricated fact (guardrail #3).
+    render(
+      <OverviewView
+        model={makeModel({
+          kpis: {
+            activeMembers: null,
+            upcomingEvents: { value: 3, trend: undefined },
+            allies: null,
+            pointsThisMonth: { value: 88, trend: undefined },
+          },
+        })}
+        userName="Camila Áñez"
+        now={new Date()}
+        roles={["Admin"]}
+      />,
+    );
+    expect(screen.queryByText("Aliados")).not.toBeInTheDocument();
+    expect(screen.queryByText("Miembros activos")).not.toBeInTheDocument();
+    // The ungated tiles still render — the two nulls dropped out, nothing else did.
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("Puntos otorgados (mes)")).toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("omits the birthdays card when the members read never ran, but keeps the feed", () => {
+    render(
+      <OverviewView
+        model={makeModel({ birthdays: null })}
+        userName="Camila Áñez"
+        now={new Date()}
+        roles={["Admin"]}
+      />,
+    );
+    expect(screen.queryByText("Próximos cumpleaños")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sin cumpleaños próximos.")).not.toBeInTheDocument();
+    // Positive control: four negatives alone also pass against an OverviewView that renders
+    // nothing at all. makeModel leaves activeMembers non-null, so this proves the render
+    // survived and the two omissions above are real.
+    expect(screen.getByText("Miembros activos")).toBeInTheDocument();
+    // The feed is activity- and initiative-derived too, so an unreadable members collection
+    // must not take its card down with it.
+    expect(screen.getByText("Actividad reciente")).toBeInTheDocument();
+  });
+
   it("greets the user by first name", () => {
-    render(<OverviewView model={makeModel()} userName="Camila Áñez" now={new Date()} />);
+    render(
+      <OverviewView
+        model={makeModel()}
+        userName="Camila Áñez"
+        now={new Date()}
+        roles={["Admin"]}
+      />,
+    );
     expect(screen.getByRole("heading", { name: /camila/i })).toBeInTheDocument();
   });
 });

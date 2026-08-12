@@ -439,5 +439,5 @@ export const onNotificationCreated = onDocumentCreated(
 );
 
 export { setUserRoles } from "./set-user-roles.js";
-export { seedRoles, recomputeAllClaims } from "./recompute-claims.js";
+export { seedRoles, recomputeAllClaims, reseedBuiltInRolePerms } from "./recompute-claims.js";
 export { provisionMemberLogin } from "./provision-member-login.js";

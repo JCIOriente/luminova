@@ -31,7 +31,14 @@ test("presidentClaims grants Member+Admin roles and the manage:all perm", () => 
   // Member now contributes its coarse reads; manage:all already subsumes them for Admin.
   assert.deepEqual(presidentClaims(), {
     roles: ["Member", "Admin"],
-    perms: ["manage:all", "read:Activity", "read:Member", "read:Program"],
+    perms: [
+      "manage:all",
+      "read:Activity",
+      "read:Member",
+      "read:MemberPoints",
+      "read:Program",
+      "read:Project",
+    ],
   });
 });
 

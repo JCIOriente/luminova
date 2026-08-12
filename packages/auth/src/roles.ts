@@ -9,7 +9,6 @@ export interface AuthClaims {
    *  the member has zero coarse abilities — `buildAbility` does not fall back to a
    *  role table. */
   perms?: PermissionCode[];
-  scannerEventIds?: string[];
 }
 
 export function hasRole(claims: AuthClaims, role: Role): boolean {

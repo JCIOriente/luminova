@@ -40,14 +40,15 @@ the mistake to avoid:
 2. **Conditional grants** (`applyConditional` in `ability.ts`) — hardcoded per
    built-in role, not UI-editable. Two kinds live here, and the second is easy to
    miss:
-   - genuinely object-scoped: `Scanner`'s `checkIn` limited to `scannerEventIds`,
-     `Member`'s `read/update` limited to its own `uid`;
+   - genuinely object-scoped: `Member`'s `read/update` limited to its own `uid`;
    - **unconditioned reads that look exactly like coarse perms but aren't**:
-     `Member` also gets `read` on `MemberPoints`, `Event`, `Project`, `Position`,
-     and `Scanner` gets `read` on `Activity`. They live in code because
-     `BUILT_IN_ROLE_PERMS.Member` is deliberately `[]` — so a Member's read
-     access is invisible in the permissions UI and in the role docs. This is
-     where the `read:Project` in the gotcha below actually comes from.
+     `Member` also gets `read` on `MemberPoints`, `Project` and `Position` from
+     `applyConditional`. That is now belt-and-braces rather than the only source:
+     `BUILT_IN_ROLE_PERMS.Member` carries `read:Member`, `read:MemberPoints`,
+     `read:Activity`, `read:Program` and `read:Project` as coarse perms, so a
+     backfilled token gets them either way. `read:Position` is the one that lives
+     ONLY here — it is what keeps `/positions` visible to a board member, since
+     every provisioned user also holds the `Member` role.
 
 `buildAbility` applies perms first, then conditional grants, both derived from
 `claims`. Adding a conditional grant is a code change plus a rules change — never

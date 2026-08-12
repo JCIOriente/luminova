@@ -13,10 +13,11 @@ describe("decodeClaims", () => {
     });
   });
 
-  it("passes through scannerEventIds when present", () => {
+  it("drops a legacy scannerEventIds claim (event scoping removed)", () => {
+    // A token minted before the removal still carries it; decoding it back into AuthClaims
+    // would resurrect a field nothing reads.
     expect(decodeClaims({ roles: ["Scanner"], scannerEventIds: ["evt_1"] })).toEqual({
       roles: ["Scanner"],
-      scannerEventIds: ["evt_1"],
     });
   });
 

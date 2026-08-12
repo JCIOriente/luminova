@@ -8,21 +8,19 @@ import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { resolveMemberPerms } from "./claims-sync/resolve-member-perms.js";
 import { ensureApp } from "./runtime.js";
 
-const MAX_SCANNER_EVENT_IDS = 50;
-const MAX_EVENT_ID_LENGTH = 128;
-
 export interface SetUserRolesInput {
   targetUid: string;
   roles: Role[];
-  scannerEventIds?: string[];
 }
 
 interface RawInput {
   targetUid?: unknown;
   roles?: unknown;
-  scannerEventIds?: unknown;
 }
 
+/** Extra keys are ignored, not rejected: an older client may still send the removed
+ *  `scannerEventIds`, and failing its call would break role assignment for no gain — the
+ *  field is simply never written into the claim. */
 export function validateSetRolesInput(data: unknown): SetUserRolesInput {
   const raw = (data ?? {}) as RawInput;
 
@@ -42,41 +40,7 @@ export function validateSetRolesInput(data: unknown): SetUserRolesInput {
   }
   const roles = [...new Set(raw.roles as Role[])];
 
-  let scannerEventIds: string[] | undefined;
-  if (raw.scannerEventIds !== undefined) {
-    if (
-      !Array.isArray(raw.scannerEventIds) ||
-      raw.scannerEventIds.some((id) => typeof id !== "string")
-    ) {
-      throw new HttpsError("invalid-argument", "scannerEventIds must be a string array");
-    }
-    if (!roles.includes("Scanner")) {
-      throw new HttpsError("invalid-argument", "scannerEventIds requires the Scanner role");
-    }
-    if (raw.scannerEventIds.length > MAX_SCANNER_EVENT_IDS) {
-      throw new HttpsError("invalid-argument", "too many scannerEventIds");
-    }
-    if (
-      (raw.scannerEventIds as string[]).some(
-        (id) => id.length === 0 || id.length > MAX_EVENT_ID_LENGTH,
-      )
-    ) {
-      throw new HttpsError("invalid-argument", "scannerEventIds entries are out of bounds");
-    }
-    scannerEventIds = [...new Set(raw.scannerEventIds as string[])];
-  }
-
-  if (
-    roles.includes("Scanner") &&
-    (scannerEventIds === undefined || scannerEventIds.length === 0)
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Scanner role requires at least one scannerEventIds entry",
-    );
-  }
-
-  return { targetUid: raw.targetUid, roles, scannerEventIds };
+  return { targetUid: raw.targetUid, roles };
 }
 
 export const setUserRoles = onCall(async (request) => {
@@ -102,11 +66,7 @@ export const setUserRoles = onCall(async (request) => {
     throw new HttpsError("internal", "resolved perms exceed the claim size cap");
   }
 
-  await auth.setCustomUserClaims(input.targetUid, {
-    roles: input.roles,
-    perms,
-    scannerEventIds: input.scannerEventIds,
-  });
+  await auth.setCustomUserClaims(input.targetUid, { roles: input.roles, perms });
 
   return { ok: true as const };
 });

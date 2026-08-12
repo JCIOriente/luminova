@@ -57,20 +57,13 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): ClaimsSyncDeps {
     getExistingClaims: async (uid) => {
       const user = await loadUser(uid);
       const claims = user?.customClaims as Record<string, unknown> | undefined;
-      const scannerEventIds = Array.isArray(claims?.scannerEventIds)
-        ? (claims.scannerEventIds as unknown[]).filter((s): s is string => typeof s === "string")
-        : undefined;
       const roles = rolesFromClaims(claims);
       const perms = permsFromClaims(claims);
-      return {
-        roles,
-        ...(perms ? { perms } : {}),
-        ...(scannerEventIds ? { scannerEventIds } : {}),
-      };
+      return { roles, ...(perms ? { perms } : {}) };
     },
     getRoleDocsByBuiltInKeys: async (keys) => {
       if (keys.length === 0) return [];
-      // `in` supports ≤30 values; ROLES has 7. `builtIn === true` is defense in
+      // `in` supports ≤30 values; ROLES has 9. `builtIn === true` is defense in
       // depth against an impostor custom role spoofing a builtInKey (rules also
       // forbid clients setting builtInKey, but the trust boundary is the trigger).
       const snap = await db.collection("roles").where("builtInKey", "in", keys).get();

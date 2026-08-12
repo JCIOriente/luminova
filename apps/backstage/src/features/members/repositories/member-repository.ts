@@ -78,8 +78,11 @@ export class MemberRepository {
     await updateDoc(doc(this.collection, id), toSelfProfileDoc(data));
   }
 
-  /** ExecutiveCommittee org-chart edit: writes ONLY the current term's assignment
-   *  (dot-path) so the positions-only rule path applies. */
+  /** Org-chart edit: writes ONLY the current term's assignment (dot-path). The dedicated
+   *  ExecutiveCommittee positions-only rule this used to target is gone — the write now
+   *  goes through the ordinary `update:Member` lane plus `positionsAssignmentSafe()`, so
+   *  the narrow payload is about not tripping those constraints, not about a separate
+   *  allow-rule. */
   async setPositions(
     id: string,
     assignment: { cargoId: string | null; comisionIds: string[] },

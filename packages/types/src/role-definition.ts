@@ -19,25 +19,17 @@ export interface RoleDefinition {
 }
 
 /** Coarse, non-conditional perms each built-in role confers. Object-scoped grants
- *  (own-profile read/update, scanner event scope, attendance check-in scope) live in
- *  CASL + firestore.rules, NOT here — so Scanner is empty. Member carries only the
- *  coarse reads that light up its member-facing nav pages (roster, leaderboard,
- *  activities, projects); its own-doc read/update stays object-scoped in CASL.
+ *  (own-profile read/update, attendance check-in scope) live in CASL + firestore.rules,
+ *  NOT here.
  *
  *  Canonical SEED for the editable `roles/` docs (beacon seeds from this). Once a
  *  built-in role doc is seeded it becomes the live source of truth (admins may
  *  edit non-locked ones); this constant is intentionally a snapshot. To change a
- *  built-in's defaults, edit here and re-seed. */
+ *  built-in's defaults, edit here and run the `reseedBuiltInRolePerms` callable —
+ *  `seedRoles` uses create() and will NOT move an existing doc. */
 export const BUILT_IN_ROLE_PERMS: Record<Role, PermissionCode[]> = {
   Admin: ["manage:all"],
-  Membership: [
-    "manage:Member",
-    "read:Ally",
-    "create:Ally",
-    "update:Ally",
-    "read:MemberPoints",
-    "read:Position",
-  ],
+  Membership: ["manage:Member", "read:MemberPoints", "read:Position"],
   Treasury: ["read:Member", "read:MemberPoints"],
   ExecutiveCommittee: [
     "read:Member",
@@ -45,23 +37,29 @@ export const BUILT_IN_ROLE_PERMS: Record<Role, PermissionCode[]> = {
     "read:MemberPoints",
     "read:Program",
     "read:Project",
-    "manage:Position",
-    "create:Notification",
     "read:Notification",
+    "create:Notification",
+    "read:Lead",
+    "read:PointRule",
   ],
   ProjectManager: [
     "manage:Project",
-    "manage:Activity",
     "manage:Program",
-    "read:Ally",
+    "manage:Activity",
     "checkIn:Attendance",
+    "read:Ally",
   ],
-  Scanner: [],
-  // Member-facing read access: roster + leaderboard (read:Member — the members
-  // read rule keys on this capability), activities and projects catalogs
-  // (read:Activity / read:Program — both collections are signed-in-readable, so
-  // these only light up the backstage nav). Read-only; every write stays gated.
-  Member: ["read:Member", "read:Activity", "read:Program"],
+  // Meant for a JDL dirección — prod data created in /positions, never seeded onto a cargo.
+  ActivityManager: ["manage:Activity", "checkIn:Attendance"],
+  Secretary: ["manage:Notification", "manage:Lead", "manage:Ally"],
+  // Coarse now, replacing the CASL eventId conditional. The Attendee-only restriction is a
+  // Scanner-specific conjunct in firestore.rules, independent of where the perm came from.
+  Scanner: ["read:Activity", "checkIn:Attendance"],
+  // Member-facing read access: roster + leaderboard, own points, and the activities /
+  // programs / projects catalogs. Read-only; every write stays gated. Deliberately NOT
+  // read:PointRule — /point-rules gates on it with no role allowlist, so granting it would
+  // put the admin page in every member's nav.
+  Member: ["read:Member", "read:MemberPoints", "read:Activity", "read:Program", "read:Project"],
 };
 
 /** Spanish display labels for the built-in roles — used when seeding the role docs
@@ -71,7 +69,9 @@ export const ROLE_LABELS: Record<Role, string> = {
   Membership: "Membresía",
   Treasury: "Tesorería",
   ExecutiveCommittee: "Comité Ejecutivo",
-  ProjectManager: "Director de Proyecto",
+  ProjectManager: "Proyectos",
+  ActivityManager: "Actividades",
+  Secretary: "Secretaría",
   Scanner: "Escáner",
   Member: "Miembro",
 };
@@ -82,10 +82,12 @@ export const ROLE_LABELS: Record<Role, string> = {
  *  former apps/backstage PERMISSION_ROLE_INFO map. */
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   Admin: "Acceso total a la plataforma.",
-  Membership: "Crear y editar miembros; ver aliados, eventos y puntos.",
+  Membership: "Crear y editar miembros; ver puntos y cargos.",
   Treasury: "Gestionar pagos; ver miembros y puntos.",
-  ExecutiveCommittee: "Ver gestión del capítulo; administrar cargos y comisiones.",
+  ExecutiveCommittee: "Ver la gestión del capítulo; enviar notificaciones.",
   ProjectManager: "Gestionar proyectos, programas y actividades; registrar asistencia.",
-  Scanner: "Registrar asistencia en actividades asignadas.",
+  ActivityManager: "Crear y editar actividades; registrar asistencia.",
+  Secretary: "Comunicación del capítulo: notificaciones, prospectos y aliados.",
+  Scanner: "Registrar asistencia en las actividades del capítulo.",
   Member: "Ver y editar su propio perfil; ver puntos y eventos.",
 };

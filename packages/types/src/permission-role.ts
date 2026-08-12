@@ -4,6 +4,8 @@ export const ROLES = [
   "Treasury",
   "ExecutiveCommittee",
   "ProjectManager",
+  "ActivityManager",
+  "Secretary",
   "Scanner",
   "Member",
 ] as const;
