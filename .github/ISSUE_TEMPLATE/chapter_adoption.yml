@@ -1,0 +1,60 @@
+name: Chapter adoption
+description: You represent a JCI chapter (or a similar volunteer organisation) and want to run Luminova.
+title: "[Adoption] "
+labels: ["adoption"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        You do not need to be a developer to open this. Tell us what you need and we
+        will point you at the right part of the setup — or find out that the part you
+        need does not exist yet, which is just as useful for us to know.
+
+        The technical steps are in the "Adopting it for your chapter" section of the
+        [README](https://github.com/JCIOriente/luminova/blob/main/README.md#adopting-it-for-your-chapter),
+        or in Spanish in the
+        [README.es.md](https://github.com/JCIOriente/luminova/blob/main/README.es.md#adoptarlo-para-tu-cap%C3%ADtulo).
+
+  - type: input
+    id: chapter
+    attributes:
+      label: Chapter and country
+      placeholder: "JCI <name>, <country>"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Where are you?
+      options:
+        - Evaluating whether it fits
+        - Trying to run it locally
+        - Deploying it for our chapter
+        - Already running it
+    validations:
+      required: true
+
+  - type: textarea
+    id: need
+    attributes:
+      label: What are you trying to do?
+      description: The problem in your chapter, in your own words.
+    validations:
+      required: true
+
+  - type: textarea
+    id: blockers
+    attributes:
+      label: What is blocking you?
+      description: A step that failed, something you could not find, a feature you need that seems missing.
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      description: The interface currently ships in Spanish only. Would that work for your chapter?
+      options:
+        - Spanish works for us
+        - We would need another language
+        - Not sure yet

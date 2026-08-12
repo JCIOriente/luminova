@@ -99,16 +99,17 @@ standing — a `Desafiliado` member is **not** deleted and still appears in the 
 ## events/{eventId} — LEGACY
 
 The v2 `Event` model (`type`/`scope`/`director` + role arrays) was superseded by the
-Recognition Engine's `programs` / `projects` / `activities` collections (below). The
-`events` collection still has rules (read: signed-in; create/update: perm-gated;
-delete: denied) but no feature reads or writes it anymore.
+Recognition Engine's `programs` / `projects` / `activities` collections (below). Nothing
+reads or writes it, and its `firestore.rules` block was removed in `38e9010` — `/events`
+now falls through to the deny-all `match /{document=**}` catch-all, asserted by a rules
+test. Kept here only so the name resolves for anyone reading old specs.
 
 ---
 
 ## pointRules/{pointRuleId}
 
 Superseded model note: the original `type × role` rule matrix was replaced by the
-engine's fixed 16-code `PointRuleCode` matrix — see **pointRules** under the
+engine's fixed 18-code `PointRuleCode` matrix — see **pointRules** under the
 Recognition Engine section below.
 
 ---
@@ -162,7 +163,6 @@ hard-coded role checks. `firestore.rules` is the source of truth; summary:
 | `positions` | signed-in | perm-gated; non-empty `grants` = Admin-only | never (soft-delete only) |
 | `roles` | signed-in | Admin (custom roles only; built-ins seeded via admin SDK; `locked` role immutable) | never |
 | `allies` | perm `read:Ally` | perm-gated | never (soft-delete only) |
-| `events` (legacy) | signed-in | perm-gated | never |
 | `pointRules` | signed-in | perm-gated (`PointRule`) | never |
 | `terms` | signed-in | Admin | never |
 | `programs` / `projects` | signed-in | perm-gated initiative rules (+ direction constraints) | never |

@@ -1,0 +1,79 @@
+name: Bug report
+description: Something is broken or behaves differently than documented.
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface?
+      options:
+        - spotlight (public site)
+        - backstage (admin dashboard)
+        - beacon (Cloud Functions)
+        - firestore.rules / storage.rules
+        - packages (ui, types, auth, firebase, utils)
+        - tooling (seeds, emulators, CI)
+        - not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps. Say which route you were on and which role you were signed in as.
+      placeholder: |
+        1. Sign in to backstage as Admin
+        2. Open /activities/<id>, Check-in tab
+        3. Scan a member QR
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: Include the exact error text or console output if there is any.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Where did you see it?
+      options:
+        - Local emulators (pnpm dev)
+        - Local production-like build (pnpm preview:local)
+        - A deployed instance
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Node and pnpm versions
+      description: Output of `node -v` and `pnpm -v`. Skip if this is on a deployed instance.
+      placeholder: "node v24.x.x, pnpm 11.x.x"
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: A commit SHA, a screenshot, a Firestore document that reproduces it.
+
+  - type: checkboxes
+    id: not-a-secret
+    attributes:
+      label: Before you submit
+      options:
+        - label: This report contains no real member data, passwords, or private keys.
+          required: true
+        - label: This is not a security vulnerability. (Those go through SECURITY.md, privately.)
+          required: true

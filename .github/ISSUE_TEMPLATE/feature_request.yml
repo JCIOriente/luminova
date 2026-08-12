@@ -1,0 +1,57 @@
+name: Feature request
+description: Propose something the platform should do and does not.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [`docs/roadmap.md`](https://github.com/JCIOriente/luminova/blob/main/docs/roadmap.md) first — it may already be planned,
+        or deliberately out of scope.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation, not the solution. What breaks today, and for whom?
+      placeholder: "At the end of the term nobody can tell which members attended the assemblies, because…"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Who is this for?
+      options:
+        - A chapter running the platform (board, admin, treasurer)
+        - A member using it
+        - Someone adapting Luminova for another chapter
+        - Developers working on the codebase
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+      description: If you have a concrete shape in mind, describe it. Rough is fine.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface would it touch?
+      multiple: true
+      options:
+        - spotlight (public site)
+        - backstage (admin dashboard)
+        - beacon (Cloud Functions)
+        - firestore.rules
+        - packages
+        - not sure
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What are you doing instead today?
+      description: Spreadsheets, WhatsApp, a manual process — knowing the workaround helps size the value.
