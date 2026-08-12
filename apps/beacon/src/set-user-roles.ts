@@ -43,7 +43,8 @@ export function validateSetRolesInput(data: unknown): SetUserRolesInput {
   return { targetUid: raw.targetUid, roles };
 }
 
-/** Reject any requested role whose `roles/{key}` doc EXISTS and is deactivated.
+/** Reject any requested role whose `roles/{key}` doc EXISTS and is deactivated — `live: false`,
+ *  which is `isActiveRoleDoc` over BOTH `active` and `deletedAt`, never the raw `active` field.
  *
  *  Minting `perms: []` for it is not enough: this callable also writes the role NAME into
  *  the claim, and name-keyed rules gates read the name, not the perms — `canCurateFeatured()`
@@ -60,9 +61,9 @@ export function validateSetRolesInput(data: unknown): SetUserRolesInput {
  *  firestore-deps logs it, and refusing to assign is the safe reading. */
 export function assertRequestedRolesActive(
   roles: readonly Role[],
-  docs: readonly { builtInKey: Role | null; active: boolean }[],
+  docs: readonly { builtInKey: Role | null; live: boolean }[],
 ): void {
-  const inactive = roles.filter((role) => docs.some((d) => d.builtInKey === role && !d.active));
+  const inactive = roles.filter((role) => docs.some((d) => d.builtInKey === role && !d.live));
   if (inactive.length === 0) return;
   throw new HttpsError(
     "failed-precondition",

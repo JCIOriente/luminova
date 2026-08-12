@@ -85,7 +85,7 @@ describe("getRoleDocsByBuiltInKeys coverage anomalies", () => {
     const errors = captureErrors();
     const { db } = fakeDb([builtIn("Treasury", "Treasury")]);
     const docs = await firestoreClaimsDeps(db, auth).getRoleDocsByBuiltInKeys(["Treasury"]);
-    expect(docs).toEqual([{ permissions: ["read:Member"], builtInKey: "Treasury", active: true }]);
+    expect(docs).toEqual([{ permissions: ["read:Member"], builtInKey: "Treasury", live: true }]);
     expect(errors).toEqual([]);
   });
 

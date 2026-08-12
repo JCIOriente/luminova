@@ -21,7 +21,7 @@ describe("resolveMemberPerms", () => {
     const out = await resolveMemberPerms(
       deps({
         getRoleDocsByBuiltInKeys: async () => [
-          { permissions: ["read:Member"], builtInKey: "Treasury", active: true },
+          { permissions: ["read:Member"], builtInKey: "Treasury", live: true },
         ],
       }),
       ["Treasury"],
@@ -35,12 +35,12 @@ describe("resolveMemberPerms", () => {
     // The whole reason firestore.rules used to deny deactivating a built-in: a missing doc
     // and an inactive doc were indistinguishable, so dropping the inactive doc from the
     // query made the key UNCOVERED and re-minted BUILT_IN_ROLE_PERMS. Perms deliberately
-    // non-empty so a resolver that ignores `active` fails loudly instead of coincidentally
+    // non-empty so a resolver that ignores `live` fails loudly instead of coincidentally
     // returning [].
     const out = await resolveMemberPerms(
       deps({
         getRoleDocsByBuiltInKeys: async () => [
-          { permissions: ["manage:all"], builtInKey: "Treasury", active: false },
+          { permissions: ["manage:all"], builtInKey: "Treasury", live: false },
         ],
       }),
       ["Treasury"],
@@ -54,7 +54,7 @@ describe("resolveMemberPerms", () => {
     const out = await resolveMemberPerms(
       deps({
         getRoleDocsByBuiltInKeys: async () => [
-          { permissions: ["manage:all"], builtInKey: "Treasury", active: false },
+          { permissions: ["manage:all"], builtInKey: "Treasury", live: false },
         ],
       }),
       ["Treasury", "Membership"],
@@ -68,8 +68,8 @@ describe("resolveMemberPerms", () => {
     const out = await resolveMemberPerms(
       deps({
         getRoleDocsByBuiltInKeys: async () => [
-          { permissions: ["read:Position"], builtInKey: "Membership", active: true },
-          { permissions: ["manage:all"], builtInKey: "Treasury", active: false },
+          { permissions: ["read:Position"], builtInKey: "Membership", live: true },
+          { permissions: ["manage:all"], builtInKey: "Treasury", live: false },
         ],
       }),
       ["Membership", "Treasury", "Secretary"],

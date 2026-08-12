@@ -5,6 +5,7 @@ import { isValidPermissionCode, type PermissionCode } from "@luminova/types/perm
 import { chunk } from "../chunk.js";
 import { isSafeDocId } from "../firestore-util.js";
 import { isActiveRoleDoc, permsFromRoleDoc } from "./role-doc.js";
+import type { LiveBuiltInRoleDoc } from "./resolve-member-perms.js";
 import type { ClaimsSyncDeps } from "./sync.js";
 
 function rolesFromClaims(claims: Record<string, unknown> | undefined): Role[] {
@@ -21,8 +22,6 @@ function permsFromClaims(
     : undefined;
 }
 
-type BuiltInRoleDoc = { permissions: PermissionCode[]; builtInKey: Role; active: boolean };
-
 /** The built-in role docs covering `keys`, plus a log line for every coverage anomaly the
  *  `builtIn` conjunct below can otherwise hide. COVERAGE is the load-bearing property: an
  *  uncovered key falls through to BUILT_IN_ROLE_PERMS[key] in resolveMemberPerms, so a doc
@@ -30,11 +29,11 @@ type BuiltInRoleDoc = { permissions: PermissionCode[]; builtInKey: Role; active:
  *  that /permisos still reports as a revocation. None of these shapes is client-authorable
  *  (rules forbid writing builtIn/builtInKey), so each one means a console edit or a partial
  *  migration: log it, but keep resolving (throwing would strand every member's claims). */
-async function queryBuiltInRoleDocs(db: Firestore, keys: Role[]): Promise<BuiltInRoleDoc[]> {
+async function queryBuiltInRoleDocs(db: Firestore, keys: Role[]): Promise<LiveBuiltInRoleDoc[]> {
   // `in` supports ≤30 values; ROLES has 9. `builtIn === true` is defense in
   // depth against an impostor custom role spoofing a builtInKey (rules also
   // forbid clients setting builtInKey, but the trust boundary is the trigger).
-  // NO active filter: an inactive doc must still reach resolveMemberPerms so it
+  // NO liveness filter: a deactivated doc must still reach resolveMemberPerms so it
   // COVERS its key. Filtering here made a deactivated built-in indistinguishable
   // from an unseeded one, which restored its seed perms.
   //
@@ -78,7 +77,7 @@ async function queryBuiltInRoleDocs(db: Firestore, keys: Role[]): Promise<BuiltI
   return covering.map((d) => ({
     permissions: permsFromRoleDoc(d.data()),
     builtInKey: d.get("builtInKey") as Role,
-    active: isActiveRoleDoc(d.data()),
+    live: isActiveRoleDoc(d.data()),
   }));
 }
 
@@ -111,8 +110,8 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): ClaimsSyncDeps {
   // actually times out. Keyed on the sorted key SET so call-order variation still hits.
   // Rejections are evicted (not memoized) so one transient error does not fail every
   // remaining member of the fan-out.
-  const builtInDocsCache = new Map<string, Promise<BuiltInRoleDoc[]>>();
-  function loadBuiltInRoleDocs(keys: Role[]): Promise<BuiltInRoleDoc[]> {
+  const builtInDocsCache = new Map<string, Promise<LiveBuiltInRoleDoc[]>>();
+  function loadBuiltInRoleDocs(keys: Role[]): Promise<LiveBuiltInRoleDoc[]> {
     const cacheKey = [...new Set(keys)].sort().join(",");
     let pending = builtInDocsCache.get(cacheKey);
     if (!pending) {
