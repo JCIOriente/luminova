@@ -26,13 +26,18 @@ import {
   SUBJECT_LABELS,
   permissionCode,
 } from "../lib/permission-matrix";
+import { holdersPhrase } from "../lib/holders-phrase";
+import { isLiveRole } from "../../../lib/role-lifecycle";
 
 interface RoleEditorProps {
   role: RoleDefinition | null;
   /** Members who currently hold this role, as counted by /permisos. Labelled
    *  "activos" because that count comes from useMembers() (active only) while the
-   *  onRoleWritten fan-out has no active filter — it is not the full blast radius. */
-  holderCount?: number;
+   *  onRoleWritten fan-out has no active filter — it is not the full blast radius.
+   *
+   *  `null` when the members query did not resolve: /permisos keeps this editor
+   *  reachable through a members outage, and 0 there means "unknown", not "nobody". */
+  holderCount?: number | null;
   onSubmit: (data: RoleDefinitionInput) => Promise<void>;
   /** Deactivate this role (soft, reversible from /permisos). */
   onDelete?: () => Promise<void>;
@@ -51,8 +56,11 @@ interface RoleEditorProps {
 export function RoleEditor({ role, holderCount = 0, onSubmit, onDelete }: RoleEditorProps) {
   const locked = role?.locked ?? false;
   const isMemberRole = role?.builtInKey === "Member";
+  // isLiveRole, never raw role.active: a console-produced doc with active:true AND a
+  // deletedAt is dead to beacon's perms pipeline, so RolesPanel already offers it
+  // "Reactivar rol". Reading role.active here rendered both buttons at once.
   const canDelete =
-    role !== null && role.active && !locked && !isMemberRole && onDelete !== undefined;
+    role !== null && isLiveRole(role) && !locked && !isMemberRole && onDelete !== undefined;
   const [name, setName] = useState(role?.name ?? "");
   const [description, setDescription] = useState(role?.description ?? "");
   const [perms, setPerms] = useState<Set<PermissionCode>>(new Set(role?.permissions ?? []));
@@ -170,8 +178,7 @@ export function RoleEditor({ role, holderCount = 0, onSubmit, onDelete }: RoleEd
         <div className="flex flex-col gap-1.5">
           <p className="text-ui-xs text-ink-3">
             Desactivar es reversible: el rol deja de otorgar permisos y se puede reactivar desde
-            /permisos. Afecta a {holderCount}{" "}
-            {holderCount === 1 ? "miembro activo" : "miembros activos"}.
+            /permisos. Afecta a {holdersPhrase(holderCount)}.
           </p>
           <Button
             as="button"
