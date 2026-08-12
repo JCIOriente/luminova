@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/JCIOriente/luminova/discussions
+    about: Setup help, adoption questions, and anything that is not a bug or a proposal.
+  - name: Report a security vulnerability
+    url: https://github.com/JCIOriente/luminova/security/advisories/new
+    about: Report privately. Never open a public issue for a vulnerability.
