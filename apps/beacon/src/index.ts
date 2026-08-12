@@ -300,14 +300,30 @@ export const onRoleWritten = onDocumentWritten(
       ? members
       : members.where("roleIds", "array-contains", event.params.id);
     const { docs } = await query.get();
+    let scanned = 0;
+    let failed = 0;
     for (const doc of docs) {
       const member = parseMember(doc.data());
       if (!member.uid) continue;
+      scanned += 1;
       try {
         await syncMemberClaims(deps, member, termKey);
       } catch (err) {
+        failed += 1;
         console.error("onRoleWritten member re-sync failed", { memberId: doc.id, err });
       }
+    }
+    // ONE aggregate line for the whole fan-out. The per-member logs above are the only
+    // record otherwise, and with retry:false there is no redelivery: a partial fan-out
+    // needs a single event an alert can key on, and the counts are what tell "one bad
+    // member" apart from "the scan mostly failed". Silent on a clean run so the line
+    // itself is the signal. Operator response: recomputeAllClaims.
+    if (failed > 0) {
+      console.error("onRoleWritten fan-out incomplete — run recomputeAllClaims", {
+        roleId: event.params.id,
+        scanned,
+        failed,
+      });
     }
   },
 );

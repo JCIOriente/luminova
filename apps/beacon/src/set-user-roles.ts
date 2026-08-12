@@ -43,6 +43,33 @@ export function validateSetRolesInput(data: unknown): SetUserRolesInput {
   return { targetUid: raw.targetUid, roles };
 }
 
+/** Reject any requested role whose `roles/{key}` doc EXISTS and is deactivated.
+ *
+ *  Minting `perms: []` for it is not enough: this callable also writes the role NAME into
+ *  the claim, and name-keyed rules gates read the name, not the perms — `canCurateFeatured()`
+ *  and the Scanner `role == 'Attendee'` conjuncts among them. So without this check the
+ *  callable is a path to NEWLY grant authority through a role the organization has taken out
+ *  of service. The documented residual is narrower than that: it only covers EXISTING holders
+ *  retaining a name they already had.
+ *
+ *  An ABSENT doc must still be ACCEPTED. On a fresh project no built-in doc exists until
+ *  seedRoles runs, and resolveMemberPerms deliberately falls back to BUILT_IN_ROLE_PERMS for
+ *  exactly that window; rejecting here would make role assignment impossible pre-seed.
+ *
+ *  Fails closed on the duplicate-key anomaly (two docs, one key, one deactivated):
+ *  firestore-deps logs it, and refusing to assign is the safe reading. */
+export function assertRequestedRolesActive(
+  roles: readonly Role[],
+  docs: readonly { builtInKey: Role | null; active: boolean }[],
+): void {
+  const inactive = roles.filter((role) => docs.some((d) => d.builtInKey === role && !d.active));
+  if (inactive.length === 0) return;
+  throw new HttpsError(
+    "failed-precondition",
+    `role deactivated, cannot be assigned: ${inactive.join(", ")}`,
+  );
+}
+
 export const setUserRoles = onCall(async (request) => {
   requireAdmin(request);
 
@@ -54,14 +81,14 @@ export const setUserRoles = onCall(async (request) => {
 
   ensureApp();
   const auth = getAuth();
+  const deps = firestoreClaimsDeps(getFirestore(), auth);
+  // Before anything is minted: a deactivated role must not be assignable at all, because
+  // the role NAME is granted regardless of the perms it resolves to. The read costs nothing
+  // extra — deps memoize the built-in query, so resolveMemberPerms reuses this result.
+  assertRequestedRolesActive(input.roles, await deps.getRoleDocsByBuiltInKeys(input.roles));
   // Resolve the coarse perms for these built-in roles so the `perms` claim stays
   // consistent with the position-driven trigger (rules gate on perms).
-  const perms = await resolveMemberPerms(
-    firestoreClaimsDeps(getFirestore(), auth),
-    input.roles,
-    [],
-    { grant: [], revoke: [] },
-  );
+  const perms = await resolveMemberPerms(deps, input.roles, [], { grant: [], revoke: [] });
   if (perms.length > PERMISSION_CAP) {
     throw new HttpsError("internal", "resolved perms exceed the claim size cap");
   }

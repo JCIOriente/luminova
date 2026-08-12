@@ -45,6 +45,16 @@ export function roleClaimsChanged(
 
   // Both inactive → contributes nothing regardless of its perms. (builtIn is
   // already handled above; perms genuinely do not matter while inactive.)
+  //
+  // Sound despite the asymmetry it looks like it has: post-three-way, COVERAGE is a
+  // property of the SET of docs sharing a builtInKey, while this detector only ever sees
+  // ONE doc. It is sufficient because every way a doc can enter or leave a key's coverage
+  // set is separately detected ABOVE this line — create and delete (the !before/!after
+  // return), a builtInKey change, and a builtIn flip — and a change in `active` is
+  // detected too. So no doc can join or leave a coverage set without firing a re-sync;
+  // what remains here is a doc that was and still is inactive under an unchanged key,
+  // whose perms cannot reach any member's claims. Do not fold this check upward past
+  // those three: each one is what makes this short-circuit safe.
   if (!beforeActive) return false;
 
   return !permsEqual(permsFromRoleDoc(before), permsFromRoleDoc(after));
