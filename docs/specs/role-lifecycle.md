@@ -252,12 +252,19 @@ provisioned user through the unbounded no-retry scan at `index.ts:298-311`.
 
   The two `in` checks have a cost worth stating: they permanently deny every *client* update
   to a legacy role doc missing `active` **or** `deletedAt` — including an ordinary `/permisos`
-  permission edit. A doc missing `active` is already invisible to the UI
-  (`roleDefinitionDocSchema` rejects it) while live in the pipeline, so it is already broken.
-  A doc with `active: true` but no `deletedAt` key, however, renders and works fine today and
-  would become admin-SDK-only to edit. Prod role docs are known to lag the seed, so **verify
-  before deploying that every prod `roles/*` doc carries both fields.** Accepted: the
-  alternative is a rule that cannot tell a legacy doc from a forged one.
+  permission edit.
+
+  An earlier draft of this paragraph claimed a doc with `active: true` but no `deletedAt`
+  "renders and works fine today". That was wrong. `roleDefinitionDocSchema` has always
+  required `deletedAt` (`clientTimestampSchema` is a `z.custom`, whose check *does* run on
+  `undefined`), so `parseDocs` already drops such a doc and it never produces a `/permisos`
+  row. Both missing-field cases are therefore *already* invisible to the UI while
+  `isActiveRoleDoc` keeps calling them live and the pipeline keeps minting their
+  `permissions` — a worse pre-existing state than described. What this PR adds is that no
+  client write can repair either one, and no UI affordance can even try, since the doc
+  renders no row. Hence deploy check 2 below, and the follow-up to have
+  `reseedBuiltInRolePerms`' dry run report docs missing these fields — it already walks every
+  role doc, so the check is nearly free and replaces a prose instruction with a real signal.
 
   `deletedAt` value forgery has no authorization effect — every consumer
   (`role-doc.ts:26`, `recompute-claims.ts:192`, `role-definition-doc-schema.ts:22`) tests
@@ -364,8 +371,23 @@ doc is dropped by `parseDocs` and re-renders as an `unsynced` row asserting full
   beacon would permit a deactivation that restores seed perms. Hosting before rules ships
   two buttons whose writes `main`'s rules still deny — `softDelete` on a built-in and
   `reactivate` on anything — so `/permisos` would offer visibly broken affordances.
-- **Verify before deploying** that prod `roles/Admin` really carries `locked: true` — it is
-  the only structural anti-lockout guard, and prod role docs are known to lag the seed.
+- **Three prod verifications, all prerequisites rather than hygiene.** Prod role docs are
+  known to lag the seed, and each of these fields is a condition the design silently depends
+  on:
+  1. `roles/Admin` carries `locked: true`. Reduced from a hard prerequisite to a
+     belt-and-braces check: the roles lane now also bars deactivating `builtInKey == 'Admin'`
+     outright, mirroring the `Member` clause, so a `locked` field that lags the seed no longer
+     lets one Admin write strip `manage:all` chapter-wide. Still worth confirming.
+  2. Every `roles/*` doc carries **both** `active` and `deletedAt` keys, or
+     `roleLifecycleSafe()` denies every client update to it (Design 6).
+  3. Every built-in doc carries `builtIn: true` **and** `builtInKey` equal to its doc id.
+     This one is load-bearing in a way the earlier draft missed: coverage is computed from
+     `where("builtInKey","in",keys)` filtered by `builtIn === true`, so a doc that lost
+     either field is dropped, its key stays *uncovered*, and the seed fallback re-mints —
+     making a deactivation a **silent no-op that `/permisos` reports as a revocation**.
+     `reseedBuiltInRolePerms` cannot heal it either: it skips such a doc as `not-built-in`
+     without adding it to `failed`, so the callable still returns `ok: true`. Beacon now
+     logs the drop, but the deploy check is what prevents it.
 - `reseedBuiltInRolePerms` already skips inactive (`recompute-claims.ts:134-137`) and
   `seedBuiltInRoles` is create-only (`seed-roles.ts:46-49`), so neither resurrects a
   deactivated role. Both get a regression test.
