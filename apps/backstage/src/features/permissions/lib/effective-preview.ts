@@ -22,11 +22,21 @@ import { assignableRoles, isLiveRole } from "../../../lib/role-lifecycle";
  *  last, making this preview disagree with the perms that get minted — and disagree
  *  differently depending on the sort order it happened to receive.
  *
- *  NOT parity, and it cannot be: this reads `RoleDefinition[]` already through
- *  `parseDocs` + `roleDefinitionDocSchema`, so a doc the zod schema rejects (a missing
- *  `active`, a string `deletedAt`) is dropped before it arrives here and reads as ABSENT
- *  — i.e. falls back to the snapshot — while beacon reads the raw doc, sees the key
- *  covered, and mints nothing. Divergence is confined to malformed docs.
+ *  NOT parity, and it cannot be: this reads `RoleDefinition[]` already through `parseDocs` +
+ *  `roleDefinitionDocSchema`, so a doc the zod schema rejects is dropped before it arrives
+ *  here and reads as ABSENT — i.e. falls back to the snapshot — while beacon reads the raw
+ *  doc and sees the key COVERED. Divergence is confined to malformed docs, but it runs in
+ *  two directions and the dangerous one is not the obvious one. Per shape:
+ *    - a string `deletedAt` → beacon's isActiveRoleDoc reads it as NOT live, so the key is
+ *      covered and mints nothing. Preview overstates: snapshot vs nothing.
+ *    - a MISSING `active` → `active` is required here (no `.default`), so zod drops the doc;
+ *      but isActiveRoleDoc is `data?.active !== false`, and `undefined !== false` is true,
+ *      so beacon reads the doc as LIVE and mints its REAL `permissions`. The divergence is
+ *      snapshot vs the doc's own perms — which may be WIDER than the snapshot, the strictly
+ *      more dangerous reading. docs/specs/role-lifecycle.md states this case correctly.
+ *  A non-string element inside `permissions` is NOT in this list any more: the doc schema
+ *  filters those exactly as beacon's permsFromRoleDoc does, so such a doc now parses and
+ *  both sides compute the same set.
  *
  *  The CUSTOM path filters too. members.roleIds keeps naming a deactivated custom role
  *  (softDelete never scrubs roleIds), and beacon's getRolesByIds drops inactive docs —

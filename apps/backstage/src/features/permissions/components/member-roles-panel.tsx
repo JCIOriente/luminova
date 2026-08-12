@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Badge, Button, Card, MultiSelect } from "@luminova/ui";
+import { Badge, Button, Card, Field, MultiSelect } from "@luminova/ui";
 import {
   ALL_PERMISSION_CODES,
   PERMISSION_CAP,
@@ -60,8 +60,9 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
     setSaved(false);
   };
 
-  // Both derivations in ONE memo so their predicates sit side by side: they disagree on
-  // `builtIn` on purpose, and split across two memos that asymmetry drifts unnoticed.
+  // The two derivations below disagree on `builtIn` on purpose, so they sit side by side
+  // under one comment — but in SEPARATE memos, because only one of them depends on
+  // `roleIds`. Merged, every checkbox toggle handed MultiSelect a fresh `options` array.
   //   - OPTIONS are live AND custom-only: a built-in is conferred by a cargo's grants.
   //   - The NOTICE covers built-ins too. A deactivated built-in doc id CAN sit in
   //     members.roleIds (beacon's getRolesByIds resolves a built-in doc id, so that path
@@ -71,15 +72,20 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
   //     that is where roleIds is edited.
   // Neither drops anything from state: the assignment is real and returns the moment the
   // role is reactivated.
-  const { customRoleOptions, inactiveAssigned } = useMemo(() => {
-    const all = roles ?? [];
-    return {
-      customRoleOptions: assignableRoles(all)
+  // `all` is memoized rather than inlined so `roles === undefined` (an unresolved query)
+  // does not hand both memos a fresh [] on every render.
+  const all = useMemo(() => roles ?? [], [roles]);
+  const customRoleOptions = useMemo(
+    () =>
+      assignableRoles(all)
         .filter((r) => !r.builtIn)
         .map((r) => ({ value: r.id, label: r.name })),
-      inactiveAssigned: all.filter((r) => roleIds.includes(r.id) && !isLiveRole(r)),
-    };
-  }, [roles, roleIds]);
+    [all],
+  );
+  const inactiveAssigned = useMemo(
+    () => all.filter((r) => roleIds.includes(r.id) && !isLiveRole(r)),
+    [all, roleIds],
+  );
 
   const effective = useMemo(
     () =>
@@ -116,24 +122,28 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
         </p>
       </div>
 
-      {/* The notice is a SIBLING of the label, never a child. A `button` is a labelable
-          element, so MultiSelect's trigger takes its accessible name from the whole text
-          content of a wrapping <label> — with the notice inside, the field announced
-          itself as "Roles personalizados Coordinador Retirado está desactivado: …".
+      {/* `Field` + `htmlFor`, the pattern the sibling pickers already use (position-form,
+          activity-form, member-positions-form, initiative-form): it associates a
+          NON-wrapping label with the control by id. That is what makes the notice below
+          safe as a sibling — a `button` is a labelable element, so a WRAPPING <label> would
+          fold the notice's text into the trigger's accessible name ("Roles personalizados
+          Coordinador Retirado está desactivado: …"). Association by id removes that hazard
+          by construction instead of by a comment warning the next editor.
           `role="status"` (polite), not `role="alert"`: this advisory is persistent and
-          already true at mount, so an assertive interruption is wrong. It is not wired
-          via aria-describedby because MultiSelect exposes no describedby prop and
-          packages/ui is outside this change. */}
+          already true at mount, so an assertive interruption is wrong. It stays a sibling
+          rather than moving into `Field.hint`, which is typed `string` and so cannot carry
+          the Badge. Not wired via aria-describedby: MultiSelect exposes no describedby prop
+          and packages/ui is outside this change. */}
       <div className="flex flex-col gap-1.5">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-ui-sm font-medium text-ink-2">Roles personalizados</span>
+        <Field label="Roles personalizados" htmlFor="custom-roles">
           <MultiSelect
+            id="custom-roles"
             options={customRoleOptions}
             value={roleIds}
             onChange={setRoleIds}
             placeholder="Sin roles personalizados"
           />
-        </label>
+        </Field>
         {inactiveAssigned.length > 0 && (
           <p role="status" className="flex flex-wrap items-center gap-1.5 text-ui-xs text-ink-3">
             {inactiveAssigned.map((r) => (
@@ -148,25 +158,25 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
         )}
       </div>
 
-      <label className="flex flex-col gap-1.5">
-        <span className="text-ui-sm font-medium text-ink-2">Permisos adicionales (otorgar)</span>
+      <Field label="Permisos adicionales (otorgar)" htmlFor="perm-grant">
         <MultiSelect
+          id="perm-grant"
           options={CODE_OPTIONS}
           value={grant}
           onChange={setGrant}
           placeholder="Ninguno"
         />
-      </label>
+      </Field>
 
-      <label className="flex flex-col gap-1.5">
-        <span className="text-ui-sm font-medium text-ink-2">Permisos revocados</span>
+      <Field label="Permisos revocados" htmlFor="perm-revoke">
         <MultiSelect
+          id="perm-revoke"
           options={CODE_OPTIONS}
           value={revoke}
           onChange={setRevoke}
           placeholder="Ninguno"
         />
-      </label>
+      </Field>
 
       <div className="flex flex-col gap-2 border-t border-line pt-3">
         <div className="flex items-center justify-between">

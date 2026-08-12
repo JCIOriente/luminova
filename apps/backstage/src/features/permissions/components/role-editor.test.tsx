@@ -111,6 +111,26 @@ describe("RoleEditor deactivation", () => {
     expect(screen.queryByRole("button", { name: "Desactivar rol" })).not.toBeInTheDocument();
   });
 
+  it("BLOCKING: never offers Desactivar rol for Admin when the doc's `locked` lags the seed", () => {
+    // The documented prod-lag shape: a roles/Admin whose `locked` is false or missing.
+    // firestore.rules bars deactivation on `builtInKey == 'Admin'`, INDEPENDENT of `locked`
+    // (roleDeactivationAllowed()), so a mirror keyed on `locked` alone rendered the button
+    // for a write the rules deny. Keyed off UNDEACTIVATABLE_BUILT_IN_KEYS, like the rules.
+    render(
+      <RoleEditor
+        role={{ ...builtInAdmin, locked: false }}
+        holderCount={3}
+        onSubmit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Desactivar rol" })).not.toBeInTheDocument();
+    // Editable, though: the rules `locked` conjunct reads the STORED doc, so this one's
+    // perms really can be saved. Only deactivation is barred, and the copy says which.
+    expect(screen.getByRole("button", { name: /guardar/i })).toBeInTheDocument();
+    expect(screen.getByText(/no se puede desactivar/i)).toBeInTheDocument();
+  });
+
   it("never offers Desactivar rol on an already-deactivated role", () => {
     // Its affordance is "Reactivar rol" in RolesPanel. roleLifecycleSafe() would permit
     // re-stamping deletedAt, so this narrowing is UI-only — and it keeps a deactivated
@@ -162,12 +182,30 @@ describe("RoleEditor deactivation", () => {
     expect(screen.queryByRole("button", { name: "Desactivar rol" })).not.toBeInTheDocument();
   });
 
-  it("surfaces a failed deactivation without closing the form", async () => {
-    const onDelete = vi.fn().mockRejectedValue(new Error("denied"));
+  it("surfaces a failed deactivation without closing the form, and logs the cause", async () => {
+    // The surfaced copy cannot distinguish permission-denied from a network failure, and
+    // nothing catches this globally, so the diagnostic has to reach the console
+    // (guardrail #4) — same contract as RolesPanel's reactivate path.
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const onDelete = vi.fn().mockRejectedValue(new Error("permission-denied"));
     render(
       <RoleEditor role={builtInTreasury} holderCount={0} onSubmit={vi.fn()} onDelete={onDelete} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Desactivar rol" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo desactivar el rol.");
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it("surfaces a failed save without closing the form, and logs the cause", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const onSubmit = vi.fn().mockRejectedValue(new Error("permission-denied"));
+    render(
+      <RoleEditor role={builtInTreasury} holderCount={0} onSubmit={onSubmit} onDelete={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo guardar.");
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

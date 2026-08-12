@@ -14,6 +14,7 @@ import {
 } from "@luminova/ui";
 import {
   PERMISSION_CAP,
+  ROLE_NAME_MAX_LENGTH,
   roleDefinitionSchema,
   type PermissionCode,
   type RoleDefinition,
@@ -27,7 +28,7 @@ import {
   permissionCode,
 } from "../lib/permission-matrix";
 import { holdersPhrase } from "../lib/holders-phrase";
-import { isLiveRole } from "../../../lib/role-lifecycle";
+import { isLiveRole, isUndeactivatableRole } from "../../../lib/role-lifecycle";
 
 interface RoleEditorProps {
   role: RoleDefinition | null;
@@ -51,19 +52,26 @@ interface RoleEditorProps {
  *  name/description/permissions (identity fields are immutable server-side).
  *
  *  Deactivation is offered for BUILT-INS too — the beacon three-way makes an inactive
- *  built-in mint nothing instead of restoring its seed perms. Two exclusions: the locked
- *  Admin role (anti-lockout) and `Member`, which computeMemberRoles injects into every
- *  claim unconditionally. Both are also barred in firestore.rules; this is the mirror.
+ *  built-in mint nothing instead of restoring its seed perms. The exclusions come from
+ *  UNDEACTIVATABLE_BUILT_IN_KEYS (`Member`, `Admin`), which mirrors firestore.rules'
+ *  roleDeactivationAllowed() key-for-key. Keyed on builtInKey, NOT on `locked`: the rules
+ *  clause is independent of `locked` on purpose, so a prod `roles/Admin` whose `locked`
+ *  lags the seed would otherwise render "Desactivar rol" for a write the rules deny.
  *  An already-deactivated role offers no deactivate button — its affordance is
  *  "Reactivar rol" in RolesPanel. */
 export function RoleEditor({ role, holderCount, onSubmit, onDelete }: RoleEditorProps) {
   const locked = role?.locked ?? false;
+  const undeactivatable = role !== null && isUndeactivatableRole(role);
+  // Both keys in UNDEACTIVATABLE_BUILT_IN_KEYS get their OWN note: the reasons differ, and
+  // "no se puede desactivar" with no reason reads as a bug. The Admin note is shown only
+  // when the doc is not locked — a locked doc is fully read-only and says so below.
   const isMemberRole = role?.builtInKey === "Member";
+  const isAdminRole = role?.builtInKey === "Admin";
   // isLiveRole, never raw role.active: a console-produced doc with active:true AND a
   // deletedAt is dead to beacon's perms pipeline, so RolesPanel already offers it
   // "Reactivar rol". Reading role.active here rendered both buttons at once.
   const canDelete =
-    role !== null && isLiveRole(role) && !locked && !isMemberRole && onDelete !== undefined;
+    role !== null && isLiveRole(role) && !locked && !undeactivatable && onDelete !== undefined;
   const [name, setName] = useState(role?.name ?? "");
   const [description, setDescription] = useState(role?.description ?? "");
   // Lazy initialiser: this form re-renders per keystroke and per checkbox across a 30-cell
@@ -96,7 +104,12 @@ export function RoleEditor({ role, holderCount, onSubmit, onDelete }: RoleEditor
     setSaving(true);
     try {
       await onSubmit(parsed.data);
-    } catch {
+    } catch (error) {
+      // Log AND surface, same as RolesPanel's reactivate path: the message the admin sees
+      // cannot distinguish permission-denied from a network failure, and nothing catches
+      // this globally (query-client.ts wires QueryCache only, no MutationCache.onError).
+      // Swallowing it made a rules regression on the roles write invisible (guardrail #4).
+      console.error("Failed to save role", error);
       setError("No se pudo guardar. Intenta de nuevo.");
     } finally {
       setSaving(false);
@@ -110,6 +123,7 @@ export function RoleEditor({ role, holderCount, onSubmit, onDelete }: RoleEditor
           id="role-name"
           value={name}
           disabled={locked}
+          maxLength={ROLE_NAME_MAX_LENGTH}
           onChange={(e) => setName(e.target.value)}
         />
       </Field>
@@ -195,7 +209,10 @@ export function RoleEditor({ role, holderCount, onSubmit, onDelete }: RoleEditor
               if (!onDelete) return;
               setSaving(true);
               onDelete()
-                .catch(() => setError("No se pudo desactivar el rol."))
+                .catch((error: unknown) => {
+                  console.error("Failed to deactivate role", error);
+                  setError("No se pudo desactivar el rol.");
+                })
                 .finally(() => setSaving(false));
             }}
           >
@@ -207,6 +224,12 @@ export function RoleEditor({ role, holderCount, onSubmit, onDelete }: RoleEditor
         <p className="text-ui-xs text-ink-3">
           El rol Miembro no se puede desactivar: lo tiene toda la organización. Para quitarle
           autoridad, vacía sus permisos.
+        </p>
+      )}
+      {isAdminRole && !locked && (
+        <p className="text-ui-xs text-ink-3">
+          El rol Administrador no se puede desactivar: es la protección contra quedarse sin acceso.
+          Sus permisos sí se pueden editar.
         </p>
       )}
       {locked && (

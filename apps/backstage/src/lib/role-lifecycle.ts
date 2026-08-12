@@ -1,4 +1,22 @@
-import type { RoleDefinition } from "@luminova/types";
+import type { Role, RoleDefinition } from "@luminova/types";
+
+/** Built-in keys firestore.rules' `roleDeactivationAllowed()` bars from going inactive.
+ *  ONE list, mirroring that one helper, so the two reasons cannot drift apart into two
+ *  hand-written booleans:
+ *    Member — computeMemberRoles injects it into every claim unconditionally, so
+ *      deactivating it strips its reads from the whole chapter through an unbounded,
+ *      no-retry members scan. An admin who wants that empties its `permissions` instead.
+ *    Admin — anti-lockout. Keyed on builtInKey and NOT on `locked`, deliberately: prod
+ *      role docs are documented as lagging the seed, so a `roles/Admin` whose `locked` is
+ *      false or missing would otherwise be one write away from losing manage:all
+ *      chapter-wide.
+ *  Keyed on builtInKey exactly as the rules clause is — a UI mirror keyed on a different
+ *  field renders an affordance the write then denies (guardrail #6, "claim == reality"). */
+export const UNDEACTIVATABLE_BUILT_IN_KEYS: readonly Role[] = ["Member", "Admin"];
+
+export function isUndeactivatableRole(role: RoleDefinition): boolean {
+  return role.builtInKey !== null && UNDEACTIVATABLE_BUILT_IN_KEYS.includes(role.builtInKey);
+}
 
 /** Client mirror of beacon's `isActiveRoleDoc`
  *  (apps/beacon/src/claims-sync/role-doc.ts). BOTH fields matter: `active: true` with
