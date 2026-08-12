@@ -29,6 +29,7 @@ import { formatDateTime } from "@luminova/utils/datetime";
 import { PageHeader } from "../../../components/page-header";
 import { QueryErrorState } from "../../../components/query-error-state";
 import { useCan } from "../../../lib/authz/use-can";
+import { assignableRoles } from "../../../lib/role-lifecycle";
 import { useDismissingToast } from "../../../lib/use-dismissing-toast";
 import { useRoles } from "../../permissions/hooks/use-roles";
 import { useSentNotifications } from "../hooks/use-sent-notifications";
@@ -86,7 +87,10 @@ export function NotificationsPage() {
 function ComposeForm() {
   const compose = useComposeNotification();
   const { data: roles } = useRoles({ enabled: true });
-  const activeRoles = roles ?? NO_ROLES;
+  // Assignment surface: composing to `role:<id>` targets that role's holders, so a
+  // deactivated role must not be offered. SentHistory below stays unfiltered — an
+  // already-sent message must keep a readable audience label.
+  const audienceRoles = useMemo(() => assignableRoles(roles), [roles]);
   const [successToast, setSuccessToast] = useDismissingToast();
   const [errorToast, setErrorToast] = useDismissingToast();
 
@@ -147,7 +151,7 @@ function ComposeForm() {
         >
           <option value="everyone">Todos</option>
           <option value="members">Miembros</option>
-          {activeRoles.map((role) => (
+          {audienceRoles.map((role) => (
             <option key={role.id} value={`role:${role.id}`}>
               {role.name}
             </option>
