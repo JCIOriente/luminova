@@ -440,8 +440,13 @@ service cloud.firestore {
     // mirrored: it is a curation bound with no ghost consequence (an over-cap role is
     // visible and merely fail-closes its holders), and hardcoding 30 here with no drift
     // guard behind it is the claim-without-a-check guardrail #6 forbids.
-    // A list whose ELEMENTS are not strings still fails z.array(z.string()) and so remains
-    // a ghost — rules have no element-wise quantifier, so that residual is unclosed here.
+    // A list whose ELEMENTS are not strings cannot be caught here — rules have no
+    // element-wise quantifier. That ghost is closed on the READER side instead:
+    // roleDefinitionDocSchema now filters invalid codes rather than rejecting the whole doc,
+    // mirroring permsFromRoleDoc, so both readers of `permissions` compute the same set and
+    // no such doc can be invisible on /permisos while live in the perms pipeline. Fixing it
+    // here would have meant hardcoding all 78 permission codes in rules — a claim with no
+    // drift guard behind it, which is what guardrail #6 forbids.
     //
     // The `in` checks carry roleLifecycleSafe's cost: a legacy role doc missing any of the
     // four becomes admin-SDK-only to edit. Accepted — the alternative is a rule that cannot

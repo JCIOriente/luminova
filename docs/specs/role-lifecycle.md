@@ -429,11 +429,24 @@ pre-existing errors, all one trivial class (a `readonly []` from an `as const` n
 to a mutable parameter). Cheap to clear: fix that constant, drop the `exclude`. Deliberately
 out of scope here — it is a CI-contract change, and this branch already carries one.
 
+**The malformed-doc ghost is now closed for `permissions`, and only for `permissions`.**
+`roleDefinitionDocSchema` filters invalid codes rather than rejecting the document, mirroring
+`permsFromRoleDoc`, so a non-string element no longer makes a role vanish from `/permisos`
+while beacon keeps minting from it. Rules cannot close this — they have no element-wise
+quantifier, and hardcoding all 78 codes there would be a claim with no drift guard.
+
+The shapes that DO still drop a doc client-side while `isActiveRoleDoc` keeps it live: a
+missing or non-bool `active`, `builtIn` or `locked`; a missing or non-string `name` or
+`description`; an unknown `builtInKey`; a `deletedAt` that is neither null nor Timestamp-like;
+and a missing or non-list `permissions`. Every one of those is now barred on the client write
+path by `roleShapeValid()` + `roleLifecycleSafe()`, so they are reachable only by console or
+admin SDK — and `reseedBuiltInRolePerms`' dry run reports them under `coverageAnomalies`.
+
 **Other follow-ups:** `presidentClaims` mints perms from the static snapshot
 (`tools/scripts/lib/president-claims.mjs:16-18`), so re-running the president seed after a
-deactivation writes stale perms back until the next `onMemberWritten`; a malformed built-in
-doc is dropped by `parseDocs` and re-renders as an `unsynced` row asserting full seed perms;
-`getRoleDocsByBuiltInKeys` unions duplicate `builtInKey` docs undetected.
+deactivation writes stale perms back until the next `onMemberWritten`; and the `roleOptions`
+"(desactivado)" marker is a plain string baked into the label, so it is unstyleable and only
+string-testable.
 
 ## Deploy notes
 
