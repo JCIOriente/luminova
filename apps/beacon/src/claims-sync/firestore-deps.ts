@@ -37,6 +37,14 @@ async function queryBuiltInRoleDocs(db: Firestore, keys: Role[]): Promise<BuiltI
   // NO active filter: an inactive doc must still reach resolveMemberPerms so it
   // COVERS its key. Filtering here made a deactivated built-in indistinguishable
   // from an unseeded one, which restored its seed perms.
+  //
+  // DO NOT ADD `.limit()`. The repo's "bound every query" guardrail does not apply: the
+  // `in` operator already bounds this read to ≤30 matched values by construction (ROLES
+  // has 9). A limit here would be actively harmful — a truncated page DROPS a doc, which
+  // un-COVERS its key, which re-mints BUILT_IN_ROLE_PERMS[key] through the fallback in
+  // resolveMemberPerms. That is a privilege restoration disguised as a boundedness fix,
+  // and it would be silent except for the anomaly logs below (which cannot see it, since
+  // a truncated doc never arrives at all).
   const snap = await db.collection("roles").where("builtInKey", "in", keys).get();
 
   const dropped = snap.docs.filter((d) => d.get("builtIn") !== true);
