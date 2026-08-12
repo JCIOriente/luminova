@@ -20,6 +20,59 @@ function permsFromClaims(
     : undefined;
 }
 
+type BuiltInRoleDoc = { permissions: PermissionCode[]; builtInKey: Role; active: boolean };
+
+/** The built-in role docs covering `keys`, plus a log line for every coverage anomaly the
+ *  `builtIn` conjunct below can otherwise hide. COVERAGE is the load-bearing property: an
+ *  uncovered key falls through to BUILT_IN_ROLE_PERMS[key] in resolveMemberPerms, so a doc
+ *  dropped here silently RESTORES the seed snapshot — turning a deactivation into a no-op
+ *  that /permisos still reports as a revocation. None of these shapes is client-authorable
+ *  (rules forbid writing builtIn/builtInKey), so each one means a console edit or a partial
+ *  migration: log it, but keep resolving (throwing would strand every member's claims). */
+async function queryBuiltInRoleDocs(db: Firestore, keys: Role[]): Promise<BuiltInRoleDoc[]> {
+  // `in` supports ≤30 values; ROLES has 9. `builtIn === true` is defense in
+  // depth against an impostor custom role spoofing a builtInKey (rules also
+  // forbid clients setting builtInKey, but the trust boundary is the trigger).
+  // NO active filter: an inactive doc must still reach resolveMemberPerms so it
+  // COVERS its key. Filtering here made a deactivated built-in indistinguishable
+  // from an unseeded one, which restored its seed perms.
+  const snap = await db.collection("roles").where("builtInKey", "in", keys).get();
+
+  const dropped = snap.docs.filter((d) => d.get("builtIn") !== true);
+  if (dropped.length > 0) {
+    console.error(
+      "claims-sync: role doc matched a builtInKey but is not builtIn:true — dropped, so its key falls back to the seed perms",
+      { keys, droppedIds: dropped.map((d) => d.id) },
+    );
+  }
+
+  const covering = snap.docs.filter((d) => d.get("builtIn") === true);
+  const idsByKey = new Map<string, string[]>();
+  for (const doc of covering) {
+    const key = doc.get("builtInKey") as string;
+    idsByKey.set(key, [...(idsByKey.get(key) ?? []), doc.id]);
+  }
+  for (const [key, ids] of idsByKey) {
+    if (ids.length > 1) {
+      console.error(
+        "claims-sync: more than one role doc claims one builtInKey — beacon unions their perms while the /permisos preview shows last-wins",
+        { builtInKey: key, ids },
+      );
+    } else if (ids[0] !== key) {
+      console.error(
+        "claims-sync: role doc covers a builtInKey from a different doc id — reseedBuiltInRolePerms reads it as not-built-in and will never update it",
+        { builtInKey: key, id: ids[0] },
+      );
+    }
+  }
+
+  return covering.map((d) => ({
+    permissions: permsFromRoleDoc(d.data()),
+    builtInKey: d.get("builtInKey") as Role,
+    active: isActiveRoleDoc(d.data()),
+  }));
+}
+
 async function getUserOrNull(auth: Auth, uid: string): Promise<UserRecord | null> {
   try {
     return await auth.getUser(uid);
@@ -63,20 +116,7 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): ClaimsSyncDeps {
     },
     getRoleDocsByBuiltInKeys: async (keys) => {
       if (keys.length === 0) return [];
-      // `in` supports ≤30 values; ROLES has 9. `builtIn === true` is defense in
-      // depth against an impostor custom role spoofing a builtInKey (rules also
-      // forbid clients setting builtInKey, but the trust boundary is the trigger).
-      // NO active filter: an inactive doc must still reach resolveMemberPerms so it
-      // COVERS its key. Filtering here made a deactivated built-in indistinguishable
-      // from an unseeded one, which restored its seed perms.
-      const snap = await db.collection("roles").where("builtInKey", "in", keys).get();
-      return snap.docs
-        .filter((d) => d.get("builtIn") === true)
-        .map((d) => ({
-          permissions: permsFromRoleDoc(d.data()),
-          builtInKey: d.get("builtInKey") as Role,
-          active: isActiveRoleDoc(d.data()),
-        }));
+      return queryBuiltInRoleDocs(db, keys);
     },
     getRolesByIds: async (ids) => {
       if (ids.length === 0) return [];
