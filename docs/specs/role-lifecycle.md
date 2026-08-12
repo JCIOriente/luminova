@@ -66,8 +66,12 @@ So: make INACTIVE distinguishable from MISSING, unblock deactivation, add a rest
 | doc state | contributes | key covered? |
 |---|---|---|
 | absent | `BUILT_IN_ROLE_PERMS[key]` (seed fallback — pre-seed window) | no |
-| present, `active: true` | the doc's live `permissions` | yes |
-| present, `active: false` | **nothing** | **yes** |
+| present and `isActiveRoleDoc` | the doc's live `permissions` | yes |
+| present and not `isActiveRoleDoc` | **nothing** | **yes** |
+
+"Active" here means `isActiveRoleDoc` (`role-doc.ts:26`) — `active !== false` **and** `deletedAt`
+null-ish — not the `active` field alone. So `active: true` with `deletedAt` set is covered and
+contributes nothing, which is the conservative direction.
 
 - `RolePermsDeps.getRoleDocsByBuiltInKeys` widens to
   `Pick<RoleDefinition, "permissions" | "builtInKey" | "active">[]` and returns inactive
@@ -296,6 +300,20 @@ claims once per `onAuthStateChanged` (`auth-store.ts:53-58`, no `onIdTokenChange
 revoked perm survives in a long-lived tab until reload and in rules for the token's
 remaining lifetime. This is true of every perm change today, not new here; revoking on a
 built-in deactivation would sign out the chapter. Follow-up.
+
+**The `Member` bar is a rules guard, so the admin SDK and the console bypass it.** A console
+write of `active: false` onto `roles/Member` mints zero perms for every provisioned user, and
+this PR makes the *recovery* harder rather than easier: `reseedBuiltInRolePerms` skips
+inactive docs and `seedBuiltInRoles` is create-only, so neither callable can heal it. The fix
+is a console edit setting `active: true, deletedAt: null` back on that one doc. Accepted
+rather than hardened: adding a "the Member key is always live" special case to the perms
+pipeline would make the three-way lie about doc state to defend against a console action by
+someone who already has broader powers.
+
+**A legacy built-in doc missing `active` entirely still resolves as active and contributes.**
+`isActiveRoleDoc` returns true for `undefined`, while `roleDefinitionDocSchema` rejects the
+doc — so it mints perms while being invisible on `/permisos`. Pre-existing, and `('active' in
+d)` in `roleLifecycleSafe()` now also denies client updates to it (see Design 6).
 
 **Other follow-ups:** `presidentClaims` mints perms from the static snapshot
 (`tools/scripts/lib/president-claims.mjs:16-18`), so re-running the president seed after a
