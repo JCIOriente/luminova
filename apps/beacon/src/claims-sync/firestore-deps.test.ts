@@ -130,3 +130,58 @@ describe("getRoleDocsByBuiltInKeys coverage anomalies", () => {
     expect(builtInQueries).toEqual([]);
   });
 });
+
+describe("getRoleDocsByBuiltInKeys memoization", () => {
+  it("BLOCKING: a second call with the same keys issues no second query", async () => {
+    // onRoleWritten's fan-out calls this once per member for a ≤9-doc set that cannot
+    // change within one invocation; the repeat query is what makes the scan time out.
+    const { db, builtInQueries } = fakeDb([builtIn("Treasury", "Treasury")]);
+    const deps = firestoreClaimsDeps(db, auth);
+    const first = await deps.getRoleDocsByBuiltInKeys(["Treasury", "Member"]);
+    const second = await deps.getRoleDocsByBuiltInKeys(["Treasury", "Member"]);
+    expect(builtInQueries).toHaveLength(1);
+    expect(second).toEqual(first);
+  });
+
+  it("keys the memo on the SET, so order and duplicates hit the same entry", async () => {
+    const { db, builtInQueries } = fakeDb([builtIn("Treasury", "Treasury")]);
+    const deps = firestoreClaimsDeps(db, auth);
+    await deps.getRoleDocsByBuiltInKeys(["Treasury", "Member"]);
+    await deps.getRoleDocsByBuiltInKeys(["Member", "Treasury", "Member"]);
+    expect(builtInQueries).toHaveLength(1);
+  });
+
+  it("queries again for a different key set", async () => {
+    const { db, builtInQueries } = fakeDb([builtIn("Treasury", "Treasury")]);
+    const deps = firestoreClaimsDeps(db, auth);
+    await deps.getRoleDocsByBuiltInKeys(["Treasury"]);
+    await deps.getRoleDocsByBuiltInKeys(["Treasury", "Member"]);
+    expect(builtInQueries).toHaveLength(2);
+  });
+
+  it("does not memoize a rejection (a transient error must not poison the fan-out)", async () => {
+    let attempts = 0;
+    const db = {
+      collection: () => ({
+        where: () => ({
+          get: async () => {
+            attempts += 1;
+            if (attempts === 1) throw new Error("DEADLINE_EXCEEDED");
+            return { docs: [] };
+          },
+        }),
+      }),
+    } as unknown as Firestore;
+    const deps = firestoreClaimsDeps(db, auth);
+    await expect(deps.getRoleDocsByBuiltInKeys(["Treasury"])).rejects.toThrow("DEADLINE_EXCEEDED");
+    await expect(deps.getRoleDocsByBuiltInKeys(["Treasury"])).resolves.toEqual([]);
+    expect(attempts).toBe(2);
+  });
+
+  it("does not share the memo across deps instances (one per invocation)", async () => {
+    const { db, builtInQueries } = fakeDb([builtIn("Treasury", "Treasury")]);
+    await firestoreClaimsDeps(db, auth).getRoleDocsByBuiltInKeys(["Treasury"]);
+    await firestoreClaimsDeps(db, auth).getRoleDocsByBuiltInKeys(["Treasury"]);
+    expect(builtInQueries).toHaveLength(2);
+  });
+});

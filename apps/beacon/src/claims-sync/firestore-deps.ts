@@ -96,6 +96,26 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): ClaimsSyncDeps {
     return pending;
   }
 
+  // Memoized per deps instance, exactly like userCache above. onRoleWritten's fan-out
+  // calls this once per member, sequentially, for a set of ≤9 docs that cannot change
+  // within a single invocation — the repeat query is pure latency on the code path that
+  // actually times out. Keyed on the sorted key SET so call-order variation still hits.
+  // Rejections are evicted (not memoized) so one transient error does not fail every
+  // remaining member of the fan-out.
+  const builtInDocsCache = new Map<string, Promise<BuiltInRoleDoc[]>>();
+  function loadBuiltInRoleDocs(keys: Role[]): Promise<BuiltInRoleDoc[]> {
+    const cacheKey = [...new Set(keys)].sort().join(",");
+    let pending = builtInDocsCache.get(cacheKey);
+    if (!pending) {
+      pending = queryBuiltInRoleDocs(db, keys).catch((error) => {
+        builtInDocsCache.delete(cacheKey);
+        throw error;
+      });
+      builtInDocsCache.set(cacheKey, pending);
+    }
+    return pending;
+  }
+
   return {
     getPosition: async (id) => {
       const snap = await db.doc(`positions/${id}`).get();
@@ -116,7 +136,7 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): ClaimsSyncDeps {
     },
     getRoleDocsByBuiltInKeys: async (keys) => {
       if (keys.length === 0) return [];
-      return queryBuiltInRoleDocs(db, keys);
+      return loadBuiltInRoleDocs(keys);
     },
     getRolesByIds: async (ids) => {
       if (ids.length === 0) return [];
