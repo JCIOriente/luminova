@@ -54,8 +54,12 @@ export class RoleRepository {
     });
   }
 
-  /** Soft delete — REVERSIBLE via `reactivate`. Built-ins are allowed now except
-   *  `roles/Member` and the locked `roles/Admin` (firestore.rules). */
+  /** Soft delete — REVERSIBLE via `reactivate`. Built-ins are allowed now except the two
+   *  keys firestore.rules' roleDeactivationAllowed() bars: `Member` and `Admin`. Keyed on
+   *  `builtInKey`, NOT on `locked` — the rules clause is deliberately independent of
+   *  `locked`, because a prod `roles/Admin` whose `locked` lags the seed would otherwise be
+   *  one write from losing manage:all chapter-wide. The UI mirror is
+   *  UNDEACTIVATABLE_BUILT_IN_KEYS (apps/backstage/src/lib/role-lifecycle.ts). */
   async softDelete(id: string): Promise<void> {
     await updateDoc(doc(this.collection, id), {
       active: false,

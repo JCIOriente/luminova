@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactElement, ReactNode } from "react";
 import type { AuthClaims } from "@luminova/auth/roles";
 import { ROLES } from "@luminova/types";
@@ -128,6 +129,76 @@ describe.each(["positions", "members"] as const)(
     });
   },
 );
+
+// The one case a prop-injected RolesPanel test cannot express: `holders` is a JOIN of
+// members AND positions, so `holdersState` must be the join of both queries' states.
+// roles-panel.test.tsx passes holdersState in directly, and every other page test stubs
+// `data: []` for all three queries — so a positions outage passed on originLabel's
+// "No disponible" alone while the holders line silently asserted zero.
+describe("PermisosPage — holders is a join, so its section state is too", () => {
+  const seededRole = {
+    id: "Treasury",
+    name: "Tesorería",
+    description: "Ve las cuentas.",
+    builtIn: true,
+    builtInKey: "Treasury",
+    permissions: ["read:Member"],
+    locked: false,
+    active: true,
+    deletedAt: null,
+  };
+  // A member holding the Treasury cargo. effectiveRoles resolves the cargo's grants out of
+  // positionsById, so with positions unavailable that map is EMPTY and every member here
+  // collapses to ["Member"] — the holders list for every other row comes back [].
+  const member = { id: "m1", name: "Ana", active: true, positions: {} };
+
+  it("BLOCKING: reports the holder count as UNKNOWN when positions failed but members did not", () => {
+    stubs.roles = { ...stubs.idle(), data: [seededRole] };
+    stubs.members = { ...stubs.idle(), data: [member] };
+    stubs.positions = { ...stubs.idle(), isError: true, error: new Error("positions boom") };
+    renderWith(admin, <PermisosPage />);
+
+    // Wiring holdersState off the members query alone made this "Nadie aún", and the
+    // deactivate/reactivate confirmations then printed "0 miembros activos" as FACT —
+    // immediately before a write that fans out through an unbounded, no-retry members scan.
+    expect(screen.queryByText("Nadie aún")).not.toBeInTheDocument();
+    expect(screen.getAllByText("No disponible").length).toBeGreaterThan(0);
+  });
+
+  it("BLOCKING: prints the unknown-count phrase, not a zero, in the deactivate copy", async () => {
+    const user = userEvent.setup();
+    stubs.roles = { ...stubs.idle(), data: [seededRole] };
+    stubs.members = { ...stubs.idle(), data: [member] };
+    stubs.positions = { ...stubs.idle(), isError: true, error: new Error("positions boom") };
+    renderWith(admin, <PermisosPage />);
+
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    expect(screen.getByText(/número desconocido de miembros activos/i)).toBeInTheDocument();
+    expect(screen.queryByText(/0 miembros? activos?/)).not.toBeInTheDocument();
+  });
+
+  it("still reports a KNOWN count when both inputs of the join resolved", async () => {
+    // The complement, so the fix cannot be "always unknown": with positions available the
+    // count is a fact again and must print as one.
+    const user = userEvent.setup();
+    stubs.roles = { ...stubs.idle(), data: [seededRole] };
+    stubs.members = { ...stubs.idle(), data: [member] };
+    renderWith(admin, <PermisosPage />);
+
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    expect(screen.queryByText(/número desconocido/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Afecta a 0 miembros activos/)).toBeInTheDocument();
+  });
+
+  it("BLOCKING: reports UNKNOWN while positions is still loading", () => {
+    stubs.roles = { ...stubs.idle(), data: [seededRole] };
+    stubs.members = { ...stubs.idle(), data: [member] };
+    stubs.positions = { ...stubs.idle(), isLoading: true };
+    renderWith(admin, <PermisosPage />);
+    expect(screen.queryByText("Nadie aún")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Cargando…").length).toBeGreaterThan(0);
+  });
+});
 
 describe("PermisosPage — query states", () => {
   it("BLOCKING: renders the panel even when BOTH side queries fail", () => {

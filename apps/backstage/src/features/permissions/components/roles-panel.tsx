@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge, Button, Card, Dialog, Sheet } from "@luminova/ui";
 import type { RoleDefinition, RoleDefinitionInput } from "@luminova/types";
 import {
@@ -25,7 +25,15 @@ import { RoleEditor } from "./role-editor";
 type Editing = { docId: string } | "new" | null;
 
 /** The live row for an open overlay, or null once its row leaves the list — in which case
- *  the overlay closes. Correct: there is no longer a target to state facts about. */
+ *  the overlay closes, correctly: there is no longer a target to state facts about.
+ *
+ *  Closing is not the whole story, which is why the ids are also cleared (see the effect in
+ *  RolesPanel). A row leaving is not permanent — `allow delete: if false`, but `parseDocs`
+ *  DROPS a doc its zod schema rejects (a console-written string `deletedAt`), and a repair
+ *  brings the same doc id back. Radix fires `onOpenChange` on user interaction, not on a
+ *  controlled `open` flip, so a lingering id would re-open the overlay unbidden on that
+ *  refetch. Reachable only through a console edit, but cheaper to clear than to reason
+ *  about. */
 function findByDocId(
   rows: RoleOverviewRow[],
   docId: string,
@@ -115,6 +123,14 @@ export function RolesPanel({
   const editingTarget =
     editing === null || editing === "new" ? null : findByDocId(rows, editing.docId);
   const reactivating = reactivatingId === null ? null : findByDocId(rows, reactivatingId);
+
+  // Drop an id whose row has left the list. Without this the overlay merely CLOSES (the
+  // derived `open` goes false) while the id lingers, so a refetch that brings the doc back
+  // re-opens it with no click — see findByDocId's note on how a row can transiently vanish.
+  useEffect(() => {
+    if (editing !== null && editing !== "new" && editingTarget === null) setEditing(null);
+    if (reactivatingId !== null && reactivating === null) setReactivatingId(null);
+  }, [editing, editingTarget, reactivatingId, reactivating]);
 
   const openReactivate = (doc: RoleDefinition) => {
     setReactivateError(null);

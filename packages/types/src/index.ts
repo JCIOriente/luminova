@@ -18,6 +18,7 @@ export {
 export type { PermissionOverrides } from "./permission-overrides.js";
 export { permissionOverridesSchema } from "./permission-overrides-schema.js";
 export {
+  ROLE_NAME_MAX_LENGTH,
   roleDefinitionSchema,
   permissionCodeSchema,
   type RoleDefinitionInput,

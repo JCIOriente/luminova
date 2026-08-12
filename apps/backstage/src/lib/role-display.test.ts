@@ -42,6 +42,18 @@ describe("roleDisplay", () => {
     );
   });
 
+  it("falls back to the snapshot for a whitespace-only name", () => {
+    // Rules `size() >= 1` accepts "   " and cannot trim, so this doc shape is authorable
+    // from the console. Untrimmed, `||` reads it as truthy and the role renders BLANK.
+    expect(roleDisplay("ProjectManager", [doc({ name: "   " })]).label).toBe("Proyectos");
+  });
+
+  it("falls back to the snapshot for a whitespace-only description", () => {
+    expect(roleDisplay("ProjectManager", [doc({ description: "\n  " })]).description).toBe(
+      "Gestionar proyectos, programas y actividades; registrar asistencia.",
+    );
+  });
+
   it("ignores custom role docs when resolving a built-in key", () => {
     // id spells the role key on purpose: an implementation matching on doc.id instead of
     // builtInKey would return "Impostor" here and pass a fixture with a neutral id.
@@ -137,12 +149,49 @@ describe("roleLifecycleDisplay", () => {
     expect(roleLifecycleDisplay("ProjectManager", undefined).label).toBe("Proyectos");
   });
 
-  it("uses the same marker text roleOptions uses", () => {
-    // One definition of the marker, asserted rather than assumed: the picker and the
-    // authority surfaces sit on the same screen.
+  // Both paths call the one `markedLabel` today, so this is dominated by the literal pins
+  // above until someone FORKS that string into per-surface copies — which is the single
+  // mistake it exists to catch. Pinned to the literal on both sides rather than compared to
+  // each other, so it cannot pass by two surfaces being wrong in the same way.
+  it("marks the label identically on the picker and on the authority surfaces", () => {
     const docs = [doc({ active: false, deletedAt: DELETED_AT })];
-    expect(roleLifecycleDisplay("ProjectManager", docs).label).toBe(
-      roleOptions(docs).find((o) => o.value === "ProjectManager")?.label,
+    const expected = "Proyectos (desactivado)";
+    expect(roleLifecycleDisplay("ProjectManager", docs).label).toBe(expected);
+    expect(roleOptions(docs).find((o) => o.value === "ProjectManager")?.label).toBe(expected);
+  });
+});
+
+describe("two docs claiming one built-in key", () => {
+  // Console-authorable only (clients may not write builtInKey) and beacon logs it, but
+  // beacon UNIONS the live claimants — so the key IS minting and must not read
+  // "desactivado". Both array orders: taking the first match made this order-dependent.
+  const dead = doc({
+    id: "pm-dead",
+    name: "Proyectos viejo",
+    active: false,
+    deletedAt: DELETED_AT,
+  });
+  const live = doc({ id: "pm-live", name: "Proyectos" });
+
+  it.each([
+    ["dead first", [dead, live]],
+    ["live first", [live, dead]],
+  ])("does not mark the key as deactivated (%s)", (_label, docs) => {
+    expect(roleLifecycleDisplay("ProjectManager", docs).label).toBe("Proyectos");
+    expect(roleOptions(docs).find((o) => o.value === "ProjectManager")?.label).toBe("Proyectos");
+  });
+
+  it.each([
+    ["dead first", [dead, live]],
+    ["live first", [live, dead]],
+  ])("names the key from the LIVE claimant, whose perms are minting (%s)", (_label, docs) => {
+    expect(roleDisplay("ProjectManager", docs).label).toBe("Proyectos");
+  });
+
+  it("still marks the key when EVERY claimant is dead", () => {
+    const alsoDead = doc({ id: "pm-dead-2", active: true, deletedAt: DELETED_AT });
+    expect(roleLifecycleDisplay("ProjectManager", [dead, alsoDead]).label).toBe(
+      "Proyectos viejo (desactivado)",
     );
   });
 });
