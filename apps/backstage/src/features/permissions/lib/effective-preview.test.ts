@@ -64,4 +64,76 @@ describe("previewEffectivePerms", () => {
     });
     expect(out).toEqual([]);
   });
+
+  it("BLOCKING: a deactivated built-in doc contributes nothing and does NOT fall back to the snapshot", () => {
+    // Mirror of the beacon three-way. An inactive doc COVERS its key, so reporting
+    // BUILT_IN_ROLE_PERMS here would show the admin perms the member will not get.
+    const out = previewEffectivePerms({
+      builtInRoleNames: ["Treasury"],
+      selectedCustomRoleIds: [],
+      allRoles: [
+        role({
+          id: "Treasury",
+          builtIn: true,
+          builtInKey: "Treasury",
+          permissions: ["manage:all"],
+          active: false,
+        }),
+      ],
+      overrides: { grant: [], revoke: [] },
+    });
+    expect(out).toEqual([]);
+  });
+
+  it("a deactivated built-in does not suppress another key's snapshot fallback", () => {
+    const out = previewEffectivePerms({
+      builtInRoleNames: ["Treasury", "Secretary"],
+      selectedCustomRoleIds: [],
+      allRoles: [
+        role({
+          id: "Treasury",
+          builtIn: true,
+          builtInKey: "Treasury",
+          permissions: ["manage:all"],
+          active: false,
+        }),
+      ],
+      overrides: { grant: [], revoke: [] },
+    });
+    expect(out).toEqual([...BUILT_IN_ROLE_PERMS.Secretary].sort());
+  });
+
+  it("BLOCKING: a deactivated CUSTOM role contributes nothing", () => {
+    // members.roleIds keeps naming a deactivated custom role — softDelete never scrubs
+    // roleIds — and this path had no `active` filter at all, correct only by accident
+    // because the hook feeding it used to be active-only.
+    const out = previewEffectivePerms({
+      builtInRoleNames: [],
+      selectedCustomRoleIds: ["c1"],
+      allRoles: [role({ id: "c1", permissions: ["manage:Ally"], active: false })],
+      overrides: { grant: [], revoke: [] },
+    });
+    expect(out).toEqual([]);
+  });
+
+  it("an active:true + deletedAt-set ghost contributes nothing on either path", () => {
+    const deletedAt = { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"];
+    expect(
+      previewEffectivePerms({
+        builtInRoleNames: ["Treasury"],
+        selectedCustomRoleIds: ["c1"],
+        allRoles: [
+          role({
+            id: "Treasury",
+            builtIn: true,
+            builtInKey: "Treasury",
+            permissions: ["manage:all"],
+            deletedAt,
+          }),
+          role({ id: "c1", permissions: ["manage:Ally"], deletedAt }),
+        ],
+        overrides: { grant: [], revoke: [] },
+      }),
+    ).toEqual([]);
+  });
 });
