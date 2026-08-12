@@ -85,9 +85,7 @@ describe("getRoleDocsByBuiltInKeys coverage anomalies", () => {
     const errors = captureErrors();
     const { db } = fakeDb([builtIn("Treasury", "Treasury")]);
     const docs = await firestoreClaimsDeps(db, auth).getRoleDocsByBuiltInKeys(["Treasury"]);
-    expect(docs).toEqual([
-      { permissions: ["read:Member"], builtInKey: "Treasury", active: true },
-    ]);
+    expect(docs).toEqual([{ permissions: ["read:Member"], builtInKey: "Treasury", active: true }]);
     expect(errors).toEqual([]);
   });
 
@@ -110,7 +108,10 @@ describe("getRoleDocsByBuiltInKeys coverage anomalies", () => {
     const docs = await firestoreClaimsDeps(db, auth).getRoleDocsByBuiltInKeys(["Treasury"]);
     expect(docs).toHaveLength(2);
     expect(errors).toHaveLength(1);
-    expect(errors[0]?.[1]).toMatchObject({ builtInKey: "Treasury", ids: ["Treasury", "Tesoreria"] });
+    expect(errors[0]?.[1]).toMatchObject({
+      builtInKey: "Treasury",
+      ids: ["Treasury", "Tesoreria"],
+    });
   });
 
   it("logs a doc that covers a builtInKey from a different doc id", async () => {
@@ -128,6 +129,56 @@ describe("getRoleDocsByBuiltInKeys coverage anomalies", () => {
     const { db, builtInQueries } = fakeDb([builtIn("Treasury", "Treasury")]);
     expect(await firestoreClaimsDeps(db, auth).getRoleDocsByBuiltInKeys([])).toEqual([]);
     expect(builtInQueries).toEqual([]);
+  });
+});
+
+describe("getRolesByIds id screening", () => {
+  const custom = (id: string, extra: Record<string, unknown> = {}): RoleFixture => ({
+    id,
+    data: { permissions: ["manage:Ally"], active: true, ...extra },
+  });
+
+  it("BLOCKING: an unusable roleId is screened out instead of throwing forever", async () => {
+    // db.doc() throws on these, and that throw fails this member's claims sync
+    // PERMANENTLY — every later write re-throws until someone edits members.roleIds.
+    const errors = captureErrors();
+    const { db, getAllPaths } = fakeDb([custom("role-x")]);
+    const out = await firestoreClaimsDeps(db, auth).getRolesByIds([
+      "role-x",
+      "",
+      "roles/evil",
+      "..",
+      "__name__",
+    ]);
+    expect(out).toEqual([{ permissions: ["manage:Ally"] }]);
+    expect(getAllPaths).toEqual([["roles/role-x"]]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.[1]).toMatchObject({ roleIds: ["", "roles/evil", "..", "__name__"] });
+  });
+
+  it("issues no getAll at all when every roleId is unusable", async () => {
+    captureErrors();
+    const { db, getAllPaths } = fakeDb([custom("role-x")]);
+    expect(await firestoreClaimsDeps(db, auth).getRolesByIds(["", "a/b"])).toEqual([]);
+    expect(getAllPaths).toEqual([]);
+  });
+
+  it("logs nothing and reads the doc for a well-formed id", async () => {
+    const errors = captureErrors();
+    const { db, getAllPaths } = fakeDb([custom("role-x")]);
+    expect(await firestoreClaimsDeps(db, auth).getRolesByIds(["role-x"])).toEqual([
+      { permissions: ["manage:Ally"] },
+    ]);
+    expect(getAllPaths).toEqual([["roles/role-x"]]);
+    expect(errors).toEqual([]);
+  });
+
+  it("keeps dropping inactive and missing docs", async () => {
+    captureErrors();
+    const { db } = fakeDb([custom("gone", { active: false }), custom("kept")]);
+    expect(await firestoreClaimsDeps(db, auth).getRolesByIds(["gone", "kept", "absent"])).toEqual([
+      { permissions: ["manage:Ally"] },
+    ]);
   });
 });
 

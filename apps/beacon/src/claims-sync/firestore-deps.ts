@@ -3,6 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { isValidRole, type Role } from "@luminova/auth/roles";
 import { isValidPermissionCode, type PermissionCode } from "@luminova/types/permission";
 import { chunk } from "../chunk.js";
+import { isSafeDocId } from "../firestore-util.js";
 import { isActiveRoleDoc, permsFromRoleDoc } from "./role-doc.js";
 import type { ClaimsSyncDeps } from "./sync.js";
 
@@ -140,10 +141,23 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): ClaimsSyncDeps {
     },
     getRolesByIds: async (ids) => {
       if (ids.length === 0) return [];
+      // Screen the ids BEFORE the `roles/${id}` path template: rules cap neither the
+      // shape nor the size of roleIds, and an empty or "/"-bearing entry makes db.doc()
+      // throw — which fails this member's claims sync permanently, not transiently.
+      // Mirrors currentCargoId (same helper). Fails closed: a screened id grants nothing.
+      const usable = ids.filter((id) => isSafeDocId(id));
+      if (usable.length !== ids.length) {
+        console.error(
+          "claims-sync: roleIds entries cannot be a doc id — ignored, granting no perms",
+          {
+            roleIds: ids.filter((id) => !isSafeDocId(id)),
+          },
+        );
+      }
       // roleIds is Admin-writable but rules impose no size cap, so bound the
       // getAll fan-out in 300-ref batches (mirrors resolveMembers) rather than
       // splatting an unbounded ref list into a single getAll call.
-      const refs = ids.map((id) => db.doc(`roles/${id}`));
+      const refs = usable.map((id) => db.doc(`roles/${id}`));
       const out: { permissions: PermissionCode[] }[] = [];
       for (const batch of chunk(refs, 300)) {
         const snaps = await db.getAll(...batch);
