@@ -85,7 +85,18 @@ export function PermisosPage() {
         <RolesPanel
           rows={rows}
           cargosState={sectionState(positionsLoading, positionsError)}
-          holdersState={sectionState(membersLoading, membersError)}
+          // The JOIN of both inputs, not the members query alone. `holders` is computed by
+          // effectiveRoles(member, positionsById, …), which resolves each cargo's grants out
+          // of the positions map — so with positions unavailable that map is empty, every
+          // member collapses to ["Member"], and each other row's holder list comes back [].
+          // Reported as "ok" that empty list became a FACT: "Afecta a 0 miembros activos"
+          // right before a write that fans out through an unbounded, no-retry members scan.
+          // Unreachable under the old union gate (the page failed closed); the per-section
+          // split opened it, so the state has to follow the data dependency.
+          holdersState={sectionState(
+            membersLoading || positionsLoading,
+            membersError || positionsError,
+          )}
         />
       )}
     </div>

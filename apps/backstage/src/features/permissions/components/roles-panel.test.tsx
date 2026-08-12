@@ -284,8 +284,27 @@ describe("RolesPanel reactivation", () => {
     expect(reactivateMutate).not.toHaveBeenCalled();
   });
 
+  it("does not re-open the confirmation when a vanished row comes back", async () => {
+    // parseDocs drops a doc whose zod parse fails, so a row can leave the list and RETURN
+    // on repair. The derived `open` flag alone closed the dialog but kept the id, and Radix
+    // fires onOpenChange on interaction — not on a controlled `open` flip — so the overlay
+    // re-opened with no click, over a row the admin had moved on from.
+    const user = userEvent.setup();
+    const { rerender } = render(<RolesPanel {...STATES} rows={[rowFor(dead)]} />);
+    await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+    expect(screen.getByRole("button", { name: "Reactivar" })).toBeInTheDocument();
+
+    rerender(<RolesPanel {...STATES} rows={[]} />);
+    expect(screen.queryByRole("button", { name: "Reactivar" })).not.toBeInTheDocument();
+
+    rerender(<RolesPanel {...STATES} rows={[rowFor(dead)]} />);
+    expect(screen.queryByRole("button", { name: "Reactivar" })).not.toBeInTheDocument();
+  });
+
   it("BLOCKING: offers no Reactivar rol on the locked doc — rules deny every update to it", () => {
-    // firestore.rules:441-442 requires `locked == false` for ANY roles update, so the
+    // The roles `allow update` arm in firestore.rules requires `locked == false` for ANY
+    // update (cited by arm, not by line number — these citations have gone stale three
+    // times on this branch as the surrounding comment block grew), so the
     // write is denied before it reaches roleLifecycleSafe(). Prod role docs are known to
     // lag the seed, and a console write can leave roles/Admin inactive: the affordance
     // would appear and 403.
