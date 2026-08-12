@@ -418,13 +418,19 @@ doc is dropped by `parseDocs` and re-renders as an `unsynced` row asserting full
   2. Every `roles/*` doc carries **both** `active` and `deletedAt` keys, or
      `roleLifecycleSafe()` denies every client update to it (Design 6).
   3. Every built-in doc carries `builtIn: true` **and** `builtInKey` equal to its doc id.
-     This one is load-bearing in a way the earlier draft missed: coverage is computed from
-     `where("builtInKey","in",keys)` filtered by `builtIn === true`, so a doc that lost
-     either field is dropped, its key stays *uncovered*, and the seed fallback re-mints —
-     making a deactivation a **silent no-op that `/permisos` reports as a revocation**.
-     `reseedBuiltInRolePerms` cannot heal it either: it skips such a doc as `not-built-in`
-     without adding it to `failed`, so the callable still returns `ok: true`. Beacon now
-     logs the drop, but the deploy check is what prevents it.
+     The two halves fail differently, and an earlier draft of this note conflated them:
+     - **Missing `builtIn: true`** → the doc is dropped by the `builtIn === true` filter, its
+       key stays *uncovered*, and the seed fallback re-mints — making a deactivation a
+       **silent no-op that `/permisos` reports as a revocation**.
+     - **`builtInKey` ≠ doc id** → the doc is *not* dropped. The query matches on the
+       `builtInKey` field, so it is returned and does cover its key. The hazard is instead
+       that `reseedBuiltInRolePerms` skips it as `not-built-in` (it compares `builtInKey`
+       against the doc id), so its permissions **freeze permanently** while `/permisos` keeps
+       showing the role as normal — and the callable still returns `ok: true`, because that
+       skip reason is not added to `failed`.
+
+     Beacon now logs all three anomalies (missing `builtIn`, off-id `builtInKey`, and two
+     docs sharing one `builtInKey`), but the deploy check is what prevents them.
 - `reseedBuiltInRolePerms` already skips inactive (`recompute-claims.ts:134-137`) and
   `seedBuiltInRoles` is create-only (`seed-roles.ts:46-49`), so neither resurrects a
   deactivated role. Both get a regression test.
