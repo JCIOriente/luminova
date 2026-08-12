@@ -149,6 +149,24 @@ describe("reseedBuiltInRolePerms (emulator) — the callable wrapper", () => {
     expect(info).not.toHaveBeenCalled();
   });
 
+  it("BLOCKING: does not resurrect a deactivated built-in role", async () => {
+    // Deploy-note guard: an operator re-running the reseed after a deactivation must
+    // not silently bring the role back with the seed snapshot's perms. The planner
+    // already skips `inactive` (recompute-claims.ts); this pins the callable
+    // end-to-end, on disk.
+    await db.doc("roles/Treasury").update({
+      permissions: ["read:Member"],
+      active: false,
+      deletedAt: new Date("2026-01-01T00:00:00Z"),
+    });
+    const result = await invoke({ confirm: CONFIRM }, ["Admin"]);
+    expect(result.skipped).toContainEqual({ id: "Treasury", reason: "inactive" });
+    const after = await db.doc("roles/Treasury").get();
+    expect(after.get("active")).toBe(false);
+    expect(after.get("deletedAt")).not.toBeNull();
+    expect(after.get("permissions")).toEqual(["read:Member"]);
+  });
+
   it("logs the applied ids once the commit lands", async () => {
     await driftTreasury();
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
