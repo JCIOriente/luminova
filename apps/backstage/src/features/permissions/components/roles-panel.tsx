@@ -9,7 +9,20 @@ type Editing = RoleDefinition | "new" | null;
 
 const MAX_HOLDERS = 5;
 
-function holdersLabel(holders: RoleOverviewRow["holders"]): string {
+/** Per-section availability, so /permisos can degrade `grantingCargos` / `holders`
+ *  independently instead of failing the whole page closed. Three states, not two: an
+ *  empty list while a query is still in flight must not read as "Nadie aún". */
+export type SectionState = "ok" | "loading" | "error";
+
+function stateLabel(state: SectionState): string | null {
+  if (state === "loading") return "Cargando…";
+  if (state === "error") return "No disponible";
+  return null;
+}
+
+function holdersLabel(holders: RoleOverviewRow["holders"], state: SectionState): string {
+  const degraded = stateLabel(state);
+  if (degraded !== null) return degraded;
   if (holders.length === 0) return "Nadie aún";
   const shown = holders
     .slice(0, MAX_HOLDERS)
@@ -19,8 +32,12 @@ function holdersLabel(holders: RoleOverviewRow["holders"]): string {
   return rest > 0 ? `${shown} y ${rest} más` : shown;
 }
 
-function originLabel(row: RoleOverviewRow): string {
+function originLabel(row: RoleOverviewRow, state: SectionState): string {
+  // Custom roles are structurally cargo-less, so a positions outage tells us nothing
+  // new about them — don't degrade a fact.
   if (row.builtInKey === null) return "Asignación directa";
+  const degraded = stateLabel(state);
+  if (degraded !== null) return degraded;
   return row.grantingCargos.length > 0 ? row.grantingCargos.join(", ") : "Ningún cargo lo otorga";
 }
 
@@ -32,8 +49,20 @@ function originLabel(row: RoleOverviewRow): string {
  *  Every display string comes off the row, never off `row.role` — buildRoleOverview has
  *  already resolved it through roleDisplay. No empty state: buildRoleOverview always emits
  *  a row per ROLES key, so the pre-seed condition renders as rows marked "Sin sincronizar"
- *  rather than a blank page that hides which roles are already minting perms. */
-export function RolesPanel({ rows }: { rows: RoleOverviewRow[] }) {
+ *  rather than a blank page that hides which roles are already minting perms.
+ *
+ *  `cargosState` / `holdersState` let the page degrade those two lines on their own when
+ *  the positions or members query is down, instead of failing the whole page — which
+ *  would take the only role-restore affordance with it. */
+export function RolesPanel({
+  rows,
+  cargosState = "ok",
+  holdersState = "ok",
+}: {
+  rows: RoleOverviewRow[];
+  cargosState?: SectionState;
+  holdersState?: SectionState;
+}) {
   const addRole = useAddRole();
   const updateRole = useUpdateRole();
   const deleteRole = useDeleteRole();
@@ -103,7 +132,7 @@ export function RolesPanel({ rows }: { rows: RoleOverviewRow[] }) {
               <dl className="flex flex-col gap-2 text-ui-sm">
                 <div className="flex gap-2">
                   <dt className="text-ink-3">Otorgado por:</dt>
-                  <dd className="text-ink-2">{originLabel(row)}</dd>
+                  <dd className="text-ink-2">{originLabel(row, cargosState)}</dd>
                 </div>
                 <div className="flex gap-2">
                   {/* "Miembros activos", not "Lo tienen": useMembers() filters active
@@ -111,7 +140,7 @@ export function RolesPanel({ rows }: { rows: RoleOverviewRow[] }) {
                       soft-deleted member with a surviving Auth user still receives the
                       perms. This count is not the complete blast radius. */}
                   <dt className="text-ink-3">Miembros activos:</dt>
-                  <dd className="text-ink-2">{holdersLabel(row.holders)}</dd>
+                  <dd className="text-ink-2">{holdersLabel(row.holders, holdersState)}</dd>
                 </div>
               </dl>
             </li>
