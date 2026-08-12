@@ -166,6 +166,18 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // An inactive role whose permissions stay editable (Design 4: the stored array is
+    // real, editable, and is exactly what "Reactivar rol" mints to every holder).
+    await setDoc(doc(db, "roles/inactive_editable"), {
+      name: "Sonda inactiva",
+      description: "",
+      builtIn: false,
+      builtInKey: null,
+      permissions: ["read:Position"],
+      locked: false,
+      active: false,
+      deletedAt: DELETED_AT,
+    });
     // Deactivated on purpose: the checkIns Scanner conjunct is NAME-keyed
     // (!hasAnyRole(['Scanner'])) and reads no role doc, so the tests below prove the
     // restriction survives the doc going out of service. Restrictive, so surviving is
@@ -2542,6 +2554,31 @@ describe("firestore.rules — roles collection", () => {
   it("denies a non-Admin deactivating a role", async () => {
     await assertFails(
       updateDoc(doc(as("mem-uid", ["Membership"]), "roles/custom_existing"), {
+        active: false,
+        deletedAt: serverTimestamp(),
+      }),
+    );
+  });
+  it("allows Admin to edit an inactive role's permissions without re-stamping deletedAt", async () => {
+    // Design 4 depends on this: an inactive role's stored `permissions` is "real,
+    // editable", and is what "Reactivar rol" mints to every holder at once. But
+    // RoleRepository.update writes name/description/permissions ONLY, so a
+    // `deletedAt == request.time` requirement on every inactive-state write would deny
+    // the whole editor for a deactivated role. The inactive branch therefore accepts an
+    // UNCHANGED deletedAt as well; the deactivating transition (null -> value) still
+    // cannot satisfy unchanged() and stays pinned to request.time.
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/inactive_editable"), {
+        name: "Sonda inactiva II",
+        permissions: ["read:Position", "manage:Ally"],
+      }),
+    );
+  });
+  it("allows re-stamping deletedAt on an already-inactive role", async () => {
+    // RoleEditor.canDelete relies on this being permitted (hence its `role.active`
+    // conjunct, so a deactivated role does not offer "Desactivar rol" again).
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/inactive_editable"), {
         active: false,
         deletedAt: serverTimestamp(),
       }),

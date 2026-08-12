@@ -385,9 +385,11 @@ service cloud.firestore {
     //     deletedAt");
     //   - the active<->deletedAt coupling: active:true + deletedAt set is live to
     //     getAll()'s where and dead to the pipeline — assignable everywhere, minting
-    //     nothing, and for a built-in also COVERED, so the seed fallback vanishes too.
-    //     It also rejects a deactivation that leaves deletedAt null (unrestorable-looking
-    //     to the UI) and a string deletedAt.
+    //     nothing, and for a built-in also COVERED, so the seed fallback vanishes too;
+    //   - (d.deletedAt is timestamp): the inactive branch accepts an unchanged deletedAt
+    //     (see below), and on a doc whose deletedAt is already null that alone would let
+    //     active:false through — inactive with no stamp, which the UI reads as still
+    //     restorable. This conjunct is what rejects it.
     // The two `in` checks add no authorization outcome on their own: reading an absent
     // key ERRORS, and an erroring rule already denies. They are here so a missing field
     // denies CLEANLY rather than by evaluation error — the same reason this file prefers
@@ -395,14 +397,19 @@ service cloud.firestore {
     // doc missing the field). Don't remove them on a "no test covers it" argument; no
     // test CAN, because nothing becomes allowed.
     // deletedAt value forgery has no authorization effect (every consumer tests
-    // null-ness only, never ordering); `== request.time` is audit hygiene, and it also
-    // subsumes `is timestamp` (nothing non-timestamp can equal request.time) — the type
-    // check stays as the explicit statement of intent should that equality ever relax.
+    // null-ness only, never ordering); `== request.time` is audit hygiene on the
+    // DEACTIVATING write. It cannot be required of every write that merely leaves the
+    // doc inactive: RoleRepository.update writes name/description/permissions only, and
+    // an inactive role's stored `permissions` must stay editable (it is what "Reactivar
+    // rol" mints to every holder at once). unchanged('deletedAt') covers exactly that
+    // no-op case — the null -> value transition can never satisfy it, so the stamp stays
+    // pinned to request.time where it matters.
     function roleLifecycleSafe() {
       let d = request.resource.data;
       return ('active' in d) && (d.active is bool) && ('deletedAt' in d)
         && (d.active == true ? d.deletedAt == null
-                            : d.deletedAt is timestamp && d.deletedAt == request.time);
+                            : d.deletedAt is timestamp
+                              && (unchanged('deletedAt') || d.deletedAt == request.time));
     }
     // Role definitions (editable RBAC). Permission sets here feed Auth custom claims
     // via the beacon onRoleWritten trigger, so writes are Admin-only — the same trust
