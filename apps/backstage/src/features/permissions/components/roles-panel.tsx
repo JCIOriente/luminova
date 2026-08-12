@@ -1,7 +1,13 @@
 import { useState } from "react";
-import { Badge, Button, Card, Sheet } from "@luminova/ui";
+import { Badge, Button, Card, Dialog, Sheet } from "@luminova/ui";
 import type { RoleDefinition, RoleDefinitionInput } from "@luminova/types";
-import { useAddRole, useUpdateRole, useDeleteRole } from "../hooks/use-save-role";
+import {
+  useAddRole,
+  useUpdateRole,
+  useDeleteRole,
+  useReactivateRole,
+} from "../hooks/use-save-role";
+import { permissionLabel } from "../lib/permission-matrix";
 import type { RoleOverviewRow } from "../lib/role-overview";
 import { RoleEditor } from "./role-editor";
 
@@ -69,7 +75,17 @@ export function RolesPanel({
   const addRole = useAddRole();
   const updateRole = useUpdateRole();
   const deleteRole = useDeleteRole();
+  const reactivateRole = useReactivateRole();
   const [editing, setEditing] = useState<Editing>(null);
+  const [reactivating, setReactivating] = useState<{
+    row: RoleOverviewRow;
+    doc: RoleDefinition;
+  } | null>(null);
+
+  const confirmReactivate = async () => {
+    if (reactivating) await reactivateRole.mutateAsync(reactivating.doc.id);
+    setReactivating(null);
+  };
 
   const submit = async (data: RoleDefinitionInput) => {
     if (editing === "new") await addRole.mutateAsync(data);
@@ -127,14 +143,26 @@ export function RolesPanel({
                   </span>
                 </div>
                 {doc !== null && (
-                  <Button
-                    as="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setEditing({ row, doc })}
-                  >
-                    {doc.locked ? "Ver" : "Editar"}
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {!row.active && (
+                      <Button
+                        as="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setReactivating({ row, doc })}
+                      >
+                        Reactivar rol
+                      </Button>
+                    )}
+                    <Button
+                      as="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setEditing({ row, doc })}
+                    >
+                      {doc.locked ? "Ver" : "Editar"}
+                    </Button>
+                  </div>
                 )}
               </div>
               <dl className="flex flex-col gap-2 text-ui-sm">
@@ -174,6 +202,50 @@ export function RolesPanel({
           />
         )}
       </Sheet>
+
+      {/* Reactivation mints the role's whole stored permission set to every holder at
+          once, through the unbounded no-retry members scan in onRoleWritten. Show WHAT
+          and to WHOM before writing — the confirmation is the last human check. */}
+      <Dialog
+        open={reactivating !== null}
+        onOpenChange={(open) => {
+          if (!open) setReactivating(null);
+        }}
+        title="Reactivar rol"
+        description={
+          reactivating
+            ? `¿Reactivar ${reactivating.row.label}? Volverá a otorgar estos permisos a ${reactivating.row.holders.length} ${reactivating.row.holders.length === 1 ? "miembro activo" : "miembros activos"}.`
+            : undefined
+        }
+      >
+        <div className="flex flex-col gap-4">
+          {reactivating !== null &&
+            (reactivating.row.permissions.length === 0 ? (
+              <p className="text-ui-xs text-ink-3">Este rol no otorga ningún permiso.</p>
+            ) : (
+              <ul className="flex flex-wrap gap-1.5">
+                {reactivating.row.permissions.map((code) => (
+                  <li key={code}>
+                    <Badge tone="gray">{permissionLabel(code)}</Badge>
+                  </li>
+                ))}
+              </ul>
+            ))}
+          <div className="flex justify-end gap-3">
+            <Button
+              as="button"
+              type="button"
+              variant="secondary"
+              onClick={() => setReactivating(null)}
+            >
+              Cancelar
+            </Button>
+            <Button as="button" type="button" onClick={() => void confirmReactivate()}>
+              Reactivar
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </section>
   );
 }

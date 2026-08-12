@@ -1,15 +1,18 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { RoleDefinition } from "@luminova/types";
 import type { RoleOverviewRow } from "../lib/role-overview";
 
 const addMutate = vi.fn().mockResolvedValue("new-id");
 const updateMutate = vi.fn().mockResolvedValue(undefined);
 const deleteMutate = vi.fn().mockResolvedValue(undefined);
+const reactivateMutate = vi.fn().mockResolvedValue(undefined);
 vi.mock("../hooks/use-save-role", () => ({
   useAddRole: () => ({ mutateAsync: addMutate }),
   useUpdateRole: () => ({ mutateAsync: updateMutate }),
   useDeleteRole: () => ({ mutateAsync: deleteMutate }),
+  useReactivateRole: () => ({ mutateAsync: reactivateMutate }),
 }));
 
 import { RolesPanel } from "./roles-panel";
@@ -71,6 +74,7 @@ beforeEach(() => {
   addMutate.mockClear();
   updateMutate.mockClear();
   deleteMutate.mockClear();
+  reactivateMutate.mockClear();
 });
 
 describe("RolesPanel", () => {
@@ -177,5 +181,48 @@ describe("RolesPanel", () => {
     // DO receive the perms. The count must not be presented as complete.
     render(<RolesPanel rows={[rowFor(customDoc, { holders: [{ id: "m0", name: "Olivia" }] })]} />);
     expect(screen.getByText("Miembros activos:")).toBeInTheDocument();
+  });
+});
+
+describe("RolesPanel reactivation", () => {
+  const dead = {
+    ...customDoc,
+    active: false,
+    permissions: ["manage:Ally", "read:Position"] as RoleDefinition["permissions"],
+  };
+
+  it("offers Reactivar rol only on a deactivated row", () => {
+    render(<RolesPanel rows={[rowFor(dead), rowFor(customDoc)]} />);
+    expect(screen.getAllByRole("button", { name: "Reactivar rol" })).toHaveLength(1);
+  });
+
+  it("offers no Reactivar rol for an unsynced built-in (no doc to write to)", () => {
+    render(<RolesPanel rows={[unsyncedRow]} />);
+    expect(screen.queryByRole("button", { name: "Reactivar rol" })).not.toBeInTheDocument();
+  });
+
+  it("BLOCKING: the confirmation states the perms set and the holder count before writing", async () => {
+    // Reactivation mints this exact set to every holder at once, through an unbounded
+    // no-retry members scan. The admin must see WHAT and to WHOM before confirming.
+    const user = userEvent.setup();
+    render(<RolesPanel rows={[rowFor(dead, { holders: [{ id: "m0", name: "Olivia" }] })]} />);
+
+    await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+
+    expect(screen.getByText(/1 miembro activo/)).toBeInTheDocument();
+    expect(screen.getByText("Gestionar Aliados")).toBeInTheDocument();
+    expect(screen.getByText("Ver Cargos")).toBeInTheDocument();
+    expect(reactivateMutate).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Reactivar" }));
+    expect(reactivateMutate).toHaveBeenCalledWith("custom-1");
+  });
+
+  it("Cancelar closes the confirmation without writing", async () => {
+    const user = userEvent.setup();
+    render(<RolesPanel rows={[rowFor(dead)]} />);
+    await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(reactivateMutate).not.toHaveBeenCalled();
   });
 });

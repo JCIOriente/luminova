@@ -32,6 +32,7 @@ vi.mock("../../permissions/hooks/use-save-role", () => ({
   useAddRole: () => ({ mutateAsync: vi.fn() }),
   useUpdateRole: () => ({ mutateAsync: vi.fn() }),
   useDeleteRole: () => ({ mutateAsync: vi.fn() }),
+  useReactivateRole: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock("@tanstack/react-router", async (orig) => ({
   ...(await orig<typeof import("@tanstack/react-router")>()),
