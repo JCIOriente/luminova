@@ -122,6 +122,50 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // Lifecycle fixtures. Deliberately NOT roles/Treasury — the roles describe block
+    // mutates that doc, and a lifecycle test sharing it would couple to test order.
+    await setDoc(doc(db, "roles/Membership"), {
+      name: "Membresía",
+      description: "",
+      builtIn: true,
+      builtInKey: "Membership",
+      permissions: ["manage:Member"],
+      locked: false,
+      active: true,
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "roles/Member"), {
+      name: "Miembro",
+      description: "",
+      builtIn: true,
+      builtInKey: "Member",
+      permissions: ["read:Member"],
+      locked: false,
+      active: true,
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "roles/inactive_builtin"), {
+      name: "Secretaría",
+      description: "",
+      builtIn: true,
+      builtInKey: "Secretary",
+      permissions: ["manage:Notification"],
+      locked: false,
+      active: false,
+      deletedAt: DELETED_AT,
+    });
+    // Deny-probe target for the malformed-lifecycle writes below. Every test that uses
+    // it is an assertFails, so its state never changes and it can serve all of them.
+    await setDoc(doc(db, "roles/ghost_probe"), {
+      name: "Sonda",
+      description: "",
+      builtIn: false,
+      builtInKey: null,
+      permissions: ["read:Position"],
+      locked: false,
+      active: true,
+      deletedAt: null,
+    });
     await setDoc(doc(db, "terms/2026"), { status: "Activo" });
     await setDoc(doc(db, "activities/act1"), { termId: "2026", category: "Assembly" });
     await setDoc(doc(db, "activities/act_dir"), {
@@ -2290,9 +2334,105 @@ describe("firestore.rules — roles collection", () => {
       }),
     );
   });
-  it("denies deactivating a built-in role (would restore seed perms via the trigger)", async () => {
+  // REPLACES "denies deactivating a built-in role (would restore seed perms via the
+  // trigger)". That test stood in for the invariant "an inactive built-in must not
+  // restore its seed perms", which now lives in the beacon three-way
+  // (apps/beacon/src/claims-sync/resolve-member-perms.test.ts + role-docs.emulator.test.ts).
+  // Both halves need a test or the guard evaporates: there, that inactive means zero
+  // perms; here, that deactivation is permitted at all.
+  it("allows Admin to deactivate a non-locked built-in role", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/Membership"), {
+        active: false,
+        deletedAt: serverTimestamp(),
+      }),
+    );
+  });
+  it("allows Admin to reactivate a deactivated built-in role", async () => {
+    // softDeleteSafe() hard-blocks active:false -> true, which is why the roles lane
+    // uses roleLifecycleSafe() instead. softDeleteSafe itself must not change: four
+    // other collections depend on its one-way semantics and member resurrection is
+    // pinned denied by "denies resurrecting a soft-deleted member" above.
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/inactive_builtin"), {
+        active: true,
+        deletedAt: null,
+      }),
+    );
+  });
+  it("BLOCKING: denies deactivating the Member role", async () => {
+    // computeMemberRoles injects "Member" into every claim unconditionally
+    // (compute-roles.ts:9), so this strips five reads from the whole chapter and the
+    // restore is a second unbounded members scan. An admin who wants that outcome
+    // empties its `permissions` instead. `locked` protects roles/Admin only.
     await assertFails(
-      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/Treasury"), { active: false }),
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/Member"), {
+        active: false,
+        deletedAt: serverTimestamp(),
+      }),
+    );
+  });
+  it("BLOCKING: denies deactivating the locked Admin role", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/Admin"), {
+        active: false,
+        deletedAt: serverTimestamp(),
+      }),
+    );
+  });
+  it("BLOCKING: denies deleteField('active') — a ghost role, invisible in the UI but live in the pipeline", async () => {
+    // roleDefinitionDocSchema requires active: z.boolean(), so parseDocs drops the doc
+    // and /permisos cannot show or restore it; beacon's isActiveRoleDoc reads
+    // `active !== false`, so it keeps minting perms forever.
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), { active: deleteField() }),
+    );
+  });
+  it("BLOCKING: denies a non-bool active", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), { active: "false" }),
+    );
+  });
+  it("BLOCKING: denies a string deletedAt — invisible in the UI, dead in the pipeline, no path back", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), {
+        active: false,
+        deletedAt: "2026-01-01",
+      }),
+    );
+  });
+  it("BLOCKING: denies active:true with deletedAt set — assignable everywhere, mints nothing", async () => {
+    // Live to getAll()'s where("active","==",true), dead to isActiveRoleDoc, and for a
+    // built-in also COVERED, so the seed fallback silently vanishes too.
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), {
+        active: true,
+        deletedAt: serverTimestamp(),
+      }),
+    );
+  });
+  it("denies a deactivation whose deletedAt is not request.time (audit hygiene)", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), {
+        active: false,
+        deletedAt: Timestamp.fromDate(DELETED_AT),
+      }),
+    );
+  });
+  it("denies clearing deletedAt while leaving active false", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), {
+        active: false,
+        deletedAt: null,
+      }),
+    );
+  });
+  it("denies a non-Admin deactivating a role", async () => {
+    await assertFails(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "roles/custom_existing"), {
+        active: false,
+        deletedAt: serverTimestamp(),
+      }),
     );
   });
 });

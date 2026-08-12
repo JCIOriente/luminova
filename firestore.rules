@@ -368,6 +368,32 @@ service cloud.firestore {
     function roleIdentityUnchanged() {
       return unchanged('builtIn') && unchanged('builtInKey') && unchanged('locked');
     }
+    // Roles are the ONE collection whose soft-delete is REVERSIBLE: a built-in role
+    // must be able to go out of service and come back. softDeleteSafe() is one-way and
+    // shared by four other collections (members, positions, allies) — it must NOT
+    // change; member resurrection is pinned denied in tests/firestore-rules/rules.test.ts
+    // ("denies resurrecting a soft-deleted member").
+    //
+    // Every conjunct is load-bearing, because this repo's two definitions of "inactive"
+    // disagree: roleDefinitionDocSchema requires `active: z.boolean()`, so a malformed
+    // doc is dropped by parseDocs and becomes invisible to the UI, while beacon's
+    // isActiveRoleDoc reads `active !== false`, so the same doc stays LIVE and keeps
+    // minting perms.
+    //   - without ('active' in d): a deleteField('active') write yields a ghost —
+    //     invisible in the UI, live in the pipeline, unrestorable;
+    //   - without (d.deletedAt is timestamp): a string deletedAt is the inverse —
+    //     invisible in the UI, dead in the pipeline, with no path back;
+    //   - without the active<->deletedAt coupling: active:true + deletedAt set is live to
+    //     getAll()'s where and dead to the pipeline — assignable everywhere, minting
+    //     nothing, and for a built-in also COVERED, so the seed fallback vanishes too.
+    // deletedAt value forgery has no authorization effect (every consumer tests
+    // null-ness only, never ordering); `== request.time` is audit hygiene.
+    function roleLifecycleSafe() {
+      let d = request.resource.data;
+      return ('active' in d) && (d.active is bool) && ('deletedAt' in d)
+        && (d.active == true ? d.deletedAt == null
+                            : d.deletedAt is timestamp && d.deletedAt == request.time);
+    }
     // Role definitions (editable RBAC). Permission sets here feed Auth custom claims
     // via the beacon onRoleWritten trigger, so writes are Admin-only — the same trust
     // boundary as positions.grants. Signed-in read so the admin UI can render role
@@ -382,13 +408,18 @@ service cloud.firestore {
         && request.resource.data.builtInKey == null
         && request.resource.data.get('locked', false) == false;
       // The locked (Admin) role is immutable. Identity fields can't change. A built-in
-      // role can't be deactivated (that would silently restore its seed perms via the
-      // trigger fallback) — only permissions/name/description are editable.
+      // role MAY be deactivated and reactivated — the perms consequence is handled by
+      // beacon's three-way resolution (an inactive doc covers its key and contributes
+      // nothing), not by a rules ban. `Member` is the one exception: computeMemberRoles
+      // injects it into every claim unconditionally, so deactivating it collapses nav
+      // and route access for the whole chapter. An admin who wants that empties its
+      // `permissions` instead — same effect, no lifecycle asymmetry, still visible on
+      // /permisos.
       allow update: if hasAnyRole(['Admin'])
         && resource.data.get('locked', false) == false
         && roleIdentityUnchanged()
-        && softDeleteSafe()
-        && (resource.data.get('builtIn', false) != true
+        && roleLifecycleSafe()
+        && (resource.data.get('builtInKey', null) != 'Member'
             || request.resource.data.get('active', true) == true);
       allow delete: if false;
     }
