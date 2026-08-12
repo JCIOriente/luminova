@@ -380,21 +380,24 @@ still be projected to the **public** board showcase. (`project-ally.ts` uses the
 groups, and four repeats of the prod field audit that is already this PR's riskiest
 operational step — so the fork is deliberate. Owed its own pass.
 
-**The client mirror and beacon disagree on duplicate `builtInKey` docs.** Beacon returns an
-array and unions both docs' perms; `previewEffectivePerms` builds a `Map` and keeps only the
-last. Console-only, and the union itself is already listed as a residual — but the *divergence*
-between the two implementations is exactly the drift class this spec spent a section on.
-Worth noting that a shared pure helper in `packages/auth` (which both sides already import
-`resolveEffectivePerms` from, so there is no new dependency and no cycle) would remove the
-duplication of the subtle half while leaving the `isLiveRole` / `isActiveRoleDoc` predicate
-mirror where it must stay. That option was never weighed during design; it is not a rejected
-one.
+**Duplicate `builtInKey` docs — divergence FIXED, union documented.** The mirror used to build
+a `Map` and keep only the last doc while beacon unioned every live one, so the preview an
+Admin reads was order-dependent and could show `[]` where beacon minted real perms. The
+mirror now groups and unions, matching beacon; both orders are pinned by tests. The union
+*itself* remains the semantic: two docs claiming one key means deactivating one does not
+revoke what the other still grants. Beacon logs the condition. Console-authorable only.
 
-**Two cross-surface label inconsistencies, both deliberate but worth stating once.**
-`roleOptions` appends `" (desactivado)"` while `roleDisplay` does not, so on `/positions` the
-same deactivated role reads "… (desactivado)" in the grants picker and plain in the grants
-column, one screen apart. And baking the marker into the label string makes it unstyleable
-and only string-testable.
+Still open, and never weighed during design (so: not a rejected option): the three-way
+algorithm is implemented twice, once per side of the trust boundary. A shared pure helper in
+`packages/auth` — which both sides already import `resolveEffectivePerms` from, so no new
+dependency and no cycle — would remove the duplication of the subtle half while leaving the
+`isLiveRole` / `isActiveRoleDoc` predicate mirror where it must stay.
+
+**Cross-surface label consistency — mostly resolved.** `roleOptions` marks a deactivated
+built-in "… (desactivado)"; the two surfaces that *assert* authority rather than offer a
+choice — the member permissions panel and the `/positions` grants column — now mark it too,
+through the same lifecycle-aware resolver. What stands: the marker is a plain string baked
+into the label, so it is unstyleable and only string-testable.
 
 **Beacon test files are not type-checked at all — recommended follow-up.**
 `apps/beacon/tsconfig.json` carries `"exclude": ["src/**/*.test.ts"]`, so the `tsc --noEmit`

@@ -63,7 +63,7 @@ async function queryBuiltInRoleDocs(db: Firestore, keys: Role[]): Promise<LiveBu
   for (const [key, ids] of idsByKey) {
     if (ids.length > 1) {
       console.error(
-        "claims-sync: more than one role doc claims one builtInKey — beacon unions their perms while the /permisos preview shows last-wins",
+        "claims-sync: more than one role doc claims one builtInKey — their live perms are unioned, so a deactivation of one doc does not revoke what the other still grants",
         { builtInKey: key, ids },
       );
     } else if (ids[0] !== key) {
