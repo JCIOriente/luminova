@@ -61,10 +61,17 @@ function fakeDeps(opts: {
         })),
     // Mirrors the REAL getRolesByIds, which filters inactive docs (there is no seed
     // fallback on the custom-role path, so dropping them here is what production does).
-    // A fake that returned them regardless was MORE PERMISSIVE than what ships: no test
-    // at this level could express "a deactivated custom role contributes nothing", and
-    // the invariant rested on one emulator test. The production predicate is called, not
-    // re-implemented, so the two cannot drift.
+    // Keeping the fake aligned matters: one that returned them regardless would be MORE
+    // PERMISSIVE than what ships. The production predicate is called, not re-implemented,
+    // so the two cannot drift.
+    //
+    // BUT NOTE WHAT THIS CANNOT GUARD. The liveness filter on the custom-role path lives
+    // ONLY in the real firestore-deps.ts; `resolveMemberPerms` spreads `getRolesByIds`
+    // straight into `roleDocs` with no filter of its own. So deleting the filter from
+    // PRODUCTION leaves the two characterization tests below green — only mutating this fake
+    // turns them red. They are fake-fidelity tests, not invariant guards, and are labeled as
+    // such. The real, non-vacuous coverage is firestore-deps.test.ts ("keeps dropping
+    // inactive and missing docs") and role-docs.emulator.test.ts.
     getRolesByIds: async (ids) =>
       ids
         .map((id) => opts.customRoles?.[id])
@@ -183,6 +190,44 @@ describe("syncMemberClaims", () => {
     expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
   });
 
+  it("BLOCKING: screens an unusable cargoId instead of failing that member's sync forever", async () => {
+    // `positionsAssignmentSafe()` in firestore.rules never constrains cargoId's SHAPE, so an
+    // Admin can store "a/b". Every getPosition impl interpolates it into a `positions/${id}`
+    // doc-path template, where the admin SDK throws a PERMANENT INVALID_ARGUMENT — and
+    // onMemberWritten declares no `retry` option, so it is retry:false. The throw is not
+    // redelivered, and because the bad id PERSISTS in the member doc, every later write
+    // re-throws: that member's claims never sync again until someone edits the id out.
+    //
+    // Screened in resolveTrustedGrants (port-independent, so the fakes inherit it) rather
+    // than in each getPosition impl. Fails closed: no cargo means no grants.
+    const reached: string[] = [];
+    for (const cargoId of ["a/b", "", ".", "..", "__name__", `${"x".repeat(1501)}`]) {
+      const { deps, writes } = fakeDeps({
+        positions: { "a/b": { grants: ["Admin"] }, "": { grants: ["Admin"] } },
+        userRoles: { "admin-uid": ["Admin"] },
+        existing: { "target-uid": { roles: ["Member"] } },
+      });
+      const spy: typeof deps.getPosition = async (id) => {
+        reached.push(id);
+        return null;
+      };
+      await expect(
+        syncMemberClaims(
+          { ...deps, getPosition: spy },
+          {
+            uid: "target-uid",
+            positions: { "2026": { cargoId, comisionIds: [], assignedBy: "admin-uid" } },
+          },
+          "2026",
+        ),
+      ).resolves.toBeUndefined();
+      // The screened id never reaches the port, so it never reaches db.doc().
+      expect(reached).toEqual([]);
+      // Fails closed: the Admin grant behind that cargo is NOT minted.
+      expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
+    }
+  });
+
   it("honors ONLY the cargo's grants — comisión grants are never power, even Admin-assigned", async () => {
     // Comisiones are chips-only (position-schema forbids Comision grants; rules
     // enforce it). A console-written power comisión — or a power cargo's id
@@ -262,7 +307,13 @@ describe("syncMemberClaims", () => {
     });
   });
 
-  it("BLOCKING: a DEACTIVATED custom role in roleIds contributes nothing", async () => {
+  /** CHARACTERIZATION of the fake, NOT a guard on production — see the long note on
+   *  `getRolesByIds` in fakeDeps. The custom-role liveness filter is in firestore-deps.ts;
+   *  nothing in `resolveMemberPerms` filters, so removing it from production keeps this green.
+   *  This test's job is to pin that the fake stays as strict as production, so the OTHER
+   *  tests driven through it are not exercising a more permissive world than what ships.
+   *  Real coverage: firestore-deps.test.ts + role-docs.emulator.test.ts. */
+  it("fake fidelity: a deactivated custom role in roleIds contributes nothing", async () => {
     const { deps, writes } = fakeDeps({
       positions: {},
       userRoles: {},
@@ -283,7 +334,8 @@ describe("syncMemberClaims", () => {
     expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
   });
 
-  it("a soft-deleted custom role (deletedAt set) also contributes nothing", async () => {
+  /** Same class as the test above: fake fidelity, not a production guard. */
+  it("fake fidelity: a soft-deleted custom role (deletedAt set) also contributes nothing", async () => {
     const { deps, writes } = fakeDeps({
       positions: {},
       userRoles: {},

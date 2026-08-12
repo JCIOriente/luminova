@@ -50,8 +50,19 @@ export function validateSetRolesInput(data: unknown): SetUserRolesInput {
  *  the claim, and name-keyed rules gates read the name, not the perms — `canCurateFeatured()`
  *  and the Scanner `role == 'Attendee'` conjuncts among them. So without this check the
  *  callable is a path to NEWLY grant authority through a role the organization has taken out
- *  of service. The documented residual is narrower than that: it only covers EXISTING holders
- *  retaining a name they already had.
+ *  of service.
+ *
+ *  THIS CLOSES ONE OF TWO SUCH PATHS, both at the same privilege level. `computeMemberRoles`
+ *  is pure over `{trustedGrants, hadScanner}` and reads no role doc, so `onMemberWritten`
+ *  will NEWLY write a deactivated role's name into the claim of a member freshly assigned to
+ *  a cargo whose `positions/{id}.grants` contain it — and `resolveTrustedGrants` honors those
+ *  grants only when `assignedBy` holds Admin, which is the same authority this callable's
+ *  `requireAdmin` demands. So the cargo-grants path stays open BY DESIGN (dropping names
+ *  whose doc is not live is a privilege escalation via the Scanner conjunct — see the BLOCKING
+ *  test in claims-sync/compute-roles.test.ts and the Residuals section of
+ *  docs/specs/role-lifecycle.md). Do not read this guard as making a deactivated role's name
+ *  ungrantable; it is not, and it is not the narrower "existing holders keep a name they
+ *  already had" either.
  *
  *  An ABSENT doc must still be ACCEPTED. On a fresh project no built-in doc exists until
  *  seedRoles runs, and resolveMemberPerms deliberately falls back to BUILT_IN_ROLE_PERMS for
