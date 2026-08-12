@@ -406,7 +406,13 @@ service cloud.firestore {
       allow create: if hasAnyRole(['Admin'])
         && request.resource.data.builtIn == false
         && request.resource.data.builtInKey == null
-        && request.resource.data.get('locked', false) == false;
+        && request.resource.data.get('locked', false) == false
+        // Close the same INACTIVE-vs-MISSING ambiguity on create. `.get(…, false)` and an
+        // explicit key check, not a bare read: a create OMITTING the field must deny
+        // cleanly, and `.get('deletedAt', null) == null` would let an omission through.
+        && request.resource.data.get('active', false) == true
+        && ('deletedAt' in request.resource.data)
+        && request.resource.data.deletedAt == null;
       // The locked (Admin) role is immutable. Identity fields can't change. A built-in
       // role MAY be deactivated and reactivated — the perms consequence is handled by
       // beacon's three-way resolution (an inactive doc covers its key and contributes

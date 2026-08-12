@@ -2301,6 +2301,53 @@ describe("firestore.rules — roles collection", () => {
       }),
     );
   });
+  it("BLOCKING: denies creating a role that omits `active`", async () => {
+    // where("active","==",true) can't match it and roleDefinitionDocSchema rejects it,
+    // so /permisos never shows it — yet isActiveRoleDoc calls it ACTIVE and
+    // getRolesByIds mints its permissions to any member naming it in roleIds. A live
+    // manage:all role invisible on the page whose job is to show exactly that.
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "roles/no_active"), {
+        name: "Sin active",
+        description: "",
+        builtIn: false,
+        builtInKey: null,
+        permissions: ["manage:all"],
+        locked: false,
+        deletedAt: null,
+      }),
+    );
+  });
+  it("BLOCKING: denies creating a role that omits deletedAt", async () => {
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "roles/no_deleted_at"), {
+        name: "Sin deletedAt",
+        description: "",
+        builtIn: false,
+        builtInKey: null,
+        permissions: ["read:Position"],
+        locked: false,
+        active: true,
+      }),
+    );
+  });
+  it("denies creating an already-deactivated role", async () => {
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "roles/born_dead"), {
+        ...ROLE_DOC,
+        active: false,
+        deletedAt: serverTimestamp(),
+      }),
+    );
+  });
+  it("denies creating a role with active:true and deletedAt set", async () => {
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "roles/born_ghost"), {
+        ...ROLE_DOC,
+        deletedAt: serverTimestamp(),
+      }),
+    );
+  });
   it("allows Admin to edit a custom role's permissions", async () => {
     await assertSucceeds(
       updateDoc(doc(as("admin-uid", ["Admin"]), "roles/custom_existing"), {
