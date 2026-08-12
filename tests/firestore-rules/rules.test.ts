@@ -2490,6 +2490,21 @@ describe("firestore.rules — roles collection", () => {
       updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), { active: "false" }),
     );
   });
+  it("BLOCKING: denies a non-bool active even with a well-formed deletedAt", async () => {
+    // The payload that isolates `d.active is bool`: the case above is also caught by the
+    // active<->deletedAt coupling (a string active takes the else branch, where the
+    // unchanged null deletedAt fails), so on its own it would pass with `is bool` deleted.
+    // With a real deletedAt the else branch is satisfied and `is bool` is the ONLY
+    // conjunct left standing — and this is the dangerous payload: isActiveRoleDoc reads
+    // `active !== false`, so the string "false" is LIVE in the perms pipeline while
+    // roleDefinitionDocSchema's z.boolean() makes the doc invisible on /permisos.
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), {
+        active: "false",
+        deletedAt: serverTimestamp(),
+      }),
+    );
+  });
   it("BLOCKING: denies a string deletedAt — invisible in the UI, dead in the pipeline, no path back", async () => {
     await assertFails(
       updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), {
