@@ -1534,8 +1534,11 @@ describe("firestore.rules — checkIns", () => {
   // C2 regression: see the BLOCKING case below.
   it("denies a Scanner registering a non-Attendee role (no self-award of director points)", async () => {
     await assertFails(
+      // memberId must be a member that EXISTS (m1), or exists(members/…) on the create arm
+      // denies this on its own and the role == 'Attendee' conjunct is never exercised —
+      // which is what made this test vacuous for the conjunct it is credited with.
       setDoc(doc(as("s3", ["Scanner"]), "checkIns/c_dir"), {
-        memberId: "s3",
+        memberId: "m1",
         activityId: "a1",
         role: "Director",
       }),

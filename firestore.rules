@@ -412,9 +412,14 @@ service cloud.firestore {
                               && (unchanged('deletedAt') || d.deletedAt == request.time));
     }
     // roleDefinitionDocSchema (packages/types/src/role-definition-doc-schema.ts) requires
-    // SIX well-formed fields. roleLifecycleSafe() above covers `active` and `deletedAt`;
-    // this covers the other four, and the roles lane applies it to the create AND update
-    // arms so the two can never drift apart.
+    // EIGHT well-formed fields, pinned in three places — so read all three before concluding
+    // this guard is schema-complete on its own:
+    //   `active` / `deletedAt`  — roleLifecycleSafe() above.
+    //   `name` / `description` / `permissions` / `locked` — this helper, applied to the
+    //     create AND update arms so their SHAPE checks cannot drift apart.
+    //   `builtIn` / `builtInKey` — pinned by VALUE, not shape: literals on create, and
+    //     roleIdentityUnchanged() on update, which admits only a value equal to the
+    //     resource's, so no off-type or off-enum value is client-introducible.
     //
     // Why SHAPE belongs in an authorization rule: this repo's two readers of a role doc
     // disagree about what malformed means. parseDocs DROPS a doc that fails the zod schema
