@@ -4,7 +4,8 @@ import { roleLifecycleDisplay } from "../../../lib/role-display";
 import { useRoles } from "../../permissions/hooks/use-roles";
 
 export function MemberPermissionsPanel({ roles }: { roles: Role[] }) {
-  // Error deliberately unhandled: roleDisplay degrades to the seed snapshot, which is the
+  // Error deliberately unhandled: roleLifecycleDisplay degrades to the seed snapshot — and
+  // to UNMARKED, since a key with no doc really is minting through the fallback. That is the
   // right label for every role an admin has not renamed. Blocking this read-only panel on
   // a roles outage would hide the member's cargos entirely — strictly worse than a
   // possibly-stale label. The authoritative surface for role text is /permisos.
