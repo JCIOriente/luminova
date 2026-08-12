@@ -55,7 +55,11 @@ export const recomputeAllClaims = onCall(
         failed.push(doc.id);
       }
     }
-    return { ok: true as const, synced, failed };
+    // NOT unconditionally true, for the same reason reseedBuiltInRolePerms below is not:
+    // this callable IS the designated backstop for a partial onRoleWritten fan-out, so an
+    // `ok: true` alongside a non-empty `failed` reports the backstop as having succeeded
+    // at exactly the moment members are still stranded.
+    return { ok: failed.length === 0, synced, failed };
   },
 );
 
