@@ -163,6 +163,53 @@ describe("buildRoleOverview", () => {
     });
   });
 
+  describe("the role lifecycle", () => {
+    it("BLOCKING: a deactivated role's row keeps its STORED permissions, not []", () => {
+      // The update lane still permits editing `permissions` on an inactive doc, and
+      // roleClaimsChanged makes that edit silent — so the stored array is real, editable,
+      // and is exactly what "Reactivar rol" will mint to every holder at once. Reporting
+      // [] would hide it.
+      const rows = buildRoleOverview(
+        [{ ...builtInDoc, id: "Treasury", builtInKey: "Treasury", locked: false, active: false }],
+        [],
+        [],
+        "2026",
+      );
+      expect(firstRow(rows).active).toBe(false);
+      expect(firstRow(rows).permissions).toEqual(["manage:all"]);
+    });
+
+    it("an active:true + deletedAt-set ghost row is reported inactive", () => {
+      const deletedAt = { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"];
+      const rows = buildRoleOverview([{ ...customDoc, id: "c1", deletedAt }], [], [], "2026");
+      expect(firstRow(rows).active).toBe(false);
+    });
+
+    it("an unsynced built-in row is reported ACTIVE — the seed fallback really is minting", () => {
+      const rows = buildRoleOverview([], [], [], "2026");
+      expect(rows).toHaveLength(ROLES.length);
+      for (const row of rows) expect(row.active).toBe(true);
+    });
+
+    it("a live role's row is reported active", () => {
+      const rows = buildRoleOverview([builtInDoc], [], [], "2026");
+      expect(firstRow(rows).active).toBe(true);
+    });
+
+    it("still counts holders and granting cargos for a deactivated role", () => {
+      // holders routes through effectiveRoles, pure over positions.grants — doc-state
+      // independent. The count is the blast radius of a reactivation.
+      const rows = buildRoleOverview(
+        [{ ...builtInDoc, active: false }],
+        [presidente],
+        [olivia],
+        "2026",
+      );
+      expect(rowFor(rows, "Admin").holders).toEqual([{ id: "m0", name: "Olivia" }]);
+      expect(rowFor(rows, "Admin").grantingCargos).toEqual(["Presidente"]);
+    });
+  });
+
   describe("holders union both assignment paths", () => {
     it("counts a built-in role assigned directly through members.roleIds", () => {
       // beacon's getRolesByIds resolves a built-in doc id, so roleIds: ["Admin"] genuinely

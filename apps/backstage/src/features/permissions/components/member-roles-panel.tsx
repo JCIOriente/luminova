@@ -7,6 +7,7 @@ import {
   type PermissionCode,
   type Role,
 } from "@luminova/types";
+import { assignableRoles, isLiveRole } from "../../../lib/role-lifecycle";
 import { useRoles } from "../hooks/use-roles";
 import { useSaveMemberPermissions } from "../hooks/use-save-member-permissions";
 import { previewEffectivePerms } from "../lib/effective-preview";
@@ -60,8 +61,20 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
   };
 
   const customRoleOptions = useMemo(
-    () => (roles ?? []).filter((r) => !r.builtIn).map((r) => ({ value: r.id, label: r.name })),
+    () =>
+      assignableRoles(roles)
+        .filter((r) => !r.builtIn)
+        .map((r) => ({ value: r.id, label: r.name })),
     [roles],
+  );
+
+  // A stored roleId whose doc is deactivated has no chip (it is no longer an option),
+  // so without this notice the panel reads as "no custom roles" while roleIds still
+  // carries one. Deliberately does NOT drop it from state: the assignment is real and
+  // comes back the moment the role is reactivated.
+  const inactiveAssigned = useMemo(
+    () => (roles ?? []).filter((r) => roleIds.includes(r.id) && !isLiveRole(r)),
+    [roles, roleIds],
   );
 
   const effective = useMemo(
@@ -107,6 +120,18 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
           onChange={setRoleIds}
           placeholder="Sin roles personalizados"
         />
+        {inactiveAssigned.length > 0 && (
+          <span role="alert" className="flex flex-wrap items-center gap-1.5 text-ui-xs text-ink-3">
+            {inactiveAssigned.map((r) => (
+              <Badge key={r.id} tone="amber">
+                {r.name}
+              </Badge>
+            ))}
+            {inactiveAssigned.length === 1
+              ? "está desactivado: sigue asignado pero no otorga permisos hasta reactivarlo en /permisos."
+              : "están desactivados: siguen asignados pero no otorgan permisos hasta reactivarlos en /permisos."}
+          </span>
+        )}
       </label>
 
       <label className="flex flex-col gap-1.5">

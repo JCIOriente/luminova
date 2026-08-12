@@ -7,6 +7,7 @@ import {
   type RoleDefinition,
 } from "@luminova/types";
 import { builtInRoles, roleDisplay } from "../../../lib/role-display";
+import { isLiveRole } from "../../../lib/role-lifecycle";
 import { effectiveRoles } from "../../members/lib/member-permissions";
 
 export interface RoleOverviewRow {
@@ -22,6 +23,12 @@ export interface RoleOverviewRow {
   label: string;
   description: string;
   permissions: PermissionCode[];
+  /** Whether this role is currently minting perms. False for a doc that is `active:
+   *  false` OR carries a `deletedAt` (beacon reads both). TRUE for an unsynced built-in:
+   *  with no doc seeded, beacon's BUILT_IN_ROLE_PERMS fallback really is minting.
+   *  An inactive row keeps its STORED `permissions` — the update lane still permits
+   *  editing them, so the array is real and is exactly what a reactivation will grant. */
+  active: boolean;
   /** Cargos whose `grants` confer this role. Always empty for a custom role. */
   grantingCargos: string[];
   holders: { id: string; name: string }[];
@@ -72,6 +79,7 @@ export function buildRoleOverview(
         ? { label: role.name, description: role.description }
         : roleDisplay(key, roles)),
       permissions: role.permissions,
+      active: isLiveRole(role),
       grantingCargos: grantingCargos(key),
       holders: holders(key, role.id),
     };
@@ -86,6 +94,7 @@ export function buildRoleOverview(
         builtInKey: key,
         ...roleDisplay(key, roles),
         permissions: BUILT_IN_ROLE_PERMS[key],
+        active: true,
         grantingCargos: grantingCargos(key),
         // Deliberate over-report: with no doc seeded, beacon's getRolesByIds resolves
         // nothing for a `roleIds: [key]` holder, so only the cargo path actually mints

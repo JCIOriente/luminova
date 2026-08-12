@@ -27,3 +27,11 @@ export function useDeleteRole() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: roleKeys.all }),
   });
 }
+
+export function useReactivateRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => new RoleRepository().reactivate(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: roleKeys.all }),
+  });
+}

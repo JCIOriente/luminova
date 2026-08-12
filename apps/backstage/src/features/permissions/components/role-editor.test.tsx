@@ -50,3 +50,85 @@ describe("RoleEditor", () => {
     expect(screen.getByText(/protegido/i)).toBeInTheDocument();
   });
 });
+
+const builtInTreasury: RoleDefinition = {
+  id: "Treasury",
+  name: "Tesorería",
+  description: "",
+  builtIn: true,
+  builtInKey: "Treasury",
+  permissions: ["read:Member"],
+  locked: false,
+  active: true,
+  deletedAt: null,
+};
+
+const builtInMember: RoleDefinition = {
+  ...builtInTreasury,
+  id: "Member",
+  name: "Miembro",
+  builtInKey: "Member",
+};
+
+describe("RoleEditor deactivation", () => {
+  it("offers Desactivar rol for a non-locked BUILT-IN role and states the holder count", () => {
+    // Was gated on !role.builtIn, so a built-in could never be taken out of service.
+    render(
+      <RoleEditor
+        role={builtInTreasury}
+        holderCount={7}
+        onSubmit={vi.fn()}
+        onDelete={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Desactivar rol" })).toBeInTheDocument();
+    expect(screen.getByText(/7 miembros activos/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /eliminar rol/i })).not.toBeInTheDocument();
+  });
+
+  it("singularizes the holder count", () => {
+    render(
+      <RoleEditor role={builtInTreasury} holderCount={1} onSubmit={vi.fn()} onDelete={vi.fn()} />,
+    );
+    expect(screen.getByText(/1 miembro activo/)).toBeInTheDocument();
+  });
+
+  it("BLOCKING: never offers Desactivar rol for the Member role", () => {
+    // computeMemberRoles injects Member into every claim unconditionally, so
+    // deactivating it collapses nav and route access for the whole chapter.
+    // firestore.rules bars it too; this mirrors that bar in the UI.
+    render(
+      <RoleEditor role={builtInMember} holderCount={40} onSubmit={vi.fn()} onDelete={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: "Desactivar rol" })).not.toBeInTheDocument();
+    expect(screen.getByText(/no se puede desactivar/i)).toBeInTheDocument();
+  });
+
+  it("never offers Desactivar rol on the locked Admin role", () => {
+    render(<RoleEditor role={builtInAdmin} onSubmit={vi.fn()} onDelete={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Desactivar rol" })).not.toBeInTheDocument();
+  });
+
+  it("never offers Desactivar rol on an already-deactivated role", () => {
+    // Its affordance is "Reactivar rol" in RolesPanel. roleLifecycleSafe() would permit
+    // re-stamping deletedAt, so this narrowing is UI-only — and it keeps a deactivated
+    // role from opening with both buttons side by side.
+    render(
+      <RoleEditor
+        role={{ ...builtInTreasury, active: false }}
+        onSubmit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Desactivar rol" })).not.toBeInTheDocument();
+  });
+
+  it("surfaces a failed deactivation without closing the form", async () => {
+    const onDelete = vi.fn().mockRejectedValue(new Error("denied"));
+    render(
+      <RoleEditor role={builtInTreasury} holderCount={0} onSubmit={vi.fn()} onDelete={onDelete} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Desactivar rol" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo desactivar el rol.");
+  });
+});

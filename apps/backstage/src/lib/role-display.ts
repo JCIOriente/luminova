@@ -5,6 +5,7 @@ import {
   type Role,
   type RoleDefinition,
 } from "@luminova/types";
+import { isLiveRole } from "./role-lifecycle";
 
 export interface RoleDisplay {
   label: string;
@@ -58,12 +59,19 @@ export function builtInRoles(
  *  stored value, so an option list built from the docs would silently hide a grant already
  *  stored on a cargo whenever its role doc is missing or inactive — the admin would then be
  *  making authorization decisions from a display that omits a live power grant. Deriving
- *  from ROLES keeps the list total; a missing doc costs a fallback label, never an option. */
+ *  from ROLES keeps the list total; a missing doc costs a fallback label, never an option.
+ *
+ *  A DEACTIVATED built-in keeps its option for exactly that reason, but says so in its
+ *  label. A role with NO doc is not marked: beacon's BUILT_IN_ROLE_PERMS fallback really
+ *  is minting its perms, so "desactivado" would be the opposite of the truth. */
 export function roleOptions(
   roleDocs: readonly RoleDefinition[] | undefined,
 ): { value: Role; label: string }[] {
-  return builtInRoles(roleDocs).map(({ key, doc }) => ({
-    value: key,
-    label: displayOf(key, doc).label,
-  }));
+  return builtInRoles(roleDocs).map(({ key, doc }) => {
+    const { label } = displayOf(key, doc);
+    return {
+      value: key,
+      label: doc !== null && !isLiveRole(doc) ? `${label} (desactivado)` : label,
+    };
+  });
 }
