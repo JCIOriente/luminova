@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { ROLES, type RoleDefinition } from "@luminova/types";
-import { roleDisplay, roleOptions } from "./role-display";
+import { roleDisplay, roleLifecycleDisplay, roleOptions } from "./role-display";
+
+// Paired with every `active: false` below: roleLifecycleSafe() in firestore.rules requires
+// `deletedAt is timestamp` whenever active is false, so `active: false, deletedAt: null` is
+// a shape production can no longer hold. Structural stand-in for a Timestamp — isLiveRole
+// only tests null-ness.
+const DELETED_AT = { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"];
 
 function doc(over: Partial<RoleDefinition>): RoleDefinition {
   return {
@@ -75,7 +81,7 @@ describe("roleOptions and the role lifecycle", () => {
     // against the stored value, so dropping it would hide a grant already live on a
     // cargo. But offering "Proyectos" with no marker while its doc is out of service is
     // the ambiguity an Admin authorizes from — so keep the option, kill the ambiguity.
-    const options = roleOptions([doc({ active: false })]);
+    const options = roleOptions([doc({ active: false, deletedAt: DELETED_AT })]);
     expect(options.map((o) => o.value)).toEqual([...ROLES]);
     expect(options.find((o) => o.value === "ProjectManager")?.label).toBe(
       "Proyectos (desactivado)",
@@ -83,8 +89,7 @@ describe("roleOptions and the role lifecycle", () => {
   });
 
   it("marks an active:true + deletedAt-set ghost as deactivated too", () => {
-    const deletedAt = { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"];
-    const options = roleOptions([doc({ active: true, deletedAt })]);
+    const options = roleOptions([doc({ active: true, deletedAt: DELETED_AT })]);
     expect(options.find((o) => o.value === "ProjectManager")?.label).toBe(
       "Proyectos (desactivado)",
     );
@@ -97,6 +102,47 @@ describe("roleOptions and the role lifecycle", () => {
   });
 
   it("leaves roleDisplay untouched — the name still resolves for a deactivated doc", () => {
-    expect(roleDisplay("ProjectManager", [doc({ active: false })]).label).toBe("Proyectos");
+    // Display surfaces that merely resolve a stored value's name must not gain a marker:
+    // /permisos carries its own "Desactivado" badge, and the sent-history rows are past
+    // facts. roleLifecycleDisplay is the opt-in for surfaces that assert authority.
+    expect(
+      roleDisplay("ProjectManager", [doc({ active: false, deletedAt: DELETED_AT })]).label,
+    ).toBe("Proyectos");
+  });
+});
+
+describe("roleLifecycleDisplay", () => {
+  it("marks a deactivated role's label and keeps its description", () => {
+    const out = roleLifecycleDisplay("ProjectManager", [
+      doc({ active: false, deletedAt: DELETED_AT }),
+    ]);
+    expect(out).toEqual({
+      label: "Proyectos (desactivado)",
+      description: "Gestiona proyectos.",
+    });
+  });
+
+  it("marks an active:true + deletedAt-set ghost too", () => {
+    expect(
+      roleLifecycleDisplay("ProjectManager", [doc({ active: true, deletedAt: DELETED_AT })]).label,
+    ).toBe("Proyectos (desactivado)");
+  });
+
+  it("does not mark a live doc", () => {
+    expect(roleLifecycleDisplay("ProjectManager", [doc({})]).label).toBe("Proyectos");
+  });
+
+  it("does not mark a key with no doc — the snapshot fallback is minting", () => {
+    expect(roleLifecycleDisplay("ProjectManager", []).label).toBe("Proyectos");
+    expect(roleLifecycleDisplay("ProjectManager", undefined).label).toBe("Proyectos");
+  });
+
+  it("uses the same marker text roleOptions uses", () => {
+    // One definition of the marker, asserted rather than assumed: the picker and the
+    // authority surfaces sit on the same screen.
+    const docs = [doc({ active: false, deletedAt: DELETED_AT })];
+    expect(roleLifecycleDisplay("ProjectManager", docs).label).toBe(
+      roleOptions(docs).find((o) => o.value === "ProjectManager")?.label,
+    );
   });
 });

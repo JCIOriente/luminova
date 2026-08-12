@@ -38,6 +38,33 @@ describe("MemberPermissionsPanel", () => {
     expect(screen.getByText("Manda en todo.")).toBeInTheDocument();
   });
 
+  it("BLOCKING: marks a deactivated role so the panel stops asserting perms the member lacks", () => {
+    // This panel is a per-member authority summary — "Permisos que otorga el cargo
+    // asignado". A deactivated role mints nothing, so rendering its name and description
+    // unmarked states authority the member does not have. The picker on /positions
+    // already says "(desactivado)"; these two must not disagree one screen apart.
+    render(<MemberPermissionsPanel roles={["Admin"]} />, [
+      {
+        id: "Admin",
+        name: "Administración General",
+        description: "Manda en todo.",
+        builtIn: true,
+        builtInKey: "Admin",
+        permissions: ["manage:all"],
+        locked: false,
+        active: false,
+        deletedAt: { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"],
+      },
+    ]);
+    expect(screen.getByText("Administración General (desactivado)")).toBeInTheDocument();
+  });
+
+  it("does not mark a built-in with no seeded doc (the snapshot fallback is live)", () => {
+    render(<MemberPermissionsPanel roles={["Admin"]} />);
+    expect(screen.getByText("Administrador")).toBeInTheDocument();
+    expect(screen.queryByText(/desactivado/)).not.toBeInTheDocument();
+  });
+
   it("renders a list with one item per role", () => {
     render(<MemberPermissionsPanel roles={["Admin", "Member"]} />);
     expect(screen.getAllByRole("listitem")).toHaveLength(2);

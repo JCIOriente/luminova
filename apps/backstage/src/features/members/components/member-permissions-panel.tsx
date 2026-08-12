@@ -1,6 +1,6 @@
 import { Card } from "@luminova/ui";
 import type { Role } from "@luminova/types";
-import { roleDisplay } from "../../../lib/role-display";
+import { roleLifecycleDisplay } from "../../../lib/role-display";
 import { useRoles } from "../../permissions/hooks/use-roles";
 
 export function MemberPermissionsPanel({ roles }: { roles: Role[] }) {
@@ -21,7 +21,10 @@ export function MemberPermissionsPanel({ roles }: { roles: Role[] }) {
       <p className="text-ui-xs text-ink-3">Permisos que otorga el cargo asignado.</p>
       <ul className="flex flex-col gap-3">
         {roles.map((role) => {
-          const info = roleDisplay(role, roleDocs);
+          // roleLifecycleDisplay, not roleDisplay: this list sits under "Permisos que
+          // otorga el cargo asignado", so an unmarked deactivated role asserts authority
+          // the member does not have.
+          const info = roleLifecycleDisplay(role, roleDocs);
           return (
             <li key={role} className="flex flex-col gap-0.5">
               <span className="font-semibold text-ink-1">{info.label}</span>

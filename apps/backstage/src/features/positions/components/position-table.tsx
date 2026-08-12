@@ -3,12 +3,15 @@ import { DataTable, EmptyState, Icon, type DataTableColumn } from "@luminova/ui"
 import type { Position, RoleDefinition } from "@luminova/types";
 import { RowAction } from "../../../components/row-action";
 import { Can } from "../../../lib/authz/ability-context";
-import { roleDisplay } from "../../../lib/role-display";
+import { roleLifecycleDisplay } from "../../../lib/role-display";
 import { useRoles } from "../../permissions/hooks/use-roles";
 
+// roleLifecycleDisplay, not roleDisplay: this column states what the cargo confers, and
+// the grants PICKER on the same screen already marks a deactivated role "(desactivado)" —
+// unmarked here, the table and the edit form disagreed about the same grant.
 function grantsLabel(position: Position, roleDocs: RoleDefinition[] | undefined): string {
   if (position.grants.length === 0) return "—";
-  return position.grants.map((grant) => roleDisplay(grant, roleDocs).label).join(", ");
+  return position.grants.map((grant) => roleLifecycleDisplay(grant, roleDocs).label).join(", ");
 }
 
 function PositionActions({

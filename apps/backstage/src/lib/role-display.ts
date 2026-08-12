@@ -43,6 +43,37 @@ function displayOf(key: Role, doc: RoleDefinition | null): RoleDisplay {
   };
 }
 
+/** Whether the key is currently minting perms. TRUE with no doc: beacon's
+ *  BUILT_IN_ROLE_PERMS fallback really is minting, so "desactivado" would be the
+ *  opposite of the truth. */
+function inService(doc: RoleDefinition | null): boolean {
+  return doc === null || isLiveRole(doc);
+}
+
+/** The ONE definition of the out-of-service marker text. Three surfaces show it — the
+ *  cargo grants picker, the cargo grants column and the per-member cargo summary — and
+ *  they sit on the same or adjacent screens, so a second copy of this string is a
+ *  cross-surface disagreement waiting to happen. */
+function markedLabel(display: RoleDisplay, doc: RoleDefinition | null): string {
+  return inService(doc) ? display.label : `${display.label} (desactivado)`;
+}
+
+/** Like `roleDisplay`, but the label states whether the role is still in service.
+ *
+ *  For surfaces that assert AUTHORITY — what a cargo confers, what a member's cargos
+ *  grant. A deactivated role mints nothing (the beacon three-way), so rendering its name
+ *  bare under such a heading states perms nobody has. Plain `roleDisplay` stays unmarked
+ *  for surfaces that merely resolve a stored value's name (sent history, /permisos rows,
+ *  which carry their own "Desactivado" badge). */
+export function roleLifecycleDisplay(
+  key: Role,
+  roleDocs: readonly RoleDefinition[] | undefined,
+): RoleDisplay {
+  const doc = findDoc(key, roleDocs);
+  const display = displayOf(key, doc);
+  return { label: markedLabel(display, doc), description: display.description };
+}
+
 /** Every built-in role paired with its live doc, or `null` where none is seeded — the
  *  total list, keyed off ROLES rather than the doc list. Both consumers of "what are all
  *  the built-in roles" route through here (`roleOptions` and the /permisos overview) so
@@ -67,11 +98,8 @@ export function builtInRoles(
 export function roleOptions(
   roleDocs: readonly RoleDefinition[] | undefined,
 ): { value: Role; label: string }[] {
-  return builtInRoles(roleDocs).map(({ key, doc }) => {
-    const { label } = displayOf(key, doc);
-    return {
-      value: key,
-      label: doc !== null && !isLiveRole(doc) ? `${label} (desactivado)` : label,
-    };
-  });
+  return builtInRoles(roleDocs).map(({ key, doc }) => ({
+    value: key,
+    label: markedLabel(displayOf(key, doc), doc),
+  }));
 }

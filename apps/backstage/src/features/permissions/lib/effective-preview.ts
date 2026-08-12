@@ -11,11 +11,22 @@ import { assignableRoles, isLiveRole } from "../../../lib/role-lifecycle";
  *  effective perms = built-in roles (held via positions) ∪ selected custom roles ∪
  *  override grants − revokes.
  *
- *  Three-way per built-in key, exactly as resolveMemberPerms does it:
- *    - doc ABSENT            → the BUILT_IN_ROLE_PERMS snapshot (pre-seed window)
- *    - doc present, live     → the doc's permissions
- *    - doc present, inactive → nothing, and the key stays COVERED (so the snapshot
- *                              must NOT come back)
+ *  Three-way per built-in key, mirroring resolveMemberPerms:
+ *    - NO doc claims the key → the BUILT_IN_ROLE_PERMS snapshot (pre-seed window)
+ *    - doc(s) claim it, live → the UNION of their permissions
+ *    - doc(s) claim it, none live → nothing, and the key stays COVERED (so the
+ *                              snapshot must NOT come back)
+ *
+ *  Grouped per key, not mapped: two docs may claim one builtInKey, and beacon computes
+ *  coverage over every doc it read and unions the live ones. A Map would keep only the
+ *  last, making this preview disagree with the perms that get minted — and disagree
+ *  differently depending on the sort order it happened to receive.
+ *
+ *  NOT parity, and it cannot be: this reads `RoleDefinition[]` already through
+ *  `parseDocs` + `roleDefinitionDocSchema`, so a doc the zod schema rejects (a missing
+ *  `active`, a string `deletedAt`) is dropped before it arrives here and reads as ABSENT
+ *  — i.e. falls back to the snapshot — while beacon reads the raw doc, sees the key
+ *  covered, and mints nothing. Divergence is confined to malformed docs.
  *
  *  The CUSTOM path filters too. members.roleIds keeps naming a deactivated custom role
  *  (softDelete never scrubs roleIds), and beacon's getRolesByIds drops inactive docs —
@@ -27,16 +38,13 @@ export function previewEffectivePerms(input: {
   overrides: { grant: PermissionCode[]; revoke: PermissionCode[] };
 }): PermissionCode[] {
   const byId = new Map(assignableRoles(input.allRoles).map((r) => [r.id, r]));
-  // Keyed off ALL docs, live or not: coverage is what suppresses the snapshot.
-  const byBuiltInKey = new Map(
-    input.allRoles
-      .filter((r) => r.builtIn && r.builtInKey !== null)
-      .map((r) => [r.builtInKey as Role, r]),
-  );
-  const builtInDocs = input.builtInRoleNames.map((name) => {
-    const doc = byBuiltInKey.get(name);
-    if (doc === undefined) return { permissions: BUILT_IN_ROLE_PERMS[name] };
-    return isLiveRole(doc) ? doc : { permissions: [] };
+  const builtInDocs = input.builtInRoleNames.flatMap((name) => {
+    // Every doc claiming the key, live or not: coverage is what suppresses the snapshot,
+    // liveness is what contributes perms. One flatMap so `builtInKey === name` narrows
+    // the Role type without a cast.
+    const claiming = input.allRoles.filter((r) => r.builtIn && r.builtInKey === name);
+    if (claiming.length === 0) return [{ permissions: BUILT_IN_ROLE_PERMS[name] }];
+    return claiming.filter(isLiveRole);
   });
   const customDocs = input.selectedCustomRoleIds
     .map((id) => byId.get(id))
