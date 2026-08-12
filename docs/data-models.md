@@ -161,7 +161,7 @@ hard-coded role checks. `firestore.rules` is the source of truth; summary:
 |---|---|---|---|
 | `members` | perm `read:Member`, or self (own `uid`) | perm-gated (`create/update:Member`); self (profilePicture only) | never (soft-delete only) |
 | `positions` | signed-in | perm-gated; non-empty `grants` = Admin-only | never (soft-delete only) |
-| `roles` | signed-in | Admin (custom roles only; built-ins seeded via admin SDK; `locked` role immutable) | never |
+| `roles` | signed-in | Admin. **Create:** custom roles only (`builtIn:false`, `builtInKey:null`), and must author `active:true` + `deletedAt:null`. **Update:** any non-`locked` role incl. built-ins (name/description/permissions); deactivation and reactivation both allowed except on `locked` (Admin) and `builtInKey=='Member'` | never (soft-delete only) |
 | `allies` | perm `read:Ally` | perm-gated | never (soft-delete only) |
 | `pointRules` | signed-in | perm-gated (`PointRule`) | never |
 | `terms` | signed-in | Admin | never |
@@ -222,6 +222,29 @@ hard-coded role checks. `firestore.rules` is the source of truth; summary:
 > reason (a Scanner's UI check-in affordances read the reseeded `perms` claim).
 >
 > **roles display text:** a role doc's `name` and `description` are the **single source of truth** for what every UI surface renders — the cargo table, the cargo grants picker, the member permissions panel and `/permisos` all resolve through `roleDisplay()` (`apps/backstage/src/lib/role-display.ts`). `ROLE_LABELS` / `ROLE_DESCRIPTIONS` in `@luminova/types` are a **seed snapshot only**, read as a bootstrap fallback when no doc exists for a built-in key (fresh project, pre-seed); both seeders (`apps/beacon/src/seed-roles.ts`, `tools/scripts/lib/role-seed.mjs`) write them at create time and never clobber an admin's later rename. Two eslint rules in the root `eslint.config.js` (`no-restricted-imports` on the snapshot constants + `no-restricted-syntax` on a role-keyed label map) fail `pnpm lint` if another backstage module declares a second role table; `docs/reuse-first-ui.md` lists the shapes they do and do not catch.
+>
+> **roles lifecycle (deactivate / reactivate).** A role doc is soft-deleted (`active:false` +
+> `deletedAt`) and can be brought back — the one collection in this repo where `active` moves
+> in BOTH directions. `roles` therefore uses `roleLifecycleSafe()` instead of the shared
+> one-way `softDeleteSafe()`; every other collection keeps the one-way semantics, so do not
+> "unify" them. Two roles can never be deactivated: `Admin` (`locked`, anti-lockout) and
+> `Member`, which `computeMemberRoles` injects into every claim unconditionally — deactivating
+> it would collapse nav and route access chapter-wide. To strip authority from `Member`, empty
+> its `permissions`.
+>
+> What "inactive" means to the perms pipeline is three-way, and the distinction is
+> load-bearing: a built-in key whose doc is **absent** falls back to the `BUILT_IN_ROLE_PERMS`
+> snapshot (the pre-seed window on a fresh project), while a doc that is **present but
+> inactive** covers its key and contributes **nothing**. Conflating the two is what previously
+> made deactivation unsafe — it silently restored seed perms. "Inactive" is `isActiveRoleDoc`
+> (`active !== false` AND `deletedAt` null-ish), not the `active` field alone.
+>
+> A deactivated role keeps its stored `permissions`, still editable, and reactivating mints
+> them to every holder at once — `/permisos` labels the row accordingly rather than reporting
+> zero. Deactivation revokes **perms only, never name-keyed authority**: the `roles` custom
+> claim is pure over `positions.grants`, so gates like `canCurateFeatured()`
+> (`hasAnyRole(['Admin','ProjectManager'])`) survive it. Removing those means editing the
+> cargo's `grants`. Deploy order is beacon → rules → hosting.
 
 ---
 

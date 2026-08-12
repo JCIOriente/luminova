@@ -1,7 +1,7 @@
 # Role lifecycle: deactivate + reactivate a role
 
-Status: reviewed (two adversarial passes applied) · PR 3 of the role-management overhaul
-(PR 1 = #216, PR 2 = #219, both merged)
+Status: implemented · PR 3 of the role-management overhaul (PR 1 = #216, PR 2 = #219, both
+merged). Plan: `docs/plans/2026-08-12-role-lifecycle.md`.
 
 ## Problem
 
@@ -217,12 +217,28 @@ provisioned user through the unbounded no-retry scan at `index.ts:298-311`.
     let d = request.resource.data;
     return ('active' in d) && (d.active is bool) && ('deletedAt' in d)
       && (d.active == true ? d.deletedAt == null
-                          : d.deletedAt is timestamp && d.deletedAt == request.time);
+                          : d.deletedAt is timestamp
+                            && (unchanged('deletedAt') || d.deletedAt == request.time));
   }
   ```
 
-  Every conjunct is load-bearing, because this repo's two definitions of "inactive"
-  disagree — `roleDefinitionDocSchema` requires `active: z.boolean()`
+  The `unchanged('deletedAt')` alternative is required, not a loosening. Demanding
+  `deletedAt == request.time` on *every* write that leaves the doc inactive denies
+  `RoleRepository.update`, which writes only `name`/`description`/`permissions` — so every
+  edit to a deactivated role would 403, including the stored `permissions` array that
+  Design 4 calls real and editable and that "Reactivar rol" mints to every holder. The
+  audit stamp still holds where it matters: a `null -> timestamp` transition can never
+  satisfy `unchanged()`, so deactivation must stamp `request.time`.
+
+  Two of the four conjuncts are genuinely falsifiable and two are not. A mutation sweep
+  (delete one conjunct, re-run the suite) shows `d.active is bool`, `d.deletedAt is
+  timestamp`, the `unchanged`/`request.time` pair and the `active`↔`deletedAt` coupling each
+  go red. The two `in` checks cannot: an absent-key read *errors*, and an erroring rule
+  already denies, so nothing becomes allowed without them. They are kept as explicitness,
+  not as guards — the earlier claim that all four were load-bearing was wrong.
+
+  The type checks matter because this repo's two definitions of "inactive" disagree —
+  `roleDefinitionDocSchema` requires `active: z.boolean()`
   (`role-definition-doc-schema.ts:21`) so a malformed doc is dropped by `parseDocs` and
   becomes invisible to the UI, while `isActiveRoleDoc` reads `active !== false`
   (`role-doc.ts:26`) so the same doc stays LIVE and keeps minting perms:
@@ -234,11 +250,14 @@ provisioned user through the unbounded no-retry scan at `index.ts:298-311`.
     `getAll()`'s `where` and dead to the pipeline: assignable everywhere, minting nothing,
     and for a built-in also *covered*, so the seed fallback silently vanishes too.
 
-  `('active' in d)` has a cost worth stating: it permanently denies every *client* update to
-  a legacy role doc that never carried `active` — and prod role docs are known to lag the
-  seed. Such a doc is already invisible to the UI (`roleDefinitionDocSchema` rejects it)
-  while live in the pipeline, so it is already broken; this makes the repair admin-SDK-only.
-  Accepted: the alternative is a rule that cannot tell a legacy doc from a forged one.
+  The two `in` checks have a cost worth stating: they permanently deny every *client* update
+  to a legacy role doc missing `active` **or** `deletedAt` — including an ordinary `/permisos`
+  permission edit. A doc missing `active` is already invisible to the UI
+  (`roleDefinitionDocSchema` rejects it) while live in the pipeline, so it is already broken.
+  A doc with `active: true` but no `deletedAt` key, however, renders and works fine today and
+  would become admin-SDK-only to edit. Prod role docs are known to lag the seed, so **verify
+  before deploying that every prod `roles/*` doc carries both fields.** Accepted: the
+  alternative is a rule that cannot tell a legacy doc from a forged one.
 
   `deletedAt` value forgery has no authorization effect — every consumer
   (`role-doc.ts:26`, `recompute-claims.ts:192`, `role-definition-doc-schema.ts:22`) tests
