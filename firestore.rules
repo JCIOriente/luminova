@@ -368,6 +368,49 @@ service cloud.firestore {
     function roleIdentityUnchanged() {
       return unchanged('builtIn') && unchanged('builtInKey') && unchanged('locked');
     }
+    // Roles are the ONE collection whose soft-delete is REVERSIBLE: a built-in role
+    // must be able to go out of service and come back. softDeleteSafe() is one-way and
+    // shared by four other collections (members, positions, allies) — it must NOT
+    // change; member resurrection is pinned denied in tests/firestore-rules/rules.test.ts
+    // ("denies resurrecting a soft-deleted member").
+    //
+    // What this closes: this repo's two definitions of "inactive" disagree.
+    // roleDefinitionDocSchema requires `active: z.boolean()`, so a malformed doc is
+    // dropped by parseDocs and becomes invisible to the UI, while beacon's
+    // isActiveRoleDoc reads `active !== false`, so the same doc stays LIVE and keeps
+    // minting perms. Both halves of that ghost must be unwritable:
+    //   - (d.active is bool): a string "false" is LIVE to isActiveRoleDoc and invisible
+    //     to the UI. Only this conjunct catches it once deletedAt is well-formed — a
+    //     mutation test pins that ("denies a non-bool active even with a well-formed
+    //     deletedAt");
+    //   - the active<->deletedAt coupling: active:true + deletedAt set is live to
+    //     getAll()'s where and dead to the pipeline — assignable everywhere, minting
+    //     nothing, and for a built-in also COVERED, so the seed fallback vanishes too;
+    //   - (d.deletedAt is timestamp): the inactive branch accepts an unchanged deletedAt
+    //     (see below), and on a doc whose deletedAt is already null that alone would let
+    //     active:false through — inactive with no stamp, which the UI reads as still
+    //     restorable. This conjunct is what rejects it.
+    // The two `in` checks add no authorization outcome on their own: reading an absent
+    // key ERRORS, and an erroring rule already denies. They are here so a missing field
+    // denies CLEANLY rather than by evaluation error — the same reason this file prefers
+    // .get() on the resource side (softDeleteSafe's bare resource.data.active errors on a
+    // doc missing the field). Don't remove them on a "no test covers it" argument; no
+    // test CAN, because nothing becomes allowed.
+    // deletedAt value forgery has no authorization effect (every consumer tests
+    // null-ness only, never ordering); `== request.time` is audit hygiene on the
+    // DEACTIVATING write. It cannot be required of every write that merely leaves the
+    // doc inactive: RoleRepository.update writes name/description/permissions only, and
+    // an inactive role's stored `permissions` must stay editable (it is what "Reactivar
+    // rol" mints to every holder at once). unchanged('deletedAt') covers exactly that
+    // no-op case — the null -> value transition can never satisfy it, so the stamp stays
+    // pinned to request.time where it matters.
+    function roleLifecycleSafe() {
+      let d = request.resource.data;
+      return ('active' in d) && (d.active is bool) && ('deletedAt' in d)
+        && (d.active == true ? d.deletedAt == null
+                            : d.deletedAt is timestamp
+                              && (unchanged('deletedAt') || d.deletedAt == request.time));
+    }
     // Role definitions (editable RBAC). Permission sets here feed Auth custom claims
     // via the beacon onRoleWritten trigger, so writes are Admin-only — the same trust
     // boundary as positions.grants. Signed-in read so the admin UI can render role
@@ -380,15 +423,26 @@ service cloud.firestore {
       allow create: if hasAnyRole(['Admin'])
         && request.resource.data.builtIn == false
         && request.resource.data.builtInKey == null
-        && request.resource.data.get('locked', false) == false;
+        && request.resource.data.get('locked', false) == false
+        // Close the same INACTIVE-vs-MISSING ambiguity on create. `.get(…, false)` and an
+        // explicit key check, not a bare read: a create OMITTING the field must deny
+        // cleanly, and `.get('deletedAt', null) == null` would let an omission through.
+        && request.resource.data.get('active', false) == true
+        && ('deletedAt' in request.resource.data)
+        && request.resource.data.deletedAt == null;
       // The locked (Admin) role is immutable. Identity fields can't change. A built-in
-      // role can't be deactivated (that would silently restore its seed perms via the
-      // trigger fallback) — only permissions/name/description are editable.
+      // role MAY be deactivated and reactivated — the perms consequence is handled by
+      // beacon's three-way resolution (an inactive doc covers its key and contributes
+      // nothing), not by a rules ban. `Member` is the one exception: computeMemberRoles
+      // injects it into every claim unconditionally, so deactivating it collapses nav
+      // and route access for the whole chapter. An admin who wants that empties its
+      // `permissions` instead — same effect, no lifecycle asymmetry, still visible on
+      // /permisos.
       allow update: if hasAnyRole(['Admin'])
         && resource.data.get('locked', false) == false
         && roleIdentityUnchanged()
-        && softDeleteSafe()
-        && (resource.data.get('builtIn', false) != true
+        && roleLifecycleSafe()
+        && (resource.data.get('builtInKey', null) != 'Member'
             || request.resource.data.get('active', true) == true);
       allow delete: if false;
     }
