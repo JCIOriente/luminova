@@ -22,6 +22,12 @@ vi.mock("firebase/firestore", () => sdk);
 
 import { RoleRepository } from "./role-repository";
 
+// Timestamp-LIKE, not a bare {seconds, nanoseconds}: this fixture goes through
+// parseDocs + roleDefinitionDocSchema, whose clientTimestampSchema checks for `toMillis`
+// and `toDate`. A structural stand-in without them is rejected and the doc silently
+// disappears from the result.
+const DELETED_AT = { toMillis: () => 1, toDate: () => new Date(1) };
+
 const snap = (id: string, over: Record<string, unknown> = {}) => ({
   id,
   ref: { parent: { id: "roles" } },
@@ -56,7 +62,9 @@ describe("RoleRepository.getAll", () => {
   it("returns deactivated docs, built-ins first then alphabetical", async () => {
     getDocs.mockResolvedValue({
       docs: [
-        snap("c_dead", { name: "Auditoría", active: false }),
+        // `deletedAt` too: roleLifecycleSafe() requires `deletedAt is timestamp` whenever
+        // active is false, so this is the only inactive shape the collection can hold.
+        snap("c_dead", { name: "Auditoría", active: false, deletedAt: DELETED_AT }),
         snap("Treasury", { name: "Tesorería", builtIn: true, builtInKey: "Treasury" }),
       ],
     });

@@ -18,7 +18,7 @@ const builtInAdmin: RoleDefinition = {
 describe("RoleEditor", () => {
   it("submits the name + toggled permission codes for a new role", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    const { container } = render(<RoleEditor role={null} onSubmit={onSubmit} />);
+    const { container } = render(<RoleEditor role={null} holderCount={null} onSubmit={onSubmit} />);
 
     fireEvent.change(screen.getByLabelText(/nombre/i), { target: { value: "Coordinador" } });
     const cell = container.querySelector<HTMLInputElement>("#perm-manage\\:Ally");
@@ -37,14 +37,14 @@ describe("RoleEditor", () => {
 
   it("rejects an empty name without calling onSubmit", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    render(<RoleEditor role={null} onSubmit={onSubmit} />);
+    render(<RoleEditor role={null} holderCount={null} onSubmit={onSubmit} />);
     fireEvent.click(screen.getByRole("button", { name: /crear rol/i }));
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("renders the locked Admin role read-only (no save button)", () => {
-    render(<RoleEditor role={builtInAdmin} onSubmit={vi.fn()} />);
+    render(<RoleEditor role={builtInAdmin} holderCount={null} onSubmit={vi.fn()} />);
     expect(screen.getByLabelText(/nombre/i)).toBeDisabled();
     expect(screen.queryByRole("button", { name: /guardar|crear/i })).not.toBeInTheDocument();
     expect(screen.getByText(/protegido/i)).toBeInTheDocument();
@@ -105,7 +105,9 @@ describe("RoleEditor deactivation", () => {
   });
 
   it("never offers Desactivar rol on the locked Admin role", () => {
-    render(<RoleEditor role={builtInAdmin} onSubmit={vi.fn()} onDelete={vi.fn()} />);
+    render(
+      <RoleEditor role={builtInAdmin} holderCount={0} onSubmit={vi.fn()} onDelete={vi.fn()} />,
+    );
     expect(screen.queryByRole("button", { name: "Desactivar rol" })).not.toBeInTheDocument();
   });
 
@@ -115,7 +117,15 @@ describe("RoleEditor deactivation", () => {
     // role from opening with both buttons side by side.
     render(
       <RoleEditor
-        role={{ ...builtInTreasury, active: false }}
+        // `deletedAt` set alongside `active: false`: roleLifecycleSafe() requires
+        // `deletedAt is timestamp` whenever active is false, so this is the only inactive
+        // shape production can hold.
+        role={{
+          ...builtInTreasury,
+          active: false,
+          deletedAt: { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"],
+        }}
+        holderCount={0}
         onSubmit={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -148,7 +158,7 @@ describe("RoleEditor deactivation", () => {
       active: true,
       deletedAt: { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"],
     };
-    render(<RoleEditor role={ghost} onSubmit={vi.fn()} onDelete={vi.fn()} />);
+    render(<RoleEditor role={ghost} holderCount={0} onSubmit={vi.fn()} onDelete={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Desactivar rol" })).not.toBeInTheDocument();
   });
 

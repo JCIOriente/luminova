@@ -28,6 +28,13 @@ const customDoc: RoleDefinition = {
   deletedAt: null,
 };
 
+// Structural stand-in for a firebase Timestamp — isLiveRole only tests null-ness. Paired
+// with every inactive ROLE fixture: roleLifecycleSafe() requires `deletedAt is timestamp`
+// whenever active is false, so `active: false, deletedAt: null` is a shape production can
+// no longer hold. (Position fixtures below keep their own shape — positions are still on
+// softDeleteSafe.)
+const DELETED_AT = { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"];
+
 const presidente = {
   id: "p1",
   title: "Presidente",
@@ -170,7 +177,16 @@ describe("buildRoleOverview", () => {
       // and is exactly what "Reactivar rol" will mint to every holder at once. Reporting
       // [] would hide it.
       const rows = buildRoleOverview(
-        [{ ...builtInDoc, id: "Treasury", builtInKey: "Treasury", locked: false, active: false }],
+        [
+          {
+            ...builtInDoc,
+            id: "Treasury",
+            builtInKey: "Treasury",
+            locked: false,
+            active: false,
+            deletedAt: DELETED_AT,
+          },
+        ],
         [],
         [],
         "2026",
@@ -180,8 +196,12 @@ describe("buildRoleOverview", () => {
     });
 
     it("an active:true + deletedAt-set ghost row is reported inactive", () => {
-      const deletedAt = { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"];
-      const rows = buildRoleOverview([{ ...customDoc, id: "c1", deletedAt }], [], [], "2026");
+      const rows = buildRoleOverview(
+        [{ ...customDoc, id: "c1", deletedAt: DELETED_AT }],
+        [],
+        [],
+        "2026",
+      );
       expect(firstRow(rows).active).toBe(false);
     });
 
@@ -200,7 +220,7 @@ describe("buildRoleOverview", () => {
       // holders routes through effectiveRoles, pure over positions.grants — doc-state
       // independent. The count is the blast radius of a reactivation.
       const rows = buildRoleOverview(
-        [{ ...builtInDoc, active: false }],
+        [{ ...builtInDoc, active: false, deletedAt: DELETED_AT }],
         [presidente],
         [olivia],
         "2026",

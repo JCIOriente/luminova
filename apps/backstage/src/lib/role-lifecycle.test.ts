@@ -24,7 +24,16 @@ describe("isLiveRole", () => {
     expect(isLiveRole(role({}))).toBe(true);
   });
 
-  it("is false when active is false", () => {
+  it("is false for the only inactive shape production can hold", () => {
+    // roleLifecycleSafe() in firestore.rules requires `deletedAt is timestamp` whenever
+    // active is false, so this pair — not `active: false` alone — is what a deactivated
+    // doc actually looks like on disk.
+    expect(isLiveRole(role({ active: false, deletedAt: DELETED_AT }))).toBe(false);
+  });
+
+  it("is false when active is false even with no deletedAt (short-circuits on active)", () => {
+    // A legacy or console-written doc. Rules now forbid producing it, but the predicate
+    // must still read it as dead rather than depending on the stamp.
     expect(isLiveRole(role({ active: false }))).toBe(false);
   });
 
@@ -38,7 +47,7 @@ describe("isLiveRole", () => {
 describe("assignableRoles", () => {
   it("drops every non-live role and keeps input order", () => {
     const live = role({ id: "a" });
-    const dead = role({ id: "b", active: false });
+    const dead = role({ id: "b", active: false, deletedAt: DELETED_AT });
     const ghost = role({ id: "c", deletedAt: DELETED_AT });
     const live2 = role({ id: "d" });
     expect(assignableRoles([live, dead, ghost, live2]).map((r) => r.id)).toEqual(["a", "d"]);

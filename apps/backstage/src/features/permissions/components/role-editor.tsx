@@ -36,8 +36,11 @@ interface RoleEditorProps {
    *  onRoleWritten fan-out has no active filter — it is not the full blast radius.
    *
    *  `null` when the members query did not resolve: /permisos keeps this editor
-   *  reachable through a members outage, and 0 there means "unknown", not "nobody". */
-  holderCount?: number | null;
+   *  reachable through a members outage, and 0 there means "unknown", not "nobody".
+   *
+   *  REQUIRED, not defaulted: a default of 0 renders "Afecta a 0 miembros activos" as a
+   *  fact, so a caller that forgets to wire it must not compile. */
+  holderCount: number | null;
   onSubmit: (data: RoleDefinitionInput) => Promise<void>;
   /** Deactivate this role (soft, reversible from /permisos). */
   onDelete?: () => Promise<void>;
@@ -53,7 +56,7 @@ interface RoleEditorProps {
  *  claim unconditionally. Both are also barred in firestore.rules; this is the mirror.
  *  An already-deactivated role offers no deactivate button — its affordance is
  *  "Reactivar rol" in RolesPanel. */
-export function RoleEditor({ role, holderCount = 0, onSubmit, onDelete }: RoleEditorProps) {
+export function RoleEditor({ role, holderCount, onSubmit, onDelete }: RoleEditorProps) {
   const locked = role?.locked ?? false;
   const isMemberRole = role?.builtInKey === "Member";
   // isLiveRole, never raw role.active: a console-produced doc with active:true AND a
@@ -63,7 +66,9 @@ export function RoleEditor({ role, holderCount = 0, onSubmit, onDelete }: RoleEd
     role !== null && isLiveRole(role) && !locked && !isMemberRole && onDelete !== undefined;
   const [name, setName] = useState(role?.name ?? "");
   const [description, setDescription] = useState(role?.description ?? "");
-  const [perms, setPerms] = useState<Set<PermissionCode>>(new Set(role?.permissions ?? []));
+  // Lazy initialiser: this form re-renders per keystroke and per checkbox across a 30-cell
+  // matrix, and the eager form built and discarded a Set on every one of them.
+  const [perms, setPerms] = useState<Set<PermissionCode>>(() => new Set(role?.permissions ?? []));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
