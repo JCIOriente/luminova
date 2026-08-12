@@ -5,6 +5,7 @@ import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
 import { ACTIONS, SUBJECTS } from "@luminova/types/permission";
 import { syncMemberClaims, type ClaimsSyncDeps, type MemberClaims } from "./sync.js";
 import { parseMember } from "./parse-member.js";
+import { isActiveRoleDoc } from "./role-doc.js";
 
 type Claims = { roles: Role[]; perms?: PermissionCode[] };
 
@@ -13,6 +14,10 @@ type Claims = { roles: Role[]; perms?: PermissionCode[] };
 function permsFor(roles: Role[]): PermissionCode[] {
   return [...new Set(roles.flatMap((r) => BUILT_IN_ROLE_PERMS[r]))].sort();
 }
+
+/** A Timestamp-shaped soft-delete marker: only isActiveRoleDoc's null/undefined check
+ *  reads this field, so the marker's own type is irrelevant to what is under test. */
+const DELETED_AT = { toMillis: () => 0 } as unknown as RoleDefinition["deletedAt"];
 
 const customRole = (id: string, permissions: PermissionCode[]): RoleDefinition => ({
   id,
@@ -41,8 +46,19 @@ function fakeDeps(opts: {
     getExistingClaims: async (uid) => opts.existing[uid] ?? { roles: [] },
     getRoleDocsByBuiltInKeys: async (keys) =>
       (opts.builtInDocs ?? []).filter((d) => d.builtInKey !== null && keys.includes(d.builtInKey)),
+    // Mirrors the REAL getRolesByIds, which filters inactive docs (there is no seed
+    // fallback on the custom-role path, so dropping them here is what production does).
+    // A fake that returned them regardless was MORE PERMISSIVE than what ships: no test
+    // at this level could express "a deactivated custom role contributes nothing", and
+    // the invariant rested on one emulator test. The production predicate is called, not
+    // re-implemented, so the two cannot drift.
+    // The built-in fake above deliberately does NOT filter: inactive built-in docs must
+    // reach resolveMemberPerms so they COVER their key.
     getRolesByIds: async (ids) =>
-      ids.map((id) => opts.customRoles?.[id]).filter((r): r is RoleDefinition => r !== undefined),
+      ids
+        .map((id) => opts.customRoles?.[id])
+        .filter((r): r is RoleDefinition => r !== undefined)
+        .filter((r) => isActiveRoleDoc({ active: r.active, deletedAt: r.deletedAt })),
     setClaims: async (uid, claims) => {
       writes[uid] = claims;
     },
@@ -233,6 +249,50 @@ describe("syncMemberClaims", () => {
         "read:Project",
       ],
     });
+  });
+
+  it("BLOCKING: a DEACTIVATED custom role in roleIds contributes nothing", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: {},
+      userRoles: {},
+      existing: { "target-uid": { roles: ["Member"], perms: ["manage:Ally"] } },
+      customRoles: { "role-x": { ...customRole("role-x", ["manage:Ally"]), active: false } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: {},
+        roleIds: ["role-x"],
+        permissionOverrides: { grant: [], revoke: [] },
+      },
+      "2026",
+    );
+    // Nothing from the deactivated role survives — only the Member built-in reads.
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
+  });
+
+  it("a soft-deleted custom role (deletedAt set) also contributes nothing", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: {},
+      userRoles: {},
+      existing: { "target-uid": { roles: ["Member"] } },
+      customRoles: {
+        // active:true + deletedAt set is the ghost shape isActiveRoleDoc also rejects.
+        "role-x": { ...customRole("role-x", ["manage:Ally"]), deletedAt: DELETED_AT },
+      },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: {},
+        roleIds: ["role-x"],
+        permissionOverrides: { grant: [], revoke: [] },
+      },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
   });
 
   it("applies per-member overrides (grant adds, revoke removes)", async () => {
