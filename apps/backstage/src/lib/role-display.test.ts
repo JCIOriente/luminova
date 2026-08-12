@@ -68,3 +68,35 @@ describe("roleOptions", () => {
     expect(options.find((o) => o.value === "Treasury")?.label).toBe("Tesorería");
   });
 });
+
+describe("roleOptions and the role lifecycle", () => {
+  it("keeps a deactivated built-in's option and marks it in the label", () => {
+    // The option must NOT disappear: MultiSelect renders chips by filtering options
+    // against the stored value, so dropping it would hide a grant already live on a
+    // cargo. But offering "Proyectos" with no marker while its doc is out of service is
+    // the ambiguity an Admin authorizes from — so keep the option, kill the ambiguity.
+    const options = roleOptions([doc({ active: false })]);
+    expect(options.map((o) => o.value)).toEqual([...ROLES]);
+    expect(options.find((o) => o.value === "ProjectManager")?.label).toBe(
+      "Proyectos (desactivado)",
+    );
+  });
+
+  it("marks an active:true + deletedAt-set ghost as deactivated too", () => {
+    const deletedAt = { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"];
+    const options = roleOptions([doc({ active: true, deletedAt })]);
+    expect(options.find((o) => o.value === "ProjectManager")?.label).toBe(
+      "Proyectos (desactivado)",
+    );
+  });
+
+  it("does not mark a role with no seeded doc (the snapshot fallback is live)", () => {
+    // No doc means beacon's BUILT_IN_ROLE_PERMS fallback really is minting perms —
+    // calling that "desactivado" would be the opposite of the truth.
+    expect(roleOptions([]).find((o) => o.value === "ProjectManager")?.label).toBe("Proyectos");
+  });
+
+  it("leaves roleDisplay untouched — the name still resolves for a deactivated doc", () => {
+    expect(roleDisplay("ProjectManager", [doc({ active: false })]).label).toBe("Proyectos");
+  });
+});
