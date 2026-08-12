@@ -396,6 +396,16 @@ same deactivated role reads "… (desactivado)" in the grants picker and plain i
 column, one screen apart. And baking the marker into the label string makes it unstyleable
 and only string-testable.
 
+**Beacon test files are not type-checked at all — recommended follow-up.**
+`apps/beacon/tsconfig.json` carries `"exclude": ["src/**/*.test.ts"]`, so the `tsc --noEmit`
+inside `pnpm --filter beacon run ci` never reads a single test file. This was found the hard
+way: a type-level pin written for `computeMemberRoles` passed `tsc` while the source was
+mutated into all three shapes it was meant to forbid. Any type-level assertion in a beacon
+test today gates nothing, which is guardrail #6 territory. Including them surfaces 14
+pre-existing errors, all one trivial class (a `readonly []` from an `as const` not assignable
+to a mutable parameter). Cheap to clear: fix that constant, drop the `exclude`. Deliberately
+out of scope here — it is a CI-contract change, and this branch already carries one.
+
 **Other follow-ups:** `presidentClaims` mints perms from the static snapshot
 (`tools/scripts/lib/president-claims.mjs:16-18`), so re-running the president seed after a
 deactivation writes stale perms back until the next `onMemberWritten`; a malformed built-in
