@@ -44,16 +44,27 @@ function fakeDeps(opts: {
     getPosition: async (id) => opts.positions[id] ?? null,
     getUserRoles: async (uid) => opts.userRoles[uid] ?? [],
     getExistingClaims: async (uid) => opts.existing[uid] ?? { roles: [] },
+    // COVERAGE is preserved (no liveness filter — a deactivated built-in must still reach
+    // resolveMemberPerms so it COVERS its key), but `live` is COMPUTED with the production
+    // predicate over BOTH `active` and `deletedAt`. Forwarding the doc's raw `active` field
+    // would call the ghost shape (active:true + deletedAt set) live and mint its real perms.
     getRoleDocsByBuiltInKeys: async (keys) =>
-      (opts.builtInDocs ?? []).filter((d) => d.builtInKey !== null && keys.includes(d.builtInKey)),
+      (opts.builtInDocs ?? [])
+        .filter(
+          (d): d is RoleDefinition & { builtInKey: Role } =>
+            d.builtInKey !== null && keys.includes(d.builtInKey),
+        )
+        .map((d) => ({
+          permissions: d.permissions,
+          builtInKey: d.builtInKey,
+          live: isActiveRoleDoc({ active: d.active, deletedAt: d.deletedAt }),
+        })),
     // Mirrors the REAL getRolesByIds, which filters inactive docs (there is no seed
     // fallback on the custom-role path, so dropping them here is what production does).
     // A fake that returned them regardless was MORE PERMISSIVE than what ships: no test
     // at this level could express "a deactivated custom role contributes nothing", and
     // the invariant rested on one emulator test. The production predicate is called, not
     // re-implemented, so the two cannot drift.
-    // The built-in fake above deliberately does NOT filter: inactive built-in docs must
-    // reach resolveMemberPerms so they COVER their key.
     getRolesByIds: async (ids) =>
       ids
         .map((id) => opts.customRoles?.[id])
@@ -347,6 +358,37 @@ describe("syncMemberClaims", () => {
     expect(writes["target-uid"]).toEqual({
       roles: ["Treasury", "Member"],
       perms: ["read:Activity", "read:Member", "read:MemberPoints", "read:Program", "read:Project"],
+    });
+  });
+
+  it("BLOCKING: a ghost built-in doc (active:true + deletedAt set) mints nothing and still covers its key", async () => {
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-tes": { grants: ["Treasury"] } },
+      userRoles: { "admin-uid": ["Admin"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+      builtInDocs: [
+        {
+          ...customRole("Treasury", ["manage:all"]),
+          builtIn: true,
+          builtInKey: "Treasury",
+          deletedAt: DELETED_AT,
+        },
+      ],
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-tes", comisionIds: [], assignedBy: "admin-uid" } },
+      },
+      "2026",
+    );
+    // manage:all deliberately: a deps impl that forwarded the doc's raw `active` field in
+    // place of the two-field liveness predicate would mint it right here. The Treasury key
+    // stays COVERED either way, so its seed snapshot must not return through the fallback.
+    expect(writes["target-uid"]).toEqual({
+      roles: ["Treasury", "Member"],
+      perms: permsFor(["Member"]),
     });
   });
 

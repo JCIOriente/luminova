@@ -48,9 +48,11 @@ describe("validateSetRolesInput", () => {
 });
 
 describe("assertRequestedRolesActive", () => {
-  const doc = (builtInKey: string, active: boolean) => ({
+  // `live`, not `active`: the deps compute it with isActiveRoleDoc over BOTH `active` and
+  // `deletedAt`, so a ghost doc (active:true + deletedAt set) arrives here as live:false.
+  const doc = (builtInKey: string, live: boolean) => ({
     builtInKey: builtInKey as (typeof ROLES)[number],
-    active,
+    live,
   });
 
   it("BLOCKING: rejects a role whose doc exists and is deactivated", () => {
