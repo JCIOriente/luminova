@@ -29,17 +29,30 @@ import {
 
 interface RoleEditorProps {
   role: RoleDefinition | null;
+  /** Members who currently hold this role, as counted by /permisos. Labelled
+   *  "activos" because that count comes from useMembers() (active only) while the
+   *  onRoleWritten fan-out has no active filter — it is not the full blast radius. */
+  holderCount?: number;
   onSubmit: (data: RoleDefinitionInput) => Promise<void>;
-  /** Soft-delete this role (custom roles only). */
+  /** Deactivate this role (soft, reversible from /permisos). */
   onDelete?: () => Promise<void>;
 }
 
 /** Create/edit form for a role: name + description + a subject×action permission
- *  matrix. The locked (Admin) role is fully read-only; built-in roles allow editing
- *  name/description/permissions (identity fields are immutable server-side). */
-export function RoleEditor({ role, onSubmit, onDelete }: RoleEditorProps) {
+ *  matrix. The locked (Admin) role is fully read-only; every other role allows editing
+ *  name/description/permissions (identity fields are immutable server-side).
+ *
+ *  Deactivation is offered for BUILT-INS too — the beacon three-way makes an inactive
+ *  built-in mint nothing instead of restoring its seed perms. Two exclusions: the locked
+ *  Admin role (anti-lockout) and `Member`, which computeMemberRoles injects into every
+ *  claim unconditionally. Both are also barred in firestore.rules; this is the mirror.
+ *  An already-deactivated role offers no deactivate button — its affordance is
+ *  "Reactivar rol" in RolesPanel. */
+export function RoleEditor({ role, holderCount = 0, onSubmit, onDelete }: RoleEditorProps) {
   const locked = role?.locked ?? false;
-  const canDelete = role !== null && !role.builtIn && onDelete !== undefined;
+  const isMemberRole = role?.builtInKey === "Member";
+  const canDelete =
+    role !== null && role.active && !locked && !isMemberRole && onDelete !== undefined;
   const [name, setName] = useState(role?.name ?? "");
   const [description, setDescription] = useState(role?.description ?? "");
   const [perms, setPerms] = useState<Set<PermissionCode>>(new Set(role?.permissions ?? []));
@@ -154,22 +167,35 @@ export function RoleEditor({ role, onSubmit, onDelete }: RoleEditorProps) {
         </Button>
       )}
       {canDelete && (
-        <Button
-          as="button"
-          type="button"
-          variant="ghost"
-          disabled={saving}
-          className="w-full justify-center text-error"
-          onClick={() => {
-            if (!onDelete) return;
-            setSaving(true);
-            onDelete()
-              .catch(() => setError("No se pudo eliminar el rol."))
-              .finally(() => setSaving(false));
-          }}
-        >
-          Eliminar rol
-        </Button>
+        <div className="flex flex-col gap-1.5">
+          <p className="text-ui-xs text-ink-3">
+            Desactivar es reversible: el rol deja de otorgar permisos y se puede reactivar desde
+            /permisos. Afecta a {holderCount}{" "}
+            {holderCount === 1 ? "miembro activo" : "miembros activos"}.
+          </p>
+          <Button
+            as="button"
+            type="button"
+            variant="ghost"
+            disabled={saving}
+            className="w-full justify-center text-error"
+            onClick={() => {
+              if (!onDelete) return;
+              setSaving(true);
+              onDelete()
+                .catch(() => setError("No se pudo desactivar el rol."))
+                .finally(() => setSaving(false));
+            }}
+          >
+            Desactivar rol
+          </Button>
+        </div>
+      )}
+      {isMemberRole && (
+        <p className="text-ui-xs text-ink-3">
+          El rol Miembro no se puede desactivar: lo tiene toda la organización. Para quitarle
+          autoridad, vacía sus permisos.
+        </p>
       )}
       {locked && (
         <p className="text-ui-xs text-ink-3">

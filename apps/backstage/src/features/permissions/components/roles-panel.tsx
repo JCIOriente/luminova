@@ -5,7 +5,10 @@ import { useAddRole, useUpdateRole, useDeleteRole } from "../hooks/use-save-role
 import type { RoleOverviewRow } from "../lib/role-overview";
 import { RoleEditor } from "./role-editor";
 
-type Editing = RoleDefinition | "new" | null;
+/** The row AND its doc: the editor needs the doc to write to, and the row to report the
+ *  holder count. Carrying only the doc forced an id lookup back into `rows`, which is
+ *  ambiguous — an unsynced built-in row and a custom doc can share an id. */
+type Editing = { row: RoleOverviewRow; doc: RoleDefinition } | "new" | null;
 
 const MAX_HOLDERS = 5;
 
@@ -70,12 +73,12 @@ export function RolesPanel({
 
   const submit = async (data: RoleDefinitionInput) => {
     if (editing === "new") await addRole.mutateAsync(data);
-    else if (editing) await updateRole.mutateAsync({ id: editing.id, data });
+    else if (editing) await updateRole.mutateAsync({ id: editing.doc.id, data });
     setEditing(null);
   };
 
   const remove = async () => {
-    if (editing && editing !== "new") await deleteRole.mutateAsync(editing.id);
+    if (editing && editing !== "new") await deleteRole.mutateAsync(editing.doc.id);
     setEditing(null);
   };
 
@@ -124,7 +127,12 @@ export function RolesPanel({
                   </span>
                 </div>
                 {doc !== null && (
-                  <Button as="button" variant="secondary" size="sm" onClick={() => setEditing(doc)}>
+                  <Button
+                    as="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setEditing({ row, doc })}
+                  >
                     {doc.locked ? "Ver" : "Editar"}
                   </Button>
                 )}
@@ -158,8 +166,9 @@ export function RolesPanel({
       >
         {editing !== null && (
           <RoleEditor
-            key={editing === "new" ? "new" : editing.id}
-            role={editing === "new" ? null : editing}
+            key={editing === "new" ? "new" : editing.doc.id}
+            role={editing === "new" ? null : editing.doc}
+            holderCount={editing === "new" ? 0 : editing.row.holders.length}
             onSubmit={submit}
             onDelete={editing !== "new" ? remove : undefined}
           />
