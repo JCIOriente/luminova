@@ -66,12 +66,16 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): ClaimsSyncDeps {
       // `in` supports ≤30 values; ROLES has 9. `builtIn === true` is defense in
       // depth against an impostor custom role spoofing a builtInKey (rules also
       // forbid clients setting builtInKey, but the trust boundary is the trigger).
+      // NO active filter: an inactive doc must still reach resolveMemberPerms so it
+      // COVERS its key. Filtering here made a deactivated built-in indistinguishable
+      // from an unseeded one, which restored its seed perms.
       const snap = await db.collection("roles").where("builtInKey", "in", keys).get();
       return snap.docs
-        .filter((d) => d.get("builtIn") === true && isActiveRoleDoc(d.data()))
+        .filter((d) => d.get("builtIn") === true)
         .map((d) => ({
           permissions: permsFromRoleDoc(d.data()),
           builtInKey: d.get("builtInKey") as Role,
+          active: isActiveRoleDoc(d.data()),
         }));
     },
     getRolesByIds: async (ids) => {
