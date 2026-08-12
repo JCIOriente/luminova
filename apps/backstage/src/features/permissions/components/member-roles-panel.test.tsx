@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Member, RoleDefinition } from "@luminova/types";
 
 const customRole: RoleDefinition = {
@@ -11,6 +12,18 @@ const customRole: RoleDefinition = {
   permissions: ["manage:Position"],
   locked: false,
   active: true,
+  deletedAt: null,
+};
+
+const deactivatedRole: RoleDefinition = {
+  id: "c_dead",
+  name: "Coordinador Retirado",
+  description: "",
+  builtIn: false,
+  builtInKey: null,
+  permissions: ["manage:Ally"],
+  locked: false,
+  active: false,
   deletedAt: null,
 };
 
@@ -65,5 +78,21 @@ describe("MemberRolesPanel", () => {
         permissionOverrides: { grant: [], revoke: [] },
       }),
     );
+  });
+
+  it("BLOCKING: never offers a deactivated custom role for assignment", async () => {
+    // useRoles() is now unfiltered so /permisos can restore a deactivated role. The
+    // type system cannot express "this list must be filtered", so this test IS the
+    // guard: assigning a deactivated role promises perms beacon will never mint
+    // (getRolesByIds drops inactive docs).
+    rolesData = [customRole, deactivatedRole];
+    const user = userEvent.setup();
+    render(<MemberRolesPanel member={member} builtInRoleNames={[]} />);
+
+    // The trigger's accessible name is the wrapping <label>'s text, not the placeholder.
+    await user.click(screen.getByRole("button", { name: "Roles personalizados" }));
+
+    expect(screen.getByText("Coordinador")).toBeInTheDocument();
+    expect(screen.queryByText("Coordinador Retirado")).not.toBeInTheDocument();
   });
 });

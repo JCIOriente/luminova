@@ -7,6 +7,7 @@ import {
   type PermissionCode,
   type Role,
 } from "@luminova/types";
+import { assignableRoles } from "../../../lib/role-lifecycle";
 import { useRoles } from "../hooks/use-roles";
 import { useSaveMemberPermissions } from "../hooks/use-save-member-permissions";
 import { previewEffectivePerms } from "../lib/effective-preview";
@@ -60,7 +61,10 @@ export function MemberRolesPanel({ member, builtInRoleNames }: MemberRolesPanelP
   };
 
   const customRoleOptions = useMemo(
-    () => (roles ?? []).filter((r) => !r.builtIn).map((r) => ({ value: r.id, label: r.name })),
+    () =>
+      assignableRoles(roles)
+        .filter((r) => !r.builtIn)
+        .map((r) => ({ value: r.id, label: r.name })),
     [roles],
   );
 
