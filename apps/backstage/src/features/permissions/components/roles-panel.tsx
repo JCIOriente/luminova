@@ -83,6 +83,7 @@ export function RolesPanel({ rows }: { rows: RoleOverviewRow[] }) {
                     </Badge>
                     {doc?.locked && <Badge tone="gray">Protegido</Badge>}
                     {doc === null && <Badge tone="amber">Sin sincronizar</Badge>}
+                    {!row.active && <Badge tone="red">Desactivado</Badge>}
                   </div>
                   {row.description && (
                     <span className="text-ui-sm text-ink-3">{row.description}</span>
@@ -90,6 +91,7 @@ export function RolesPanel({ rows }: { rows: RoleOverviewRow[] }) {
                   <span className="text-ui-xs text-ink-3">
                     {row.permissions.length} permiso
                     {row.permissions.length === 1 ? "" : "s"}
+                    {!row.active && " · inactivo — se otorgarán al reactivar"}
                   </span>
                 </div>
                 {doc !== null && (
@@ -104,7 +106,11 @@ export function RolesPanel({ rows }: { rows: RoleOverviewRow[] }) {
                   <dd className="text-ink-2">{originLabel(row)}</dd>
                 </div>
                 <div className="flex gap-2">
-                  <dt className="text-ink-3">Lo tienen:</dt>
+                  {/* "Miembros activos", not "Lo tienen": useMembers() filters active
+                      members while the onRoleWritten fan-out (index.ts:298) does not, so a
+                      soft-deleted member with a surviving Auth user still receives the
+                      perms. This count is not the complete blast radius. */}
+                  <dt className="text-ink-3">Miembros activos:</dt>
                   <dd className="text-ink-2">{holdersLabel(row.holders)}</dd>
                 </div>
               </dl>

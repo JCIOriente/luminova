@@ -47,6 +47,7 @@ const unsyncedRow: RoleOverviewRow = {
   label: "Proyectos",
   description: "Gestionar proyectos.",
   permissions: ["manage:Project"],
+  active: true,
   grantingCargos: [],
   holders: [],
 };
@@ -59,6 +60,7 @@ function rowFor(doc: RoleDefinition, over: Partial<RoleOverviewRow> = {}): RoleO
     label: doc.name,
     description: doc.description,
     permissions: doc.permissions,
+    active: doc.active && doc.deletedAt === null,
     grantingCargos: [],
     holders: [],
     ...over,
@@ -148,5 +150,32 @@ describe("RolesPanel", () => {
     render(<RolesPanel rows={[rowFor(customDoc)]} />);
     expect(screen.getByRole("button", { name: "Editar" })).toBeInTheDocument();
     expect(screen.queryByText("Sin sincronizar")).not.toBeInTheDocument();
+  });
+
+  it("BLOCKING: a deactivated row shows its STORED perm count plus the reactivation promise", () => {
+    const dead = {
+      ...customDoc,
+      active: false,
+      permissions: ["manage:Ally", "read:Position"] as RoleDefinition["permissions"],
+    };
+    render(<RolesPanel rows={[rowFor(dead)]} />);
+    expect(screen.getByText("Desactivado")).toBeInTheDocument();
+    expect(
+      screen.getByText(/2 permisos · inactivo — se otorgarán al reactivar/),
+    ).toBeInTheDocument();
+  });
+
+  it("does not badge or annotate an active row", () => {
+    render(<RolesPanel rows={[rowFor(customDoc)]} />);
+    expect(screen.queryByText("Desactivado")).not.toBeInTheDocument();
+    expect(screen.queryByText(/se otorgarán al reactivar/)).not.toBeInTheDocument();
+  });
+
+  it("labels the holder list 'Miembros activos' (not the complete blast radius)", () => {
+    // useMembers() filters where('active','==',true) while the onRoleWritten fan-out has
+    // no active filter (index.ts:298), so soft-deleted members with a surviving Auth user
+    // DO receive the perms. The count must not be presented as complete.
+    render(<RolesPanel rows={[rowFor(customDoc, { holders: [{ id: "m0", name: "Olivia" }] })]} />);
+    expect(screen.getByText("Miembros activos:")).toBeInTheDocument();
   });
 });
