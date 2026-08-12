@@ -157,6 +157,49 @@ describe("PositionSection", () => {
     expect(screen.getByText(/Dirección de Proyectos/)).toBeInTheDocument();
   });
 
+  it("BLOCKING: marks a deactivated grant so the column agrees with the picker", () => {
+    // roleOptions already labels this "(desactivado)" in the grants picker, and the picker
+    // and this column sit on the SAME screen — an unmarked column said the cargo confers
+    // perms that beacon mints nothing for, while the edit form said otherwise.
+    const projectCargo = { ...cargo, id: "c2", grants: ["ProjectManager" as const] } as Position;
+    renderAsAdmin(
+      <PositionSection
+        title="Cargos"
+        variant="cargo"
+        positions={[projectCargo]}
+        onEdit={vi.fn()}
+        onDeactivate={vi.fn()}
+      />,
+      [
+        {
+          id: "ProjectManager",
+          name: "Dirección de Proyectos",
+          description: "",
+          builtIn: true,
+          builtInKey: "ProjectManager",
+          permissions: [],
+          locked: false,
+          active: false,
+          deletedAt: { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"],
+        },
+      ],
+    );
+    expect(screen.getByText("Dirección de Proyectos (desactivado)")).toBeInTheDocument();
+  });
+
+  it("does not mark a grant whose role has no seeded doc (the snapshot fallback is live)", () => {
+    renderAsAdmin(
+      <PositionSection
+        title="Cargos"
+        positions={[cargo]}
+        variant="cargo"
+        onEdit={vi.fn()}
+        onDeactivate={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Tesorería")).toBeInTheDocument();
+  });
+
   it("hides row actions for a role without write access", () => {
     render(
       <QueryClientProvider client={testClient()}>

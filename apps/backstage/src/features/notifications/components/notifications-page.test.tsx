@@ -47,6 +47,11 @@ const role = (over: Partial<RoleDefinition>): RoleDefinition => ({
   ...over,
 });
 
+// Structural stand-in for a firebase Timestamp. Paired with every `active: false` role
+// fixture: roleLifecycleSafe() requires `deletedAt is timestamp` whenever active is false,
+// so `active: false, deletedAt: null` is a shape production can no longer hold.
+const DELETED_AT = { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"];
+
 const sentTo = (roleId: string): NotificationDoc =>
   ({
     id: "n1",
@@ -116,7 +121,7 @@ describe("NotificationsPage — audience options", () => {
     // aimed at an audience the admin believes has perms it does not have.
     state.roles = [
       role({ id: "c_live", name: "Comunicaciones" }),
-      role({ id: "c_dead", name: "Comunicaciones Retirado", active: false }),
+      role({ id: "c_dead", name: "Comunicaciones Retirado", active: false, deletedAt: DELETED_AT }),
     ];
     renderWith(FULL_ACCESS, <NotificationsPage />);
 
@@ -130,7 +135,9 @@ describe("NotificationsPage — audience options", () => {
     // SentHistory's byId map is deliberately UNfiltered: an already-sent message must
     // keep a readable audience label, not degrade to the raw doc id, once its role goes
     // out of service.
-    state.roles = [role({ id: "c_dead", name: "Comunicaciones Retirado", active: false })];
+    state.roles = [
+      role({ id: "c_dead", name: "Comunicaciones Retirado", active: false, deletedAt: DELETED_AT }),
+    ];
     state.sent = [sentTo("c_dead")];
     renderWith(FULL_ACCESS, <NotificationsPage />);
 

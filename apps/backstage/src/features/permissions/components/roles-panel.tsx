@@ -12,10 +12,29 @@ import { holdersPhrase } from "../lib/holders-phrase";
 import type { RoleOverviewRow } from "../lib/role-overview";
 import { RoleEditor } from "./role-editor";
 
-/** The row AND its doc: the editor needs the doc to write to, and the row to report the
- *  holder count. Carrying only the doc forced an id lookup back into `rows`, which is
- *  ambiguous — an unsynced built-in row and a custom doc can share an id. */
-type Editing = { row: RoleOverviewRow; doc: RoleDefinition } | "new" | null;
+/** The DOC ID of the row being edited, never a copy of the row. An overlay that carried a
+ *  snapshot kept asserting pre-refetch facts — the permission set and the holder count —
+ *  while a background refetch of roles/members/positions moved `rows` underneath it, and
+ *  those two facts are the whole reason the confirmation exists before a write that fans
+ *  out to the entire members collection.
+ *
+ *  Keying by DOC id, not `row.id`, answers the ambiguity that argued against an id lookup:
+ *  `row.id` falls back to the ROLES key when a built-in has no doc, so an unsynced row and
+ *  a custom doc can share it. Both overlays require a doc to write to, so both can match on
+ *  `row.role.id` — unique across `rows`, since the seeded rows come one per role doc. */
+type Editing = { docId: string } | "new" | null;
+
+/** The live row for an open overlay, or null once its row leaves the list — in which case
+ *  the overlay closes. Correct: there is no longer a target to state facts about. */
+function findByDocId(
+  rows: RoleOverviewRow[],
+  docId: string,
+): { row: RoleOverviewRow; doc: RoleDefinition } | null {
+  for (const row of rows) {
+    if (row.role !== null && row.role.id === docId) return { row, doc: row.role };
+  }
+  return null;
+}
 
 const MAX_HOLDERS = 5;
 
@@ -69,34 +88,37 @@ function originLabel(row: RoleOverviewRow, state: SectionState): string {
  *  a row per ROLES key, so the pre-seed condition renders as rows marked "Sin sincronizar"
  *  rather than a blank page that hides which roles are already minting perms.
  *
- *  `cargosState` / `holdersState` let the page degrade those two lines on their own when
- *  the positions or members query is down, instead of failing the whole page — which
- *  would take the only role-restore affordance with it. */
+ *  `cargosState` / `holdersState` are REQUIRED, not defaulted. "ok" is exactly the value
+ *  that makes an empty holder list render as an authoritative "Nadie aún" and a 0 count
+ *  read as fact, so a future page that forgets to wire them must be a compile error, not a
+ *  silently wrong authorization picture. */
 export function RolesPanel({
   rows,
-  cargosState = "ok",
-  holdersState = "ok",
+  cargosState,
+  holdersState,
 }: {
   rows: RoleOverviewRow[];
-  cargosState?: SectionState;
-  holdersState?: SectionState;
+  cargosState: SectionState;
+  holdersState: SectionState;
 }) {
   const addRole = useAddRole();
   const updateRole = useUpdateRole();
   const deleteRole = useDeleteRole();
   const reactivateRole = useReactivateRole();
   const [editing, setEditing] = useState<Editing>(null);
-  const [reactivating, setReactivating] = useState<{
-    row: RoleOverviewRow;
-    doc: RoleDefinition;
-  } | null>(null);
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
 
   const [reactivateError, setReactivateError] = useState<string | null>(null);
   const [reactivateBusy, setReactivateBusy] = useState(false);
 
-  const openReactivate = (row: RoleOverviewRow, doc: RoleDefinition) => {
+  // Derived during render, so both overlays always show the latest refetched row.
+  const editingTarget =
+    editing === null || editing === "new" ? null : findByDocId(rows, editing.docId);
+  const reactivating = reactivatingId === null ? null : findByDocId(rows, reactivatingId);
+
+  const openReactivate = (doc: RoleDefinition) => {
     setReactivateError(null);
-    setReactivating({ row, doc });
+    setReactivatingId(doc.id);
   };
 
   const confirmReactivate = async () => {
@@ -105,7 +127,7 @@ export function RolesPanel({
     setReactivateBusy(true);
     try {
       await reactivateRole.mutateAsync(reactivating.doc.id);
-      setReactivating(null);
+      setReactivatingId(null);
     } catch (error) {
       // Nothing catches this globally — query-client.ts wires QueryCache only (no
       // MutationCache.onError) and useReactivateRole sets no onError — so without this
@@ -119,12 +141,12 @@ export function RolesPanel({
 
   const submit = async (data: RoleDefinitionInput) => {
     if (editing === "new") await addRole.mutateAsync(data);
-    else if (editing) await updateRole.mutateAsync({ id: editing.doc.id, data });
+    else if (editing) await updateRole.mutateAsync({ id: editing.docId, data });
     setEditing(null);
   };
 
   const remove = async () => {
-    if (editing && editing !== "new") await deleteRole.mutateAsync(editing.doc.id);
+    if (editing && editing !== "new") await deleteRole.mutateAsync(editing.docId);
     setEditing(null);
   };
 
@@ -200,7 +222,7 @@ export function RolesPanel({
                         as="button"
                         variant="secondary"
                         size="sm"
-                        onClick={() => openReactivate(row, doc)}
+                        onClick={() => openReactivate(doc)}
                       >
                         Reactivar rol
                       </Button>
@@ -209,7 +231,7 @@ export function RolesPanel({
                       as="button"
                       variant="secondary"
                       size="sm"
-                      onClick={() => setEditing({ row, doc })}
+                      onClick={() => setEditing({ docId: doc.id })}
                     >
                       {doc.locked ? "Ver" : "Editar"}
                     </Button>
@@ -236,21 +258,39 @@ export function RolesPanel({
       </Card>
 
       <Sheet
-        open={editing !== null}
+        open={editing === "new" || editingTarget !== null}
         onOpenChange={(open) => {
           if (!open) setEditing(null);
         }}
         size="lg"
-        title={editing === "new" ? "Crear rol" : "Editar rol"}
+        // "Ver rol" on the locked doc: its trigger reads "Ver" and its form is entirely
+        // read-only, so "Editar rol" promised an edit the rules deny.
+        title={
+          editing === "new"
+            ? "Crear rol"
+            : editingTarget?.doc.locked === true
+              ? "Ver rol"
+              : "Editar rol"
+        }
       >
-        {editing !== null && (
+        {editing === "new" ? (
           <RoleEditor
-            key={editing === "new" ? "new" : editing.doc.id}
-            role={editing === "new" ? null : editing.doc}
-            holderCount={editing === "new" ? 0 : holderCountOrNull(editing.row, holdersState)}
+            key="new"
+            role={null}
+            holderCount={0}
             onSubmit={submit}
-            onDelete={editing !== "new" ? remove : undefined}
+            onDelete={undefined}
           />
+        ) : (
+          editingTarget !== null && (
+            <RoleEditor
+              key={editingTarget.doc.id}
+              role={editingTarget.doc}
+              holderCount={holderCountOrNull(editingTarget.row, holdersState)}
+              onSubmit={submit}
+              onDelete={remove}
+            />
+          )
         )}
       </Sheet>
 
@@ -261,7 +301,7 @@ export function RolesPanel({
         open={reactivating !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setReactivating(null);
+            setReactivatingId(null);
             setReactivateError(null);
           }
         }}
@@ -297,7 +337,7 @@ export function RolesPanel({
               variant="secondary"
               disabled={reactivateBusy}
               onClick={() => {
-                setReactivating(null);
+                setReactivatingId(null);
                 setReactivateError(null);
               }}
             >
