@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Role } from "@luminova/auth/roles";
+import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
 import { resolveMemberPerms, type RolePermsDeps } from "./resolve-member-perms.js";
 
 const deps = (over: Partial<RolePermsDeps> = {}): RolePermsDeps => ({
@@ -20,7 +21,7 @@ describe("resolveMemberPerms", () => {
     const out = await resolveMemberPerms(
       deps({
         getRoleDocsByBuiltInKeys: async () => [
-          { permissions: ["read:Member"], builtInKey: "Treasury" },
+          { permissions: ["read:Member"], builtInKey: "Treasury", active: true },
         ],
       }),
       ["Treasury"],
@@ -28,6 +29,54 @@ describe("resolveMemberPerms", () => {
       NO_OVERRIDES,
     );
     expect(out).toEqual(["read:Member"]);
+  });
+
+  it("BLOCKING: an inactive built-in doc contributes nothing AND suppresses the seed fallback", async () => {
+    // The whole reason firestore.rules used to deny deactivating a built-in: a missing doc
+    // and an inactive doc were indistinguishable, so dropping the inactive doc from the
+    // query made the key UNCOVERED and re-minted BUILT_IN_ROLE_PERMS. Perms deliberately
+    // non-empty so a resolver that ignores `active` fails loudly instead of coincidentally
+    // returning [].
+    const out = await resolveMemberPerms(
+      deps({
+        getRoleDocsByBuiltInKeys: async () => [
+          { permissions: ["manage:all"], builtInKey: "Treasury", active: false },
+        ],
+      }),
+      ["Treasury"],
+      [],
+      NO_OVERRIDES,
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("an inactive doc for one key does not suppress another key's seed fallback", async () => {
+    const out = await resolveMemberPerms(
+      deps({
+        getRoleDocsByBuiltInKeys: async () => [
+          { permissions: ["manage:all"], builtInKey: "Treasury", active: false },
+        ],
+      }),
+      ["Treasury", "Membership"],
+      [],
+      NO_OVERRIDES,
+    );
+    expect(out).toEqual([...BUILT_IN_ROLE_PERMS.Membership].sort());
+  });
+
+  it("mixes an active doc, an inactive doc and an unseeded key in one resolution", async () => {
+    const out = await resolveMemberPerms(
+      deps({
+        getRoleDocsByBuiltInKeys: async () => [
+          { permissions: ["read:Position"], builtInKey: "Membership", active: true },
+          { permissions: ["manage:all"], builtInKey: "Treasury", active: false },
+        ],
+      }),
+      ["Membership", "Treasury", "Secretary"],
+      [],
+      NO_OVERRIDES,
+    );
+    expect(out).toEqual([...new Set(["read:Position", ...BUILT_IN_ROLE_PERMS.Secretary])].sort());
   });
 
   it("unions custom role perms with built-in perms", async () => {
