@@ -6,6 +6,7 @@ import { clearCollections, initEmulatorTestApp } from "../award-points/emulator-
 import { seedBuiltInRoles } from "../seed-roles.js";
 import { firestoreClaimsDeps } from "./firestore-deps.js";
 import { resolveMemberPerms } from "./resolve-member-perms.js";
+import { assertRequestedRolesActive } from "../set-user-roles.js";
 
 // The REAL deps against the REAL emulator. Both production callers of
 // resolveMemberPerms route through exactly this pair:
@@ -60,6 +61,26 @@ describe("built-in role doc lifecycle → resolved perms (emulator)", () => {
     // resolves through that path, so the two paths agree.
     await db.doc("roles/Treasury").update({ active: false, deletedAt: DELETED_AT });
     expect(await resolveMemberPerms(deps(), [], ["Treasury"], NO_OVERRIDES)).toEqual([]);
+  });
+
+  // setUserRoles grants the role NAME, which name-keyed rules gates read regardless of the
+  // perms it resolves to — so "mints nothing" is not enough on that path. Exercised through
+  // the REAL deps; the callable itself is not invoked (see the note at the top of this file).
+  it("BLOCKING: setUserRoles refuses a deactivated built-in role", async () => {
+    await db.doc("roles/Scanner").update({ active: false, deletedAt: DELETED_AT });
+    const docs = await deps().getRoleDocsByBuiltInKeys(["Scanner"]);
+    expect(() => assertRequestedRolesActive(["Scanner"], docs)).toThrow(/deactivated/i);
+  });
+
+  it("setUserRoles still accepts a built-in whose doc is absent (pre-seed window)", async () => {
+    await db.doc("roles/Scanner").delete();
+    const docs = await deps().getRoleDocsByBuiltInKeys(["Scanner"]);
+    expect(() => assertRequestedRolesActive(["Scanner"], docs)).not.toThrow();
+  });
+
+  it("setUserRoles accepts an active built-in role", async () => {
+    const docs = await deps().getRoleDocsByBuiltInKeys(["Scanner"]);
+    expect(() => assertRequestedRolesActive(["Scanner"], docs)).not.toThrow();
   });
 
   it("an active:true + deletedAt-set ghost mints nothing but still covers its key", async () => {

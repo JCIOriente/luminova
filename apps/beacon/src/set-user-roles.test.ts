@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ROLES } from "@luminova/auth/roles";
-import { validateSetRolesInput } from "./set-user-roles";
+import { assertRequestedRolesActive, validateSetRolesInput } from "./set-user-roles";
 
 describe("validateSetRolesInput", () => {
   it("validates a plain role assignment", () => {
@@ -44,5 +44,48 @@ describe("validateSetRolesInput", () => {
   it("rejects more roles than exist", () => {
     const tooMany = [...ROLES, "Admin"];
     expect(() => validateSetRolesInput({ targetUid: "u1", roles: tooMany })).toThrow();
+  });
+});
+
+describe("assertRequestedRolesActive", () => {
+  const doc = (builtInKey: string, active: boolean) => ({
+    builtInKey: builtInKey as (typeof ROLES)[number],
+    active,
+  });
+
+  it("BLOCKING: rejects a role whose doc exists and is deactivated", () => {
+    // Minting perms:[] is not enough — the callable still writes the role NAME, and
+    // name-keyed rules gates read the name. Assigning here would NEWLY grant authority
+    // through a role the organization has taken out of service.
+    expect(() => assertRequestedRolesActive(["Scanner"], [doc("Scanner", false)])).toThrow(
+      /Scanner/,
+    );
+    expect(() => assertRequestedRolesActive(["Scanner"], [doc("Scanner", false)])).toThrow(
+      /deactivated/i,
+    );
+  });
+
+  it("accepts a role whose doc is ABSENT (the pre-seed window on a fresh project)", () => {
+    expect(() => assertRequestedRolesActive(["Scanner"], [])).not.toThrow();
+    expect(() => assertRequestedRolesActive(["Scanner"], [doc("Treasury", true)])).not.toThrow();
+  });
+
+  it("accepts a role whose doc is present and active", () => {
+    expect(() => assertRequestedRolesActive(["Scanner"], [doc("Scanner", true)])).not.toThrow();
+  });
+
+  it("rejects the whole call when only one of several requested roles is deactivated", () => {
+    expect(() =>
+      assertRequestedRolesActive(
+        ["Member", "Scanner"],
+        [doc("Member", true), doc("Scanner", false)],
+      ),
+    ).toThrow(/Scanner/);
+  });
+
+  it("fails closed when duplicate docs claim one key and either is deactivated", () => {
+    expect(() =>
+      assertRequestedRolesActive(["Scanner"], [doc("Scanner", true), doc("Scanner", false)]),
+    ).toThrow(/Scanner/);
   });
 });
