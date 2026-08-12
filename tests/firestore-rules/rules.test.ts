@@ -166,6 +166,20 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // Deactivated on purpose: the checkIns Scanner conjunct is NAME-keyed
+    // (!hasAnyRole(['Scanner'])) and reads no role doc, so the tests below prove the
+    // restriction survives the doc going out of service. Restrictive, so surviving is
+    // the safe direction — a deactivation must never widen anyone's authority.
+    await setDoc(doc(db, "roles/Scanner"), {
+      name: "Escáner",
+      description: "",
+      builtIn: true,
+      builtInKey: "Scanner",
+      permissions: ["read:Activity", "checkIn:Attendance"],
+      locked: false,
+      active: false,
+      deletedAt: DELETED_AT,
+    });
     await setDoc(doc(db, "terms/2026"), { status: "Activo" });
     await setDoc(doc(db, "activities/act1"), { termId: "2026", category: "Assembly" });
     await setDoc(doc(db, "activities/act_dir"), {
@@ -1656,6 +1670,42 @@ describe("firestore.rules — checkIns", () => {
   it("denies delete when the parent initiative is Finalizado", async () => {
     await assertFails(deleteDoc(doc(as("u", ["Admin"]), "checkIns/c_del_closed")));
   });
+  it("BLOCKING: the Scanner Attendee conjunct survives a Scanner-role deactivation (create arm)", async () => {
+    // Residual documented in docs/specs/role-lifecycle.md: computeMemberRoles is pure
+    // over {trustedGrants, hadScanner} and reads NO role doc, so the `roles` claim keeps
+    // the Scanner name after roles/Scanner is deactivated. The checkIns create arm's
+    // Attendee conjunct is name-keyed and RESTRICTIVE, so surviving is the safe
+    // direction. The rejected alternative — dropping names whose doc is inactive —
+    // would let a member holding Scanner + ActivityManager keep checkIn:Attendance
+    // while shedding the Scanner name, lifting the Attendee restriction. A deactivation
+    // must never widen authority.
+    await assertFails(
+      setDoc(doc(as("s_dead", ["Scanner"]), "checkIns/c_scan_dead_dir"), {
+        memberId: "m1",
+        activityId: "a1",
+        role: "Director",
+      }),
+    );
+  });
+  it("a Scanner can still create an Attendee row while roles/Scanner is deactivated", async () => {
+    // Non-vacuity twin: proves the deny above is the Attendee conjunct biting, not the
+    // whole Scanner lane collapsing.
+    await assertSucceeds(
+      setDoc(doc(as("s_dead", ["Scanner"]), "checkIns/c_scan_dead_att"), {
+        memberId: "m1",
+        activityId: "a1",
+        role: "Attendee",
+      }),
+    );
+  });
+  it("BLOCKING: the Scanner Attendee conjunct survives a Scanner-role deactivation (delete arm)", async () => {
+    // The delete-side mirror: delete carries no request.resource, so the conjunct reads
+    // resource.data.role.
+    await assertFails(deleteDoc(doc(as("s_dead", ["Scanner"]), "checkIns/c_del_director")));
+  });
+  it("a Scanner can still delete an in-window Attendee row while roles/Scanner is deactivated", async () => {
+    await assertSucceeds(deleteDoc(doc(as("s_dead", ["Scanner"]), "checkIns/c_scan_dead_att")));
+  });
 });
 
 describe("firestore.rules — participations", () => {
@@ -2480,6 +2530,29 @@ describe("firestore.rules — roles collection", () => {
         active: false,
         deletedAt: serverTimestamp(),
       }),
+    );
+  });
+  it("allows Admin to rename a non-locked built-in role", async () => {
+    // PR 1's headline behavior, previously unguarded: the rules suite only covered
+    // `permissions`. RoleRepository.update writes name/description/permissions, so the
+    // name lane needs its own pin.
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/Treasury"), {
+        name: "Finanzas",
+        description: "Renombrado por el Admin.",
+      }),
+    );
+  });
+  it("BLOCKING: denies renaming the locked Admin role (the rename allow is not blanket)", async () => {
+    // Non-vacuity twin for the case above: if the rename allow ever became
+    // unconditional, this goes red.
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/Admin"), { name: "Superusuario" }),
+    );
+  });
+  it("denies a non-Admin renaming a built-in role", async () => {
+    await assertFails(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "roles/Treasury"), { name: "Caja" }),
     );
   });
 });
