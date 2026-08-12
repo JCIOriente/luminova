@@ -37,6 +37,29 @@ describe("roleDefinitionDocSchema", () => {
     expect(parsed.permissions).toEqual(["read:Member"]);
   });
 
+  it("drops a non-STRING permissions element instead of rejecting the whole doc", () => {
+    // The ghost that closes: firestore.rules can only assert `permissions is list` (no
+    // element-wise quantifier), so `['manage:all', 0]` is an ALLOWED write. Rejecting the
+    // doc here dropped it client-side while beacon's permsFromRoleDoc filtered and still
+    // minted `manage:all` — /permisos then showed the SEED perms and offered no editor.
+    const junk = { ...validDoc, permissions: ["manage:all", 0, null, {}, ["manage:all"]] };
+    const parsed = roleDefinitionDocSchema.parse(junk);
+    expect(parsed.permissions).toEqual(["manage:all"]);
+  });
+
+  it("parses a doc whose permissions is entirely non-string junk down to an empty set", () => {
+    const parsed = roleDefinitionDocSchema.parse({ ...validDoc, permissions: [0, false] });
+    expect(parsed.permissions).toEqual([]);
+  });
+
+  it("still rejects a permissions field that is not a list at all", () => {
+    // `permissions is list` IS checkable in rules, so this stays a rejection: the two
+    // readers agree, and beacon's rawPermsFromRoleDoc returns [] for a non-array.
+    expect(
+      roleDefinitionDocSchema.safeParse({ ...validDoc, permissions: "manage:all" }).success,
+    ).toBe(false);
+  });
+
   it("accepts a custom role with builtInKey null", () => {
     const custom = { ...validDoc, builtIn: false, builtInKey: null, locked: false };
     expect(roleDefinitionDocSchema.safeParse(custom).success).toBe(true);
