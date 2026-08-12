@@ -18,7 +18,8 @@ function permsEqual(a: readonly string[], b: readonly string[]): boolean {
  * active, and nothing when inactive; `builtInKey` decides WHICH members are
  * affected (a built-in edit re-syncs every provisioned member, a custom edit only
  * its holders). So a re-sync is only needed when the active-status, the perms of
- * an active role, or the builtInKey actually change. Create/delete always count.
+ * an active role, the builtInKey, or the builtIn flag actually change.
+ * Create/delete always count.
  * This lets a metadata-only edit (name/description, or a re-touch with identical
  * fields, e.g. a redelivered write) skip the full members-collection scan.
  */
@@ -30,16 +31,21 @@ export function roleClaimsChanged(
 
   if (builtInKeyFromRoleDoc(before) !== builtInKeyFromRoleDoc(after)) return true;
 
+  // BEFORE the both-inactive short-circuit, not after. Post-three-way, `builtIn`
+  // decides COVERAGE, not just contribution: an inactive doc with builtIn:true
+  // covers its key and mints nothing, while the same doc with builtIn:false is
+  // uncovered and re-mints BUILT_IN_ROLE_PERMS[key] through the seed fallback in
+  // resolveMemberPerms. A flip on an inactive doc therefore changes every holder's
+  // perms, and skipping the fan-out would strand them.
+  if ((before.builtIn === true) !== (after.builtIn === true)) return true;
+
   const beforeActive = isActiveRoleDoc(before);
   const afterActive = isActiveRoleDoc(after);
   if (beforeActive !== afterActive) return true;
 
-  // Both inactive → contributes nothing regardless of its perms or builtIn flag.
+  // Both inactive → contributes nothing regardless of its perms. (builtIn is
+  // already handled above; perms genuinely do not matter while inactive.)
   if (!beforeActive) return false;
-
-  // A built-in role contributes perms only while builtIn === true (the gate in
-  // getRoleDocsByBuiltInKeys), so a flip of that flag changes what holders resolve.
-  if ((before.builtIn === true) !== (after.builtIn === true)) return true;
 
   return !permsEqual(permsFromRoleDoc(before), permsFromRoleDoc(after));
 }
