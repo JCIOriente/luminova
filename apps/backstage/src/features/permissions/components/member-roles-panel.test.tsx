@@ -95,4 +95,34 @@ describe("MemberRolesPanel", () => {
     expect(screen.getByText("Coordinador")).toBeInTheDocument();
     expect(screen.queryByText("Coordinador Retirado")).not.toBeInTheDocument();
   });
+
+  it("BLOCKING: surfaces a stored roleId whose doc is deactivated", async () => {
+    // The chip vanishes on its own: MultiSelect renders chips by filtering options
+    // against the value, and the deactivated role is no longer an option. Without an
+    // explicit notice the admin sees a member with no custom roles while roleIds still
+    // carries one — and a save would silently re-persist it.
+    rolesData = [customRole, deactivatedRole];
+    const withDead = { ...member, roleIds: ["c_dead"] } as unknown as Member;
+    render(<MemberRolesPanel member={withDead} builtInRoleNames={[]} />);
+
+    const notice = screen.getByRole("alert");
+    expect(notice).toHaveTextContent("Coordinador Retirado");
+    expect(notice).toHaveTextContent(/desactivado/i);
+    // The stored assignment is preserved, not silently dropped.
+    fireEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await waitFor(() =>
+      expect(saveMutate).toHaveBeenCalledWith({
+        memberId: "m1",
+        roleIds: ["c_dead"],
+        permissionOverrides: { grant: [], revoke: [] },
+      }),
+    );
+  });
+
+  it("shows no deactivated-role notice when every stored role is live", () => {
+    rolesData = [customRole, deactivatedRole];
+    const withLive = { ...member, roleIds: ["c1"] } as unknown as Member;
+    render(<MemberRolesPanel member={withLive} builtInRoleNames={[]} />);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });
