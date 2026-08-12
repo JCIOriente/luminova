@@ -2438,8 +2438,11 @@ describe("firestore.rules — roles collection", () => {
     );
   });
   it("BLOCKING: denies a create that OMITS locked — well-formed in every other field", async () => {
-    // The isolating payload for roleShapeValid()'s `('locked' in d)`: everything else is
-    // valid, so nothing but that conjunct can deny it. The old arm read `locked` through
+    // The isolating payload for roleShapeValid()'s `('locked' in d)`/`locked is bool` PAIR:
+    // everything else is valid, so nothing but those two can deny it. Not `('locked' in d)`
+    // alone — per the sweep table in firestore.rules, neutralizing it leaves `locked is bool`
+    // ERRORING on the absent key, which still denies. The pair is the guard; neither half is
+    // individually falsifiable. The old arm read `locked` through
     // `.get('locked', false)`, which an omission satisfies, and roleIdentityUnchanged()
     // then pinned the field absent forever — a doc roleDefinitionDocSchema rejects
     // (locked: z.boolean()) is dropped by parseDocs and invisible on /permisos, while

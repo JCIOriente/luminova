@@ -480,7 +480,10 @@ service cloud.firestore {
     //     read:Activity / read:Program / read:Project from every provisioned user in the
     //     chapter via an unbounded, no-retry members scan (index.ts:298), collapsing nav and
     //     route access chapter-wide. An admin who wants that empties its `permissions`
-    //     instead: same effect, no lifecycle asymmetry, still visible on /permisos.
+    //     instead — no lifecycle asymmetry, still visible on /permisos. NOT the same effect,
+    //     though: packages/auth/src/ability.ts confers CASL grants keyed on the Member role
+    //     NAME, and those survive an emptied permissions array, so the UI keeps offering
+    //     surfaces whose writes the rules then deny. The better of two imperfect options.
     //   Admin — anti-lockout. `locked: true` is the intended guard and the seed sets it, but
     //     prod role docs are documented in this repo as lagging the seed. Resting
     //     anti-lockout on `locked` alone turns it into a manual pre-deploy instruction with
