@@ -1,6 +1,7 @@
 import type { Role } from "@luminova/auth/roles";
 import type { TermPositions, PermissionCode } from "@luminova/types";
 import { PERMISSION_CAP } from "@luminova/types/permission";
+import { isSafeDocId } from "../firestore-util.js";
 import { computeMemberRoles } from "./compute-roles.js";
 import { resolveMemberPerms, type RolePermsDeps } from "./resolve-member-perms.js";
 
@@ -51,7 +52,17 @@ async function resolveTrustedGrants(
   cargoId: string | null,
   assignedBy: string | undefined,
 ): Promise<Role[]> {
-  if (cargoId === null || cargoId.length === 0) return [];
+  // FULL screening, not just the empty-string half this used to check. `cargoId` comes
+  // straight off the member doc and every implementation of `getPosition` interpolates it
+  // into a `positions/${id}` doc-path template, where the admin SDK throws a PERMANENT
+  // INVALID_ARGUMENT on a "/"-bearing or reserved id. positionsAssignmentSafe() in
+  // firestore.rules never constrains cargoId's SHAPE, so an Admin can store "a/b"; and
+  // onMemberWritten declares no `retry` option, so it is retry:false — the throw is not
+  // redelivered, and because the bad id PERSISTS in the member doc, every later write to
+  // that member re-throws. Their claims never sync again until someone edits the id out.
+  // Screened HERE rather than in each port impl so the in-memory test fakes inherit it.
+  // Fails closed in the right direction: no cargo means no grants.
+  if (!isSafeDocId(cargoId)) return [];
   const position = await deps.getPosition(cargoId);
   if (!position || position.grants.length === 0) return [];
   const assignerIsAdmin = assignedBy

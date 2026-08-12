@@ -25,6 +25,35 @@ export const seedRoles = onCall(async (request) => {
   return { ok: true as const, created };
 });
 
+export interface RecomputeClaimsResult {
+  /** TRUE ONLY WHEN `failed` IS EMPTY. This callable IS the designated backstop for a partial
+   *  `onRoleWritten` fan-out (apps/beacon/CLAUDE.md, BLAST RADIUS), so an unconditional
+   *  `ok: true` beside a non-empty `failed` would report the backstop as having succeeded at
+   *  exactly the moment members are still stranded — the same reason
+   *  `reseedBuiltInRolePerms` does not return one either.
+   *
+   *  Deliberately NOT affected by a stale-role-snapshot warning: `ok` is a statement about
+   *  per-member sync failures only. Staleness is logged and the response says nothing about
+   *  it, because re-running is the response to both and `ok` must keep one meaning. */
+  ok: boolean;
+  /** Members whose claims were recomputed (provisioned members only — an unprovisioned
+   *  member doc has no uid and is skipped without counting). */
+  synced: number;
+  /** Member doc ids whose sync threw. Collected, never thrown, so one bad member cannot
+   *  abort the whole backfill. */
+  failed: string[];
+}
+
+/** Pure: the callable's response contract, extracted so it is pinned by a test rather than
+ *  resting on a human reading the response — there is no in-repo caller. Mirrors
+ *  `planRolePermReseed` below (pure decision, impure glue). */
+export function recomputeClaimsResult(
+  synced: number,
+  failed: readonly string[],
+): RecomputeClaimsResult {
+  return { ok: failed.length === 0, synced, failed: [...failed] };
+}
+
 /** Admin-only: recompute every provisioned member's custom claims, populating the
  *  `perms` claim. Run after seedRoles and BEFORE deploying the perm-based rules
  *  (so no member is left without perms when the rules start gating on them).
@@ -55,11 +84,22 @@ export const recomputeAllClaims = onCall(
         failed.push(doc.id);
       }
     }
-    // NOT unconditionally true, for the same reason reseedBuiltInRolePerms below is not:
-    // this callable IS the designated backstop for a partial onRoleWritten fan-out, so an
-    // `ok: true` alongside a non-empty `failed` reports the backstop as having succeeded
-    // at exactly the moment members are still stranded.
-    return { ok: failed.length === 0, synced, failed };
+    // This callable holds ONE deps instance — and therefore one memoized built-in role
+    // snapshot — for up to 540 s, exactly like onRoleWritten. Being the designated backstop
+    // makes the check matter MORE here, not less: if the backstop itself ran on a stale
+    // snapshot, the operator's response to the trigger's own stale-snapshot line would be a
+    // silent no-op. Logged, deliberately NOT folded into `ok`, which stays a pure statement
+    // about per-member failures (see the return contract in apps/beacon/CLAUDE.md).
+    const staleRoleKeys = await deps.staleBuiltInRoleKeys();
+    if (staleRoleKeys.length > 0) {
+      console.error("recomputeAllClaims ran on a stale role snapshot — run it again", {
+        staleRoleKeys,
+        synced,
+      });
+    }
+    // Contract lives in recomputeClaimsResult (pinned by recompute-claims.test.ts) and is
+    // documented beside the operator sequence in apps/beacon/CLAUDE.md.
+    return recomputeClaimsResult(synced, failed);
   },
 );
 
@@ -69,6 +109,12 @@ export interface RoleSnapshot {
   id: string;
   exists: boolean;
   builtInKey: string | null;
+  /** The doc's `builtIn === true`. Carried ONLY for the coverage report: the reseed itself
+   *  decides built-in-ness from `builtInKey === id`, but the claims pipeline's
+   *  `where("builtInKey","in",keys)` query ALSO requires `builtIn === true`, and this
+   *  callable is the only code that reads all nine docs by id and can therefore see a doc
+   *  the claims query structurally cannot. */
+  builtIn: boolean;
   locked: boolean;
   /** `active !== false` and no `deletedAt`. A soft-deleted built-in must not be revived by
    *  a reseed — and the write would fire onRoleWritten across every member for a role
@@ -99,6 +145,45 @@ export interface ReseedPlan {
   /** Operator shorthand: exactly the ids whose skip reason is `missing`, so the two-step
    *  `seedRoles` → reseed sequence is visible without reading every skip row. */
   failed: string[];
+  /** The anomaly class the claims-sync logs structurally CANNOT see, which is why it is
+   *  reported here. Those logs only inspect docs the `where("builtInKey","in",keys)` query
+   *  MATCHED; a doc whose `builtInKey` is absent or mis-cased never matches, and one missing
+   *  `builtIn: true` is dropped — so its key stays uncovered, `resolveMemberPerms` re-mints
+   *  BUILT_IN_ROLE_PERMS[key] through the fallback, and deactivating that role is a SILENT
+   *  NO-OP that `/permisos` still reports as a revocation. Nothing anywhere logged it.
+   *
+   *  This callable is the one place that can see it: it reads all nine `roles/{key}` docs BY
+   *  ID, so a doc is visible to it whatever its `builtInKey` says. Reported, not `failed`:
+   *  `failed` is the documented shorthand for exactly the `missing` ids (run `seedRoles`),
+   *  and these need a console field edit instead. This is deploy-check 3 of
+   *  docs/specs/role-lifecycle.md, as a signal rather than as prose. */
+  coverageAnomalies: {
+    id: string;
+    builtIn: boolean;
+    builtInKey: string | null;
+    /** `not-marked-built-in` — `builtIn !== true`, so the claims query DROPS it.
+     *  `built-in-key-missing` — no `builtInKey`, so the claims query never MATCHES it.
+     *  `built-in-key-mismatch` — `builtInKey` present but not this doc's id (a mis-case, or
+     *  pointing at another key); this doc's own key goes uncovered either way. */
+    problem: "not-marked-built-in" | "built-in-key-missing" | "built-in-key-mismatch";
+  }[];
+}
+
+/** Every way an existing `roles/{ROLES key}` doc can fail to cover its own key in the claims
+ *  pipeline. Independent of the skip/apply decision below on purpose: a `locked` or `inactive`
+ *  doc missing `builtIn: true` is exactly as invisible to the claims query as an applied one,
+ *  so the report must not be gated on the doc being writable. */
+function coverageAnomaliesFor(snapshot: RoleSnapshot): ReseedPlan["coverageAnomalies"] {
+  // A doc that does not exist is already `missing` + `failed`; reporting it here too would
+  // just double the row an operator has to reconcile.
+  if (!snapshot.exists) return [];
+  const row = { id: snapshot.id, builtIn: snapshot.builtIn, builtInKey: snapshot.builtInKey };
+  const out: ReseedPlan["coverageAnomalies"] = [];
+  if (!snapshot.builtIn) out.push({ ...row, problem: "not-marked-built-in" });
+  if (snapshot.builtInKey === null) out.push({ ...row, problem: "built-in-key-missing" });
+  else if (snapshot.builtInKey !== snapshot.id)
+    out.push({ ...row, problem: "built-in-key-mismatch" });
+  return out;
 }
 
 /** Order-insensitive set compare. `permissions` is an unordered capability set, so a
@@ -118,10 +203,11 @@ function permsEqual(a: readonly PermissionCode[], b: readonly PermissionCode[]):
  *  what lets this coexist with role renaming: an operator re-running the reseed must not
  *  silently revert every rename. */
 export function planRolePermReseed(snapshots: readonly RoleSnapshot[]): ReseedPlan {
-  const plan: ReseedPlan = { applied: [], skipped: [], failed: [] };
+  const plan: ReseedPlan = { applied: [], skipped: [], failed: [], coverageAnomalies: [] };
   for (const snapshot of snapshots) {
     const proposed = BUILT_IN_ROLE_PERMS[snapshot.id as keyof typeof BUILT_IN_ROLE_PERMS];
     if (!proposed) continue;
+    plan.coverageAnomalies.push(...coverageAnomaliesFor(snapshot));
     if (!snapshot.exists) {
       plan.skipped.push({ id: snapshot.id, reason: "missing" });
       plan.failed.push(snapshot.id);
@@ -164,6 +250,10 @@ export function planRolePermReseed(snapshots: readonly RoleSnapshot[]): ReseedPl
  *  read-only admin ops use). Supports `dryRun`, which writes nothing and returns the
  *  per-doc before/after.
  *
+ *  Also the ONLY place the `coverageAnomalies` class is detectable — this callable reads all
+ *  nine docs BY ID, so it sees the doc a mis-keyed `builtInKey` hides from the claims
+ *  pipeline's field query entirely. Run it `dryRun: true` as deploy-check 3.
+ *
  *  ONE WriteBatch: the doc-by-doc loop `seedRoles` uses would leave half the role set on
  *  new perms and half on old, with onRoleWritten fan-outs already fired for the first half
  *  and no rollback.
@@ -192,6 +282,7 @@ export const reseedBuiltInRolePerms = onCall(
         id: roleIds[index] ?? snap.id,
         exists: snap.exists,
         builtInKey: typeof snap.get("builtInKey") === "string" ? snap.get("builtInKey") : null,
+        builtIn: snap.get("builtIn") === true,
         locked: snap.get("locked") === true,
         active: isActiveRoleDoc(data),
         rawPermissions: rawPermsFromRoleDoc(data),
@@ -218,6 +309,7 @@ export const reseedBuiltInRolePerms = onCall(
         applied: [],
         skipped: plan.skipped,
         failed: plan.failed,
+        coverageAnomalies: plan.coverageAnomalies,
       };
     }
 
@@ -236,6 +328,7 @@ export const reseedBuiltInRolePerms = onCall(
       by: request.auth?.uid,
       applied: plan.applied.map((entry) => entry.id),
       skipped: plan.skipped,
+      coverageAnomalies: plan.coverageAnomalies,
     });
 
     // NOT unconditionally true: the documented #1 operator error — running this before
@@ -247,6 +340,7 @@ export const reseedBuiltInRolePerms = onCall(
       applied: plan.applied.map(({ id, changedFields }) => ({ id, changedFields })),
       skipped: plan.skipped,
       failed: plan.failed,
+      coverageAnomalies: plan.coverageAnomalies,
     };
   },
 );

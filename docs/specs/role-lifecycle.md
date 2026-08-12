@@ -310,27 +310,47 @@ removal of the `where` is asserted by a test, so re-narrowing it goes red loudly
 
 ## Residuals — documented, not fixed here
 
-**Deactivation revokes perms, never name-keyed authority.** `computeMemberRoles` is pure
-over `{trustedGrants, hadScanner}` and reads no role doc, so the `roles` claim keeps a
-deactivated role's name. Complete list of gates that therefore survive deactivation
-(excluding the 12 `hasAnyRole(['Admin'])` sites — Admin is `locked`, out of scope):
+**Deactivation revokes perms, never name-keyed authority — and a deactivated role's name is
+still newly GRANTABLE.** `computeMemberRoles` is pure over `{trustedGrants, hadScanner}` and
+reads no role doc, so the `roles` claim keeps a deactivated role's name. Complete list of
+gates that therefore survive deactivation (excluding the 12 `hasAnyRole(['Admin'])` sites —
+Admin is `locked`, out of scope):
 
-- `firestore.rules:177` `canCurateFeatured()` → `hasAnyRole(['Admin','ProjectManager'])`.
+- `canCurateFeatured()` in `firestore.rules` → `hasAnyRole(['Admin','ProjectManager'])`.
   A deactivated ProjectManager who is also `isDirection()` can still flip `featured` onto
   the public site.
-- `firestore.rules:561` **and `:570`** — the Scanner `Attendee`-only conjunct on the
-  checkIns create *and* delete arms. Restrictive, so surviving is the safe direction; both
-  arms get a test.
-- `use-can.ts:54` `canFeatureInitiatives`, `can-remove-entry.ts:21` (Scanner),
-  `is-member-only.ts:9-15` (routing), `nav-config.ts:129` (`/positions` role allowlist),
-  `board-home-layout.ts:25-35` (`PRECEDENCE`), `activities-page.tsx:40` /
-  `activity-detail-page.tsx:53`.
+- The Scanner `role == 'Attendee'` conjunct on **both** the `checkIns` **create** arm and the
+  `checkIns` **delete** arm (the delete arm reads `resource.data.role`, since a delete carries
+  no `request.resource`). Restrictive, so surviving is the safe direction; both arms get a
+  test. Cited by arm rather than by line: these two line numbers have been wrong in this doc
+  three times running.
+- `use-can.ts` `canFeatureInitiatives`, `can-remove-entry.ts` (Scanner), `is-member-only.ts`
+  (routing), `nav-config.ts` (`/positions` role allowlist), `board-home-layout.ts`
+  (`PRECEDENCE`), `activities-page.tsx` / `activity-detail-page.tsx`.
+
+This is NOT limited to existing holders keeping a name they already had — an earlier draft of
+this section framed it that way and the beacon comment above
+`assertRequestedRolesActive` repeated it. There are **two Admin-level paths that newly write a
+deactivated role's name into a claim**, and only one is closed:
+
+- **`setUserRoles` (CLOSED).** `assertRequestedRolesActive` rejects any requested role whose
+  `roles/{key}` doc exists and is not live. An ABSENT doc is still accepted, because the
+  pre-seed window legitimately falls back to `BUILT_IN_ROLE_PERMS`.
+- **A cargo `grants` assignment (OPEN BY DESIGN).** `roleOptions` deliberately keeps a
+  deactivated built-in in the cargo-grants picker (marked "… (desactivado)"), rules never
+  check role liveness on the `positions` lane, and `resolveTrustedGrants` →
+  `computeMemberRoles` writes that name into the claim of a member freshly assigned to that
+  cargo. `resolveTrustedGrants` honors the grants only when `assignedBy` holds Admin — the
+  same authority `setUserRoles`' `requireAdmin` demands — so the two doors sit at one
+  privilege level and closing one narrows nothing.
 
 Removing name-keyed authority means editing the cargo's `grants`. The alternative — having
 `computeMemberRoles` drop names whose doc is inactive — is **rejected**: a member holding
 Scanner + ActivityManager with Scanner deactivated would lose the `Scanner` name while
 keeping `checkIn:Attendance` from ActivityManager, satisfying `!hasAnyRole(['Scanner'])` and
-lifting the `Attendee` restriction. A deactivation must never widen anyone's authority.
+lifting the `Attendee` restriction. A deactivation must never widen anyone's authority. That
+is also why the gate lives in the callable and not in `computeMemberRoles`: refusing on the
+trigger path is what would cause the escalation.
 
 **The `PERMISSION_CAP` interaction is intended, not a bug.** `sync.ts:100-111` fail-closes
 to `perms: []` above 30 codes. Deactivating a role that contributed 2 unique codes can take
@@ -428,22 +448,76 @@ doc is dropped by `parseDocs` and re-renders as an `unsynced` row asserting full
      belt-and-braces check: the roles lane now also bars deactivating `builtInKey == 'Admin'`
      outright, mirroring the `Member` clause, so a `locked` field that lags the seed no longer
      lets one Admin write strip `manage:all` chapter-wide. Still worth confirming.
-  2. Every `roles/*` doc carries **both** `active` and `deletedAt` keys, or
-     `roleLifecycleSafe()` denies every client update to it (Design 6).
-  3. Every built-in doc carries `builtIn: true` **and** `builtInKey` equal to its doc id.
-     The two halves fail differently, and an earlier draft of this note conflated them:
-     - **Missing `builtIn: true`** → the doc is dropped by the `builtIn === true` filter, its
-       key stays *uncovered*, and the seed fallback re-mints — making a deactivation a
-       **silent no-op that `/permisos` reports as a revocation**.
-     - **`builtInKey` ≠ doc id** → the doc is *not* dropped. The query matches on the
-       `builtInKey` field, so it is returned and does cover its key. The hazard is instead
-       that `reseedBuiltInRolePerms` skips it as `not-built-in` (it compares `builtInKey`
-       against the doc id), so its permissions **freeze permanently** while `/permisos` keeps
-       showing the role as normal — and the callable still returns `ok: true`, because that
-       skip reason is not added to `failed`.
+  2. Every `roles/*` doc is **well-formed on all SIX fields the update lane now checks**, plus
+     a seventh audit below. The update arm runs `roleLifecycleSafe()` **and**
+     `roleShapeValid()`, so this check is three fields wider than the earlier draft of this
+     note (which named only `active`/`deletedAt`):
+     - `active` — present and `is bool`
+     - `deletedAt` — present (and coupled to `active`: `true`→`null`, `false`→a timestamp)
+     - `name` — present, `is string`, `size()` in `1..100`
+     - `description` — present and `is string`
+     - `permissions` — present and `is list`
+     - `locked` — present and `is bool`
 
-     Beacon now logs all three anomalies (missing `builtIn`, off-id `builtInKey`, and two
-     docs sharing one `builtInKey`), but the deploy check is what prevents them.
+     **Consequence, once, for all six:** a doc failing ANY of them is denied on **every**
+     client update — including its own reactivation and including an ordinary `/permisos`
+     permission edit. It becomes admin-SDK/console-only to edit. A legacy prod doc missing
+     `description`, or missing `locked`, is exactly as locked out as one missing `active`.
+
+     **Seventh thing to audit: `name.length > 100`.** The rules' `name.size() <= 100` bound has
+     no zod counterpart — `roleDefinitionSchema` is `.min(1)` only — and PR 1 shipped built-in
+     role renaming with no upper bound. So a prod doc may ALREADY carry a name longer than 100
+     characters, which after this deploy can never be updated from the client. Audit for it
+     before deploying; the matching client-side bound (so the form pre-validates instead of
+     403-ing) lands separately.
+  3. Every built-in doc carries `builtIn: true` **and** `builtInKey` equal to its doc id.
+     **Now a real signal, not a manual check:** run `reseedBuiltInRolePerms` with
+     `{ dryRun: true }` and read `coverageAnomalies`. It reports every doc whose `builtIn` is
+     not `true` or whose `builtInKey` is absent or mismatched. That callable is the only code
+     that can see this class at all — it reads all nine `roles/{key}` docs BY ID, whereas the
+     claims pipeline's `where("builtInKey","in",keys)` query only ever inspects docs it
+     MATCHED, so a doc with an absent or mis-cased `builtInKey` is invisible to every one of
+     beacon's three anomaly logs. Reported, not folded into `failed` — `failed` stays the
+     "run `seedRoles` first" shorthand for the `missing` ids, and an anomaly needs a console
+     field edit instead.
+
+     The halves fail differently, and two earlier drafts of this note conflated them:
+     - **Missing `builtIn: true`** → the doc is dropped by the `builtIn === true` filter. Its
+       key stays *uncovered* **unless another `builtIn: true` doc claims the same key**, and
+       when uncovered the seed fallback re-mints — making a deactivation a **silent no-op that
+       `/permisos` reports as a revocation**.
+     - **`builtInKey` absent** → the field query never MATCHES the doc, so its key is uncovered
+       and served from `BUILT_IN_ROLE_PERMS` forever. The one shape no log can see.
+     - **`builtInKey` present but ≠ doc id** → the doc IS returned (the query matches on the
+       field) and does cover the key it names. The hazard is that `reseedBuiltInRolePerms`
+       keys on the doc id, so this doc's permissions **freeze permanently** while `/permisos`
+       shows the role as normal. The SIGNAL differs by sub-case, and the earlier claim that
+       the callable "still returns `ok: true`" is only right for one of them:
+       - the doc's own id **is** a `ROLES` key (e.g. `roles/Member` carrying
+         `builtInKey: "Treasury"`) → read and skipped `not-built-in`, which is not added to
+         `failed`, so `ok: true`;
+       - the doc's own id is **not** a `ROLES` key (e.g. `roles/Tesoreria` carrying
+         `builtInKey: "Treasury"`) → the reseed never reads that doc at all, and instead
+         reports `roles/Treasury` as `missing` + `failed`, so **`ok: false`**.
+
+     Beacon logs the three anomalies it can see (dropped-not-`builtIn`, off-id `builtInKey`,
+     two docs sharing one key) with the per-sub-case reseed signal spelled out; the dry-run
+     report above covers the ones it cannot.
+- **Two log lines to watch after any role write, both new.** `onRoleWritten` now emits a
+  `console.info` fan-out START line (role id + member count) before the loop, so a 540 s
+  timeout — the documented way this fan-out strands members — is no longer byte-for-byte
+  indistinguishable from a clean run: alert on a start with no matching completion. And both
+  `onRoleWritten` and `recomputeAllClaims` re-read the built-in role docs once after their
+  loop and log `staleRoleKeys` if a role doc changed underneath them; the operator response to
+  either is `recomputeAllClaims`. See "the memo is not safe on its own" below.
+- **Two role writes inside 540 s can strand a member, and the fix is observability, not
+  correctness.** `firestoreClaimsDeps` memoizes the built-in role query per deps instance, and
+  `onRoleWritten` / `recomputeAllClaims` each hold one instance for up to 540 s. Deactivate
+  `roles/Treasury`; 60 s later deactivate `roles/Membership`; fan-out A, warmed before the
+  second write, can then write a member's claims back WITH `Membership`'s perms after fan-out B
+  correctly removed them. `retry: false` means no redelivery and no later trigger. The memo is
+  kept (the timeout it prevents is the likelier failure) and a TTL was rejected — it narrows
+  the window while keeping the failure silent. The divergence is logged instead.
 - `reseedBuiltInRolePerms` already skips inactive (`recompute-claims.ts:134-137`) and
   `seedBuiltInRoles` is create-only (`seed-roles.ts:46-49`), so neither resurrects a
   deactivated role. Both get a regression test.

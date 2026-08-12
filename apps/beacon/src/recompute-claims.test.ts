@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { ROLES } from "@luminova/auth/roles";
 import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
-import { planRolePermReseed, type RoleSnapshot } from "./recompute-claims.js";
+import {
+  planRolePermReseed,
+  recomputeClaimsResult,
+  type RoleSnapshot,
+} from "./recompute-claims.js";
 
 function snap(over: Partial<RoleSnapshot> & { id: string }): RoleSnapshot {
   const permissions = over.permissions ?? [];
   return {
     exists: true,
     builtInKey: over.id,
+    builtIn: true,
     locked: false,
     active: true,
     permissions,
@@ -112,5 +117,107 @@ describe("planRolePermReseed", () => {
 
   it("stays far under the 500-write batch limit", () => {
     expect(ROLES.length).toBeLessThan(500);
+  });
+});
+
+/** The one anomaly class the claims-sync logs structurally CANNOT see. Those logs only
+ *  inspect docs the `where("builtInKey","in",keys)` query MATCHED, so a doc whose
+ *  `builtInKey` is absent or mis-cased never matches: its key stays uncovered, the seed
+ *  fallback re-mints, and deactivating that role is a silent no-op `/permisos` still reports
+ *  as a revocation — with nothing logged anywhere. This callable reads all nine docs BY ID,
+ *  so it is the only code that can see them. Deploy-check 3 of docs/specs/role-lifecycle.md,
+ *  as a signal instead of prose. */
+describe("planRolePermReseed coverage anomalies", () => {
+  it("reports nothing for a well-formed doc set", () => {
+    const plan = planRolePermReseed(ROLES.map((id) => snap({ id })));
+    expect(plan.coverageAnomalies).toEqual([]);
+  });
+
+  it("BLOCKING: flags a doc that is not marked builtIn:true — the claims query DROPS it", () => {
+    const plan = planRolePermReseed([snap({ id: "Treasury", builtIn: false })]);
+    expect(plan.coverageAnomalies).toEqual([
+      { id: "Treasury", builtIn: false, builtInKey: "Treasury", problem: "not-marked-built-in" },
+    ]);
+  });
+
+  it("BLOCKING: flags an ABSENT builtInKey — the claims query never MATCHES it", () => {
+    // The shape no log can see: the doc exists and looks fine on /permisos, but the field
+    // query cannot reach it, so its key is served from BUILT_IN_ROLE_PERMS forever.
+    const plan = planRolePermReseed([snap({ id: "Treasury", builtInKey: null })]);
+    expect(plan.coverageAnomalies).toEqual([
+      { id: "Treasury", builtIn: true, builtInKey: null, problem: "built-in-key-missing" },
+    ]);
+  });
+
+  it("flags a MIS-CASED / mismatched builtInKey", () => {
+    const plan = planRolePermReseed([snap({ id: "Treasury", builtInKey: "treasury" })]);
+    expect(plan.coverageAnomalies).toEqual([
+      { id: "Treasury", builtIn: true, builtInKey: "treasury", problem: "built-in-key-mismatch" },
+    ]);
+  });
+
+  it("reports BOTH problems when a doc has neither builtIn:true nor a builtInKey", () => {
+    const plan = planRolePermReseed([snap({ id: "Treasury", builtIn: false, builtInKey: null })]);
+    expect(plan.coverageAnomalies.map((a) => a.problem)).toEqual([
+      "not-marked-built-in",
+      "built-in-key-missing",
+    ]);
+  });
+
+  it("reports a LOCKED or INACTIVE doc too — the claims query does not care that it is unwritable", () => {
+    // Gating the report on the doc being writable would hide the most consequential case:
+    // roles/Admin missing builtIn:true is exactly as invisible to the claims query.
+    const plan = planRolePermReseed([
+      snap({ id: "Admin", locked: true, builtIn: false }),
+      snap({ id: "Treasury", active: false, builtInKey: null }),
+    ]);
+    expect(plan.coverageAnomalies.map((a) => [a.id, a.problem])).toEqual([
+      ["Admin", "not-marked-built-in"],
+      ["Treasury", "built-in-key-missing"],
+    ]);
+  });
+
+  it("does not double-report a MISSING doc, which is already failed", () => {
+    const plan = planRolePermReseed([snap({ id: "Secretary", exists: false, builtIn: false })]);
+    expect(plan.coverageAnomalies).toEqual([]);
+    expect(plan.failed).toEqual(["Secretary"]);
+  });
+
+  it("keeps anomalies OUT of `failed` — `failed` stays the seedRoles shorthand", () => {
+    // `failed` is documented as exactly the `missing` ids ("run seedRoles first"). An anomaly
+    // needs a console field edit instead, so folding it in would break that instruction.
+    const plan = planRolePermReseed([snap({ id: "Treasury", builtIn: false })]);
+    expect(plan.failed).toEqual([]);
+    expect(plan.coverageAnomalies).toHaveLength(1);
+  });
+});
+
+/** `recomputeAllClaims` has no in-repo caller: a human reading the response is the only
+ *  consumer, so nothing but this test pins the contract. Documented beside the operator
+ *  sequence in apps/beacon/CLAUDE.md. */
+describe("recomputeClaimsResult", () => {
+  it("BLOCKING: ok is FALSE whenever any member failed", () => {
+    // This callable IS the backstop for a partial onRoleWritten fan-out, so an ok:true beside
+    // a non-empty failed would report success at the moment members are still stranded.
+    expect(recomputeClaimsResult(120, ["member-a"])).toEqual({
+      ok: false,
+      synced: 120,
+      failed: ["member-a"],
+    });
+  });
+
+  it("ok is true only on a completely clean run", () => {
+    expect(recomputeClaimsResult(120, [])).toEqual({ ok: true, synced: 120, failed: [] });
+  });
+
+  it("ok is true for an empty collection (nothing to sync is not a failure)", () => {
+    expect(recomputeClaimsResult(0, [])).toEqual({ ok: true, synced: 0, failed: [] });
+  });
+
+  it("does not alias the caller's array", () => {
+    const failed = ["member-a"];
+    const result = recomputeClaimsResult(1, failed);
+    failed.push("member-b");
+    expect(result.failed).toEqual(["member-a"]);
   });
 });

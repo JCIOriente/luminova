@@ -149,6 +149,7 @@ splatting an unbounded ref list — fine at 40 docs, a cost/timeout bomb at 4,00
 | `getRolesByIds` did `db.getAll(...refs)` on an uncapped `roleIds` list | Fixed (#145): chunk-at-300 via `chunk()` — `apps/beacon/src/claims-sync/firestore-deps.ts:169` batches over `apps/beacon/src/chunk.ts` |
 | Beacon `onRoleWritten` built-in-role branch scans **all** members — `apps/beacon/src/index.ts:281` | Bounded (#145) by `roleClaimsChanged` early-return: a metadata-only edit skips the scan entirely; a real permission change still scans every holder **by design** — do NOT cap with `.limit()`, which would strand members beyond the cap with stale claims |
 | Backstage `RoleRepository.getAll()` reads the whole `roles` collection — no `where`, no `.limit` — `apps/backstage/src/features/permissions/repositories/role-repository.ts:35` | **Recorded exception**, not drift (see below) |
+| Beacon `getRoleDocsByBuiltInKeys` reads `roles` with `where("builtInKey","in",keys)` and no `.limit` — `apps/beacon/src/claims-sync/firestore-deps.ts` | **Recorded exception**, not drift (see below) — the mirror of the `RoleRepository.getAll()` one, on the trigger side |
 
 **RULE.** Bound every fan-out at the source: filter server-side with `where` (never
 fetch-then-filter on the client), `.limit()` anything user-facing, and chunk `getAll`
@@ -162,9 +163,22 @@ deactivated role, and a `where("active","==",true)` made the role invisible to t
 that could bring it back; a `.limit()` would silently omit a role from the one page whose job
 is to list every power grant — this guardrail's own failure mode, inverted. It is bounded by
 the collection's shape instead: `roles` is Admin-curated (nine built-ins plus a handful of
-customs) and read only by Admins. `role-repository.test.ts:47` pins the absence — both
-`where` and `query` must go uncalled — so re-narrowing it goes red loudly. Full rationale in
+customs) and read only by Admins. `role-repository.test.ts`'s `"BLOCKING: reads the whole
+collection — no active filter"` pins the absence — both `where` and `query` must go uncalled —
+so re-narrowing it goes red loudly. (Cited by test name, not line: the previous citation
+pointed at the file's `beforeEach` rather than the assertions.) Full rationale in
 `docs/specs/role-lifecycle.md` section 7.
+
+**RECORDED EXCEPTION — beacon's `getRoleDocsByBuiltInKeys`.** The trigger-side mirror of the
+above, and it must NEVER get a `.limit()`. A truncated page DROPS a role doc, which un-COVERS
+its `builtInKey`, which makes `resolveMemberPerms` re-mint `BUILT_IN_ROLE_PERMS[key]` through
+its pre-seed fallback: a privilege RESTORATION disguised as a boundedness fix, and silent even
+to the three anomaly logs in that function, since a truncated doc never arrives to be
+inspected. Note the bound is **curation, not the operator** — an earlier comment there claimed
+`in` "bounds this read to ≤30 matched values", which is wrong: `in` caps the number of distinct
+FILTER VALUES at 30, not the result-set size, and the same function logs the case of several
+docs sharing one `builtInKey`. What actually bounds it is that `builtIn`/`builtInKey` are not
+client-writable (rules forbid it), so `roles` stays admin-curated at roughly 9-20 docs.
 
 **GUARD.** `firebase-functions-reviewer` agent (checklist items 12 "Bounded fan-out" +
 13 "Update-path guards") for beacon. Frontend: **human review only.**
