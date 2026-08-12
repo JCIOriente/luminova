@@ -265,6 +265,13 @@ or the guard evaporates.
 `RoleRepository.reactivate(id)` writes `active: true, deletedAt: null`.
 `useReactivateRole()` beside `useDeleteRole()`, same invalidation.
 
+`getAll()` loses its `where` and gains no `.limit`, so it becomes an unbounded collection
+read — a deliberate exception to the repo's "bound every query" guardrail, not drift.
+`roles` is capped in practice by `PERMISSION_CAP`-sized admin curation and is read only by
+Admins, and a `.limit` here would silently omit a role from the one page whose job is to show
+every live power grant — the failure mode the guardrail exists to prevent, inverted. The
+removal of the `where` is asserted by a test, so re-narrowing it goes red loudly.
+
 ## Residuals — documented, not fixed here
 
 **Deactivation revokes perms, never name-keyed authority.** `computeMemberRoles` is pure
@@ -315,6 +322,17 @@ someone who already has broader powers.
 doc — so it mints perms while being invisible on `/permisos`. Pre-existing, and `('active' in
 d)` in `roleLifecycleSafe()` now also denies client updates to it (see Design 6).
 
+**`assignableRoles` filters, it does not repair.** `MemberRolesPanel` keeps a deactivated
+`roleId` in state and re-persists it on save, deliberately — the assignment returns when the
+role does. But `members.roleIds` therefore accumulates ids of roles that may never come back,
+and no scrub path exists anywhere. The panel surfaces them so they are at least visible.
+
+**If prod's `roles/Member` doc lacked `builtInKey`, both the rules bar and the UI bar would
+miss it** — each keys on `builtInKey == 'Member'`. The outcome is inert rather than dangerous:
+the same missing key makes `getRoleDocsByBuiltInKeys` fail to match the doc, so the key stays
+uncovered and the seed fallback mints `Member`'s perms whatever the doc's `active` says.
+Deactivating it would change nothing. Cosmetic inconsistency, not a hole.
+
 **Other follow-ups:** `presidentClaims` mints perms from the static snapshot
 (`tools/scripts/lib/president-claims.mjs:16-18`), so re-running the president seed after a
 deactivation writes stale perms back until the next `onMemberWritten`; a malformed built-in
@@ -323,8 +341,10 @@ doc is dropped by `parseDocs` and re-renders as an `unsynced` row asserting full
 
 ## Deploy notes
 
-- Rules and beacon ship together. Rules alone permit a deactivation that restores seed
-  perms; beacon alone is inert.
+- **Order: beacon → rules → hosting.** Beacon first is inert on its own. Rules before
+  beacon would permit a deactivation that restores seed perms. Hosting before rules ships
+  two buttons whose writes `main`'s rules still deny — `softDelete` on a built-in and
+  `reactivate` on anything — so `/permisos` would offer visibly broken affordances.
 - **Verify before deploying** that prod `roles/Admin` really carries `locked: true` — it is
   the only structural anti-lockout guard, and prod role docs are known to lag the seed.
 - `reseedBuiltInRolePerms` already skips inactive (`recompute-claims.ts:134-137`) and
