@@ -178,19 +178,21 @@ beforeAll(async () => {
       active: false,
       deletedAt: DELETED_AT,
     });
-    // Deactivated on purpose: the checkIns Scanner conjunct is NAME-keyed
-    // (!hasAnyRole(['Scanner'])) and reads no role doc, so the tests below prove the
-    // restriction survives the doc going out of service. Restrictive, so surviving is
-    // the safe direction — a deactivation must never widen anyone's authority.
-    await setDoc(doc(db, "roles/Scanner"), {
-      name: "Escáner",
+    // Anti-lockout probe: a built-in Admin doc whose `locked` is FALSE — exactly the prod
+    // shape docs/specs/role-lifecycle.md warns about (prod role docs lag the seed). With
+    // `locked` false the locked guard does not bite, so a deny here can only be
+    // roleDeactivationAllowed()'s Admin arm. Deactivation is deny-only, so the doc's
+    // lifecycle state never changes; the non-vacuity twin edits `permissions`, a disjoint
+    // field, which is why one doc can serve both.
+    await setDoc(doc(db, "roles/admin_unlocked"), {
+      name: "Administrador (sin locked)",
       description: "",
       builtIn: true,
-      builtInKey: "Scanner",
-      permissions: ["read:Activity", "checkIn:Attendance"],
+      builtInKey: "Admin",
+      permissions: ["manage:all"],
       locked: false,
-      active: false,
-      deletedAt: DELETED_AT,
+      active: true,
+      deletedAt: null,
     });
     await setDoc(doc(db, "terms/2026"), { status: "Activo" });
     await setDoc(doc(db, "activities/act1"), { termId: "2026", category: "Assembly" });
@@ -1682,42 +1684,26 @@ describe("firestore.rules — checkIns", () => {
   it("denies delete when the parent initiative is Finalizado", async () => {
     await assertFails(deleteDoc(doc(as("u", ["Admin"]), "checkIns/c_del_closed")));
   });
-  it("BLOCKING: the Scanner Attendee conjunct survives a Scanner-role deactivation (create arm)", async () => {
-    // Residual documented in docs/specs/role-lifecycle.md: computeMemberRoles is pure
-    // over {trustedGrants, hadScanner} and reads NO role doc, so the `roles` claim keeps
-    // the Scanner name after roles/Scanner is deactivated. The checkIns create arm's
-    // Attendee conjunct is name-keyed and RESTRICTIVE, so surviving is the safe
-    // direction. The rejected alternative — dropping names whose doc is inactive —
-    // would let a member holding Scanner + ActivityManager keep checkIn:Attendance
-    // while shedding the Scanner name, lifting the Attendee restriction. A deactivation
-    // must never widen authority.
-    await assertFails(
-      setDoc(doc(as("s_dead", ["Scanner"]), "checkIns/c_scan_dead_dir"), {
-        memberId: "m1",
-        activityId: "a1",
-        role: "Director",
-      }),
-    );
-  });
-  it("a Scanner can still create an Attendee row while roles/Scanner is deactivated", async () => {
-    // Non-vacuity twin: proves the deny above is the Attendee conjunct biting, not the
-    // whole Scanner lane collapsing.
-    await assertSucceeds(
-      setDoc(doc(as("s_dead", ["Scanner"]), "checkIns/c_scan_dead_att"), {
-        memberId: "m1",
-        activityId: "a1",
-        role: "Attendee",
-      }),
-    );
-  });
-  it("BLOCKING: the Scanner Attendee conjunct survives a Scanner-role deactivation (delete arm)", async () => {
-    // The delete-side mirror: delete carries no request.resource, so the conjunct reads
-    // resource.data.role.
-    await assertFails(deleteDoc(doc(as("s_dead", ["Scanner"]), "checkIns/c_del_director")));
-  });
-  it("a Scanner can still delete an in-window Attendee row while roles/Scanner is deactivated", async () => {
-    await assertSucceeds(deleteDoc(doc(as("s_dead", ["Scanner"]), "checkIns/c_scan_dead_att")));
-  });
+  // REMOVED as vacuous, not lost coverage — do not restore. Four tests here claimed the
+  // Scanner `Attendee` conjunct "survives a roles/Scanner deactivation", leaning on a
+  // deactivated roles/Scanner fixture. They could not fail: firestore.rules never reads a
+  // roles/{id} doc (the only get(/databases/...) calls target positions, activities and
+  // members), and the as() helper above synthesizes the token from permsForRoles(), a
+  // static table in tools/scripts/lib/role-seed.mjs. So the fixture's `active` had zero
+  // causal connection to hasAnyRole(['Scanner']) — the tests passed identically with the
+  // role active, with the fixture deleted, or with the whole role-lifecycle change
+  // reverted. They also coupled to execution order (one case deleted a checkIns doc
+  // another case created) in a suite that seeds once and never resets.
+  //
+  // The rules paths they nominally covered stay pinned NON-vacuously by "denies a Scanner
+  // registering a non-Attendee role" (create arm, twinned with "allows a Scanner to create
+  // an Attendee check-in") and "denies a Scanner deleting a non-Attendee row" (delete arm,
+  // twinned with "allows a Scanner to delete an Attendee row within the window").
+  //
+  // The residual they were meant to guard is real but lives in beacon, not in rules:
+  // computeMemberRoles takes {trustedGrants, hadScanner} and reads no role doc, which is
+  // why a deactivated role keeps its name in the claim. A unit test on that signature is
+  // the honest guard.
 });
 
 describe("firestore.rules — participations", () => {
@@ -2393,6 +2379,83 @@ describe("firestore.rules — roles collection", () => {
       }),
     );
   });
+  it("BLOCKING: denies the born-invisible create — no name, no description, no locked", async () => {
+    // The create arm read `locked` through `.get('locked', false)`, so an OMITTED `locked`
+    // satisfied it and roleIdentityUnchanged() then pinned it absent forever. Nothing
+    // constrained `name`/`description` at all. This exact payload therefore created a doc
+    // that roleDefinitionDocSchema rejects (parseDocs drops it, /permisos never shows it)
+    // while getRolesByIds mints manage:all to any member naming it in roleIds.
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "roles/born_invisible"), {
+        builtIn: false,
+        builtInKey: null,
+        active: true,
+        deletedAt: null,
+        permissions: ["manage:all"],
+      }),
+    );
+  });
+  it("BLOCKING: denies creating a role whose name is not a string", async () => {
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "roles/create_bad_name"), {
+        ...ROLE_DOC,
+        name: 42,
+        permissions: ["manage:all"],
+      }),
+    );
+  });
+  it("denies creating a role with an empty name", async () => {
+    // Mirrors roleDefinitionSchema's name.min(1) — the write schema the admin form uses.
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "roles/create_empty_name"), {
+        ...ROLE_DOC,
+        name: "",
+      }),
+    );
+  });
+  it("denies creating a role with an over-long name", async () => {
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "roles/create_long_name"), {
+        ...ROLE_DOC,
+        name: "x".repeat(101),
+      }),
+    );
+  });
+  it("BLOCKING: denies creating a role whose description is not a string", async () => {
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "roles/create_bad_desc"), {
+        ...ROLE_DOC,
+        description: 42,
+      }),
+    );
+  });
+  it("BLOCKING: denies creating a role whose permissions is not a list", async () => {
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "roles/create_bad_perms"), {
+        ...ROLE_DOC,
+        permissions: "manage:all",
+      }),
+    );
+  });
+  it("BLOCKING: denies a create that OMITS locked — well-formed in every other field", async () => {
+    // The isolating payload for roleShapeValid()'s `('locked' in d)`: everything else is
+    // valid, so nothing but that conjunct can deny it. The old arm read `locked` through
+    // `.get('locked', false)`, which an omission satisfies, and roleIdentityUnchanged()
+    // then pinned the field absent forever — a doc roleDefinitionDocSchema rejects
+    // (locked: z.boolean()) is dropped by parseDocs and invisible on /permisos, while
+    // getRolesByIds mints its permissions to any member naming it in roleIds.
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "roles/create_no_locked"), {
+        name: "Sin locked",
+        description: "",
+        builtIn: false,
+        builtInKey: null,
+        permissions: ["manage:all"],
+        active: true,
+        deletedAt: null,
+      }),
+    );
+  });
   it("denies creating an already-deactivated role", async () => {
     await assertFails(
       setDoc(doc(as("admin-uid", ["Admin"]), "roles/born_dead"), {
@@ -2556,6 +2619,80 @@ describe("firestore.rules — roles collection", () => {
       updateDoc(doc(as("mem-uid", ["Membership"]), "roles/custom_existing"), {
         active: false,
         deletedAt: serverTimestamp(),
+      }),
+    );
+  });
+  it("BLOCKING: denies an update whose name is not a string — invisible on /permisos, live in the pipeline", async () => {
+    // The headline hole roleShapeValid() closes. This write passed every conjunct the
+    // lane had: Admin, not locked, identity untouched, active/deletedAt well-formed. The
+    // doc then failed roleDefinitionDocSchema's name: z.string(), so parseDocs DROPPED it
+    // and /permisos re-rendered the role through its `unsynced` branch showing the SEED
+    // perms — while getRoleDocsByBuiltInKeys read it as active and minted the doc's REAL
+    // manage:all to every holder. Invisible on the page whose job is to show exactly that.
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), {
+        name: 42,
+        permissions: ["manage:all"],
+      }),
+    );
+  });
+  it("denies an update that empties the name", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), { name: "" }),
+    );
+  });
+  it("denies an update with an over-long name", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), { name: "x".repeat(101) }),
+    );
+  });
+  it("denies deleteField('name') — the UI cannot render or repair a nameless role", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), { name: deleteField() }),
+    );
+  });
+  it("BLOCKING: denies an update whose description is not a string", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), { description: 42 }),
+    );
+  });
+  it("BLOCKING: denies an update whose permissions is not a list", async () => {
+    // z.array() rejects a scalar, so the doc vanishes from /permisos while beacon still
+    // reads whatever it can off the raw doc.
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), {
+        permissions: "manage:all",
+      }),
+    );
+  });
+  it("denies deleteField('permissions')", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/ghost_probe"), {
+        permissions: deleteField(),
+      }),
+    );
+  });
+  it("BLOCKING: denies deactivating an Admin-keyed role whose locked is FALSE", async () => {
+    // Anti-lockout must be structural, not prose. `locked: true` is the intended guard, but
+    // prod role docs are documented as lagging the seed, so the spec previously converted
+    // this into a manual pre-deploy check with nothing behind it. If prod's roles/Admin has
+    // `locked` missing or false, this one write strips manage:all chapter-wide through the
+    // unbounded, no-retry members fan-out — and neither seed callable can heal it
+    // (seedBuiltInRoles is create-only, reseedBuiltInRolePerms skips inactive docs).
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/admin_unlocked"), {
+        active: false,
+        deletedAt: serverTimestamp(),
+      }),
+    );
+  });
+  it("allows editing that same unlocked Admin-keyed role's permissions (non-vacuity twin)", async () => {
+    // Proves the deny above is roleDeactivationAllowed()'s Admin arm biting, not the locked
+    // guard or the whole lane. Touches `permissions` only — disjoint from the builtInKey /
+    // locked / active fields the deny reads, so sharing the fixture is order-safe.
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "roles/admin_unlocked"), {
+        permissions: ["manage:all", "read:Member"],
       }),
     );
   });
