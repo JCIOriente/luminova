@@ -65,4 +65,42 @@ describe("roleClaimsChanged", () => {
     const after = { permissions: ["manage:Member"], active: false };
     expect(roleClaimsChanged(before, after)).toBe(false);
   });
+
+  it("BLOCKING: is true when builtIn flips on an ALREADY-INACTIVE role", () => {
+    // Post-three-way, `builtIn` decides coverage, not just contribution:
+    // inactive + builtIn:true is COVERED and mints nothing, while
+    // inactive + builtIn:false is UNCOVERED and re-mints BUILT_IN_ROLE_PERMS[key]
+    // through the seed fallback. So this flip changes every holder's perms and must
+    // fan out. Client-unreachable (roleIdentityUnchanged pins builtIn) — console /
+    // admin-SDK only — but it is exactly the invariant the deleted rule protected.
+    const before = {
+      permissions: ["read:Member"],
+      builtInKey: "Treasury",
+      builtIn: true,
+      active: false,
+    };
+    const after = {
+      permissions: ["read:Member"],
+      builtInKey: "Treasury",
+      builtIn: false,
+      active: false,
+    };
+    expect(roleClaimsChanged(before, after)).toBe(true);
+  });
+
+  it("is true when builtIn flips on an already-inactive role in the restoring direction too", () => {
+    const before = {
+      permissions: ["read:Member"],
+      builtInKey: "Treasury",
+      builtIn: false,
+      active: false,
+    };
+    const after = {
+      permissions: ["read:Member"],
+      builtInKey: "Treasury",
+      builtIn: true,
+      active: false,
+    };
+    expect(roleClaimsChanged(before, after)).toBe(true);
+  });
 });

@@ -28,6 +28,13 @@ const customDoc: RoleDefinition = {
   deletedAt: null,
 };
 
+// Structural stand-in for a firebase Timestamp — isLiveRole only tests null-ness. Paired
+// with every inactive ROLE fixture: roleLifecycleSafe() requires `deletedAt is timestamp`
+// whenever active is false, so `active: false, deletedAt: null` is a shape production can
+// no longer hold. (Position fixtures below keep their own shape — positions are still on
+// softDeleteSafe.)
+const DELETED_AT = { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"];
+
 const presidente = {
   id: "p1",
   title: "Presidente",
@@ -160,6 +167,66 @@ describe("buildRoleOverview", () => {
       expect(rows.filter((row) => row.id === "Admin")).toHaveLength(1);
       expect(rowFor(rows, "Admin").role).toBe(builtInDoc);
       expect(rows).toHaveLength(ROLES.length);
+    });
+  });
+
+  describe("the role lifecycle", () => {
+    it("BLOCKING: a deactivated role's row keeps its STORED permissions, not []", () => {
+      // The update lane still permits editing `permissions` on an inactive doc, and
+      // roleClaimsChanged makes that edit silent — so the stored array is real, editable,
+      // and is exactly what "Reactivar rol" will mint to every holder at once. Reporting
+      // [] would hide it.
+      const rows = buildRoleOverview(
+        [
+          {
+            ...builtInDoc,
+            id: "Treasury",
+            builtInKey: "Treasury",
+            locked: false,
+            active: false,
+            deletedAt: DELETED_AT,
+          },
+        ],
+        [],
+        [],
+        "2026",
+      );
+      expect(firstRow(rows).active).toBe(false);
+      expect(firstRow(rows).permissions).toEqual(["manage:all"]);
+    });
+
+    it("an active:true + deletedAt-set ghost row is reported inactive", () => {
+      const rows = buildRoleOverview(
+        [{ ...customDoc, id: "c1", deletedAt: DELETED_AT }],
+        [],
+        [],
+        "2026",
+      );
+      expect(firstRow(rows).active).toBe(false);
+    });
+
+    it("an unsynced built-in row is reported ACTIVE — the seed fallback really is minting", () => {
+      const rows = buildRoleOverview([], [], [], "2026");
+      expect(rows).toHaveLength(ROLES.length);
+      for (const row of rows) expect(row.active).toBe(true);
+    });
+
+    it("a live role's row is reported active", () => {
+      const rows = buildRoleOverview([builtInDoc], [], [], "2026");
+      expect(firstRow(rows).active).toBe(true);
+    });
+
+    it("still counts holders and granting cargos for a deactivated role", () => {
+      // holders routes through effectiveRoles, pure over positions.grants — doc-state
+      // independent. The count is the blast radius of a reactivation.
+      const rows = buildRoleOverview(
+        [{ ...builtInDoc, active: false, deletedAt: DELETED_AT }],
+        [presidente],
+        [olivia],
+        "2026",
+      );
+      expect(rowFor(rows, "Admin").holders).toEqual([{ id: "m0", name: "Olivia" }]);
+      expect(rowFor(rows, "Admin").grantingCargos).toEqual(["Presidente"]);
     });
   });
 

@@ -5,6 +5,7 @@ import {
   type Role,
   type RoleDefinition,
 } from "@luminova/types";
+import { isLiveRole } from "./role-lifecycle";
 
 export interface RoleDisplay {
   label: string;
@@ -28,18 +29,65 @@ export function roleDisplay(
   return displayOf(key, findDoc(key, roleDocs));
 }
 
+/** The doc that speaks for a built-in key, preferring a LIVE claimant.
+ *
+ *  Two docs CAN claim one key (console-authorable only — clients may not write `builtInKey`
+ *  — and beacon logs the condition), and beacon then unions the live ones, so the key IS
+ *  minting. Taking the first match instead made that order-dependent: with a dead doc sorted
+ *  ahead of a live one, `roleLifecycleDisplay` printed "(desactivado)" for a key that
+ *  `previewEffectivePerms` and beacon both agree is in service — the same order-dependence
+ *  the perms side already closed by grouping per key rather than mapping. Preferring the
+ *  live claimant makes the marker agree with both, and the label come from the doc whose
+ *  perms are actually minting. */
 function findDoc(
   key: Role,
   roleDocs: readonly RoleDefinition[] | undefined,
 ): RoleDefinition | null {
-  return roleDocs?.find((role) => role.builtInKey === key) ?? null;
+  const claiming = (roleDocs ?? []).filter((role) => role.builtInKey === key);
+  return claiming.find(isLiveRole) ?? claiming[0] ?? null;
 }
 
+/** `.trim()` before the `||`, not just for tidiness: rules `name.size() >= 1` accepts "   "
+ *  and cannot trim, so a console-written whitespace name is a doc production can hold. Bare
+ *  `doc?.name ||` reads it as truthy and renders the role with a BLANK label — worse than
+ *  the snapshot fallback, since the row then names nothing at all. The write path trims too
+ *  (roleDefinitionSchema); this covers the docs that predate it. */
 function displayOf(key: Role, doc: RoleDefinition | null): RoleDisplay {
   return {
-    label: doc?.name || ROLE_LABELS[key],
-    description: doc?.description || ROLE_DESCRIPTIONS[key],
+    label: doc?.name.trim() || ROLE_LABELS[key],
+    description: doc?.description.trim() || ROLE_DESCRIPTIONS[key],
   };
+}
+
+/** Whether the key is currently minting perms. TRUE with no doc: beacon's
+ *  BUILT_IN_ROLE_PERMS fallback really is minting, so "desactivado" would be the
+ *  opposite of the truth. */
+function inService(doc: RoleDefinition | null): boolean {
+  return doc === null || isLiveRole(doc);
+}
+
+/** The ONE definition of the out-of-service marker text. Three surfaces show it — the
+ *  cargo grants picker, the cargo grants column and the per-member cargo summary — and
+ *  they sit on the same or adjacent screens, so a second copy of this string is a
+ *  cross-surface disagreement waiting to happen. */
+function markedLabel(display: RoleDisplay, doc: RoleDefinition | null): string {
+  return inService(doc) ? display.label : `${display.label} (desactivado)`;
+}
+
+/** Like `roleDisplay`, but the label states whether the role is still in service.
+ *
+ *  For surfaces that assert AUTHORITY — what a cargo confers, what a member's cargos
+ *  grant. A deactivated role mints nothing (the beacon three-way), so rendering its name
+ *  bare under such a heading states perms nobody has. Plain `roleDisplay` stays unmarked
+ *  for surfaces that merely resolve a stored value's name (sent history, /permisos rows,
+ *  which carry their own "Desactivado" badge). */
+export function roleLifecycleDisplay(
+  key: Role,
+  roleDocs: readonly RoleDefinition[] | undefined,
+): RoleDisplay {
+  const doc = findDoc(key, roleDocs);
+  const display = displayOf(key, doc);
+  return { label: markedLabel(display, doc), description: display.description };
 }
 
 /** Every built-in role paired with its live doc, or `null` where none is seeded — the
@@ -58,12 +106,16 @@ export function builtInRoles(
  *  stored value, so an option list built from the docs would silently hide a grant already
  *  stored on a cargo whenever its role doc is missing or inactive — the admin would then be
  *  making authorization decisions from a display that omits a live power grant. Deriving
- *  from ROLES keeps the list total; a missing doc costs a fallback label, never an option. */
+ *  from ROLES keeps the list total; a missing doc costs a fallback label, never an option.
+ *
+ *  A DEACTIVATED built-in keeps its option for exactly that reason, but says so in its
+ *  label. A role with NO doc is not marked: beacon's BUILT_IN_ROLE_PERMS fallback really
+ *  is minting its perms, so "desactivado" would be the opposite of the truth. */
 export function roleOptions(
   roleDocs: readonly RoleDefinition[] | undefined,
 ): { value: Role; label: string }[] {
   return builtInRoles(roleDocs).map(({ key, doc }) => ({
     value: key,
-    label: displayOf(key, doc).label,
+    label: markedLabel(displayOf(key, doc), doc),
   }));
 }

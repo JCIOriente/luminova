@@ -3,12 +3,15 @@ import { DataTable, EmptyState, Icon, type DataTableColumn } from "@luminova/ui"
 import type { Position, RoleDefinition } from "@luminova/types";
 import { RowAction } from "../../../components/row-action";
 import { Can } from "../../../lib/authz/ability-context";
-import { roleDisplay } from "../../../lib/role-display";
+import { roleLifecycleDisplay } from "../../../lib/role-display";
 import { useRoles } from "../../permissions/hooks/use-roles";
 
+// roleLifecycleDisplay, not roleDisplay: this column states what the cargo confers, and
+// the grants PICKER on the same screen already marks a deactivated role "(desactivado)" —
+// unmarked here, the table and the edit form disagreed about the same grant.
 function grantsLabel(position: Position, roleDocs: RoleDefinition[] | undefined): string {
   if (position.grants.length === 0) return "—";
-  return position.grants.map((grant) => roleDisplay(grant, roleDocs).label).join(", ");
+  return position.grants.map((grant) => roleLifecycleDisplay(grant, roleDocs).label).join(", ");
 }
 
 function PositionActions({
@@ -100,7 +103,9 @@ export function PositionSection({
 }: PositionSectionProps) {
   // Error deliberately unhandled: grantsLabel degrades to the seed snapshot label rather
   // than blanking the Permisos column. The cargo rows themselves come from usePositions,
-  // which does surface its error — a roles outage must not take the whole table down.
+  // which does surface its error — a roles outage must not take the whole table down. The
+  // cost is that a deactivated grant reads UNMARKED during such an outage, the same
+  // degradation the grants picker takes: both read the one roles query.
   const { data: roleDocs } = useRoles();
   const columns = useMemo(
     () => (variant === "cargo" ? cargoColumns(roleDocs) : COMISION_COLUMNS),

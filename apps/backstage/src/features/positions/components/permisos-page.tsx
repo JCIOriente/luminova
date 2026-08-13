@@ -6,7 +6,7 @@ import { usePositions } from "../hooks/use-positions";
 import { useMembers } from "../../members/hooks/use-members";
 import { useRoles } from "../../permissions/hooks/use-roles";
 import { buildRoleOverview } from "../../permissions/lib/role-overview";
-import { RolesPanel } from "../../permissions/components/roles-panel";
+import { RolesPanel, type SectionState } from "../../permissions/components/roles-panel";
 import { PageHeader } from "../../../components/page-header";
 import { QueryErrorState } from "../../../components/query-error-state";
 import { useCan } from "../../../lib/authz/use-can";
@@ -22,14 +22,12 @@ export function PermisosPage() {
     data: positions,
     isLoading: positionsLoading,
     isError: positionsError,
-    error: positionsErr,
     refetch: refetchPositions,
   } = usePositions({ enabled: isAdmin });
   const {
     data: members,
     isLoading: membersLoading,
     isError: membersError,
-    error: membersErr,
     refetch: refetchMembers,
   } = useMembers({ enabled: isAdmin });
   const {
@@ -52,9 +50,11 @@ export function PermisosPage() {
     );
   }
 
-  const isLoading = positionsLoading || membersLoading || rolesLoading;
-  const isError = positionsError || membersError || rolesError;
-  const loadError = positionsErr ?? membersErr ?? rolesErr;
+  const retryAll = () => {
+    refetchPositions();
+    refetchMembers();
+    refetchRoles();
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -68,24 +68,44 @@ export function PermisosPage() {
           </Link>
         }
       />
-      {isError ? (
-        <QueryErrorState
-          error={loadError}
-          onRetry={() => {
-            refetchPositions();
-            refetchMembers();
-            refetchRoles();
-          }}
-        />
-      ) : isLoading ? (
+      {/* Only the `roles` query gates the panel. Unioning all three used to fail the
+          whole page closed — including the ONLY affordance that can restore a
+          deactivated role, so one bad members read made it permanently unrestorable.
+          positions/members degrade inside the panel instead: each section says
+          "Cargando…" or "No disponible" rather than rendering an empty list as fact. */}
+      {rolesError ? (
+        <QueryErrorState error={rolesErr} onRetry={retryAll} />
+      ) : rolesLoading ? (
         <div className="flex flex-col gap-3">
           <Skeleton className="h-28 w-full" />
           <Skeleton className="h-28 w-full" />
           <Skeleton className="h-28 w-full" />
         </div>
       ) : (
-        <RolesPanel rows={rows} />
+        <RolesPanel
+          rows={rows}
+          cargosState={sectionState(positionsLoading, positionsError)}
+          // The JOIN of both inputs, not the members query alone. `holders` is computed by
+          // effectiveRoles(member, positionsById, …), which resolves each cargo's grants out
+          // of the positions map — so with positions unavailable that map is empty, every
+          // member collapses to ["Member"], and each other row's holder list comes back [].
+          // Reported as "ok" that empty list became a FACT: "Afecta a 0 miembros activos"
+          // right before a write that fans out through an unbounded, no-retry members scan.
+          // Unreachable under the old union gate (the page failed closed); the per-section
+          // split opened it, so the state has to follow the data dependency.
+          holdersState={sectionState(
+            membersLoading || positionsLoading,
+            membersError || positionsError,
+          )}
+        />
       )}
     </div>
   );
+}
+
+function sectionState(isLoading: boolean, isError: boolean): SectionState {
+  // Error before loading: a partial outage must not paint a spinner forever while one
+  // query retries.
+  if (isError) return "error";
+  return isLoading ? "loading" : "ok";
 }

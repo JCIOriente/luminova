@@ -1,18 +1,28 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { RoleDefinition } from "@luminova/types";
 import type { RoleOverviewRow } from "../lib/role-overview";
 
 const addMutate = vi.fn().mockResolvedValue("new-id");
 const updateMutate = vi.fn().mockResolvedValue(undefined);
 const deleteMutate = vi.fn().mockResolvedValue(undefined);
+const reactivateMutate = vi.fn().mockResolvedValue(undefined);
 vi.mock("../hooks/use-save-role", () => ({
   useAddRole: () => ({ mutateAsync: addMutate }),
   useUpdateRole: () => ({ mutateAsync: updateMutate }),
   useDeleteRole: () => ({ mutateAsync: deleteMutate }),
+  useReactivateRole: () => ({ mutateAsync: reactivateMutate }),
 }));
 
-import { RolesPanel } from "./roles-panel";
+import { RolesPanel, type SectionState } from "./roles-panel";
+
+// Both section states are REQUIRED props, so every render states them. Spread FIRST so a
+// test that varies one can override it after.
+const STATES: { cargosState: SectionState; holdersState: SectionState } = {
+  cargosState: "ok",
+  holdersState: "ok",
+};
 
 // Drifted off ROLE_LABELS.Admin / ROLE_DESCRIPTIONS.Admin on purpose: byte-identical
 // fixtures would pass even if the panel ignored its props and rendered the snapshot.
@@ -47,9 +57,14 @@ const unsyncedRow: RoleOverviewRow = {
   label: "Proyectos",
   description: "Gestionar proyectos.",
   permissions: ["manage:Project"],
+  active: true,
   grantingCargos: [],
   holders: [],
 };
+
+// Structural stand-in for a firebase Timestamp — the panel only tests null-ness, and the
+// real class would drag the firestore SDK into a component test.
+const DELETED_AT = { seconds: 1, nanoseconds: 0 } as unknown as RoleDefinition["deletedAt"];
 
 function rowFor(doc: RoleDefinition, over: Partial<RoleOverviewRow> = {}): RoleOverviewRow {
   return {
@@ -59,6 +74,7 @@ function rowFor(doc: RoleDefinition, over: Partial<RoleOverviewRow> = {}): RoleO
     label: doc.name,
     description: doc.description,
     permissions: doc.permissions,
+    active: doc.active && doc.deletedAt === null,
     grantingCargos: [],
     holders: [],
     ...over,
@@ -69,12 +85,14 @@ beforeEach(() => {
   addMutate.mockClear();
   updateMutate.mockClear();
   deleteMutate.mockClear();
+  reactivateMutate.mockClear();
 });
 
 describe("RolesPanel", () => {
   it("renders one row per role with its cargos and holders", () => {
     render(
       <RolesPanel
+        {...STATES}
         rows={[
           rowFor(adminDoc, {
             grantingCargos: ["Presidente"],
@@ -93,26 +111,31 @@ describe("RolesPanel", () => {
     // Production built-in docs carry description: "". buildRoleOverview resolves that to
     // the snapshot text; the panel must render what it was handed, not re-read the doc.
     const blank = { ...adminDoc, description: "" };
-    render(<RolesPanel rows={[rowFor(blank, { description: "Acceso total a la plataforma." })]} />);
+    render(
+      <RolesPanel
+        {...STATES}
+        rows={[rowFor(blank, { description: "Acceso total a la plataforma." })]}
+      />,
+    );
     expect(screen.getByText("Acceso total a la plataforma.")).toBeInTheDocument();
   });
 
   it("labels a custom role's origin as direct assignment", () => {
     // "Otorgado por: <cargo>" is structurally impossible for a custom role.
-    render(<RolesPanel rows={[rowFor(customDoc)]} />);
+    render(<RolesPanel {...STATES} rows={[rowFor(customDoc)]} />);
     expect(screen.getByText(/Asignación directa/)).toBeInTheDocument();
   });
 
   it("truncates a long holder list", () => {
     // The Miembro row lists the whole chapter; 7 holders must render 5 names + "y 2 más".
     const holders = Array.from({ length: 7 }, (_, i) => ({ id: `m${i}`, name: `Socio${i}` }));
-    render(<RolesPanel rows={[rowFor(adminDoc, { holders })]} />);
+    render(<RolesPanel {...STATES} rows={[rowFor(adminDoc, { holders })]} />);
     expect(screen.getByText(/y 2 más/)).toBeInTheDocument();
     expect(screen.queryByText(/Socio5/)).not.toBeInTheDocument();
   });
 
   it("marks a built-in role that has no seeded doc and offers no editor for it", () => {
-    render(<RolesPanel rows={[unsyncedRow]} />);
+    render(<RolesPanel {...STATES} rows={[unsyncedRow]} />);
     expect(screen.getByText("Sin sincronizar")).toBeInTheDocument();
     expect(screen.getByText("Proyectos")).toBeInTheDocument();
     // No doc to write to — updateRole on a missing doc would fail.
@@ -127,7 +150,7 @@ describe("RolesPanel", () => {
     ["an unsynced built-in", () => unsyncedRow, "Predefinido", "Personalizado"],
     ["a custom role", () => rowFor(customDoc), "Personalizado", "Predefinido"],
   ])("badges %s as %s", (_name, row, expected, absent) => {
-    render(<RolesPanel rows={[row()]} />);
+    render(<RolesPanel {...STATES} rows={[row()]} />);
     expect(screen.getByText(expected)).toBeInTheDocument();
     expect(screen.queryByText(absent)).not.toBeInTheDocument();
   });
@@ -137,7 +160,7 @@ describe("RolesPanel", () => {
     // spells an unseeded key produces two rows sharing `row.id`.
     const collidingCustom = { ...customDoc, id: "ProjectManager", name: "Proyectos (viejo)" };
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    render(<RolesPanel rows={[unsyncedRow, rowFor(collidingCustom)]} />);
+    render(<RolesPanel {...STATES} rows={[unsyncedRow, rowFor(collidingCustom)]} />);
     expect(screen.getByText("Proyectos")).toBeInTheDocument();
     expect(screen.getByText("Proyectos (viejo)")).toBeInTheDocument();
     expect(consoleError).not.toHaveBeenCalled();
@@ -145,8 +168,321 @@ describe("RolesPanel", () => {
   });
 
   it("offers the editor for a seeded role", () => {
-    render(<RolesPanel rows={[rowFor(customDoc)]} />);
+    render(<RolesPanel {...STATES} rows={[rowFor(customDoc)]} />);
     expect(screen.getByRole("button", { name: "Editar" })).toBeInTheDocument();
     expect(screen.queryByText("Sin sincronizar")).not.toBeInTheDocument();
+  });
+
+  it("BLOCKING: a deactivated row shows its STORED perm count plus the reactivation promise", () => {
+    const dead = {
+      ...customDoc,
+      active: false,
+      deletedAt: DELETED_AT,
+      permissions: ["manage:Ally", "read:Position"] as RoleDefinition["permissions"],
+    };
+    render(<RolesPanel {...STATES} rows={[rowFor(dead)]} />);
+    expect(screen.getByText("Desactivado")).toBeInTheDocument();
+    expect(
+      screen.getByText(/2 permisos · inactivo — se otorgarán al reactivar/),
+    ).toBeInTheDocument();
+  });
+
+  it("does not badge or annotate an active row", () => {
+    render(<RolesPanel {...STATES} rows={[rowFor(customDoc)]} />);
+    expect(screen.queryByText("Desactivado")).not.toBeInTheDocument();
+    expect(screen.queryByText(/se otorgarán al reactivar/)).not.toBeInTheDocument();
+  });
+
+  it("BLOCKING: an inactive BUILT-IN row says name-keyed authority survived the deactivation", () => {
+    // computeMemberRoles is pure over positions.grants and reads no role doc, so the
+    // `roles` claim keeps a deactivated built-in's NAME: canCurateFeatured(), the Scanner
+    // conjunct, the /positions nav allowlist and the board layout all still fire. The row
+    // must not read as a total revocation.
+    render(
+      <RolesPanel
+        {...STATES}
+        rows={[rowFor({ ...adminDoc, locked: false, active: false, deletedAt: DELETED_AT })]}
+      />,
+    );
+    expect(screen.getByText(/accesos ligados al nombre del rol/i)).toBeInTheDocument();
+    expect(screen.getByText(/cargos que lo otorgan/i)).toBeInTheDocument();
+  });
+
+  it("omits the name-keyed clause for a CUSTOM role (its name never reaches the claim)", () => {
+    // computeMemberRoles filters through ROLES, so a custom role's name is unrepresentable
+    // in the claim — there is no name-keyed authority to survive.
+    render(
+      <RolesPanel
+        {...STATES}
+        rows={[rowFor({ ...customDoc, active: false, deletedAt: DELETED_AT })]}
+      />,
+    );
+    expect(screen.queryByText(/accesos ligados al nombre del rol/i)).not.toBeInTheDocument();
+  });
+
+  it("omits the name-keyed clause on an ACTIVE built-in row", () => {
+    render(<RolesPanel {...STATES} rows={[rowFor(adminDoc)]} />);
+    expect(screen.queryByText(/accesos ligados al nombre del rol/i)).not.toBeInTheDocument();
+  });
+
+  it("labels the holder list 'Miembros activos' (not the complete blast radius)", () => {
+    // useMembers() filters where('active','==',true) while the onRoleWritten fan-out has
+    // no active filter (index.ts:298), so soft-deleted members with a surviving Auth user
+    // DO receive the perms. The count must not be presented as complete.
+    render(
+      <RolesPanel
+        {...STATES}
+        rows={[rowFor(customDoc, { holders: [{ id: "m0", name: "Olivia" }] })]}
+      />,
+    );
+    expect(screen.getByText("Miembros activos:")).toBeInTheDocument();
+  });
+});
+
+describe("RolesPanel reactivation", () => {
+  const dead = {
+    ...customDoc,
+    active: false,
+    deletedAt: DELETED_AT,
+    permissions: ["manage:Ally", "read:Position"] as RoleDefinition["permissions"],
+  };
+
+  it("offers Reactivar rol only on a deactivated row", () => {
+    render(<RolesPanel {...STATES} rows={[rowFor(dead), rowFor(customDoc)]} />);
+    expect(screen.getAllByRole("button", { name: "Reactivar rol" })).toHaveLength(1);
+  });
+
+  it("offers no Reactivar rol for an unsynced built-in (no doc to write to)", () => {
+    render(<RolesPanel {...STATES} rows={[unsyncedRow]} />);
+    expect(screen.queryByRole("button", { name: "Reactivar rol" })).not.toBeInTheDocument();
+  });
+
+  it("BLOCKING: the confirmation states the perms set and the holder count before writing", async () => {
+    // Reactivation mints this exact set to every holder at once, through an unbounded
+    // no-retry members scan. The admin must see WHAT and to WHOM before confirming.
+    const user = userEvent.setup();
+    render(
+      <RolesPanel {...STATES} rows={[rowFor(dead, { holders: [{ id: "m0", name: "Olivia" }] })]} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+
+    expect(screen.getByText(/1 miembro activo/)).toBeInTheDocument();
+    expect(screen.getByText("Gestionar Aliados")).toBeInTheDocument();
+    expect(screen.getByText("Ver Cargos")).toBeInTheDocument();
+    expect(reactivateMutate).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Reactivar" }));
+    expect(reactivateMutate).toHaveBeenCalledWith("custom-1");
+  });
+
+  it("Cancelar closes the confirmation without writing", async () => {
+    const user = userEvent.setup();
+    render(<RolesPanel {...STATES} rows={[rowFor(dead)]} />);
+    await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(reactivateMutate).not.toHaveBeenCalled();
+  });
+
+  it("does not re-open the confirmation when a vanished row comes back", async () => {
+    // parseDocs drops a doc whose zod parse fails, so a row can leave the list and RETURN
+    // on repair. The derived `open` flag alone closed the dialog but kept the id, and Radix
+    // fires onOpenChange on interaction — not on a controlled `open` flip — so the overlay
+    // re-opened with no click, over a row the admin had moved on from.
+    const user = userEvent.setup();
+    const { rerender } = render(<RolesPanel {...STATES} rows={[rowFor(dead)]} />);
+    await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+    expect(screen.getByRole("button", { name: "Reactivar" })).toBeInTheDocument();
+
+    rerender(<RolesPanel {...STATES} rows={[]} />);
+    expect(screen.queryByRole("button", { name: "Reactivar" })).not.toBeInTheDocument();
+
+    rerender(<RolesPanel {...STATES} rows={[rowFor(dead)]} />);
+    expect(screen.queryByRole("button", { name: "Reactivar" })).not.toBeInTheDocument();
+  });
+
+  it("BLOCKING: offers no Reactivar rol on the locked doc — rules deny every update to it", () => {
+    // The roles `allow update` arm in firestore.rules requires `locked == false` for ANY
+    // update (cited by arm, not by line number — these citations have gone stale three
+    // times on this branch as the surrounding comment block grew), so the
+    // write is denied before it reaches roleLifecycleSafe(). Prod role docs are known to
+    // lag the seed, and a console write can leave roles/Admin inactive: the affordance
+    // would appear and 403.
+    render(
+      <RolesPanel
+        {...STATES}
+        rows={[rowFor({ ...adminDoc, active: false, deletedAt: DELETED_AT })]}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Reactivar rol" })).not.toBeInTheDocument();
+    expect(screen.getByText(/consola de Firebase/i)).toBeInTheDocument();
+  });
+
+  it("BLOCKING: surfaces a rejected reactivation and keeps the confirmation open", async () => {
+    // Nothing catches a rejected mutation globally — query-client.ts wires QueryCache only,
+    // with no MutationCache.onError, and useReactivateRole sets no onError. Without a local
+    // catch this is an unhandled promise rejection: no message, dialog stuck open.
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    reactivateMutate.mockRejectedValueOnce(new Error("permission-denied"));
+    render(<RolesPanel {...STATES} rows={[rowFor(dead)]} />);
+
+    await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+    await user.click(screen.getByRole("button", { name: "Reactivar" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo reactivar el rol.");
+    expect(screen.getByRole("button", { name: "Reactivar" })).toBeInTheDocument();
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it("clears a stale reactivation error when the confirmation is reopened", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    reactivateMutate.mockRejectedValueOnce(new Error("permission-denied"));
+    render(<RolesPanel {...STATES} rows={[rowFor(dead)]} />);
+
+    await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+    await user.click(screen.getByRole("button", { name: "Reactivar" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    consoleError.mockRestore();
+  });
+
+  it.each([["loading"], ["error"]] as const)(
+    "BLOCKING: does not assert a holder count in the confirmation while holders are %s",
+    async (state) => {
+      // permisos-page keeps the panel alive on membersError so the only restore affordance
+      // survives a members outage — which means `holders: []` there is "unknown", not zero.
+      // Asserting "0 miembros activos" as fact would understate the blast radius of a write
+      // that fans out through an unbounded no-retry members scan.
+      const user = userEvent.setup();
+      render(<RolesPanel {...STATES} rows={[rowFor(dead)]} holdersState={state} />);
+      await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+
+      expect(screen.getByText(/desconocido/i)).toBeInTheDocument();
+      expect(screen.queryByText(/0 miembros activos/)).not.toBeInTheDocument();
+    },
+  );
+
+  it("still states the count when the holders query is ok", async () => {
+    const user = userEvent.setup();
+    render(<RolesPanel {...STATES} rows={[rowFor(dead)]} holdersState="ok" />);
+    await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+    expect(screen.getByText(/0 miembros activos/)).toBeInTheDocument();
+    expect(screen.queryByText(/desconocido/i)).not.toBeInTheDocument();
+  });
+
+  it("BLOCKING: does not assert a holder count in the EDITOR while holders are degraded", async () => {
+    // The editor's deactivate paragraph is the same last-human-check before the same
+    // unbounded fan-out, so it owes the same honesty.
+    const user = userEvent.setup();
+    render(<RolesPanel {...STATES} rows={[rowFor(customDoc)]} holdersState="error" />);
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+
+    expect(screen.getByText(/número desconocido de miembros activos/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Afecta a 0 miembros activos/)).not.toBeInTheDocument();
+  });
+});
+
+describe("RolesPanel overlays track the live row", () => {
+  const dead = {
+    ...customDoc,
+    active: false,
+    deletedAt: DELETED_AT,
+    permissions: ["manage:Ally"] as RoleDefinition["permissions"],
+  };
+
+  it("BLOCKING: a background refetch updates the OPEN reactivation confirmation", async () => {
+    // The overlay stored a COPY of the row, so a refetch of roles/members/positions
+    // updated `rows` and left the dialog asserting pre-refetch facts — the permission set
+    // and the holder count, which are the two things it exists to state before a write
+    // that fans out to the whole members collection.
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <RolesPanel {...STATES} rows={[rowFor(dead, { holders: [{ id: "m0", name: "Olivia" }] })]} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+    expect(screen.getByText(/1 miembro activo/)).toBeInTheDocument();
+    expect(screen.getByText("Gestionar Aliados")).toBeInTheDocument();
+
+    rerender(
+      <RolesPanel
+        {...STATES}
+        rows={[
+          rowFor(
+            { ...dead, permissions: ["read:Position"] as RoleDefinition["permissions"] },
+            {
+              holders: [
+                { id: "m0", name: "Olivia" },
+                { id: "m1", name: "Bruno" },
+              ],
+            },
+          ),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText(/2 miembros activos/)).toBeInTheDocument();
+    expect(screen.getByText("Ver Cargos")).toBeInTheDocument();
+    expect(screen.queryByText("Gestionar Aliados")).not.toBeInTheDocument();
+  });
+
+  it("BLOCKING: a background refetch updates the OPEN editor's holder count", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<RolesPanel {...STATES} rows={[rowFor(customDoc)]} />);
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    expect(screen.getByText(/Afecta a 0 miembros activos/)).toBeInTheDocument();
+
+    rerender(
+      <RolesPanel
+        {...STATES}
+        rows={[rowFor(customDoc, { holders: [{ id: "m0", name: "Olivia" }] })]}
+      />,
+    );
+
+    expect(screen.getByText(/Afecta a 1 miembro activo/)).toBeInTheDocument();
+  });
+
+  it("closes an open overlay whose row disappeared from the refetched list", async () => {
+    // The correct outcome: the target is gone, so there is nothing left to assert facts
+    // about. Better than an overlay describing a role that no longer exists.
+    const user = userEvent.setup();
+    const { rerender } = render(<RolesPanel {...STATES} rows={[rowFor(dead)]} />);
+    await user.click(screen.getByRole("button", { name: "Reactivar rol" }));
+    expect(screen.getByRole("button", { name: "Reactivar" })).toBeInTheDocument();
+
+    rerender(<RolesPanel {...STATES} rows={[]} />);
+
+    expect(screen.queryByRole("button", { name: "Reactivar" })).not.toBeInTheDocument();
+  });
+
+  it("titles the Sheet 'Ver rol' for the locked role whose trigger reads 'Ver'", async () => {
+    // The locked Admin form is entirely read-only and its trigger says "Ver", so
+    // "Editar rol" above it promised an edit the rules deny.
+    const user = userEvent.setup();
+    render(<RolesPanel {...STATES} rows={[rowFor(adminDoc)]} />);
+    await user.click(screen.getByRole("button", { name: "Ver" }));
+    // By role: Sheet renders the title as both a heading and an sr-only description.
+    expect(screen.getByRole("heading", { name: "Ver rol" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Editar rol" })).not.toBeInTheDocument();
+  });
+});
+
+describe("RolesPanel ghost doc (active: true + deletedAt set)", () => {
+  it("BLOCKING: offers Reactivar rol and NOT Desactivar rol — never both", async () => {
+    // A console-produced ghost is live to where('active','==',true) and dead to beacon's
+    // isActiveRoleDoc. RolesPanel routes through isLiveRole via row.active; the editor read
+    // raw role.active, so the two buttons appeared side by side.
+    const user = userEvent.setup();
+    const ghost = { ...customDoc, active: true, deletedAt: DELETED_AT };
+    render(<RolesPanel {...STATES} rows={[rowFor(ghost)]} />);
+
+    expect(screen.getByRole("button", { name: "Reactivar rol" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    expect(screen.queryByRole("button", { name: "Desactivar rol" })).not.toBeInTheDocument();
   });
 });

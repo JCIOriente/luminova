@@ -368,6 +368,145 @@ service cloud.firestore {
     function roleIdentityUnchanged() {
       return unchanged('builtIn') && unchanged('builtInKey') && unchanged('locked');
     }
+    // Roles are the ONE collection whose soft-delete is REVERSIBLE: a built-in role
+    // must be able to go out of service and come back. softDeleteSafe() is one-way and
+    // shared by four other collections (members, positions, allies) — it must NOT
+    // change; member resurrection is pinned denied in tests/firestore-rules/rules.test.ts
+    // ("denies resurrecting a soft-deleted member").
+    //
+    // What this closes: this repo's two definitions of "inactive" disagree.
+    // roleDefinitionDocSchema requires `active: z.boolean()`, so a malformed doc is
+    // dropped by parseDocs and becomes invisible to the UI, while beacon's
+    // isActiveRoleDoc reads `active !== false`, so the same doc stays LIVE and keeps
+    // minting perms. Both halves of that ghost must be unwritable:
+    //   - (d.active is bool): a string "false" is LIVE to isActiveRoleDoc and invisible
+    //     to the UI. Only this conjunct catches it once deletedAt is well-formed — a
+    //     mutation test pins that ("denies a non-bool active even with a well-formed
+    //     deletedAt");
+    //   - the active<->deletedAt coupling: active:true + deletedAt set is live to
+    //     getAll()'s where and dead to the pipeline — assignable everywhere, minting
+    //     nothing, and for a built-in also COVERED, so the seed fallback vanishes too;
+    //   - (d.deletedAt is timestamp): the inactive branch accepts an unchanged deletedAt
+    //     (see below), and on a doc whose deletedAt is already null that alone would let
+    //     active:false through — inactive with no stamp, which the UI reads as still
+    //     restorable. This conjunct is what rejects it.
+    // The two `in` checks add no authorization outcome on their own: reading an absent
+    // key ERRORS, and an erroring rule already denies. They are here so a missing field
+    // denies CLEANLY rather than by evaluation error — the same reason this file prefers
+    // .get() on the resource side (softDeleteSafe's bare resource.data.active errors on a
+    // doc missing the field). Don't remove them on a "no test covers it" argument; no
+    // test CAN, because nothing becomes allowed.
+    // deletedAt value forgery has no authorization effect (every consumer tests
+    // null-ness only, never ordering); `== request.time` is audit hygiene on the
+    // DEACTIVATING write. It cannot be required of every write that merely leaves the
+    // doc inactive: RoleRepository.update writes name/description/permissions only, and
+    // an inactive role's stored `permissions` must stay editable (it is what "Reactivar
+    // rol" mints to every holder at once). unchanged('deletedAt') covers exactly that
+    // no-op case — the null -> value transition can never satisfy it, so the stamp stays
+    // pinned to request.time where it matters.
+    function roleLifecycleSafe() {
+      let d = request.resource.data;
+      return ('active' in d) && (d.active is bool) && ('deletedAt' in d)
+        && (d.active == true ? d.deletedAt == null
+                            : d.deletedAt is timestamp
+                              && (unchanged('deletedAt') || d.deletedAt == request.time));
+    }
+    // roleDefinitionDocSchema (packages/types/src/role-definition-doc-schema.ts) requires
+    // EIGHT well-formed fields, pinned in three places — so read all three before concluding
+    // this guard is schema-complete on its own:
+    //   `active` / `deletedAt`  — roleLifecycleSafe() above.
+    //   `name` / `description` / `permissions` / `locked` — this helper, applied to the
+    //     create AND update arms so their SHAPE checks cannot drift apart.
+    //   `builtIn` / `builtInKey` — pinned by VALUE, not shape: literals on create, and
+    //     roleIdentityUnchanged() on update, which admits only a value equal to the
+    //     resource's, so no off-type or off-enum value is client-introducible.
+    //
+    // Why SHAPE belongs in an authorization rule: this repo's two readers of a role doc
+    // disagree about what malformed means. parseDocs DROPS a doc that fails the zod schema
+    // (client-side console.error only), so /permisos re-renders that role through its
+    // `unsynced` branch showing the SEED perms — while beacon's getRoleDocsByBuiltInKeys /
+    // getRolesByIds read the raw doc and mint its REAL `permissions`. So an Admin write of
+    // `{name: 42, permissions: ['manage:all']}`, or a create omitting `name`/`locked`
+    // entirely, produces a role that is INVISIBLE on the page whose job is to show every
+    // power grant while LIVE in the perms pipeline indefinitely. Each type check here is
+    // the only thing between an Admin write and that ghost:
+    //   name / description  is string  -> z.string() rejects a number, doc vanishes;
+    //   permissions         is list    -> z.array() rejects a scalar, same;
+    //   locked              is bool    -> z.boolean() rejects anything else, same.
+    // `name.size() >= 1` mirrors roleDefinitionSchema's `.min(1)` (the WRITE schema).
+    // `<= 100` has NO zod counterpart — a rules-only storage bound, the same ceiling this
+    // file already uses for `leads.name`, and ~6x the longest real label ("Comité
+    // Ejecutivo", 16 chars). roleDefinitionSchema's PERMISSION_CAP is deliberately NOT
+    // mirrored: it is a curation bound with no ghost consequence (an over-cap role is
+    // visible and merely fail-closes its holders), and hardcoding 30 here with no drift
+    // guard behind it is the claim-without-a-check guardrail #6 forbids.
+    // A list whose ELEMENTS are not strings cannot be caught here — rules have no
+    // element-wise quantifier. That ghost is closed on the READER side instead:
+    // roleDefinitionDocSchema now filters invalid codes rather than rejecting the whole doc,
+    // mirroring permsFromRoleDoc, so both readers of `permissions` compute the same set and
+    // no such doc can be invisible on /permisos while live in the perms pipeline. Fixing it
+    // here would have meant hardcoding all 78 permission codes in rules — a claim with no
+    // drift guard behind it, which is what guardrail #6 forbids.
+    //
+    // The `in` checks carry roleLifecycleSafe's cost: a legacy role doc missing any of the
+    // four becomes admin-SDK-only to edit. Accepted — the alternative is a rule that cannot
+    // tell a legacy doc from a forged one. `locked` in particular must be `in`-checked and
+    // not read through `.get('locked', false)`: an omitted `locked` satisfied that default,
+    // and roleIdentityUnchanged() then pinned it absent forever.
+    // Which of these conjuncts a mutation sweep can actually turn red, measured rather than
+    // asserted (each neutralized to `true` in turn, full suite re-run):
+    //   RED alone      — name.size() >= 1, name.size() <= 100, description is string,
+    //                    permissions is list, and each arm's roleShapeValid() call site.
+    //   RED only jointly — the `name is string`/`size()` triple (a non-string `name` is
+    //                    caught by .size() ERRORING once `is string` is gone, so `is string`
+    //                    alone reads green; drop all three and the `name: 42` tests go red)
+    //                    and the `('locked' in d)`/`locked is bool` pair (same reason).
+    //   NEVER red      — the four `in` checks and `locked is bool`. An absent-key read errors
+    //                    and an erroring rule already denies, so removing them makes nothing
+    //                    ALLOWED; they buy a clean denial, not a guard. `locked is bool` is
+    //                    additionally redundant today because both arms pin the VALUE
+    //                    (`locked == false` on create, unchanged('locked') over a
+    //                    `locked == false` resource on update) — it goes live only if that
+    //                    loosens. Recorded so nobody counts them as coverage (guardrail #6).
+    // One conjunct per line so a sweep can neutralize each in isolation — the leads-create
+    // arm below carries a byte-identical `name` triple on a single line.
+    function roleShapeValid() {
+      let d = request.resource.data;
+      return ('name' in d)
+        && d.name is string
+        && d.name.size() >= 1
+        && d.name.size() <= 100
+        && ('description' in d)
+        && d.description is string
+        && ('permissions' in d)
+        && d.permissions is list
+        && ('locked' in d)
+        && d.locked is bool;
+    }
+    // Two built-in keys must never go inactive, for DIFFERENT reasons — named separately so
+    // neither rationale is lost to a refactor:
+    //   Member — computeMemberRoles injects "Member" into every claim unconditionally
+    //     (compute-roles.ts:9), so deactivating it strips read:Member / read:MemberPoints /
+    //     read:Activity / read:Program / read:Project from every provisioned user in the
+    //     chapter via an unbounded, no-retry members scan (index.ts:298), collapsing nav and
+    //     route access chapter-wide. An admin who wants that empties its `permissions`
+    //     instead — no lifecycle asymmetry, still visible on /permisos. NOT the same effect,
+    //     though: packages/auth/src/ability.ts confers CASL grants keyed on the Member role
+    //     NAME, and those survive an emptied permissions array, so the UI keeps offering
+    //     surfaces whose writes the rules then deny. The better of two imperfect options.
+    //   Admin — anti-lockout. `locked: true` is the intended guard and the seed sets it, but
+    //     prod role docs are documented in this repo as lagging the seed. Resting
+    //     anti-lockout on `locked` alone turns it into a manual pre-deploy instruction with
+    //     nothing behind it (guardrail #6): if prod's roles/Admin has `locked` missing or
+    //     false, one Admin write deactivates it and strips manage:all chapter-wide through
+    //     that same fan-out. Structural, keyed on builtInKey like the Member bar.
+    // Both are RULES guards, so the admin SDK and the Firebase console still bypass them —
+    // residual documented in docs/specs/role-lifecycle.md.
+    function roleDeactivationAllowed() {
+      let key = resource.data.get('builtInKey', null);
+      return request.resource.data.get('active', true) == true
+        || (key != 'Member' && key != 'Admin');
+    }
     // Role definitions (editable RBAC). Permission sets here feed Auth custom claims
     // via the beacon onRoleWritten trigger, so writes are Admin-only — the same trust
     // boundary as positions.grants. Signed-in read so the admin UI can render role
@@ -378,18 +517,28 @@ service cloud.firestore {
       // (bypasses rules). Forbidding builtIn/builtInKey on client create closes the
       // impostor that spoofs a built-in key to double-grant perms in the trigger.
       allow create: if hasAnyRole(['Admin'])
+        && roleShapeValid()
         && request.resource.data.builtIn == false
         && request.resource.data.builtInKey == null
-        && request.resource.data.get('locked', false) == false;
-      // The locked (Admin) role is immutable. Identity fields can't change. A built-in
-      // role can't be deactivated (that would silently restore its seed perms via the
-      // trigger fallback) — only permissions/name/description are editable.
+        && request.resource.data.get('locked', false) == false
+        // Close the same INACTIVE-vs-MISSING ambiguity on create. `.get(…, false)` and an
+        // explicit key check, not a bare read: a create OMITTING the field must deny
+        // cleanly, and `.get('deletedAt', null) == null` would let an omission through.
+        && request.resource.data.get('active', false) == true
+        && ('deletedAt' in request.resource.data)
+        && request.resource.data.deletedAt == null;
+      // A `locked` role is immutable. Identity fields can't change. Every write must leave
+      // a doc that BOTH readers agree on (roleShapeValid + roleLifecycleSafe). A built-in
+      // role MAY otherwise be deactivated and reactivated — the perms consequence is
+      // handled by beacon's three-way resolution (an inactive doc covers its key and
+      // contributes nothing), not by a rules ban. The two exceptions, and why each is
+      // keyed on builtInKey rather than on `locked`, are in roleDeactivationAllowed().
       allow update: if hasAnyRole(['Admin'])
         && resource.data.get('locked', false) == false
         && roleIdentityUnchanged()
-        && softDeleteSafe()
-        && (resource.data.get('builtIn', false) != true
-            || request.resource.data.get('active', true) == true);
+        && roleShapeValid()
+        && roleLifecycleSafe()
+        && roleDeactivationAllowed();
       allow delete: if false;
     }
 

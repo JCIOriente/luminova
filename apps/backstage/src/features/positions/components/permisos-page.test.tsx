@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactElement, ReactNode } from "react";
 import type { AuthClaims } from "@luminova/auth/roles";
 import { ROLES } from "@luminova/types";
@@ -32,6 +33,7 @@ vi.mock("../../permissions/hooks/use-save-role", () => ({
   useAddRole: () => ({ mutateAsync: vi.fn() }),
   useUpdateRole: () => ({ mutateAsync: vi.fn() }),
   useDeleteRole: () => ({ mutateAsync: vi.fn() }),
+  useReactivateRole: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock("@tanstack/react-router", async (orig) => ({
   ...(await orig<typeof import("@tanstack/react-router")>()),
@@ -71,52 +73,142 @@ describe("PermisosPage — Admin-role gate", () => {
   });
 });
 
-// Each hook is pinned INDEPENDENTLY. Unioned with `||`, dropping any one term still leaves
-// the other two driving both branches, so a suite that only ever fails `roles` stays green
-// while a positions outage renders every row as "Ningún cargo lo otorga" — a wrong
-// authorization picture presented as fact, with no error block.
-const QUERIES = ["positions", "members", "roles"] as const;
-
-describe.each(QUERIES)("PermisosPage — the %s query alone drives both branches", (key) => {
-  it("puts the page in its single loading state", () => {
-    stubs[key] = { ...stubs.idle(), isLoading: true };
+// REVERSES the previous union-gating suite (`describe.each(QUERIES)`), which pinned
+// positions/members/roles as EACH driving both page branches. That was correct while the
+// page's only alternative was rendering "Ningún cargo lo otorga" / "Nadie aún" for a
+// failed query — a wrong authorization picture presented as fact. It is wrong now: the
+// only affordance that can RESTORE a deactivated role lives in RolesPanel, and gating it
+// on an unrelated members read makes a deactivated role permanently unrestorable in the
+// UI. The panel now labels each degraded section explicitly instead, so nothing empty is
+// ever presented as authoritative.
+describe("PermisosPage — the roles query alone gates the panel", () => {
+  it("puts the page in its loading state while roles loads", () => {
+    stubs.roles = { ...stubs.idle(), isLoading: true };
     const { container } = renderWith(admin, <PermisosPage />);
     expect(container.querySelectorAll(".animate-skeleton").length).toBeGreaterThan(0);
     expect(screen.queryByRole("heading", { name: "Roles" })).not.toBeInTheDocument();
-    expect(screen.queryByText("No se pudo cargar")).not.toBeInTheDocument();
   });
 
-  it("puts the page in its single error state, surfacing that query's error", () => {
-    stubs[key] = { ...stubs.idle(), isError: true, error: new Error(`${key} boom`) };
+  it("puts the page in its error state when roles fails", () => {
+    stubs.roles = { ...stubs.idle(), isError: true, error: new Error("roles boom") };
     const { container } = renderWith(admin, <PermisosPage />);
     expect(screen.getAllByText("No se pudo cargar")).toHaveLength(1);
     expect(screen.queryByRole("heading", { name: "Roles" })).not.toBeInTheDocument();
     expect(container.querySelectorAll(".animate-skeleton")).toHaveLength(0);
   });
 
-  it("lets the error branch win over a still-loading sibling", () => {
-    // isError is checked before isLoading: a partial outage must not paint a skeleton
-    // forever while one query retries.
-    stubs[key] = { ...stubs.idle(), isError: true, error: new Error(`${key} boom`) };
-    for (const other of QUERIES) {
-      if (other !== key) stubs[other] = { ...stubs.idle(), isLoading: true };
-    }
+  it("lets the roles error win over a still-loading roles retry", () => {
+    stubs.roles = { ...stubs.idle(), isError: true, isLoading: true, error: new Error("boom") };
     const { container } = renderWith(admin, <PermisosPage />);
     expect(screen.getAllByText("No se pudo cargar")).toHaveLength(1);
     expect(container.querySelectorAll(".animate-skeleton")).toHaveLength(0);
   });
 });
 
+describe.each(["positions", "members"] as const)(
+  "PermisosPage — a %s outage degrades one section, never the page",
+  (key) => {
+    it("still renders the roles panel (the only restore affordance)", () => {
+      stubs[key] = { ...stubs.idle(), isError: true, error: new Error(`${key} boom`) };
+      renderWith(admin, <PermisosPage />);
+      expect(screen.getByRole("heading", { name: "Roles" })).toBeInTheDocument();
+      expect(screen.queryByText("No se pudo cargar")).not.toBeInTheDocument();
+    });
+
+    it("labels its own section 'No disponible' instead of an empty state", () => {
+      stubs[key] = { ...stubs.idle(), isError: true, error: new Error(`${key} boom`) };
+      renderWith(admin, <PermisosPage />);
+      expect(screen.getAllByText("No disponible").length).toBeGreaterThan(0);
+    });
+
+    it("labels its own section 'Cargando…' while it loads", () => {
+      stubs[key] = { ...stubs.idle(), isLoading: true };
+      renderWith(admin, <PermisosPage />);
+      expect(screen.getByRole("heading", { name: "Roles" })).toBeInTheDocument();
+      expect(screen.getAllByText("Cargando…").length).toBeGreaterThan(0);
+    });
+  },
+);
+
+// The one case a prop-injected RolesPanel test cannot express: `holders` is a JOIN of
+// members AND positions, so `holdersState` must be the join of both queries' states.
+// roles-panel.test.tsx passes holdersState in directly, and every other page test stubs
+// `data: []` for all three queries — so a positions outage passed on originLabel's
+// "No disponible" alone while the holders line silently asserted zero.
+describe("PermisosPage — holders is a join, so its section state is too", () => {
+  const seededRole = {
+    id: "Treasury",
+    name: "Tesorería",
+    description: "Ve las cuentas.",
+    builtIn: true,
+    builtInKey: "Treasury",
+    permissions: ["read:Member"],
+    locked: false,
+    active: true,
+    deletedAt: null,
+  };
+  // A member holding the Treasury cargo. effectiveRoles resolves the cargo's grants out of
+  // positionsById, so with positions unavailable that map is EMPTY and every member here
+  // collapses to ["Member"] — the holders list for every other row comes back [].
+  const member = { id: "m1", name: "Ana", active: true, positions: {} };
+
+  it("BLOCKING: reports the holder count as UNKNOWN when positions failed but members did not", () => {
+    stubs.roles = { ...stubs.idle(), data: [seededRole] };
+    stubs.members = { ...stubs.idle(), data: [member] };
+    stubs.positions = { ...stubs.idle(), isError: true, error: new Error("positions boom") };
+    renderWith(admin, <PermisosPage />);
+
+    // Wiring holdersState off the members query alone made this "Nadie aún", and the
+    // deactivate/reactivate confirmations then printed "0 miembros activos" as FACT —
+    // immediately before a write that fans out through an unbounded, no-retry members scan.
+    expect(screen.queryByText("Nadie aún")).not.toBeInTheDocument();
+    expect(screen.getAllByText("No disponible").length).toBeGreaterThan(0);
+  });
+
+  it("BLOCKING: prints the unknown-count phrase, not a zero, in the deactivate copy", async () => {
+    const user = userEvent.setup();
+    stubs.roles = { ...stubs.idle(), data: [seededRole] };
+    stubs.members = { ...stubs.idle(), data: [member] };
+    stubs.positions = { ...stubs.idle(), isError: true, error: new Error("positions boom") };
+    renderWith(admin, <PermisosPage />);
+
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    expect(screen.getByText(/número desconocido de miembros activos/i)).toBeInTheDocument();
+    expect(screen.queryByText(/0 miembros? activos?/)).not.toBeInTheDocument();
+  });
+
+  it("still reports a KNOWN count when both inputs of the join resolved", async () => {
+    // The complement, so the fix cannot be "always unknown": with positions available the
+    // count is a fact again and must print as one.
+    const user = userEvent.setup();
+    stubs.roles = { ...stubs.idle(), data: [seededRole] };
+    stubs.members = { ...stubs.idle(), data: [member] };
+    renderWith(admin, <PermisosPage />);
+
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    expect(screen.queryByText(/número desconocido/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Afecta a 0 miembros activos/)).toBeInTheDocument();
+  });
+
+  it("BLOCKING: reports UNKNOWN while positions is still loading", () => {
+    stubs.roles = { ...stubs.idle(), data: [seededRole] };
+    stubs.members = { ...stubs.idle(), data: [member] };
+    stubs.positions = { ...stubs.idle(), isLoading: true };
+    renderWith(admin, <PermisosPage />);
+    expect(screen.queryByText("Nadie aún")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Cargando…").length).toBeGreaterThan(0);
+  });
+});
+
 describe("PermisosPage — query states", () => {
-  it("renders exactly one error block when several queries fail", () => {
-    // RoleManager used to run its own useRoles with its own branches, so one outage
-    // painted two error blocks on the same screen.
-    stubs.roles = { ...stubs.idle(), isError: true, error: new Error("boom") };
+  it("BLOCKING: renders the panel even when BOTH side queries fail", () => {
+    // The regression this replaces: one bad members read made a deactivated role
+    // permanently unrestorable.
+    stubs.positions = { ...stubs.idle(), isError: true, error: new Error("boom") };
     stubs.members = { ...stubs.idle(), isError: true, error: new Error("boom") };
-    const { container } = renderWith(admin, <PermisosPage />);
-    expect(screen.getAllByText("No se pudo cargar")).toHaveLength(1);
-    expect(screen.queryByRole("heading", { name: "Roles" })).not.toBeInTheDocument();
-    expect(container.querySelectorAll(".animate-skeleton")).toHaveLength(0);
+    renderWith(admin, <PermisosPage />);
+    expect(screen.getByRole("heading", { name: "Roles" })).toBeInTheDocument();
+    expect(screen.queryByText("No se pudo cargar")).not.toBeInTheDocument();
   });
 
   it("refetches all three queries from the single retry button", async () => {

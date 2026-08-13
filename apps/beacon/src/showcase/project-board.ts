@@ -5,6 +5,7 @@ import {
   isSurfaceableStatus,
   type BoardShowcaseItem,
 } from "@luminova/types/engine";
+import { isSafeDocId } from "../firestore-util.js";
 
 // The portrait backs a public <img> on the no-auth site, and members are writable
 // by Admin/Membership (and the member themselves) — so a member's profilePicture is
@@ -44,15 +45,10 @@ export function currentCargoId(member: Record<string, unknown>, termKey: string)
   const term = (positions as Record<string, unknown>)[termKey];
   if (!term || typeof term !== "object") return null;
   const cargoId = (term as { cargoId?: unknown }).cargoId;
-  // cargoId flows into a `positions/${cargoId}` doc-path template. A "/" would reach into
-  // a nested reference; the rest are ids the client SDK accepts but the SERVER rejects
-  // with a permanent INVALID_ARGUMENT — and this trigger runs retry:true, so a permanent
-  // throw is a redelivery loop. Screen them here so the projection stays no-throw.
-  if (typeof cargoId !== "string" || cargoId.length === 0 || cargoId.includes("/")) return null;
-  if (cargoId === "." || cargoId === "..") return null;
-  if (cargoId.startsWith("__") && cargoId.endsWith("__")) return null;
-  if (new TextEncoder().encode(cargoId).length > 1500) return null;
-  return cargoId;
+  // cargoId flows into a `positions/${cargoId}` doc-path template, and this trigger runs
+  // retry:true — a db.doc() throw would be a redelivery loop. Screen it (shared with the
+  // claims-sync roleIds path) so the projection stays no-throw.
+  return isSafeDocId(cargoId) ? cargoId : null;
 }
 
 /**

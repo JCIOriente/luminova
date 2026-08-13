@@ -66,6 +66,24 @@ stays a "sin sincronizar" row on `/permisos` forever. Run:
 Skipping step 1 is the failure mode to watch for; skipping step 2 leaves every incumbent
 role on its old perms.
 
+**`recomputeAllClaims` return contract.** `{ ok, synced, failed }` where **`ok` is
+`failed.length === 0`** — false whenever any member's sync threw. Nothing in this repo calls
+it, so a human reading the response is the only consumer; the contract is pinned by
+`recomputeClaimsResult` in `recompute-claims.ts` and its unit test rather than resting on that
+reading. `synced` counts provisioned members only (a member doc with no `uid` is skipped
+without counting), and `failed` holds member doc ids. A stale-role-snapshot warning is
+**logged, not folded into `ok`** — `ok` keeps one meaning (per-member failures), and re-running
+is the response to both.
+
+**Run step 2 as `{ dryRun: true }` first and read `coverageAnomalies`.** It is the only signal
+anywhere for built-in docs whose `builtIn` is not `true` or whose `builtInKey` is absent or
+mismatched. Those docs are invisible to all three of beacon's claims-sync anomaly logs, which
+only inspect docs the `where("builtInKey","in",keys)` query MATCHED — this callable reads all
+nine `roles/{key}` docs BY ID. An uncovered key is re-minted from the seed snapshot, so
+deactivating such a role is a silent no-op that `/permisos` reports as a revocation. Reported
+separately from `failed`, which stays the "run `seedRoles` first" shorthand for `missing` ids;
+an anomaly needs a console field edit instead.
+
 **OWNER-OP, after the reseed — the Secretario cargo, in this order.** The reseed strips the
 Ally trio (`read:Ally`, `create:Ally`, `update:Ally`) from `Membership`; `Secretary` is where
 those live now. But the code-side cargo mapping (`packages/types/src/cel-positions.ts`,
@@ -113,6 +131,17 @@ strands the members that scan had not yet reached. **Operator instruction: run
 `recomputeAllClaims` afterwards as the observable backstop** — noting it is itself an
 unbounded scan, so on a large collection the backstop shares the failure mode. Re-running
 the reseed is free — `roleClaimsChanged` short-circuits a no-op write.
+
+**BLAST RADIUS — the two log lines that make a stranded member visible.** A 540 s timeout used
+to log NOTHING (the aggregate line was `if (failed > 0)`), so it was indistinguishable from a
+clean run. `onRoleWritten` now emits a `console.info` START line (role id, `builtInKey`, member
+count) before the fan-out: **alert on a start with no matching completion.** Separately, the
+built-in role query is memoized per deps instance while `onRoleWritten` and
+`recomputeAllClaims` each hold one for up to 540 s — so a role write landing mid-fan-out means
+later members were computed from a pre-change snapshot, with `retry: false` and no later
+trigger to correct them. Both now re-read once after their loop and log `staleRoleKeys`.
+Operator response to either line: `recomputeAllClaims`. A TTL was rejected — it narrows the
+window while keeping the failure silent.
 
 **BLAST RADIUS — data exposure.** Reseeding `roles/Member` moves it from `[]` to five
 coarse reads including `read:Member`, and *every* provisioned user carries the `Member`

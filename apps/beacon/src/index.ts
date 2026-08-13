@@ -300,14 +300,47 @@ export const onRoleWritten = onDocumentWritten(
       ? members
       : members.where("roleIds", "array-contains", event.params.id);
     const { docs } = await query.get();
+    // START line, before the loop. The aggregate line below is conditional, so a 540 s
+    // TIMEOUT — the documented way this fan-out strands members (apps/beacon/CLAUDE.md,
+    // BLAST RADIUS) — used to log nothing at all, byte-for-byte indistinguishable from a
+    // clean run. With this, a start without a matching completion is itself the alertable
+    // signal. Counts only, no member identity: no PII.
+    console.info("onRoleWritten fan-out starting", {
+      roleId: event.params.id,
+      builtInKey,
+      members: docs.length,
+    });
+    let scanned = 0;
+    let failed = 0;
     for (const doc of docs) {
       const member = parseMember(doc.data());
       if (!member.uid) continue;
+      scanned += 1;
       try {
         await syncMemberClaims(deps, member, termKey);
       } catch (err) {
+        failed += 1;
         console.error("onRoleWritten member re-sync failed", { memberId: doc.id, err });
       }
+    }
+    // The deps memo served every member above from ONE built-in role read taken at the top
+    // of this invocation, and this handler can run for 540 s. Re-read once now: if a role
+    // doc changed under the fan-out, some members were written from a stale snapshot and —
+    // retry:false, no later trigger — nothing else will ever correct them. See the long
+    // comment on builtInDocsCache in claims-sync/firestore-deps.ts. One extra query.
+    const staleRoleKeys = await deps.staleBuiltInRoleKeys();
+    // ONE aggregate line for the whole fan-out. The per-member logs above are the only
+    // record otherwise, and with retry:false there is no redelivery: a partial fan-out
+    // needs a single event an alert can key on, and the counts are what tell "one bad
+    // member" apart from "the scan mostly failed". Silent on a clean run so the line
+    // itself is the signal. Operator response for BOTH conditions: recomputeAllClaims.
+    if (failed > 0 || staleRoleKeys.length > 0) {
+      console.error("onRoleWritten fan-out incomplete — run recomputeAllClaims", {
+        roleId: event.params.id,
+        scanned,
+        failed,
+        staleRoleKeys,
+      });
     }
   },
 );
