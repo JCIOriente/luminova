@@ -12,7 +12,7 @@ import type { Role, RoleDefinition } from "@luminova/types";
  *      chapter-wide.
  *  Keyed on builtInKey exactly as the rules clause is — a UI mirror keyed on a different
  *  field renders an affordance the write then denies (guardrail #6, "claim == reality"). */
-export const UNDEACTIVATABLE_BUILT_IN_KEYS: readonly Role[] = ["Member", "Admin"];
+const UNDEACTIVATABLE_BUILT_IN_KEYS: readonly Role[] = ["Member", "Admin"];
 
 export function isUndeactivatableRole(role: RoleDefinition): boolean {
   return role.builtInKey !== null && UNDEACTIVATABLE_BUILT_IN_KEYS.includes(role.builtInKey);
