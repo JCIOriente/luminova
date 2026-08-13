@@ -21,11 +21,14 @@ export const permissionCodeSchema = z.enum(
  *  escape is shortening the name, which this bound now makes a form error rather than a
  *  generic "No se pudo guardar".
  *
- *  On the two length functions agreeing: rules `String.size()` is CEL, i.e. Unicode code
- *  points; JS `.length` is UTF-16 code units, which is >= the code-point count for every
- *  string (astral chars count 2). So this bound is never LOOSER than the rules one — a name
- *  this schema accepts always satisfies `size() <= 100`. The residual is a false rejection
- *  of a 100-code-point name containing astral characters, not a lockout. */
+ *  On the two length functions agreeing — MEASURED against the rules emulator, not reasoned.
+ *  An earlier draft of this comment asserted `String.size()` counts Unicode code points and
+ *  concluded this bound was merely "never looser". That premise was wrong. Three probes:
+ *  100 astral emoji (100 code points / 200 UTF-16 units) is DENIED by the rule; 100 `é`
+ *  (100 UTF-16 units / 200 UTF-8 bytes) is ALLOWED; 100 ASCII is allowed. So `size()` counts
+ *  UTF-16 code units — exactly what `.length` counts, and not bytes. The mirror is EXACT in
+ *  both directions: this schema accepts a name iff the rule does, so there is no false 403
+ *  the form fails to pre-empt, and no false client rejection either. */
 export const ROLE_NAME_MAX_LENGTH = 100;
 
 export const roleDefinitionSchema = z.object({
