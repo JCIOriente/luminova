@@ -1,9 +1,11 @@
 import type { Role } from "@luminova/auth/roles";
-import { resolveEffectivePerms } from "@luminova/auth/perms";
-import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
+import { resolveBuiltInPerms } from "@luminova/auth/built-in-perms";
 import type { PermissionCode, RoleDefinition } from "@luminova/types";
 
-/** A built-in role doc as this resolver consumes it.
+/** A built-in role doc as this resolver's PORT produces it. Structurally the shared
+ *  `BuiltInRoleDoc` from `@luminova/auth/built-in-perms` — restated here rather than
+ *  aliased so `firestore-deps.ts` keeps a beacon-local name to build against, and checked
+ *  by the compiler where `resolveBuiltInPerms` consumes it below, with no cast.
  *
  *  `live` is deliberately NOT `RoleDefinition["active"]`, and this type is deliberately
  *  not a `Pick` of the doc shape: liveness is the TWO-field predicate `isActiveRoleDoc`
@@ -35,11 +37,13 @@ export interface RolePermsDeps {
  *  the built-in roles they hold (via positions), their directly-assigned custom
  *  roles, and their per-member overrides.
  *
- *  Three-way per built-in key:
- *    - doc ABSENT              → BUILT_IN_ROLE_PERMS[key] (the pre-seed window must
- *                                still mint perms on a fresh project)
- *    - doc present, live       → the doc's stored `permissions`
- *    - doc present, not live   → nothing, and the key stays COVERED
+ *  This function owns the FETCH orchestration only; the absent/live/inactive three-way
+ *  — including the `BUILT_IN_ROLE_PERMS` fallback — lives in `resolveBuiltInPerms`
+ *  (`@luminova/auth/built-in-perms`), shared with the backstage assignment preview so the
+ *  admin authorizes from the same resolution beacon then mints. `PERMISSION_CAP` stays out
+ *  of the shared half: this side fail-closes to `perms: []` in `sync.ts`, backstage blocks
+ *  Save. Liveness DERIVATION also stays here (`isActiveRoleDoc` reads `DocumentData`),
+ *  only its consumption is shared.
  *
  *  Two production callers inherit this: claims-sync/sync.ts (the onMemberWritten /
  *  onRoleWritten trigger) and set-user-roles.ts (the setUserRoles admin callable). */
@@ -52,13 +56,6 @@ export async function resolveMemberPerms(
   const builtInDocs = builtInRoleNames.length
     ? await deps.getRoleDocsByBuiltInKeys(builtInRoleNames)
     : [];
-  const covered = new Set(builtInDocs.map((doc) => doc.builtInKey));
-  const fallback = builtInRoleNames
-    .filter((role) => !covered.has(role))
-    .map((role) => ({ permissions: BUILT_IN_ROLE_PERMS[role] }));
   const customDocs = roleIds.length ? await deps.getRolesByIds(roleIds) : [];
-  return resolveEffectivePerms({
-    roleDocs: [...builtInDocs.filter((doc) => doc.live), ...fallback, ...customDocs],
-    overrides,
-  });
+  return resolveBuiltInPerms({ builtInRoleNames, builtInDocs, customDocs, overrides });
 }

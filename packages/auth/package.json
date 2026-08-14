@@ -19,6 +19,11 @@
       "import": "./dist/perms.js",
       "default": "./dist/perms.js"
     },
+    "./built-in-perms": {
+      "types": "./src/built-in-perms.ts",
+      "import": "./dist/built-in-perms.js",
+      "default": "./dist/built-in-perms.js"
+    },
     "./test-helpers": {
       "types": "./src/test-helpers.ts",
       "import": "./dist/test-helpers.js",

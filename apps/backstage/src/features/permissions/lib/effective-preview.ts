@@ -1,26 +1,19 @@
-import { resolveEffectivePerms } from "@luminova/auth/perms";
-import {
-  BUILT_IN_ROLE_PERMS,
-  type PermissionCode,
-  type Role,
-  type RoleDefinition,
-} from "@luminova/types";
+import { resolveBuiltInPerms } from "@luminova/auth/built-in-perms";
+import type { PermissionCode, Role, RoleDefinition } from "@luminova/types";
 import { assignableRoles, isLiveRole } from "../../../lib/role-lifecycle";
 
 /** Client-side mirror of the beacon resolution for the member-assignment preview:
  *  effective perms = built-in roles (held via positions) ∪ selected custom roles ∪
  *  override grants − revokes.
  *
- *  Three-way per built-in key, mirroring resolveMemberPerms:
- *    - NO doc claims the key → the BUILT_IN_ROLE_PERMS snapshot (pre-seed window)
- *    - doc(s) claim it, live → the UNION of their permissions
- *    - doc(s) claim it, none live → nothing, and the key stays COVERED (so the
- *                              snapshot must NOT come back)
+ *  The three-way itself is NOT reimplemented here — it is `resolveBuiltInPerms`
+ *  (`@luminova/auth/built-in-perms`), the same function beacon's `resolveMemberPerms`
+ *  delegates to, so preview and mint cannot drift. This file owns only the PORT: which
+ *  docs claim a key, and whether each is live. `PERMISSION_CAP` is likewise not applied
+ *  here — the role editor blocks Save on it; beacon fail-closes instead.
  *
- *  Grouped per key, not mapped: two docs may claim one builtInKey, and beacon computes
- *  coverage over every doc it read and unions the live ones. A Map would keep only the
- *  last, making this preview disagree with the perms that get minted — and disagree
- *  differently depending on the sort order it happened to receive.
+ *  Every doc claiming the key is passed through, live or not: coverage is what suppresses
+ *  the snapshot, liveness is what contributes perms.
  *
  *  NOT parity, and it cannot be: this reads `RoleDefinition[]` already through `parseDocs` +
  *  `roleDefinitionDocSchema`, so a doc the zod schema rejects is dropped before it arrives
@@ -48,19 +41,20 @@ export function previewEffectivePerms(input: {
   overrides: { grant: PermissionCode[]; revoke: PermissionCode[] };
 }): PermissionCode[] {
   const byId = new Map(assignableRoles(input.allRoles).map((r) => [r.id, r]));
-  const builtInDocs = input.builtInRoleNames.flatMap((name) => {
-    // Every doc claiming the key, live or not: coverage is what suppresses the snapshot,
-    // liveness is what contributes perms. One flatMap so `builtInKey === name` narrows
-    // the Role type without a cast.
-    const claiming = input.allRoles.filter((r) => r.builtIn && r.builtInKey === name);
-    if (claiming.length === 0) return [{ permissions: BUILT_IN_ROLE_PERMS[name] }];
-    return claiming.filter(isLiveRole);
-  });
+  // One flatMap over the requested names so `builtInKey` comes from `name`, already a
+  // `Role`, and the adapter stays castless — `r.builtInKey` is `Role | null`.
+  const builtInDocs = input.builtInRoleNames.flatMap((name) =>
+    input.allRoles
+      .filter((r) => r.builtIn && r.builtInKey === name)
+      .map((r) => ({ permissions: r.permissions, builtInKey: name, live: isLiveRole(r) })),
+  );
   const customDocs = input.selectedCustomRoleIds
     .map((id) => byId.get(id))
     .filter((r): r is RoleDefinition => r !== undefined);
-  return resolveEffectivePerms({
-    roleDocs: [...builtInDocs, ...customDocs],
+  return resolveBuiltInPerms({
+    builtInRoleNames: input.builtInRoleNames,
+    builtInDocs,
+    customDocs,
     overrides: input.overrides,
   });
 }
