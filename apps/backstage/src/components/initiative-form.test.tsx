@@ -83,4 +83,44 @@ describe("InitiativeForm", () => {
     expect(screen.queryByLabelText("Estado")).not.toBeInTheDocument();
     expect(screen.getByText(/no se puede reabrir/i)).toBeInTheDocument();
   });
+
+  // `featured` curation is gated (rules' canCurateFeatured): Admin by role, everyone else by
+  // the update:Showcase perm. A non-curator must not even see the control — the write would
+  // be denied by firestore.rules, taking the whole save down with it.
+  it("renders the destacar checkbox only when the caller may curate", () => {
+    const { unmount } = render(
+      <InitiativeForm
+        memberOptions={[]}
+        submitLabel="Guardar"
+        isSaving={false}
+        onSubmit={vi.fn()}
+        canFeature
+      />,
+    );
+    expect(screen.getByLabelText(/destacar en \/programas/i)).toBeInTheDocument();
+    unmount();
+
+    render(
+      <InitiativeForm
+        memberOptions={[]}
+        submitLabel="Guardar"
+        isSaving={false}
+        onSubmit={vi.fn()}
+        canFeature={false}
+      />,
+    );
+    expect(screen.queryByLabelText(/destacar en \/programas/i)).not.toBeInTheDocument();
+  });
+
+  it("hides the destacar checkbox when canFeature is not passed at all", () => {
+    render(
+      <InitiativeForm
+        memberOptions={[]}
+        submitLabel="Guardar"
+        isSaving={false}
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(screen.queryByLabelText(/destacar en \/programas/i)).not.toBeInTheDocument();
+  });
 });

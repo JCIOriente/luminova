@@ -420,6 +420,43 @@ beforeAll(async () => {
       impact: null,
       status: "EnEjecucion",
     });
+    // Targets for the perm-keyed curation describe. Each absorbs a featured:true
+    // success, so they are separate docs (the suite seeds once, no per-test reset)
+    // and separate from each other so neither success can mask the other.
+    await setDoc(doc(db, "projects/p_feat_showcase"), {
+      termId: "2026",
+      title: "Destacable (update:Showcase)",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: ["owner-uid"],
+      finalReport: null,
+      impact: null,
+      status: "EnEjecucion",
+    });
+    await setDoc(doc(db, "projects/p_feat_admin_role"), {
+      termId: "2026",
+      title: "Destacable (Admin sin perms)",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: ["owner-uid"],
+      finalReport: null,
+      impact: null,
+      status: "EnEjecucion",
+    });
+    // ONE pristine (featured absent) target per curation DENY test. They must not share a
+    // doc: if any deny regresses, its write persists featured:true and every later deny on
+    // the same doc turns vacuous — it would then pass as an unchanged echo rather than as a
+    // real denial. Measured, not theorised: with a shared doc the manage:all and
+    // manage:Showcase denials both passed against the OLD role-keyed gate.
+    for (const id of ["p_feat_deny_stale", "p_feat_deny_mgrall", "p_feat_deny_inert"]) {
+      await setDoc(doc(db, `projects/${id}`), {
+        termId: "2026",
+        title: "No destacable",
+        roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+        directionUids: [],
+        finalReport: null,
+        impact: null,
+        status: "EnEjecucion",
+      });
+    }
     // Finalized targets for the featured quick-toggle (curation happens after
     // completion). finalReport + impact are non-null so a featured-only write
     // survives finalizedRequiresReport() / initiativeWriteSafe(). Two docs, like
@@ -2156,6 +2193,78 @@ describe("firestore.rules — initiative featured create-gate", () => {
       setDoc(doc(as("u", ["ProjectManager"]), "programs/prog_feat_pm_create"), {
         termId: "2026",
         title: "Curada",
+        featured: true,
+      }),
+    );
+  });
+});
+
+// canCurateFeatured() is `hasAnyRole(['Admin']) || hasPerm('update:Showcase')`. Admin stays
+// role-keyed (locked + undeactivatable, so its name carries no staleness); everyone else is
+// perm-keyed, so DEACTIVATING a role now revokes curation — computeMemberRoles is pure over
+// the trusted grants and reads no role doc, so the NAME survives a deactivation in the claim
+// while the perms do not.
+//
+// Every test here targets a doc the principal can otherwise update (a direction uid, or an
+// initiative update perm) and is paired with a non-featured write that SUCCEEDS, so a denial
+// is the curation gate and never a missing update perm.
+describe("firestore.rules — featured curation is perm-keyed (canCurateFeatured)", () => {
+  it("denies a DEACTIVATED ProjectManager setting featured (stale role name in the claim)", async () => {
+    // The whole point of D: roles claim still says ProjectManager, perms carry no
+    // update:Showcase because the role doc is inactive. manage:Project comes from some
+    // other live role, so the write clears every conjunct except the curation gate.
+    const stale = as("pm-stale-uid", ["ProjectManager"], ["manage:Project"]);
+    await assertFails(updateDoc(doc(stale, "projects/p_feat_deny_stale"), { featured: true }));
+    await assertSucceeds(
+      updateDoc(doc(stale, "projects/p_feat_deny_stale"), { title: "No destacable (PM inactivo)" }),
+    );
+  });
+
+  it("denies a manage:all PERM holder with no Admin role setting featured", async () => {
+    // manage:all is reachable as a perm without the Admin role (a custom role doc or a
+    // permissionOverrides.grant can carry it — roleShapeValid() only requires a list). The
+    // gate uses exact hasPerm, NOT canDo, so manage:all does not satisfy update:Showcase.
+    const superPerm = as("mgr-all-uid", ["Member"], ["manage:all"]);
+    await assertFails(updateDoc(doc(superPerm, "projects/p_feat_deny_mgrall"), { featured: true }));
+    await assertSucceeds(
+      updateDoc(doc(superPerm, "projects/p_feat_deny_mgrall"), {
+        title: "No destacable (manage:all)",
+      }),
+    );
+  });
+
+  it("denies a manage:Showcase holder setting featured (the inert codes stay inert)", async () => {
+    // The other five *:Showcase codes gate nothing. manage:Showcase is inert BECAUSE the
+    // gate is exact hasPerm — there is no second, undocumented path to curation.
+    const inert = as("mgr-showcase-uid", ["Member"], ["manage:Project", "manage:Showcase"]);
+    await assertFails(updateDoc(doc(inert, "projects/p_feat_deny_inert"), { featured: true }));
+    await assertSucceeds(
+      updateDoc(doc(inert, "projects/p_feat_deny_inert"), {
+        title: "No destacable (manage:Showcase)",
+      }),
+    );
+  });
+
+  it("allows a custom role holding update:Showcase to curate, with no Admin/PM role", async () => {
+    await assertSucceeds(
+      updateDoc(
+        doc(
+          as("cust-showcase-uid", ["Member"], ["update:Project", "update:Showcase"]),
+          "projects/p_feat_showcase",
+        ),
+        {
+          featured: true,
+        },
+      ),
+    );
+  });
+
+  it("allows Admin with an EMPTY perms claim to curate (the role disjunct)", async () => {
+    // Real shape: a member over PERMISSION_CAP gets perms:[] written while keeping
+    // roles:['Admin']. The uid is a direction uid, so the update itself is allowed and the
+    // only question left is curation authority.
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Admin"], []), "projects/p_feat_admin_role"), {
         featured: true,
       }),
     );

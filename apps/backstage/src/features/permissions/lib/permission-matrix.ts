@@ -37,6 +37,7 @@ export const SUBJECT_LABELS: Record<Exclude<Subject, "all" | "Role">, string> = 
   Position: "Cargos",
   Lead: "Prospectos",
   Notification: "Notificaciones",
+  Showcase: "Destacados públicos",
 };
 
 /** Human label for a single code, e.g. "Editar Miembros". */

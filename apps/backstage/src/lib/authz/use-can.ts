@@ -27,9 +27,8 @@ export interface Can {
   canRemoveCheckIn(entry: { role: ParticipationRole }): boolean;
   /** Shorthand for the Admin role (not the `manage:all` perm). */
   readonly isAdmin: boolean;
-  /** May curate the public /programas page (rules' `featuredUpdateSafe`). Named
-   *  here so the Admin/ProjectManager policy lives in one place, not scattered
-   *  role-array literals at each call site. */
+  /** May curate the public /programas page (rules' `canCurateFeatured`). Named here so the
+   *  policy lives in one place, not scattered role-array literals at each call site. */
   readonly canFeatureInitiatives: boolean;
   /** May assign power-granting cargos (rules' `cargoGrantsEmpty` / `createPositionsSafe`
    *  — Admin only). Named so the policy isn't a bare `isAdmin` at each grant site. */
@@ -51,7 +50,19 @@ export function buildCan(ability: AppAbility, claims: AuthClaims): Can {
       isNavItemVisible(item, ability, claims) && !(item.to === "/" && isMemberOnly(claims)),
     canRemoveCheckIn: (entry) => canRemoveEntry(ability, claims, entry),
     isAdmin: hasAnyRole(claims, ["Admin"]),
-    canFeatureInitiatives: hasAnyRole(claims, ["Admin", "ProjectManager"]),
+    // Mirrors canCurateFeatured() in firestore.rules disjunct for disjunct: Admin by ROLE
+    // (locked + undeactivatable, so its name carries none of the staleness this gate fixes),
+    // everyone else by the update:Showcase PERM — so deactivating a role revokes curation,
+    // which the surviving role NAME in the claim would not.
+    //
+    // Deliberately an exact code test on the claim, NOT `abilityAllows(..., "update",
+    // "Showcase")`: the rule is `hasPerm`, and CASL's `manage:all` wildcard would answer
+    // yes to the ability question. That would show the Destacar checkbox to a manage:all
+    // perm holder whose write firestore.rules then rejects — taking the whole save down
+    // with it. `probe.ts` does not help here: it narrows CONDITIONAL grants, and the
+    // divergence is the unconditional wildcard.
+    canFeatureInitiatives:
+      hasAnyRole(claims, ["Admin"]) || (claims.perms ?? []).includes("update:Showcase"),
     canAssignPowerGrants: hasAnyRole(claims, ["Admin"]),
   };
 }

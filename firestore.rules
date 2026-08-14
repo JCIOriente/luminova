@@ -212,7 +212,7 @@ service cloud.firestore {
     // Single source of truth for who may curate `featured` — shared by the
     // create and update arms so the authority can never drift apart again.
     function canCurateFeatured() {
-      return hasAnyRole(['Admin', 'ProjectManager']);
+      return hasAnyRole(['Admin']) || hasPerm('update:Showcase');
     }
     function initiativeCreateAllowed(subject) {
       return canDo('create', subject)
@@ -224,20 +224,37 @@ service cloud.firestore {
             || request.resource.data.get('featured', false) == false);
     }
     // `featured` promotes an already-public finalized initiative onto the curated
-    // public /programas page — a curation decision, not an editing one. Only Admin/
-    // ProjectManager may flip it; a direction-only editor (who may otherwise update
-    // their own initiative) must leave it unchanged. A pre-feature doc has no
-    // `featured` field, which is semantically `false`, so default-to-false on BOTH
-    // sides — else a direction editor echoing `featured: false` (the form always
-    // sends it) on a legacy doc reads as null!=false and the whole update is denied.
+    // public /programas page — a curation decision, not an editing one. Only a curator
+    // may flip it; a direction-only editor (who may otherwise update their own
+    // initiative) must leave it unchanged. A pre-feature doc has no `featured` field,
+    // which is semantically `false`, so default-to-false on BOTH sides — else a
+    // direction editor echoing `featured: false` (the form always sends it) on a legacy
+    // doc reads as null!=false and the whole update is denied.
     // Create mirrors the same authority: initiativeCreateAllowed is PERM-based
     // (canDo), so a custom role holding create:Project/Program could otherwise
     // create a doc born `featured: true` and reach the public page once finalized —
-    // hence its Admin/PM-or-featured-false arm. An Admin/PM creating it featured is
-    // their prerogative and only reaches the public page once finalized (isProjectable).
-    // Intentionally role-based, NOT perm-based: `featured` is a curation decision
-    // bound to Admin/ProjectManager. A custom role with manage:Project may edit an
-    // initiative but must leave `featured` unchanged (falls through to the second arm).
+    // hence its curator-or-featured-false arm. A curator creating it featured is their
+    // prerogative and only reaches the public page once finalized (isProjectable).
+    //
+    // The authority is SPLIT, and each half is the way it is on purpose:
+    //  - Admin by ROLE. It is `locked` and undeactivatable, so its name carries none of
+    //    the staleness the perm half exists to fix, and adding update:Showcase to a role
+    //    whose entire seeded permission set is ["manage:all"] would misrepresent Admin.
+    //  - everyone else by exact PERM (update:Showcase, seeded onto ProjectManager). Role
+    //    NAMES are the wrong key here: computeMemberRoles is pure over the trusted grants
+    //    and reads no role doc, so a DEACTIVATED ProjectManager keeps the name in its
+    //    claim — and, under the old `hasAnyRole(['Admin','ProjectManager'])`, kept the
+    //    authority. Keying on the perm means deactivating the role revokes curation.
+    // `hasPerm`, deliberately NOT `canDo`: canDo would let `manage:all` satisfy this, and
+    // manage:all is reachable as a PERM without the Admin role (an Admin-written custom
+    // role doc or a permissionOverrides.grant can carry it — roleShapeValid() only
+    // requires `permissions is list`). Such a principal already satisfies
+    // canDo('update','Project') on the arm below, so this gate is the ONLY thing stopping
+    // them from setting `featured`; canDo would silently delete that boundary. It also
+    // keeps the other five *:Showcase codes — manage:Showcase included — inert, so there
+    // is no second, undocumented path to curation. A custom role with manage:Project may
+    // edit an initiative but must leave `featured` unchanged (falls through to the second
+    // arm).
     function featuredUpdateSafe() {
       return canCurateFeatured()
         || request.resource.data.get('featured', false) == resource.data.get('featured', false);

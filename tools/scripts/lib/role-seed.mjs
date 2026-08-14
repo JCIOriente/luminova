@@ -31,6 +31,7 @@ export const BUILT_IN_ROLE_PERMS = {
     "manage:Activity",
     "checkIn:Attendance",
     "read:Ally",
+    "update:Showcase",
   ],
   ActivityManager: ["manage:Activity", "checkIn:Attendance"],
   Secretary: ["manage:Notification", "manage:Lead", "manage:Ally"],
