@@ -18,3 +18,24 @@ import type { Position } from "@luminova/types";
 export function cargoAssignableByNonAdmin(cargo: Pick<Position, "grants" | "category">): boolean {
   return cargo.grants.length === 0 && cargo.category !== "CEL";
 }
+
+/**
+ * Whether a non-Admin is barred from touching the positions slot AT ALL, given the cargo the
+ * member currently holds. NOT the negation of `cargoAssignableByNonAdmin` — the two rules
+ * conjuncts are asymmetric, and mirroring the wrong one strands a takedown:
+ *
+ *   grants.length > 0  →  locked. `currentCargoGrantsEmpty()` gates the cargo being REPLACED,
+ *                         so a non-Admin can neither keep it (the save re-stamps it) nor clear
+ *                         it. Nothing they can do here succeeds.
+ *   grant-free CEL     →  NOT locked. `currentCargoGrantsEmpty()` is deliberately not
+ *                         category-gated — firestore.rules says denying this "would strand a
+ *                         takedown behind an Admin" — so clearing the seat is allowed even
+ *                         though keeping it is not. The cargo is dropped from the options
+ *                         instead, which makes the only submittable states "clear" or "some
+ *                         other assignable cargo" — exactly the rules' answer.
+ */
+export function positionsLockedForNonAdmin(
+  cargo: Pick<Position, "grants" | "category"> | undefined,
+): boolean {
+  return cargo !== undefined && cargo.grants.length > 0;
+}

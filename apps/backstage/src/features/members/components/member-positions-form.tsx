@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button, Combobox, Field, MultiSelect } from "@luminova/ui";
 import { positionTitle, currentTermKey, type MemberGender, type Position } from "@luminova/types";
-import { cargoAssignableByNonAdmin } from "../lib/assignable-cargo";
+import { cargoAssignableByNonAdmin, positionsLockedForNonAdmin } from "../lib/assignable-cargo";
 
 const positionsSchema = z.object({
   cargoId: z.string().min(1).nullable(),
@@ -38,19 +38,24 @@ export function MemberPositionsForm({
   } = useForm<PositionsInput>({ resolver: zodResolver(positionsSchema), defaultValues });
 
   const term = currentTermKey();
-  // A non-Admin can't write positions at all for a member whose current cargo is Admin-only
-  // — power-granting OR a CEL seat: every save re-stamps that cargoId into the merged doc,
-  // so `cargoAssignableByNonAdmin()` rejects the whole slot, comisiones included, even on a
-  // comisiones-only edit. Lock the form rather than 403 a save that looks legitimate.
+  // A power-granting current cargo locks the whole slot for a non-Admin: every save re-stamps
+  // that cargoId, and `currentCargoGrantsEmpty()` blocks clearing it too, so nothing they can
+  // submit succeeds. A grant-free CEL seat is the asymmetric case — keeping it is denied,
+  // CLEARING it is allowed on purpose — so the form stays open and the cargo is simply not
+  // offered. See positionsLockedForNonAdmin().
   const assignedCargo = positions.find((p) => p.id === defaultValues.cargoId);
-  const locked =
-    !allowPowerGrants && assignedCargo !== undefined && !cargoAssignableByNonAdmin(assignedCargo);
+  const locked = !allowPowerGrants && positionsLockedForNonAdmin(assignedCargo);
+  const keepsCurrentCargo =
+    allowPowerGrants || (assignedCargo !== undefined && cargoAssignableByNonAdmin(assignedCargo));
   const cargoOptions = positions
     .filter(
       (p) => p.active && p.category !== "Comision" && (p.term === null || String(p.term) === term),
     )
     .filter(
-      (p) => allowPowerGrants || cargoAssignableByNonAdmin(p) || p.id === defaultValues.cargoId,
+      (p) =>
+        allowPowerGrants ||
+        cargoAssignableByNonAdmin(p) ||
+        (keepsCurrentCargo && p.id === defaultValues.cargoId),
     )
     .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
   const comisionOptions = positions

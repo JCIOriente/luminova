@@ -25,7 +25,7 @@ import {
   MEMBER_NAME_MAX_LENGTH,
 } from "@luminova/types";
 import { avatarColor } from "../lib/member-display";
-import { cargoAssignableByNonAdmin } from "../lib/assignable-cargo";
+import { cargoAssignableByNonAdmin, positionsLockedForNonAdmin } from "../lib/assignable-cargo";
 
 interface MemberFormProps {
   positions: Position[];
@@ -108,18 +108,25 @@ export function MemberForm({
   // rules reserve it to an Admin — but off the static default, not the reactive selection,
   // so switching away and back still works (matches MemberPositionsForm).
   const assignedCargoId = defaultValues?.cargoId ?? null;
-  // If that assigned cargo is Admin-only — power-granting OR a CEL seat — any positions
-  // write by a non-Admin is rule-denied (cargoAssignableByNonAdmin), because the write
-  // re-stamps the same cargoId. Lock the cargo/comisiones so bio edits still save (the
-  // mapper omits the unchanged slot) but a futile positions change can't be attempted.
+  // A power-granting assigned cargo locks cargo/comisiones for a non-Admin — the write
+  // re-stamps the same cargoId and `currentCargoGrantsEmpty()` blocks clearing it, so no
+  // positions change succeeds. Bio edits still save, because the mapper omits an unchanged
+  // slot. A grant-free CEL seat is NOT locked: clearing it is deliberately allowed, so the
+  // form stays open and the seat is just not offered. See positionsLockedForNonAdmin().
   const assignedCargo = positions.find((p) => p.id === assignedCargoId);
-  const positionsLocked =
-    !allowPowerGrants && assignedCargo !== undefined && !cargoAssignableByNonAdmin(assignedCargo);
+  const positionsLocked = !allowPowerGrants && positionsLockedForNonAdmin(assignedCargo);
+  const keepsAssignedCargo =
+    allowPowerGrants || (assignedCargo !== undefined && cargoAssignableByNonAdmin(assignedCargo));
   const activeCargoOptions = positions
     .filter(
       (p) => p.active && p.category !== "Comision" && (p.term === null || String(p.term) === term),
     )
-    .filter((p) => allowPowerGrants || cargoAssignableByNonAdmin(p) || p.id === assignedCargoId)
+    .filter(
+      (p) =>
+        allowPowerGrants ||
+        cargoAssignableByNonAdmin(p) ||
+        (keepsAssignedCargo && p.id === assignedCargoId),
+    )
     .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
   const assignedInactiveCargo =
     currentCargoId && !activeCargoOptions.some((o) => o.value === currentCargoId)

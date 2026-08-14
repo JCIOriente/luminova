@@ -175,13 +175,35 @@ describe("MemberPositionsForm", () => {
   // Not just the option list: `locked` has to cover it too. Every save re-stamps the
   // assigned cargoId into the merged doc, so with the form unlocked a comisiones-only edit
   // on a CEL-seated member is denied — no lock, no note, one generic error.
-  it("locks the form for a non-Admin editing a member seated on a grant-free CEL cargo", () => {
+  // BLOCKING: the two rules conjuncts are asymmetric, so the client must not mirror the
+  // wrong one. `cargoAssignableByNonAdmin()` denies KEEPING a grant-free CEL seat, but
+  // `currentCargoGrantsEmpty()` is deliberately not category-gated, so CLEARING it is
+  // allowed — firestore.rules says denying that "would strand a takedown behind an Admin".
+  // Locking the form here would strand exactly that takedown in the UI instead.
+  it("BLOCKING: does NOT lock a grant-free CEL seat — clearing it is the allowed takedown", () => {
     render(
       <MemberPositionsForm
         positions={[celFree, pos("etica", "Comision")]}
         gender="Masculino"
         allowPowerGrants={false}
         defaultValues={{ cargoId: "presidente_libre", comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /guardar/i })).toBeEnabled();
+    // Not offered either — keeping it is what the rules deny, so the only submittable
+    // states are "cleared" or "some other assignable cargo".
+    expect(screen.queryByText(/Presidente/i)).not.toBeInTheDocument();
+  });
+
+  it("locks the form for a non-Admin when the current cargo GRANTS power (nothing succeeds)", () => {
+    const granting: Position = { ...pos("tesorero", "CEL"), grants: ["Treasury"] };
+    render(
+      <MemberPositionsForm
+        positions={[granting, pos("etica", "Comision")]}
+        gender="Masculino"
+        allowPowerGrants={false}
+        defaultValues={{ cargoId: "tesorero", comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
     );

@@ -259,7 +259,11 @@ describe("MemberForm", () => {
   // non-Admin editing a member already seated on a grant-free CEL cargo is denied on the
   // positions slot. Locking it keeps the bio fields savable (the mapper omits the
   // unchanged slot) instead of failing the whole form with no explanation.
-  it("locks the cargo for a non-Admin editing a member on a grant-free CEL cargo", () => {
+  // BLOCKING: the rules conjuncts are asymmetric. Keeping a grant-free CEL seat is denied
+  // (`cargoAssignableByNonAdmin`), but CLEARING it is allowed on purpose —
+  // `currentCargoGrantsEmpty()` is not category-gated, because denying it "would strand a
+  // takedown behind an Admin". So the seat is dropped from the options rather than locked.
+  it("BLOCKING: does NOT lock a grant-free CEL seat — clearing it is the allowed takedown", () => {
     render(
       <MemberForm
         positions={positions}
@@ -268,7 +272,7 @@ describe("MemberForm", () => {
         onSubmit={vi.fn()}
       />,
     );
-    expect(screen.getByText(/Solo un Admin puede cambiar el cargo/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Solo un Admin puede cambiar el cargo/i)).not.toBeInTheDocument();
   });
 
   it("does NOT lock a non-Admin editing a member on a grant-free JDL dirección", () => {
