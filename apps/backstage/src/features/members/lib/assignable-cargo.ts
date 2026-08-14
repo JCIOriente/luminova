@@ -15,7 +15,11 @@ import { currentTermKey, positionTitle, type MemberGender, type Position } from 
  * `grants.length === 0` re-typed per form: rendering an option the save will 403 on is the
  * render-then-die shape this repo guards against, and two copies drift.
  */
-export function cargoAssignableByNonAdmin(cargo: Pick<Position, "grants" | "category">): boolean {
+// Module-local: every consumer now goes through cargoOptionsForEditor() /
+// cargoTakedownOnly() / positionsLockedForNonAdmin(), which is the point — a caller that
+// re-derived the option list from this raw predicate is how the two forms drifted apart in
+// the first place. Exporting it again would give that back.
+function cargoAssignableByNonAdmin(cargo: Pick<Position, "grants" | "category">): boolean {
   return cargo.grants.length === 0 && cargo.category !== "CEL";
 }
 
