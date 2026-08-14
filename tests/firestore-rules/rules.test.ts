@@ -522,6 +522,28 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // The members-positions lane's own principal (perms-only `update:Position`, no built-in
+    // role) has a member record of its own — the accepted-exposure test assigns a grant-free
+    // JDL board cargo to THIS doc, i.e. to itself.
+    await setDoc(doc(db, "members/m_orgchart"), {
+      name: "Gabriela",
+      totalPoints: 0,
+      uid: "orgchart-uid",
+      active: true,
+      deletedAt: null,
+    });
+    // Category-mutation target for the positions catalog arm. Its own doc so the Admin
+    // success case cannot disturb pos1/pos_soft, which half this suite reads.
+    await setDoc(doc(db, "positions/pos_cat"), {
+      title: "Director de Membresía",
+      titleFemale: "Directora de Membresía",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Dirección de membresía.",
+      active: true,
+      deletedAt: null,
+    });
     await setDoc(doc(db, "positions/pos_soft"), {
       title: "Vocal",
       titleFemale: "Vocal",
@@ -1867,6 +1889,29 @@ describe("firestore.rules — positions", () => {
       updateDoc(doc(as("u", ["Admin"]), "positions/pos1"), { category: "Comision" }),
     );
   });
+  it("BLOCKING: denies a non-Admin update:Position holder changing a position's category", async () => {
+    // The escalation this closes, now that the members-positions lane exists: `grants` was
+    // the only field pinned for a non-Admin, so an update:Position holder could retitle a
+    // grant-free Comisión to { category: 'CEL', title: 'Presidente' } — boardRank 0 — and
+    // then assign it to themselves on the public Directiva, with no Admin action anywhere.
+    // category also decides board GROUP and whether comisionGrantsEmpty() applies at all.
+    await assertFails(
+      updateDoc(doc(as("orgchart-uid", [], ["update:Position"]), "positions/pos_cat"), {
+        category: "CEL",
+      }),
+    );
+    // The rest of the catalog stays writable for them — this pins one field, not the arm.
+    await assertSucceeds(
+      updateDoc(doc(as("orgchart-uid", [], ["update:Position"]), "positions/pos_cat"), {
+        description: "Actualizada.",
+      }),
+    );
+  });
+  it("allows an Admin to change a position's category (the surviving authority)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_cat"), { category: "CEL" }),
+    );
+  });
   // Deliberate fail-closed: a legacy power comisión (possible before the
   // invariant) is client-unwritable — even soft-delete — until an admin-SDK/
   // console repair empties its grants. Documented in the design spec.
@@ -2275,6 +2320,109 @@ describe("firestore.rules — member positions assignment", () => {
       }),
     );
   });
+  // ── The members-positions lane: canDo('update','Position') + hasOnly(['positions']) ──
+  // A perms-only principal with NO built-in role name — the custom role owner-op 1
+  // describes. `as(uid, [], [...])` is what makes it perms-only: the third argument
+  // replaces the seeded role perms entirely.
+  const ORG_CHART = "orgchart-uid";
+  const orgChart = () => as(ORG_CHART, [], ["update:Position"]);
+
+  it("allows an update:Position-only principal to assign a grant-free cargo, self-stamped", async () => {
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("BLOCKING: denies the update:Position lane assigning a power-conferring cargo (new side)", async () => {
+    // positionsAssignmentSafe() is reused verbatim: its non-Admin branch demands
+    // cargoGrantsEmpty(), and pos1 grants Treasury. Without it this lane would mint claims.
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos1", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("BLOCKING: denies the update:Position lane replacing a power cargo with a grant-free one (old side)", async () => {
+    // The de-elevation attack from the OTHER direction: m_powercargo holds pos1, so only
+    // currentCargoGrantsEmpty() — the old-side half — stops this lane from stripping a
+    // claim. assertFails, so m_powercargo stays intact for the C1 describe below.
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_powercargo"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("BLOCKING: denies the update:Position lane touching any non-positions field in the same write", async () => {
+    // hasOnly(['positions']) is what confines this lane to the org chart. A ride-along
+    // `name` (or roleIds, or totalPoints) must drop the whole write off the arm.
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        name: "Renombrado",
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("denies the update:Position lane a forged assignedBy", async () => {
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "admin-uid" },
+      }),
+    );
+  });
+
+  it("denies the update:Position lane a non-current-term write", async () => {
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        "positions.2099": { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("denies the update:Position lane creating a member (create stays canDo('create','Member'))", async () => {
+    // createPositionsSafe() cannot call currentCargoGrantsEmpty() — a create has no prior
+    // resource — and there is no old side to protect, so creation was deliberately not
+    // widened. An org-chart editor may not mint member records.
+    await assertFails(
+      setDoc(doc(orgChart(), "members/m_orgchart_new"), {
+        name: "Nuevo",
+        totalPoints: 0,
+        active: true,
+        deletedAt: null,
+        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART } },
+      }),
+    );
+  });
+
+  it("denies the update:Position lane wiping the current term — whole-map replacement and deleteField", async () => {
+    // Both currently deny via assignedBySelf(): a positions map with no current-term key
+    // reads assignedBy '' != uid. That is INCIDENTAL — nothing else in the arm asks whether
+    // an assignment was removed — so pin it, or a future refactor of assignedBySelf() drops
+    // the clear-a-cargo guard without a red test.
+    await assertFails(updateDoc(doc(orgChart(), "members/m_positions"), { positions: {} }));
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_positions"), { positions: deleteField() }),
+    );
+  });
+
+  it("ACCEPTED EXPOSURE: an update:Position holder may put a member — including itself — on the public Directiva", async () => {
+    // Deliberate, not an oversight (see docs/specs/position-assignment-lane.md, section A).
+    // pos_soft is a JDL dirección with grants: [], and boardGroupFromCategory publishes both
+    // CEL and JDL, so this write lands on the world-readable boardShowcase projection. It is
+    // not privilege escalation — resolveTrustedGrants returns early on grants.length === 0,
+    // so no claim is minted — but it IS a publication authority, and owner-op 1 says so in
+    // the same words. Seeded CEL cargos all carry non-empty grants, so those stay Admin-only.
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "members/m_orgchart"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
   // LAST in this block on purpose: the suite seeds once and never resets, and this write
   // leaves members/m1 holding a power cargo. A Membership success case running after it
   // would be denied by currentCargoGrantsEmpty() — the C1 guard — not by its own subject.

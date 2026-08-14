@@ -334,6 +334,31 @@ service cloud.firestore {
         && resource.data.get('active', true) == true
         && selfProfileValid(request.resource.data.diff(resource.data).affectedKeys())
         && softDeleteSafe();
+      // Positions-only lane: an org-chart editor who is NOT a member editor. Keyed on
+      // update:Position — the same capability that governs the positions CATALOG — and
+      // confined to the positions map. The power-cargo restriction is NOT relaxed:
+      // positionsAssignmentSafe()'s non-Admin branch still demands cargoGrantsEmpty() &&
+      // currentCargoGrantsEmpty(), so this principal assigns and clears grant-free cargos
+      // only, on BOTH sides of a swap.
+      //
+      // This lane IS a public publication authority, deliberately: grant-free JDL
+      // direcciones are board cargos, so its holder can put a member — including
+      // themselves — on the world-readable Directiva. No claim is minted (claims-sync
+      // returns early on grants.length == 0). Accepted, and pinned by a rules test.
+      //
+      // The four conjuncts after positionsAssignmentSafe() are implied by
+      // hasOnly(['positions']) TODAY and are stated anyway: they are the claims-mint
+      // boundary (roleIds, permissionOverrides, uid), publication consent, and the points
+      // ledger. If hasOnly is ever widened — the obvious future edit is adding a second
+      // key — those invariants must not vanish with it.
+      allow update: if canDo('update', 'Position')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['positions'])
+        && positionsAssignmentSafe()
+        && softDeleteSafe()
+        && updatePermissionAssignmentSafe()
+        && !touched('uid')
+        && !touched('publicProfile')
+        && unchanged('totalPoints');
       allow delete: if false;
     }
 
@@ -355,8 +380,14 @@ service cloud.firestore {
       allow create: if canDo('create', 'Position')
         && (hasAnyRole(['Admin']) || request.resource.data.grants == [])
         && comisionGrantsEmpty();
+      // `category` joins `grants` in the non-Admin pin because it is an authority field,
+      // not a label: it decides the public board GROUP and board RANK, and whether
+      // comisionGrantsEmpty() applies at all. Without it an update:Position holder could
+      // retitle a grant-free Comisión to { category: 'CEL', title: 'Presidente' } — rank 0 —
+      // and then assign it to themselves through the members-positions lane, landing on the
+      // world-readable Directiva with no Admin action anywhere in the chain.
       allow update: if canDo('update', 'Position')
-        && (hasAnyRole(['Admin']) || unchanged('grants'))
+        && (hasAnyRole(['Admin']) || (unchanged('grants') && unchanged('category')))
         && softDeleteSafe()
         && comisionGrantsEmpty();
       allow delete: if false;

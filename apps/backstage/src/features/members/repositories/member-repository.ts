@@ -78,11 +78,13 @@ export class MemberRepository {
     await updateDoc(doc(this.collection, id), toSelfProfileDoc(data));
   }
 
-  /** Org-chart edit: writes ONLY the current term's assignment (dot-path). The dedicated
-   *  ExecutiveCommittee positions-only rule this used to target is gone — the write now
-   *  goes through the ordinary `update:Member` lane plus `positionsAssignmentSafe()`, so
-   *  the narrow payload is about not tripping those constraints, not about a separate
-   *  allow-rule. */
+  /** Org-chart edit: writes ONLY the current term's assignment (dot-path). Two
+   *  `firestore.rules` arms accept it: the institutional `update:Member` lane, and the
+   *  members-positions lane keyed on `update:Position`, which additionally requires
+   *  `affectedKeys().hasOnly(['positions'])`. So the narrow payload IS load-bearing — a
+   *  ride-along field on this write would drop an `update:Position`-only caller off its
+   *  only arm. Both arms also apply `positionsAssignmentSafe()`, hence the self-stamped
+   *  `assignedBy` and the current-term-only dot path. */
   async setPositions(
     id: string,
     assignment: { cargoId: string | null; comisionIds: string[] },
