@@ -205,6 +205,28 @@ undone by re-running anything: reverting means editing `roles/Member` back down.
   then query programs+projects on `roster.directorId` / `roster.coDirectorIds` /
   `roster.teamIds` (nested paths — the bare names match nothing), bounded with `.limit()`
   and re-projected through `chunk()`.
+- **Deferred (boardShowcase stale publication under the fail-closed `active` guard):**
+  `projectBoard` now drops a member on `deletedAt != null || active !== true` — fail-closed,
+  matching `projectAlly`. That stops the NEXT publication of a member whose `active` is a
+  non-bool (the string `"false"`) or absent, but it cannot reach a row already published
+  under the old `active === false` test: `onBoardMemberWritten` fires only on a
+  `members/{id}` write, and `firestore.rules` now makes such a doc admin-SDK-only on every
+  lane but one. There is no automatic remedy — `pnpm audit:soft-delete-shapes --repair`
+  deliberately refuses to coerce a non-bool `active`, so it writes nothing and fires no
+  trigger for exactly the exposed shape. The only remedies are (a) that script's report,
+  which lists every exposed doc untruncated, then a Firebase console edit of `active`, or
+  (b) an Admin `publicProfile: false` write on the member — the takedown arm in
+  `firestore.rules` skips `softDeleteSafe()` on purpose so it stays open on these docs (a
+  rules test pins it), though backstage will not list the member because `memberDocSchema`
+  drops it. The script's repair moves the projection the OTHER way for a different shape: a
+  member missing `active` is repaired to `active: true`, which un-blocks this same fail-closed
+  gate and, if the rest of `projectBoard` passes, **adds** a public row. That is announced per
+  doc (`WILL PUBLISH:`) and withheld behind `--allow-publish`, so publication is never a
+  silent side effect of a shape fix. **`pnpm audit:soft-delete-shapes` is a deploy
+  precondition** for the
+  well-formedness rules (owner-op 4 of `docs/specs/position-assignment-lane.md`); it exits 1
+  on findings and 2 when the run itself did not complete. Fix later with a scheduled
+  re-projection, which would also close the term-rollover gap above.
 - **boardShowcase ordering (CLOSED):** `onBoardMemberWritten` used to project
   `after.data()`, so a late-delivered invocation could re-publish a member from a stale
   payload — silently undoing an opt-out or an Admin takedown until the next member write.

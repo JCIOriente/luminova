@@ -93,15 +93,30 @@ editor mint members: creation stays `canDo('create','Member')`.
 `positions.<term>.cargoId` is the sole input to `boardShowcase`, the world-readable public
 Directiva (`firestore.rules:706-709`, `allow read: if true`; projection at
 `apps/beacon/src/showcase/project-board.ts:63-97`). `boardGroupFromCategory`
-(`packages/types/src/engine/board-public.ts:39-41`) publishes both `CEL` and `JDL`. Every
-**seeded CEL** cargo carries non-empty `grants`, so the non-Admin branch blocks those. **JDL
+(`packages/types/src/engine/board-public.ts:39-41`) publishes both `CEL` and `JDL`. **JDL
 direcciones are hand-created in `/positions` and normally carry `grants: []`** — so an
 `update:Position` holder can assign a grant-free board cargo to any member, **including
 themselves**, and put that person on the public site under that title. Combined with the
 self-service arm (which they own for their own `publicProfile` and `profilePicture`), that is
 self-publication with no Admin action.
 
-This is **accepted as the feature**, not an oversight: assigning a JDL dirección *is* the
+**The exposure is scoped to JDL, and that scoping is now ENFORCED rather than assumed.** An
+earlier draft argued CEL was blocked because "every seeded CEL cargo carries non-empty
+`grants`" — a claim about DATA, with nothing holding it true. The create arm deliberately
+still lets an **Admin** mint a grant-free CEL cargo (this branch's own rules suite creates
+exactly one, `mint_cel_admin`), and from that moment the claim is false: any `update:Position`
+holder could self-assign it, at CEL rank, `Presidente` included — `boardRank` maps that title
+to 0, so they would head the public Directiva. `positionsAssignmentSafe()`'s non-Admin branch
+therefore reads `category` off the cargo doc it was **already** fetching for
+`cargoGrantsEmpty()` (`cargoAssignableByNonAdmin()` — one `get()`, two questions) and refuses
+`CEL` whatever its grants. Cost: an Admin who mints a ceremonial grant-free CEL cargo must
+also assign it — consistent with the create arm, which already made minting one Admin-only.
+Three rules tests pin it (non-Admin CEL denied, grant-free JDL still allowed, Admin
+unaffected) plus one for the institutional lane, and the conjunct is mutation-proven.
+The REPLACED cargo (`currentCargoGrantsEmpty()`) is deliberately not category-gated: clearing
+a member off a grant-free CEL cargo only reduces exposure.
+
+The JDL half is **accepted as the feature**, not an oversight: assigning a JDL dirección *is* the
 darkened surface PR 2 created, and appearing on the Directiva is the correct product outcome
 of holding that cargo. It is not privilege escalation — no claim is minted, because
 `resolveTrustedGrants` returns at `sync.ts:67` on `grants.length === 0`, before the
@@ -198,7 +213,12 @@ old-side test must target `members/m_powercargo` (`:505-512`), which the C1 desc
   `positions` — both currently deny via `assignedBySelf()`, an incidental mechanism that a
   future refactor could remove unnoticed
 - pins the accepted exposure: an `update:Position` holder can assign a grant-free JDL board cargo
+- BLOCKING: denies that same principal a grant-free **CEL** cargo, with the JDL allow adjacent
+  so the denial cannot pass for the wrong reason; plus the Admin allow, and the institutional
+  (`manage:Member`) lane held to the same boundary
 - denies a non-Admin changing a position's `category` (the new catalog conjunct)
+- allows a non-Admin retitling a legacy cargo with **no `category` key** — the create and
+  update arms now ask the same `!boardSurfacingCategory()` question
 
 Every new create-shaped test carries `active`/`deletedAt`, or change B makes it vacuous.
 
@@ -309,14 +329,27 @@ if (member.deletedAt != null || member.active !== true) return null;
 B1 and B2 stop new malformed docs; B3 is what stops an existing one being published. It also
 ends the split with `project-ally.ts`.
 
-**B3 alone does not reach the rows already published — corrected after review.** An earlier
-draft said "only B3 removes the existing public exposure", which overstates its reach:
-`onBoardMemberWritten` fires only on a `members/{id}` write, so a member already on
-`boardShowcase` under the fail-open predicate stays there until their doc is next written —
-and B1 is precisely what makes that write impossible from the client. The remedy is
-therefore operational, not automatic: `pnpm audit:soft-delete-shapes --repair` writes through
-the admin SDK, which re-fires the trigger and deletes the row. That is why owner-op 4 is
-blocking, and why the script is a repair tool rather than a count.
+**B3 alone does not reach the rows already published, and neither does the audit script —
+corrected twice after review.** An earlier draft said "only B3 removes the existing public
+exposure", which overstates its reach: `onBoardMemberWritten` fires only on a `members/{id}`
+write, so a member already on `boardShowcase` under the fail-open predicate stays there until
+their doc is next written. The correction to *that* correction — "`--repair` re-fires the
+trigger and deletes the row" — is also false, in both directions:
+
+- A doc `--repair` can fix declares the member **live** (`deletedAt: null`, `active: true`).
+  The re-fired trigger re-publishes it. The row correctly stays up; nothing is taken down.
+- The doc that is actually exposed — a non-bool `active`, the string `"false"` — is
+  **refused**, because coercing it is a human call. Nothing is written, so no trigger fires,
+  and the row survives.
+
+So the true division of labour is: **B3 stops the next publication, the script detects and
+gates, and the existing row comes down by hand.** The script prints the two remedies per
+exposed doc: a Firebase console edit of `active`, or an Admin `publicProfile: false` write —
+which the members takedown arm permits precisely because it does not call `softDeleteSafe()`
+(B1's whole reason for living inside the helper; a rules test pins the arm open on a
+malformed member). Neither is reachable from backstage, because `memberDocSchema` drops the
+doc from every list. That is why owner-op 4 is blocking: the script's value is a complete,
+untruncated worklist plus a non-zero exit, not an automatic fix.
 
 ### Not in scope
 
@@ -540,7 +573,10 @@ so all three assertions go false until the fixtures carry `perms: ["update:Showc
    CEL/JDL cargo — `title`/`titleFemale`. Two consequences to accept before granting it:
 
    - **They may publish a member, including themselves, to the public Directiva**, because
-     grant-free JDL direcciones are board cargos.
+     grant-free JDL direcciones are board cargos. The ceiling is JDL and it is a RULE, not a
+     data assumption: `cargoAssignableByNonAdmin()` refuses a `CEL` cargo to a non-Admin
+     whatever its `grants`, so `Presidente` at public rank 0 stays an Admin decision on both
+     ends (minting the cargo and assigning it).
    - **"Never a power cargo" holds for the CURRENT term only.** `currentCargoGrantsEmpty()`
      reads `positions[currentTermKey()]`, so between the UTC-year rollover and the victim's
      next write, a member whose Admin comes from last year's cargo has an empty current-term
@@ -560,11 +596,28 @@ so all three assertions go false until the fixtures carry `perms: ["update:Showc
    to edit the moment B1 ships, with no UI affordance to repair it — and unlike the first
    draft's claim, they are editable **today**. Run `pnpm audit:soft-delete-shapes`
    (`tools/scripts/audit-soft-delete-shapes.mjs`, documented in `docs/firebase-setup.md`):
-   it exits non-zero on any finding so it gates the deploy, `--repair` fixes the unambiguous
-   shapes through the admin SDK (which also re-fires `onBoardMemberWritten` — the only
-   remaining path that unpublishes a malformed member from the public Directiva), and it
-   refuses to guess at a non-bool `active`. Repair the reported remainder from the console
-   before the rules deploy, or accept a known, counted set.
+   it exits non-zero on any finding so it gates the deploy (exit 1 = findings, exit 2 = the
+   run did not complete), `--repair` fixes the unambiguous shapes through the admin SDK, and
+   it refuses to guess at a non-bool `active`, a **ghost** (`active: true` with a non-null
+   `deletedAt` — client-reachable, and the one malformed shape `memberDocSchema` accepts, so
+   it renders as an ordinary live member) or a **non-Timestamp `deletedAt`**. **`--repair`
+   takes no `boardShowcase` row down** — see B3: a repaired doc re-publishes, and the exposed
+   shape is the refused one. For each malformed member the script reports whether a public row
+   is live and prints the two hand remedies (console `active` edit, or an Admin
+   `publicProfile: false` write through the takedown arm).
+
+   **`--repair` can ADD a public row, and that is opt-in.** Writing `active: true` un-blocks
+   the fail-closed `projectBoard` gate, so a member who also carries `publicProfile: true`
+   (the stamped org-wide default), a `uid`, a pinned portrait and a current-term CEL/JDL cargo
+   is **newly published** by the re-fired trigger — publication as a side effect of a shape
+   fix. Every such member gets a `WILL PUBLISH:` line and their repair is **withheld** (a
+   count of its own, apart from the ambiguous refusals) unless `--allow-publish` is passed.
+   The forecast mirrors `projectBoard` by hand and fails safe: any gate it cannot settle (an
+   unreadable `positions` doc, an unreadable `boardShowcase` doc) is named in the output and
+   the member is still announced, never quietly repaired.
+
+   Clear the reported remainder that way before the rules deploy, or accept a known, counted
+   set. A production `--repair` requires an explicit confirmation.
 
 ## Deploy order
 
@@ -612,9 +665,53 @@ Found by the mandated review round, after the code was written:
     "positive-and-inert" claims-mint test were both described as existing and did not. Both
     written.
 13. **B3's reach was overstated** — see B3 above.
+14. **And so was the audit script's.** The correction in 13 replaced one false claim with
+    another: `--repair` does not take a `boardShowcase` row down in any branch — a repaired
+    doc re-publishes, and the exposed non-bool `active` is refused, so nothing is written at
+    all. The script is a gate plus complete detection; the public row comes down by hand
+    (console `active` edit, or the Admin `publicProfile: false` takedown arm). B3 and
+    owner-op 4 rewritten; `docs/firebase-setup.md` too.
+
+Found by the final review round:
+
+15. **The CEL half of the exposure was ASSUMED closed, not enforced** — "seeded CEL cargos all
+    carry grants" is a data claim, and this branch's own suite mints the counterexample
+    (`mint_cel_admin`). `cargoAssignableByNonAdmin()` now refuses a `CEL` cargo to a non-Admin
+    off the get() `cargoGrantsEmpty()` already paid for. Section A and owner-op 1 rewritten
+    from "assumed" to "enforced".
+16. **Nothing tied `boardSurfacingCategory()` to `BOARD_GROUPS`.** A third publishable group
+    would have reopened correction 8 silently. `packages/types/src/board-surfacing-category.
+    rules.test.ts` parses the rules literal and asserts the set — the fourth instance of this
+    repo's parse-the-rules-file pattern.
+17. **The two catalog arms disagreed on an absent/unrecognized `category`.** Create asked
+    `!boardSurfacingCategory()`, the update escape hand-rolled `== 'Comision'`, so a legacy
+    doc with no `category` was non-board on create and board on update — fail-closed, but
+    over-restrictive and a second definition of the same question. One predicate now.
+18. **A sentinel bug made the audit script's UNKNOWN-publication branch dead code.**
+    `published.get(id) ?? false` falls back on exactly the `null` that meant "unreadable", so
+    one rejected `getAll` chunk silently reclassified those members as unpublished — and
+    therefore truncatable. Proven against the emulator by injecting a `getAll` rejection: with
+    the bug, zero UNKNOWN lines; fixed, one per member.
+19. **`--repair` could PUBLISH a member and announced only takedowns.** See owner-op 4:
+    `WILL PUBLISH:` per doc, withheld behind `--allow-publish`.
+20. **`classify()` under-reported two shapes** it is the blocking gate for: the ghost
+    (`active: true` + non-null `deletedAt`) and a non-Timestamp `deletedAt`.
+21. **The UI mirror had no tests and one existing test had gone vacuous.** `position-form.
+    test.tsx`'s comisión submit selected a category on a select that was both `disabled` and
+    already defaulted to that value — the interaction was a no-op and the assertion measured
+    the default. Fixed, plus coverage for the label/category locks, including a BLOCKING test
+    that would go red on `register("title", { disabled: true })` (RHF's own `disabled` submits
+    the field as `undefined`, which 403s every non-Admin save).
 
 ## Residuals
 
+- **A stale `boardShowcase` row for a member with a non-bool `active`** (B3): fail-closed
+  `projectBoard` stops the next publication, but an existing row is removed only by a
+  `members/{id}` write — which `--repair` refuses to fabricate for that shape. Detected and
+  gated by `pnpm audit:soft-delete-shapes`, remediated by hand. Recorded in
+  `apps/beacon/CLAUDE.md` next to the trigger that owns it.
+- **Publication of a grant-free JDL dirección by an `update:Position` holder** — the accepted
+  exposure, narrowed to JDL by rule (correction 15) rather than by an assumption about data.
 - The coupling half of `roleLifecycleSafe()` on the four lanes (B, Not in scope).
 - The term-rollover window in `currentCargoGrantsEmpty()` (A, Residual).
 - The port-level divergence in C: a zod-rejected doc reads ABSENT to backstage, COVERED to beacon.

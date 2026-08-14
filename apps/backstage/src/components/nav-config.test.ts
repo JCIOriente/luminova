@@ -189,13 +189,17 @@ describe("isNavItemVisible — conditional grants must not leak", () => {
     expect(canSee("/positions", { roles: [], perms: ["read:Position"] })).toBe(false);
   });
 
-  it("offers /members to the org-chart principal — read:Member + update:Position, never update:Position alone", () => {
+  it("gates /members on read:Member alone — update:Position opens nothing here", () => {
     // Cargo assignment happens ON /members (the member roster), and the nav probes
-    // read:Member there. A custom role carrying only update:Position therefore cannot
-    // reach the page — the whole members-positions lane is inert for exactly the role the
-    // owner-op tells the operator to create. The operable principal carries both perms;
-    // this pins that pair open, and that the write perm alone still opens nothing.
-    expect(canSee("/members", { roles: [], perms: ["read:Member", "update:Position"] })).toBe(true);
+    // read:Member there. So the perm that carries the members-positions LANE is inert for
+    // reaching the page: a custom role holding only update:Position cannot get to the
+    // capability the owner-op hands it, which is why owner-op 1 mandates BOTH perms.
+    // Both halves are load-bearing and falsifiable: read:Member alone is what opens the
+    // page (drop it from the nav gate and the first line goes red), update:Position alone
+    // is what does not (add it as an `orCan` and the second goes red). The pair assertion
+    // this replaced was neither — read:Member already satisfied it, so deleting
+    // update:Position from it could not turn anything red.
+    expect(canSee("/members", { roles: [], perms: ["read:Member"] })).toBe(true);
     expect(canSee("/members", { roles: [], perms: ["update:Position"] })).toBe(false);
   });
 

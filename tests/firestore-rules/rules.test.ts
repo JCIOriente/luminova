@@ -656,6 +656,20 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // A LEGACY cargo with no `category` key at all — the doc shape the create and update
+    // arms used to disagree about. `!boardSurfacingCategory()` reads it as non-board (labels
+    // open), matching what the create arm has always said; the hand-rolled `== 'Comision'`
+    // it replaced read it as a board cargo and pinned its labels shut.
+    await setDoc(doc(db, "positions/pos_nocategory"), {
+      title: "Comisión Heredada",
+      titleFemale: null,
+      sigla: "CH",
+      grants: [],
+      term: null,
+      description: "Sin categoría.",
+      active: true,
+      deletedAt: null,
+    });
     // The ADMIN title-change success case likewise: retitling pos_payload would silently
     // turn the non-Admin full-payload echo into a title CHANGE and flip that success red.
     await setDoc(doc(db, "positions/pos_payload_admin"), {
@@ -770,6 +784,32 @@ beforeAll(async () => {
       grants: [],
       term: 2026,
       description: "Vocal del directorio.",
+      active: true,
+      deletedAt: null,
+    });
+    // The artifact that made "seeded CEL cargos all carry grants" the wrong kind of defense:
+    // a grant-free CEL cargo at statutory rank 0. An Admin can mint one (the create arm
+    // permits it, and "allows an Admin to create a CEL cargo" does exactly that as
+    // mint_cel_admin). Seeded here rather than reusing that test's output so the
+    // cargoAssignableByNonAdmin() probes below cannot pass or fail on declaration order.
+    await setDoc(doc(db, "positions/pos_cel_free"), {
+      title: "Presidente",
+      titleFemale: "Presidenta",
+      sigla: null,
+      category: "CEL",
+      grants: [],
+      term: null,
+      description: "Preside el capítulo.",
+      active: true,
+      deletedAt: null,
+    });
+    // Assignment target for the Admin half of the CEL probe. Its own doc: the Admin case
+    // SUCCEEDS, so sharing m_positions would leave a CEL cargo on a doc four other lane
+    // tests write, and the next currentCargoGrantsEmpty() read would answer about it.
+    await setDoc(doc(db, "members/m_celadmin"), {
+      name: "Renata",
+      totalPoints: 0,
+      uid: "celadmin-uid",
       active: true,
       deletedAt: null,
     });
@@ -2219,6 +2259,21 @@ describe("firestore.rules — positions", () => {
       }),
     );
   });
+  it("lets a non-Admin retitle a legacy cargo that has no category key (both arms agree)", async () => {
+    // The create arm asks `!boardSurfacingCategory()` and the update arm now asks the same
+    // question, so a doc whose `category` is absent (or an unrecognized value) is non-board
+    // on BOTH — creatable by a non-Admin, therefore editable by one. Under the
+    // `== 'Comision'` escape this write was DENIED: fail-closed, so never a hole, but it
+    // locked the labels of exactly the legacy docs an org-chart editor is meant to clean up.
+    // Falsifiable both ways: restore `== 'Comision'` and this goes red; drop the escape's
+    // guard entirely and "denies the full payload retitling a board cargo" goes red.
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "positions/pos_nocategory"), {
+        title: "Comisión de Actas",
+        titleFemale: "Comisión de Actas",
+      }),
+    );
+  });
   it("allows the full payload retitling a comisión (the branch the pin leaves open)", async () => {
     // On a comisión a title is a label, not an authority field — comisiones never reach
     // boardGroupFromCategory() — so the org-chart editor's rename use case stays open.
@@ -2845,6 +2900,57 @@ describe("firestore.rules — member positions assignment", () => {
     );
   });
 
+  it("BLOCKING: denies the update:Position lane assigning a GRANT-FREE CEL cargo", async () => {
+    // The publication half of cargoAssignableByNonAdmin(), and the conjunct this test
+    // exists for. pos_cel_free carries grants: [], so cargoGrantsEmpty() — the whole
+    // non-Admin check before this branch — says yes; only `category != 'CEL'` denies it.
+    // What it stops: boardRank maps 'Presidente' to 0, so this write would put the
+    // org-chart editor at the head of the world-readable Directiva as chapter president.
+    // If this goes green, neutralize nothing and re-read the rule: the CEL conjunct is gone.
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos_cel_free", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("still allows the update:Position lane a grant-free JDL dirección (the accepted exposure survives)", async () => {
+    // The paired ALLOW, adjacent on purpose: it is what proves the denial above is the CEL
+    // conjunct and not the lane closing on grant-free board cargos generally. pos_soft is
+    // JDL with grants: [] — byte-identical to pos_cel_free but for `category`.
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("leaves Admin unaffected — an Admin may still assign a grant-free CEL cargo", async () => {
+    // The conjunct lives inside the non-Admin branch only. Seating the CEL is an Admin
+    // decision on BOTH ends (the create arm already made minting one Admin-only); this pins
+    // that the fix narrowed the delegate, not the authority.
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_celadmin"), {
+        [`positions.${TERM}`]: {
+          cargoId: "pos_cel_free",
+          comisionIds: [],
+          assignedBy: "admin-uid",
+        },
+      }),
+    );
+  });
+
+  it("BLOCKING: denies Membership assigning a grant-free CEL cargo too (the conjunct is not lane-local)", async () => {
+    // positionsAssignmentSafe() is shared by the institutional members arm, so a manage:Member
+    // holder is held to the same publication boundary — otherwise the fix would just move the
+    // door. m_positions, not m1: m1 ends this block holding a power cargo.
+    await assertFails(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos_cel_free", comisionIds: [], assignedBy: "mem-uid" },
+      }),
+    );
+  });
+
   it("ACCEPTED EXPOSURE: an update:Position holder may put a member — including itself — on the public Directiva", async () => {
     // Deliberate, not an oversight (see docs/specs/position-assignment-lane.md, section A).
     // pos_soft is a JDL dirección with grants: [], and boardGroupFromCategory publishes both
@@ -2905,10 +3011,12 @@ describe("firestore.rules — replacing an already-assigned power cargo (C1)", (
     // Pins the shape docs/specs/position-assignment-lane.md documents under "Residual: the
     // term-rollover window" — this assertSucceeds is the test that section promises, NOT a
     // regression. currentCargoGrantsEmpty() reads only positions[currentTermKey()]:
-    // m_priorterm_power's Admin-granting pos1 sits under the PRIOR term key, the current
+    // m_priorterm_power's Treasury-granting pos1 sits under the PRIOR term key, the current
     // slot is empty, the guard short-circuits on `prior == null`, and an update:Position
     // holder writes a grant-free cargo into the current term. claims-sync resolves from the
-    // same current-year key, so it recomputes roles: ['Member'] — the Admin claim is gone.
+    // same current-year key, so it recomputes roles: ['Member'] — the Treasury claim is gone.
+    // The grant is Treasury rather than Admin only because that is what pos1 seeds; the
+    // shape is "any cargo-conferred claim", and Admin sits in it the same way.
     // Pre-existing (any manage:Member holder had it through the institutional arm) and
     // deliberately NOT fixed here: closing it means resolving liveness across terms, its
     // own pass. If this test goes RED, the guard grew cross-term eyes — delete this test

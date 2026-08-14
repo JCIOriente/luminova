@@ -30,8 +30,12 @@ export interface Can {
   /** May curate the public /programas page (rules' `canCurateFeatured`). Named here so the
    *  policy lives in one place, not scattered role-array literals at each call site. */
   readonly canFeatureInitiatives: boolean;
-  /** May assign power-granting cargos (rules' `cargoGrantsEmpty` / `createPositionsSafe`
-   *  — Admin only). Named so the policy isn't a bare `isAdmin` at each grant site. */
+  /** The Admin-only half of the positions authority — one flag because firestore.rules keys
+   *  every part of it on the same `hasAnyRole(['Admin'])`: assigning a power-granting cargo
+   *  (`cargoGrantsEmpty` / `currentCargoGrantsEmpty` / `createPositionsSafe`) or a CEL cargo
+   *  at all, creating a board-surfacing cargo (`boardSurfacingCategory()`), and editing a
+   *  stored cargo's `grants`, `category` or — on a board cargo — `title`/`titleFemale`.
+   *  Named so the policy isn't a bare `isAdmin` at each grant site. */
   readonly canAssignPowerGrants: boolean;
 }
 

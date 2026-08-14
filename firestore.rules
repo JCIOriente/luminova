@@ -147,6 +147,33 @@ service cloud.firestore {
       return assignedCargoId() == null
         || get(/databases/$(database)/documents/positions/$(assignedCargoId())).data.grants.size() == 0;
     }
+    // The two questions a non-Admin assignment must answer, read off ONE cargo doc — this
+    // is the same get() cargoGrantsEmpty() already pays for, with `category` taken from it
+    // rather than a second read.
+    //   grants.size() == 0    the claims-mint boundary (as cargoGrantsEmpty).
+    //   category != 'CEL'     the PUBLICATION boundary. boardGroupFromCategory publishes
+    //                         CEL and JDL alike, and boardRank orders CEL by statutory
+    //                         title with 'Presidente' at 0 — so a grant-free CEL cargo,
+    //                         self-assigned through the members-positions lane, puts its
+    //                         holder at the head of the world-readable Directiva as the
+    //                         chapter president, with no Admin action in the chain.
+    // That was previously argued blocked because "seeded CEL cargos all carry grants" — a
+    // claim about DATA, enforced by nothing. The create arm below deliberately still lets an
+    // ADMIN mint a grant-free CEL cargo (rules.test.ts creates exactly one, `mint_cel_admin`),
+    // and from that moment the data claim is false. This makes the boundary a RULE.
+    // JDL stays open: grant-free direcciones are the accepted publication exposure this lane
+    // exists to deliver (spec A, owner-op 1). CEL is the executive committee, whose seats are
+    // an Admin decision on both ends — the create arm already says so.
+    // Assignment only. currentCargoGrantsEmpty() (the cargo being REPLACED) is deliberately
+    // NOT category-gated: clearing a member off a grant-free CEL cargo is exposure-reducing,
+    // and denying it would strand a takedown behind an Admin.
+    function cargoAssignableByNonAdmin() {
+      return assignedCargoId() == null
+        || nonAdminAssignable(get(/databases/$(database)/documents/positions/$(assignedCargoId())).data);
+    }
+    function nonAdminAssignable(cargo) {
+      return cargo.grants.size() == 0 && cargo.get('category', '') != 'CEL';
+    }
     // The OTHER side of cargoGrantsEmpty(): the cargo being REPLACED. assignedCargoId()
     // reads request.resource.data — the post-write cargo — so without this a manage:Member
     // holder could overwrite a president's positions.<term> with a grant-free cargo,
@@ -180,7 +207,8 @@ service cloud.firestore {
     function positionsAssignmentSafe() {
       return positionsDelta().hasOnly([currentTermKey()])
         && assignedBySelf()
-        && (hasAnyRole(['Admin']) || (cargoGrantsEmpty() && currentCargoGrantsEmpty()));
+        && (hasAnyRole(['Admin'])
+            || (cargoAssignableByNonAdmin() && currentCargoGrantsEmpty()));
     }
     // Create has no prior resource to diff, so it can't use positionsDelta(); it
     // applies the same self-stamp + power-cargo-Admin-only gate to any positions it
@@ -435,14 +463,16 @@ service cloud.firestore {
       // Positions-only lane: an org-chart editor who is NOT a member editor. Keyed on
       // update:Position — the same capability that governs the positions CATALOG — and
       // confined to the positions map. The power-cargo restriction is NOT relaxed:
-      // positionsAssignmentSafe()'s non-Admin branch still demands cargoGrantsEmpty() &&
-      // currentCargoGrantsEmpty(), so this principal assigns and clears grant-free cargos
-      // only, on BOTH sides of a swap.
+      // positionsAssignmentSafe()'s non-Admin branch still demands
+      // cargoAssignableByNonAdmin() && currentCargoGrantsEmpty(), so this principal assigns
+      // and clears grant-free cargos only, on BOTH sides of a swap.
       //
-      // This lane IS a public publication authority, deliberately: grant-free JDL
-      // direcciones are board cargos, so its holder can put a member — including
-      // themselves — on the world-readable Directiva. No claim is minted (claims-sync
-      // returns early on grants.length == 0). Accepted, and pinned by a rules test.
+      // This lane IS a public publication authority, deliberately, and its ceiling is JDL:
+      // grant-free JDL direcciones are board cargos, so its holder can put a member —
+      // including themselves — on the world-readable Directiva under a dirección. No claim
+      // is minted (claims-sync returns early on grants.length == 0). Accepted, and pinned by
+      // a rules test. CEL is NOT in that grant — cargoAssignableByNonAdmin() refuses it
+      // whatever its grants, so 'Presidente' at public rank 0 stays an Admin decision.
       //
       // memberWriteInvariants() is implied by hasOnly(['positions']) TODAY and is stated
       // anyway: if hasOnly is ever widened — the obvious future edit is adding a second
@@ -515,11 +545,18 @@ service cloud.firestore {
       // which is the legitimate org-chart-editor use case owner-op 1 describes.
       // `unchanged('category')` is evaluated first, so reading the POST-write category to
       // decide which branch applies cannot be steered by the writer.
+      //
+      // The escape is `!boardSurfacingCategory()`, NOT a hand-rolled `== 'Comision'`: the two
+      // disagree on a doc whose `category` is absent or unrecognized (a legacy doc predating
+      // the field). The hand-rolled form treated that as a board cargo and pinned its labels —
+      // fail-closed, so never a hole, but over-restrictive on exactly the docs an org-chart
+      // editor has the most reason to fix, and a second definition of "is this published"
+      // drifting beside the create arm's (guardrail #1). One predicate, both arms.
       allow update: if canDo('update', 'Position')
         && (hasAnyRole(['Admin'])
             || (unchanged('grants')
                 && unchanged('category')
-                && (request.resource.data.get('category', '') == 'Comision'
+                && (!boardSurfacingCategory()
                     || (unchanged('title') && unchanged('titleFemale')))))
         && softDeleteSafe()
         && comisionGrantsEmpty();
