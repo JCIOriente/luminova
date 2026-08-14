@@ -348,6 +348,29 @@ is re-written each run.
 
 For wiping production data, see the runbook at `tools/scripts/wipe-prod.md`.
 
+## Soft-Delete Shape Audit (pre-deploy gate)
+
+`pnpm audit:soft-delete-shapes` scans `members`, `positions` and `allies` for docs
+missing `active`/`deletedAt` or holding a non-bool `active` — the shapes the
+well-formedness rules make admin-SDK-only to edit (owner-op 4 of
+`docs/specs/position-assignment-lane.md`, BLOCKING before those rules deploy). It
+exits non-zero when anything is found, so it can gate a deploy. Read-only by
+default; `--repair` fixes only the unambiguous shapes (a missing `deletedAt`
+becomes `null`; a missing `active` on a never-deleted doc becomes `true`) and
+refuses to guess at a non-bool `active` — that one is a human decision. For a
+malformed **member** it also reports whether a `boardShowcase` row is currently
+published: the admin-SDK repair is what re-fires `onBoardMemberWritten` and takes
+the row down, since the rules deny the client write that would have.
+
+```bash
+gcloud auth application-default login
+pnpm audit:soft-delete-shapes            # count + gate
+pnpm audit:soft-delete-shapes --repair   # fix the unambiguous, report the rest
+```
+
+Same credential model as `seed:production`; point it at the emulator by setting
+`FIRESTORE_EMULATOR_HOST` first.
+
 ## Correo de invitación
 
 When an admin provisions login access for a member, the app calls Firebase Auth's

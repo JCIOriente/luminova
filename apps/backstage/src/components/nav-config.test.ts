@@ -189,6 +189,16 @@ describe("isNavItemVisible — conditional grants must not leak", () => {
     expect(canSee("/positions", { roles: [], perms: ["read:Position"] })).toBe(false);
   });
 
+  it("offers /members to the org-chart principal — read:Member + update:Position, never update:Position alone", () => {
+    // Cargo assignment happens ON /members (the member roster), and the nav probes
+    // read:Member there. A custom role carrying only update:Position therefore cannot
+    // reach the page — the whole members-positions lane is inert for exactly the role the
+    // owner-op tells the operator to create. The operable principal carries both perms;
+    // this pins that pair open, and that the write perm alone still opens nothing.
+    expect(canSee("/members", { roles: [], perms: ["read:Member", "update:Position"] })).toBe(true);
+    expect(canSee("/members", { roles: [], perms: ["update:Position"] })).toBe(false);
+  });
+
   it("shows /notificaciones to a compose-only principal (create:Notification, no read)", () => {
     // The page's history list gates on read:Notification, but a compose-only principal
     // holds only create:Notification. The item's `subject: Notification` read would hide

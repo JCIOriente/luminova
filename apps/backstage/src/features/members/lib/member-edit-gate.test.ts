@@ -50,9 +50,13 @@ describe("memberEditMode", () => {
   });
 
   it("BLOCKING: read:Position alone opens no member editor — reading the catalog is not assigning", () => {
-    // The real guard: `read:Position` is what a plain Member and Membership both carry for
-    // chip resolution on /me. It confers no write on members/{id}, so rendering the Cargos
-    // form for it would be the render-then-PERMISSION_DENIED shape this gate exists to remove.
+    // The real guard. `read:Position` confers no write on members/{id}, so rendering the
+    // Cargos form for it would be the render-then-PERMISSION_DENIED shape this gate exists to
+    // remove — and the ability to read the catalog is close to universal. Not because the
+    // `perms` claim carries it (`BUILT_IN_ROLE_PERMS.Member` does not), but because
+    // `applyConditional` in packages/auth/src/ability.ts gives the `Member` ROLE an
+    // unconditioned `read` on `Position` for chip resolution on /me, and every provisioned
+    // user holds that role. The second case below is the production shape.
     expect(modeFor({ roles: [], perms: ["read:Position"] })).toBe("none");
     expect(modeFor({ roles: ["Member"], perms: ["read:Position"] })).toBe("none");
   });

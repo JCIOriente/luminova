@@ -59,6 +59,9 @@ const BORN_LIVE = { active: true, deletedAt: null };
 // Rules derive the term from request.time.year() (UTC); compute it from the client
 // clock so this suite can't rot when the calendar year rolls over.
 const TERM = String(new Date().getUTCFullYear());
+/** The term BEFORE the current one — the term-rollover residual's whole point: a power cargo
+ *  parked here is invisible to currentCargoGrantsEmpty(), which only reads currentTermKey(). */
+const PRIOR_TERM = String(Number(TERM) - 1);
 const DELETED_AT = new Date("2026-01-01T00:00:00Z");
 // Fixed instant for the activity-lock fixtures so echo-update tests can resend
 // the exact same startAt value.
@@ -584,6 +587,48 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // A member whose POWER cargo sits under a PRIOR term key, leaving the CURRENT term slot
+    // empty. Pins the term-rollover residual (docs/specs/position-assignment-lane.md,
+    // "Residual: the term-rollover window"): currentCargoGrantsEmpty() reads only
+    // positions[currentTermKey()], so it short-circuits on `prior == null` and never sees
+    // this cargo. Its own doc — m_powercargo holds its power cargo in the CURRENT term and
+    // is what proves the guard DOES fire, so the two must not share a fixture.
+    await setDoc(doc(db, "members/m_priorterm_power"), {
+      name: "Lucía",
+      totalPoints: 0,
+      uid: "priorterm-uid",
+      active: true,
+      deletedAt: null,
+      positions: { [PRIOR_TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
+    });
+    // Full-payload targets for the positions catalog arm. toPositionUpdateDoc
+    // (apps/backstage/src/features/positions/repositories/position-mapper.ts:14) spreads the
+    // WHOLE PositionInput on every save, so the non-Admin arm has to pass that seven-field
+    // shape — not just the `{ description }` partial the category-pin test writes. One board
+    // cargo (labels pinned) and one comisión (labels open), each its own doc so the success
+    // cases cannot disturb pos1/pos_cat/pos_soft.
+    await setDoc(doc(db, "positions/pos_payload"), {
+      title: "Director de Prensa",
+      titleFemale: "Directora de Prensa",
+      sigla: null,
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Prensa.",
+      active: true,
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "positions/com_payload"), {
+      title: "Comisión de Prensa",
+      titleFemale: null,
+      sigla: "CP",
+      category: "Comision",
+      grants: [],
+      term: null,
+      description: "Prensa.",
+      active: true,
+      deletedAt: null,
+    });
     // Category-mutation target for the positions catalog arm. Its own doc so the Admin
     // success case cannot disturb pos1/pos_soft, which half this suite reads.
     await setDoc(doc(db, "positions/pos_cat"), {
@@ -593,6 +638,34 @@ beforeAll(async () => {
       grants: [],
       term: 2026,
       description: "Dirección de membresía.",
+      active: true,
+      deletedAt: null,
+    });
+    // The ADMIN category-change success case gets its own doc, away from pos_cat: the suite
+    // seeds once with no reset, so an Admin writing category: 'CEL' onto pos_cat would turn
+    // the BLOCKING non-Admin denial (which writes that same value) into an unchanged echo —
+    // unchanged('category') true, arm ALLOWS — leaving that denial green only by
+    // declaration order. Same shape as pos_cat so the two tests differ in principal only.
+    await setDoc(doc(db, "positions/pos_cat_admin"), {
+      title: "Director de Capacitación",
+      titleFemale: "Directora de Capacitación",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Dirección de capacitación.",
+      active: true,
+      deletedAt: null,
+    });
+    // The ADMIN title-change success case likewise: retitling pos_payload would silently
+    // turn the non-Admin full-payload echo into a title CHANGE and flip that success red.
+    await setDoc(doc(db, "positions/pos_payload_admin"), {
+      title: "Director de Finanzas",
+      titleFemale: "Directora de Finanzas",
+      sigla: null,
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Finanzas.",
       active: true,
       deletedAt: null,
     });
@@ -640,10 +713,55 @@ beforeAll(async () => {
       active: "false",
       deletedAt: null,
     });
+    // The missing-field twins for positions and allies. softDeleteSafe() is ONE helper
+    // shared by four lanes, but "shared helper" is a claim until each lane's denial is
+    // measured — members alone had the missing-active / missing-deletedAt tests. The
+    // *_nodeletedat_fix docs are separate because the repair-asymmetry test WRITES the
+    // missing key (a mutating success), and the denial tests must keep reading a doc
+    // that still lacks it.
+    await setDoc(doc(db, "positions/pos_noactive"), {
+      title: "Vocal Segundo",
+      titleFemale: "Vocal Segunda",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Sin active.",
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "positions/pos_nodeletedat"), {
+      title: "Vocal Tercero",
+      titleFemale: "Vocal Tercera",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Sin deletedAt.",
+      active: true,
+    });
+    await setDoc(doc(db, "positions/pos_nodeletedat_fix"), {
+      title: "Vocal Cuarto",
+      titleFemale: "Vocal Cuarta",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Sin deletedAt, reparable.",
+      active: true,
+    });
     await setDoc(doc(db, "allies/a_badactive"), {
       companyName: "Malformada",
       active: "false",
       deletedAt: null,
+    });
+    await setDoc(doc(db, "allies/a_noactive"), {
+      companyName: "Sin active",
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "allies/a_nodeletedat"), {
+      companyName: "Sin deletedAt",
+      active: true,
+    });
+    await setDoc(doc(db, "allies/a_nodeletedat_fix"), {
+      companyName: "Sin deletedAt, reparable",
+      active: true,
     });
     await setDoc(doc(db, "positions/pos_soft"), {
       title: "Vocal",
@@ -2038,8 +2156,128 @@ describe("firestore.rules — positions", () => {
     );
   });
   it("allows an Admin to change a position's category (the surviving authority)", async () => {
+    // pos_cat_admin, NOT pos_cat: writing CEL onto pos_cat would make the BLOCKING denial
+    // above an unchanged echo — allowed — for every run after this one (seed-once suite).
+    // Measured: with the shared fixture, running this test FIRST fails that denial.
     await assertSucceeds(
-      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_cat"), { category: "CEL" }),
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_cat_admin"), { category: "CEL" }),
+    );
+  });
+  // ── The production payload against the title/category pins ────────────────────────────
+  // toPositionUpdateDoc (apps/backstage/src/features/positions/repositories/
+  // position-mapper.ts:14) spreads the WHOLE PositionInput on every save: seven fields,
+  // no active/deletedAt. The `{ description }` partial the category-pin test writes never
+  // proves that shape passes the arm — the exact way a rules pin ships and 403s the first
+  // real save in production. These payload literals mirror the pos_payload/com_payload
+  // seeds field-for-field so an unchanged spread is a true echo.
+  const boardPayload = () => ({
+    title: "Director de Prensa",
+    titleFemale: "Directora de Prensa",
+    sigla: null,
+    category: "JDL",
+    grants: [],
+    term: 2026,
+    description: "Prensa.",
+  });
+  const comisionPayload = () => ({
+    title: "Comisión de Prensa",
+    titleFemale: null,
+    sigla: "CP",
+    category: "Comision",
+    grants: [],
+    term: null,
+    description: "Prensa.",
+  });
+  it("allows a non-Admin update:Position holder the full production payload (pins unchanged)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "positions/pos_payload"), {
+        ...boardPayload(),
+        description: "Prensa y comunicación.",
+      }),
+    );
+  });
+  it("BLOCKING: denies the full payload when it changes the category", async () => {
+    await assertFails(
+      updateDoc(doc(orgChart(), "positions/pos_payload"), {
+        ...boardPayload(),
+        category: "CEL",
+        term: null,
+      }),
+    );
+  });
+  it("BLOCKING: denies the full payload retitling a board cargo (either label)", async () => {
+    await assertFails(
+      updateDoc(doc(orgChart(), "positions/pos_payload"), {
+        ...boardPayload(),
+        title: "Presidente",
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(orgChart(), "positions/pos_payload"), {
+        ...boardPayload(),
+        titleFemale: "Presidenta",
+      }),
+    );
+  });
+  it("allows the full payload retitling a comisión (the branch the pin leaves open)", async () => {
+    // On a comisión a title is a label, not an authority field — comisiones never reach
+    // boardGroupFromCategory() — so the org-chart editor's rename use case stays open.
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "positions/com_payload"), {
+        ...comisionPayload(),
+        title: "Comisión de Comunicación",
+      }),
+    );
+  });
+  it("allows an Admin to retitle a board cargo via the full payload (the surviving authority)", async () => {
+    // pos_payload_admin, not pos_payload: retitling pos_payload would flip the non-Admin
+    // echo success above into a title change on later runs (seed-once suite).
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_payload_admin"), {
+        title: "Director de Tesorería",
+        titleFemale: "Directora de Tesorería",
+        sigla: null,
+        category: "JDL",
+        grants: [],
+        term: 2026,
+        description: "Finanzas.",
+      }),
+    );
+  });
+  // The CREATE-side twin of the category pin above. Pinning only the update arm left the
+  // same outcome one door over: MINT a grant-free CEL cargo instead of retitling one.
+  // grants:[] passes the power-grant check, so `grants` alone never blocked this — and
+  // "seeded CEL cargos all carry grants" is true only of SEEDED ones.
+  const posCreator = () => as("poscreate-uid", [], ["create:Position"]);
+  const boardCargo = (category: string) => ({
+    title: "Presidente",
+    titleFemale: null,
+    sigla: null,
+    category,
+    term: category === "JDL" ? 2026 : null,
+    grants: [],
+    description: "",
+    ...BORN_LIVE,
+  });
+  it("BLOCKING: denies a non-Admin create:Position holder minting a CEL cargo", async () => {
+    await assertFails(setDoc(doc(posCreator(), "positions/mint_cel"), boardCargo("CEL")));
+  });
+  it("BLOCKING: denies a non-Admin create:Position holder minting a JDL dirección", async () => {
+    await assertFails(setDoc(doc(posCreator(), "positions/mint_jdl"), boardCargo("JDL")));
+  });
+  it("still allows a non-Admin create:Position holder to create a comisión", async () => {
+    // Pins that the fix narrows the board categories only — it does not close the arm.
+    await assertSucceeds(
+      setDoc(doc(posCreator(), "positions/mint_com"), {
+        ...boardCargo("Comision"),
+        title: "Comisión de Prensa",
+        sigla: "CP",
+      }),
+    );
+  });
+  it("allows an Admin to create a CEL cargo (the surviving authority)", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("admin-uid", ["Admin"]), "positions/mint_cel_admin"), boardCargo("CEL")),
     );
   });
   // Deliberate fail-closed: a legacy power comisión (possible before the
@@ -2125,8 +2363,9 @@ describe("firestore.rules — activity parent-initiative direction", () => {
 });
 
 describe("firestore.rules — initiative featured create-gate", () => {
-  // Curation authority is the Admin/ProjectManager ROLE; a custom role holding only
-  // the create perm may create initiatives but never born-featured ones.
+  // Curation authority is canCurateFeatured(): the Admin ROLE or the update:Showcase PERM
+  // (seeded onto ProjectManager). A custom role holding only the create perm may create
+  // initiatives but never born-featured ones.
   function asCustom(uid: string, perms: string[]) {
     return env.authenticatedContext(uid, { roles: ["Member"], perms }).firestore();
   }
@@ -2661,6 +2900,25 @@ describe("firestore.rules — replacing an already-assigned power cargo (C1)", (
       }),
     );
   });
+
+  it("ACCEPTED HOLE (term rollover): a prior-term power cargo does NOT guard the empty current term", async () => {
+    // Pins the shape docs/specs/position-assignment-lane.md documents under "Residual: the
+    // term-rollover window" — this assertSucceeds is the test that section promises, NOT a
+    // regression. currentCargoGrantsEmpty() reads only positions[currentTermKey()]:
+    // m_priorterm_power's Admin-granting pos1 sits under the PRIOR term key, the current
+    // slot is empty, the guard short-circuits on `prior == null`, and an update:Position
+    // holder writes a grant-free cargo into the current term. claims-sync resolves from the
+    // same current-year key, so it recomputes roles: ['Member'] — the Admin claim is gone.
+    // Pre-existing (any manage:Member holder had it through the institutional arm) and
+    // deliberately NOT fixed here: closing it means resolving liveness across terms, its
+    // own pass. If this test goes RED, the guard grew cross-term eyes — delete this test
+    // and the Residual section together.
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "members/m_priorterm_power"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
 });
 
 // B: the four softDeleteSafe() lanes (members ×2 + the positions lane, positions, allies)
@@ -2824,6 +3082,36 @@ describe("firestore.rules — soft-delete well-formedness (B)", () => {
       }),
     );
   });
+  // The prefix is ONE helper across four lanes, but that sharing is a claim until each
+  // lane's denial is measured — only members had the missing-field tests. Same principals
+  // as the non-bool-active tests above, so the missing key is the only variable.
+  it("denies updating a position whose stored doc has no active key", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_noactive"), { title: "Vocal II" }),
+    );
+    await assertFails(
+      updateDoc(doc(orgChart(), "positions/pos_noactive"), { description: "Editada." }),
+    );
+  });
+  it("denies updating a position whose stored doc has no deletedAt key", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_nodeletedat"), {
+        title: "Vocal III",
+      }),
+    );
+  });
+  it("denies updating an ally whose stored doc has no active key", async () => {
+    await assertFails(updateDoc(doc(secretary(), "allies/a_noactive"), { companyName: "Editada" }));
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "allies/a_noactive"), { companyName: "Editada" }),
+    );
+  });
+  it("denies updating an ally whose stored doc has no deletedAt key", async () => {
+    await assertFails(
+      updateDoc(doc(secretary(), "allies/a_nodeletedat"), { companyName: "Editada" }),
+    );
+  });
+
   it("pins which malformed field a client can repair and which it cannot", async () => {
     // Stated so nobody reads the denials above as "just write the right value". The two
     // halves differ, and the difference is exactly why owner-op 4 is a console/admin-SDK
@@ -2841,6 +3129,24 @@ describe("firestore.rules — soft-delete well-formedness (B)", () => {
     );
     await assertSucceeds(
       updateDoc(doc(as("u", ["Membership"]), "members/m_nodeletedat_fix"), { deletedAt: null }),
+    );
+  });
+  it("pins the same repair asymmetry on positions and allies (one helper, four lanes)", async () => {
+    // active — not repairable even by Admin, on any lane:
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_badactive"), { active: true }),
+    );
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "allies/a_badactive"), { active: true }),
+    );
+    // deletedAt — self-healing by stamping the null the doc should have had:
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_nodeletedat_fix"), {
+        deletedAt: null,
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(secretary(), "allies/a_nodeletedat_fix"), { deletedAt: null }),
     );
   });
 

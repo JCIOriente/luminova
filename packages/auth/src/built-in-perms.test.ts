@@ -47,11 +47,15 @@ describe("resolveBuiltInPerms", () => {
     expect(out).toEqual([]);
   });
 
-  it("BLOCKING: a ghost doc is COVERED and contributes nothing", () => {
-    // `live` is precomputed by the caller over BOTH `active` and `deletedAt`, so the ghost
-    // shape (`active: true` with a non-null `deletedAt`) arrives here as `live: false`. It
-    // must behave exactly like a deactivated doc — covered, minting nothing — and not like
-    // an absent one. Second key present so the assertion cannot pass by returning [] wholesale.
+  it("BLOCKING: a not-live doc covers its key while an absent key still falls back", () => {
+    // This does NOT construct a ghost — resolveBuiltInPerms never sees active/deletedAt;
+    // it takes the caller's precomputed `live`. The ghost shape (`active: true` with a
+    // non-null `deletedAt`) being derived INTO live: false is beacon's job, and the test
+    // that feeds real doc fields through that derivation lives in
+    // apps/beacon/src/claims-sync/sync.test.ts. What this case adds over the
+    // suppresses-the-fallback test above is the split verdict: the covered key mints
+    // nothing while the absent key still falls back to its seed — so the assertion cannot
+    // pass by returning [] wholesale.
     const out = resolveBuiltInPerms({
       builtInRoleNames: ["Treasury", "Secretary"],
       builtInDocs: [{ permissions: ["manage:all"], builtInKey: "Treasury", live: false }],

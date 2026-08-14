@@ -1,3 +1,6 @@
+// MUST stay `import type`. `firebase` is only a devDependency here, and `@luminova/auth/built-in-perms`
+// pulls this file into the esbuild Cloud Functions bundle — a value import would resolve and bundle
+// the client SDK into a beacon artifact that is admin-SDK-only, silently. No lint rule enforces this.
 import type { Timestamp } from "firebase/firestore";
 import type { Role } from "./permission-role.js";
 import type { PermissionCode } from "./permission.js";

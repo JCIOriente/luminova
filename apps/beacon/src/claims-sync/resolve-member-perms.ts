@@ -13,7 +13,7 @@ export interface RolePermsDeps {
    *  COVER their key, which is the only thing that tells "deactivated" apart from
    *  "never seeded". Filter them out here and a deactivation silently restores the
    *  seed snapshot through the fallback below. */
-  getRoleDocsByBuiltInKeys(keys: Role[]): Promise<LiveBuiltInRoleDoc[]>;
+  getRoleDocsByBuiltInKeys(keys: Role[]): Promise<readonly LiveBuiltInRoleDoc[]>;
   /** Custom role docs by id — ACTIVE only. There is no fallback on this path, so
    *  dropping an inactive doc already yields zero perms. */
   getRolesByIds(ids: string[]): Promise<Pick<RoleDefinition, "permissions">[]>;
@@ -32,10 +32,15 @@ export interface RolePermsDeps {
  *  backstage mirror is fail-closed, so the two are not one function — and only its
  *  consumption is shared.
  *
- *  The two fetches are INDEPENDENT and run concurrently: this resolver runs once per member
- *  in `onRoleWritten`'s unbounded fan-out, which has a 540 s budget and `retry: false`, so a
- *  serial await here compounds into the timeout that strands members. The `.length ? … : []`
- *  short-circuits are preserved — an empty input must still skip its query outright.
+ *  The two fetches are INDEPENDENT and run concurrently, and the saving is ONE round-trip
+ *  overlap per fresh deps instance — not one per member. `firestoreClaimsDeps` memoizes the
+ *  built-in query per instance and `onRoleWritten` holds ONE instance for its whole fan-out,
+ *  so from the second member onward `getRoleDocsByBuiltInKeys` returns an already-settled
+ *  promise: a microtask, not a round trip. What `Promise.all` actually buys is the first
+ *  member of a fan-out and every `onMemberWritten` invocation (one instance, one member).
+ *  Cheap and correct, but it is not what keeps the 540 s / `retry: false` fan-out inside its
+ *  budget — the memo is. The `.length ? … : []` short-circuits are preserved: an empty input
+ *  must still skip its query outright (pinned by a test in this file's suite).
  *
  *  Two production callers inherit this: claims-sync/sync.ts (the onMemberWritten /
  *  onRoleWritten trigger) and set-user-roles.ts (the setUserRoles admin callable). */

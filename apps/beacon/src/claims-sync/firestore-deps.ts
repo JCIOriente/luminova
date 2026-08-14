@@ -53,7 +53,7 @@ async function queryBuiltInRoleDocs(
   db: Firestore,
   keys: Role[],
   { log = true }: { log?: boolean } = {},
-): Promise<LiveBuiltInRoleDoc[]> {
+): Promise<readonly LiveBuiltInRoleDoc[]> {
   // `in` supports ≤30 values; ROLES has 9. `builtIn === true` is defense in
   // depth against an impostor custom role spoofing a builtInKey (rules also
   // forbid clients setting builtInKey, but the trust boundary is the trigger).
@@ -135,10 +135,13 @@ async function queryBuiltInRoleDocs(
   // object graph to every member of the fan-out, so an in-place mutation anywhere
   // downstream (a future `doc.permissions.sort()`) would corrupt every remaining member's
   // claims — one write, N wrong results, no log. Freezing makes that throw in strict mode
-  // instead. The type agrees: `BuiltInRoleDoc.permissions` is `readonly`, and
-  // `resolveBuiltInPerms` only iterates it, so the frozen array needs no cast to satisfy
-  // the port. (Claims-sync no longer calls `resolveEffectivePerms` directly at all — it
-  // goes through `resolveMemberPerms` → `resolveBuiltInPerms`.)
+  // instead. The type agrees, and that is the point: the PORT itself is
+  // `Promise<readonly LiveBuiltInRoleDoc[]>` (and `BuiltInRoleDoc.permissions` is
+  // `readonly`), so the frozen value is honestly typed and needs no cast. A mutable array
+  // type here would assert a mutability the value does not have — a later `docs.sort()`
+  // would compile clean and throw at runtime inside a `retry: false` fan-out.
+  // (Claims-sync no longer calls `resolveEffectivePerms` directly at all — it goes through
+  // `resolveMemberPerms` → `resolveBuiltInPerms`.)
   return Object.freeze(
     covering.map((d) =>
       Object.freeze({
@@ -147,7 +150,7 @@ async function queryBuiltInRoleDocs(
         live: isActiveRoleDoc(d.data()),
       }),
     ),
-  ) as LiveBuiltInRoleDoc[];
+  );
 }
 
 /** Order-insensitive canonical form of a built-in query result, for the staleness compare.
@@ -222,8 +225,8 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): FirestoreClaimsD
   // and the caller logs the operator's cue to run recomputeAllClaims. Deliberately NOT a TTL:
   // a TTL would narrow the window while keeping the failure silent, which is strictly worse
   // than a wide window an operator is told about.
-  const builtInDocsCache = new Map<string, Promise<LiveBuiltInRoleDoc[]>>();
-  function loadBuiltInRoleDocs(keys: Role[]): Promise<LiveBuiltInRoleDoc[]> {
+  const builtInDocsCache = new Map<string, Promise<readonly LiveBuiltInRoleDoc[]>>();
+  function loadBuiltInRoleDocs(keys: Role[]): Promise<readonly LiveBuiltInRoleDoc[]> {
     const cacheKey = [...new Set(keys)].sort().join(",");
     let pending = builtInDocsCache.get(cacheKey);
     if (!pending) {

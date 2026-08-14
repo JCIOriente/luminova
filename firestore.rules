@@ -471,22 +471,56 @@ service cloud.firestore {
       return request.resource.data.get('category', '') != 'Comision'
         || request.resource.data.get('grants', []) == [];
     }
+    // A category that boardGroupFromCategory() publishes — packages/types/src/engine/
+    // board-public.ts maps exactly CEL and JDL onto the world-readable Directiva, and
+    // boardRank() then orders them (an unknown CEL title sorts last; 'Presidente' is 0).
+    // Creating one is a PUBLICATION decision, so it is Admin-only, matching the pin on
+    // the update arm below. Non-Admins create comisiones.
+    function boardSurfacingCategory() {
+      return request.resource.data.get('category', '') in ['CEL', 'JDL'];
+    }
     match /positions/{positionId} {
       allow read: if signedIn();
       // Authorization is perm-based; the power-grant authority (who may confer
       // non-empty grants → claims) stays Admin-role-only, as before.
+      //
+      // boardSurfacingCategory() closes the create-side twin of the update-side
+      // `category` pin. Pinning only the update arm left the same outcome reachable one
+      // door over: a non-Admin create:Position holder could MINT a fresh
+      // { category: 'CEL', title: 'Presidente', grants: [] } cargo — grants-free, so it
+      // passes the power-grant check — and self-assign it through the members-positions
+      // lane, landing on the public Directiva at rank 0. Seeded CEL cargos all carry
+      // grants, which is what made that look blocked; nothing stopped an UNSEEDED one.
       allow create: if canDo('create', 'Position')
-        && (hasAnyRole(['Admin']) || request.resource.data.grants == [])
+        && (hasAnyRole(['Admin']) || (request.resource.data.grants == []
+                                      && !boardSurfacingCategory()))
         && bornLive()
         && comisionGrantsEmpty();
       // `category` joins `grants` in the non-Admin pin because it is an authority field,
-      // not a label: it decides the public board GROUP and board RANK, and whether
-      // comisionGrantsEmpty() applies at all. Without it an update:Position holder could
-      // retitle a grant-free Comisión to { category: 'CEL', title: 'Presidente' } — rank 0 —
-      // and then assign it to themselves through the members-positions lane, landing on the
-      // world-readable Directiva with no Admin action anywhere in the chain.
+      // not a label: it decides the public board GROUP and whether comisionGrantsEmpty()
+      // applies at all. Without it an update:Position holder could retitle a grant-free
+      // Comisión to { category: 'CEL', title: 'Presidente' } and then assign it to
+      // themselves through the members-positions lane, landing on the world-readable
+      // Directiva with no Admin action anywhere in the chain.
+      //
+      // The TITLE is pinned with it, on board cargos only — and that is not symmetry for its
+      // own sake. boardRank() (packages/types/src/engine/board-public.ts:49-52) is computed
+      // from the base TITLE, not the category: CEL_ORDER maps 'Presidente' onto rank 0, and
+      // project-board.ts copies `title` verbatim into the world-readable Directiva. So
+      // pinning `category` alone left the same outcome one door over: a non-Admin cannot
+      // ASSIGN a seeded CEL cargo (they all carry grants) but could RENAME one — retitle the
+      // grant-free 'Vicepresidente' to 'Presidente' and the public board shows them first.
+      // On a board cargo a title is an authority field; on a comisión it is a label —
+      // comisiones never reach boardGroupFromCategory() — so comisión renames stay open,
+      // which is the legitimate org-chart-editor use case owner-op 1 describes.
+      // `unchanged('category')` is evaluated first, so reading the POST-write category to
+      // decide which branch applies cannot be steered by the writer.
       allow update: if canDo('update', 'Position')
-        && (hasAnyRole(['Admin']) || (unchanged('grants') && unchanged('category')))
+        && (hasAnyRole(['Admin'])
+            || (unchanged('grants')
+                && unchanged('category')
+                && (request.resource.data.get('category', '') == 'Comision'
+                    || (unchanged('title') && unchanged('titleFemale')))))
         && softDeleteSafe()
         && comisionGrantsEmpty();
       allow delete: if false;

@@ -37,6 +37,9 @@ function SectionLabel({ children }: { children: ReactNode }) {
 interface PositionFormProps {
   defaultValues?: Partial<PositionInput>;
   submitLabel: string;
+  /** Admin-only authority over the fields the catalog rules pin for everyone else:
+   *  `grants`, `category`, and — on a board cargo (CEL/JDL) — `title`/`titleFemale`.
+   *  One prop, because firestore.rules keys all four on the same `hasAnyRole(['Admin'])`. */
   canEditGrants: boolean;
   onSubmit: (data: PositionInput) => Promise<void>;
 }
@@ -62,7 +65,13 @@ export function PositionForm({
     formState: { errors, isSubmitting },
   } = useForm<PositionInput>({
     resolver: zodResolver(positionSchema),
-    defaultValues: { ...EMPTY, ...defaultValues },
+    // A non-Admin may only ever create a comisión (firestore.rules `boardSurfacingCategory()`),
+    // so a NEW cargo must not start on the CEL default and die on save. On an EDIT the stored
+    // category wins — it is pinned, not chosen.
+    defaultValues:
+      canEditGrants || defaultValues
+        ? { ...EMPTY, ...defaultValues }
+        : { ...EMPTY, category: "Comision" },
   });
 
   const categoryField = register("category");
@@ -70,6 +79,12 @@ export function PositionForm({
   const title = watch("title");
   const isTermVisible = category === "JDL";
   const isComision = category === "Comision";
+  // Mirror of the non-Admin pin on the positions update arm in firestore.rules. `category`
+  // is an authority field (it decides the public board group), and on a board cargo so is
+  // the TITLE — boardRank() orders the public Directiva by it, so 'Vicepresidente' renamed
+  // to 'Presidente' sorts first. Rendering them editable to a non-Admin buys a generic
+  // "No se pudo guardar" on save: the render-then-die shape this repo guards against.
+  const areLabelsLocked = !canEditGrants && !isComision;
 
   const submit = handleSubmit(async (data) => {
     setFormError(null);
@@ -90,7 +105,7 @@ export function PositionForm({
           required
           error={errors.title?.message}
         >
-          <Input id="title" {...register("title")} />
+          <Input id="title" {...register("title")} disabled={areLabelsLocked} />
         </Field>
         {!isComision && (
           <Field
@@ -101,6 +116,7 @@ export function PositionForm({
             <Input
               id="titleFemale"
               {...register("titleFemale")}
+              disabled={areLabelsLocked}
               placeholder={title ? femaleTitle(title) : "Se deriva automáticamente"}
             />
           </Field>
@@ -114,6 +130,7 @@ export function PositionForm({
           <Select
             id="category"
             {...categoryField}
+            disabled={!canEditGrants}
             onChange={(e) => {
               void categoryField.onChange(e);
               const newCategory = e.target.value;
@@ -136,6 +153,13 @@ export function PositionForm({
             ))}
           </Select>
         </Field>
+        {!canEditGrants && (
+          <p role="note" className="text-ui-xs text-ink-3">
+            {areLabelsLocked
+              ? "Solo un Admin puede cambiar la categoría o el nombre de un cargo del CEL o de una dirección: el nombre define el orden en la Directiva pública."
+              : "Solo un Admin puede cambiar la categoría de un cargo."}
+          </p>
+        )}
         {isTermVisible && (
           <Field label="Gestión" htmlFor="term" required error={errors.term?.message}>
             <Input id="term" type="number" {...register("term", { valueAsNumber: true })} />

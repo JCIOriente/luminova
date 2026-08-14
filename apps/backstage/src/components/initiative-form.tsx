@@ -39,8 +39,11 @@ interface InitiativeFormProps {
   isSaving: boolean;
   onSubmit: (data: InitiativeInput) => void;
   lockStatus?: boolean;
-  /** Whether the caller may set `featured` — Admin/ProjectManager only, mirroring
-   *  the rules' `featuredUpdateSafe`. A direction/perm editor sees it disabled. */
+  /** Whether the caller may set `featured` — the Admin ROLE, or the `update:Showcase`
+   *  PERM, mirroring the rules' `canCurateFeatured()`. Not a ProjectManager role check:
+   *  the seed grants that role the perm, so deactivating the role now revokes curation,
+   *  and a custom role carrying `update:Showcase` gains it. A direction/perm editor
+   *  without either sees it disabled. */
   canFeature?: boolean;
 }
 
@@ -207,9 +210,10 @@ export function InitiativeForm({
           </Select>
         </Field>
       )}
-      {/* `featured` curation is Admin/ProjectManager-only (rules' featuredUpdateSafe);
-          a non-curator can never set it here, so hide the control entirely. The form
-          still submits the initiative's current value (unchanged), which the rule allows. */}
+      {/* `featured` curation needs the Admin role or the `update:Showcase` perm (rules'
+          canCurateFeatured); a non-curator can never set it here, so hide the control
+          entirely. The form still submits the initiative's current value (unchanged),
+          which the rule allows. */}
       {canFeature && (
         <div className="flex flex-col gap-1">
           <Controller

@@ -105,6 +105,33 @@ describe("resolveMemberPerms", () => {
     expect(out).toEqual(["manage:Position", "read:MemberPoints"]);
   });
 
+  it("skips each query outright when its input is empty", async () => {
+    // The `.length ? … : []` short-circuits are an asserted invariant of the docblock, and
+    // nothing else pins them: dropping one still returns the right perms (both ports answer
+    // [] for an empty input), it just spends a Firestore round trip per member of an
+    // unbounded fan-out. Counting fake, so the regression is observable at all.
+    let builtInCalls = 0;
+    let customCalls = 0;
+    const counting = deps({
+      getRoleDocsByBuiltInKeys: async () => {
+        builtInCalls += 1;
+        return [];
+      },
+      getRolesByIds: async () => {
+        customCalls += 1;
+        return [];
+      },
+    });
+
+    await resolveMemberPerms(counting, [], ["role-x"], NO_OVERRIDES);
+    expect(builtInCalls).toBe(0);
+    expect(customCalls).toBe(1);
+
+    await resolveMemberPerms(counting, ["Treasury"], [], NO_OVERRIDES);
+    expect(builtInCalls).toBe(1);
+    expect(customCalls).toBe(1);
+  });
+
   it("resolves the coarse reads for a plain Member/Scanner with no extras", async () => {
     // Scanner is no longer conditional-only: event scoping was abandoned, so it carries
     // coarse read:Activity + checkIn:Attendance alongside Member's member-facing reads.

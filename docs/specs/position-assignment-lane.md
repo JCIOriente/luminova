@@ -212,7 +212,12 @@ UTC-year rollover a victim whose Admin comes from `positions["2026"]` has an emp
 `roles: ['Member']`. **Pre-existing** — it falls to any `manage:Member` holder through the
 institutional arm today, and A does not create it — but the guard is not unconditional, and
 this spec says so rather than repeating "closes the strip-Admin hole" without qualification.
-A test pins the shape. Fixing it properly means resolving liveness across terms and is its
+A test pins the shape as ALLOWED, named as an accepted hole so a future reader sees it was
+measured rather than missed — an earlier draft claimed that test existed when it did not.
+A does not create the hole, but it does widen the principal set: before A this needed
+`manage:Member`; after A a role whose entire authority is `update:Position` reaches it.
+Owner-op 1 states that, so nobody grants the capability on the strength of an unqualified
+"never a power cargo". Fixing it properly means resolving liveness across terms and is its
 own pass.
 
 ---
@@ -301,8 +306,17 @@ and it is the interesting part of B2:
 if (member.deletedAt != null || member.active !== true) return null;
 ```
 
-B1 and B2 stop new malformed docs; **only B3 removes the existing public exposure**, so it
-ships with them, not after. It also ends the split with `project-ally.ts`.
+B1 and B2 stop new malformed docs; B3 is what stops an existing one being published. It also
+ends the split with `project-ally.ts`.
+
+**B3 alone does not reach the rows already published — corrected after review.** An earlier
+draft said "only B3 removes the existing public exposure", which overstates its reach:
+`onBoardMemberWritten` fires only on a `members/{id}` write, so a member already on
+`boardShowcase` under the fail-open predicate stays there until their doc is next written —
+and B1 is precisely what makes that write impossible from the client. The remedy is
+therefore operational, not automatic: `pnpm audit:soft-delete-shapes --repair` writes through
+the admin SDK, which re-fires the trigger and deletes the row. That is why owner-op 4 is
+blocking, and why the script is a repair tool rather than a count.
 
 ### Not in scope
 
@@ -514,13 +528,27 @@ so all three assertions go false until the fixtures carry `perms: ["update:Showc
 ## Owner-ops
 
 1. **Hand cargo assignment to an org-chart editor (optional, data-only).** In `/permisos`,
-   create a **custom** role carrying `update:Position` and assign it. **Do not add the perm to
-   the `ExecutiveCommittee` built-in** — `reseedBuiltInRolePerms` rewrites built-in docs back
-   to the seed snapshot and would strip it without warning. Understand what it confers: the
-   holder may assign and clear **grant-free** cargos and comisiones (never a power cargo, on
-   either side of a swap), may edit the positions catalog except `grants` and `category`, and
-   — because grant-free JDL direcciones are board cargos — **may publish a member, including
-   themselves, to the public Directiva**.
+   create a **custom** role carrying **both `update:Position` and `read:Member`** and assign
+   it. Both: the nav gates `/members` on `read:Member` and the profile page must read the
+   member doc, so `update:Position` alone delivers a capability the holder cannot reach —
+   pinned by a `nav-config` test. **Do not add the perm to the `ExecutiveCommittee`
+   built-in** — `reseedBuiltInRolePerms` rewrites built-in docs back to the seed snapshot and
+   would strip it without warning.
+
+   Understand what it confers. The holder may assign and clear **grant-free** cargos and
+   comisiones, and may edit the positions catalog except `grants`, `category`, and — on a
+   CEL/JDL cargo — `title`/`titleFemale`. Two consequences to accept before granting it:
+
+   - **They may publish a member, including themselves, to the public Directiva**, because
+     grant-free JDL direcciones are board cargos.
+   - **"Never a power cargo" holds for the CURRENT term only.** `currentCargoGrantsEmpty()`
+     reads `positions[currentTermKey()]`, so between the UTC-year rollover and the victim's
+     next write, a member whose Admin comes from last year's cargo has an empty current-term
+     slot, the guard short-circuits, and this holder can write a grant-free cargo into the new
+     term — which claims-sync resolves to `roles: ['Member']`, stripping the Admin claim.
+     Pre-existing (it falls to any `manage:Member` holder through the institutional arm) but
+     newly reachable by a role whose entire authority is `update:Position`. See Residuals; the
+     shape is now pinned by a rules test named as an accepted hole.
 2. **Before deploying D's rules:** run `reseedBuiltInRolePerms`, then run `recomputeAllClaims`,
    then confirm a live `ProjectManager`'s **ID-token claim** carries `update:Showcase`. The
    reseed's `onRoleWritten` fan-out is unbounded and `retry: false`, so it can strand members;
@@ -530,8 +558,13 @@ so all three assertions go false until the fixtures carry `perms: ["update:Showc
 4. **BLOCKING pre-deploy audit for B.** Count `members`, `positions` and `allies` docs whose
    `active` is missing or not a bool, or which lack `deletedAt`. Each becomes admin-SDK-only
    to edit the moment B1 ships, with no UI affordance to repair it — and unlike the first
-   draft's claim, they are editable **today**. Repair them from the console before the rules
-   deploy, or accept a known, counted set.
+   draft's claim, they are editable **today**. Run `pnpm audit:soft-delete-shapes`
+   (`tools/scripts/audit-soft-delete-shapes.mjs`, documented in `docs/firebase-setup.md`):
+   it exits non-zero on any finding so it gates the deploy, `--repair` fixes the unambiguous
+   shapes through the admin SDK (which also re-fires `onBoardMemberWritten` — the only
+   remaining path that unpublishes a malformed member from the public Directiva), and it
+   refuses to guess at a non-bool `active`. Repair the reported remainder from the console
+   before the rules deploy, or accept a known, counted set.
 
 ## Deploy order
 
@@ -557,6 +590,28 @@ Recorded because each falsified something this document previously asserted:
 6. **D's test cost is 16 rules tests**, not eight, plus a `use-can` fixture rewrite.
 7. **`manage:Position` opens the positions editor too** (CASL `manage` satisfies `update`), so
    two `member-edit-gate` assertions invert rather than one.
+
+Found by the mandated review round, after the code was written:
+
+8. **`unchanged('category')` was defeated one door over.** Pinning the update arm left the same
+   outcome reachable through CREATE: a non-Admin `create:Position` holder could mint a fresh
+   `{category: 'CEL', title: 'Presidente', grants: []}` cargo — grant-free, so the power-grant
+   check passes — and self-assign it at board rank 0. "Seeded CEL cargos all carry grants" is
+   what made it look blocked; nothing stopped an UNSEEDED one. Closed by
+   `boardSurfacingCategory()` on the create arm.
+9. **`boardRank` reads the TITLE, not the category**, so pinning `category` alone still let a
+   non-Admin retitle Vicepresidente to "Presidente". `title`/`titleFemale` are now pinned on
+   board cargos and left open on comisiones.
+10. **The rules pin had no client mirror**, so `PositionForm` offered a Categoría dropdown whose
+    submission the rules reject with a generic save error — render-then-die. Mirrored in the UI.
+11. **Two tests were order-coupled through one fixture.** An Admin test wrote `category: 'CEL'`
+    onto the doc a BLOCKING denial read, so after it ran the identical non-Admin write became an
+    unchanged echo and was ALLOWED. The denial passed only because vitest runs `it`s in
+    declaration order. Measured by reordering; fixed with a dedicated fixture.
+12. **Claims the branch made about its own tests were false**: the rollover test and the
+    "positive-and-inert" claims-mint test were both described as existing and did not. Both
+    written.
+13. **B3's reach was overstated** — see B3 above.
 
 ## Residuals
 

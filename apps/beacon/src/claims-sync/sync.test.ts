@@ -126,6 +126,70 @@ describe("syncMemberClaims", () => {
     });
   });
 
+  it("BLOCKING: positive-and-inert — a grant-free cargo from a NON-Admin assigner mints nothing", async () => {
+    // The members-positions lane (firestore.rules' fourth members update arm, keyed on
+    // update:Position) lets an org-chart editor who is NOT an Admin assign GRANT-FREE cargos.
+    // docs/specs/position-assignment-lane.md accepts that lane as a PUBLIC publication
+    // authority — a grant-free JDL dirección puts the member on the world-readable Directiva —
+    // precisely BECAUSE it confers no claim. That was inferred from reading sync.ts; this test
+    // asserts it, both halves:
+    //
+    //   1. INERT — the computed claims equal what the member already had, so setClaims is
+    //      never even called. Nothing leaks out of the cargo and nothing is carried in.
+    //   2. The assigner is NEVER LOOKED UP. This is the falsifiable half and the load-bearing
+    //      one: `resolveTrustedGrants` returns at the `grants.length === 0` early return
+    //      BEFORE the assignedBy-holds-Admin gate is consulted. So the inertness does not
+    //      depend on the assigner being a non-Admin — it holds for ANY assigner, which is what
+    //      makes "this lane cannot mint" a property of the lane rather than of the fixture.
+    //      Delete that early return and this assertion goes red while the claims stay equal.
+    const grantFree = { grants: [] as Role[] };
+    const assignerLookups: string[] = [];
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-jdl-dir": grantFree, "pos-pres": { grants: ["Admin"] } },
+      // The org-chart editor holds update:Position via a CUSTOM role — no built-in carries it
+      // — and is emphatically not an Admin.
+      userRoles: { "orgchart-uid": ["Member"] },
+      existing: { "target-uid": { roles: ["Member"], perms: permsFor(["Member"]) } },
+    });
+    const spied: ClaimsSyncDeps = {
+      ...deps,
+      getUserRoles: async (uid) => {
+        assignerLookups.push(uid);
+        return deps.getUserRoles(uid);
+      },
+    };
+    await syncMemberClaims(
+      spied,
+      {
+        uid: "target-uid",
+        positions: {
+          "2026": { cargoId: "pos-jdl-dir", comisionIds: [], assignedBy: "orgchart-uid" },
+        },
+      },
+      "2026",
+    );
+    // 1. Byte-identical to the claims the member already held → the idempotent no-op path.
+    expect(writes).toEqual({});
+    // 2. The trust gate was never reached.
+    expect(assignerLookups).toEqual([]);
+
+    // CONTRAST with the power-cargo half, same non-Admin assigner, same member. Here the
+    // early return does NOT fire, so the assigner IS looked up — and only then dropped for
+    // not holding Admin. Seen side by side: grant-free short-circuits, power-conferring
+    // is adjudicated.
+    await syncMemberClaims(
+      spied,
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "orgchart-uid" } },
+      },
+      "2026",
+    );
+    expect(assignerLookups).toEqual(["orgchart-uid"]);
+    // Same end state — but reached by the gate, not by the early return.
+    expect(writes).toEqual({});
+  });
+
   it("drops power grants when assignedBy is missing (legacy doc)", async () => {
     const { deps, writes } = fakeDeps({
       positions: { "pos-pres": { grants: ["Admin"] } },
