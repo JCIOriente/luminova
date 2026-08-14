@@ -26,6 +26,11 @@
 //   exit 1 → the run completed and found malformed docs (the gate)
 //   exit 2 → the run did NOT complete (a per-doc read/write failed, or repair was refused
 //            confirmation). Distinct on purpose: a crash must not look like a clean gate.
+// Every one of those codes is set with `process.exitCode` and reached by RETURNING out of
+// main(), never with process.exit(): on POSIX a piped stdout is an ASYNC write, and
+// process.exit() drops whatever is still buffered. This script prints a per-doc worklist and
+// then exits non-zero — exactly the shape that loses its tail the moment anyone pipes it, in
+// CI or through `| tee`. The exit code survived, the operator's worklist did not.
 //
 // `--repair` fixes ONLY the unambiguous shapes and refuses to guess:
 //   deletedAt missing            → deletedAt: null (the value the create arm would have
@@ -124,22 +129,26 @@ console.log(
     `project ${projectId}${REPAIR ? " — repair mode" : " — read-only"}\n`,
 );
 
+/** true → proceed. false → refused; the exit code is already set and the caller must return
+ *  rather than exit, so the refusal (and everything printed before it) drains to a pipe. */
 async function confirmProductionRepair() {
   // --allow-publish widens what this run may do, so it widens the token that authorizes it.
   // The plain token never authorizes a publishing run: pass the flag and the plain token is
   // rejected, exactly like any other wrong string.
   const requiredToken = ALLOW_PUBLISH ? PUBLISH_CONFIRM_TOKEN : CONFIRM_TOKEN;
-  if (confirmArg === requiredToken) return;
+  if (confirmArg === requiredToken) return true;
   if (confirmArg !== undefined) {
     console.error(`Refusing to repair: --confirm must be exactly "${requiredToken}".`);
-    process.exit(EXIT_INCOMPLETE);
+    process.exitCode = EXIT_INCOMPLETE;
+    return false;
   }
   if (!process.stdin.isTTY) {
     console.error(
       `Refusing to repair PRODUCTION project ${projectId} without confirmation. ` +
         `No TTY to prompt on — re-run with ${CONFIRM_FLAG}${requiredToken}.`,
     );
-    process.exit(EXIT_INCOMPLETE);
+    process.exitCode = EXIT_INCOMPLETE;
+    return false;
   }
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   let answer;
@@ -165,15 +174,16 @@ async function confirmProductionRepair() {
   rl.close();
   if (answer !== requiredToken) {
     console.error("Aborted — nothing was written.");
-    process.exit(EXIT_INCOMPLETE);
+    process.exitCode = EXIT_INCOMPLETE;
+    return false;
   }
   console.log("");
+  return true;
 }
 
-if (REPAIR && !emulator) await confirmProductionRepair();
-
-initializeApp(emulator ? { projectId } : { credential: applicationDefault(), projectId });
-const db = getFirestore();
+/** Assigned by main() — the admin SDK is initialized only after the production confirmation,
+ *  so this cannot be a module-level `const`. */
+let db;
 
 /** Duck-typed Timestamp test, mirroring apps/beacon/src/firestore-util.ts hasToMillis(). Not
  *  `instanceof Timestamp`: the admin SDK's Timestamp class identity is not guaranteed across
@@ -414,196 +424,223 @@ async function showcaseState(rows) {
   return state;
 }
 
-for (const coll of COLLECTIONS) {
-  const rows = [];
-  try {
-    for await (const doc of scan(coll)) {
-      const data = doc.data();
-      const verdict = classify(data);
-      if (verdict) rows.push({ doc, data, ...verdict });
-    }
-  } catch (error) {
-    // A paging failure means this collection was only partially seen — never report its
-    // (partial) count as a clean one; the run is incomplete.
-    failed.push({ ref: coll, op: "scan", message: String(error) });
-    console.log(`${coll}: FAILED to scan — ${error}`);
-    continue;
-  }
-  found += rows.length;
-  console.log(`${coll}: ${rows.length} malformed doc(s)`);
-
-  const published = coll === "members" ? await showcaseState(rows) : new Map();
-
-  // Which repairable members the repair could NEWLY publish. Only members have a
-  // projection, and only a doc that is not already published can be newly published — but
-  // "already published" must be KNOWN, so an unreadable boardShowcase counts as a candidate
-  // (the same fail-safe direction as every gate below).
-  const publishCandidates =
-    coll === "members"
-      ? rows.filter(
-          ({ doc, data, repair }) =>
-            repair !== null &&
-            published.get(doc.id) !== true &&
-            localPublicationBlockers(doc.id, data, repair).length === 0,
-        )
-      : [];
-  const cargos = await cargoState(
-    new Set(publishCandidates.map(({ data }) => currentCargoId(data)).filter((id) => id !== null)),
-  );
-  /** id -> { unknownPublication, unknownCargo } for every member the repair may publish. */
-  const willPublish = new Map();
-  for (const { doc, data } of publishCandidates) {
-    const cargoId = currentCargoId(data);
-    // No current-term cargo is a settled NO — projectBoard returns null on a null cargo.
-    if (cargoId === null) continue;
-    const verdict = cargoPublishes(cargos.get(cargoId));
-    if (verdict === false) continue;
-    willPublish.set(doc.id, {
-      unknownPublication: published.get(doc.id) === null,
-      unknownCargo: verdict === null ? cargoId : null,
-    });
-  }
-
-  let shownBenign = 0;
-  let hiddenBenign = 0;
-  for (const { doc, data, problems, repair } of rows) {
-    // `has ? get : false`, NOT `get(...) ?? false`: showcaseState uses null as the
-    // "publication unreadable" sentinel, and ?? falls back on exactly null — collapsing an
-    // UNKNOWN into "not published". That killed the branch below, dropped the promised
-    // UNKNOWN line, and reclassified the doc as benign, i.e. truncatable — losing from the
-    // worklist precisely the docs whose public exposure nobody knows. One rejected getAll
-    // chunk (a transient 503) is enough to trigger it.
-    const showcase = published.has(doc.id) ? published.get(doc.id) : false;
-    const publishing = willPublish.get(doc.id);
-    // Always print a doc a human must act on: ambiguous, publicly exposed, unverifiable, or
-    // about to be published by its own repair.
-    const mustShow = repair === null || showcase !== false || publishing !== undefined;
-    let show = mustShow;
-    if (!mustShow) {
-      if (shownBenign < MAX_PRINT) {
-        show = true;
-        shownBenign += 1;
-      } else {
-        hiddenBenign += 1;
+/** The audit itself. Never calls process.exit(): it sets process.exitCode and returns, so
+ *  every line it printed drains even when stdout is a pipe. */
+async function runAudit() {
+  for (const coll of COLLECTIONS) {
+    const rows = [];
+    try {
+      for await (const doc of scan(coll)) {
+        const data = doc.data();
+        const verdict = classify(data);
+        if (verdict) rows.push({ doc, data, ...verdict });
       }
+    } catch (error) {
+      // A paging failure means this collection was only partially seen — never report its
+      // (partial) count as a clean one; the run is incomplete.
+      failed.push({ ref: coll, op: "scan", message: String(error) });
+      console.log(`${coll}: FAILED to scan — ${error}`);
+      continue;
     }
-    if (show) console.log(`  - ${coll}/${doc.id}: ${problems.join(", ")}`);
+    found += rows.length;
+    console.log(`${coll}: ${rows.length} malformed doc(s)`);
 
-    if (showcase === null) {
-      console.log(
-        `    UNKNOWN publication: boardShowcase/${doc.id} could not be read — treat this ` +
-          "member as possibly on the public Directiva and check by hand",
-      );
-    } else if (showcase === true) {
-      if (repair === null) {
-        console.log(
-          `    PUBLISHED: boardShowcase/${doc.id} exists and STAYS PUBLISHED. This doc is ` +
-            "ambiguous, so this script writes nothing for it — no members write, no " +
-            "onBoardMemberWritten, and the row survives under the old fail-open projection.\n" +
-            "      Two remedies, both by hand:\n" +
-            `      1. Firebase console → members/${doc.id}: set 'active' to a real boolean. ` +
-            "That admin write re-fires the now fail-closed projection, which drops the row " +
-            "when the member is not live.\n" +
-            `      2. An Admin write of publicProfile: false on members/${doc.id}. The members ` +
-            "takedown arm in firestore.rules deliberately skips softDeleteSafe(), so it stays " +
-            "open on exactly these docs (a rules test pins it). Backstage will not list this " +
-            "member — memberDocSchema drops it — so make that write from the console or directly.",
-        );
-      } else if (liveAfterRepair(data, repair)) {
-        console.log(
-          `    PUBLISHED: boardShowcase/${doc.id} exists — this member is on the public ` +
-            "Directiva. The repair declares the doc LIVE (active true / deletedAt null), so " +
-            "the re-fired onBoardMemberWritten RE-PUBLISHES it from the repaired doc. That is " +
-            "correct, and it is NOT a takedown: to unpublish, write publicProfile: false as " +
-            "an Admin.",
-        );
-      } else {
-        console.log(
-          `    PUBLISHED: boardShowcase/${doc.id} exists — this member is on the public ` +
-            "Directiva. The repair leaves the doc NOT live, so the re-fired " +
-            "onBoardMemberWritten removes the row.",
-        );
-      }
-    }
+    const published = coll === "members" ? await showcaseState(rows) : new Map();
 
-    if (publishing) {
-      console.log(
-        `    WILL PUBLISH: repairing members/${doc.id} writes active: true, which un-blocks ` +
-          "the fail-closed projectBoard gate. This member holds a current-term CEL/JDL " +
-          "cargo, a pinned portrait and publicProfile: true, so the re-fired " +
-          `onBoardMemberWritten ADDS boardShowcase/${doc.id} to the world-readable ` +
-          "Directiva. That is a NEW publication, not a repair side effect anyone asked " +
-          // REPAIR first: this forecast prints in read-only mode too, where NOTHING is
-          // written and "--allow-publish was passed — repairing it" would be a false
-          // statement about what the run just did.
-          `for.\n      ${publishOutcome}`,
-      );
-      if (publishing.unknownCargo !== null) {
-        console.log(
-          `      (positions/${publishing.unknownCargo} could not be read — the cargo half of ` +
-            "the forecast is a GUESS-FREE unknown, reported rather than assumed benign)",
-        );
-      }
-      if (publishing.unknownPublication) {
-        console.log(
-          `      (boardShowcase/${doc.id} could not be read either, so this may be a ` +
-            "re-publication rather than a new one)",
-        );
-      }
-    }
-
-    if (!REPAIR) continue;
-    if (repair && (!publishing || ALLOW_PUBLISH)) {
-      try {
-        await doc.ref.update(repair);
-        repaired += 1;
-        if (show) console.log(`    repaired: ${JSON.stringify(repair)}`);
-      } catch (error) {
-        failed.push({ ref: `${coll}/${doc.id}`, op: "repair", message: String(error) });
-        console.log(`    FAILED to repair ${coll}/${doc.id}: ${error}`);
-      }
-    } else if (repair) {
-      withheld += 1;
-      console.log(`    WITHHELD (would publish) — re-run with ${ALLOW_PUBLISH_FLAG} to apply`);
-    } else {
-      refused += 1;
-      console.log("    REFUSED to repair (ambiguous) — fix by hand");
-    }
-  }
-  if (hiddenBenign > 0) {
-    console.log(
-      `  … and ${hiddenBenign} more repairable, unpublished doc(s) not listed ` +
-        "(counts are complete; ambiguous, PUBLISHED and WILL PUBLISH docs are never truncated)",
+    // Which repairable members the repair could NEWLY publish. Only members have a
+    // projection, and only a doc that is not already published can be newly published — but
+    // "already published" must be KNOWN, so an unreadable boardShowcase counts as a candidate
+    // (the same fail-safe direction as every gate below).
+    const publishCandidates =
+      coll === "members"
+        ? rows.filter(
+            ({ doc, data, repair }) =>
+              repair !== null &&
+              published.get(doc.id) !== true &&
+              localPublicationBlockers(doc.id, data, repair).length === 0,
+          )
+        : [];
+    const cargos = await cargoState(
+      new Set(publishCandidates.map(({ data }) => currentCargoId(data)).filter((id) => id !== null)),
     );
+    /** id -> { unknownPublication, unknownCargo } for every member the repair may publish. */
+    const willPublish = new Map();
+    for (const { doc, data } of publishCandidates) {
+      const cargoId = currentCargoId(data);
+      // No current-term cargo is a settled NO — projectBoard returns null on a null cargo.
+      if (cargoId === null) continue;
+      const verdict = cargoPublishes(cargos.get(cargoId));
+      if (verdict === false) continue;
+      willPublish.set(doc.id, {
+        unknownPublication: published.get(doc.id) === null,
+        unknownCargo: verdict === null ? cargoId : null,
+      });
+    }
+
+    let shownBenign = 0;
+    let hiddenBenign = 0;
+    for (const { doc, data, problems, repair } of rows) {
+      // `has ? get : false`, NOT `get(...) ?? false`: showcaseState uses null as the
+      // "publication unreadable" sentinel, and ?? falls back on exactly null — collapsing an
+      // UNKNOWN into "not published". That killed the branch below, dropped the promised
+      // UNKNOWN line, and reclassified the doc as benign, i.e. truncatable — losing from the
+      // worklist precisely the docs whose public exposure nobody knows. One rejected getAll
+      // chunk (a transient 503) is enough to trigger it.
+      const showcase = published.has(doc.id) ? published.get(doc.id) : false;
+      const publishing = willPublish.get(doc.id);
+      // Always print a doc a human must act on: ambiguous, publicly exposed, unverifiable, or
+      // about to be published by its own repair.
+      const mustShow = repair === null || showcase !== false || publishing !== undefined;
+      let show = mustShow;
+      if (!mustShow) {
+        if (shownBenign < MAX_PRINT) {
+          show = true;
+          shownBenign += 1;
+        } else {
+          hiddenBenign += 1;
+        }
+      }
+      if (show) console.log(`  - ${coll}/${doc.id}: ${problems.join(", ")}`);
+
+      if (showcase === null) {
+        console.log(
+          `    UNKNOWN publication: boardShowcase/${doc.id} could not be read — treat this ` +
+            "member as possibly on the public Directiva and check by hand",
+        );
+      } else if (showcase === true) {
+        if (repair === null) {
+          console.log(
+            `    PUBLISHED: boardShowcase/${doc.id} exists and STAYS PUBLISHED. This doc is ` +
+              "ambiguous, so this script writes nothing for it — no members write, no " +
+              "onBoardMemberWritten, and the row survives under the old fail-open projection.\n" +
+              "      Two remedies, both by hand:\n" +
+              `      1. Firebase console → members/${doc.id}: set 'active' to a real boolean. ` +
+              "That admin write re-fires the now fail-closed projection, which drops the row " +
+              "when the member is not live.\n" +
+              `      2. An Admin write of publicProfile: false on members/${doc.id}. The members ` +
+              "takedown arm in firestore.rules deliberately skips softDeleteSafe(), so it stays " +
+              "open on exactly these docs (a rules test pins it). Backstage will not list this " +
+              "member — memberDocSchema drops it — so make that write from the console or directly.",
+          );
+        } else if (liveAfterRepair(data, repair)) {
+          console.log(
+            `    PUBLISHED: boardShowcase/${doc.id} exists — this member is on the public ` +
+              "Directiva. The repair declares the doc LIVE (active true / deletedAt null), so " +
+              "the re-fired onBoardMemberWritten RE-PUBLISHES it from the repaired doc. That is " +
+              "correct, and it is NOT a takedown: to unpublish, write publicProfile: false as " +
+              "an Admin.",
+          );
+        } else {
+          console.log(
+            `    PUBLISHED: boardShowcase/${doc.id} exists — this member is on the public ` +
+              "Directiva. The repair leaves the doc NOT live, so the re-fired " +
+              "onBoardMemberWritten removes the row.",
+          );
+        }
+      }
+
+      if (publishing) {
+        console.log(
+          `    WILL PUBLISH: repairing members/${doc.id} writes active: true, which un-blocks ` +
+            "the fail-closed projectBoard gate. This member holds a current-term CEL/JDL " +
+            "cargo, a pinned portrait and publicProfile: true, so the re-fired " +
+            `onBoardMemberWritten ADDS boardShowcase/${doc.id} to the world-readable ` +
+            "Directiva. That is a NEW publication, not a repair side effect anyone asked " +
+            // REPAIR first: this forecast prints in read-only mode too, where NOTHING is
+            // written and "--allow-publish was passed — repairing it" would be a false
+            // statement about what the run just did.
+            `for.\n      ${publishOutcome}`,
+        );
+        if (publishing.unknownCargo !== null) {
+          console.log(
+            `      (positions/${publishing.unknownCargo} could not be read — the cargo half of ` +
+              "the forecast is a GUESS-FREE unknown, reported rather than assumed benign)",
+          );
+        }
+        if (publishing.unknownPublication) {
+          console.log(
+            `      (boardShowcase/${doc.id} could not be read either, so this may be a ` +
+              "re-publication rather than a new one)",
+          );
+        }
+      }
+
+      if (!REPAIR) continue;
+      if (repair && (!publishing || ALLOW_PUBLISH)) {
+        try {
+          await doc.ref.update(repair);
+          repaired += 1;
+          if (show) console.log(`    repaired: ${JSON.stringify(repair)}`);
+        } catch (error) {
+          failed.push({ ref: `${coll}/${doc.id}`, op: "repair", message: String(error) });
+          console.log(`    FAILED to repair ${coll}/${doc.id}: ${error}`);
+        }
+      } else if (repair) {
+        withheld += 1;
+        console.log(`    WITHHELD (would publish) — re-run with ${ALLOW_PUBLISH_FLAG} to apply`);
+      } else {
+        refused += 1;
+        console.log("    REFUSED to repair (ambiguous) — fix by hand");
+      }
+    }
+    if (hiddenBenign > 0) {
+      console.log(
+        `  … and ${hiddenBenign} more repairable, unpublished doc(s) not listed ` +
+          "(counts are complete; ambiguous, PUBLISHED and WILL PUBLISH docs are never truncated)",
+      );
+    }
+  }
+
+  const remaining = REPAIR ? found - repaired : found;
+  console.log(
+    `\n${found} malformed doc(s) found` +
+      (REPAIR
+        ? `; ${repaired} repaired, ${refused} refused (ambiguous), ${withheld} withheld (would publish)`
+        : "") +
+      `; ${remaining} remaining`,
+  );
+
+  if (failed.length > 0) {
+    console.log(`\n${failed.length} failure(s) — THE RUN DID NOT COMPLETE:`);
+    for (const { ref, op, message } of failed) console.log(`  - ${ref} (${op}): ${message}`);
+    console.log(
+      "Counts above are partial and the scan may have stopped early. Fix the cause and re-run; " +
+        "repairs already written have already fired their triggers.",
+    );
+    process.exitCode = EXIT_INCOMPLETE;
+    return;
+  }
+
+  if (remaining > 0) {
+    console.log(
+      REPAIR
+        ? `Docs still needing a human — see above${withheld > 0 ? ` (${withheld} of them only need the ${ALLOW_PUBLISH_FLAG} decision)` : ""}.`
+        : "Run with --repair, or fix by hand.",
+    );
+    process.exitCode = EXIT_MALFORMED;
+    return;
+  }
+  console.log("Audit clean — the soft-delete rules can ship.");
+}
+
+async function main() {
+  if (REPAIR && !emulator && !(await confirmProductionRepair())) return;
+
+  initializeApp(emulator ? { projectId } : { credential: applicationDefault(), projectId });
+  db = getFirestore();
+  try {
+    await runAudit();
+  } finally {
+    // Dropping process.exit() means the process ends only when the event loop drains, and the
+    // admin SDK's gRPC channel keeps it alive indefinitely. Closing it is what lets the run
+    // exit on its own with the code runAudit() set — and lets stdout finish flushing first.
+    try {
+      await db.terminate();
+    } catch (error) {
+      // Never silent: a channel that refuses to close is why a CI job would hang here.
+      console.error(`Failed to close the Firestore connection: ${error}`);
+    }
   }
 }
 
-const remaining = REPAIR ? found - repaired : found;
-console.log(
-  `\n${found} malformed doc(s) found` +
-    (REPAIR
-      ? `; ${repaired} repaired, ${refused} refused (ambiguous), ${withheld} withheld (would publish)`
-      : "") +
-    `; ${remaining} remaining`,
-);
-
-if (failed.length > 0) {
-  console.log(`\n${failed.length} failure(s) — THE RUN DID NOT COMPLETE:`);
-  for (const { ref, op, message } of failed) console.log(`  - ${ref} (${op}): ${message}`);
-  console.log(
-    "Counts above are partial and the scan may have stopped early. Fix the cause and re-run; " +
-      "repairs already written have already fired their triggers.",
-  );
-  process.exit(EXIT_INCOMPLETE);
-}
-
-if (remaining > 0) {
-  console.log(
-    REPAIR
-      ? `Docs still needing a human — see above${withheld > 0 ? ` (${withheld} of them only need the ${ALLOW_PUBLISH_FLAG} decision)` : ""}.`
-      : "Run with --repair, or fix by hand.",
-  );
-  process.exit(EXIT_MALFORMED);
-}
-console.log("Audit clean — the soft-delete rules can ship.");
-process.exit(0);
+await main();

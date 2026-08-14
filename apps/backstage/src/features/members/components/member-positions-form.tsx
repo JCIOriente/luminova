@@ -3,8 +3,12 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button, Combobox, Field, MultiSelect } from "@luminova/ui";
-import { positionTitle, currentTermKey, type MemberGender, type Position } from "@luminova/types";
-import { cargoAssignableByNonAdmin, positionsLockedForNonAdmin } from "../lib/assignable-cargo";
+import { type MemberGender, type Position } from "@luminova/types";
+import {
+  cargoOptionsForEditor,
+  cargoTakedownOnly,
+  positionsLockedForNonAdmin,
+} from "../lib/assignable-cargo";
 
 const positionsSchema = z.object({
   cargoId: z.string().min(1).nullable(),
@@ -25,8 +29,8 @@ export function MemberPositionsForm({
   defaultValues: PositionsInput;
   /** Whether the caller may assign the cargos the rules reserve to an Admin — power-granting
    *  ones and CEL seats alike (rules' `cargoAssignableByNonAdmin`). A non-Admin sees only
-   *  assignable cargos (plus the current assignment, so an existing selection still
-   *  renders). */
+   *  assignable cargos, plus the seat the member already holds rendered DISABLED, so the
+   *  trigger names the real cargo without putting a denied write one click away. */
   allowPowerGrants: boolean;
   onSubmit: (data: PositionsInput) => Promise<void>;
 }) {
@@ -34,30 +38,26 @@ export function MemberPositionsForm({
   const {
     control,
     handleSubmit,
+    watch,
     formState: { isSubmitting },
   } = useForm<PositionsInput>({ resolver: zodResolver(positionsSchema), defaultValues });
 
-  const term = currentTermKey();
   // A power-granting current cargo locks the whole slot for a non-Admin: every save re-stamps
   // that cargoId, and `currentCargoGrantsEmpty()` blocks clearing it too, so nothing they can
   // submit succeeds. A grant-free CEL seat is the asymmetric case — keeping it is denied,
-  // CLEARING it is allowed on purpose — so the form stays open and the cargo is simply not
-  // offered. See positionsLockedForNonAdmin().
+  // CLEARING it is allowed on purpose — so the form stays open, the seat renders as a disabled
+  // option (the trigger must not claim "Sin cargo" for a seated member) and only the takedown
+  // can be saved. See positionsLockedForNonAdmin() / cargoTakedownOnly().
   const assignedCargo = positions.find((p) => p.id === defaultValues.cargoId);
   const locked = !allowPowerGrants && positionsLockedForNonAdmin(assignedCargo);
-  const keepsCurrentCargo =
-    allowPowerGrants || (assignedCargo !== undefined && cargoAssignableByNonAdmin(assignedCargo));
-  const cargoOptions = positions
-    .filter(
-      (p) => p.active && p.category !== "Comision" && (p.term === null || String(p.term) === term),
-    )
-    .filter(
-      (p) =>
-        allowPowerGrants ||
-        cargoAssignableByNonAdmin(p) ||
-        (keepsCurrentCargo && p.id === defaultValues.cargoId),
-    )
-    .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
+  const cargoOptions = cargoOptionsForEditor({
+    positions,
+    gender,
+    allowPowerGrants,
+    assignedCargoId: defaultValues.cargoId,
+  });
+  const selectedCargo = positions.find((p) => p.id === watch("cargoId"));
+  const takedownOnly = cargoTakedownOnly(selectedCargo, allowPowerGrants);
   const comisionOptions = positions
     .filter((p) => p.active && p.category === "Comision")
     .map((p) => ({ value: p.id, label: p.sigla ? `${p.sigla} — ${p.title}` : p.title }));
@@ -78,14 +78,27 @@ export function MemberPositionsForm({
           control={control}
           name="cargoId"
           render={({ field }) => (
-            <Combobox
-              id="cargoId"
-              options={cargoOptions}
-              value={field.value}
-              onChange={field.onChange}
-              placeholder="Sin cargo"
-              disabled={locked}
-            />
+            <div className="flex flex-col items-start gap-2">
+              <Combobox
+                id="cargoId"
+                options={cargoOptions}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Sin cargo"
+                disabled={locked}
+              />
+              {takedownOnly && (
+                <Button
+                  as="button"
+                  type="button"
+                  variant="link"
+                  tone="danger"
+                  onClick={() => field.onChange(null)}
+                >
+                  Quitar cargo
+                </Button>
+              )}
+            </div>
           )}
         />
       </Field>
@@ -106,8 +119,13 @@ export function MemberPositionsForm({
       </Field>
       {locked && (
         <p role="note" className="text-ui-xs text-ink-3">
-          Solo un Admin puede cambiar los cargos de un miembro del Comité Ejecutivo Local o con
-          permisos.
+          Solo un Admin puede cambiar los cargos de un miembro cuyo cargo otorga permisos.
+        </p>
+      )}
+      {takedownOnly && (
+        <p role="note" className="text-ui-xs text-ink-3">
+          Este cargo es del Comité Ejecutivo Local: solo un Admin puede asignarlo. Puedes quitárselo
+          con «Quitar cargo» y guardar, o elegir otro cargo.
         </p>
       )}
       {formError && (
@@ -115,10 +133,14 @@ export function MemberPositionsForm({
           {formError}
         </div>
       )}
+      {/* takedownOnly disables the save, not the form: every positions write this page makes
+          re-stamps the whole slot (MemberRepository.setPositions), so saving while the CEL seat
+          is still selected is the 403 the rules promise. Clearing it (or picking another cargo)
+          re-enables the save — that takedown is exactly what the rules keep open. */}
       <Button
         as="button"
         type="submit"
-        disabled={isSubmitting || locked}
+        disabled={isSubmitting || locked || takedownOnly}
         className="w-full justify-center"
       >
         {isSubmitting ? "Guardando…" : "Guardar cargos"}

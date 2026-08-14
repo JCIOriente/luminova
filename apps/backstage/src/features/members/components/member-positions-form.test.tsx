@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Position } from "@luminova/types";
 import { MemberPositionsForm } from "./member-positions-form";
@@ -180,20 +180,52 @@ describe("MemberPositionsForm", () => {
   // `currentCargoGrantsEmpty()` is deliberately not category-gated, so CLEARING it is
   // allowed — firestore.rules says denying that "would strand a takedown behind an Admin".
   // Locking the form here would strand exactly that takedown in the UI instead.
-  it("BLOCKING: does NOT lock a grant-free CEL seat — clearing it is the allowed takedown", () => {
-    render(
-      <MemberPositionsForm
-        positions={[celFree, pos("etica", "Comision")]}
-        gender="Masculino"
-        allowPowerGrants={false}
-        defaultValues={{ cargoId: "presidente_libre", comisionIds: [] }}
-        onSubmit={vi.fn().mockResolvedValue(undefined)}
-      />,
+  const celSeatedProps = {
+    positions: [celFree, pos("etica", "Comision")],
+    gender: "Masculino" as const,
+    allowPowerGrants: false,
+    defaultValues: { cargoId: "presidente_libre", comisionIds: [] },
+  };
+
+  // Dropping the seat from the options was half a mirror: it left the CEL cargoId as the RHF
+  // value with no option to render it, so the trigger showed the "Sin cargo" PLACEHOLDER for a
+  // seated member, saving as-is re-submitted the cargoId into a 403, and Combobox's clear
+  // gesture (re-select the selected option) was unreachable because that option did not exist.
+  it("BLOCKING: names the grant-free CEL seat a non-Admin holds instead of 'Sin cargo'", () => {
+    render(<MemberPositionsForm {...celSeatedProps} onSubmit={vi.fn()} />);
+    expect(screen.getByLabelText("Cargo")).toHaveTextContent("presidente_libre");
+    // Not locked — the takedown stays open — but not savable while the seat is kept either.
+    expect(screen.queryByText(/Solo un Admin puede cambiar los cargos/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /guardar/i })).toBeDisabled();
+  });
+
+  it("BLOCKING: reaches the takedown a grant-free CEL seat allows and submits cargoId null", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<MemberPositionsForm {...celSeatedProps} onSubmit={onSubmit} />);
+    await userEvent.click(screen.getByRole("button", { name: /quitar cargo/i }));
+    expect(screen.getByLabelText("Cargo")).toHaveTextContent("Sin cargo");
+    const save = screen.getByRole("button", { name: /guardar/i });
+    expect(save).toBeEnabled();
+    await userEvent.click(save);
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({ cargoId: null, comisionIds: [] }),
     );
-    expect(screen.getByRole("button", { name: /guardar/i })).toBeEnabled();
-    // Not offered either — keeping it is what the rules deny, so the only submittable
-    // states are "cleared" or "some other assignable cargo".
-    expect(screen.queryByText(/Presidente/i)).not.toBeInTheDocument();
+  });
+
+  it("BLOCKING: a non-Admin cannot re-assign the grant-free CEL seat once cleared", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<MemberPositionsForm {...celSeatedProps} onSubmit={onSubmit} />);
+    await userEvent.click(screen.getByRole("button", { name: /quitar cargo/i }));
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    const seat = await screen.findByRole("option", { name: "presidente_libre" });
+    expect(seat).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(seat);
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByLabelText("Cargo")).toHaveTextContent("Sin cargo");
+    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({ cargoId: null, comisionIds: [] }),
+    );
   });
 
   it("locks the form for a non-Admin when the current cargo GRANTS power (nothing succeeds)", () => {
