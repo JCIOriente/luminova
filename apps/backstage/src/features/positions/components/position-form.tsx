@@ -28,6 +28,10 @@ const EMPTY: PositionInput = {
   description: "",
 };
 
+/** A non-Admin may only ever CREATE a comisión (firestore.rules `boardSurfacingCategory()`),
+ *  so their blank form must not start on the CEL default and die on save. */
+const EMPTY_NON_ADMIN: PositionInput = { ...EMPTY, category: "Comision" };
+
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <h3 className="text-ui-xs font-medium tracking-[0.02em] text-ink-3 uppercase">{children}</h3>
@@ -65,13 +69,10 @@ export function PositionForm({
     formState: { errors, isSubmitting },
   } = useForm<PositionInput>({
     resolver: zodResolver(positionSchema),
-    // A non-Admin may only ever create a comisión (firestore.rules `boardSurfacingCategory()`),
-    // so a NEW cargo must not start on the CEL default and die on save. On an EDIT the stored
-    // category wins — it is pinned, not chosen.
+    // On an EDIT the stored category wins — it is pinned, not chosen. Both branches are
+    // module constants, so no fresh object is allocated per render.
     defaultValues:
-      canEditGrants || defaultValues
-        ? { ...EMPTY, ...defaultValues }
-        : { ...EMPTY, category: "Comision" },
+      canEditGrants || defaultValues ? { ...EMPTY, ...defaultValues } : EMPTY_NON_ADMIN,
   });
 
   const categoryField = register("category");
