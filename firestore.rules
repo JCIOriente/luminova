@@ -35,8 +35,46 @@ service cloud.firestore {
     }
     // Block client-side resurrection of soft-deleted docs: once deletedAt is set
     // it is immutable, and active can only transition true -> false, never back.
+    //
+    // The three leading conjuncts are a WELL-FORMEDNESS prefix (B), the same one
+    // roleLifecycleSafe() already carried, and they are a genuine new denial rather than a
+    // tidier spelling of an existing one. The tempting argument — "a doc missing `active`
+    // already dies, because the bare resource.data.active read errors and an erroring rule
+    // denies" — is FALSE for this function: rules are CEL, whose || ABSORBS errors
+    // (error || true == true), and that bare read sits on the left of a || whose right side
+    // is unchanged(field), which compares .get(…, null) on both sides and yields
+    // null == null -> true on an absent key. Measured against the emulator: before this
+    // prefix, a members/positions/allies doc missing either field, or holding a non-bool
+    // `active`, was freely client-editable. See the same correction applied to the wrong
+    // generalization under roleShapeValid() below.
+    //
+    // What the prefix costs: a legacy doc in any of those shapes becomes admin-SDK-only to
+    // edit, with no rules-layer repair for `active` (see the tests). The three create arms
+    // are constrained to match, so no NEW doc can enter those shapes. The Admin takedown arm
+    // on members deliberately does NOT call this function — it is the only rules-level path
+    // that can unpublish such a member, so the requirement lives here in the helper and not
+    // on the arms, which would have removed the remedy along with the disease.
+    //
+    // The one-way semantics below the prefix are UNCHANGED: deletedAt stays immutable once
+    // set and active still only goes true -> false. Four collections depend on that
+    // (members ×3 lanes, positions, allies); roles deliberately does not, which is why it
+    // has roleLifecycleSafe() instead.
+    //
+    // Which of the three prefix conjuncts a mutation sweep can turn red, measured (each
+    // neutralized to `true` in turn, full rules suite re-run):
+    //   (d.active is bool)  — RED alone: the three "stored active is a non-bool" tests.
+    //   ('deletedAt' in d)  — RED alone: "denies updating a member whose stored doc has no
+    //                         deletedAt key". This is the conjunct the || could not reach.
+    //   ('active' in d)     — NEVER red (448/448 still green). With it gone, `d.active is
+    //                         bool` reads an absent key, that read ERRORS, and unlike the
+    //                         deletedAt half there is no || to absorb it — so the rule still
+    //                         denies. It buys a clean denial, not a guard. Recorded so
+    //                         nobody counts it as coverage (guardrail #6), and kept for the
+    //                         same reason roleShapeValid() keeps its four.
     function softDeleteSafe() {
-      return (resource.data.deletedAt == null || unchanged('deletedAt'))
+      let d = request.resource.data;
+      return ('active' in d) && (d.active is bool) && ('deletedAt' in d)
+        && (resource.data.deletedAt == null || unchanged('deletedAt'))
         && (resource.data.active == true || unchanged('active'));
     }
 
@@ -284,11 +322,21 @@ service cloud.firestore {
       // supplies the third gate. projectBoard additionally requires a uid, so the member
       // always has a reachable /me opt-out — but they are published before using it.
       // Making publication require a member signal again would mean reverting to opt-in.
+      //
+      // Born live, with an explicit null deletedAt — the same three conjuncts the roles
+      // create arm carries, for the same reason. Without them this arm mints exactly the
+      // docs softDeleteSafe()'s well-formedness prefix then refuses to update, i.e. a doc
+      // that is admin-SDK-only from birth. `.get('active', false) == true` and an explicit
+      // `'deletedAt' in` check, not bare reads: an omitted field must deny CLEANLY, and
+      // `.get('deletedAt', null) == null` would let an omission through.
       allow create: if canDo('create', 'Member')
         && request.resource.data.totalPoints == 0
         && !('uid' in request.resource.data)
         && !('publicProfile' in request.resource.data)
         && memberNameValid(request.resource.data.get('name', ''))
+        && request.resource.data.get('active', false) == true
+        && ('deletedAt' in request.resource.data)
+        && request.resource.data.deletedAt == null
         && createPermissionAssignmentSafe()
         && createPositionsSafe();
       // publicProfile is member-consent-only: it publishes their face/name to the
@@ -377,8 +425,12 @@ service cloud.firestore {
       allow read: if signedIn();
       // Authorization is perm-based; the power-grant authority (who may confer
       // non-empty grants → claims) stays Admin-role-only, as before.
+      // Born live with a null deletedAt — see the members create arm.
       allow create: if canDo('create', 'Position')
         && (hasAnyRole(['Admin']) || request.resource.data.grants == [])
+        && request.resource.data.get('active', false) == true
+        && ('deletedAt' in request.resource.data)
+        && request.resource.data.deletedAt == null
         && comisionGrantsEmpty();
       // `category` joins `grants` in the non-Admin pin because it is an authority field,
       // not a label: it decides the public board GROUP and board RANK, and whether
@@ -401,9 +453,18 @@ service cloud.firestore {
     }
     // Roles are the ONE collection whose soft-delete is REVERSIBLE: a built-in role
     // must be able to go out of service and come back. softDeleteSafe() is one-way and
-    // shared by four other collections (members, positions, allies) — it must NOT
-    // change; member resurrection is pinned denied in tests/firestore-rules/rules.test.ts
-    // ("denies resurrecting a soft-deleted member").
+    // shared by four other lanes (members ×3, positions, allies), so the roles lane
+    // cannot borrow it.
+    //
+    // softDeleteSafe() has since gained this function's well-formedness prefix
+    // (`active` present and a bool, `deletedAt` present), for the reason spelled out
+    // below. What must NOT change there is its ONE-WAY semantics:
+    // member resurrection is pinned denied in tests/firestore-rules/rules.test.ts
+    // ("denies resurrecting a soft-deleted member"). What did NOT come with the prefix is
+    // this function's COUPLING half below (active == true => deletedAt == null, plus the
+    // request.time stamp): generalizing that would deny every later edit to an existing
+    // ghost doc, a shape all four zod schemas accept and which is therefore listed and
+    // editable today. Owed its own pass — see docs/specs/position-assignment-lane.md, B.
     //
     // What this closes: this repo's two definitions of "inactive" disagree.
     // roleDefinitionDocSchema requires `active: z.boolean()`, so a malformed doc is
@@ -421,12 +482,20 @@ service cloud.firestore {
     //     (see below), and on a doc whose deletedAt is already null that alone would let
     //     active:false through — inactive with no stamp, which the UI reads as still
     //     restorable. This conjunct is what rejects it.
-    // The two `in` checks add no authorization outcome on their own: reading an absent
-    // key ERRORS, and an erroring rule already denies. They are here so a missing field
-    // denies CLEANLY rather than by evaluation error — the same reason this file prefers
-    // .get() on the resource side (softDeleteSafe's bare resource.data.active errors on a
-    // doc missing the field). Don't remove them on a "no test covers it" argument; no
-    // test CAN, because nothing becomes allowed.
+    // The two `in` checks add no authorization outcome IN THIS FUNCTION: reading an absent
+    // key errors, and here the erroring read sits in a pure CONJUNCTION, which cannot
+    // recover from it — so the rule denies either way and they only buy a clean denial.
+    // Don't remove them on a "no test covers it" argument; no test CAN, because nothing
+    // becomes allowed.
+    //
+    // That is a claim about this function's SHAPE, not a general property of rules, and it
+    // was previously written here as though it were general. It is not. Rules are CEL and
+    // CEL's `||` ABSORBS errors (error || true == true), so the same bare read under a
+    // disjunction denies nothing: softDeleteSafe()'s `resource.data.active` sits opposite
+    // `unchanged('active')`, which reads .get(…, null) on both sides and returns
+    // null == null -> true on an absent key — so a doc missing the field passed. That is
+    // why softDeleteSafe() needed a real `in` prefix (B) and this one did not, and why the
+    // legacy-doc cost landed there and not here.
     // deletedAt value forgery has no authorization effect (every consumer tests
     // null-ness only, never ordering); `== request.time` is audit hygiene on the
     // DEACTIVATING write. It cannot be required of every write that merely leaves the
@@ -575,7 +644,11 @@ service cloud.firestore {
 
     match /allies/{allyId} {
       allow read: if canDo('read', 'Ally');
-      allow create: if canDo('create', 'Ally');
+      // Born live with a null deletedAt — see the members create arm.
+      allow create: if canDo('create', 'Ally')
+        && request.resource.data.get('active', false) == true
+        && ('deletedAt' in request.resource.data)
+        && request.resource.data.deletedAt == null;
       allow update: if canDo('update', 'Ally') && softDeleteSafe();
       allow delete: if false;
     }

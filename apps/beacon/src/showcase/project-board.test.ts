@@ -141,6 +141,17 @@ describe("projectBoard", () => {
     expect(project("m1", { ...member, active: false, deletedAt: {} }, celCargo)).toBeNull();
   });
 
+  it("drops a member whose active flag is not the boolean true (fail-closed)", () => {
+    // The direction that matters. This gate used to read `active === false`, so the ONE
+    // shape the rules could not reject — a string "false", or a legacy doc with no `active`
+    // at all — was invisible in backstage (the zod doc schema drops it) and PUBLISHED on
+    // the world-readable Directiva. `!== true` matches projectAlly, which had it right.
+    expect(project("m1", { ...member, active: "false" }, celCargo)).toBeNull();
+    expect(project("m1", { ...member, active: "true" }, celCargo)).toBeNull();
+    expect(project("m1", { ...member, active: 1 }, celCargo)).toBeNull();
+    expect(project("m1", { ...member, active: undefined }, celCargo)).toBeNull();
+  });
+
   it("drops a cargo with an empty title", () => {
     expect(project("m1", member, { category: "CEL", title: "" })).toBeNull();
   });

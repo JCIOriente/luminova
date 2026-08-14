@@ -41,6 +41,13 @@ function anon() {
 
 const MEMBER_DOC = { name: "Ana", totalPoints: 0, uid: "owner-uid", active: true, deletedAt: null };
 
+/** The birth state every members/positions/allies create arm now requires (B2): born
+ *  live, with an explicit null deletedAt. Spread into a create payload whose test is
+ *  about something ELSE, so it keeps failing (or succeeding) for its own reason rather
+ *  than for the missing lifecycle pair — the tautological-test class this repo has
+ *  already had to clean up once. */
+const BORN_LIVE = { active: true, deletedAt: null };
+
 // Rules derive the term from request.time.year() (UTC); compute it from the client
 // clock so this suite can't rot when the calendar year rolls over.
 const TERM = String(new Date().getUTCFullYear());
@@ -544,6 +551,55 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // Malformed soft-delete state, seeded through the admin SDK because no client arm can
+    // produce it any more (B2). These are the legacy shapes B1's well-formedness prefix
+    // moves from client-editable to admin-SDK-only — the whole reason owner-op 4 is a
+    // blocking pre-deploy audit. m_badactive additionally carries publicProfile: true so
+    // the Admin TAKEDOWN arm — the one arm that does not call softDeleteSafe() — can be
+    // proven still open on it. That arm is the only rules-level remedy for these docs.
+    await setDoc(doc(db, "members/m_badactive"), {
+      name: "Hilda",
+      totalPoints: 0,
+      uid: "badactive-uid",
+      publicProfile: true,
+      active: "false",
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "members/m_noactive"), {
+      name: "Irene",
+      totalPoints: 0,
+      deletedAt: null,
+    });
+    // active is a well-formed bool, so the self lane's own `active == true` check passes
+    // and ('deletedAt' in d) is the only thing left to deny — isolation, not a pile-up.
+    await setDoc(doc(db, "members/m_nodeletedat"), {
+      name: "Julio",
+      totalPoints: 0,
+      uid: "nodeletedat-uid",
+      active: true,
+    });
+    // Same shape as m_nodeletedat, its own doc: the repair-asymmetry test WRITES the missing
+    // key, and sharing a fixture with the denial tests above would couple them to order.
+    await setDoc(doc(db, "members/m_nodeletedat_fix"), {
+      name: "Karina",
+      totalPoints: 0,
+      active: true,
+    });
+    await setDoc(doc(db, "positions/pos_badactive"), {
+      title: "Vocal Suplente",
+      titleFemale: "Vocal Suplente",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Malformado.",
+      active: "false",
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "allies/a_badactive"), {
+      companyName: "Malformada",
+      active: "false",
+      deletedAt: null,
+    });
     await setDoc(doc(db, "positions/pos_soft"), {
       title: "Vocal",
       titleFemale: "Vocal",
@@ -629,7 +685,11 @@ describe("firestore.rules — members", () => {
   });
   it("allows Membership to create with totalPoints 0", async () => {
     await assertSucceeds(
-      setDoc(doc(as("u", ["Membership"]), "members/new1"), { name: "Bruno Paz", totalPoints: 0 }),
+      setDoc(doc(as("u", ["Membership"]), "members/new1"), {
+        name: "Bruno Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+      }),
     );
   });
   it("denies create with publicProfile pre-set (consent is not institutionally stamped)", async () => {
@@ -640,6 +700,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("u", ["Membership"]), "members/new_consent"), {
         name: "Bruno Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         publicProfile: true,
       }),
     );
@@ -647,8 +708,12 @@ describe("firestore.rules — members", () => {
   it("denies create with publicProfile explicitly false (no client owns this key)", async () => {
     await assertFails(
       setDoc(doc(as("u", ["Membership"]), "members/new_consent_false"), {
-        name: "B",
+        // "Bruno Paz", not "B": a one-character name is below memberNameValid()'s floor,
+        // so the old payload was already denied for the NAME — the publicProfile guard
+        // this test is named for never got to speak.
+        name: "Bruno Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         publicProfile: false,
       }),
     );
@@ -656,8 +721,9 @@ describe("firestore.rules — members", () => {
   it("denies create with publicProfile null (an explicit null still counts as present)", async () => {
     await assertFails(
       setDoc(doc(as("u", ["Membership"]), "members/new_consent_null"), {
-        name: "B",
+        name: "Bruno Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         publicProfile: null,
       }),
     );
@@ -692,12 +758,20 @@ describe("firestore.rules — members", () => {
   });
   it("denies create when totalPoints != 0", async () => {
     await assertFails(
-      setDoc(doc(as("u", ["Membership"]), "members/new2"), { name: "Bruno Paz", totalPoints: 5 }),
+      setDoc(doc(as("u", ["Membership"]), "members/new2"), {
+        name: "Bruno Paz",
+        totalPoints: 5,
+        ...BORN_LIVE,
+      }),
     );
   });
   it("denies a non-admin/non-membership role from creating", async () => {
     await assertFails(
-      setDoc(doc(as("u", ["Treasury"]), "members/new3"), { name: "Bruno Paz", totalPoints: 0 }),
+      setDoc(doc(as("u", ["Treasury"]), "members/new3"), {
+        name: "Bruno Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+      }),
     );
   });
   it("BLOCKING: denies Membership creating with a forged assignedBy + power cargo (escalation on create)", async () => {
@@ -705,6 +779,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("mem-uid", ["Membership"]), "members/new_evil"), {
         name: "Evil",
         totalPoints: 0,
+        ...BORN_LIVE,
         positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-victim-uid" } },
       }),
     );
@@ -714,6 +789,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("mem-uid", ["Membership"]), "members/new_uid"), {
         name: "Ximena Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         uid: "mem-uid",
       }),
     );
@@ -723,6 +799,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("mem-uid", ["Membership"]), "members/new_pow"), {
         name: "Ximena Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "mem-uid" } },
       }),
     );
@@ -732,6 +809,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("mem-uid", ["Membership"]), "members/new_ok"), {
         name: "Ximena Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "mem-uid" } },
       }),
     );
@@ -741,6 +819,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("admin-uid", ["Admin"]), "members/new_admin"), {
         name: "Ximena Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
       }),
     );
@@ -764,6 +843,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("u", ["Membership"]), "members/new_formula"), {
         name: '=HYPERLINK("http://evil")',
         totalPoints: 0,
+        ...BORN_LIVE,
       }),
     );
   });
@@ -772,12 +852,17 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("u", ["Membership"]), "members/new_digits"), {
         name: "Ana Rivas 2",
         totalPoints: 0,
+        ...BORN_LIVE,
       }),
     );
   });
   it("denies Membership creating a member with a name below the length floor", async () => {
     await assertFails(
-      setDoc(doc(as("u", ["Membership"]), "members/new_short"), { name: "Al", totalPoints: 0 }),
+      setDoc(doc(as("u", ["Membership"]), "members/new_short"), {
+        name: "Al",
+        totalPoints: 0,
+        ...BORN_LIVE,
+      }),
     );
   });
   it("denies Membership renaming a member to a formula-shaped name", async () => {
@@ -1820,7 +1905,7 @@ describe("firestore.rules — positions", () => {
   });
   it("denies Membership creating positions", async () => {
     await assertFails(
-      setDoc(doc(as("u", ["Membership"]), "positions/new2"), { title: "X", active: true }),
+      setDoc(doc(as("u", ["Membership"]), "positions/new2"), { title: "X", ...BORN_LIVE }),
     );
   });
   it("denies resurrecting a soft-deleted position", async () => {
@@ -2466,6 +2551,210 @@ describe("firestore.rules — replacing an already-assigned power cargo (C1)", (
   });
 });
 
+// B: the four softDeleteSafe() lanes (members ×2 + the positions lane, positions, allies)
+// gained the same well-formedness prefix roleLifecycleSafe() already had, and their three
+// create arms gained the born-live requirement the roles create arm already had.
+//
+// The two halves are inseparable on purpose: the create arms stop new malformed docs, the
+// prefix stops client writes onto the ones already stored. Neither repairs anything — the
+// remedy for an existing malformed doc is the console, the admin SDK, or (for publication
+// specifically) the Admin takedown arm, which deliberately does NOT call softDeleteSafe()
+// and is pinned open at the bottom of this block.
+describe("firestore.rules — soft-delete well-formedness (B)", () => {
+  const secretary = () => as("sec-uid", ["Secretary"]);
+
+  it("denies creating a member with no active/deletedAt (the bare legacy shape)", async () => {
+    // Same payload as "allows Membership to create with totalPoints 0" minus BORN_LIVE —
+    // so this isolates the new create conjuncts and nothing else.
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_bare"), {
+        name: "Bruno Paz",
+        totalPoints: 0,
+      }),
+    );
+  });
+  it("denies creating a position with no active/deletedAt", async () => {
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "positions/new_bare"), {
+        title: "Director de Finanzas",
+        titleFemale: "Directora de Finanzas",
+        category: "JDL",
+        grants: [],
+        term: 2026,
+        description: "Finanzas.",
+      }),
+    );
+  });
+  it("denies creating an ally with no active/deletedAt", async () => {
+    await assertFails(
+      setDoc(doc(secretary(), "allies/a_bare"), { companyName: "Sin ciclo de vida" }),
+    );
+  });
+
+  it("denies a member born soft-deleted (active false / deletedAt already stamped)", async () => {
+    // A doc born dead is invisible to every list yet occupies its id; a doc born with a
+    // deletedAt is the ghost shape (live to a `where`, dead to the pipeline). Neither is a
+    // state any client flow produces, so neither is client-creatable.
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_born_dead"), {
+        name: "Bruno Paz",
+        totalPoints: 0,
+        active: false,
+        deletedAt: null,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_born_ghost"), {
+        name: "Bruno Paz",
+        totalPoints: 0,
+        active: true,
+        deletedAt: DELETED_AT,
+      }),
+    );
+  });
+  it("denies a position born soft-deleted or born with a deletedAt", async () => {
+    const born = (extra: Record<string, unknown>) => ({
+      title: "Director de Finanzas",
+      titleFemale: "Directora de Finanzas",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Finanzas.",
+      ...extra,
+    });
+    await assertFails(
+      setDoc(
+        doc(as("admin-uid", ["Admin"]), "positions/new_born_dead"),
+        born({ active: false, deletedAt: null }),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(as("admin-uid", ["Admin"]), "positions/new_born_ghost"),
+        born({ active: true, deletedAt: DELETED_AT }),
+      ),
+    );
+  });
+  it("denies an ally born soft-deleted or born with a deletedAt", async () => {
+    await assertFails(
+      setDoc(doc(secretary(), "allies/a_born_dead"), {
+        companyName: "Nacida muerta",
+        active: false,
+        deletedAt: null,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(secretary(), "allies/a_born_ghost"), {
+        companyName: "Fantasma",
+        active: true,
+        deletedAt: DELETED_AT,
+      }),
+    );
+  });
+
+  // The stored-side half. A non-bool `active` is the exact ghost this change exists for: it
+  // is dropped by the zod doc schemas (invisible in backstage) while every `!== false` /
+  // `!= null` reader treats it as live — which is how it reached the public Directiva.
+  it("denies every client update to a member whose stored active is a non-bool", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Membership"]), "members/m_badactive"), { profession: "Arquitecta" }),
+    );
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_badactive"), { name: "Hilda Paz" }),
+    );
+    // The members-positions lane (A) calls softDeleteSafe() too — all four lanes close
+    // together, which is the point of putting the check in the helper.
+    await assertFails(
+      updateDoc(doc(as("orgchart-uid", [], ["update:Position"]), "members/m_badactive"), {
+        [`positions.${TERM}`]: {
+          cargoId: "pos_soft",
+          comisionIds: [],
+          assignedBy: "orgchart-uid",
+        },
+      }),
+    );
+  });
+  it("denies every client update to a position whose stored active is a non-bool", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_badactive"), { title: "Vocal" }),
+    );
+    await assertFails(
+      updateDoc(doc(as("orgchart-uid", [], ["update:Position"]), "positions/pos_badactive"), {
+        title: "Vocal",
+      }),
+    );
+  });
+  it("denies every client update to an ally whose stored active is a non-bool", async () => {
+    await assertFails(
+      updateDoc(doc(secretary(), "allies/a_badactive"), { companyName: "Reparada" }),
+    );
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "allies/a_badactive"), {
+        companyName: "Reparada",
+      }),
+    );
+  });
+
+  it("denies updating a member whose stored doc has no active key", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Membership"]), "members/m_noactive"), { profession: "Bióloga" }),
+    );
+  });
+  it("denies updating a member whose stored doc has no deletedAt key", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Membership"]), "members/m_nodeletedat"), { profession: "Biólogo" }),
+    );
+    // active: true is well-formed here, so the self lane's own `active == true` check passes
+    // and the missing deletedAt is the only thing denying — the /me lane is closed too.
+    await assertFails(
+      updateDoc(doc(as("nodeletedat-uid", ["Member"]), "members/m_nodeletedat"), {
+        profession: "Biólogo",
+      }),
+    );
+  });
+  it("pins which malformed field a client can repair and which it cannot", async () => {
+    // Stated so nobody reads the denials above as "just write the right value". The two
+    // halves differ, and the difference is exactly why owner-op 4 is a console/admin-SDK
+    // audit rather than a UI affordance:
+    //   active   — NOT client-repairable. The one-way half demands
+    //              resource.data.active == true || unchanged('active'), and a stored
+    //              non-bool satisfies neither once the write changes it.
+    //   deletedAt — client-repairable by stamping the null the doc should have had:
+    //              unchanged('deletedAt') reads .get(…, null) on both sides, so
+    //              absent -> null is a no-op to the one-way half and the merged doc then
+    //              carries the key. A missing deletedAt is therefore self-healing; a
+    //              malformed active is not.
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_badactive"), { active: true }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Membership"]), "members/m_nodeletedat_fix"), { deletedAt: null }),
+    );
+  });
+
+  it("keeps the Admin takedown arm open on a malformed member (the remedy path)", async () => {
+    // The single most important assertion in this block. The takedown arm deliberately does
+    // not call softDeleteSafe(), so it is the ONE rules-level path that can unpublish
+    // exactly the malformed member this change is about. Moving the well-formedness check
+    // onto the arms instead of into the helper would have removed the remedy with the
+    // disease.
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_badactive"), { publicProfile: false }),
+    );
+  });
+
+  it("leaves the /me self lane working on an ordinary well-formed member", async () => {
+    // The merge half: on an update request.resource.data is the MERGED doc, so a write that
+    // touches neither field still satisfies the prefix when the stored doc is well-formed.
+    // Without this the prefix would have locked every member out of their own profile.
+    await assertSucceeds(
+      updateDoc(doc(as("carlos-uid", ["Member"]), "members/m_positions"), {
+        profession: "Ingeniero",
+      }),
+    );
+  });
+});
+
 describe("firestore.rules — roles collection", () => {
   const ROLE_DOC = {
     name: "Coordinador",
@@ -2676,9 +2965,12 @@ describe("firestore.rules — roles collection", () => {
   });
   it("allows Admin to reactivate a deactivated built-in role", async () => {
     // softDeleteSafe() hard-blocks active:false -> true, which is why the roles lane
-    // uses roleLifecycleSafe() instead. softDeleteSafe itself must not change: four
-    // other collections depend on its one-way semantics and member resurrection is
-    // pinned denied by "denies resurrecting a soft-deleted member" above.
+    // uses roleLifecycleSafe() instead. softDeleteSafe() has since gained this function's
+    // WELL-FORMEDNESS prefix (active present and a bool, deletedAt present) — see the
+    // "soft-delete well-formedness (B)" block above. What must not change is its ONE-WAY
+    // semantics: four other lanes depend on them and member resurrection is pinned denied
+    // by "denies resurrecting a soft-deleted member" above. The coupling half below
+    // (active == true => deletedAt == null) is still roles-only.
     await assertSucceeds(
       updateDoc(doc(as("admin-uid", ["Admin"]), "roles/inactive_builtin"), {
         active: true,
