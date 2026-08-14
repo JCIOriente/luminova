@@ -22,7 +22,13 @@ export function isUndeactivatableRole(role: RoleDefinition): boolean {
  *  (apps/beacon/src/claims-sync/role-doc.ts). BOTH fields matter: `active: true` with
  *  `deletedAt` set is live to `where("active","==",true)` and dead to the perms
  *  pipeline, so a surface that trusted `active` alone would offer a role that mints
- *  nothing. Keep the two in lockstep. */
+ *  nothing. Keep the two in lockstep.
+ *
+ *  Not the SAME function, though, and it cannot be shared as one: this side is
+ *  fail-CLOSED (`active === true`) where beacon's is fail-OPEN (`active !== false`), so a
+ *  doc with a missing `active` reads dead here and live there. That gap is documented, not
+ *  fixed — see `previewEffectivePerms` and docs/specs/role-lifecycle.md — and closing it
+ *  would be a behaviour change, so it is not the kind of duplication to collapse. */
 export function isLiveRole(role: RoleDefinition): boolean {
   return role.active && role.deletedAt === null;
 }

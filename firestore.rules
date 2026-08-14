@@ -45,8 +45,11 @@ service cloud.firestore {
     // is unchanged(field), which compares .get(…, null) on both sides and yields
     // null == null -> true on an absent key. Measured against the emulator: before this
     // prefix, a members/positions/allies doc missing either field, or holding a non-bool
-    // `active`, was freely client-editable. See the same correction applied to the wrong
-    // generalization under roleShapeValid() below.
+    // `active`, was freely client-editable. Note the absorption is specific to the ||: the
+    // ('active' in d) conjunct below CANNOT be mutation-proven red, because removing it
+    // leaves `d.active is bool` reading an absent key inside a pure && chain, where the
+    // error does deny. It buys a clean denial, not a guard — recorded so nobody counts it
+    // as coverage.
     //
     // What the prefix costs: a legacy doc in any of those shapes becomes admin-SDK-only to
     // edit, with no rules-layer repair for `active` (see the tests). The three create arms
@@ -76,6 +79,24 @@ service cloud.firestore {
       return ('active' in d) && (d.active is bool) && ('deletedAt' in d)
         && (resource.data.deletedAt == null || unchanged('deletedAt'))
         && (resource.data.active == true || unchanged('active'));
+    }
+    // The birth state every soft-deletable collection's create arm requires: born live,
+    // with an explicit null deletedAt. FOUR arms share it — members, positions, allies
+    // (softDeleteSafe lanes) and roles (roleLifecycleSafe) — so it lives here rather than
+    // being retyped per arm.
+    //
+    // Without it a create mints exactly the docs softDeleteSafe()'s well-formedness prefix
+    // then refuses to update, i.e. a doc that is admin-SDK-only from birth. It also closes
+    // the INACTIVE-vs-MISSING ambiguity on the way in: with the three update-side lanes
+    // constrained to match, no NEW doc can enter the legacy shapes those lanes now reject.
+    //
+    // `.get('active', false) == true` and an explicit `'deletedAt' in` check, not bare
+    // reads: a create OMITTING either field must deny CLEANLY, and
+    // `.get('deletedAt', null) == null` would let an omission through.
+    function bornLive() {
+      return request.resource.data.get('active', false) == true
+        && ('deletedAt' in request.resource.data)
+        && request.resource.data.deletedAt == null;
     }
 
     // Missing-key-safe comparison (docs created before a field existed).
@@ -186,6 +207,35 @@ service cloud.firestore {
         || (unchanged('roleIds') && unchanged('permissionOverrides'));
     }
 
+    // The invariants EVERY institutional write to a member doc must hold, as one named
+    // thing: the claims-mint boundary (roleIds + permissionOverrides via
+    // updatePermissionAssignmentSafe, plus uid), publication consent (publicProfile), the
+    // points ledger (totalPoints) and the soft-delete/well-formedness contract. Shared by
+    // the members update arm and the positions-only lane so the authority can never drift
+    // apart again — the same reason canCurateFeatured() exists.
+    //
+    // publicProfile is member-consent-only: it publishes their face/name to the public
+    // Directiva, so an institutional writer may never set or change it — only the
+    // owner-only self-lane, or the Admin takedown arm, can. Those two arms are therefore
+    // the ones that do NOT call this, each deliberately: the self lane MUST touch
+    // publicProfile (it IS the consent path), and the takedown arm must skip
+    // softDeleteSafe() (it is the only rules-level way to unpublish a malformed member).
+    //
+    // touched(), not unchanged(), on both pinned keys: writing an explicit null onto a doc
+    // that lacks the key passes a null == null comparison. For uid that null then fails
+    // memberDocSchema, dropping the member out of every backstage list with only a
+    // console.error.
+    //
+    // Cheap by construction — token reads and request/resource data only, no cross-document
+    // get() — so an arm may put it ahead of anything that does.
+    function memberWriteInvariants() {
+      return unchanged('totalPoints')
+        && !touched('uid')
+        && !touched('publicProfile')
+        && updatePermissionAssignmentSafe()
+        && softDeleteSafe();
+    }
+
     // The completion trio (status + finalReport + impact) is written atomically by the
     // wizard. A status flip to Finalizado missing either the report or the impact would
     // orphan child-activity point confirmation and permanently strand the doc (the trio
@@ -211,6 +261,31 @@ service cloud.firestore {
 
     // Single source of truth for who may curate `featured` — shared by the
     // create and update arms so the authority can never drift apart again.
+    //
+    // The authority is SPLIT, and each half is the way it is on purpose:
+    //  - Admin by ROLE. It is `locked` and undeactivatable, so its name carries none of
+    //    the staleness the perm half exists to fix, and adding update:Showcase to a role
+    //    whose entire seeded permission set is ["manage:all"] would misrepresent Admin.
+    //  - everyone else by exact PERM (update:Showcase, seeded onto ProjectManager). Role
+    //    NAMES are the wrong key here: computeMemberRoles is pure over the trusted grants
+    //    and reads no role doc, so a DEACTIVATED ProjectManager keeps the name in its
+    //    claim — and, under the old `hasAnyRole(['Admin','ProjectManager'])`, kept the
+    //    authority. Keying on the perm means deactivating the role revokes curation.
+    // `hasPerm`, deliberately NOT `canDo`: canDo would let `manage:all` satisfy this, and
+    // manage:all is reachable as a PERM without the Admin role (an Admin-written custom
+    // role doc or a permissionOverrides.grant can carry it — roleShapeValid() only
+    // requires `permissions is list`). Such a principal already satisfies
+    // canDo('update','Project') on the update arm below, so this gate is the ONLY thing
+    // stopping them from setting `featured`; canDo would silently delete that boundary. It
+    // also keeps the other five *:Showcase codes — manage:Showcase included — inert, so
+    // there is no second, undocumented path to curation. A custom role with manage:Project
+    // may edit an initiative but must leave `featured` unchanged.
+    //
+    // Both arms need it: initiativeCreateAllowed is PERM-based (canDo), so a custom role
+    // holding create:Project/Program could otherwise create a doc born `featured: true`
+    // and reach the public page once finalized — hence its curator-or-featured-false arm.
+    // A curator creating it featured is their prerogative and only reaches the public page
+    // once finalized (isProjectable).
     function canCurateFeatured() {
       return hasAnyRole(['Admin']) || hasPerm('update:Showcase');
     }
@@ -230,31 +305,8 @@ service cloud.firestore {
     // which is semantically `false`, so default-to-false on BOTH sides — else a
     // direction editor echoing `featured: false` (the form always sends it) on a legacy
     // doc reads as null!=false and the whole update is denied.
-    // Create mirrors the same authority: initiativeCreateAllowed is PERM-based
-    // (canDo), so a custom role holding create:Project/Program could otherwise
-    // create a doc born `featured: true` and reach the public page once finalized —
-    // hence its curator-or-featured-false arm. A curator creating it featured is their
-    // prerogative and only reaches the public page once finalized (isProjectable).
-    //
-    // The authority is SPLIT, and each half is the way it is on purpose:
-    //  - Admin by ROLE. It is `locked` and undeactivatable, so its name carries none of
-    //    the staleness the perm half exists to fix, and adding update:Showcase to a role
-    //    whose entire seeded permission set is ["manage:all"] would misrepresent Admin.
-    //  - everyone else by exact PERM (update:Showcase, seeded onto ProjectManager). Role
-    //    NAMES are the wrong key here: computeMemberRoles is pure over the trusted grants
-    //    and reads no role doc, so a DEACTIVATED ProjectManager keeps the name in its
-    //    claim — and, under the old `hasAnyRole(['Admin','ProjectManager'])`, kept the
-    //    authority. Keying on the perm means deactivating the role revokes curation.
-    // `hasPerm`, deliberately NOT `canDo`: canDo would let `manage:all` satisfy this, and
-    // manage:all is reachable as a PERM without the Admin role (an Admin-written custom
-    // role doc or a permissionOverrides.grant can carry it — roleShapeValid() only
-    // requires `permissions is list`). Such a principal already satisfies
-    // canDo('update','Project') on the arm below, so this gate is the ONLY thing stopping
-    // them from setting `featured`; canDo would silently delete that boundary. It also
-    // keeps the other five *:Showcase codes — manage:Showcase included — inert, so there
-    // is no second, undocumented path to curation. A custom role with manage:Project may
-    // edit an initiative but must leave `featured` unchanged (falls through to the second
-    // arm).
+    // Who counts as a curator, and why that authority is split the way it is, lives on
+    // canCurateFeatured() above.
     function featuredUpdateSafe() {
       return canCurateFeatured()
         || request.resource.data.get('featured', false) == resource.data.get('featured', false);
@@ -339,41 +391,22 @@ service cloud.firestore {
       // supplies the third gate. projectBoard additionally requires a uid, so the member
       // always has a reachable /me opt-out — but they are published before using it.
       // Making publication require a member signal again would mean reverting to opt-in.
-      //
-      // Born live, with an explicit null deletedAt — the same three conjuncts the roles
-      // create arm carries, for the same reason. Without them this arm mints exactly the
-      // docs softDeleteSafe()'s well-formedness prefix then refuses to update, i.e. a doc
-      // that is admin-SDK-only from birth. `.get('active', false) == true` and an explicit
-      // `'deletedAt' in` check, not bare reads: an omitted field must deny CLEANLY, and
-      // `.get('deletedAt', null) == null` would let an omission through.
       allow create: if canDo('create', 'Member')
         && request.resource.data.totalPoints == 0
         && !('uid' in request.resource.data)
         && !('publicProfile' in request.resource.data)
         && memberNameValid(request.resource.data.get('name', ''))
-        && request.resource.data.get('active', false) == true
-        && ('deletedAt' in request.resource.data)
-        && request.resource.data.deletedAt == null
+        && bornLive()
         && createPermissionAssignmentSafe()
         && createPositionsSafe();
-      // publicProfile is member-consent-only: it publishes their face/name to the
-      // public Directiva, so the institutional (membership-tier) arm may never set or
-      // change it — only the owner-only self-lane below, or the Admin takedown arm after
-      // it, can. touched() rather than unchanged(): writing an explicit null onto a doc
-      // that lacks the key would pass a null == null comparison.
+      // The institutional (membership-tier) lane. memberWriteInvariants() carries the
+      // claims-mint boundary, publication consent, the points ledger and softDeleteSafe().
       // touched('name'): an admin editing only a phone must not be denied by a legacy name
       // stored before this gate existed — an unchanged value is absent from affectedKeys().
       // Setting a name, on any lane, must satisfy it.
       allow update: if canDo('update', 'Member')
-        && unchanged('totalPoints')
-        // touched(), not unchanged(): writing uid:null onto a member that has none passes
-        // a null == null comparison, and a null then fails memberDocSchema — dropping
-        // that member out of every backstage list with only a console.error.
-        && !touched('uid')
-        && !touched('publicProfile')
+        && memberWriteInvariants()
         && (!touched('name') || memberNameValid(request.resource.data.get('name', '')))
-        && updatePermissionAssignmentSafe()
-        && softDeleteSafe()
         && (!touched('positions') || positionsAssignmentSafe());
       // Takedown-only arm: an Admin may turn publication OFF and nothing else. Needed
       // because publication now defaults on, so a member who has lost account access —
@@ -411,19 +444,19 @@ service cloud.firestore {
       // themselves — on the world-readable Directiva. No claim is minted (claims-sync
       // returns early on grants.length == 0). Accepted, and pinned by a rules test.
       //
-      // The four conjuncts after positionsAssignmentSafe() are implied by
-      // hasOnly(['positions']) TODAY and are stated anyway: they are the claims-mint
-      // boundary (roleIds, permissionOverrides, uid), publication consent, and the points
-      // ledger. If hasOnly is ever widened — the obvious future edit is adding a second
-      // key — those invariants must not vanish with it.
+      // memberWriteInvariants() is implied by hasOnly(['positions']) TODAY and is stated
+      // anyway: if hasOnly is ever widened — the obvious future edit is adding a second
+      // key — the claims-mint boundary, publication consent and the points ledger must not
+      // vanish with it.
+      //
+      // Ordered cheapest-first on purpose: positionsAssignmentSafe() is the only conjunct
+      // here that can issue cross-document get()s (cargoGrantsEmpty /
+      // currentCargoGrantsEmpty), so every denial this arm reaches through the token,
+      // affectedKeys or the invariants costs zero billed reads.
       allow update: if canDo('update', 'Position')
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['positions'])
-        && positionsAssignmentSafe()
-        && softDeleteSafe()
-        && updatePermissionAssignmentSafe()
-        && !touched('uid')
-        && !touched('publicProfile')
-        && unchanged('totalPoints');
+        && memberWriteInvariants()
+        && positionsAssignmentSafe();
       allow delete: if false;
     }
 
@@ -442,12 +475,9 @@ service cloud.firestore {
       allow read: if signedIn();
       // Authorization is perm-based; the power-grant authority (who may confer
       // non-empty grants → claims) stays Admin-role-only, as before.
-      // Born live with a null deletedAt — see the members create arm.
       allow create: if canDo('create', 'Position')
         && (hasAnyRole(['Admin']) || request.resource.data.grants == [])
-        && request.resource.data.get('active', false) == true
-        && ('deletedAt' in request.resource.data)
-        && request.resource.data.deletedAt == null
+        && bornLive()
         && comisionGrantsEmpty();
       // `category` joins `grants` in the non-Admin pin because it is an authority field,
       // not a label: it decides the public board GROUP and board RANK, and whether
@@ -505,14 +535,10 @@ service cloud.firestore {
     // Don't remove them on a "no test covers it" argument; no test CAN, because nothing
     // becomes allowed.
     //
-    // That is a claim about this function's SHAPE, not a general property of rules, and it
-    // was previously written here as though it were general. It is not. Rules are CEL and
-    // CEL's `||` ABSORBS errors (error || true == true), so the same bare read under a
-    // disjunction denies nothing: softDeleteSafe()'s `resource.data.active` sits opposite
-    // `unchanged('active')`, which reads .get(…, null) on both sides and returns
-    // null == null -> true on an absent key — so a doc missing the field passed. That is
-    // why softDeleteSafe() needed a real `in` prefix (B) and this one did not, and why the
-    // legacy-doc cost landed there and not here.
+    // That is a claim about this function's SHAPE, not a general property of rules — under
+    // a DISJUNCTION the same bare read is absorbed and denies nothing. Written out in full
+    // on softDeleteSafe() above, which is why the `in` prefix (B) and its legacy-doc cost
+    // landed there and not here.
     // deletedAt value forgery has no authorization effect (every consumer tests
     // null-ness only, never ordering); `== request.time` is audit hygiene on the
     // DEACTIVATING write. It cannot be required of every write that merely leaves the
@@ -638,12 +664,7 @@ service cloud.firestore {
         && request.resource.data.builtIn == false
         && request.resource.data.builtInKey == null
         && request.resource.data.get('locked', false) == false
-        // Close the same INACTIVE-vs-MISSING ambiguity on create. `.get(…, false)` and an
-        // explicit key check, not a bare read: a create OMITTING the field must deny
-        // cleanly, and `.get('deletedAt', null) == null` would let an omission through.
-        && request.resource.data.get('active', false) == true
-        && ('deletedAt' in request.resource.data)
-        && request.resource.data.deletedAt == null;
+        && bornLive();
       // A `locked` role is immutable. Identity fields can't change. Every write must leave
       // a doc that BOTH readers agree on (roleShapeValid + roleLifecycleSafe). A built-in
       // role MAY otherwise be deactivated and reactivated — the perms consequence is
@@ -661,11 +682,7 @@ service cloud.firestore {
 
     match /allies/{allyId} {
       allow read: if canDo('read', 'Ally');
-      // Born live with a null deletedAt — see the members create arm.
-      allow create: if canDo('create', 'Ally')
-        && request.resource.data.get('active', false) == true
-        && ('deletedAt' in request.resource.data)
-        && request.resource.data.deletedAt == null;
+      allow create: if canDo('create', 'Ally') && bornLive();
       allow update: if canDo('update', 'Ally') && softDeleteSafe();
       allow delete: if false;
     }

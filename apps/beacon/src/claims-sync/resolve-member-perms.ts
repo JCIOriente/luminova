@@ -1,25 +1,11 @@
 import type { Role } from "@luminova/auth/roles";
-import { resolveBuiltInPerms } from "@luminova/auth/built-in-perms";
+import { resolveBuiltInPerms, type BuiltInRoleDoc } from "@luminova/auth/built-in-perms";
 import type { PermissionCode, RoleDefinition } from "@luminova/types";
 
-/** A built-in role doc as this resolver's PORT produces it. Structurally the shared
- *  `BuiltInRoleDoc` from `@luminova/auth/built-in-perms` — restated here rather than
- *  aliased so `firestore-deps.ts` keeps a beacon-local name to build against, and checked
- *  by the compiler where `resolveBuiltInPerms` consumes it below, with no cast.
- *
- *  `live` is deliberately NOT `RoleDefinition["active"]`, and this type is deliberately
- *  not a `Pick` of the doc shape: liveness is the TWO-field predicate `isActiveRoleDoc`
- *  computes over `active` AND `deletedAt`. A port field named `active` reads as "the doc's
- *  `active` field", so an implementer returning `d.get("active")` would satisfy the type
- *  while readmitting the ghost shape (`active: true` with a non-null `deletedAt`) that
- *  mints the doc's real perms — the failure the three `resolveMemberPerms` liveness tests
- *  exist to catch. Naming the semantic keeps the contract unspoofable by a plain field read. */
-export interface LiveBuiltInRoleDoc {
-  permissions: PermissionCode[];
-  builtInKey: Role;
-  /** `isActiveRoleDoc(doc)` — active AND not soft-deleted. Never the raw `active` field. */
-  live: boolean;
-}
+/** The beacon-local name for the shared `BuiltInRoleDoc` port — an ALIAS, not a restatement,
+ *  so the compiler couples them and the `live`-not-`active` rationale lives in one docblock
+ *  (`@luminova/auth/built-in-perms`). */
+export type LiveBuiltInRoleDoc = BuiltInRoleDoc;
 
 export interface RolePermsDeps {
   /** EVERY built-in role doc matching these keys by builtInKey — live AND not-live.
@@ -42,8 +28,14 @@ export interface RolePermsDeps {
  *  (`@luminova/auth/built-in-perms`), shared with the backstage assignment preview so the
  *  admin authorizes from the same resolution beacon then mints. `PERMISSION_CAP` stays out
  *  of the shared half: this side fail-closes to `perms: []` in `sync.ts`, backstage blocks
- *  Save. Liveness DERIVATION also stays here (`isActiveRoleDoc` reads `DocumentData`),
- *  only its consumption is shared.
+ *  Save. Liveness DERIVATION also stays here — `isActiveRoleDoc` is fail-open where the
+ *  backstage mirror is fail-closed, so the two are not one function — and only its
+ *  consumption is shared.
+ *
+ *  The two fetches are INDEPENDENT and run concurrently: this resolver runs once per member
+ *  in `onRoleWritten`'s unbounded fan-out, which has a 540 s budget and `retry: false`, so a
+ *  serial await here compounds into the timeout that strands members. The `.length ? … : []`
+ *  short-circuits are preserved — an empty input must still skip its query outright.
  *
  *  Two production callers inherit this: claims-sync/sync.ts (the onMemberWritten /
  *  onRoleWritten trigger) and set-user-roles.ts (the setUserRoles admin callable). */
@@ -53,9 +45,9 @@ export async function resolveMemberPerms(
   roleIds: string[],
   overrides: { grant: PermissionCode[]; revoke: PermissionCode[] },
 ): Promise<PermissionCode[]> {
-  const builtInDocs = builtInRoleNames.length
-    ? await deps.getRoleDocsByBuiltInKeys(builtInRoleNames)
-    : [];
-  const customDocs = roleIds.length ? await deps.getRolesByIds(roleIds) : [];
+  const [builtInDocs, customDocs] = await Promise.all([
+    builtInRoleNames.length ? deps.getRoleDocsByBuiltInKeys(builtInRoleNames) : [],
+    roleIds.length ? deps.getRolesByIds(roleIds) : [],
+  ]);
   return resolveBuiltInPerms({ builtInRoleNames, builtInDocs, customDocs, overrides });
 }

@@ -41,12 +41,15 @@ export function previewEffectivePerms(input: {
   overrides: { grant: PermissionCode[]; revoke: PermissionCode[] };
 }): PermissionCode[] {
   const byId = new Map(assignableRoles(input.allRoles).map((r) => [r.id, r]));
-  // One flatMap over the requested names so `builtInKey` comes from `name`, already a
-  // `Role`, and the adapter stays castless — `r.builtInKey` is `Role | null`.
-  const builtInDocs = input.builtInRoleNames.flatMap((name) =>
-    input.allRoles
-      .filter((r) => r.builtIn && r.builtInKey === name)
-      .map((r) => ({ permissions: r.permissions, builtInKey: name, live: isLiveRole(r) })),
+  // ONE pass over allRoles, emitting every built-in doc once — not a rescan per requested
+  // name. Passing docs for keys the member does not hold is safe: `resolveBuiltInPerms`
+  // iterates the requested NAMES, so an unrequested key is never visited (it neither
+  // contributes perms nor covers a key). The `builtInKey !== null` guard is what narrows
+  // `Role | null` to `Role`, keeping the adapter castless.
+  const builtInDocs = input.allRoles.flatMap((r) =>
+    r.builtIn && r.builtInKey !== null
+      ? [{ permissions: r.permissions, builtInKey: r.builtInKey, live: isLiveRole(r) }]
+      : [],
   );
   const customDocs = input.selectedCustomRoleIds
     .map((id) => byId.get(id))

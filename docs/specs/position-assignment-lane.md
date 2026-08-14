@@ -48,19 +48,22 @@ arm is purely additive and its scope is auditable in isolation.
 // currentCargoGrantsEmpty(), so this principal assigns and clears grant-free cargos
 // only, on BOTH sides of a swap.
 //
-// The four conjuncts after positionsAssignmentSafe() are implied by hasOnly(['positions'])
-// TODAY and are stated anyway: they are the claims-mint boundary (roleIds,
-// permissionOverrides, uid) and the points ledger. If hasOnly is ever widened — the
-// obvious future edit is adding a second key — three invariants must not vanish with it.
+// memberWriteInvariants() is implied by hasOnly(['positions']) TODAY and is stated
+// anyway: if hasOnly is ever widened — the obvious future edit is adding a second key —
+// the claims-mint boundary, publication consent and the points ledger must not vanish
+// with it. Ordered cheapest-first: positionsAssignmentSafe() is the only conjunct that
+// can issue cross-document get()s, so every earlier denial costs zero billed reads.
 allow update: if canDo('update', 'Position')
   && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['positions'])
-  && positionsAssignmentSafe()
-  && softDeleteSafe()
-  && updatePermissionAssignmentSafe()
-  && !touched('uid')
-  && !touched('publicProfile')
-  && unchanged('totalPoints');
+  && memberWriteInvariants()
+  && positionsAssignmentSafe();
 ```
+
+`memberWriteInvariants()` is `unchanged('totalPoints') && !touched('uid') &&
+!touched('publicProfile') && updatePermissionAssignmentSafe() && softDeleteSafe()`, shared
+with the institutional arm — the five conjuncts were duplicated across both until
+`/simplify` extracted them. The self-service arm must touch `publicProfile` and the Admin
+takedown arm deliberately skips `softDeleteSafe()`, so neither calls it.
 
 `positionsAssignmentSafe()` is reused verbatim — **not edited**. Its `hasAnyRole(['Admin'])`
 disjunct keeps Admin unrestricted; its `cargoGrantsEmpty() && currentCargoGrantsEmpty()`
@@ -560,6 +563,12 @@ Recorded because each falsified something this document previously asserted:
 - The coupling half of `roleLifecycleSafe()` on the four lanes (B, Not in scope).
 - The term-rollover window in `currentCargoGrantsEmpty()` (A, Residual).
 - The port-level divergence in C: a zod-rejected doc reads ABSENT to backstage, COVERED to beacon.
-- `siteConfig` write is still `hasAnyRole(['Admin'])` — same class as D, smaller blast radius.
+- (Not a residual, recorded so it is not re-opened as one: `siteConfig` write staying
+  `hasAnyRole(['Admin'])` is **correct**, and is not "the D case with a smaller blast
+  radius". D's argument is that Admin-by-role is the right key precisely because `Admin` is
+  `locked` and undeactivatable, so its name in a claim can never go stale — which is why D
+  kept the Admin disjunct and only moved the *other* half onto a perm. A single-authority
+  Admin-only gate has no second half to move. Migrating it to a perm would be a change with
+  no defect behind it.)
 - Refresh-token revocation: a revoked perm survives in a long-lived tab until reload.
 - `onRoleWritten`'s unbounded, no-retry fan-out.

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { hasAnyRole, type AuthClaims, type Role } from "@luminova/auth/roles";
+import { hasAnyRole, hasPerm, type AuthClaims, type Role } from "@luminova/auth/roles";
 import type { Action, AppAbility, Subject } from "@luminova/auth/ability";
 import type { ParticipationRole } from "@luminova/types/engine";
 import { isNavItemVisible, type NavItem } from "../../components/nav-config";
@@ -55,14 +55,13 @@ export function buildCan(ability: AppAbility, claims: AuthClaims): Can {
     // everyone else by the update:Showcase PERM — so deactivating a role revokes curation,
     // which the surviving role NAME in the claim would not.
     //
-    // Deliberately an exact code test on the claim, NOT `abilityAllows(..., "update",
-    // "Showcase")`: the rule is `hasPerm`, and CASL's `manage:all` wildcard would answer
-    // yes to the ability question. That would show the Destacar checkbox to a manage:all
-    // perm holder whose write firestore.rules then rejects — taking the whole save down
-    // with it. `probe.ts` does not help here: it narrows CONDITIONAL grants, and the
-    // divergence is the unconditional wildcard.
-    canFeatureInitiatives:
-      hasAnyRole(claims, ["Admin"]) || (claims.perms ?? []).includes("update:Showcase"),
+    // `hasPerm` is the client mirror of the rules' own `hasPerm()` — an exact code test on
+    // the claim, deliberately NOT `abilityAllows(..., "update", "Showcase")`: CASL's
+    // `manage:all` wildcard would answer yes to the ability question. That would show the
+    // Destacar checkbox to a manage:all perm holder whose write firestore.rules then
+    // rejects — taking the whole save down with it. `probe.ts` does not help here: it
+    // narrows CONDITIONAL grants, and the divergence is the unconditional wildcard.
+    canFeatureInitiatives: hasAnyRole(claims, ["Admin"]) || hasPerm(claims, "update:Showcase"),
     canAssignPowerGrants: hasAnyRole(claims, ["Admin"]),
   };
 }

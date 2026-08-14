@@ -2,6 +2,10 @@ import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
 import type { PermissionCode, Role, RoleDefinition } from "@luminova/types";
 import { resolveEffectivePerms } from "./perms.js";
 
+/** Anything `resolveEffectivePerms` can union perms out of — a live built-in doc, a custom
+ *  doc, or the seed snapshot. Structural, so no branch has to be widened by hand. */
+type PermsSource = { readonly permissions: readonly PermissionCode[] };
+
 /** A built-in role doc as the shared resolution consumes it.
  *
  *  Deliberately NOT a `Pick` of the stored doc shape. Liveness is the TWO-field predicate
@@ -11,9 +15,11 @@ import { resolveEffectivePerms } from "./perms.js";
  *  mints the doc's real perms. Naming the semantic keeps the contract unspoofable by a
  *  plain field read.
  *
- *  Liveness *derivation* stays per-side (beacon's `isActiveRoleDoc` reads `DocumentData`
- *  from `firebase-admin/firestore`, which this package — consumed by the browser bundle
- *  and the rules test suite — must not import). Only *consumption* is shared. */
+ *  Liveness *derivation* stays per-side, and NOT because of an import boundary: beacon's
+ *  `isActiveRoleDoc` is fail-OPEN (`active !== false`, so a missing or non-bool `active`
+ *  reads live) while backstage's `isLiveRole` is fail-CLOSED (`active === true`). They do
+ *  not compute the same function, so unifying them would be a behaviour change, not a
+ *  refactor. Only *consumption* is shared. */
 export interface BuiltInRoleDoc {
   readonly permissions: readonly PermissionCode[];
   readonly builtInKey: Role;
@@ -36,13 +42,11 @@ export interface BuiltInRoleDoc {
  *                                reason not-live docs have to be passed in: drop them at
  *                                the port and a deactivation silently restores the seed.
  *
- *  Grouped per key, not mapped: two docs may claim one `builtInKey`. A Map would keep only
- *  the last, making the answer depend on the order the docs happened to arrive in.
- *
- *  A doc whose `builtInKey` is not in `builtInRoleNames` is IGNORED — it neither
- *  contributes perms nor covers a key. In production beacon queries
- *  `where("builtInKey","in",keys)` so it cannot be handed one, but the function is total
- *  and picks the tighter reading rather than leaving it to the caller's query.
+ *  Iterating the deduped NAMES (not the docs) is what makes all three cases one expression:
+ *  coverage is "this name has at least one claiming doc", so a doc whose `builtInKey` is
+ *  not requested is ignored STRUCTURALLY — it is never visited. Grouping per name also
+ *  handles two docs claiming one `builtInKey`: both live ones are unioned, where a
+ *  `Map` keyed on the doc would have kept whichever arrived last.
  *
  *  `PERMISSION_CAP` is deliberately NOT applied: the callers disagree on the response
  *  (beacon fail-closes to `perms: []`, backstage blocks Save), so the cap stays theirs. */
@@ -52,16 +56,16 @@ export function resolveBuiltInPerms(input: {
   customDocs: readonly Pick<RoleDefinition, "permissions">[];
   overrides?: { grant: PermissionCode[]; revoke: PermissionCode[] };
 }): PermissionCode[] {
-  const requested = new Set(input.builtInRoleNames);
-  const claiming = input.builtInDocs.filter((doc) => requested.has(doc.builtInKey));
-  const covered = new Set(claiming.map((doc) => doc.builtInKey));
-  const roleDocs: Pick<RoleDefinition, "permissions">[] = [];
-  for (const doc of claiming) {
-    if (doc.live) roleDocs.push({ permissions: [...doc.permissions] });
-  }
-  for (const name of requested) {
-    if (!covered.has(name)) roleDocs.push({ permissions: [...BUILT_IN_ROLE_PERMS[name]] });
-  }
-  for (const doc of input.customDocs) roleDocs.push({ permissions: [...doc.permissions] });
-  return resolveEffectivePerms({ roleDocs, overrides: input.overrides });
+  // The return annotation is load-bearing: without it the two branches infer as a union of
+  // two ARRAY types, which flatMap cannot flatten.
+  const roleDocs = [...new Set(input.builtInRoleNames)].flatMap((name): PermsSource[] => {
+    const claiming = input.builtInDocs.filter((doc) => doc.builtInKey === name);
+    return claiming.length
+      ? claiming.filter((doc) => doc.live)
+      : [{ permissions: BUILT_IN_ROLE_PERMS[name] }];
+  });
+  return resolveEffectivePerms({
+    roleDocs: [...roleDocs, ...input.customDocs],
+    overrides: input.overrides,
+  });
 }

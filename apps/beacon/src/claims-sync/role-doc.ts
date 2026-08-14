@@ -22,6 +22,15 @@ export function roleDocPermsMalformed(data: DocumentData | undefined): boolean {
   return rawPermsFromRoleDoc(data).some((p) => !isValidPermissionCode(p));
 }
 
+/** Beacon's liveness predicate, and deliberately NOT unifiable with backstage's `isLiveRole`
+ *  (apps/backstage/src/lib/role-lifecycle.ts) today. The blocker is not the `DocumentData`
+ *  import — that is type-only and erases. It is that the two do not compute the same
+ *  function: this one is fail-OPEN (`active !== false`, so a missing or non-bool `active`
+ *  reads LIVE and keeps minting the doc's perms) while `isLiveRole` is fail-CLOSED
+ *  (`active === true`). Collapsing them either revokes perms from docs that hold them today
+ *  or offers assignment of docs that mint nothing — a behaviour change nobody has scoped.
+ *  The divergence and its two directions are written out on `previewEffectivePerms` and in
+ *  docs/specs/role-lifecycle.md; firestore.rules now bars authoring the shapes that reach it. */
 export function isActiveRoleDoc(data: DocumentData | undefined): boolean {
   return data?.active !== false && (data?.deletedAt === null || data?.deletedAt === undefined);
 }

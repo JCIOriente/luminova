@@ -135,11 +135,14 @@ async function queryBuiltInRoleDocs(
   // object graph to every member of the fan-out, so an in-place mutation anywhere
   // downstream (a future `doc.permissions.sort()`) would corrupt every remaining member's
   // claims — one write, N wrong results, no log. Freezing makes that throw in strict mode
-  // instead. resolveEffectivePerms only reads, so nothing needs the mutability today.
+  // instead. The type agrees: `BuiltInRoleDoc.permissions` is `readonly`, and
+  // `resolveBuiltInPerms` only iterates it, so the frozen array needs no cast to satisfy
+  // the port. (Claims-sync no longer calls `resolveEffectivePerms` directly at all — it
+  // goes through `resolveMemberPerms` → `resolveBuiltInPerms`.)
   return Object.freeze(
     covering.map((d) =>
       Object.freeze({
-        permissions: Object.freeze(permsFromRoleDoc(d.data())) as PermissionCode[],
+        permissions: Object.freeze(permsFromRoleDoc(d.data())),
         builtInKey: d.get("builtInKey") as Role,
         live: isActiveRoleDoc(d.data()),
       }),

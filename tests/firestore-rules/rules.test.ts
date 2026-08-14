@@ -39,6 +39,14 @@ function anon() {
   return env.unauthenticatedContext().firestore();
 }
 
+/** The members-positions lane's principal: a perms-only org-chart editor with NO built-in
+ *  role name — the custom role owner-op 1 describes. `as(uid, [], [...])` is what makes it
+ *  perms-only: the third argument replaces the seeded role perms entirely. Module-scoped
+ *  because the positions catalog arm, the members-positions lane and the well-formedness
+ *  sweep all need the same principal. */
+const ORG_CHART = "orgchart-uid";
+const orgChart = () => as(ORG_CHART, [], ["update:Position"]);
+
 const MEMBER_DOC = { name: "Ana", totalPoints: 0, uid: "owner-uid", active: true, deletedAt: null };
 
 /** The birth state every members/positions/allies create arm now requires (B2): born
@@ -572,7 +580,7 @@ beforeAll(async () => {
     await setDoc(doc(db, "members/m_orgchart"), {
       name: "Gabriela",
       totalPoints: 0,
-      uid: "orgchart-uid",
+      uid: ORG_CHART,
       active: true,
       deletedAt: null,
     });
@@ -2018,13 +2026,13 @@ describe("firestore.rules — positions", () => {
     // then assign it to themselves on the public Directiva, with no Admin action anywhere.
     // category also decides board GROUP and whether comisionGrantsEmpty() applies at all.
     await assertFails(
-      updateDoc(doc(as("orgchart-uid", [], ["update:Position"]), "positions/pos_cat"), {
+      updateDoc(doc(orgChart(), "positions/pos_cat"), {
         category: "CEL",
       }),
     );
     // The rest of the catalog stays writable for them — this pins one field, not the arm.
     await assertSucceeds(
-      updateDoc(doc(as("orgchart-uid", [], ["update:Position"]), "positions/pos_cat"), {
+      updateDoc(doc(orgChart(), "positions/pos_cat"), {
         description: "Actualizada.",
       }),
     );
@@ -2515,12 +2523,7 @@ describe("firestore.rules — member positions assignment", () => {
     );
   });
   // ── The members-positions lane: canDo('update','Position') + hasOnly(['positions']) ──
-  // A perms-only principal with NO built-in role name — the custom role owner-op 1
-  // describes. `as(uid, [], [...])` is what makes it perms-only: the third argument
-  // replaces the seeded role perms entirely.
-  const ORG_CHART = "orgchart-uid";
-  const orgChart = () => as(ORG_CHART, [], ["update:Position"]);
-
+  // Principal: the module-scoped orgChart() / ORG_CHART above.
   it("allows an update:Position-only principal to assign a grant-free cargo, self-stamped", async () => {
     await assertSucceeds(
       updateDoc(doc(orgChart(), "members/m_positions"), {
@@ -2774,11 +2777,11 @@ describe("firestore.rules — soft-delete well-formedness (B)", () => {
     // The members-positions lane (A) calls softDeleteSafe() too — all four lanes close
     // together, which is the point of putting the check in the helper.
     await assertFails(
-      updateDoc(doc(as("orgchart-uid", [], ["update:Position"]), "members/m_badactive"), {
+      updateDoc(doc(orgChart(), "members/m_badactive"), {
         [`positions.${TERM}`]: {
           cargoId: "pos_soft",
           comisionIds: [],
-          assignedBy: "orgchart-uid",
+          assignedBy: ORG_CHART,
         },
       }),
     );
@@ -2788,7 +2791,7 @@ describe("firestore.rules — soft-delete well-formedness (B)", () => {
       updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_badactive"), { title: "Vocal" }),
     );
     await assertFails(
-      updateDoc(doc(as("orgchart-uid", [], ["update:Position"]), "positions/pos_badactive"), {
+      updateDoc(doc(orgChart(), "positions/pos_badactive"), {
         title: "Vocal",
       }),
     );

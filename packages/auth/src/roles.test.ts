@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidRole, hasRole, hasAnyRole, type AuthClaims } from "./roles";
+import { isValidRole, hasRole, hasAnyRole, hasPerm, type AuthClaims } from "./roles";
 
 // The canonical ROLES catalog is derivation-guarded in packages/types
 // (role-definition.test.ts: every role has a BUILT_IN_ROLE_PERMS entry). A retyped
@@ -24,5 +24,18 @@ describe("roles", () => {
     const claims: AuthClaims = { roles: ["Membership", "ExecutiveCommittee"] };
     expect(hasAnyRole(claims, ["Admin", "ExecutiveCommittee"])).toBe(true);
     expect(hasAnyRole(claims, ["Admin", "Treasury"])).toBe(false);
+  });
+
+  it("hasPerm tests the EXACT code, with no manage:* expansion", () => {
+    const claims: AuthClaims = { roles: [], perms: ["update:Showcase", "manage:all"] };
+    expect(hasPerm(claims, "update:Showcase")).toBe(true);
+    // manage:all is present, yet an unheld exact code is still false — mirrors the rules'
+    // hasPerm(), not canDo(). Expanding here would re-open the boundary canCurateFeatured()
+    // relies on.
+    expect(hasPerm(claims, "update:Member")).toBe(false);
+  });
+
+  it("hasPerm reads an absent perms claim as zero coarse abilities", () => {
+    expect(hasPerm({ roles: ["Admin"] }, "update:Showcase")).toBe(false);
   });
 });
