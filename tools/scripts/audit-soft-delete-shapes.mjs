@@ -461,7 +461,9 @@ async function runAudit() {
           )
         : [];
     const cargos = await cargoState(
-      new Set(publishCandidates.map(({ data }) => currentCargoId(data)).filter((id) => id !== null)),
+      new Set(
+        publishCandidates.map(({ data }) => currentCargoId(data)).filter((id) => id !== null),
+      ),
     );
     /** id -> { unknownPublication, unknownCargo } for every member the repair may publish. */
     const willPublish = new Map();

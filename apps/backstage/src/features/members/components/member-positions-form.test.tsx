@@ -207,9 +207,7 @@ describe("MemberPositionsForm", () => {
     const save = screen.getByRole("button", { name: /guardar/i });
     expect(save).toBeEnabled();
     await userEvent.click(save);
-    await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith({ cargoId: null, comisionIds: [] }),
-    );
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ cargoId: null, comisionIds: [] }));
   });
 
   it("BLOCKING: a non-Admin cannot re-assign the grant-free CEL seat once cleared", async () => {
@@ -223,9 +221,7 @@ describe("MemberPositionsForm", () => {
     await userEvent.keyboard("{Escape}");
     expect(screen.getByLabelText("Cargo")).toHaveTextContent("Sin cargo");
     await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
-    await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith({ cargoId: null, comisionIds: [] }),
-    );
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ cargoId: null, comisionIds: [] }));
   });
 
   it("locks the form for a non-Admin when the current cargo GRANTS power (nothing succeeds)", () => {
