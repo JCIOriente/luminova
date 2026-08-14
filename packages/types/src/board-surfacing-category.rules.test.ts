@@ -16,9 +16,18 @@ import { BOARD_GROUPS, boardGroupFromCategory } from "./engine/board-public.js";
 // `boardSurfacingCategory()` was added to close, silently reopened, with nothing red.
 // Runs in the fast `checks` job (no emulator).
 //
-// Parsed out of boardSurfacingCategory() specifically, not matched loose: 'CEL' and 'JDL'
-// appear throughout the rules (the CEL conjunct in nonAdminAssignable(), comment prose), so
-// a repo-wide search for the strings would pass on the wrong occurrence.
+// The same job is done a second time for nonAdminAssignable(), the OTHER hand-written
+// literal over these categories — and it is the one that defaults to ALLOW. It encodes the
+// assignment boundary as a denylist of one (`category != 'CEL'`), so a third publishable
+// group added to BOARD_GROUPS would be forced into boardSurfacingCategory() by the
+// assertions above — minting it goes Admin-only, good — while nonAdminAssignable() silently
+// kept ASSIGNING it open to every non-Admin. A new board group would auto-enroll into the
+// accepted-exposure class (spec A: "the ceiling is JDL") with nobody deciding. Same
+// silent-reopen shape, one function over.
+//
+// Parsed out of each function specifically, not matched loose: 'CEL' and 'JDL' appear
+// throughout the rules (comment prose, the positions arms), so a repo-wide search for the
+// strings would pass on the wrong occurrence.
 
 const RULES = readFileSync(
   fileURLToPath(new URL("../../../firestore.rules", import.meta.url)),
@@ -36,6 +45,19 @@ function parseBoardSurfacingCategories(rules: string): string[] {
     .split(",")
     .map((entry) => entry.trim().replace(/^'(.*)'$/, "$1"))
     .filter((entry) => entry.length > 0);
+}
+
+/** The categories nonAdminAssignable() names in a `category ... != '<X>'` conjunct — the
+ *  denylist that decides which board cargos a non-Admin may assign through the members
+ *  lanes. */
+function parseNonAdminAssignableDenials(rules: string): string[] {
+  const fn = rules.match(/function nonAdminAssignable\(cargo\)\s*\{[\s\S]*?\n {4}\}/)?.[0];
+  if (fn === undefined) throw new Error("nonAdminAssignable() not found in firestore.rules");
+  const denials = [...fn.matchAll(/!=\s*'([^']*)'/g)].map((match) => match[1]);
+  if (denials.length === 0) {
+    throw new Error("nonAdminAssignable() no longer excludes any category by name");
+  }
+  return denials;
 }
 
 describe("firestore.rules boardSurfacingCategory is in sync with BOARD_GROUPS", () => {
@@ -67,5 +89,28 @@ describe("firestore.rules boardSurfacingCategory is in sync with BOARD_GROUPS", 
   it("leaves Comision out of both", () => {
     expect(boardGroupFromCategory("Comision")).toBeNull();
     expect(categories).not.toContain("Comision");
+  });
+
+  // The ALLOW-by-default twin. Everything above binds the Admin-only MINT boundary; this
+  // binds the non-Admin ASSIGN boundary to the same constant, so a new board group cannot
+  // enroll itself into the accepted public exposure.
+  describe("nonAdminAssignable's exclusions cover every board group but JDL", () => {
+    const denied = new Set(parseNonAdminAssignableDenials(RULES));
+
+    it("leaves exactly JDL assignable by a non-Admin", () => {
+      // Not `expect(denied).toEqual(new Set(['CEL']))`: the assertion that must go red on a
+      // new BOARD_GROUPS entry is about the categories left OPEN, and it is derived from the
+      // constant. Adding 'XYZ' to BOARD_GROUPS makes this ['JDL','XYZ'] until somebody
+      // either excludes it here or decides, in writing, that it is publishable by delegates.
+      expect(BOARD_GROUPS.filter((group) => !denied.has(group))).toEqual(["JDL"]);
+    });
+
+    it("excludes only categories that actually reach the public Directiva", () => {
+      // The other direction: an exclusion naming a non-board category would be dead weight
+      // gating nothing (and would wrongly narrow the comisión lane if it named 'Comision').
+      for (const category of denied) {
+        expect(boardGroupFromCategory(category), category).not.toBeNull();
+      }
+    });
   });
 });

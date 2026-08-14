@@ -91,8 +91,13 @@ describe("MemberForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // allowPowerGrants: pos-pres is a grant-free CEL cargo, which only an Admin may assign
+  // (rules' cargoAssignableByNonAdmin). This case is about the LABELS, so give it the
+  // authority that renders them all.
   it("shows gendered cargo labels and excludes comisiones from the cargo options", async () => {
-    render(<MemberForm positions={positions} submitLabel="Crear" onSubmit={vi.fn()} />);
+    render(
+      <MemberForm positions={positions} submitLabel="Crear" onSubmit={vi.fn()} allowPowerGrants />,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Femenino" }));
     await userEvent.click(screen.getByLabelText("Cargo"));
     expect(await screen.findByText("Presidenta")).toBeInTheDocument();
@@ -183,9 +188,12 @@ describe("MemberForm", () => {
     );
   });
 
+  // allowPowerGrants for the same reason: picking a CEL cargo at all is an Admin flow.
   it("locks comisiones as Comité Ejecutivo Local and clears them for a CEL cargo", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    render(<MemberForm positions={positions} submitLabel="Crear" onSubmit={onSubmit} />);
+    render(
+      <MemberForm positions={positions} submitLabel="Crear" onSubmit={onSubmit} allowPowerGrants />,
+    );
     await userEvent.type(screen.getByLabelText(/nombre/i), "Ana Pérez");
     await userEvent.type(screen.getByLabelText(/correo/i), "ana@jci.bo");
     await userEvent.click(screen.getByRole("button", { name: "Femenino" }));
@@ -227,6 +235,52 @@ describe("MemberForm", () => {
       />,
     );
     expect(await screen.findByText("Tesorero (inactivo)")).toBeInTheDocument();
+  });
+
+  // Mirror of firestore.rules cargoAssignableByNonAdmin() on the CREATE lane
+  // (createPositionsSafe applies the same predicate). Without it a non-Admin sees a
+  // grant-free CEL cargo, picks 'Presidente', and the create 403s into a generic error.
+  it("hides a grant-free CEL cargo from a non-Admin and keeps the JDL dirección", async () => {
+    render(<MemberForm positions={positions} submitLabel="Crear" onSubmit={vi.fn()} />);
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    expect(await screen.findByText("Director de Área")).toBeInTheDocument();
+    expect(screen.queryByText("Presidente")).not.toBeInTheDocument();
+  });
+
+  it("shows a grant-free CEL cargo to an Admin", async () => {
+    render(
+      <MemberForm positions={positions} submitLabel="Crear" onSubmit={vi.fn()} allowPowerGrants />,
+    );
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    expect(await screen.findByText("Presidente")).toBeInTheDocument();
+  });
+
+  // The lock, not just the option list: every save re-stamps the assigned cargoId, so a
+  // non-Admin editing a member already seated on a grant-free CEL cargo is denied on the
+  // positions slot. Locking it keeps the bio fields savable (the mapper omits the
+  // unchanged slot) instead of failing the whole form with no explanation.
+  it("locks the cargo for a non-Admin editing a member on a grant-free CEL cargo", () => {
+    render(
+      <MemberForm
+        positions={positions}
+        defaultValues={{ cargoId: "pos-pres", gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Solo un Admin puede cambiar el cargo/i)).toBeInTheDocument();
+  });
+
+  it("does NOT lock a non-Admin editing a member on a grant-free JDL dirección", () => {
+    render(
+      <MemberForm
+        positions={positions}
+        defaultValues={{ cargoId: "pos-jdl", gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/Solo un Admin puede cambiar el cargo/i)).not.toBeInTheDocument();
   });
 
   it("renders comisión option as 'sigla — title' when sigla is present", async () => {

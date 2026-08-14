@@ -415,8 +415,11 @@ Same credential model as `seed:production`; point it at the emulator by setting
 `FIRESTORE_EMULATOR_HOST` first. A **production** `--repair` writes to members and,
 through the trigger, re-projects the world-readable Directiva, so it demands an
 explicit confirmation — type `repair-production-shapes` at the prompt, or pass
-`--confirm=repair-production-shapes` in a non-interactive shell. The emulator needs
-no confirmation.
+`--confirm=repair-production-shapes` in a non-interactive shell. Adding
+`--allow-publish` widens what the run may do, so it widens the token: the string
+becomes `repair-production-shapes-and-publish`, and the plain one is then rejected.
+The typed string names the consequence, rather than the one flag that can ADD public
+exposure being the one the prompt is silent about. The emulator needs no confirmation.
 
 ## Correo de invitación
 

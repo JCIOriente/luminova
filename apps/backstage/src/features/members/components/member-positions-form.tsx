@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button, Combobox, Field, MultiSelect } from "@luminova/ui";
 import { positionTitle, currentTermKey, type MemberGender, type Position } from "@luminova/types";
+import { cargoAssignableByNonAdmin } from "../lib/assignable-cargo";
 
 const positionsSchema = z.object({
   cargoId: z.string().min(1).nullable(),
@@ -22,9 +23,10 @@ export function MemberPositionsForm({
   positions: Position[];
   gender: MemberGender | undefined;
   defaultValues: PositionsInput;
-  /** Whether the caller may assign power-granting cargos. Only Admin may (rules'
-   *  `cargoGrantsEmpty`); a non-Admin sees only grant-free cargos (plus the current
-   *  assignment, so an existing selection still renders). */
+  /** Whether the caller may assign the cargos the rules reserve to an Admin — power-granting
+   *  ones and CEL seats alike (rules' `cargoAssignableByNonAdmin`). A non-Admin sees only
+   *  assignable cargos (plus the current assignment, so an existing selection still
+   *  renders). */
   allowPowerGrants: boolean;
   onSubmit: (data: PositionsInput) => Promise<void>;
 }) {
@@ -36,17 +38,20 @@ export function MemberPositionsForm({
   } = useForm<PositionsInput>({ resolver: zodResolver(positionsSchema), defaultValues });
 
   const term = currentTermKey();
-  // A non-Admin can't write positions at all for a member whose current cargo grants
-  // power: the write re-stamps that cargoId and the rules' `cargoGrantsEmpty` denies it
-  // (comisiones can't be changed either — the whole slot is rejected). Lock the form.
-  const assignedCargoHasGrants =
-    (positions.find((p) => p.id === defaultValues.cargoId)?.grants.length ?? 0) > 0;
-  const locked = !allowPowerGrants && assignedCargoHasGrants;
+  // A non-Admin can't write positions at all for a member whose current cargo is Admin-only
+  // — power-granting OR a CEL seat: every save re-stamps that cargoId into the merged doc,
+  // so `cargoAssignableByNonAdmin()` rejects the whole slot, comisiones included, even on a
+  // comisiones-only edit. Lock the form rather than 403 a save that looks legitimate.
+  const assignedCargo = positions.find((p) => p.id === defaultValues.cargoId);
+  const locked =
+    !allowPowerGrants && assignedCargo !== undefined && !cargoAssignableByNonAdmin(assignedCargo);
   const cargoOptions = positions
     .filter(
       (p) => p.active && p.category !== "Comision" && (p.term === null || String(p.term) === term),
     )
-    .filter((p) => allowPowerGrants || p.grants.length === 0 || p.id === defaultValues.cargoId)
+    .filter(
+      (p) => allowPowerGrants || cargoAssignableByNonAdmin(p) || p.id === defaultValues.cargoId,
+    )
     .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
   const comisionOptions = positions
     .filter((p) => p.active && p.category === "Comision")
@@ -96,7 +101,8 @@ export function MemberPositionsForm({
       </Field>
       {locked && (
         <p role="note" className="text-ui-xs text-ink-3">
-          Solo un Admin puede cambiar los cargos de un miembro con permisos.
+          Solo un Admin puede cambiar los cargos de un miembro del Comité Ejecutivo Local o con
+          permisos.
         </p>
       )}
       {formError && (

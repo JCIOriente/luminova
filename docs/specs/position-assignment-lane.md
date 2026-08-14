@@ -44,8 +44,8 @@ arm is purely additive and its scope is auditable in isolation.
 // Positions-only lane: an org-chart editor who is NOT a member editor. Keyed on
 // update:Position — the same capability that governs the positions CATALOG — and
 // confined to the positions map. The power-cargo restriction is NOT relaxed:
-// positionsAssignmentSafe()'s non-Admin branch still demands cargoGrantsEmpty() &&
-// currentCargoGrantsEmpty(), so this principal assigns and clears grant-free cargos
+// positionsAssignmentSafe()'s non-Admin branch still demands cargoAssignableByNonAdmin()
+// && currentCargoGrantsEmpty(), so this principal assigns and clears grant-free cargos
 // only, on BOTH sides of a swap.
 //
 // memberWriteInvariants() is implied by hasOnly(['positions']) TODAY and is stated
@@ -65,11 +65,12 @@ with the institutional arm — the five conjuncts were duplicated across both un
 `/simplify` extracted them. The self-service arm must touch `publicProfile` and the Admin
 takedown arm deliberately skips `softDeleteSafe()`, so neither calls it.
 
-`positionsAssignmentSafe()` is reused verbatim — **not edited**. Its `hasAnyRole(['Admin'])`
-disjunct keeps Admin unrestricted; its `cargoGrantsEmpty() && currentCargoGrantsEmpty()`
-disjunct is exactly the grant-empty-only semantic this lane wants. `currentCargoGrantsEmpty()`
-must stay inside the non-Admin branch: without it an `update:Position` holder could overwrite
-a president's power cargo with a grant-free one and silently strip Admin.
+`positionsAssignmentSafe()` is reused as-is by this lane — the arm adds no cargo condition of
+its own. Its `hasAnyRole(['Admin'])` disjunct keeps Admin unrestricted; its
+`cargoAssignableByNonAdmin() && currentCargoGrantsEmpty()` disjunct is exactly the
+assignable-only semantic this lane wants. `currentCargoGrantsEmpty()` must stay inside the
+non-Admin branch: without it an `update:Position` holder could overwrite a president's power
+cargo with a grant-free one and silently strip Admin.
 
 `hasOnly(['positions'])` is the correct constraint for the production dot-path payload
 `{"positions.2026": {...}}` — `affectedKeys()` reports **top-level** keys, pinned by
@@ -82,11 +83,23 @@ assign a cargo to a soft-deleted member — the same as the existing institution
 a regression. What it does do, once change B lands, is refuse a write onto a **malformed**
 member doc.
 
-### Create is deliberately untouched
+### Create keeps the same new-side predicate, and only that
 
 `createPositionsSafe()` cannot call `currentCargoGrantsEmpty()` — a create has no prior
-`resource`. There is no old side to protect on a create, and no reason to let an org-chart
-editor mint members: creation stays `canDo('create','Member')`.
+`resource` — and there is no old side to protect on a create. It **does** call
+`cargoAssignableByNonAdmin()`, the same new-side predicate as the update arm, because that
+one reads `request.resource.data` only (through `assignedTerm()`) and is therefore
+create-safe. Keeping the arms on one predicate is not symmetry for its own sake: a create arm
+that asked only about `grants` let a `manage:Member` holder — `manage:Member` satisfies
+`canDo('create','Member')` — mint a member **born** holding an Admin-minted grant-free CEL
+cargo, self-stamped. `uid` is forbidden at create, so that doc is unpublished at birth; but
+`onMemberCreated` stamps the `publicProfile` default, the creator picks `name` and
+`profilePicture`, and one routine Admin `provisionMemberLogin` later supplies the `uid` —
+after which `projectBoard` publishes an attacker-composed account at board rank 0 as
+Presidente, with a single Admin action in the chain taken for an unrelated reason.
+
+The org-chart lane itself still may not create members: creation stays
+`canDo('create','Member')`, which an `update:Position`-only principal does not hold.
 
 ### This lane is a PUBLIC publication authority — stated, and deliberately accepted
 
@@ -106,13 +119,16 @@ earlier draft argued CEL was blocked because "every seeded CEL cargo carries non
 still lets an **Admin** mint a grant-free CEL cargo (this branch's own rules suite creates
 exactly one, `mint_cel_admin`), and from that moment the claim is false: any `update:Position`
 holder could self-assign it, at CEL rank, `Presidente` included — `boardRank` maps that title
-to 0, so they would head the public Directiva. `positionsAssignmentSafe()`'s non-Admin branch
-therefore reads `category` off the cargo doc it was **already** fetching for
-`cargoGrantsEmpty()` (`cargoAssignableByNonAdmin()` — one `get()`, two questions) and refuses
-`CEL` whatever its grants. Cost: an Admin who mints a ceremonial grant-free CEL cargo must
-also assign it — consistent with the create arm, which already made minting one Admin-only.
-Three rules tests pin it (non-Admin CEL denied, grant-free JDL still allowed, Admin
-unaffected) plus one for the institutional lane, and the conjunct is mutation-proven.
+to 0, so they would head the public Directiva. The non-Admin branch therefore reads
+`category` off the cargo doc it was **already** fetching for the grants check
+(`cargoAssignableByNonAdmin()` — one `get()`, two questions) and refuses `CEL` whatever its
+grants. **Both member lanes ask it**: `positionsAssignmentSafe()` on update and
+`createPositionsSafe()` on create — see "Create keeps the same new-side predicate" above for
+what splitting them cost. Cost: an Admin who mints a ceremonial grant-free CEL cargo must
+also assign it — consistent with the positions create arm, which already made minting one
+Admin-only. Five rules tests pin it (non-Admin CEL denied on the org-chart lane, grant-free
+JDL still allowed, Admin unaffected, the institutional update lane, and the create lane) and
+the conjunct is mutation-proven.
 The REPLACED cargo (`currentCargoGrantsEmpty()`) is deliberately not category-gated: clearing
 a member off a grant-free CEL cargo only reduces exposure.
 
@@ -164,10 +180,15 @@ export function memberEditMode(gate: Pick<Can, "can">): MemberEditMode {
 Order matters and is asserted: a principal holding both gets `"full"`, so the two editors
 never both render.
 
-The rest of the UI mirror is **already correct** — `member-positions-form.tsx:42-50` filters
-options on `p.grants.length === 0` and locks the form when the *current* cargo grants power,
-both keyed on grants-emptiness, not on Admin. `canAssignPowerGrants` (`use-can.ts:55`) stays
-a role check, mirroring `hasAnyRole(['Admin'])` in the rule.
+The cargo mirror in `member-positions-form.tsx` and `member-form.tsx` was keyed on
+`p.grants.length === 0` alone, which was correct only while grants were the whole boundary.
+Both now call one shared `cargoAssignableByNonAdmin()`
+(`features/members/lib/assignable-cargo.ts`), the client twin of the rules predicate, for the
+option list **and** the lock — a grant-free CEL cargo is otherwise offered to a non-Admin who
+then eats a generic 403, and a member already seated on one has no lock at all even though
+every save re-stamps that `cargoId` and is denied. One function, not the same condition typed
+into two forms. `canAssignPowerGrants` (`use-can.ts:55`) stays a role check, mirroring
+`hasAnyRole(['Admin'])` in the rule.
 
 Two stale comments must move with the code, or they read as guarantees:
 `MemberRepository.setPositions` (`member-repository.ts:81-85`) says the write "goes through
@@ -239,6 +260,17 @@ A does not create the hole, but it does widen the principal set: before A this n
 Owner-op 1 states that, so nobody grants the capability on the strength of an unqualified
 "never a power cargo". Fixing it properly means resolving liveness across terms and is its
 own pass.
+
+**The claim strip is only half of it: the same write re-fires the projection.**
+`onBoardMemberWritten` resolves the cargo through `currentCargoId(member, termKey)` at
+projection time, so the new-term slot is what the public Directiva reads the moment it is
+written. Post-rollover, that same short-circuit therefore lets an `update:Position` holder
+move a sitting president — whose CEL cargo carries `grants`, and who is therefore untouchable
+in-term on BOTH sides (`cargoAssignableByNonAdmin()` refuses CEL; `currentCargoGrantsEmpty()`
+refuses displacing a granted cargo) — onto a grant-free JDL dirección, demoting them from
+public rank 0 to a dirección on the world-readable board. That is a **public-board mutation
+they cannot make in-term at all**, not just a claims change, and it is the half a reader
+tracking only the Admin claim would miss. Same window, same fix, same pass.
 
 ---
 
@@ -582,9 +614,13 @@ so all three assertions go false until the fixtures carry `perms: ["update:Showc
      next write, a member whose Admin comes from last year's cargo has an empty current-term
      slot, the guard short-circuits, and this holder can write a grant-free cargo into the new
      term — which claims-sync resolves to `roles: ['Member']`, stripping the Admin claim.
-     Pre-existing (it falls to any `manage:Member` holder through the institutional arm) but
-     newly reachable by a role whose entire authority is `update:Position`. See Residuals; the
-     shape is now pinned by a rules test named as an accepted hole.
+     The same write also re-fires the board projection, which reads the current-term cargo:
+     so in that window this holder can also move a sitting **president** off CEL rank 0 onto a
+     JDL dirección on the public Directiva — a public-board change the in-term rules deny them
+     outright on both sides. Pre-existing (it falls to any `manage:Member` holder through the
+     institutional arm) but newly reachable by a role whose entire authority is
+     `update:Position`. See Residuals; the shape is now pinned by a rules test named as an
+     accepted hole.
 2. **Before deploying D's rules:** run `reseedBuiltInRolePerms`, then run `recomputeAllClaims`,
    then confirm a live `ProjectManager`'s **ID-token claim** carries `update:Showcase`. The
    reseed's `onRoleWritten` fan-out is unbounded and `retry: false`, so it can strand members;
@@ -677,7 +713,7 @@ Found by the final review round:
 15. **The CEL half of the exposure was ASSUMED closed, not enforced** — "seeded CEL cargos all
     carry grants" is a data claim, and this branch's own suite mints the counterexample
     (`mint_cel_admin`). `cargoAssignableByNonAdmin()` now refuses a `CEL` cargo to a non-Admin
-    off the get() `cargoGrantsEmpty()` already paid for. Section A and owner-op 1 rewritten
+    off the get() the grants check already paid for. Section A and owner-op 1 rewritten
     from "assumed" to "enforced".
 16. **Nothing tied `boardSurfacingCategory()` to `BOARD_GROUPS`.** A third publishable group
     would have reopened correction 8 silently. `packages/types/src/board-surfacing-category.
@@ -685,8 +721,12 @@ Found by the final review round:
     repo's parse-the-rules-file pattern.
 17. **The two catalog arms disagreed on an absent/unrecognized `category`.** Create asked
     `!boardSurfacingCategory()`, the update escape hand-rolled `== 'Comision'`, so a legacy
-    doc with no `category` was non-board on create and board on update — fail-closed, but
-    over-restrictive and a second definition of the same question. One predicate now.
+    doc with no `category` was non-board on create and board on update — fail-closed, so
+    never a hole. The payoff is **not** that legacy docs become editable: `positionDocSchema`
+    requires `category`, so `parseDocs` drops a category-less cargo and `/positions` never
+    lists it — unreachable from the UI either way. It is that the second, longhand definition
+    of "is this published" cannot drift from the create arm's (guardrail #1), and that one is
+    load-bearing on live docs. One predicate now.
 18. **A sentinel bug made the audit script's UNKNOWN-publication branch dead code.**
     `published.get(id) ?? false` falls back on exactly the `null` that meant "unreadable", so
     one rejected `getAll` chunk silently reclassified those members as unpublished — and
@@ -702,6 +742,33 @@ Found by the final review round:
     the default. Fixed, plus coverage for the label/category locks, including a BLOCKING test
     that would go red on `register("title", { disabled: true })` (RHF's own `disabled` submits
     the field as `undefined`, which 403s every non-Admin save).
+22. **Correction 15 fixed the update arm only, and this spec claimed otherwise.**
+    `createPositionsSafe()` still asked `cargoGrantsEmpty()`, so a `manage:Member` holder
+    could mint a member BORN on an Admin-minted grant-free CEL cargo — unpublished only until
+    a routine Admin `provisionMemberLogin` wrote the `uid`. Both arms now share
+    `cargoAssignableByNonAdmin()`; `cargoGrantsEmpty()` had no remaining caller and is
+    deleted. The three claims this falsified (the rules comment's "an Admin decision on both
+    ends", "an Admin who mints must also assign", owner-op 1's "rank 0 stays an Admin
+    decision on both ends") are now true rather than aspirational, and a mirror rules test
+    pins the create lane.
+23. **The CEL literal had no drift guard and defaults to ALLOW.** Correction 16 bound
+    `boardSurfacingCategory()` to `BOARD_GROUPS` but parsed around `nonAdminAssignable()`, a
+    denylist of one. A third publishable group would have gone Admin-only to MINT and stayed
+    open to ASSIGN for every non-Admin — auto-enrolled into the accepted exposure with nobody
+    deciding. The same test now parses both and asserts the board groups a non-Admin may
+    assign are exactly `['JDL']`. Mutation-proven in both directions.
+24. **No client mirror for the new denial.** Both member forms filtered cargo options on
+    `grants.length === 0`, so a grant-free CEL cargo was still offered to a non-Admin
+    (render-then-die), and a member already seated on one showed no lock while every save
+    re-stamped the `cargoId` — a comisiones-only edit was denied with no explanation. One
+    shared `cargoAssignableByNonAdmin()` now backs the option list and the lock in both forms.
+25. **Three audit-script defects.** The `WILL PUBLISH` line printed "`--allow-publish` was
+    passed — repairing it" in READ-ONLY mode, where nothing is written; `cargoPublishes()`
+    would have TypeError'd on an `undefined` cargo (reachable when `currentTermKey()`
+    straddles a UTC-year boundary between its two evaluations) and now reports it as the
+    unknown it is; and `--allow-publish` — the one flag that can ADD public exposure — now
+    changes the typed confirmation token to `repair-production-shapes-and-publish`, so the
+    string the operator types names the consequence.
 
 ## Residuals
 
@@ -713,7 +780,9 @@ Found by the final review round:
 - **Publication of a grant-free JDL dirección by an `update:Position` holder** — the accepted
   exposure, narrowed to JDL by rule (correction 15) rather than by an assumption about data.
 - The coupling half of `roleLifecycleSafe()` on the four lanes (B, Not in scope).
-- The term-rollover window in `currentCargoGrantsEmpty()` (A, Residual).
+- The term-rollover window in `currentCargoGrantsEmpty()` (A, Residual) — **both** halves: the
+  Admin-claim strip, and the public-board move of a sitting president off CEL rank 0 that the
+  same write re-projects.
 - The port-level divergence in C: a zod-rejected doc reads ABSENT to backstage, COVERED to beacon.
 - (Not a residual, recorded so it is not re-opened as one: `siteConfig` write staying
   `hasAnyRole(['Admin'])` is **correct**, and is not "the D case with a smaller blast

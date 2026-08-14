@@ -1017,6 +1017,43 @@ describe("firestore.rules — members", () => {
       }),
     );
   });
+  it("BLOCKING: denies Membership creating a member holding a grant-free CEL cargo", async () => {
+    // The create-arm mirror of "denies the update:Position lane assigning a GRANT-FREE CEL
+    // cargo". pos_cel_free has grants: [], so the grants half says yes; only the `category
+    // != 'CEL'` conjunct of cargoAssignableByNonAdmin() denies it — which the create arm
+    // only asks because it shares that predicate with positionsAssignmentSafe().
+    // What it stops: manage:Member satisfies canDo('create','Member'), so a Membership
+    // holder could mint a member BORN at board rank 0 as Presidente, self-stamped. `uid` is
+    // forbidden at create, so the doc is unpublished at birth — but onMemberCreated stamps
+    // publicProfile, the creator owns name/profilePicture, and one routine Admin
+    // provisionMemberLogin later supplies the uid, at which point projectBoard publishes it.
+    // If this goes green, the create arm has drifted back off the shared predicate.
+    await assertFails(
+      setDoc(doc(as("mem-uid", ["Membership"]), "members/new_cel_free"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+        positions: {
+          [TERM]: { cargoId: "pos_cel_free", comisionIds: [], assignedBy: "mem-uid" },
+        },
+      }),
+    );
+  });
+  it("allows Admin creating a member on a grant-free CEL cargo (the authority, not the delegate)", async () => {
+    // The paired ALLOW: the CEL conjunct lives inside the non-Admin branch of the create arm
+    // too, so seating the CEL at create stays possible — for an Admin only. Without this,
+    // a create arm that denied everyone would pass the test above for the wrong reason.
+    await assertSucceeds(
+      setDoc(doc(as("admin-uid", ["Admin"]), "members/new_cel_admin"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+        positions: {
+          [TERM]: { cargoId: "pos_cel_free", comisionIds: [], assignedBy: "admin-uid" },
+        },
+      }),
+    );
+  });
   it("allows Admin creating with a power cargo + self assignedBy", async () => {
     await assertSucceeds(
       setDoc(doc(as("admin-uid", ["Admin"]), "members/new_admin"), {
@@ -2828,7 +2865,8 @@ describe("firestore.rules — member positions assignment", () => {
 
   it("BLOCKING: denies the update:Position lane assigning a power-conferring cargo (new side)", async () => {
     // positionsAssignmentSafe() is reused verbatim: its non-Admin branch demands
-    // cargoGrantsEmpty(), and pos1 grants Treasury. Without it this lane would mint claims.
+    // cargoAssignableByNonAdmin(), and pos1 grants Treasury. Without it this lane would
+    // mint claims.
     await assertFails(
       updateDoc(doc(orgChart(), "members/m_positions"), {
         [`positions.${TERM}`]: { cargoId: "pos1", comisionIds: [], assignedBy: ORG_CHART },
@@ -2902,8 +2940,9 @@ describe("firestore.rules — member positions assignment", () => {
 
   it("BLOCKING: denies the update:Position lane assigning a GRANT-FREE CEL cargo", async () => {
     // The publication half of cargoAssignableByNonAdmin(), and the conjunct this test
-    // exists for. pos_cel_free carries grants: [], so cargoGrantsEmpty() — the whole
-    // non-Admin check before this branch — says yes; only `category != 'CEL'` denies it.
+    // exists for. pos_cel_free carries grants: [], so the grants half of that predicate —
+    // the whole non-Admin check before this branch — says yes; only `category != 'CEL'`
+    // denies it.
     // What it stops: boardRank maps 'Presidente' to 0, so this write would put the
     // org-chart editor at the head of the world-readable Directiva as chapter president.
     // If this goes green, neutralize nothing and re-read the rule: the CEL conjunct is gone.
@@ -2957,7 +2996,9 @@ describe("firestore.rules — member positions assignment", () => {
     // CEL and JDL, so this write lands on the world-readable boardShowcase projection. It is
     // not privilege escalation — resolveTrustedGrants returns early on grants.length === 0,
     // so no claim is minted — but it IS a publication authority, and owner-op 1 says so in
-    // the same words. Seeded CEL cargos all carry non-empty grants, so those stay Admin-only.
+    // the same words. Its ceiling is JDL: CEL is Admin-only BY RULE whatever its grants
+    // (cargoAssignableByNonAdmin's `category != 'CEL'`), not because of what the seeded CEL
+    // cargos happen to hold — the test two above pins exactly that.
     await assertSucceeds(
       updateDoc(doc(orgChart(), "members/m_orgchart"), {
         [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
@@ -2979,8 +3020,9 @@ describe("firestore.rules — member positions assignment", () => {
 
 describe("firestore.rules — replacing an already-assigned power cargo (C1)", () => {
   it("BLOCKING: denies Membership replacing an Admin-granting cargo with a grant-free one", async () => {
-    // The de-elevation attack: the NEW cargo is grant-free, so the old cargoGrantsEmpty()
-    // check passed. currentCargoGrantsEmpty() is what looks at resource.data — the cargo
+    // The de-elevation attack: the NEW cargo is grant-free and not CEL, so the new-side
+    // cargoAssignableByNonAdmin() passed. currentCargoGrantsEmpty() looks at resource.data —
+    // the cargo
     // being displaced — and denies the write.
     await assertFails(
       updateDoc(doc(as("mem-uid", ["Membership"]), "members/m_powercargo"), {
@@ -2990,7 +3032,7 @@ describe("firestore.rules — replacing an already-assigned power cargo (C1)", (
   });
 
   it("BLOCKING: denies Membership clearing an Admin-granting cargo to null", async () => {
-    // cargoId: null makes cargoGrantsEmpty() short-circuit true; only the old-side guard
+    // cargoId: null makes cargoAssignableByNonAdmin() short-circuit true; only the old-side guard
     // catches it.
     await assertFails(
       updateDoc(doc(as("mem-uid", ["Membership"]), "members/m_powercargo"), {

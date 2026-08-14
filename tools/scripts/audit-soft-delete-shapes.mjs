@@ -67,7 +67,10 @@
 // production `--repair` writes to members and, through the trigger, to the world-readable
 // Directiva, so it demands an explicit confirmation (typed, or `--confirm=<token>` for a
 // non-interactive shell) — the same posture as seed-production.mjs and the
-// `confirm: "overwrite-builtin-roles"` token on reseedBuiltInRolePerms.
+// `confirm: "overwrite-builtin-roles"` token on reseedBuiltInRolePerms. Adding
+// `--allow-publish` changes the token to `repair-production-shapes-and-publish`: the string
+// the operator types names the consequence, so the one flag that can ADD public exposure is
+// not the one the confirmation is silent about.
 //   gcloud auth application-default login && pnpm audit:soft-delete-shapes
 // Or the emulator, by setting the env first (no confirmation there):
 //   FIRESTORE_EMULATOR_HOST=127.0.0.1:4010 pnpm audit:soft-delete-shapes
@@ -85,6 +88,10 @@ const PAGE = 300;
 const GETALL_CHUNK = 300;
 const MAX_PRINT = 20;
 const CONFIRM_TOKEN = "repair-production-shapes";
+/** `--allow-publish` is the one flag that can ADD world-readable exposure, so it gets its
+ *  own token: the string the operator types has to NAME the consequence they are accepting,
+ *  or the confirmation prompt is silent about the only irreversible half of the run. */
+const PUBLISH_CONFIRM_TOKEN = "repair-production-shapes-and-publish";
 const CONFIRM_FLAG = "--confirm=";
 /** Opt-in for the one repair that ADDS public exposure — see the publication forecast. */
 const ALLOW_PUBLISH_FLAG = "--allow-publish";
@@ -97,6 +104,18 @@ const ALLOW_PUBLISH = process.argv.includes(ALLOW_PUBLISH_FLAG);
 const confirmArg = process.argv
   .find((arg) => arg.startsWith(CONFIRM_FLAG))
   ?.slice(CONFIRM_FLAG.length);
+/** What a `WILL PUBLISH:` line may truthfully claim the run is doing about that doc. The
+ *  forecast prints in READ-ONLY mode too — where nothing is written no matter which flags
+ *  were passed — so the outcome text has to branch on REPAIR before ALLOW_PUBLISH. */
+const publishOutcome = !REPAIR
+  ? `Read-only — nothing was written. A --repair run would ${
+      ALLOW_PUBLISH
+        ? "apply this repair and publish the member"
+        : `WITHHOLD it (no ${ALLOW_PUBLISH_FLAG})`
+    }.`
+  : ALLOW_PUBLISH
+    ? `${ALLOW_PUBLISH_FLAG} was passed — repairing it.`
+    : `Withheld: re-run with ${ALLOW_PUBLISH_FLAG} to repair these too, or set publicProfile: false on the member first (the opt-out this member never exercised).`;
 const emulator = process.env.FIRESTORE_EMULATOR_HOST;
 const projectId = process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GCLOUD_PROJECT ?? "jci-oriente";
 
@@ -106,15 +125,19 @@ console.log(
 );
 
 async function confirmProductionRepair() {
-  if (confirmArg === CONFIRM_TOKEN) return;
+  // --allow-publish widens what this run may do, so it widens the token that authorizes it.
+  // The plain token never authorizes a publishing run: pass the flag and the plain token is
+  // rejected, exactly like any other wrong string.
+  const requiredToken = ALLOW_PUBLISH ? PUBLISH_CONFIRM_TOKEN : CONFIRM_TOKEN;
+  if (confirmArg === requiredToken) return;
   if (confirmArg !== undefined) {
-    console.error(`Refusing to repair: --confirm must be exactly "${CONFIRM_TOKEN}".`);
+    console.error(`Refusing to repair: --confirm must be exactly "${requiredToken}".`);
     process.exit(EXIT_INCOMPLETE);
   }
   if (!process.stdin.isTTY) {
     console.error(
       `Refusing to repair PRODUCTION project ${projectId} without confirmation. ` +
-        `No TTY to prompt on — re-run with ${CONFIRM_FLAG}${CONFIRM_TOKEN}.`,
+        `No TTY to prompt on — re-run with ${CONFIRM_FLAG}${requiredToken}.`,
     );
     process.exit(EXIT_INCOMPLETE);
   }
@@ -126,7 +149,12 @@ async function confirmProductionRepair() {
         `About to WRITE to members/positions/allies in PRODUCTION project ${projectId}.\n` +
           "A members write re-fires onBoardMemberWritten and re-projects the world-readable " +
           "Directiva.\n" +
-          `Type ${CONFIRM_TOKEN} to proceed: `,
+          (ALLOW_PUBLISH
+            ? `${ALLOW_PUBLISH_FLAG} was passed: repairs that would ADD a member to the ` +
+              "world-readable Directiva will be applied, not withheld. Every such member is " +
+              "announced with a WILL PUBLISH line before it is written.\n"
+            : "") +
+          `Type ${requiredToken} to proceed: `,
       )
     ).trim();
   } catch {
@@ -135,7 +163,7 @@ async function confirmProductionRepair() {
     answer = "";
   }
   rl.close();
-  if (answer !== CONFIRM_TOKEN) {
+  if (answer !== requiredToken) {
     console.error("Aborted — nothing was written.");
     process.exit(EXIT_INCOMPLETE);
   }
@@ -331,7 +359,11 @@ async function cargoState(cargoIds) {
 
 /** true / false / null(unknown) — does this cargo put the member on the Directiva? */
 function cargoPublishes(cargo) {
-  if (cargo === "unreadable") return null;
+  // `undefined` = this id was never resolved, which currentTermKey() straddling a UTC-year
+  // boundary between the two calls below can produce. Unknown, not benign: reported like an
+  // unreadable read rather than TypeError-ing on `cargo.category` — same fail-safe direction
+  // as every other gate here.
+  if (cargo === undefined || cargo === "unreadable") return null;
   if (cargo === null) return false;
   if (!BOARD_CATEGORIES.has(cargo.category)) return false;
   return typeof cargo.title === "string" && cargo.title.trim().length > 0;
@@ -501,7 +533,10 @@ for (const coll of COLLECTIONS) {
           "cargo, a pinned portrait and publicProfile: true, so the re-fired " +
           `onBoardMemberWritten ADDS boardShowcase/${doc.id} to the world-readable ` +
           "Directiva. That is a NEW publication, not a repair side effect anyone asked " +
-          `for.\n      ${ALLOW_PUBLISH ? `${ALLOW_PUBLISH_FLAG} was passed — repairing it.` : `Withheld: re-run with ${ALLOW_PUBLISH_FLAG} to repair these too, or set publicProfile: false on the member first (the opt-out this member never exercised).`}`,
+          // REPAIR first: this forecast prints in read-only mode too, where NOTHING is
+          // written and "--allow-publish was passed — repairing it" would be a false
+          // statement about what the run just did.
+          `for.\n      ${publishOutcome}`,
       );
       if (publishing.unknownCargo !== null) {
         console.log(

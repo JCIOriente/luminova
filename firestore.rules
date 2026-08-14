@@ -140,17 +140,9 @@ service cloud.firestore {
     function assignedCargoId() {
       return assignedTerm().get('cargoId', null);
     }
-    // A null cargoId short-circuits (no get). For a non-null cargoId, get() on a
-    // missing position errors → rule denies (fail-closed). Comisión grants are not
-    // checked here (rules can't iterate the array) — the beacon trust gate is their backstop.
-    function cargoGrantsEmpty() {
-      return assignedCargoId() == null
-        || get(/databases/$(database)/documents/positions/$(assignedCargoId())).data.grants.size() == 0;
-    }
-    // The two questions a non-Admin assignment must answer, read off ONE cargo doc — this
-    // is the same get() cargoGrantsEmpty() already pays for, with `category` taken from it
-    // rather than a second read.
-    //   grants.size() == 0    the claims-mint boundary (as cargoGrantsEmpty).
+    // The two questions a non-Admin assignment must answer, read off ONE cargo doc — one
+    // get(), two questions, rather than a read per boundary.
+    //   grants.size() == 0    the claims-mint boundary.
     //   category != 'CEL'     the PUBLICATION boundary. boardGroupFromCategory publishes
     //                         CEL and JDL alike, and boardRank orders CEL by statutory
     //                         title with 'Presidente' at 0 — so a grant-free CEL cargo,
@@ -158,12 +150,19 @@ service cloud.firestore {
     //                         holder at the head of the world-readable Directiva as the
     //                         chapter president, with no Admin action in the chain.
     // That was previously argued blocked because "seeded CEL cargos all carry grants" — a
-    // claim about DATA, enforced by nothing. The create arm below deliberately still lets an
-    // ADMIN mint a grant-free CEL cargo (rules.test.ts creates exactly one, `mint_cel_admin`),
-    // and from that moment the data claim is false. This makes the boundary a RULE.
+    // claim about DATA, enforced by nothing. The positions create arm below deliberately
+    // still lets an ADMIN mint a grant-free CEL cargo (rules.test.ts creates exactly one,
+    // `mint_cel_admin`), and from that moment the data claim is false. This makes the
+    // boundary a RULE.
     // JDL stays open: grant-free direcciones are the accepted publication exposure this lane
     // exists to deliver (spec A, owner-op 1). CEL is the executive committee, whose seats are
-    // an Admin decision on both ends — the create arm already says so.
+    // an Admin decision on both ends — the positions create arm already says so.
+    // Reads request.resource.data only (via assignedTerm()), so BOTH member arms use it:
+    // positionsAssignmentSafe() on update and createPositionsSafe() on create. Splitting them
+    // is what let a manage:Member holder mint a member BORN on a grant-free CEL cargo.
+    // A null cargoId short-circuits (no get). For a non-null cargoId, get() on a missing
+    // position errors → rule denies (fail-closed). Comisión grants are not checked here
+    // (rules can't iterate the array) — the beacon trust gate is their backstop.
     // Assignment only. currentCargoGrantsEmpty() (the cargo being REPLACED) is deliberately
     // NOT category-gated: clearing a member off a grant-free CEL cargo is exposure-reducing,
     // and denying it would strand a takedown behind an Admin.
@@ -174,7 +173,7 @@ service cloud.firestore {
     function nonAdminAssignable(cargo) {
       return cargo.grants.size() == 0 && cargo.get('category', '') != 'CEL';
     }
-    // The OTHER side of cargoGrantsEmpty(): the cargo being REPLACED. assignedCargoId()
+    // The OTHER side of cargoAssignableByNonAdmin(): the cargo being REPLACED. assignedCargoId()
     // reads request.resource.data — the post-write cargo — so without this a manage:Member
     // holder could overwrite a president's positions.<term> with a grant-free cargo,
     // claims-sync would resolve grants.length == 0, and the Admin claim would be gone with
@@ -210,14 +209,21 @@ service cloud.firestore {
         && (hasAnyRole(['Admin'])
             || (cargoAssignableByNonAdmin() && currentCargoGrantsEmpty()));
     }
-    // Create has no prior resource to diff, so it can't use positionsDelta(); it
-    // applies the same self-stamp + power-cargo-Admin-only gate to any positions it
-    // writes. Without this a Membership user could create a member with a forged
-    // assignedBy = a known Admin's uid + a power cargo; the claims-sync trigger would
-    // then honor the grant and mint Admin onto that member's (or the attacker's) uid.
+    // Create has no prior resource to diff, so it can't use positionsDelta(); it applies the
+    // same self-stamp + Admin-only-cargo gate to any positions it writes. Without this a
+    // Membership user could create a member with a forged assignedBy = a known Admin's uid +
+    // a power cargo; the claims-sync trigger would then honor the grant and mint Admin onto
+    // that member's (or the attacker's) uid.
+    // Same predicate as the update arm, deliberately: a create arm that only asked about
+    // `grants` let a manage:Member holder mint a member BORN holding a grant-free CEL cargo.
+    // The create arm forbids `uid`, so that doc is unpublished at birth — but onMemberCreated
+    // stamps the publicProfile default, the creator picks profilePicture, and one routine
+    // Admin provisionMemberLogin then writes the uid, after which projectBoard publishes an
+    // attacker-composed account at board rank 0 as Presidente. currentCargoGrantsEmpty() is
+    // the only half a create cannot ask (no prior resource), and it has no old side to guard.
     function createPositionsSafe() {
       return !('positions' in request.resource.data)
-        || (assignedBySelf() && (hasAnyRole(['Admin']) || cargoGrantsEmpty()));
+        || (assignedBySelf() && (hasAnyRole(['Admin']) || cargoAssignableByNonAdmin()));
     }
 
     // roleIds + permissionOverrides feed Auth custom claims via the beacon trigger.
@@ -480,7 +486,7 @@ service cloud.firestore {
       // vanish with it.
       //
       // Ordered cheapest-first on purpose: positionsAssignmentSafe() is the only conjunct
-      // here that can issue cross-document get()s (cargoGrantsEmpty /
+      // here that can issue cross-document get()s (cargoAssignableByNonAdmin /
       // currentCargoGrantsEmpty), so every denial this arm reaches through the token,
       // affectedKeys or the invariants costs zero billed reads.
       allow update: if canDo('update', 'Position')
@@ -549,9 +555,11 @@ service cloud.firestore {
       // The escape is `!boardSurfacingCategory()`, NOT a hand-rolled `== 'Comision'`: the two
       // disagree on a doc whose `category` is absent or unrecognized (a legacy doc predating
       // the field). The hand-rolled form treated that as a board cargo and pinned its labels —
-      // fail-closed, so never a hole, but over-restrictive on exactly the docs an org-chart
-      // editor has the most reason to fix, and a second definition of "is this published"
-      // drifting beside the create arm's (guardrail #1). One predicate, both arms.
+      // fail-closed, so never a hole. The reason to unify is NOT that it frees such docs to be
+      // edited: positionDocSchema requires `category`, so parseDocs drops a category-less cargo
+      // and /positions never lists it — no UI reaches it either way. It is that a second
+      // definition of "is this published", written out longhand, drifts from the create arm's
+      // (guardrail #1) — and that one IS load-bearing on live docs. One predicate, both arms.
       allow update: if canDo('update', 'Position')
         && (hasAnyRole(['Admin'])
             || (unchanged('grants')
