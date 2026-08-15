@@ -348,6 +348,79 @@ is re-written each run.
 
 For wiping production data, see the runbook at `tools/scripts/wipe-prod.md`.
 
+## Soft-Delete Shape Audit (pre-deploy gate)
+
+`pnpm audit:soft-delete-shapes` scans `members`, `positions` and `allies` for docs
+whose soft-delete pair is malformed — the shapes the well-formedness rules make
+admin-SDK-only to edit (owner-op 4 of `docs/specs/position-assignment-lane.md`,
+BLOCKING before those rules deploy). It exits non-zero when anything is found, so
+it can gate a deploy. Read-only by default; `--repair` fixes only the unambiguous
+shapes (a missing `deletedAt` becomes `null`; a missing `active` on a never-deleted
+doc becomes `true`) and refuses to guess at the rest:
+
+| Shape | `--repair` |
+|---|---|
+| `deletedAt` missing | → `null` |
+| `active` missing, `deletedAt` null/missing | → `true` |
+| `active` present but not a bool (the string `"false"`, or `null`) | refused — a human decides |
+| `active` missing, `deletedAt` set | refused — the two fields disagree |
+| `active: true` **with** a non-null `deletedAt` (the **ghost**) | refused — same disagreement. This is the one malformed shape that is client-reachable and that `memberDocSchema` accepts, so backstage lists the doc as an ordinary live member while every `deletedAt`-aware reader treats it as gone |
+| `deletedAt` present, non-null, not a Timestamp (an ISO string, a number) | refused — the zod schemas reject it and the rules pin it immutable, so the doc is invisible and unwritable at once |
+
+Repair is all-or-nothing per doc: when one field is ambiguous the unambiguous fix
+is withheld too, so whoever resolves it sees the shape the audit reported.
+
+Exit codes are distinct on purpose: **1** = the run completed and found malformed
+docs (the gate); **2** = the run did *not* complete (a per-doc read/write failed,
+or a production `--repair` was not confirmed). A crash must not read as a clean
+gate failure.
+
+For a malformed **member** it also reports whether a `boardShowcase` row is
+currently published — but `--repair` is **not** a takedown, and removes no public
+row:
+
+- A **repaired** doc declares the member live (`active: true` / `deletedAt: null`),
+  so the re-fired `onBoardMemberWritten` re-publishes it. The row correctly stays up.
+- A **refused** doc (the non-bool `active`, the shape that was fail-open published)
+  is not written at all, so no trigger fires and the row **stays published**. Two
+  hand remedies, both printed per doc: a Firebase console edit of `active`, or an
+  Admin `publicProfile: false` write — the members takedown arm in `firestore.rules`
+  deliberately skips `softDeleteSafe()` and stays open on exactly these docs (pinned
+  by a rules test). Backstage will not list such a member (`memberDocSchema` drops
+  it), so make that write from the console or directly.
+
+`--repair` **can add one**, though, and that direction is opt-in. Writing
+`active: true` un-blocks the fail-closed `projectBoard` gate, so a member who also
+carries `publicProfile: true` (the stamped org-wide default), a `uid`, a pinned
+portrait and a current-term CEL/JDL cargo is **newly published** by the re-fired
+trigger — publication as a side effect of a shape fix. Each such member gets a
+`WILL PUBLISH:` line and their repair is **withheld** (counted separately from the
+ambiguous refusals) unless `--allow-publish` is passed. The alternative to passing
+it is to set `publicProfile: false` on the member first — the opt-out they never
+exercised — and re-run. The forecast fails safe: a gate it cannot settle (an
+unreadable `positions` or `boardShowcase` doc) is named in the output and the
+member is announced anyway, never quietly repaired.
+
+Ids that need a hand fix, and every PUBLISHED / WILL PUBLISH / UNKNOWN-publication
+line, are never truncated; only the benign repairable listing is capped.
+
+```bash
+gcloud auth application-default login
+pnpm audit:soft-delete-shapes                     # count + gate
+pnpm audit:soft-delete-shapes --repair            # fix the unambiguous, report the rest
+pnpm audit:soft-delete-shapes --repair --allow-publish  # …incl. the repairs that publish
+```
+
+Same credential model as `seed:production`; point it at the emulator by setting
+`FIRESTORE_EMULATOR_HOST` first. A **production** `--repair` writes to members and,
+through the trigger, re-projects the world-readable Directiva, so it demands an
+explicit confirmation — type `repair-production-shapes` at the prompt, or pass
+`--confirm=repair-production-shapes` in a non-interactive shell. Adding
+`--allow-publish` widens what the run may do, so it widens the token: the string
+becomes `repair-production-shapes-and-publish`, and the plain one is then rejected.
+The typed string names the consequence, rather than the one flag that can ADD public
+exposure being the one the prompt is silent about. The emulator needs no confirmation.
+
 ## Correo de invitación
 
 When an admin provisions login access for a member, the app calls Firebase Auth's

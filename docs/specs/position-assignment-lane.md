@@ -1,0 +1,795 @@
+# Position-assignment lane + role-lifecycle follow-through
+
+**Status:** design (revised after two adversarial passes — see Review corrections)
+**Branch:** `feat/position-assignment-lane`
+**Predecessors:** PR 1 (#216 role display), PR 2 (#219 built-in role set), PR 3 (#221 role lifecycle)
+
+The fourth and last PR of the role-management overhaul, plus three residuals its
+predecessors documented and deferred. Four changes, one branch, because three of the four
+edit `firestore.rules` and share one emulator suite.
+
+| # | Change | Surface |
+|---|---|---|
+| A | Members-positions write lane keyed on `update:Position` | rules, backstage |
+| B | Well-formedness on the four remaining soft-delete lanes | rules, beacon showcase |
+| C | The three-way built-in resolution extracted to `packages/auth` | packages/auth, beacon, backstage |
+| D | `canCurateFeatured` migrated from a role name to a permission | rules, types, beacon seed, backstage |
+
+---
+
+## A. The members-positions write lane
+
+### Problem
+
+PR 2 withdrew `manage:Position` from `ExecutiveCommittee` and deleted the dedicated
+positions-only rule that went with it. Cargo assignment on `members/{id}.positions` became
+Admin-only. `memberEditMode` (`apps/backstage/src/features/members/lib/member-edit-gate.ts:5`)
+still declares a `"positions"` arm in its return union but its body
+(`member-edit-gate.ts:15-17`) never returns it, so `member-profile-page.tsx:168-184` is
+unreachable code, and its doc comment names this PR as the thing that brings it back.
+
+### What blocks a non-Admin today
+
+Not `positionsAssignmentSafe()`. The institutional update arm (`firestore.rules:302-312`)
+leads with `canDo('update', 'Member')`, so a principal holding only `update:Position` fails
+at the **first** conjunct and never reaches the positions gate at all.
+
+### Design
+
+A **new, fourth `allow update` arm** on `match /members/{memberId}`, rather than relaxing
+the leading `canDo('update','Member')` on the existing one. Rules arms OR together, so a new
+arm is purely additive and its scope is auditable in isolation.
+
+```
+// Positions-only lane: an org-chart editor who is NOT a member editor. Keyed on
+// update:Position — the same capability that governs the positions CATALOG — and
+// confined to the positions map. The power-cargo restriction is NOT relaxed:
+// positionsAssignmentSafe()'s non-Admin branch still demands cargoAssignableByNonAdmin()
+// && currentCargoGrantsEmpty(), so this principal assigns and clears grant-free cargos
+// only, on BOTH sides of a swap.
+//
+// memberWriteInvariants() is implied by hasOnly(['positions']) TODAY and is stated
+// anyway: if hasOnly is ever widened — the obvious future edit is adding a second key —
+// the claims-mint boundary, publication consent and the points ledger must not vanish
+// with it. Ordered cheapest-first: positionsAssignmentSafe() is the only conjunct that
+// can issue cross-document get()s, so every earlier denial costs zero billed reads.
+allow update: if canDo('update', 'Position')
+  && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['positions'])
+  && memberWriteInvariants()
+  && positionsAssignmentSafe();
+```
+
+`memberWriteInvariants()` is `unchanged('totalPoints') && !touched('uid') &&
+!touched('publicProfile') && updatePermissionAssignmentSafe() && softDeleteSafe()`, shared
+with the institutional arm — the five conjuncts were duplicated across both until
+`/simplify` extracted them. The self-service arm must touch `publicProfile` and the Admin
+takedown arm deliberately skips `softDeleteSafe()`, so neither calls it.
+
+`positionsAssignmentSafe()` is reused as-is by this lane — the arm adds no cargo condition of
+its own. Its `hasAnyRole(['Admin'])` disjunct keeps Admin unrestricted; its
+`cargoAssignableByNonAdmin() && currentCargoGrantsEmpty()` disjunct is exactly the
+assignable-only semantic this lane wants. `currentCargoGrantsEmpty()` must stay inside the
+non-Admin branch: without it an `update:Position` holder could overwrite a president's power
+cargo with a grant-free one and silently strip Admin.
+
+`hasOnly(['positions'])` is the correct constraint for the production dot-path payload
+`{"positions.2026": {...}}` — `affectedKeys()` reports **top-level** keys, pinned by
+`rules.test.ts:2262-2270` and `:1310`.
+
+**What `softDeleteSafe()` in this arm does and does not do.** It does not stop a write onto a
+soft-deleted member: it blocks *resurrection*, and `unchanged('active')` is satisfied
+whenever the write does not touch `active`, which `hasOnly` guarantees. So this lane can
+assign a cargo to a soft-deleted member — the same as the existing institutional arm, so not
+a regression. What it does do, once change B lands, is refuse a write onto a **malformed**
+member doc.
+
+### Create keeps the same new-side predicate, and only that
+
+`createPositionsSafe()` cannot call `currentCargoGrantsEmpty()` — a create has no prior
+`resource` — and there is no old side to protect on a create. It **does** call
+`cargoAssignableByNonAdmin()`, the same new-side predicate as the update arm, because that
+one reads `request.resource.data` only (through `assignedTerm()`) and is therefore
+create-safe. Keeping the arms on one predicate is not symmetry for its own sake: a create arm
+that asked only about `grants` let a `manage:Member` holder — `manage:Member` satisfies
+`canDo('create','Member')` — mint a member **born** holding an Admin-minted grant-free CEL
+cargo, self-stamped. `uid` is forbidden at create, so that doc is unpublished at birth; but
+`onMemberCreated` stamps the `publicProfile` default, the creator picks `name` and
+`profilePicture`, and one routine Admin `provisionMemberLogin` later supplies the `uid` —
+after which `projectBoard` publishes an attacker-composed account at board rank 0 as
+Presidente, with a single Admin action in the chain taken for an unrelated reason.
+
+The org-chart lane itself still may not create members: creation stays
+`canDo('create','Member')`, which an `update:Position`-only principal does not hold.
+
+### This lane is a PUBLIC publication authority — stated, and deliberately accepted
+
+`positions.<term>.cargoId` is the sole input to `boardShowcase`, the world-readable public
+Directiva (`firestore.rules:706-709`, `allow read: if true`; projection at
+`apps/beacon/src/showcase/project-board.ts:63-97`). `boardGroupFromCategory`
+(`packages/types/src/engine/board-public.ts:39-41`) publishes both `CEL` and `JDL`. **JDL
+direcciones are hand-created in `/positions` and normally carry `grants: []`** — so an
+`update:Position` holder can assign a grant-free board cargo to any member, **including
+themselves**, and put that person on the public site under that title. Combined with the
+self-service arm (which they own for their own `publicProfile` and `profilePicture`), that is
+self-publication with no Admin action.
+
+**The exposure is scoped to JDL, and that scoping is now ENFORCED rather than assumed.** An
+earlier draft argued CEL was blocked because "every seeded CEL cargo carries non-empty
+`grants`" — a claim about DATA, with nothing holding it true. The create arm deliberately
+still lets an **Admin** mint a grant-free CEL cargo (this branch's own rules suite creates
+exactly one, `mint_cel_admin`), and from that moment the claim is false: any `update:Position`
+holder could self-assign it, at CEL rank, `Presidente` included — `boardRank` maps that title
+to 0, so they would head the public Directiva. The non-Admin branch therefore reads
+`category` off the cargo doc it was **already** fetching for the grants check
+(`cargoAssignableByNonAdmin()` — one `get()`, two questions) and refuses `CEL` whatever its
+grants. **Both member lanes ask it**: `positionsAssignmentSafe()` on update and
+`createPositionsSafe()` on create — see "Create keeps the same new-side predicate" above for
+what splitting them cost. Cost: an Admin who mints a ceremonial grant-free CEL cargo must
+also assign it — consistent with the positions create arm, which already made minting one
+Admin-only. Five rules tests pin it (non-Admin CEL denied on the org-chart lane, grant-free
+JDL still allowed, Admin unaffected, the institutional update lane, and the create lane) and
+the conjunct is mutation-proven.
+The REPLACED cargo (`currentCargoGrantsEmpty()`) is deliberately not category-gated: clearing
+a member off a grant-free CEL cargo only reduces exposure.
+
+The JDL half is **accepted as the feature**, not an oversight: assigning a JDL dirección *is* the
+darkened surface PR 2 created, and appearing on the Directiva is the correct product outcome
+of holding that cargo. It is not privilege escalation — no claim is minted, because
+`resolveTrustedGrants` returns at `sync.ts:67` on `grants.length === 0`, before the
+`assignedBy`-holds-Admin gate is even consulted.
+
+Two things follow, and both are in scope:
+
+1. **The catalog's `category` must stop being freely writable by a non-Admin.** Today the
+   positions update arm (`firestore.rules:358-361`) pins only `grants` for a non-Admin, so an
+   `update:Position` holder could retitle a grant-free Comisión to `title: "Presidente",
+   category: "CEL"` (→ `boardRank` 0) and assign it to themselves. `unchanged('category')`
+   joins `unchanged('grants')` in the non-Admin branch. Defensible on its own: `category`
+   decides board group, board rank, and whether `comisionGrantsEmpty()` applies.
+2. **The exposure is asserted, not left incidental** — a rules test pins that an
+   `update:Position` holder can put a member on the board, so a future reader sees it was a
+   decision.
+
+Owner-op 1 states this in the same words, so nobody grants the capability without knowing
+it publishes.
+
+### No built-in role gains the capability, and the hand-off must be a CUSTOM role
+
+`update:Position` is held by **no** entry in `BUILT_IN_ROLE_PERMS` — only Admin satisfies it,
+via `manage:all`. This PR does not change that: every existing principal's authority stays
+byte-identical, so no test asserting a current denial has to be weakened.
+
+**The hand-off must be a custom role doc, not an edit to the `ExecutiveCommittee` built-in.**
+`planRolePermReseed` (`apps/beacon/src/recompute-claims.ts:205-238`) walks **every** built-in
+role doc and rewrites `permissions` to the `BUILT_IN_ROLE_PERMS` snapshot whenever they
+differ — so an `update:Position` added to the CEL built-in from `/permisos` is **silently
+stripped by the next reseed**, which owner-op 2 of this very spec mandates. A custom role
+(`builtIn: false`) is skipped by the reseed as `"not-built-in"`. Owner-op 1 says so
+explicitly.
+
+### Client mirror
+
+```ts
+export function memberEditMode(gate: Pick<Can, "can">): MemberEditMode {
+  if (gate.can("update", "Member")) return "full";
+  if (gate.can("update", "Position")) return "positions";
+  return "none";
+}
+```
+
+Order matters and is asserted: a principal holding both gets `"full"`, so the two editors
+never both render.
+
+The cargo mirror in `member-positions-form.tsx` and `member-form.tsx` was keyed on
+`p.grants.length === 0` alone, which was correct only while grants were the whole boundary.
+Both now call one shared `cargoAssignableByNonAdmin()`
+(`features/members/lib/assignable-cargo.ts`), the client twin of the rules predicate, for the
+option list **and** the lock — a grant-free CEL cargo is otherwise offered to a non-Admin who
+then eats a generic 403, and a member already seated on one has no lock at all even though
+every save re-stamps that `cargoId` and is denied. One function, not the same condition typed
+into two forms. `canAssignPowerGrants` (`use-can.ts:55`) stays a role check, mirroring
+`hasAnyRole(['Admin'])` in the rule.
+
+Two stale comments must move with the code, or they read as guarantees:
+`MemberRepository.setPositions` (`member-repository.ts:81-85`) says the write "goes through
+the ordinary `update:Member` lane… not about a separate allow-rule" — false once this arm
+exists; and `effectiveRoles` (`member-permissions.ts:3-4`) claims it "mirrors exactly what
+the claims-sync trigger will mint", which omits the `assignedBy`-holds-Admin gate. The second
+is pre-existing and only needs correcting, not re-implementing.
+
+### Nav parity fix
+
+`nav-config.ts:130` re-admits a perms-only principal to `/positions` via
+`orCan: { action: "manage", subject: "Position" }`, but the catalog's own rules accept
+`canDo('update','Position')`. `orCan` moves to `update` — `canDo` treats `manage:Position` as
+satisfying `update:Position`, so this widens nothing the rules did not already allow
+(guardrail #6).
+
+### Tests that assert today's denial — rewritten, never deleted
+
+| Test | Today | After |
+|---|---|---|
+| `member-edit-gate.test.ts:39` | `manage:Position` → `"none"` | → `"positions"`. CASL `manage` satisfies `can("update", …)` (`ability.ts:34-39`), exactly as `canDo` does in the rules |
+| `member-edit-gate.test.ts:40` | `read:Position` → `"none"` | unchanged |
+| `member-edit-gate.test.ts:43` | `{roles:["Member"], perms:["manage:Position"]}` → `"none"` | → `"positions"` |
+| `member-edit-gate.test.ts:12` | CEL → `"none"` | unchanged — CEL holds no `update:Position` in the seed |
+| `rules.test.ts:2164` | CEL denied any cargo | unchanged, plus a new `update:Position` principal that is allowed |
+| `nav-config.test.ts:170` | admits `manage:Position` | passes, plus an `update:Position` case |
+
+New rules tests. The `describe` at `rules.test.ts:2163` ends with `:2281` "allows Admin to
+assign a power-conferring cargo", which is last **on purpose** — the suite seeds once and
+never resets. Insert before it, and mind the fixtures: at that point `members/m1` holds
+`pos_soft` (grant-free, set at `:2173`, re-set at `:2262`), **not** a power cargo, so the
+old-side test must target `members/m_powercargo` (`:505-512`), which the C1 describe at
+`:2290` also uses as `assertFails` — safe to share.
+
+- allows an `update:Position`-only principal to assign a grant-free cargo, self-stamped
+- **positive-and-inert**: after that assignment, the computed claims are unchanged — asserts
+  "cannot mint" rather than inferring it
+- BLOCKING: denies that principal assigning a power-conferring cargo (new side)
+- BLOCKING: denies that principal replacing `m_powercargo`'s cargo with a grant-free one (old side)
+- BLOCKING: denies that principal touching any non-`positions` field in the same write
+- denies a forged `assignedBy`; denies a non-current-term write; denies creating a member
+- denies a whole-map replacement that drops the current term key, and a `deleteField()` on
+  `positions` — both currently deny via `assignedBySelf()`, an incidental mechanism that a
+  future refactor could remove unnoticed
+- pins the accepted exposure: an `update:Position` holder can assign a grant-free JDL board cargo
+- BLOCKING: denies that same principal a grant-free **CEL** cargo, with the JDL allow adjacent
+  so the denial cannot pass for the wrong reason; plus the Admin allow, and the institutional
+  (`manage:Member`) lane held to the same boundary
+- denies a non-Admin changing a position's `category` (the new catalog conjunct)
+- allows a non-Admin retitling a legacy cargo with **no `category` key** — the create and
+  update arms now ask the same `!boardSurfacingCategory()` question
+
+Every new create-shaped test carries `active`/`deletedAt`, or change B makes it vacuous.
+
+### Residual: the term-rollover window
+
+`currentCargoGrantsEmpty()` reads `resource.data.positions[currentTermKey()].cargoId`. At the
+UTC-year rollover a victim whose Admin comes from `positions["2026"]` has an empty
+`positions["2027"]` slot, so the guard hits its `prior == null` short-circuit and an
+`update:Position` holder can write a grant-free cargo into the new term — and
+`syncMemberClaims`, which resolves from the same current-year key, recomputes
+`roles: ['Member']`. **Pre-existing** — it falls to any `manage:Member` holder through the
+institutional arm today, and A does not create it — but the guard is not unconditional, and
+this spec says so rather than repeating "closes the strip-Admin hole" without qualification.
+A test pins the shape as ALLOWED, named as an accepted hole so a future reader sees it was
+measured rather than missed — an earlier draft claimed that test existed when it did not.
+A does not create the hole, but it does widen the principal set: before A this needed
+`manage:Member`; after A a role whose entire authority is `update:Position` reaches it.
+Owner-op 1 states that, so nobody grants the capability on the strength of an unqualified
+"never a power cargo". Fixing it properly means resolving liveness across terms and is its
+own pass.
+
+**The claim strip is only half of it: the same write re-fires the projection.**
+`onBoardMemberWritten` resolves the cargo through `currentCargoId(member, termKey)` at
+projection time, so the new-term slot is what the public Directiva reads the moment it is
+written. Post-rollover, that same short-circuit therefore lets an `update:Position` holder
+move a sitting president — whose CEL cargo carries `grants`, and who is therefore untouchable
+in-term on BOTH sides (`cargoAssignableByNonAdmin()` refuses CEL; `currentCargoGrantsEmpty()`
+refuses displacing a granted cargo) — onto a grant-free JDL dirección, demoting them from
+public rank 0 to a dirección on the world-readable board. That is a **public-board mutation
+they cannot make in-term at all**, not just a claims change, and it is the half a reader
+tracking only the Admin claim would miss. Same window, same fix, same pass.
+
+---
+
+## B. Well-formedness on the remaining soft-delete lanes
+
+### Problem
+
+`roleLifecycleSafe()` enforces that `active` is present and a bool and `deletedAt` is
+present. The four `softDeleteSafe()` lanes — `members` ×2, `positions`, `allies` — enforce
+neither. The hazard is concrete: a member doc carrying the **string** `"false"` in `active`
+passes `softDeleteSafe()`, is dropped by `memberDocSchema` so it is invisible throughout
+backstage, and is **published to the public Directiva**, because
+`apps/beacon/src/showcase/project-board.ts:75` tests `member.active === false` — the
+fail-open direction. `project-ally.ts:22` uses the fail-closed `active !== true`.
+
+### Design — three parts
+
+**B1. The check goes inside `softDeleteSafe()`, not onto the arms.**
+
+```
+function softDeleteSafe() {
+  let d = request.resource.data;
+  return ('active' in d) && (d.active is bool) && ('deletedAt' in d)
+    && (resource.data.deletedAt == null || unchanged('deletedAt'))
+    && (resource.data.active == true || unchanged('active'));
+}
+```
+
+Inside the helper, because the members Admin-takedown arm (`firestore.rules:320-322`)
+deliberately does **not** call it. That arm is the only rules-level path that can unpublish
+exactly the malformed member this change is about; putting the requirement at arm level would
+remove the remedy along with the disease.
+
+The one-way semantics below the new lines are untouched. Two in-file comments assert
+"softDeleteSafe itself must not change" (`firestore.rules:371-375`, `rules.test.ts:2529-2533`);
+both are updated to say what changed and what did not.
+
+**This is a real new denial, not a reclassification — corrected from the first draft.** The
+first draft argued the missing-field case already denies, because `softDeleteSafe` reads
+`resource.data.active` bare and an absent-key read errors. That is **false**: rules are CEL,
+whose `||` absorbs errors (`error || true == true`), and the bare read sits on the left of a
+`||` whose right side is `unchanged(field)` — which uses `.get(…, null)` and returns
+`null == null → true` on an absent key. Measured against the emulator: a doc missing
+`active`/`deletedAt` is **editable today** and **denied** after B1. The same wrong
+generalization is written into `firestore.rules:396` and is corrected in this PR.
+
+So B1 moves legacy `members`/`positions`/`allies` docs missing either field, or holding a
+non-bool `active`, from *client-editable* to *admin-SDK-only*. Owner-op 4 is therefore a
+**blocking pre-deploy audit**, not a nice-to-know: the count must be known, and ideally zero,
+before the rules ship. There is no rules-layer repair — the only fix is the console or the
+admin SDK.
+
+**What is genuinely safe** is the merge half: on an update `request.resource.data` is the
+**merged** document, so a repository writing neither field still satisfies the check when the
+stored doc is well-formed. `RoleRepository.update` is the live proof under the identical rule
+(`rules.test.ts:2482-2495`).
+
+**B2. The create arms are constrained to match.** `members` (`:287-293`), `positions`
+(`:355-357`) and `allies` (`:547`) require nothing of the two fields, so they mint the exact
+docs B1 then refuses to update. Each gains, mirroring the roles create arm (`:527-529`):
+
+```
+&& request.resource.data.get('active', false) == true
+&& ('deletedAt' in request.resource.data)
+&& request.resource.data.deletedAt == null
+```
+
+Every client creator already writes both. The test cost is larger than the first draft said,
+and it is the interesting part of B2:
+
+- **Three `assertSucceeds` go red** and must carry the fields: `rules.test.ts:608`, `:708`,
+  `:717`.
+- **Twelve `assertFails` become vacuous** — they would pass for the newly-added reason rather
+  than the one they are named for: members `:613, :625, :634, :671, :676, :681, :690, :699,
+  :740, :748, :756` and positions `:1799`. `:681` and `:699` are escalation guards, and
+  `:613-624` states in a comment that it *isolates* the `publicProfile` create guard — a claim
+  B2 falsifies unless the payload is repaired. All twelve carry `active`/`deletedAt` so they
+  keep failing for their own reason. This repo has already cleaned up 14 tautological tests
+  once; this is that class.
+- One new test pins that the bare shape is now denied.
+
+**B3. `project-board.ts` flips to the fail-closed direction.**
+
+```ts
+if (member.deletedAt != null || member.active !== true) return null;
+```
+
+B1 and B2 stop new malformed docs; B3 is what stops an existing one being published. It also
+ends the split with `project-ally.ts`.
+
+**B3 alone does not reach the rows already published, and neither does the audit script —
+corrected twice after review.** An earlier draft said "only B3 removes the existing public
+exposure", which overstates its reach: `onBoardMemberWritten` fires only on a `members/{id}`
+write, so a member already on `boardShowcase` under the fail-open predicate stays there until
+their doc is next written. The correction to *that* correction — "`--repair` re-fires the
+trigger and deletes the row" — is also false, in both directions:
+
+- A doc `--repair` can fix declares the member **live** (`deletedAt: null`, `active: true`).
+  The re-fired trigger re-publishes it. The row correctly stays up; nothing is taken down.
+- The doc that is actually exposed — a non-bool `active`, the string `"false"` — is
+  **refused**, because coercing it is a human call. Nothing is written, so no trigger fires,
+  and the row survives.
+
+So the true division of labour is: **B3 stops the next publication, the script detects and
+gates, and the existing row comes down by hand.** The script prints the two remedies per
+exposed doc: a Firebase console edit of `active`, or an Admin `publicProfile: false` write —
+which the members takedown arm permits precisely because it does not call `softDeleteSafe()`
+(B1's whole reason for living inside the helper; a rules test pins the arm open on a
+malformed member). Neither is reachable from backstage, because `memberDocSchema` drops the
+doc from every list. That is why owner-op 4 is blocking: the script's value is a complete,
+untruncated worklist plus a non-zero exit, not an automatic fix.
+
+### Not in scope
+
+The **coupling** half of `roleLifecycleSafe()` (`active == true ⟹ deletedAt == null`, plus
+the `deletedAt == request.time` stamp) is not generalized. It would deny every subsequent
+edit to an existing ghost doc (`active: true` + non-null `deletedAt`) — a shape that passes
+all four zod schemas and therefore *is* listed and editable today — and it would turn three
+`assertSucceeds` soft-delete tests red for using a client `new Date()`. Owed its own pass.
+
+---
+
+## C. One three-way resolution, in `packages/auth`
+
+### Problem
+
+The absent / live / inactive resolution is implemented twice — `resolveMemberPerms`
+(`apps/beacon/src/claims-sync/resolve-member-perms.ts:46-64`) and `previewEffectivePerms`
+(`apps/backstage/src/features/permissions/lib/effective-preview.ts:44-66`). Both already
+import `resolveEffectivePerms` from `@luminova/auth/perms`, so the shared half has a home and
+creates no new dependency edge (`auth → types` is the only edge; `types` references
+`@luminova/auth` nowhere).
+
+### Design
+
+New file `packages/auth/src/built-in-perms.ts`, new export subpath
+`@luminova/auth/built-in-perms` — the package has no root `"."` export, so an unlisted file
+is unresolvable to esbuild and Vite alike. Relative imports carry explicit `.js`; beacon
+typechecks this package through `NodeNext`.
+
+```ts
+export interface BuiltInRoleDoc {
+  readonly permissions: readonly PermissionCode[];
+  readonly builtInKey: Role;
+  /** Precomputed liveness. NEVER the raw `active` field: a doc with `active: true` and a
+   *  non-null `deletedAt` is a ghost — covered, contributing nothing. */
+  readonly live: boolean;
+}
+
+export function resolveBuiltInPerms(input: {
+  builtInRoleNames: readonly Role[];
+  builtInDocs: readonly BuiltInRoleDoc[];
+  customDocs: readonly Pick<RoleDefinition, "permissions">[];
+  overrides?: { grant: PermissionCode[]; revoke: PermissionCode[] };
+}): PermissionCode[];
+```
+
+Synchronous and pure over already-fetched docs. It must not sort or mutate its inputs —
+beacon's graph is deep-frozen. The seed fallback moves **inside** it (that is what
+`builtInRoleNames` is for), so `packages/auth` gains an import of `BUILT_IN_ROLE_PERMS` from
+`@luminova/types/role-definition`.
+
+**What does NOT move.** `isActiveRoleDoc` stays in beacon: it imports `DocumentData` from
+`firebase-admin/firestore`, and `packages/auth` is consumed by the browser bundle and the
+rules test suite. Liveness *derivation* stays per-side; only *consumption* is shared.
+`PERMISSION_CAP` stays out — beacon fail-closes to `perms: []`, backstage blocks Save.
+
+**One divergence is settled, in the tighter direction.** Beacon unions every live doc it is
+handed without checking its `builtInKey` is one the member holds; backstage only collects
+docs for a requested name. In production the beacon query is `where("builtInKey","in",keys)`
+so they cannot differ — but the *functions* do, and the shared one picks backstage's: docs
+whose key is not in `builtInRoleNames` are ignored. Tested directly, since no production path
+produces it. No existing beacon test changes — all five docs in
+`resolve-member-perms.test.ts:24-72` carry a key that is in `builtInRoleNames`.
+
+**One divergence survives, documented not fixed.** A doc the zod schema rejects reads ABSENT
+to backstage (`parseDocs` dropped it) and COVERED to beacon (which sanitizes per-element).
+That is a difference between the two **ports**, not the two resolutions, so extracting the
+resolution cannot close it.
+
+### Callers and the adapters
+
+`resolveMemberPerms` keeps its `deps` fetch orchestration and delegates; its
+`LiveBuiltInRoleDoc` satisfies `BuiltInRoleDoc` with no cast. `previewEffectivePerms` is the
+harder side — its `builtInDocs` is today a union of `{permissions}` (the snapshot fallback,
+with no `builtInKey` and no `live`) and `RoleDefinition` (whose `builtInKey` is `Role | null`).
+Its adapter maps to `{permissions: r.permissions, builtInKey: name, live: isLiveRole(r)}`,
+castless because `name` is already `Role`, and keeps its `r.builtIn && r.builtInKey === name`
+filter.
+
+Both existing suites stay green unchanged — that is the refactor's acceptance criterion —
+plus a new unit suite in `packages/auth`, which has none for this today.
+
+**Cold-worktree caveat.** `turbo.json`'s `test` task has no `dependsOn: ["^build"]`, and
+`packages/auth`'s `exports` map the `import` condition to `./dist/*.js`, so a bare
+`pnpm test` on a fresh worktree cannot resolve the new subpath. Build the packages first, or
+run `pnpm --filter <app> run ci` / `pnpm pr-tests`, which go through `turbo run ci`.
+
+---
+
+## D. `canCurateFeatured` — role name to permission
+
+### Problem
+
+`canCurateFeatured()` (`firestore.rules:176-178`) is `hasAnyRole(['Admin','ProjectManager'])`.
+`computeMemberRoles` is pure over `{trustedGrants, hadScanner}` and reads no role doc, so a
+**deactivated** `ProjectManager` keeps the name in its claim and keeps the authority. It gates
+the only client-writable input to public-site content that is not a cargo assignment:
+`featured` on `projects` and `programs`, which beacon projects to `showcase/{id}` and
+spotlight renders on `/impacto` and the home band.
+
+### The gate
+
+```
+function canCurateFeatured() {
+  return hasAnyRole(['Admin']) || hasPerm('update:Showcase');
+}
+```
+
+**`hasPerm`, not `canDo` — corrected from the first draft.** `canDo` would let `manage:all`
+satisfy the gate, and `manage:all` is reachable as a *perm* without the Admin role: an
+Admin-written custom role doc or a `permissionOverrides.grant` can carry it, since
+`roleShapeValid()` only requires `permissions is list`. Such a principal already satisfies
+`canDo('update','Project')` at `firestore.rules:208` — the **only** thing stopping them from
+setting `featured` today is this role gate, which the file documents as deliberate at
+`:200-202` ("Intentionally role-based, NOT perm-based"). Migrating to `canDo` would silently
+delete that boundary; `nav-equivalence.test.ts:154-163` exists to assert a perm never unlocks
+a role gate, and does not cover this route (`/initiatives` is `kind: "curationOnly"` and the
+implication loop skips it — so a green suite is not coverage here).
+
+`Admin` stays role-keyed. That is consistent with the rest of the file: `Admin` is `locked`
+and undeactivatable, so name-keyed authority for it carries none of the staleness this change
+exists to fix, and the alternative — adding `update:Showcase` to a role whose entire seeded
+permission set is `["manage:all"]` — would misrepresent how Admin works. Only
+`ProjectManager` moves, which is the whole point: deactivating that role now revokes
+curation.
+
+### Vocabulary — a new subject
+
+Codes are a generated cross-product: 6 actions × 13 subjects = 78. No existing code fits.
+`update:Project` / `manage:Project` already satisfy `canDo('update', subject)` at
+`firestore.rules:208`, precisely the disjunct `featuredUpdateSafe()` layers on top of to
+exclude — reusing one makes the gate a tautology and deletes the boundary `rules.test.ts:1968`
+pins.
+
+Add the subject **`"Showcase"`**: 78 → 84. A new *action* would cost 78 → 91 and put a column
+across all subjects into the `/permisos` matrix. The subject is a slight misnomer — what is
+gated is `featured` on `projects`/`programs`, not the beacon-owned `showcase` collection — and
+the doc comment says so.
+
+The other five `*:Showcase` codes gate nothing. That is the pre-existing condition of this
+vocabulary, not a new defect: the matrix renders the full actions × subjects grid, so
+`checkIn:Member` and dozens like it are already assignable and inert. Notably `manage:Showcase`
+is inert **because** the gate uses exact `hasPerm` — there is no second, undocumented path to
+curation. A test pins that.
+
+Blast radius: `SUBJECT_LABELS` (`permission-matrix.ts:25-40`) is
+`Record<Exclude<Subject,"all"|"Role">, string>` and fails to compile until the label is added.
+`ACTION_LABELS` is untouched. `MATRIX_SUBJECTS` and `ASSIGNABLE_CODES` are derived, so the
+code appears in `/permisos` automatically. Cap headroom is ample: largest built-in holds 9,
+the union of all nine holds 20, cap is 30.
+
+### Seed
+
+`ProjectManager` gains `update:Showcase` in `BUILT_IN_ROLE_PERMS`
+(`packages/types/src/role-definition.ts:45-51`) **and** in the hand-mirror
+`tools/scripts/lib/role-seed.mjs:28-34` — `role-definition.mirror.test.ts:16-18` fails
+otherwise. `Admin` needs no edit. No other role can curate today, so no other role gains it.
+
+### The deploy landmine
+
+`BUILT_IN_ROLE_PERMS` is a seed **snapshot**, not the live source: once a role doc exists its
+stored `permissions` win, and `seedBuiltInRoles` is create-only. Editing the constant mints
+nothing in production. If the rules ship first, every current `ProjectManager` loses curation.
+
+**Order: deploy beacon → run `reseedBuiltInRolePerms` → verify the CLAIM → deploy rules →
+deploy hosting.** The new perm is inert until the rules read it, so granting it early is safe
+and the reverse is not.
+
+`reseedBuiltInRolePerms` is update-only and skips `missing`, `locked`, `not-built-in` and
+**`inactive`** docs (`recompute-claims.ts:212-228`). A *missing* `roles/ProjectManager` is
+harmless — the `BUILT_IN_ROLE_PERMS` fallback already carries the code. A *locked* or
+*inactive* one silently drops PM curation, which is why the verification step is the claim and
+not the doc.
+
+### Residual introduced by D
+
+Curation now sits behind `PERMISSION_CAP`'s fail-closed path: a member over 30 effective perms
+gets `perms: []` written while keeping `roles: ['ProjectManager']` (`sync.ts:111-122`). Today
+they still curate via the role gate; after D they cannot. One more surface behind the cap.
+
+### Client mirror
+
+`canFeatureInitiatives` (`use-can.ts:54`) moves from `hasAnyRole(claims, ["Admin","ProjectManager"])`
+to `isAdmin || <ability check for update:Showcase>`, mirroring the rule's two disjuncts
+exactly. Its two consumers (`initiatives-page.tsx:32`, `initiative-detail-page.tsx:60`) are
+unchanged. `isAdmin` and `canAssignPowerGrants` in the same file stay role checks — they guard
+the claims-mint trust anchor.
+
+### Tests
+
+**Sixteen** `rules.test.ts` featured tests, not eight: `:1320, 1323, 1328, 1333, 1338, 1343,
+1348, 1353` and `:1959, 1968, 1977, 1986, 1995, 2003, 2015, 2024`. They keep their names and
+intent; the `as(...)` principals gain the code where they are meant to pass. New:
+
+- BLOCKING: a `ProjectManager` whose role doc is DEACTIVATED cannot set `featured` — the claim
+  keeps the name, the perms do not carry the code. The whole point of D.
+- BLOCKING: `manage:all` as a **perm**, with no Admin role, cannot set `featured` — pins the
+  `hasPerm`-not-`canDo` decision and preserves the `:200-202` boundary
+- BLOCKING: `manage:Showcase` alone cannot set `featured` — pins that the inert codes are inert
+- a custom role holding `update:Showcase` and nothing else can curate
+
+`use-can.test.ts:41-45` needs a **fixture rewrite**, not a relabel: its cases pass
+`{ roles: ["ProjectManager"] }` with no `perms`, and `buildAbility` reads `claims.perms ?? []`,
+so all three assertions go false until the fixtures carry `perms: ["update:Showcase"]`.
+`initiative-form.tsx`'s `canFeature &&` render branch has no test today — one is added.
+
+---
+
+## Owner-ops
+
+1. **Hand cargo assignment to an org-chart editor (optional, data-only).** In `/permisos`,
+   create a **custom** role carrying **both `update:Position` and `read:Member`** and assign
+   it. Both: the nav gates `/members` on `read:Member` and the profile page must read the
+   member doc, so `update:Position` alone delivers a capability the holder cannot reach —
+   pinned by a `nav-config` test. **Do not add the perm to the `ExecutiveCommittee`
+   built-in** — `reseedBuiltInRolePerms` rewrites built-in docs back to the seed snapshot and
+   would strip it without warning.
+
+   Understand what it confers. The holder may assign and clear **grant-free** cargos and
+   comisiones, and may edit the positions catalog except `grants`, `category`, and — on a
+   CEL/JDL cargo — `title`/`titleFemale`. Two consequences to accept before granting it:
+
+   - **They may publish a member, including themselves, to the public Directiva**, because
+     grant-free JDL direcciones are board cargos. The ceiling is JDL and it is a RULE, not a
+     data assumption: `cargoAssignableByNonAdmin()` refuses a `CEL` cargo to a non-Admin
+     whatever its `grants`, so `Presidente` at public rank 0 stays an Admin decision on both
+     ends (minting the cargo and assigning it).
+   - **"Never a power cargo" holds for the CURRENT term only.** `currentCargoGrantsEmpty()`
+     reads `positions[currentTermKey()]`, so between the UTC-year rollover and the victim's
+     next write, a member whose Admin comes from last year's cargo has an empty current-term
+     slot, the guard short-circuits, and this holder can write a grant-free cargo into the new
+     term — which claims-sync resolves to `roles: ['Member']`, stripping the Admin claim.
+     The same write also re-fires the board projection, which reads the current-term cargo:
+     so in that window this holder can also move a sitting **president** off CEL rank 0 onto a
+     JDL dirección on the public Directiva — a public-board change the in-term rules deny them
+     outright on both sides. Pre-existing (it falls to any `manage:Member` holder through the
+     institutional arm) but newly reachable by a role whose entire authority is
+     `update:Position`. See Residuals; the shape is now pinned by a rules test named as an
+     accepted hole.
+2. **Before deploying D's rules:** run `reseedBuiltInRolePerms`, then run `recomputeAllClaims`,
+   then confirm a live `ProjectManager`'s **ID-token claim** carries `update:Showcase`. The
+   reseed's `onRoleWritten` fan-out is unbounded and `retry: false`, so it can strand members;
+   checking the role doc is not sufficient.
+3. **Outstanding from PR 2, still open:** in `/positions`, ADD `Secretary` to the Secretario
+   cargo's grants, THEN remove `Admin`. In that order, or ally management goes dark.
+4. **BLOCKING pre-deploy audit for B.** Count `members`, `positions` and `allies` docs whose
+   `active` is missing or not a bool, or which lack `deletedAt`. Each becomes admin-SDK-only
+   to edit the moment B1 ships, with no UI affordance to repair it — and unlike the first
+   draft's claim, they are editable **today**. Run `pnpm audit:soft-delete-shapes`
+   (`tools/scripts/audit-soft-delete-shapes.mjs`, documented in `docs/firebase-setup.md`):
+   it exits non-zero on any finding so it gates the deploy (exit 1 = findings, exit 2 = the
+   run did not complete), `--repair` fixes the unambiguous shapes through the admin SDK, and
+   it refuses to guess at a non-bool `active`, a **ghost** (`active: true` with a non-null
+   `deletedAt` — client-reachable, and the one malformed shape `memberDocSchema` accepts, so
+   it renders as an ordinary live member) or a **non-Timestamp `deletedAt`**. **`--repair`
+   takes no `boardShowcase` row down** — see B3: a repaired doc re-publishes, and the exposed
+   shape is the refused one. For each malformed member the script reports whether a public row
+   is live and prints the two hand remedies (console `active` edit, or an Admin
+   `publicProfile: false` write through the takedown arm).
+
+   **`--repair` can ADD a public row, and that is opt-in.** Writing `active: true` un-blocks
+   the fail-closed `projectBoard` gate, so a member who also carries `publicProfile: true`
+   (the stamped org-wide default), a `uid`, a pinned portrait and a current-term CEL/JDL cargo
+   is **newly published** by the re-fired trigger — publication as a side effect of a shape
+   fix. Every such member gets a `WILL PUBLISH:` line and their repair is **withheld** (a
+   count of its own, apart from the ambiguous refusals) unless `--allow-publish` is passed.
+   The forecast mirrors `projectBoard` by hand and fails safe: any gate it cannot settle (an
+   unreadable `positions` doc, an unreadable `boardShowcase` doc) is named in the output and
+   the member is still announced, never quietly repaired.
+
+   Clear the reported remainder that way before the rules deploy, or accept a known, counted
+   set. A production `--repair` requires an explicit confirmation.
+
+## Deploy order
+
+**beacon → reseed + recomputeAllClaims → verify claim → rules → hosting.** B3 and D's seed
+live in beacon; D's rules depend on the reseed; A and B are rules-only; the mirrors are
+hosting.
+
+## Review corrections
+
+Recorded because each falsified something this document previously asserted:
+
+1. **CEL `||` absorbs errors**, so B1's "denies nothing legitimate" was wrong — the `in` checks
+   are a genuine new denial on legacy docs. Owner-op 4 upgraded to blocking.
+   `firestore.rules:396` carries the same wrong generalization and is corrected here.
+2. **`planRolePermReseed` strips a `/permisos` grant on a built-in role**, so owner-op 1 must
+   use a custom role — the two owner-ops previously contradicted each other.
+3. **`canDo('update','Showcase')` would hand curation to a `manage:all`-perm principal**, the
+   exact boundary `firestore.rules:200-202` declares deliberate. Changed to `hasPerm`.
+4. **The new lane is a public publication authority** via grant-free JDL board cargos.
+   Accepted deliberately, stated in owner-op 1, pinned by a test, and narrowed by
+   `unchanged('category')` on the catalog arm.
+5. **B2's test cost is 3 reds + 12 vacuous**, not one red.
+6. **D's test cost is 16 rules tests**, not eight, plus a `use-can` fixture rewrite.
+7. **`manage:Position` opens the positions editor too** (CASL `manage` satisfies `update`), so
+   two `member-edit-gate` assertions invert rather than one.
+
+Found by the mandated review round, after the code was written:
+
+8. **`unchanged('category')` was defeated one door over.** Pinning the update arm left the same
+   outcome reachable through CREATE: a non-Admin `create:Position` holder could mint a fresh
+   `{category: 'CEL', title: 'Presidente', grants: []}` cargo — grant-free, so the power-grant
+   check passes — and self-assign it at board rank 0. "Seeded CEL cargos all carry grants" is
+   what made it look blocked; nothing stopped an UNSEEDED one. Closed by
+   `boardSurfacingCategory()` on the create arm.
+9. **`boardRank` reads the TITLE, not the category**, so pinning `category` alone still let a
+   non-Admin retitle Vicepresidente to "Presidente". `title`/`titleFemale` are now pinned on
+   board cargos and left open on comisiones.
+10. **The rules pin had no client mirror**, so `PositionForm` offered a Categoría dropdown whose
+    submission the rules reject with a generic save error — render-then-die. Mirrored in the UI.
+11. **Two tests were order-coupled through one fixture.** An Admin test wrote `category: 'CEL'`
+    onto the doc a BLOCKING denial read, so after it ran the identical non-Admin write became an
+    unchanged echo and was ALLOWED. The denial passed only because vitest runs `it`s in
+    declaration order. Measured by reordering; fixed with a dedicated fixture.
+12. **Claims the branch made about its own tests were false**: the rollover test and the
+    "positive-and-inert" claims-mint test were both described as existing and did not. Both
+    written.
+13. **B3's reach was overstated** — see B3 above.
+14. **And so was the audit script's.** The correction in 13 replaced one false claim with
+    another: `--repair` does not take a `boardShowcase` row down in any branch — a repaired
+    doc re-publishes, and the exposed non-bool `active` is refused, so nothing is written at
+    all. The script is a gate plus complete detection; the public row comes down by hand
+    (console `active` edit, or the Admin `publicProfile: false` takedown arm). B3 and
+    owner-op 4 rewritten; `docs/firebase-setup.md` too.
+
+Found by the final review round:
+
+15. **The CEL half of the exposure was ASSUMED closed, not enforced** — "seeded CEL cargos all
+    carry grants" is a data claim, and this branch's own suite mints the counterexample
+    (`mint_cel_admin`). `cargoAssignableByNonAdmin()` now refuses a `CEL` cargo to a non-Admin
+    off the get() the grants check already paid for. Section A and owner-op 1 rewritten
+    from "assumed" to "enforced".
+16. **Nothing tied `boardSurfacingCategory()` to `BOARD_GROUPS`.** A third publishable group
+    would have reopened correction 8 silently. `packages/types/src/board-surfacing-category.
+    rules.test.ts` parses the rules literal and asserts the set — the fourth instance of this
+    repo's parse-the-rules-file pattern.
+17. **The two catalog arms disagreed on an absent/unrecognized `category`.** Create asked
+    `!boardSurfacingCategory()`, the update escape hand-rolled `== 'Comision'`, so a legacy
+    doc with no `category` was non-board on create and board on update — fail-closed, so
+    never a hole. The payoff is **not** that legacy docs become editable: `positionDocSchema`
+    requires `category`, so `parseDocs` drops a category-less cargo and `/positions` never
+    lists it — unreachable from the UI either way. It is that the second, longhand definition
+    of "is this published" cannot drift from the create arm's (guardrail #1), and that one is
+    load-bearing on live docs. One predicate now.
+18. **A sentinel bug made the audit script's UNKNOWN-publication branch dead code.**
+    `published.get(id) ?? false` falls back on exactly the `null` that meant "unreadable", so
+    one rejected `getAll` chunk silently reclassified those members as unpublished — and
+    therefore truncatable. Proven against the emulator by injecting a `getAll` rejection: with
+    the bug, zero UNKNOWN lines; fixed, one per member.
+19. **`--repair` could PUBLISH a member and announced only takedowns.** See owner-op 4:
+    `WILL PUBLISH:` per doc, withheld behind `--allow-publish`.
+20. **`classify()` under-reported two shapes** it is the blocking gate for: the ghost
+    (`active: true` + non-null `deletedAt`) and a non-Timestamp `deletedAt`.
+21. **The UI mirror had no tests and one existing test had gone vacuous.** `position-form.
+    test.tsx`'s comisión submit selected a category on a select that was both `disabled` and
+    already defaulted to that value — the interaction was a no-op and the assertion measured
+    the default. Fixed, plus coverage for the label/category locks, including a BLOCKING test
+    that would go red on `register("title", { disabled: true })` (RHF's own `disabled` submits
+    the field as `undefined`, which 403s every non-Admin save).
+22. **Correction 15 fixed the update arm only, and this spec claimed otherwise.**
+    `createPositionsSafe()` still asked `cargoGrantsEmpty()`, so a `manage:Member` holder
+    could mint a member BORN on an Admin-minted grant-free CEL cargo — unpublished only until
+    a routine Admin `provisionMemberLogin` wrote the `uid`. Both arms now share
+    `cargoAssignableByNonAdmin()`; `cargoGrantsEmpty()` had no remaining caller and is
+    deleted. The three claims this falsified (the rules comment's "an Admin decision on both
+    ends", "an Admin who mints must also assign", owner-op 1's "rank 0 stays an Admin
+    decision on both ends") are now true rather than aspirational, and a mirror rules test
+    pins the create lane.
+23. **The CEL literal had no drift guard and defaults to ALLOW.** Correction 16 bound
+    `boardSurfacingCategory()` to `BOARD_GROUPS` but parsed around `nonAdminAssignable()`, a
+    denylist of one. A third publishable group would have gone Admin-only to MINT and stayed
+    open to ASSIGN for every non-Admin — auto-enrolled into the accepted exposure with nobody
+    deciding. The same test now parses both and asserts the board groups a non-Admin may
+    assign are exactly `['JDL']`. Mutation-proven in both directions.
+24. **No client mirror for the new denial.** Both member forms filtered cargo options on
+    `grants.length === 0`, so a grant-free CEL cargo was still offered to a non-Admin
+    (render-then-die), and a member already seated on one showed no lock while every save
+    re-stamped the `cargoId` — a comisiones-only edit was denied with no explanation. One
+    shared `cargoAssignableByNonAdmin()` now backs the option list and the lock in both forms.
+25. **Three audit-script defects.** The `WILL PUBLISH` line printed "`--allow-publish` was
+    passed — repairing it" in READ-ONLY mode, where nothing is written; `cargoPublishes()`
+    would have TypeError'd on an `undefined` cargo (reachable when `currentTermKey()`
+    straddles a UTC-year boundary between its two evaluations) and now reports it as the
+    unknown it is; and `--allow-publish` — the one flag that can ADD public exposure — now
+    changes the typed confirmation token to `repair-production-shapes-and-publish`, so the
+    string the operator types names the consequence.
+
+## Residuals
+
+- **A stale `boardShowcase` row for a member with a non-bool `active`** (B3): fail-closed
+  `projectBoard` stops the next publication, but an existing row is removed only by a
+  `members/{id}` write — which `--repair` refuses to fabricate for that shape. Detected and
+  gated by `pnpm audit:soft-delete-shapes`, remediated by hand. Recorded in
+  `apps/beacon/CLAUDE.md` next to the trigger that owns it.
+- **Publication of a grant-free JDL dirección by an `update:Position` holder** — the accepted
+  exposure, narrowed to JDL by rule (correction 15) rather than by an assumption about data.
+- The coupling half of `roleLifecycleSafe()` on the four lanes (B, Not in scope).
+- The term-rollover window in `currentCargoGrantsEmpty()` (A, Residual) — **both** halves: the
+  Admin-claim strip, and the public-board move of a sitting president off CEL rank 0 that the
+  same write re-projects.
+- The port-level divergence in C: a zod-rejected doc reads ABSENT to backstage, COVERED to beacon.
+- (Not a residual, recorded so it is not re-opened as one: `siteConfig` write staying
+  `hasAnyRole(['Admin'])` is **correct**, and is not "the D case with a smaller blast
+  radius". D's argument is that Admin-by-role is the right key precisely because `Admin` is
+  `locked` and undeactivatable, so its name in a claim can never go stale — which is why D
+  kept the Admin disjunct and only moved the *other* half onto a perm. A single-authority
+  Admin-only gate has no second half to move. Migrating it to a perm would be a change with
+  no defect behind it.)
+- Refresh-token revocation: a revoked perm survives in a long-lived tab until reload.
+- `onRoleWritten`'s unbounded, no-retry fan-out.

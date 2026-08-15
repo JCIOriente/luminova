@@ -1,3 +1,6 @@
+// MUST stay `import type`. `firebase` is only a devDependency here, and `@luminova/auth/built-in-perms`
+// pulls this file into the esbuild Cloud Functions bundle — a value import would resolve and bundle
+// the client SDK into a beacon artifact that is admin-SDK-only, silently. No lint rule enforces this.
 import type { Timestamp } from "firebase/firestore";
 import type { Role } from "./permission-role.js";
 import type { PermissionCode } from "./permission.js";
@@ -48,6 +51,11 @@ export const BUILT_IN_ROLE_PERMS: Record<Role, PermissionCode[]> = {
     "manage:Activity",
     "checkIn:Attendance",
     "read:Ally",
+    // Public-site curation of `featured` (rules' canCurateFeatured). Held as a perm, not
+    // as the ProjectManager role NAME, so deactivating the role doc revokes it — the name
+    // survives in the claim, the perm does not. manage:Project does NOT imply it: the gate
+    // is an exact hasPerm.
+    "update:Showcase",
   ],
   // Meant for a JDL dirección — prod data created in /positions, never seeded onto a cargo.
   ActivityManager: ["manage:Activity", "checkIn:Attendance"],

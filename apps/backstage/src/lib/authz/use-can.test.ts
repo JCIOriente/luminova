@@ -38,10 +38,39 @@ describe("buildCan", () => {
     expect(gate.hasRole(["Admin"])).toBe(true);
   });
 
-  it("canFeatureInitiatives holds for Admin or ProjectManager only", () => {
+  // Mirrors the rules' canCurateFeatured(): Admin by ROLE, everyone else by the
+  // update:Showcase PERM. ProjectManager curates because its seeded perms carry the code —
+  // deactivate that role and the name survives in the claim while the perm does not.
+  it("canFeatureInitiatives holds for Admin by role or an update:Showcase perm", () => {
     expect(can({ roles: ["Admin"] }).canFeatureInitiatives).toBe(true);
-    expect(can({ roles: ["ProjectManager"] }).canFeatureInitiatives).toBe(true);
-    expect(can({ roles: ["Membership"] }).canFeatureInitiatives).toBe(false);
+    expect(
+      can({ roles: ["ProjectManager"], perms: ["update:Showcase"] }).canFeatureInitiatives,
+    ).toBe(true);
+    expect(can({ roles: ["Membership"], perms: ["manage:Member"] }).canFeatureInitiatives).toBe(
+      false,
+    );
+  });
+
+  it("canFeatureInitiatives holds for Admin with no perms claim at all (role disjunct)", () => {
+    expect(can({ roles: ["Admin"], perms: [] }).canFeatureInitiatives).toBe(true);
+  });
+
+  it("canFeatureInitiatives holds for a perms-only holder with no curation role", () => {
+    expect(can({ roles: ["Member"], perms: ["update:Showcase"] }).canFeatureInitiatives).toBe(true);
+  });
+
+  // The stale-claim case D exists to fix: the deactivated role doc contributes no perms, so
+  // the surviving ProjectManager name must not re-open curation.
+  it("canFeatureInitiatives is false for a ProjectManager whose role doc was deactivated", () => {
+    expect(
+      can({ roles: ["ProjectManager"], perms: ["manage:Project"] }).canFeatureInitiatives,
+    ).toBe(false);
+  });
+
+  // hasPerm, not canDo: manage:all is reachable as a perm without the Admin role, and the
+  // rules' gate is an exact code match. The client gate must not be looser than the rule.
+  it("canFeatureInitiatives is false for a manage:all perm holder without the Admin role", () => {
+    expect(can({ roles: ["Member"], perms: ["manage:all"] }).canFeatureInitiatives).toBe(false);
   });
 
   // Same invariant the `<Can>` gate carries: a conditional own-doc grant answers only the

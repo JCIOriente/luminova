@@ -3,7 +3,7 @@ import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { RoleDefinition } from "@luminova/types";
+import type { PositionInput, RoleDefinition } from "@luminova/types";
 import { roleKeys } from "../../permissions/hooks/role-keys";
 import { PositionForm } from "./position-form";
 
@@ -86,7 +86,13 @@ describe("PositionForm", () => {
 
   it("submits a valid comisión with term null and grants untouched", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    render(<PositionForm submitLabel="Crear" canEditGrants={false} onSubmit={onSubmit} />);
+    // canEditGrants, NOT false. With canEditGrants={false} this form starts on
+    // EMPTY_NON_ADMIN (category already "Comision") AND renders the select `disabled`, so
+    // the selectOptions below was a silent no-op and the assertion measured the default
+    // — it passed without the interaction it names. An Admin form starts on CEL with the
+    // select enabled, so selecting "Comision" is a real state change and the payload
+    // assertion is about the onChange handler (term -> null, grants -> [], sigla kept).
+    render(<PositionForm submitLabel="Crear" canEditGrants onSubmit={onSubmit} />);
     await userEvent.selectOptions(screen.getByLabelText("Categoría *"), "Comision");
     await userEvent.type(screen.getByLabelText("Nombre *"), "Director de Ética");
     await userEvent.type(screen.getByLabelText("Sigla *"), "CCE");
@@ -103,6 +109,110 @@ describe("PositionForm", () => {
         description: "Vela por el código de ética.",
       }),
     );
+  });
+});
+
+// The UI mirror of the non-Admin pin on the positions update/create arms in firestore.rules
+// (`unchanged('grants') && unchanged('category') && (!boardSurfacingCategory() || unchanged
+// title/titleFemale)`, and `!boardSurfacingCategory()` on create). It had NO tests: every
+// case below is the render-then-die shape — a control the rules reject, offered as editable —
+// or its inverse, a control the rules allow, locked for no reason.
+describe("PositionForm mirrors the non-Admin catalog pins", () => {
+  const boardCargo: Partial<PositionInput> = {
+    category: "JDL",
+    term: 2026,
+    title: "Director de Prensa",
+    titleFemale: "Directora de Prensa",
+    description: "Prensa.",
+    grants: [],
+  };
+
+  it("locks title and titleFemale for a non-Admin editing a board cargo", () => {
+    // boardRank orders the public Directiva by the BASE title, so on a CEL/JDL cargo the
+    // label is an authority field and the rules pin it. Editable here = a generic
+    // "No se pudo guardar" on save.
+    render(
+      <PositionForm
+        submitLabel="Guardar"
+        canEditGrants={false}
+        defaultValues={boardCargo}
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Cargo *")).toBeDisabled();
+    expect(screen.getByLabelText("Variante femenina (opcional)")).toBeDisabled();
+    expect(screen.getByRole("note")).toHaveTextContent(/categoría o el nombre/i);
+  });
+
+  it("BLOCKING: still submits the pinned labels on a non-Admin board-cargo save", async () => {
+    // The regression this exists for: `register("title", { disabled: true })` instead of a
+    // `disabled` prop on the Input. RHF's own `disabled` option submits the field as
+    // undefined, so every non-Admin save would post a doc with no title — zod rejects it
+    // (min 3) and onSubmit is never reached, or, past zod, firestore.rules 403s it because
+    // `unchanged('title')` compares a real title against null. Both halves asserted: the
+    // form validates AND the pinned values ride along unchanged.
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PositionForm
+        submitLabel="Guardar"
+        canEditGrants={false}
+        defaultValues={boardCargo}
+        onSubmit={onSubmit}
+      />,
+    );
+    await userEvent.type(screen.getByLabelText("Descripción *"), " y comunicación.");
+    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Director de Prensa",
+        titleFemale: "Directora de Prensa",
+        category: "JDL",
+      }),
+    );
+  });
+
+  it("leaves a comisión's name editable for a non-Admin (a label there is not authority)", () => {
+    // The inverse case, and the org-chart editor's legitimate use case per owner-op 1:
+    // comisiones never reach boardGroupFromCategory, so the rules leave their labels open.
+    // Locking them would be a UI-only denial with no rule behind it.
+    render(
+      <PositionForm
+        submitLabel="Guardar"
+        canEditGrants={false}
+        defaultValues={{
+          category: "Comision",
+          sigla: "CP",
+          title: "Comisión de Prensa",
+          description: "Prensa.",
+          grants: [],
+          term: null,
+        }}
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Nombre *")).toBeEnabled();
+    expect(screen.getByLabelText("Sigla *")).toBeEnabled();
+    expect(screen.getByRole("note")).toHaveTextContent(/solo un admin puede cambiar la categoría/i);
+  });
+
+  it("defaults a non-Admin CREATE to Comisión and locks the category select", () => {
+    // `boardSurfacingCategory()` makes CEL/JDL creation Admin-only, so the blank non-Admin
+    // form must not start on the CEL default and die on save. The select is disabled for
+    // them on every form, create and edit alike — `category` is pinned either way.
+    render(<PositionForm submitLabel="Crear" canEditGrants={false} onSubmit={vi.fn()} />);
+    const category = screen.getByLabelText("Categoría *");
+    expect(category).toBeDisabled();
+    expect(category).toHaveValue("Comision");
+    // A comisión is not a board cargo, so on this same form the labels stay open.
+    expect(screen.getByLabelText("Nombre *")).toBeEnabled();
+  });
+
+  it("leaves the category select open for an Admin", () => {
+    render(<PositionForm submitLabel="Crear" canEditGrants onSubmit={vi.fn()} />);
+    expect(screen.getByLabelText("Categoría *")).toBeEnabled();
+    expect(screen.getByLabelText("Cargo *")).toBeEnabled();
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 });
 

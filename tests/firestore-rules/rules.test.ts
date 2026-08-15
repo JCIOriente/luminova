@@ -39,11 +39,29 @@ function anon() {
   return env.unauthenticatedContext().firestore();
 }
 
+/** The members-positions lane's principal: a perms-only org-chart editor with NO built-in
+ *  role name — the custom role owner-op 1 describes. `as(uid, [], [...])` is what makes it
+ *  perms-only: the third argument replaces the seeded role perms entirely. Module-scoped
+ *  because the positions catalog arm, the members-positions lane and the well-formedness
+ *  sweep all need the same principal. */
+const ORG_CHART = "orgchart-uid";
+const orgChart = () => as(ORG_CHART, [], ["update:Position"]);
+
 const MEMBER_DOC = { name: "Ana", totalPoints: 0, uid: "owner-uid", active: true, deletedAt: null };
+
+/** The birth state every members/positions/allies create arm now requires (B2): born
+ *  live, with an explicit null deletedAt. Spread into a create payload whose test is
+ *  about something ELSE, so it keeps failing (or succeeding) for its own reason rather
+ *  than for the missing lifecycle pair — the tautological-test class this repo has
+ *  already had to clean up once. */
+const BORN_LIVE = { active: true, deletedAt: null };
 
 // Rules derive the term from request.time.year() (UTC); compute it from the client
 // clock so this suite can't rot when the calendar year rolls over.
 const TERM = String(new Date().getUTCFullYear());
+/** The term BEFORE the current one — the term-rollover residual's whole point: a power cargo
+ *  parked here is invisible to currentCargoGrantsEmpty(), which only reads currentTermKey(). */
+const PRIOR_TERM = String(Number(TERM) - 1);
 const DELETED_AT = new Date("2026-01-01T00:00:00Z");
 // Fixed instant for the activity-lock fixtures so echo-update tests can resend
 // the exact same startAt value.
@@ -413,6 +431,43 @@ beforeAll(async () => {
       impact: null,
       status: "EnEjecucion",
     });
+    // Targets for the perm-keyed curation describe. Each absorbs a featured:true
+    // success, so they are separate docs (the suite seeds once, no per-test reset)
+    // and separate from each other so neither success can mask the other.
+    await setDoc(doc(db, "projects/p_feat_showcase"), {
+      termId: "2026",
+      title: "Destacable (update:Showcase)",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: ["owner-uid"],
+      finalReport: null,
+      impact: null,
+      status: "EnEjecucion",
+    });
+    await setDoc(doc(db, "projects/p_feat_admin_role"), {
+      termId: "2026",
+      title: "Destacable (Admin sin perms)",
+      roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+      directionUids: ["owner-uid"],
+      finalReport: null,
+      impact: null,
+      status: "EnEjecucion",
+    });
+    // ONE pristine (featured absent) target per curation DENY test. They must not share a
+    // doc: if any deny regresses, its write persists featured:true and every later deny on
+    // the same doc turns vacuous — it would then pass as an unchanged echo rather than as a
+    // real denial. Measured, not theorised: with a shared doc the manage:all and
+    // manage:Showcase denials both passed against the OLD role-keyed gate.
+    for (const id of ["p_feat_deny_stale", "p_feat_deny_mgrall", "p_feat_deny_inert"]) {
+      await setDoc(doc(db, `projects/${id}`), {
+        termId: "2026",
+        title: "No destacable",
+        roster: { directorId: "m1", coDirectorIds: [], teamIds: [] },
+        directionUids: [],
+        finalReport: null,
+        impact: null,
+        status: "EnEjecucion",
+      });
+    }
     // Finalized targets for the featured quick-toggle (curation happens after
     // completion). finalReport + impact are non-null so a featured-only write
     // survives finalizedRequiresReport() / initiativeWriteSafe(). Two docs, like
@@ -522,6 +577,206 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // The members-positions lane's own principal (perms-only `update:Position`, no built-in
+    // role) has a member record of its own — the accepted-exposure test assigns a grant-free
+    // JDL board cargo to THIS doc, i.e. to itself.
+    await setDoc(doc(db, "members/m_orgchart"), {
+      name: "Gabriela",
+      totalPoints: 0,
+      uid: ORG_CHART,
+      active: true,
+      deletedAt: null,
+    });
+    // A member whose POWER cargo sits under a PRIOR term key, leaving the CURRENT term slot
+    // empty. Pins the term-rollover residual (docs/specs/position-assignment-lane.md,
+    // "Residual: the term-rollover window"): currentCargoGrantsEmpty() reads only
+    // positions[currentTermKey()], so it short-circuits on `prior == null` and never sees
+    // this cargo. Its own doc — m_powercargo holds its power cargo in the CURRENT term and
+    // is what proves the guard DOES fire, so the two must not share a fixture.
+    await setDoc(doc(db, "members/m_priorterm_power"), {
+      name: "Lucía",
+      totalPoints: 0,
+      uid: "priorterm-uid",
+      active: true,
+      deletedAt: null,
+      positions: { [PRIOR_TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
+    });
+    // Full-payload targets for the positions catalog arm. toPositionUpdateDoc
+    // (apps/backstage/src/features/positions/repositories/position-mapper.ts:14) spreads the
+    // WHOLE PositionInput on every save, so the non-Admin arm has to pass that seven-field
+    // shape — not just the `{ description }` partial the category-pin test writes. One board
+    // cargo (labels pinned) and one comisión (labels open), each its own doc so the success
+    // cases cannot disturb pos1/pos_cat/pos_soft.
+    await setDoc(doc(db, "positions/pos_payload"), {
+      title: "Director de Prensa",
+      titleFemale: "Directora de Prensa",
+      sigla: null,
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Prensa.",
+      active: true,
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "positions/com_payload"), {
+      title: "Comisión de Prensa",
+      titleFemale: null,
+      sigla: "CP",
+      category: "Comision",
+      grants: [],
+      term: null,
+      description: "Prensa.",
+      active: true,
+      deletedAt: null,
+    });
+    // Category-mutation target for the positions catalog arm. Its own doc so the Admin
+    // success case cannot disturb pos1/pos_soft, which half this suite reads.
+    await setDoc(doc(db, "positions/pos_cat"), {
+      title: "Director de Membresía",
+      titleFemale: "Directora de Membresía",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Dirección de membresía.",
+      active: true,
+      deletedAt: null,
+    });
+    // The ADMIN category-change success case gets its own doc, away from pos_cat: the suite
+    // seeds once with no reset, so an Admin writing category: 'CEL' onto pos_cat would turn
+    // the BLOCKING non-Admin denial (which writes that same value) into an unchanged echo —
+    // unchanged('category') true, arm ALLOWS — leaving that denial green only by
+    // declaration order. Same shape as pos_cat so the two tests differ in principal only.
+    await setDoc(doc(db, "positions/pos_cat_admin"), {
+      title: "Director de Capacitación",
+      titleFemale: "Directora de Capacitación",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Dirección de capacitación.",
+      active: true,
+      deletedAt: null,
+    });
+    // A LEGACY cargo with no `category` key at all — the doc shape the create and update
+    // arms used to disagree about. `!boardSurfacingCategory()` reads it as non-board (labels
+    // open), matching what the create arm has always said; the hand-rolled `== 'Comision'`
+    // it replaced read it as a board cargo and pinned its labels shut.
+    await setDoc(doc(db, "positions/pos_nocategory"), {
+      title: "Comisión Heredada",
+      titleFemale: null,
+      sigla: "CH",
+      grants: [],
+      term: null,
+      description: "Sin categoría.",
+      active: true,
+      deletedAt: null,
+    });
+    // The ADMIN title-change success case likewise: retitling pos_payload would silently
+    // turn the non-Admin full-payload echo into a title CHANGE and flip that success red.
+    await setDoc(doc(db, "positions/pos_payload_admin"), {
+      title: "Director de Finanzas",
+      titleFemale: "Directora de Finanzas",
+      sigla: null,
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Finanzas.",
+      active: true,
+      deletedAt: null,
+    });
+    // Malformed soft-delete state, seeded through the admin SDK because no client arm can
+    // produce it any more (B2). These are the legacy shapes B1's well-formedness prefix
+    // moves from client-editable to admin-SDK-only — the whole reason owner-op 4 is a
+    // blocking pre-deploy audit. m_badactive additionally carries publicProfile: true so
+    // the Admin TAKEDOWN arm — the one arm that does not call softDeleteSafe() — can be
+    // proven still open on it. That arm is the only rules-level remedy for these docs.
+    await setDoc(doc(db, "members/m_badactive"), {
+      name: "Hilda",
+      totalPoints: 0,
+      uid: "badactive-uid",
+      publicProfile: true,
+      active: "false",
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "members/m_noactive"), {
+      name: "Irene",
+      totalPoints: 0,
+      deletedAt: null,
+    });
+    // active is a well-formed bool, so the self lane's own `active == true` check passes
+    // and ('deletedAt' in d) is the only thing left to deny — isolation, not a pile-up.
+    await setDoc(doc(db, "members/m_nodeletedat"), {
+      name: "Julio",
+      totalPoints: 0,
+      uid: "nodeletedat-uid",
+      active: true,
+    });
+    // Same shape as m_nodeletedat, its own doc: the repair-asymmetry test WRITES the missing
+    // key, and sharing a fixture with the denial tests above would couple them to order.
+    await setDoc(doc(db, "members/m_nodeletedat_fix"), {
+      name: "Karina",
+      totalPoints: 0,
+      active: true,
+    });
+    await setDoc(doc(db, "positions/pos_badactive"), {
+      title: "Vocal Suplente",
+      titleFemale: "Vocal Suplente",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Malformado.",
+      active: "false",
+      deletedAt: null,
+    });
+    // The missing-field twins for positions and allies. softDeleteSafe() is ONE helper
+    // shared by four lanes, but "shared helper" is a claim until each lane's denial is
+    // measured — members alone had the missing-active / missing-deletedAt tests. The
+    // *_nodeletedat_fix docs are separate because the repair-asymmetry test WRITES the
+    // missing key (a mutating success), and the denial tests must keep reading a doc
+    // that still lacks it.
+    await setDoc(doc(db, "positions/pos_noactive"), {
+      title: "Vocal Segundo",
+      titleFemale: "Vocal Segunda",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Sin active.",
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "positions/pos_nodeletedat"), {
+      title: "Vocal Tercero",
+      titleFemale: "Vocal Tercera",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Sin deletedAt.",
+      active: true,
+    });
+    await setDoc(doc(db, "positions/pos_nodeletedat_fix"), {
+      title: "Vocal Cuarto",
+      titleFemale: "Vocal Cuarta",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Sin deletedAt, reparable.",
+      active: true,
+    });
+    await setDoc(doc(db, "allies/a_badactive"), {
+      companyName: "Malformada",
+      active: "false",
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "allies/a_noactive"), {
+      companyName: "Sin active",
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "allies/a_nodeletedat"), {
+      companyName: "Sin deletedAt",
+      active: true,
+    });
+    await setDoc(doc(db, "allies/a_nodeletedat_fix"), {
+      companyName: "Sin deletedAt, reparable",
+      active: true,
+    });
     await setDoc(doc(db, "positions/pos_soft"), {
       title: "Vocal",
       titleFemale: "Vocal",
@@ -529,6 +784,32 @@ beforeAll(async () => {
       grants: [],
       term: 2026,
       description: "Vocal del directorio.",
+      active: true,
+      deletedAt: null,
+    });
+    // The artifact that made "seeded CEL cargos all carry grants" the wrong kind of defense:
+    // a grant-free CEL cargo at statutory rank 0. An Admin can mint one (the create arm
+    // permits it, and "allows an Admin to create a CEL cargo" does exactly that as
+    // mint_cel_admin). Seeded here rather than reusing that test's output so the
+    // cargoAssignableByNonAdmin() probes below cannot pass or fail on declaration order.
+    await setDoc(doc(db, "positions/pos_cel_free"), {
+      title: "Presidente",
+      titleFemale: "Presidenta",
+      sigla: null,
+      category: "CEL",
+      grants: [],
+      term: null,
+      description: "Preside el capítulo.",
+      active: true,
+      deletedAt: null,
+    });
+    // Assignment target for the Admin half of the CEL probe. Its own doc: the Admin case
+    // SUCCEEDS, so sharing m_positions would leave a CEL cargo on a doc four other lane
+    // tests write, and the next currentCargoGrantsEmpty() read would answer about it.
+    await setDoc(doc(db, "members/m_celadmin"), {
+      name: "Renata",
+      totalPoints: 0,
+      uid: "celadmin-uid",
       active: true,
       deletedAt: null,
     });
@@ -607,7 +888,11 @@ describe("firestore.rules — members", () => {
   });
   it("allows Membership to create with totalPoints 0", async () => {
     await assertSucceeds(
-      setDoc(doc(as("u", ["Membership"]), "members/new1"), { name: "Bruno Paz", totalPoints: 0 }),
+      setDoc(doc(as("u", ["Membership"]), "members/new1"), {
+        name: "Bruno Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+      }),
     );
   });
   it("denies create with publicProfile pre-set (consent is not institutionally stamped)", async () => {
@@ -618,6 +903,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("u", ["Membership"]), "members/new_consent"), {
         name: "Bruno Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         publicProfile: true,
       }),
     );
@@ -625,8 +911,12 @@ describe("firestore.rules — members", () => {
   it("denies create with publicProfile explicitly false (no client owns this key)", async () => {
     await assertFails(
       setDoc(doc(as("u", ["Membership"]), "members/new_consent_false"), {
-        name: "B",
+        // "Bruno Paz", not "B": a one-character name is below memberNameValid()'s floor,
+        // so the old payload was already denied for the NAME — the publicProfile guard
+        // this test is named for never got to speak.
+        name: "Bruno Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         publicProfile: false,
       }),
     );
@@ -634,8 +924,9 @@ describe("firestore.rules — members", () => {
   it("denies create with publicProfile null (an explicit null still counts as present)", async () => {
     await assertFails(
       setDoc(doc(as("u", ["Membership"]), "members/new_consent_null"), {
-        name: "B",
+        name: "Bruno Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         publicProfile: null,
       }),
     );
@@ -670,12 +961,20 @@ describe("firestore.rules — members", () => {
   });
   it("denies create when totalPoints != 0", async () => {
     await assertFails(
-      setDoc(doc(as("u", ["Membership"]), "members/new2"), { name: "Bruno Paz", totalPoints: 5 }),
+      setDoc(doc(as("u", ["Membership"]), "members/new2"), {
+        name: "Bruno Paz",
+        totalPoints: 5,
+        ...BORN_LIVE,
+      }),
     );
   });
   it("denies a non-admin/non-membership role from creating", async () => {
     await assertFails(
-      setDoc(doc(as("u", ["Treasury"]), "members/new3"), { name: "Bruno Paz", totalPoints: 0 }),
+      setDoc(doc(as("u", ["Treasury"]), "members/new3"), {
+        name: "Bruno Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+      }),
     );
   });
   it("BLOCKING: denies Membership creating with a forged assignedBy + power cargo (escalation on create)", async () => {
@@ -683,6 +982,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("mem-uid", ["Membership"]), "members/new_evil"), {
         name: "Evil",
         totalPoints: 0,
+        ...BORN_LIVE,
         positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-victim-uid" } },
       }),
     );
@@ -692,6 +992,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("mem-uid", ["Membership"]), "members/new_uid"), {
         name: "Ximena Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         uid: "mem-uid",
       }),
     );
@@ -701,6 +1002,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("mem-uid", ["Membership"]), "members/new_pow"), {
         name: "Ximena Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "mem-uid" } },
       }),
     );
@@ -710,7 +1012,45 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("mem-uid", ["Membership"]), "members/new_ok"), {
         name: "Ximena Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "mem-uid" } },
+      }),
+    );
+  });
+  it("BLOCKING: denies Membership creating a member holding a grant-free CEL cargo", async () => {
+    // The create-arm mirror of "denies the update:Position lane assigning a GRANT-FREE CEL
+    // cargo". pos_cel_free has grants: [], so the grants half says yes; only the `category
+    // != 'CEL'` conjunct of cargoAssignableByNonAdmin() denies it — which the create arm
+    // only asks because it shares that predicate with positionsAssignmentSafe().
+    // What it stops: manage:Member satisfies canDo('create','Member'), so a Membership
+    // holder could mint a member BORN at board rank 0 as Presidente, self-stamped. `uid` is
+    // forbidden at create, so the doc is unpublished at birth — but onMemberCreated stamps
+    // publicProfile, the creator owns name/profilePicture, and one routine Admin
+    // provisionMemberLogin later supplies the uid, at which point projectBoard publishes it.
+    // If this goes green, the create arm has drifted back off the shared predicate.
+    await assertFails(
+      setDoc(doc(as("mem-uid", ["Membership"]), "members/new_cel_free"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+        positions: {
+          [TERM]: { cargoId: "pos_cel_free", comisionIds: [], assignedBy: "mem-uid" },
+        },
+      }),
+    );
+  });
+  it("allows Admin creating a member on a grant-free CEL cargo (the authority, not the delegate)", async () => {
+    // The paired ALLOW: the CEL conjunct lives inside the non-Admin branch of the create arm
+    // too, so seating the CEL at create stays possible — for an Admin only. Without this,
+    // a create arm that denied everyone would pass the test above for the wrong reason.
+    await assertSucceeds(
+      setDoc(doc(as("admin-uid", ["Admin"]), "members/new_cel_admin"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+        positions: {
+          [TERM]: { cargoId: "pos_cel_free", comisionIds: [], assignedBy: "admin-uid" },
+        },
       }),
     );
   });
@@ -719,6 +1059,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("admin-uid", ["Admin"]), "members/new_admin"), {
         name: "Ximena Paz",
         totalPoints: 0,
+        ...BORN_LIVE,
         positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
       }),
     );
@@ -742,6 +1083,7 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("u", ["Membership"]), "members/new_formula"), {
         name: '=HYPERLINK("http://evil")',
         totalPoints: 0,
+        ...BORN_LIVE,
       }),
     );
   });
@@ -750,12 +1092,17 @@ describe("firestore.rules — members", () => {
       setDoc(doc(as("u", ["Membership"]), "members/new_digits"), {
         name: "Ana Rivas 2",
         totalPoints: 0,
+        ...BORN_LIVE,
       }),
     );
   });
   it("denies Membership creating a member with a name below the length floor", async () => {
     await assertFails(
-      setDoc(doc(as("u", ["Membership"]), "members/new_short"), { name: "Al", totalPoints: 0 }),
+      setDoc(doc(as("u", ["Membership"]), "members/new_short"), {
+        name: "Al",
+        totalPoints: 0,
+        ...BORN_LIVE,
+      }),
     );
   });
   it("denies Membership renaming a member to a formula-shaped name", async () => {
@@ -1798,7 +2145,7 @@ describe("firestore.rules — positions", () => {
   });
   it("denies Membership creating positions", async () => {
     await assertFails(
-      setDoc(doc(as("u", ["Membership"]), "positions/new2"), { title: "X", active: true }),
+      setDoc(doc(as("u", ["Membership"]), "positions/new2"), { title: "X", ...BORN_LIVE }),
     );
   });
   it("denies resurrecting a soft-deleted position", async () => {
@@ -1865,6 +2212,164 @@ describe("firestore.rules — positions", () => {
   it("denies flipping a power position to Comision while keeping its grants", async () => {
     await assertFails(
       updateDoc(doc(as("u", ["Admin"]), "positions/pos1"), { category: "Comision" }),
+    );
+  });
+  it("BLOCKING: denies a non-Admin update:Position holder changing a position's category", async () => {
+    // The escalation this closes, now that the members-positions lane exists: `grants` was
+    // the only field pinned for a non-Admin, so an update:Position holder could retitle a
+    // grant-free Comisión to { category: 'CEL', title: 'Presidente' } — boardRank 0 — and
+    // then assign it to themselves on the public Directiva, with no Admin action anywhere.
+    // category also decides board GROUP and whether comisionGrantsEmpty() applies at all.
+    await assertFails(
+      updateDoc(doc(orgChart(), "positions/pos_cat"), {
+        category: "CEL",
+      }),
+    );
+    // The rest of the catalog stays writable for them — this pins one field, not the arm.
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "positions/pos_cat"), {
+        description: "Actualizada.",
+      }),
+    );
+  });
+  it("allows an Admin to change a position's category (the surviving authority)", async () => {
+    // pos_cat_admin, NOT pos_cat: writing CEL onto pos_cat would make the BLOCKING denial
+    // above an unchanged echo — allowed — for every run after this one (seed-once suite).
+    // Measured: with the shared fixture, running this test FIRST fails that denial.
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_cat_admin"), { category: "CEL" }),
+    );
+  });
+  // ── The production payload against the title/category pins ────────────────────────────
+  // toPositionUpdateDoc (apps/backstage/src/features/positions/repositories/
+  // position-mapper.ts:14) spreads the WHOLE PositionInput on every save: seven fields,
+  // no active/deletedAt. The `{ description }` partial the category-pin test writes never
+  // proves that shape passes the arm — the exact way a rules pin ships and 403s the first
+  // real save in production. These payload literals mirror the pos_payload/com_payload
+  // seeds field-for-field so an unchanged spread is a true echo.
+  const boardPayload = () => ({
+    title: "Director de Prensa",
+    titleFemale: "Directora de Prensa",
+    sigla: null,
+    category: "JDL",
+    grants: [],
+    term: 2026,
+    description: "Prensa.",
+  });
+  const comisionPayload = () => ({
+    title: "Comisión de Prensa",
+    titleFemale: null,
+    sigla: "CP",
+    category: "Comision",
+    grants: [],
+    term: null,
+    description: "Prensa.",
+  });
+  it("allows a non-Admin update:Position holder the full production payload (pins unchanged)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "positions/pos_payload"), {
+        ...boardPayload(),
+        description: "Prensa y comunicación.",
+      }),
+    );
+  });
+  it("BLOCKING: denies the full payload when it changes the category", async () => {
+    await assertFails(
+      updateDoc(doc(orgChart(), "positions/pos_payload"), {
+        ...boardPayload(),
+        category: "CEL",
+        term: null,
+      }),
+    );
+  });
+  it("BLOCKING: denies the full payload retitling a board cargo (either label)", async () => {
+    await assertFails(
+      updateDoc(doc(orgChart(), "positions/pos_payload"), {
+        ...boardPayload(),
+        title: "Presidente",
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(orgChart(), "positions/pos_payload"), {
+        ...boardPayload(),
+        titleFemale: "Presidenta",
+      }),
+    );
+  });
+  it("lets a non-Admin retitle a legacy cargo that has no category key (both arms agree)", async () => {
+    // The create arm asks `!boardSurfacingCategory()` and the update arm now asks the same
+    // question, so a doc whose `category` is absent (or an unrecognized value) is non-board
+    // on BOTH — creatable by a non-Admin, therefore editable by one. Under the
+    // `== 'Comision'` escape this write was DENIED: fail-closed, so never a hole, but it
+    // locked the labels of exactly the legacy docs an org-chart editor is meant to clean up.
+    // Falsifiable both ways: restore `== 'Comision'` and this goes red; drop the escape's
+    // guard entirely and "denies the full payload retitling a board cargo" goes red.
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "positions/pos_nocategory"), {
+        title: "Comisión de Actas",
+        titleFemale: "Comisión de Actas",
+      }),
+    );
+  });
+  it("allows the full payload retitling a comisión (the branch the pin leaves open)", async () => {
+    // On a comisión a title is a label, not an authority field — comisiones never reach
+    // boardGroupFromCategory() — so the org-chart editor's rename use case stays open.
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "positions/com_payload"), {
+        ...comisionPayload(),
+        title: "Comisión de Comunicación",
+      }),
+    );
+  });
+  it("allows an Admin to retitle a board cargo via the full payload (the surviving authority)", async () => {
+    // pos_payload_admin, not pos_payload: retitling pos_payload would flip the non-Admin
+    // echo success above into a title change on later runs (seed-once suite).
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_payload_admin"), {
+        title: "Director de Tesorería",
+        titleFemale: "Directora de Tesorería",
+        sigla: null,
+        category: "JDL",
+        grants: [],
+        term: 2026,
+        description: "Finanzas.",
+      }),
+    );
+  });
+  // The CREATE-side twin of the category pin above. Pinning only the update arm left the
+  // same outcome one door over: MINT a grant-free CEL cargo instead of retitling one.
+  // grants:[] passes the power-grant check, so `grants` alone never blocked this — and
+  // "seeded CEL cargos all carry grants" is true only of SEEDED ones.
+  const posCreator = () => as("poscreate-uid", [], ["create:Position"]);
+  const boardCargo = (category: string) => ({
+    title: "Presidente",
+    titleFemale: null,
+    sigla: null,
+    category,
+    term: category === "JDL" ? 2026 : null,
+    grants: [],
+    description: "",
+    ...BORN_LIVE,
+  });
+  it("BLOCKING: denies a non-Admin create:Position holder minting a CEL cargo", async () => {
+    await assertFails(setDoc(doc(posCreator(), "positions/mint_cel"), boardCargo("CEL")));
+  });
+  it("BLOCKING: denies a non-Admin create:Position holder minting a JDL dirección", async () => {
+    await assertFails(setDoc(doc(posCreator(), "positions/mint_jdl"), boardCargo("JDL")));
+  });
+  it("still allows a non-Admin create:Position holder to create a comisión", async () => {
+    // Pins that the fix narrows the board categories only — it does not close the arm.
+    await assertSucceeds(
+      setDoc(doc(posCreator(), "positions/mint_com"), {
+        ...boardCargo("Comision"),
+        title: "Comisión de Prensa",
+        sigla: "CP",
+      }),
+    );
+  });
+  it("allows an Admin to create a CEL cargo (the surviving authority)", async () => {
+    await assertSucceeds(
+      setDoc(doc(as("admin-uid", ["Admin"]), "positions/mint_cel_admin"), boardCargo("CEL")),
     );
   });
   // Deliberate fail-closed: a legacy power comisión (possible before the
@@ -1950,8 +2455,9 @@ describe("firestore.rules — activity parent-initiative direction", () => {
 });
 
 describe("firestore.rules — initiative featured create-gate", () => {
-  // Curation authority is the Admin/ProjectManager ROLE; a custom role holding only
-  // the create perm may create initiatives but never born-featured ones.
+  // Curation authority is canCurateFeatured(): the Admin ROLE or the update:Showcase PERM
+  // (seeded onto ProjectManager). A custom role holding only the create perm may create
+  // initiatives but never born-featured ones.
   function asCustom(uid: string, perms: string[]) {
     return env.authenticatedContext(uid, { roles: ["Member"], perms }).firestore();
   }
@@ -2026,6 +2532,78 @@ describe("firestore.rules — initiative featured create-gate", () => {
       setDoc(doc(as("u", ["ProjectManager"]), "programs/prog_feat_pm_create"), {
         termId: "2026",
         title: "Curada",
+        featured: true,
+      }),
+    );
+  });
+});
+
+// canCurateFeatured() is `hasAnyRole(['Admin']) || hasPerm('update:Showcase')`. Admin stays
+// role-keyed (locked + undeactivatable, so its name carries no staleness); everyone else is
+// perm-keyed, so DEACTIVATING a role now revokes curation — computeMemberRoles is pure over
+// the trusted grants and reads no role doc, so the NAME survives a deactivation in the claim
+// while the perms do not.
+//
+// Every test here targets a doc the principal can otherwise update (a direction uid, or an
+// initiative update perm) and is paired with a non-featured write that SUCCEEDS, so a denial
+// is the curation gate and never a missing update perm.
+describe("firestore.rules — featured curation is perm-keyed (canCurateFeatured)", () => {
+  it("denies a DEACTIVATED ProjectManager setting featured (stale role name in the claim)", async () => {
+    // The whole point of D: roles claim still says ProjectManager, perms carry no
+    // update:Showcase because the role doc is inactive. manage:Project comes from some
+    // other live role, so the write clears every conjunct except the curation gate.
+    const stale = as("pm-stale-uid", ["ProjectManager"], ["manage:Project"]);
+    await assertFails(updateDoc(doc(stale, "projects/p_feat_deny_stale"), { featured: true }));
+    await assertSucceeds(
+      updateDoc(doc(stale, "projects/p_feat_deny_stale"), { title: "No destacable (PM inactivo)" }),
+    );
+  });
+
+  it("denies a manage:all PERM holder with no Admin role setting featured", async () => {
+    // manage:all is reachable as a perm without the Admin role (a custom role doc or a
+    // permissionOverrides.grant can carry it — roleShapeValid() only requires a list). The
+    // gate uses exact hasPerm, NOT canDo, so manage:all does not satisfy update:Showcase.
+    const superPerm = as("mgr-all-uid", ["Member"], ["manage:all"]);
+    await assertFails(updateDoc(doc(superPerm, "projects/p_feat_deny_mgrall"), { featured: true }));
+    await assertSucceeds(
+      updateDoc(doc(superPerm, "projects/p_feat_deny_mgrall"), {
+        title: "No destacable (manage:all)",
+      }),
+    );
+  });
+
+  it("denies a manage:Showcase holder setting featured (the inert codes stay inert)", async () => {
+    // The other five *:Showcase codes gate nothing. manage:Showcase is inert BECAUSE the
+    // gate is exact hasPerm — there is no second, undocumented path to curation.
+    const inert = as("mgr-showcase-uid", ["Member"], ["manage:Project", "manage:Showcase"]);
+    await assertFails(updateDoc(doc(inert, "projects/p_feat_deny_inert"), { featured: true }));
+    await assertSucceeds(
+      updateDoc(doc(inert, "projects/p_feat_deny_inert"), {
+        title: "No destacable (manage:Showcase)",
+      }),
+    );
+  });
+
+  it("allows a custom role holding update:Showcase to curate, with no Admin/PM role", async () => {
+    await assertSucceeds(
+      updateDoc(
+        doc(
+          as("cust-showcase-uid", ["Member"], ["update:Project", "update:Showcase"]),
+          "projects/p_feat_showcase",
+        ),
+        {
+          featured: true,
+        },
+      ),
+    );
+  });
+
+  it("allows Admin with an EMPTY perms claim to curate (the role disjunct)", async () => {
+    // Real shape: a member over PERMISSION_CAP gets perms:[] written while keeping
+    // roles:['Admin']. The uid is a direction uid, so the update itself is allowed and the
+    // only question left is curation authority.
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Admin"], []), "projects/p_feat_admin_role"), {
         featured: true,
       }),
     );
@@ -2275,6 +2853,159 @@ describe("firestore.rules — member positions assignment", () => {
       }),
     );
   });
+  // ── The members-positions lane: canDo('update','Position') + hasOnly(['positions']) ──
+  // Principal: the module-scoped orgChart() / ORG_CHART above.
+  it("allows an update:Position-only principal to assign a grant-free cargo, self-stamped", async () => {
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("BLOCKING: denies the update:Position lane assigning a power-conferring cargo (new side)", async () => {
+    // positionsAssignmentSafe() is reused verbatim: its non-Admin branch demands
+    // cargoAssignableByNonAdmin(), and pos1 grants Treasury. Without it this lane would
+    // mint claims.
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos1", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("BLOCKING: denies the update:Position lane replacing a power cargo with a grant-free one (old side)", async () => {
+    // The de-elevation attack from the OTHER direction: m_powercargo holds pos1, so only
+    // currentCargoGrantsEmpty() — the old-side half — stops this lane from stripping a
+    // claim. assertFails, so m_powercargo stays intact for the C1 describe below.
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_powercargo"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("BLOCKING: denies the update:Position lane touching any non-positions field in the same write", async () => {
+    // hasOnly(['positions']) is what confines this lane to the org chart. A ride-along
+    // `name` (or roleIds, or totalPoints) must drop the whole write off the arm.
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        name: "Renombrado",
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("denies the update:Position lane a forged assignedBy", async () => {
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "admin-uid" },
+      }),
+    );
+  });
+
+  it("denies the update:Position lane a non-current-term write", async () => {
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        "positions.2099": { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("denies the update:Position lane creating a member (create stays canDo('create','Member'))", async () => {
+    // createPositionsSafe() cannot call currentCargoGrantsEmpty() — a create has no prior
+    // resource — and there is no old side to protect, so creation was deliberately not
+    // widened. An org-chart editor may not mint member records.
+    await assertFails(
+      setDoc(doc(orgChart(), "members/m_orgchart_new"), {
+        name: "Nuevo",
+        totalPoints: 0,
+        active: true,
+        deletedAt: null,
+        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART } },
+      }),
+    );
+  });
+
+  it("denies the update:Position lane wiping the current term — whole-map replacement and deleteField", async () => {
+    // Both currently deny via assignedBySelf(): a positions map with no current-term key
+    // reads assignedBy '' != uid. That is INCIDENTAL — nothing else in the arm asks whether
+    // an assignment was removed — so pin it, or a future refactor of assignedBySelf() drops
+    // the clear-a-cargo guard without a red test.
+    await assertFails(updateDoc(doc(orgChart(), "members/m_positions"), { positions: {} }));
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_positions"), { positions: deleteField() }),
+    );
+  });
+
+  it("BLOCKING: denies the update:Position lane assigning a GRANT-FREE CEL cargo", async () => {
+    // The publication half of cargoAssignableByNonAdmin(), and the conjunct this test
+    // exists for. pos_cel_free carries grants: [], so the grants half of that predicate —
+    // the whole non-Admin check before this branch — says yes; only `category != 'CEL'`
+    // denies it.
+    // What it stops: boardRank maps 'Presidente' to 0, so this write would put the
+    // org-chart editor at the head of the world-readable Directiva as chapter president.
+    // If this goes green, neutralize nothing and re-read the rule: the CEL conjunct is gone.
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos_cel_free", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("still allows the update:Position lane a grant-free JDL dirección (the accepted exposure survives)", async () => {
+    // The paired ALLOW, adjacent on purpose: it is what proves the denial above is the CEL
+    // conjunct and not the lane closing on grant-free board cargos generally. pos_soft is
+    // JDL with grants: [] — byte-identical to pos_cel_free but for `category`.
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  it("leaves Admin unaffected — an Admin may still assign a grant-free CEL cargo", async () => {
+    // The conjunct lives inside the non-Admin branch only. Seating the CEL is an Admin
+    // decision on BOTH ends (the create arm already made minting one Admin-only); this pins
+    // that the fix narrowed the delegate, not the authority.
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_celadmin"), {
+        [`positions.${TERM}`]: {
+          cargoId: "pos_cel_free",
+          comisionIds: [],
+          assignedBy: "admin-uid",
+        },
+      }),
+    );
+  });
+
+  it("BLOCKING: denies Membership assigning a grant-free CEL cargo too (the conjunct is not lane-local)", async () => {
+    // positionsAssignmentSafe() is shared by the institutional members arm, so a manage:Member
+    // holder is held to the same publication boundary — otherwise the fix would just move the
+    // door. m_positions, not m1: m1 ends this block holding a power cargo.
+    await assertFails(
+      updateDoc(doc(as("mem-uid", ["Membership"]), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos_cel_free", comisionIds: [], assignedBy: "mem-uid" },
+      }),
+    );
+  });
+
+  it("ACCEPTED EXPOSURE: an update:Position holder may put a member — including itself — on the public Directiva", async () => {
+    // Deliberate, not an oversight (see docs/specs/position-assignment-lane.md, section A).
+    // pos_soft is a JDL dirección with grants: [], and boardGroupFromCategory publishes both
+    // CEL and JDL, so this write lands on the world-readable boardShowcase projection. It is
+    // not privilege escalation — resolveTrustedGrants returns early on grants.length === 0,
+    // so no claim is minted — but it IS a publication authority, and owner-op 1 says so in
+    // the same words. Its ceiling is JDL: CEL is Admin-only BY RULE whatever its grants
+    // (cargoAssignableByNonAdmin's `category != 'CEL'`), not because of what the seeded CEL
+    // cargos happen to hold — the test two above pins exactly that.
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "members/m_orgchart"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
   // LAST in this block on purpose: the suite seeds once and never resets, and this write
   // leaves members/m1 holding a power cargo. A Membership success case running after it
   // would be denied by currentCargoGrantsEmpty() — the C1 guard — not by its own subject.
@@ -2289,8 +3020,9 @@ describe("firestore.rules — member positions assignment", () => {
 
 describe("firestore.rules — replacing an already-assigned power cargo (C1)", () => {
   it("BLOCKING: denies Membership replacing an Admin-granting cargo with a grant-free one", async () => {
-    // The de-elevation attack: the NEW cargo is grant-free, so the old cargoGrantsEmpty()
-    // check passed. currentCargoGrantsEmpty() is what looks at resource.data — the cargo
+    // The de-elevation attack: the NEW cargo is grant-free and not CEL, so the new-side
+    // cargoAssignableByNonAdmin() passed. currentCargoGrantsEmpty() looks at resource.data —
+    // the cargo
     // being displaced — and denies the write.
     await assertFails(
       updateDoc(doc(as("mem-uid", ["Membership"]), "members/m_powercargo"), {
@@ -2300,7 +3032,7 @@ describe("firestore.rules — replacing an already-assigned power cargo (C1)", (
   });
 
   it("BLOCKING: denies Membership clearing an Admin-granting cargo to null", async () => {
-    // cargoId: null makes cargoGrantsEmpty() short-circuit true; only the old-side guard
+    // cargoId: null makes cargoAssignableByNonAdmin() short-circuit true; only the old-side guard
     // catches it.
     await assertFails(
       updateDoc(doc(as("mem-uid", ["Membership"]), "members/m_powercargo"), {
@@ -2313,6 +3045,279 @@ describe("firestore.rules — replacing an already-assigned power cargo (C1)", (
     await assertSucceeds(
       updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_powercargo"), {
         [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "admin-uid" },
+      }),
+    );
+  });
+
+  it("ACCEPTED HOLE (term rollover): a prior-term power cargo does NOT guard the empty current term", async () => {
+    // Pins the shape docs/specs/position-assignment-lane.md documents under "Residual: the
+    // term-rollover window" — this assertSucceeds is the test that section promises, NOT a
+    // regression. currentCargoGrantsEmpty() reads only positions[currentTermKey()]:
+    // m_priorterm_power's Treasury-granting pos1 sits under the PRIOR term key, the current
+    // slot is empty, the guard short-circuits on `prior == null`, and an update:Position
+    // holder writes a grant-free cargo into the current term. claims-sync resolves from the
+    // same current-year key, so it recomputes roles: ['Member'] — the Treasury claim is gone.
+    // The grant is Treasury rather than Admin only because that is what pos1 seeds; the
+    // shape is "any cargo-conferred claim", and Admin sits in it the same way.
+    // Pre-existing (any manage:Member holder had it through the institutional arm) and
+    // deliberately NOT fixed here: closing it means resolving liveness across terms, its
+    // own pass. If this test goes RED, the guard grew cross-term eyes — delete this test
+    // and the Residual section together.
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "members/m_priorterm_power"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+});
+
+// B: the four softDeleteSafe() lanes (members ×2 + the positions lane, positions, allies)
+// gained the same well-formedness prefix roleLifecycleSafe() already had, and their three
+// create arms gained the born-live requirement the roles create arm already had.
+//
+// The two halves are inseparable on purpose: the create arms stop new malformed docs, the
+// prefix stops client writes onto the ones already stored. Neither repairs anything — the
+// remedy for an existing malformed doc is the console, the admin SDK, or (for publication
+// specifically) the Admin takedown arm, which deliberately does NOT call softDeleteSafe()
+// and is pinned open at the bottom of this block.
+describe("firestore.rules — soft-delete well-formedness (B)", () => {
+  const secretary = () => as("sec-uid", ["Secretary"]);
+
+  it("denies creating a member with no active/deletedAt (the bare legacy shape)", async () => {
+    // Same payload as "allows Membership to create with totalPoints 0" minus BORN_LIVE —
+    // so this isolates the new create conjuncts and nothing else.
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_bare"), {
+        name: "Bruno Paz",
+        totalPoints: 0,
+      }),
+    );
+  });
+  it("denies creating a position with no active/deletedAt", async () => {
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "positions/new_bare"), {
+        title: "Director de Finanzas",
+        titleFemale: "Directora de Finanzas",
+        category: "JDL",
+        grants: [],
+        term: 2026,
+        description: "Finanzas.",
+      }),
+    );
+  });
+  it("denies creating an ally with no active/deletedAt", async () => {
+    await assertFails(
+      setDoc(doc(secretary(), "allies/a_bare"), { companyName: "Sin ciclo de vida" }),
+    );
+  });
+
+  it("denies a member born soft-deleted (active false / deletedAt already stamped)", async () => {
+    // A doc born dead is invisible to every list yet occupies its id; a doc born with a
+    // deletedAt is the ghost shape (live to a `where`, dead to the pipeline). Neither is a
+    // state any client flow produces, so neither is client-creatable.
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_born_dead"), {
+        name: "Bruno Paz",
+        totalPoints: 0,
+        active: false,
+        deletedAt: null,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(as("u", ["Membership"]), "members/new_born_ghost"), {
+        name: "Bruno Paz",
+        totalPoints: 0,
+        active: true,
+        deletedAt: DELETED_AT,
+      }),
+    );
+  });
+  it("denies a position born soft-deleted or born with a deletedAt", async () => {
+    const born = (extra: Record<string, unknown>) => ({
+      title: "Director de Finanzas",
+      titleFemale: "Directora de Finanzas",
+      category: "JDL",
+      grants: [],
+      term: 2026,
+      description: "Finanzas.",
+      ...extra,
+    });
+    await assertFails(
+      setDoc(
+        doc(as("admin-uid", ["Admin"]), "positions/new_born_dead"),
+        born({ active: false, deletedAt: null }),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(as("admin-uid", ["Admin"]), "positions/new_born_ghost"),
+        born({ active: true, deletedAt: DELETED_AT }),
+      ),
+    );
+  });
+  it("denies an ally born soft-deleted or born with a deletedAt", async () => {
+    await assertFails(
+      setDoc(doc(secretary(), "allies/a_born_dead"), {
+        companyName: "Nacida muerta",
+        active: false,
+        deletedAt: null,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(secretary(), "allies/a_born_ghost"), {
+        companyName: "Fantasma",
+        active: true,
+        deletedAt: DELETED_AT,
+      }),
+    );
+  });
+
+  // The stored-side half. A non-bool `active` is the exact ghost this change exists for: it
+  // is dropped by the zod doc schemas (invisible in backstage) while every `!== false` /
+  // `!= null` reader treats it as live — which is how it reached the public Directiva.
+  it("denies every client update to a member whose stored active is a non-bool", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Membership"]), "members/m_badactive"), { profession: "Arquitecta" }),
+    );
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_badactive"), { name: "Hilda Paz" }),
+    );
+    // The members-positions lane (A) calls softDeleteSafe() too — all four lanes close
+    // together, which is the point of putting the check in the helper.
+    await assertFails(
+      updateDoc(doc(orgChart(), "members/m_badactive"), {
+        [`positions.${TERM}`]: {
+          cargoId: "pos_soft",
+          comisionIds: [],
+          assignedBy: ORG_CHART,
+        },
+      }),
+    );
+  });
+  it("denies every client update to a position whose stored active is a non-bool", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_badactive"), { title: "Vocal" }),
+    );
+    await assertFails(
+      updateDoc(doc(orgChart(), "positions/pos_badactive"), {
+        title: "Vocal",
+      }),
+    );
+  });
+  it("denies every client update to an ally whose stored active is a non-bool", async () => {
+    await assertFails(
+      updateDoc(doc(secretary(), "allies/a_badactive"), { companyName: "Reparada" }),
+    );
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "allies/a_badactive"), {
+        companyName: "Reparada",
+      }),
+    );
+  });
+
+  it("denies updating a member whose stored doc has no active key", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Membership"]), "members/m_noactive"), { profession: "Bióloga" }),
+    );
+  });
+  it("denies updating a member whose stored doc has no deletedAt key", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Membership"]), "members/m_nodeletedat"), { profession: "Biólogo" }),
+    );
+    // active: true is well-formed here, so the self lane's own `active == true` check passes
+    // and the missing deletedAt is the only thing denying — the /me lane is closed too.
+    await assertFails(
+      updateDoc(doc(as("nodeletedat-uid", ["Member"]), "members/m_nodeletedat"), {
+        profession: "Biólogo",
+      }),
+    );
+  });
+  // The prefix is ONE helper across four lanes, but that sharing is a claim until each
+  // lane's denial is measured — only members had the missing-field tests. Same principals
+  // as the non-bool-active tests above, so the missing key is the only variable.
+  it("denies updating a position whose stored doc has no active key", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_noactive"), { title: "Vocal II" }),
+    );
+    await assertFails(
+      updateDoc(doc(orgChart(), "positions/pos_noactive"), { description: "Editada." }),
+    );
+  });
+  it("denies updating a position whose stored doc has no deletedAt key", async () => {
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_nodeletedat"), {
+        title: "Vocal III",
+      }),
+    );
+  });
+  it("denies updating an ally whose stored doc has no active key", async () => {
+    await assertFails(updateDoc(doc(secretary(), "allies/a_noactive"), { companyName: "Editada" }));
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "allies/a_noactive"), { companyName: "Editada" }),
+    );
+  });
+  it("denies updating an ally whose stored doc has no deletedAt key", async () => {
+    await assertFails(
+      updateDoc(doc(secretary(), "allies/a_nodeletedat"), { companyName: "Editada" }),
+    );
+  });
+
+  it("pins which malformed field a client can repair and which it cannot", async () => {
+    // Stated so nobody reads the denials above as "just write the right value". The two
+    // halves differ, and the difference is exactly why owner-op 4 is a console/admin-SDK
+    // audit rather than a UI affordance:
+    //   active   — NOT client-repairable. The one-way half demands
+    //              resource.data.active == true || unchanged('active'), and a stored
+    //              non-bool satisfies neither once the write changes it.
+    //   deletedAt — client-repairable by stamping the null the doc should have had:
+    //              unchanged('deletedAt') reads .get(…, null) on both sides, so
+    //              absent -> null is a no-op to the one-way half and the merged doc then
+    //              carries the key. A missing deletedAt is therefore self-healing; a
+    //              malformed active is not.
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_badactive"), { active: true }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Membership"]), "members/m_nodeletedat_fix"), { deletedAt: null }),
+    );
+  });
+  it("pins the same repair asymmetry on positions and allies (one helper, four lanes)", async () => {
+    // active — not repairable even by Admin, on any lane:
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_badactive"), { active: true }),
+    );
+    await assertFails(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "allies/a_badactive"), { active: true }),
+    );
+    // deletedAt — self-healing by stamping the null the doc should have had:
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "positions/pos_nodeletedat_fix"), {
+        deletedAt: null,
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(secretary(), "allies/a_nodeletedat_fix"), { deletedAt: null }),
+    );
+  });
+
+  it("keeps the Admin takedown arm open on a malformed member (the remedy path)", async () => {
+    // The single most important assertion in this block. The takedown arm deliberately does
+    // not call softDeleteSafe(), so it is the ONE rules-level path that can unpublish
+    // exactly the malformed member this change is about. Moving the well-formedness check
+    // onto the arms instead of into the helper would have removed the remedy with the
+    // disease.
+    await assertSucceeds(
+      updateDoc(doc(as("admin-uid", ["Admin"]), "members/m_badactive"), { publicProfile: false }),
+    );
+  });
+
+  it("leaves the /me self lane working on an ordinary well-formed member", async () => {
+    // The merge half: on an update request.resource.data is the MERGED doc, so a write that
+    // touches neither field still satisfies the prefix when the stored doc is well-formed.
+    // Without this the prefix would have locked every member out of their own profile.
+    await assertSucceeds(
+      updateDoc(doc(as("carlos-uid", ["Member"]), "members/m_positions"), {
+        profession: "Ingeniero",
       }),
     );
   });
@@ -2528,9 +3533,12 @@ describe("firestore.rules — roles collection", () => {
   });
   it("allows Admin to reactivate a deactivated built-in role", async () => {
     // softDeleteSafe() hard-blocks active:false -> true, which is why the roles lane
-    // uses roleLifecycleSafe() instead. softDeleteSafe itself must not change: four
-    // other collections depend on its one-way semantics and member resurrection is
-    // pinned denied by "denies resurrecting a soft-deleted member" above.
+    // uses roleLifecycleSafe() instead. softDeleteSafe() has since gained this function's
+    // WELL-FORMEDNESS prefix (active present and a bool, deletedAt present) — see the
+    // "soft-delete well-formedness (B)" block above. What must not change is its ONE-WAY
+    // semantics: four other lanes depend on them and member resurrection is pinned denied
+    // by "denies resurrecting a soft-deleted member" above. The coupling half below
+    // (active == true => deletedAt == null) is still roles-only.
     await assertSucceeds(
       updateDoc(doc(as("admin-uid", ["Admin"]), "roles/inactive_builtin"), {
         active: true,

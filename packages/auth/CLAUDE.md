@@ -19,6 +19,8 @@ sentence: `.claude/hooks/route.sh` prints the mandated set for your diff.
 | `@luminova/auth/roles` | `AuthClaims`, `Role`, `ROLES`, `isValidRole`, `hasRole`, `hasAnyRole` |
 | `@luminova/auth/ability` | `buildAbility`, `subject`, `AppAbility`, plus `Action`/`Subject` **re-exported** from `@luminova/types` |
 | `@luminova/auth/perms` | `resolveEffectivePerms` |
+| `@luminova/auth/built-in-perms` | `resolveBuiltInPerms`, `BuiltInRoleDoc` — the ONE absent/live/inactive three-way over already-fetched role docs, shared by beacon's claims-sync and the backstage assignment preview |
+| `@luminova/auth/test-helpers` | `roleClaims` — mints `{roles, perms}` the production way; tests must not use a bare `{ roles: [...] }` fixture (see the `claims.perms` invariant below) |
 
 `exports` maps types to `src/*.ts` but runtime to `dist/*.js`, so a **fresh
 worktree must build this package before an app's vitest run** — an unbuilt `dist`
@@ -56,13 +58,26 @@ a data change.
 
 ## Invariants
 
-- **`resolveEffectivePerms` returns the set UNCAPPED.** Enforcing `PERMISSION_CAP`
-  (`@luminova/types`) is the caller's job, and the three callers do not agree:
-  beacon's claims-sync is **fail-closed** (`sync.ts`), the backstage role editor
-  blocks Save, and `apps/beacon/scripts/seed-roles.ts` enforces **nothing** — it
-  writes `perms` straight to `setCustomUserClaims`. That last one is emulator-only
-  (`assertEmulator()`), which is the only reason it is not a hole. Any new caller
-  must enforce the cap.
+- **`resolveEffectivePerms` returns the set UNCAPPED, and so does `resolveBuiltInPerms`
+  on top of it.** Enforcing `PERMISSION_CAP` (`@luminova/types`) is the caller's job.
+  Neither production consumer calls `resolveEffectivePerms` directly any more — both
+  reach it through `resolveBuiltInPerms`, so that is where the cap discipline now
+  attaches. The current call graph:
+  - `resolveBuiltInPerms` (`built-in-perms.ts`) — in-package, uncapped by design
+    because its two callers disagree on the *response*, not on the limit:
+    - beacon claims-sync → `resolveMemberPerms` → `sync.ts`, **fail-closed** to
+      `perms: []`; and `set-user-roles.ts`, which throws `internal` over the cap;
+    - backstage `previewEffectivePerms`
+      (`features/permissions/lib/effective-preview.ts`) → `member-roles-panel.tsx`,
+      which disables Save while `effective.length > PERMISSION_CAP`.
+  - `roleClaims` (`test-helpers.ts`) — test-only fixtures, no cap.
+  - `apps/beacon/scripts/seed-roles.ts` — enforces **nothing**, writing `perms`
+    straight to `setCustomUserClaims`. Emulator-only (`assertEmulator()`), which is
+    the only reason it is not a hole.
+
+  (The backstage *role editor* caps a different thing: `roleDefinitionSchema` bounds
+  one role doc's own `permissions` array. That is not this resolution.) Any new
+  caller of either function must enforce the cap.
 - Output is **deduped**, which is what makes the write-skip check work: beacon's
   `sameList` compares length then Set membership, so a duplicate would flip
   lengths and force a redundant claim write. It is **not** order-sensitive — that

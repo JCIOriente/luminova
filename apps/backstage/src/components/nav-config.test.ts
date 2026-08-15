@@ -178,6 +178,31 @@ describe("isNavItemVisible — conditional grants must not leak", () => {
     expect(canSee("/positions", claimsFor("Treasury"))).toBe(false);
   });
 
+  it("admits an update:Position custom role to /positions, matching the catalog's own rule", () => {
+    // The catalog arms are canDo('update','Position') / canDo('create','Position'), and
+    // canDo treats manage:Position as satisfying update:Position — so keying `orCan` on
+    // `update` widens nothing the rules did not already allow, and stops the nav from
+    // hiding a page whose writes this principal can actually make (guardrail #6).
+    const orgChartEditor: AuthClaims = { roles: [], perms: ["update:Position"] };
+    expect(canSee("/positions", orgChartEditor)).toBe(true);
+    // read:Position is what a plain Member carries; it must still not open the page.
+    expect(canSee("/positions", { roles: [], perms: ["read:Position"] })).toBe(false);
+  });
+
+  it("gates /members on read:Member alone — update:Position opens nothing here", () => {
+    // Cargo assignment happens ON /members (the member roster), and the nav probes
+    // read:Member there. So the perm that carries the members-positions LANE is inert for
+    // reaching the page: a custom role holding only update:Position cannot get to the
+    // capability the owner-op hands it, which is why owner-op 1 mandates BOTH perms.
+    // Both halves are load-bearing and falsifiable: read:Member alone is what opens the
+    // page (drop it from the nav gate and the first line goes red), update:Position alone
+    // is what does not (add it as an `orCan` and the second goes red). The pair assertion
+    // this replaced was neither — read:Member already satisfied it, so deleting
+    // update:Position from it could not turn anything red.
+    expect(canSee("/members", { roles: [], perms: ["read:Member"] })).toBe(true);
+    expect(canSee("/members", { roles: [], perms: ["update:Position"] })).toBe(false);
+  });
+
   it("shows /notificaciones to a compose-only principal (create:Notification, no read)", () => {
     // The page's history list gates on read:Notification, but a compose-only principal
     // holds only create:Notification. The item's `subject: Notification` read would hide

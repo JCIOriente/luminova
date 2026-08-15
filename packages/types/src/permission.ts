@@ -14,6 +14,19 @@ export const SUBJECTS = [
   "Role",
   "Lead",
   "Notification",
+  // Public-site curation. What this gates is the `featured` flag on `projects`/`programs`
+  // — NOT the beacon-owned `showcase` collection, which is `allow read: if true` with no
+  // client write at all. The name is a slight misnomer kept because `featured` is the input
+  // to that public projection.
+  //
+  // Only `update:Showcase` is live: firestore.rules' canCurateFeatured() is
+  // `hasAnyRole(['Admin']) || hasPerm('update:Showcase')` — an EXACT code match, not
+  // canDo(). So the other five codes gate nothing, and `manage:Showcase` in particular is
+  // inert BECAUSE the gate is exact: there is no second, undocumented path to curation.
+  // That inertness is the pre-existing condition of this vocabulary, not a new defect —
+  // the /permisos matrix renders the full actions × subjects grid, so `checkIn:Member` and
+  // dozens like it are already assignable and equally inert.
+  "Showcase",
   "all",
 ] as const;
 export type Subject = (typeof SUBJECTS)[number];

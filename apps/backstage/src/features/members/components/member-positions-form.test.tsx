@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Position } from "@luminova/types";
 import { MemberPositionsForm } from "./member-positions-form";
@@ -130,6 +130,122 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants
         defaultValues={{ cargoId: "presidente", comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /guardar/i })).not.toBeDisabled();
+  });
+
+  // The publication half of the mirror. pos_cel_free is grant-free, so the grants filter
+  // alone still offered it: a non-Admin picked 'Presidente' and the save 403'd on the rules'
+  // `category != 'CEL'` conjunct with a generic error.
+  const celFree = pos("presidente_libre", "CEL");
+
+  it("hides a grant-free CEL cargo from a non-Admin", async () => {
+    render(
+      <MemberPositionsForm
+        positions={[celFree, pos("dir", "JDL")]}
+        gender="Masculino"
+        allowPowerGrants={false}
+        defaultValues={{ cargoId: null, comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    // The paired JDL dirección proves the filter is the CEL conjunct, not the list closing
+    // on grant-free board cargos generally — that exposure is accepted and must survive.
+    expect(await screen.findByText("dir")).toBeInTheDocument();
+    expect(screen.queryByText("presidente_libre")).not.toBeInTheDocument();
+  });
+
+  it("shows a grant-free CEL cargo to an Admin", async () => {
+    render(
+      <MemberPositionsForm
+        positions={[celFree]}
+        gender="Masculino"
+        allowPowerGrants
+        defaultValues={{ cargoId: null, comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    expect(await screen.findByText("presidente_libre")).toBeInTheDocument();
+  });
+
+  // Not just the option list: `locked` has to cover it too. Every save re-stamps the
+  // assigned cargoId into the merged doc, so with the form unlocked a comisiones-only edit
+  // on a CEL-seated member is denied — no lock, no note, one generic error.
+  // BLOCKING: the two rules conjuncts are asymmetric, so the client must not mirror the
+  // wrong one. `cargoAssignableByNonAdmin()` denies KEEPING a grant-free CEL seat, but
+  // `currentCargoGrantsEmpty()` is deliberately not category-gated, so CLEARING it is
+  // allowed — firestore.rules says denying that "would strand a takedown behind an Admin".
+  // Locking the form here would strand exactly that takedown in the UI instead.
+  const celSeatedProps = {
+    positions: [celFree, pos("etica", "Comision")],
+    gender: "Masculino" as const,
+    allowPowerGrants: false,
+    defaultValues: { cargoId: "presidente_libre", comisionIds: [] },
+  };
+
+  // Dropping the seat from the options was half a mirror: it left the CEL cargoId as the RHF
+  // value with no option to render it, so the trigger showed the "Sin cargo" PLACEHOLDER for a
+  // seated member, saving as-is re-submitted the cargoId into a 403, and Combobox's clear
+  // gesture (re-select the selected option) was unreachable because that option did not exist.
+  it("BLOCKING: names the grant-free CEL seat a non-Admin holds instead of 'Sin cargo'", () => {
+    render(<MemberPositionsForm {...celSeatedProps} onSubmit={vi.fn()} />);
+    expect(screen.getByLabelText("Cargo")).toHaveTextContent("presidente_libre");
+    // Not locked — the takedown stays open — but not savable while the seat is kept either.
+    expect(screen.queryByText(/Solo un Admin puede cambiar los cargos/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /guardar/i })).toBeDisabled();
+  });
+
+  it("BLOCKING: reaches the takedown a grant-free CEL seat allows and submits cargoId null", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<MemberPositionsForm {...celSeatedProps} onSubmit={onSubmit} />);
+    await userEvent.click(screen.getByRole("button", { name: /quitar cargo/i }));
+    expect(screen.getByLabelText("Cargo")).toHaveTextContent("Sin cargo");
+    const save = screen.getByRole("button", { name: /guardar/i });
+    expect(save).toBeEnabled();
+    await userEvent.click(save);
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ cargoId: null, comisionIds: [] }));
+  });
+
+  it("BLOCKING: a non-Admin cannot re-assign the grant-free CEL seat once cleared", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<MemberPositionsForm {...celSeatedProps} onSubmit={onSubmit} />);
+    await userEvent.click(screen.getByRole("button", { name: /quitar cargo/i }));
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    const seat = await screen.findByRole("option", { name: "presidente_libre" });
+    expect(seat).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(seat);
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByLabelText("Cargo")).toHaveTextContent("Sin cargo");
+    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ cargoId: null, comisionIds: [] }));
+  });
+
+  it("locks the form for a non-Admin when the current cargo GRANTS power (nothing succeeds)", () => {
+    const granting: Position = { ...pos("tesorero", "CEL"), grants: ["Treasury"] };
+    render(
+      <MemberPositionsForm
+        positions={[granting, pos("etica", "Comision")]}
+        gender="Masculino"
+        allowPowerGrants={false}
+        defaultValues={{ cargoId: "tesorero", comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /guardar/i })).toBeDisabled();
+    expect(screen.getByText(/Solo un Admin puede cambiar los cargos/i)).toBeInTheDocument();
+  });
+
+  it("does NOT lock a non-Admin editing a member seated on a grant-free JDL dirección", () => {
+    render(
+      <MemberPositionsForm
+        positions={positions}
+        gender="Masculino"
+        allowPowerGrants={false}
+        defaultValues={{ cargoId: "dir", comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
     );

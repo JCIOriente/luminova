@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { Position } from "@luminova/types";
+import type { MemberInput, Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
+import { toMemberUpdateDoc } from "../repositories/member-mapper";
 import { pickDate } from "../../../test/pick-date";
 
 const positions: Position[] = [
@@ -91,8 +92,13 @@ describe("MemberForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // allowPowerGrants: pos-pres is a grant-free CEL cargo, which only an Admin may assign
+  // (rules' cargoAssignableByNonAdmin). This case is about the LABELS, so give it the
+  // authority that renders them all.
   it("shows gendered cargo labels and excludes comisiones from the cargo options", async () => {
-    render(<MemberForm positions={positions} submitLabel="Crear" onSubmit={vi.fn()} />);
+    render(
+      <MemberForm positions={positions} submitLabel="Crear" onSubmit={vi.fn()} allowPowerGrants />,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Femenino" }));
     await userEvent.click(screen.getByLabelText("Cargo"));
     expect(await screen.findByText("Presidenta")).toBeInTheDocument();
@@ -183,9 +189,12 @@ describe("MemberForm", () => {
     );
   });
 
+  // allowPowerGrants for the same reason: picking a CEL cargo at all is an Admin flow.
   it("locks comisiones as Comité Ejecutivo Local and clears them for a CEL cargo", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    render(<MemberForm positions={positions} submitLabel="Crear" onSubmit={onSubmit} />);
+    render(
+      <MemberForm positions={positions} submitLabel="Crear" onSubmit={onSubmit} allowPowerGrants />,
+    );
     await userEvent.type(screen.getByLabelText(/nombre/i), "Ana Pérez");
     await userEvent.type(screen.getByLabelText(/correo/i), "ana@jci.bo");
     await userEvent.click(screen.getByRole("button", { name: "Femenino" }));
@@ -227,6 +236,148 @@ describe("MemberForm", () => {
       />,
     );
     expect(await screen.findByText("Tesorero (inactivo)")).toBeInTheDocument();
+  });
+
+  // Mirror of firestore.rules cargoAssignableByNonAdmin() on the CREATE lane
+  // (createPositionsSafe applies the same predicate). Without it a non-Admin sees a
+  // grant-free CEL cargo, picks 'Presidente', and the create 403s into a generic error.
+  it("hides a grant-free CEL cargo from a non-Admin and keeps the JDL dirección", async () => {
+    render(<MemberForm positions={positions} submitLabel="Crear" onSubmit={vi.fn()} />);
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    expect(await screen.findByText("Director de Área")).toBeInTheDocument();
+    expect(screen.queryByText("Presidente")).not.toBeInTheDocument();
+  });
+
+  it("shows a grant-free CEL cargo to an Admin", async () => {
+    render(
+      <MemberForm positions={positions} submitLabel="Crear" onSubmit={vi.fn()} allowPowerGrants />,
+    );
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    expect(await screen.findByText("Presidente")).toBeInTheDocument();
+  });
+
+  // The lock, not just the option list: every save re-stamps the assigned cargoId, so a
+  // non-Admin editing a member already seated on a grant-free CEL cargo is denied on the
+  // positions slot. Locking it keeps the bio fields savable (the mapper omits the
+  // unchanged slot) instead of failing the whole form with no explanation.
+  // BLOCKING: the rules conjuncts are asymmetric. Keeping a grant-free CEL seat is denied
+  // (`cargoAssignableByNonAdmin`), but CLEARING it is allowed on purpose —
+  // `currentCargoGrantsEmpty()` is not category-gated, because denying it "would strand a
+  // takedown behind an Admin". So the seat renders disabled rather than locked or dropped.
+  const celSeated = {
+    name: "Ana Pérez",
+    email: "ana@jci.bo",
+    gender: "Femenino" as const,
+    joinDate: "2020-03-15",
+    birthdate: "1992-07-15",
+    status: "Activo" as const,
+    cargoId: "pos-pres",
+    comisionIds: [],
+  };
+
+  it("BLOCKING: does NOT lock a grant-free CEL seat — clearing it is the allowed takedown", () => {
+    render(
+      <MemberForm
+        positions={positions}
+        defaultValues={{ cargoId: "pos-pres", gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/Solo un Admin puede cambiar el cargo/i)).not.toBeInTheDocument();
+  });
+
+  // Dropping the seat from the options handed it to the `(inactivo)` fallback, which re-added
+  // an ACTIVE cargo under an inactive label — and re-offered it to the very non-Admin whose
+  // write the rules reject. The two member forms must answer the same rules predicate.
+  it("BLOCKING: never labels the active grant-free CEL seat '(inactivo)' to a non-Admin", () => {
+    render(
+      <MemberForm
+        positions={positions}
+        defaultValues={{ cargoId: "pos-pres", gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+      />,
+    );
+    const trigger = screen.getByLabelText("Cargo");
+    expect(trigger).toHaveTextContent("Presidente");
+    expect(trigger).not.toHaveTextContent(/inactivo/i);
+  });
+
+  it("BLOCKING: reaches the takedown of a grant-free CEL seat and submits cargoId null", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemberForm
+        positions={positions}
+        defaultValues={celSeated}
+        submitLabel="Guardar"
+        onSubmit={onSubmit}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /quitar cargo/i }));
+    expect(screen.getByLabelText("Cargo")).toHaveTextContent("Sin cargo");
+    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ cargoId: null }));
+  });
+
+  it("BLOCKING: a non-Admin cannot re-assign the grant-free CEL seat once cleared", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemberForm
+        positions={positions}
+        defaultValues={celSeated}
+        submitLabel="Guardar"
+        onSubmit={onSubmit}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /quitar cargo/i }));
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    const seat = await screen.findByRole("option", { name: "Presidenta" });
+    expect(seat).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(seat);
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByLabelText("Cargo")).toHaveTextContent("Sin cargo");
+    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ cargoId: null }));
+  });
+
+  // The other half of "never submittable": leaving the seat untouched is the one state that
+  // still carries the CEL cargoId out of the form, and it must never become a positions
+  // WRITE. Asserted through the mapper the edit lane actually uses, not by inspection — the
+  // form's safety here is entirely toMemberUpdateDoc omitting an unchanged slot.
+  it("BLOCKING: an untouched CEL seat never reaches the positions write", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemberForm
+        positions={positions}
+        defaultValues={celSeated}
+        submitLabel="Guardar"
+        onSubmit={onSubmit}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const [submitted] = onSubmit.mock.calls[0]! as [MemberInput];
+    expect(submitted.cargoId).toBe("pos-pres");
+    const doc = toMemberUpdateDoc(submitted, "uid-editor", {
+      cargoId: "pos-pres",
+      comisionIds: [],
+    });
+    expect(Object.keys(doc).some((key) => key.startsWith("positions."))).toBe(false);
+  });
+
+  it("does NOT lock a non-Admin editing a member on a grant-free JDL dirección", () => {
+    render(
+      <MemberForm
+        positions={positions}
+        defaultValues={{ cargoId: "pos-jdl", gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/Solo un Admin puede cambiar el cargo/i)).not.toBeInTheDocument();
   });
 
   it("renders comisión option as 'sigla — title' when sigla is present", async () => {

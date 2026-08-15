@@ -24,6 +24,7 @@
     "pr-tests": "pnpm format && turbo run ci && pnpm knip && pnpm audit --audit-level=high && pnpm test:seed && pnpm test:harness",
     "seed:emulator": "FIRESTORE_EMULATOR_HOST=127.0.0.1:4010 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:4030 node tools/scripts/seed-emulator.mjs",
     "seed:production": "node tools/scripts/seed-production.mjs",
+    "audit:soft-delete-shapes": "node tools/scripts/audit-soft-delete-shapes.mjs",
     "deploy:rules": "firebase deploy --only firestore,storage",
     "deploy:indexes": "firebase deploy --only firestore:indexes",
     "deploy:functions": "firebase deploy --only functions",

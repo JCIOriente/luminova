@@ -124,10 +124,13 @@ export const NAV_GROUPS: NavGroup[] = [
         // Members can read Position (chip resolution on /me), and Membership shares
         // ONLY that same read grant — so no perm cleanly separates catalog viewers
         // from Members; hence the built-in allowlist. `orCan` re-admits a dynamic
-        // custom role that manages the org chart (manage:Position) but carries no
-        // built-in role name, so the route guard doesn't lock the perms system out.
+        // custom role that edits the org chart but carries no built-in role name, so
+        // the route guard doesn't lock the perms system out. Keyed on `update` to match
+        // the catalog's own rules (canDo('update','Position')), which canDo already
+        // treats manage:Position as satisfying — so this admits no principal the rules
+        // did not already let write.
         roles: ["Admin", "Membership", "ExecutiveCommittee"],
-        orCan: { action: "manage", subject: "Position" },
+        orCan: { action: "update", subject: "Position" },
       },
       { to: "/permisos", label: "Permisos", icon: "lock", roles: ["Admin"] },
     ],

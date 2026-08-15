@@ -30,16 +30,34 @@ describe("memberEditMode", () => {
     expect(modeFor(roleClaims("Membership"))).toBe("full");
   });
 
-  it("BLOCKING: a Position capability alone opens no member editor — wrong collection", () => {
-    // Both editors submit to members/{id}, gated by canDo('update','Member'). manage:Position
-    // governs the separate `positions` cargo catalog, and it is Admin-assignable per member
-    // from the profile's permissions panel — so returning "positions" for it rendered the
-    // Cargos form to someone whose every submit is PERMISSION_DENIED, permanently. The
-    // "positions" arm returns in PR 4 with the members-positions rules lane it maps to.
-    expect(modeFor({ roles: [], perms: ["manage:Position"] })).toBe("none");
-    expect(modeFor({ roles: [], perms: ["read:Position"] })).toBe("none");
+  it("BLOCKING: update:Member wins over update:Position, so the two editors never both render", () => {
+    // Order is the whole contract of this function: a principal holding both capabilities
+    // must get the full form, never the positions-only one, or the profile page would
+    // mount two competing editors over the same doc.
+    expect(modeFor({ roles: [], perms: ["update:Member", "update:Position"] })).toBe("full");
+  });
+
+  it("opens the positions editor for an update:Position holder — the members-positions lane", () => {
+    // firestore.rules' fourth members update arm is keyed on canDo('update','Position') and
+    // confined to hasOnly(['positions']), so this principal's cargo submit really lands.
+    expect(modeFor({ roles: [], perms: ["update:Position"] })).toBe("positions");
+    // CASL `manage` satisfies can("update", …) exactly as canDo() treats manage:Position as
+    // satisfying update:Position in the rules — so the manage holder gets the same editor.
+    expect(modeFor({ roles: [], perms: ["manage:Position"] })).toBe("positions");
     // Even riding on the Member role every provisioned user carries, which is what makes
     // the profile page load in the first place.
-    expect(modeFor({ roles: ["Member"], perms: ["manage:Position"] })).toBe("none");
+    expect(modeFor({ roles: ["Member"], perms: ["manage:Position"] })).toBe("positions");
+  });
+
+  it("BLOCKING: read:Position alone opens no member editor — reading the catalog is not assigning", () => {
+    // The real guard. `read:Position` confers no write on members/{id}, so rendering the
+    // Cargos form for it would be the render-then-PERMISSION_DENIED shape this gate exists to
+    // remove — and the ability to read the catalog is close to universal. Not because the
+    // `perms` claim carries it (`BUILT_IN_ROLE_PERMS.Member` does not), but because
+    // `applyConditional` in packages/auth/src/ability.ts gives the `Member` ROLE an
+    // unconditioned `read` on `Position` for chip resolution on /me, and every provisioned
+    // user holds that role. The second case below is the production shape.
+    expect(modeFor({ roles: [], perms: ["read:Position"] })).toBe("none");
+    expect(modeFor({ roles: ["Member"], perms: ["read:Position"] })).toBe("none");
   });
 });

@@ -1,7 +1,10 @@
 import { ROLES, type Member, type Position, type Role } from "@luminova/types";
 
-// Cargo grants only — comisiones are chips-only, so the panel mirrors exactly
-// what the claims-sync trigger will mint (rules⇄client parity).
+// Cargo grants only — comisiones are chips-only, matching the claims-sync trigger, which
+// ignores comisión grants. This is the UPPER BOUND of what the trigger will mint, not an
+// exact mirror: resolveTrustedGrants (apps/beacon/src/claims-sync/sync.ts) additionally
+// requires the cargo's `assignedBy` to hold Admin, and drops every grant when it does not.
+// So a cargo assigned by a non-Admin shows here and mints nothing.
 export function effectiveRoles(
   member: Pick<Member, "positions">,
   positionsById: Map<string, Position>,

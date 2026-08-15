@@ -72,7 +72,13 @@ export function projectBoard(
   // would be publication with an unreachable opt-out — the self lane keys on
   // `resource.data.uid == request.auth.uid`. Publish only members who can revoke it.
   if (typeof member.uid !== "string" || member.uid.length === 0) return null;
-  if (member.deletedAt != null || member.active === false) return null;
+  // `!== true`, not `=== false` — the fail-CLOSED direction, matching projectAlly. A member
+  // doc holding a non-bool `active` (the string "false"), or no `active` at all, is dropped
+  // by memberDocSchema and so is invisible everywhere in backstage; under the old test it
+  // was nonetheless published here, on the world-readable Directiva. firestore.rules now
+  // refuses to create or update such a doc, but only this line un-publishes the ones that
+  // already exist.
+  if (member.deletedAt != null || member.active !== true) return null;
   // Shared with the internal birthday lists — one allowlist, so a status added later
   // can't surface itself on either.
   if (!isSurfaceableStatus(member.status)) return null;

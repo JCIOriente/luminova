@@ -16,8 +16,6 @@ import {
 import {
   memberSchema,
   memberSchemaFor,
-  positionTitle,
-  currentTermKey,
   type MemberInput,
   type Position,
   MEMBER_STATUSES,
@@ -25,6 +23,11 @@ import {
   MEMBER_NAME_MAX_LENGTH,
 } from "@luminova/types";
 import { avatarColor } from "../lib/member-display";
+import {
+  cargoOptionsForEditor,
+  cargoTakedownOnly,
+  positionsLockedForNonAdmin,
+} from "../lib/assignable-cargo";
 
 interface MemberFormProps {
   positions: Position[];
@@ -34,8 +37,9 @@ interface MemberFormProps {
   onSubmit: (data: MemberInput) => Promise<void>;
   showPreview?: boolean;
   avatarSeed?: string;
-  /** Whether the editor may assign power-granting cargos — Admin only (rules'
-   *  `cargoGrantsEmpty` / `createPositionsSafe`). Non-Admin sees only grant-free
+  /** Whether the editor may assign the cargos the rules reserve to an Admin — power-granting
+   *  ones and CEL seats alike (rules' `cargoAssignableByNonAdmin`, applied by both
+   *  `createPositionsSafe` and `positionsAssignmentSafe`). Non-Admin sees only assignable
    *  cargos plus the current selection. */
   allowPowerGrants?: boolean;
   children?: ReactNode;
@@ -99,31 +103,29 @@ export function MemberForm({
   // only when the user actively switches TO a CEL cargo (see the Cargo onChange) — never
   // force-cleared at submit, so a bio edit of a legacy CEL member with stored comisiones
   // doesn't trigger a positions write the editor may not be allowed to make.
-  const isExecutiveCommitteeCargo =
-    positions.find((p) => p.id === currentCargoId)?.category === "CEL";
-  const term = currentTermKey();
-  // Keep the member's ORIGINALLY-assigned cargo selectable for a non-Admin even if it
-  // grants power — but off the static default, not the reactive selection, so switching
-  // away and back still works (matches MemberPositionsForm).
+  const selectedCargo = positions.find((p) => p.id === currentCargoId);
+  const isExecutiveCommitteeCargo = selectedCargo?.category === "CEL";
+  // Keep the member's ORIGINALLY-assigned cargo visible for a non-Admin even when the rules
+  // reserve it to an Admin — off the static default, not the reactive selection, so switching
+  // away and back still works (shared with MemberPositionsForm via cargoOptionsForEditor: a
+  // per-form copy is what let this one re-add the held seat labelled "(inactivo)" while the
+  // other dropped it).
   const assignedCargoId = defaultValues?.cargoId ?? null;
-  // If that assigned cargo grants power and the editor isn't Admin, any positions write
-  // is rule-denied (cargoGrantsEmpty) — lock the cargo/comisiones so bio edits still save
-  // (the mapper omits the unchanged slot) but a futile positions change can't be attempted.
-  const positionsLocked =
-    !allowPowerGrants && (positions.find((p) => p.id === assignedCargoId)?.grants.length ?? 0) > 0;
-  const activeCargoOptions = positions
-    .filter(
-      (p) => p.active && p.category !== "Comision" && (p.term === null || String(p.term) === term),
-    )
-    .filter((p) => allowPowerGrants || p.grants.length === 0 || p.id === assignedCargoId)
-    .map((p) => ({ value: p.id, label: positionTitle(p, gender) }));
-  const assignedInactiveCargo =
-    currentCargoId && !activeCargoOptions.some((o) => o.value === currentCargoId)
-      ? positions
-          .filter((p) => p.id === currentCargoId)
-          .map((p) => ({ value: p.id, label: `${positionTitle(p, gender)} (inactivo)` }))
-      : [];
-  const cargoOptions = [...activeCargoOptions, ...assignedInactiveCargo];
+  // A power-granting assigned cargo locks cargo/comisiones for a non-Admin — the write
+  // re-stamps the same cargoId and `currentCargoGrantsEmpty()` blocks clearing it, so no
+  // positions change succeeds. Bio edits still save, because the mapper omits an unchanged
+  // slot. A grant-free CEL seat is NOT locked: clearing it is deliberately allowed, so the
+  // form stays open, the seat renders disabled (visible, not assignable) and "Quitar cargo"
+  // makes the takedown reachable. See positionsLockedForNonAdmin() / cargoTakedownOnly().
+  const assignedCargo = positions.find((p) => p.id === assignedCargoId);
+  const positionsLocked = !allowPowerGrants && positionsLockedForNonAdmin(assignedCargo);
+  const cargoTakedown = cargoTakedownOnly(selectedCargo, allowPowerGrants);
+  const cargoOptions = cargoOptionsForEditor({
+    positions,
+    gender,
+    allowPowerGrants,
+    assignedCargoId,
+  });
 
   const comisionLabel = (p: Position) => (p.sigla ? `${p.sigla} — ${p.title}` : p.title);
   const activeComisionOptions = positions
@@ -230,21 +232,34 @@ export function MemberForm({
             control={control}
             name="cargoId"
             render={({ field }) => (
-              <Combobox
-                id="cargoId"
-                options={cargoOptions}
-                value={field.value}
-                onChange={(v) => {
-                  field.onChange(v);
-                  // Switching to a CEL cargo drops any picked comisiones (CEL members
-                  // belong to the Comité Ejecutivo Local, not a comisión).
-                  if (positions.find((p) => p.id === v)?.category === "CEL") {
-                    setValue("comisionIds", []);
-                  }
-                }}
-                placeholder="Sin cargo"
-                disabled={positionsLocked}
-              />
+              <div className="flex flex-col items-start gap-2">
+                <Combobox
+                  id="cargoId"
+                  options={cargoOptions}
+                  value={field.value}
+                  onChange={(v) => {
+                    field.onChange(v);
+                    // Switching to a CEL cargo drops any picked comisiones (CEL members
+                    // belong to the Comité Ejecutivo Local, not a comisión).
+                    if (positions.find((p) => p.id === v)?.category === "CEL") {
+                      setValue("comisionIds", []);
+                    }
+                  }}
+                  placeholder="Sin cargo"
+                  disabled={positionsLocked}
+                />
+                {cargoTakedown && (
+                  <Button
+                    as="button"
+                    type="button"
+                    variant="link"
+                    tone="danger"
+                    onClick={() => field.onChange(null)}
+                  >
+                    Quitar cargo
+                  </Button>
+                )}
+              </div>
             )}
           />
         </Field>
@@ -284,8 +299,15 @@ export function MemberForm({
         )}
         {positionsLocked && (
           <p role="note" className="text-ui-xs text-ink-3">
-            Solo un Admin puede cambiar el cargo de un miembro con permisos. Puedes editar el resto
-            de sus datos.
+            Solo un Admin puede cambiar el cargo de un miembro cuyo cargo otorga permisos. Puedes
+            editar el resto de sus datos.
+          </p>
+        )}
+        {cargoTakedown && (
+          <p role="note" className="text-ui-xs text-ink-3">
+            Este cargo es del Comité Ejecutivo Local: solo un Admin puede asignarlo. Puedes
+            quitárselo con «Quitar cargo» o dejarlo como está; el resto de sus datos se guarda
+            igual.
           </p>
         )}
         <Field
