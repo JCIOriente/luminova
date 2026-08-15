@@ -23,11 +23,12 @@ overrides:
   "form-data@<2.5.6": "^2.5.6"
   "form-data@>=4.0.0 <4.0.6": "^4.0.6"
   # Patch undici advisories (GHSA-vmh5-mc38-953g / -vxpw-j846-p89q / -hm92-r4w5-c3mj
-  # / -35p6-xmwp-9g52 / -g8m3-5g58-fq7m, all <7.28.0). Transitive via jsdom
+  # / -35p6-xmwp-9g52 / -g8m3-5g58-fq7m / the <7.29.0 follow-up). Transitive via jsdom
   # (vitest/backstage/spotlight) — dev/test only, never shipped. Stay in major 7:
   # jsdom@29 require()s undici-7 internals (jsdom-dispatcher) that v8 removed, so
-  # forcing v8 breaks the vitest jsdom env. 7.28.0 fully patches every advisory above.
-  "undici": "^7.28.0"
+  # forcing v8 breaks the vitest jsdom env. 7.29.0 patches every advisory above and is
+  # the latest 7.x — the floor moves, the major does not.
+  "undici": "^7.29.0"
   # Patch uuid GHSA-w5hq-g745-h8pq (<11.1.1: missing buffer bounds check). Transitive
   # via firebase-admin>...>gaxios, which only uses v4() (random, no buf). Forced to the
   # latest major over the v8/v9 copies; v4 API is stable across these majors.
@@ -49,13 +50,31 @@ overrides:
   # silently disables size enforcement). Transitive via firebase-functions>express@4
   # (apps/beacon); express 4 requires body-parser ~1.20.x, so stay in the 1.x line.
   "body-parser@<1.20.6": "^1.20.6"
-  # Patch brace-expansion GHSA (>=3.0.0 <5.0.7: ReDoS). Only the v5 copy (via
-  # minimatch@10, which requires ^5.0.5) is vulnerable; scope the selector to the
-  # vulnerable 3.x/4.x/5.x range so the untouched v2 copy (minimatch@5) keeps v2.
-  "brace-expansion@>=3.0.0 <5.0.7": ">=5.0.7"
-  # Patch fast-uri GHSA (>=3.0.0 <=3.1.3). Transitive via ajv (workbox-build, dev),
-  # which requires fast-uri ^3.0.1 — stay in the 3.x line (3.1.4 is patched).
-  "fast-uri@>=3.0.0 <=3.1.3": "^3.1.4"
+  # Patch brace-expansion ReDoS, now flagged on BOTH copies in the tree, each with its
+  # own vulnerable range, so each needs its own selector inside its own major:
+  #   v5 line (minimatch@10 requires ^5.0.5, via eslint>@eslint/config-array) — the
+  #     advisory has been widened twice since the first override (<5.0.7, then <5.0.8,
+  #     now <5.0.9); 5.0.9 is both the patch and the latest 5.x.
+  #   v2 line (minimatch@5, via workbox-build>...>ejs>jake>filelist) — was untouched
+  #     when the first override was written and is now in range (<2.1.4). minimatch@5
+  #     requires ^2.0.1, so 2.1.4 stays inside its consumer's range.
+  # Both are dev/build tooling only, never shipped.
+  "brace-expansion@>=2.0.0 <2.1.4": "^2.1.4"
+  "brace-expansion@>=3.0.0 <5.0.9": ">=5.0.9"
+  # Patch fast-uri GHSA (>=3.0.0 <3.1.5 — widened from the <=3.1.3 this override was
+  # first written for). Transitive via ajv (workbox-build, dev), which requires
+  # fast-uri ^3.0.1 — stay in the 3.x line (latest 4.x would break that range).
+  "fast-uri@>=3.0.0 <3.1.5": "^3.1.5"
+  # Patch nanoid GHSA-2v37-7h3g-55p8 and its predecessor (<3.3.18). Transitive via
+  # postcss (vite/vitest/@tailwindcss/vite, dev). postcss requires nanoid ^3.3.x, so
+  # the fix stays in the 3.x line; the selector's upper bound keeps any 5.x/6.x copy
+  # out of scope.
+  "nanoid@<3.3.18": "^3.3.18"
+  # Patch postcss GHSA-r28c-9q8g-f849 (<=8.5.17: path traversal via sourceMappingURL
+  # auto-loading, arbitrary .map disclosure). Transitive via vite (dev/build only —
+  # the traversal needs an attacker-authored stylesheet, which this repo does not
+  # process). 8.5.18 patches it; 8.5.26 is the latest 8.x.
+  "postcss@<8.5.18": "^8.5.18"
   # Patch sharp <0.35.0 (native libvips advisory). Transitive via
   # @vite-pwa/assets-generator (backstage icon regen, dev). >=0.35.0 patched; sharp
   # must stay listed under allowBuilds below (native postinstall or CI hard-fails).
