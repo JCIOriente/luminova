@@ -26,6 +26,7 @@ import { avatarColor } from "../lib/member-display";
 import {
   cargoOptionsForEditor,
   cargoTakedownOnly,
+  noAssignableCargos,
   positionsLockedForNonAdmin,
 } from "../lib/assignable-cargo";
 import { NoAssignableCargosNote } from "./no-assignable-cargos-note";
@@ -311,7 +312,7 @@ export function MemberForm({
             igual.
           </p>
         )}
-        {!positionsLocked && !allowPowerGrants && cargoOptions.length === 0 && (
+        {noAssignableCargos({ cargoOptions, allowPowerGrants, locked: positionsLocked }) && (
           <NoAssignableCargosNote />
         )}
         <Field

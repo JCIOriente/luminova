@@ -74,7 +74,7 @@ export async function provisionMember(
   /** Whether the CALLER holds the Admin role. A `create:MemberLogin` delegate does not, and
    *  is confined to the new-account path below — see the adoption guard. Defaults to false:
    *  a new call site must opt INTO the privileged path, never inherit it by omission. */
-  callerIsAdmin = false,
+  callerHoldsAdminRole = false,
 ): Promise<{ email: string; actionLink: string }> {
   const member = await deps.getMember(memberId);
   if (member === null) throw new HttpsError("not-found", "member not found");
@@ -115,7 +115,7 @@ export async function provisionMember(
   // one already linked to THIS member (resend invite). That costs the delegation nothing —
   // a genuinely new member has no Auth account — and is why the guard is a hard refusal
   // rather than a claims-only restriction.
-  if (!callerIsAdmin && user !== null && user.uid !== linkedUid) {
+  if (!callerHoldsAdminRole && user !== null && user.uid !== linkedUid) {
     throw new HttpsError(
       "permission-denied",
       "this email already has a login; only an Admin can link an existing account",

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { hasAnyRole, hasPerm, type AuthClaims, type Role } from "@luminova/auth/roles";
 import type { Action, AppAbility, Subject } from "@luminova/auth/ability";
+import type { PermissionCode } from "@luminova/types";
 import type { ParticipationRole } from "@luminova/types/engine";
 import { isNavItemVisible, type NavItem } from "../../components/nav-config";
 import { canRemoveEntry } from "../../features/check-in/lib/can-remove-entry";
@@ -54,6 +55,14 @@ export interface Can {
   readonly canProvisionLogin: boolean;
 }
 
+/** The shape every delegable capability gate takes: the Admin ROLE, or one exact permission
+ *  code. Extracted at the third occurrence — `hasPerm` is deliberately NOT `abilityAllows`,
+ *  and re-deriving that decision per flag is how one of them ends up looser than its rule.
+ *  See the canFeatureInitiatives comment below for the full reasoning it encodes. */
+function adminOrPerm(claims: AuthClaims, code: PermissionCode): boolean {
+  return hasAnyRole(claims, ["Admin"]) || hasPerm(claims, code);
+}
+
 /** Pure builder — no React — so the gate logic is unit-testable. */
 export function buildCan(ability: AppAbility, claims: AuthClaims): Can {
   return {
@@ -80,12 +89,12 @@ export function buildCan(ability: AppAbility, claims: AuthClaims): Can {
     // Destacar checkbox to a manage:all perm holder whose write firestore.rules then
     // rejects — taking the whole save down with it. `probe.ts` does not help here: it
     // narrows CONDITIONAL grants, and the divergence is the unconditional wildcard.
-    canFeatureInitiatives: hasAnyRole(claims, ["Admin"]) || hasPerm(claims, "update:Showcase"),
+    canFeatureInitiatives: adminOrPerm(claims, "update:Showcase"),
     // Same exact-code discipline as canFeatureInitiatives above, for the same reason: a
     // `manage:all` holder must not see an affordance firestore.rules then rejects.
-    canAssignBoardSeat: hasAnyRole(claims, ["Admin"]) || hasPerm(claims, "update:BoardSeat"),
+    canAssignBoardSeat: adminOrPerm(claims, "update:BoardSeat"),
     canEditCargoCatalog: hasAnyRole(claims, ["Admin"]),
-    canProvisionLogin: hasAnyRole(claims, ["Admin"]) || hasPerm(claims, "create:MemberLogin"),
+    canProvisionLogin: adminOrPerm(claims, "create:MemberLogin"),
   };
 }
 
