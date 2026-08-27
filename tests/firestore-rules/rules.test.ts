@@ -612,6 +612,15 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // Target for the conjunct pins: never seated, so currentCargoGrantsEmpty() short-circuits
+    // true and each assertion is denied by the conjunct it actually names.
+    await setDoc(doc(db, "members/m_delegate_pins"), {
+      name: "Pins",
+      totalPoints: 0,
+      uid: "delegate-pins-uid",
+      active: true,
+      deletedAt: null,
+    });
     await setDoc(doc(db, "members/m_delegate_cel"), {
       name: "Delegado CEL",
       totalPoints: 0,
@@ -1112,6 +1121,56 @@ describe("firestore.rules — members", () => {
         positions: {
           [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "createdelegate-uid" },
         },
+      }),
+    );
+  });
+
+  it("BLOCKING: a delegate may NOT create with a forged assignedBy", async () => {
+    // pos_soft is grant-free and non-CEL, so the cargo conjunct passes for ANY principal and
+    // assignedBySelf() is the sole denier. Without this the create lane's self-stamp had zero
+    // mutation coverage — every existing forgery case paired the forged uid with a power cargo,
+    // so the cargo conjunct denied it and the self-stamp could have been deleted silently.
+    // What it stops: a member born on a power cargo with a real Admin's uid as assignedBy,
+    // which the beacon trust gate would honor permanently — surviving revocation of the
+    // delegate's own code, because the assigner really is an Admin.
+    await assertFails(
+      setDoc(doc(createDelegate(), "members/new_delegate_forged"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+        positions: { [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "admin-uid" } },
+      }),
+    );
+  });
+
+  it("BLOCKING: a delegate may NOT create with a ride-along NON-current term key", async () => {
+    // The create-lane twin of positionsDelta().hasOnly([currentTermKey()]). assignedBySelf()
+    // and cargoAssignableByNonAdmin() both read only positions[currentTermKey()], so a second
+    // term key rode along completely unvalidated: a clean current-term entry to pass the arm,
+    // plus a next-term power cargo attributed to a real Admin. On the UTC-year rollover
+    // claims-sync reads THAT entry and mints Admin onto a member whose login the creator
+    // controls. Forged attribution, one term deferred.
+    await assertFails(
+      setDoc(doc(createDelegate(), "members/new_delegate_ridealong"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+        positions: {
+          [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "createdelegate-uid" },
+          "2099": { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" },
+        },
+      }),
+    );
+  });
+
+  it("BLOCKING: create:Member alone, and update:BoardSeat alone, each reach nothing", async () => {
+    // The create-lane twin of the update-lane non-vacuity pin. update:BoardSeat widens WHICH
+    // cargo a creator may use; it does not make anyone a creator.
+    await assertFails(
+      setDoc(doc(plainDelegate(), "members/new_plaindelegate"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
       }),
     );
   });
@@ -3197,20 +3256,52 @@ describe("firestore.rules — member positions assignment", () => {
     // assignedBySelf(), the current-term restriction and hasOnly(['positions']) all sit
     // OUTSIDE the substituted disjunction. Pin that the delegation did not loosen them —
     // a forged assignedBy is what the beacon trust gate reads to decide whether to mint.
+    //
+    // m_delegate_pins, NOT m_delegate: the suite seeds once and never resets, and the
+    // power-cargo ALLOW above leaves m_delegate holding pos1. Every assertion here would then
+    // be denied by currentCargoGrantsEmpty() — the G3 guard — instead of by the conjunct it
+    // names, i.e. all three would pass with their own conjunct deleted.
     await assertFails(
-      updateDoc(doc(seatDelegate(), "members/m_delegate"), {
+      updateDoc(doc(seatDelegate(), "members/m_delegate_pins"), {
         [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "admin-uid" },
       }),
     );
     await assertFails(
-      updateDoc(doc(seatDelegate(), "members/m_delegate"), {
-        "positions.2099": { cargoId: "pos1", comisionIds: [], assignedBy: SEAT_DELEGATE },
+      updateDoc(doc(seatDelegate(), "members/m_delegate_pins"), {
+        "positions.2099": { cargoId: "pos_soft", comisionIds: [], assignedBy: SEAT_DELEGATE },
       }),
     );
     await assertFails(
-      updateDoc(doc(seatDelegate(), "members/m_delegate"), {
+      updateDoc(doc(seatDelegate(), "members/m_delegate_pins"), {
         [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: SEAT_DELEGATE },
         name: "Renombrado",
+      }),
+    );
+  });
+
+  it("BLOCKING: hasPerm is EXACT — manage:all and manage:BoardSeat are not board-seat delegates", async () => {
+    // boardSeatDelegate() uses hasPerm, not canDo, and until now nothing in the RULES pinned
+    // that — the property was tested at the client and callable layers only. Mutating it to
+    // canDo('update','BoardSeat') would hand board seating to every manage:all holder, which
+    // is reachable without the Admin role through a custom role doc or permissionOverrides.
+    const mgrAll = () => as("mgrall-uid", [], ["update:Position", "manage:all"]);
+    const mgrSeat = () => as("mgrseat-uid", [], ["update:Position", "manage:BoardSeat"]);
+    await assertFails(
+      updateDoc(doc(mgrAll(), "members/m_delegate_pins"), {
+        [`positions.${TERM}`]: {
+          cargoId: "pos_cel_free",
+          comisionIds: [],
+          assignedBy: "mgrall-uid",
+        },
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(mgrSeat(), "members/m_delegate_pins"), {
+        [`positions.${TERM}`]: {
+          cargoId: "pos_cel_free",
+          comisionIds: [],
+          assignedBy: "mgrseat-uid",
+        },
       }),
     );
   });

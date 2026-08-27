@@ -59,19 +59,32 @@ type MemberLike = {
  *  seat lands, the member is published on the world-readable Directiva, and no claim is
  *  minted. Visible, powerless, and silent: half-working rather than safe.
  *
- *  NON-REFLEXIVE on a self-assignment, and this is the guard the whole delegation rests on.
- *  When the assigner IS the member being seated, only the PERM is trusted — never the Admin
- *  role. Otherwise: a delegate self-seats Presidente, this function mints them Admin, and
- *  from then on the minted Admin satisfies the gate that minted it. Revoking
- *  `update:BoardSeat` would re-fire this very trigger, find the Admin role, and re-honor the
- *  grants forever; `recomputeAllClaims` runs the same code and would not break the loop
- *  either. The delegation would be permanent, which is exactly what its acceptance was
- *  premised on NOT being. An Admin seating someone ELSE is untouched. */
+ *  CONFERRING ADMIN IS ADMIN-ONLY, and this is the guard the whole delegation rests on. A
+ *  cargo whose grants include `Admin` is honored only for an assigner holding the Admin ROLE;
+ *  every other cargo is honored for an `update:BoardSeat` delegate too.
+ *
+ *  Why the split rather than a self-assignment check (which is what this first shipped as):
+ *  the danger is not reflexivity, it is that a delegate can mint an Admin AT ALL, because a
+ *  minted Admin is itself a trust source and the delegation then cannot be revoked. Blocking
+ *  only `assignedBy === memberUid` stops the one-write self-loop and not the two-write puppet
+ *  loop — a delegate creates a second member on a mailbox they control, seats IT on
+ *  Presidente (not a self-assignment, so the perm is trusted), and that puppet is Admin
+ *  forever; revoking the delegate's code de-elevates nobody. It also had a worse problem: the
+ *  seeded bootstrap president self-stamps `assignedBy` (tools/scripts/lib/seed-president.mjs)
+ *  and their perms are `manage:all`, never the exact `update:BoardSeat` code — so the
+ *  self-assignment form stripped the sitting president's Admin on their next member write.
+ *
+ *  Keying on the GRANT fixes both: no cargo-derived Admin can ever originate from a delegate,
+ *  so there is no loop to close and no anchor to special-case, and an Admin seating anyone —
+ *  including themselves — is untouched. Revocation is then real for everything a delegate
+ *  CAN confer: strip the perm and the next write to that member drops the grants.
+ *
+ *  The cost, stated so nobody reads it as a bug: a delegate seating a member on an
+ *  Admin-granting cargo publishes the seat but mints no claim. An Admin must re-stamp it. */
 async function resolveTrustedGrants(
   deps: ClaimsSyncDeps,
   cargoId: string | null,
   assignedBy: string | undefined,
-  memberUid: string,
 ): Promise<Role[]> {
   // FULL screening, not just the empty-string half this used to check. `cargoId` comes
   // straight off the member doc and every implementation of `getPosition` interpolates it
@@ -88,10 +101,12 @@ async function resolveTrustedGrants(
   if (!position || position.grants.length === 0) return [];
   if (!assignedBy) return [];
   const assigner = await deps.getAssignerClaims(assignedBy);
-  const selfAssigned = assignedBy === memberUid;
-  const trusted = selfAssigned
-    ? assigner.perms.includes("update:BoardSeat")
-    : assigner.roles.includes("Admin") || assigner.perms.includes("update:BoardSeat");
+  const assignerIsAdmin = assigner.roles.includes("Admin");
+  // Conferring ADMIN is reserved to an Admin, whoever assigned the cargo. Everything else a
+  // board-seat delegate may confer.
+  const trusted = position.grants.includes("Admin")
+    ? assignerIsAdmin
+    : assignerIsAdmin || assigner.perms.includes("update:BoardSeat");
   return trusted ? [...new Set(position.grants)] : [];
 }
 
@@ -120,12 +135,7 @@ export async function syncMemberClaims(
 ): Promise<void> {
   if (!member.uid) return;
   const term = member.positions?.[termKey];
-  const trustedGrants = await resolveTrustedGrants(
-    deps,
-    term?.cargoId ?? null,
-    term?.assignedBy,
-    member.uid,
-  );
+  const trustedGrants = await resolveTrustedGrants(deps, term?.cargoId ?? null, term?.assignedBy);
 
   const existing = await deps.getExistingClaims(member.uid);
   const hadScanner = existing.roles.includes("Scanner");

@@ -9,7 +9,7 @@ was previously hardcoded to the `Admin` role, then revoke it. Both are granted p
 | Subject | Label in the matrix | Live code | Confers |
 |---|---|---|---|
 | `BoardSeat` | Asientos de directiva | `update:BoardSeat` | seat a member on **any vacant cargo** — CEL category and power-granting alike |
-| `MemberLogin` | Acceso de miembros | `create:MemberLogin` | call `provisionMemberLogin`: create the member's Auth account, link their uid, return the password-reset link |
+| `MemberLogin` | Acceso de miembros | `create:MemberLogin` | call `provisionMemberLogin` for a member who has **no login yet**: create their Auth account, link their uid, return the password-reset link |
 
 They are independent by construction. An Admin can grant emailing without board seating and vice
 versa. The other five codes each subject generates (`manage:BoardSeat`, `read:MemberLogin`, …)
@@ -22,8 +22,13 @@ does not satisfy either one.
   holds `update:Member`, `create:Member`, or `update:Position`. A member holding only
   `update:BoardSeat` still cannot write anything. Granting it alone is a no-op; the UI does not
   say so.
+- **It does not confer Admin.** See the section below — an Admin-granting cargo mints nothing
+  unless the assigner holds the Admin role.
 - **It does not unseat anyone.** `currentCargoGrantsEmpty()` stays Admin-only, so a delegate
   cannot displace a member sitting on a power-granting cargo. Hand-over is an Admin action.
+  One caveat, pre-existing and pinned by a rules test: that predicate reads only the CURRENT
+  term, so in the window after a UTC-year rollover an Admin's next-term slot is empty and any
+  `update:Position` holder can write into it.
   Rationale: the `roles` claim is derived *exclusively* from cargo grants
   (`compute-roles.ts`), so clearing every Admin's cargo would strip every Admin claim in the
   chapter — and `setUserRoles`, `roles/*` writes and `permissionOverrides` writes are all
@@ -36,20 +41,35 @@ does not satisfy either one.
   `updatePermissionAssignmentSafe()` are unchanged, so a delegate cannot re-grant the delegation
   to themselves or anyone else.
 
-## Accepted decision — claims-minting delegation
+## Conferring Admin stays Admin-only
 
-The chapter owner has explicitly accepted that a delegate may seat a member on a cargo whose
-`grants` include `Admin`, and that beacon's trust gate will mint that claim. That is the feature,
-not a defect. The acceptance is premised on the delegation being **revocable**, which required
-one guard:
+The chapter owner accepted that a delegate may seat power-granting cargos, on the explicit
+premise that the delegation is **revocable**. Delivering that premise turned out to require one
+rule, and it is the load-bearing guard of the whole feature:
 
-**The trust gate is non-reflexive.** When `assignedBy === member.uid` (a self-assignment),
-`resolveTrustedGrants` trusts only `update:BoardSeat` in the assigner's `perms` — never an
-`Admin` role in their `roles`. Without this, a delegate who self-seats `Presidente` is minted
-`Admin`, and that minted `Admin` then satisfies the very gate that minted it: revoking
-`update:BoardSeat` re-fires the trigger, the Admin disjunct passes, and the grants are re-honored
-forever. `recomputeAllClaims` runs the same code and would not break the loop either. An Admin
-seating *someone else* is unaffected.
+**A cargo whose `grants` include `Admin` is honored only when the assigner holds the Admin
+ROLE.** Every other cargo is honored for an `update:BoardSeat` delegate too.
+
+Why, precisely: a minted Admin is itself a trust source, so a delegate who can mint one has
+made the delegation permanent. Revoking their code de-elevates nobody, and neither
+`recomputeAllClaims` nor any in-app path recovers it.
+
+Two earlier forms of this guard were wrong and are recorded so they are not re-proposed:
+
+- **Blocking only self-assignment** (`assignedBy === member.uid`) stops the one-write self-loop
+  and misses the two-write puppet loop: the delegate creates a second member on a mailbox they
+  control, seats *it* on Presidente — not a self-assignment, so the perm is trusted — and that
+  puppet is Admin forever.
+- Worse, that same form **strips the sitting president**. `seed-president.mjs` stamps
+  `assignedBy` with the president's own uid, and an Admin's perms are `manage:all`, never the
+  exact `update:BoardSeat` code — so the president's own Admin claim would be dropped on the
+  next write to their member doc. Confirmed against the live production member doc before it
+  shipped, and pinned by a regression test.
+
+**The cost, so it is not read as a bug:** a delegate seating someone on an Admin-granting cargo
+publishes the seat but mints no claim. An Admin must re-stamp it. Everything a delegate *can*
+confer is genuinely revocable — strip the perm and the next write to that member drops the
+grants.
 
 ## `create:MemberLogin` — what is actually privileged
 
@@ -58,15 +78,20 @@ client-side `sendPasswordResetEmail` that any signed-in user can already call. W
 owns is Auth account creation, uid linking (the only path that can write `members.uid` at all,
 since the rules forbid it on every client lane) and the initial claim write.
 
-**A non-Admin caller may only mint a NEW Auth account, or re-provision one already linked to that
-same member.** It may never adopt a pre-existing unlinked account. Without that restriction the
-code would be an account-takeover primitive rather than an invite helper: `members.email` is
-unconstrained by the rules and has no uniqueness check, so a delegate could create a member doc
-carrying a sitting Admin's email and have the callable adopt that Admin's account, strip its
-claims, link its uid onto the attacker's member doc, and return a password-reset link for it.
-An Admin caller keeps the full adoption path — it is the documented recovery op.
+**A non-Admin caller may provision a member only when that member has NO login yet** — no
+existing Auth account for their email, and no stored `uid`. Adoption, re-provision/resend, and
+the deleted-account self-heal are all Admin-only.
 
-This restriction costs the delegation nothing: a genuinely new member has no Auth account.
+The resend path is restricted for the same reason as adoption, and it is the less obvious one:
+`passwordResetLink` is `generatePasswordResetLink`, which returns the oobCode URL **to the
+caller** — categorically different from `sendPasswordResetEmail`, which delivers the secret to
+the mailbox owner. So a delegate permitted to "resend" could pass the president's `memberId`,
+receive a live reset link for their address, set a password and sign in as them, with every
+other guard satisfied. Adoption is worse still: `members.email` is unconstrained by the rules
+and has no uniqueness check, so a delegate could file a member doc carrying an Admin's email and
+have the callable adopt that account, strip its claims and link its uid onto their own doc.
+
+This costs the delegation nothing: a genuinely new member has neither an account nor a uid.
 
 ## Operator notes
 

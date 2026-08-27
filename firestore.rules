@@ -239,12 +239,28 @@ service cloud.firestore {
     // Admin provisionMemberLogin then writes the uid, after which projectBoard publishes an
     // attacker-composed account at board rank 0 as Presidente. currentCargoGrantsEmpty() is
     // the only half a create cannot ask (no prior resource), and it has no old side to guard.
-    // Plain substitution, unlike positionsAssignmentSafe(): a create has no prior resource,
-    // so there is no old side to keep Admin-only — currentCargoGrantsEmpty() has never
-    // applied here, and a member born on a cargo displaces nobody.
+    // Plain substitution on the cargo conjunct, unlike positionsAssignmentSafe(): a create has
+    // no prior resource, so there is no old side to keep Admin-only — currentCargoGrantsEmpty()
+    // has never applied here, and a member born on a cargo displaces nobody.
+    //
+    // The current-term restriction, though, is NOT optional and was missing: assignedBySelf()
+    // and cargoAssignableByNonAdmin() both read ONLY positions[currentTermKey()] (via
+    // assignedTerm()), so every OTHER term key in a created map was entirely unvalidated. The
+    // update arm closes this — see positionsDelta().hasOnly() and its comment — and the create
+    // arm has to say the same thing or the ride-along just moves to birth:
+    //   positions: { "&lt;this year&gt;": &lt;grant-free, self-stamped: passes&gt;,
+    //                "&lt;next year&gt;":  { cargoId: &lt;Presidente&gt;, assignedBy: &lt;a real Admin uid&gt; } }
+    // Nothing inspects the second entry. On the UTC-year rollover claims-sync reads it, sees a
+    // genuine Admin as assignedBy, and mints Admin onto a member whose email — and therefore
+    // whose login — the creator controls. Forged attribution, one term deferred; the trust gate
+    // cannot help, because the assigner really is an Admin.
+    // Symmetric with the update arm: Admin is already current-term-only there, so this adds no
+    // Admin restriction that did not already exist on the other lane.
     function createPositionsSafe() {
       return !('positions' in request.resource.data)
-        || (assignedBySelf() && (boardSeatDelegate() || cargoAssignableByNonAdmin()));
+        || (request.resource.data.get('positions', {}).keys().hasOnly([currentTermKey()])
+            && assignedBySelf()
+            && (boardSeatDelegate() || cargoAssignableByNonAdmin()));
     }
 
     // roleIds + permissionOverrides feed Auth custom claims via the beacon trigger.

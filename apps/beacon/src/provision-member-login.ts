@@ -111,15 +111,24 @@ export async function provisionMember(
   // member doc through the admin SDK (the only path that can write members.uid at all), and
   // passwordResetLink() handing back a reset link for the Admin's mailbox.
   //
-  // A non-Admin therefore gets exactly two shapes: mint a brand-new account, or re-provision
-  // one already linked to THIS member (resend invite). That costs the delegation nothing —
-  // a genuinely new member has no Auth account — and is why the guard is a hard refusal
-  // rather than a claims-only restriction.
-  if (!callerHoldsAdminRole && user !== null && user.uid !== linkedUid) {
+  // A non-Admin therefore gets exactly ONE shape: mint a brand-new Auth account for a member
+  // that has none. Not "anything but adoption" — the RESEND path is just as dangerous and was
+  // the first draft's hole. `passwordResetLink` below is `generatePasswordResetLink`, which
+  // returns the oobCode URL TO THE CALLER; that is categorically different from
+  // `sendPasswordResetEmail`, which delivers the secret to the mailbox owner and is already
+  // unprivileged. So a delegate allowed to "resend" an invite for an ALREADY-LINKED member
+  // could name the president's memberId, take the returned link, set a password and sign in
+  // as them — no adoption involved, every existing guard satisfied.
+  //
+  // Hence both halves: no pre-existing account for this email (`user === null`) AND no
+  // pre-existing link (`linkedUid === null`). Costs the delegation nothing — a genuinely new
+  // member has neither — and leaves resend/adoption/self-heal to an Admin, plus the
+  // client-side sendPasswordResetEmail any member can already use on their own address.
+  if (!callerHoldsAdminRole && (user !== null || linkedUid !== null)) {
     throw new HttpsError(
       "permission-denied",
-      "this email already has a login; only an Admin can link an existing account",
-      { reason: "adoption-requires-admin" },
+      "this member already has a login; only an Admin can re-provision or link one",
+      { reason: "reprovision-requires-admin" },
     );
   }
   if (!user) user = await deps.createUser(email);

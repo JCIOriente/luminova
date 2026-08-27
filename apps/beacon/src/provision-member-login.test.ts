@@ -107,18 +107,22 @@ describe("provisionMember", () => {
   });
 
   it("self-heals a stale link by minting a fresh account when the email resolves nothing", async () => {
+    // ADMIN caller: a stored uid means this member was provisioned once already, so recovery
+    // is an Admin op. A delegate hits the reprovision guard instead (test below).
     const { deps, calls } = fakeDeps({ member: { ...active, uid: "dead-uid" } });
-    await provisionMember(deps, "m1");
+    await provisionMember(deps, "m1", true);
     expect(calls.createUser).toEqual(["a@b.co"]);
     expect(calls.linkUid).toEqual(["new-a@b.co"]);
   });
 
   it("re-provisions idempotently when the stored uid matches the resolved user (resend invite)", async () => {
+    // ADMIN caller. Resend returns a live password-reset link for the member's address, so it
+    // is Admin-only — see the non-Admin BLOCKING case below.
     const { deps, calls } = fakeDeps({
       member: { ...active, uid: "u1" },
       usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
     });
-    const result = await provisionMember(deps, "m1");
+    const result = await provisionMember(deps, "m1", true);
     expect(result).toEqual({ email: "a@b.co", actionLink: "link:a@b.co" });
     expect(calls.createUser).toEqual([]);
     expect(calls.setClaims).toEqual(["u1"]);
@@ -171,27 +175,46 @@ describe("provisionMember", () => {
     expect(calls.createUser).toEqual([]);
   });
 
-  it("still lets a non-Admin caller mint a BRAND-NEW account, and resend to its own link", async () => {
+  it("still lets a non-Admin caller mint a BRAND-NEW account", async () => {
     // The delegation costs nothing on the path it is actually for: a genuinely new member
-    // has no Auth account.
+    // has neither an Auth account nor a stored uid.
     const fresh = fakeDeps({ member: active });
     await expect(provisionMember(fresh.deps, "m1", false)).resolves.toEqual({
       email: "a@b.co",
       actionLink: "link:a@b.co",
     });
     expect(fresh.calls.createUser).toEqual(["a@b.co"]);
-    // And re-provisioning a member ALREADY linked to that account stays open (resend invite):
-    // user.uid === linkedUid, so it is not an adoption.
-    const resend = fakeDeps({
+  });
+
+  it("BLOCKING: a non-Admin caller may NOT re-provision an ALREADY-LINKED member", async () => {
+    // The resend path is an account-takeover primitive, not a convenience. passwordResetLink
+    // is generatePasswordResetLink — it hands the oobCode URL to the CALLER, unlike the
+    // client-side sendPasswordResetEmail which delivers it to the mailbox owner. So without
+    // this, a create:MemberLogin holder could pass the president's memberId, receive a live
+    // reset link for their address, and sign in as them. No adoption, no forged email —
+    // every other guard satisfied.
+    const { deps, calls } = fakeDeps({
       member: { ...active, uid: "u1" },
-      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
+      usersByEmail: {
+        "a@b.co": { uid: "u1", email: "a@b.co", customClaims: { roles: ["Admin"] } },
+      },
     });
-    await expect(provisionMember(resend.deps, "m1", false)).resolves.toEqual({
-      email: "a@b.co",
-      actionLink: "link:a@b.co",
+    await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+      code: "permission-denied",
     });
-    expect(resend.calls.createUser).toEqual([]);
-    expect(resend.calls.linkUid).toEqual(["u1"]);
+    expect(calls.setClaims).toEqual([]);
+    expect(calls.linkUid).toEqual([]);
+  });
+
+  it("BLOCKING: a non-Admin caller may NOT provision a member whose uid is set but account is gone", async () => {
+    // The self-heal branch: linkedUid points at a deleted account, so getUserByEmail may
+    // return null and the adoption half alone would let this through. A stored uid means an
+    // Admin already provisioned this member once — recovery is theirs.
+    const { deps, calls } = fakeDeps({ member: { ...active, uid: "dead-uid" } });
+    await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+      code: "permission-denied",
+    });
+    expect(calls.createUser).toEqual([]);
   });
 
   it("defaults callerIsAdmin to false — a new call site must opt into adoption", async () => {
