@@ -2,7 +2,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { isValidRole, type Role } from "@luminova/auth/roles";
-import { requireAdmin } from "./callable-auth.js";
+import { callerIsAdmin, requireAdminOrPerm } from "./callable-auth.js";
 import { firestoreProvisionDeps } from "./provision-deps.js";
 import { ensureApp } from "./runtime.js";
 
@@ -71,6 +71,10 @@ function adoptedClaims(existing: RawClaims | undefined): RawClaims {
 export async function provisionMember(
   deps: ProvisionDeps,
   memberId: string,
+  /** Whether the CALLER holds the Admin role. A `create:MemberLogin` delegate does not, and
+   *  is confined to the new-account path below — see the adoption guard. Defaults to false:
+   *  a new call site must opt INTO the privileged path, never inherit it by omission. */
+  callerIsAdmin = false,
 ): Promise<{ email: string; actionLink: string }> {
   const member = await deps.getMember(memberId);
   if (member === null) throw new HttpsError("not-found", "member not found");
@@ -94,6 +98,30 @@ export async function provisionMember(
       );
     }
   }
+  // ADOPTION GUARD — the boundary that makes create:MemberLogin delegable at all.
+  //
+  // Adoption is the branch where an Auth account already exists for this email and is not
+  // the one this member is linked to. For an Admin it is the documented recovery op. For a
+  // delegate it would be an account-takeover primitive, because NOTHING upstream ties
+  // members.email to the person: firestore.rules constrains totalPoints, uid, publicProfile,
+  // name, roleIds and positions on the create arm, never `email`, and no uniqueness check
+  // exists anywhere. So a create:Member + create:MemberLogin holder could file a member doc
+  // carrying a sitting Admin's email and reach the three writes below — adoptedClaims()
+  // stripping that Admin's claims, linkUid() binding the Admin's uid to the attacker's
+  // member doc through the admin SDK (the only path that can write members.uid at all), and
+  // passwordResetLink() handing back a reset link for the Admin's mailbox.
+  //
+  // A non-Admin therefore gets exactly two shapes: mint a brand-new account, or re-provision
+  // one already linked to THIS member (resend invite). That costs the delegation nothing —
+  // a genuinely new member has no Auth account — and is why the guard is a hard refusal
+  // rather than a claims-only restriction.
+  if (!callerIsAdmin && user !== null && user.uid !== linkedUid) {
+    throw new HttpsError(
+      "permission-denied",
+      "this email already has a login; only an Admin can link an existing account",
+      { reason: "adoption-requires-admin" },
+    );
+  }
   if (!user) user = await deps.createUser(email);
   const targetEmail = user.email ?? email;
 
@@ -114,9 +142,17 @@ export async function provisionMember(
   return { email: targetEmail, actionLink } as const;
 }
 
+// Delegable per docs/specs/board-seat-delegation.md: an Admin may hand `create:MemberLogin`
+// to whoever is enrolling members, then revoke it. What the code gates is Auth account
+// creation, uid linking and the initial claim write — NOT the invite email, which is a plain
+// client-side sendPasswordResetEmail any signed-in user can already call.
 export const provisionMemberLogin = onCall(async (request) => {
-  requireAdmin(request);
+  requireAdminOrPerm(request, "create:MemberLogin");
   const { memberId } = validateProvisionInput(request.data);
   ensureApp();
-  return provisionMember(firestoreProvisionDeps(getFirestore(), getAuth()), memberId);
+  return provisionMember(
+    firestoreProvisionDeps(getFirestore(), getAuth()),
+    memberId,
+    callerIsAdmin(request),
+  );
 });

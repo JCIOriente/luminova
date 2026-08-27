@@ -13,8 +13,13 @@ export interface MemberClaims {
 export interface ClaimsSyncDeps extends RolePermsDeps {
   /** Catalog position by id, or null if missing/deleted. */
   getPosition(id: string): Promise<{ grants: Role[] } | null>;
-  /** The assigner's current claim roles (for the power-grant trust gate). */
-  getUserRoles(uid: string): Promise<Role[]>;
+  /** The assigner's current claim roles AND perms (for the power-grant trust gate).
+   *  Both, from one call: the gate asks a single question and two accessors would be two
+   *  chances for a later edit to consult one and not the other. Deliberately not folded into
+   *  `getExistingClaims` — the spy in sync.test.ts proves the gate is never REACHED on a
+   *  grant-free cargo by asserting no assigner lookup happened, and a shared accessor would
+   *  degrade that assertion to a uid-filtering heuristic. */
+  getAssignerClaims(uid: string): Promise<{ roles: Role[]; perms: PermissionCode[] }>;
   /** The target member's existing custom claims. */
   getExistingClaims(uid: string): Promise<{ roles: Role[]; perms?: PermissionCode[] }>;
   setClaims(uid: string, claims: MemberClaims): Promise<void>;
@@ -43,14 +48,30 @@ type MemberLike = {
  *  claim true; do not re-loosen it without re-reading this comment.
  *
  *  The assigner lookup runs only when the cargo actually confers power.
- *  `getUserRoles` reads the assigner's LIVE claims, so a later Firestore write
+ *  `getAssignerClaims` reads the assigner's LIVE claims, so a later Firestore write
  *  that re-invokes this function re-evaluates trust: if the assigner has since
  *  lost Admin, their previously granted power cargo is revoked and claims
- *  reflect current org state (by design). */
+ *  reflect current org state (by design).
+ *
+ *  TWO trust sources, mirroring firestore.rules' boardSeatDelegate(): the Admin ROLE, or
+ *  the exact `update:BoardSeat` PERM. The perm is not optional politeness — a delegate
+ *  stamps their OWN uid into `assignedBy` (the rules' assignedBySelf()), so without it the
+ *  seat lands, the member is published on the world-readable Directiva, and no claim is
+ *  minted. Visible, powerless, and silent: half-working rather than safe.
+ *
+ *  NON-REFLEXIVE on a self-assignment, and this is the guard the whole delegation rests on.
+ *  When the assigner IS the member being seated, only the PERM is trusted — never the Admin
+ *  role. Otherwise: a delegate self-seats Presidente, this function mints them Admin, and
+ *  from then on the minted Admin satisfies the gate that minted it. Revoking
+ *  `update:BoardSeat` would re-fire this very trigger, find the Admin role, and re-honor the
+ *  grants forever; `recomputeAllClaims` runs the same code and would not break the loop
+ *  either. The delegation would be permanent, which is exactly what its acceptance was
+ *  premised on NOT being. An Admin seating someone ELSE is untouched. */
 async function resolveTrustedGrants(
   deps: ClaimsSyncDeps,
   cargoId: string | null,
   assignedBy: string | undefined,
+  memberUid: string,
 ): Promise<Role[]> {
   // FULL screening, not just the empty-string half this used to check. `cargoId` comes
   // straight off the member doc and every implementation of `getPosition` interpolates it
@@ -65,10 +86,13 @@ async function resolveTrustedGrants(
   if (!isSafeDocId(cargoId)) return [];
   const position = await deps.getPosition(cargoId);
   if (!position || position.grants.length === 0) return [];
-  const assignerIsAdmin = assignedBy
-    ? (await deps.getUserRoles(assignedBy)).includes("Admin")
-    : false;
-  return assignerIsAdmin ? [...new Set(position.grants)] : [];
+  if (!assignedBy) return [];
+  const assigner = await deps.getAssignerClaims(assignedBy);
+  const selfAssigned = assignedBy === memberUid;
+  const trusted = selfAssigned
+    ? assigner.perms.includes("update:BoardSeat")
+    : assigner.roles.includes("Admin") || assigner.perms.includes("update:BoardSeat");
+  return trusted ? [...new Set(position.grants)] : [];
 }
 
 function sameList(a: readonly string[], b: readonly string[]): boolean {
@@ -96,7 +120,12 @@ export async function syncMemberClaims(
 ): Promise<void> {
   if (!member.uid) return;
   const term = member.positions?.[termKey];
-  const trustedGrants = await resolveTrustedGrants(deps, term?.cargoId ?? null, term?.assignedBy);
+  const trustedGrants = await resolveTrustedGrants(
+    deps,
+    term?.cargoId ?? null,
+    term?.assignedBy,
+    member.uid,
+  );
 
   const existing = await deps.getExistingClaims(member.uid);
   const hadScanner = existing.roles.includes("Scanner");
@@ -113,6 +142,9 @@ export async function syncMemberClaims(
     // keep a stale grant while dropping a revoke). We still write the recomputed
     // `roles` + empty `perms` so a concurrent role revocation always lands —
     // never leave the member on stale, possibly-elevated claims.
+    // Note for update:BoardSeat holders: this takes their delegation with it, silently. A
+    // delegate over the cap keeps seating (their cached token still passes the rules) while
+    // this function stops honoring the grants — the seat publishes, no claim is minted.
     deps.logError?.("effective perms exceed cap; writing empty perms (fail-closed)", {
       uid: member.uid,
       count: perms.length,

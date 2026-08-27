@@ -34,6 +34,9 @@ const customRole = (id: string, permissions: PermissionCode[]): RoleDefinition =
 function fakeDeps(opts: {
   positions: Record<string, { grants: Role[] }>;
   userRoles: Record<string, Role[]>;
+  /** The assigner's `perms` claim — the second trust source alongside the Admin role, and
+   *  the ONLY one honored on a self-assignment (see resolveTrustedGrants). */
+  userPerms?: Record<string, PermissionCode[]>;
   existing: Record<string, Claims>;
   builtInDocs?: RoleDefinition[];
   customRoles?: Record<string, RoleDefinition>;
@@ -42,7 +45,10 @@ function fakeDeps(opts: {
   const writes: Record<string, MemberClaims> = {};
   const deps: ClaimsSyncDeps = {
     getPosition: async (id) => opts.positions[id] ?? null,
-    getUserRoles: async (uid) => opts.userRoles[uid] ?? [],
+    getAssignerClaims: async (uid) => ({
+      roles: opts.userRoles[uid] ?? [],
+      perms: opts.userPerms?.[uid] ?? [],
+    }),
     getExistingClaims: async (uid) => opts.existing[uid] ?? { roles: [] },
     // COVERAGE is preserved (no liveness filter — a deactivated built-in must still reach
     // resolveMemberPerms so it COVERS its key), but `live` is COMPUTED with the production
@@ -126,6 +132,99 @@ describe("syncMemberClaims", () => {
     });
   });
 
+  it("honors power grants when the assigner holds update:BoardSeat and NOT the Admin role", async () => {
+    // The mirror of the Admin case above, and the reason Slice 3 exists: a delegate stamps
+    // their own uid into assignedBy, so without this disjunct the seat would land and mint
+    // nothing.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-pres": { grants: ["Admin"] } },
+      userRoles: { "delegate-uid": ["Member"] },
+      userPerms: { "delegate-uid": ["update:BoardSeat"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "delegate-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({
+      roles: ["Admin", "Member"],
+      perms: permsFor(["Admin", "Member"]),
+    });
+  });
+
+  it("BLOCKING: manage:all does NOT satisfy the trust gate", async () => {
+    // The gate is an exact code test, matching firestore.rules' hasPerm(). The CASL wildcard
+    // must not answer it on the server any more than it does in the client gate — otherwise
+    // any manage:all holder silently becomes a seat delegate.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-pres": { grants: ["Admin"] } },
+      userRoles: { "wildcard-uid": ["Member"] },
+      userPerms: { "wildcard-uid": ["manage:all"] },
+      existing: { "target-uid": { roles: ["Member"], perms: permsFor(["Member"]) } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "wildcard-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["target-uid"]).toBeUndefined();
+  });
+
+  it("BLOCKING: a SELF-assignment is non-reflexive — a cargo-derived Admin cannot re-trust itself", async () => {
+    // The guard the whole delegation rests on. Without it: a delegate self-seats Presidente,
+    // this function mints them Admin, and the minted Admin then satisfies the gate that
+    // minted it — so revoking update:BoardSeat re-fires the trigger, finds the Admin role,
+    // and re-honors the grants forever. The delegation would be permanent.
+    // Fixture is the post-revocation state exactly: assigner IS the target, holds Admin by
+    // role (from the cargo), and no longer holds the perm.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-pres": { grants: ["Admin"] } },
+      userRoles: { "self-uid": ["Admin", "Member"] },
+      userPerms: { "self-uid": [] },
+      existing: { "self-uid": { roles: ["Admin", "Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "self-uid",
+        positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "self-uid" } },
+      },
+      "2026",
+    );
+    // De-elevated to a plain Member: revocation actually revokes.
+    expect(writes["self-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
+  });
+
+  it("still honors a SELF-assignment backed by the perm itself", async () => {
+    // The paired ALLOW — otherwise the test above would pass for a rule that simply refused
+    // every self-assignment, which would break an Admin seating their own cargo.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-pres": { grants: ["Admin"] } },
+      userRoles: { "self-uid": ["Member"] },
+      userPerms: { "self-uid": ["update:BoardSeat"] },
+      existing: { "self-uid": { roles: ["Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "self-uid",
+        positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "self-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["self-uid"]).toEqual({
+      roles: ["Admin", "Member"],
+      perms: permsFor(["Admin", "Member"]),
+    });
+  });
+
   it("BLOCKING: positive-and-inert — a grant-free cargo from a NON-Admin assigner mints nothing", async () => {
     // The members-positions lane (firestore.rules' fourth members update arm, keyed on
     // update:Position) lets an org-chart editor who is NOT an Admin assign GRANT-FREE cargos.
@@ -153,9 +252,9 @@ describe("syncMemberClaims", () => {
     });
     const spied: ClaimsSyncDeps = {
       ...deps,
-      getUserRoles: async (uid) => {
+      getAssignerClaims: async (uid) => {
         assignerLookups.push(uid);
-        return deps.getUserRoles(uid);
+        return deps.getAssignerClaims(uid);
       },
     };
     await syncMemberClaims(
@@ -536,7 +635,7 @@ describe("syncMemberClaims", () => {
     const writes: Record<string, MemberClaims> = {};
     const deps: ClaimsSyncDeps = {
       getPosition: async () => ({ grants: ["Admin"] }),
-      getUserRoles: async () => {
+      getAssignerClaims: async () => {
         throw new Error("auth lookup failed");
       },
       getExistingClaims: async () => ({ roles: ["Member"] }),

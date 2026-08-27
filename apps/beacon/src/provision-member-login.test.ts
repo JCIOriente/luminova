@@ -89,13 +89,18 @@ describe("provisionMember", () => {
   });
 
   it("self-heals a stale link when the linked account was deleted — adopts by email, de-elevated", async () => {
+    // ADMIN caller. The self-heal is an adoption too — it binds an account this member was
+    // never linked to — so it sits behind the same guard, and deliberately: `email` is not
+    // pinned on the members update arm either, so an update:Member delegate could retarget an
+    // already-linked member at an Admin's mailbox and reach this branch whenever the stale
+    // link happens to be dead. Recovery from a deleted account stays an Admin op.
     const { deps, calls } = fakeDeps({
       member: { ...active, uid: "dead-uid" },
       usersByEmail: {
         "a@b.co": { uid: "u2", email: "a@b.co", customClaims: { roles: ["Admin"] } },
       },
     });
-    const result = await provisionMember(deps, "m1");
+    const result = await provisionMember(deps, "m1", true);
     expect(result.email).toBe("a@b.co");
     expect(calls.createUser).toEqual([]);
     expect(calls.linkUid).toEqual(["u2"]);
@@ -130,15 +135,72 @@ describe("provisionMember", () => {
   });
 
   it("reuses an existing auth user for an unlinked member (pre-created account)", async () => {
+    // ADMIN caller: adoption is the documented recovery op and stays open for the Admin role.
+    // The `true` is load-bearing — the same call with `false` is the takedown case below.
     const { deps, calls } = fakeDeps({
       member: active,
       usersByEmail: {
         "a@b.co": { uid: "u9", email: "a@b.co", customClaims: { roles: ["Scanner"] } },
       },
     });
-    await provisionMember(deps, "m1");
+    await provisionMember(deps, "m1", true);
     expect(calls.createUser).toEqual([]);
     expect(calls.linkUid).toEqual(["u9"]);
+  });
+
+  it("BLOCKING: a non-Admin caller may NOT adopt a pre-existing unlinked account", async () => {
+    // The takeover this guard closes: firestore.rules never constrains members.email and
+    // there is no uniqueness check, so a create:Member + create:MemberLogin delegate could
+    // file a member doc carrying a sitting Admin's email. Reaching the writes below would
+    // strip that Admin's claims (adoptedClaims), bind their uid to the attacker's member doc
+    // through the admin SDK, and hand back a password-reset link for their mailbox.
+    // Same fixture as "reuses an existing auth user for an unlinked member" one test above —
+    // the ONLY difference is the caller's privilege.
+    const { deps, calls } = fakeDeps({
+      member: active,
+      usersByEmail: {
+        "a@b.co": { uid: "u9", email: "a@b.co", customClaims: { roles: ["Admin"] } },
+      },
+    });
+    await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+      code: "permission-denied",
+    });
+    // Nothing partial: no claim write, no uid link, no reset link generated.
+    expect(calls.setClaims).toEqual([]);
+    expect(calls.linkUid).toEqual([]);
+    expect(calls.createUser).toEqual([]);
+  });
+
+  it("still lets a non-Admin caller mint a BRAND-NEW account, and resend to its own link", async () => {
+    // The delegation costs nothing on the path it is actually for: a genuinely new member
+    // has no Auth account.
+    const fresh = fakeDeps({ member: active });
+    await expect(provisionMember(fresh.deps, "m1", false)).resolves.toEqual({
+      email: "a@b.co",
+      actionLink: "link:a@b.co",
+    });
+    expect(fresh.calls.createUser).toEqual(["a@b.co"]);
+    // And re-provisioning a member ALREADY linked to that account stays open (resend invite):
+    // user.uid === linkedUid, so it is not an adoption.
+    const resend = fakeDeps({
+      member: { ...active, uid: "u1" },
+      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
+    });
+    await expect(provisionMember(resend.deps, "m1", false)).resolves.toEqual({
+      email: "a@b.co",
+      actionLink: "link:a@b.co",
+    });
+    expect(resend.calls.createUser).toEqual([]);
+    expect(resend.calls.linkUid).toEqual(["u1"]);
+  });
+
+  it("defaults callerIsAdmin to false — a new call site must opt into adoption", async () => {
+    // The parameter defaults closed so an added caller that forgets it gets the SAFE path.
+    const { deps } = fakeDeps({
+      member: active,
+      usersByEmail: { "a@b.co": { uid: "u9", email: "a@b.co" } },
+    });
+    await expect(provisionMember(deps, "m1")).rejects.toMatchObject({ code: "permission-denied" });
   });
 
   it("rejects a missing / inactive / email-less member", async () => {
@@ -154,6 +216,9 @@ describe("provisionMember", () => {
   });
 });
 
+// Every case here exercises the ADOPTION path, which is Admin-only — hence the explicit
+// `true` third argument throughout. A non-Admin caller is refused before any of this runs
+// (see "a non-Admin caller may NOT adopt a pre-existing unlinked account").
 describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
   it("strips stale org roles when adopting a pre-existing auth account, keeping Scanner", async () => {
     const claimsWrites: Record<string, unknown>[] = [];
@@ -173,7 +238,7 @@ describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
         claimsWrites.push(claims);
       },
     };
-    await provisionMember(spied, "m1");
+    await provisionMember(spied, "m1", true);
     expect(claimsWrites).toEqual([{ roles: ["Scanner", "Member"] }]);
   });
 
@@ -191,7 +256,7 @@ describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
         claimsWrites.push(claims);
       },
     };
-    await provisionMember(spied, "m1");
+    await provisionMember(spied, "m1", true);
     expect(claimsWrites).toEqual([{ roles: ["Member"] }]);
   });
 
@@ -209,7 +274,7 @@ describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
         claimsWrites.push(claims);
       },
     };
-    await provisionMember(spied, "m1");
+    await provisionMember(spied, "m1", true);
     expect(claimsWrites).toEqual([{ roles: ["Admin", "Member"] }]);
   });
 });

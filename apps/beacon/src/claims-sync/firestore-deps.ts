@@ -284,9 +284,12 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): FirestoreClaimsD
       const grants = (snap.data()?.grants ?? []) as unknown[];
       return { grants: grants.filter((g): g is Role => isValidRole(g)) };
     },
-    getUserRoles: async (uid) => {
+    getAssignerClaims: async (uid) => {
+      // Same per-instance loadUser memo getExistingClaims uses — reading perms alongside
+      // roles costs no extra Auth read.
       const user = await loadUser(uid);
-      return user ? rolesFromClaims(user.customClaims as Record<string, unknown> | undefined) : [];
+      const claims = user?.customClaims as Record<string, unknown> | undefined;
+      return { roles: rolesFromClaims(claims), perms: permsFromClaims(claims) ?? [] };
     },
     getExistingClaims: async (uid) => {
       const user = await loadUser(uid);
