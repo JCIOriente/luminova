@@ -203,11 +203,29 @@ service cloud.firestore {
     // also closes a ride-along: a non-Admin can no longer sneak a power cargo + forged
     // assignedBy under a different term key in the same write. Comisión power grants are
     // not loop-checkable here — the beacon claims-sync trust gate is their backstop.
+    // The two cargo conjuncts are gated SEPARATELY, and the asymmetry is the whole point.
+    //
+    //   NEW side (cargoAssignableByNonAdmin, the cargo being written IN) — delegable.
+    //     boardSeatDelegate() lifts it, so an update:BoardSeat holder may seat a CEL or
+    //     power-granting cargo. That is the feature.
+    //
+    //   OLD side (currentCargoGrantsEmpty, the cargo being REPLACED) — Admin role ONLY.
+    //     NOT delegated, deliberately. computeMemberRoles derives the `roles` claim
+    //     EXCLUSIVELY from cargo grants — directly-assigned roleIds feed `perms`, never
+    //     `roles` — so a principal who can overwrite a sitting Admin's cargo can strip
+    //     every Admin claim in the chapter one write at a time. After the last one there is
+    //     no Admin: setUserRoles is requireAdmin, and roles/* plus permissionOverrides
+    //     writes are all hasAnyRole(['Admin']). The chapter would be unrecoverable outside
+    //     the Firebase console. A delegate therefore seats VACANT and grant-free cargos and
+    //     cannot displace a power-cargo holder; hand-over stays an Admin action.
+    //
+    // A non-delegate is unchanged: both conjuncts still bind, so the deliberately
+    // asymmetric grant-free-CEL takedown below still works for an update:Position holder.
     function positionsAssignmentSafe() {
       return positionsDelta().hasOnly([currentTermKey()])
         && assignedBySelf()
-        && (hasAnyRole(['Admin'])
-            || (cargoAssignableByNonAdmin() && currentCargoGrantsEmpty()));
+        && (boardSeatDelegate() || cargoAssignableByNonAdmin())
+        && (hasAnyRole(['Admin']) || currentCargoGrantsEmpty());
     }
     // Create has no prior resource to diff, so it can't use positionsDelta(); it applies the
     // same self-stamp + Admin-only-cargo gate to any positions it writes. Without this a
@@ -221,9 +239,12 @@ service cloud.firestore {
     // Admin provisionMemberLogin then writes the uid, after which projectBoard publishes an
     // attacker-composed account at board rank 0 as Presidente. currentCargoGrantsEmpty() is
     // the only half a create cannot ask (no prior resource), and it has no old side to guard.
+    // Plain substitution, unlike positionsAssignmentSafe(): a create has no prior resource,
+    // so there is no old side to keep Admin-only — currentCargoGrantsEmpty() has never
+    // applied here, and a member born on a cargo displaces nobody.
     function createPositionsSafe() {
       return !('positions' in request.resource.data)
-        || (assignedBySelf() && (hasAnyRole(['Admin']) || cargoAssignableByNonAdmin()));
+        || (assignedBySelf() && (boardSeatDelegate() || cargoAssignableByNonAdmin()));
     }
 
     // roleIds + permissionOverrides feed Auth custom claims via the beacon trigger.
@@ -322,6 +343,25 @@ service cloud.firestore {
     // once finalized (isProjectable).
     function canCurateFeatured() {
       return hasAnyRole(['Admin']) || hasPerm('update:Showcase');
+    }
+    // Who may seat a member on a cargo the non-Admin lane otherwise refuses — a
+    // power-granting one, or a CEL one. Split the same way as canCurateFeatured(), for the
+    // same two reasons: Admin by ROLE (locked and undeactivatable, so its name carries none
+    // of the staleness this fixes), everyone else by the exact PERM, so revoking the code
+    // revokes the authority where a surviving role NAME in the claim would not.
+    //
+    // hasPerm, deliberately NOT canDo: manage:all must not answer this, and the other five
+    // *:BoardSeat codes the cross-product generates stay inert BECAUSE the gate is exact.
+    //
+    // ACCEPTED, per docs/specs/board-seat-delegation.md: a delegate may seat a cargo whose
+    // grants confer Admin, and beacon's claims-sync mints it. What that acceptance is
+    // premised on — revocability — needs beacon's trust gate to be non-reflexive on a
+    // SELF-assignment, or the minted Admin satisfies the gate that minted it and the
+    // delegation can never be revoked. See resolveTrustedGrants in apps/beacon.
+    //
+    // Deliberately NOT widened to currentCargoGrantsEmpty(): see positionsAssignmentSafe().
+    function boardSeatDelegate() {
+      return hasAnyRole(['Admin']) || hasPerm('update:BoardSeat');
     }
     function initiativeCreateAllowed(subject) {
       return canDo('create', subject)

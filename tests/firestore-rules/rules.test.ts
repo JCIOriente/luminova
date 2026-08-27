@@ -47,6 +47,21 @@ function anon() {
 const ORG_CHART = "orgchart-uid";
 const orgChart = () => as(ORG_CHART, [], ["update:Position"]);
 
+/** The board-seat delegate: an org-chart editor who ALSO holds update:BoardSeat, so
+ *  boardSeatDelegate() lifts the new-side cargo conjunct for them. `update:Position` is
+ *  load-bearing, not decoration — without an entry capability the delegate never reaches the
+ *  arm at all and every ALLOW below would pass for the wrong reason. */
+const SEAT_DELEGATE = "seatdelegate-uid";
+const seatDelegate = () => as(SEAT_DELEGATE, [], ["update:Position", "update:BoardSeat"]);
+
+/** update:BoardSeat and NOTHING else. The non-vacuity pin for the whole feature: the code
+ *  widens which cargo an editor may assign, it does not make anyone an editor. */
+const plainDelegate = () => as("seatonly-uid", [], ["update:BoardSeat"]);
+
+/** A delegate on the CREATE lane. create:Member is the entry capability there. */
+const createDelegate = () => as("createdelegate-uid", [], ["create:Member", "update:BoardSeat"]);
+const createOnly = () => as("createonly-uid", [], ["create:Member"]);
+
 const MEMBER_DOC = { name: "Ana", totalPoints: 0, uid: "owner-uid", active: true, deletedAt: null };
 
 /** The birth state every members/positions/allies create arm now requires (B2): born
@@ -587,6 +602,43 @@ beforeAll(async () => {
       active: true,
       deletedAt: null,
     });
+    // Board-seat delegation targets. Each assertion that SUCCEEDS needs its own doc: the
+    // suite seeds once and never resets, so a shared target would carry the previous test's
+    // cargo into the next one's currentCargoGrantsEmpty() check.
+    await setDoc(doc(db, "members/m_delegate"), {
+      name: "Delegado",
+      totalPoints: 0,
+      uid: "delegate-target-uid",
+      active: true,
+      deletedAt: null,
+    });
+    await setDoc(doc(db, "members/m_delegate_cel"), {
+      name: "Delegado CEL",
+      totalPoints: 0,
+      uid: "delegate-cel-uid",
+      active: true,
+      deletedAt: null,
+    });
+    // Seated on a POWER cargo, for the G3 pin: a delegate must NOT be able to displace this.
+    await setDoc(doc(db, "members/m_delegate_power"), {
+      name: "Delegado Poder",
+      totalPoints: 0,
+      uid: "delegate-power-uid",
+      active: true,
+      deletedAt: null,
+      positions: { [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" } },
+    });
+    // Seated on a GRANT-FREE CEL cargo, for the takedown pin. Seeded directly rather than
+    // produced by an earlier test, so currentCargoGrantsEmpty() actually evaluates its get()
+    // branch instead of short-circuiting on `prior == null` and passing vacuously.
+    await setDoc(doc(db, "members/m_cel_takedown"), {
+      name: "Takedown",
+      totalPoints: 0,
+      uid: "cel-takedown-uid",
+      active: true,
+      deletedAt: null,
+      positions: { [TERM]: { cargoId: "pos_cel_free", comisionIds: [], assignedBy: "admin-uid" } },
+    });
     // A member whose POWER cargo sits under a PRIOR term key, leaving the CURRENT term slot
     // empty. Pins the term-rollover residual (docs/specs/position-assignment-lane.md,
     // "Residual: the term-rollover window"): currentCargoGrantsEmpty() reads only
@@ -1039,6 +1091,56 @@ describe("firestore.rules — members", () => {
       }),
     );
   });
+  it("allows an update:BoardSeat delegate to CREATE a member on a CEL or power cargo", async () => {
+    // createPositionsSafe() takes the plain substitution — a create has no prior resource, so
+    // there is no old side to keep Admin-only and a member born on a cargo displaces nobody.
+    await assertSucceeds(
+      setDoc(doc(createDelegate(), "members/new_delegate_cel"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+        positions: {
+          [TERM]: { cargoId: "pos_cel_free", comisionIds: [], assignedBy: "createdelegate-uid" },
+        },
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(createDelegate(), "members/new_delegate_pow"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+        positions: {
+          [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "createdelegate-uid" },
+        },
+      }),
+    );
+  });
+
+  it("BLOCKING: the same create principal WITHOUT update:BoardSeat is still denied both", async () => {
+    // The paired denial — otherwise the two ALLOWs above would pass for any create:Member
+    // holder and prove nothing about the new disjunct.
+    await assertFails(
+      setDoc(doc(createOnly(), "members/new_createonly_cel"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+        positions: {
+          [TERM]: { cargoId: "pos_cel_free", comisionIds: [], assignedBy: "createonly-uid" },
+        },
+      }),
+    );
+    await assertFails(
+      setDoc(doc(createOnly(), "members/new_createonly_pow"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+        positions: {
+          [TERM]: { cargoId: "pos1", comisionIds: [], assignedBy: "createonly-uid" },
+        },
+      }),
+    );
+  });
+
   it("allows Admin creating a member on a grant-free CEL cargo (the authority, not the delegate)", async () => {
     // The paired ALLOW: the CEL conjunct lives inside the non-Admin branch of the create arm
     // too, so seating the CEL at create stays possible — for an Admin only. Without this,
@@ -2372,6 +2474,30 @@ describe("firestore.rules — positions", () => {
       setDoc(doc(as("admin-uid", ["Admin"]), "positions/mint_cel_admin"), boardCargo("CEL")),
     );
   });
+  it("BLOCKING: update:BoardSeat does NOT reach the positions CATALOG", async () => {
+    // The delegation is a SEATING authority, never an authoring one. It lifts the cargo
+    // conjunct on members/{id}.positions and nothing else — boardSurfacingCategory() on
+    // create, and the grants/category/title pins on update, all stay hasAnyRole(['Admin']).
+    // Without that boundary the delegation would be self-serving: mint a grant-free CEL
+    // 'Presidente', then seat yourself on it, landing at public board rank 0.
+    // The principal deliberately holds the CATALOG capabilities too, so each denial is the
+    // Admin-only pin firing and not a missing create:Position / update:Position.
+    const catalogDelegate = () =>
+      as("catalogdelegate-uid", [], ["create:Position", "update:Position", "update:BoardSeat"]);
+    await assertFails(
+      setDoc(doc(catalogDelegate(), "positions/mint_cel_delegate"), boardCargo("CEL")),
+    );
+    await assertFails(
+      setDoc(doc(catalogDelegate(), "positions/mint_jdl_delegate"), boardCargo("JDL")),
+    );
+    await assertFails(
+      updateDoc(doc(catalogDelegate(), "positions/pos_payload"), { grants: ["Admin"] }),
+    );
+    await assertFails(updateDoc(doc(catalogDelegate(), "positions/pos_cat"), { category: "CEL" }));
+    await assertFails(
+      updateDoc(doc(catalogDelegate(), "positions/pos_payload"), { title: "Presidente" }),
+    );
+  });
   // Deliberate fail-closed: a legacy power comisión (possible before the
   // invariant) is client-unwritable — even soft-delete — until an admin-SDK/
   // console repair empties its grants. Documented in the design spec.
@@ -3002,6 +3128,102 @@ describe("firestore.rules — member positions assignment", () => {
     await assertSucceeds(
       updateDoc(doc(orgChart(), "members/m_orgchart"), {
         [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: ORG_CHART },
+      }),
+    );
+  });
+
+  // --- update:BoardSeat delegation (docs/specs/board-seat-delegation.md) ---
+
+  it("allows an update:BoardSeat delegate to assign a GRANT-FREE CEL cargo", async () => {
+    // The exact write orgChart() is denied above, same cargo, same lane, differing only by
+    // the delegate's update:BoardSeat. That pairing is what proves the new disjunct is what
+    // opened it, rather than the CEL conjunct having quietly disappeared.
+    await assertSucceeds(
+      updateDoc(doc(seatDelegate(), "members/m_delegate_cel"), {
+        [`positions.${TERM}`]: {
+          cargoId: "pos_cel_free",
+          comisionIds: [],
+          assignedBy: SEAT_DELEGATE,
+        },
+      }),
+    );
+  });
+
+  it("allows an update:BoardSeat delegate to assign a POWER-conferring cargo", async () => {
+    // The accepted claims-minting delegation: pos1 confers grants, and beacon's claims-sync
+    // will mint them because the delegate holds update:BoardSeat. Owner-accepted; the
+    // revocability that acceptance rests on is enforced in beacon (non-reflexive trust gate),
+    // not here.
+    await assertSucceeds(
+      updateDoc(doc(seatDelegate(), "members/m_delegate"), {
+        [`positions.${TERM}`]: { cargoId: "pos1", comisionIds: [], assignedBy: SEAT_DELEGATE },
+      }),
+    );
+  });
+
+  it("G3 BLOCKING: denies a delegate DISPLACING a member who already holds a power cargo", async () => {
+    // currentCargoGrantsEmpty() is deliberately NOT delegated. computeMemberRoles derives the
+    // `roles` claim exclusively from cargo grants, so a principal who can overwrite a sitting
+    // Admin's cargo can strip every Admin claim in the chapter one write at a time — and
+    // setUserRoles, roles/* and permissionOverrides are all Admin-role-only, so the result is
+    // unrecoverable outside the Firebase console. If this goes green, the chapter is one
+    // delegate away from having no Admin.
+    await assertFails(
+      updateDoc(doc(seatDelegate(), "members/m_delegate_power"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: SEAT_DELEGATE },
+      }),
+    );
+    // Clearing it is the same authority and equally denied — the guard is about the cargo
+    // being REPLACED, not about what replaces it.
+    await assertFails(
+      updateDoc(doc(seatDelegate(), "members/m_delegate_power"), {
+        [`positions.${TERM}`]: { cargoId: null, comisionIds: [], assignedBy: SEAT_DELEGATE },
+      }),
+    );
+  });
+
+  it("BLOCKING: denies update:BoardSeat ALONE any positions write", async () => {
+    // Non-vacuity pin for the whole feature. The code widens WHICH cargo an editor may
+    // assign; it does not make anyone an editor. Without update:Position / update:Member the
+    // principal never reaches an arm — which is also why every ALLOW above pairs it with one.
+    await assertFails(
+      updateDoc(doc(plainDelegate(), "members/m_positions"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "seatonly-uid" },
+      }),
+    );
+  });
+
+  it("denies a delegate a forged assignedBy, a past term, and a ride-along field", async () => {
+    // assignedBySelf(), the current-term restriction and hasOnly(['positions']) all sit
+    // OUTSIDE the substituted disjunction. Pin that the delegation did not loosen them —
+    // a forged assignedBy is what the beacon trust gate reads to decide whether to mint.
+    await assertFails(
+      updateDoc(doc(seatDelegate(), "members/m_delegate"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "admin-uid" },
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(seatDelegate(), "members/m_delegate"), {
+        "positions.2099": { cargoId: "pos1", comisionIds: [], assignedBy: SEAT_DELEGATE },
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(seatDelegate(), "members/m_delegate"), {
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: SEAT_DELEGATE },
+        name: "Renombrado",
+      }),
+    );
+  });
+
+  it("REGRESSION: a non-delegate may still CLEAR a member off a grant-free CEL seat", async () => {
+    // The deliberate asymmetry (firestore.rules' currentCargoGrantsEmpty comment): keeping a
+    // grant-free CEL seat is denied to a non-Admin, but clearing one is allowed, or a takedown
+    // would be stranded behind an Admin. This is the guard on the expression the delegation
+    // touches, and m_cel_takedown is SEEDED holding pos_cel_free so currentCargoGrantsEmpty()
+    // reaches its get() instead of short-circuiting on a null prior.
+    await assertSucceeds(
+      updateDoc(doc(orgChart(), "members/m_cel_takedown"), {
+        [`positions.${TERM}`]: { cargoId: null, comisionIds: [], assignedBy: ORG_CHART },
       }),
     );
   });
