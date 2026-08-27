@@ -82,6 +82,14 @@ since the rules forbid it on every client lane) and the initial claim write.
 existing Auth account for their email, and no stored `uid`. Adoption, re-provision/resend, and
 the deleted-account self-heal are all Admin-only.
 
+**And only when that member carries no grants of either kind.** `syncMemberClaims` mints from
+two independent sources, so the guard has to ask about both:
+
+- *Direct grants* — `roleIds` and `permissionOverrides` become `perms`, with no cargo involved.
+  These are exactly what the Admin-only roles panel writes, so "granted but not yet invited" is
+  as ordinary a state as "seated but not yet invited".
+- *Cargo grants* — the current-term cargo's `grants` become `roles`.
+
 **And only when that member is not POWER-SEATED.** "Unprovisioned" does not mean "enrolled by
 this delegate": every uid-less member is reachable by `memberId`, including one an Admin already
 seated on an Admin-granting cargo — the normal state between being seated and being invited.

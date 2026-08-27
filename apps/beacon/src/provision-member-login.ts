@@ -66,6 +66,33 @@ function adoptedClaims(existing: RawClaims | undefined): RawClaims {
   return { roles };
 }
 
+/** Whether this member carries DIRECT grants — a custom role or a per-member override.
+ *
+ *  The second half of the privileged-member question. syncMemberClaims mints from two
+ *  independent sources: trusted cargo grants become `roles`, and `roleIds` +
+ *  `permissionOverrides` become `perms` (resolveMemberPerms). A guard that reads only the
+ *  cargo half leaves the other wide open — and `roleIds`/`permissionOverrides` are exactly
+ *  what the Admin-only panel writes, so "granted but not yet invited" is as ordinary a state
+ *  as "seated but not yet invited".
+ *
+ *  Fail-closed on any shape that is not a clean empty: a present-but-unparseable `roleIds`
+ *  must refuse, not read as "no grants". Absent and null are the genuine empties — the rules'
+ *  unchanged()/touched() gap admits an explicit null, and parseMember resolves that to []. */
+function hasDirectGrants(member: Record<string, unknown>): boolean {
+  const roleIds = member.roleIds;
+  if (roleIds !== undefined && roleIds !== null) {
+    if (!Array.isArray(roleIds)) return true;
+    if (roleIds.length > 0) return true;
+  }
+  const overrides = member.permissionOverrides;
+  if (overrides === undefined || overrides === null) return false;
+  if (typeof overrides !== "object") return true;
+  const grant = (overrides as { grant?: unknown }).grant;
+  if (grant === undefined || grant === null) return false;
+  if (!Array.isArray(grant)) return true;
+  return grant.length > 0;
+}
+
 /** The member's CURRENT-term cargo id for the power-seat guard.
  *
  *  Three outcomes, and the middle one is the point:
@@ -175,9 +202,21 @@ export async function provisionMember(
   // it) so the ordinary reset mail lands in their own inbox. Suppressing the link alone
   // therefore does NOT close it; the mint has to be refused at the source.
   //
-  // Grant-free cargos stay open: they mint nothing, so seating plus inviting is exactly the
-  // enrolment flow this delegation exists for.
+  // Both halves of the claims-mint surface are checked, mirroring how syncMemberClaims splits
+  // it: hasDirectGrants() for the roleIds/permissionOverrides -> perms path, and the cargo
+  // read below for the grants -> roles path. Closing only one leaves the other reachable.
+  //
+  // Grant-free, un-granted members stay open: they mint nothing, so enrolling and inviting
+  // them is exactly the flow this delegation exists for.
   if (!callerHoldsAdminRole) {
+    // Direct grants first — no read required, and it is the half a cargo check cannot see.
+    if (hasDirectGrants(member)) {
+      throw new HttpsError(
+        "permission-denied",
+        "this member has been granted roles or permissions; only an Admin can provision their login",
+        { reason: "granted-member-requires-admin" },
+      );
+    }
     const cargoId = readCurrentCargoId(member);
     if (cargoId !== null) {
       const grants = await deps.getPositionGrants(cargoId);

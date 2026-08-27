@@ -234,6 +234,66 @@ describe("provisionMember", () => {
     expect(calls.linkUid).toEqual([]);
   });
 
+  it("BLOCKING: a non-Admin caller may NOT provision a member carrying DIRECT grants", async () => {
+    // The other half of the claims-mint surface. syncMemberClaims mints `roles` from trusted
+    // cargo grants AND `perms` from roleIds + permissionOverrides — the second path needs no
+    // cargo at all, and "granted but not yet invited" is exactly what the Admin-only roles
+    // panel produces. Without this, a manage:Member + create:MemberLogin holder rewrites such
+    // a member's email (the rules never pin it), provisions them, and the account they now
+    // control is minted that member's whole granted perm set — which may itself include
+    // update:BoardSeat, chaining into the seating lane.
+    const granted: Record<string, unknown>[] = [
+      { roleIds: ["custom-role"] },
+      { permissionOverrides: { grant: ["update:BoardSeat"], revoke: [] } },
+    ];
+    for (const fields of granted) {
+      const { deps, calls } = fakeDeps({ member: { ...active, ...fields } });
+      await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+        code: "permission-denied",
+        details: { reason: "granted-member-requires-admin" },
+      });
+      expect(calls.createUser).toEqual([]);
+      expect(calls.linkUid).toEqual([]);
+    }
+  });
+
+  it("fails closed on a PRESENT but malformed grants shape", async () => {
+    const malformed: Record<string, unknown>[] = [
+      { roleIds: "custom-role" },
+      { roleIds: {} },
+      { permissionOverrides: "nope" },
+      { permissionOverrides: { grant: "update:BoardSeat" } },
+    ];
+    for (const fields of malformed) {
+      const { deps } = fakeDeps({ member: { ...active, ...fields } });
+      await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+        code: "permission-denied",
+        details: { reason: "granted-member-requires-admin" },
+      });
+    }
+  });
+
+  it("treats empty / absent / explicitly-null grants as ungranted", async () => {
+    // The paired ALLOW. The rules' unchanged()/touched() gap admits an explicit null, and
+    // parseMember resolves that to [] — so null must read as "no grants", not as malformed,
+    // or ordinary members become un-invitable by a delegate.
+    const ungranted: Record<string, unknown>[] = [
+      {},
+      { roleIds: [] },
+      { roleIds: null },
+      { permissionOverrides: null },
+      { permissionOverrides: { grant: [], revoke: [] } },
+      { permissionOverrides: { revoke: ["read:Member"] } },
+      { roleIds: [], permissionOverrides: { grant: [], revoke: [] } },
+    ];
+    for (const fields of ungranted) {
+      const { deps } = fakeDeps({ member: { ...active, ...fields } });
+      await expect(provisionMember(deps, "m1", false)).resolves.toMatchObject({
+        email: "a@b.co",
+      });
+    }
+  });
+
   it("fails closed on a PRESENT but malformed positions shape", async () => {
     // The guard's own bypass if these read as "no cargo". None is produced by a client write
     // path — assignedBySelf() errors on a non-object term and the rules deny — but a console
