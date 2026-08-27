@@ -1,5 +1,7 @@
 import type { Auth } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
+import { isValidRole, type Role } from "@luminova/auth/roles";
+import { isSafeDocId } from "./firestore-util.js";
 import type { ProvisionDeps } from "./provision-member-login.js";
 
 // Null only for the "account does not exist" outcome — a transient Auth error
@@ -25,5 +27,12 @@ export function firestoreProvisionDeps(db: Firestore, auth: Auth): ProvisionDeps
       await db.doc(`members/${id}`).update({ uid });
     },
     passwordResetLink: (email) => auth.generatePasswordResetLink(email),
+    getPositionGrants: async (cargoId) => {
+      if (!isSafeDocId(cargoId)) return null;
+      const snap = await db.doc(`positions/${cargoId}`).get();
+      if (!snap.exists) return null;
+      const grants = (snap.data()?.grants ?? []) as unknown[];
+      return grants.filter((g): g is Role => isValidRole(g));
+    },
   };
 }

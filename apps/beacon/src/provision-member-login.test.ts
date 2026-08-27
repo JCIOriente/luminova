@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { Role } from "@luminova/auth/roles";
 import {
   validateProvisionInput,
   nextClaims,
@@ -35,6 +36,7 @@ describe("nextClaims", () => {
 function fakeDeps(opts: {
   member?: Record<string, unknown> | null;
   usersByEmail?: Record<string, ProvisionUser>;
+  positions?: Record<string, Role[]>;
 }) {
   const calls = { createUser: [] as string[], setClaims: [] as string[], linkUid: [] as string[] };
   const users = opts.usersByEmail ?? {};
@@ -55,12 +57,14 @@ function fakeDeps(opts: {
     },
     getUserByUid: async (uid) => Object.values(users).find((u) => u.uid === uid) ?? null,
     passwordResetLink: async (email) => `link:${email}`,
+    getPositionGrants: async (cargoId) => opts.positions?.[cargoId] ?? null,
   };
   return { deps, calls };
 }
 
 describe("provisionMember", () => {
   const active = { email: "a@b.co", active: true };
+  const TERM = String(new Date().getUTCFullYear());
 
   it("rejects when the member is already linked to a DIFFERENT live auth user (email changed)", async () => {
     const { deps, calls } = fakeDeps({
@@ -130,8 +134,9 @@ describe("provisionMember", () => {
   });
 
   it("provisions an unlinked member, creating the auth user when absent", async () => {
+    // ADMIN caller: only an Admin receives the action link (see the delegate pair below).
     const { deps, calls } = fakeDeps({ member: active });
-    const result = await provisionMember(deps, "m1");
+    const result = await provisionMember(deps, "m1", true);
     expect(result).toEqual({ email: "a@b.co", actionLink: "link:a@b.co" });
     expect(calls.createUser).toEqual(["a@b.co"]);
     expect(calls.setClaims).toEqual(["new-a@b.co"]);
@@ -181,7 +186,7 @@ describe("provisionMember", () => {
     const fresh = fakeDeps({ member: active });
     await expect(provisionMember(fresh.deps, "m1", false)).resolves.toEqual({
       email: "a@b.co",
-      actionLink: "link:a@b.co",
+      actionLink: "",
     });
     expect(fresh.calls.createUser).toEqual(["a@b.co"]);
   });
@@ -204,6 +209,83 @@ describe("provisionMember", () => {
     });
     expect(calls.setClaims).toEqual([]);
     expect(calls.linkUid).toEqual([]);
+  });
+
+  it("BLOCKING: a non-Admin caller may NOT provision a POWER-SEATED member", async () => {
+    // The escalation this closes, and the delegate forges nothing to get it: any uid-less
+    // member is reachable — including one an Admin already seated on an Admin-granting cargo,
+    // which is the normal state between being seated and being invited. linkUid() fires
+    // onMemberWritten, resolveTrustedGrants reads the STORED assignedBy (a genuine Admin),
+    // honors the grants, and mints Admin onto the uid this call just created. The attacker
+    // then reaches that uid through the invite mail — which lands in THEIR inbox if they also
+    // hold manage:Member and rewrote members.email first, since the rules never pin it.
+    const { deps, calls } = fakeDeps({
+      member: {
+        ...active,
+        positions: { [TERM]: { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } },
+      },
+      positions: { "pos-pres": ["Admin"] },
+    });
+    await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+      code: "permission-denied",
+      details: { reason: "power-seat-requires-admin" },
+    });
+    expect(calls.createUser).toEqual([]);
+    expect(calls.linkUid).toEqual([]);
+  });
+
+  it("fails closed when the seated cargo cannot be read", async () => {
+    // A missing or malformed cargo must not read as "no cargo" — that would be the guard's
+    // own bypass.
+    const missing = fakeDeps({
+      member: {
+        ...active,
+        positions: { [TERM]: { cargoId: "pos-ghost", comisionIds: [], assignedBy: "admin-uid" } },
+      },
+    });
+    await expect(provisionMember(missing.deps, "m1", false)).rejects.toMatchObject({
+      code: "permission-denied",
+    });
+    const malformed = fakeDeps({
+      member: {
+        ...active,
+        positions: { [TERM]: { cargoId: "a/b", comisionIds: [], assignedBy: "admin-uid" } },
+      },
+    });
+    await expect(provisionMember(malformed.deps, "m1", false)).rejects.toMatchObject({
+      code: "permission-denied",
+    });
+  });
+
+  it("still lets a delegate provision a member seated on a GRANT-FREE cargo", async () => {
+    // Seating plus inviting on a grant-free cargo mints nothing, and is exactly the enrolment
+    // flow the delegation exists for. Without this pair the guard above would pass for a rule
+    // that simply refused every seated member.
+    const { deps, calls } = fakeDeps({
+      member: {
+        ...active,
+        positions: { [TERM]: { cargoId: "pos-dir", comisionIds: [], assignedBy: "delegate-uid" } },
+      },
+      positions: { "pos-dir": [] },
+    });
+    await expect(provisionMember(deps, "m1", false)).resolves.toMatchObject({ email: "a@b.co" });
+    expect(calls.createUser).toEqual(["a@b.co"]);
+  });
+
+  it("BLOCKING: a delegate never receives the password-reset link", async () => {
+    // generatePasswordResetLink returns a bearer credential for the account. The client sends
+    // the reset mail itself through the unprivileged sendPasswordResetEmail, so a delegate has
+    // no need to hold it. Defence in depth behind the power-seat guard, not a substitute.
+    const delegate = fakeDeps({ member: active });
+    await expect(provisionMember(delegate.deps, "m1", false)).resolves.toEqual({
+      email: "a@b.co",
+      actionLink: "",
+    });
+    const admin = fakeDeps({ member: active });
+    await expect(provisionMember(admin.deps, "m1", true)).resolves.toEqual({
+      email: "a@b.co",
+      actionLink: "link:a@b.co",
+    });
   });
 
   it("BLOCKING: a non-Admin caller may NOT provision a member whose uid is set but account is gone", async () => {

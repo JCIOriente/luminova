@@ -79,7 +79,7 @@ export function MemberInviteDrawer({
       try {
         const result = await onProvision(id);
         provisioned = true;
-        actionLink = result.actionLink;
+        actionLink = result.actionLink || null;
         try {
           await requestPasswordReset(data.email);
           emailSent = true;
@@ -123,29 +123,35 @@ export function MemberInviteDrawer({
           ) : done.provisioned && !done.emailSent ? (
             <>
               <p role="alert" className="text-ui-md text-error">
-                El correo no se pudo enviar. Comparte el enlace de acceso manualmente.
+                {done.actionLink
+                  ? "El correo no se pudo enviar. Comparte el enlace de acceso manualmente."
+                  : "El correo no se pudo enviar. Pídele a un Admin que reenvíe la invitación."}
               </p>
               {done.errorDetail && (
                 <p className="text-ui-xs text-ink-3">Detalle: {done.errorDetail}</p>
               )}
-              <Button
-                as="button"
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  navigator.clipboard
-                    .writeText(done.actionLink ?? "")
-                    .then(() => setCopyState("copied"))
-                    .catch(() => setCopyState("failed"));
-                }}
-                className="w-full justify-center"
-              >
-                {copyState === "copied" ? "Enlace copiado" : "Copiar enlace de acceso"}
-              </Button>
-              {copyState === "failed" && (
-                <code className="text-ui-xs break-all select-all text-ink-2">
-                  {done.actionLink}
-                </code>
+              {done.actionLink && (
+                <>
+                  <Button
+                    as="button"
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      navigator.clipboard
+                        .writeText(done.actionLink ?? "")
+                        .then(() => setCopyState("copied"))
+                        .catch(() => setCopyState("failed"));
+                    }}
+                    className="w-full justify-center"
+                  >
+                    {copyState === "copied" ? "Enlace copiado" : "Copiar enlace de acceso"}
+                  </Button>
+                  {copyState === "failed" && (
+                    <code className="text-ui-xs break-all select-all text-ink-2">
+                      {done.actionLink}
+                    </code>
+                  )}
+                </>
               )}
             </>
           ) : (

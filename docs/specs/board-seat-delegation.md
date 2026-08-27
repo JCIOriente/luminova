@@ -82,6 +82,21 @@ since the rules forbid it on every client lane) and the initial claim write.
 existing Auth account for their email, and no stored `uid`. Adoption, re-provision/resend, and
 the deleted-account self-heal are all Admin-only.
 
+**And only when that member is not POWER-SEATED.** "Unprovisioned" does not mean "enrolled by
+this delegate": every uid-less member is reachable by `memberId`, including one an Admin already
+seated on an Admin-granting cargo — the normal state between being seated and being invited.
+Linking a uid fires `onMemberWritten`, and `resolveTrustedGrants` reads the *stored* `assignedBy`
+— a genuine Admin — so the grants are honored and Admin is minted onto the account this call
+just created. The delegate forges nothing. So a non-Admin provision is refused whenever the
+member's current-term cargo carries any grants, and fails closed when that cargo cannot be read.
+
+**A non-Admin caller never receives the `actionLink`.** `generatePasswordResetLink` returns a
+bearer credential for the account; the client sends the invite itself through the unprivileged
+`sendPasswordResetEmail`, so a delegate has no need to hold it. This is defence in depth behind
+the power-seat guard, not a substitute for it — with `manage:Member` an attacker can rewrite
+`members.email` first (the rules do not pin it) and receive the ordinary reset mail in their own
+inbox, which suppressing the link alone would not stop.
+
 The resend path is restricted for the same reason as adoption, and it is the less obvious one:
 `passwordResetLink` is `generatePasswordResetLink`, which returns the oobCode URL **to the
 caller** — categorically different from `sendPasswordResetEmail`, which delivers the secret to

@@ -2,6 +2,8 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { isValidRole, type Role } from "@luminova/auth/roles";
+import { currentTermKey } from "@luminova/types";
+import { isSafeDocId } from "./firestore-util.js";
 import { callerIsAdmin, requireAdminOrPerm } from "./callable-auth.js";
 import { firestoreProvisionDeps } from "./provision-deps.js";
 import { ensureApp } from "./runtime.js";
@@ -47,6 +49,9 @@ export interface ProvisionDeps {
   setClaims(uid: string, claims: ReturnType<typeof nextClaims>): Promise<void>;
   linkUid(memberId: string, uid: string): Promise<void>;
   passwordResetLink(email: string): Promise<string>;
+  /** The cargo's grants, or null if missing. Only consulted to refuse a non-Admin
+   *  provisioning of a POWER-SEATED member — see the power-seat guard. */
+  getPositionGrants(cargoId: string): Promise<Role[] | null>;
 }
 
 /** Claims carried over when adopting an Auth account not currently linked to
@@ -59,6 +64,18 @@ function adoptedClaims(existing: RawClaims | undefined): RawClaims {
     ? existing.roles.filter((r) => r === "Member" || r === "Scanner")
     : [];
   return { roles };
+}
+
+/** The member's CURRENT-term cargo id, or null when absent/unusable. Fails closed on a
+ *  malformed id: an unreadable cargo must not read as "no cargo". */
+function readCurrentCargoId(member: Record<string, unknown>): string | null {
+  const positions = member.positions;
+  if (typeof positions !== "object" || positions === null) return null;
+  const term = (positions as Record<string, unknown>)[currentTermKey()];
+  if (typeof term !== "object" || term === null) return null;
+  const cargoId = (term as { cargoId?: unknown }).cargoId;
+  if (typeof cargoId !== "string" || cargoId.length === 0) return null;
+  return isSafeDocId(cargoId) ? cargoId : "";
 }
 
 /** Provision (or re-provision) a member's login. Refuses to relink a member whose
@@ -131,6 +148,34 @@ export async function provisionMember(
       { reason: "reprovision-requires-admin" },
     );
   }
+  // POWER-SEAT GUARD. The check above asks whether this is a NEW login; it does not ask whose
+  // member doc it is, and "unprovisioned" does not mean "enrolled by this delegate". Any
+  // uid-less member is reachable, including one an Admin already seated on an Admin-granting
+  // cargo — the normal state between being seated and being invited.
+  //
+  // Without this guard that is a clean escalation, and the delegate forges nothing: linkUid()
+  // below fires onMemberWritten, resolveTrustedGrants reads the STORED assignedBy (a genuine
+  // Admin), honors the grants, and mints Admin onto the uid this call just created. The
+  // attacker then reaches that uid through the invite — either the returned actionLink, or,
+  // if they also hold manage:Member, by rewriting members.email first (the rules do not pin
+  // it) so the ordinary reset mail lands in their own inbox. Suppressing the link alone
+  // therefore does NOT close it; the mint has to be refused at the source.
+  //
+  // Grant-free cargos stay open: they mint nothing, so seating plus inviting is exactly the
+  // enrolment flow this delegation exists for.
+  if (!callerHoldsAdminRole) {
+    const cargoId = readCurrentCargoId(member);
+    if (cargoId !== null) {
+      const grants = await deps.getPositionGrants(cargoId);
+      if (grants === null || grants.length > 0) {
+        throw new HttpsError(
+          "permission-denied",
+          "this member holds a cargo that confers permissions; only an Admin can provision their login",
+          { reason: "power-seat-requires-admin" },
+        );
+      }
+    }
+  }
   if (!user) user = await deps.createUser(email);
   const targetEmail = user.email ?? email;
 
@@ -146,7 +191,12 @@ export async function provisionMember(
     nextClaims(user.uid === linkedUid ? existingClaims : adoptedClaims(existingClaims), "Member"),
   );
   await deps.linkUid(memberId, user.uid);
-  const actionLink = await deps.passwordResetLink(targetEmail);
+  // The link is generatePasswordResetLink's oobCode URL — a bearer credential for this
+  // account. An Admin gets it as the manual fallback the invite drawer offers when the mail
+  // fails; a delegate does not need it (the client sends the reset mail itself through the
+  // unprivileged sendPasswordResetEmail) and must not hold it. Defence in depth behind the
+  // power-seat guard, not a substitute for it.
+  const actionLink = callerHoldsAdminRole ? await deps.passwordResetLink(targetEmail) : "";
 
   return { email: targetEmail, actionLink } as const;
 }
