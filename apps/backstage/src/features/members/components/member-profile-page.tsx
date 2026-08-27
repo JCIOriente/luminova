@@ -128,8 +128,9 @@ export function MemberProfilePage() {
         actions={
           <div className="flex flex-wrap items-center justify-end gap-3">
             {member.status && <Badge tone={STATUS_TONE[member.status]}>{member.status}</Badge>}
-            {/* provisionMemberLogin is requireAdmin (role), not the manage:all perm. */}
-            <ActionGate role={["Admin"]}>
+            {/* provisionMemberLogin is requireAdminOrPerm(create:MemberLogin) — the Admin
+                role or that exact code, never the manage:all perm. */}
+            <ActionGate when={gate.canProvisionLogin}>
               <InviteAccess member={member} />
             </ActionGate>
           </div>
@@ -145,7 +146,7 @@ export function MemberProfilePage() {
                 defaultValues={memberFormDefaults(member)}
                 submitLabel="Guardar cambios"
                 pendingLabel="Guardando…"
-                allowPowerGrants={gate.canAssignPowerGrants}
+                allowPowerGrants={gate.canAssignBoardSeat}
                 onSubmit={handleEdit}
                 avatarSeed={member.name}
               />
@@ -173,7 +174,7 @@ export function MemberProfilePage() {
               <MemberPositionsForm
                 positions={positions}
                 gender={member.gender}
-                allowPowerGrants={gate.canAssignPowerGrants}
+                allowPowerGrants={gate.canAssignBoardSeat}
                 defaultValues={{
                   cargoId: member.positions?.[termKey]?.cargoId ?? null,
                   comisionIds: member.positions?.[termKey]?.comisionIds ?? [],

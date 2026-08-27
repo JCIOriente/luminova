@@ -30,13 +30,28 @@ export interface Can {
   /** May curate the public /programas page (rules' `canCurateFeatured`). Named here so the
    *  policy lives in one place, not scattered role-array literals at each call site. */
   readonly canFeatureInitiatives: boolean;
-  /** The Admin-only half of the positions authority — one flag because firestore.rules keys
-   *  every part of it on the same `hasAnyRole(['Admin'])`: assigning a power-granting cargo
-   *  (`cargoAssignableByNonAdmin` / `currentCargoGrantsEmpty` / `createPositionsSafe`) or a CEL cargo
-   *  at all, creating a board-surfacing cargo (`boardSurfacingCategory()`), and editing a
-   *  stored cargo's `grants`, `category` or — on a board cargo — `title`/`titleFemale`.
-   *  Named so the policy isn't a bare `isAdmin` at each grant site. */
-  readonly canAssignPowerGrants: boolean;
+  /** May SEAT a member on a cargo the plain non-Admin lane refuses — a power-granting one or
+   *  a CEL one. Mirrors firestore.rules' `boardSeatDelegate()` disjunct for disjunct.
+   *  Governs the member CREATE and UPDATE lanes only. */
+  readonly canAssignBoardSeat: boolean;
+  /** May AUTHOR the positions catalog: create a board-surfacing cargo
+   *  (`boardSurfacingCategory()`), and edit a stored cargo's `grants`, `category` or — on a
+   *  board cargo — `title`/`titleFemale`.
+   *
+   *  Split from `canAssignBoardSeat` and deliberately NOT widened by the delegation. These
+   *  were one flag while both were `hasAnyRole(['Admin'])`; they are different authorities
+   *  and firestore.rules now keys them on different predicates. Re-unifying them would hand
+   *  a seat delegate the catalog, and the catalog is the door round the back: mint a
+   *  grant-free CEL 'Presidente', then seat yourself on it at public board rank 0. */
+  readonly canEditCargoCatalog: boolean;
+  /** May run `provisionMemberLogin` — create the member's Auth account, link their uid, get
+   *  the password-reset link. Mirrors beacon's
+   *  `requireAdminOrPerm(request, "create:MemberLogin")`. Cargo-agnostic: it applies to every
+   *  new member, board seat or not.
+   *
+   *  NOT the invite email itself — `requestPasswordReset` is a client-side
+   *  `sendPasswordResetEmail` any signed-in user can already call. */
+  readonly canProvisionLogin: boolean;
 }
 
 /** Pure builder — no React — so the gate logic is unit-testable. */
@@ -66,7 +81,11 @@ export function buildCan(ability: AppAbility, claims: AuthClaims): Can {
     // rejects — taking the whole save down with it. `probe.ts` does not help here: it
     // narrows CONDITIONAL grants, and the divergence is the unconditional wildcard.
     canFeatureInitiatives: hasAnyRole(claims, ["Admin"]) || hasPerm(claims, "update:Showcase"),
-    canAssignPowerGrants: hasAnyRole(claims, ["Admin"]),
+    // Same exact-code discipline as canFeatureInitiatives above, for the same reason: a
+    // `manage:all` holder must not see an affordance firestore.rules then rejects.
+    canAssignBoardSeat: hasAnyRole(claims, ["Admin"]) || hasPerm(claims, "update:BoardSeat"),
+    canEditCargoCatalog: hasAnyRole(claims, ["Admin"]),
+    canProvisionLogin: hasAnyRole(claims, ["Admin"]) || hasPerm(claims, "create:MemberLogin"),
   };
 }
 

@@ -2,6 +2,7 @@ import { Menu, MenuItem, MenuSeparator } from "@luminova/ui";
 import type { Member, MemberStatus } from "@luminova/types";
 import { Can } from "../../../lib/authz/ability-context";
 import { ActionGate } from "../../../lib/authz/action-gate";
+import { useCan } from "../../../lib/authz/use-can";
 
 interface MemberRowMenuProps {
   member: Member;
@@ -20,6 +21,7 @@ export function MemberRowMenu({
   onSetStatus,
   onUnpublish,
 }: MemberRowMenuProps) {
+  const { canProvisionLogin } = useCan();
   return (
     <Menu
       align="end"
@@ -46,8 +48,9 @@ export function MemberRowMenu({
         <MenuItem onSelect={() => onEdit(member)}>Editar miembro</MenuItem>
       </Can>
 
-      {/* provisionMemberLogin is requireAdmin (role), not the manage:all perm. */}
-      <ActionGate role={["Admin"]}>
+      {/* provisionMemberLogin is requireAdminOrPerm(create:MemberLogin) — the Admin role or
+          that exact code, never the manage:all perm. */}
+      <ActionGate when={canProvisionLogin}>
         <MenuItem onSelect={() => onProvision(member)}>
           {member.uid ? "Reenviar invitación" : "Invitar a la app"}
         </MenuItem>

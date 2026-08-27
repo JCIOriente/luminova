@@ -34,26 +34,28 @@ export function MemberInviteDrawer({
   onCreate,
   onProvision,
 }: MemberInviteDrawerProps) {
-  // Provisioning login is Admin-role-only (provisionMemberLogin → requireAdmin). A
-  // non-Admin may still create the member; they just can't send access here, so hide
-  // the option and default it off — otherwise the provision step fails silently after
-  // the member is already created.
-  const { isAdmin, canAssignPowerGrants } = useCan();
+  // Provisioning login is the Admin role OR the create:MemberLogin perm
+  // (provisionMemberLogin → requireAdminOrPerm). A member creator without either may still
+  // create the member; they just can't send access here, so hide the option and default it
+  // off — otherwise the provision step fails silently after the member is already created.
+  const { canProvisionLogin, canAssignBoardSeat } = useCan();
   const [done, setDone] = useState<DoneState | null>(null);
-  const [sendAccess, setSendAccess] = useState(isAdmin);
+  const [sendAccess, setSendAccess] = useState(canProvisionLogin);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   // The drawer mounts with the page, before the auth token's claims decode (the store
   // emits with empty claims first, then re-emits). Re-sync the default each time it
-  // OPENS — by then isAdmin is resolved — so an Admin's first invite doesn't silently
+  // OPENS — by then the flag is resolved — so a provisioner's first invite doesn't silently
   // default "Enviar acceso" off. Won't clobber a manual toggle (deps stable while open).
+  // This matters MORE now than it did for a role gate: `perms` is minted by claims-sync and
+  // lands in the same late token, so a perm-derived flag is false for exactly as long.
   useEffect(() => {
-    if (open) setSendAccess(isAdmin);
-  }, [open, isAdmin]);
+    if (open) setSendAccess(canProvisionLogin);
+  }, [open, canProvisionLogin]);
 
   const reset = () => {
     setDone(null);
-    setSendAccess(isAdmin);
+    setSendAccess(canProvisionLogin);
     setCopyState("idle");
   };
 
@@ -177,11 +179,11 @@ export function MemberInviteDrawer({
           submitLabel="Enviar invitación"
           pendingLabel="Enviando…"
           showPreview
-          allowPowerGrants={canAssignPowerGrants}
+          allowPowerGrants={canAssignBoardSeat}
           defaultValues={{ joinDate: today(), status: "Activo", cargoId: null, comisionIds: [] }}
           onSubmit={handleSubmit}
         >
-          {isAdmin && (
+          {canProvisionLogin && (
             <Checkbox
               checked={sendAccess}
               onChange={setSendAccess}

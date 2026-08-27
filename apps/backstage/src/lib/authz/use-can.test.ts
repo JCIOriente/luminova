@@ -73,6 +73,56 @@ describe("buildCan", () => {
     expect(can({ roles: ["Member"], perms: ["manage:all"] }).canFeatureInitiatives).toBe(false);
   });
 
+  // Mirrors firestore.rules' boardSeatDelegate(): Admin by ROLE, everyone else by the exact
+  // update:BoardSeat PERM.
+  it("canAssignBoardSeat holds for Admin by role or an update:BoardSeat perm", () => {
+    expect(can({ roles: ["Admin"] }).canAssignBoardSeat).toBe(true);
+    expect(can({ roles: ["Admin"], perms: [] }).canAssignBoardSeat).toBe(true);
+    expect(can({ roles: ["Member"], perms: ["update:BoardSeat"] }).canAssignBoardSeat).toBe(true);
+    expect(can({ roles: ["Membership"], perms: ["manage:Member"] }).canAssignBoardSeat).toBe(false);
+  });
+
+  it("canAssignBoardSeat is false for a manage:all perm holder without the Admin role", () => {
+    expect(can({ roles: ["Member"], perms: ["manage:all"] }).canAssignBoardSeat).toBe(false);
+  });
+
+  // THE C1 PIN. These were one flag while both were Admin-role-only; the delegation splits
+  // them, and re-unifying would hand a seat delegate the cargo CATALOG — the door round the
+  // back, since minting a grant-free CEL 'Presidente' and then seating yourself on it lands
+  // you at public board rank 0.
+  it("canEditCargoCatalog stays Admin-role-only — update:BoardSeat does NOT reach it", () => {
+    expect(can({ roles: ["Admin"] }).canEditCargoCatalog).toBe(true);
+    expect(can({ roles: ["Member"], perms: ["update:BoardSeat"] }).canEditCargoCatalog).toBe(false);
+    expect(
+      can({ roles: ["Member"], perms: ["update:Position", "update:BoardSeat"] })
+        .canEditCargoCatalog,
+    ).toBe(false);
+    expect(can({ roles: ["Member"], perms: ["manage:all"] }).canEditCargoCatalog).toBe(false);
+  });
+
+  // Mirrors beacon's requireAdminOrPerm(request, "create:MemberLogin").
+  it("canProvisionLogin holds for Admin by role or a create:MemberLogin perm", () => {
+    expect(can({ roles: ["Admin"] }).canProvisionLogin).toBe(true);
+    expect(can({ roles: ["Admin"], perms: [] }).canProvisionLogin).toBe(true);
+    expect(can({ roles: ["Member"], perms: ["create:MemberLogin"] }).canProvisionLogin).toBe(true);
+    expect(can({ roles: ["Membership"], perms: ["manage:Member"] }).canProvisionLogin).toBe(false);
+  });
+
+  it("canProvisionLogin is false for a manage:all perm holder without the Admin role", () => {
+    expect(can({ roles: ["Member"], perms: ["manage:all"] }).canProvisionLogin).toBe(false);
+  });
+
+  // The two delegations are independent by construction — an Admin may grant emailing
+  // without board seating and vice versa. Pinned because they ship together.
+  it("the two delegations do not imply each other", () => {
+    const seat = can({ roles: ["Member"], perms: ["update:BoardSeat"] });
+    expect(seat.canAssignBoardSeat).toBe(true);
+    expect(seat.canProvisionLogin).toBe(false);
+    const login = can({ roles: ["Member"], perms: ["create:MemberLogin"] });
+    expect(login.canProvisionLogin).toBe(true);
+    expect(login.canAssignBoardSeat).toBe(false);
+  });
+
   // Same invariant the `<Can>` gate carries: a conditional own-doc grant answers only the
   // per-document question, never the collection one.
   it("a plain Member's own-doc grant does not answer the collection question", () => {

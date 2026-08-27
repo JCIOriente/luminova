@@ -126,4 +126,23 @@ describe("MemberRowMenu", () => {
     expect(screen.queryByText("Desafiliar")).not.toBeInTheDocument();
     expect(screen.queryByText("Invitar a la app")).not.toBeInTheDocument();
   });
+
+  it("shows the invite item to a create:MemberLogin delegate with no privileged role", async () => {
+    // The affordance moved off the Admin ROLE onto canProvisionLogin, mirroring beacon's
+    // requireAdminOrPerm. update:Member is what keeps the menu itself reachable.
+    renderMenu(member({ status: "Activo" }), {
+      roles: ["Member"],
+      perms: ["update:Member", "create:MemberLogin"],
+    });
+    await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
+    expect(screen.getByText("Invitar a la app")).toBeInTheDocument();
+  });
+
+  it("BLOCKING: hides the invite item from a manage:all perm holder without the Admin role", async () => {
+    // Exact-code gate, matching the callable. A wildcard holder clicking this would get a
+    // permission-denied from beacon after the fact.
+    renderMenu(member({ status: "Activo" }), { roles: ["Member"], perms: ["manage:all"] });
+    await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
+    expect(screen.queryByText("Invitar a la app")).not.toBeInTheDocument();
+  });
 });
