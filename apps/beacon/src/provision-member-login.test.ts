@@ -234,6 +234,45 @@ describe("provisionMember", () => {
     expect(calls.linkUid).toEqual([]);
   });
 
+  it("fails closed on a PRESENT but malformed positions shape", async () => {
+    // The guard's own bypass if these read as "no cargo". None is produced by a client write
+    // path — assignedBySelf() errors on a non-object term and the rules deny — but a console
+    // edit or a partial migration reaches them, and the whole point of the guard is that an
+    // unreadable cargo is not an absent one.
+    const shapes: Record<string, unknown>[] = [
+      { positions: "not-an-object" },
+      { positions: { [TERM]: "not-an-object" } },
+      { positions: { [TERM]: { cargoId: 42, comisionIds: [] } } },
+      { positions: { [TERM]: { cargoId: "", comisionIds: [] } } },
+    ];
+    for (const positions of shapes) {
+      const { deps, calls } = fakeDeps({ member: { ...active, ...positions } });
+      await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+        code: "permission-denied",
+        details: { reason: "power-seat-requires-admin" },
+      });
+      expect(calls.createUser).toEqual([]);
+    }
+  });
+
+  it("treats a genuinely ABSENT cargo as unseated, not as malformed", async () => {
+    // The paired ALLOW. Without it the fail-closed test above would pass for a guard that
+    // simply refused every non-Admin provision, which is the whole delegation.
+    const shapes: Record<string, unknown>[] = [
+      {},
+      { positions: {} },
+      { positions: { [TERM]: { comisionIds: [] } } },
+      { positions: { [TERM]: { cargoId: null, comisionIds: [] } } },
+      { positions: { "1999": { cargoId: "pos-pres", comisionIds: [] } } },
+    ];
+    for (const positions of shapes) {
+      const { deps } = fakeDeps({ member: { ...active, ...positions } });
+      await expect(provisionMember(deps, "m1", false)).resolves.toMatchObject({
+        email: "a@b.co",
+      });
+    }
+  });
+
   it("fails closed when the seated cargo cannot be read", async () => {
     // A missing or malformed cargo must not read as "no cargo" — that would be the guard's
     // own bypass.

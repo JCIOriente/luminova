@@ -125,7 +125,15 @@ This costs the delegation nothing: a genuinely new member has neither an account
 4. **The `PERMISSION_CAP` interaction.** A member whose resolved perms exceed 30 is written
    `perms: []` fail-closed, which silently takes `update:BoardSeat` with it. Two more subjects
    in the vocabulary make the 30-slot budget marginally tighter.
-5. **There is a consistency window.** `firestore.rules` reads the token while beacon reads stored
+5. **Verify who you seat.** One residual no guard can close, and it is not specific to this
+   delegation — it is why enrolment and seating should not both be delegated blindly. A member
+   creator controls the `email` on the doc they file, and the invite goes to that address. So if
+   an Admin later seats a FABRICATED member on an Admin-granting cargo, the claim is minted onto
+   an account the fabricator controls. The chain needs an Admin to seat someone they did not
+   verify; it existed before this feature (an Admin provisioning the same fabricated doc sends
+   the invite to the same attacker address), and the power-seat guard means a delegate cannot
+   complete it alone. Treat the members list as the thing you verify before seating.
+6. **There is a consistency window.** `firestore.rules` reads the token while beacon reads stored
    claims. If a delegate's own perms are dropped (cap breach, or revocation) their cached token
    still passes the rules for up to an hour, so a seat write can succeed while
    `resolveTrustedGrants` declines to mint the grants. The member is then published on the public

@@ -4,6 +4,7 @@ import { isValidRole, type Role } from "@luminova/auth/roles";
 import { isValidPermissionCode, type PermissionCode } from "@luminova/types/permission";
 import { chunk } from "../chunk.js";
 import { isSafeDocId } from "../firestore-util.js";
+import { readPositionGrants } from "../read-position-grants.js";
 import { isActiveRoleDoc, permsFromRoleDoc } from "./role-doc.js";
 import type { LiveBuiltInRoleDoc } from "./resolve-member-perms.js";
 import type { ClaimsSyncDeps } from "./sync.js";
@@ -276,13 +277,11 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): FirestoreClaimsD
     },
     getPosition: async (id) => {
       // Belt-and-braces: resolveTrustedGrants in sync.ts already screens cargoId (that is
-      // the port-independent gate the test fakes inherit), but this is the site where an
-      // unscreened id becomes a permanent db.doc() throw, so it does not rely on its caller.
-      if (!isSafeDocId(id)) return null;
-      const snap = await db.doc(`positions/${id}`).get();
-      if (!snap.exists) return null;
-      const grants = (snap.data()?.grants ?? []) as unknown[];
-      return { grants: grants.filter((g): g is Role => isValidRole(g)) };
+      // the port-independent gate the test fakes inherit), but readPositionGrants screens
+      // again at the site where an unscreened id becomes a permanent db.doc() throw, so this
+      // does not rely on its caller.
+      const grants = await readPositionGrants(db, id);
+      return grants === null ? null : { grants };
     },
     getAssignerClaims: async (uid) => {
       // Same per-instance loadUser memo getExistingClaims uses — reading perms alongside

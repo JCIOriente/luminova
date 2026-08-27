@@ -66,15 +66,29 @@ function adoptedClaims(existing: RawClaims | undefined): RawClaims {
   return { roles };
 }
 
-/** The member's CURRENT-term cargo id, or null when absent/unusable. Fails closed on a
- *  malformed id: an unreadable cargo must not read as "no cargo". */
+/** The member's CURRENT-term cargo id for the power-seat guard.
+ *
+ *  Three outcomes, and the middle one is the point:
+ *    null  — genuinely NO current-term cargo (no positions map, no entry for this term, or an
+ *            entry whose cargoId is absent/null). The guard allows: an unseated member is
+ *            exactly who a delegate is meant to be enrolling.
+ *    id    — a usable cargo id; the guard reads its grants.
+ *    ""    — PRESENT but unreadable: a term entry that is not an object, a cargoId that is not
+ *            a string, or an id `isSafeDocId` rejects. Deliberately NOT null — `""` fails
+ *            `isSafeDocId` at the port too, so `getPositionGrants` returns null and the guard
+ *            refuses. A malformed shape must never read as "no cargo": that is the guard's own
+ *            bypass, and these docs are reachable by console edit and legacy migration even
+ *            though no client write path produces them. */
 function readCurrentCargoId(member: Record<string, unknown>): string | null {
   const positions = member.positions;
-  if (typeof positions !== "object" || positions === null) return null;
+  if (positions === undefined || positions === null) return null;
+  if (typeof positions !== "object") return "";
   const term = (positions as Record<string, unknown>)[currentTermKey()];
-  if (typeof term !== "object" || term === null) return null;
+  if (term === undefined || term === null) return null;
+  if (typeof term !== "object") return "";
   const cargoId = (term as { cargoId?: unknown }).cargoId;
-  if (typeof cargoId !== "string" || cargoId.length === 0) return null;
+  if (cargoId === undefined || cargoId === null) return null;
+  if (typeof cargoId !== "string" || cargoId.length === 0) return "";
   return isSafeDocId(cargoId) ? cargoId : "";
 }
 
