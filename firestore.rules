@@ -248,8 +248,8 @@ service cloud.firestore {
     // assignedTerm()), so every OTHER term key in a created map was entirely unvalidated. The
     // update arm closes this — see positionsDelta().hasOnly() and its comment — and the create
     // arm has to say the same thing or the ride-along just moves to birth:
-    //   positions: { "&lt;this year&gt;": &lt;grant-free, self-stamped: passes&gt;,
-    //                "&lt;next year&gt;":  { cargoId: &lt;Presidente&gt;, assignedBy: &lt;a real Admin uid&gt; } }
+    //   positions: { "<this year>": <grant-free, self-stamped: passes>,
+    //                "<next year>":  { cargoId: <Presidente>, assignedBy: <a real Admin uid> } }
     // Nothing inspects the second entry. On the UTC-year rollover claims-sync reads it, sees a
     // genuine Admin as assignedBy, and mints Admin onto a member whose email — and therefore
     // whose login — the creator controls. Forged attribution, one term deferred; the trust gate

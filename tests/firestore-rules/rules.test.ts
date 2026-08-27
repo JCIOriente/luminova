@@ -1143,6 +1143,25 @@ describe("firestore.rules — members", () => {
     );
   });
 
+  it("BLOCKING: the create-lane term restriction binds an ADMIN too", async () => {
+    // Symmetric with the update arm, which has denied non-current-term writes to everyone
+    // including Admin since before this branch. Stated as its own test because the tempting
+    // future edit is `hasAnyRole(['Admin']) ||` in front of the conjunct the first time a
+    // migration looks blocked — and that silently reopens the ride-along for anyone who can
+    // get an Admin to run a create.
+    await assertFails(
+      setDoc(doc(as("admin-uid", ["Admin"]), "members/new_admin_ridealong"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+        positions: {
+          [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "admin-uid" },
+          "2099": { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" },
+        },
+      }),
+    );
+  });
+
   it("BLOCKING: a delegate may NOT create with a ride-along NON-current term key", async () => {
     // The create-lane twin of positionsDelta().hasOnly([currentTermKey()]). assignedBySelf()
     // and cargoAssignableByNonAdmin() both read only positions[currentTermKey()], so a second
@@ -3266,9 +3285,15 @@ describe("firestore.rules — member positions assignment", () => {
         [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "admin-uid" },
       }),
     );
+    // Paired with a VALID current-term entry on purpose. A lone 2099 write on an unseated doc
+    // is already denied by assignedBySelf() — the post-merge current term is {} — so the term
+    // conjunct would not be the denier and the assertion would pin nothing. With both keys
+    // present, assignedBySelf(), cargoAssignableByNonAdmin() and currentCargoGrantsEmpty() all
+    // pass and only positionsDelta().hasOnly([currentTermKey()]) denies.
     await assertFails(
       updateDoc(doc(seatDelegate(), "members/m_delegate_pins"), {
-        "positions.2099": { cargoId: "pos_soft", comisionIds: [], assignedBy: SEAT_DELEGATE },
+        [`positions.${TERM}`]: { cargoId: "pos_soft", comisionIds: [], assignedBy: SEAT_DELEGATE },
+        "positions.2099": { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" },
       }),
     );
     await assertFails(
