@@ -62,6 +62,32 @@ describe("Showcase subject", () => {
   });
 });
 
+describe("BoardSeat subject", () => {
+  it("is a known subject", () => {
+    expect(SUBJECTS).toContain("BoardSeat");
+  });
+  // Same shape as Showcase: only update:BoardSeat is read (firestore.rules' boardSeatDelegate,
+  // beacon's resolveTrustedGrants, backstage's canAssignBoardSeat). The siblings gate nothing
+  // but must stay VALID — the /permisos matrix renders the full grid and the per-member
+  // override panel offers every code, so an unvalidatable one would fail the write.
+  it("accepts update:BoardSeat and the inert siblings the matrix will render", () => {
+    expect(isValidPermissionCode("update:BoardSeat")).toBe(true);
+    expect(isValidPermissionCode("manage:BoardSeat")).toBe(true);
+    expect(isValidPermissionCode("read:BoardSeat")).toBe(true);
+  });
+});
+
+describe("MemberLogin subject", () => {
+  it("is a known subject", () => {
+    expect(SUBJECTS).toContain("MemberLogin");
+  });
+  it("accepts create:MemberLogin and the inert siblings the matrix will render", () => {
+    expect(isValidPermissionCode("create:MemberLogin")).toBe(true);
+    expect(isValidPermissionCode("manage:MemberLogin")).toBe(true);
+    expect(isValidPermissionCode("read:MemberLogin")).toBe(true);
+  });
+});
+
 describe("Notification subject", () => {
   it("is a known subject", () => {
     expect(SUBJECTS).toContain("Notification");
