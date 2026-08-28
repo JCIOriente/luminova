@@ -4,11 +4,13 @@ import {
   cargoGrantNeedsAdminAssigner,
   cargoNoteId,
   cargoOptionsForEditor,
-  cargoTakedownOnly,
   noAssignableCargos,
-  positionsLockedForEditor,
   type CargoOption,
 } from "./assignable-cargo";
+// From the rules-mirroring module directly. This test file covers BOTH halves, and which
+// import line a predicate is on is the only thing that says whether the emulator parity test
+// (tests/firestore-rules/cargo-assignment-parity.test.ts) also holds it to firestore.rules.
+import { cargoTakedownOnly, positionsLockedForEditor } from "./assignable-cargo-core";
 
 const cargo = (
   category: Position["category"],

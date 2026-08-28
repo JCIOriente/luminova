@@ -1,5 +1,20 @@
-import { currentTermKey, positionTitle, type MemberGender, type Position } from "@luminova/types";
+import {
+  currentTermKey,
+  positionTitle,
+  type MemberGender,
+  type Position,
+  type PositionCategory,
+} from "@luminova/types";
 import { cargoConfersPower, cargoSlotsForEditor } from "./assignable-cargo-core";
+
+// The guard the CargoLike widening gave up, bought back here where Position IS importable.
+// assignable-cargo-core compares `category !== "CEL"` against a structural `string`, so if
+// POSITION_CATEGORIES ever renames or recases that literal, the comparison silently becomes
+// always-true — the client would offer every CEL cargo to a non-delegate while the rules keep
+// denying `category != 'CEL'`, on the publication boundary that module exists to mirror. With
+// the literal typed, a rename fails to compile HERE instead.
+const CEL: PositionCategory = "CEL";
+void CEL;
 
 /**
  * The predicates that MIRROR firestore.rules — `positionsLockedForEditor`,
@@ -10,13 +25,17 @@ import { cargoConfersPower, cargoSlotsForEditor } from "./assignable-cargo-core"
  * THIS module would throw at load. Same trick `nav-equivalence.test.ts` documents for
  * `nav-config.ts`.
  *
- * They are re-exported here, so this module stays the single import site for every call site
- * and for `assignable-cargo.test.ts` — nothing outside the two files knows about the split.
- * What stayed: the render states (`noAssignableCargos`, `cargoNoteId`), the labelling half of
- * `cargoOptionsForEditor`, and `cargoGrantNeedsAdminAssigner` — which mirrors BEACON's trust
- * gate, not a rules predicate, so the rules-parity module is the wrong home for it.
+ * Every caller imports those two DIRECTLY from `./assignable-cargo-core`, and that is the
+ * point rather than an inconvenience: which file a predicate comes from is what says whether
+ * the emulator parity test holds it to `firestore.rules` or whether it is local render state.
+ * A pass-through re-export here erased exactly that distinction (and was a barrel besides —
+ * CLAUDE.md: import directly from the file).
+ *
+ * What lives HERE: the render states (`noAssignableCargos`, `cargoNoteId`), the labelling half
+ * of `cargoOptionsForEditor`, and `cargoGrantNeedsAdminAssigner` — which mirrors BEACON's trust
+ * gate, not a rules predicate, so the rules-parity module is the wrong home for it. Nothing in
+ * this file is covered by the parity test.
  */
-export { cargoTakedownOnly, positionsLockedForEditor } from "./assignable-cargo-core";
 
 /**
  * A seat the editor may WRITE but whose grants will not be MINTED — the one outcome in this
@@ -87,11 +106,21 @@ export function noAssignableCargos(input: {
  * would mint.
  *
  * The ids differ per form (the locked and takedown wordings legitimately differ between them),
- * so they are passed in rather than owned here.
+ * so they are passed in rather than owned here. Build the argument with `cargoNoteIds(prefix)`
+ * (./../components/no-assignable-cargos-note) — never by hand: this signature is the only
+ * thing that would notice a form that forgot one, and it cannot notice a copy that has all
+ * four but points one at the OTHER form's element.
  */
+export interface CargoNoteIds {
+  noCargos: string;
+  locked: string;
+  takedown: string;
+  mintPending: string;
+}
+
 export function cargoNoteId(
   state: { noCargos: boolean; locked: boolean; takedown: boolean; mintPending: boolean },
-  ids: { noCargos: string; locked: string; takedown: string; mintPending: string },
+  ids: CargoNoteIds,
 ): string | undefined {
   if (state.noCargos) return ids.noCargos;
   if (state.locked) return ids.locked;

@@ -394,6 +394,95 @@ describe("MemberInviteDrawer", () => {
     expect(await screen.findByText(/desde el menú de su fila/)).toBeInTheDocument();
   });
 
+  // --- provision refusals: tagged reason vs raw diagnostic ---
+
+  /** A rejection shaped like the callable's: a FirebaseError carries the server's English prose
+   *  as `message` and the machine-readable refusal under `details.reason`. */
+  function provisionRefusal(reason: string, message: string) {
+    return Object.assign(new Error(message), { details: { reason } });
+  }
+
+  // BLOCKING: this drawer was the third and last provisioning entry point, and the only one
+  // still rendering the server's raw English prose to a Spanish-speaking operator. The row menu
+  // and the profile header already routed refusals through provisionErrorMessage; a delegate
+  // who hit `reprovision-requires-admin` here read "this member already has a login…" and had
+  // no idea an Admin could finish it — so they retried the invite forever.
+  it("BLOCKING: maps a TAGGED provision refusal to its Spanish message", async () => {
+    const onProvision = vi
+      .fn()
+      .mockRejectedValue(
+        provisionRefusal(
+          "reprovision-requires-admin",
+          "this member already has a login; only an Admin can re-send it",
+        ),
+      );
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={[]}
+        onClose={() => {}}
+        onCreate={async () => "idTagged"}
+        onProvision={onProvision}
+      />,
+      { roles: ["Member"], perms: ["create:Member", "create:MemberLogin"] },
+    );
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    expect(
+      await screen.findByText(
+        /Ya existe un acceso para este correo\. Pídele a un administrador que lo reenvíe o lo vincule\./,
+      ),
+    ).toBeInTheDocument();
+    // The raw prose must be GONE, not merely accompanied — it is the thing being replaced.
+    expect(screen.queryByText(/this member already has a login/)).not.toBeInTheDocument();
+    // The member was still created, so the done screen is guidance, not a create failure.
+    expect(screen.getByText("Ana Gómez fue agregada")).toBeInTheDocument();
+  });
+
+  // The other half of the same line, and the reason the raw message stays as the FALLBACK: an
+  // App Check / quota / config failure carries no `details.reason`, and its message is the one
+  // diagnostic anybody gets. A fix that mapped everything to a generic Spanish sentence would
+  // pass the test above and destroy this.
+  it("BLOCKING: keeps the raw message for an UNTAGGED provision failure", async () => {
+    const onProvision = vi.fn().mockRejectedValue(new Error("AppCheck token is invalid"));
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={[]}
+        onClose={() => {}}
+        onCreate={async () => "idUntagged"}
+        onProvision={onProvision}
+      />,
+      { roles: ["Member"], perms: ["create:Member", "create:MemberLogin"] },
+    );
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    expect(await screen.findByText(/Detalle: AppCheck token is invalid/)).toBeInTheDocument();
+  });
+
+  // A `reason` that is not in the table — beacon adding one before the client ships the copy —
+  // falls back the same way. Pinned separately because a Map lookup returning `undefined` and a
+  // plain-object lookup returning `Object.prototype.toString` are both "not found", and only
+  // one of them renders a function into the DOM.
+  it("falls back to the raw message for an UNKNOWN tagged reason", async () => {
+    const onProvision = vi
+      .fn()
+      .mockRejectedValue(provisionRefusal("some-future-reason", "server said no"));
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={[]}
+        onClose={() => {}}
+        onCreate={async () => "idUnknown"}
+        onProvision={onProvision}
+      />,
+      { roles: ["Member"], perms: ["create:Member", "create:MemberLogin"] },
+    );
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    expect(await screen.findByText(/Detalle: server said no/)).toBeInTheDocument();
+  });
+
   // beacon withholds the action link from a non-Admin caller (it is a bearer credential for
   // the account), so a delegate whose reset mail then fails has NO manual fallback — the copy
   // must send them to an Admin rather than to a copy button that would copy nothing. Only

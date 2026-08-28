@@ -5,6 +5,7 @@ import { MemberForm } from "./member-form";
 import { actionMessage } from "../lib/member-display";
 import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
 import { draftProvisionBlocked } from "../lib/provision-gate";
+import { provisionErrorMessage } from "../lib/provision-error";
 import { useCopyToClipboard } from "../../../lib/use-copy-to-clipboard";
 import { useCan } from "../../../lib/authz/use-can";
 
@@ -85,7 +86,10 @@ export function MemberInviteDrawer({
     // the row menu and the profile header — see provision-gate.ts.
     const provisionBlocked = draftProvisionBlocked(
       data.cargoId,
-      (id) => positions.find((p) => p.id === id),
+      // NOT `id` — that name is the CREATED MEMBER's doc id, bound above and passed to
+      // onProvision. Both are strings, so shadowing it here would let a later edit resolve
+      // the wrong document with no type error.
+      (cargoId) => positions.find((p) => p.id === cargoId),
       isAdmin,
     );
     // Nothing is attempted when blocked: the done screen explains it instead of reporting a
@@ -109,7 +113,12 @@ export function MemberInviteDrawer({
         }
       } catch (err) {
         console.error("No se pudo aprovisionar el acceso del miembro", err);
-        errorDetail = err instanceof Error ? err.message : String(err);
+        // Route the callable's REFUSALS through the same table the row menu and the profile
+        // header use — this was the third entry point and the only one still surfacing the
+        // server's raw English prose ("this member already has a login; only an Admin…").
+        // The raw message stays as the FALLBACK, so an untagged failure (App Check, quota,
+        // config) still shows the one diagnostic we get.
+        errorDetail = provisionErrorMessage(err, err instanceof Error ? err.message : String(err));
       }
     }
     setDone({

@@ -27,7 +27,7 @@ import { MemberPermissionsPanel } from "./member-permissions-panel";
 import { MemberPositionHistory } from "./member-position-history";
 import { MemberPointsSummary } from "./member-points-summary";
 import { ParticipationLedger } from "./participation-ledger";
-import { effectiveRoles } from "../lib/member-permissions";
+import { effectiveRoles, isSelfMember } from "../lib/member-permissions";
 import { memberEditMode } from "../lib/member-edit-gate";
 import { provisionErrorMessage } from "../lib/provision-error";
 import { memberProvisionBlocked } from "../lib/provision-gate";
@@ -109,7 +109,7 @@ export function MemberProfilePage() {
   const showPositionsOnly = editMode === "positions";
   // Member editing is split across two rules lanes; point the caller at the other one
   // instead of leaving "where do I edit this" to depend on whose profile it is.
-  const isSelf = member.uid !== undefined && member.uid === uid;
+  const isSelf = isSelfMember(member, uid);
   // Fails closed while the catalog is still loading: an unresolvable cargo counts as
   // power-conferring, so a delegate sees the invite appear once positions land rather than
   // seeing it offered and then denied. An Admin is unaffected — the predicate short-circuits.
@@ -140,8 +140,14 @@ export function MemberProfilePage() {
                 mirrors every refusal the callable applies to a non-Admin, so a delegate is not
                 shown a button that 403s on every click. Same predicate as the row menu and the
                 invite drawer, deliberately. */}
-            <ActionGate when={gate.canProvisionLogin && !inviteBlocked}>
-              <InviteAccess member={member} />
+            {/* Gated on the PERM only. `inviteBlocked` goes to InviteAccess as a prop rather
+                than gating the mount, because a successful invite FLIPS it: beacon writes
+                member.uid, the next refetch makes memberProvisionBlocked true (hasLogin), and
+                unmounting here would destroy the component's own "enviada" / "no se pudo
+                enviar el correo" state mid-flight — deleting, for a delegate, the only notice
+                that the account exists with no password mail sent. */}
+            <ActionGate when={gate.canProvisionLogin}>
+              <InviteAccess member={member} blocked={inviteBlocked} />
             </ActionGate>
           </div>
         }
@@ -238,7 +244,7 @@ export function MemberProfilePage() {
   );
 }
 
-function InviteAccess({ member }: { member: Member }) {
+function InviteAccess({ member, blocked }: { member: Member; blocked: boolean }) {
   const provision = useProvisionMemberLogin();
   const [link, setLink] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -298,9 +304,14 @@ function InviteAccess({ member }: { member: Member }) {
 
   return (
     <>
-      <Button as="button" type="button" variant="secondary" disabled={pending} onClick={invite}>
-        {pending ? "Generando…" : label}
-      </Button>
+      {/* The BUTTON goes away when the callable would refuse; the feedback below does not.
+          `blocked` becomes true the moment this invite succeeds (the member now has a uid),
+          so gating the whole component on it would erase the result of the click that set it. */}
+      {!blocked && (
+        <Button as="button" type="button" variant="secondary" disabled={pending} onClick={invite}>
+          {pending ? "Generando…" : label}
+        </Button>
+      )}
       {error && (
         <p role="alert" className="basis-full text-right text-ui-xs text-error">
           {error}

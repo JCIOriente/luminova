@@ -71,6 +71,30 @@ describe("useCopyToClipboard", () => {
     expect(result.current.copyState).toBe("idle");
   });
 
+  // BLOCKING: both callbacks are useCallback-wrapped, and the identity is the contract, not an
+  // optimization. The invite drawer captures `resetCopyState` in `reset()`, `reset()` in
+  // `close()`, and hands `close()` to the Sheet's `onOpenChange` — a fresh closure per render
+  // changes that prop on every render of the drawer. Asserted across a rerender AND across a
+  // state change, because a `useCallback(fn, [copyState])` would pass the first and fail the
+  // second while looking stable in casual use.
+  it("BLOCKING: keeps copy and resetCopyState referentially stable across renders", async () => {
+    stubClipboard({ writeText: vi.fn().mockResolvedValue(undefined) });
+    const { result, rerender } = renderHook(() => useCopyToClipboard());
+    const firstCopy = result.current.copy;
+    const firstReset = result.current.resetCopyState;
+
+    rerender();
+    expect(result.current.copy).toBe(firstCopy);
+    expect(result.current.resetCopyState).toBe(firstReset);
+
+    // …and still stable after the hook's own state moves, which is when a dependency-carrying
+    // callback would quietly get a new identity.
+    await act(async () => result.current.copy("x"));
+    expect(result.current.copyState).toBe("copied");
+    expect(result.current.copy).toBe(firstCopy);
+    expect(result.current.resetCopyState).toBe(firstReset);
+  });
+
   // A retry after a failure has to be able to succeed: `copy` sets state on BOTH outcomes, so
   // nothing has to be reset in between. If it only ever set "failed" the button would stay
   // wrong for the rest of the session.

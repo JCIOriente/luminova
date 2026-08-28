@@ -10,13 +10,16 @@
  * `positionTitle` from it for VALUE, so importing that file there throws. This module has ZERO
  * imports, which is the same trick `nav-equivalence.test.ts` documents for `nav-config.ts`.
  *
- * Nothing changed shape: `assignable-cargo.ts` re-exports the two predicates it used to own
- * (`positionsLockedForEditor`, `cargoTakedownOnly`) and wraps `cargoSlotsForEditor` back into
- * `cargoOptionsForEditor`, so every call site and the existing unit test import exactly what
- * they always did. What deliberately did NOT move: the render states
- * (`noAssignableCargos`, `cargoNoteId`), the labelling itself, and
- * `cargoGrantNeedsAdminAssigner` — which mirrors BEACON's trust gate, not a rules predicate,
- * so no rules parity test can hold it and it has no business here.
+ * Import `positionsLockedForEditor` / `cargoTakedownOnly` from HERE, not through
+ * `assignable-cargo.ts` — it used to re-export them, which read as a convenience and was
+ * really a barrel that erased the one distinction this split exists to make legible: a
+ * predicate's file says whether the emulator parity test holds it to `firestore.rules`.
+ * `cargoSlotsForEditor` is the exception, wrapped by `cargoOptionsForEditor` because the
+ * labelling needs `positionTitle`.
+ *
+ * What deliberately did NOT move: the render states (`noAssignableCargos`, `cargoNoteId`), the
+ * labelling itself, and `cargoGrantNeedsAdminAssigner` — which mirrors BEACON's trust gate,
+ * not a rules predicate, so no rules parity test can hold it and it has no business here.
  */
 
 /**
@@ -65,6 +68,11 @@ export interface CargoLike {
 // from this raw predicate is how the two forms drifted apart in the first place. Exporting it
 // again would give that back.
 function cargoAssignableByNonAdmin(cargo: Pick<CargoLike, "grants" | "category">): boolean {
+  // The "CEL" literal is compared against a structural `string` (see CargoLike's tradeoff), so
+  // a rename in POSITION_CATEGORIES would make this always-true and silently offer every CEL
+  // cargo to a non-delegate. `assignable-cargo.ts` holds the typed pin that fails to compile
+  // instead — it cannot live here, since this module may not import the union. If you change
+  // this literal, change it there too.
   return cargo.grants.length === 0 && cargo.category !== "CEL";
 }
 

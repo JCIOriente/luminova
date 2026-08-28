@@ -3,8 +3,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Position } from "@luminova/types";
 import { MemberPositionsForm } from "./member-positions-form";
-import { MINT_PENDING_NOTE_ID } from "./no-assignable-cargos-note";
+import { cargoNoteIds } from "./no-assignable-cargos-note";
 import { permissionLabel } from "../../permissions/lib/permission-matrix";
+
+// Through the same helper the form calls, not a hand-typed literal: the ids are no longer
+// exported individually, and a test that re-typed one would keep passing after a rename.
+const MINT_PENDING_NOTE_ID = cargoNoteIds("positions").mintPending;
 
 // The mint-pending note used to say "permisos de administrador", which was true only of its
 // one original trigger. It now fires for a SELF-assignment of any granting cargo — a

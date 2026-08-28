@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 export type CopyState = "idle" | "copied" | "failed";
 
@@ -18,7 +18,10 @@ export function useCopyToClipboard(): {
   resetCopyState: () => void;
 } {
   const [copyState, setCopyState] = useState<CopyState>("idle");
-  const copy = (text: string) => {
+  // Stable identities: the invite drawer captures `resetCopyState` in `reset()`, which
+  // `close()` captures, which is the Sheet's `onOpenChange` — so a fresh closure per render
+  // would change that prop on every render of the drawer.
+  const copy = useCallback((text: string) => {
     try {
       void navigator.clipboard
         .writeText(text)
@@ -29,6 +32,7 @@ export function useCopyToClipboard(): {
       // rejected write: tell the user to select the text themselves.
       setCopyState("failed");
     }
-  };
-  return { copyState, copy, resetCopyState: () => setCopyState("idle") };
+  }, []);
+  const resetCopyState = useCallback(() => setCopyState("idle"), []);
+  return { copyState, copy, resetCopyState };
 }

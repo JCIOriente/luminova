@@ -8,19 +8,14 @@ import {
   cargoGrantNeedsAdminAssigner,
   cargoNoteId,
   cargoOptionsForEditor,
-  cargoTakedownOnly,
   noAssignableCargos,
-  positionsLockedForEditor,
 } from "../lib/assignable-cargo";
-import {
-  MintPendingNote,
-  MINT_PENDING_NOTE_ID,
-  NoAssignableCargosNote,
-  NO_ASSIGNABLE_CARGOS_NOTE_ID,
-} from "./no-assignable-cargos-note";
+// Directly from the rules-mirroring module, not through assignable-cargo.ts: the file a
+// predicate comes from is what says the emulator parity test holds it to firestore.rules.
+import { cargoTakedownOnly, positionsLockedForEditor } from "../lib/assignable-cargo-core";
+import { cargoNoteIds, MintPendingNote, NoAssignableCargosNote } from "./no-assignable-cargos-note";
 
-const LOCKED_NOTE_ID = "positions-cargo-locked-note";
-const TAKEDOWN_NOTE_ID = "positions-cargo-takedown-note";
+const NOTE_IDS = cargoNoteIds("positions");
 
 const positionsSchema = z.object({
   cargoId: z.string().min(1).nullable(),
@@ -97,12 +92,7 @@ export function MemberPositionsForm({
   // never meets the reason. Priority order and the co-firing rules live in cargoNoteId().
   const describedBy = cargoNoteId(
     { noCargos, locked, takedown: takedownOnly, mintPending },
-    {
-      noCargos: NO_ASSIGNABLE_CARGOS_NOTE_ID,
-      locked: LOCKED_NOTE_ID,
-      takedown: TAKEDOWN_NOTE_ID,
-      mintPending: MINT_PENDING_NOTE_ID,
-    },
+    NOTE_IDS,
   );
   const comisionOptions = positions
     .filter((p) => p.active && p.category === "Comision")
@@ -165,20 +155,20 @@ export function MemberPositionsForm({
         />
       </Field>
       {locked && (
-        <p id={LOCKED_NOTE_ID} role="note" className="text-ui-xs text-ink-3">
+        <p id={NOTE_IDS.locked} role="note" className="text-ui-xs text-ink-3">
           Solo un administrador puede cambiar los cargos de un miembro cuyo cargo otorga permisos.
         </p>
       )}
       {/* Suppressed while locked: the picker is disabled there, so nothing about what the save
           would mint is actionable. */}
-      {!locked && mintPending && <MintPendingNote />}
+      {!locked && mintPending && <MintPendingNote id={NOTE_IDS.mintPending} />}
       {takedownOnly && (
-        <p id={TAKEDOWN_NOTE_ID} role="note" className="text-ui-xs text-ink-3">
+        <p id={NOTE_IDS.takedown} role="note" className="text-ui-xs text-ink-3">
           Este cargo es del Comité Ejecutivo Local: solo un administrador puede asignarlo. Puedes
           quitárselo con «Quitar cargo» y guardar, o elegir otro cargo.
         </p>
       )}
-      {noCargos && <NoAssignableCargosNote />}
+      {noCargos && <NoAssignableCargosNote id={NOTE_IDS.noCargos} />}
       {formError && (
         <div role="alert" className="text-ui-sm text-error">
           {formError}

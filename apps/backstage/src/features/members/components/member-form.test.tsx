@@ -3,10 +3,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { MemberInput, Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
-import { MINT_PENDING_NOTE_ID } from "./no-assignable-cargos-note";
+import { cargoNoteIds } from "./no-assignable-cargos-note";
 import { toMemberUpdateDoc } from "../repositories/member-mapper";
 import { pickDate } from "../../../test/pick-date";
 import { permissionLabel } from "../../permissions/lib/permission-matrix";
+
+// Through the same helper the form calls, not a hand-typed literal: the ids are no longer
+// exported individually, and a test that re-typed one would keep passing after a rename.
+const MINT_PENDING_NOTE_ID = cargoNoteIds("member").mintPending;
 
 // The note names the permission through `permissionLabel`, and its own comment says the two
 // features must not drift. Assert against the same source, not a hardcoded copy — a literal

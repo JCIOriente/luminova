@@ -102,17 +102,29 @@ function provisionResolvesWith(result: { email: string; actionLink: string }) {
   });
 }
 
-function renderPage(claims: AuthClaims = roleClaims("Admin")) {
-  // The sidebar panels still run their own real queries (roles, etc.); a throwaway client with
-  // retries off keeps them from retrying against a mock-less Firestore for the whole test.
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+function pageTree(claims: AuthClaims, queryClient: QueryClient) {
+  return (
     <QueryClientProvider client={queryClient}>
       <AbilityProvider claims={claims} uid="admin">
         <MemberProfilePage />
       </AbilityProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+}
+
+function renderPage(claims: AuthClaims = roleClaims("Admin")) {
+  // The sidebar panels still run their own real queries (roles, etc.); a throwaway client with
+  // retries off keeps them from retrying against a mock-less Firestore for the whole test.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = render(pageTree(claims, queryClient));
+  return {
+    ...view,
+    /** Re-render the SAME tree after mutating `memberQuery.data` — what the real page does when
+     *  `useMember` refetches. Identical element type at the identical position, so React keeps
+     *  the subtree mounted and any state it holds survives; that is precisely the property
+     *  under test below. */
+    refetchMember: () => view.rerender(pageTree(claims, queryClient)),
+  };
 }
 
 describe("MemberProfilePage — InviteAccess", () => {
@@ -260,6 +272,96 @@ describe("MemberProfilePage — InviteAccess", () => {
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByText("https://example.com/link")).not.toBeInTheDocument();
+  });
+});
+
+// A successful invite makes `memberProvisionBlocked` TRUE — beacon writes `member.uid`, and
+// `hasLogin` is the first clause of the gate. So the flag that decides whether to offer the
+// button flips as a RESULT of pressing it. It therefore cannot gate the mount.
+describe("MemberProfilePage — InviteAccess survives its own success", () => {
+  // A delegate, not an Admin: memberProvisionBlocked short-circuits to false for an Admin, so
+  // the flag never flips for them and none of this is reachable.
+  const DELEGATE: AuthClaims = { roles: ["Member"], perms: ["read:Member", "create:MemberLogin"] };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedRequestPasswordReset.mockResolvedValue(undefined);
+    memberQuery.data = member();
+  });
+
+  // BLOCKING: the whole finding. beacon created the login but the reset MAIL failed, and beacon
+  // withholds the action link from a delegate — so this alert is the ONLY notice anywhere that
+  // an account now exists with no password mail sent. Gating the mount on `!inviteBlocked`
+  // unmounted the component on the very next refetch and deleted that notice, leaving a page
+  // that looks like nothing happened, on a member who can no longer be invited.
+  it("BLOCKING: keeps the mail-failure alert after `blocked` flips true", async () => {
+    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "" });
+    mockedRequestPasswordReset.mockRejectedValue(new Error("network"));
+    const { refetchMember } = renderPage(DELEGATE);
+
+    // Not blocked yet: no uid, no grants, no seat — the button is offered.
+    expect(screen.getByRole("button", { name: "Invitar acceso" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Se creó el acceso, pero no se pudo enviar el correo. Pídele a un administrador que lo reenvíe.",
+    );
+
+    // What beacon actually did: the member now carries a uid, so the next refetch blocks.
+    memberQuery.data = member({ uid: "minted-uid" });
+    refetchMember();
+
+    // The BUTTON is gone — the callable would refuse a second attempt from this caller…
+    expect(screen.queryByRole("button", { name: /acceso/ })).not.toBeInTheDocument();
+    // …and the alert is STILL the same node, not a re-created one: unmounting InviteAccess
+    // would have reset `error` to null and rendered nothing at all.
+    expect(screen.getByRole("alert")).toBe(alert);
+    expect(screen.getByRole("alert")).toHaveTextContent(/no se pudo enviar el correo/);
+  });
+
+  // The success half of the same sequence. Same unmount, same erasure — the delegate would be
+  // left unable to tell a completed invite from one that never ran.
+  it("BLOCKING: keeps the sent confirmation after `blocked` flips true", async () => {
+    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "" });
+    const { refetchMember } = renderPage(DELEGATE);
+    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
+    expect(await screen.findByText("Invitación enviada por correo.")).toBeInTheDocument();
+
+    memberQuery.data = member({ uid: "minted-uid" });
+    refetchMember();
+
+    expect(screen.getByText("Invitación enviada por correo.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /acceso/ })).not.toBeInTheDocument();
+  });
+
+  // The control: the gate is still a gate. A member who was ALREADY provisioned before the page
+  // loaded gets no button at all — `blocked` hides it on the first render too, not only after a
+  // flip, so moving it off the mount did not turn it into a no-op.
+  it("hides the button from the first render for an already-provisioned member", () => {
+    memberQuery.data = member({ uid: "existing-uid" });
+    renderPage(DELEGATE);
+    expect(screen.queryByRole("button", { name: /acceso/ })).not.toBeInTheDocument();
+  });
+
+  // …and the perm gate is untouched: it still decides whether InviteAccess mounts AT ALL.
+  it("mounts nothing for a caller without create:MemberLogin", () => {
+    renderPage({ roles: ["Member"], perms: ["read:Member"] });
+    expect(screen.queryByRole("button", { name: /acceso/ })).not.toBeInTheDocument();
+  });
+
+  // An ADMIN is never blocked, so the button stays offered as "Reenviar acceso" after the same
+  // flip — the branch that proves `blocked`, not merely `member.uid`, is what hides it.
+  it("keeps offering a resend to an Admin after the same flip", async () => {
+    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "" });
+    const { refetchMember } = renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
+    expect(await screen.findByText("Invitación enviada por correo.")).toBeInTheDocument();
+
+    memberQuery.data = member({ uid: "minted-uid" });
+    refetchMember();
+
+    expect(screen.getByRole("button", { name: "Reenviar acceso" })).toBeInTheDocument();
+    expect(screen.getByText("Invitación enviada por correo.")).toBeInTheDocument();
   });
 });
 
