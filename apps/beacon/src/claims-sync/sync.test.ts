@@ -34,6 +34,9 @@ const customRole = (id: string, permissions: PermissionCode[]): RoleDefinition =
 function fakeDeps(opts: {
   positions: Record<string, { grants: Role[] }>;
   userRoles: Record<string, Role[]>;
+  /** The assigner's `perms` claim — the second trust source alongside the Admin role, and the
+   *  one that does NOT extend to conferring Admin (see resolveTrustedGrants). */
+  userPerms?: Record<string, PermissionCode[]>;
   existing: Record<string, Claims>;
   builtInDocs?: RoleDefinition[];
   customRoles?: Record<string, RoleDefinition>;
@@ -42,7 +45,10 @@ function fakeDeps(opts: {
   const writes: Record<string, MemberClaims> = {};
   const deps: ClaimsSyncDeps = {
     getPosition: async (id) => opts.positions[id] ?? null,
-    getUserRoles: async (uid) => opts.userRoles[uid] ?? [],
+    getAssignerClaims: async (uid) => ({
+      roles: opts.userRoles[uid] ?? [],
+      perms: opts.userPerms?.[uid] ?? [],
+    }),
     getExistingClaims: async (uid) => opts.existing[uid] ?? { roles: [] },
     // COVERAGE is preserved (no liveness filter — a deactivated built-in must still reach
     // resolveMemberPerms so it COVERS its key), but `live` is COMPUTED with the production
@@ -126,6 +132,186 @@ describe("syncMemberClaims", () => {
     });
   });
 
+  it("honors NON-Admin power grants when the assigner holds update:BoardSeat", async () => {
+    // The mirror of the Admin case above, and the reason the perm disjunct exists: a delegate
+    // stamps their own uid into assignedBy, so without it the seat would land and mint nothing
+    // — the member published on the world-readable Directiva, powerless and silent.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-dir": { grants: ["Membership"] } },
+      userRoles: { "delegate-uid": ["Member"] },
+      userPerms: { "delegate-uid": ["update:BoardSeat"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-dir", comisionIds: [], assignedBy: "delegate-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({
+      roles: ["Membership", "Member"],
+      perms: permsFor(["Membership", "Member"]),
+    });
+  });
+
+  it("BLOCKING: manage:all does NOT satisfy the trust gate", async () => {
+    // The gate is an exact code test, matching firestore.rules' hasPerm(). The CASL wildcard
+    // must not answer it on the server any more than it does in the client gate — otherwise
+    // any manage:all holder silently becomes a seat delegate.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-dir": { grants: ["Membership"] } },
+      userRoles: { "wildcard-uid": ["Member"] },
+      userPerms: { "wildcard-uid": ["manage:all"] },
+      existing: { "target-uid": { roles: ["Member"], perms: permsFor(["Member"]) } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-dir", comisionIds: [], assignedBy: "wildcard-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["target-uid"]).toBeUndefined();
+  });
+
+  it("BLOCKING: a delegate may NOT confer power on THEMSELVES", async () => {
+    // One write, no puppet: the spec's own recommended pairing (update:Position +
+    // update:BoardSeat) can seat itself on a Secretario/ProjectManager cargo through the
+    // positions-only lane, and without this that mints those roles onto the author —
+    // update:BoardSeat becomes a self-service grant of every built-in role but Admin.
+    // Conferring power on others is the delegation; on yourself it is self-promotion.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-sec": { grants: ["Secretary"] } },
+      userRoles: { "delegate-uid": ["Member"] },
+      userPerms: { "delegate-uid": ["update:BoardSeat"] },
+      existing: { "delegate-uid": { roles: ["Member"], perms: permsFor(["Member"]) } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "delegate-uid",
+        positions: { "2026": { cargoId: "pos-sec", comisionIds: [], assignedBy: "delegate-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["delegate-uid"]).toBeUndefined();
+  });
+
+  it("still lets a delegate confer a non-Admin cargo on SOMEONE ELSE", async () => {
+    // The paired ALLOW — the restriction is on self-dealing, not on the delegation itself.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-sec": { grants: ["Secretary"] } },
+      userRoles: { "delegate-uid": ["Member"] },
+      userPerms: { "delegate-uid": ["update:BoardSeat"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-sec", comisionIds: [], assignedBy: "delegate-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({
+      roles: ["Secretary", "Member"],
+      perms: permsFor(["Secretary", "Member"]),
+    });
+  });
+
+  it("still lets an ADMIN seat themselves on a non-Admin cargo", async () => {
+    // The self-assignment half defers to the Admin ROLE, so it costs an Admin nothing.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-sec": { grants: ["Secretary"] } },
+      userRoles: { "admin-uid": ["Admin", "Member"] },
+      existing: { "admin-uid": { roles: ["Admin", "Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "admin-uid",
+        positions: { "2026": { cargoId: "pos-sec", comisionIds: [], assignedBy: "admin-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["admin-uid"]).toEqual({
+      roles: ["Secretary", "Member"],
+      perms: permsFor(["Secretary", "Member"]),
+    });
+  });
+
+  it("BLOCKING: a delegate may NOT confer ADMIN — the guard the delegation rests on", async () => {
+    // Conferring Admin is reserved to the Admin ROLE. Without this a delegate mints an Admin,
+    // that Admin is itself a trust source, and the delegation can never be revoked — via the
+    // one-write self-loop OR the two-write puppet loop (seat a second member you control; it
+    // is not a self-assignment, so a reflexivity check would miss it entirely).
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-pres": { grants: ["Admin"] } },
+      userRoles: { "delegate-uid": ["Member"] },
+      userPerms: { "delegate-uid": ["update:BoardSeat"] },
+      existing: { "target-uid": { roles: ["Member"], perms: permsFor(["Member"]) } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "delegate-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["target-uid"]).toBeUndefined();
+  });
+
+  it("REGRESSION: an Admin who SELF-assigned their Admin cargo keeps it", async () => {
+    // The seeded bootstrap president: seed-president.mjs stamps assignedBy = their own uid,
+    // and their perms are manage:all — never the exact update:BoardSeat code. An earlier form
+    // of this guard keyed on `assignedBy === member.uid` and would have stripped exactly this
+    // member on their next write, in production, with no in-app recovery. Verified against the
+    // live member doc before it shipped; this pins it.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-pres": { grants: ["Admin"] } },
+      userRoles: { "president-uid": ["Admin", "Member"] },
+      userPerms: { "president-uid": ["manage:all"] },
+      existing: {
+        "president-uid": { roles: ["Admin", "Member"], perms: permsFor(["Admin", "Member"]) },
+      },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "president-uid",
+        positions: {
+          "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy: "president-uid" },
+        },
+      },
+      "2026",
+    );
+    // Idempotent no-op: the claims are already correct, so no write — and crucially not a strip.
+    expect(writes["president-uid"]).toBeUndefined();
+  });
+
+  it("de-elevates a delegate-conferred NON-Admin grant once the perm is revoked", async () => {
+    // Revocation is real for everything a delegate can actually confer.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-dir": { grants: ["Membership"] } },
+      userRoles: { "delegate-uid": ["Member"] },
+      userPerms: { "delegate-uid": [] },
+      existing: { "target-uid": { roles: ["Membership", "Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-dir", comisionIds: [], assignedBy: "delegate-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
+  });
+
   it("BLOCKING: positive-and-inert — a grant-free cargo from a NON-Admin assigner mints nothing", async () => {
     // The members-positions lane (firestore.rules' fourth members update arm, keyed on
     // update:Position) lets an org-chart editor who is NOT an Admin assign GRANT-FREE cargos.
@@ -153,9 +339,9 @@ describe("syncMemberClaims", () => {
     });
     const spied: ClaimsSyncDeps = {
       ...deps,
-      getUserRoles: async (uid) => {
+      getAssignerClaims: async (uid) => {
         assignerLookups.push(uid);
-        return deps.getUserRoles(uid);
+        return deps.getAssignerClaims(uid);
       },
     };
     await syncMemberClaims(
@@ -536,7 +722,7 @@ describe("syncMemberClaims", () => {
     const writes: Record<string, MemberClaims> = {};
     const deps: ClaimsSyncDeps = {
       getPosition: async () => ({ grants: ["Admin"] }),
-      getUserRoles: async () => {
+      getAssignerClaims: async () => {
         throw new Error("auth lookup failed");
       },
       getExistingClaims: async () => ({ roles: ["Member"] }),

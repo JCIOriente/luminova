@@ -1,16 +1,21 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactElement, ReactNode } from "react";
 import { MemberInviteDrawer } from "./member-invite-drawer";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
 import { pickDate } from "../../../test/pick-date";
 
-// The drawer's "Enviar acceso" checkbox is Admin-only; render as Admin so the
-// provisioning path under test is available.
-function renderWithAbility(ui: ReactElement) {
+// The drawer's "Enviar acceso" checkbox is gated on canProvisionLogin (Admin role OR the
+// exact create:MemberLogin perm); default to Admin so the provisioning path under test is
+// available, and parameterize for the delegation cases below.
+function renderWithAbility(
+  ui: ReactElement,
+  claims: { roles: string[]; perms?: string[] } = { roles: ["Admin"], perms: ["manage:all"] },
+) {
   return render(ui, {
     wrapper: ({ children }: { children: ReactNode }) => (
-      <AbilityProvider claims={{ roles: ["Admin"], perms: ["manage:all"] }} uid="admin">
+      <AbilityProvider claims={claims as never} uid="admin">
         {children}
       </AbilityProvider>
     ),
@@ -141,5 +146,89 @@ describe("MemberInviteDrawer", () => {
       "El correo no se pudo enviar. Comparte el enlace de acceso manualmente.",
     );
     expect(screen.getByRole("button", { name: "Copiar enlace de acceso" })).toBeInTheDocument();
+  });
+
+  // --- create:MemberLogin delegation ---
+
+  const drawer = (
+    onProvision = vi.fn().mockResolvedValue({ email: "a@b.co", actionLink: "l" }),
+  ) => ({
+    node: (
+      <MemberInviteDrawer
+        open
+        positions={[]}
+        onClose={() => {}}
+        onCreate={async () => "idD"}
+        onProvision={onProvision}
+      />
+    ),
+    onProvision,
+  });
+
+  it("shows 'Enviar acceso' to a create:MemberLogin delegate, defaulted ON, and provisions", async () => {
+    const { node, onProvision } = drawer();
+    renderWithAbility(node, { roles: ["Member"], perms: ["create:Member", "create:MemberLogin"] });
+    const checkbox = screen.getByLabelText("Enviar acceso a la app");
+    expect(checkbox).toBeChecked();
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    await waitFor(() => expect(onProvision).toHaveBeenCalledWith("idD"));
+  });
+
+  it("hides it from a member creator without the code, and never calls onProvision", async () => {
+    const { node, onProvision } = drawer();
+    renderWithAbility(node, { roles: ["Member"], perms: ["create:Member"] });
+    expect(screen.queryByLabelText("Enviar acceso a la app")).not.toBeInTheDocument();
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(onProvision).not.toHaveBeenCalled();
+  });
+
+  it("BLOCKING: hides it from a manage:all perm holder without the Admin role", async () => {
+    // The render-then-403 this gate exists to stop: beacon's requireAdminOrPerm is an exact
+    // code test, so the wildcard would fail server-side after the member was already created.
+    const { node } = drawer();
+    renderWithAbility(node, { roles: ["Member"], perms: ["manage:all"] });
+    expect(screen.queryByLabelText("Enviar acceso a la app")).not.toBeInTheDocument();
+  });
+
+  it("does not attempt the invite when the cargo confers permissions and the caller is a delegate", async () => {
+    // beacon's power-seat guard would refuse it, so attempting it would create the member,
+    // 403, and point the user at a row action that fails identically forever.
+    const onProvision = vi.fn();
+    const powerCargo = [
+      {
+        id: "pos-power",
+        title: "Secretario",
+        titleFemale: null,
+        category: "CEL" as const,
+        grants: ["Secretary"] as never,
+        term: null,
+        sigla: null,
+        description: "",
+        active: true,
+        deletedAt: null,
+      },
+    ];
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={powerCargo as never}
+        onClose={() => {}}
+        onCreate={async () => "idB"}
+        onProvision={onProvision}
+      />,
+      { roles: ["Member"], perms: ["create:Member", "create:MemberLogin", "update:BoardSeat"] },
+    );
+    await fill();
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    // positionTitle derives the female variant from the title when titleFemale is null, and
+    // fill() picks "Femenino" — so the rendered label is "Secretaria".
+    await userEvent.click(await screen.findByText(/Secretari[ao]/));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent(/solo un Admin puede enviarle el acceso/);
+    expect(onProvision).not.toHaveBeenCalled();
   });
 });

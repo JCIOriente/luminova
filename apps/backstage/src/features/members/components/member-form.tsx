@@ -26,8 +26,10 @@ import { avatarColor } from "../lib/member-display";
 import {
   cargoOptionsForEditor,
   cargoTakedownOnly,
+  noAssignableCargos,
   positionsLockedForNonAdmin,
 } from "../lib/assignable-cargo";
+import { NoAssignableCargosNote } from "./no-assignable-cargos-note";
 
 interface MemberFormProps {
   positions: Position[];
@@ -309,6 +311,9 @@ export function MemberForm({
             quitárselo con «Quitar cargo» o dejarlo como está; el resto de sus datos se guarda
             igual.
           </p>
+        )}
+        {noAssignableCargos({ cargoOptions, allowPowerGrants, locked: positionsLocked }) && (
+          <NoAssignableCargosNote />
         )}
         <Field
           label="Fecha de ingreso"

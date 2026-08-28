@@ -203,11 +203,29 @@ service cloud.firestore {
     // also closes a ride-along: a non-Admin can no longer sneak a power cargo + forged
     // assignedBy under a different term key in the same write. Comisión power grants are
     // not loop-checkable here — the beacon claims-sync trust gate is their backstop.
+    // The two cargo conjuncts are gated SEPARATELY, and the asymmetry is the whole point.
+    //
+    //   NEW side (cargoAssignableByNonAdmin, the cargo being written IN) — delegable.
+    //     boardSeatDelegate() lifts it, so an update:BoardSeat holder may seat a CEL or
+    //     power-granting cargo. That is the feature.
+    //
+    //   OLD side (currentCargoGrantsEmpty, the cargo being REPLACED) — Admin role ONLY.
+    //     NOT delegated, deliberately. computeMemberRoles derives the `roles` claim
+    //     EXCLUSIVELY from cargo grants — directly-assigned roleIds feed `perms`, never
+    //     `roles` — so a principal who can overwrite a sitting Admin's cargo can strip
+    //     every Admin claim in the chapter one write at a time. After the last one there is
+    //     no Admin: setUserRoles is requireAdmin, and roles/* plus permissionOverrides
+    //     writes are all hasAnyRole(['Admin']). The chapter would be unrecoverable outside
+    //     the Firebase console. A delegate therefore seats VACANT and grant-free cargos and
+    //     cannot displace a power-cargo holder; hand-over stays an Admin action.
+    //
+    // A non-delegate is unchanged: both conjuncts still bind, so the deliberately
+    // asymmetric grant-free-CEL takedown below still works for an update:Position holder.
     function positionsAssignmentSafe() {
       return positionsDelta().hasOnly([currentTermKey()])
         && assignedBySelf()
-        && (hasAnyRole(['Admin'])
-            || (cargoAssignableByNonAdmin() && currentCargoGrantsEmpty()));
+        && (boardSeatDelegate() || cargoAssignableByNonAdmin())
+        && (hasAnyRole(['Admin']) || currentCargoGrantsEmpty());
     }
     // Create has no prior resource to diff, so it can't use positionsDelta(); it applies the
     // same self-stamp + Admin-only-cargo gate to any positions it writes. Without this a
@@ -221,9 +239,28 @@ service cloud.firestore {
     // Admin provisionMemberLogin then writes the uid, after which projectBoard publishes an
     // attacker-composed account at board rank 0 as Presidente. currentCargoGrantsEmpty() is
     // the only half a create cannot ask (no prior resource), and it has no old side to guard.
+    // Plain substitution on the cargo conjunct, unlike positionsAssignmentSafe(): a create has
+    // no prior resource, so there is no old side to keep Admin-only — currentCargoGrantsEmpty()
+    // has never applied here, and a member born on a cargo displaces nobody.
+    //
+    // The current-term restriction, though, is NOT optional and was missing: assignedBySelf()
+    // and cargoAssignableByNonAdmin() both read ONLY positions[currentTermKey()] (via
+    // assignedTerm()), so every OTHER term key in a created map was entirely unvalidated. The
+    // update arm closes this — see positionsDelta().hasOnly() and its comment — and the create
+    // arm has to say the same thing or the ride-along just moves to birth:
+    //   positions: { "<this year>": <grant-free, self-stamped: passes>,
+    //                "<next year>":  { cargoId: <Presidente>, assignedBy: <a real Admin uid> } }
+    // Nothing inspects the second entry. On the UTC-year rollover claims-sync reads it, sees a
+    // genuine Admin as assignedBy, and mints Admin onto a member whose email — and therefore
+    // whose login — the creator controls. Forged attribution, one term deferred; the trust gate
+    // cannot help, because the assigner really is an Admin.
+    // Symmetric with the update arm: Admin is already current-term-only there, so this adds no
+    // Admin restriction that did not already exist on the other lane.
     function createPositionsSafe() {
       return !('positions' in request.resource.data)
-        || (assignedBySelf() && (hasAnyRole(['Admin']) || cargoAssignableByNonAdmin()));
+        || (request.resource.data.get('positions', {}).keys().hasOnly([currentTermKey()])
+            && assignedBySelf()
+            && (boardSeatDelegate() || cargoAssignableByNonAdmin()));
     }
 
     // roleIds + permissionOverrides feed Auth custom claims via the beacon trigger.
@@ -322,6 +359,27 @@ service cloud.firestore {
     // once finalized (isProjectable).
     function canCurateFeatured() {
       return hasAnyRole(['Admin']) || hasPerm('update:Showcase');
+    }
+    // Who may seat a member on a cargo the non-Admin lane otherwise refuses — a
+    // power-granting one, or a CEL one. Split the same way as canCurateFeatured(), for the
+    // same two reasons: Admin by ROLE (locked and undeactivatable, so its name carries none
+    // of the staleness this fixes), everyone else by the exact PERM, so revoking the code
+    // revokes the authority where a surviving role NAME in the claim would not.
+    //
+    // hasPerm, deliberately NOT canDo: manage:all must not answer this, and the other five
+    // *:BoardSeat codes the cross-product generates stay inert BECAUSE the gate is exact.
+    //
+    // What this rule does and does NOT buy, per docs/specs/board-seat-delegation.md: it lifts
+    // the cargo conjunct, so a delegate may SEAT anyone on a CEL or power-granting cargo and
+    // the seat publishes on the world-readable Directiva. It does not follow that the cargo's
+    // grants are MINTED — beacon's resolveTrustedGrants refuses an Admin-conferring cargo
+    // from a delegate outright, and refuses any granting cargo on a SELF-assignment. So a
+    // delegate seating themselves publishes and confers nothing, and seating someone else
+    // confers everything but Admin. Do not restate the mint rule here; read it there.
+    //
+    // Deliberately NOT widened to currentCargoGrantsEmpty(): see positionsAssignmentSafe().
+    function boardSeatDelegate() {
+      return hasAnyRole(['Admin']) || hasPerm('update:BoardSeat');
     }
     function initiativeCreateAllowed(subject) {
       return canDo('create', subject)
@@ -468,17 +526,23 @@ service cloud.firestore {
         && softDeleteSafe();
       // Positions-only lane: an org-chart editor who is NOT a member editor. Keyed on
       // update:Position — the same capability that governs the positions CATALOG — and
-      // confined to the positions map. The power-cargo restriction is NOT relaxed:
-      // positionsAssignmentSafe()'s non-Admin branch still demands
-      // cargoAssignableByNonAdmin() && currentCargoGrantsEmpty(), so this principal assigns
-      // and clears grant-free cargos only, on BOTH sides of a swap.
+      // confined to the positions map. A PLAIN update:Position holder is still held to
+      // cargoAssignableByNonAdmin() && currentCargoGrantsEmpty(), so they assign and clear
+      // grant-free non-CEL cargos only, on BOTH sides of a swap. Adding update:BoardSeat lifts
+      // the NEW side only: that principal may seat a CEL or power-granting cargo, but still
+      // cannot displace a sitting power-cargo holder (the old side stays Admin-role-only).
       //
-      // This lane IS a public publication authority, deliberately, and its ceiling is JDL:
-      // grant-free JDL direcciones are board cargos, so its holder can put a member —
-      // including themselves — on the world-readable Directiva under a dirección. No claim
-      // is minted (claims-sync returns early on grants.length == 0). Accepted, and pinned by
-      // a rules test. CEL is NOT in that grant — cargoAssignableByNonAdmin() refuses it
-      // whatever its grants, so 'Presidente' at public rank 0 stays an Admin decision.
+      // This lane IS a public publication authority, deliberately. For a PLAIN update:Position
+      // holder its ceiling is JDL: grant-free JDL direcciones are board cargos, so they can put
+      // a member — including themselves — on the world-readable Directiva under a dirección,
+      // minting nothing (claims-sync returns early on grants.length == 0). Accepted, pinned by
+      // a rules test, and CEL stays out of reach — cargoAssignableByNonAdmin() refuses it
+      // whatever its grants.
+      // Adding update:BoardSeat RAISES that ceiling to CEL, so 'Presidente' at public rank 0 is
+      // no longer an Admin-only decision for a delegate. The claims half is what still holds:
+      // an Admin-conferring cargo mints nothing from a delegate, and neither does a
+      // self-assignment. Publication and authority are separate ceilings here — do not read
+      // one as the other.
       //
       // memberWriteInvariants() is implied by hasOnly(['positions']) TODAY and is stated
       // anyway: if hasOnly is ever widened — the obvious future edit is adding a second

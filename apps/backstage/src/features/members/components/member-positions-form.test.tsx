@@ -33,6 +33,55 @@ describe("MemberPositionsForm", () => {
     expect(onSubmit).toHaveBeenCalledWith({ cargoId: null, comisionIds: [] });
   });
 
+  it("explains an empty cargo list to a non-delegate, and never doubles up with the locked note", async () => {
+    // A catalog of only CEL / power-granting cargos — the real production shape, and the
+    // state that made the picker silently empty.
+    const gated: Position[] = [
+      { ...pos("presi", "CEL"), grants: [] },
+      { ...pos("power", "JDL"), grants: ["Membership"] },
+    ];
+    const { unmount } = render(
+      <MemberPositionsForm
+        positions={gated}
+        gender="Masculino"
+        allowPowerGrants={false}
+        defaultValues={{ cargoId: null, comisionIds: [] }}
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("note")).toHaveTextContent(/Asientos de directiva/);
+    unmount();
+
+    // A delegate assigns the same catalog: no note.
+    const asDelegate = render(
+      <MemberPositionsForm
+        positions={gated}
+        gender="Masculino"
+        allowPowerGrants
+        defaultValues={{ cargoId: null, comisionIds: [] }}
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    asDelegate.unmount();
+
+    // Locked (seated on a power cargo) renders the LOCKED note and not this one. They are
+    // mutually exclusive today only because cargoOptionsForEditor appends the held cargo,
+    // making the list non-empty — pin it so a change there cannot produce two notes.
+    render(
+      <MemberPositionsForm
+        positions={gated}
+        gender="Masculino"
+        allowPowerGrants={false}
+        defaultValues={{ cargoId: "power", comisionIds: [] }}
+        onSubmit={vi.fn()}
+      />,
+    );
+    const notes = screen.getAllByRole("note");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toHaveTextContent(/Solo un Admin/);
+  });
+
   it("submits selected cargo and comisiones", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(

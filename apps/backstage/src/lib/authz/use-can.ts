@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { hasAnyRole, hasPerm, type AuthClaims, type Role } from "@luminova/auth/roles";
 import type { Action, AppAbility, Subject } from "@luminova/auth/ability";
+import type { PermissionCode } from "@luminova/types";
 import type { ParticipationRole } from "@luminova/types/engine";
 import { isNavItemVisible, type NavItem } from "../../components/nav-config";
 import { canRemoveEntry } from "../../features/check-in/lib/can-remove-entry";
@@ -30,13 +31,36 @@ export interface Can {
   /** May curate the public /programas page (rules' `canCurateFeatured`). Named here so the
    *  policy lives in one place, not scattered role-array literals at each call site. */
   readonly canFeatureInitiatives: boolean;
-  /** The Admin-only half of the positions authority — one flag because firestore.rules keys
-   *  every part of it on the same `hasAnyRole(['Admin'])`: assigning a power-granting cargo
-   *  (`cargoAssignableByNonAdmin` / `currentCargoGrantsEmpty` / `createPositionsSafe`) or a CEL cargo
-   *  at all, creating a board-surfacing cargo (`boardSurfacingCategory()`), and editing a
-   *  stored cargo's `grants`, `category` or — on a board cargo — `title`/`titleFemale`.
-   *  Named so the policy isn't a bare `isAdmin` at each grant site. */
-  readonly canAssignPowerGrants: boolean;
+  /** May SEAT a member on a cargo the plain non-Admin lane refuses — a power-granting one or
+   *  a CEL one. Mirrors firestore.rules' `boardSeatDelegate()` disjunct for disjunct.
+   *  Governs the member CREATE and UPDATE lanes only. */
+  readonly canAssignBoardSeat: boolean;
+  /** May AUTHOR the positions catalog: create a board-surfacing cargo
+   *  (`boardSurfacingCategory()`), and edit a stored cargo's `grants`, `category` or — on a
+   *  board cargo — `title`/`titleFemale`.
+   *
+   *  Split from `canAssignBoardSeat` and deliberately NOT widened by the delegation. These
+   *  were one flag while both were `hasAnyRole(['Admin'])`; they are different authorities
+   *  and firestore.rules now keys them on different predicates. Re-unifying them would hand
+   *  a seat delegate the catalog, and the catalog is the door round the back: mint a
+   *  grant-free CEL 'Presidente', then seat yourself on it at public board rank 0. */
+  readonly canEditCargoCatalog: boolean;
+  /** May run `provisionMemberLogin` — create the member's Auth account, link their uid, get
+   *  the password-reset link. Mirrors beacon's
+   *  `requireAdminOrPerm(request, "create:MemberLogin")`. Cargo-agnostic: it applies to every
+   *  new member, board seat or not.
+   *
+   *  NOT the invite email itself — `requestPasswordReset` is a client-side
+   *  `sendPasswordResetEmail` any signed-in user can already call. */
+  readonly canProvisionLogin: boolean;
+}
+
+/** The shape every delegable capability gate takes: the Admin ROLE, or one exact permission
+ *  code. Extracted at the third occurrence — `hasPerm` is deliberately NOT `abilityAllows`,
+ *  and re-deriving that decision per flag is how one of them ends up looser than its rule.
+ *  See the canFeatureInitiatives comment below for the full reasoning it encodes. */
+function adminOrPerm(claims: AuthClaims, code: PermissionCode): boolean {
+  return hasAnyRole(claims, ["Admin"]) || hasPerm(claims, code);
 }
 
 /** Pure builder — no React — so the gate logic is unit-testable. */
@@ -65,8 +89,12 @@ export function buildCan(ability: AppAbility, claims: AuthClaims): Can {
     // Destacar checkbox to a manage:all perm holder whose write firestore.rules then
     // rejects — taking the whole save down with it. `probe.ts` does not help here: it
     // narrows CONDITIONAL grants, and the divergence is the unconditional wildcard.
-    canFeatureInitiatives: hasAnyRole(claims, ["Admin"]) || hasPerm(claims, "update:Showcase"),
-    canAssignPowerGrants: hasAnyRole(claims, ["Admin"]),
+    canFeatureInitiatives: adminOrPerm(claims, "update:Showcase"),
+    // Same exact-code discipline as canFeatureInitiatives above, for the same reason: a
+    // `manage:all` holder must not see an affordance firestore.rules then rejects.
+    canAssignBoardSeat: adminOrPerm(claims, "update:BoardSeat"),
+    canEditCargoCatalog: hasAnyRole(claims, ["Admin"]),
+    canProvisionLogin: adminOrPerm(claims, "create:MemberLogin"),
   };
 }
 

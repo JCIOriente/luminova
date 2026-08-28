@@ -15,6 +15,9 @@ interface MemberInviteDrawerProps {
 }
 
 interface DoneState {
+  /** The invite was skipped because the member's cargo confers permissions and the caller is
+   *  not an Admin — beacon would refuse it, so nothing was attempted. */
+  blockedByCargo: boolean;
   name: string;
   email: string;
   provisioned: boolean;
@@ -34,26 +37,28 @@ export function MemberInviteDrawer({
   onCreate,
   onProvision,
 }: MemberInviteDrawerProps) {
-  // Provisioning login is Admin-role-only (provisionMemberLogin → requireAdmin). A
-  // non-Admin may still create the member; they just can't send access here, so hide
-  // the option and default it off — otherwise the provision step fails silently after
-  // the member is already created.
-  const { isAdmin, canAssignPowerGrants } = useCan();
+  // Provisioning login is the Admin role OR the create:MemberLogin perm
+  // (provisionMemberLogin → requireAdminOrPerm). A member creator without either may still
+  // create the member; they just can't send access here, so hide the option and default it
+  // off — otherwise the provision step fails silently after the member is already created.
+  const { canProvisionLogin, canAssignBoardSeat, isAdmin } = useCan();
   const [done, setDone] = useState<DoneState | null>(null);
-  const [sendAccess, setSendAccess] = useState(isAdmin);
+  const [sendAccess, setSendAccess] = useState(canProvisionLogin);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   // The drawer mounts with the page, before the auth token's claims decode (the store
   // emits with empty claims first, then re-emits). Re-sync the default each time it
-  // OPENS — by then isAdmin is resolved — so an Admin's first invite doesn't silently
+  // OPENS — by then the flag is resolved — so a provisioner's first invite doesn't silently
   // default "Enviar acceso" off. Won't clobber a manual toggle (deps stable while open).
+  // This matters MORE now than it did for a role gate: `perms` is minted by claims-sync and
+  // lands in the same late token, so a perm-derived flag is false for exactly as long.
   useEffect(() => {
-    if (open) setSendAccess(isAdmin);
-  }, [open, isAdmin]);
+    if (open) setSendAccess(canProvisionLogin);
+  }, [open, canProvisionLogin]);
 
   const reset = () => {
     setDone(null);
-    setSendAccess(isAdmin);
+    setSendAccess(canProvisionLogin);
     setCopyState("idle");
   };
 
@@ -68,7 +73,15 @@ export function MemberInviteDrawer({
     let emailSent = false;
     let actionLink: string | null = null;
     let errorDetail: string | null = null;
-    if (sendAccess) {
+    // beacon refuses a non-Admin provisioning a member seated on a granting cargo (the
+    // power-seat guard). The rules DO let that member be created, so without this check the
+    // drawer would create them, 403 on the invite, and send the user to a row action that
+    // fails the same way on every retry. Decide before writing anything.
+    const seatedCargo = data.cargoId ? positions.find((p) => p.id === data.cargoId) : undefined;
+    const provisionBlocked = !isAdmin && (seatedCargo?.grants.length ?? 0) > 0;
+    if (sendAccess && provisionBlocked) {
+      errorDetail = null;
+    } else if (sendAccess) {
       // The member is already created; if provisioning fails, fall through to the
       // done screen with provisioned=false ("aún no tiene acceso, invítalo desde su
       // fila") instead of throwing — a thrown error reads as a create failure and
@@ -77,7 +90,7 @@ export function MemberInviteDrawer({
       try {
         const result = await onProvision(id);
         provisioned = true;
-        actionLink = result.actionLink;
+        actionLink = result.actionLink || null;
         try {
           await requestPasswordReset(data.email);
           emailSent = true;
@@ -91,6 +104,7 @@ export function MemberInviteDrawer({
       }
     }
     setDone({
+      blockedByCargo: sendAccess && provisionBlocked,
       name: data.name,
       email: data.email,
       provisioned,
@@ -118,32 +132,42 @@ export function MemberInviteDrawer({
             <p className="text-ui-md text-ink-2">
               {`Invitación enviada a ${done.email}. Recibirá un correo para crear su contraseña y acceder a la app.`}
             </p>
+          ) : done.blockedByCargo ? (
+            <p role="alert" className="text-ui-md text-error">
+              {`${done.name} fue creado, pero su cargo otorga permisos: solo un Admin puede enviarle el acceso. Pídeselo para completar la invitación.`}
+            </p>
           ) : done.provisioned && !done.emailSent ? (
             <>
               <p role="alert" className="text-ui-md text-error">
-                El correo no se pudo enviar. Comparte el enlace de acceso manualmente.
+                {done.actionLink
+                  ? "El correo no se pudo enviar. Comparte el enlace de acceso manualmente."
+                  : "El correo no se pudo enviar. Pídele a un Admin que reenvíe la invitación."}
               </p>
               {done.errorDetail && (
                 <p className="text-ui-xs text-ink-3">Detalle: {done.errorDetail}</p>
               )}
-              <Button
-                as="button"
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  navigator.clipboard
-                    .writeText(done.actionLink ?? "")
-                    .then(() => setCopyState("copied"))
-                    .catch(() => setCopyState("failed"));
-                }}
-                className="w-full justify-center"
-              >
-                {copyState === "copied" ? "Enlace copiado" : "Copiar enlace de acceso"}
-              </Button>
-              {copyState === "failed" && (
-                <code className="text-ui-xs break-all select-all text-ink-2">
-                  {done.actionLink}
-                </code>
+              {done.actionLink && (
+                <>
+                  <Button
+                    as="button"
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      navigator.clipboard
+                        .writeText(done.actionLink ?? "")
+                        .then(() => setCopyState("copied"))
+                        .catch(() => setCopyState("failed"));
+                    }}
+                    className="w-full justify-center"
+                  >
+                    {copyState === "copied" ? "Enlace copiado" : "Copiar enlace de acceso"}
+                  </Button>
+                  {copyState === "failed" && (
+                    <code className="text-ui-xs break-all select-all text-ink-2">
+                      {done.actionLink}
+                    </code>
+                  )}
+                </>
               )}
             </>
           ) : (
@@ -177,11 +201,11 @@ export function MemberInviteDrawer({
           submitLabel="Enviar invitación"
           pendingLabel="Enviando…"
           showPreview
-          allowPowerGrants={canAssignPowerGrants}
+          allowPowerGrants={canAssignBoardSeat}
           defaultValues={{ joinDate: today(), status: "Activo", cargoId: null, comisionIds: [] }}
           onSubmit={handleSubmit}
         >
-          {isAdmin && (
+          {canProvisionLogin && (
             <Checkbox
               checked={sendAccess}
               onChange={setSendAccess}

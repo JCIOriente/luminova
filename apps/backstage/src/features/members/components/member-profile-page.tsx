@@ -16,6 +16,7 @@ import { useActivitiesByTerm } from "../../activities/hooks/use-activities-by-te
 import { useInitiativesByTerm } from "../../initiatives/hooks/use-initiatives-by-term";
 import { summarizeParticipations } from "../lib/participation-summary";
 import { pointsRank } from "../../../lib/points-rank";
+import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
 import { useProvisionMemberLogin } from "../hooks/use-provision-member-login";
 import { useUpdateMember } from "../hooks/use-update-member";
 import { useSetMemberPositions } from "../hooks/use-set-member-positions";
@@ -128,8 +129,11 @@ export function MemberProfilePage() {
         actions={
           <div className="flex flex-wrap items-center justify-end gap-3">
             {member.status && <Badge tone={STATUS_TONE[member.status]}>{member.status}</Badge>}
-            {/* provisionMemberLogin is requireAdmin (role), not the manage:all perm. */}
-            <ActionGate role={["Admin"]}>
+            {/* provisionMemberLogin is requireAdminOrPerm(create:MemberLogin) — the Admin
+                role or that exact code, never the manage:all perm. */}
+            {/* `!member.uid` mirrors beacon's adoption guard: a delegate may only mint a NEW
+                login, so "Reenviar acceso" would 403 on every click for them. */}
+            <ActionGate when={gate.canProvisionLogin && (gate.isAdmin || !member.uid)}>
               <InviteAccess member={member} />
             </ActionGate>
           </div>
@@ -145,7 +149,7 @@ export function MemberProfilePage() {
                 defaultValues={memberFormDefaults(member)}
                 submitLabel="Guardar cambios"
                 pendingLabel="Guardando…"
-                allowPowerGrants={gate.canAssignPowerGrants}
+                allowPowerGrants={gate.canAssignBoardSeat}
                 onSubmit={handleEdit}
                 avatarSeed={member.name}
               />
@@ -173,7 +177,7 @@ export function MemberProfilePage() {
               <MemberPositionsForm
                 positions={positions}
                 gender={member.gender}
-                allowPowerGrants={gate.canAssignPowerGrants}
+                allowPowerGrants={gate.canAssignBoardSeat}
                 defaultValues={{
                   cargoId: member.positions?.[termKey]?.cargoId ?? null,
                   comisionIds: member.positions?.[termKey]?.comisionIds ?? [],
@@ -225,15 +229,33 @@ function InviteAccess({ member }: { member: Member }) {
   const provision = useProvisionMemberLogin();
   const [open, setOpen] = useState(false);
   const [link, setLink] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const label = member.uid ? "Reenviar acceso" : "Invitar acceso";
 
+  // beacon withholds the action link from a non-Admin caller (it is a bearer credential for
+  // the account). The client then does what the invite drawer already does — send the reset
+  // mail itself through the unprivileged sendPasswordResetEmail — so a delegate's invite
+  // still lands. Without this the delegate got an empty code block and a copy button that
+  // copied nothing, with the account already created and no way to set a password.
   const invite = () => {
     setError(null);
     provision.mutate(member.id, {
       onSuccess: (result) => {
-        setLink(result.actionLink);
-        setOpen(true);
+        if (result.actionLink) {
+          setLink(result.actionLink);
+          setOpen(true);
+          return;
+        }
+        setSent(false);
+        void requestPasswordReset(result.email)
+          .then(() => setSent(true))
+          .catch((err: unknown) => {
+            console.error("No se pudo enviar el correo de acceso", err);
+            setError(
+              "Se creó el acceso, pero no se pudo enviar el correo. Pídele a un Admin que lo reenvíe.",
+            );
+          });
       },
       onError: (err) => setError(provisionErrorMessage(err, "No se pudo generar el acceso.")),
     });
@@ -253,6 +275,11 @@ function InviteAccess({ member }: { member: Member }) {
       {error && (
         <p role="alert" className="basis-full text-right text-ui-xs text-error">
           {error}
+        </p>
+      )}
+      {sent && (
+        <p role="status" className="basis-full text-right text-ui-xs text-ink-3">
+          Invitación enviada por correo.
         </p>
       )}
       <Dialog open={open} onOpenChange={setOpen} title="Acceso de miembro">

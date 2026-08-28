@@ -7,8 +7,10 @@ import { type MemberGender, type Position } from "@luminova/types";
 import {
   cargoOptionsForEditor,
   cargoTakedownOnly,
+  noAssignableCargos,
   positionsLockedForNonAdmin,
 } from "../lib/assignable-cargo";
+import { NoAssignableCargosNote } from "./no-assignable-cargos-note";
 
 const positionsSchema = z.object({
   cargoId: z.string().min(1).nullable(),
@@ -128,6 +130,7 @@ export function MemberPositionsForm({
           con «Quitar cargo» y guardar, o elegir otro cargo.
         </p>
       )}
+      {noAssignableCargos({ cargoOptions, allowPowerGrants, locked }) && <NoAssignableCargosNote />}
       {formError && (
         <div role="alert" className="text-ui-sm text-error">
           {formError}

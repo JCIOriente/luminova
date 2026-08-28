@@ -72,6 +72,24 @@ export function cargoTakedownOnly(
 export type CargoOption = { value: string; label: string; disabled?: boolean };
 
 /**
+ * The third derived render-state, alongside `positionsLockedForNonAdmin` and
+ * `cargoTakedownOnly`: this editor may assign, but the ceiling filtered every option away.
+ *
+ * Lives here for the same reason as its two siblings — both member forms ask it, and typing
+ * the three-clause condition at each call site is how the two forms drift. `locked` is passed
+ * in rather than recomputed because the forms derive it differently (one from the stored
+ * cargo, one from `defaultValues`), and it must be excluded: a locked slot renders its own
+ * note, and `cargoOptionsForEditor` appends the held cargo, so the two states cannot co-fire.
+ */
+export function noAssignableCargos(input: {
+  cargoOptions: readonly CargoOption[];
+  allowPowerGrants: boolean;
+  locked: boolean;
+}): boolean {
+  return !input.locked && !input.allowPowerGrants && input.cargoOptions.length === 0;
+}
+
+/**
  * The cargo Combobox options for one editor, shared by both member forms so they cannot
  * disagree about the same rules predicate (they did: one dropped the held CEL seat, the other
  * re-added it labelled "(inactivo)" — an ACTIVE cargo, mislabelled and re-offered to the very

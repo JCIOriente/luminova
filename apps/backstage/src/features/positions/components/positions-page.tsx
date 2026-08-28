@@ -34,7 +34,7 @@ export function PositionsPage() {
   const seedPositions = useSeedPositions();
   // Grants + seed are power-grant writes the rules gate on the Admin *role*
   // (hasAnyRole(['Admin'])), not the manage:all perm — use the role-based capability.
-  const { isAdmin, canAssignPowerGrants } = useCan();
+  const { isAdmin, canEditCargoCatalog } = useCan();
 
   const [editing, setEditing] = useState<Editing>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Position | null>(null);
@@ -175,7 +175,7 @@ export function PositionsPage() {
             key={editing === "new" ? "new" : editing.id}
             defaultValues={editing === "new" ? undefined : positionToInput(editing)}
             submitLabel={editing === "new" ? "Crear" : "Guardar"}
-            canEditGrants={canAssignPowerGrants}
+            canEditGrants={canEditCargoCatalog}
             onSubmit={handleSubmit}
           />
         )}

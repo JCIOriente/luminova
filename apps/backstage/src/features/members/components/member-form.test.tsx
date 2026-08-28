@@ -105,6 +105,52 @@ describe("MemberForm", () => {
     expect(screen.queryByText("Comisión de Eventos")).not.toBeInTheDocument();
   });
 
+  // The empty-state the delegation exists to explain. A chapter whose every cargo carries
+  // grants (which is the real production shape) leaves a non-delegate with zero options, and
+  // the bare Combobox "Sin resultados" cannot be told apart from an empty catalog.
+  it("explains an empty cargo list to a non-delegate, and stays silent for a delegate", async () => {
+    const gatedCargo = (
+      id: string,
+      category: Position["category"],
+      grants: Position["grants"],
+    ): Position => ({
+      id,
+      title: id,
+      titleFemale: id,
+      category,
+      grants,
+      term: null,
+      sigla: null,
+      description: "",
+      active: true,
+      deletedAt: null,
+    });
+    const celOnly: Position[] = [
+      gatedCargo("pos-cel", "CEL", []),
+      gatedCargo("pos-power", "JDL", ["Membership"]),
+    ];
+    const { unmount } = render(
+      <MemberForm
+        positions={celOnly}
+        submitLabel="Crear"
+        onSubmit={vi.fn()}
+        allowPowerGrants={false}
+      />,
+    );
+    expect(screen.getByRole("note")).toHaveTextContent(/Asientos de directiva/);
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    expect(await screen.findByText("Sin resultados")).toBeInTheDocument();
+    unmount();
+
+    // The delegate sees the very same catalog as assignable, and no note.
+    render(
+      <MemberForm positions={celOnly} submitLabel="Crear" onSubmit={vi.fn()} allowPowerGrants />,
+    );
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    expect(screen.queryByText("Sin resultados")).not.toBeInTheDocument();
+  });
+
   // The admin half of memberSchemaFor: a member enrolled before memberNameValid() existed
   // must stay editable. Without the per-member schema the form blocks on a name the admin
   // never touched, making the rules' touched('name') affordance unreachable.

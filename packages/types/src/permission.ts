@@ -27,6 +27,21 @@ export const SUBJECTS = [
   // the /permisos matrix renders the full actions × subjects grid, so `checkIn:Member` and
   // dozens like it are already assignable and equally inert.
   "Showcase",
+  // Delegable board seating. Only `update:BoardSeat` is live: firestore.rules'
+  // boardSeatDelegate() is `hasAnyRole(['Admin']) || hasPerm('update:BoardSeat')` — an EXACT
+  // code match, not canDo(), so `manage:all` cannot satisfy it and the other five codes are
+  // inert. It confers no authority ALONE: it only widens which cargo an editor who already
+  // holds update:Member / create:Member / update:Position may assign, from "grant-free and
+  // non-CEL" to "any vacant cargo". Displacing a sitting power-cargo holder stays Admin-only
+  // (currentCargoGrantsEmpty), and the /positions CATALOG stays Admin-only.
+  "BoardSeat",
+  // Delegable login provisioning. Only `create:MemberLogin` is live, read by beacon's
+  // requireAdminOrPerm on provisionMemberLogin. NOT the invite email itself — that is a
+  // client-side sendPasswordResetEmail any signed-in user can already call. What this gates is
+  // Auth account creation + uid linking + the initial claim write. A non-Admin holder may only
+  // mint a NEW account, never adopt a pre-existing one (see provisionMember's callerIsAdmin
+  // branch), so it cannot be turned on an existing privileged account.
+  "MemberLogin",
   "all",
 ] as const;
 export type Subject = (typeof SUBJECTS)[number];

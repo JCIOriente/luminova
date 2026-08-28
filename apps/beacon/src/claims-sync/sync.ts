@@ -13,8 +13,13 @@ export interface MemberClaims {
 export interface ClaimsSyncDeps extends RolePermsDeps {
   /** Catalog position by id, or null if missing/deleted. */
   getPosition(id: string): Promise<{ grants: Role[] } | null>;
-  /** The assigner's current claim roles (for the power-grant trust gate). */
-  getUserRoles(uid: string): Promise<Role[]>;
+  /** The assigner's current claim roles AND perms (for the power-grant trust gate).
+   *  Both, from one call: the gate asks a single question and two accessors would be two
+   *  chances for a later edit to consult one and not the other. Deliberately not folded into
+   *  `getExistingClaims` — the spy in sync.test.ts proves the gate is never REACHED on a
+   *  grant-free cargo by asserting no assigner lookup happened, and a shared accessor would
+   *  degrade that assertion to a uid-filtering heuristic. */
+  getAssignerClaims(uid: string): Promise<{ roles: Role[]; perms: PermissionCode[] }>;
   /** The target member's existing custom claims. */
   getExistingClaims(uid: string): Promise<{ roles: Role[]; perms?: PermissionCode[] }>;
   setClaims(uid: string, claims: MemberClaims): Promise<void>;
@@ -34,7 +39,7 @@ type MemberLike = {
  *  `comisionIds` is the one slot rules cannot grant-check (no array iteration), so
  *  honoring it would let a console-written power comisión — or a power cargo's id
  *  smuggled into comisionIds — mint claims. Ignoring it entirely also means a
- *  Ignoring it entirely also means a permitted non-Admin positions edit (which restamps
+ *  permitted non-Admin positions edit (which restamps
  *  the shared `assignedBy`) can no longer strip Admin-granted power. That last part was
  *  NOT true of the rules until currentCargoGrantsEmpty() landed: the rules denied
  *  ASSIGNING a power cargo, never OVERWRITING one, so a manage:Member holder could
@@ -43,14 +48,57 @@ type MemberLike = {
  *  claim true; do not re-loosen it without re-reading this comment.
  *
  *  The assigner lookup runs only when the cargo actually confers power.
- *  `getUserRoles` reads the assigner's LIVE claims, so a later Firestore write
+ *  `getAssignerClaims` reads the assigner's LIVE claims, so a later Firestore write
  *  that re-invokes this function re-evaluates trust: if the assigner has since
  *  lost Admin, their previously granted power cargo is revoked and claims
- *  reflect current org state (by design). */
+ *  reflect current org state (by design).
+ *
+ *  TWO trust sources, mirroring firestore.rules' boardSeatDelegate(): the Admin ROLE, or
+ *  the exact `update:BoardSeat` PERM. The perm is not optional politeness — a delegate
+ *  stamps their OWN uid into `assignedBy` (the rules' assignedBySelf()), so without it the
+ *  seat lands, the member is published on the world-readable Directiva, and no claim is
+ *  minted. Visible, powerless, and silent: half-working rather than safe.
+ *
+ *  TWO restrictions, and together they are the guard the whole delegation rests on:
+ *    - a cargo whose grants include `Admin` is honored only for an assigner holding the Admin
+ *      ROLE; and
+ *    - a SELF-assignment is honored only for an Admin, whatever the cargo grants.
+ *  Everything else — a delegate seating SOMEONE ELSE on a non-Admin power cargo — is honored
+ *  for an `update:BoardSeat` holder, and that is the feature.
+ *
+ *  The self-assignment half is not the discredited reflexivity check (see below); it is
+ *  narrower and it closes a different hole. Without it `update:BoardSeat` is a self-service
+ *  grant of every built-in role but Admin: the spec's own recommended pairing
+ *  (`update:Position` + `update:BoardSeat`) can write `positions.<term> = { cargoId:
+ *  <a Secretario/ProjectManager cargo>, assignedBy: <own uid> }` onto its OWN member doc
+ *  through the positions-only lane — one write, no puppet needed — and claims-sync would mint
+ *  those roles onto the author. Conferring power on others is the delegation; conferring it on
+ *  yourself is self-promotion.
+ *
+ *  Why the ADMIN half keys on the grant rather than on reflexivity (which is what this first
+ *  shipped as): for Admin the danger is not reflexivity, it is that a delegate can mint an
+ *  Admin AT ALL, because a minted Admin is itself a trust source and the delegation then
+ *  cannot be revoked. Blocking only `assignedBy === memberUid` stops the one-write self-loop
+ *  and not the two-write puppet loop — a delegate creates a second member on a mailbox they control, seats IT on
+ *  Presidente (not a self-assignment, so the perm is trusted), and that puppet is Admin
+ *  forever; revoking the delegate's code de-elevates nobody. It also had a worse problem: the
+ *  seeded bootstrap president self-stamps `assignedBy` (tools/scripts/lib/seed-president.mjs)
+ *  and their perms are `manage:all`, never the exact `update:BoardSeat` code — so the
+ *  self-assignment form stripped the sitting president's Admin on their next member write.
+ *
+ *  Keying on the GRANT fixes both: no cargo-derived Admin can ever originate from a delegate,
+ *  so there is no loop to close and no anchor to special-case, and an Admin seating anyone —
+ *  including themselves — is untouched. The self-assignment half rides alongside it and is
+ *  safe for the same reason: it too defers to the Admin ROLE, which the seeded president has. Revocation is then real for everything a delegate
+ *  CAN confer: strip the perm and the next write to that member drops the grants.
+ *
+ *  The cost, stated so nobody reads it as a bug: a delegate seating a member on an
+ *  Admin-granting cargo publishes the seat but mints no claim. An Admin must re-stamp it. */
 async function resolveTrustedGrants(
   deps: ClaimsSyncDeps,
   cargoId: string | null,
   assignedBy: string | undefined,
+  memberUid: string,
 ): Promise<Role[]> {
   // FULL screening, not just the empty-string half this used to check. `cargoId` comes
   // straight off the member doc and every implementation of `getPosition` interpolates it
@@ -65,10 +113,17 @@ async function resolveTrustedGrants(
   if (!isSafeDocId(cargoId)) return [];
   const position = await deps.getPosition(cargoId);
   if (!position || position.grants.length === 0) return [];
-  const assignerIsAdmin = assignedBy
-    ? (await deps.getUserRoles(assignedBy)).includes("Admin")
-    : false;
-  return assignerIsAdmin ? [...new Set(position.grants)] : [];
+  if (!assignedBy) return [];
+  const assigner = await deps.getAssignerClaims(assignedBy);
+  const assignerIsAdmin = assigner.roles.includes("Admin");
+  // A delegate may confer power on OTHERS, never on themselves, and never Admin at all.
+  // Both halves need the Admin role; only the third case honors the perm.
+  const selfAssigned = assignedBy === memberUid;
+  const trusted =
+    position.grants.includes("Admin") || selfAssigned
+      ? assignerIsAdmin
+      : assignerIsAdmin || assigner.perms.includes("update:BoardSeat");
+  return trusted ? [...new Set(position.grants)] : [];
 }
 
 function sameList(a: readonly string[], b: readonly string[]): boolean {
@@ -96,7 +151,12 @@ export async function syncMemberClaims(
 ): Promise<void> {
   if (!member.uid) return;
   const term = member.positions?.[termKey];
-  const trustedGrants = await resolveTrustedGrants(deps, term?.cargoId ?? null, term?.assignedBy);
+  const trustedGrants = await resolveTrustedGrants(
+    deps,
+    term?.cargoId ?? null,
+    term?.assignedBy,
+    member.uid,
+  );
 
   const existing = await deps.getExistingClaims(member.uid);
   const hadScanner = existing.roles.includes("Scanner");
@@ -113,6 +173,9 @@ export async function syncMemberClaims(
     // keep a stale grant while dropping a revoke). We still write the recomputed
     // `roles` + empty `perms` so a concurrent role revocation always lands —
     // never leave the member on stale, possibly-elevated claims.
+    // Note for update:BoardSeat holders: this takes their delegation with it, silently. A
+    // delegate over the cap keeps seating (their cached token still passes the rules) while
+    // this function stops honoring the grants — the seat publishes, no claim is minted.
     deps.logError?.("effective perms exceed cap; writing empty perms (fail-closed)", {
       uid: member.uid,
       count: perms.length,
