@@ -323,14 +323,52 @@ describe("provisionMember", () => {
       { positions: {} },
       { positions: { [TERM]: { comisionIds: [] } } },
       { positions: { [TERM]: { cargoId: null, comisionIds: [] } } },
-      { positions: { "1999": { cargoId: "pos-pres", comisionIds: [] } } },
+      { positions: { "1999": { cargoId: "pos-unknown-but-grantfree", comisionIds: [] } } },
     ];
     for (const positions of shapes) {
-      const { deps } = fakeDeps({ member: { ...active, ...positions } });
+      const { deps } = fakeDeps({
+        member: { ...active, ...positions },
+        positions: { "pos-unknown-but-grantfree": [] },
+      });
       await expect(provisionMember(deps, "m1", false)).resolves.toMatchObject({
         email: "a@b.co",
       });
     }
+  });
+
+  it("BLOCKING: a FUTURE-term power cargo is refused too, not just the current term", async () => {
+    // syncMemberClaims reads positions[currentTermKey()] at TRIGGER time, so a next-term entry
+    // is invisible today and mints on the UTC-year rollover — a genuine Admin in assignedBy,
+    // the cargo's grants honored, onto an account a delegate caused to exist. Every client
+    // lane is term-pinned so the shape needs a console edit or a migration, which is the same
+    // reachability this file already fail-closes on for a malformed cargoId.
+    const { deps, calls } = fakeDeps({
+      member: {
+        ...active,
+        positions: { "2099": { cargoId: "pos-pres", comisionIds: [], assignedBy: "admin-uid" } },
+      },
+      positions: { "pos-pres": ["Admin"] },
+    });
+    await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+      code: "permission-denied",
+      details: { reason: "power-seat-requires-admin" },
+    });
+    expect(calls.createUser).toEqual([]);
+  });
+
+  it("still allows a delegate when EVERY term's cargo is grant-free", async () => {
+    const { deps, calls } = fakeDeps({
+      member: {
+        ...active,
+        positions: {
+          [TERM]: { cargoId: "pos-dir", comisionIds: [], assignedBy: "delegate-uid" },
+          "2099": { cargoId: "pos-dir2", comisionIds: [], assignedBy: "delegate-uid" },
+        },
+      },
+      positions: { "pos-dir": [], "pos-dir2": [] },
+    });
+    await expect(provisionMember(deps, "m1", false)).resolves.toMatchObject({ email: "a@b.co" });
+    expect(calls.createUser).toEqual(["a@b.co"]);
   });
 
   it("fails closed when the seated cargo cannot be read", async () => {

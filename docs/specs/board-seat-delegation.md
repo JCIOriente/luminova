@@ -88,7 +88,9 @@ two independent sources, so the guard has to ask about both:
 - *Direct grants* — `roleIds` and `permissionOverrides` become `perms`, with no cargo involved.
   These are exactly what the Admin-only roles panel writes, so "granted but not yet invited" is
   as ordinary a state as "seated but not yet invited".
-- *Cargo grants* — the current-term cargo's `grants` become `roles`.
+- *Cargo grants* — a cargo's `grants` become `roles`. The guard checks EVERY term in the map,
+  not just the current one: `syncMemberClaims` reads the current term at trigger time, so a
+  future-term entry is invisible today and mints on the UTC-year rollover.
 
 **And only when that member is not POWER-SEATED.** "Unprovisioned" does not mean "enrolled by
 this delegate": every uid-less member is reachable by `memberId`, including one an Admin already

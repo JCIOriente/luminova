@@ -2,7 +2,6 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { isValidRole, type Role } from "@luminova/auth/roles";
-import { currentTermKey } from "@luminova/types";
 import { isSafeDocId } from "./firestore-util.js";
 import { callerIsAdmin, requireAdminOrPerm } from "./callable-auth.js";
 import { firestoreProvisionDeps } from "./provision-deps.js";
@@ -93,30 +92,44 @@ function hasDirectGrants(member: Record<string, unknown>): boolean {
   return grant.length > 0;
 }
 
-/** The member's CURRENT-term cargo id for the power-seat guard.
+/** Every cargo id in the member's positions map, for the power-seat guard.
  *
- *  Three outcomes, and the middle one is the point:
- *    null  — genuinely NO current-term cargo (no positions map, no entry for this term, or an
- *            entry whose cargoId is absent/null). The guard allows: an unseated member is
- *            exactly who a delegate is meant to be enrolling.
- *    id    — a usable cargo id; the guard reads its grants.
- *    ""    — PRESENT but unreadable: a term entry that is not an object, a cargoId that is not
- *            a string, or an id `isSafeDocId` rejects. Deliberately NOT null — `""` fails
- *            `isSafeDocId` at the port too, so `getPositionGrants` returns null and the guard
- *            refuses. A malformed shape must never read as "no cargo": that is the guard's own
- *            bypass, and these docs are reachable by console edit and legacy migration even
- *            though no client write path produces them. */
-function readCurrentCargoId(member: Record<string, unknown>): string | null {
+ *  EVERY term, not just the current one — and that is the point. `syncMemberClaims` reads
+ *  `positions[currentTermKey()]` at TRIGGER time, so a future-term entry is invisible today
+ *  and mints on the UTC-year rollover. All client write lanes are term-pinned
+ *  (`positionsDelta().hasOnly()` on update, `keys().hasOnly()` on create, both binding Admins
+ *  too), so such a map takes a console edit, an admin-SDK write or a legacy migration — the
+ *  same reachability this file already fail-closes on for a malformed cargoId, and a
+ *  console-authored next-term board slate is the more plausible of the two.
+ *
+ *  Yields:
+ *    a usable id   — read its grants.
+ *    ""            — present but unreadable (a non-object entry, a non-string or empty
+ *                    cargoId, or an id `isSafeDocId` rejects). Deliberately NOT skipped: ""
+ *                    fails `isSafeDocId` at the port too, so the guard refuses. A malformed
+ *                    shape must never read as "no cargo" — that is the guard's own bypass.
+ *  A genuinely absent cargo (no map, no entry, or `cargoId` absent/null) yields nothing, so an
+ *  unseated member produces an empty list and the delegate may enrol them. */
+function readCargoIds(member: Record<string, unknown>): string[] {
   const positions = member.positions;
-  if (positions === undefined || positions === null) return null;
-  if (typeof positions !== "object") return "";
-  const term = (positions as Record<string, unknown>)[currentTermKey()];
-  if (term === undefined || term === null) return null;
-  if (typeof term !== "object") return "";
-  const cargoId = (term as { cargoId?: unknown }).cargoId;
-  if (cargoId === undefined || cargoId === null) return null;
-  if (typeof cargoId !== "string" || cargoId.length === 0) return "";
-  return isSafeDocId(cargoId) ? cargoId : "";
+  if (positions === undefined || positions === null) return [];
+  if (typeof positions !== "object") return [""];
+  const ids: string[] = [];
+  for (const term of Object.values(positions as Record<string, unknown>)) {
+    if (term === undefined || term === null) continue;
+    if (typeof term !== "object") {
+      ids.push("");
+      continue;
+    }
+    const cargoId = (term as { cargoId?: unknown }).cargoId;
+    if (cargoId === undefined || cargoId === null) continue;
+    if (typeof cargoId !== "string" || cargoId.length === 0) {
+      ids.push("");
+      continue;
+    }
+    ids.push(isSafeDocId(cargoId) ? cargoId : "");
+  }
+  return [...new Set(ids)];
 }
 
 /** Provision (or re-provision) a member's login. Refuses to relink a member whose
@@ -217,8 +230,7 @@ export async function provisionMember(
         { reason: "granted-member-requires-admin" },
       );
     }
-    const cargoId = readCurrentCargoId(member);
-    if (cargoId !== null) {
+    for (const cargoId of readCargoIds(member)) {
       const grants = await deps.getPositionGrants(cargoId);
       if (grants === null || grants.length > 0) {
         throw new HttpsError(
