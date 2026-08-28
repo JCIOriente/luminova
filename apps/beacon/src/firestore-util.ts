@@ -28,6 +28,14 @@ export function isSafeDocId(id: unknown): id is string {
 /** A structured log sink, injected so a shared fail-closed read is not welded to `console`. */
 export type LogSink = (message: string, meta: Record<string, unknown>) => void;
 
+/** The default sinks, HERE rather than one per adapter file. Routing beacon's structured logs
+ *  anywhere else — a Cloud Logging client, a redaction wrapper, another severity split — is
+ *  then one edit that reaches every port, which is the property `claims-sync/firestore-deps.ts`
+ *  claimed while a byte-identical second copy lived in `provision-deps.ts` and silently kept
+ *  `readPositionGrants`'s anomaly lines on the old path. */
+export const logError: LogSink = (message, meta) => console.error(message, meta);
+export const logWarn: LogSink = (message, meta) => console.warn(message, meta);
+
 const LOG_ID_MAX_CHARS = 64;
 
 /** An id bounded for a structured-log field. The values screened by `isSafeDocId` run to
@@ -35,5 +43,13 @@ const LOG_ID_MAX_CHARS = 64;
  *  loses the anomaly precisely when it is biggest. Shared so every screen's log line is
  *  bounded the same way. */
 export function truncateForLog(value: string): string {
-  return value.length > LOG_ID_MAX_CHARS ? `${value.slice(0, LOG_ID_MAX_CHARS)}…` : value;
+  if (value.length <= LOG_ID_MAX_CHARS) return value;
+  const cut = value.slice(0, LOG_ID_MAX_CHARS);
+  // A cut at a fixed UTF-16 index can land BETWEEN the halves of a surrogate pair, leaving a
+  // lone high surrogate — an ill-formed string. JSON.stringify escapes it rather than throwing
+  // (well-formed stringify, ES2019), so nothing here fails; the damage is downstream, in
+  // whatever reads the log field. Drop the orphan instead of shipping it.
+  const last = cut.charCodeAt(cut.length - 1);
+  const orphaned = last >= 0xd800 && last <= 0xdbff;
+  return `${orphaned ? cut.slice(0, -1) : cut}…`;
 }

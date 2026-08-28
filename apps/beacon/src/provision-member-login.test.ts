@@ -497,9 +497,17 @@ describe("provisionMember", () => {
     await expect(
       provisionMember(fakeDeps({ member: { email: "a@b.co", active: false } }).deps, "m1"),
     ).rejects.toMatchObject({ code: "failed-precondition" });
-    await expect(
-      provisionMember(fakeDeps({ member: { active: true } }).deps, "m1"),
-    ).rejects.toMatchObject({ code: "failed-precondition" });
+    // BLOCKING: an absent or empty email is TAGGED, like every other refusal. It used to throw
+    // bare ("member has no email"), so `provisionRefusalMessage` returned null and the operator
+    // got the generic "No se pudo…" — the dead end PROVISION_BLOCK_REASONS exists to remove —
+    // and it shadowed the tagged malformed-email refusal for the "" case, which is the likelier
+    // one (memberDocSchema's `email` is a bare z.string()).
+    for (const member of [{ active: true }, { active: true, email: "" }]) {
+      await expect(provisionMember(fakeDeps({ member }).deps, "m1")).rejects.toMatchObject({
+        code: "failed-precondition",
+        details: { reason: "member-email-malformed" },
+      });
+    }
   });
 
   it("BLOCKING: screens a malformed stored email instead of surfacing an opaque `internal`", async () => {
@@ -509,7 +517,21 @@ describe("provisionMember", () => {
     // the fix is editing the member's stored email. firestore.rules does not shape-validate
     // email on the admin write lane, so this shape is reachable.
     const reached: string[] = [];
-    for (const email of ["not-an-email", "@b.co", "a@", "a@b@c.co", "  "]) {
+    // The last four are the tightening over the SDK's own `/^[^@]+@[^@]+$/`: `[^@]` matches
+    // whitespace and control characters, so each of these passes that pattern AND the SDK's
+    // client-side check, reaches Identity Toolkit, and returns INVALID_EMAIL as an opaque
+    // `internal` — the exact failure this screen exists to prevent, one layer further out.
+    for (const email of [
+      "not-an-email",
+      "@b.co",
+      "a@",
+      "a@b@c.co",
+      "  ",
+      "pres@jci.bo\n",
+      "a b@jci.bo",
+      "a@b\t.bo",
+      "a@b .bo",
+    ]) {
       const { deps, calls } = fakeDeps({ member: { email, active: true } });
       const spied: ProvisionDeps = {
         ...deps,

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Auth } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
 import { firestoreClaimsDeps } from "./firestore-deps.js";
+import { truncateForLog } from "../firestore-util.js";
 
 type RoleFixture = { id: string; data: Record<string, unknown> };
 
@@ -272,15 +273,22 @@ describe("getRolesByIds id screening", () => {
     const { db } = fakeDb([]);
     const junk = Array.from({ length: 10_000 }, (_, i) => `bad/${i}`);
     const longId = `x/${"y".repeat(5_000)}`;
-    expect(await firestoreClaimsDeps(db, auth).getRolesByIds([...junk, longId])).toEqual([]);
+    // FIRST, not last. `sampleRejectedIds` takes `.slice(0, 10)`, so appending the one
+    // oversized id after 10,000 short ones put it outside the sampled window entirely: the
+    // per-entry length assertion below then only ever saw 9-character ids and could not fail.
+    // Deleting `.map(truncateForLog)` left this test green, which is the failure it exists to
+    // catch — a member doc whose FIRST junk roleId is 1,500 bytes serializes raw.
+    expect(await firestoreClaimsDeps(db, auth).getRolesByIds([longId, ...junk])).toEqual([]);
     const meta = errors[0]?.[1] as {
       rejectedCount: number;
       rejectedSample: string[];
     };
     expect(meta.rejectedCount).toBe(10_001);
     expect(meta.rejectedSample).toHaveLength(10);
-    // Every sampled entry is length-capped too, so one enormous id cannot blow the budget
-    // through the sample either.
+    // The oversized id is in the window, and truncated — so one enormous id cannot blow the
+    // budget through the sample either.
+    expect(meta.rejectedSample[0]).toBe(truncateForLog(longId));
+    expect(meta.rejectedSample[0]).toHaveLength(65);
     for (const entry of meta.rejectedSample) expect(entry.length).toBeLessThanOrEqual(65);
     expect(JSON.stringify(meta).length).toBeLessThan(2_000);
   });

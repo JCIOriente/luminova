@@ -48,11 +48,19 @@ function provisionBlocked(
   return new HttpsError(code, message, { reason });
 }
 
-/** The Admin SDK's OWN email predicate (`validator.isEmail`: `/^[^@]+@[^@]+$/`), copied
- *  verbatim rather than tightened. The point is to refuse exactly what `getUserByEmail` /
- *  `createUser` would refuse — a stricter RFC-ish pattern would start rejecting addresses
- *  Firebase happily accepts, which is a worse failure than the one being fixed. */
-const ADMIN_SDK_EMAIL_SHAPE = /^[^@]+@[^@]+$/;
+/** The Admin SDK's OWN email predicate (`validator.isEmail`: `/^[^@]+@[^@]+$/`), plus the one
+ *  tightening that is strictly safe: no whitespace, no control characters.
+ *
+ *  Deliberately not an RFC-ish pattern — a stricter one would start rejecting addresses
+ *  Firebase happily accepts, which is a worse failure than the one being fixed. But `[^@]`
+ *  matches `\n`, `\r`, `\t`, spaces and NUL, so `"pres@jci.bo\n"` and `"a b@jci.bo"` pass BOTH
+ *  this screen and the SDK's client-side check, reach Identity Toolkit, and come back
+ *  INVALID_EMAIL → `auth/invalid-email` → rethrown by `nullIfUserNotFound` as an opaque
+ *  `internal` with no `details.reason`. That is exactly the unprovisionable-with-no-hint
+ *  failure this constant exists to prevent, and `firestore.rules` never constrains
+ *  `members.email`, so a CSV paste or any `update:Member` holder can store one. Rejecting them
+ *  here costs nothing: the server rejects them anyway, and now with a reason the UI can name. */
+const ADMIN_SDK_EMAIL_SHAPE = /^[^@\s\p{C}]+@[^@\s\p{C}]+$/u;
 
 export interface ProvisionUser {
   uid: string;
@@ -177,23 +185,26 @@ export async function provisionMember(
   const member = await deps.getMember(memberId);
   if (member === null) throw new HttpsError("not-found", "member not found");
   if (member.active !== true) throw new HttpsError("failed-precondition", "member is not active");
-  if (typeof member.email !== "string" || member.email.length === 0) {
-    throw new HttpsError("failed-precondition", "member has no email");
-  }
-  const email = member.email;
   // Shape-screened BEFORE it reaches the Auth SDK, for the same reason cargoId and assignedBy
   // are screened in claims-sync: a stored value the SDK rejects throws a PERMANENT
   // auth/invalid-email, which nullIfUserNotFound rethrows and the caller receives as an opaque
   // `internal`. That member is then unprovisionable through this callable — with no hint why —
   // until someone edits the doc in the console. firestore.rules deliberately does not
   // shape-validate `email` on the admin write lane, so the shape reaches here unchecked.
-  if (!ADMIN_SDK_EMAIL_SHAPE.test(email)) {
+  //
+  // ONE check, not a separate untagged "member has no email" above it. That one threw with no
+  // `details.reason`, so the UI degraded it to the generic "no se pudo" — verbatim the dead end
+  // PROVISION_BLOCK_REASONS exists to remove — and it SHADOWED this tagged one for the
+  // empty-string case, which is the likelier of the two (memberDocSchema's `email` is a bare
+  // z.string()). Absent, empty and malformed all have the same operator remedy: fix the ficha.
+  if (typeof member.email !== "string" || !ADMIN_SDK_EMAIL_SHAPE.test(member.email)) {
     throw provisionBlocked(
       "failed-precondition",
-      "member's stored email is not a valid address; correct it before provisioning",
+      "member's stored email is missing or not a valid address; correct it before provisioning",
       "member-email-malformed",
     );
   }
+  const email = member.email;
   const linkedUid = typeof member.uid === "string" && member.uid.length > 0 ? member.uid : null;
 
   let user = await deps.getUserByEmail(email);

@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { isValidRole, type Role } from "@luminova/auth/roles";
 import { isValidPermissionCode, type PermissionCode } from "@luminova/types/permission";
 import { chunk } from "../chunk.js";
-import { isSafeDocId, truncateForLog, type LogSink } from "../firestore-util.js";
+import { isSafeDocId, logError, logWarn, truncateForLog } from "../firestore-util.js";
 import { readPositionGrants } from "../read-position-grants.js";
 import { isActiveRoleDoc, permsFromRoleDoc } from "./role-doc.js";
 import type { LiveBuiltInRoleDoc } from "./resolve-member-perms.js";
@@ -186,10 +186,11 @@ export interface FirestoreClaimsDeps extends ClaimsSyncDeps {
   staleBuiltInRoleKeys(): Promise<Role[]>;
 }
 
-/** Exported so the trigger/callable call sites can hand the SAME sink to `parseMember`, which
- *  runs before any deps instance exists. Defining a second `console.error` wrapper at each of
- *  those three call sites would be the copy this repo's guardrail #1 forbids. */
-export const logError: LogSink = (message, meta) => console.error(message, meta);
+/** Re-exported so the trigger/callable call sites can hand the SAME sink to `parseMember`,
+ *  which runs before any deps instance exists. The sink itself lives in `firestore-util.ts`
+ *  alongside `LogSink` — a second `console.error` wrapper per adapter is the copy guardrail #1
+ *  forbids, and there WAS one in `provision-deps.ts` while this comment claimed otherwise. */
+export { logError };
 
 export function firestoreClaimsDeps(db: Firestore, auth: Auth): FirestoreClaimsDeps {
   const userCache = new Map<string, Promise<UserRecord | null>>();
@@ -354,6 +355,6 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): FirestoreClaimsD
     logError,
     // Cloud Logging maps console.warn to WARNING, which is the point: the designed refusals
     // must not share a severity with the malformed-doc screens an operator has to act on.
-    logWarn: (message, meta) => console.warn(message, meta),
+    logWarn,
   };
 }

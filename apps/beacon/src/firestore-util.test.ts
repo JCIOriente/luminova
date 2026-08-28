@@ -26,12 +26,26 @@ describe("truncateForLog", () => {
     expect(truncateForLog("y".repeat(65))).toBe(`${"y".repeat(64)}…`);
   });
 
-  it("stays serializable when the cut lands mid-surrogate-pair", () => {
-    // `.slice` can split an astral pair into a lone surrogate. JSON.stringify has been
-    // well-formed since ES2019 and escapes it, so the log entry survives — this pins that the
-    // helper never produces something the structured sink would reject.
-    const astral = "𝒳".repeat(40); // 2 UTF-16 units each, so the 64-char cut lands mid-pair
-    expect(() => JSON.stringify({ id: truncateForLog(astral) })).not.toThrow();
-    expect(JSON.parse(JSON.stringify({ id: truncateForLog(astral) }))).toBeTruthy();
+  // This case used to be asserted with an ALL-astral fixture, which cannot produce it: pairs
+  // are 2 units each and the cap is 64, an even index, so the cut always landed ON a boundary.
+  // Both of its assertions were unconditionally true besides — JSON.stringify has not thrown on
+  // a lone surrogate since ES2019, and `expect(JSON.parse(…)).toBeTruthy()` holds for every
+  // object. A leading BMP character is what shifts the pairs onto odd indices.
+  it("BLOCKING: never emits a lone surrogate, even when the cut lands mid-pair", () => {
+    const mixed = `a${"𝒳".repeat(40)}`;
+    // The premise, asserted rather than claimed: this fixture really does split a pair.
+    expect(mixed.slice(0, 64).isWellFormed()).toBe(false);
+
+    const out = truncateForLog(mixed);
+    expect(out.isWellFormed()).toBe(true);
+    expect(out.endsWith("…")).toBe(true);
+    // Round-trips as the SAME string — an escaped orphan would come back as \uD835.
+    expect(JSON.parse(JSON.stringify({ id: out })).id).toBe(out);
+  });
+
+  it("keeps the full cap when the boundary is clean", () => {
+    // The orphan trim must cost one char only when there IS an orphan.
+    const astral = "𝒳".repeat(40); // pairs on even indices: the 64-char cut is a boundary
+    expect(truncateForLog(astral)).toBe(`${astral.slice(0, 64)}…`);
   });
 });
