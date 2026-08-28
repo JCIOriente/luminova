@@ -71,7 +71,7 @@ export function noAssignableCargos(input: {
  * render-state, and here for the same reason as the other three: both forms ask it, and a
  * re-typed ternary at each call site is how they drift.
  *
- * Order is priority and it is load-bearing, because exactly one pair CAN co-fire:
+ * Order is priority and it is load-bearing, because of the one pair that CAN co-fire:
  *   locked ∧ mintPending    REACHABLE — a delegate opening a member seated on an Admin-granting
  *                           cargo has both. `locked` must win: the mint note's render is guarded
  *                           by `!locked`, so pointing aria-describedby at it would reference an
@@ -79,6 +79,10 @@ export function noAssignableCargos(input: {
  *   takedown ∧ mintPending   impossible — takedown needs grants.length === 0, mintPending needs
  *                            grants.length > 0, both off the same selected cargo.
  *   noCargos ∧ locked        impossible — a locked slot's held cargo is always in the list.
+ * The remaining three pairs are unreachable only because of facts OUTSIDE this file — the
+ * Combobox is `disabled={locked}`, so the selection cannot leave the held cargo, and
+ * `cargoSlotsForEditor` never offers a grant-free CEL while `!allowPowerGrants`. Change either
+ * and `locked ∧ takedown` becomes reachable, at which point this order matters again.
  * First match wins, most-blocking first: not being able to pick anything outranks what a pick
  * would mint.
  *

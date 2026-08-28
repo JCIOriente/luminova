@@ -360,7 +360,9 @@ describe("MemberInviteDrawer", () => {
         onCreate={async () => "idCreatorOnly"}
         onProvision={vi.fn()}
       />,
-      { roles: ["Member"], perms: ["create:Member"] },
+      // read:Member too: /members' nav gate is an unconditional read:Member, so a
+      // create-only principal never reaches the page that hosts this drawer.
+      { roles: ["Member"], perms: ["read:Member", "create:Member"] },
     );
     expect(screen.queryByLabelText("Enviar acceso a la app")).not.toBeInTheDocument();
     await fill();

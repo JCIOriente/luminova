@@ -142,9 +142,15 @@ interface Cargo extends CargoLike {
   description: string;
   deletedAt: null;
 }
+// `category` is a literal union HERE even though CargoLike widens it to `string`. This is the
+// one error the parity test structurally cannot catch: the same fixture object is both fed to
+// the client predicate and seeded into the emulator, so a `"cel"` typo would make the rules'
+// `category != 'CEL'` and the client's `category !== "CEL"` agree with each other — and agree
+// wrongly, on the publication boundary, with the suite green. The compiler is the only guard
+// available for it, so give it one.
 const cargo = (
   id: string,
-  category: string,
+  category: "CEL" | "JDL" | "Comision",
   grants: string[],
   extra: Partial<Cargo> = {},
 ): Cargo => ({

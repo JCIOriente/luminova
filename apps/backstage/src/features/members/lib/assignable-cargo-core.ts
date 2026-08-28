@@ -32,6 +32,10 @@
  * production caller passes a real `Position`, and `cargoSlotsForEditor` being generic in
  * `P extends CargoLike` means `assignable-cargo.ts` handing it `Position[]` already enforces
  * `Position extends CargoLike` — which is the direction that can actually break.
+ *
+ * Note the parity test cannot cover this either, and it is the one gap in it: the same fixture
+ * is fed to the predicate AND seeded into the emulator, so a miscased `category` makes both
+ * sides agree — wrongly, and green. Its factory pins the literal union for that reason.
  */
 export interface CargoLike {
   id: string;
