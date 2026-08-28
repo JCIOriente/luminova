@@ -434,17 +434,50 @@ describe("cargo assignment ⟷ rules: every OFFERED cargo is a write the emulato
   // It CAN be asserted for the three cargos the delegation is about, and there the gap is not
   // curation but the boundary itself. Driven through the emulator, so it is the ruleset that
   // answers and not another read of the same client predicate.
+  // Each row proves its own lane reachability before asserting the denial. `assertFails` is
+  // REASON-BLIND: a later change that denies these writes for an unrelated reason — a tightened
+  // softDeleteSafe(), a lost perm, a renamed fixture — would keep every row green while the
+  // CEL/power boundary silently stopped being what denies them, which is the exact "green for
+  // the wrong reason" failure this file was written to end. The paired grant-free ALLOW is what
+  // makes the denial attributable: same principal, same lane, same fixture shape, one cargo
+  // apart, so the conjunct under test is the only difference between them.
+  //
+  // Both lanes, not just update: createPositionsSafe() applies the same
+  // `(boardSeatDelegate() || cargoAssignableByNonAdmin())` conjunct, and a principal that can
+  // create but not update (create-Member) reaches the boundary only there.
   const WITHHELD = ["cel_free", "cel_power", "jdl_power"] as const;
-  for (const label of ["custom(update-Position)", "custom(update-Member)", "custom(manage-all)"]) {
+  const CONVERSE_PRINCIPALS = [
+    "custom(update-Position)",
+    "custom(update-Member)",
+    "custom(create-Member)",
+    "custom(manage-all)",
+  ];
+  for (const label of CONVERSE_PRINCIPALS) {
     const principal = PRINCIPALS.find((p) => p.label === label);
     if (principal === undefined) continue;
     const g = gatesFor(principal);
-    if (g.editMode === "none") continue;
-    for (const cargoId of WITHHELD) {
-      it(`BLOCKING: the rules DENY ${label} the ${cargoId} seat the client withholds`, async () => {
-        expect(offeredCargoIds(g, null)).not.toContain(cargoId);
-        const id = await seedMember({ key: "unseated", cargoId: null });
-        await assertFails(writeUpdate(as(principal), id, cargoId, principal.uid));
+    const lanes: Lane[] = [
+      ...(g.editMode === "none" ? [] : (["update"] as const)),
+      ...(g.canCreate ? (["create"] as const) : []),
+    ];
+    for (const lane of lanes) {
+      const write = (id: string, cargoId: string | null) =>
+        lane === "update"
+          ? writeUpdate(as(principal), id, cargoId, principal.uid)
+          : writeCreate(as(principal), id, cargoId, principal.uid);
+      const target = async () =>
+        lane === "update"
+          ? await seedMember({ key: "unseated", cargoId: null })
+          : `parity_converse_${docCounter++}`;
+
+      it(`BLOCKING: the rules DENY ${label} on ${lane} every seat the client withholds`, async () => {
+        // Reachability, asserted rather than assumed: this principal really can write a seat on
+        // this lane, so the refusals below isolate the cargo conjuncts and nothing else.
+        await assertSucceeds(write(await target(), "jdl_free"));
+        for (const cargoId of WITHHELD) {
+          expect(offeredCargoIds(g, null)).not.toContain(cargoId);
+          await assertFails(write(await target(), cargoId));
+        }
       });
     }
   }

@@ -117,7 +117,18 @@ export function heldCargo<P extends CargoLike>(
   };
 }
 
-/** Whether the member is seated on SOMETHING whose power this editor cannot establish. */
+/** Whether the member is seated on SOMETHING whose power this editor cannot establish.
+ *
+ *  KNOWN and accepted: "unresolvable" here means ABSENT FROM THE PARSED CATALOG, which is a
+ *  slightly wider net than the rules cast. `parseDocs(positionDocSchema, …)` drops a doc for any
+ *  schema violation, so a cargo that exists with `grants: []` but a missing `description` or an
+ *  off-enum `category` is dropped here while `currentCargoGrantsEmpty()` reads `grants.size() == 0`
+ *  and would ALLOW a non-Admin to clear it. The editor is then locked out of a takedown the rules
+ *  keep open. Availability only, needs a malformed catalog doc, and an Admin can still clear it.
+ *  Resolving the held cargo from the raw snapshot instead would close the gap and cost more than
+ *  it buys: it means reading positions around the schema that exists to keep unvalidated data out
+ *  of the client. The corruption that actually matters — a bad `grants` — locks on BOTH sides,
+ *  since a non-empty stored `grants` fails `size() == 0` too. */
 function heldCargoUnresolvable(held: HeldCargo<unknown>): boolean {
   return held.cargoId !== null && held.cargoId !== undefined && held.cargo === undefined;
 }
