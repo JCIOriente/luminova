@@ -201,6 +201,63 @@ describe("syncMemberClaims", () => {
     expect(writes["delegate-uid"]).toBeUndefined();
   });
 
+  it("BLOCKING: logs the DESIGNED refusal too, naming which half denied it", async () => {
+    // The likeliest real cause of "they're on the Directiva with no permissions". Unlike the
+    // two shape screens, this branch is reached on an ORDINARY delegate path, so it was the
+    // one silent outcome an operator could actually hit. The meta must distinguish the two
+    // reasons — self-assignment vs an Admin-granting cargo — because the remedy differs: an
+    // Admin re-saves the slot in the first case, and only an Admin may seat it in the second.
+    const logged: { message: string; meta: Record<string, unknown> }[] = [];
+    const { deps } = fakeDeps({
+      positions: { "pos-presi": { grants: ["Admin"] } },
+      userRoles: { "delegate-uid": ["Member"] },
+      userPerms: { "delegate-uid": ["update:BoardSeat"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+      logError: (message, meta) => logged.push({ message, meta }),
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: {
+          "2026": { cargoId: "pos-presi", comisionIds: [], assignedBy: "delegate-uid" },
+        },
+      },
+      "2026",
+    );
+    expect(logged).toHaveLength(1);
+    expect(logged[0]?.message).toMatch(/NOT minted/);
+    expect(logged[0]?.meta).toMatchObject({
+      uid: "target-uid",
+      cargoId: "pos-presi",
+      selfAssigned: false,
+      grantsAdmin: true,
+      assignerIsAdmin: false,
+    });
+  });
+
+  it("stays quiet when the grants ARE minted", async () => {
+    // The paired negative: a log on the success path would bury the refusals it exists to
+    // surface, since every ordinary seating writes claims.
+    const logged: { message: string; meta: Record<string, unknown> }[] = [];
+    const { deps } = fakeDeps({
+      positions: { "pos-sec": { grants: ["Secretary"] } },
+      userRoles: { "delegate-uid": ["Member"] },
+      userPerms: { "delegate-uid": ["update:BoardSeat"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+      logError: (message, meta) => logged.push({ message, meta }),
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-sec", comisionIds: [], assignedBy: "delegate-uid" } },
+      },
+      "2026",
+    );
+    expect(logged).toEqual([]);
+  });
+
   it("still lets a delegate confer a non-Admin cargo on SOMEONE ELSE", async () => {
     // The paired ALLOW — the restriction is on self-dealing, not on the delegation itself.
     const { deps, writes } = fakeDeps({
@@ -460,10 +517,12 @@ describe("syncMemberClaims", () => {
     // than in each getPosition impl. Fails closed: no cargo means no grants.
     const reached: string[] = [];
     for (const cargoId of ["a/b", "", ".", "..", "__name__", `${"x".repeat(1501)}`]) {
+      const logged: { message: string; meta: Record<string, unknown> }[] = [];
       const { deps, writes } = fakeDeps({
         positions: { "a/b": { grants: ["Admin"] }, "": { grants: ["Admin"] } },
         userRoles: { "admin-uid": ["Admin"] },
         existing: { "target-uid": { roles: ["Member"] } },
+        logError: (message, meta) => logged.push({ message, meta }),
       });
       const spy: typeof deps.getPosition = async (id) => {
         reached.push(id);
@@ -483,6 +542,37 @@ describe("syncMemberClaims", () => {
       expect(reached).toEqual([]);
       // Fails closed: the Admin grant behind that cargo is NOT minted.
       expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
+      // ...and NOT silently (guardrail #4). Failing closed here strips a seated member's
+      // roles; an operator seeing a Directiva row with no permissions has this line and
+      // nothing else to explain it. Pinned so the screen cannot go quiet again.
+      expect(logged).toHaveLength(1);
+      expect(logged[0].message).toMatch(/cargoId/);
+      // Names the member, and bounds the offending id rather than serializing 1501 chars —
+      // Cloud Logging drops an over-large entry whole, losing the anomaly when it is biggest.
+      expect(logged[0].meta).toMatchObject({ uid: "target-uid", cargoIdLength: cargoId.length });
+      expect(String(logged[0].meta.cargoId).length).toBeLessThanOrEqual(65);
+    }
+  });
+
+  it("does NOT log the screen for a member holding no cargo at all", async () => {
+    // The other half of the log above, and the half that decides whether it is a signal or
+    // noise: `cargoId: null` fails the same `isSafeDocId` check, but it is the ordinary state
+    // of every member without a seat. Logging it would emit an error per member per write and
+    // bury the real anomaly. Absent map, absent entry and explicit null all stay quiet.
+    for (const positions of [
+      undefined,
+      {},
+      { "2026": { cargoId: null, comisionIds: [], assignedBy: "admin-uid" } },
+    ]) {
+      const logged: string[] = [];
+      const { deps } = fakeDeps({
+        positions: {},
+        userRoles: {},
+        existing: { "target-uid": { roles: ["Member"], perms: permsFor(["Member"]) } },
+        logError: (message) => logged.push(message),
+      });
+      await syncMemberClaims(deps, { uid: "target-uid", positions }, "2026");
+      expect(logged).toEqual([]);
     }
   });
 
@@ -495,6 +585,7 @@ describe("syncMemberClaims", () => {
     // cargos, i.e. exactly the members whose claims matter most. Nothing in firestore.rules
     // caps assignedBy's length; the console and the admin SDK reach this shape.
     const reached: string[] = [];
+    const logged: { message: string; meta: Record<string, unknown> }[] = [];
     for (const assignedBy of ["", "x".repeat(129)]) {
       const { deps, writes } = fakeDeps({
         positions: { "pos-pres": { grants: ["Admin"] } },
@@ -502,6 +593,7 @@ describe("syncMemberClaims", () => {
         // below is about the screen, not about the assigner failing the trust gate.
         userRoles: { [assignedBy]: ["Admin"] },
         existing: { "target-uid": { roles: ["Member"] } },
+        logError: (message, meta) => logged.push({ message, meta }),
       });
       const spied: ClaimsSyncDeps = {
         ...deps,
@@ -522,6 +614,47 @@ describe("syncMemberClaims", () => {
       expect(reached).toEqual([]);
       // Fails closed: the Admin grant behind that cargo is NOT minted.
       expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
+    }
+    // ...and not silently. This branch is reached ONLY on a power-granting cargo, so its
+    // silence hid exactly the claims an operator would come looking for. The uid VALUE is
+    // deliberately absent from the meta: type and length identify the shape, and the member
+    // uid plus cargo id already locate the doc to fix.
+    expect(logged).toHaveLength(2);
+    expect(logged.map((l) => l.message)).toEqual([
+      expect.stringMatching(/assignedBy/),
+      expect.stringMatching(/assignedBy/),
+    ]);
+    expect(logged[0].meta).toEqual({
+      uid: "target-uid",
+      cargoId: "pos-pres",
+      assignedByType: "string",
+      assignedByLength: 0,
+    });
+    expect(logged[1].meta).toMatchObject({ assignedByLength: 129 });
+  });
+
+  it("logs the legacy no-assignedBy power seat too, and stays quiet off the power path", async () => {
+    // A power cargo with no attribution is an anomaly whatever its provenance, so the
+    // undefined case logs alongside the malformed ones above. But the screen sits BEHIND the
+    // grants check, so a grant-free cargo with no assignedBy — the ordinary shape of every
+    // rank-and-file seat — never reaches it and must stay quiet.
+    for (const [cargoId, expected] of [
+      ["pos-pres", 1],
+      ["pos-plain", 0],
+    ] as const) {
+      const logged: string[] = [];
+      const { deps } = fakeDeps({
+        positions: { "pos-pres": { grants: ["Admin"] }, "pos-plain": { grants: [] } },
+        userRoles: {},
+        existing: { "target-uid": { roles: ["Member"] } },
+        logError: (message) => logged.push(message),
+      });
+      await syncMemberClaims(
+        deps,
+        { uid: "target-uid", positions: { "2026": { cargoId, comisionIds: [] } } },
+        "2026",
+      );
+      expect(logged).toHaveLength(expected);
     }
   });
 

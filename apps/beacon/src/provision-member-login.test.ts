@@ -423,6 +423,28 @@ describe("provisionMember", () => {
     });
   });
 
+  it("still lets a delegate provision a member seated on a GRANT-FREE cargo", async () => {
+    // Seating plus inviting on a grant-free cargo mints nothing, and is exactly the enrolment
+    // flow the delegation exists for. Without this pair the guard above would pass for a rule
+    // that simply refused every seated member.
+    //
+    // NOT subsumed by the delegate half of "never receives the password-reset link", which is
+    // the claim this test was once deleted on. That fixture is `member: active` — no
+    // `positions` map at all — so `readCargoIds` yields nothing and the guard's loop body
+    // never executes. Only this test drives the loop to a resolved cargo and out the ALLOW
+    // side; a guard rewritten to refuse whenever ANY cargoId is present leaves the rest of
+    // this file green.
+    const { deps, calls } = fakeDeps({
+      member: {
+        ...active,
+        positions: { [TERM]: { cargoId: "pos-dir", comisionIds: [], assignedBy: "delegate-uid" } },
+      },
+      positions: { "pos-dir": [] },
+    });
+    await expect(provisionMember(deps, "m1", false)).resolves.toMatchObject({ email: "a@b.co" });
+    expect(calls.createUser).toEqual(["a@b.co"]);
+  });
+
   it("BLOCKING: a delegate never receives the password-reset link", async () => {
     // generatePasswordResetLink returns a bearer credential for the account. The client sends
     // the reset mail itself through the unprivileged sendPasswordResetEmail, so a delegate has

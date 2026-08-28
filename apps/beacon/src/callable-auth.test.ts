@@ -83,6 +83,27 @@ describe("requireAdminOrPerm", () => {
     ).toBe("permission-denied");
   });
 
+  it("keeps the two delegations independent", () => {
+    // A board-seat delegate is not a login provisioner and vice versa. Pinned because both
+    // codes ship together and the obvious future mistake is to conflate them.
+    //
+    // NOT subsumed by the manage:MemberLogin case above, which was the argument for deleting
+    // it once. That one is a same-subject WRONG-ACTION probe: it only pins that the gate
+    // compares the literal code instead of expanding an action wildcard. This one is a
+    // DIFFERENT-SUBJECT probe, over the exact pair of codes the feature ships. A widening
+    // that keyed on the subject family — anything accepting a related-subject perm, e.g. a
+    // "holds any MemberLogin/BoardSeat delegation" helper — passes every other case in this
+    // suite and fails only here.
+    expect(
+      codeOf(() =>
+        requireAdminOrPerm(
+          req({ roles: ["Member"], perms: ["update:BoardSeat"] }),
+          "create:MemberLogin",
+        ),
+      ),
+    ).toBe("permission-denied");
+  });
+
   it("fails closed on a malformed perms claim", () => {
     // A string (or anything non-array) reads as empty rather than throwing — a malformed
     // token must deny, not 500.

@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { isValidRole, type Role } from "@luminova/auth/roles";
 import { isValidPermissionCode, type PermissionCode } from "@luminova/types/permission";
 import { chunk } from "../chunk.js";
-import { isSafeDocId } from "../firestore-util.js";
+import { isSafeDocId, truncateForLog } from "../firestore-util.js";
 import { readPositionGrants } from "../read-position-grants.js";
 import { isActiveRoleDoc, permsFromRoleDoc } from "./role-doc.js";
 import type { LiveBuiltInRoleDoc } from "./resolve-member-perms.js";
@@ -29,14 +29,9 @@ function permsFromClaims(
  *  limit — the entry is then DROPPED, making the anomaly invisible at exactly the scale
  *  that matters. The count is the alertable signal; the sample is for diagnosis. */
 const REJECTED_ID_SAMPLE = 10;
-const REJECTED_ID_MAX_CHARS = 64;
 
 function sampleRejectedIds(rejected: readonly string[]): string[] {
-  return rejected
-    .slice(0, REJECTED_ID_SAMPLE)
-    .map((id) =>
-      id.length > REJECTED_ID_MAX_CHARS ? `${id.slice(0, REJECTED_ID_MAX_CHARS)}…` : id,
-    );
+  return rejected.slice(0, REJECTED_ID_SAMPLE).map(truncateForLog);
 }
 
 /** The built-in role docs covering `keys`, plus a log line for every coverage anomaly the
