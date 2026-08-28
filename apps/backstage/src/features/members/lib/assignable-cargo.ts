@@ -1,9 +1,4 @@
 import { currentTermKey, positionTitle, type MemberGender, type Position } from "@luminova/types";
-// cargoSlotsForEditor is generic in `P extends CargoLike` and cargoOptionsForEditor below hands
-// it `Position[]`, so `Position extends CargoLike` is already enforced at that call — a rename
-// or retype of any field the predicates read fails to compile here rather than reading
-// `undefined` at runtime. That is the direction that can actually break; a separate assertion
-// would only restate it.
 import { cargoConfersPower, cargoSlotsForEditor } from "./assignable-cargo-core";
 
 /**

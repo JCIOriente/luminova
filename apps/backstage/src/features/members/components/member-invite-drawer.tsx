@@ -179,12 +179,10 @@ export function MemberInviteDrawer({
             <>
               {/* Only promise the row action to someone who will actually SEE it. The row item
                   is gated on `canProvisionLogin && !provisionBlocked` (member-row-menu), so
-                  both conjuncts have to be answered here or this sends a caller to an
-                  affordance that is not there. `blockedByCargo` is the wrong flag for the
-                  second one — it also requires sendAccess, and the same delegate lands here
-                  with the checkbox unticked. A `create:Member` holder without
-                  `create:MemberLogin` reaches this drawer too: the trigger only asks
-                  `Can I="create" a="Member"`. */}
+                  both conjuncts have to be answered here — see provisionBlocked's doc-comment
+                  above for why it, and not blockedByCargo, is the right flag for the second.
+                  A `create:Member` holder WITHOUT `create:MemberLogin` reaches this drawer too:
+                  the trigger only asks `Can I="create" a="Member"`. */}
               <p className="text-ui-md text-ink-2">
                 {done.provisionBlocked
                   ? "Aún no tiene acceso a la app. Su cargo otorga permisos, así que un administrador debe enviarle el acceso."
