@@ -347,6 +347,30 @@ describe("MemberInviteDrawer", () => {
     expect(screen.queryByText(/un administrador debe enviarle el acceso/)).not.toBeInTheDocument();
   });
 
+  it("BLOCKING: never promises the row action to a creator who lacks create:MemberLogin", async () => {
+    // The OTHER conjunct the row item is gated on. This principal reaches the drawer — the
+    // trigger only asks `Can I="create" a="Member"` — but never sees "Invitar a la app" in the
+    // row menu, because canProvisionLogin is false. The checkbox is not rendered for them
+    // either, so they always land on this branch, on an ordinary grant-free member.
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={powerCargoCatalog}
+        onClose={() => {}}
+        onCreate={async () => "idCreatorOnly"}
+        onProvision={vi.fn()}
+      />,
+      { roles: ["Member"], perms: ["create:Member"] },
+    );
+    expect(screen.queryByLabelText("Enviar acceso a la app")).not.toBeInTheDocument();
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    expect(
+      await screen.findByText(/Pídele a un administrador que le envíe el acceso/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/desde el menú de su fila/)).not.toBeInTheDocument();
+  });
+
   it("keeps the row-menu copy for an ADMIN who unticked the checkbox on a power cargo", async () => {
     // draftProvisionBlocked short-circuits on callerIsAdmin, so `provisionBlocked` is false
     // for them even seated on the power cargo — an Admin can always invite from the row. This

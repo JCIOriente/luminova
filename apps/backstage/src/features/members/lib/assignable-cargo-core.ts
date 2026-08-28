@@ -24,6 +24,14 @@
  * so this module stays import-free (see the header). Every real `Position` satisfies it, so
  * callers pass their `Position` objects unchanged and `cargoSlotsForEditor` returns the very
  * objects it was handed (it is generic in `P`), never a lossy copy.
+ *
+ * ACCEPTED TRADEOFF: `category` and `grants` are wider here than `Position`'s literal unions,
+ * because narrowing them would mean either importing those unions (which is the one thing this
+ * module may not do) or re-declaring them, and a re-declared union drifts. So a hand-built
+ * FIXTURE could pass `category: "cel"` and get a wrong answer with no compile error. Every
+ * production caller passes a real `Position`, and `cargoSlotsForEditor` being generic in
+ * `P extends CargoLike` means `assignable-cargo.ts` handing it `Position[]` already enforces
+ * `Position extends CargoLike` — which is the direction that can actually break.
  */
 export interface CargoLike {
   id: string;

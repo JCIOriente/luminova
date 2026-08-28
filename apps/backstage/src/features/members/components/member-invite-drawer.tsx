@@ -177,14 +177,20 @@ export function MemberInviteDrawer({
             </>
           ) : (
             <>
-              {/* Keyed on blocked-ness alone, NOT on `blockedByCargo` (which also requires
-                  sendAccess): with the checkbox unticked the same delegate lands here, and
-                  memberProvisionBlocked hides the row action for exactly the same reason — so
-                  pointing them at it would send them to an affordance that is not there. */}
+              {/* Only promise the row action to someone who will actually SEE it. The row item
+                  is gated on `canProvisionLogin && !provisionBlocked` (member-row-menu), so
+                  both conjuncts have to be answered here or this sends a caller to an
+                  affordance that is not there. `blockedByCargo` is the wrong flag for the
+                  second one — it also requires sendAccess, and the same delegate lands here
+                  with the checkbox unticked. A `create:Member` holder without
+                  `create:MemberLogin` reaches this drawer too: the trigger only asks
+                  `Can I="create" a="Member"`. */}
               <p className="text-ui-md text-ink-2">
                 {done.provisionBlocked
                   ? "Aún no tiene acceso a la app. Su cargo otorga permisos, así que un administrador debe enviarle el acceso."
-                  : "Aún no tiene acceso a la app. Podrás invitarlo desde el menú de su fila."}
+                  : canProvisionLogin
+                    ? "Aún no tiene acceso a la app. Podrás invitarlo desde el menú de su fila."
+                    : "Aún no tiene acceso a la app. Pídele a un administrador que le envíe el acceso."}
               </p>
               {done.errorDetail && (
                 <p className="text-ui-xs text-ink-3">Detalle: {done.errorDetail}</p>

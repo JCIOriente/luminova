@@ -1,4 +1,9 @@
 import { currentTermKey, positionTitle, type MemberGender, type Position } from "@luminova/types";
+// cargoSlotsForEditor is generic in `P extends CargoLike` and cargoOptionsForEditor below hands
+// it `Position[]`, so `Position extends CargoLike` is already enforced at that call — a rename
+// or retype of any field the predicates read fails to compile here rather than reading
+// `undefined` at runtime. That is the direction that can actually break; a separate assertion
+// would only restate it.
 import { cargoConfersPower, cargoSlotsForEditor } from "./assignable-cargo-core";
 
 /**
@@ -71,10 +76,16 @@ export function noAssignableCargos(input: {
  * render-state, and here for the same reason as the other three: both forms ask it, and a
  * re-typed ternary at each call site is how they drift.
  *
- * Order is priority, and the states are NOT all mutually exclusive — `takedown` and
- * `mintPending` can co-fire with nothing else, but a `locked` slot always has its held cargo in
- * the option list, so `noCargos` and `locked` cannot. First match wins, most-blocking first: a
- * note about not being able to pick anything outranks one about what a pick would mint.
+ * Order is priority and it is load-bearing, because exactly one pair CAN co-fire:
+ *   locked ∧ mintPending    REACHABLE — a delegate opening a member seated on an Admin-granting
+ *                           cargo has both. `locked` must win: the mint note's render is guarded
+ *                           by `!locked`, so pointing aria-describedby at it would reference an
+ *                           element that is not in the DOM, which is worse than no association.
+ *   takedown ∧ mintPending   impossible — takedown needs grants.length === 0, mintPending needs
+ *                            grants.length > 0, both off the same selected cargo.
+ *   noCargos ∧ locked        impossible — a locked slot's held cargo is always in the list.
+ * First match wins, most-blocking first: not being able to pick anything outranks what a pick
+ * would mint.
  *
  * The ids differ per form (the locked and takedown wordings legitimately differ between them),
  * so they are passed in rather than owned here.
