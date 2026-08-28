@@ -452,14 +452,30 @@ describe("cargo assignment ⟷ rules: every OFFERED cargo is a write the emulato
     "custom(create-Member)",
     "custom(manage-all)",
   ];
+  // Vacuity guard, same class as the matrix pin above. `CONVERSE_PRINCIPALS` holds strings
+  // built by `custom()`, so a rename there would silently emit no `it` for that principal — and
+  // the create-Member row is the one this block exists for. A missing label must be a failure,
+  // never a skip.
+  it("every converse principal actually exists", () => {
+    const known = PRINCIPALS.map((p) => p.label);
+    for (const label of CONVERSE_PRINCIPALS) expect(known).toContain(label);
+  });
+
   for (const label of CONVERSE_PRINCIPALS) {
     const principal = PRINCIPALS.find((p) => p.label === label);
     if (principal === undefined) continue;
     const g = gatesFor(principal);
+    // Stated rather than derived from MATRIX on purpose: a MATRIX-derived lane list would
+    // silently DROP a lane that happens to offer nothing, which is exactly the state this block
+    // needs to probe. The cost is a second copy of the derivation, so the row count is asserted
+    // below — a principal that reaches no lane at all must fail, not vanish.
     const lanes: Lane[] = [
       ...(g.editMode === "none" ? [] : (["update"] as const)),
       ...(g.canCreate ? (["create"] as const) : []),
     ];
+    it(`${label} reaches at least one lane`, () => {
+      expect(lanes.length).toBeGreaterThan(0);
+    });
     for (const lane of lanes) {
       const write = (id: string, cargoId: string | null) =>
         lane === "update"

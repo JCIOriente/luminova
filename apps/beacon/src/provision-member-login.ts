@@ -2,8 +2,8 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { isValidRole, type Role } from "@luminova/auth/roles";
-import type { ProvisionBlockReason } from "@luminova/types";
 import { isSafeDocId } from "./firestore-util.js";
+import { memberEmailMalformed, provisionBlocked } from "./provision-errors.js";
 import { callerIsAdmin, requireAdminOrPerm } from "./callable-auth.js";
 import { firestoreProvisionDeps } from "./provision-deps.js";
 import { ensureApp } from "./runtime.js";
@@ -36,34 +36,9 @@ export function nextClaims(existing: RawClaims | undefined, role: Role): { roles
   return { roles };
 }
 
-/** A refusal the CLIENT can name. `reason` is a cross-boundary contract owned by
- *  `@luminova/types` (PROVISION_BLOCK_REASONS) and consumed by backstage's message table —
- *  routing every tagged throw through this helper is what makes renaming one a compile
- *  error on both ends instead of a silent degradation to the generic fallback. */
-function provisionBlocked(
-  code: "failed-precondition" | "permission-denied",
-  message: string,
-  reason: ProvisionBlockReason,
-): HttpsError {
-  return new HttpsError(code, message, { reason });
-}
-
-/** The stored email is unusable — absent, empty, wrong shape, or rejected by Identity Toolkit
- *  itself. One factory because the refusal is raised from TWO layers and must read identically
- *  from both: this module screens the SHAPE up front, and the port (provision-deps) tags the
- *  SEMANTIC rejection the shape screen cannot anticipate. `ADMIN_SDK_EMAIL_SHAPE` is a cheap
- *  pre-filter, never the sole guarantee — "a@.", ".a@b.co" and "a..b@c.co" each carry one `@`,
- *  no whitespace and no control characters, so they pass it AND the Admin SDK's own isEmail,
- *  reach the API, and come back auth/invalid-email. Without the port tagging that, it surfaced
- *  as an opaque `internal` and the operator got the generic "No se pudo…" — the dead end
- *  PROVISION_BLOCK_REASONS exists to remove, reached by a different road. */
-export function memberEmailMalformed(): HttpsError {
-  return provisionBlocked(
-    "failed-precondition",
-    "member's stored email is missing or not a valid address; correct it before provisioning",
-    "member-email-malformed",
-  );
-}
+// provisionBlocked / memberEmailMalformed live in ./provision-errors.js — the port raises the
+// malformed-email refusal too, and keeping the factories here made provision-deps.ts and this
+// module a two-node import cycle.
 
 /** The Admin SDK's OWN email predicate (`validator.isEmail`: `/^[^@]+@[^@]+$/`), plus the one
  *  tightening that is strictly safe: no whitespace, no control characters.
@@ -71,12 +46,16 @@ export function memberEmailMalformed(): HttpsError {
  *  Deliberately not an RFC-ish pattern — a stricter one would start rejecting addresses
  *  Firebase happily accepts, which is a worse failure than the one being fixed. But `[^@]`
  *  matches `\n`, `\r`, `\t`, spaces and NUL, so `"pres@jci.bo\n"` and `"a b@jci.bo"` pass BOTH
- *  this screen and the SDK's client-side check, reach Identity Toolkit, and come back
- *  INVALID_EMAIL → `auth/invalid-email` → rethrown by `nullIfUserNotFound` as an opaque
- *  `internal` with no `details.reason`. That is exactly the unprovisionable-with-no-hint
- *  failure this constant exists to prevent, and `firestore.rules` never constrains
- *  `members.email`, so a CSV paste or any `update:Member` holder can store one. Rejecting them
- *  here costs nothing: the server rejects them anyway, and now with a reason the UI can name. */
+ *  this screen and the SDK's client-side check and reach Identity Toolkit, which rejects them.
+ *  `firestore.rules` never constrains `members.email`, so a CSV paste or any `update:Member`
+ *  holder can store one.
+ *
+ *  This is a PRE-FILTER, not the guarantee. The port tags Identity Toolkit's own
+ *  `auth/invalid-email` with the same reason (see ./provision-errors.js), so a shape that slips
+ *  through — `a@.`, `.a@b.co` — no longer surfaces as an opaque `internal`. The screen still
+ *  earns its keep: it refuses one round-trip earlier, never puts a junk address on the Auth
+ *  API, and makes the refusal identical whether or not Identity Toolkit happens to reject that
+ *  particular shape. */
 const ADMIN_SDK_EMAIL_SHAPE = /^[^@\s\p{C}]+@[^@\s\p{C}]+$/u;
 
 export interface ProvisionUser {
@@ -204,10 +183,11 @@ export async function provisionMember(
   if (member.active !== true) throw new HttpsError("failed-precondition", "member is not active");
   // Shape-screened BEFORE it reaches the Auth SDK, for the same reason cargoId and assignedBy
   // are screened in claims-sync: a stored value the SDK rejects throws a PERMANENT
-  // auth/invalid-email, which nullIfUserNotFound rethrows and the caller receives as an opaque
-  // `internal`. That member is then unprovisionable through this callable — with no hint why —
-  // until someone edits the doc in the console. firestore.rules deliberately does not
-  // shape-validate `email` on the admin write lane, so the shape reaches here unchecked.
+  // auth/invalid-email. That used to reach the caller as an opaque `internal`, leaving the
+  // member unprovisionable with no hint why; the port now tags that case with this same reason,
+  // so this check is the cheap first line rather than the only one. firestore.rules
+  // deliberately does not shape-validate `email` on the admin write lane, so the shape reaches
+  // here unchecked.
   //
   // ONE check, not a separate untagged "member has no email" above it. That one threw with no
   // `details.reason`, so the UI degraded it to the generic "no se pudo" — verbatim the dead end

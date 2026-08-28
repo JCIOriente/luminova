@@ -124,11 +124,17 @@ export function heldCargo<P extends CargoLike>(
  *  schema violation, so a cargo that exists with `grants: []` but a missing `description` or an
  *  off-enum `category` is dropped here while `currentCargoGrantsEmpty()` reads `grants.size() == 0`
  *  and would ALLOW a non-Admin to clear it. The editor is then locked out of a takedown the rules
- *  keep open. Availability only, needs a malformed catalog doc, and an Admin can still clear it.
- *  Resolving the held cargo from the raw snapshot instead would close the gap and cost more than
- *  it buys: it means reading positions around the schema that exists to keep unvalidated data out
- *  of the client. The corruption that actually matters — a bad `grants` — locks on BOTH sides,
- *  since a non-empty stored `grants` fails `size() == 0` too. */
+ *  keep open. Availability only, it needs a malformed catalog doc, and an Admin is not stuck —
+ *  though the remedy is REASSIGNING the seat, not clearing it: an unresolvable cargo is absent
+ *  from the option list, and Combobox clears by re-selecting the selected option, which has to
+ *  exist. Resolving the held cargo from the raw snapshot instead would close the gap and cost
+ *  more than it buys: it means reading positions around the schema that exists to keep
+ *  unvalidated data out of the client.
+ *
+ *  The corruption that actually matters — a NON-EMPTY `grants` carrying an unknown role — locks
+ *  on both sides, since it fails `size() == 0` too. Not every malformed `grants` does: CEL
+ *  defines `.size()` on strings and maps, so a stored `grants: ""` or `grants: {}` reads as
+ *  empty to the rules and lands back in the availability-only bucket above. */
 function heldCargoUnresolvable(held: HeldCargo<unknown>): boolean {
   return held.cargoId !== null && held.cargoId !== undefined && held.cargo === undefined;
 }

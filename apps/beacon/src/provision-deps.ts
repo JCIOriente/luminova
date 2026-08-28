@@ -2,7 +2,8 @@ import type { Auth } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
 import { readPositionGrants } from "./read-position-grants.js";
 import { logError } from "./firestore-util.js";
-import { memberEmailMalformed, type ProvisionDeps } from "./provision-member-login.js";
+import { memberEmailMalformed } from "./provision-errors.js";
+import type { ProvisionDeps } from "./provision-member-login.js";
 
 function authCode(err: unknown): unknown {
   return (err as { code?: unknown } | null)?.code;
@@ -13,9 +14,19 @@ function authCode(err: unknown): unknown {
  *  `ADMIN_SDK_EMAIL_SHAPE` and the Admin SDK's own isEmail alike and only fail server-side.
  *  Rethrown raw, that is an opaque `internal` with no `details.reason` and a member nobody can
  *  provision without knowing why. Tagged HERE rather than by chasing regex precision: this
- *  closes the class whatever the pattern does next. */
+ *  closes the class whatever the pattern does next.
+ *
+ *  Residual, deliberately not chased further: a rejection that maps to `auth/invalid-argument`
+ *  rather than `auth/invalid-email` still reaches the client opaque. The shape screen plus this
+ *  tag cover the reachable cases. */
 function tagInvalidEmail(err: unknown): never {
-  if (authCode(err) === "auth/invalid-email") throw memberEmailMalformed();
+  if (authCode(err) === "auth/invalid-email") {
+    // The HttpsError replaces the original, and firebase-functions treats a thrown HttpsError
+    // as an EXPECTED refusal — no "Unhandled error" line. Without this the failure class would
+    // leave zero trace in Cloud Logging (guardrail #4). Code only, never the address: PII.
+    logError("provision refused: Auth rejected the stored email", { code: authCode(err) });
+    throw memberEmailMalformed();
+  }
   throw err;
 }
 
@@ -47,6 +58,9 @@ export function firestoreProvisionDeps(db: Firestore, auth: Auth): ProvisionDeps
     linkUid: async (id, uid) => {
       await db.doc(`members/${id}`).update({ uid });
     },
+    // Deliberately NOT routed through tagInvalidEmail: this is the only Auth call that runs
+    // AFTER createUser and linkUid, so tagging it would tell the operator to "corrige el correo"
+    // about an account that already exists and is already linked.
     passwordResetLink: (email) => auth.generatePasswordResetLink(email),
     getPositionGrants: (cargoId) => readPositionGrants(db, cargoId, logError),
   };

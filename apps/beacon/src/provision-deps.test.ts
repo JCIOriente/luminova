@@ -13,9 +13,15 @@ const db = {} as Firestore;
 function fakeAuth(opts: {
   createError?: unknown;
   byEmailError?: unknown;
+  byUidError?: unknown;
   byEmail?: Record<string, { uid: string }>;
+  byUid?: Record<string, { uid: string }>;
 }) {
-  const calls = { createUser: [] as string[], getUserByEmail: [] as string[] };
+  const calls = {
+    createUser: [] as string[],
+    getUserByEmail: [] as string[],
+    getUser: [] as string[],
+  };
   const auth = {
     createUser: async ({ email }: { email: string }) => {
       calls.createUser.push(email);
@@ -29,9 +35,52 @@ function fakeAuth(opts: {
       if (!user) throw Object.assign(new Error("no user"), { code: "auth/user-not-found" });
       return user;
     },
+    getUser: async (uid: string) => {
+      calls.getUser.push(uid);
+      if (opts.byUidError !== undefined) throw opts.byUidError;
+      const user = opts.byUid?.[uid];
+      if (!user) throw Object.assign(new Error("no user"), { code: "auth/user-not-found" });
+      return user;
+    },
   } as unknown as Auth;
   return { auth, calls };
 }
+
+// The contract `nullIfUserNotFound` exists to hold, stated in the ProvisionDeps docblock and
+// until now pinned by NOTHING: "null ONLY when the account does not exist — transient Auth
+// errors must throw, or a blip would misread a live linked account as safely deleted".
+//
+// getUserByUid is the one the relink guard calls, and it had no coverage at all here;
+// provision-member-login.test.ts drives hand-written fakes that bypass this port entirely. The
+// mutation that was invisible: widen the null branch to `code === "auth/user-not-found" ||
+// code === "auth/internal-error"` and the whole beacon suite stays green, while an Identity
+// Toolkit blip during the relink guard reads a LIVE linked account as safely deleted and lets
+// the caller re-provision over it.
+describe("firestoreProvisionDeps — the null-vs-throw contract", () => {
+  const lookups = ["getUserByEmail", "getUserByUid"] as const;
+
+  it("returns null for user-not-found, on both lookups", async () => {
+    for (const method of lookups) {
+      const { auth } = fakeAuth({});
+      await expect(firestoreProvisionDeps(db, auth)[method]("a@b.co")).resolves.toBeNull();
+    }
+  });
+
+  it("BLOCKING: a transient Auth error throws — it must never read as a deleted account", async () => {
+    for (const method of lookups) {
+      for (const err of [
+        authError("auth/internal-error"),
+        authError("auth/network-request-failed"),
+        new Error("socket hang up"),
+      ]) {
+        const { auth } = fakeAuth(
+          method === "getUserByEmail" ? { byEmailError: err } : { byUidError: err },
+        );
+        await expect(firestoreProvisionDeps(db, auth)[method]("a@b.co")).rejects.toThrow();
+      }
+    }
+  });
+});
 
 const authError = (code: string) => Object.assign(new Error(code), { code });
 
