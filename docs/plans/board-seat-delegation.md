@@ -62,7 +62,8 @@ proposal was itself found to be a hole and closed before merge:
 URL **to the caller**, categorically unlike `sendPasswordResetEmail`, which delivers the secret
 to the mailbox owner. A delegate permitted to "re-provision an already-linked" member could name
 any member's id — including an Admin's — and receive a live reset link for that address. The
-shipped guard in `provisionMember` (`apps/beacon/src/provision-member-login.ts:206`) is therefore:
+shipped guard in `provisionMember` (the ADOPTION GUARD in
+`apps/beacon/src/provision-member-login.ts`) is therefore:
 
 ```ts
 if (!callerHoldsAdminRole && (user !== null || linkedUid !== null)) {
@@ -85,7 +86,7 @@ account creation/adoption + uid linking + claim writing.
 ### G2 — the trust gate must be non-reflexive on self-assignment — proposed fix REJECTED, do not implement as written
 
 `sync.ts:69` + `compute-roles.ts:8-12` (pre-implementation line refs; current shipped location is
-`resolveTrustedGrants` in `apps/beacon/src/claims-sync/sync.ts:97-135`). A delegate self-seats
+`resolveTrustedGrants` in `apps/beacon/src/claims-sync/sync.ts`). A delegate self-seats
 `Presidente` in one write on the positions-only lane; beacon mints `roles: ["Admin","Member"]`.
 Revoking `update:BoardSeat` then re-fires `onMemberWritten`, the gate reads their **live** claims,
 finds the `Admin` role the cargo just minted, and re-honors the grants. The claim satisfies the
@@ -153,8 +154,11 @@ anti-lockout guard — not this one.
 ### Guards added after this section was written
 
 Later commits on this branch (`5f9408e`, `e02dbf1`, `d7cd564`, `2c328f5`, `58266d3`) found and
-closed three more gaps this section does not mention. Confirmed against the shipped code, not
-restated from memory:
+closed three more gaps this section does not mention. Cited by SYMBOL, never by line number:
+every numeric citation this block originally carried was stale by 25-45 lines within the same
+PR that wrote them — one of them, "the real trust computation, unchanged since", ended up
+pointing at a logging block added afterwards, which is exactly how an auditor concludes a guard
+was removed. Guardrail #6 is about claims that stay true, and a line number does not.
 
 - **The power-seat guard in `provisionMember`.** G1 above stops a delegate from re-provisioning
   or adopting an ALREADY-linked account, but says nothing about an unlinked member who is already
@@ -163,17 +167,16 @@ restated from memory:
   `onMemberWritten`, and `resolveTrustedGrants` would read the *stored* `assignedBy` (a genuine
   Admin) and mint the grants onto the account the delegate's call just created — a clean
   escalation the delegate never had to forge. The shipped guard
-  (`apps/beacon/src/provision-member-login.ts:213-251`) checks both claims-mint sources
-  `syncMemberClaims` reads: `hasDirectGrants()` (`:83-99`, `roleIds`/`permissionOverrides`) and a
-  per-term cargo read via `readCargoIds()` (`:101-139`, every term in `positions`, not just the
-  current one — a future-term slate is invisible to claims-sync today but not to this guard).
-- **Fail-closed handling for a malformed `grants` or `positions` shape.** `readCargoIds()`
-  (`:119-139`) yields `""` — not skip — for a non-object term, a non-string `cargoId`, or one
+  (the `if (!callerHoldsAdminRole)` block in `apps/beacon/src/provision-member-login.ts`) checks
+  both claims-mint sources
+  `syncMemberClaims` reads: `hasDirectGrants()` (`roleIds`/`permissionOverrides`) and a per-term
+  cargo read via `readCargoIds()` (every term in `positions`, not just the current one — a future-term slate is invisible to claims-sync today but not to this guard).
+- **Fail-closed handling for a malformed `grants` or `positions` shape.** `readCargoIds()` yields `""` — not skip — for a non-object term, a non-string `cargoId`, or one
   `isSafeDocId` rejects; the caller then refuses on `grants === null`, so a shape it cannot parse
-  is treated as power-seated, never as "no cargo". `hasDirectGrants()` (`:83-99`) is symmetric for
+  is treated as power-seated, never as "no cargo". `hasDirectGrants()` is symmetric for
   `roleIds` / `permissionOverrides`: a present-but-unparseable value reads as granted, and only a
   genuinely absent/null value reads as ungranted.
-- **The narrowed `createUser` catch.** `apps/beacon/src/provision-deps.ts:25-29` swallows exactly
+- **The narrowed `createUser` catch.** `createUser` in `apps/beacon/src/provision-deps.ts` swallows exactly
   `auth/email-already-exists` (a benign race with a concurrent create) and rethrows everything
   else — it does not swallow arbitrary Auth errors into a silent fallback.
 
@@ -218,7 +221,7 @@ delegate whose write `firestore.rules` then rejects: the render-then-403 shape `
   `checkIn:MemberPoints` / `checkIn:Notification` (20 chars). `checkIn:MemberLogin` is 19,
   `checkIn:BoardSeat` is 17. Worst case stays ~855 B. `PERMISSION_CAP` does not move.
 - Product consequence worth one spec line: two more codes compete for the same 30-slot effective-perm
-  budget, and a member breaching the cap gets `perms: []` fail-closed (`sync.ts:106-118`) — silently
+  budget, and a member breaching the cap gets `perms: []` fail-closed (the `perms.length > PERMISSION_CAP` block in `sync.ts`) — silently
   removing their `update:BoardSeat`.
 - `sync.test.ts:580` `distinctCodes(n)` walks `ACTIONS x SUBJECTS` in order; adding subjects changes
   which codes it picks, not their validity. No change.
@@ -420,7 +423,8 @@ Rejected alternatives:
 
    **This snippet is superseded — it is missing the self-assignment / Admin-granting-cargo branch
    that G2 (above) required and that shipped.** The real trust computation, unchanged since,
-   reads (`apps/beacon/src/claims-sync/sync.ts:126-134`):
+   reads (the trust computation at the end of `resolveTrustedGrants`,
+   `apps/beacon/src/claims-sync/sync.ts`):
 
    ```ts
    const assignerIsAdmin = assigner.roles.includes("Admin");
