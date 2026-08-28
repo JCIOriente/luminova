@@ -10,7 +10,7 @@ import {
 } from "@firebase/rules-unit-testing";
 import { doc, setDoc, updateDoc, type Firestore } from "firebase/firestore";
 import { buildAbility, type Action, type Subject } from "@luminova/auth/ability";
-import { hasAnyRole, hasPerm, ROLES, type AuthClaims } from "@luminova/auth/roles";
+import { ROLES, type AuthClaims } from "@luminova/auth/roles";
 import { permsForRoles } from "../../tools/scripts/lib/role-seed.mjs";
 // The SAME modules the two member forms render from. `assignable-cargo-core` is import-free
 // and `member-edit-gate` / `probe` pull only `@luminova/auth`, so all three load here —
@@ -20,11 +20,13 @@ import { permsForRoles } from "../../tools/scripts/lib/role-seed.mjs";
 import {
   cargoSlotsForEditor,
   cargoTakedownOnly,
+  heldCargo,
   positionsLockedForEditor,
   type CargoLike,
 } from "../../apps/backstage/src/features/members/lib/assignable-cargo-core";
 import { memberEditMode } from "../../apps/backstage/src/features/members/lib/member-edit-gate";
 import { abilityAllows } from "../../apps/backstage/src/lib/authz/probe";
+import { capabilityFlags } from "../../apps/backstage/src/lib/authz/capability-flags";
 
 // The contract: for every (principal, member fixture, cargo) triple, IF the backstage cargo
 // editor would let this editor submit this cargo for this member, THEN the real rules engine
@@ -120,20 +122,24 @@ interface Gates {
 
 /** The claims → form-props mapping the four call sites make (`member-profile-page.tsx`,
  *  `member-drawer.tsx`, `member-invite-drawer.tsx`): `allowPowerGrants={canAssignBoardSeat}`,
- *  `allowReplacePowerCargo={isAdmin}`. `adminOrPerm` is re-derived from the same `hasAnyRole` /
- *  `hasPerm` primitives `buildCan` uses rather than imported, because `use-can.ts` is a React
- *  module this package cannot load; `member-profile-page.test.tsx` is what pins the props to
- *  those two flags. `hasPerm`, never the ability, is the point — `manage:all` must not answer a
- *  gate the rules key on an exact code. */
+ *  `allowReplacePowerCargo={isAdmin}`.
+ *
+ *  Both flags come from `capabilityFlags` — the SAME function `buildCan` spreads — not from a
+ *  local `hasAnyRole(...) || hasPerm(...)` re-derivation. That copy was the mirror class this
+ *  whole test exists to delete, applied to the very flag whose widening caused the #224
+ *  regression: it would have kept agreeing with itself while `use-can.ts` drifted. The flags
+ *  were split out of `use-can.ts` (a React module this package cannot load) for exactly this.
+ *  `member-profile-page.test.tsx` is what pins the two PROPS to those two flags. */
 function gatesFor(p: Principal): Gates {
   const claims = claimsOf(p);
   const ability = buildAbility(claims, p.uid);
   const can = (action: Action, subject: Subject) => abilityAllows(ability, action, subject);
+  const flags = capabilityFlags(claims);
   return {
     editMode: memberEditMode({ can }),
     canCreate: can("create", "Member"),
-    isAdmin: hasAnyRole(claims, ["Admin"]),
-    allowPowerGrants: hasAnyRole(claims, ["Admin"]) || hasPerm(claims, "update:BoardSeat"),
+    isAdmin: flags.isAdmin,
+    allowPowerGrants: flags.canAssignBoardSeat,
   };
 }
 
@@ -142,12 +148,13 @@ interface Cargo extends CargoLike {
   description: string;
   deletedAt: null;
 }
-// `category` is a literal union HERE even though CargoLike widens it to `string`. This is the
-// one error the parity test structurally cannot catch: the same fixture object is both fed to
-// the client predicate and seeded into the emulator, so a `"cel"` typo would make the rules'
-// `category != 'CEL'` and the client's `category !== "CEL"` agree with each other — and agree
-// wrongly, on the publication boundary, with the suite green. The compiler is the only guard
-// available for it, so give it one.
+// `category` is a literal union HERE. `CargoLike.category` is `PositionCategory` — NOT the
+// widened `string` this comment used to claim — so the compiler already rejects a `"cel"` typo
+// through the interface; the local union is a second, independent statement of the same thing
+// and costs nothing. What neither catches is a RENAME of the category itself in
+// POSITION_CATEGORIES: the same fixture object feeds the client predicate and the emulator, so
+// the rules' `category != 'CEL'` and the client's `category !== "CEL"` would agree with each
+// other, and agree wrongly, on the publication boundary, with the suite green.
 const cargo = (
   id: string,
   category: "CEL" | "JDL" | "Comision",
@@ -202,7 +209,7 @@ const MEMBER_FIXTURES: MemberFixture[] = [
  *  which `cargoTakedownOnly` makes an explicit "Quitar cargo" action. A locked slot submits
  *  nothing at all. */
 function offeredCargoIds(g: Gates, assignedCargoId: string | null): (string | null)[] {
-  const held = cargoById(assignedCargoId);
+  const held = heldCargo(CATALOG, assignedCargoId);
   if (positionsLockedForEditor(held, g.isAdmin)) return [];
   const enabled = cargoSlotsForEditor({
     positions: CATALOG,
@@ -416,10 +423,36 @@ describe("cargo assignment ⟷ rules: every OFFERED cargo is a write the emulato
   // into `positionsLockedForEditor` — whose conjunct, `currentCargoGrantsEmpty()`, is Admin-ROLE
   // only — unlocks the slot for a delegate, and every write it would then submit is denied. This
   // is what "the two flags are not the same one" costs when it is got wrong.
+  // THE OTHER DIRECTION. Everything above is `client offers ⟹ rules allow`, which catches a
+  // rules TIGHTENING and structurally cannot catch a rules LOOSENING: delete
+  // `&& cargo.category != 'CEL'` from nonAdminAssignable(), or widen boardSeatDelegate() from
+  // hasPerm('update:BoardSeat') to canDo('update','BoardSeat') so `manage:all` satisfies it,
+  // and every triple above stays green — the client would merely be stricter than the rules,
+  // which this file treats as legal curation, and legal curation is most of why the converse
+  // cannot be asserted wholesale (comisión cargos, retired seats, inactive ones).
+  //
+  // It CAN be asserted for the three cargos the delegation is about, and there the gap is not
+  // curation but the boundary itself. Driven through the emulator, so it is the ruleset that
+  // answers and not another read of the same client predicate.
+  const WITHHELD = ["cel_free", "cel_power", "jdl_power"] as const;
+  for (const label of ["custom(update-Position)", "custom(update-Member)", "custom(manage-all)"]) {
+    const principal = PRINCIPALS.find((p) => p.label === label);
+    if (principal === undefined) continue;
+    const g = gatesFor(principal);
+    if (g.editMode === "none") continue;
+    for (const cargoId of WITHHELD) {
+      it(`BLOCKING: the rules DENY ${label} the ${cargoId} seat the client withholds`, async () => {
+        expect(offeredCargoIds(g, null)).not.toContain(cargoId);
+        const id = await seedMember({ key: "unseated", cargoId: null });
+        await assertFails(writeUpdate(as(principal), id, cargoId, principal.uid));
+      });
+    }
+  }
+
   it("wiring allowPowerGrants into the OLD-side flag would offer writes the rules deny", async () => {
     const delegate = PRINCIPALS.find((p) => p.label === "custom(position+boardseat)")!;
     const g = gatesFor(delegate);
-    const held = cargoById("jdl_power");
+    const held = heldCargo(CATALOG, "jdl_power");
     expect(positionsLockedForEditor(held, g.isAdmin)).toBe(true);
     expect(positionsLockedForEditor(held, g.allowPowerGrants)).toBe(false);
     const id = await seedMember({ key: "seated-jdl-power", cargoId: "jdl_power" });
