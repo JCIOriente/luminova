@@ -1162,15 +1162,35 @@ describe("firestore.rules — members", () => {
     );
   });
 
-  // The delegate variant of this same ride-along (createDelegate(), assignedBy stays self
-  // on the current-term entry) was here and is dropped: the term-key conjunct above is
-  // UNCONDITIONAL in createPositionsSafe() — not gated by boardSeatDelegate() — and Admin
-  // already satisfies boardSeatDelegate() (hasAnyRole(['Admin']) is one of its two arms), so
-  // any mutation that reddens the delegate variant (e.g. gating the conjunct behind
-  // `boardSeatDelegate() ||`) reddens this Admin one too, but not vice versa: a
-  // `hasAnyRole(['Admin']) ||` carve-out in front of the conjunct — the tempting future edit
-  // this test's own comment names — passes the dropped delegate variant untouched while this
-  // one still catches it. Strict subset; this is the stronger survivor.
+  it("BLOCKING: a delegate may NOT create with a ride-along NON-current term key", async () => {
+    // The create-lane twin of positionsDelta().hasOnly([currentTermKey()]). assignedBySelf()
+    // and cargoAssignableByNonAdmin() both read only positions[currentTermKey()], so a second
+    // term key rode along completely unvalidated: a clean current-term entry to pass the arm,
+    // plus a next-term power cargo attributed to a real Admin. On the UTC-year rollover
+    // claims-sync reads THAT entry and mints Admin onto a member whose login the creator
+    // controls. Forged attribution, one term deferred.
+    //
+    // NOT a strict subset of the Admin variant above — the two principals differ in a way
+    // that matters. admin-uid's synthesized perms are ['manage:all'] (tools/scripts/lib/
+    // role-seed.mjs), never the literal string 'update:BoardSeat', so hasPerm('update:BoardSeat')
+    // is false for it; it only satisfies boardSeatDelegate() via the separate hasAnyRole(['Admin'])
+    // arm. createDelegate() genuinely holds ['create:Member','update:BoardSeat'], so
+    // hasPerm('update:BoardSeat') is true for it. A mutation that grafts a hasPerm disjunct onto
+    // the term-key conjunct itself — `hasPerm('update:BoardSeat') || keys().hasOnly([currentTermKey()])`
+    // in createPositionsSafe() — leaves the Admin test denied (hasPerm still false there) while
+    // reopening the ride-along for this delegate. Only this test catches that mutation.
+    await assertFails(
+      setDoc(doc(createDelegate(), "members/new_delegate_ridealong"), {
+        name: "Ximena Paz",
+        totalPoints: 0,
+        ...BORN_LIVE,
+        positions: {
+          [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "createdelegate-uid" },
+          "2099": { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" },
+        },
+      }),
+    );
+  });
 
   it("BLOCKING: update:BoardSeat alone reaches nothing on the create lane", async () => {
     // The create-lane twin of the update-lane non-vacuity pin. update:BoardSeat widens WHICH

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Position } from "@luminova/types";
 import {
   cargoGrantNeedsAdminAssigner,
+  cargoNoteId,
   cargoOptionsForEditor,
   cargoTakedownOnly,
   noAssignableCargos,
@@ -127,30 +128,225 @@ describe("noAssignableCargos", () => {
 });
 
 // The one outcome in this lane that fails SILENTLY. boardSeatDelegate() lets a delegate write
-// an Admin-granting cargo and the write succeeds — but resolveTrustedGrants honors an
-// Admin-conferring cargo only for an Admin-ROLE assigner, so the seat publishes and mints
-// nothing. Keyed on the same flag as positionsLockedForEditor (the Admin role), NOT on
-// allowPowerGrants, for the same reason: update:BoardSeat does not lift it.
+// a vacant power cargo and the write succeeds — but resolveTrustedGrants refuses to mint on
+// EITHER of two disjoint conditions, so the seat publishes and nothing says the claim is
+// missing. Keyed on the Admin ROLE (beacon's `assignerIsAdmin`), NOT on allowPowerGrants: the
+// perm lifts the WRITE, never the MINT.
 describe("cargoGrantNeedsAdminAssigner", () => {
   const ADMIN_CARGO = cargo("CEL", ["Admin"]);
 
-  it("warns a non-Admin assigning an Admin-granting cargo", () => {
-    expect(cargoGrantNeedsAdminAssigner(ADMIN_CARGO, false)).toBe(true);
+  // BLOCKING: the full truth table of all three arguments, because the predicate previously
+  // mirrored only ONE of resolveTrustedGrants' two refusals:
+  //
+  //   trusted = (grants.includes("Admin") || selfAssigned) ? assignerIsAdmin
+  //                                                       : assignerIsAdmin || hasBoardSeatPerm
+  //
+  // Enumerated rather than sampled: the missing term (`selfAssigned`) sat in exactly two cells
+  // of this table, both of them non-Admin + non-Admin-granting, which is the shape every
+  // pre-existing case here already asserted as SILENT. A sampled suite therefore agreed with
+  // the bug. `expected` is derived from nothing — it is transcribed from beacon.
+  const TABLE: {
+    name: string;
+    cargo: Pick<Position, "grants" | "category"> | undefined;
+    assignerIsAdmin: boolean;
+    isSelfAssignment: boolean;
+    expected: boolean;
+  }[] = [
+    // No cargo at all: nothing to mint, nothing to warn about, either principal, either way.
+    {
+      name: "none",
+      cargo: undefined,
+      assignerIsAdmin: false,
+      isSelfAssignment: false,
+      expected: false,
+    },
+    {
+      name: "none",
+      cargo: undefined,
+      assignerIsAdmin: false,
+      isSelfAssignment: true,
+      expected: false,
+    },
+    {
+      name: "none",
+      cargo: undefined,
+      assignerIsAdmin: true,
+      isSelfAssignment: false,
+      expected: false,
+    },
+    {
+      name: "none",
+      cargo: undefined,
+      assignerIsAdmin: true,
+      isSelfAssignment: true,
+      expected: false,
+    },
+    // Grant-free: resolveTrustedGrants returns [] on `grants.length === 0` BEFORE it reads
+    // either flag, so there is no pending mint to warn about even when self-assigning.
+    {
+      name: "grant-free CEL",
+      cargo: CEL_FREE,
+      assignerIsAdmin: false,
+      isSelfAssignment: false,
+      expected: false,
+    },
+    {
+      name: "grant-free CEL",
+      cargo: CEL_FREE,
+      assignerIsAdmin: false,
+      isSelfAssignment: true,
+      expected: false,
+    },
+    {
+      name: "grant-free CEL",
+      cargo: CEL_FREE,
+      assignerIsAdmin: true,
+      isSelfAssignment: false,
+      expected: false,
+    },
+    {
+      name: "grant-free CEL",
+      cargo: CEL_FREE,
+      assignerIsAdmin: true,
+      isSelfAssignment: true,
+      expected: false,
+    },
+    {
+      name: "grant-free JDL",
+      cargo: JDL_FREE,
+      assignerIsAdmin: false,
+      isSelfAssignment: false,
+      expected: false,
+    },
+    {
+      name: "grant-free JDL",
+      cargo: JDL_FREE,
+      assignerIsAdmin: false,
+      isSelfAssignment: true,
+      expected: false,
+    },
+    // Non-Admin-granting POWER cargo. The delegation's whole point is the first row: a
+    // Secretary-granting seat IS honored from an update:BoardSeat assigner, so warning there
+    // would be false. The second row is the finding — same cargo, same principal, and the mint
+    // silently stops the moment the target is the caller.
+    {
+      name: "Secretary-granting",
+      cargo: POWER,
+      assignerIsAdmin: false,
+      isSelfAssignment: false,
+      expected: false,
+    },
+    {
+      name: "Secretary-granting",
+      cargo: POWER,
+      assignerIsAdmin: false,
+      isSelfAssignment: true,
+      expected: true,
+    },
+    {
+      name: "Secretary-granting",
+      cargo: POWER,
+      assignerIsAdmin: true,
+      isSelfAssignment: false,
+      expected: false,
+    },
+    // An Admin self-assigning mints normally — `assignerIsAdmin` satisfies BOTH arms — so the
+    // note must not fire. This is the cell that stops the fix from being "warn on any self".
+    {
+      name: "Secretary-granting",
+      cargo: POWER,
+      assignerIsAdmin: true,
+      isSelfAssignment: true,
+      expected: false,
+    },
+    // Admin-granting: refused from a non-Admin whoever the target is.
+    {
+      name: "Admin-granting",
+      cargo: ADMIN_CARGO,
+      assignerIsAdmin: false,
+      isSelfAssignment: false,
+      expected: true,
+    },
+    {
+      name: "Admin-granting",
+      cargo: ADMIN_CARGO,
+      assignerIsAdmin: false,
+      isSelfAssignment: true,
+      expected: true,
+    },
+    {
+      name: "Admin-granting",
+      cargo: ADMIN_CARGO,
+      assignerIsAdmin: true,
+      isSelfAssignment: false,
+      expected: false,
+    },
+    {
+      name: "Admin-granting",
+      cargo: ADMIN_CARGO,
+      assignerIsAdmin: true,
+      isSelfAssignment: true,
+      expected: false,
+    },
+  ];
+
+  it.each(TABLE)(
+    "BLOCKING: $name, admin=$assignerIsAdmin, self=$isSelfAssignment → $expected",
+    ({ cargo: c, assignerIsAdmin, isSelfAssignment, expected }) => {
+      expect(cargoGrantNeedsAdminAssigner(c, assignerIsAdmin, isSelfAssignment)).toBe(expected);
+    },
+  );
+
+  // The finding in one line, spelled out away from the table so a future reader meets the
+  // scenario and not just a row. A delegate holding update:Position + update:BoardSeat opens
+  // their OWN profile and seats themselves on a vacant Secretario: firestore.rules permits the
+  // write, the seat publishes to the Directiva, and resolveTrustedGrants mints nothing because
+  // `selfAssigned && !assignerIsAdmin`. No response carries that — the note is the only channel.
+  it("BLOCKING: a delegate seating THEMSELVES on a non-Admin power cargo mints nothing", () => {
+    expect(cargoGrantNeedsAdminAssigner(POWER, false, true)).toBe(true);
+    // Same delegate, same cargo, someone else's profile: honored, so silence is correct.
+    expect(cargoGrantNeedsAdminAssigner(POWER, false, false)).toBe(false);
+  });
+});
+
+// The fourth derived render-state. Both forms hand-rolled this as a two-branch ternary that
+// only knew `noCargos` and `locked`, so the takedown and mint-pending notes were rendered but
+// never ASSOCIATED — a screen-reader user on the trigger met neither.
+describe("cargoNoteId", () => {
+  const IDS = {
+    noCargos: "no-cargos",
+    locked: "locked",
+    takedown: "takedown",
+    mintPending: "mint",
+  };
+  const NONE = { noCargos: false, locked: false, takedown: false, mintPending: false };
+
+  it("returns undefined when no note is rendered", () => {
+    expect(cargoNoteId(NONE, IDS)).toBeUndefined();
   });
 
-  it("stays silent for an Admin, who mints what they assign", () => {
-    expect(cargoGrantNeedsAdminAssigner(ADMIN_CARGO, true)).toBe(false);
+  it("returns each state's own id when it is the only one firing", () => {
+    expect(cargoNoteId({ ...NONE, noCargos: true }, IDS)).toBe(IDS.noCargos);
+    expect(cargoNoteId({ ...NONE, locked: true }, IDS)).toBe(IDS.locked);
+    expect(cargoNoteId({ ...NONE, takedown: true }, IDS)).toBe(IDS.takedown);
+    expect(cargoNoteId({ ...NONE, mintPending: true }, IDS)).toBe(IDS.mintPending);
   });
 
-  it("stays silent for a cargo whose grants a delegate DOES mint", () => {
-    // The delegation's whole point: a Secretary-granting seat is honored from an
-    // update:BoardSeat assigner, so warning about it would be false.
-    expect(cargoGrantNeedsAdminAssigner(POWER, false)).toBe(false);
-    expect(cargoGrantNeedsAdminAssigner(CEL_FREE, false)).toBe(false);
-    expect(cargoGrantNeedsAdminAssigner(JDL_FREE, false)).toBe(false);
+  // BLOCKING: priority is most-blocking-first, and it is only observable when states co-fire.
+  // Asserting one state at a time would pass under ANY ordering of the four ifs.
+  it("BLOCKING: resolves co-firing states most-blocking-first", () => {
+    const all = { noCargos: true, locked: true, takedown: true, mintPending: true };
+    expect(cargoNoteId(all, IDS)).toBe(IDS.noCargos);
+    expect(cargoNoteId({ ...all, noCargos: false }, IDS)).toBe(IDS.locked);
+    expect(cargoNoteId({ ...all, noCargos: false, locked: false }, IDS)).toBe(IDS.takedown);
+    expect(cargoNoteId({ ...NONE, takedown: true, mintPending: true }, IDS)).toBe(IDS.takedown);
   });
 
-  it("stays silent with no cargo selected", () => {
-    expect(cargoGrantNeedsAdminAssigner(undefined, false)).toBe(false);
+  // The ids are passed in, not owned here, because the locked and takedown wordings differ
+  // between the two forms. Pin that they are echoed verbatim — a hardcoded id here would send
+  // aria-describedby at an element that exists in only one of the two forms.
+  it("echoes the caller's ids rather than owning any", () => {
+    const other = { noCargos: "a", locked: "b", takedown: "c", mintPending: "d" };
+    expect(cargoNoteId({ ...NONE, mintPending: true }, other)).toBe("d");
   });
 });
