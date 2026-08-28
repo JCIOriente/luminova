@@ -4,6 +4,7 @@ import { type MemberInput, type Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
 import { actionMessage } from "../lib/member-display";
 import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
+import { draftProvisionBlocked } from "../lib/provision-gate";
 import { useCan } from "../../../lib/authz/use-can";
 
 interface MemberInviteDrawerProps {
@@ -76,12 +77,13 @@ export function MemberInviteDrawer({
     // beacon refuses a non-Admin provisioning a member seated on a granting cargo (the
     // power-seat guard). The rules DO let that member be created, so without this check the
     // drawer would create them, 403 on the invite, and send the user to a row action that
-    // fails the same way on every retry. Decide before writing anything.
-    const seatedCargo = data.cargoId ? positions.find((p) => p.id === data.cargoId) : undefined;
-    const provisionBlocked = !isAdmin && (seatedCargo?.grants.length ?? 0) > 0;
-    if (sendAccess && provisionBlocked) {
-      errorDetail = null;
-    } else if (sendAccess) {
+    // fails the same way on every retry. Decide before writing anything. Same predicate as
+    // the row menu and the profile header — see provision-gate.ts.
+    const provisionBlocked =
+      !isAdmin && draftProvisionBlocked(data.cargoId, (id) => positions.find((p) => p.id === id));
+    // Nothing is attempted when blocked: the done screen explains it instead of reporting a
+    // failure that never happened.
+    if (sendAccess && !provisionBlocked) {
       // The member is already created; if provisioning fails, fall through to the
       // done screen with provisioned=false ("aún no tiene acceso, invítalo desde su
       // fila") instead of throwing — a thrown error reads as a create failure and
@@ -134,14 +136,14 @@ export function MemberInviteDrawer({
             </p>
           ) : done.blockedByCargo ? (
             <p role="alert" className="text-ui-md text-error">
-              {`${done.name} fue creado, pero su cargo otorga permisos: solo un Admin puede enviarle el acceso. Pídeselo para completar la invitación.`}
+              {`${done.name} fue creado, pero su cargo otorga permisos: solo un administrador puede enviarle el acceso. Pídele a un administrador que complete la invitación.`}
             </p>
           ) : done.provisioned && !done.emailSent ? (
             <>
               <p role="alert" className="text-ui-md text-error">
                 {done.actionLink
                   ? "El correo no se pudo enviar. Comparte el enlace de acceso manualmente."
-                  : "El correo no se pudo enviar. Pídele a un Admin que reenvíe la invitación."}
+                  : "El correo no se pudo enviar. Pídele a un administrador que reenvíe la invitación."}
               </p>
               {done.errorDetail && (
                 <p className="text-ui-xs text-ink-3">Detalle: {done.errorDetail}</p>
@@ -202,6 +204,7 @@ export function MemberInviteDrawer({
           pendingLabel="Enviando…"
           showPreview
           allowPowerGrants={canAssignBoardSeat}
+          allowReplacePowerCargo={isAdmin}
           defaultValues={{ joinDate: today(), status: "Activo", cargoId: null, comisionIds: [] }}
           onSubmit={handleSubmit}
         >

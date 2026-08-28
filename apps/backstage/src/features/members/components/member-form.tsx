@@ -24,12 +24,15 @@ import {
 } from "@luminova/types";
 import { avatarColor } from "../lib/member-display";
 import {
+  cargoGrantNeedsAdminAssigner,
   cargoOptionsForEditor,
   cargoTakedownOnly,
   noAssignableCargos,
-  positionsLockedForNonAdmin,
+  positionsLockedForEditor,
 } from "../lib/assignable-cargo";
-import { NoAssignableCargosNote } from "./no-assignable-cargos-note";
+import { NoAssignableCargosNote, NO_ASSIGNABLE_CARGOS_NOTE_ID } from "./no-assignable-cargos-note";
+
+const LOCKED_NOTE_ID = "member-cargo-locked-note";
 
 interface MemberFormProps {
   positions: Position[];
@@ -44,6 +47,11 @@ interface MemberFormProps {
    *  `createPositionsSafe` and `positionsAssignmentSafe`). Non-Admin sees only assignable
    *  cargos plus the current selection. */
   allowPowerGrants?: boolean;
+  /** Whether the editor may REPLACE a cargo that already confers power (rules'
+   *  `currentCargoGrantsEmpty`, the other conjunct). Admin role only — `update:BoardSeat`
+   *  deliberately does NOT lift this one, so it must not be folded into `allowPowerGrants`.
+   *  See positionsLockedForEditor(). */
+  allowReplacePowerCargo?: boolean;
   children?: ReactNode;
 }
 
@@ -74,6 +82,7 @@ export function MemberForm({
   showPreview,
   avatarSeed,
   allowPowerGrants = false,
+  allowReplacePowerCargo = false,
   children,
 }: MemberFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
@@ -113,14 +122,14 @@ export function MemberForm({
   // per-form copy is what let this one re-add the held seat labelled "(inactivo)" while the
   // other dropped it).
   const assignedCargoId = defaultValues?.cargoId ?? null;
-  // A power-granting assigned cargo locks cargo/comisiones for a non-Admin — the write
-  // re-stamps the same cargoId and `currentCargoGrantsEmpty()` blocks clearing it, so no
+  // A power-granting assigned cargo locks cargo/comisiones for anyone but an Admin — the
+  // write re-stamps the same cargoId and `currentCargoGrantsEmpty()` blocks clearing it, so no
   // positions change succeeds. Bio edits still save, because the mapper omits an unchanged
   // slot. A grant-free CEL seat is NOT locked: clearing it is deliberately allowed, so the
   // form stays open, the seat renders disabled (visible, not assignable) and "Quitar cargo"
-  // makes the takedown reachable. See positionsLockedForNonAdmin() / cargoTakedownOnly().
+  // makes the takedown reachable. See positionsLockedForEditor() / cargoTakedownOnly().
   const assignedCargo = positions.find((p) => p.id === assignedCargoId);
-  const positionsLocked = !allowPowerGrants && positionsLockedForNonAdmin(assignedCargo);
+  const positionsLocked = positionsLockedForEditor(assignedCargo, allowReplacePowerCargo);
   const cargoTakedown = cargoTakedownOnly(selectedCargo, allowPowerGrants);
   const cargoOptions = cargoOptionsForEditor({
     positions,
@@ -128,6 +137,16 @@ export function MemberForm({
     allowPowerGrants,
     assignedCargoId,
   });
+  const noCargos = noAssignableCargos({ cargoOptions, allowPowerGrants, locked: positionsLocked });
+  // The notes explaining the picker sit after the field in the DOM, so without this a
+  // screen-reader user reaching the trigger hears "Sin resultados" or a disabled control and
+  // never meets the reason. Mutually exclusive by construction — a locked slot renders the
+  // held cargo, so the option list is never empty.
+  const cargoNoteId = noCargos
+    ? NO_ASSIGNABLE_CARGOS_NOTE_ID
+    : positionsLocked
+      ? LOCKED_NOTE_ID
+      : undefined;
 
   const comisionLabel = (p: Position) => (p.sigla ? `${p.sigla} — ${p.title}` : p.title);
   const activeComisionOptions = positions
@@ -249,6 +268,7 @@ export function MemberForm({
                   }}
                   placeholder="Sin cargo"
                   disabled={positionsLocked}
+                  aria-describedby={cargoNoteId}
                 />
                 {cargoTakedown && (
                   <Button
@@ -300,21 +320,28 @@ export function MemberForm({
           </p>
         )}
         {positionsLocked && (
-          <p role="note" className="text-ui-xs text-ink-3">
-            Solo un Admin puede cambiar el cargo de un miembro cuyo cargo otorga permisos. Puedes
-            editar el resto de sus datos.
+          <p id={LOCKED_NOTE_ID} role="note" className="text-ui-xs text-ink-3">
+            Solo un administrador puede cambiar el cargo de un miembro cuyo cargo otorga permisos.
+            Puedes editar el resto de sus datos.
           </p>
         )}
+        {/* Suppressed while locked: the picker is disabled there, so nothing about what the
+            save would mint is actionable. */}
+        {!positionsLocked &&
+          cargoGrantNeedsAdminAssigner(selectedCargo, allowReplacePowerCargo) && (
+            <p role="note" className="text-ui-xs text-ink-3">
+              Este cargo otorga permisos de administrador. Puedes asignarlo, pero los permisos no se
+              aplicarán hasta que un administrador confirme el cargo.
+            </p>
+          )}
         {cargoTakedown && (
           <p role="note" className="text-ui-xs text-ink-3">
-            Este cargo es del Comité Ejecutivo Local: solo un Admin puede asignarlo. Puedes
+            Este cargo es del Comité Ejecutivo Local: solo un administrador puede asignarlo. Puedes
             quitárselo con «Quitar cargo» o dejarlo como está; el resto de sus datos se guarda
             igual.
           </p>
         )}
-        {noAssignableCargos({ cargoOptions, allowPowerGrants, locked: positionsLocked }) && (
-          <NoAssignableCargosNote />
-        )}
+        {noCargos && <NoAssignableCargosNote />}
         <Field
           label="Fecha de ingreso"
           htmlFor="joinDate"

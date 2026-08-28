@@ -3,6 +3,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Position } from "@luminova/types";
 import { MemberPositionsForm } from "./member-positions-form";
+import { permissionLabel } from "../../permissions/lib/permission-matrix";
+
+// The note names the permission through `permissionLabel`, and its own comment says the two
+// features must not drift. Assert against the same source, not a hardcoded copy — a literal
+// here would keep passing after either half of the label is renamed, which is exactly the
+// coupling the note is worried about.
+const BOARD_SEAT_LABEL = permissionLabel("update:BoardSeat");
 
 const pos = (id: string, category: Position["category"]): Position => ({
   id,
@@ -25,6 +32,7 @@ describe("MemberPositionsForm", () => {
         positions={positions}
         gender="Masculino"
         allowPowerGrants={false}
+        allowReplacePowerCargo={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={onSubmit}
       />,
@@ -45,11 +53,12 @@ describe("MemberPositionsForm", () => {
         positions={gated}
         gender="Masculino"
         allowPowerGrants={false}
+        allowReplacePowerCargo={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn()}
       />,
     );
-    expect(screen.getByRole("note")).toHaveTextContent(/Asientos de directiva/);
+    expect(screen.getByRole("note")).toHaveTextContent(BOARD_SEAT_LABEL);
     unmount();
 
     // A delegate assigns the same catalog: no note.
@@ -58,6 +67,7 @@ describe("MemberPositionsForm", () => {
         positions={gated}
         gender="Masculino"
         allowPowerGrants
+        allowReplacePowerCargo={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn()}
       />,
@@ -73,13 +83,14 @@ describe("MemberPositionsForm", () => {
         positions={gated}
         gender="Masculino"
         allowPowerGrants={false}
+        allowReplacePowerCargo={false}
         defaultValues={{ cargoId: "power", comisionIds: [] }}
         onSubmit={vi.fn()}
       />,
     );
     const notes = screen.getAllByRole("note");
     expect(notes).toHaveLength(1);
-    expect(notes[0]).toHaveTextContent(/Solo un Admin/);
+    expect(notes[0]).toHaveTextContent(/Solo un administrador/);
   });
 
   it("submits selected cargo and comisiones", async () => {
@@ -89,6 +100,7 @@ describe("MemberPositionsForm", () => {
         positions={positions}
         gender="Masculino"
         allowPowerGrants={false}
+        allowReplacePowerCargo={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={onSubmit}
       />,
@@ -119,6 +131,7 @@ describe("MemberPositionsForm", () => {
         positions={[cce]}
         gender="Femenino"
         allowPowerGrants={false}
+        allowReplacePowerCargo={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -136,6 +149,7 @@ describe("MemberPositionsForm", () => {
         positions={[powerCargo]}
         gender="Masculino"
         allowPowerGrants={false}
+        allowReplacePowerCargo={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -144,12 +158,49 @@ describe("MemberPositionsForm", () => {
     expect(screen.queryByText("presidente")).not.toBeInTheDocument();
   });
 
+  // The silent outcome. A delegate may WRITE this seat — boardSeatDelegate() allows it and
+  // the save succeeds — but resolveTrustedGrants refuses an Admin-granting cargo from a
+  // non-Admin assigner, so the member is seated with no Admin claim and nothing else says so.
+  it("BLOCKING: warns a delegate that an Admin-granting cargo mints nothing until an Admin confirms", async () => {
+    render(
+      <MemberPositionsForm
+        positions={[powerCargo]}
+        gender="Masculino"
+        allowPowerGrants
+        allowReplacePowerCargo={false}
+        defaultValues={{ cargoId: null, comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    expect(screen.queryByText(/permisos de administrador/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    await userEvent.click(await screen.findByText("presidente"));
+    expect(screen.getByText(/permisos de administrador/i)).toBeInTheDocument();
+  });
+
+  it("stays silent for an Admin picking that same cargo, who does mint it", async () => {
+    render(
+      <MemberPositionsForm
+        positions={[powerCargo]}
+        gender="Masculino"
+        allowPowerGrants
+        allowReplacePowerCargo={true}
+        defaultValues={{ cargoId: null, comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    await userEvent.click(await screen.findByText("presidente"));
+    expect(screen.queryByText(/permisos de administrador/i)).not.toBeInTheDocument();
+  });
+
   it("shows power-granting cargos to an Admin", async () => {
     render(
       <MemberPositionsForm
         positions={[powerCargo]}
         gender="Masculino"
         allowPowerGrants
+        allowReplacePowerCargo={true}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -164,12 +215,13 @@ describe("MemberPositionsForm", () => {
         positions={[powerCargo]}
         gender="Masculino"
         allowPowerGrants={false}
+        allowReplacePowerCargo={false}
         defaultValues={{ cargoId: "presidente", comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
     );
     expect(screen.getByRole("button", { name: /guardar/i })).toBeDisabled();
-    expect(screen.getByText(/Solo un Admin puede cambiar los cargos/i)).toBeInTheDocument();
+    expect(screen.getByText(/Solo un administrador puede cambiar los cargos/i)).toBeInTheDocument();
   });
 
   it("does NOT lock when the editor may assign power grants (Admin)", () => {
@@ -178,11 +230,40 @@ describe("MemberPositionsForm", () => {
         positions={[powerCargo]}
         gender="Masculino"
         allowPowerGrants
+        allowReplacePowerCargo={true}
         defaultValues={{ cargoId: "presidente", comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
     );
     expect(screen.getByRole("button", { name: /guardar/i })).not.toBeDisabled();
+  });
+
+  // BLOCKING: the two rules conjuncts of positionsAssignmentSafe() are gated on DIFFERENT
+  // principals. `update:BoardSeat` lifts the NEW side (cargoAssignableByNonAdmin, the cargo
+  // written in) — which is what `allowPowerGrants` carries — but the OLD side
+  // (currentCargoGrantsEmpty, the cargo being REPLACED) is Admin-ROLE only and is deliberately
+  // NOT delegated. So the delegate is the one principal for whom both flags disagree, and the
+  // form must still lock. While the lock was `!allowPowerGrants && locked(...)` this render
+  // handed a delegate an open picker on a write the rules ALWAYS deny: render-then-403.
+  it("BLOCKING: locks for a board-seat DELEGATE on a member seated on a power-granting cargo", () => {
+    render(
+      <MemberPositionsForm
+        positions={[powerCargo]}
+        gender="Masculino"
+        allowPowerGrants
+        allowReplacePowerCargo={false}
+        defaultValues={{ cargoId: "presidente", comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    const trigger = screen.getByLabelText("Cargo");
+    expect(trigger).toBeDisabled();
+    const note = screen.getByText(/Solo un administrador puede cambiar los cargos/i);
+    expect(note).toBeInTheDocument();
+    // The note sits after the field in the DOM, so the association is the only way a
+    // screen-reader user reaching a disabled trigger meets the reason.
+    expect(trigger).toHaveAttribute("aria-describedby", note.id);
+    expect(screen.getByRole("button", { name: /guardar/i })).toBeDisabled();
   });
 
   // The publication half of the mirror. pos_cel_free is grant-free, so the grants filter
@@ -196,6 +277,7 @@ describe("MemberPositionsForm", () => {
         positions={[celFree, pos("dir", "JDL")]}
         gender="Masculino"
         allowPowerGrants={false}
+        allowReplacePowerCargo={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -213,6 +295,7 @@ describe("MemberPositionsForm", () => {
         positions={[celFree]}
         gender="Masculino"
         allowPowerGrants
+        allowReplacePowerCargo={true}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -233,6 +316,7 @@ describe("MemberPositionsForm", () => {
     positions: [celFree, pos("etica", "Comision")],
     gender: "Masculino" as const,
     allowPowerGrants: false,
+    allowReplacePowerCargo: false,
     defaultValues: { cargoId: "presidente_libre", comisionIds: [] },
   };
 
@@ -244,7 +328,9 @@ describe("MemberPositionsForm", () => {
     render(<MemberPositionsForm {...celSeatedProps} onSubmit={vi.fn()} />);
     expect(screen.getByLabelText("Cargo")).toHaveTextContent("presidente_libre");
     // Not locked — the takedown stays open — but not savable while the seat is kept either.
-    expect(screen.queryByText(/Solo un Admin puede cambiar los cargos/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Solo un administrador puede cambiar los cargos/i),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /guardar/i })).toBeDisabled();
   });
 
@@ -280,12 +366,13 @@ describe("MemberPositionsForm", () => {
         positions={[granting, pos("etica", "Comision")]}
         gender="Masculino"
         allowPowerGrants={false}
+        allowReplacePowerCargo={false}
         defaultValues={{ cargoId: "tesorero", comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
     );
     expect(screen.getByRole("button", { name: /guardar/i })).toBeDisabled();
-    expect(screen.getByText(/Solo un Admin puede cambiar los cargos/i)).toBeInTheDocument();
+    expect(screen.getByText(/Solo un administrador puede cambiar los cargos/i)).toBeInTheDocument();
   });
 
   it("does NOT lock a non-Admin editing a member seated on a grant-free JDL dirección", () => {
@@ -294,6 +381,7 @@ describe("MemberPositionsForm", () => {
         positions={positions}
         gender="Masculino"
         allowPowerGrants={false}
+        allowReplacePowerCargo={false}
         defaultValues={{ cargoId: "dir", comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -308,6 +396,7 @@ describe("MemberPositionsForm", () => {
         positions={positions}
         gender="Masculino"
         allowPowerGrants={false}
+        allowReplacePowerCargo={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={onSubmit}
       />,

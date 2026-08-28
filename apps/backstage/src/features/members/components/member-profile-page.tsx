@@ -30,6 +30,7 @@ import { ParticipationLedger } from "./participation-ledger";
 import { effectiveRoles } from "../lib/member-permissions";
 import { memberEditMode } from "../lib/member-edit-gate";
 import { provisionErrorMessage } from "../lib/provision-error";
+import { memberProvisionBlocked } from "../lib/provision-gate";
 import { memberFormDefaults } from "../lib/member-form-defaults";
 
 // qrcode.react (~13 kB gz) lazy so it leaves the always-loaded index shell.
@@ -108,6 +109,13 @@ export function MemberProfilePage() {
   // Member editing is split across two rules lanes; point the caller at the other one
   // instead of leaving "where do I edit this" to depend on whose profile it is.
   const isSelf = member.uid !== undefined && member.uid === uid;
+  // Fails closed while the catalog is still loading: an unresolvable cargo counts as
+  // power-conferring, so a delegate sees the invite appear once positions land rather than
+  // seeing it offered and then denied. An Admin is unaffected — the whole predicate is
+  // non-Admin-only.
+  const inviteBlocked =
+    !gate.isAdmin &&
+    memberProvisionBlocked(member, (id) => (positions ?? []).find((p) => p.id === id));
 
   const handleEdit = (data: MemberInput) =>
     updateMember.mutateAsync({
@@ -130,10 +138,11 @@ export function MemberProfilePage() {
           <div className="flex flex-wrap items-center justify-end gap-3">
             {member.status && <Badge tone={STATUS_TONE[member.status]}>{member.status}</Badge>}
             {/* provisionMemberLogin is requireAdminOrPerm(create:MemberLogin) — the Admin
-                role or that exact code, never the manage:all perm. */}
-            {/* `!member.uid` mirrors beacon's adoption guard: a delegate may only mint a NEW
-                login, so "Reenviar acceso" would 403 on every click for them. */}
-            <ActionGate when={gate.canProvisionLogin && (gate.isAdmin || !member.uid)}>
+                role or that exact code, never the manage:all perm. memberProvisionBlocked
+                mirrors every refusal the callable applies to a non-Admin, so a delegate is not
+                shown a button that 403s on every click. Same predicate as the row menu and the
+                invite drawer, deliberately. */}
+            <ActionGate when={gate.canProvisionLogin && !inviteBlocked}>
               <InviteAccess member={member} />
             </ActionGate>
           </div>
@@ -150,6 +159,7 @@ export function MemberProfilePage() {
                 submitLabel="Guardar cambios"
                 pendingLabel="Guardando…"
                 allowPowerGrants={gate.canAssignBoardSeat}
+                allowReplacePowerCargo={gate.isAdmin}
                 onSubmit={handleEdit}
                 avatarSeed={member.name}
               />
@@ -178,6 +188,7 @@ export function MemberProfilePage() {
                 positions={positions}
                 gender={member.gender}
                 allowPowerGrants={gate.canAssignBoardSeat}
+                allowReplacePowerCargo={gate.isAdmin}
                 defaultValues={{
                   cargoId: member.positions?.[termKey]?.cargoId ?? null,
                   comisionIds: member.positions?.[termKey]?.comisionIds ?? [],
@@ -231,29 +242,33 @@ function InviteAccess({ member }: { member: Member }) {
   const [link, setLink] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const label = member.uid ? "Reenviar acceso" : "Invitar acceso";
 
-  // beacon withholds the action link from a non-Admin caller (it is a bearer credential for
-  // the account). The client then does what the invite drawer already does — send the reset
-  // mail itself through the unprivileged sendPasswordResetEmail — so a delegate's invite
-  // still lands. Without this the delegate got an empty code block and a copy button that
-  // copied nothing, with the account already created and no way to set a password.
+  // The reset MAIL is the delivery path for every new login, board member or not, Admin caller
+  // or delegate — it is `sendPasswordResetEmail`, which hands the secret to the mailbox owner.
+  // The action link beacon returns to an Admin (and withholds from a delegate, being a bearer
+  // credential for the account) is the manual FALLBACK on top, not a substitute: returning it
+  // used to short-circuit the mail, so this was the one surface where an Admin's invite sent
+  // nothing and the member waited for a mail that never came.
   const invite = () => {
     setError(null);
+    setSent(false);
+    setCopyState("idle");
     provision.mutate(member.id, {
       onSuccess: (result) => {
         if (result.actionLink) {
           setLink(result.actionLink);
           setOpen(true);
-          return;
         }
-        setSent(false);
         void requestPasswordReset(result.email)
           .then(() => setSent(true))
           .catch((err: unknown) => {
             console.error("No se pudo enviar el correo de acceso", err);
             setError(
-              "Se creó el acceso, pero no se pudo enviar el correo. Pídele a un Admin que lo reenvíe.",
+              result.actionLink
+                ? "Se creó el acceso, pero no se pudo enviar el correo. Comparte el enlace manualmente."
+                : "Se creó el acceso, pero no se pudo enviar el correo. Pídele a un administrador que lo reenvíe.",
             );
           });
       },
@@ -284,8 +299,15 @@ function InviteAccess({ member }: { member: Member }) {
       )}
       <Dialog open={open} onOpenChange={setOpen} title="Acceso de miembro">
         <div className="flex flex-col gap-3">
+          {/* The dialog opens as soon as the link arrives, before the reset mail settles, so
+              its copy has to track that outcome. A fixed "ya le enviamos el correo" reads as a
+              flat contradiction of the failure alert behind it — and worse, the modal's
+              aria-hidden takes that alert out of the accessibility tree, so a screen-reader
+              user would hear ONLY the false sentence. */}
           <p className="text-ui-sm text-ink-2">
-            Comparte este enlace con el miembro para que cree su contraseña e inicie sesión.
+            {sent
+              ? "Ya le enviamos el correo para crear su contraseña. Si no le llega, comparte este enlace con el miembro."
+              : "Comparte este enlace con el miembro para que cree su contraseña e inicie sesión."}
           </p>
           <code className="block w-full overflow-x-auto rounded-[8px] bg-ink-1/[0.04] px-3 py-2 text-ui-xs text-ink-2">
             {link}
@@ -293,10 +315,21 @@ function InviteAccess({ member }: { member: Member }) {
           <Button
             as="button"
             type="button"
-            onClick={() => link && void navigator.clipboard.writeText(link)}
+            onClick={() => {
+              if (!link) return;
+              navigator.clipboard
+                .writeText(link)
+                .then(() => setCopyState("copied"))
+                .catch(() => setCopyState("failed"));
+            }}
           >
-            Copiar enlace
+            {copyState === "copied" ? "Enlace copiado" : "Copiar enlace"}
           </Button>
+          {copyState === "failed" && (
+            <p role="alert" className="text-ui-xs text-error">
+              No se pudo copiar. Selecciona el enlace de arriba y cópialo manualmente.
+            </p>
+          )}
         </div>
       </Dialog>
     </>

@@ -5,12 +5,15 @@ import { z } from "zod";
 import { Button, Combobox, Field, MultiSelect } from "@luminova/ui";
 import { type MemberGender, type Position } from "@luminova/types";
 import {
+  cargoGrantNeedsAdminAssigner,
   cargoOptionsForEditor,
   cargoTakedownOnly,
   noAssignableCargos,
-  positionsLockedForNonAdmin,
+  positionsLockedForEditor,
 } from "../lib/assignable-cargo";
-import { NoAssignableCargosNote } from "./no-assignable-cargos-note";
+import { NoAssignableCargosNote, NO_ASSIGNABLE_CARGOS_NOTE_ID } from "./no-assignable-cargos-note";
+
+const LOCKED_NOTE_ID = "positions-cargo-locked-note";
 
 const positionsSchema = z.object({
   cargoId: z.string().min(1).nullable(),
@@ -24,6 +27,7 @@ export function MemberPositionsForm({
   gender,
   defaultValues,
   allowPowerGrants,
+  allowReplacePowerCargo,
   onSubmit,
 }: {
   positions: Position[];
@@ -34,6 +38,11 @@ export function MemberPositionsForm({
    *  assignable cargos, plus the seat the member already holds rendered DISABLED, so the
    *  trigger names the real cargo without putting a denied write one click away. */
   allowPowerGrants: boolean;
+  /** Whether the caller may REPLACE a cargo that already confers power (rules'
+   *  `currentCargoGrantsEmpty`, the other conjunct). Admin role only — `update:BoardSeat`
+   *  deliberately does NOT lift this one, so it must not be folded into `allowPowerGrants`.
+   *  See positionsLockedForEditor(). */
+  allowReplacePowerCargo: boolean;
   onSubmit: (data: PositionsInput) => Promise<void>;
 }) {
   const [formError, setFormError] = useState<string | null>(null);
@@ -44,14 +53,14 @@ export function MemberPositionsForm({
     formState: { isSubmitting },
   } = useForm<PositionsInput>({ resolver: zodResolver(positionsSchema), defaultValues });
 
-  // A power-granting current cargo locks the whole slot for a non-Admin: every save re-stamps
-  // that cargoId, and `currentCargoGrantsEmpty()` blocks clearing it too, so nothing they can
-  // submit succeeds. A grant-free CEL seat is the asymmetric case — keeping it is denied,
-  // CLEARING it is allowed on purpose — so the form stays open, the seat renders as a disabled
-  // option (the trigger must not claim "Sin cargo" for a seated member) and only the takedown
-  // can be saved. See positionsLockedForNonAdmin() / cargoTakedownOnly().
+  // A power-granting current cargo locks the whole slot for anyone but an Admin: every save
+  // re-stamps that cargoId, and `currentCargoGrantsEmpty()` blocks clearing it too, so nothing
+  // they can submit succeeds. A grant-free CEL seat is the asymmetric case — keeping it is
+  // denied, CLEARING it is allowed on purpose — so the form stays open, the seat renders as a
+  // disabled option (the trigger must not claim "Sin cargo" for a seated member) and only the
+  // takedown can be saved. See positionsLockedForEditor() / cargoTakedownOnly().
   const assignedCargo = positions.find((p) => p.id === defaultValues.cargoId);
-  const locked = !allowPowerGrants && positionsLockedForNonAdmin(assignedCargo);
+  const locked = positionsLockedForEditor(assignedCargo, allowReplacePowerCargo);
   const cargoOptions = cargoOptionsForEditor({
     positions,
     gender,
@@ -60,6 +69,12 @@ export function MemberPositionsForm({
   });
   const selectedCargo = positions.find((p) => p.id === watch("cargoId"));
   const takedownOnly = cargoTakedownOnly(selectedCargo, allowPowerGrants);
+  const noCargos = noAssignableCargos({ cargoOptions, allowPowerGrants, locked });
+  // The note explaining the picker sits after the field in the DOM, so without this a
+  // screen-reader user reaching the trigger hears "Sin resultados" or a disabled control and
+  // never meets the reason. Mutually exclusive by construction — a locked slot renders the
+  // held cargo, so the option list is never empty.
+  const cargoNoteId = noCargos ? NO_ASSIGNABLE_CARGOS_NOTE_ID : locked ? LOCKED_NOTE_ID : undefined;
   const comisionOptions = positions
     .filter((p) => p.active && p.category === "Comision")
     .map((p) => ({ value: p.id, label: p.sigla ? `${p.sigla} — ${p.title}` : p.title }));
@@ -88,6 +103,7 @@ export function MemberPositionsForm({
                 onChange={field.onChange}
                 placeholder="Sin cargo"
                 disabled={locked}
+                aria-describedby={cargoNoteId}
               />
               {takedownOnly && (
                 <Button
@@ -120,17 +136,25 @@ export function MemberPositionsForm({
         />
       </Field>
       {locked && (
+        <p id={LOCKED_NOTE_ID} role="note" className="text-ui-xs text-ink-3">
+          Solo un administrador puede cambiar los cargos de un miembro cuyo cargo otorga permisos.
+        </p>
+      )}
+      {/* Suppressed while locked: the picker is disabled there, so nothing about what the save
+          would mint is actionable. */}
+      {!locked && cargoGrantNeedsAdminAssigner(selectedCargo, allowReplacePowerCargo) && (
         <p role="note" className="text-ui-xs text-ink-3">
-          Solo un Admin puede cambiar los cargos de un miembro cuyo cargo otorga permisos.
+          Este cargo otorga permisos de administrador. Puedes asignarlo, pero los permisos no se
+          aplicarán hasta que un administrador confirme el cargo.
         </p>
       )}
       {takedownOnly && (
         <p role="note" className="text-ui-xs text-ink-3">
-          Este cargo es del Comité Ejecutivo Local: solo un Admin puede asignarlo. Puedes quitárselo
-          con «Quitar cargo» y guardar, o elegir otro cargo.
+          Este cargo es del Comité Ejecutivo Local: solo un administrador puede asignarlo. Puedes
+          quitárselo con «Quitar cargo» y guardar, o elegir otro cargo.
         </p>
       )}
-      {noAssignableCargos({ cargoOptions, allowPowerGrants, locked }) && <NoAssignableCargosNote />}
+      {noCargos && <NoAssignableCargosNote />}
       {formError && (
         <div role="alert" className="text-ui-sm text-error">
           {formError}

@@ -5,6 +5,13 @@ import type { MemberInput, Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
 import { toMemberUpdateDoc } from "../repositories/member-mapper";
 import { pickDate } from "../../../test/pick-date";
+import { permissionLabel } from "../../permissions/lib/permission-matrix";
+
+// The note names the permission through `permissionLabel`, and its own comment says the two
+// features must not drift. Assert against the same source, not a hardcoded copy — a literal
+// here would keep passing after either half of the label is renamed, which is exactly the
+// coupling the note is worried about.
+const BOARD_SEAT_LABEL = permissionLabel("update:BoardSeat");
 
 const positions: Position[] = [
   {
@@ -137,7 +144,7 @@ describe("MemberForm", () => {
         allowPowerGrants={false}
       />,
     );
-    expect(screen.getByRole("note")).toHaveTextContent(/Asientos de directiva/);
+    expect(screen.getByRole("note")).toHaveTextContent(BOARD_SEAT_LABEL);
     await userEvent.click(screen.getByLabelText("Cargo"));
     expect(await screen.findByText("Sin resultados")).toBeInTheDocument();
     unmount();
@@ -330,7 +337,9 @@ describe("MemberForm", () => {
         onSubmit={vi.fn()}
       />,
     );
-    expect(screen.queryByText(/Solo un Admin puede cambiar el cargo/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Solo un administrador puede cambiar el cargo/i),
+    ).not.toBeInTheDocument();
   });
 
   // Dropping the seat from the options handed it to the `(inactivo)` fallback, which re-added
@@ -423,7 +432,66 @@ describe("MemberForm", () => {
         onSubmit={vi.fn()}
       />,
     );
-    expect(screen.queryByText(/Solo un Admin puede cambiar el cargo/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Solo un administrador puede cambiar el cargo/i),
+    ).not.toBeInTheDocument();
+  });
+
+  // BLOCKING: the two rules conjuncts of positionsAssignmentSafe() are gated on DIFFERENT
+  // principals. `update:BoardSeat` lifts the NEW side (cargoAssignableByNonAdmin, the cargo
+  // written in) — which is what `allowPowerGrants` carries — but the OLD side
+  // (currentCargoGrantsEmpty, the cargo being REPLACED) is Admin-ROLE only and is deliberately
+  // NOT delegated. So the delegate is the one principal for whom both flags disagree, and the
+  // form must still lock. While the lock was `!allowPowerGrants && locked(...)` this render
+  // handed a delegate an open picker on a write the rules ALWAYS deny: render-then-403.
+  const powerCargo: Position = {
+    id: "pos-secre",
+    title: "Secretario",
+    titleFemale: "Secretaria",
+    category: "CEL",
+    grants: ["Secretary"],
+    term: null,
+    sigla: null,
+    description: "Lleva las actas.",
+    active: true,
+    deletedAt: null,
+  };
+
+  it("BLOCKING: locks for a board-seat DELEGATE on a member seated on a power-granting cargo", () => {
+    render(
+      <MemberForm
+        positions={[...positions, powerCargo]}
+        defaultValues={{ cargoId: "pos-secre", gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+        allowReplacePowerCargo={false}
+      />,
+    );
+    const trigger = screen.getByLabelText("Cargo");
+    expect(trigger).toBeDisabled();
+    const note = screen.getByText(/Solo un administrador puede cambiar el cargo/i);
+    expect(note).toBeInTheDocument();
+    // The note sits after the field in the DOM, so the association is the only way a
+    // screen-reader user reaching a disabled trigger meets the reason.
+    expect(trigger).toHaveAttribute("aria-describedby", note.id);
+  });
+
+  it("does NOT lock an Admin on that same power-granting seat", () => {
+    render(
+      <MemberForm
+        positions={[...positions, powerCargo]}
+        defaultValues={{ cargoId: "pos-secre", gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+        allowReplacePowerCargo
+      />,
+    );
+    expect(screen.getByLabelText("Cargo")).not.toBeDisabled();
+    expect(
+      screen.queryByText(/Solo un administrador puede cambiar el cargo/i),
+    ).not.toBeInTheDocument();
   });
 
   it("renders comisión option as 'sigla — title' when sigla is present", async () => {
