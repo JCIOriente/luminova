@@ -48,6 +48,23 @@ function provisionBlocked(
   return new HttpsError(code, message, { reason });
 }
 
+/** The stored email is unusable — absent, empty, wrong shape, or rejected by Identity Toolkit
+ *  itself. One factory because the refusal is raised from TWO layers and must read identically
+ *  from both: this module screens the SHAPE up front, and the port (provision-deps) tags the
+ *  SEMANTIC rejection the shape screen cannot anticipate. `ADMIN_SDK_EMAIL_SHAPE` is a cheap
+ *  pre-filter, never the sole guarantee — "a@.", ".a@b.co" and "a..b@c.co" each carry one `@`,
+ *  no whitespace and no control characters, so they pass it AND the Admin SDK's own isEmail,
+ *  reach the API, and come back auth/invalid-email. Without the port tagging that, it surfaced
+ *  as an opaque `internal` and the operator got the generic "No se pudo…" — the dead end
+ *  PROVISION_BLOCK_REASONS exists to remove, reached by a different road. */
+export function memberEmailMalformed(): HttpsError {
+  return provisionBlocked(
+    "failed-precondition",
+    "member's stored email is missing or not a valid address; correct it before provisioning",
+    "member-email-malformed",
+  );
+}
+
 /** The Admin SDK's OWN email predicate (`validator.isEmail`: `/^[^@]+@[^@]+$/`), plus the one
  *  tightening that is strictly safe: no whitespace, no control characters.
  *
@@ -198,11 +215,7 @@ export async function provisionMember(
   // empty-string case, which is the likelier of the two (memberDocSchema's `email` is a bare
   // z.string()). Absent, empty and malformed all have the same operator remedy: fix the ficha.
   if (typeof member.email !== "string" || !ADMIN_SDK_EMAIL_SHAPE.test(member.email)) {
-    throw provisionBlocked(
-      "failed-precondition",
-      "member's stored email is missing or not a valid address; correct it before provisioning",
-      "member-email-malformed",
-    );
+    throw memberEmailMalformed();
   }
   const email = member.email;
   const linkedUid = typeof member.uid === "string" && member.uid.length > 0 ? member.uid : null;

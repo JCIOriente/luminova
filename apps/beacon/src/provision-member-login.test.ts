@@ -552,10 +552,14 @@ describe("provisionMember", () => {
   });
 
   it("does NOT refuse the unusual addresses the Admin SDK accepts", async () => {
-    // The screen is the SDK's own predicate (`/^[^@]+@[^@]+$/`), not an RFC validator: a
-    // plus-tag, a bare hostname and a non-ASCII local part all provision as before. Tightening
-    // this regex would make members with legitimate addresses unprovisionable — the exact
-    // failure the screen exists to prevent, pointed the other way.
+    // The screen is the SDK's own predicate plus a whitespace/control-character exclusion —
+    // NOT an RFC validator, and the distinction is the whole point of this row. Excluding
+    // characters Identity Toolkit rejects anyway costs nothing. Adding RFC STRUCTURE (dot
+    // placement, label rules, a TLD requirement) would start refusing addresses Firebase
+    // happily creates accounts for, which is the failure the screen exists to prevent pointed
+    // the other way — and that failure is now silent-proof from the other side too, since the
+    // port tags Identity Toolkit's own rejection rather than letting it surface as `internal`.
+    // A plus-tag, a bare hostname and a non-ASCII local part must all keep provisioning.
     for (const email of ["ana+jci@sub.example.co", "root@localhost", "añez@ejemplo.bo"]) {
       const { deps, calls } = fakeDeps({ member: { email, active: true } });
       await expect(provisionMember(deps, "m1", true)).resolves.toEqual({
