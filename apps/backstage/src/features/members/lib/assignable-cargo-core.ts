@@ -1,3 +1,5 @@
+import type { PositionCategory } from "@luminova/types";
+
 /**
  * The rules-mirroring half of `assignable-cargo.ts`: every predicate that answers a
  * `firestore.rules` question about a cargo, and nothing that renders one.
@@ -5,10 +7,10 @@
  * Split out for ONE reason, and it is load-bearing: `tests/firestore-rules/` drives these
  * predicates and the real emulator from the same fixture
  * (`cargo-assignment-parity.test.ts`), and that package cannot resolve `@luminova/types` at
- * runtime — it has no such dependency, and the rules suite deliberately keeps its dependency
- * surface to the emulator harness. `assignable-cargo.ts` imports `currentTermKey` and
- * `positionTitle` from it for VALUE, so importing that file there throws. This module has ZERO
- * imports, which is the same trick `nav-equivalence.test.ts` documents for `nav-config.ts`.
+ * RUNTIME — it has no such dependency. `assignable-cargo.ts` imports `currentTermKey` and
+ * `positionTitle` from it for VALUE, so importing that file there throws. This module has no
+ * runtime imports; the one `import type` above is erased before it can be resolved, which is
+ * the same trick `nav-equivalence.test.ts` documents for `nav-config.ts`'s `IconKey`.
  *
  * Import `positionsLockedForEditor` / `cargoTakedownOnly` from HERE, not through
  * `assignable-cargo.ts` — it used to re-export them, which read as a convenience and was
@@ -23,27 +25,23 @@
  */
 
 /**
- * The cargo fields these predicates read — structural, deliberately NOT `Pick<Position, …>`,
- * so this module stays import-free (see the header). Every real `Position` satisfies it, so
- * callers pass their `Position` objects unchanged and `cargoSlotsForEditor` returns the very
- * objects it was handed (it is generic in `P`), never a lossy copy.
+ * The cargo fields these predicates read — structural rather than `Pick<Position, …>`, so a
+ * caller may pass anything cargo-shaped, and `cargoSlotsForEditor` (generic in `P`) hands back
+ * the very objects it was given rather than a lossy copy.
  *
- * ACCEPTED TRADEOFF: `category` and `grants` are wider here than `Position`'s literal unions,
- * because narrowing them would mean either importing those unions (which is the one thing this
- * module may not do) or re-declaring them, and a re-declared union drifts. So a hand-built
- * FIXTURE could pass `category: "cel"` and get a wrong answer with no compile error. Every
- * production caller passes a real `Position`, and `cargoSlotsForEditor` being generic in
- * `P extends CargoLike` means `assignable-cargo.ts` handing it `Position[]` already enforces
- * `Position extends CargoLike` — which is the direction that can actually break.
- *
- * Note the parity test cannot cover this either, and it is the one gap in it: the same fixture
- * is fed to the predicate AND seeded into the emulator, so a miscased `category` makes both
- * sides agree — wrongly, and green. Its factory pins the literal union for that reason.
+ * `category` carries `Position`'s real union, NOT a widened `string`. That matters more than it
+ * looks: `cargoAssignableByNonAdmin` compares it against the literal `"CEL"`, and against a
+ * `string` a rename in POSITION_CATEGORIES would quietly make that comparison always-true —
+ * offering every CEL cargo to a non-delegate while the rules kept denying, on the publication
+ * boundary this module exists to mirror. Neither the compiler nor the parity test would catch
+ * that: the same fixture feeds the predicate and the emulator, so both sides would agree,
+ * wrongly and green. The `import type` costs nothing — it is erased before the rules-test
+ * package could fail to resolve it.
  */
 export interface CargoLike {
   id: string;
   grants: readonly string[];
-  category: string;
+  category: PositionCategory;
   term: number | null;
   active: boolean;
 }
@@ -68,11 +66,6 @@ export interface CargoLike {
 // from this raw predicate is how the two forms drifted apart in the first place. Exporting it
 // again would give that back.
 function cargoAssignableByNonAdmin(cargo: Pick<CargoLike, "grants" | "category">): boolean {
-  // The "CEL" literal is compared against a structural `string` (see CargoLike's tradeoff), so
-  // a rename in POSITION_CATEGORIES would make this always-true and silently offer every CEL
-  // cargo to a non-delegate. `assignable-cargo.ts` holds the typed pin that fails to compile
-  // instead — it cannot live here, since this module may not import the union. If you change
-  // this literal, change it there too.
   return cargo.grants.length === 0 && cargo.category !== "CEL";
 }
 

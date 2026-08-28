@@ -77,7 +77,7 @@ describe("useCopyToClipboard", () => {
   // changes that prop on every render of the drawer. Asserted across a rerender AND across a
   // state change, because a `useCallback(fn, [copyState])` would pass the first and fail the
   // second while looking stable in casual use.
-  it("BLOCKING: keeps copy and resetCopyState referentially stable across renders", async () => {
+  it("keeps copy and resetCopyState referentially stable across renders", async () => {
     stubClipboard({ writeText: vi.fn().mockResolvedValue(undefined) });
     const { result, rerender } = renderHook(() => useCopyToClipboard());
     const firstCopy = result.current.copy;

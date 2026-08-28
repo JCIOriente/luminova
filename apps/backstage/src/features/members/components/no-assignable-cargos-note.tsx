@@ -14,9 +14,13 @@ import { permissionLabel } from "../../permissions/lib/permission-matrix";
  * notes render identical copy in both forms, which is why the components are shared — but a
  * shared component owning a fixed DOM id means two mounted forms emit the same id, and
  * `aria-describedby` then resolves to whichever rendered first, i.e. the OTHER form's note.
- * Nothing mounts both cargo editors today (the profile page picks one via `memberEditMode`),
- * but that fact lives in another file, so the shared notes take their id as a prop and the
- * uniqueness is structural instead of circumstantial.
+ * This makes the two form TYPES disjoint. It does NOT make two instances of the SAME form
+ * disjoint — the call is at module scope, so every `MemberForm` shares one set. That is still
+ * safe, but only because of two facts in other files: the profile page picks one editor via
+ * `memberEditMode`, and the two Sheets on /members are Radix portals that unmount when closed.
+ * If either changes, reach for `useId()` (the repo idiom — see `search-input.tsx`) rather than
+ * another prefix; instance-scoped ids would also fix the `cargoId`/`comisionIds` collision the
+ * two Comboboxes already have, which this helper does not address.
  */
 export function cargoNoteIds(prefix: string): CargoNoteIds {
   return {

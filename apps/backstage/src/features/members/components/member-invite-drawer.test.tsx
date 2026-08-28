@@ -433,6 +433,14 @@ describe("MemberInviteDrawer", () => {
         /Ya existe un acceso para este correo\. Pídele a un administrador que lo reenvíe o lo vincule\./,
       ),
     ).toBeInTheDocument();
+    // BLOCKING: the refusal must be the HEADLINE, not small print under a contradiction.
+    // The default fallback tells the operator to invite from the row menu — and that item IS
+    // offered here, because memberProvisionBlocked keys `hasLogin` on member.uid and this
+    // just-created doc has none: beacon refused on the Auth directory, which the client cannot
+    // see. Demoting the real reason to "Detalle:" therefore sends them into exactly the
+    // infinite retry this mapping exists to end.
+    expect(screen.queryByText(/desde el menú de su fila/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Detalle:/)).not.toBeInTheDocument();
     // The raw prose must be GONE, not merely accompanied — it is the thing being replaced.
     expect(screen.queryByText(/this member already has a login/)).not.toBeInTheDocument();
     // The member was still created, so the done screen is guidance, not a create failure.

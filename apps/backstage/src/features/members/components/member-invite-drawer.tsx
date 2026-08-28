@@ -5,7 +5,7 @@ import { MemberForm } from "./member-form";
 import { actionMessage } from "../lib/member-display";
 import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
 import { draftProvisionBlocked } from "../lib/provision-gate";
-import { provisionErrorMessage } from "../lib/provision-error";
+import { provisionRefusalMessage } from "../lib/provision-error";
 import { useCopyToClipboard } from "../../../lib/use-copy-to-clipboard";
 import { useCan } from "../../../lib/authz/use-can";
 
@@ -29,6 +29,12 @@ interface DoneState {
   provisioned: boolean;
   emailSent: boolean;
   actionLink: string | null;
+  /** The callable's own explanation, when it refused ON PURPOSE. Drives the HEADLINE, not the
+   *  small print: these refusals ("ya existe un acceso para este correo") contradict the
+   *  default "invítalo desde el menú de su fila", and the row action really is offered —
+   *  memberProvisionBlocked keys `hasLogin` on member.uid, which a just-created doc lacks,
+   *  because beacon refused on the Auth directory the client cannot see. */
+  refusalMessage: string | null;
   errorDetail: string | null;
 }
 
@@ -78,6 +84,7 @@ export function MemberInviteDrawer({
     let provisioned = false;
     let emailSent = false;
     let actionLink: string | null = null;
+    let refusalMessage: string | null = null;
     let errorDetail: string | null = null;
     // beacon refuses a non-Admin provisioning a member seated on a granting cargo (the
     // power-seat guard). The rules DO let that member be created, so without this check the
@@ -113,12 +120,12 @@ export function MemberInviteDrawer({
         }
       } catch (err) {
         console.error("No se pudo aprovisionar el acceso del miembro", err);
-        // Route the callable's REFUSALS through the same table the row menu and the profile
-        // header use — this was the third entry point and the only one still surfacing the
-        // server's raw English prose ("this member already has a login; only an Admin…").
-        // The raw message stays as the FALLBACK, so an untagged failure (App Check, quota,
-        // config) still shows the one diagnostic we get.
-        errorDetail = provisionErrorMessage(err, err instanceof Error ? err.message : String(err));
+        // A deliberate refusal becomes the headline; anything else keeps its raw message as
+        // the only diagnostic we get (App Check, quota, config).
+        refusalMessage = provisionRefusalMessage(err);
+        if (refusalMessage === null) {
+          errorDetail = err instanceof Error ? err.message : String(err);
+        }
       }
     }
     setDone({
@@ -129,6 +136,7 @@ export function MemberInviteDrawer({
       provisioned,
       emailSent,
       actionLink,
+      refusalMessage,
       errorDetail,
     });
   };
@@ -186,18 +194,17 @@ export function MemberInviteDrawer({
             </>
           ) : (
             <>
-              {/* Only promise the row action to someone who will actually SEE it. The row item
-                  is gated on `canProvisionLogin && !provisionBlocked` (member-row-menu), so
-                  both conjuncts have to be answered here — see provisionBlocked's doc-comment
-                  above for why it, and not blockedByCargo, is the right flag for the second.
-                  A `create:Member` holder WITHOUT `create:MemberLogin` reaches this drawer too:
-                  the trigger only asks `Can I="create" a="Member"`. */}
+              {/* Only promise the row action to someone who will actually see it — the row
+                  item is gated on `canProvisionLogin && !provisionBlocked`, so both conjuncts
+                  are answered here, and a server refusal outranks both. */}
               <p className="text-ui-md text-ink-2">
-                {done.provisionBlocked
-                  ? "Aún no tiene acceso a la app. Su cargo otorga permisos, así que un administrador debe enviarle el acceso."
-                  : canProvisionLogin
-                    ? "Aún no tiene acceso a la app. Podrás invitarlo desde el menú de su fila."
-                    : "Aún no tiene acceso a la app. Pídele a un administrador que le envíe el acceso."}
+                {done.refusalMessage
+                  ? `Aún no tiene acceso a la app. ${done.refusalMessage}`
+                  : done.provisionBlocked
+                    ? "Aún no tiene acceso a la app. Su cargo otorga permisos, así que un administrador debe enviarle el acceso."
+                    : canProvisionLogin
+                      ? "Aún no tiene acceso a la app. Podrás invitarlo desde el menú de su fila."
+                      : "Aún no tiene acceso a la app. Pídele a un administrador que le envíe el acceso."}
               </p>
               {done.errorDetail && (
                 <p className="text-ui-xs text-ink-3">Detalle: {done.errorDetail}</p>

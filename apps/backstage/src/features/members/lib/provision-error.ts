@@ -29,12 +29,24 @@ const MESSAGES: Readonly<Record<ProvisionBlockReason, string>> = {
 // The literal buys exhaustiveness against the union; the Map buys a safe lookup.
 const REASON_MESSAGES = new Map<string, string>(Object.entries(MESSAGES));
 
-export function provisionErrorMessage(err: unknown, fallback: string): string {
+/** The callable's own explanation for a refusal, or null when it did not give one (a
+ *  transient failure — App Check, quota, config — or a reason this build does not know).
+ *
+ *  Separate from `provisionErrorMessage` because the two answer different questions. A caller
+ *  that only needs text takes the message; a caller that must also decide WHAT TO SAY NEXT
+ *  needs to know whether the server refused on purpose. The invite drawer needs the second:
+ *  its headline otherwise tells the operator to retry from the row menu on a refusal only an
+ *  Admin can clear, with the real explanation demoted to small print underneath. */
+export function provisionRefusalMessage(err: unknown): string | null {
   const details = (err as { details?: unknown } | null | undefined)?.details;
   const reason =
     typeof details === "object" && details !== null
       ? (details as { reason?: unknown }).reason
       : undefined;
-  if (typeof reason !== "string") return fallback;
-  return REASON_MESSAGES.get(reason) ?? fallback;
+  if (typeof reason !== "string") return null;
+  return REASON_MESSAGES.get(reason) ?? null;
+}
+
+export function provisionErrorMessage(err: unknown, fallback: string): string {
+  return provisionRefusalMessage(err) ?? fallback;
 }

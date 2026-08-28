@@ -1,20 +1,5 @@
-import {
-  currentTermKey,
-  positionTitle,
-  type MemberGender,
-  type Position,
-  type PositionCategory,
-} from "@luminova/types";
+import { currentTermKey, positionTitle, type MemberGender, type Position } from "@luminova/types";
 import { cargoConfersPower, cargoSlotsForEditor } from "./assignable-cargo-core";
-
-// The guard the CargoLike widening gave up, bought back here where Position IS importable.
-// assignable-cargo-core compares `category !== "CEL"` against a structural `string`, so if
-// POSITION_CATEGORIES ever renames or recases that literal, the comparison silently becomes
-// always-true — the client would offer every CEL cargo to a non-delegate while the rules keep
-// denying `category != 'CEL'`, on the publication boundary that module exists to mirror. With
-// the literal typed, a rename fails to compile HERE instead.
-const CEL: PositionCategory = "CEL";
-void CEL;
 
 /**
  * The predicates that MIRROR firestore.rules — `positionsLockedForEditor`,

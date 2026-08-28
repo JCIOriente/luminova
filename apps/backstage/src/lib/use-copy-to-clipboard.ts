@@ -18,9 +18,10 @@ export function useCopyToClipboard(): {
   resetCopyState: () => void;
 } {
   const [copyState, setCopyState] = useState<CopyState>("idle");
-  // Stable identities: the invite drawer captures `resetCopyState` in `reset()`, which
-  // `close()` captures, which is the Sheet's `onOpenChange` — so a fresh closure per render
-  // would change that prop on every render of the drawer.
+  // Stable identities as a cheap property of a shared hook, NOT because a consumer depends on
+  // it today: both call sites wrap these in unmemoized handlers and pass inline arrows, so
+  // nothing downstream currently observes the difference. Kept so a future memoized consumer
+  // is not defeated by the hook itself.
   const copy = useCallback((text: string) => {
     try {
       void navigator.clipboard

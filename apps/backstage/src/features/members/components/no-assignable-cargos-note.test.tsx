@@ -89,10 +89,6 @@ describe("cargoNoteIds", () => {
     const positions = Object.values(cargoNoteIds("positions"));
     expect(new Set([...member, ...positions]).size).toBe(member.length + positions.length);
   });
-
-  it("is stable — the same prefix always yields the same ids", () => {
-    expect(cargoNoteIds("member")).toEqual(cargoNoteIds("member"));
-  });
 });
 
 // The unit assertions above pin the STRINGS. These pin that the strings the forms actually

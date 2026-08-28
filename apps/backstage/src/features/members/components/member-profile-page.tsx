@@ -147,7 +147,15 @@ export function MemberProfilePage() {
                 enviar el correo" state mid-flight — deleting, for a delegate, the only notice
                 that the account exists with no password mail sent. */}
             <ActionGate when={gate.canProvisionLogin}>
-              <InviteAccess member={member} blocked={inviteBlocked} />
+              {/* key: the mount gate used to be `!inviteBlocked`, which ALSO happened to reset
+                  this component between members. It no longer does, and TanStack Router renders
+                  the same MemberProfilePage instance across a /members/A → /members/B
+                  navigation (no key on Match), while `isLoading` skips the unmount whenever B is
+                  warm in cache. Without this, B's header shows A's "Invitación enviada" — and if
+                  the dialog was left open, A's password-reset link, a bearer credential, one
+                  click from being copied on B's page. Stable across the refetch that sets
+                  member.uid, so it does not reintroduce the flip-erases-its-own-result bug. */}
+              <InviteAccess key={member.id} member={member} blocked={inviteBlocked} />
             </ActionGate>
           </div>
         }
