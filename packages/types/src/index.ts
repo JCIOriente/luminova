@@ -23,6 +23,7 @@ export {
   permissionCodeSchema,
   type RoleDefinitionInput,
 } from "./role-definition-schema.js";
+export { PROVISION_BLOCK_REASONS, type ProvisionBlockReason } from "./provision-block-reason.js";
 export type { Member, MemberStatus } from "./member.js";
 export { MEMBER_STATUSES } from "./member.js";
 export { MEMBER_GENDERS, type MemberGender } from "./member.js";

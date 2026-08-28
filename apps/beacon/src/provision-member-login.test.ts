@@ -479,6 +479,48 @@ describe("provisionMember", () => {
       provisionMember(fakeDeps({ member: { active: true } }).deps, "m1"),
     ).rejects.toMatchObject({ code: "failed-precondition" });
   });
+
+  it("BLOCKING: screens a malformed stored email instead of surfacing an opaque `internal`", async () => {
+    // `email` reaches auth.getUserByEmail / auth.createUser, which reject anything outside the
+    // Admin SDK's shape with a PERMANENT auth/invalid-email. nullIfUserNotFound only swallows
+    // auth/user-not-found, so it rethrows and the operator sees `internal` — with no hint that
+    // the fix is editing the member's stored email. firestore.rules does not shape-validate
+    // email on the admin write lane, so this shape is reachable.
+    const reached: string[] = [];
+    for (const email of ["not-an-email", "@b.co", "a@", "a@b@c.co", "  "]) {
+      const { deps, calls } = fakeDeps({ member: { email, active: true } });
+      const spied: ProvisionDeps = {
+        ...deps,
+        getUserByEmail: async (value) => {
+          reached.push(value);
+          return deps.getUserByEmail(value);
+        },
+      };
+      await expect(provisionMember(spied, "m1", true)).rejects.toMatchObject({
+        code: "failed-precondition",
+        details: { reason: "member-email-malformed" },
+      });
+      // Screened before the SDK sees it — that is the whole point of the check.
+      expect(reached).toEqual([]);
+      expect(calls.createUser).toEqual([]);
+      expect(calls.linkUid).toEqual([]);
+    }
+  });
+
+  it("does NOT refuse the unusual addresses the Admin SDK accepts", async () => {
+    // The screen is the SDK's own predicate (`/^[^@]+@[^@]+$/`), not an RFC validator: a
+    // plus-tag, a bare hostname and a non-ASCII local part all provision as before. Tightening
+    // this regex would make members with legitimate addresses unprovisionable — the exact
+    // failure the screen exists to prevent, pointed the other way.
+    for (const email of ["ana+jci@sub.example.co", "root@localhost", "añez@ejemplo.bo"]) {
+      const { deps, calls } = fakeDeps({ member: { email, active: true } });
+      await expect(provisionMember(deps, "m1", true)).resolves.toEqual({
+        email,
+        actionLink: `link:${email}`,
+      });
+      expect(calls.createUser).toEqual([email]);
+    }
+  });
 });
 
 // Every case here exercises the ADOPTION path, which is Admin-only — hence the explicit

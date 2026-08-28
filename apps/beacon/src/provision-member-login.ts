@@ -2,6 +2,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { isValidRole, type Role } from "@luminova/auth/roles";
+import type { ProvisionBlockReason } from "@luminova/types";
 import { isSafeDocId } from "./firestore-util.js";
 import { callerIsAdmin, requireAdminOrPerm } from "./callable-auth.js";
 import { firestoreProvisionDeps } from "./provision-deps.js";
@@ -34,6 +35,24 @@ export function nextClaims(existing: RawClaims | undefined, role: Role): { roles
   const roles = current.includes(role) ? current : [...current, role];
   return { roles };
 }
+
+/** A refusal the CLIENT can name. `reason` is a cross-boundary contract owned by
+ *  `@luminova/types` (PROVISION_BLOCK_REASONS) and consumed by backstage's message table —
+ *  routing every tagged throw through this helper is what makes renaming one a compile
+ *  error on both ends instead of a silent degradation to the generic fallback. */
+function provisionBlocked(
+  code: "failed-precondition" | "permission-denied",
+  message: string,
+  reason: ProvisionBlockReason,
+): HttpsError {
+  return new HttpsError(code, message, { reason });
+}
+
+/** The Admin SDK's OWN email predicate (`validator.isEmail`: `/^[^@]+@[^@]+$/`), copied
+ *  verbatim rather than tightened. The point is to refuse exactly what `getUserByEmail` /
+ *  `createUser` would refuse — a stricter RFC-ish pattern would start rejecting addresses
+ *  Firebase happily accepts, which is a worse failure than the one being fixed. */
+const ADMIN_SDK_EMAIL_SHAPE = /^[^@]+@[^@]+$/;
 
 export interface ProvisionUser {
   uid: string;
@@ -162,6 +181,19 @@ export async function provisionMember(
     throw new HttpsError("failed-precondition", "member has no email");
   }
   const email = member.email;
+  // Shape-screened BEFORE it reaches the Auth SDK, for the same reason cargoId and assignedBy
+  // are screened in claims-sync: a stored value the SDK rejects throws a PERMANENT
+  // auth/invalid-email, which nullIfUserNotFound rethrows and the caller receives as an opaque
+  // `internal`. That member is then unprovisionable through this callable — with no hint why —
+  // until someone edits the doc in the console. firestore.rules deliberately does not
+  // shape-validate `email` on the admin write lane, so the shape reaches here unchecked.
+  if (!ADMIN_SDK_EMAIL_SHAPE.test(email)) {
+    throw provisionBlocked(
+      "failed-precondition",
+      "member's stored email is not a valid address; correct it before provisioning",
+      "member-email-malformed",
+    );
+  }
   const linkedUid = typeof member.uid === "string" && member.uid.length > 0 ? member.uid : null;
 
   let user = await deps.getUserByEmail(email);
@@ -170,10 +202,10 @@ export async function provisionMember(
     // orphaned; if it was deleted out-of-band, relinking by email is the
     // self-heal, not a conflict.
     if ((await deps.getUserByUid(linkedUid)) !== null) {
-      throw new HttpsError(
+      throw provisionBlocked(
         "failed-precondition",
         "member is already linked to a different login; unlink it explicitly before re-provisioning",
-        { reason: "linked-to-different-login" },
+        "linked-to-different-login",
       );
     }
   }
@@ -204,10 +236,10 @@ export async function provisionMember(
   // member has neither — and leaves resend/adoption/self-heal to an Admin, plus the
   // client-side sendPasswordResetEmail any member can already use on their own address.
   if (!callerHoldsAdminRole && (user !== null || linkedUid !== null)) {
-    throw new HttpsError(
+    throw provisionBlocked(
       "permission-denied",
       "this member already has a login; only an Admin can re-provision or link one",
-      { reason: "reprovision-requires-admin" },
+      "reprovision-requires-admin",
     );
   }
   // POWER-SEAT GUARD. The check above asks whether this is a NEW login; it does not ask whose
@@ -232,19 +264,19 @@ export async function provisionMember(
   if (!callerHoldsAdminRole) {
     // Direct grants first — no read required, and it is the half a cargo check cannot see.
     if (hasDirectGrants(member)) {
-      throw new HttpsError(
+      throw provisionBlocked(
         "permission-denied",
         "this member has been granted roles or permissions; only an Admin can provision their login",
-        { reason: "granted-member-requires-admin" },
+        "granted-member-requires-admin",
       );
     }
     for (const cargoId of readCargoIds(member)) {
       const grants = await deps.getPositionGrants(cargoId);
       if (grants === null || grants.length > 0) {
-        throw new HttpsError(
+        throw provisionBlocked(
           "permission-denied",
           "this member holds a cargo that confers permissions; only an Admin can provision their login",
-          { reason: "power-seat-requires-admin" },
+          "power-seat-requires-admin",
         );
       }
     }

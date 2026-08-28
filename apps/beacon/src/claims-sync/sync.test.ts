@@ -3,6 +3,7 @@ import type { Role } from "@luminova/auth/roles";
 import type { PermissionCode, RoleDefinition } from "@luminova/types";
 import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
 import { ACTIONS, SUBJECTS } from "@luminova/types/permission";
+import { isSafeDocId } from "../firestore-util.js";
 import { syncMemberClaims, type ClaimsSyncDeps, type MemberClaims } from "./sync.js";
 import { parseMember } from "./parse-member.js";
 import { isActiveRoleDoc } from "./role-doc.js";
@@ -521,6 +522,47 @@ describe("syncMemberClaims", () => {
       expect(reached).toEqual([]);
       // Fails closed: the Admin grant behind that cargo is NOT minted.
       expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
+    }
+  });
+
+  it("ACCEPTS a uid isSafeDocId would reject — the screen is a uid contract, not a path one", async () => {
+    // The other half of the screen above, and the half a "let's reuse isSafeDocId for
+    // consistency" edit would silently break: a uid is NOT a path segment. auth.getUser()
+    // accepts any 1..128-char string, so "/" and the reserved "." / ".." / "__x__" forms are
+    // legitimate uids (third-party/SAML-derived ids carry them), while isSafeDocId rejects
+    // every one. Tightening the screen to match it fails CLOSED — no throw, no log, just a
+    // legitimate delegate's grants quietly never minted. So pin the acceptance too.
+    for (const assignedBy of ["saml/acme|ana", ".", "..", "__soporte__"]) {
+      // Asserted, not assumed: this is the divergence the test exists to hold open.
+      expect(isSafeDocId(assignedBy)).toBe(false);
+      const { deps, writes } = fakeDeps({
+        positions: { "pos-pres": { grants: ["Admin"] } },
+        userRoles: { [assignedBy]: ["Admin"] },
+        existing: { "target-uid": { roles: ["Member"] } },
+      });
+      const reached: string[] = [];
+      const spied: ClaimsSyncDeps = {
+        ...deps,
+        getAssignerClaims: async (uid) => {
+          reached.push(uid);
+          return deps.getAssignerClaims(uid);
+        },
+      };
+      await syncMemberClaims(
+        spied,
+        {
+          uid: "target-uid",
+          positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy } },
+        },
+        "2026",
+      );
+      // The assigner lookup IS reached...
+      expect(reached).toEqual([assignedBy]);
+      // ...and their grants ARE minted.
+      expect(writes["target-uid"]).toEqual({
+        roles: ["Admin", "Member"],
+        perms: permsFor(["Admin", "Member"]),
+      });
     }
   });
 
