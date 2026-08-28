@@ -68,7 +68,7 @@ export function memberProvisionBlocked(
     // `grant` only, mirroring beacon's hasDirectGrants: a revoke-only override mints nothing,
     // so it is not a reason to withhold the invite.
     hasDirectGrants:
-      (member.roleIds?.length ?? 0) > 0 || (member.permissionOverrides?.grant.length ?? 0) > 0,
+      (member.roleIds?.length ?? 0) > 0 || (member.permissionOverrides?.grant?.length ?? 0) > 0,
     seatedCargos: cargoIds.map(cargo),
   });
 }
@@ -85,6 +85,9 @@ export function draftProvisionBlocked(
   return provisionBlockedForNonAdmin({
     hasLogin: false,
     hasDirectGrants: false,
-    seatedCargos: cargoId ? [cargo(cargoId)] : [],
+    // Explicitly null/undefined, NOT truthiness — same rule its sibling states 25 lines up.
+    // `memberSchema` keeps "" out of this form today, so the divergence is latent; a mirror
+    // whose two halves disagree about what "no cargo" means is how they drift apart anyway.
+    seatedCargos: cargoId === null || cargoId === undefined ? [] : [cargo(cargoId)],
   });
 }

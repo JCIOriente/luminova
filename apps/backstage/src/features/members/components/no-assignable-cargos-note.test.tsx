@@ -49,6 +49,10 @@ function renderMemberForm(cargoId: string | null) {
       positions={[POWER_CARGO]}
       defaultValues={{ cargoId }}
       submitLabel="Guardar"
+      allowPowerGrants={false}
+      allowReplacePowerCargo={false}
+      assignerIsAdmin={false}
+      isSelfAssignment={false}
       onSubmit={vi.fn()}
     />,
   ).container;

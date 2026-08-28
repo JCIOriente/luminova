@@ -83,6 +83,46 @@ export function cargoConfersPower(cargo: Pick<CargoLike, "grants"> | undefined):
 }
 
 /**
+ * The cargo a member currently holds, resolved against the catalog — and, distinctly, whether
+ * they hold one AT ALL. Those are two different questions and collapsing them to a bare
+ * `Position | undefined` is what made the lock fail OPEN: an id that does not resolve read as
+ * "no cargo", so `cargoConfersPower(undefined)` was false and the slot unlocked.
+ *
+ * That is reachable without a console edit. The catalog is `parseDocs(positionDocSchema, …)`,
+ * which DROPS any doc failing the schema — a `grants` entry outside `ROLES`, a bad `category` —
+ * so the very corruption that makes a cargo's power unknowable is what removes it from this
+ * array. The rules have no such gap: `currentCargoGrantsEmpty()` `get()`s the real doc, and a
+ * missing one errors the rule, which denies.
+ *
+ * Built here rather than at each call site because both forms need it and `positions.find(…)`
+ * repeated per form is the shape these predicates already drifted through once.
+ */
+export interface HeldCargo<P> {
+  /** What the member doc says, verbatim. `""` is NOT "no cargo" — it is an unresolvable id. */
+  cargoId: string | null | undefined;
+  /** The catalog entry, or `undefined` when the id resolves to nothing. */
+  cargo: P | undefined;
+}
+
+export function heldCargo<P extends CargoLike>(
+  positions: readonly P[],
+  cargoId: string | null | undefined,
+): HeldCargo<P> {
+  return {
+    cargoId,
+    cargo:
+      cargoId === null || cargoId === undefined
+        ? undefined
+        : positions.find((p) => p.id === cargoId),
+  };
+}
+
+/** Whether the member is seated on SOMETHING whose power this editor cannot establish. */
+function heldCargoUnresolvable(held: HeldCargo<unknown>): boolean {
+  return held.cargoId !== null && held.cargoId !== undefined && held.cargo === undefined;
+}
+
+/**
  * Whether this editor is barred from touching the positions slot AT ALL, given the cargo the
  * member currently holds. NOT the negation of `cargoAssignableByNonAdmin` — the two rules
  * conjuncts are asymmetric, and mirroring the wrong one strands a takedown:
@@ -90,6 +130,9 @@ export function cargoConfersPower(cargo: Pick<CargoLike, "grants"> | undefined):
  *   grants.length > 0  →  locked. `currentCargoGrantsEmpty()` gates the cargo being REPLACED,
  *                         so the editor can neither keep it (the save re-stamps it) nor clear
  *                         it. Nothing they can do here succeeds.
+ *   unresolvable id    →  locked, for the same reason and by the same authority: the rules
+ *                         `get()` the doc and deny on a missing one, so an editor who cannot
+ *                         read the cargo cannot submit anything either. See HeldCargo.
  *   grant-free CEL     →  NOT locked. `currentCargoGrantsEmpty()` is deliberately not
  *                         category-gated — firestore.rules says denying this "would strand a
  *                         takedown behind an Admin" — so clearing the seat is allowed even
@@ -112,10 +155,11 @@ export function cargoConfersPower(cargo: Pick<CargoLike, "grants"> | undefined):
  * delegate silently unlocked the editor for a write the rules always deny.
  */
 export function positionsLockedForEditor(
-  cargo: Pick<CargoLike, "grants" | "category"> | undefined,
+  held: HeldCargo<Pick<CargoLike, "grants">>,
   allowReplacePowerCargo: boolean,
 ): boolean {
-  return !allowReplacePowerCargo && cargoConfersPower(cargo);
+  if (allowReplacePowerCargo) return false;
+  return cargoConfersPower(held.cargo) || heldCargoUnresolvable(held);
 }
 
 /**
@@ -181,7 +225,10 @@ export function cargoSlotsForEditor<P extends CargoLike>({
     .filter((p) => allowPowerGrants || cargoAssignableByNonAdmin(p))
     .map((p) => ({ position: p, retired: false, disabled: false }));
 
-  const held = assignedCargoId ? positions.find((p) => p.id === assignedCargoId) : undefined;
+  // heldCargo(), not `assignedCargoId ? find(…)`: a truthiness test reads `""` as "no cargo",
+  // and `""` is exactly the shape termPositionsDocSchema admits and beacon's readCargoIds
+  // manufactures on purpose so the guard refuses it.
+  const held = heldCargo(positions, assignedCargoId).cargo;
   if (held === undefined || slots.some((s) => s.position.id === held.id)) return slots;
   return [
     ...slots,

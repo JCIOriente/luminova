@@ -180,14 +180,15 @@ describe("draftProvisionBlocked", () => {
     expect(draftProvisionBlocked(undefined, catalog, false)).toBe(false);
   });
 
-  // Deliberately NOT the member variant's answer, and pinned so the difference is a decision
-  // rather than a leftover. `memberProvisionBlocked` reads a STORED doc, where a malformed ""
-  // is reachable and must fail closed; this reads the draft the invite drawer is about to
-  // create, whose cargoId comes from `z.string().min(1).nullable()` — "" cannot be produced,
-  // and the create lane forbids a non-Admin the uid/roleIds/overrides halves anyway. If the
-  // draft schema ever stops guaranteeing that, this line is the one that has to move.
-  it("reads an empty-string draft cargoId as no cargo — the schema cannot produce one", () => {
-    expect(draftProvisionBlocked("", catalog, false)).toBe(false);
+  // The SAME answer as the member variant, which is the point. This used to read "" as "no
+  // cargo" and the test enshrined the divergence as deliberate — but a mirror whose two halves
+  // disagree about what "no cargo" means is precisely how these predicates drift, and the
+  // reasoning ("`z.string().min(1).nullable()` cannot produce one") makes the case UNREACHABLE,
+  // not the fail-open answer correct. "" is an id that resolves to nothing, both sides.
+  it("BLOCKING: treats an empty-string draft cargoId as unresolvable, like the member variant", () => {
+    expect(draftProvisionBlocked("", catalog, false)).toBe(true);
+    // …and an Admin is subject to none of it, on either side.
+    expect(draftProvisionBlocked("", catalog, true)).toBe(false);
   });
 
   it("does not block a draft seated on a grant-free cargo", () => {

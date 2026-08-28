@@ -31,11 +31,21 @@ import {
 } from "../lib/assignable-cargo";
 // Directly from the rules-mirroring module, not through assignable-cargo.ts: the file a
 // predicate comes from is what says the emulator parity test holds it to firestore.rules.
-import { cargoTakedownOnly, positionsLockedForEditor } from "../lib/assignable-cargo-core";
+import {
+  cargoTakedownOnly,
+  heldCargo,
+  positionsLockedForEditor,
+} from "../lib/assignable-cargo-core";
 import { cargoNoteIds, MintPendingNote, NoAssignableCargosNote } from "./no-assignable-cargos-note";
 
 const NOTE_IDS = cargoNoteIds("member");
 
+/** The four authority props are REQUIRED, not optional-with-a-false-default, and the defaults
+ *  they used to carry were not all safe in the same direction: `isSelfAssignment = false`
+ *  suppresses the mint-pending warning and `allowReplacePowerCargo = false` locks an Admin's
+ *  picker. A call site that forgets one compiled clean either way. Same argument beacon's
+ *  `MemberParseContext` makes for its required sink, applied to the component with three call
+ *  sites rather than the one with a single call site. */
 interface MemberFormProps {
   positions: Position[];
   defaultValues?: Partial<MemberInput>;
@@ -48,20 +58,20 @@ interface MemberFormProps {
    *  ones and CEL seats alike (rules' `cargoAssignableByNonAdmin`, applied by both
    *  `createPositionsSafe` and `positionsAssignmentSafe`). Non-Admin sees only assignable
    *  cargos plus the current selection. */
-  allowPowerGrants?: boolean;
+  allowPowerGrants: boolean;
   /** Whether the editor may REPLACE a cargo that already confers power (rules'
    *  `currentCargoGrantsEmpty`, the other conjunct). Admin role only — `update:BoardSeat`
    *  deliberately does NOT lift this one, so it must not be folded into `allowPowerGrants`.
    *  See positionsLockedForEditor(). */
-  allowReplacePowerCargo?: boolean;
+  allowReplacePowerCargo: boolean;
   /** Whether the CALLER holds the Admin role, which is what beacon's `resolveTrustedGrants`
    *  keys the mint on. Named after the minting authority, not after `allowReplacePowerCargo`,
    *  which mirrors a different rules predicate and only happens to equal it today. */
-  assignerIsAdmin?: boolean;
+  assignerIsAdmin: boolean;
   /** Whether the member being edited IS the caller. The trust gate refuses to mint a
    *  self-assignment of any granting cargo from a non-Admin — confer power on others, never on
    *  yourself — so the picker must say so before the click. */
-  isSelfAssignment?: boolean;
+  isSelfAssignment: boolean;
   children?: ReactNode;
 }
 
@@ -91,10 +101,10 @@ export function MemberForm({
   onSubmit,
   showPreview,
   avatarSeed,
-  allowPowerGrants = false,
-  allowReplacePowerCargo = false,
-  assignerIsAdmin = false,
-  isSelfAssignment = false,
+  allowPowerGrants,
+  allowReplacePowerCargo,
+  assignerIsAdmin,
+  isSelfAssignment,
   children,
 }: MemberFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
@@ -140,8 +150,8 @@ export function MemberForm({
   // slot. A grant-free CEL seat is NOT locked: clearing it is deliberately allowed, so the
   // form stays open, the seat renders disabled (visible, not assignable) and "Quitar cargo"
   // makes the takedown reachable. See positionsLockedForEditor() / cargoTakedownOnly().
-  const assignedCargo = positions.find((p) => p.id === assignedCargoId);
-  const positionsLocked = positionsLockedForEditor(assignedCargo, allowReplacePowerCargo);
+  const held = heldCargo(positions, assignedCargoId);
+  const positionsLocked = positionsLockedForEditor(held, allowReplacePowerCargo);
   const cargoTakedown = cargoTakedownOnly(selectedCargo, allowPowerGrants);
   const cargoOptions = cargoOptionsForEditor({
     positions,
@@ -324,6 +334,9 @@ export function MemberForm({
                   value={field.value}
                   onChange={field.onChange}
                   disabled={positionsLocked}
+                  // Same flag disables it as the cargo picker, so it owes the same
+                  // explanation — see the note in member-positions-form.
+                  aria-describedby={positionsLocked ? NOTE_IDS.locked : undefined}
                 />
               )}
             />

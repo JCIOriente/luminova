@@ -12,7 +12,11 @@ import {
 } from "../lib/assignable-cargo";
 // Directly from the rules-mirroring module, not through assignable-cargo.ts: the file a
 // predicate comes from is what says the emulator parity test holds it to firestore.rules.
-import { cargoTakedownOnly, positionsLockedForEditor } from "../lib/assignable-cargo-core";
+import {
+  cargoTakedownOnly,
+  heldCargo,
+  positionsLockedForEditor,
+} from "../lib/assignable-cargo-core";
 import { cargoNoteIds, MintPendingNote, NoAssignableCargosNote } from "./no-assignable-cargos-note";
 
 const NOTE_IDS = cargoNoteIds("positions");
@@ -71,8 +75,8 @@ export function MemberPositionsForm({
   // denied, CLEARING it is allowed on purpose — so the form stays open, the seat renders as a
   // disabled option (the trigger must not claim "Sin cargo" for a seated member) and only the
   // takedown can be saved. See positionsLockedForEditor() / cargoTakedownOnly().
-  const assignedCargo = positions.find((p) => p.id === defaultValues.cargoId);
-  const locked = positionsLockedForEditor(assignedCargo, allowReplacePowerCargo);
+  const held = heldCargo(positions, defaultValues.cargoId);
+  const locked = positionsLockedForEditor(held, allowReplacePowerCargo);
   const cargoOptions = cargoOptionsForEditor({
     positions,
     gender,
@@ -150,6 +154,10 @@ export function MemberPositionsForm({
               value={field.value}
               onChange={field.onChange}
               disabled={locked}
+              // Disabled by the same flag as the cargo picker, so it owes the same
+              // explanation: a11y-wise a dead control with no reason is indistinguishable
+              // from a broken one. `locked` is the only state that disables it.
+              aria-describedby={locked ? NOTE_IDS.locked : undefined}
             />
           )}
         />
