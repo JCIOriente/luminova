@@ -2,9 +2,27 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactElement, ReactNode } from "react";
+import type { Position } from "@luminova/types";
 import { MemberInviteDrawer } from "./member-invite-drawer";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
 import { pickDate } from "../../../test/pick-date";
+
+/** A catalog whose only cargo confers a role — the input to `draftProvisionBlocked`. Shared so
+ *  the delegate case and the Admin case below differ in the CALLER and nothing else. */
+const powerCargoCatalog: Position[] = [
+  {
+    id: "pos-power",
+    title: "Secretario",
+    titleFemale: null,
+    category: "CEL",
+    grants: ["Secretary"],
+    term: null,
+    sigla: null,
+    description: "",
+    active: true,
+    deletedAt: null,
+  },
+];
 
 // The drawer's "Enviar acceso" checkbox is gated on canProvisionLogin (Admin role OR the
 // exact create:MemberLogin perm); default to Admin so the provisioning path under test is
@@ -181,7 +199,11 @@ describe("MemberInviteDrawer", () => {
     expect(screen.queryByLabelText("Enviar acceso a la app")).not.toBeInTheDocument();
     await fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
-    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    // Wait for the POSITIVE signal, not the absence of an alert: the negative is already true
+    // before the submit resolves, so a waitFor on it returns on the first tick and the
+    // onProvision assertion below would pass merely because the async handler had not run yet.
+    await screen.findByText(/Aún no tiene acceso a la app/);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(onProvision).not.toHaveBeenCalled();
   });
 
@@ -197,24 +219,10 @@ describe("MemberInviteDrawer", () => {
     // beacon's power-seat guard would refuse it, so attempting it would create the member,
     // 403, and point the user at a row action that fails identically forever.
     const onProvision = vi.fn();
-    const powerCargo = [
-      {
-        id: "pos-power",
-        title: "Secretario",
-        titleFemale: null,
-        category: "CEL" as const,
-        grants: ["Secretary"] as never,
-        term: null,
-        sigla: null,
-        description: "",
-        active: true,
-        deletedAt: null,
-      },
-    ];
     renderWithAbility(
       <MemberInviteDrawer
         open
-        positions={powerCargo as never}
+        positions={powerCargoCatalog}
         onClose={() => {}}
         onCreate={async () => "idB"}
         onProvision={onProvision}
@@ -228,7 +236,63 @@ describe("MemberInviteDrawer", () => {
     await userEvent.click(await screen.findByText(/Secretari[ao]/));
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    expect(screen.getByRole("alert")).toHaveTextContent(/solo un Admin puede enviarle el acceso/);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /solo un administrador puede enviarle el acceso/,
+    );
     expect(onProvision).not.toHaveBeenCalled();
+  });
+
+  // The `!isAdmin` term of provisionBlocked had no test: every Admin-path case above passes
+  // positions={[]}, so seatedCargo was always undefined and the cargo clause never fired.
+  // Mutate that term away and this is the only case that notices — without it, an Admin
+  // inviting a board member would be told "solo un administrador puede enviarle el acceso",
+  // self-contradictory copy, suite green.
+  it("BLOCKING: an ADMIN inviting a member on a power-granting cargo still provisions", async () => {
+    const onProvision = vi
+      .fn()
+      .mockResolvedValue({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={powerCargoCatalog}
+        onClose={() => {}}
+        onCreate={async () => "idAdminPower"}
+        onProvision={onProvision}
+      />,
+    );
+    await fill();
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    await userEvent.click(await screen.findByText(/Secretari[ao]/));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    await waitFor(() => expect(onProvision).toHaveBeenCalledWith("idAdminPower"));
+    expect(await screen.findByText(/Invitación enviada a ana@jci\.bo/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  // beacon withholds the action link from a non-Admin caller (it is a bearer credential for
+  // the account), so a delegate whose reset mail then fails has NO manual fallback — the copy
+  // must send them to an Admin rather than to a copy button that would copy nothing. Only
+  // reachable as delegate + provision succeeded + requestPasswordReset rejected.
+  it("BLOCKING: tells a delegate to ask an administrator when there is no action link to share", async () => {
+    mockedRequestPasswordReset.mockRejectedValue(new Error("network error"));
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={[]}
+        onClose={() => {}}
+        onCreate={async () => "idNoLink"}
+        onProvision={async () => ({ email: "ana@jci.bo", actionLink: "" })}
+      />,
+      { roles: ["Member"], perms: ["create:Member", "create:MemberLogin"] },
+    );
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "El correo no se pudo enviar. Pídele a un administrador que reenvíe la invitación.",
+    );
+    expect(
+      screen.queryByRole("button", { name: /Copiar enlace de acceso/ }),
+    ).not.toBeInTheDocument();
   });
 });
