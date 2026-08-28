@@ -70,6 +70,21 @@ function fakeDb(fixtures: RoleFixture[]) {
 /** Cast, not a fabricated Auth: every dep exercised here is a pure Firestore read. */
 const auth = {} as Auth;
 
+/** An Auth stub narrow enough to drive `auth.getUser(uid)` — the only Auth surface the claims
+ *  accessors reach. The cast is test-only and justified: UserRecord carries a dozen fields
+ *  (metadata, providerData, toJSON) that nothing under test reads, and fabricating them would
+ *  assert nothing. A missing uid throws the real `auth/user-not-found` code, because that is
+ *  the ONE error getUserOrNull swallows. */
+function fakeAuth(users: Record<string, { customClaims?: unknown }>): Auth {
+  return {
+    getUser: async (uid: string) => {
+      const user = users[uid];
+      if (!user) throw Object.assign(new Error("user not found"), { code: "auth/user-not-found" });
+      return user;
+    },
+  } as unknown as Auth;
+}
+
 const builtIn = (id: string, key: string, extra: Record<string, unknown> = {}): RoleFixture => ({
   id,
   data: { builtIn: true, builtInKey: key, permissions: ["read:Member"], active: true, ...extra },
@@ -150,6 +165,48 @@ describe("getRoleDocsByBuiltInKeys coverage anomalies", () => {
     const { db, builtInQueries } = fakeDb([builtIn("Treasury", "Treasury")]);
     expect(await firestoreClaimsDeps(db, auth).getRoleDocsByBuiltInKeys([])).toEqual([]);
     expect(builtInQueries).toEqual([]);
+  });
+});
+
+/** The wire that carries the assigner's claims into resolveTrustedGrants' power-grant trust
+ *  gate. sync.test.ts drives that gate through an in-memory fake, so this is the only place the
+ *  real accessor's filtering is exercised — and a `perms` array that arrived unfiltered would
+ *  hand the gate a junk code to match on. */
+describe("getAssignerClaims", () => {
+  it("BLOCKING: round-trips roles and perms, dropping entries outside the vocabulary", async () => {
+    const { db } = fakeDb([]);
+    const deps = firestoreClaimsDeps(
+      db,
+      fakeAuth({
+        "delegate-uid": {
+          customClaims: {
+            roles: ["Member", "NotARole", 42],
+            perms: ["update:BoardSeat", "nope:Thing", null],
+          },
+        },
+      }),
+    );
+    await expect(deps.getAssignerClaims("delegate-uid")).resolves.toEqual({
+      roles: ["Member"],
+      perms: ["update:BoardSeat"],
+    });
+  });
+
+  it("fails closed to empty claims for an absent, claimless or malformed-claim assigner", async () => {
+    // Unlike getExistingClaims, `perms` is never undefined here: the gate does an `.includes()`
+    // on it, so absence must arrive as an empty array and DENY rather than throw.
+    const { db } = fakeDb([]);
+    const deps = firestoreClaimsDeps(
+      db,
+      fakeAuth({
+        claimless: {},
+        malformed: { customClaims: { roles: "Admin", perms: "update:BoardSeat" } },
+      }),
+    );
+    const empty = { roles: [], perms: [] };
+    await expect(deps.getAssignerClaims("ghost")).resolves.toEqual(empty);
+    await expect(deps.getAssignerClaims("claimless")).resolves.toEqual(empty);
+    await expect(deps.getAssignerClaims("malformed")).resolves.toEqual(empty);
   });
 });
 

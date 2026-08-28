@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { HttpsError } from "firebase-functions/v2/https";
 import type { Role } from "@luminova/auth/roles";
 import {
   validateProvisionInput,
@@ -9,13 +10,41 @@ import {
 } from "./provision-member-login.js";
 
 describe("validateProvisionInput", () => {
+  function codeOf(data: unknown): string {
+    try {
+      validateProvisionInput(data);
+      return "no-throw";
+    } catch (err) {
+      return err instanceof HttpsError ? err.code : "not-an-https-error";
+    }
+  }
+
   it("accepts a clean memberId", () => {
     expect(validateProvisionInput({ memberId: "m-1" })).toEqual({ memberId: "m-1" });
   });
-  it("rejects missing / empty / unclean memberId", () => {
-    expect(() => validateProvisionInput({})).toThrow();
-    expect(() => validateProvisionInput({ memberId: "" })).toThrow();
-    expect(() => validateProvisionInput({ memberId: "a/b" })).toThrow();
+
+  it("rejects every unusable memberId with invalid-argument, never a 500", () => {
+    // The CODE, not merely a throw: `.`, `..` and `__x__` BUILD a valid ref and fail LATER at
+    // get() with a permanent INVALID_ARGUMENT, which reaches the caller as `internal` — a 500
+    // for what is a malformed request. A non-string had no typeof check at all before. Those
+    // are exactly the shapes moving to isSafeDocId added; the empty and "/"-bearing rows were
+    // already caught by the hand-rolled check this replaced, and stay as the regression floor.
+    const unusable: unknown[] = [
+      undefined,
+      "",
+      "a/b",
+      ".",
+      "..",
+      "__name__",
+      42,
+      { id: "m-1" },
+      "x".repeat(1501),
+    ];
+    for (const memberId of unusable) {
+      expect(codeOf({ memberId })).toBe("invalid-argument");
+    }
+    expect(codeOf({})).toBe("invalid-argument");
+    expect(codeOf(null)).toBe("invalid-argument");
   });
 });
 
@@ -173,22 +202,12 @@ describe("provisionMember", () => {
     });
     await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
       code: "permission-denied",
+      details: { reason: "reprovision-requires-admin" },
     });
     // Nothing partial: no claim write, no uid link, no reset link generated.
     expect(calls.setClaims).toEqual([]);
     expect(calls.linkUid).toEqual([]);
     expect(calls.createUser).toEqual([]);
-  });
-
-  it("still lets a non-Admin caller mint a BRAND-NEW account", async () => {
-    // The delegation costs nothing on the path it is actually for: a genuinely new member
-    // has neither an Auth account nor a stored uid.
-    const fresh = fakeDeps({ member: active });
-    await expect(provisionMember(fresh.deps, "m1", false)).resolves.toEqual({
-      email: "a@b.co",
-      actionLink: "",
-    });
-    expect(fresh.calls.createUser).toEqual(["a@b.co"]);
   });
 
   it("BLOCKING: a non-Admin caller may NOT re-provision an ALREADY-LINKED member", async () => {
@@ -206,6 +225,7 @@ describe("provisionMember", () => {
     });
     await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
       code: "permission-denied",
+      details: { reason: "reprovision-requires-admin" },
     });
     expect(calls.setClaims).toEqual([]);
     expect(calls.linkUid).toEqual([]);
@@ -383,42 +403,40 @@ describe("provisionMember", () => {
     });
     await expect(provisionMember(missing.deps, "m1", false)).rejects.toMatchObject({
       code: "permission-denied",
+      details: { reason: "power-seat-requires-admin" },
     });
+    // The malformed half pins readCargoIds' `isSafeDocId(cargoId) ? cargoId : ""` mapping,
+    // which is why the fake ANSWERS "a/b" with a grant-free cargo: without that seed both
+    // halves would resolve through `opts.positions?.[…] ?? null` alike, and turning the
+    // mapping into a passthrough would leave this green. Seeded, a passthrough would read the
+    // grant-free entry and ALLOW.
     const malformed = fakeDeps({
       member: {
         ...active,
         positions: { [TERM]: { cargoId: "a/b", comisionIds: [], assignedBy: "admin-uid" } },
       },
+      positions: { "a/b": [] },
     });
     await expect(provisionMember(malformed.deps, "m1", false)).rejects.toMatchObject({
       code: "permission-denied",
+      details: { reason: "power-seat-requires-admin" },
     });
-  });
-
-  it("still lets a delegate provision a member seated on a GRANT-FREE cargo", async () => {
-    // Seating plus inviting on a grant-free cargo mints nothing, and is exactly the enrolment
-    // flow the delegation exists for. Without this pair the guard above would pass for a rule
-    // that simply refused every seated member.
-    const { deps, calls } = fakeDeps({
-      member: {
-        ...active,
-        positions: { [TERM]: { cargoId: "pos-dir", comisionIds: [], assignedBy: "delegate-uid" } },
-      },
-      positions: { "pos-dir": [] },
-    });
-    await expect(provisionMember(deps, "m1", false)).resolves.toMatchObject({ email: "a@b.co" });
-    expect(calls.createUser).toEqual(["a@b.co"]);
   });
 
   it("BLOCKING: a delegate never receives the password-reset link", async () => {
     // generatePasswordResetLink returns a bearer credential for the account. The client sends
     // the reset mail itself through the unprivileged sendPasswordResetEmail, so a delegate has
     // no need to hold it. Defence in depth behind the power-seat guard, not a substitute.
+    //
+    // The delegate half doubles as the paired ALLOW for every BLOCKING case above: the
+    // delegation costs nothing on the path it is actually for, since a genuinely new member
+    // has neither an Auth account nor a stored uid — hence the createUser assertion.
     const delegate = fakeDeps({ member: active });
     await expect(provisionMember(delegate.deps, "m1", false)).resolves.toEqual({
       email: "a@b.co",
       actionLink: "",
     });
+    expect(delegate.calls.createUser).toEqual(["a@b.co"]);
     const admin = fakeDeps({ member: active });
     await expect(provisionMember(admin.deps, "m1", true)).resolves.toEqual({
       email: "a@b.co",
@@ -433,6 +451,7 @@ describe("provisionMember", () => {
     const { deps, calls } = fakeDeps({ member: { ...active, uid: "dead-uid" } });
     await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
       code: "permission-denied",
+      details: { reason: "reprovision-requires-admin" },
     });
     expect(calls.createUser).toEqual([]);
   });
@@ -443,7 +462,10 @@ describe("provisionMember", () => {
       member: active,
       usersByEmail: { "a@b.co": { uid: "u9", email: "a@b.co" } },
     });
-    await expect(provisionMember(deps, "m1")).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(provisionMember(deps, "m1")).rejects.toMatchObject({
+      code: "permission-denied",
+      details: { reason: "reprovision-requires-admin" },
+    });
   });
 
   it("rejects a missing / inactive / email-less member", async () => {

@@ -275,9 +275,12 @@ describe("syncMemberClaims", () => {
       positions: { "pos-pres": { grants: ["Admin"] } },
       userRoles: { "president-uid": ["Admin", "Member"] },
       userPerms: { "president-uid": ["manage:all"] },
-      existing: {
-        "president-uid": { roles: ["Admin", "Member"], perms: permsFor(["Admin", "Member"]) },
-      },
+      // Seeded DELIBERATELY below the denied outcome, not byte-equal to it: seeding the
+      // already-correct claims would make the idempotent no-op path indistinguishable from a
+      // strip, and the assertion would only prove "nothing was written". From ["Member"] the
+      // guard's two outcomes diverge — honored writes the Admin claim, denied writes the plain
+      // Member one — so the write itself is the evidence.
+      existing: { "president-uid": { roles: ["Member"] } },
     });
     await syncMemberClaims(
       deps,
@@ -289,8 +292,12 @@ describe("syncMemberClaims", () => {
       },
       "2026",
     );
-    // Idempotent no-op: the claims are already correct, so no write — and crucially not a strip.
-    expect(writes["president-uid"]).toBeUndefined();
+    // The Admin grant is HONORED through a self-stamped assignedBy: the full claim is written,
+    // not withheld and not stripped down to Member.
+    expect(writes["president-uid"]).toEqual({
+      roles: ["Admin", "Member"],
+      perms: permsFor(["Admin", "Member"]),
+    });
   });
 
   it("de-elevates a delegate-conferred NON-Admin grant once the perm is revoked", async () => {
@@ -472,6 +479,45 @@ describe("syncMemberClaims", () => {
         ),
       ).resolves.toBeUndefined();
       // The screened id never reaches the port, so it never reaches db.doc().
+      expect(reached).toEqual([]);
+      // Fails closed: the Admin grant behind that cargo is NOT minted.
+      expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });
+    }
+  });
+
+  it("BLOCKING: screens an unusable assignedBy instead of failing that member's sync forever", async () => {
+    // The OTHER id on the same line, and the same failure mode as the cargoId screen above.
+    // `assignedBy` reaches auth.getUser(), whose uid contract is a non-empty string of at most
+    // 128 chars; anything else is a PERMANENT auth/invalid-uid, and getAssignerClaims rethrows
+    // everything but auth/user-not-found. onMemberWritten is retry:false and the bad value
+    // PERSISTS in the member doc, so every later write re-throws — and only on power-granting
+    // cargos, i.e. exactly the members whose claims matter most. Nothing in firestore.rules
+    // caps assignedBy's length; the console and the admin SDK reach this shape.
+    const reached: string[] = [];
+    for (const assignedBy of ["", "x".repeat(129)]) {
+      const { deps, writes } = fakeDeps({
+        positions: { "pos-pres": { grants: ["Admin"] } },
+        // The fixture would hand back Admin if the screen fell through, so the assertion
+        // below is about the screen, not about the assigner failing the trust gate.
+        userRoles: { [assignedBy]: ["Admin"] },
+        existing: { "target-uid": { roles: ["Member"] } },
+      });
+      const spied: ClaimsSyncDeps = {
+        ...deps,
+        getAssignerClaims: async (uid) => {
+          reached.push(uid);
+          return deps.getAssignerClaims(uid);
+        },
+      };
+      await syncMemberClaims(
+        spied,
+        {
+          uid: "target-uid",
+          positions: { "2026": { cargoId: "pos-pres", comisionIds: [], assignedBy } },
+        },
+        "2026",
+      );
+      // The screened uid never reaches the port, so it never reaches auth.getUser().
       expect(reached).toEqual([]);
       // Fails closed: the Admin grant behind that cargo is NOT minted.
       expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });

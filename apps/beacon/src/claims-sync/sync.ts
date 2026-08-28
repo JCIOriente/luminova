@@ -113,7 +113,15 @@ async function resolveTrustedGrants(
   if (!isSafeDocId(cargoId)) return [];
   const position = await deps.getPosition(cargoId);
   if (!position || position.grants.length === 0) return [];
-  if (!assignedBy) return [];
+  // Screened for the same reason as cargoId above, one line up: `assignedBy` reaches
+  // auth.getUser(), which rejects anything outside the admin SDK's uid shape with a PERMANENT
+  // auth/invalid-uid that getAssignerClaims rethrows — under retry:false that ends this
+  // member's claims sync for good, and only on power-granting cargos. NOT isSafeDocId: a uid
+  // is not a path segment ("/" and reserved forms are legal in one), and the 128-char cap
+  // isSafeDocId lacks is the half that actually bites here. Untrusted shape → no grants.
+  if (typeof assignedBy !== "string" || assignedBy.length === 0 || assignedBy.length > 128) {
+    return [];
+  }
   const assigner = await deps.getAssignerClaims(assignedBy);
   const assignerIsAdmin = assigner.roles.includes("Admin");
   // A delegate may confer power on OTHERS, never on themselves, and never Admin at all.

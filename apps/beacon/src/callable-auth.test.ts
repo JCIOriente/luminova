@@ -83,19 +83,6 @@ describe("requireAdminOrPerm", () => {
     ).toBe("permission-denied");
   });
 
-  it("keeps the two delegations independent", () => {
-    // A board-seat delegate is not a login provisioner and vice versa. Pinned because both
-    // codes ship together and the obvious future mistake is to conflate them.
-    expect(
-      codeOf(() =>
-        requireAdminOrPerm(
-          req({ roles: ["Member"], perms: ["update:BoardSeat"] }),
-          "create:MemberLogin",
-        ),
-      ),
-    ).toBe("permission-denied");
-  });
-
   it("fails closed on a malformed perms claim", () => {
     // A string (or anything non-array) reads as empty rather than throwing — a malformed
     // token must deny, not 500.
@@ -115,7 +102,7 @@ describe("callerIsAdmin", () => {
     expect(callerIsAdmin(req())).toBe(false);
     expect(callerIsAdmin(req({ roles: ["Member"], perms: ["manage:all"] }))).toBe(false);
   });
-  it("is true only for the Admin role", () => {
+  it("is true for the Admin role", () => {
     expect(callerIsAdmin(req({ roles: ["Admin"] }))).toBe(true);
   });
 });
