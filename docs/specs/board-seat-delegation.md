@@ -128,14 +128,18 @@ This costs the delegation nothing: a genuinely new member has neither an account
    token, and `auth-store.ts` calls `getIdTokenResult()` without `forceRefresh`. A freshly
    granted code is invisible for up to an hour otherwise, and a freshly revoked one keeps
    working for up to an hour.
-3. **Revocation is not an undo.** Removing the code stops future seating. Members already seated
+3. **A delegate's failed provision escalates to an Admin.** If `provisionMemberLogin` fails
+   after creating the Auth account (a transient `setClaims`/`linkUid` error), the retry is
+   refused by the adoption guard — the account now exists, so `user !== null`. Finish it from
+   an Admin account.
+4. **Revocation is not an undo.** Removing the code stops future seating. Members already seated
    keep their cargo, and their cargo-derived claims are recomputed on the *next write* to their
    member doc — which may be much later. To force it, re-write the member docs or run
    `recomputeAllClaims`.
-4. **The `PERMISSION_CAP` interaction.** A member whose resolved perms exceed 30 is written
+5. **The `PERMISSION_CAP` interaction.** A member whose resolved perms exceed 30 is written
    `perms: []` fail-closed, which silently takes `update:BoardSeat` with it. Two more subjects
    in the vocabulary make the 30-slot budget marginally tighter.
-5. **Verify who you seat.** One residual no guard can close, and it is not specific to this
+6. **Verify who you seat.** One residual no guard can close, and it is not specific to this
    delegation — it is why enrolment and seating should not both be delegated blindly. A member
    creator controls the `email` on the doc they file, and the invite goes to that address. So if
    an Admin later seats a FABRICATED member on an Admin-granting cargo, the claim is minted onto
@@ -143,7 +147,7 @@ This costs the delegation nothing: a genuinely new member has neither an account
    verify; it existed before this feature (an Admin provisioning the same fabricated doc sends
    the invite to the same attacker address), and the power-seat guard means a delegate cannot
    complete it alone. Treat the members list as the thing you verify before seating.
-6. **There is a consistency window.** `firestore.rules` reads the token while beacon reads stored
+7. **There is a consistency window.** `firestore.rules` reads the token while beacon reads stored
    claims. If a delegate's own perms are dropped (cap breach, or revocation) their cached token
    still passes the rules for up to an hour, so a seat write can succeed while
    `resolveTrustedGrants` declines to mint the grants. The member is then published on the public

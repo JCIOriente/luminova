@@ -39,7 +39,7 @@ type MemberLike = {
  *  `comisionIds` is the one slot rules cannot grant-check (no array iteration), so
  *  honoring it would let a console-written power comisión — or a power cargo's id
  *  smuggled into comisionIds — mint claims. Ignoring it entirely also means a
- *  Ignoring it entirely also means a permitted non-Admin positions edit (which restamps
+ *  permitted non-Admin positions edit (which restamps
  *  the shared `assignedBy`) can no longer strip Admin-granted power. That last part was
  *  NOT true of the rules until currentCargoGrantsEmpty() landed: the rules denied
  *  ASSIGNING a power cargo, never OVERWRITING one, so a manage:Member holder could

@@ -17,7 +17,10 @@ interface RawClaims {
 
 export function validateProvisionInput(data: unknown): ProvisionInput {
   const raw = (data ?? {}) as { memberId?: unknown };
-  if (typeof raw.memberId !== "string" || raw.memberId.length === 0 || raw.memberId.includes("/")) {
+  // isSafeDocId, not a hand-rolled subset: `..` and `__x__` build a valid ref and then fail at
+  // get() with a permanent INVALID_ARGUMENT, which surfaces as `internal` (a 500) instead of
+  // the invalid-argument this is meant to return.
+  if (!isSafeDocId(raw.memberId)) {
     throw new HttpsError("invalid-argument", "memberId is required");
   }
   return { memberId: raw.memberId };
@@ -137,8 +140,10 @@ function readCargoIds(member: Record<string, unknown>): string[] {
  *  overwriting would orphan the old Auth account with its claims (possibly Admin)
  *  still live and no member doc backing them. Relinking after an email change is a
  *  deliberate console op. Same-uid re-provision stays allowed (resend invite).
- *  A failure after createUser leaves an unlinked Auth user — no compensation
- *  needed: the next run resolves it by email and adopts it (linkedUid null). */
+ *  A failure after createUser leaves an unlinked Auth user — no compensation needed FOR AN
+ *  ADMIN: the next run resolves it by email and adopts it (linkedUid null). A delegate's retry
+ *  is refused by the adoption guard below (`user !== null`), so a partial failure escalates
+ *  that member to an Admin-only fix. Stated in the spec's operator notes too. */
 export async function provisionMember(
   deps: ProvisionDeps,
   memberId: string,
