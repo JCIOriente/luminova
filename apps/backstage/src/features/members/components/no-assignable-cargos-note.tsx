@@ -26,3 +26,17 @@ export function NoAssignableCargosNote() {
     </p>
   );
 }
+
+export const MINT_PENDING_NOTE_ID = "cargo-mint-pending-note";
+
+/** Why a cargo this editor CAN assign will not actually confer its permissions — see
+ *  `cargoGrantNeedsAdminAssigner`. Shared by both forms for the same reason as the note above:
+ *  the wording does not differ between them, so a second copy would only drift. */
+export function MintPendingNote() {
+  return (
+    <p id={MINT_PENDING_NOTE_ID} role="note" className="text-ui-xs text-ink-3">
+      Este cargo otorga permisos, pero no se aplicarán hasta que un administrador confirme la
+      asignación. El cargo sí queda registrado y visible.
+    </p>
+  );
+}

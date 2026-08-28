@@ -5,6 +5,7 @@ import { MemberForm } from "./member-form";
 import { actionMessage } from "../lib/member-display";
 import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
 import { draftProvisionBlocked } from "../lib/provision-gate";
+import { useCopyToClipboard } from "../../../lib/use-copy-to-clipboard";
 import { useCan } from "../../../lib/authz/use-can";
 
 interface MemberInviteDrawerProps {
@@ -19,6 +20,9 @@ interface DoneState {
   /** The invite was skipped because the member's cargo confers permissions and the caller is
    *  not an Admin — beacon would refuse it, so nothing was attempted. */
   blockedByCargo: boolean;
+  /** The same predicate WITHOUT the sendAccess conjunct — a delegate who left the checkbox
+   *  unticked is still blocked from the row action, so the done screen must not send them there. */
+  provisionBlocked: boolean;
   name: string;
   email: string;
   provisioned: boolean;
@@ -45,7 +49,7 @@ export function MemberInviteDrawer({
   const { canProvisionLogin, canAssignBoardSeat, isAdmin } = useCan();
   const [done, setDone] = useState<DoneState | null>(null);
   const [sendAccess, setSendAccess] = useState(canProvisionLogin);
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const { copyState, copy, resetCopyState } = useCopyToClipboard();
 
   // The drawer mounts with the page, before the auth token's claims decode (the store
   // emits with empty claims first, then re-emits). Re-sync the default each time it
@@ -60,7 +64,7 @@ export function MemberInviteDrawer({
   const reset = () => {
     setDone(null);
     setSendAccess(canProvisionLogin);
-    setCopyState("idle");
+    resetCopyState();
   };
 
   const close = () => {
@@ -79,8 +83,11 @@ export function MemberInviteDrawer({
     // drawer would create them, 403 on the invite, and send the user to a row action that
     // fails the same way on every retry. Decide before writing anything. Same predicate as
     // the row menu and the profile header — see provision-gate.ts.
-    const provisionBlocked =
-      !isAdmin && draftProvisionBlocked(data.cargoId, (id) => positions.find((p) => p.id === id));
+    const provisionBlocked = draftProvisionBlocked(
+      data.cargoId,
+      (id) => positions.find((p) => p.id === id),
+      isAdmin,
+    );
     // Nothing is attempted when blocked: the done screen explains it instead of reporting a
     // failure that never happened.
     if (sendAccess && !provisionBlocked) {
@@ -107,6 +114,7 @@ export function MemberInviteDrawer({
     }
     setDone({
       blockedByCargo: sendAccess && provisionBlocked,
+      provisionBlocked,
       name: data.name,
       email: data.email,
       provisioned,
@@ -154,12 +162,7 @@ export function MemberInviteDrawer({
                     as="button"
                     type="button"
                     variant="secondary"
-                    onClick={() => {
-                      navigator.clipboard
-                        .writeText(done.actionLink ?? "")
-                        .then(() => setCopyState("copied"))
-                        .catch(() => setCopyState("failed"));
-                    }}
+                    onClick={() => copy(done.actionLink ?? "")}
                     className="w-full justify-center"
                   >
                     {copyState === "copied" ? "Enlace copiado" : "Copiar enlace de acceso"}
@@ -174,8 +177,14 @@ export function MemberInviteDrawer({
             </>
           ) : (
             <>
+              {/* Keyed on blocked-ness alone, NOT on `blockedByCargo` (which also requires
+                  sendAccess): with the checkbox unticked the same delegate lands here, and
+                  memberProvisionBlocked hides the row action for exactly the same reason — so
+                  pointing them at it would send them to an affordance that is not there. */}
               <p className="text-ui-md text-ink-2">
-                Aún no tiene acceso a la app. Podrás invitarlo desde el menú de su fila.
+                {done.provisionBlocked
+                  ? "Aún no tiene acceso a la app. Su cargo otorga permisos, así que un administrador debe enviarle el acceso."
+                  : "Aún no tiene acceso a la app. Podrás invitarlo desde el menú de su fila."}
               </p>
               {done.errorDetail && (
                 <p className="text-ui-xs text-ink-3">Detalle: {done.errorDetail}</p>
@@ -205,6 +214,7 @@ export function MemberInviteDrawer({
           showPreview
           allowPowerGrants={canAssignBoardSeat}
           allowReplacePowerCargo={isAdmin}
+          assignerIsAdmin={isAdmin}
           defaultValues={{ joinDate: today(), status: "Activo", cargoId: null, comisionIds: [] }}
           onSubmit={handleSubmit}
         >

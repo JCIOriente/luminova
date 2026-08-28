@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { MemberInput, Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
+import { MINT_PENDING_NOTE_ID } from "./no-assignable-cargos-note";
 import { toMemberUpdateDoc } from "../repositories/member-mapper";
 import { pickDate } from "../../../test/pick-date";
 import { permissionLabel } from "../../permissions/lib/permission-matrix";
@@ -12,6 +13,12 @@ import { permissionLabel } from "../../permissions/lib/permission-matrix";
 // here would keep passing after either half of the label is renamed, which is exactly the
 // coupling the note is worried about.
 const BOARD_SEAT_LABEL = permissionLabel("update:BoardSeat");
+
+// The mint-pending note used to say "permisos de administrador", which was true only of its
+// one original trigger. It now fires for a SELF-assignment of any granting cargo, so copy
+// naming administrator permissions would be a lie in that case. Matched on the outcome half of
+// the sentence, which is the part both triggers share.
+const MINT_PENDING_COPY = /no se aplicarán hasta que un administrador confirme la asignación/i;
 
 const positions: Position[] = [
   {
@@ -492,6 +499,126 @@ describe("MemberForm", () => {
     expect(
       screen.queryByText(/Solo un administrador puede cambiar el cargo/i),
     ).not.toBeInTheDocument();
+  });
+
+  // ---- self-assignment: the second, disjoint refusal in resolveTrustedGrants ----
+  //
+  // BLOCKING: the finding. A delegate holding update:Member + update:BoardSeat opens THEIR OWN
+  // profile and seats themselves on a vacant NON-Admin-granting power cargo. Every gate says
+  // yes — boardSeatDelegate() permits the write, the seat publishes to the Directiva, the save
+  // returns 200 — but `resolveTrustedGrants` computes `selfAssigned = assignedBy === memberUid`
+  // and honors it only for an Admin, so no claim is minted. syncMemberClaims is a background
+  // trigger, so no response carries the refusal; and while the warning keyed on
+  // `grants.includes("Admin")` alone, a Secretario seat rendered NO note whatsoever.
+  const pickSecretario = async () => {
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    await userEvent.click(await screen.findByText("Secretario"));
+  };
+
+  it("BLOCKING: warns a delegate seating THEMSELVES on a non-Admin power cargo", async () => {
+    render(
+      <MemberForm
+        positions={[...positions, powerCargo]}
+        defaultValues={{ cargoId: null, gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+        allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment
+      />,
+    );
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
+    await pickSecretario();
+    const note = screen.getByText(MINT_PENDING_COPY);
+    expect(note.id).toBe(MINT_PENDING_NOTE_ID);
+    // The note sits after the field in the DOM, so the association is the only way a
+    // screen-reader user on the trigger meets it before committing the save.
+    expect(screen.getByLabelText("Cargo")).toHaveAttribute(
+      "aria-describedby",
+      MINT_PENDING_NOTE_ID,
+    );
+    // The copy must not name administrator permissions: this cargo grants Secretary.
+    expect(note).not.toHaveTextContent(/permisos de administrador/i);
+  });
+
+  it("BLOCKING: the SAME delegate on the SAME cargo for someone else stays silent", async () => {
+    // The control that makes the case above about self-assignment and nothing else. Identical
+    // props but `isSelfAssignment={false}`: update:BoardSeat DOES mint a Secretary seat for
+    // another member, so a note here would be false and would train users past the real one.
+    render(
+      <MemberForm
+        positions={[...positions, powerCargo]}
+        defaultValues={{ cargoId: null, gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+        allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
+      />,
+    );
+    await pickSecretario();
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Cargo")).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("stays silent for an ADMIN seating themselves — they mint it", async () => {
+    // `assignerIsAdmin` satisfies both arms of the trust gate, so self-assignment is not a
+    // refusal for them. Without this cell the fix could be "warn on any self-assignment".
+    render(
+      <MemberForm
+        positions={[...positions, powerCargo]}
+        defaultValues={{ cargoId: null, gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+        allowReplacePowerCargo
+        assignerIsAdmin
+        isSelfAssignment
+      />,
+    );
+    await pickSecretario();
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
+  });
+
+  // Both new props default to false, which is what keeps the ~20 renders above (and the
+  // invite drawer, which passes only `assignerIsAdmin`) compiling. Pin the defaults: a
+  // required `isSelfAssignment` would be a breaking prop, but a default of TRUE would put the
+  // note on every create.
+  it("defaults both new props to false rather than warning by accident", async () => {
+    render(
+      <MemberForm
+        positions={[...positions, powerCargo]}
+        defaultValues={{ cargoId: null, gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+      />,
+    );
+    await pickSecretario();
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
+  });
+
+  // BLOCKING: the takedown note now has an id and is the third arm of cargoNoteId(). While the
+  // association was a two-branch ternary over noCargos/locked, a takedown-only editor got
+  // `aria-describedby={undefined}`: the note rendered, sat AFTER the field in the DOM, and a
+  // screen-reader user reaching a trigger whose seat option is disabled met no reason at all.
+  it("BLOCKING: associates the takedown note with the trigger", () => {
+    render(
+      <MemberForm
+        positions={positions}
+        defaultValues={celSeated}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+      />,
+    );
+    const note = screen.getByText(/solo un administrador puede asignarlo/i);
+    expect(note.id).toBeTruthy();
+    expect(screen.getByLabelText("Cargo")).toHaveAttribute("aria-describedby", note.id);
+    // Not the mint-pending id: a grant-free seat mints nothing to warn about, and the two
+    // notes' ids must not be interchangeable.
+    expect(note.id).not.toBe(MINT_PENDING_NOTE_ID);
   });
 
   it("renders comisión option as 'sigla — title' when sigla is present", async () => {

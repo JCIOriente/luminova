@@ -10,6 +10,15 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a href="#">{children}</a>,
 }));
 
+// The drawer now reads the caller's uid to decide whether the row it opened is the caller's
+// OWN (the members table lists it too), which makes the edit a SELF-assignment. Mocked as a
+// factory with no `importOriginal`: lib/auth/auth builds its store from getFirebase().auth at
+// module scope, so merely evaluating the real module initializes Firebase and the whole file
+// fails to collect. uid "someone-else" keeps every case below a non-self edit.
+vi.mock("../../../lib/auth/auth", () => ({
+  useAuth: () => ({ user: { uid: "someone-else" }, claims: { roles: ["Admin"] } }),
+}));
+
 const m: Member = {
   id: "1",
   name: "Ana Gómez",

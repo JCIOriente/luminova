@@ -6,14 +6,21 @@ import { Button, Combobox, Field, MultiSelect } from "@luminova/ui";
 import { type MemberGender, type Position } from "@luminova/types";
 import {
   cargoGrantNeedsAdminAssigner,
+  cargoNoteId,
   cargoOptionsForEditor,
   cargoTakedownOnly,
   noAssignableCargos,
   positionsLockedForEditor,
 } from "../lib/assignable-cargo";
-import { NoAssignableCargosNote, NO_ASSIGNABLE_CARGOS_NOTE_ID } from "./no-assignable-cargos-note";
+import {
+  MintPendingNote,
+  MINT_PENDING_NOTE_ID,
+  NoAssignableCargosNote,
+  NO_ASSIGNABLE_CARGOS_NOTE_ID,
+} from "./no-assignable-cargos-note";
 
 const LOCKED_NOTE_ID = "positions-cargo-locked-note";
+const TAKEDOWN_NOTE_ID = "positions-cargo-takedown-note";
 
 const positionsSchema = z.object({
   cargoId: z.string().min(1).nullable(),
@@ -28,6 +35,8 @@ export function MemberPositionsForm({
   defaultValues,
   allowPowerGrants,
   allowReplacePowerCargo,
+  assignerIsAdmin,
+  isSelfAssignment,
   onSubmit,
 }: {
   positions: Position[];
@@ -43,6 +52,14 @@ export function MemberPositionsForm({
    *  deliberately does NOT lift this one, so it must not be folded into `allowPowerGrants`.
    *  See positionsLockedForEditor(). */
   allowReplacePowerCargo: boolean;
+  /** Whether the CALLER holds the Admin role, which is what beacon's `resolveTrustedGrants`
+   *  keys the mint on. Named after the minting authority, not after `allowReplacePowerCargo`,
+   *  which mirrors a different rules predicate and only happens to equal it today. */
+  assignerIsAdmin: boolean;
+  /** Whether the member being edited IS the caller. The trust gate refuses to mint a
+   *  self-assignment of any granting cargo from a non-Admin — confer power on others, never on
+   *  yourself — so the picker must say so before the click. */
+  isSelfAssignment: boolean;
   onSubmit: (data: PositionsInput) => Promise<void>;
 }) {
   const [formError, setFormError] = useState<string | null>(null);
@@ -70,11 +87,23 @@ export function MemberPositionsForm({
   const selectedCargo = positions.find((p) => p.id === watch("cargoId"));
   const takedownOnly = cargoTakedownOnly(selectedCargo, allowPowerGrants);
   const noCargos = noAssignableCargos({ cargoOptions, allowPowerGrants, locked });
-  // The note explaining the picker sits after the field in the DOM, so without this a
+  const mintPending = cargoGrantNeedsAdminAssigner(
+    selectedCargo,
+    assignerIsAdmin,
+    isSelfAssignment,
+  );
+  // Every note explaining the picker sits after the field in the DOM, so without this a
   // screen-reader user reaching the trigger hears "Sin resultados" or a disabled control and
-  // never meets the reason. Mutually exclusive by construction — a locked slot renders the
-  // held cargo, so the option list is never empty.
-  const cargoNoteId = noCargos ? NO_ASSIGNABLE_CARGOS_NOTE_ID : locked ? LOCKED_NOTE_ID : undefined;
+  // never meets the reason. Priority order and the co-firing rules live in cargoNoteId().
+  const describedBy = cargoNoteId(
+    { noCargos, locked, takedown: takedownOnly, mintPending },
+    {
+      noCargos: NO_ASSIGNABLE_CARGOS_NOTE_ID,
+      locked: LOCKED_NOTE_ID,
+      takedown: TAKEDOWN_NOTE_ID,
+      mintPending: MINT_PENDING_NOTE_ID,
+    },
+  );
   const comisionOptions = positions
     .filter((p) => p.active && p.category === "Comision")
     .map((p) => ({ value: p.id, label: p.sigla ? `${p.sigla} — ${p.title}` : p.title }));
@@ -103,7 +132,7 @@ export function MemberPositionsForm({
                 onChange={field.onChange}
                 placeholder="Sin cargo"
                 disabled={locked}
-                aria-describedby={cargoNoteId}
+                aria-describedby={describedBy}
               />
               {takedownOnly && (
                 <Button
@@ -142,14 +171,9 @@ export function MemberPositionsForm({
       )}
       {/* Suppressed while locked: the picker is disabled there, so nothing about what the save
           would mint is actionable. */}
-      {!locked && cargoGrantNeedsAdminAssigner(selectedCargo, allowReplacePowerCargo) && (
-        <p role="note" className="text-ui-xs text-ink-3">
-          Este cargo otorga permisos de administrador. Puedes asignarlo, pero los permisos no se
-          aplicarán hasta que un administrador confirme el cargo.
-        </p>
-      )}
+      {!locked && mintPending && <MintPendingNote />}
       {takedownOnly && (
-        <p role="note" className="text-ui-xs text-ink-3">
+        <p id={TAKEDOWN_NOTE_ID} role="note" className="text-ui-xs text-ink-3">
           Este cargo es del Comité Ejecutivo Local: solo un administrador puede asignarlo. Puedes
           quitárselo con «Quitar cargo» y guardar, o elegir otro cargo.
         </p>

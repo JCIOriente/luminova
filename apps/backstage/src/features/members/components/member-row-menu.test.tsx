@@ -78,7 +78,7 @@ const DELEGATE: AuthClaims = {
   roles: ["Member"],
   perms: ["update:Member", "create:MemberLogin"],
 };
-const seated = (cargoId: string, term = "2026") => ({
+const seated = (cargoId: string | null, term = "2026") => ({
   positions: { [term]: { cargoId, comisionIds: [] } },
 });
 
@@ -241,10 +241,32 @@ describe("MemberRowMenu", () => {
     expect(screen.queryByText("Invitar a la app")).not.toBeInTheDocument();
   });
 
+  // BLOCKING: an EMPTY-STRING cargoId is a MALFORMED seat, not an empty one, and the gate used
+  // to drop it with a truthiness test — so this member looked unseated, the invite was offered,
+  // and the click 403'd with power-seat-requires-admin naming a cargo that does not exist.
+  // beacon's readCargoIds pushes "" on purpose ("a malformed shape must never read as 'no
+  // cargo' — that is the guard's own bypass") and refuses it at isSafeDocId; the client now
+  // lets it fall through to the unresolvable-cargo clause and fails closed the same way.
+  it("BLOCKING: hides it from a delegate for a member whose cargoId is an empty string", async () => {
+    renderMenu(member({ status: "Activo", ...seated("") }), DELEGATE);
+    await openMenu();
+    expect(screen.queryByText("Invitar a la app")).not.toBeInTheDocument();
+  });
+
+  // The paired negative, so the fix cannot be over-applied into "any falsy cargoId blocks": a
+  // null cargoId is a genuinely unseated term (readCargoIds `continue`s past it) and is the
+  // ordinary shape of most member docs. Blocking here would hide the invite chapter-wide.
+  it("shows it to a delegate for a member whose term has a NULL cargoId", async () => {
+    renderMenu(member({ status: "Activo", ...seated(null) }), DELEGATE);
+    await openMenu();
+    expect(screen.getByText("Invitar a la app")).toBeInTheDocument();
+  });
+
   it("still shows it to an Admin in every one of those cases", async () => {
     for (const m of [
       member({ status: "Activo", uid: "u1" }),
       member({ status: "Activo", ...seated("pos-power") }),
+      member({ status: "Activo", ...seated("") }),
       member({ status: "Activo", roleIds: ["custom-role"] }),
     ]) {
       const { unmount } = renderMenu(m, ADMIN);

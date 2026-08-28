@@ -166,6 +166,33 @@ describe("MemberInviteDrawer", () => {
     expect(screen.getByRole("button", { name: "Copiar enlace de acceso" })).toBeInTheDocument();
   });
 
+  // BLOCKING: the copy button is the fallback for a failed mail — the second fallback in a row
+  // — and jsdom's navigator has no `clipboard`, exactly like an insecure context. The click
+  // used to read `navigator.clipboard.writeText` and throw a TypeError synchronously, so the
+  // `.catch()` never ran, `copyState` never became "failed", and the select-all `<code>` that
+  // exists precisely for this never rendered. Routed through useCopyToClipboard now.
+  it("BLOCKING: falls back to a selectable link when the clipboard API is unavailable", async () => {
+    mockedRequestPasswordReset.mockRejectedValue(new Error("network error"));
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={[]}
+        onClose={() => {}}
+        onCreate={async () => "idClip"}
+        onProvision={async () => ({
+          email: "ana@jci.bo",
+          actionLink: "https://example.com/action-link",
+        })}
+      />,
+    );
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    const copyButton = await screen.findByRole("button", { name: "Copiar enlace de acceso" });
+    expect(navigator.clipboard).toBeUndefined();
+    await userEvent.click(copyButton);
+    expect(await screen.findByText("https://example.com/action-link")).toBeInTheDocument();
+  });
+
   // --- create:MemberLogin delegation ---
 
   const drawer = (
@@ -267,6 +294,78 @@ describe("MemberInviteDrawer", () => {
     await waitFor(() => expect(onProvision).toHaveBeenCalledWith("idAdminPower"));
     expect(await screen.findByText(/Invitación enviada a ana@jci\.bo/)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  // BLOCKING: the same delegate, same power cargo, but with "Enviar acceso" UNTICKED. Nothing
+  // was attempted, so this is not the blockedByCargo alert — it is the plain done screen, and
+  // it used to read "Podrás invitarlo desde el menú de su fila". That row action is hidden
+  // from this very caller by memberProvisionBlocked, for the identical reason, so the copy
+  // pointed them at an affordance that is not there and would never appear. `blockedByCargo`
+  // could not carry this: it ANDs in sendAccess, which is false here by construction.
+  it("BLOCKING: tells a blocked delegate to ask an administrator, not to use the row menu", async () => {
+    const onProvision = vi.fn();
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={powerCargoCatalog}
+        onClose={() => {}}
+        onCreate={async () => "idUnticked"}
+        onProvision={onProvision}
+      />,
+      { roles: ["Member"], perms: ["create:Member", "create:MemberLogin", "update:BoardSeat"] },
+    );
+    await fill();
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    await userEvent.click(await screen.findByText(/Secretari[ao]/));
+    fireEvent.click(screen.getByLabelText("Enviar acceso a la app"));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    expect(await screen.findByText(/un administrador debe enviarle el acceso/)).toBeInTheDocument();
+    expect(screen.queryByText(/desde el menú de su fila/)).not.toBeInTheDocument();
+    // Nothing was attempted and nothing failed, so this is guidance, not an error.
+    expect(onProvision).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps the row-menu copy when the delegate is NOT blocked", async () => {
+    // The control: same caller, same unticked checkbox, no power cargo. The row action IS
+    // available to them here, so sending them to it is correct — the new branch must not
+    // swallow the ordinary case.
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={powerCargoCatalog}
+        onClose={() => {}}
+        onCreate={async () => "idPlain"}
+        onProvision={vi.fn()}
+      />,
+      { roles: ["Member"], perms: ["create:Member", "create:MemberLogin", "update:BoardSeat"] },
+    );
+    await fill();
+    fireEvent.click(screen.getByLabelText("Enviar acceso a la app"));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    expect(await screen.findByText(/desde el menú de su fila/)).toBeInTheDocument();
+    expect(screen.queryByText(/un administrador debe enviarle el acceso/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the row-menu copy for an ADMIN who unticked the checkbox on a power cargo", async () => {
+    // draftProvisionBlocked short-circuits on callerIsAdmin, so `provisionBlocked` is false
+    // for them even seated on the power cargo — an Admin can always invite from the row. This
+    // is the case the old `!isAdmin &&` conjunct at the call site used to cover.
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={powerCargoCatalog}
+        onClose={() => {}}
+        onCreate={async () => "idAdminUnticked"}
+        onProvision={vi.fn()}
+      />,
+    );
+    await fill();
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    await userEvent.click(await screen.findByText(/Secretari[ao]/));
+    fireEvent.click(screen.getByLabelText("Enviar acceso a la app"));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    expect(await screen.findByText(/desde el menú de su fila/)).toBeInTheDocument();
   });
 
   // beacon withholds the action link from a non-Admin caller (it is a bearer credential for

@@ -3,7 +3,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Position } from "@luminova/types";
 import { MemberPositionsForm } from "./member-positions-form";
+import { MINT_PENDING_NOTE_ID } from "./no-assignable-cargos-note";
 import { permissionLabel } from "../../permissions/lib/permission-matrix";
+
+// The mint-pending note used to say "permisos de administrador", which was true only of its
+// one original trigger. It now fires for a SELF-assignment of any granting cargo — a
+// Secretario, say — so copy naming administrator permissions would be a lie in that case.
+// Matched on the outcome half of the sentence, which is the part both triggers share.
+const MINT_PENDING_COPY = /no se aplicarán hasta que un administrador confirme la asignación/i;
 
 // The note names the permission through `permissionLabel`, and its own comment says the two
 // features must not drift. Assert against the same source, not a hardcoded copy — a literal
@@ -33,6 +40,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants={false}
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={onSubmit}
       />,
@@ -54,6 +63,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants={false}
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn()}
       />,
@@ -68,6 +79,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn()}
       />,
@@ -84,6 +97,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants={false}
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: "power", comisionIds: [] }}
         onSubmit={vi.fn()}
       />,
@@ -101,6 +116,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants={false}
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={onSubmit}
       />,
@@ -132,6 +149,8 @@ describe("MemberPositionsForm", () => {
         gender="Femenino"
         allowPowerGrants={false}
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -150,6 +169,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants={false}
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -168,14 +189,16 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
     );
-    expect(screen.queryByText(/permisos de administrador/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Cargo"));
     await userEvent.click(await screen.findByText("presidente"));
-    expect(screen.getByText(/permisos de administrador/i)).toBeInTheDocument();
+    expect(screen.getByText(MINT_PENDING_COPY)).toBeInTheDocument();
   });
 
   it("stays silent for an Admin picking that same cargo, who does mint it", async () => {
@@ -185,13 +208,103 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants
         allowReplacePowerCargo={true}
+        assignerIsAdmin={true}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
     );
     await userEvent.click(screen.getByLabelText("Cargo"));
     await userEvent.click(await screen.findByText("presidente"));
-    expect(screen.queryByText(/permisos de administrador/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
+  });
+
+  // ---- self-assignment: the second, disjoint refusal in resolveTrustedGrants ----
+  //
+  // BLOCKING: the finding. A delegate holding update:Position + update:BoardSeat opens THEIR
+  // OWN profile and seats themselves on a vacant NON-Admin-granting power cargo. Every gate
+  // above says yes: boardSeatDelegate() permits the write, the seat publishes to the
+  // Directiva, and the save returns 200. But `resolveTrustedGrants` computes
+  // `selfAssigned = assignedBy === memberUid` and honors it only for an Admin, so no claim is
+  // minted. syncMemberClaims is a background trigger — no response carries the refusal — and
+  // before this the warning keyed on `grants.includes("Admin")` alone, so a Secretario seat
+  // rendered NO note at all. The picker is the only place this can be said.
+  const selfCargo: Position = { ...pos("secretario", "CEL"), grants: ["Secretary"] };
+
+  const seatSelf = async () => {
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    await userEvent.click(await screen.findByText("secretario"));
+  };
+
+  it("BLOCKING: warns a delegate seating THEMSELVES on a non-Admin power cargo", async () => {
+    render(
+      <MemberPositionsForm
+        positions={[selfCargo]}
+        gender="Masculino"
+        allowPowerGrants
+        allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment
+        defaultValues={{ cargoId: null, comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
+    await seatSelf();
+    const note = screen.getByText(MINT_PENDING_COPY);
+    expect(note).toBeInTheDocument();
+    // The note sits after the field in the DOM, so the association is the only way a
+    // screen-reader user on the trigger meets it before committing the save.
+    expect(note.id).toBe(MINT_PENDING_NOTE_ID);
+    expect(screen.getByLabelText("Cargo")).toHaveAttribute(
+      "aria-describedby",
+      MINT_PENDING_NOTE_ID,
+    );
+    // The copy must not name administrator permissions: this cargo grants Secretary.
+    expect(note).not.toHaveTextContent(/permisos de administrador/i);
+    // And the seat is still assignable — the write succeeds, which is exactly why the note
+    // has to explain what will NOT follow it.
+    expect(screen.getByRole("button", { name: /guardar/i })).toBeEnabled();
+  });
+
+  it("BLOCKING: the SAME delegate on the SAME cargo for someone else stays silent", async () => {
+    // The control that makes the case above about self-assignment and nothing else. Identical
+    // props but `isSelfAssignment={false}`: update:BoardSeat DOES mint a Secretary seat for
+    // another member, so a note here would be false and would train users past the real one.
+    render(
+      <MemberPositionsForm
+        positions={[selfCargo]}
+        gender="Masculino"
+        allowPowerGrants
+        allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
+        defaultValues={{ cargoId: null, comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    await seatSelf();
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Cargo")).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("stays silent for an ADMIN seating themselves — they mint it", async () => {
+    // `assignerIsAdmin` satisfies both arms of the trust gate, so self-assignment is not a
+    // refusal for them. Without this cell the fix could be "warn on any self-assignment".
+    render(
+      <MemberPositionsForm
+        positions={[selfCargo]}
+        gender="Masculino"
+        allowPowerGrants
+        allowReplacePowerCargo={true}
+        assignerIsAdmin={true}
+        isSelfAssignment
+        defaultValues={{ cargoId: null, comisionIds: [] }}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    await seatSelf();
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
   });
 
   it("shows power-granting cargos to an Admin", async () => {
@@ -201,6 +314,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants
         allowReplacePowerCargo={true}
+        assignerIsAdmin={true}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -216,6 +331,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants={false}
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: "presidente", comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -231,6 +348,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants
         allowReplacePowerCargo={true}
+        assignerIsAdmin={true}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: "presidente", comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -252,6 +371,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: "presidente", comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -278,6 +399,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants={false}
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -296,6 +419,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants
         allowReplacePowerCargo={true}
+        assignerIsAdmin={true}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -317,8 +442,24 @@ describe("MemberPositionsForm", () => {
     gender: "Masculino" as const,
     allowPowerGrants: false,
     allowReplacePowerCargo: false,
+    assignerIsAdmin: false,
+    isSelfAssignment: false,
     defaultValues: { cargoId: "presidente_libre", comisionIds: [] },
   };
+
+  // BLOCKING: the takedown note now has an id and is the third arm of cargoNoteId(). While
+  // the association was a two-branch ternary over noCargos/locked, a takedown-only editor got
+  // `aria-describedby={undefined}`: the note rendered, sat AFTER the field in the DOM, and a
+  // screen-reader user reaching a trigger whose only option is disabled met no reason at all.
+  it("BLOCKING: associates the takedown note with the trigger", () => {
+    render(<MemberPositionsForm {...celSeatedProps} onSubmit={vi.fn()} />);
+    const note = screen.getByText(/solo un administrador puede asignarlo/i);
+    expect(note.id).toBeTruthy();
+    expect(screen.getByLabelText("Cargo")).toHaveAttribute("aria-describedby", note.id);
+    // Not the mint-pending id: a grant-free seat mints nothing to warn about, and the two
+    // notes' ids must not be interchangeable.
+    expect(note.id).not.toBe(MINT_PENDING_NOTE_ID);
+  });
 
   // Dropping the seat from the options was half a mirror: it left the CEL cargoId as the RHF
   // value with no option to render it, so the trigger showed the "Sin cargo" PLACEHOLDER for a
@@ -367,6 +508,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants={false}
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: "tesorero", comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -382,6 +525,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants={false}
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: "dir", comisionIds: [] }}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
       />,
@@ -397,6 +542,8 @@ describe("MemberPositionsForm", () => {
         gender="Masculino"
         allowPowerGrants={false}
         allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
         defaultValues={{ cargoId: null, comisionIds: [] }}
         onSubmit={onSubmit}
       />,

@@ -2,8 +2,9 @@ import type { Member, Position } from "@luminova/types";
 
 /**
  * Client mirror of the refusals `provisionMember` applies to a non-Admin caller — the
- * adoption guard (`reprovision-requires-admin`) and both halves of the power-seat guard
- * (`granted-member-requires-admin`, `power-seat-requires-admin`).
+ * adoption guard and both halves of the power-seat guard. The reasons they throw are the
+ * `ProvisionBlockReason` union in `@luminova/types` — named there, not spelled out here, so
+ * this comment cannot quietly outlive a rename the way an unchecked prose copy would.
  *
  * NOT a security boundary: beacon is, and it re-derives all of this server-side from the
  * stored doc. This exists so the three entry points that offer "invitar / enviar acceso" do
@@ -42,10 +43,25 @@ function provisionBlockedForNonAdmin(input: {
  *  the profile page and the invite drawer have arrays — without one of them allocating. */
 export type CargoLookup = (id: string) => Pick<Position, "grants"> | undefined;
 
-/** `provisionBlockedForNonAdmin` for a stored member doc. */
-export function memberProvisionBlocked(member: Member, cargo: CargoLookup): boolean {
+/** `provisionBlockedForNonAdmin` for a stored member doc.
+ *
+ *  `callerIsAdmin` is a PARAMETER rather than a `!isAdmin &&` at each call site, for the same
+ *  reason `positionsLockedForEditor` takes its flag: three call sites typing the same conjunct
+ *  is how the cargo predicates drifted, and this function is even NAMED for the conjunct. An
+ *  Admin is subject to none of these refusals — beacon's guards are all `!callerHoldsAdminRole`. */
+export function memberProvisionBlocked(
+  member: Member,
+  cargo: CargoLookup,
+  callerIsAdmin: boolean,
+): boolean {
+  if (callerIsAdmin) return false;
+  // `?? []` on absent/null only — an EMPTY-STRING cargoId must NOT be skipped. beacon's
+  // readCargoIds pushes "" deliberately ("a malformed shape must never read as 'no cargo' —
+  // that is the guard's own bypass"), and "" then fails isSafeDocId at the port and refuses.
+  // A truthiness test here would skip it, promise an invite, and 403 with a message about a
+  // cargo that does not exist. It falls through to the `cargo === undefined` clause instead.
   const cargoIds = Object.values(member.positions ?? {}).flatMap((term) =>
-    term.cargoId ? [term.cargoId] : [],
+    term.cargoId === undefined || term.cargoId === null ? [] : [term.cargoId],
   );
   return provisionBlockedForNonAdmin({
     hasLogin: typeof member.uid === "string" && member.uid.length > 0,
@@ -63,7 +79,9 @@ export function memberProvisionBlocked(member: Member, cargo: CargoLookup): bool
 export function draftProvisionBlocked(
   cargoId: string | null | undefined,
   cargo: CargoLookup,
+  callerIsAdmin: boolean,
 ): boolean {
+  if (callerIsAdmin) return false;
   return provisionBlockedForNonAdmin({
     hasLogin: false,
     hasDirectGrants: false,

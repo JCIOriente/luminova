@@ -1,5 +1,5 @@
 import { Link, getRouteApi } from "@tanstack/react-router";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { Badge, Button, Card, Dialog, type BadgeTone } from "@luminova/ui";
 import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
 import { ActionGate } from "../../../lib/authz/action-gate";
@@ -31,6 +31,7 @@ import { effectiveRoles } from "../lib/member-permissions";
 import { memberEditMode } from "../lib/member-edit-gate";
 import { provisionErrorMessage } from "../lib/provision-error";
 import { memberProvisionBlocked } from "../lib/provision-gate";
+import { useCopyToClipboard } from "../../../lib/use-copy-to-clipboard";
 import { memberFormDefaults } from "../lib/member-form-defaults";
 
 // qrcode.react (~13 kB gz) lazy so it leaves the always-loaded index shell.
@@ -111,11 +112,8 @@ export function MemberProfilePage() {
   const isSelf = member.uid !== undefined && member.uid === uid;
   // Fails closed while the catalog is still loading: an unresolvable cargo counts as
   // power-conferring, so a delegate sees the invite appear once positions land rather than
-  // seeing it offered and then denied. An Admin is unaffected — the whole predicate is
-  // non-Admin-only.
-  const inviteBlocked =
-    !gate.isAdmin &&
-    memberProvisionBlocked(member, (id) => (positions ?? []).find((p) => p.id === id));
+  // seeing it offered and then denied. An Admin is unaffected — the predicate short-circuits.
+  const inviteBlocked = memberProvisionBlocked(member, (id) => positionsById.get(id), gate.isAdmin);
 
   const handleEdit = (data: MemberInput) =>
     updateMember.mutateAsync({
@@ -160,6 +158,8 @@ export function MemberProfilePage() {
                 pendingLabel="Guardando…"
                 allowPowerGrants={gate.canAssignBoardSeat}
                 allowReplacePowerCargo={gate.isAdmin}
+                assignerIsAdmin={gate.isAdmin}
+                isSelfAssignment={isSelf}
                 onSubmit={handleEdit}
                 avatarSeed={member.name}
               />
@@ -189,6 +189,8 @@ export function MemberProfilePage() {
                 gender={member.gender}
                 allowPowerGrants={gate.canAssignBoardSeat}
                 allowReplacePowerCargo={gate.isAdmin}
+                assignerIsAdmin={gate.isAdmin}
+                isSelfAssignment={isSelf}
                 defaultValues={{
                   cargoId: member.positions?.[termKey]?.cargoId ?? null,
                   comisionIds: member.positions?.[termKey]?.comisionIds ?? [],
@@ -238,12 +240,19 @@ export function MemberProfilePage() {
 
 function InviteAccess({ member }: { member: Member }) {
   const provision = useProvisionMemberLogin();
-  const [open, setOpen] = useState(false);
   const [link, setLink] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  // The MAIL is a floating promise the mutation does not track. Without this the button
+  // re-enables the instant the callable resolves, so a second click can interleave: attempt
+  // one's mail resolves and sets `sent` while attempt two's rejects and sets `error`, leaving
+  // the header claiming both — or, worse ordering, a real failure overwritten by a stale
+  // success. `attempt` makes every late setter check that it is still the current one.
+  const [sending, setSending] = useState(false);
+  const attempt = useRef(0);
+  const { copyState, copy, resetCopyState } = useCopyToClipboard();
   const label = member.uid ? "Reenviar acceso" : "Invitar acceso";
+  const pending = provision.isPending || sending;
 
   // The reset MAIL is the delivery path for every new login, board member or not, Admin caller
   // or delegate — it is `sendPasswordResetEmail`, which hands the secret to the mailbox owner.
@@ -252,40 +261,45 @@ function InviteAccess({ member }: { member: Member }) {
   // used to short-circuit the mail, so this was the one surface where an Admin's invite sent
   // nothing and the member waited for a mail that never came.
   const invite = () => {
+    const mine = ++attempt.current;
+    const current = () => attempt.current === mine;
     setError(null);
     setSent(false);
-    setCopyState("idle");
+    setLink(null);
+    resetCopyState();
+    setSending(true);
     provision.mutate(member.id, {
       onSuccess: (result) => {
-        if (result.actionLink) {
-          setLink(result.actionLink);
-          setOpen(true);
-        }
+        if (current() && result.actionLink) setLink(result.actionLink);
         void requestPasswordReset(result.email)
-          .then(() => setSent(true))
+          .then(() => {
+            if (current()) setSent(true);
+          })
           .catch((err: unknown) => {
             console.error("No se pudo enviar el correo de acceso", err);
+            if (!current()) return;
             setError(
               result.actionLink
                 ? "Se creó el acceso, pero no se pudo enviar el correo. Comparte el enlace manualmente."
                 : "Se creó el acceso, pero no se pudo enviar el correo. Pídele a un administrador que lo reenvíe.",
             );
+          })
+          .finally(() => {
+            if (current()) setSending(false);
           });
       },
-      onError: (err) => setError(provisionErrorMessage(err, "No se pudo generar el acceso.")),
+      onError: (err) => {
+        if (!current()) return;
+        setSending(false);
+        setError(provisionErrorMessage(err, "No se pudo generar el acceso."));
+      },
     });
   };
 
   return (
     <>
-      <Button
-        as="button"
-        type="button"
-        variant="secondary"
-        disabled={provision.isPending}
-        onClick={invite}
-      >
-        {provision.isPending ? "Generando…" : label}
+      <Button as="button" type="button" variant="secondary" disabled={pending} onClick={invite}>
+        {pending ? "Generando…" : label}
       </Button>
       {error && (
         <p role="alert" className="basis-full text-right text-ui-xs text-error">
@@ -297,32 +311,36 @@ function InviteAccess({ member }: { member: Member }) {
           Invitación enviada por correo.
         </p>
       )}
-      <Dialog open={open} onOpenChange={setOpen} title="Acceso de miembro">
+      {/* `open` is not separate state: it was only ever set alongside `link`, and keeping the
+          two in sync by hand is what left `link` out of invite()'s reset. */}
+      <Dialog
+        open={link !== null}
+        onOpenChange={(o) => {
+          if (!o) setLink(null);
+        }}
+        title="Acceso de miembro"
+      >
         <div className="flex flex-col gap-3">
           {/* The dialog opens as soon as the link arrives, before the reset mail settles, so
               its copy has to track that outcome. A fixed "ya le enviamos el correo" reads as a
               flat contradiction of the failure alert behind it — and worse, the modal's
               aria-hidden takes that alert out of the accessibility tree, so a screen-reader
-              user would hear ONLY the false sentence. */}
+              user would hear ONLY the false sentence. For the same reason the mail FAILURE is
+              repeated inside the dialog rather than left to the header alert. */}
           <p className="text-ui-sm text-ink-2">
             {sent
               ? "Ya le enviamos el correo para crear su contraseña. Si no le llega, comparte este enlace con el miembro."
               : "Comparte este enlace con el miembro para que cree su contraseña e inicie sesión."}
           </p>
+          {error && (
+            <p role="alert" className="text-ui-xs text-error">
+              {error}
+            </p>
+          )}
           <code className="block w-full overflow-x-auto rounded-[8px] bg-ink-1/[0.04] px-3 py-2 text-ui-xs text-ink-2">
             {link}
           </code>
-          <Button
-            as="button"
-            type="button"
-            onClick={() => {
-              if (!link) return;
-              navigator.clipboard
-                .writeText(link)
-                .then(() => setCopyState("copied"))
-                .catch(() => setCopyState("failed"));
-            }}
-          >
+          <Button as="button" type="button" onClick={() => link && copy(link)}>
             {copyState === "copied" ? "Enlace copiado" : "Copiar enlace"}
           </Button>
           {copyState === "failed" && (

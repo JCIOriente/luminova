@@ -25,8 +25,7 @@ export function MemberRowMenu({
   onUnpublish,
 }: MemberRowMenuProps) {
   const { canProvisionLogin, isAdmin } = useCan();
-  const provisionBlocked =
-    !isAdmin && memberProvisionBlocked(member, (id) => positionsById.get(id));
+  const provisionBlocked = memberProvisionBlocked(member, (id) => positionsById.get(id), isAdmin);
   return (
     <Menu
       align="end"
