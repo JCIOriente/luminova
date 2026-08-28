@@ -131,7 +131,9 @@ export function MemberProfilePage() {
             {member.status && <Badge tone={STATUS_TONE[member.status]}>{member.status}</Badge>}
             {/* provisionMemberLogin is requireAdminOrPerm(create:MemberLogin) — the Admin
                 role or that exact code, never the manage:all perm. */}
-            <ActionGate when={gate.canProvisionLogin}>
+            {/* `!member.uid` mirrors beacon's adoption guard: a delegate may only mint a NEW
+                login, so "Reenviar acceso" would 403 on every click for them. */}
+            <ActionGate when={gate.canProvisionLogin && (gate.isAdmin || !member.uid)}>
               <InviteAccess member={member} />
             </ActionGate>
           </div>

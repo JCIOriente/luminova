@@ -263,6 +263,7 @@ describe("provisionMember", () => {
       { roleIds: {} },
       { permissionOverrides: "nope" },
       { permissionOverrides: { grant: "update:BoardSeat" } },
+      { permissionOverrides: ["manage:all"] },
     ];
     for (const fields of malformed) {
       const { deps } = fakeDeps({ member: { ...active, ...fields } });

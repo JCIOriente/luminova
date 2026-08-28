@@ -59,15 +59,27 @@ type MemberLike = {
  *  seat lands, the member is published on the world-readable Directiva, and no claim is
  *  minted. Visible, powerless, and silent: half-working rather than safe.
  *
- *  CONFERRING ADMIN IS ADMIN-ONLY, and this is the guard the whole delegation rests on. A
- *  cargo whose grants include `Admin` is honored only for an assigner holding the Admin ROLE;
- *  every other cargo is honored for an `update:BoardSeat` delegate too.
+ *  TWO restrictions, and together they are the guard the whole delegation rests on:
+ *    - a cargo whose grants include `Admin` is honored only for an assigner holding the Admin
+ *      ROLE; and
+ *    - a SELF-assignment is honored only for an Admin, whatever the cargo grants.
+ *  Everything else — a delegate seating SOMEONE ELSE on a non-Admin power cargo — is honored
+ *  for an `update:BoardSeat` holder, and that is the feature.
  *
- *  Why the split rather than a self-assignment check (which is what this first shipped as):
- *  the danger is not reflexivity, it is that a delegate can mint an Admin AT ALL, because a
- *  minted Admin is itself a trust source and the delegation then cannot be revoked. Blocking
- *  only `assignedBy === memberUid` stops the one-write self-loop and not the two-write puppet
- *  loop — a delegate creates a second member on a mailbox they control, seats IT on
+ *  The self-assignment half is not the discredited reflexivity check (see below); it is
+ *  narrower and it closes a different hole. Without it `update:BoardSeat` is a self-service
+ *  grant of every built-in role but Admin: the spec's own recommended pairing
+ *  (`update:Position` + `update:BoardSeat`) can write `positions.<term> = { cargoId:
+ *  <a Secretario/ProjectManager cargo>, assignedBy: <own uid> }` onto its OWN member doc
+ *  through the positions-only lane — one write, no puppet needed — and claims-sync would mint
+ *  those roles onto the author. Conferring power on others is the delegation; conferring it on
+ *  yourself is self-promotion.
+ *
+ *  Why the ADMIN half keys on the grant rather than on reflexivity (which is what this first
+ *  shipped as): for Admin the danger is not reflexivity, it is that a delegate can mint an
+ *  Admin AT ALL, because a minted Admin is itself a trust source and the delegation then
+ *  cannot be revoked. Blocking only `assignedBy === memberUid` stops the one-write self-loop
+ *  and not the two-write puppet loop — a delegate creates a second member on a mailbox they control, seats IT on
  *  Presidente (not a self-assignment, so the perm is trusted), and that puppet is Admin
  *  forever; revoking the delegate's code de-elevates nobody. It also had a worse problem: the
  *  seeded bootstrap president self-stamps `assignedBy` (tools/scripts/lib/seed-president.mjs)
@@ -76,7 +88,8 @@ type MemberLike = {
  *
  *  Keying on the GRANT fixes both: no cargo-derived Admin can ever originate from a delegate,
  *  so there is no loop to close and no anchor to special-case, and an Admin seating anyone —
- *  including themselves — is untouched. Revocation is then real for everything a delegate
+ *  including themselves — is untouched. The self-assignment half rides alongside it and is
+ *  safe for the same reason: it too defers to the Admin ROLE, which the seeded president has. Revocation is then real for everything a delegate
  *  CAN confer: strip the perm and the next write to that member drops the grants.
  *
  *  The cost, stated so nobody reads it as a bug: a delegate seating a member on an
@@ -85,6 +98,7 @@ async function resolveTrustedGrants(
   deps: ClaimsSyncDeps,
   cargoId: string | null,
   assignedBy: string | undefined,
+  memberUid: string,
 ): Promise<Role[]> {
   // FULL screening, not just the empty-string half this used to check. `cargoId` comes
   // straight off the member doc and every implementation of `getPosition` interpolates it
@@ -102,11 +116,13 @@ async function resolveTrustedGrants(
   if (!assignedBy) return [];
   const assigner = await deps.getAssignerClaims(assignedBy);
   const assignerIsAdmin = assigner.roles.includes("Admin");
-  // Conferring ADMIN is reserved to an Admin, whoever assigned the cargo. Everything else a
-  // board-seat delegate may confer.
-  const trusted = position.grants.includes("Admin")
-    ? assignerIsAdmin
-    : assignerIsAdmin || assigner.perms.includes("update:BoardSeat");
+  // A delegate may confer power on OTHERS, never on themselves, and never Admin at all.
+  // Both halves need the Admin role; only the third case honors the perm.
+  const selfAssigned = assignedBy === memberUid;
+  const trusted =
+    position.grants.includes("Admin") || selfAssigned
+      ? assignerIsAdmin
+      : assignerIsAdmin || assigner.perms.includes("update:BoardSeat");
   return trusted ? [...new Set(position.grants)] : [];
 }
 
@@ -135,7 +151,12 @@ export async function syncMemberClaims(
 ): Promise<void> {
   if (!member.uid) return;
   const term = member.positions?.[termKey];
-  const trustedGrants = await resolveTrustedGrants(deps, term?.cargoId ?? null, term?.assignedBy);
+  const trustedGrants = await resolveTrustedGrants(
+    deps,
+    term?.cargoId ?? null,
+    term?.assignedBy,
+    member.uid,
+  );
 
   const existing = await deps.getExistingClaims(member.uid);
   const hadScanner = existing.roles.includes("Scanner");

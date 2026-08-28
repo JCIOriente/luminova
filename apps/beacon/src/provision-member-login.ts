@@ -88,7 +88,10 @@ function hasDirectGrants(member: Record<string, unknown>): boolean {
   }
   const overrides = member.permissionOverrides;
   if (overrides === undefined || overrides === null) return false;
-  if (typeof overrides !== "object") return true;
+  // Array before the typeof: `typeof [] === "object"`, so a legacy/console
+  // `permissionOverrides: ["manage:all"]` would reach `.grant === undefined` and read as
+  // ungranted — failing OPEN, which is what the roleIds branch above refuses to do.
+  if (Array.isArray(overrides) || typeof overrides !== "object") return true;
   const grant = (overrides as { grant?: unknown }).grant;
   if (grant === undefined || grant === null) return false;
   if (!Array.isArray(grant)) return true;

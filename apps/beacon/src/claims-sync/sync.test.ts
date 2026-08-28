@@ -177,6 +177,72 @@ describe("syncMemberClaims", () => {
     expect(writes["target-uid"]).toBeUndefined();
   });
 
+  it("BLOCKING: a delegate may NOT confer power on THEMSELVES", async () => {
+    // One write, no puppet: the spec's own recommended pairing (update:Position +
+    // update:BoardSeat) can seat itself on a Secretario/ProjectManager cargo through the
+    // positions-only lane, and without this that mints those roles onto the author —
+    // update:BoardSeat becomes a self-service grant of every built-in role but Admin.
+    // Conferring power on others is the delegation; on yourself it is self-promotion.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-sec": { grants: ["Secretary"] } },
+      userRoles: { "delegate-uid": ["Member"] },
+      userPerms: { "delegate-uid": ["update:BoardSeat"] },
+      existing: { "delegate-uid": { roles: ["Member"], perms: permsFor(["Member"]) } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "delegate-uid",
+        positions: { "2026": { cargoId: "pos-sec", comisionIds: [], assignedBy: "delegate-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["delegate-uid"]).toBeUndefined();
+  });
+
+  it("still lets a delegate confer a non-Admin cargo on SOMEONE ELSE", async () => {
+    // The paired ALLOW — the restriction is on self-dealing, not on the delegation itself.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-sec": { grants: ["Secretary"] } },
+      userRoles: { "delegate-uid": ["Member"] },
+      userPerms: { "delegate-uid": ["update:BoardSeat"] },
+      existing: { "target-uid": { roles: ["Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-sec", comisionIds: [], assignedBy: "delegate-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["target-uid"]).toEqual({
+      roles: ["Secretary", "Member"],
+      perms: permsFor(["Secretary", "Member"]),
+    });
+  });
+
+  it("still lets an ADMIN seat themselves on a non-Admin cargo", async () => {
+    // The self-assignment half defers to the Admin ROLE, so it costs an Admin nothing.
+    const { deps, writes } = fakeDeps({
+      positions: { "pos-sec": { grants: ["Secretary"] } },
+      userRoles: { "admin-uid": ["Admin", "Member"] },
+      existing: { "admin-uid": { roles: ["Admin", "Member"] } },
+    });
+    await syncMemberClaims(
+      deps,
+      {
+        uid: "admin-uid",
+        positions: { "2026": { cargoId: "pos-sec", comisionIds: [], assignedBy: "admin-uid" } },
+      },
+      "2026",
+    );
+    expect(writes["admin-uid"]).toEqual({
+      roles: ["Secretary", "Member"],
+      perms: permsFor(["Secretary", "Member"]),
+    });
+  });
+
   it("BLOCKING: a delegate may NOT confer ADMIN — the guard the delegation rests on", async () => {
     // Conferring Admin is reserved to the Admin ROLE. Without this a delegate mints an Admin,
     // that Admin is itself a trust source, and the delegation can never be revoked — via the

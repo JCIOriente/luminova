@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactElement, ReactNode } from "react";
 import { MemberInviteDrawer } from "./member-invite-drawer";
@@ -190,5 +191,44 @@ describe("MemberInviteDrawer", () => {
     const { node } = drawer();
     renderWithAbility(node, { roles: ["Member"], perms: ["manage:all"] });
     expect(screen.queryByLabelText("Enviar acceso a la app")).not.toBeInTheDocument();
+  });
+
+  it("does not attempt the invite when the cargo confers permissions and the caller is a delegate", async () => {
+    // beacon's power-seat guard would refuse it, so attempting it would create the member,
+    // 403, and point the user at a row action that fails identically forever.
+    const onProvision = vi.fn();
+    const powerCargo = [
+      {
+        id: "pos-power",
+        title: "Secretario",
+        titleFemale: null,
+        category: "CEL" as const,
+        grants: ["Secretary"] as never,
+        term: null,
+        sigla: null,
+        description: "",
+        active: true,
+        deletedAt: null,
+      },
+    ];
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={powerCargo as never}
+        onClose={() => {}}
+        onCreate={async () => "idB"}
+        onProvision={onProvision}
+      />,
+      { roles: ["Member"], perms: ["create:Member", "create:MemberLogin", "update:BoardSeat"] },
+    );
+    await fill();
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    // positionTitle derives the female variant from the title when titleFemale is null, and
+    // fill() picks "Femenino" — so the rendered label is "Secretaria".
+    await userEvent.click(await screen.findByText(/Secretari[ao]/));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent(/solo un Admin puede enviarle el acceso/);
+    expect(onProvision).not.toHaveBeenCalled();
   });
 });

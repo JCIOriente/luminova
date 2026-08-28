@@ -15,6 +15,9 @@ interface MemberInviteDrawerProps {
 }
 
 interface DoneState {
+  /** The invite was skipped because the member's cargo confers permissions and the caller is
+   *  not an Admin — beacon would refuse it, so nothing was attempted. */
+  blockedByCargo: boolean;
   name: string;
   email: string;
   provisioned: boolean;
@@ -38,7 +41,7 @@ export function MemberInviteDrawer({
   // (provisionMemberLogin → requireAdminOrPerm). A member creator without either may still
   // create the member; they just can't send access here, so hide the option and default it
   // off — otherwise the provision step fails silently after the member is already created.
-  const { canProvisionLogin, canAssignBoardSeat } = useCan();
+  const { canProvisionLogin, canAssignBoardSeat, isAdmin } = useCan();
   const [done, setDone] = useState<DoneState | null>(null);
   const [sendAccess, setSendAccess] = useState(canProvisionLogin);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
@@ -70,7 +73,15 @@ export function MemberInviteDrawer({
     let emailSent = false;
     let actionLink: string | null = null;
     let errorDetail: string | null = null;
-    if (sendAccess) {
+    // beacon refuses a non-Admin provisioning a member seated on a granting cargo (the
+    // power-seat guard). The rules DO let that member be created, so without this check the
+    // drawer would create them, 403 on the invite, and send the user to a row action that
+    // fails the same way on every retry. Decide before writing anything.
+    const seatedCargo = data.cargoId ? positions.find((p) => p.id === data.cargoId) : undefined;
+    const provisionBlocked = !isAdmin && (seatedCargo?.grants.length ?? 0) > 0;
+    if (sendAccess && provisionBlocked) {
+      errorDetail = null;
+    } else if (sendAccess) {
       // The member is already created; if provisioning fails, fall through to the
       // done screen with provisioned=false ("aún no tiene acceso, invítalo desde su
       // fila") instead of throwing — a thrown error reads as a create failure and
@@ -93,6 +104,7 @@ export function MemberInviteDrawer({
       }
     }
     setDone({
+      blockedByCargo: sendAccess && provisionBlocked,
       name: data.name,
       email: data.email,
       provisioned,
@@ -119,6 +131,10 @@ export function MemberInviteDrawer({
           {done.provisioned && done.emailSent ? (
             <p className="text-ui-md text-ink-2">
               {`Invitación enviada a ${done.email}. Recibirá un correo para crear su contraseña y acceder a la app.`}
+            </p>
+          ) : done.blockedByCargo ? (
+            <p role="alert" className="text-ui-md text-error">
+              {`${done.name} fue creado, pero su cargo otorga permisos: solo un Admin puede enviarle el acceso. Pídeselo para completar la invitación.`}
             </p>
           ) : done.provisioned && !done.emailSent ? (
             <>

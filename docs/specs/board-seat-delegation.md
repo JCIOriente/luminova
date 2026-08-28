@@ -22,8 +22,9 @@ does not satisfy either one.
   holds `update:Member`, `create:Member`, or `update:Position`. A member holding only
   `update:BoardSeat` still cannot write anything. Granting it alone is a no-op; the UI does not
   say so.
-- **It does not confer Admin.** See the section below — an Admin-granting cargo mints nothing
-  unless the assigner holds the Admin role.
+- **It does not confer Admin, and it does not confer anything on the delegate themselves.**
+  See the section below: an Admin-granting cargo mints nothing unless the assigner holds the
+  Admin role, and a self-assignment mints nothing unless the assigner is an Admin.
 - **It does not unseat anyone.** `currentCargoGrantsEmpty()` stays Admin-only, so a delegate
   cannot displace a member sitting on a power-granting cargo. Hand-over is an Admin action.
   One caveat, pre-existing and pinned by a rules test: that predicate reads only the CURRENT
@@ -33,6 +34,10 @@ does not satisfy either one.
   (`compute-roles.ts`), so clearing every Admin's cargo would strip every Admin claim in the
   chapter — and `setUserRoles`, `roles/*` writes and `permissionOverrides` writes are all
   Admin-only, making that state unrecoverable outside the Firebase console.
+- **It DOES raise the publication ceiling to CEL.** A plain `update:Position` holder can seat
+  only grant-free non-CEL cargos; adding this code lets them seat a CEL cargo, so "Presidente"
+  at public board rank 0 is no longer an Admin-only decision for a delegate. Publication and
+  authority are separate ceilings — the claims half still refuses to mint Admin.
 - **It does not reach the `/positions` catalog.** Creating a CEL or JDL cargo, and editing any
   cargo's `grants`, `category` or board `title`/`titleFemale`, stay Admin-only
   (`boardSurfacingCategory()` and the update-arm pins). The delegate seats members on cargos
@@ -48,7 +53,16 @@ premise that the delegation is **revocable**. Delivering that premise turned out
 rule, and it is the load-bearing guard of the whole feature:
 
 **A cargo whose `grants` include `Admin` is honored only when the assigner holds the Admin
-ROLE.** Every other cargo is honored for an `update:BoardSeat` delegate too.
+ROLE**, and **a SELF-assignment is honored only for an Admin, whatever the cargo grants.**
+Everything else — a delegate seating *someone else* on a non-Admin power cargo — is honored for
+an `update:BoardSeat` holder, and that is the feature.
+
+The self-assignment half closes a separate, one-write hole: without it `update:BoardSeat` is a
+self-service grant of every built-in role but Admin. The recommended pairing below
+(`update:Position` + `update:BoardSeat`) can write a Secretario or ProjectManager cargo onto its
+own member doc through the positions-only lane and be minted those roles. Conferring power on
+others is the delegation; conferring it on yourself is self-promotion. A delegate seating
+themselves still *publishes* the seat — it just confers nothing.
 
 Why, precisely: a minted Admin is itself a trust source, so a delegate who can mint one has
 made the delegation permanent. Revoking their code de-elevates nobody, and neither

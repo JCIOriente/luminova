@@ -369,11 +369,13 @@ service cloud.firestore {
     // hasPerm, deliberately NOT canDo: manage:all must not answer this, and the other five
     // *:BoardSeat codes the cross-product generates stay inert BECAUSE the gate is exact.
     //
-    // ACCEPTED, per docs/specs/board-seat-delegation.md: a delegate may seat a cargo whose
-    // grants confer Admin, and beacon's claims-sync mints it. What that acceptance is
-    // premised on — revocability — needs beacon's trust gate to be non-reflexive on a
-    // SELF-assignment, or the minted Admin satisfies the gate that minted it and the
-    // delegation can never be revoked. See resolveTrustedGrants in apps/beacon.
+    // What this rule does and does NOT buy, per docs/specs/board-seat-delegation.md: it lifts
+    // the cargo conjunct, so a delegate may SEAT anyone on a CEL or power-granting cargo and
+    // the seat publishes on the world-readable Directiva. It does not follow that the cargo's
+    // grants are MINTED — beacon's resolveTrustedGrants refuses an Admin-conferring cargo
+    // from a delegate outright, and refuses any granting cargo on a SELF-assignment. So a
+    // delegate seating themselves publishes and confers nothing, and seating someone else
+    // confers everything but Admin. Do not restate the mint rule here; read it there.
     //
     // Deliberately NOT widened to currentCargoGrantsEmpty(): see positionsAssignmentSafe().
     function boardSeatDelegate() {
@@ -524,17 +526,23 @@ service cloud.firestore {
         && softDeleteSafe();
       // Positions-only lane: an org-chart editor who is NOT a member editor. Keyed on
       // update:Position — the same capability that governs the positions CATALOG — and
-      // confined to the positions map. The power-cargo restriction is NOT relaxed:
-      // positionsAssignmentSafe()'s non-Admin branch still demands
-      // cargoAssignableByNonAdmin() && currentCargoGrantsEmpty(), so this principal assigns
-      // and clears grant-free cargos only, on BOTH sides of a swap.
+      // confined to the positions map. A PLAIN update:Position holder is still held to
+      // cargoAssignableByNonAdmin() && currentCargoGrantsEmpty(), so they assign and clear
+      // grant-free non-CEL cargos only, on BOTH sides of a swap. Adding update:BoardSeat lifts
+      // the NEW side only: that principal may seat a CEL or power-granting cargo, but still
+      // cannot displace a sitting power-cargo holder (the old side stays Admin-role-only).
       //
-      // This lane IS a public publication authority, deliberately, and its ceiling is JDL:
-      // grant-free JDL direcciones are board cargos, so its holder can put a member —
-      // including themselves — on the world-readable Directiva under a dirección. No claim
-      // is minted (claims-sync returns early on grants.length == 0). Accepted, and pinned by
-      // a rules test. CEL is NOT in that grant — cargoAssignableByNonAdmin() refuses it
-      // whatever its grants, so 'Presidente' at public rank 0 stays an Admin decision.
+      // This lane IS a public publication authority, deliberately. For a PLAIN update:Position
+      // holder its ceiling is JDL: grant-free JDL direcciones are board cargos, so they can put
+      // a member — including themselves — on the world-readable Directiva under a dirección,
+      // minting nothing (claims-sync returns early on grants.length == 0). Accepted, pinned by
+      // a rules test, and CEL stays out of reach — cargoAssignableByNonAdmin() refuses it
+      // whatever its grants.
+      // Adding update:BoardSeat RAISES that ceiling to CEL, so 'Presidente' at public rank 0 is
+      // no longer an Admin-only decision for a delegate. The claims half is what still holds:
+      // an Admin-conferring cargo mints nothing from a delegate, and neither does a
+      // self-assignment. Publication and authority are separate ceilings here — do not read
+      // one as the other.
       //
       // memberWriteInvariants() is implied by hasOnly(['positions']) TODAY and is stated
       // anyway: if hasOnly is ever widened — the obvious future edit is adding a second

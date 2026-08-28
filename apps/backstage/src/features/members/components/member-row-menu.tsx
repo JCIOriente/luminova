@@ -21,7 +21,7 @@ export function MemberRowMenu({
   onSetStatus,
   onUnpublish,
 }: MemberRowMenuProps) {
-  const { canProvisionLogin } = useCan();
+  const { canProvisionLogin, isAdmin } = useCan();
   return (
     <Menu
       align="end"
@@ -49,8 +49,10 @@ export function MemberRowMenu({
       </Can>
 
       {/* provisionMemberLogin is requireAdminOrPerm(create:MemberLogin) — the Admin role or
-          that exact code, never the manage:all perm. */}
-      <ActionGate when={canProvisionLogin}>
+          that exact code, never the manage:all perm. The `!member.uid` half is the adoption
+          guard mirrored: a delegate may only mint a NEW login, so offering "Reenviar" to one
+          would be an item that 403s on every click. */}
+      <ActionGate when={canProvisionLogin && (isAdmin || !member.uid)}>
         <MenuItem onSelect={() => onProvision(member)}>
           {member.uid ? "Reenviar invitación" : "Invitar a la app"}
         </MenuItem>
