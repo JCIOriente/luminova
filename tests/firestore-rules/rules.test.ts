@@ -1162,27 +1162,17 @@ describe("firestore.rules — members", () => {
     );
   });
 
-  it("BLOCKING: a delegate may NOT create with a ride-along NON-current term key", async () => {
-    // The create-lane twin of positionsDelta().hasOnly([currentTermKey()]). assignedBySelf()
-    // and cargoAssignableByNonAdmin() both read only positions[currentTermKey()], so a second
-    // term key rode along completely unvalidated: a clean current-term entry to pass the arm,
-    // plus a next-term power cargo attributed to a real Admin. On the UTC-year rollover
-    // claims-sync reads THAT entry and mints Admin onto a member whose login the creator
-    // controls. Forged attribution, one term deferred.
-    await assertFails(
-      setDoc(doc(createDelegate(), "members/new_delegate_ridealong"), {
-        name: "Ximena Paz",
-        totalPoints: 0,
-        ...BORN_LIVE,
-        positions: {
-          [TERM]: { cargoId: "pos_soft", comisionIds: [], assignedBy: "createdelegate-uid" },
-          "2099": { cargoId: "pos1", comisionIds: [], assignedBy: "admin-uid" },
-        },
-      }),
-    );
-  });
+  // The delegate variant of this same ride-along (createDelegate(), assignedBy stays self
+  // on the current-term entry) was here and is dropped: the term-key conjunct above is
+  // UNCONDITIONAL in createPositionsSafe() — not gated by boardSeatDelegate() — and Admin
+  // already satisfies boardSeatDelegate() (hasAnyRole(['Admin']) is one of its two arms), so
+  // any mutation that reddens the delegate variant (e.g. gating the conjunct behind
+  // `boardSeatDelegate() ||`) reddens this Admin one too, but not vice versa: a
+  // `hasAnyRole(['Admin']) ||` carve-out in front of the conjunct — the tempting future edit
+  // this test's own comment names — passes the dropped delegate variant untouched while this
+  // one still catches it. Strict subset; this is the stronger survivor.
 
-  it("BLOCKING: create:Member alone, and update:BoardSeat alone, each reach nothing", async () => {
+  it("BLOCKING: update:BoardSeat alone reaches nothing on the create lane", async () => {
     // The create-lane twin of the update-lane non-vacuity pin. update:BoardSeat widens WHICH
     // cargo a creator may use; it does not make anyone a creator.
     await assertFails(
@@ -1194,7 +1184,7 @@ describe("firestore.rules — members", () => {
     );
   });
 
-  it("BLOCKING: the same create principal WITHOUT update:BoardSeat is still denied both", async () => {
+  it("BLOCKING: create:Member alone (no update:BoardSeat, a different principal) is still denied a CEL or power cargo", async () => {
     // The paired denial — otherwise the two ALLOWs above would pass for any create:Member
     // holder and prove nothing about the new disjunct.
     await assertFails(
@@ -1253,6 +1243,20 @@ describe("firestore.rules — members", () => {
   it("allows Membership to update a normal field", async () => {
     await assertSucceeds(
       updateDoc(doc(as("u", ["Membership"]), "members/m1"), { name: "Ana Rivas Paz" }),
+    );
+  });
+  // ACCEPTED EXPOSURE — pins the premise three beacon guards are built on
+  // (provisionMemberLogin's adoption guard and power-seat guard, in
+  // apps/beacon/src/provision-member-login.ts, plus their tests and the rules comments
+  // near currentCargoGrantsEmpty()): "firestore.rules never constrains members.email".
+  // memberWriteInvariants() locks totalPoints/uid/publicProfile and gates positions —
+  // email is not among them, so any canDo('update','Member') holder may rewrite ANY
+  // member's email, not just their own. "u" does not own members/m1 (owner-uid does).
+  // If a later PR pins email here, this test goes red first — the signal that the beacon
+  // guards it justifies are now over-strict, not that something silently broke.
+  it("ACCEPTED EXPOSURE: a manage:Member holder may rewrite another member's email (why beacon's adoption + power-seat guards exist)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Membership"]), "members/m1"), { email: "rewritten@example.com" }),
     );
   });
   // memberNameValid() binds EVERY lane, not just the member's own: boardShowcase publishes
@@ -3271,7 +3275,7 @@ describe("firestore.rules — member positions assignment", () => {
     );
   });
 
-  it("denies a delegate a forged assignedBy, a past term, and a ride-along field", async () => {
+  it("denies a delegate a forged assignedBy, a non-current term, and a ride-along field", async () => {
     // assignedBySelf(), the current-term restriction and hasOnly(['positions']) all sit
     // OUTSIDE the substituted disjunction. Pin that the delegation did not loosen them —
     // a forged assignedBy is what the beacon trust gate reads to decide whether to mint.

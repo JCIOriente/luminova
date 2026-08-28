@@ -2,6 +2,18 @@
 
 Branch: `feat/board-seat-delegation`
 
+> **SUPERSEDED — point-in-time artifact, not current guidance.** This plan was written before
+> the design went through two adversarial reviews and 15 commits, and it was never updated as
+> the design changed under it. `docs/specs/board-seat-delegation.md` is the authority on what
+> actually shipped. Most importantly: **section 0b's G2 guard, below, describes a form of the
+> self-assignment fix that was proposed, found to be wrong, and REJECTED** — it would have
+> stripped the seeded bootstrap president's `Admin` claim on their very next member write, a
+> near production outage. Do not implement G2 as written. See the correction inline at G2 and
+> the spec's "Two earlier forms of this guard were wrong" for the full account. Kept in the repo
+> as the commit-by-commit record of how the design evolved (per the "Fact-check corrections"
+> table near the end, this document corrects itself in several other places too) — read it as
+> history, not as a spec to implement from.
+
 ## 0. Accepted decision
 
 The chapter owner has accepted that `update:BoardSeat` is a **claims-minting delegation**: a
@@ -14,6 +26,14 @@ premise true; without them it is false. They are not a narrowing of the accepted
 delegate can still seat any vacant cargo, including `Presidente`.
 
 ## 0b. Security guards (added after adversarial review — G1/G2/G3)
+
+> **SUPERSEDED section.** G1 and G2 below describe the FIRST proposed shape of each guard, from
+> before implementation. Neither is what shipped — G1's shipped guard is narrower, and G2's
+> proposed fix was rejected outright (see the correction under G2). Section 0b also predates
+> three guards that were added later, in response: the power-seat guard in `provisionMember`,
+> fail-closed handling for a malformed `grants`/`positions` shape, and a narrowed `createUser`
+> catch — listed under "Guards added after this section was written", below. Treat this whole
+> section as the audit trail, and `docs/specs/board-seat-delegation.md` as the design authority.
 
 Two independent reviews found three defects, all confirmed by reading code. Each guard below
 removes a capability the owner did **not** ask for, and none removes one they did.
@@ -30,30 +50,82 @@ claims via `adoptedClaims` at `:109`, (c) `linkUid` the Admin's uid onto their o
 the admin SDK at `:111`, and (d) return a **password-reset link for the Admin's email** at
 `:112-114`. Full account takeover, unrelated to board seating.
 
-**Guard:** thread the caller's privilege into `provisionMember`. For a non-Admin caller require
+**Guard, as first proposed here — NARROWER in the shipped code, see correction:** thread the
+caller's privilege into `provisionMember`. For a non-Admin caller require
 `user === null || user.uid === linkedUid` **before** `:97` — a delegate may create a brand-new
 Auth account or re-provision an already-linked one, never adopt a pre-existing account. Costs
 the delegate nothing: a genuinely new member has no existing account.
+
+**Correction — what shipped is stricter than this.** The resend/re-provision half of this
+proposal was itself found to be a hole and closed before merge:
+`generatePasswordResetLink` (`passwordResetLink` in the `ProvisionDeps` port) returns the oobCode
+URL **to the caller**, categorically unlike `sendPasswordResetEmail`, which delivers the secret
+to the mailbox owner. A delegate permitted to "re-provision an already-linked" member could name
+any member's id — including an Admin's — and receive a live reset link for that address. The
+shipped guard in `provisionMember` (`apps/beacon/src/provision-member-login.ts:206`) is therefore:
+
+```ts
+if (!callerHoldsAdminRole && (user !== null || linkedUid !== null)) {
+  throw new HttpsError("permission-denied", /* ... */);
+}
+```
+
+A non-Admin caller gets exactly one shape — mint a brand-new Auth account for a member that has
+**neither** an existing Auth user for its email **nor** a stored `uid`. Resend, adoption, and the
+deleted-account self-heal are all Admin-only; there is no re-provision path left for a delegate at
+all. See `docs/specs/board-seat-delegation.md` § "`create:MemberLogin` — what is actually
+privileged" for the full account, including the power-seat guard this section does not mention
+(added later — see below).
 
 Note also: the invite **email** is not the privileged part. `requestPasswordReset`
 (`apps/backstage/src/lib/auth/request-password-reset.ts`) is a plain client-side
 `sendPasswordResetEmail` any signed-in user can already call. The callable's privilege is
 account creation/adoption + uid linking + claim writing.
 
-### G2 — the trust gate must be non-reflexive on self-assignment
+### G2 — the trust gate must be non-reflexive on self-assignment — proposed fix REJECTED, do not implement as written
 
-`sync.ts:69` + `compute-roles.ts:8-12`. A delegate self-seats `Presidente` in one write on the
-positions-only lane; beacon mints `roles: ["Admin","Member"]`. Revoking `update:BoardSeat` then
-re-fires `onMemberWritten`, the gate reads their **live** claims, finds the `Admin` role the
-cargo just minted, and re-honors the grants. The claim satisfies the gate that minted it, so the
-delegation is permanent. `recomputeAllClaims` runs the same code and does not break the loop.
+`sync.ts:69` + `compute-roles.ts:8-12` (pre-implementation line refs; current shipped location is
+`resolveTrustedGrants` in `apps/beacon/src/claims-sync/sync.ts:97-135`). A delegate self-seats
+`Presidente` in one write on the positions-only lane; beacon mints `roles: ["Admin","Member"]`.
+Revoking `update:BoardSeat` then re-fires `onMemberWritten`, the gate reads their **live** claims,
+finds the `Admin` role the cargo just minted, and re-honors the grants. The claim satisfies the
+gate that minted it, so the delegation is permanent. `recomputeAllClaims` runs the same code and
+does not break the loop. This diagnosis stands; only the fix below was wrong.
 
-**Guard:** when `assignedBy === member.uid`, trust **only** `assigner.perms.includes("update:BoardSeat")`,
-never `assigner.roles.includes("Admin")`. Cargo-derived Admin can no longer bootstrap its own
-trust. An Admin seating *someone else* is unaffected; an Admin self-seating still works via the
-perm if they hold it, and via a second Admin otherwise.
+**Guard as first proposed here — REJECTED, DO NOT RE-PROPOSE:** when `assignedBy === member.uid`,
+trust **only** `assigner.perms.includes("update:BoardSeat")`, never `assigner.roles.includes("Admin")`.
 
-Test: assigner === target, `roles:["Admin"]`, `perms:[]` → grants dropped.
+**Why this is wrong, and is the exact inverse of what shipped:** the seeded bootstrap president
+self-stamps `assignedBy` with their own uid (`tools/scripts/lib/seed-president.mjs`), and an
+Admin's perms are `manage:all` — never the exact `update:BoardSeat` code. Keying the
+self-assignment trust check on the perm, as proposed above, means the sitting president's own
+`Admin` claim would be **stripped on their next member write**. Confirmed against the live
+production member doc before this shipped; a regression test pins it. This form also does not
+close the two-write puppet loop (a delegate seats a SECOND member, not themselves, on
+`Presidente` — not a self-assignment, so it is still trusted) — see
+`docs/specs/board-seat-delegation.md` § "Two earlier forms of this guard were wrong" for both
+failure modes in full.
+
+**What shipped instead:** self-assignment is honored ONLY for an assigner holding the Admin
+**role** — the opposite disjunct from the one proposed above — and the same rule extends to any
+cargo whose `grants` include `Admin`, self-assigned or not:
+
+```ts
+const assignerIsAdmin = assigner.roles.includes("Admin");
+const selfAssigned = assignedBy === memberUid;
+const trusted =
+  position.grants.includes("Admin") || selfAssigned
+    ? assignerIsAdmin
+    : assignerIsAdmin || assigner.perms.includes("update:BoardSeat");
+```
+
+An Admin seating *someone else* on a non-Admin power cargo is unaffected either way; an Admin
+self-seating still works because they hold the Admin role. Revoking `update:BoardSeat` from a
+delegate is then real for everything they *can* confer, because no cargo-derived Admin can ever
+originate from a delegate in the first place — there is no loop to close.
+
+Test: assigner === target, `roles:["Admin"]`, `perms:[]` → grants **still honored** (assigner is
+Admin) — the inverse of what the rejected proposal above would have asserted.
 
 ### G3 — `currentCargoGrantsEmpty()` stays Admin-only
 
@@ -77,6 +149,33 @@ substitution.
 
 If the owner later wants de-elevation delegated too, that is a separate code with its own
 anti-lockout guard — not this one.
+
+### Guards added after this section was written
+
+Later commits on this branch (`5f9408e`, `e02dbf1`, `d7cd564`, `2c328f5`, `58266d3`) found and
+closed three more gaps this section does not mention. Confirmed against the shipped code, not
+restated from memory:
+
+- **The power-seat guard in `provisionMember`.** G1 above stops a delegate from re-provisioning
+  or adopting an ALREADY-linked account, but says nothing about an unlinked member who is already
+  granted or already power-seated — "unprovisioned" is not "enrolled by this delegate". Without a
+  further check, `provisionMemberLogin` would link a fresh Auth uid onto such a member, fire
+  `onMemberWritten`, and `resolveTrustedGrants` would read the *stored* `assignedBy` (a genuine
+  Admin) and mint the grants onto the account the delegate's call just created — a clean
+  escalation the delegate never had to forge. The shipped guard
+  (`apps/beacon/src/provision-member-login.ts:213-251`) checks both claims-mint sources
+  `syncMemberClaims` reads: `hasDirectGrants()` (`:83-99`, `roleIds`/`permissionOverrides`) and a
+  per-term cargo read via `readCargoIds()` (`:101-139`, every term in `positions`, not just the
+  current one — a future-term slate is invisible to claims-sync today but not to this guard).
+- **Fail-closed handling for a malformed `grants` or `positions` shape.** `readCargoIds()`
+  (`:119-139`) yields `""` — not skip — for a non-object term, a non-string `cargoId`, or one
+  `isSafeDocId` rejects; the caller then refuses on `grants === null`, so a shape it cannot parse
+  is treated as power-seated, never as "no cargo". `hasDirectGrants()` (`:83-99`) is symmetric for
+  `roleIds` / `permissionOverrides`: a present-but-unparseable value reads as granted, and only a
+  genuinely absent/null value reads as ungranted.
+- **The narrowed `createUser` catch.** `apps/beacon/src/provision-deps.ts:25-29` swallows exactly
+  `auth/email-already-exists` (a benign race with a concurrent create) and rethrows everything
+  else — it does not swallow arbitrary Auth errors into a silent fallback.
 
 ## The two codes
 
@@ -319,11 +418,26 @@ Rejected alternatives:
    return trusted ? [...new Set(position.grants)] : [];
    ```
 
+   **This snippet is superseded — it is missing the self-assignment / Admin-granting-cargo branch
+   that G2 (above) required and that shipped.** The real trust computation, unchanged since,
+   reads (`apps/beacon/src/claims-sync/sync.ts:126-134`):
+
+   ```ts
+   const assignerIsAdmin = assigner.roles.includes("Admin");
+   const selfAssigned = assignedBy === memberUid;
+   const trusted =
+     position.grants.includes("Admin") || selfAssigned
+       ? assignerIsAdmin
+       : assignerIsAdmin || assigner.perms.includes("update:BoardSeat");
+   return trusted ? [...new Set(position.grants)] : [];
+   ```
+
    Extend the doc comment: name `update:BoardSeat` as the second trust source; state why (a delegate
    stamps their own uid into `assignedBy` via `assignedBySelf()`, so without this the seat publishes on
    the public Directiva and mints nothing — half-working, not safe); state the live-claims
    re-evaluation now also covers perm revocation; cross-reference `boardSeatDelegate()` in
-   `firestore.rules`. One line on the cap interaction (C2).
+   `firestore.rules`. One line on the cap interaction (C2). State the self-assignment / Admin-grant
+   exception too (G2) — it is not a detail, it is the guard the whole delegation rests on.
 
 2. `apps/beacon/src/claims-sync/firestore-deps.ts` — rename the impl at `:287`, returning both, reusing
    the two module-local readers already there. No new read: `loadUser` is the same per-instance memo.

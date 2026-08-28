@@ -110,6 +110,13 @@ a data change.
 - A role that ends up with an empty perm set is a **degenerate role**: it still
   passes `isValidRole` but grants nothing. Check the drop-safety of a role before
   removing its last permission.
+- **`BoardSeat` and `MemberLogin` are exact-code gates, not `canDo` subjects.** The live codes
+  (`update:BoardSeat`, `create:MemberLogin`) are each checked with `hasPerm` — in
+  `firestore.rules`, in beacon's `requireAdminOrPerm`, and in backstage's `useCan` — never a
+  `canDo`-style expansion, so a `manage:all` holder does **not** satisfy either one. The other
+  four generated codes per subject (`manage:BoardSeat`, `read:MemberLogin`, …) are consequently
+  inert: valid `PermissionCode`s, assignable in `/permisos`, satisfying nothing anywhere. See
+  `docs/specs/board-seat-delegation.md`.
 
 ## Consumers (why changes here are wide-blast)
 
