@@ -1,6 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { isValidRole, type Role } from "@luminova/auth/roles";
-import { isSafeDocId, truncateForLog } from "./firestore-util.js";
+import { isSafeDocId, truncateForLog, type LogSink } from "./firestore-util.js";
 
 /** A cargo's trusted grants, or null when the id is unusable or the doc is missing.
  *
@@ -12,14 +12,22 @@ import { isSafeDocId, truncateForLog } from "./firestore-util.js";
  *  `null` is the answer for an unusable id, a missing doc, or a malformed `grants` field, and
  *  it is fail-closed for BOTH callers: an unreadable cargo is treated as
  *  power-conferring by the guard and as grant-free by the trust gate, which is the safe
- *  direction in each. */
-export async function readPositionGrants(db: Firestore, id: unknown): Promise<Role[] | null> {
+ *  direction in each.
+ *
+ *  `logError` is injected rather than hard-coded to `console.error` so this shared read has
+ *  one sink per port, the same way claims-sync's `deps.logError` does — a later change to
+ *  where these lines go should not have to be made twice. */
+export async function readPositionGrants(
+  db: Firestore,
+  id: unknown,
+  logError?: LogSink,
+): Promise<Role[] | null> {
   // Every `null` below is logged (guardrail #4). Each one is an anomaly no legitimate flow
   // produces — a routine grant-free cargo returns `[]`, not null — and each is invisible
   // downstream: the trust gate mints nothing and the provisioning guard refuses, with no
   // throw and no metric either side. Ids only, bounded — never the doc.
   if (!isSafeDocId(id)) {
-    console.error("positions: cargo id is not a usable doc id — cargo unresolvable", {
+    logError?.("positions: cargo id is not a usable doc id — cargo unresolvable", {
       cargoIdType: typeof id,
       cargoId: typeof id === "string" ? truncateForLog(id) : null,
       cargoIdLength: typeof id === "string" ? id.length : null,
@@ -28,7 +36,7 @@ export async function readPositionGrants(db: Firestore, id: unknown): Promise<Ro
   }
   const snap = await db.doc(`positions/${id}`).get();
   if (!snap.exists) {
-    console.error("positions: cargo doc is missing — cargo unresolvable", {
+    logError?.("positions: cargo doc is missing — cargo unresolvable", {
       cargoId: truncateForLog(id),
     });
     return null;
@@ -42,7 +50,7 @@ export async function readPositionGrants(db: Firestore, id: unknown): Promise<Ro
   // grant-free.
   const raw = snap.data()?.grants;
   if (raw !== undefined && raw !== null && !Array.isArray(raw)) {
-    console.error("positions: cargo grants field is not an array — cargo unresolvable", {
+    logError?.("positions: cargo grants field is not an array — cargo unresolvable", {
       cargoId: truncateForLog(id),
       grantsType: typeof raw,
     });

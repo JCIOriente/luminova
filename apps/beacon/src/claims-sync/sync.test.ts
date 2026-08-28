@@ -42,6 +42,7 @@ function fakeDeps(opts: {
   builtInDocs?: RoleDefinition[];
   customRoles?: Record<string, RoleDefinition>;
   logError?: (message: string, meta: Record<string, unknown>) => void;
+  logWarn?: (message: string, meta: Record<string, unknown>) => void;
 }) {
   const writes: Record<string, MemberClaims> = {};
   const deps: ClaimsSyncDeps = {
@@ -88,6 +89,7 @@ function fakeDeps(opts: {
       writes[uid] = claims;
     },
     logError: opts.logError,
+    logWarn: opts.logWarn,
   };
   return { deps, writes };
 }
@@ -201,19 +203,23 @@ describe("syncMemberClaims", () => {
     expect(writes["delegate-uid"]).toBeUndefined();
   });
 
-  it("BLOCKING: logs the DESIGNED refusal too, naming which half denied it", async () => {
-    // The likeliest real cause of "they're on the Directiva with no permissions". Unlike the
-    // two shape screens, this branch is reached on an ORDINARY delegate path, so it was the
-    // one silent outcome an operator could actually hit. The meta must distinguish the two
-    // reasons — self-assignment vs an Admin-granting cargo — because the remedy differs: an
-    // Admin re-saves the slot in the first case, and only an Admin may seat it in the second.
+  it("BLOCKING: WARNS (never errors) on the DESIGNED refusal, naming which half denied it", async () => {
+    // The likeliest real cause of "they're on the Directiva with no permissions", so it is
+    // logged — but on the warn sink. This branch is the feature working as specified and it
+    // re-fires on every write to that member (including the totalPoints mirror awardPoints
+    // does per check-in), so an ERROR here would out-volume the malformed-doc screens that
+    // sink exists for. The meta must distinguish the two reasons — self-assignment vs an
+    // Admin-granting cargo — because the remedy differs: an Admin re-saves the slot in the
+    // first case, and only an Admin may seat it in the second.
     const logged: { message: string; meta: Record<string, unknown> }[] = [];
+    const errors: string[] = [];
     const { deps } = fakeDeps({
       positions: { "pos-presi": { grants: ["Admin"] } },
       userRoles: { "delegate-uid": ["Member"] },
       userPerms: { "delegate-uid": ["update:BoardSeat"] },
       existing: { "target-uid": { roles: ["Member"] } },
-      logError: (message, meta) => logged.push({ message, meta }),
+      logError: (message) => errors.push(message),
+      logWarn: (message, meta) => logged.push({ message, meta }),
     });
     await syncMemberClaims(
       deps,
@@ -227,6 +233,9 @@ describe("syncMemberClaims", () => {
     );
     expect(logged).toHaveLength(1);
     expect(logged[0]?.message).toMatch(/NOT minted/);
+    // The severity split, asserted rather than assumed: moving this line back onto logError
+    // must fail here, not just change which stream it lands on.
+    expect(errors).toEqual([]);
     expect(logged[0]?.meta).toMatchObject({
       uid: "target-uid",
       cargoId: "pos-presi",
@@ -236,16 +245,17 @@ describe("syncMemberClaims", () => {
     });
   });
 
-  it("stays quiet when the grants ARE minted", async () => {
+  it("stays quiet on BOTH sinks when the grants ARE minted", async () => {
     // The paired negative: a log on the success path would bury the refusals it exists to
     // surface, since every ordinary seating writes claims.
-    const logged: { message: string; meta: Record<string, unknown> }[] = [];
+    const logged: string[] = [];
     const { deps } = fakeDeps({
       positions: { "pos-sec": { grants: ["Secretary"] } },
       userRoles: { "delegate-uid": ["Member"] },
       userPerms: { "delegate-uid": ["update:BoardSeat"] },
       existing: { "target-uid": { roles: ["Member"] } },
-      logError: (message, meta) => logged.push({ message, meta }),
+      logError: (message) => logged.push(message),
+      logWarn: (message) => logged.push(message),
     });
     await syncMemberClaims(
       deps,
@@ -634,27 +644,33 @@ describe("syncMemberClaims", () => {
   });
 
   it("logs the legacy no-assignedBy power seat too, and stays quiet off the power path", async () => {
-    // A power cargo with no attribution is an anomaly whatever its provenance, so the
-    // undefined case logs alongside the malformed ones above. But the screen sits BEHIND the
-    // grants check, so a grant-free cargo with no assignedBy — the ordinary shape of every
-    // rank-and-file seat — never reaches it and must stay quiet.
-    for (const [cargoId, expected] of [
+    // A power cargo with no attribution still says so, but at WARN, not ERROR: an absent
+    // assignedBy is a legacy doc shape that predates the field and is re-emitted on every
+    // write to that member forever, so putting it in the same bucket as corruption is how the
+    // error stream stops being read. The screen sits BEHIND the grants check, so a grant-free
+    // cargo with no assignedBy — the ordinary shape of every rank-and-file seat — never
+    // reaches it and must stay quiet on BOTH sinks.
+    for (const [cargoId, expectedWarns] of [
       ["pos-pres", 1],
       ["pos-plain", 0],
     ] as const) {
-      const logged: string[] = [];
+      const warns: string[] = [];
+      const errors: string[] = [];
       const { deps } = fakeDeps({
         positions: { "pos-pres": { grants: ["Admin"] }, "pos-plain": { grants: [] } },
         userRoles: {},
         existing: { "target-uid": { roles: ["Member"] } },
-        logError: (message) => logged.push(message),
+        logError: (message) => errors.push(message),
+        logWarn: (message) => warns.push(message),
       });
       await syncMemberClaims(
         deps,
         { uid: "target-uid", positions: { "2026": { cargoId, comisionIds: [] } } },
         "2026",
       );
-      expect(logged).toHaveLength(expected);
+      expect(warns).toHaveLength(expectedWarns);
+      // BLOCKING: never the error sink — that is the whole point of the split.
+      expect(errors).toEqual([]);
     }
   });
 
@@ -915,8 +931,9 @@ describe("syncMemberClaims", () => {
     });
   });
 
-  it("fail-closed: writes empty perms (not stale claims) when effective perms exceed the cap", async () => {
+  it("fail-closed: writes empty perms (not stale claims) and WARNS when effective perms exceed the cap", async () => {
     const errors: string[] = [];
+    const warnings: string[] = [];
     const { deps, writes } = fakeDeps({
       positions: {},
       userRoles: {},
@@ -924,6 +941,7 @@ describe("syncMemberClaims", () => {
       existing: { "target-uid": { roles: ["Admin", "Member"], perms: ["manage:all"] } },
       customRoles: { big: customRole("big", distinctCodes(31)) },
       logError: (message) => errors.push(message),
+      logWarn: (message) => warnings.push(message),
     });
     await syncMemberClaims(
       deps,
@@ -936,7 +954,9 @@ describe("syncMemberClaims", () => {
       "2026",
     );
     expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: [] });
-    expect(errors[0]).toMatch(/cap/i);
+    // An expected ceiling, not a malformed doc: same severity split as the trust gate.
+    expect(warnings[0]).toMatch(/cap/i);
+    expect(errors).toEqual([]);
   });
 
   it("propagates and writes nothing when a dependency rejects", async () => {
@@ -972,10 +992,13 @@ describe("syncMemberClaims", () => {
       userRoles: { "membership-uid": ["Membership", "Member"] },
       existing: { "target-uid": { roles: ["Member"] } },
     });
-    const member = parseMember({
-      uid: "target-uid",
-      positions: { "2026": { cargoId: "pos-pres", assignedBy: "membership-uid" } },
-    });
+    const member = parseMember(
+      {
+        uid: "target-uid",
+        positions: { "2026": { cargoId: "pos-pres", assignedBy: "membership-uid" } },
+      },
+      { memberId: "m-test", logError: () => {} },
+    );
     await syncMemberClaims(deps, member, "2026");
     // No Admin escalation: recomputed to a plain Member claim.
     expect(writes["target-uid"]).toEqual({ roles: ["Member"], perms: permsFor(["Member"]) });

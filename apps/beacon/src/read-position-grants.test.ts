@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { Firestore } from "firebase-admin/firestore";
 import { readPositionGrants } from "./read-position-grants.js";
 
@@ -16,16 +16,6 @@ function fakeDb(docs: Record<string, Record<string, unknown> | undefined>): Fire
 }
 
 describe("readPositionGrants", () => {
-  // Every null return logs (see below), so the anomaly cases here would otherwise spray
-  // stderr across the run. Stubbed for all of them; the two tests that assert on it read
-  // this same spy.
-  beforeEach(() => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("returns the valid roles from a well-formed cargo", async () => {
     const db = fakeDb({ "positions/p1": { grants: ["Admin", "Membership"] } });
     await expect(readPositionGrants(db, "p1")).resolves.toEqual(["Admin", "Membership"]);
@@ -51,19 +41,20 @@ describe("readPositionGrants", () => {
     await expect(readPositionGrants(db, 42)).resolves.toBeNull();
   });
 
-  it("logs every null — none of them is visible to either caller otherwise", async () => {
+  it("logs every null through the injected sink — none is visible to either caller otherwise", async () => {
     // Guardrail #4. `null` is fail-closed in BOTH directions (grant-free to the claims trust
     // gate, power-conferring to the provisioning guard) and neither throws: the trust gate
     // just mints nothing and the member is published on the Directiva with no roles. Every
     // shape here is an anomaly no legitimate flow produces — a routine grant-free cargo
     // returns [], not null — so an operator gets one line per occurrence or nothing at all.
-    const spy = vi.mocked(console.error);
+    const logged: { message: string; meta: Record<string, unknown> }[] = [];
+    const log = (message: string, meta: Record<string, unknown>) => logged.push({ message, meta });
     const db = fakeDb({ "positions/str": { grants: "Admin" } });
-    await readPositionGrants(db, "a/b");
-    await readPositionGrants(db, 42);
-    await readPositionGrants(db, "ghost");
-    await readPositionGrants(db, "str");
-    expect(spy.mock.calls.map(([message]) => message)).toEqual([
+    await readPositionGrants(db, "a/b", log);
+    await readPositionGrants(db, 42, log);
+    await readPositionGrants(db, "ghost", log);
+    await readPositionGrants(db, "str", log);
+    expect(logged.map((l) => l.message)).toEqual([
       expect.stringMatching(/not a usable doc id/),
       expect.stringMatching(/not a usable doc id/),
       expect.stringMatching(/missing/),
@@ -71,18 +62,18 @@ describe("readPositionGrants", () => {
     ]);
     // Ids, never the doc — and bounded, because Cloud Logging drops an over-large entry
     // whole and isSafeDocId tolerates 1500 bytes.
-    await readPositionGrants(db, "x".repeat(1501));
-    const [, meta] = spy.mock.calls[4];
-    expect(String((meta as { cargoId: string }).cargoId).length).toBeLessThanOrEqual(65);
+    await readPositionGrants(db, "x".repeat(1501), log);
+    expect(String(logged[4].meta.cargoId).length).toBeLessThanOrEqual(65);
   });
 
   it("stays quiet on the paths that resolve", async () => {
     // The paired negative: a well-formed cargo — grant-bearing or grant-free — is the routine
     // case on every member write, and logging it would drown the anomalies above.
+    const logged: string[] = [];
     const db = fakeDb({ "positions/p1": { grants: ["Admin"] }, "positions/p2": {} });
-    await readPositionGrants(db, "p1");
-    await readPositionGrants(db, "p2");
-    expect(console.error).not.toHaveBeenCalled();
+    await readPositionGrants(db, "p1", (message) => logged.push(message));
+    await readPositionGrants(db, "p2", (message) => logged.push(message));
+    expect(logged).toEqual([]);
   });
 
   it("BLOCKING: returns null instead of THROWING on a non-array grants field", async () => {

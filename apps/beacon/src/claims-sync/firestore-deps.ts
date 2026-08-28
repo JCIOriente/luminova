@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { isValidRole, type Role } from "@luminova/auth/roles";
 import { isValidPermissionCode, type PermissionCode } from "@luminova/types/permission";
 import { chunk } from "../chunk.js";
-import { isSafeDocId, truncateForLog } from "../firestore-util.js";
+import { isSafeDocId, truncateForLog, type LogSink } from "../firestore-util.js";
 import { readPositionGrants } from "../read-position-grants.js";
 import { isActiveRoleDoc, permsFromRoleDoc } from "./role-doc.js";
 import type { LiveBuiltInRoleDoc } from "./resolve-member-perms.js";
@@ -27,7 +27,12 @@ function permsFromClaims(
  *  `roleIds` is Admin-writable with no size or length cap in rules, so serializing every
  *  rejected entry lets one junk-filled member doc exceed Cloud Logging's 256 KB per-entry
  *  limit — the entry is then DROPPED, making the anomaly invisible at exactly the scale
- *  that matters. The count is the alertable signal; the sample is for diagnosis. */
+ *  that matters. The count is the alertable signal; the sample is for diagnosis.
+ *
+ *  REACH: this bounds an ALL-STRINGS array carrying an id `isSafeDocId` rejects, and nothing
+ *  else. A junk-FILLED `roleIds` (any non-string entry) never arrives — `parseMember` replaces
+ *  a mixed-type array with `[]` upstream, and reports that drop itself. Do not read the screen
+ *  below as covering both. */
 const REJECTED_ID_SAMPLE = 10;
 
 function sampleRejectedIds(rejected: readonly string[]): string[] {
@@ -181,6 +186,11 @@ export interface FirestoreClaimsDeps extends ClaimsSyncDeps {
   staleBuiltInRoleKeys(): Promise<Role[]>;
 }
 
+/** Exported so the trigger/callable call sites can hand the SAME sink to `parseMember`, which
+ *  runs before any deps instance exists. Defining a second `console.error` wrapper at each of
+ *  those three call sites would be the copy this repo's guardrail #1 forbids. */
+export const logError: LogSink = (message, meta) => console.error(message, meta);
+
 export function firestoreClaimsDeps(db: Firestore, auth: Auth): FirestoreClaimsDeps {
   const userCache = new Map<string, Promise<UserRecord | null>>();
   function loadUser(uid: string): Promise<UserRecord | null> {
@@ -275,7 +285,7 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): FirestoreClaimsD
       // the port-independent gate the test fakes inherit), but readPositionGrants screens
       // again at the site where an unscreened id becomes a permanent db.doc() throw, so this
       // does not rely on its caller.
-      const grants = await readPositionGrants(db, id);
+      const grants = await readPositionGrants(db, id, logError);
       return grants === null ? null : { grants };
     },
     getAssignerClaims: async (uid) => {
@@ -341,6 +351,9 @@ export function firestoreClaimsDeps(db: Firestore, auth: Auth): FirestoreClaimsD
     setClaims: async (uid, next) => {
       await auth.setCustomUserClaims(uid, next);
     },
-    logError: (message, meta) => console.error(message, meta),
+    logError,
+    // Cloud Logging maps console.warn to WARNING, which is the point: the designed refusals
+    // must not share a severity with the malformed-doc screens an operator has to act on.
+    logWarn: (message, meta) => console.warn(message, meta),
   };
 }

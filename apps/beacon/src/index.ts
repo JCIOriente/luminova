@@ -28,7 +28,7 @@ import {
   PUBLIC_PROFILE_DEFAULT,
 } from "./showcase/default-public-profile.js";
 import type { ShowcasePerson } from "@luminova/types/engine";
-import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
+import { firestoreClaimsDeps, logError } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
 import { roleClaimsChanged } from "./claims-sync/role-change.js";
 import { builtInKeyFromRoleDoc } from "./claims-sync/role-doc.js";
@@ -229,7 +229,7 @@ export const onActivityWritten = onDocumentWritten("activities/{id}", async (eve
 export const onMemberWritten = onDocumentWritten("members/{id}", async (event) => {
   const after = event.data?.after;
   if (!after?.exists) return; // deletes leave the Auth user untouched
-  const member = parseMember(after.data());
+  const member = parseMember(after.data(), { memberId: event.params.id, logError });
   if (!member.uid) return; // not provisioned → no Auth user to claim
   await syncMemberClaims(firestoreClaimsDeps(db(), getAuth()), member, currentTermKey());
 });
@@ -313,7 +313,7 @@ export const onRoleWritten = onDocumentWritten(
     let scanned = 0;
     let failed = 0;
     for (const doc of docs) {
-      const member = parseMember(doc.data());
+      const member = parseMember(doc.data(), { memberId: doc.id, logError });
       if (!member.uid) continue;
       scanned += 1;
       try {

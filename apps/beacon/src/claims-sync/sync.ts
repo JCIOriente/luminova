@@ -1,7 +1,7 @@
 import type { Role } from "@luminova/auth/roles";
 import type { TermPositions, PermissionCode } from "@luminova/types";
 import { PERMISSION_CAP } from "@luminova/types/permission";
-import { isSafeDocId, truncateForLog } from "../firestore-util.js";
+import { isSafeDocId, truncateForLog, type LogSink } from "../firestore-util.js";
 import { computeMemberRoles } from "./compute-roles.js";
 import { resolveMemberPerms, type RolePermsDeps } from "./resolve-member-perms.js";
 
@@ -23,8 +23,16 @@ export interface ClaimsSyncDeps extends RolePermsDeps {
   /** The target member's existing custom claims. */
   getExistingClaims(uid: string): Promise<{ roles: Role[]; perms?: PermissionCode[] }>;
   setClaims(uid: string, claims: MemberClaims): Promise<void>;
-  /** Structured error sink (defaults to console.error in the Firestore impl). */
-  logError?(message: string, meta: Record<string, unknown>): void;
+  /** Malformed input the rules allow but this code cannot use — someone must edit the doc.
+   *  Defaults to console.error in the Firestore impl. */
+  logError?: LogSink;
+  /** Outcomes that are working as designed but leave a member without claims they look like
+   *  they should have — a refused trust gate, a perms-cap breach. Separated from `logError`
+   *  because both are steady-state: `onMemberWritten` fires on ANY member write (awardPoints
+   *  mirrors `totalPoints` on every check-in) and this runs before the idempotency
+   *  short-circuit, so one seat in that state would emit an ERROR per write forever and train
+   *  the operator to filter the sink out. Defaults to console.warn (Cloud Logging: WARNING). */
+  logWarn?: LogSink;
 }
 
 type MemberLike = {
@@ -139,16 +147,24 @@ async function resolveTrustedGrants(
   // is not a path segment ("/" and reserved forms are legal in one), and the 128-char cap
   // isSafeDocId lacks is the half that actually bites here. Untrusted shape → no grants.
   if (typeof assignedBy !== "string" || assignedBy.length === 0 || assignedBy.length > 128) {
-    // Same silence as the cargoId screen above, and it bites harder: this branch is reached
-    // ONLY on a power-granting cargo, i.e. exactly the members whose missing claims matter.
-    // A legacy doc with no `assignedBy` lands here too and is logged on purpose — a seat that
-    // confers power with no attribution is the anomaly, not the routine case.
-    deps.logError?.("claims-sync: assignedBy is not a usable uid — minting no cargo grants", {
-      uid: memberUid,
-      cargoId,
-      assignedByType: typeof assignedBy,
-      assignedByLength: typeof assignedBy === "string" ? assignedBy.length : null,
-    });
+    // Reached ONLY on a power-granting cargo, i.e. exactly the members whose missing claims
+    // matter. Split by severity for the same reason the designed refusal is a warning: an
+    // ABSENT assignedBy is a legacy doc shape that predates the field, steady-state, and
+    // re-emitted on every write to that member forever; a present-but-malformed one is
+    // corruption a person must go edit.
+    const legacyMissing = assignedBy === undefined || assignedBy === null;
+    const sink = legacyMissing ? deps.logWarn : deps.logError;
+    sink?.(
+      legacyMissing
+        ? "claims-sync: power seat has no assignedBy — minting no cargo grants"
+        : "claims-sync: assignedBy is not a usable uid — minting no cargo grants",
+      {
+        uid: memberUid,
+        cargoId: truncateForLog(cargoId),
+        assignedByType: typeof assignedBy,
+        assignedByLength: typeof assignedBy === "string" ? assignedBy.length : null,
+      },
+    );
     return [];
   }
   const assigner = await deps.getAssignerClaims(assignedBy);
@@ -161,15 +177,14 @@ async function resolveTrustedGrants(
       ? assignerIsAdmin
       : assignerIsAdmin || assigner.perms.includes("update:BoardSeat");
   if (!trusted) {
-    // The DESIGNED refusal, not a malformed-input one — and the likeliest real cause of the
-    // support question this feature will generate: "they're on the Directiva with no
-    // permissions". It is reached on an ordinary delegate path (an Admin-granting cargo, or a
-    // self-assignment) and on a stale one (the assigner has since lost update:BoardSeat), and
-    // the outcome is identical either way. The client warns before the click, but nothing
-    // server-side said which of the two happened, or that anything happened at all.
-    deps.logError?.("claims-sync: cargo grants NOT minted — assigner is not trusted for them", {
+    // WARN, not ERROR: the DESIGNED refusal, reached on an ordinary delegate path (an
+    // Admin-granting cargo, or a self-assignment) and on a stale one (the assigner has since
+    // lost update:BoardSeat). Still logged, because it is the likeliest real cause of the
+    // support question this feature will generate — "they're on the Directiva with no
+    // permissions" — and nothing server-side said which of the two happened.
+    deps.logWarn?.("claims-sync: cargo grants NOT minted — assigner is not trusted for them", {
       uid: memberUid,
-      cargoId,
+      cargoId: truncateForLog(cargoId),
       selfAssigned,
       grantsAdmin: position.grants.includes("Admin"),
       assignerIsAdmin,
@@ -225,10 +240,12 @@ export async function syncMemberClaims(
     // keep a stale grant while dropping a revoke). We still write the recomputed
     // `roles` + empty `perms` so a concurrent role revocation always lands —
     // never leave the member on stale, possibly-elevated claims.
-    // Note for update:BoardSeat holders: this takes their delegation with it, silently. A
-    // delegate over the cap keeps seating (their cached token still passes the rules) while
-    // this function stops honoring the grants — the seat publishes, no claim is minted.
-    deps.logError?.("effective perms exceed cap; writing empty perms (fail-closed)", {
+    // WARN for the same reason as the trust gate above: an expected ceiling, not malformed
+    // input, and it persists across every write to that member. Note for update:BoardSeat
+    // holders: this takes their delegation with it. A delegate over the cap keeps seating
+    // (their cached token still passes the rules) while this function stops honoring the
+    // grants — the seat publishes, no claim is minted.
+    deps.logWarn?.("effective perms exceed cap; writing empty perms (fail-closed)", {
       uid: member.uid,
       count: perms.length,
       cap: PERMISSION_CAP,

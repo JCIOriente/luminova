@@ -102,6 +102,32 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// Both sinks are OPTIONAL on ClaimsSyncDeps, so their presence in production rests entirely on
+// this factory — an omission would compile, pass every unit test (the fakes supply their own),
+// and silently drop the very lines the fail-closed screens were instrumented to emit. Pin that
+// the real factory wires both, and that they are distinct: routing the designed refusal back
+// into the error stream is the mistake the severity split exists to prevent.
+describe("firestoreClaimsDeps log sinks", () => {
+  it("BLOCKING: supplies BOTH logError and logWarn, and they are not the same sink", () => {
+    const deps = firestoreClaimsDeps({} as unknown as Firestore, {} as unknown as Auth);
+    expect(typeof deps.logError).toBe("function");
+    expect(typeof deps.logWarn).toBe("function");
+    expect(deps.logWarn).not.toBe(deps.logError);
+  });
+
+  it("routes them to console.warn and console.error respectively", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const deps = firestoreClaimsDeps({} as unknown as Firestore, {} as unknown as Auth);
+    deps.logWarn?.("w", { a: 1 });
+    deps.logError?.("e", { b: 2 });
+    expect(warn).toHaveBeenCalledWith("w", { a: 1 });
+    expect(error).toHaveBeenCalledWith("e", { b: 2 });
+    warn.mockRestore();
+    error.mockRestore();
+  });
+});
+
 describe("getRoleDocsByBuiltInKeys coverage anomalies", () => {
   it("logs nothing for a well-formed built-in doc", async () => {
     const errors = captureErrors();

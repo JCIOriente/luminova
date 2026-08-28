@@ -1,7 +1,10 @@
 import type { Auth } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
 import { readPositionGrants } from "./read-position-grants.js";
+import type { LogSink } from "./firestore-util.js";
 import type { ProvisionDeps } from "./provision-member-login.js";
+
+const logError: LogSink = (message, meta) => console.error(message, meta);
 
 // Null only for the "account does not exist" outcome — a transient Auth error
 // must propagate, not read as deleted (the relink guard trusts that contract).
@@ -32,6 +35,6 @@ export function firestoreProvisionDeps(db: Firestore, auth: Auth): ProvisionDeps
       await db.doc(`members/${id}`).update({ uid });
     },
     passwordResetLink: (email) => auth.generatePasswordResetLink(email),
-    getPositionGrants: (cargoId) => readPositionGrants(db, cargoId),
+    getPositionGrants: (cargoId) => readPositionGrants(db, cargoId, logError),
   };
 }
