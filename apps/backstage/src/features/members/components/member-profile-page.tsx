@@ -1,5 +1,5 @@
 import { Link, getRouteApi } from "@tanstack/react-router";
-import { lazy, Suspense, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Badge, Button, Card, Dialog, type BadgeTone } from "@luminova/ui";
 import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
 import { ActionGate } from "../../../lib/authz/action-gate";
@@ -16,7 +16,6 @@ import { useActivitiesByTerm } from "../../activities/hooks/use-activities-by-te
 import { useInitiativesByTerm } from "../../initiatives/hooks/use-initiatives-by-term";
 import { summarizeParticipations } from "../lib/participation-summary";
 import { pointsRank } from "../../../lib/points-rank";
-import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
 import { useProvisionMemberLogin } from "../hooks/use-provision-member-login";
 import { useUpdateMember } from "../hooks/use-update-member";
 import { useSetMemberPositions } from "../hooks/use-set-member-positions";
@@ -58,7 +57,11 @@ export function MemberProfilePage() {
   const gate = useCan();
   const uid = useAuth().user?.uid;
   const { data: member, isLoading, isError, error, refetch } = useMember(memberId);
-  const { data: positions } = usePositions();
+  // isError, not just data: `memberProvisionBlocked` fails CLOSED on an unresolvable cargo, so
+  // a failed catalog query (a rules regression, permission-denied — which TanStack does not
+  // retry) silently removes the invite affordance from every seated member with nothing said.
+  // Guardrail #3: loading, error and absent are three states, and only one of them is "wait".
+  const { data: positions, isError: positionsFailed } = usePositions();
   const { data: points } = useMemberPoints(memberId, termId);
   const { data: participations } = useMemberParticipations(memberId, termId);
   const { data: allPoints } = useMemberPointsByTerm(termId);
@@ -147,15 +150,24 @@ export function MemberProfilePage() {
                 enviar el correo" state mid-flight — deleting, for a delegate, the only notice
                 that the account exists with no password mail sent. */}
             <ActionGate when={gate.canProvisionLogin}>
-              {/* key: the mount gate used to be `!inviteBlocked`, which ALSO happened to reset
-                  this component between members. It no longer does, and TanStack Router renders
-                  the same MemberProfilePage instance across a /members/A → /members/B
-                  navigation (no key on Match), while `isLoading` skips the unmount whenever B is
-                  warm in cache. Without this, B's header shows A's "Invitación enviada" — and if
-                  the dialog was left open, A's password-reset link, a bearer credential, one
-                  click from being copied on B's page. Stable across the refetch that sets
-                  member.uid, so it does not reintroduce the flip-erases-its-own-result bug. */}
-              <InviteAccess key={member.id} member={member} blocked={inviteBlocked} />
+              {/* An Admin is subject to none of the refusals `inviteBlocked` mirrors, so the
+                  failed catalog cannot mislead them. For everyone else it decides the
+                  affordance, and "we could not check" must not render as "not allowed". */}
+              {positionsFailed && !gate.isAdmin ? (
+                <p role="alert" className="basis-full text-right text-ui-xs text-error">
+                  No se pudo cargar el catálogo de cargos, así que no podemos verificar si este
+                  miembro puede recibir acceso. Recarga la página.
+                </p>
+              ) : (
+                /* key: the mount gate used to be `!inviteBlocked`, which ALSO happened to reset
+                   this component between members. It no longer does, and TanStack Router renders
+                   the same MemberProfilePage instance across a /members/A → /members/B
+                   navigation (no key on Match), while `isLoading` skips the unmount whenever B
+                   is warm in cache. Without this, B's header shows A's "Invitación enviada".
+                   Stable across the refetch that sets member.uid, so it does not reintroduce
+                   the flip-erases-its-own-result bug. */
+                <InviteAccess key={member.id} member={member} blocked={inviteBlocked} />
+              )}
             </ActionGate>
           </div>
         }
@@ -165,7 +177,13 @@ export function MemberProfilePage() {
         <div className="flex flex-col gap-6">
           {positions && canEdit && (
             <Card as="section">
+              {/* key, for the same reason as InviteAccess above and MemberDrawer's copy: RHF
+                  reads `defaultValues` once at mount, and this page is NOT remounted across a
+                  /members/A → /members/B param change when B is warm in cache. Without it the
+                  form keeps A's name/email/status while `member.id` and `handleEdit` have moved
+                  to B — «Guardar cambios» then writes A's identity onto B's document. */}
               <MemberForm
+                key={member.id}
                 positions={positions}
                 defaultValues={memberFormDefaults(member)}
                 submitLabel="Guardar cambios"
@@ -177,6 +195,18 @@ export function MemberProfilePage() {
                 onSubmit={handleEdit}
                 avatarSeed={member.name}
               />
+            </Card>
+          )}
+
+          {/* Both editors below are gated on `positions` being present. Without this an editor
+              whose catalog query FAILED gets a page with no form and no explanation — the
+              absent/error conflation guardrail #3 names. */}
+          {positionsFailed && (canEdit || showPositionsOnly) && (
+            <Card as="section">
+              <p role="alert" className="text-ui-sm text-error">
+                No se pudo cargar el catálogo de cargos, así que el formulario no está disponible.
+                Recarga la página.
+              </p>
             </Card>
           )}
 
@@ -198,7 +228,10 @@ export function MemberProfilePage() {
               <h2 className="mb-4 text-ui-xs font-medium tracking-[0.02em] text-ink-3 uppercase">
                 Cargos
               </h2>
+              {/* Same reason as MemberForm above: without the key this form would save A's
+                  cargo and comisiones onto B. */}
               <MemberPositionsForm
+                key={member.id}
                 positions={positions}
                 gender={member.gender}
                 allowPowerGrants={gate.canAssignBoardSeat}
@@ -253,71 +286,49 @@ export function MemberProfilePage() {
 }
 
 function InviteAccess({ member, blocked }: { member: Member; blocked: boolean }) {
+  // Provisioning AND the reset mail are one mutation (use-provision-member-login): a mail sent
+  // from a component-scoped onSuccess is dropped whenever this component is gone by the time
+  // the callable resolves, which `key={member.id}` above makes reachable by merely switching
+  // members. So there is no floating promise left to interleave, and no attempt counter: the
+  // mutation's own state IS the latest attempt.
   const provision = useProvisionMemberLogin();
-  const [link, setLink] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // The MAIL is a floating promise the mutation does not track. Without this the button
-  // re-enables the instant the callable resolves, so a second click can interleave: attempt
-  // one's mail resolves and sets `sent` while attempt two's rejects and sets `error`, leaving
-  // the header claiming both — or, worse ordering, a real failure overwritten by a stale
-  // success. `attempt` makes every late setter check that it is still the current one.
-  const [sending, setSending] = useState(false);
-  const attempt = useRef(0);
+  const [dismissed, setDismissed] = useState(false);
   const { copyState, copy, resetCopyState } = useCopyToClipboard();
   const label = member.uid ? "Reenviar acceso" : "Invitar acceso";
-  const pending = provision.isPending || sending;
+  const result = provision.data;
+  // Only present when the mail did NOT go out — the hook nulls it otherwise, because sending
+  // the mail invalidates this oobCode. See InviteResult.fallbackLink.
+  const link = result?.fallbackLink ?? null;
+  const error = provision.isError
+    ? provisionErrorMessage(provision.error, "No se pudo generar el acceso.")
+    : result && !result.emailSent
+      ? "Se creó el acceso, pero no se pudo enviar el correo. " +
+        (result.fallbackLink
+          ? "Comparte el enlace manualmente."
+          : "Pídele a un administrador que lo reenvíe.")
+      : null;
 
-  // The reset MAIL is the delivery path for every new login, board member or not, Admin caller
-  // or delegate — it is `sendPasswordResetEmail`, which hands the secret to the mailbox owner.
-  // The action link beacon returns to an Admin (and withholds from a delegate, being a bearer
-  // credential for the account) is the manual FALLBACK on top, not a substitute: returning it
-  // used to short-circuit the mail, so this was the one surface where an Admin's invite sent
-  // nothing and the member waited for a mail that never came.
   const invite = () => {
-    const mine = ++attempt.current;
-    const current = () => attempt.current === mine;
-    setError(null);
-    setSent(false);
-    setLink(null);
+    setDismissed(false);
     resetCopyState();
-    setSending(true);
-    provision.mutate(member.id, {
-      onSuccess: (result) => {
-        if (current() && result.actionLink) setLink(result.actionLink);
-        void requestPasswordReset(result.email)
-          .then(() => {
-            if (current()) setSent(true);
-          })
-          .catch((err: unknown) => {
-            console.error("No se pudo enviar el correo de acceso", err);
-            if (!current()) return;
-            setError(
-              result.actionLink
-                ? "Se creó el acceso, pero no se pudo enviar el correo. Comparte el enlace manualmente."
-                : "Se creó el acceso, pero no se pudo enviar el correo. Pídele a un administrador que lo reenvíe.",
-            );
-          })
-          .finally(() => {
-            if (current()) setSending(false);
-          });
-      },
-      onError: (err) => {
-        if (!current()) return;
-        setSending(false);
-        setError(provisionErrorMessage(err, "No se pudo generar el acceso."));
-      },
-    });
+    provision.mutate(member.id);
   };
 
   return (
     <>
       {/* The BUTTON goes away when the callable would refuse; the feedback below does not.
-          `blocked` becomes true the moment this invite succeeds (the member now has a uid),
-          so gating the whole component on it would erase the result of the click that set it. */}
+          `blocked` becomes true the moment this invite succeeds (the member now has a uid and
+          the hook invalidates the query), so gating the whole component on it would erase the
+          result of the click that set it. */}
       {!blocked && (
-        <Button as="button" type="button" variant="secondary" disabled={pending} onClick={invite}>
-          {pending ? "Generando…" : label}
+        <Button
+          as="button"
+          type="button"
+          variant="secondary"
+          disabled={provision.isPending}
+          onClick={invite}
+        >
+          {provision.isPending ? "Generando…" : label}
         </Button>
       )}
       {error && (
@@ -325,37 +336,26 @@ function InviteAccess({ member, blocked }: { member: Member; blocked: boolean })
           {error}
         </p>
       )}
-      {sent && (
+      {result?.emailSent && (
         <p role="status" className="basis-full text-right text-ui-xs text-ink-3">
           Invitación enviada por correo.
         </p>
       )}
-      {/* `open` is not separate state: it was only ever set alongside `link`, and keeping the
-          two in sync by hand is what left `link` out of invite()'s reset. */}
       <Dialog
-        open={link !== null}
+        open={link !== null && !dismissed}
         onOpenChange={(o) => {
-          if (!o) setLink(null);
+          if (!o) setDismissed(true);
         }}
         title="Acceso de miembro"
       >
         <div className="flex flex-col gap-3">
-          {/* The dialog opens as soon as the link arrives, before the reset mail settles, so
-              its copy has to track that outcome. A fixed "ya le enviamos el correo" reads as a
-              flat contradiction of the failure alert behind it — and worse, the modal's
-              aria-hidden takes that alert out of the accessibility tree, so a screen-reader
-              user would hear ONLY the false sentence. For the same reason the mail FAILURE is
-              repeated inside the dialog rather than left to the header alert. */}
+          {/* This dialog exists ONLY on the mail-failure branch, so it never claims the member
+              was emailed. The mail failure is repeated here rather than left to the header
+              alert: the modal's aria-hidden takes that alert out of the accessibility tree. */}
           <p className="text-ui-sm text-ink-2">
-            {sent
-              ? "Ya le enviamos el correo para crear su contraseña. Si no le llega, comparte este enlace con el miembro."
-              : "Comparte este enlace con el miembro para que cree su contraseña e inicie sesión."}
+            No se pudo enviar el correo. Comparte este enlace con el miembro para que cree su
+            contraseña e inicie sesión.
           </p>
-          {error && (
-            <p role="alert" className="text-ui-xs text-error">
-              {error}
-            </p>
-          )}
           <code className="block w-full overflow-x-auto rounded-[8px] bg-ink-1/[0.04] px-3 py-2 text-ui-xs text-ink-2">
             {link}
           </code>

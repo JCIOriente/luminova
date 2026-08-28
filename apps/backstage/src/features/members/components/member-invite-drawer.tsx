@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Checkbox, Sheet } from "@luminova/ui";
 import { type MemberInput, type Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
 import { actionMessage } from "../lib/member-display";
-import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
+import type { InviteResult } from "../hooks/use-provision-member-login";
 import { draftProvisionBlocked } from "../lib/provision-gate";
 import { provisionRefusalMessage } from "../lib/provision-error";
 import { useCopyToClipboard } from "../../../lib/use-copy-to-clipboard";
@@ -14,7 +14,7 @@ interface MemberInviteDrawerProps {
   positions: Position[];
   onClose: () => void;
   onCreate: (data: MemberInput) => Promise<string>;
-  onProvision: (memberId: string) => Promise<{ email: string; actionLink: string }>;
+  onProvision: (memberId: string) => Promise<InviteResult>;
 }
 
 interface DoneState {
@@ -68,7 +68,14 @@ export function MemberInviteDrawer({
     if (open) setSendAccess(canProvisionLogin);
   }, [open, canProvisionLogin]);
 
+  // Bumped by every submit AND by every reset, so a submit that is still in flight when the
+  // operator dismisses the Sheet (the X, Escape, the overlay — only the submit BUTTON is
+  // disabled while sending) cannot land its done screen afterwards. Without it, reopening
+  // «Invitar miembro» showed the previous member's done screen, action link included.
+  const attempt = useRef(0);
+
   const reset = () => {
+    attempt.current += 1;
     setDone(null);
     setSendAccess(canProvisionLogin);
     resetCopyState();
@@ -80,6 +87,8 @@ export function MemberInviteDrawer({
   };
 
   const handleSubmit = async (data: MemberInput) => {
+    const mine = attempt.current + 1;
+    attempt.current = mine;
     const id = await onCreate(data);
     let provisioned = false;
     let emailSent = false;
@@ -108,16 +117,14 @@ export function MemberInviteDrawer({
       // would invite a duplicate-create retry. Surface the real cause (App Check,
       // quota, config) instead of swallowing it — this is the only diagnostic we get.
       try {
+        // The mail is part of onProvision (use-provision-member-login), not a second step this
+        // component arranges: doing it here left one caller able to provision without mailing,
+        // and the action link is only valid when the mail did NOT go out.
         const result = await onProvision(id);
         provisioned = true;
-        actionLink = result.actionLink || null;
-        try {
-          await requestPasswordReset(data.email);
-          emailSent = true;
-        } catch (err) {
-          console.error("No se pudo enviar el correo de acceso", err);
-          errorDetail = err instanceof Error ? err.message : String(err);
-        }
+        emailSent = result.emailSent;
+        actionLink = result.fallbackLink;
+        errorDetail = result.mailError;
       } catch (err) {
         console.error("No se pudo aprovisionar el acceso del miembro", err);
         // A deliberate refusal becomes the headline; anything else keeps its raw message as
@@ -128,6 +135,9 @@ export function MemberInviteDrawer({
         }
       }
     }
+    // Closed or reset while this was in flight — the member IS created either way (the toast
+    // on the page behind reports that), but this drawer no longer owns the screen.
+    if (attempt.current !== mine) return;
     setDone({
       blockedByCargo: sendAccess && provisionBlocked,
       provisionBlocked,
@@ -235,6 +245,9 @@ export function MemberInviteDrawer({
           allowPowerGrants={canAssignBoardSeat}
           allowReplacePowerCargo={isAdmin}
           assignerIsAdmin={isAdmin}
+          // A member being CREATED is never the caller: the create lane forbids `uid` to a
+          // non-Admin, so no seat written here can be the author's own.
+          isSelfAssignment={false}
           defaultValues={{ joinDate: today(), status: "Activo", cargoId: null, comisionIds: [] }}
           onSubmit={handleSubmit}
         >

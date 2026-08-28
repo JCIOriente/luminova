@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactElement, ReactNode } from "react";
 import type { Position } from "@luminova/types";
+import type { AuthClaims } from "@luminova/auth/roles";
+import type { InviteResult } from "../hooks/use-provision-member-login";
 import { MemberInviteDrawer } from "./member-invite-drawer";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
 import { pickDate } from "../../../test/pick-date";
@@ -29,23 +31,39 @@ const powerCargoCatalog: Position[] = [
 // available, and parameterize for the delegation cases below.
 function renderWithAbility(
   ui: ReactElement,
-  claims: { roles: string[]; perms?: string[] } = { roles: ["Admin"], perms: ["manage:all"] },
+  // AuthClaims, not `{ roles: string[]; perms?: string[] }` + `as never`. This file's whole
+  // subject is EXACT-permission-code gating, and free strings made every negative fixture
+  // vacuous: a typo'd or renamed code silently leaves the principal with no perms at all, so
+  // "hides it from a manage:all holder" would pass because the caller is unprivileged rather
+  // than because the exact-code gate works.
+  claims: AuthClaims = { roles: ["Admin"], perms: ["manage:all"] } as AuthClaims,
 ) {
   return render(ui, {
     wrapper: ({ children }: { children: ReactNode }) => (
-      <AbilityProvider claims={claims as never} uid="admin">
+      <AbilityProvider claims={claims} uid="admin">
         {children}
       </AbilityProvider>
     ),
   });
 }
 
-vi.mock("../../../lib/auth/request-password-reset", () => ({
-  requestPasswordReset: vi.fn().mockResolvedValue(undefined),
-}));
-
-import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
-const mockedRequestPasswordReset = vi.mocked(requestPasswordReset);
+/** The two invite outcomes, as `useProvisionMemberLogin` reports them. The MAIL is sent inside
+ *  that hook now (a component-scoped onSuccess was dropped whenever the caller unmounted first),
+ *  so this drawer never calls `requestPasswordReset` and the fixtures say what happened instead
+ *  of mocking the mail module. `fallbackLink` is non-null ONLY on the failure branch: the mail,
+ *  when it goes out, invalidates the oobCode the link carries. */
+const mailed = (email: string): InviteResult => ({
+  email,
+  emailSent: true,
+  fallbackLink: null,
+  mailError: null,
+});
+const mailFailed = (email: string, link: string | null): InviteResult => ({
+  email,
+  emailSent: false,
+  fallbackLink: link,
+  mailError: "network error",
+});
 
 async function fill() {
   fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: "Ana Gómez" } });
@@ -57,7 +75,6 @@ async function fill() {
 describe("MemberInviteDrawer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedRequestPasswordReset.mockResolvedValue(undefined);
   });
 
   it("blocks submit and stays on the form when required fields are empty", async () => {
@@ -68,7 +85,7 @@ describe("MemberInviteDrawer", () => {
         positions={[]}
         onClose={() => {}}
         onCreate={onCreate}
-        onProvision={async () => ({ email: "", actionLink: "" })}
+        onProvision={async () => mailed("")}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
@@ -80,9 +97,7 @@ describe("MemberInviteDrawer", () => {
 
   it("creates the member then provisions login when access is checked, reaching done", async () => {
     const onCreate = vi.fn().mockResolvedValue("new-id");
-    const onProvision = vi
-      .fn()
-      .mockResolvedValue({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
+    const onProvision = vi.fn().mockResolvedValue(mailed("ana@jci.bo"));
     renderWithAbility(
       <MemberInviteDrawer
         open
@@ -97,15 +112,12 @@ describe("MemberInviteDrawer", () => {
     await waitFor(() => expect(screen.getByText("Ana Gómez fue agregada")).toBeInTheDocument());
     expect(onCreate).toHaveBeenCalledTimes(1);
     expect(onProvision).toHaveBeenCalledWith("new-id");
-    expect(mockedRequestPasswordReset).toHaveBeenCalledWith("ana@jci.bo");
     expect(screen.getByText(/Invitación enviada a ana@jci\.bo/)).toBeInTheDocument();
     expect(screen.getByText(/recibirá un correo/i)).toBeInTheDocument();
   });
 
   it("skips provisioning when access is unchecked", async () => {
-    const onProvision = vi
-      .fn()
-      .mockResolvedValue({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
+    const onProvision = vi.fn().mockResolvedValue(mailed("ana@jci.bo"));
     renderWithAbility(
       <MemberInviteDrawer
         open
@@ -120,18 +132,17 @@ describe("MemberInviteDrawer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
     await waitFor(() => expect(screen.getByText("Ana Gómez fue agregada")).toBeInTheDocument());
     expect(onProvision).not.toHaveBeenCalled();
-    expect(mockedRequestPasswordReset).not.toHaveBeenCalled();
     expect(screen.getByText(/Aún no tiene acceso/)).toBeInTheDocument();
   });
 
-  it("shows email-sent copy when requestPasswordReset resolves", async () => {
+  it("shows email-sent copy when the invite reports the mail went out", async () => {
     renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}
         onClose={() => {}}
         onCreate={async () => "id3"}
-        onProvision={async () => ({ email: "ana@jci.bo", actionLink: "https://example.com/link" })}
+        onProvision={async () => mailed("ana@jci.bo")}
       />,
     );
     await fill();
@@ -143,18 +154,14 @@ describe("MemberInviteDrawer", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("shows warning and copy-link button when requestPasswordReset rejects", async () => {
-    mockedRequestPasswordReset.mockRejectedValue(new Error("network error"));
+  it("shows warning and copy-link button when the invite reports the mail failed", async () => {
     renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}
         onClose={() => {}}
         onCreate={async () => "id4"}
-        onProvision={async () => ({
-          email: "ana@jci.bo",
-          actionLink: "https://example.com/action-link",
-        })}
+        onProvision={async () => mailFailed("ana@jci.bo", "https://example.com/action-link")}
       />,
     );
     await fill();
@@ -172,17 +179,13 @@ describe("MemberInviteDrawer", () => {
   // `.catch()` never ran, `copyState` never became "failed", and the select-all `<code>` that
   // exists precisely for this never rendered. Routed through useCopyToClipboard now.
   it("BLOCKING: falls back to a selectable link when the clipboard API is unavailable", async () => {
-    mockedRequestPasswordReset.mockRejectedValue(new Error("network error"));
     renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}
         onClose={() => {}}
         onCreate={async () => "idClip"}
-        onProvision={async () => ({
-          email: "ana@jci.bo",
-          actionLink: "https://example.com/action-link",
-        })}
+        onProvision={async () => mailFailed("ana@jci.bo", "https://example.com/action-link")}
       />,
     );
     await fill();
@@ -195,9 +198,7 @@ describe("MemberInviteDrawer", () => {
 
   // --- create:MemberLogin delegation ---
 
-  const drawer = (
-    onProvision = vi.fn().mockResolvedValue({ email: "a@b.co", actionLink: "l" }),
-  ) => ({
+  const drawer = (onProvision = vi.fn().mockResolvedValue(mailed("a@b.co"))) => ({
     node: (
       <MemberInviteDrawer
         open
@@ -275,9 +276,7 @@ describe("MemberInviteDrawer", () => {
   // inviting a board member would be told "solo un administrador puede enviarle el acceso",
   // self-contradictory copy, suite green.
   it("BLOCKING: an ADMIN inviting a member on a power-granting cargo still provisions", async () => {
-    const onProvision = vi
-      .fn()
-      .mockResolvedValue({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
+    const onProvision = vi.fn().mockResolvedValue(mailed("ana@jci.bo"));
     renderWithAbility(
       <MemberInviteDrawer
         open
@@ -494,16 +493,15 @@ describe("MemberInviteDrawer", () => {
   // beacon withholds the action link from a non-Admin caller (it is a bearer credential for
   // the account), so a delegate whose reset mail then fails has NO manual fallback — the copy
   // must send them to an Admin rather than to a copy button that would copy nothing. Only
-  // reachable as delegate + provision succeeded + requestPasswordReset rejected.
+  // reachable as delegate + provision succeeded + the mail rejected.
   it("BLOCKING: tells a delegate to ask an administrator when there is no action link to share", async () => {
-    mockedRequestPasswordReset.mockRejectedValue(new Error("network error"));
     renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}
         onClose={() => {}}
         onCreate={async () => "idNoLink"}
-        onProvision={async () => ({ email: "ana@jci.bo", actionLink: "" })}
+        onProvision={async () => mailFailed("ana@jci.bo", null)}
       />,
       { roles: ["Member"], perms: ["create:Member", "create:MemberLogin"] },
     );
