@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Auth } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
 import { firestoreClaimsDeps } from "./firestore-deps.js";
+import { truncateForLog } from "../firestore-util.js";
 
 type RoleFixture = { id: string; data: Record<string, unknown> };
 
@@ -70,6 +71,21 @@ function fakeDb(fixtures: RoleFixture[]) {
 /** Cast, not a fabricated Auth: every dep exercised here is a pure Firestore read. */
 const auth = {} as Auth;
 
+/** An Auth stub narrow enough to drive `auth.getUser(uid)` — the only Auth surface the claims
+ *  accessors reach. The cast is test-only and justified: UserRecord carries a dozen fields
+ *  (metadata, providerData, toJSON) that nothing under test reads, and fabricating them would
+ *  assert nothing. A missing uid throws the real `auth/user-not-found` code, because that is
+ *  the ONE error getUserOrNull swallows. */
+function fakeAuth(users: Record<string, { customClaims?: unknown }>): Auth {
+  return {
+    getUser: async (uid: string) => {
+      const user = users[uid];
+      if (!user) throw Object.assign(new Error("user not found"), { code: "auth/user-not-found" });
+      return user;
+    },
+  } as unknown as Auth;
+}
+
 const builtIn = (id: string, key: string, extra: Record<string, unknown> = {}): RoleFixture => ({
   id,
   data: { builtIn: true, builtInKey: key, permissions: ["read:Member"], active: true, ...extra },
@@ -85,6 +101,32 @@ function captureErrors() {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+// Both sinks are OPTIONAL on ClaimsSyncDeps, so their presence in production rests entirely on
+// this factory — an omission would compile, pass every unit test (the fakes supply their own),
+// and silently drop the very lines the fail-closed screens were instrumented to emit. Pin that
+// the real factory wires both, and that they are distinct: routing the designed refusal back
+// into the error stream is the mistake the severity split exists to prevent.
+describe("firestoreClaimsDeps log sinks", () => {
+  it("BLOCKING: supplies BOTH logError and logWarn, and they are not the same sink", () => {
+    const deps = firestoreClaimsDeps({} as unknown as Firestore, {} as unknown as Auth);
+    expect(typeof deps.logError).toBe("function");
+    expect(typeof deps.logWarn).toBe("function");
+    expect(deps.logWarn).not.toBe(deps.logError);
+  });
+
+  it("routes them to console.warn and console.error respectively", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const deps = firestoreClaimsDeps({} as unknown as Firestore, {} as unknown as Auth);
+    deps.logWarn?.("w", { a: 1 });
+    deps.logError?.("e", { b: 2 });
+    expect(warn).toHaveBeenCalledWith("w", { a: 1 });
+    expect(error).toHaveBeenCalledWith("e", { b: 2 });
+    warn.mockRestore();
+    error.mockRestore();
+  });
 });
 
 describe("getRoleDocsByBuiltInKeys coverage anomalies", () => {
@@ -153,6 +195,48 @@ describe("getRoleDocsByBuiltInKeys coverage anomalies", () => {
   });
 });
 
+/** The wire that carries the assigner's claims into resolveTrustedGrants' power-grant trust
+ *  gate. sync.test.ts drives that gate through an in-memory fake, so this is the only place the
+ *  real accessor's filtering is exercised — and a `perms` array that arrived unfiltered would
+ *  hand the gate a junk code to match on. */
+describe("getAssignerClaims", () => {
+  it("BLOCKING: round-trips roles and perms, dropping entries outside the vocabulary", async () => {
+    const { db } = fakeDb([]);
+    const deps = firestoreClaimsDeps(
+      db,
+      fakeAuth({
+        "delegate-uid": {
+          customClaims: {
+            roles: ["Member", "NotARole", 42],
+            perms: ["update:BoardSeat", "nope:Thing", null],
+          },
+        },
+      }),
+    );
+    await expect(deps.getAssignerClaims("delegate-uid")).resolves.toEqual({
+      roles: ["Member"],
+      perms: ["update:BoardSeat"],
+    });
+  });
+
+  it("fails closed to empty claims for an absent, claimless or malformed-claim assigner", async () => {
+    // Unlike getExistingClaims, `perms` is never undefined here: the gate does an `.includes()`
+    // on it, so absence must arrive as an empty array and DENY rather than throw.
+    const { db } = fakeDb([]);
+    const deps = firestoreClaimsDeps(
+      db,
+      fakeAuth({
+        claimless: {},
+        malformed: { customClaims: { roles: "Admin", perms: "update:BoardSeat" } },
+      }),
+    );
+    const empty = { roles: [], perms: [] };
+    await expect(deps.getAssignerClaims("ghost")).resolves.toEqual(empty);
+    await expect(deps.getAssignerClaims("claimless")).resolves.toEqual(empty);
+    await expect(deps.getAssignerClaims("malformed")).resolves.toEqual(empty);
+  });
+});
+
 describe("getRolesByIds id screening", () => {
   const custom = (id: string, extra: Record<string, unknown> = {}): RoleFixture => ({
     id,
@@ -189,15 +273,22 @@ describe("getRolesByIds id screening", () => {
     const { db } = fakeDb([]);
     const junk = Array.from({ length: 10_000 }, (_, i) => `bad/${i}`);
     const longId = `x/${"y".repeat(5_000)}`;
-    expect(await firestoreClaimsDeps(db, auth).getRolesByIds([...junk, longId])).toEqual([]);
+    // FIRST, not last. `sampleRejectedIds` takes `.slice(0, 10)`, so appending the one
+    // oversized id after 10,000 short ones put it outside the sampled window entirely: the
+    // per-entry length assertion below then only ever saw 9-character ids and could not fail.
+    // Deleting `.map(truncateForLog)` left this test green, which is the failure it exists to
+    // catch — a member doc whose FIRST junk roleId is 1,500 bytes serializes raw.
+    expect(await firestoreClaimsDeps(db, auth).getRolesByIds([longId, ...junk])).toEqual([]);
     const meta = errors[0]?.[1] as {
       rejectedCount: number;
       rejectedSample: string[];
     };
     expect(meta.rejectedCount).toBe(10_001);
     expect(meta.rejectedSample).toHaveLength(10);
-    // Every sampled entry is length-capped too, so one enormous id cannot blow the budget
-    // through the sample either.
+    // The oversized id is in the window, and truncated — so one enormous id cannot blow the
+    // budget through the sample either.
+    expect(meta.rejectedSample[0]).toBe(truncateForLog(longId));
+    expect(meta.rejectedSample[0]).toHaveLength(65);
     for (const entry of meta.rejectedSample) expect(entry.length).toBeLessThanOrEqual(65);
     expect(JSON.stringify(meta).length).toBeLessThan(2_000);
   });

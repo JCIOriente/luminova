@@ -14,7 +14,9 @@ import { MemberForm } from "./member-form";
 import { joinYear, memberPositionLabel } from "../lib/member-display";
 import { memberFormDefaults } from "../lib/member-form-defaults";
 import { useMemberPhoto } from "../hooks/use-member-photo";
+import { isSelfMember } from "../lib/member-permissions";
 import { Can } from "../../../lib/authz/ability-context";
+import { useAuth } from "../../../lib/auth/auth";
 import { useCan } from "../../../lib/authz/use-can";
 
 interface MemberDrawerProps {
@@ -136,7 +138,9 @@ function EditBody({
   onSubmit: (data: MemberInput) => Promise<void>;
 }) {
   const { onUpload, onRemove } = useMemberPhoto(member.id);
-  const { canAssignBoardSeat } = useCan();
+  const { canAssignBoardSeat, isAdmin } = useCan();
+  // The table lists the caller's own row too, so this drawer can be a self-assignment.
+  const uid = useAuth().user?.uid;
   return (
     <div className="flex flex-col gap-6">
       <ImageUploader
@@ -151,6 +155,9 @@ function EditBody({
         defaultValues={memberFormDefaults(member)}
         submitLabel="Guardar"
         allowPowerGrants={canAssignBoardSeat}
+        allowReplacePowerCargo={isAdmin}
+        assignerIsAdmin={isAdmin}
+        isSelfAssignment={isSelfMember(member, uid)}
         onSubmit={onSubmit}
       />
     </div>

@@ -16,6 +16,11 @@ interface MultiSelectProps {
   emptyText?: string;
   disabled?: boolean;
   id?: string;
+  /** Id of the element explaining this control — a permission note, a "why is this disabled"
+   *  sentence. Same reason Combobox takes it: those notes sit AFTER the field in the DOM, so a
+   *  screen-reader user reaching a disabled trigger otherwise hears a dead control with no
+   *  explanation and cannot tell a permission ceiling from a broken widget. */
+  "aria-describedby"?: string;
 }
 
 /** Multi-select + search on Radix Popover + cmdk; selected render as removable chips. */
@@ -28,6 +33,7 @@ export function MultiSelect({
   emptyText = "Sin resultados",
   disabled,
   id,
+  "aria-describedby": describedBy,
 }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
   const chosen = selectedOptions(options, value);
@@ -41,6 +47,7 @@ export function MultiSelect({
           disabled={disabled}
           aria-haspopup="listbox"
           aria-expanded={open}
+          aria-describedby={describedBy}
           className={cn(
             fieldControlClasses,
             "flex h-auto min-h-[52px] flex-wrap items-center gap-1.5 px-3 py-[7px] text-left disabled:opacity-60",

@@ -217,10 +217,14 @@ service cloud.firestore {
     //     no Admin: setUserRoles is requireAdmin, and roles/* plus permissionOverrides
     //     writes are all hasAnyRole(['Admin']). The chapter would be unrecoverable outside
     //     the Firebase console. A delegate therefore seats VACANT and grant-free cargos and
-    //     cannot displace a power-cargo holder; hand-over stays an Admin action.
+    //     cannot displace a power-cargo holder; hand-over stays an Admin action. One caveat:
+    //     currentCargoGrantsEmpty() reads positions[currentTermKey()] only, so in the window
+    //     after a UTC-year rollover a sitting Admin's current-term slot is empty and a
+    //     delegate CAN write into it — pre-existing, disclosed in
+    //     docs/specs/board-seat-delegation.md, not something this feature introduced.
     //
     // A non-delegate is unchanged: both conjuncts still bind, so the deliberately
-    // asymmetric grant-free-CEL takedown below still works for an update:Position holder.
+    // asymmetric grant-free-CEL takedown above still works for an update:Position holder.
     function positionsAssignmentSafe() {
       return positionsDelta().hasOnly([currentTermKey()])
         && assignedBySelf()

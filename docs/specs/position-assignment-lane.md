@@ -72,6 +72,18 @@ assignable-only semantic this lane wants. `currentCargoGrantsEmpty()` must stay 
 non-Admin branch: without it an `update:Position` holder could overwrite a president's power
 cargo with a grant-free one and silently strip Admin.
 
+> **Superseded by one disjunct.** `docs/specs/board-seat-delegation.md` (branch
+> `feat/board-seat-delegation`, after this PR) widens the NEW-side cargo conjunct from
+> `cargoAssignableByNonAdmin()` to `boardSeatDelegate() || cargoAssignableByNonAdmin()`
+> (`positionsAssignmentSafe()`, `firestore.rules:228-232`), so the "grant-free cargos only, on
+> BOTH sides of a swap" claim
+> above is no longer complete: an `update:BoardSeat` holder on this lane may now also assign a
+> **power-granting** cargo (CEL or otherwise) to someone else — beacon's claims-sync trust gate
+> honors that assignment too, unless it would mint `Admin` or the assignment is self-seating,
+> both of which stay Admin-role-only. The OLD side, `currentCargoGrantsEmpty()`, is untouched by
+> that branch — a delegate still cannot displace a sitting power-cargo holder. See the spec for
+> the full trust-gate design.
+
 `hasOnly(['positions'])` is the correct constraint for the production dot-path payload
 `{"positions.2026": {...}}` — `affectedKeys()` reports **top-level** keys, pinned by
 `rules.test.ts:2262-2270` and `:1310`.

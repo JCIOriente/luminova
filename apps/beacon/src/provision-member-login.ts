@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { isValidRole, type Role } from "@luminova/auth/roles";
 import { isSafeDocId } from "./firestore-util.js";
+import { memberEmailMalformed, provisionBlocked } from "./provision-errors.js";
 import { callerIsAdmin, requireAdminOrPerm } from "./callable-auth.js";
 import { firestoreProvisionDeps } from "./provision-deps.js";
 import { ensureApp } from "./runtime.js";
@@ -34,6 +35,28 @@ export function nextClaims(existing: RawClaims | undefined, role: Role): { roles
   const roles = current.includes(role) ? current : [...current, role];
   return { roles };
 }
+
+// provisionBlocked / memberEmailMalformed live in ./provision-errors.js — the port raises the
+// malformed-email refusal too, and keeping the factories here made provision-deps.ts and this
+// module a two-node import cycle.
+
+/** The Admin SDK's OWN email predicate (`validator.isEmail`: `/^[^@]+@[^@]+$/`), plus the one
+ *  tightening that is strictly safe: no whitespace, no control characters.
+ *
+ *  Deliberately not an RFC-ish pattern — a stricter one would start rejecting addresses
+ *  Firebase happily accepts, which is a worse failure than the one being fixed. But `[^@]`
+ *  matches `\n`, `\r`, `\t`, spaces and NUL, so `"pres@jci.bo\n"` and `"a b@jci.bo"` pass BOTH
+ *  this screen and the SDK's client-side check and reach Identity Toolkit, which rejects them.
+ *  `firestore.rules` never constrains `members.email`, so a CSV paste or any `update:Member`
+ *  holder can store one.
+ *
+ *  This is a PRE-FILTER, not the guarantee. The port tags Identity Toolkit's own
+ *  `auth/invalid-email` with the same reason (see ./provision-errors.js), so a shape that slips
+ *  through — `a@.`, `.a@b.co` — no longer surfaces as an opaque `internal`. The screen still
+ *  earns its keep: it refuses one round-trip earlier, never puts a junk address on the Auth
+ *  API, and makes the refusal identical whether or not Identity Toolkit happens to reject that
+ *  particular shape. */
+const ADMIN_SDK_EMAIL_SHAPE = /^[^@\s\p{C}]+@[^@\s\p{C}]+$/u;
 
 export interface ProvisionUser {
   uid: string;
@@ -158,8 +181,21 @@ export async function provisionMember(
   const member = await deps.getMember(memberId);
   if (member === null) throw new HttpsError("not-found", "member not found");
   if (member.active !== true) throw new HttpsError("failed-precondition", "member is not active");
-  if (typeof member.email !== "string" || member.email.length === 0) {
-    throw new HttpsError("failed-precondition", "member has no email");
+  // Shape-screened BEFORE it reaches the Auth SDK, for the same reason cargoId and assignedBy
+  // are screened in claims-sync: a stored value the SDK rejects throws a PERMANENT
+  // auth/invalid-email. That used to reach the caller as an opaque `internal`, leaving the
+  // member unprovisionable with no hint why; the port now tags that case with this same reason,
+  // so this check is the cheap first line rather than the only one. firestore.rules
+  // deliberately does not shape-validate `email` on the admin write lane, so the shape reaches
+  // here unchecked.
+  //
+  // ONE check, not a separate untagged "member has no email" above it. That one threw with no
+  // `details.reason`, so the UI degraded it to the generic "no se pudo" — verbatim the dead end
+  // PROVISION_BLOCK_REASONS exists to remove — and it SHADOWED this tagged one for the
+  // empty-string case, which is the likelier of the two (memberDocSchema's `email` is a bare
+  // z.string()). Absent, empty and malformed all have the same operator remedy: fix the ficha.
+  if (typeof member.email !== "string" || !ADMIN_SDK_EMAIL_SHAPE.test(member.email)) {
+    throw memberEmailMalformed();
   }
   const email = member.email;
   const linkedUid = typeof member.uid === "string" && member.uid.length > 0 ? member.uid : null;
@@ -170,10 +206,10 @@ export async function provisionMember(
     // orphaned; if it was deleted out-of-band, relinking by email is the
     // self-heal, not a conflict.
     if ((await deps.getUserByUid(linkedUid)) !== null) {
-      throw new HttpsError(
+      throw provisionBlocked(
         "failed-precondition",
         "member is already linked to a different login; unlink it explicitly before re-provisioning",
-        { reason: "linked-to-different-login" },
+        "linked-to-different-login",
       );
     }
   }
@@ -204,10 +240,10 @@ export async function provisionMember(
   // member has neither — and leaves resend/adoption/self-heal to an Admin, plus the
   // client-side sendPasswordResetEmail any member can already use on their own address.
   if (!callerHoldsAdminRole && (user !== null || linkedUid !== null)) {
-    throw new HttpsError(
+    throw provisionBlocked(
       "permission-denied",
       "this member already has a login; only an Admin can re-provision or link one",
-      { reason: "reprovision-requires-admin" },
+      "reprovision-requires-admin",
     );
   }
   // POWER-SEAT GUARD. The check above asks whether this is a NEW login; it does not ask whose
@@ -232,19 +268,19 @@ export async function provisionMember(
   if (!callerHoldsAdminRole) {
     // Direct grants first — no read required, and it is the half a cargo check cannot see.
     if (hasDirectGrants(member)) {
-      throw new HttpsError(
+      throw provisionBlocked(
         "permission-denied",
         "this member has been granted roles or permissions; only an Admin can provision their login",
-        { reason: "granted-member-requires-admin" },
+        "granted-member-requires-admin",
       );
     }
     for (const cargoId of readCargoIds(member)) {
       const grants = await deps.getPositionGrants(cargoId);
       if (grants === null || grants.length > 0) {
-        throw new HttpsError(
+        throw provisionBlocked(
           "permission-denied",
           "this member holds a cargo that confers permissions; only an Admin can provision their login",
-          { reason: "power-seat-requires-admin" },
+          "power-seat-requires-admin",
         );
       }
     }

@@ -139,9 +139,20 @@ This costs the delegation nothing: a genuinely new member has neither an account
    `update:BoardSeat` override; an org-chart-only delegate wants `update:Position` instead.
 2. **The delegate must sign out and back in after being granted or revoked.** All three gates —
    `firestore.rules`, `requireAdminOrPerm` and `useCan` — read the `perms` claim off the ID
-   token, and `auth-store.ts` calls `getIdTokenResult()` without `forceRefresh`. A freshly
-   granted code is invisible for up to an hour otherwise, and a freshly revoked one keeps
-   working for up to an hour.
+   token, and `auth-store.ts` calls `getIdTokenResult()` without `forceRefresh` — it is the only
+   place the app reads a token, there is no `onIdTokenChanged` listener anywhere, and no code
+   path forces a refresh. A freshly granted code is invisible for up to an hour otherwise, and a
+   freshly revoked one keeps working for up to an hour: the delegate's UI keeps its affordances
+   until they reload, and both `hasPerm()` in `firestore.rules` and `requireAdminOrPerm` in
+   beacon keep honoring the revoked code from their cached ID token until it expires. Signing out
+   and back in **does** mint a fresh token off the current (revoked) claims — but that is the
+   delegate's choice to make, not the Admin's; nothing forces it, and an Admin who revokes the
+   code has no lever to shorten the window on a delegate who simply keeps their existing session
+   open. The only immediate, Admin-side cut is `admin.auth().revokeRefreshTokens(uid)` on the
+   delegate's uid — it invalidates every outstanding session and forces re-auth on the next
+   request, regardless of what the delegate does. Nothing in this codebase currently calls it; it
+   is a console or one-off-script op, run by hand when "revoked" needs to mean "now" rather than
+   "within the hour".
 3. **A delegate's failed provision escalates to an Admin.** If `provisionMemberLogin` fails
    after creating the Auth account (a transient `setClaims`/`linkUid` error), the retry is
    refused by the adoption guard — the account now exists, so `user !== null`. Finish it from
@@ -167,6 +178,50 @@ This costs the delegation nothing: a genuinely new member has neither an account
    `resolveTrustedGrants` declines to mint the grants. The member is then published on the public
    Directiva with no claim — visible, powerless. Re-running the write after the token refreshes
    resolves it.
+8. **The puppet path — say plainly what the three codes together can reach.** The
+   self-assignment guard (above) blocks the ONE-WRITE form of self-promotion: a delegate cannot
+   seat *themselves* on a power cargo and have it mint. It does **not** block the multi-write
+   form, and nothing else in the system does either. A holder of a member-creation capability
+   (`create:Member` or `manage:Member`) plus `update:BoardSeat` plus `create:MemberLogin` can:
+   create a second member on a mailbox they control, `provisionMemberLogin` it (the power-seat
+   guard does not fire — the puppet is brand new and unseated), sign in as the puppet, and then —
+   back as themselves — seat the *puppet* on any non-Admin power-granting cargo. That is not a
+   self-assignment (`assignedBy` is the delegate's uid, the seated member is the puppet's), so
+   `resolveTrustedGrants` trusts it on the `update:BoardSeat` perm alone. The delegate now
+   controls, through the puppet's session, every built-in role's capabilities short of `Admin`.
+   `Admin` itself stays closed — `resolveTrustedGrants` refuses an Admin-granting cargo from any
+   assigner who is not Admin-by-role, puppet or not. **Say the ceiling correctly: it is "everything
+   but Admin," not "nothing."** Granting all three codes to one person is materially different
+   from granting them to three different people, and nothing in the UI distinguishes that for the
+   Admin doing the granting.
+9. **What survives a revocation — nothing removes the account, and nothing surfaces who a
+   delegate seated.** Two facts worth stating together, because they compound:
+   - No code path in `apps/beacon/src` calls `deleteUser` or `updateUser(..., { disabled: true
+     })` — confirmed by grep, there is no disable/delete of an Auth user anywhere in this
+     codebase. Revoking `update:BoardSeat` or `create:MemberLogin` never touches the Auth account
+     a delegate (or their puppet) created.
+   - `syncMemberClaims` (`apps/beacon/src/claims-sync/sync.ts`) never reads `active` or
+     `membershipStatus` on the member doc — only `positions`, `roleIds` and
+     `permissionOverrides`. Soft-deleting a member (`active: false` / `deletedAt` set) or marking
+     them `"Desafiliado"` does not drop their claims; their `Member` role, and any cargo-derived
+     role, survives until something else re-triggers `syncMemberClaims` with different inputs.
+   - Nothing in `apps/backstage` renders `assignedBy` — it is written by the repository layer
+     (`member-mapper.ts:53,92,102`) but read by no `.tsx` in the app. An Admin who revokes a
+     delegate's codes has **no in-app way** to find which members that delegate seated; the only
+     path is a manual Firestore query on `positions.<term>.assignedBy`.
+
+   **Post-revocation checklist for an Admin** (do all four; none is optional):
+   1. Query `members` for every `positions.<term>.assignedBy == <delegate uid>` across every term
+      key present (console query, or a one-off script — no in-app view does this).
+   2. For each match, decide by hand whether the seat should stand; unseat or re-seat as an
+      Admin action if not (a delegate/former-delegate cannot fix this after their code is gone).
+   3. Run `recomputeAllClaims` (or re-write each affected member doc) so cargo-derived claims
+      resolve against the delegate's now-revoked authority, closing the "recomputed on the next
+      write, which may be never" gap in note 4.
+   4. If the delegate might have created a puppet member (note 8), find any member whose `email`
+      the delegate plausibly controls and whose account was provisioned in the delegation window;
+      it is not deleted or disabled by revocation and must be handled explicitly — `Member` role
+      and directory read access persist until removed by hand in the Firebase console.
 
 ## Out of scope
 

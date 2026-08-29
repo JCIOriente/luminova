@@ -146,7 +146,7 @@ splatting an unbounded ref list — fine at 40 docs, a cost/timeout bomb at 4,00
 | Site | State |
 |---|---|
 | Spotlight `fetchFeatured` pulled the whole `showcase` collection, filtered client-side | Fixed (item 12): server-side `where("featured", "==", true)` — `apps/spotlight/src/showcase/showcase-firestore.ts:23` |
-| `getRolesByIds` did `db.getAll(...refs)` on an uncapped `roleIds` list | Fixed (#145): chunk-at-300 via `chunk()` — `apps/beacon/src/claims-sync/firestore-deps.ts:169` batches over `apps/beacon/src/chunk.ts` |
+| `getRolesByIds` did `db.getAll(...refs)` on an uncapped `roleIds` list | Fixed (#145): chunk-at-300 via `chunk()` — `getRolesByIds` in `apps/beacon/src/claims-sync/firestore-deps.ts` batches over `apps/beacon/src/chunk.ts` |
 | Beacon `onRoleWritten` built-in-role branch scans **all** members — `apps/beacon/src/index.ts:281` | Bounded (#145) by `roleClaimsChanged` early-return: a metadata-only edit skips the scan entirely; a real permission change still scans every holder **by design** — do NOT cap with `.limit()`, which would strand members beyond the cap with stale claims |
 | Backstage `RoleRepository.getAll()` reads the whole `roles` collection — no `where`, no `.limit` — `apps/backstage/src/features/permissions/repositories/role-repository.ts:35` | **Recorded exception**, not drift (see below) |
 | Beacon `getRoleDocsByBuiltInKeys` reads `roles` with `where("builtInKey","in",keys)` and no `.limit` — `apps/beacon/src/claims-sync/firestore-deps.ts` | **Recorded exception**, not drift (see below) — the mirror of the `RoleRepository.getAll()` one, on the trigger side |

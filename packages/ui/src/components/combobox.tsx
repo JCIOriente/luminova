@@ -16,6 +16,11 @@ interface ComboboxProps {
   emptyText?: string;
   disabled?: boolean;
   id?: string;
+  /** Ids of the elements explaining this control — a note about why the list is empty, or why
+   *  the control is locked. Without it those notes sit later in the reading order, so a
+   *  screen-reader user reaches the trigger, hears only `emptyText`, and never meets the
+   *  explanation. */
+  "aria-describedby"?: string;
 }
 
 /** Single-select + search on Radix Popover + cmdk, JCI-token styled. Re-select clears. */
@@ -28,6 +33,7 @@ export function Combobox({
   emptyText = "Sin resultados",
   disabled,
   id,
+  "aria-describedby": describedBy,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value) ?? null;
@@ -39,6 +45,7 @@ export function Combobox({
           type="button"
           id={id}
           disabled={disabled}
+          aria-describedby={describedBy}
           aria-haspopup="listbox"
           aria-expanded={open}
           className={cn(

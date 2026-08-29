@@ -1169,6 +1169,16 @@ describe("firestore.rules — members", () => {
     // plus a next-term power cargo attributed to a real Admin. On the UTC-year rollover
     // claims-sync reads THAT entry and mints Admin onto a member whose login the creator
     // controls. Forged attribution, one term deferred.
+    //
+    // NOT a strict subset of the Admin variant above — the two principals differ in a way
+    // that matters. admin-uid's synthesized perms are ['manage:all'] (tools/scripts/lib/
+    // role-seed.mjs), never the literal string 'update:BoardSeat', so hasPerm('update:BoardSeat')
+    // is false for it; it only satisfies boardSeatDelegate() via the separate hasAnyRole(['Admin'])
+    // arm. createDelegate() genuinely holds ['create:Member','update:BoardSeat'], so
+    // hasPerm('update:BoardSeat') is true for it. A mutation that grafts a hasPerm disjunct onto
+    // the term-key conjunct itself — `hasPerm('update:BoardSeat') || keys().hasOnly([currentTermKey()])`
+    // in createPositionsSafe() — leaves the Admin test denied (hasPerm still false there) while
+    // reopening the ride-along for this delegate. Only this test catches that mutation.
     await assertFails(
       setDoc(doc(createDelegate(), "members/new_delegate_ridealong"), {
         name: "Ximena Paz",
@@ -1182,7 +1192,7 @@ describe("firestore.rules — members", () => {
     );
   });
 
-  it("BLOCKING: create:Member alone, and update:BoardSeat alone, each reach nothing", async () => {
+  it("BLOCKING: update:BoardSeat alone reaches nothing on the create lane", async () => {
     // The create-lane twin of the update-lane non-vacuity pin. update:BoardSeat widens WHICH
     // cargo a creator may use; it does not make anyone a creator.
     await assertFails(
@@ -1194,7 +1204,7 @@ describe("firestore.rules — members", () => {
     );
   });
 
-  it("BLOCKING: the same create principal WITHOUT update:BoardSeat is still denied both", async () => {
+  it("BLOCKING: create:Member alone (no update:BoardSeat, a different principal) is still denied a CEL or power cargo", async () => {
     // The paired denial — otherwise the two ALLOWs above would pass for any create:Member
     // holder and prove nothing about the new disjunct.
     await assertFails(
@@ -1253,6 +1263,20 @@ describe("firestore.rules — members", () => {
   it("allows Membership to update a normal field", async () => {
     await assertSucceeds(
       updateDoc(doc(as("u", ["Membership"]), "members/m1"), { name: "Ana Rivas Paz" }),
+    );
+  });
+  // ACCEPTED EXPOSURE — pins the premise three beacon guards are built on
+  // (provisionMemberLogin's adoption guard and power-seat guard, in
+  // apps/beacon/src/provision-member-login.ts, plus their tests and the rules comments
+  // near currentCargoGrantsEmpty()): "firestore.rules never constrains members.email".
+  // memberWriteInvariants() locks totalPoints/uid/publicProfile and gates positions —
+  // email is not among them, so any canDo('update','Member') holder may rewrite ANY
+  // member's email, not just their own. "u" does not own members/m1 (owner-uid does).
+  // If a later PR pins email here, this test goes red first — the signal that the beacon
+  // guards it justifies are now over-strict, not that something silently broke.
+  it("ACCEPTED EXPOSURE: a manage:Member holder may rewrite another member's email (why beacon's adoption + power-seat guards exist)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Membership"]), "members/m1"), { email: "rewritten@example.com" }),
     );
   });
   // memberNameValid() binds EVERY lane, not just the member's own: boardShowcase publishes
@@ -3271,7 +3295,7 @@ describe("firestore.rules — member positions assignment", () => {
     );
   });
 
-  it("denies a delegate a forged assignedBy, a past term, and a ride-along field", async () => {
+  it("denies a delegate a forged assignedBy, a non-current term, and a ride-along field", async () => {
     // assignedBySelf(), the current-term restriction and hasOnly(['positions']) all sit
     // OUTSIDE the substituted disjunction. Pin that the delegation did not loosen them —
     // a forged assignedBy is what the beacon trust gate reads to decide whether to mint.

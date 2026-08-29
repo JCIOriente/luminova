@@ -11,7 +11,7 @@ import {
   rawPermsFromRoleDoc,
   roleDocPermsMalformed,
 } from "./claims-sync/role-doc.js";
-import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
+import { firestoreClaimsDeps, logError } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
 import { parseMember, MEMBER_SYNC_FIELDS } from "./claims-sync/parse-member.js";
 import { seedBuiltInRoles } from "./seed-roles.js";
@@ -74,7 +74,7 @@ export const recomputeAllClaims = onCall(
     let synced = 0;
     const failed: string[] = [];
     for (const doc of snap.docs) {
-      const member = parseMember(doc.data());
+      const member = parseMember(doc.data(), { memberId: doc.id, logError });
       if (!member.uid) continue;
       try {
         await syncMemberClaims(deps, member, termKey);

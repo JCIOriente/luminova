@@ -24,13 +24,28 @@ import {
 } from "@luminova/types";
 import { avatarColor } from "../lib/member-display";
 import {
+  cargoGrantNeedsAdminAssigner,
+  cargoNoteId,
   cargoOptionsForEditor,
-  cargoTakedownOnly,
   noAssignableCargos,
-  positionsLockedForNonAdmin,
 } from "../lib/assignable-cargo";
-import { NoAssignableCargosNote } from "./no-assignable-cargos-note";
+// Directly from the rules-mirroring module, not through assignable-cargo.ts: the file a
+// predicate comes from is what says the emulator parity test holds it to firestore.rules.
+import {
+  cargoTakedownOnly,
+  heldCargo,
+  positionsLockedForEditor,
+} from "../lib/assignable-cargo-core";
+import { cargoNoteIds, MintPendingNote, NoAssignableCargosNote } from "./no-assignable-cargos-note";
 
+const NOTE_IDS = cargoNoteIds("member");
+
+/** The four authority props are REQUIRED, not optional-with-a-false-default, and the defaults
+ *  they used to carry were not all safe in the same direction: `isSelfAssignment = false`
+ *  suppresses the mint-pending warning and `allowReplacePowerCargo = false` locks an Admin's
+ *  picker. A call site that forgets one compiled clean either way. Same argument beacon's
+ *  `MemberParseContext` makes for its required sink, applied to the component with three call
+ *  sites rather than the one with a single call site. */
 interface MemberFormProps {
   positions: Position[];
   defaultValues?: Partial<MemberInput>;
@@ -43,7 +58,20 @@ interface MemberFormProps {
    *  ones and CEL seats alike (rules' `cargoAssignableByNonAdmin`, applied by both
    *  `createPositionsSafe` and `positionsAssignmentSafe`). Non-Admin sees only assignable
    *  cargos plus the current selection. */
-  allowPowerGrants?: boolean;
+  allowPowerGrants: boolean;
+  /** Whether the editor may REPLACE a cargo that already confers power (rules'
+   *  `currentCargoGrantsEmpty`, the other conjunct). Admin role only — `update:BoardSeat`
+   *  deliberately does NOT lift this one, so it must not be folded into `allowPowerGrants`.
+   *  See positionsLockedForEditor(). */
+  allowReplacePowerCargo: boolean;
+  /** Whether the CALLER holds the Admin role, which is what beacon's `resolveTrustedGrants`
+   *  keys the mint on. Named after the minting authority, not after `allowReplacePowerCargo`,
+   *  which mirrors a different rules predicate and only happens to equal it today. */
+  assignerIsAdmin: boolean;
+  /** Whether the member being edited IS the caller. The trust gate refuses to mint a
+   *  self-assignment of any granting cargo from a non-Admin — confer power on others, never on
+   *  yourself — so the picker must say so before the click. */
+  isSelfAssignment: boolean;
   children?: ReactNode;
 }
 
@@ -73,7 +101,10 @@ export function MemberForm({
   onSubmit,
   showPreview,
   avatarSeed,
-  allowPowerGrants = false,
+  allowPowerGrants,
+  allowReplacePowerCargo,
+  assignerIsAdmin,
+  isSelfAssignment,
   children,
 }: MemberFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
@@ -113,14 +144,14 @@ export function MemberForm({
   // per-form copy is what let this one re-add the held seat labelled "(inactivo)" while the
   // other dropped it).
   const assignedCargoId = defaultValues?.cargoId ?? null;
-  // A power-granting assigned cargo locks cargo/comisiones for a non-Admin — the write
-  // re-stamps the same cargoId and `currentCargoGrantsEmpty()` blocks clearing it, so no
+  // A power-granting assigned cargo locks cargo/comisiones for anyone but an Admin — the
+  // write re-stamps the same cargoId and `currentCargoGrantsEmpty()` blocks clearing it, so no
   // positions change succeeds. Bio edits still save, because the mapper omits an unchanged
   // slot. A grant-free CEL seat is NOT locked: clearing it is deliberately allowed, so the
   // form stays open, the seat renders disabled (visible, not assignable) and "Quitar cargo"
-  // makes the takedown reachable. See positionsLockedForNonAdmin() / cargoTakedownOnly().
-  const assignedCargo = positions.find((p) => p.id === assignedCargoId);
-  const positionsLocked = !allowPowerGrants && positionsLockedForNonAdmin(assignedCargo);
+  // makes the takedown reachable. See positionsLockedForEditor() / cargoTakedownOnly().
+  const held = heldCargo(positions, assignedCargoId);
+  const positionsLocked = positionsLockedForEditor(held, allowReplacePowerCargo);
   const cargoTakedown = cargoTakedownOnly(selectedCargo, allowPowerGrants);
   const cargoOptions = cargoOptionsForEditor({
     positions,
@@ -128,6 +159,19 @@ export function MemberForm({
     allowPowerGrants,
     assignedCargoId,
   });
+  const noCargos = noAssignableCargos({ cargoOptions, allowPowerGrants, locked: positionsLocked });
+  const mintPending = cargoGrantNeedsAdminAssigner(
+    selectedCargo,
+    assignerIsAdmin,
+    isSelfAssignment,
+  );
+  // Every note explaining the picker sits after the field in the DOM, so without this a
+  // screen-reader user reaching the trigger hears "Sin resultados" or a disabled control and
+  // never meets the reason. Priority order and the co-firing rules live in cargoNoteId().
+  const describedBy = cargoNoteId(
+    { noCargos, locked: positionsLocked, takedown: cargoTakedown, mintPending },
+    NOTE_IDS,
+  );
 
   const comisionLabel = (p: Position) => (p.sigla ? `${p.sigla} — ${p.title}` : p.title);
   const activeComisionOptions = positions
@@ -249,6 +293,7 @@ export function MemberForm({
                   }}
                   placeholder="Sin cargo"
                   disabled={positionsLocked}
+                  aria-describedby={describedBy}
                 />
                 {cargoTakedown && (
                   <Button
@@ -289,6 +334,9 @@ export function MemberForm({
                   value={field.value}
                   onChange={field.onChange}
                   disabled={positionsLocked}
+                  // Same flag disables it as the cargo picker, so it owes the same
+                  // explanation — see the note in member-positions-form.
+                  aria-describedby={positionsLocked ? NOTE_IDS.locked : undefined}
                 />
               )}
             />
@@ -300,21 +348,22 @@ export function MemberForm({
           </p>
         )}
         {positionsLocked && (
-          <p role="note" className="text-ui-xs text-ink-3">
-            Solo un Admin puede cambiar el cargo de un miembro cuyo cargo otorga permisos. Puedes
-            editar el resto de sus datos.
+          <p id={NOTE_IDS.locked} role="note" className="text-ui-xs text-ink-3">
+            Solo un administrador puede cambiar el cargo de un miembro cuyo cargo otorga permisos.
+            Puedes editar el resto de sus datos.
           </p>
         )}
+        {/* Suppressed while locked: the picker is disabled there, so nothing about what the
+            save would mint is actionable. */}
+        {!positionsLocked && mintPending && <MintPendingNote id={NOTE_IDS.mintPending} />}
         {cargoTakedown && (
-          <p role="note" className="text-ui-xs text-ink-3">
-            Este cargo es del Comité Ejecutivo Local: solo un Admin puede asignarlo. Puedes
+          <p id={NOTE_IDS.takedown} role="note" className="text-ui-xs text-ink-3">
+            Este cargo es del Comité Ejecutivo Local: solo un administrador puede asignarlo. Puedes
             quitárselo con «Quitar cargo» o dejarlo como está; el resto de sus datos se guarda
             igual.
           </p>
         )}
-        {noAssignableCargos({ cargoOptions, allowPowerGrants, locked: positionsLocked }) && (
-          <NoAssignableCargosNote />
-        )}
+        {noCargos && <NoAssignableCargosNote id={NOTE_IDS.noCargos} />}
         <Field
           label="Fecha de ingreso"
           htmlFor="joinDate"

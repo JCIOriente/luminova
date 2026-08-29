@@ -169,6 +169,7 @@ export function MemberTable({
           <MemberWhatsAppAction member={member} />
           <MemberRowMenu
             member={member}
+            positionsById={positionsById}
             onView={onView}
             onEdit={onEdit}
             onProvision={onProvision}

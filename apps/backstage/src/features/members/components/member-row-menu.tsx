@@ -1,11 +1,13 @@
 import { Menu, MenuItem, MenuSeparator } from "@luminova/ui";
-import type { Member, MemberStatus } from "@luminova/types";
+import type { Member, MemberStatus, Position } from "@luminova/types";
 import { Can } from "../../../lib/authz/ability-context";
 import { ActionGate } from "../../../lib/authz/action-gate";
 import { useCan } from "../../../lib/authz/use-can";
+import { memberProvisionBlocked } from "../lib/provision-gate";
 
 interface MemberRowMenuProps {
   member: Member;
+  positionsById: ReadonlyMap<string, Position>;
   onView: (member: Member) => void;
   onEdit: (member: Member) => void;
   onProvision: (member: Member) => void;
@@ -15,6 +17,7 @@ interface MemberRowMenuProps {
 
 export function MemberRowMenu({
   member,
+  positionsById,
   onView,
   onEdit,
   onProvision,
@@ -22,6 +25,7 @@ export function MemberRowMenu({
   onUnpublish,
 }: MemberRowMenuProps) {
   const { canProvisionLogin, isAdmin } = useCan();
+  const provisionBlocked = memberProvisionBlocked(member, (id) => positionsById.get(id), isAdmin);
   return (
     <Menu
       align="end"
@@ -49,10 +53,12 @@ export function MemberRowMenu({
       </Can>
 
       {/* provisionMemberLogin is requireAdminOrPerm(create:MemberLogin) — the Admin role or
-          that exact code, never the manage:all perm. The `!member.uid` half is the adoption
-          guard mirrored: a delegate may only mint a NEW login, so offering "Reenviar" to one
-          would be an item that 403s on every click. */}
-      <ActionGate when={canProvisionLogin && (isAdmin || !member.uid)}>
+          that exact code, never the manage:all perm. memberProvisionBlocked mirrors every
+          refusal the callable applies to a non-Admin (adoption, direct grants, a power-granting
+          cargo in any term), so a delegate is not offered an item that 403s on every click.
+          The residual case the client cannot see — an Auth account already existing for the
+          address — still 403s, and provisionErrorMessage names it. */}
+      <ActionGate when={canProvisionLogin && !provisionBlocked}>
         <MenuItem onSelect={() => onProvision(member)}>
           {member.uid ? "Reenviar invitación" : "Invitar a la app"}
         </MenuItem>
