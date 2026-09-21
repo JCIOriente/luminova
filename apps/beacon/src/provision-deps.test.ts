@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Auth } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
-import { firestoreProvisionDeps } from "./provision-deps.js";
+import { firestoreInviteDeps } from "./provision-deps.js";
 
 /** Nothing under test reads Firestore — `createUser` is a pure Auth path. */
 const db = {} as Firestore;
@@ -56,13 +56,13 @@ function fakeAuth(opts: {
 // code === "auth/internal-error"` and the whole beacon suite stays green, while an Identity
 // Toolkit blip during the relink guard reads a LIVE linked account as safely deleted and lets
 // the caller re-provision over it.
-describe("firestoreProvisionDeps — the null-vs-throw contract", () => {
+describe("firestoreInviteDeps — the null-vs-throw contract", () => {
   const lookups = ["getUserByEmail", "getUserByUid"] as const;
 
   it("returns null for user-not-found, on both lookups", async () => {
     for (const method of lookups) {
       const { auth } = fakeAuth({});
-      await expect(firestoreProvisionDeps(db, auth)[method]("a@b.co")).resolves.toBeNull();
+      await expect(firestoreInviteDeps(db, auth)[method]("a@b.co")).resolves.toBeNull();
     }
   });
 
@@ -76,7 +76,7 @@ describe("firestoreProvisionDeps — the null-vs-throw contract", () => {
         const { auth } = fakeAuth(
           method === "getUserByEmail" ? { byEmailError: err } : { byUidError: err },
         );
-        await expect(firestoreProvisionDeps(db, auth)[method]("a@b.co")).rejects.toThrow();
+        await expect(firestoreInviteDeps(db, auth)[method]("a@b.co")).rejects.toThrow();
       }
     }
   });
@@ -84,10 +84,10 @@ describe("firestoreProvisionDeps — the null-vs-throw contract", () => {
 
 const authError = (code: string) => Object.assign(new Error(code), { code });
 
-describe("firestoreProvisionDeps.createUser", () => {
+describe("firestoreInviteDeps.createUser", () => {
   it("returns the freshly minted account without consulting getUserByEmail", async () => {
     const { auth, calls } = fakeAuth({});
-    await expect(firestoreProvisionDeps(db, auth).createUser("a@b.co")).resolves.toMatchObject({
+    await expect(firestoreInviteDeps(db, auth).createUser("a@b.co")).resolves.toMatchObject({
       uid: "new-a@b.co",
     });
     expect(calls.createUser).toEqual(["a@b.co"]);
@@ -102,7 +102,7 @@ describe("firestoreProvisionDeps.createUser", () => {
     // gone from the log. The fallback must fire for exactly one code.
     for (const code of ["auth/quota-exceeded", "auth/operation-not-allowed"]) {
       const { auth, calls } = fakeAuth({ createError: authError(code) });
-      await expect(firestoreProvisionDeps(db, auth).createUser("a@b.co")).rejects.toMatchObject({
+      await expect(firestoreInviteDeps(db, auth).createUser("a@b.co")).rejects.toMatchObject({
         code,
       });
       expect(calls.getUserByEmail).toEqual([]);
@@ -123,7 +123,7 @@ describe("firestoreProvisionDeps.createUser", () => {
           ? { createError: authError("auth/invalid-email") }
           : { byEmailError: authError("auth/invalid-email") },
       );
-      await expect(firestoreProvisionDeps(db, auth)[method]("a@.")).rejects.toMatchObject({
+      await expect(firestoreInviteDeps(db, auth)[method]("a@.")).rejects.toMatchObject({
         code: "failed-precondition",
         details: { reason: "member-email-malformed" },
       });
@@ -132,7 +132,7 @@ describe("firestoreProvisionDeps.createUser", () => {
 
   it("rethrows a codeless throw too — an unrecognized shape is not a collision", async () => {
     const { auth, calls } = fakeAuth({ createError: new Error("socket hang up") });
-    await expect(firestoreProvisionDeps(db, auth).createUser("a@b.co")).rejects.toThrow(
+    await expect(firestoreInviteDeps(db, auth).createUser("a@b.co")).rejects.toThrow(
       "socket hang up",
     );
     expect(calls.getUserByEmail).toEqual([]);
@@ -145,7 +145,7 @@ describe("firestoreProvisionDeps.createUser", () => {
       createError: authError("auth/email-already-exists"),
       byEmail: { "a@b.co": { uid: "u-existing" } },
     });
-    await expect(firestoreProvisionDeps(db, auth).createUser("a@b.co")).resolves.toMatchObject({
+    await expect(firestoreInviteDeps(db, auth).createUser("a@b.co")).resolves.toMatchObject({
       uid: "u-existing",
     });
     expect(calls.createUser).toEqual(["a@b.co"]);
@@ -156,8 +156,101 @@ describe("firestoreProvisionDeps.createUser", () => {
     // Not squashed to null: the caller's null contract means "no account exists", and this
     // path just proved one does.
     const { auth } = fakeAuth({ createError: authError("auth/email-already-exists") });
-    await expect(firestoreProvisionDeps(db, auth).createUser("a@b.co")).rejects.toMatchObject({
+    await expect(firestoreInviteDeps(db, auth).createUser("a@b.co")).rejects.toMatchObject({
       code: "auth/user-not-found",
     });
+  });
+});
+
+// The C2 guarantee, at the layer that actually implements it. issue-member-invite.test.ts can
+// only prove the CALLER uses one port; this proves the port uses one BATCH. Without it, an
+// edit splitting commitInviteBatch into three awaited writes passes every other test in the
+// repo while reintroducing the orphaned-live-token failure the whole design is built around.
+describe("firestoreInviteDeps — commitInvite is one atomic batch", () => {
+  function fakeDb() {
+    const writes: { op: string; path: string; data: unknown }[] = [];
+    const commits: number[] = [];
+    const batches: unknown[] = [];
+    const db = {
+      doc: (path: string) => ({ path }),
+      batch: () => {
+        const batch = {
+          set: (ref: { path: string }, data: unknown) =>
+            writes.push({ op: "set", path: ref.path, data }),
+          update: (ref: { path: string }, data: unknown) =>
+            writes.push({ op: "update", path: ref.path, data }),
+          commit: async () => void commits.push(writes.length),
+        };
+        batches.push(batch);
+        return batch;
+      },
+    } as unknown as Firestore;
+    return { db, writes, commits, batches };
+  }
+
+  const invite = {
+    memberId: "m1",
+    uid: "u1",
+    email: "ana@jci.bo",
+    kind: "recovery" as const,
+    issuedBy: "admin-uid",
+    issuedByAdmin: true,
+    issuedAtMs: 1_700_000_000_000,
+    expiresAtMs: 1_700_000_000_000 + 1000,
+    purgeAtMs: 1_700_000_000_000 + 2000,
+  };
+
+  it("revokes, mints and projects in a SINGLE batch with ONE commit", async () => {
+    const { db, writes, commits, batches } = fakeDb();
+    const { auth } = fakeAuth({});
+    await firestoreInviteDeps(db, auth).commitInvite({
+      memberId: "m1",
+      revokeTokenHash: "b".repeat(64),
+      revokedBy: "admin-uid",
+      tokenHash: "a".repeat(64),
+      invite,
+    });
+    expect(batches).toHaveLength(1);
+    expect(commits).toEqual([3]);
+    expect(writes.map((w) => `${w.op} ${w.path}`)).toEqual([
+      `update memberInvites/${"b".repeat(64)}`,
+      `set memberInvites/${"a".repeat(64)}`,
+      "update members/m1",
+    ]);
+  });
+
+  it("omits only the revoke write on a first issue, still one commit", async () => {
+    const { db, writes, commits, batches } = fakeDb();
+    const { auth } = fakeAuth({});
+    await firestoreInviteDeps(db, auth).commitInvite({
+      memberId: "m1",
+      revokeTokenHash: null,
+      revokedBy: "admin-uid",
+      tokenHash: "a".repeat(64),
+      invite,
+    });
+    expect(batches).toHaveLength(1);
+    expect(commits).toEqual([2]);
+    expect(writes.map((w) => w.op)).toEqual(["set", "update"]);
+  });
+
+  it("projects exactly the fields clients read, and never the token", async () => {
+    const { db, writes } = fakeDb();
+    const { auth } = fakeAuth({});
+    await firestoreInviteDeps(db, auth).commitInvite({
+      memberId: "m1",
+      revokeTokenHash: null,
+      revokedBy: "admin-uid",
+      tokenHash: "a".repeat(64),
+      invite,
+    });
+    const projection = (writes.at(-1)?.data as { invite: Record<string, unknown> }).invite;
+    expect(Object.keys(projection).sort()).toEqual(
+      ["expiresAt", "issuedAt", "issuedBy", "kind", "status", "tokenHash", "usedAt"].sort(),
+    );
+    // issuedByAdmin is deliberately NOT projected: it is an authorization detail for the
+    // redemption re-check, and members/{id} is readable by the whole chapter.
+    expect(projection.issuedByAdmin).toBeUndefined();
+    expect(projection.status).toBe("pending");
   });
 });

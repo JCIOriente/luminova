@@ -1,9 +1,9 @@
 import type { Auth } from "firebase-admin/auth";
-import type { Firestore } from "firebase-admin/firestore";
+import { Timestamp, type Firestore } from "firebase-admin/firestore";
 import { readPositionGrants } from "./read-position-grants.js";
 import { logError } from "./firestore-util.js";
 import { memberEmailMalformed } from "./provision-errors.js";
-import type { ProvisionDeps } from "./provision-member-login.js";
+import type { InviteCommit, InviteDeps } from "./issue-member-invite.js";
 
 function authCode(err: unknown): unknown {
   return (err as { code?: unknown } | null)?.code;
@@ -37,7 +37,7 @@ function nullIfUserNotFound(err: unknown): null {
   return tagInvalidEmail(err);
 }
 
-export function firestoreProvisionDeps(db: Firestore, auth: Auth): ProvisionDeps {
+export function firestoreInviteDeps(db: Firestore, auth: Auth): InviteDeps {
   return {
     getMember: async (id) => {
       const snap = await db.doc(`members/${id}`).get();
@@ -58,10 +58,69 @@ export function firestoreProvisionDeps(db: Firestore, auth: Auth): ProvisionDeps
     linkUid: async (id, uid) => {
       await db.doc(`members/${id}`).update({ uid });
     },
-    // Deliberately NOT routed through tagInvalidEmail: this is the only Auth call that runs
-    // AFTER createUser and linkUid, so tagging it would tell the operator to "corrige el correo"
-    // about an account that already exists and is already linked.
-    passwordResetLink: (email) => auth.generatePasswordResetLink(email),
+    now: () => Date.now(),
+    commitInvite: (commit) => commitInviteBatch(db, commit),
     getPositionGrants: (cargoId) => readPositionGrants(db, cargoId, logError),
   };
+}
+
+/** The three invite writes as ONE batch.
+ *
+ *  This is the single most important implementation constraint in the design. If the
+ *  projection write alone failed, the result would be a live `pending` invite whose token the
+ *  operator has already sent, with `members/{id}.invite` still pointing at the OLD revoked
+ *  hash — and nothing could ever revoke that orphan: there is no `where` query on
+ *  memberInvites, firestore.rules denies every client lane, and the only key into the
+ *  collection no longer names it. It would stay redeemable for the full seven days.
+ *
+ *  The member doc is contended (awardPoints mirrors totalPoints on every check-in, and
+ *  onMemberWritten fires on every member write), so this is not a theoretical failure.
+ *
+ *  `set` on the new invite rather than `create`: the id is a sha256 of 256 bits of CSPRNG
+ *  output, so a collision is not a scenario worth a second round-trip to rule out. */
+async function commitInviteBatch(db: Firestore, commit: InviteCommit): Promise<void> {
+  const { invite } = commit;
+  const batch = db.batch();
+
+  if (commit.revokeTokenHash !== null) {
+    batch.update(db.doc(`memberInvites/${commit.revokeTokenHash}`), {
+      status: "revoked",
+      revokedAt: Timestamp.now(),
+      revokedBy: commit.revokedBy,
+    });
+  }
+
+  const issuedAt = Timestamp.fromMillis(invite.issuedAtMs);
+  const expiresAt = Timestamp.fromMillis(invite.expiresAtMs);
+  batch.set(db.doc(`memberInvites/${commit.tokenHash}`), {
+    memberId: invite.memberId,
+    uid: invite.uid,
+    email: invite.email,
+    kind: invite.kind,
+    issuedBy: invite.issuedBy,
+    issuedByAdmin: invite.issuedByAdmin,
+    issuedAt,
+    expiresAt,
+    status: "pending",
+    usedAt: null,
+    revokedAt: null,
+    revokedBy: null,
+    purgeAt: Timestamp.fromMillis(invite.purgeAtMs),
+  });
+
+  // The projection clients actually read. Built HERE, from the same values, so the invite doc
+  // and its mirror cannot drift.
+  batch.update(db.doc(`members/${invite.memberId}`), {
+    invite: {
+      status: "pending",
+      kind: invite.kind,
+      tokenHash: commit.tokenHash,
+      issuedAt,
+      expiresAt,
+      issuedBy: invite.issuedBy,
+      usedAt: null,
+    },
+  });
+
+  await batch.commit();
 }

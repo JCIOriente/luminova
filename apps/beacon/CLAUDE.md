@@ -42,6 +42,53 @@ When a program/project `finalReport` transitions null↔set, flip that initiativ
 participation rows provisional↔confirmed (`where parentId == id`) and recompute the
 affected members' aggregates.
 
+### `issueMemberInvite` — `onCall` (replaces `provisionMemberLogin`)
+
+`create:MemberLogin`-guarded. Creates the Auth account if the member has none, links `uid`,
+sets the base `Member` claim, revokes any outstanding invite, mints a single-use token and
+projects `members/{id}.invite`. Returns `{ email, token, expiresAt, replacedPreviousLink }`.
+
+**No Firebase email anywhere in the auth flow.** The operator shares the link by hand (the
+chapter coordinates over WhatsApp). The client assembles `https://<origin>/invitacion#<token>`
+— beacon returns the token, not a URL, because beacon has no configuration surface for a base
+URL and one would be wrong in the emulator and in previews.
+
+- **The link IS the credential.** Before this, the invite mail was an unprivileged client-side
+  `sendPasswordResetEmail`; now whoever holds the token sets that member's password. That is
+  what `create:MemberLogin` now means.
+- **Revoke + mint + project is ONE batch** (`commitInviteBatch` in `provision-deps.ts`). A
+  partial failure would leave a live `pending` token the operator already sent with the
+  projection pointing at the old hash — unrevocable, since there is no `where` query on
+  `memberInvites` and the only key into the collection no longer names it. Expressed as a
+  single `InviteDeps.commitInvite` port so the three writes are not separately expressible.
+- **Guards are an EXHAUSTIVE switch on `(user, linkedUid)`** — adoption and self-heal stay
+  Admin-only, recovery and initial are delegate-allowed. A two-way split would let the
+  self-heal quadrant fall through to `createUser` for a delegate.
+- **The privilege guards re-run in `redeemInvite`**, because the token outlives the
+  authorization decision by up to 7 days. `issuedByAdmin: true` exempts.
+
+### `describeInvite` / `redeemInvite` — `onCall`, UNAUTHENTICATED
+
+The project's first unauthenticated callables. `describeInvite` is a read-only lookup
+(`{ email, name, expiresAt }`); `redeemInvite` burns the token and sets the password through
+the Admin SDK. Both share one `loadInvite` so the validity rules cannot drift.
+
+- **The token hash IS the document id** (`memberInvites/{sha256hex(token)}`), so there is no
+  secret comparison anywhere, the lookup is bounded by construction, and the collection cannot
+  be enumerated. A guess resolves to a nonexistent document.
+- **No rate limiter, deliberately.** A per-token counter is meaningless (each guess addresses a
+  different nonexistent doc) and a global one is a Firestore write per unauthenticated request
+  — a self-inflicted DoS. The controls are 256-bit entropy, the 7-day TTL, single-use, explicit
+  revocation, and `maxInstances`. **`maxInstances` is both the control and the lever**: it caps
+  billing but converts a cost problem into an availability one.
+- **App Check is NOT enforced** (`enforceAppCheck: false`, roadmap G4) — the keys do not exist
+  in production, so flipping it would 403 every redemption. These two are the first functions to
+  flip when G4 lands.
+- **The token claim precedes `auth.updateUser`.** A crash between burns the token (annoying,
+  one-click operator remedy) rather than leaving a replayable one.
+- Logs `{ fn, memberId, tokenPrefix, outcome }` and nothing else — never the token, never the
+  password, never `request.data`. A test asserts it.
+
 ### `setUserRoles` — `onCall` (F1, unchanged)
 
 Admin-guarded custom-claim assignment.

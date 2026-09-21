@@ -28,6 +28,11 @@
       "types": "./src/password-policy.ts",
       "import": "./dist/password-policy.js",
       "default": "./dist/password-policy.js"
+    },
+    "./member-invite": {
+      "types": "./src/member-invite.ts",
+      "import": "./dist/member-invite.js",
+      "default": "./dist/member-invite.js"
     }
   },
   "scripts": {
