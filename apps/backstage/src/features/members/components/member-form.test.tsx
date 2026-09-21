@@ -3,8 +3,36 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { MemberInput, Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
+import { cargoNoteIds } from "./no-assignable-cargos-note";
 import { toMemberUpdateDoc } from "../repositories/member-mapper";
 import { pickDate } from "../../../test/pick-date";
+import { permissionLabel } from "../../permissions/lib/permission-matrix";
+
+// Through the same helper the form calls, not a hand-typed literal: the ids are no longer
+// exported individually, and a test that re-typed one would keep passing after a rename.
+const MINT_PENDING_NOTE_ID = cargoNoteIds("member").mintPending;
+
+// The note names the permission through `permissionLabel`, and its own comment says the two
+// features must not drift. Assert against the same source, not a hardcoded copy — a literal
+// here would keep passing after either half of the label is renamed, which is exactly the
+// coupling the note is worried about.
+const BOARD_SEAT_LABEL = permissionLabel("update:BoardSeat");
+
+// The mint-pending note used to say "permisos de administrador", which was true only of its
+// one original trigger. It now fires for a SELF-assignment of any granting cargo, so copy
+// naming administrator permissions would be a lie in that case. Matched on the outcome half of
+// the sentence, which is the part both triggers share.
+const MINT_PENDING_COPY = /no se aplicarán hasta que un administrador confirme la asignación/i;
+
+// The four authority props are REQUIRED on the component (a call site that forgets one used to
+// compile clean and fail OPEN on `isSelfAssignment`). Spread FIRST in every render below so a
+// case that cares about one still just names it — the explicit prop wins.
+const FORM_AUTHORITY = {
+  allowPowerGrants: false,
+  allowReplacePowerCargo: false,
+  assignerIsAdmin: false,
+  isSelfAssignment: false,
+} as const;
 
 const positions: Position[] = [
   {
@@ -73,7 +101,9 @@ const inactiveCargoPosition: Position = {
 describe("MemberForm", () => {
   it("blocks submit and shows an error when required fields are empty", async () => {
     const onSubmit = vi.fn();
-    render(<MemberForm positions={[]} submitLabel="Crear" onSubmit={onSubmit} />);
+    render(
+      <MemberForm {...FORM_AUTHORITY} positions={[]} submitLabel="Crear" onSubmit={onSubmit} />,
+    );
     await userEvent.click(screen.getByRole("button", { name: /crear/i }));
     expect(await screen.findAllByText("Mínimo 3 caracteres.")).not.toHaveLength(0);
     expect(onSubmit).not.toHaveBeenCalled();
@@ -81,7 +111,9 @@ describe("MemberForm", () => {
 
   it("renders the gender toggle and requires it on submit", async () => {
     const onSubmit = vi.fn();
-    render(<MemberForm positions={[]} submitLabel="Crear" onSubmit={onSubmit} />);
+    render(
+      <MemberForm {...FORM_AUTHORITY} positions={[]} submitLabel="Crear" onSubmit={onSubmit} />,
+    );
     expect(screen.getByRole("group", { name: "Género" })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/nombre/i), "Ana Pérez");
     await userEvent.type(screen.getByLabelText(/correo/i), "ana@jci.bo");
@@ -97,7 +129,13 @@ describe("MemberForm", () => {
   // authority that renders them all.
   it("shows gendered cargo labels and excludes comisiones from the cargo options", async () => {
     render(
-      <MemberForm positions={positions} submitLabel="Crear" onSubmit={vi.fn()} allowPowerGrants />,
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={positions}
+        submitLabel="Crear"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Femenino" }));
     await userEvent.click(screen.getByLabelText("Cargo"));
@@ -131,20 +169,27 @@ describe("MemberForm", () => {
     ];
     const { unmount } = render(
       <MemberForm
+        {...FORM_AUTHORITY}
         positions={celOnly}
         submitLabel="Crear"
         onSubmit={vi.fn()}
         allowPowerGrants={false}
       />,
     );
-    expect(screen.getByRole("note")).toHaveTextContent(/Asientos de directiva/);
+    expect(screen.getByRole("note")).toHaveTextContent(BOARD_SEAT_LABEL);
     await userEvent.click(screen.getByLabelText("Cargo"));
     expect(await screen.findByText("Sin resultados")).toBeInTheDocument();
     unmount();
 
     // The delegate sees the very same catalog as assignable, and no note.
     render(
-      <MemberForm positions={celOnly} submitLabel="Crear" onSubmit={vi.fn()} allowPowerGrants />,
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={celOnly}
+        submitLabel="Crear"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+      />,
     );
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Cargo"));
@@ -158,6 +203,7 @@ describe("MemberForm", () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
       <MemberForm
+        {...FORM_AUTHORITY}
         positions={[]}
         submitLabel="Guardar"
         onSubmit={onSubmit}
@@ -185,6 +231,7 @@ describe("MemberForm", () => {
     const onSubmit = vi.fn();
     render(
       <MemberForm
+        {...FORM_AUTHORITY}
         positions={[]}
         submitLabel="Guardar"
         onSubmit={onSubmit}
@@ -209,7 +256,14 @@ describe("MemberForm", () => {
 
   it("submits valid data with the chosen cargo and comisiones", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    render(<MemberForm positions={positions} submitLabel="Crear" onSubmit={onSubmit} />);
+    render(
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={positions}
+        submitLabel="Crear"
+        onSubmit={onSubmit}
+      />,
+    );
     await userEvent.type(screen.getByLabelText(/nombre/i), "Ana Pérez");
     await userEvent.type(screen.getByLabelText(/correo/i), "ana@jci.bo");
     await userEvent.click(screen.getByRole("button", { name: "Femenino" }));
@@ -239,7 +293,13 @@ describe("MemberForm", () => {
   it("locks comisiones as Comité Ejecutivo Local and clears them for a CEL cargo", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
-      <MemberForm positions={positions} submitLabel="Crear" onSubmit={onSubmit} allowPowerGrants />,
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={positions}
+        submitLabel="Crear"
+        onSubmit={onSubmit}
+        allowPowerGrants
+      />,
     );
     await userEvent.type(screen.getByLabelText(/nombre/i), "Ana Pérez");
     await userEvent.type(screen.getByLabelText(/correo/i), "ana@jci.bo");
@@ -258,14 +318,21 @@ describe("MemberForm", () => {
   });
 
   it("groups fields under section headers", () => {
-    render(<MemberForm positions={[]} submitLabel="Crear" onSubmit={async () => {}} />);
+    render(
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={[]}
+        submitLabel="Crear"
+        onSubmit={async () => {}}
+      />,
+    );
     expect(screen.getByText("Datos personales")).toBeInTheDocument();
     expect(screen.getByText("Membresía")).toBeInTheDocument();
   });
 
   it("renders a children slot before the submit button", () => {
     render(
-      <MemberForm positions={[]} submitLabel="Crear" onSubmit={async () => {}}>
+      <MemberForm {...FORM_AUTHORITY} positions={[]} submitLabel="Crear" onSubmit={async () => {}}>
         <span>extra-slot</span>
       </MemberForm>,
     );
@@ -275,6 +342,7 @@ describe("MemberForm", () => {
   it("shows inactive assigned cargo with (inactivo) suffix in combobox trigger", async () => {
     render(
       <MemberForm
+        {...FORM_AUTHORITY}
         positions={[...positions, inactiveCargoPosition]}
         defaultValues={{ cargoId: inactiveCargoPosition.id, gender: "Masculino" }}
         submitLabel="Guardar"
@@ -288,7 +356,14 @@ describe("MemberForm", () => {
   // (createPositionsSafe applies the same predicate). Without it a non-Admin sees a
   // grant-free CEL cargo, picks 'Presidente', and the create 403s into a generic error.
   it("hides a grant-free CEL cargo from a non-Admin and keeps the JDL dirección", async () => {
-    render(<MemberForm positions={positions} submitLabel="Crear" onSubmit={vi.fn()} />);
+    render(
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={positions}
+        submitLabel="Crear"
+        onSubmit={vi.fn()}
+      />,
+    );
     await userEvent.click(screen.getByLabelText("Cargo"));
     expect(await screen.findByText("Director de Área")).toBeInTheDocument();
     expect(screen.queryByText("Presidente")).not.toBeInTheDocument();
@@ -296,7 +371,13 @@ describe("MemberForm", () => {
 
   it("shows a grant-free CEL cargo to an Admin", async () => {
     render(
-      <MemberForm positions={positions} submitLabel="Crear" onSubmit={vi.fn()} allowPowerGrants />,
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={positions}
+        submitLabel="Crear"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+      />,
     );
     await userEvent.click(screen.getByLabelText("Cargo"));
     expect(await screen.findByText("Presidente")).toBeInTheDocument();
@@ -324,13 +405,16 @@ describe("MemberForm", () => {
   it("BLOCKING: does NOT lock a grant-free CEL seat — clearing it is the allowed takedown", () => {
     render(
       <MemberForm
+        {...FORM_AUTHORITY}
         positions={positions}
         defaultValues={{ cargoId: "pos-pres", gender: "Masculino" }}
         submitLabel="Guardar"
         onSubmit={vi.fn()}
       />,
     );
-    expect(screen.queryByText(/Solo un Admin puede cambiar el cargo/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Solo un administrador puede cambiar el cargo/i),
+    ).not.toBeInTheDocument();
   });
 
   // Dropping the seat from the options handed it to the `(inactivo)` fallback, which re-added
@@ -339,6 +423,7 @@ describe("MemberForm", () => {
   it("BLOCKING: never labels the active grant-free CEL seat '(inactivo)' to a non-Admin", () => {
     render(
       <MemberForm
+        {...FORM_AUTHORITY}
         positions={positions}
         defaultValues={{ cargoId: "pos-pres", gender: "Masculino" }}
         submitLabel="Guardar"
@@ -354,6 +439,7 @@ describe("MemberForm", () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
       <MemberForm
+        {...FORM_AUTHORITY}
         positions={positions}
         defaultValues={celSeated}
         submitLabel="Guardar"
@@ -371,6 +457,7 @@ describe("MemberForm", () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
       <MemberForm
+        {...FORM_AUTHORITY}
         positions={positions}
         defaultValues={celSeated}
         submitLabel="Guardar"
@@ -397,6 +484,7 @@ describe("MemberForm", () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
       <MemberForm
+        {...FORM_AUTHORITY}
         positions={positions}
         defaultValues={celSeated}
         submitLabel="Guardar"
@@ -417,18 +505,206 @@ describe("MemberForm", () => {
   it("does NOT lock a non-Admin editing a member on a grant-free JDL dirección", () => {
     render(
       <MemberForm
+        {...FORM_AUTHORITY}
         positions={positions}
         defaultValues={{ cargoId: "pos-jdl", gender: "Masculino" }}
         submitLabel="Guardar"
         onSubmit={vi.fn()}
       />,
     );
-    expect(screen.queryByText(/Solo un Admin puede cambiar el cargo/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Solo un administrador puede cambiar el cargo/i),
+    ).not.toBeInTheDocument();
+  });
+
+  // BLOCKING: the two rules conjuncts of positionsAssignmentSafe() are gated on DIFFERENT
+  // principals. `update:BoardSeat` lifts the NEW side (cargoAssignableByNonAdmin, the cargo
+  // written in) — which is what `allowPowerGrants` carries — but the OLD side
+  // (currentCargoGrantsEmpty, the cargo being REPLACED) is Admin-ROLE only and is deliberately
+  // NOT delegated. So the delegate is the one principal for whom both flags disagree, and the
+  // form must still lock. While the lock was `!allowPowerGrants && locked(...)` this render
+  // handed a delegate an open picker on a write the rules ALWAYS deny: render-then-403.
+  const powerCargo: Position = {
+    id: "pos-secre",
+    title: "Secretario",
+    titleFemale: "Secretaria",
+    category: "CEL",
+    grants: ["Secretary"],
+    term: null,
+    sigla: null,
+    description: "Lleva las actas.",
+    active: true,
+    deletedAt: null,
+  };
+
+  it("BLOCKING: locks for a board-seat DELEGATE on a member seated on a power-granting cargo", () => {
+    render(
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={[...positions, powerCargo]}
+        defaultValues={{ cargoId: "pos-secre", gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+        allowReplacePowerCargo={false}
+      />,
+    );
+    const trigger = screen.getByLabelText("Cargo");
+    expect(trigger).toBeDisabled();
+    const note = screen.getByText(/Solo un administrador puede cambiar el cargo/i);
+    expect(note).toBeInTheDocument();
+    // The note sits after the field in the DOM, so the association is the only way a
+    // screen-reader user reaching a disabled trigger meets the reason.
+    expect(trigger).toHaveAttribute("aria-describedby", note.id);
+  });
+
+  it("does NOT lock an Admin on that same power-granting seat", () => {
+    render(
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={[...positions, powerCargo]}
+        defaultValues={{ cargoId: "pos-secre", gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+        allowReplacePowerCargo
+      />,
+    );
+    expect(screen.getByLabelText("Cargo")).not.toBeDisabled();
+    expect(
+      screen.queryByText(/Solo un administrador puede cambiar el cargo/i),
+    ).not.toBeInTheDocument();
+  });
+
+  // ---- self-assignment: the second, disjoint refusal in resolveTrustedGrants ----
+  //
+  // BLOCKING: the finding. A delegate holding update:Member + update:BoardSeat opens THEIR OWN
+  // profile and seats themselves on a vacant NON-Admin-granting power cargo. Every gate says
+  // yes — boardSeatDelegate() permits the write, the seat publishes to the Directiva, the save
+  // returns 200 — but `resolveTrustedGrants` computes `selfAssigned = assignedBy === memberUid`
+  // and honors it only for an Admin, so no claim is minted. syncMemberClaims is a background
+  // trigger, so no response carries the refusal; and while the warning keyed on
+  // `grants.includes("Admin")` alone, a Secretario seat rendered NO note whatsoever.
+  const pickSecretario = async () => {
+    await userEvent.click(screen.getByLabelText("Cargo"));
+    await userEvent.click(await screen.findByText("Secretario"));
+  };
+
+  it("BLOCKING: warns a delegate seating THEMSELVES on a non-Admin power cargo", async () => {
+    render(
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={[...positions, powerCargo]}
+        defaultValues={{ cargoId: null, gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+        allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment
+      />,
+    );
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
+    await pickSecretario();
+    const note = screen.getByText(MINT_PENDING_COPY);
+    expect(note.id).toBe(MINT_PENDING_NOTE_ID);
+    // The note sits after the field in the DOM, so the association is the only way a
+    // screen-reader user on the trigger meets it before committing the save.
+    expect(screen.getByLabelText("Cargo")).toHaveAttribute(
+      "aria-describedby",
+      MINT_PENDING_NOTE_ID,
+    );
+    // The copy must not name administrator permissions: this cargo grants Secretary.
+    expect(note).not.toHaveTextContent(/permisos de administrador/i);
+  });
+
+  it("BLOCKING: the SAME delegate on the SAME cargo for someone else stays silent", async () => {
+    // The control that makes the case above about self-assignment and nothing else. Identical
+    // props but `isSelfAssignment={false}`: update:BoardSeat DOES mint a Secretary seat for
+    // another member, so a note here would be false and would train users past the real one.
+    render(
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={[...positions, powerCargo]}
+        defaultValues={{ cargoId: null, gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+        allowReplacePowerCargo={false}
+        assignerIsAdmin={false}
+        isSelfAssignment={false}
+      />,
+    );
+    await pickSecretario();
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Cargo")).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("stays silent for an ADMIN seating themselves — they mint it", async () => {
+    // `assignerIsAdmin` satisfies both arms of the trust gate, so self-assignment is not a
+    // refusal for them. Without this cell the fix could be "warn on any self-assignment".
+    render(
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={[...positions, powerCargo]}
+        defaultValues={{ cargoId: null, gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+        allowReplacePowerCargo
+        assignerIsAdmin
+        isSelfAssignment
+      />,
+    );
+    await pickSecretario();
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
+  });
+
+  // Both new props default to false, which is what keeps the ~20 renders above (and the
+  // invite drawer, which passes only `assignerIsAdmin`) compiling. Pin the defaults: a
+  // required `isSelfAssignment` would be a breaking prop, but a default of TRUE would put the
+  // note on every create.
+  it("defaults both new props to false rather than warning by accident", async () => {
+    render(
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={[...positions, powerCargo]}
+        defaultValues={{ cargoId: null, gender: "Masculino" }}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+        allowPowerGrants
+      />,
+    );
+    await pickSecretario();
+    expect(screen.queryByText(MINT_PENDING_COPY)).not.toBeInTheDocument();
+  });
+
+  // BLOCKING: the takedown note now has an id and is the third arm of cargoNoteId(). While the
+  // association was a two-branch ternary over noCargos/locked, a takedown-only editor got
+  // `aria-describedby={undefined}`: the note rendered, sat AFTER the field in the DOM, and a
+  // screen-reader user reaching a trigger whose seat option is disabled met no reason at all.
+  it("BLOCKING: associates the takedown note with the trigger", () => {
+    render(
+      <MemberForm
+        {...FORM_AUTHORITY}
+        positions={positions}
+        defaultValues={celSeated}
+        submitLabel="Guardar"
+        onSubmit={vi.fn()}
+      />,
+    );
+    const note = screen.getByText(/solo un administrador puede asignarlo/i);
+    expect(note.id).toBeTruthy();
+    expect(screen.getByLabelText("Cargo")).toHaveAttribute("aria-describedby", note.id);
+    // Not the mint-pending id: a grant-free seat mints nothing to warn about, and the two
+    // notes' ids must not be interchangeable.
+    expect(note.id).not.toBe(MINT_PENDING_NOTE_ID);
   });
 
   it("renders comisión option as 'sigla — title' when sigla is present", async () => {
     render(
       <MemberForm
+        {...FORM_AUTHORITY}
         positions={[...positions, comisionWithSigla]}
         submitLabel="Crear"
         onSubmit={vi.fn()}

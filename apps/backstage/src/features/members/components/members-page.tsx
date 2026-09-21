@@ -9,7 +9,6 @@ import { useSetMemberStatus } from "../hooks/use-set-member-status";
 import { useUnpublishMember } from "../hooks/use-unpublish-member";
 import { useProvisionMemberLogin } from "../hooks/use-provision-member-login";
 import { provisionErrorMessage } from "../lib/provision-error";
-import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
 import { MemberTable } from "./member-table";
 import { MemberStatusFilter } from "./member-status-filter";
 import { MemberFilterMeta } from "./member-filter-meta";
@@ -34,7 +33,12 @@ const NO_MEMBERS: Member[] = [];
 
 export function MembersPage() {
   const { data: members, isLoading, isError } = useMembers();
-  const { data: positions } = usePositions();
+  // isError, not just data: the row menu's "Invitar a la app" is gated on
+  // `memberProvisionBlocked`, which fails CLOSED on an unresolvable cargo — so a failed catalog
+  // query removes the affordance from every seated member's menu with nothing said, and the
+  // invite drawer's picker renders "ningún cargo es asignable con tus permisos", a permissions
+  // explanation for a failed query. Guardrail #3.
+  const { data: positions, isError: positionsFailed } = usePositions();
   const addMember = useAddMember();
   const updateMember = useUpdateMember();
   const setMemberStatus = useSetMemberStatus();
@@ -92,13 +96,12 @@ export function MembersPage() {
   const handleProvision = async (member: Member) => {
     if (provision.isPending) return;
     try {
-      const { email } = await provision.mutateAsync(member.id);
-      try {
-        await requestPasswordReset(email);
-        setToast(actionMessage(member.name, "invited"));
-      } catch {
-        setToast("Acceso creado, pero el correo no se envió.");
-      }
+      const { emailSent } = await provision.mutateAsync(member.id);
+      setToast(
+        emailSent
+          ? actionMessage(member.name, "invited")
+          : "Acceso creado, pero el correo no se envió.",
+      );
     } catch (err) {
       setToast(provisionErrorMessage(err, "No se pudo enviar la invitación."));
     }
@@ -181,6 +184,13 @@ export function MembersPage() {
         onClearStatus={() => setStatus("Todos")}
         onClearAll={clearAll}
       />
+
+      {positionsFailed && (
+        <p role="alert" className="text-ui-sm text-error">
+          No se pudo cargar el catálogo de cargos. Los cargos no se muestran y las invitaciones no
+          están disponibles hasta que recargues la página.
+        </p>
+      )}
 
       {isError ? (
         <p role="alert" className="text-error">

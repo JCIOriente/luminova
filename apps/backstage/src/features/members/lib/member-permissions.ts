@@ -1,5 +1,20 @@
 import { ROLES, type Member, type Position, type Role } from "@luminova/types";
 
+/**
+ * Whether this member doc IS the signed-in user.
+ *
+ * The `uid !== undefined` half is the whole reason this is a function: an unprovisioned member
+ * has no `uid`, and so does a caller whose auth has not resolved yet, so a bare `===` reads
+ * `undefined === undefined` and calls a stranger "yourself". That answer feeds
+ * `isSelfAssignment`, which decides whether the delegate is warned that seating this member
+ * mints nothing — get it wrong and the warning fires on the wrong person, or not at all.
+ *
+ * Three call sites had this typed out by hand (both cargo editors and /me's self-edit gate).
+ */
+export function isSelfMember(member: Pick<Member, "uid">, uid: string | undefined): boolean {
+  return member.uid !== undefined && member.uid === uid;
+}
+
 // Cargo grants only — comisiones are chips-only, matching the claims-sync trigger, which
 // ignores comisión grants. This is the UPPER BOUND of what the trigger will mint, not an
 // exact mirror: resolveTrustedGrants (apps/beacon/src/claims-sync/sync.ts) additionally

@@ -15,6 +15,7 @@ import { useActivitiesByTerm } from "../features/activities/hooks/use-activities
 import { useInitiativesByTerm } from "../features/initiatives/hooks/use-initiatives-by-term";
 import { usePositions } from "../features/positions/hooks/use-positions";
 import { joinYear } from "../features/members/lib/member-display";
+import { isSelfMember } from "../features/members/lib/member-permissions";
 import { summarizeParticipations } from "../features/members/lib/participation-summary";
 import { MemberPointsSummary } from "../features/members/components/member-points-summary";
 import { MemberCredentialCard } from "../features/members/components/member-credential-card";
@@ -92,7 +93,7 @@ export function MemberHome() {
   // at a role, so the honest mirror is doc ownership — NOT the CASL own-doc grant, which
   // only members carrying the built-in Member role hold (a roles:["Treasury"] principal
   // would lose a self-edit the rules would have accepted).
-  const canEditSelf = member.uid !== undefined && member.uid === uid;
+  const canEditSelf = isSelfMember(member, uid);
 
   const cargoId = member.positions?.[termId]?.cargoId ?? null;
   const cargo = cargoId ? positionsById.get(cargoId) : null;

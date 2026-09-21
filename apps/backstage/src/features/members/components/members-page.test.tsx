@@ -20,6 +20,14 @@ vi.mock("../hooks/use-unpublish-member", () => ({
 vi.mock("../hooks/use-provision-member-login", () => ({
   useProvisionMemberLogin: () => ({ mutateAsync: vi.fn(), mutate: vi.fn(), isPending: false }),
 }));
+// MemberDrawer (rendered from this page) now reads the caller's uid to decide whether the row
+// it opened is the caller's OWN — the table lists it too, so that edit is a SELF-assignment.
+// Mocked as a factory with no `importOriginal`: lib/auth/auth builds its store from
+// getFirebase().auth at module scope, so evaluating the real module initializes Firebase and
+// the whole file fails to collect.
+vi.mock("../../../lib/auth/auth", () => ({
+  useAuth: () => ({ user: { uid: "u" }, claims: { roles: ["Admin"] } }),
+}));
 
 import { MembersPage } from "./members-page";
 import { AbilityProvider } from "../../../lib/authz/ability-context";

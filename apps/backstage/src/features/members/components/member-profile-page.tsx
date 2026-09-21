@@ -16,7 +16,6 @@ import { useActivitiesByTerm } from "../../activities/hooks/use-activities-by-te
 import { useInitiativesByTerm } from "../../initiatives/hooks/use-initiatives-by-term";
 import { summarizeParticipations } from "../lib/participation-summary";
 import { pointsRank } from "../../../lib/points-rank";
-import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
 import { useProvisionMemberLogin } from "../hooks/use-provision-member-login";
 import { useUpdateMember } from "../hooks/use-update-member";
 import { useSetMemberPositions } from "../hooks/use-set-member-positions";
@@ -27,9 +26,11 @@ import { MemberPermissionsPanel } from "./member-permissions-panel";
 import { MemberPositionHistory } from "./member-position-history";
 import { MemberPointsSummary } from "./member-points-summary";
 import { ParticipationLedger } from "./participation-ledger";
-import { effectiveRoles } from "../lib/member-permissions";
+import { effectiveRoles, isSelfMember } from "../lib/member-permissions";
 import { memberEditMode } from "../lib/member-edit-gate";
 import { provisionErrorMessage } from "../lib/provision-error";
+import { memberProvisionBlocked } from "../lib/provision-gate";
+import { useCopyToClipboard } from "../../../lib/use-copy-to-clipboard";
 import { memberFormDefaults } from "../lib/member-form-defaults";
 
 // qrcode.react (~13 kB gz) lazy so it leaves the always-loaded index shell.
@@ -56,7 +57,11 @@ export function MemberProfilePage() {
   const gate = useCan();
   const uid = useAuth().user?.uid;
   const { data: member, isLoading, isError, error, refetch } = useMember(memberId);
-  const { data: positions } = usePositions();
+  // isError, not just data: `memberProvisionBlocked` fails CLOSED on an unresolvable cargo, so
+  // a failed catalog query (a rules regression, permission-denied — which TanStack does not
+  // retry) silently removes the invite affordance from every seated member with nothing said.
+  // Guardrail #3: loading, error and absent are three states, and only one of them is "wait".
+  const { data: positions, isError: positionsFailed } = usePositions();
   const { data: points } = useMemberPoints(memberId, termId);
   const { data: participations } = useMemberParticipations(memberId, termId);
   const { data: allPoints } = useMemberPointsByTerm(termId);
@@ -107,7 +112,11 @@ export function MemberProfilePage() {
   const showPositionsOnly = editMode === "positions";
   // Member editing is split across two rules lanes; point the caller at the other one
   // instead of leaving "where do I edit this" to depend on whose profile it is.
-  const isSelf = member.uid !== undefined && member.uid === uid;
+  const isSelf = isSelfMember(member, uid);
+  // Fails closed while the catalog is still loading: an unresolvable cargo counts as
+  // power-conferring, so a delegate sees the invite appear once positions land rather than
+  // seeing it offered and then denied. An Admin is unaffected — the predicate short-circuits.
+  const inviteBlocked = memberProvisionBlocked(member, (id) => positionsById.get(id), gate.isAdmin);
 
   const handleEdit = (data: MemberInput) =>
     updateMember.mutateAsync({
@@ -130,11 +139,35 @@ export function MemberProfilePage() {
           <div className="flex flex-wrap items-center justify-end gap-3">
             {member.status && <Badge tone={STATUS_TONE[member.status]}>{member.status}</Badge>}
             {/* provisionMemberLogin is requireAdminOrPerm(create:MemberLogin) — the Admin
-                role or that exact code, never the manage:all perm. */}
-            {/* `!member.uid` mirrors beacon's adoption guard: a delegate may only mint a NEW
-                login, so "Reenviar acceso" would 403 on every click for them. */}
-            <ActionGate when={gate.canProvisionLogin && (gate.isAdmin || !member.uid)}>
-              <InviteAccess member={member} />
+                role or that exact code, never the manage:all perm. memberProvisionBlocked
+                mirrors every refusal the callable applies to a non-Admin, so a delegate is not
+                shown a button that 403s on every click. Same predicate as the row menu and the
+                invite drawer, deliberately. */}
+            {/* Gated on the PERM only. `inviteBlocked` goes to InviteAccess as a prop rather
+                than gating the mount, because a successful invite FLIPS it: beacon writes
+                member.uid, the next refetch makes memberProvisionBlocked true (hasLogin), and
+                unmounting here would destroy the component's own "enviada" / "no se pudo
+                enviar el correo" state mid-flight — deleting, for a delegate, the only notice
+                that the account exists with no password mail sent. */}
+            <ActionGate when={gate.canProvisionLogin}>
+              {/* An Admin is subject to none of the refusals `inviteBlocked` mirrors, so the
+                  failed catalog cannot mislead them. For everyone else it decides the
+                  affordance, and "we could not check" must not render as "not allowed". */}
+              {positionsFailed && !gate.isAdmin ? (
+                <p role="alert" className="basis-full text-right text-ui-xs text-error">
+                  No se pudo cargar el catálogo de cargos, así que no podemos verificar si este
+                  miembro puede recibir acceso. Recarga la página.
+                </p>
+              ) : (
+                /* key: the mount gate used to be `!inviteBlocked`, which ALSO happened to reset
+                   this component between members. It no longer does, and TanStack Router renders
+                   the same MemberProfilePage instance across a /members/A → /members/B
+                   navigation (no key on Match), while `isLoading` skips the unmount whenever B
+                   is warm in cache. Without this, B's header shows A's "Invitación enviada".
+                   Stable across the refetch that sets member.uid, so it does not reintroduce
+                   the flip-erases-its-own-result bug. */
+                <InviteAccess key={member.id} member={member} blocked={inviteBlocked} />
+              )}
             </ActionGate>
           </div>
         }
@@ -144,15 +177,36 @@ export function MemberProfilePage() {
         <div className="flex flex-col gap-6">
           {positions && canEdit && (
             <Card as="section">
+              {/* key, for the same reason as InviteAccess above and MemberDrawer's copy: RHF
+                  reads `defaultValues` once at mount, and this page is NOT remounted across a
+                  /members/A → /members/B param change when B is warm in cache. Without it the
+                  form keeps A's name/email/status while `member.id` and `handleEdit` have moved
+                  to B — «Guardar cambios» then writes A's identity onto B's document. */}
               <MemberForm
+                key={member.id}
                 positions={positions}
                 defaultValues={memberFormDefaults(member)}
                 submitLabel="Guardar cambios"
                 pendingLabel="Guardando…"
                 allowPowerGrants={gate.canAssignBoardSeat}
+                allowReplacePowerCargo={gate.isAdmin}
+                assignerIsAdmin={gate.isAdmin}
+                isSelfAssignment={isSelf}
                 onSubmit={handleEdit}
                 avatarSeed={member.name}
               />
+            </Card>
+          )}
+
+          {/* Both editors below are gated on `positions` being present. Without this an editor
+              whose catalog query FAILED gets a page with no form and no explanation — the
+              absent/error conflation guardrail #3 names. */}
+          {positionsFailed && (canEdit || showPositionsOnly) && (
+            <Card as="section">
+              <p role="alert" className="text-ui-sm text-error">
+                No se pudo cargar el catálogo de cargos, así que el formulario no está disponible.
+                Recarga la página.
+              </p>
             </Card>
           )}
 
@@ -174,10 +228,16 @@ export function MemberProfilePage() {
               <h2 className="mb-4 text-ui-xs font-medium tracking-[0.02em] text-ink-3 uppercase">
                 Cargos
               </h2>
+              {/* Same reason as MemberForm above: without the key this form would save A's
+                  cargo and comisiones onto B. */}
               <MemberPositionsForm
+                key={member.id}
                 positions={positions}
                 gender={member.gender}
                 allowPowerGrants={gate.canAssignBoardSeat}
+                allowReplacePowerCargo={gate.isAdmin}
+                assignerIsAdmin={gate.isAdmin}
+                isSelfAssignment={isSelf}
                 defaultValues={{
                   cargoId: member.positions?.[termKey]?.cargoId ?? null,
                   comisionIds: member.positions?.[termKey]?.comisionIds ?? [],
@@ -225,78 +285,88 @@ export function MemberProfilePage() {
   );
 }
 
-function InviteAccess({ member }: { member: Member }) {
+function InviteAccess({ member, blocked }: { member: Member; blocked: boolean }) {
+  // Provisioning AND the reset mail are one mutation (use-provision-member-login): a mail sent
+  // from a component-scoped onSuccess is dropped whenever this component is gone by the time
+  // the callable resolves, which `key={member.id}` above makes reachable by merely switching
+  // members. So there is no floating promise left to interleave, and no attempt counter: the
+  // mutation's own state IS the latest attempt.
   const provision = useProvisionMemberLogin();
-  const [open, setOpen] = useState(false);
-  const [link, setLink] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+  const { copyState, copy, resetCopyState } = useCopyToClipboard();
   const label = member.uid ? "Reenviar acceso" : "Invitar acceso";
+  const result = provision.data;
+  // Only present when the mail did NOT go out — the hook nulls it otherwise, because sending
+  // the mail invalidates this oobCode. See InviteResult.fallbackLink.
+  const link = result?.fallbackLink ?? null;
+  const error = provision.isError
+    ? provisionErrorMessage(provision.error, "No se pudo generar el acceso.")
+    : result && !result.emailSent
+      ? "Se creó el acceso, pero no se pudo enviar el correo. " +
+        (result.fallbackLink
+          ? "Comparte el enlace manualmente."
+          : "Pídele a un administrador que lo reenvíe.")
+      : null;
 
-  // beacon withholds the action link from a non-Admin caller (it is a bearer credential for
-  // the account). The client then does what the invite drawer already does — send the reset
-  // mail itself through the unprivileged sendPasswordResetEmail — so a delegate's invite
-  // still lands. Without this the delegate got an empty code block and a copy button that
-  // copied nothing, with the account already created and no way to set a password.
   const invite = () => {
-    setError(null);
-    provision.mutate(member.id, {
-      onSuccess: (result) => {
-        if (result.actionLink) {
-          setLink(result.actionLink);
-          setOpen(true);
-          return;
-        }
-        setSent(false);
-        void requestPasswordReset(result.email)
-          .then(() => setSent(true))
-          .catch((err: unknown) => {
-            console.error("No se pudo enviar el correo de acceso", err);
-            setError(
-              "Se creó el acceso, pero no se pudo enviar el correo. Pídele a un Admin que lo reenvíe.",
-            );
-          });
-      },
-      onError: (err) => setError(provisionErrorMessage(err, "No se pudo generar el acceso.")),
-    });
+    setDismissed(false);
+    resetCopyState();
+    provision.mutate(member.id);
   };
 
   return (
     <>
-      <Button
-        as="button"
-        type="button"
-        variant="secondary"
-        disabled={provision.isPending}
-        onClick={invite}
-      >
-        {provision.isPending ? "Generando…" : label}
-      </Button>
+      {/* The BUTTON goes away when the callable would refuse; the feedback below does not.
+          `blocked` becomes true the moment this invite succeeds (the member now has a uid and
+          the hook invalidates the query), so gating the whole component on it would erase the
+          result of the click that set it. */}
+      {!blocked && (
+        <Button
+          as="button"
+          type="button"
+          variant="secondary"
+          disabled={provision.isPending}
+          onClick={invite}
+        >
+          {provision.isPending ? "Generando…" : label}
+        </Button>
+      )}
       {error && (
         <p role="alert" className="basis-full text-right text-ui-xs text-error">
           {error}
         </p>
       )}
-      {sent && (
+      {result?.emailSent && (
         <p role="status" className="basis-full text-right text-ui-xs text-ink-3">
           Invitación enviada por correo.
         </p>
       )}
-      <Dialog open={open} onOpenChange={setOpen} title="Acceso de miembro">
+      <Dialog
+        open={link !== null && !dismissed}
+        onOpenChange={(o) => {
+          if (!o) setDismissed(true);
+        }}
+        title="Acceso de miembro"
+      >
         <div className="flex flex-col gap-3">
+          {/* This dialog exists ONLY on the mail-failure branch, so it never claims the member
+              was emailed. The mail failure is repeated here rather than left to the header
+              alert: the modal's aria-hidden takes that alert out of the accessibility tree. */}
           <p className="text-ui-sm text-ink-2">
-            Comparte este enlace con el miembro para que cree su contraseña e inicie sesión.
+            No se pudo enviar el correo. Comparte este enlace con el miembro para que cree su
+            contraseña e inicie sesión.
           </p>
           <code className="block w-full overflow-x-auto rounded-[8px] bg-ink-1/[0.04] px-3 py-2 text-ui-xs text-ink-2">
             {link}
           </code>
-          <Button
-            as="button"
-            type="button"
-            onClick={() => link && void navigator.clipboard.writeText(link)}
-          >
-            Copiar enlace
+          <Button as="button" type="button" onClick={() => link && copy(link)}>
+            {copyState === "copied" ? "Enlace copiado" : "Copiar enlace"}
           </Button>
+          {copyState === "failed" && (
+            <p role="alert" className="text-ui-xs text-error">
+              No se pudo copiar. Selecciona el enlace de arriba y cópialo manualmente.
+            </p>
+          )}
         </div>
       </Dialog>
     </>

@@ -84,8 +84,9 @@ describe("requireAdminOrPerm", () => {
   });
 
   it("keeps the two delegations independent", () => {
-    // A board-seat delegate is not a login provisioner and vice versa. Pinned because both
-    // codes ship together and the obvious future mistake is to conflate them.
+    // A board-seat delegate is not a login provisioner and vice versa. Pins the gate against a
+    // widening that keys on the subject FAMILY (e.g. "holds any MemberLogin/BoardSeat
+    // delegation") — every other case here is same-subject and would still pass.
     expect(
       codeOf(() =>
         requireAdminOrPerm(
@@ -115,7 +116,7 @@ describe("callerIsAdmin", () => {
     expect(callerIsAdmin(req())).toBe(false);
     expect(callerIsAdmin(req({ roles: ["Member"], perms: ["manage:all"] }))).toBe(false);
   });
-  it("is true only for the Admin role", () => {
+  it("is true for the Admin role", () => {
     expect(callerIsAdmin(req({ roles: ["Admin"] }))).toBe(true);
   });
 });
