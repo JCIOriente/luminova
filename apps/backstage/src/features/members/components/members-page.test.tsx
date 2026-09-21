@@ -17,8 +17,8 @@ vi.mock("../hooks/use-set-member-status", () => ({
 vi.mock("../hooks/use-unpublish-member", () => ({
   useUnpublishMember: () => ({ mutate: vi.fn() }),
 }));
-vi.mock("../hooks/use-provision-member-login", () => ({
-  useProvisionMemberLogin: () => ({ mutateAsync: vi.fn(), mutate: vi.fn(), isPending: false }),
+vi.mock("../hooks/use-issue-member-invite", () => ({
+  useIssueMemberInvite: () => ({ mutateAsync: vi.fn(), mutate: vi.fn(), isPending: false }),
 }));
 // MemberDrawer (rendered from this page) now reads the caller's uid to decide whether the row
 // it opened is the caller's OWN — the table lists it too, so that edit is a SELF-assignment.

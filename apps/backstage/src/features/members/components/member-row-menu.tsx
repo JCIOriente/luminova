@@ -4,6 +4,7 @@ import { Can } from "../../../lib/authz/ability-context";
 import { ActionGate } from "../../../lib/authz/action-gate";
 import { useCan } from "../../../lib/authz/use-can";
 import { memberProvisionBlocked } from "../lib/provision-gate";
+import { inviteActionLabel, memberInviteState } from "../lib/invite-state";
 
 interface MemberRowMenuProps {
   member: Member;
@@ -52,15 +53,21 @@ export function MemberRowMenu({
         <MenuItem onSelect={() => onEdit(member)}>Editar miembro</MenuItem>
       </Can>
 
-      {/* provisionMemberLogin is requireAdminOrPerm(create:MemberLogin) — the Admin role or
-          that exact code, never the manage:all perm. memberProvisionBlocked mirrors every
-          refusal the callable applies to a non-Admin (adoption, direct grants, a power-granting
-          cargo in any term), so a delegate is not offered an item that 403s on every click.
-          The residual case the client cannot see — an Auth account already existing for the
-          address — still 403s, and provisionErrorMessage names it. */}
+      {/* issueMemberInvite is requireAdminOrPerm(create:MemberLogin) — the Admin role or that
+          exact code, never the manage:all perm. memberProvisionBlocked mirrors the refusals
+          the callable applies to a non-Admin that a CLIENT CAN SEE (direct grants, a
+          power-granting cargo in any term). It no longer mirrors "already has a login": after
+          D3 that is the RECOVERY branch, not a refusal, and since this gate is a MOUNT gate —
+          the item does not render at all — keeping it would have meant beacon allowing
+          recovery while the menu never offered it.
+          Three refusals stay invisible here (adoption, self-heal, a privileged Auth account):
+          each needs Auth-directory state no client can read, so they 403 with a tagged reason
+          that provisionErrorMessage names. */}
       <ActionGate when={canProvisionLogin && !provisionBlocked}>
         <MenuItem onSelect={() => onProvision(member)}>
-          {member.uid ? "Reenviar invitación" : "Invitar a la app"}
+          {/* Derived, not hand-typed: this menu used to say "Reenviar invitación" / "Invitar a
+              la app" while the profile header said something else for the same action. */}
+          {inviteActionLabel(memberInviteState(member, Date.now()))}
         </MenuItem>
       </ActionGate>
 

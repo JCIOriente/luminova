@@ -1,13 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { HttpsError } from "firebase-functions/v2/https";
 import type { Role } from "@luminova/auth/roles";
+import { INVITE_PURGE_MS, INVITE_TTL_MS } from "@luminova/types/member-invite";
 import {
   validateProvisionInput,
   nextClaims,
-  provisionMember,
-  type ProvisionDeps,
+  issueInvite,
+  type InviteCommit,
+  type InviteDeps,
   type ProvisionUser,
-} from "./provision-member-login.js";
+} from "./issue-member-invite.js";
+import { hashInviteToken } from "./invite-token.js";
 
 describe("validateProvisionInput", () => {
   function codeOf(data: unknown): string {
@@ -62,14 +65,24 @@ describe("nextClaims", () => {
   });
 });
 
+const NOW = 1_700_000_000_000;
+
 function fakeDeps(opts: {
   member?: Record<string, unknown> | null;
   usersByEmail?: Record<string, ProvisionUser>;
   positions?: Record<string, Role[]>;
+  commitThrows?: Error;
 }) {
-  const calls = { createUser: [] as string[], setClaims: [] as string[], linkUid: [] as string[] };
+  const calls = {
+    createUser: [] as string[],
+    setClaims: [] as string[],
+    linkUid: [] as string[],
+    /** Every commit, in order. ONE port, so the count IS the write-atomicity contract:
+     *  there is no way to write the three documents separately. */
+    commits: [] as InviteCommit[],
+  };
   const users = opts.usersByEmail ?? {};
-  const deps: ProvisionDeps = {
+  const deps: InviteDeps = {
     getMember: async () => opts.member ?? null,
     getUserByEmail: async (email) => users[email] ?? null,
     createUser: async (email) => {
@@ -85,13 +98,21 @@ function fakeDeps(opts: {
       calls.linkUid.push(uid);
     },
     getUserByUid: async (uid) => Object.values(users).find((u) => u.uid === uid) ?? null,
-    passwordResetLink: async (email) => `link:${email}`,
+    now: () => NOW,
+    commitInvite: async (commit) => {
+      calls.commits.push(commit);
+      if (opts.commitThrows) throw opts.commitThrows;
+    },
     getPositionGrants: async (cargoId) => opts.positions?.[cargoId] ?? null,
   };
   return { deps, calls };
 }
 
-describe("provisionMember", () => {
+/** The delegate principal D3 exists for, and the member shape it may act on. */
+const DELEGATE = false;
+const ADMIN = true;
+
+describe("issueInvite", () => {
   const active = { email: "a@b.co", active: true };
   const TERM = String(new Date().getUTCFullYear());
 
@@ -100,7 +121,7 @@ describe("provisionMember", () => {
       member: { ...active, uid: "old-uid" },
       usersByEmail: { "a@b.co": { uid: "other-uid" }, "old@x.co": { uid: "old-uid" } },
     });
-    await expect(provisionMember(deps, "m1")).rejects.toMatchObject({
+    await expect(issueInvite(deps, "m1", "caller")).rejects.toMatchObject({
       code: "failed-precondition",
       details: { reason: "linked-to-different-login" },
     });
@@ -114,7 +135,7 @@ describe("provisionMember", () => {
       member: { ...active, uid: "old-uid" },
       usersByEmail: { "old@x.co": { uid: "old-uid" } },
     });
-    await expect(provisionMember(deps, "m1")).rejects.toMatchObject({
+    await expect(issueInvite(deps, "m1", "caller")).rejects.toMatchObject({
       code: "failed-precondition",
     });
     expect(calls.createUser).toEqual([]);
@@ -133,7 +154,7 @@ describe("provisionMember", () => {
         "a@b.co": { uid: "u2", email: "a@b.co", customClaims: { roles: ["Admin"] } },
       },
     });
-    const result = await provisionMember(deps, "m1", true);
+    const result = await issueInvite(deps, "m1", "caller", ADMIN);
     expect(result.email).toBe("a@b.co");
     expect(calls.createUser).toEqual([]);
     expect(calls.linkUid).toEqual(["u2"]);
@@ -143,7 +164,7 @@ describe("provisionMember", () => {
     // ADMIN caller: a stored uid means this member was provisioned once already, so recovery
     // is an Admin op. A delegate hits the reprovision guard instead (test below).
     const { deps, calls } = fakeDeps({ member: { ...active, uid: "dead-uid" } });
-    await provisionMember(deps, "m1", true);
+    await issueInvite(deps, "m1", "caller", ADMIN);
     expect(calls.createUser).toEqual(["a@b.co"]);
     expect(calls.linkUid).toEqual(["new-a@b.co"]);
   });
@@ -155,8 +176,9 @@ describe("provisionMember", () => {
       member: { ...active, uid: "u1" },
       usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
     });
-    const result = await provisionMember(deps, "m1", true);
-    expect(result).toEqual({ email: "a@b.co", actionLink: "link:a@b.co" });
+    const result = await issueInvite(deps, "m1", "caller", ADMIN);
+    expect(result.email).toBe("a@b.co");
+    expect(result.replacedPreviousLink).toBe(false);
     expect(calls.createUser).toEqual([]);
     expect(calls.setClaims).toEqual(["u1"]);
     expect(calls.linkUid).toEqual(["u1"]);
@@ -165,8 +187,8 @@ describe("provisionMember", () => {
   it("provisions an unlinked member, creating the auth user when absent", async () => {
     // ADMIN caller: only an Admin receives the action link (see the delegate pair below).
     const { deps, calls } = fakeDeps({ member: active });
-    const result = await provisionMember(deps, "m1", true);
-    expect(result).toEqual({ email: "a@b.co", actionLink: "link:a@b.co" });
+    const result = await issueInvite(deps, "m1", "caller", ADMIN);
+    expect(result.email).toBe("a@b.co");
     expect(calls.createUser).toEqual(["a@b.co"]);
     expect(calls.setClaims).toEqual(["new-a@b.co"]);
     expect(calls.linkUid).toEqual(["new-a@b.co"]);
@@ -181,7 +203,7 @@ describe("provisionMember", () => {
         "a@b.co": { uid: "u9", email: "a@b.co", customClaims: { roles: ["Scanner"] } },
       },
     });
-    await provisionMember(deps, "m1", true);
+    await issueInvite(deps, "m1", "caller", ADMIN);
     expect(calls.createUser).toEqual([]);
     expect(calls.linkUid).toEqual(["u9"]);
   });
@@ -200,7 +222,7 @@ describe("provisionMember", () => {
         "a@b.co": { uid: "u9", email: "a@b.co", customClaims: { roles: ["Admin"] } },
       },
     });
-    await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+    await expect(issueInvite(deps, "m1", "caller", DELEGATE)).rejects.toMatchObject({
       code: "permission-denied",
       details: { reason: "reprovision-requires-admin" },
     });
@@ -210,25 +232,122 @@ describe("provisionMember", () => {
     expect(calls.createUser).toEqual([]);
   });
 
-  it("BLOCKING: a non-Admin caller may NOT re-provision an ALREADY-LINKED member", async () => {
-    // The resend path is an account-takeover primitive, not a convenience. passwordResetLink
-    // is generatePasswordResetLink — it hands the oobCode URL to the CALLER, unlike the
-    // client-side sendPasswordResetEmail which delivers it to the mailbox owner. So without
-    // this, a create:MemberLogin holder could pass the president's memberId, receive a live
-    // reset link for their address, and sign in as them. No adoption, no forged email —
-    // every other guard satisfied.
+  it("BLOCKING: a delegate may NOT recover a member whose ACCOUNT holds elevated claims", async () => {
+    // This case used to be refused by the blanket adoption guard ("already has a login"). D3
+    // deliberately opened that branch, so the SAME attack — a create:MemberLogin holder naming
+    // the president's memberId to receive a live credential for their account — is now held
+    // off by accountIsPrivileged instead. The member doc is clean; only the live Auth account
+    // knows it is privileged, which is exactly the gap the doc-reading guards cannot see.
     const { deps, calls } = fakeDeps({
       member: { ...active, uid: "u1" },
       usersByEmail: {
         "a@b.co": { uid: "u1", email: "a@b.co", customClaims: { roles: ["Admin"] } },
       },
     });
-    await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+    await expect(issueInvite(deps, "m1", "caller", DELEGATE)).rejects.toMatchObject({
       code: "permission-denied",
-      details: { reason: "reprovision-requires-admin" },
+      details: { reason: "privileged-account-requires-admin" },
     });
     expect(calls.setClaims).toEqual([]);
     expect(calls.linkUid).toEqual([]);
+    expect(calls.commits).toEqual([]);
+  });
+
+  it("D3: a delegate MAY recover a provisioned, grant-free, unprivileged member", async () => {
+    // The decision this feature turns on. Every other guard passes; this is the recovery
+    // branch the exhaustive switch opened, and the residual the spec names: the delegate can
+    // redeem this token themselves and be that member. Auditable (issuedBy), not prevented.
+    const { deps, calls } = fakeDeps({
+      member: { ...active, uid: "u1" },
+      usersByEmail: {
+        "a@b.co": { uid: "u1", email: "a@b.co", customClaims: { roles: ["Member"] } },
+      },
+    });
+    const result = await issueInvite(deps, "m1", "delegate-uid", DELEGATE);
+    expect(result.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(calls.createUser).toEqual([]);
+    expect(calls.commits[0]?.invite.kind).toBe("recovery");
+    expect(calls.commits[0]?.invite.issuedBy).toBe("delegate-uid");
+    expect(calls.commits[0]?.invite.issuedByAdmin).toBe(false);
+  });
+
+  it("BLOCKING: the SELF-HEAL quadrant stays Admin-only", async () => {
+    // The regression a two-branch split would have introduced. The member doc carries a uid
+    // but no Auth account resolves (deleted out of band), so it is NEITHER the recovery branch
+    // NOR the initial one — and with a two-way split it would fall straight through to
+    // createUser -> fresh uid -> linkUid onto the existing member doc, by a delegate. The
+    // escalation happens to be closed by the power-seat and direct-grant guards, but that is
+    // luck, not design.
+    const { deps, calls } = fakeDeps({ member: { ...active, uid: "dead-uid" } });
+    await expect(issueInvite(deps, "m1", "caller", DELEGATE)).rejects.toMatchObject({
+      code: "permission-denied",
+      details: { reason: "reprovision-requires-admin" },
+    });
+    expect(calls.createUser).toEqual([]);
+    expect(calls.linkUid).toEqual([]);
+    expect(calls.commits).toEqual([]);
+  });
+
+  it("BLOCKING: a delegate may NOT issue for a DISABLED account", async () => {
+    // Nothing in beacon disables accounts, so this is a console containment measure. Minting
+    // would report success and flip the badge green while the member gets auth/user-disabled
+    // at login with no explanation.
+    const { deps, calls } = fakeDeps({
+      member: { ...active, uid: "u1" },
+      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co", disabled: true } },
+    });
+    await expect(issueInvite(deps, "m1", "caller", DELEGATE)).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "account-disabled-requires-admin" },
+    });
+    expect(calls.commits).toEqual([]);
+  });
+
+  it("BLOCKING: an ADMIN may NOT issue for a DISABLED account either", async () => {
+    // The disabled check is not a delegation guard, so it does not belong inside the non-Admin
+    // block. Minting flips the badge to amber "Pendiente" and hands the operator a link for an
+    // account nobody can sign into — the invitee only finds out at redemption, after the
+    // credential was sent and the operator was told it worked.
+    const { deps, calls } = fakeDeps({
+      member: { ...active, uid: "u1" },
+      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co", disabled: true } },
+    });
+    await expect(issueInvite(deps, "m1", "caller", ADMIN)).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "account-disabled-requires-admin" },
+    });
+    expect(calls.commits).toEqual([]);
+  });
+
+  it("BLOCKING: refuses an EXPELLED member, who keeps active:true", async () => {
+    // setStatus writes only `status`; softDelete writes only `active`. Checking `active` alone
+    // let the row menu offer "Invitar acceso" for a Desafiliado member and minted them a fresh
+    // seven-day bearer link.
+    const { deps, calls } = fakeDeps({
+      member: { ...active, status: "Desafiliado" },
+    });
+    await expect(issueInvite(deps, "m1", "caller", ADMIN)).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "member-not-active" },
+    });
+    expect(calls.commits).toEqual([]);
+  });
+
+  it("tags the not-found and not-active refusals so the operator gets a real message", async () => {
+    // A bare HttpsError carries no details.reason, so provisionRefusalMessage returns null and
+    // every retry shows the generic "No se pudo generar el enlace de acceso." with nothing
+    // naming the remedy.
+    const gone = fakeDeps({ member: null });
+    await expect(issueInvite(gone.deps, "m1", "caller", ADMIN)).rejects.toMatchObject({
+      code: "not-found",
+      details: { reason: "member-not-found" },
+    });
+
+    const inactive = fakeDeps({ member: { ...active, active: false } });
+    await expect(issueInvite(inactive.deps, "m1", "caller", ADMIN)).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "member-not-active" },
+    });
   });
 
   it("BLOCKING: a non-Admin caller may NOT provision a POWER-SEATED member", async () => {
@@ -246,7 +365,7 @@ describe("provisionMember", () => {
       },
       positions: { "pos-pres": ["Admin"] },
     });
-    await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+    await expect(issueInvite(deps, "m1", "caller", DELEGATE)).rejects.toMatchObject({
       code: "permission-denied",
       details: { reason: "power-seat-requires-admin" },
     });
@@ -268,7 +387,7 @@ describe("provisionMember", () => {
     ];
     for (const fields of granted) {
       const { deps, calls } = fakeDeps({ member: { ...active, ...fields } });
-      await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+      await expect(issueInvite(deps, "m1", "caller", DELEGATE)).rejects.toMatchObject({
         code: "permission-denied",
         details: { reason: "granted-member-requires-admin" },
       });
@@ -287,7 +406,7 @@ describe("provisionMember", () => {
     ];
     for (const fields of malformed) {
       const { deps } = fakeDeps({ member: { ...active, ...fields } });
-      await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+      await expect(issueInvite(deps, "m1", "caller", DELEGATE)).rejects.toMatchObject({
         code: "permission-denied",
         details: { reason: "granted-member-requires-admin" },
       });
@@ -309,7 +428,7 @@ describe("provisionMember", () => {
     ];
     for (const fields of ungranted) {
       const { deps } = fakeDeps({ member: { ...active, ...fields } });
-      await expect(provisionMember(deps, "m1", false)).resolves.toMatchObject({
+      await expect(issueInvite(deps, "m1", "caller", DELEGATE)).resolves.toMatchObject({
         email: "a@b.co",
       });
     }
@@ -328,7 +447,7 @@ describe("provisionMember", () => {
     ];
     for (const positions of shapes) {
       const { deps, calls } = fakeDeps({ member: { ...active, ...positions } });
-      await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+      await expect(issueInvite(deps, "m1", "caller", DELEGATE)).rejects.toMatchObject({
         code: "permission-denied",
         details: { reason: "power-seat-requires-admin" },
       });
@@ -351,7 +470,7 @@ describe("provisionMember", () => {
         member: { ...active, ...positions },
         positions: { "pos-unknown-but-grantfree": [] },
       });
-      await expect(provisionMember(deps, "m1", false)).resolves.toMatchObject({
+      await expect(issueInvite(deps, "m1", "caller", DELEGATE)).resolves.toMatchObject({
         email: "a@b.co",
       });
     }
@@ -370,7 +489,7 @@ describe("provisionMember", () => {
       },
       positions: { "pos-pres": ["Admin"] },
     });
-    await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+    await expect(issueInvite(deps, "m1", "caller", DELEGATE)).rejects.toMatchObject({
       code: "permission-denied",
       details: { reason: "power-seat-requires-admin" },
     });
@@ -388,7 +507,9 @@ describe("provisionMember", () => {
       },
       positions: { "pos-dir": [], "pos-dir2": [] },
     });
-    await expect(provisionMember(deps, "m1", false)).resolves.toMatchObject({ email: "a@b.co" });
+    await expect(issueInvite(deps, "m1", "caller", DELEGATE)).resolves.toMatchObject({
+      email: "a@b.co",
+    });
     expect(calls.createUser).toEqual(["a@b.co"]);
   });
 
@@ -401,7 +522,7 @@ describe("provisionMember", () => {
         positions: { [TERM]: { cargoId: "pos-ghost", comisionIds: [], assignedBy: "admin-uid" } },
       },
     });
-    await expect(provisionMember(missing.deps, "m1", false)).rejects.toMatchObject({
+    await expect(issueInvite(missing.deps, "m1", false)).rejects.toMatchObject({
       code: "permission-denied",
       details: { reason: "power-seat-requires-admin" },
     });
@@ -417,7 +538,7 @@ describe("provisionMember", () => {
       },
       positions: { "a/b": [] },
     });
-    await expect(provisionMember(malformed.deps, "m1", false)).rejects.toMatchObject({
+    await expect(issueInvite(malformed.deps, "m1", false)).rejects.toMatchObject({
       code: "permission-denied",
       details: { reason: "power-seat-requires-admin" },
     });
@@ -441,29 +562,34 @@ describe("provisionMember", () => {
       },
       positions: { "pos-dir": [] },
     });
-    await expect(provisionMember(deps, "m1", false)).resolves.toMatchObject({ email: "a@b.co" });
+    await expect(issueInvite(deps, "m1", "caller", DELEGATE)).resolves.toMatchObject({
+      email: "a@b.co",
+    });
     expect(calls.createUser).toEqual(["a@b.co"]);
   });
 
-  it("BLOCKING: a delegate never receives the password-reset link", async () => {
-    // generatePasswordResetLink returns a bearer credential for the account. The client sends
-    // the reset mail itself through the unprivileged sendPasswordResetEmail, so a delegate has
-    // no need to hold it. Defence in depth behind the power-seat guard, not a substitute.
+  it("hands a DELEGATE a real token — there is no withheld second secret any more", async () => {
+    // Replaces "a delegate never receives the password-reset link". Before this change beacon
+    // minted an oobCode URL and suppressed it for non-Admins, so the guards had a backstop.
+    // Now the token IS the credential and is returned to every caller, which means the guards
+    // above are the ONLY containment. Stated as a test rather than only as prose, because it
+    // is the security posture change D3 rests on.
     //
-    // The delegate half doubles as the paired ALLOW for every BLOCKING case above: the
-    // delegation costs nothing on the path it is actually for, since a genuinely new member
-    // has neither an Auth account nor a stored uid — hence the createUser assertion.
+    // The delegate half also doubles as the paired ALLOW for the BLOCKING cases: the
+    // delegation costs nothing on the path it is for, since a genuinely new member has
+    // neither an Auth account nor a stored uid — hence the createUser assertion.
     const delegate = fakeDeps({ member: active });
-    await expect(provisionMember(delegate.deps, "m1", false)).resolves.toEqual({
-      email: "a@b.co",
-      actionLink: "",
-    });
+    const asDelegate = await issueInvite(delegate.deps, "m1", "delegate-uid", DELEGATE);
+    expect(asDelegate.email).toBe("a@b.co");
+    expect(asDelegate.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(delegate.calls.createUser).toEqual(["a@b.co"]);
+    expect(delegate.calls.commits[0]?.invite.issuedByAdmin).toBe(false);
+
     const admin = fakeDeps({ member: active });
-    await expect(provisionMember(admin.deps, "m1", true)).resolves.toEqual({
-      email: "a@b.co",
-      actionLink: "link:a@b.co",
-    });
+    const asAdmin = await issueInvite(admin.deps, "m1", "admin-uid", ADMIN);
+    expect(asAdmin.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    // issuedByAdmin is what exempts this link from the privilege re-check at redemption.
+    expect(admin.calls.commits[0]?.invite.issuedByAdmin).toBe(true);
   });
 
   it("BLOCKING: a non-Admin caller may NOT provision a member whose uid is set but account is gone", async () => {
@@ -471,7 +597,7 @@ describe("provisionMember", () => {
     // return null and the adoption half alone would let this through. A stored uid means an
     // Admin already provisioned this member once — recovery is theirs.
     const { deps, calls } = fakeDeps({ member: { ...active, uid: "dead-uid" } });
-    await expect(provisionMember(deps, "m1", false)).rejects.toMatchObject({
+    await expect(issueInvite(deps, "m1", "caller", DELEGATE)).rejects.toMatchObject({
       code: "permission-denied",
       details: { reason: "reprovision-requires-admin" },
     });
@@ -484,18 +610,18 @@ describe("provisionMember", () => {
       member: active,
       usersByEmail: { "a@b.co": { uid: "u9", email: "a@b.co" } },
     });
-    await expect(provisionMember(deps, "m1")).rejects.toMatchObject({
+    await expect(issueInvite(deps, "m1", "caller")).rejects.toMatchObject({
       code: "permission-denied",
       details: { reason: "reprovision-requires-admin" },
     });
   });
 
   it("rejects a missing / inactive / email-less member", async () => {
-    await expect(provisionMember(fakeDeps({ member: null }).deps, "m1")).rejects.toMatchObject({
+    await expect(issueInvite(fakeDeps({ member: null }).deps, "m1")).rejects.toMatchObject({
       code: "not-found",
     });
     await expect(
-      provisionMember(fakeDeps({ member: { email: "a@b.co", active: false } }).deps, "m1"),
+      issueInvite(fakeDeps({ member: { email: "a@b.co", active: false } }).deps, "m1"),
     ).rejects.toMatchObject({ code: "failed-precondition" });
     // BLOCKING: an absent or empty email is TAGGED, like every other refusal. It used to throw
     // bare ("member has no email"), so `provisionRefusalMessage` returned null and the operator
@@ -503,7 +629,7 @@ describe("provisionMember", () => {
     // and it shadowed the tagged malformed-email refusal for the "" case, which is the likelier
     // one (memberDocSchema's `email` is a bare z.string()).
     for (const member of [{ active: true }, { active: true, email: "" }]) {
-      await expect(provisionMember(fakeDeps({ member }).deps, "m1")).rejects.toMatchObject({
+      await expect(issueInvite(fakeDeps({ member }).deps, "m1")).rejects.toMatchObject({
         code: "failed-precondition",
         details: { reason: "member-email-malformed" },
       });
@@ -540,7 +666,7 @@ describe("provisionMember", () => {
           return deps.getUserByEmail(value);
         },
       };
-      await expect(provisionMember(spied, "m1", true)).rejects.toMatchObject({
+      await expect(issueInvite(spied, "m1", "caller", ADMIN)).rejects.toMatchObject({
         code: "failed-precondition",
         details: { reason: "member-email-malformed" },
       });
@@ -562,11 +688,208 @@ describe("provisionMember", () => {
     // A plus-tag, a bare hostname and a non-ASCII local part must all keep provisioning.
     for (const email of ["ana+jci@sub.example.co", "root@localhost", "añez@ejemplo.bo"]) {
       const { deps, calls } = fakeDeps({ member: { email, active: true } });
-      await expect(provisionMember(deps, "m1", true)).resolves.toEqual({
-        email,
-        actionLink: `link:${email}`,
-      });
+      await expect(issueInvite(deps, "m1", "caller", ADMIN)).resolves.toMatchObject({ email });
       expect(calls.createUser).toEqual([email]);
+    }
+  });
+});
+
+describe("issueInvite — minting, revocation and atomicity", () => {
+  const active = { email: "a@b.co", active: true };
+
+  function pendingProjection(tokenHash: string) {
+    return { status: "pending", kind: "initial", tokenHash, issuedBy: "someone" };
+  }
+
+  it("writes every field the redemption path depends on", async () => {
+    const { deps, calls } = fakeDeps({
+      member: { ...active, uid: "u1" },
+      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
+    });
+    const result = await issueInvite(deps, "m1", "admin-uid", ADMIN);
+    const commit = calls.commits[0];
+    expect(commit?.invite).toEqual({
+      memberId: "m1",
+      // PINNED at issue: what stops a stale link writing a password onto a DIFFERENT account
+      // after an out-of-band relink.
+      uid: "u1",
+      email: "a@b.co",
+      kind: "recovery",
+      issuedBy: "admin-uid",
+      issuedByAdmin: true,
+      issuedAtMs: NOW,
+      expiresAtMs: NOW + INVITE_TTL_MS,
+      purgeAtMs: NOW + INVITE_PURGE_MS,
+    });
+    // memberId on the invite doc is what keeps a break-glass console sweep POSSIBLE if the
+    // projection is ever lost. It is not a designed path, but losing it closes that door.
+    expect(commit?.invite.memberId).toBe("m1");
+    expect(result.expiresAt).toBe(NOW + INVITE_TTL_MS);
+  });
+
+  it("stores the hash of the token it returned, never the token", async () => {
+    // If these ever diverge, every minted link is dead on arrival and resolves as
+    // `invite-invalid` — indistinguishable from a forged token.
+    const { deps, calls } = fakeDeps({ member: active });
+    const { token } = await issueInvite(deps, "m1", "admin-uid", ADMIN);
+    expect(calls.commits[0]?.tokenHash).toBe(hashInviteToken(token));
+    expect(JSON.stringify(calls.commits[0])).not.toContain(token);
+  });
+
+  it("revokes the outstanding link BY KEY and reports that it did", async () => {
+    const old = "b".repeat(64);
+    const { deps, calls } = fakeDeps({
+      member: { ...active, uid: "u1", invite: pendingProjection(old) },
+      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
+    });
+    const result = await issueInvite(deps, "m1", "admin-uid", ADMIN);
+    expect(result.replacedPreviousLink).toBe(true);
+    expect(calls.commits[0]?.revokeTokenHash).toBe(old);
+    expect(calls.commits[0]?.revokedBy).toBe("admin-uid");
+  });
+
+  it("reports replacedPreviousLink false on a first issue", async () => {
+    const { deps } = fakeDeps({ member: active });
+    const result = await issueInvite(deps, "m1", "admin-uid", ADMIN);
+    expect(result.replacedPreviousLink).toBe(false);
+  });
+
+  it.each([
+    ["used", { status: "used", tokenHash: "c".repeat(64) }],
+    ["revoked", { status: "revoked", tokenHash: "c".repeat(64) }],
+    ["failed", { status: "failed", tokenHash: "c".repeat(64) }],
+  ])("does not re-revoke an already-spent %s invite", async (_label, invite) => {
+    // Rewriting a `used` doc would destroy its usedAt audit trail, and the operator copy
+    // ("el anterior fue revocado") would be a lie.
+    const { deps, calls } = fakeDeps({
+      member: { ...active, uid: "u1", invite },
+      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
+    });
+    const result = await issueInvite(deps, "m1", "admin-uid", ADMIN);
+    expect(result.replacedPreviousLink).toBe(false);
+    expect(calls.commits[0]?.revokeTokenHash).toBeNull();
+  });
+
+  it.each([
+    ["a malformed projection", "not-an-object"],
+    ["an array projection", ["x"]],
+    ["an unusable tokenHash", { status: "pending", tokenHash: "../../etc" }],
+    ["a missing tokenHash", { status: "pending" }],
+  ])(
+    "still mints when the projection is unusable (%s), never a forged doc path",
+    async (_l, invite) => {
+      const { deps, calls } = fakeDeps({
+        member: { ...active, uid: "u1", invite },
+        usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
+      });
+      const result = await issueInvite(deps, "m1", "admin-uid", ADMIN);
+      expect(result.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(calls.commits[0]?.revokeTokenHash).toBeNull();
+    },
+  );
+
+  it("commits revoke + mint + project through ONE port, exactly once", async () => {
+    // The C2 guarantee, and the reason it is structural rather than asserted: InviteDeps
+    // offers NO way to write the three documents separately, so there is no ordering for a
+    // partial failure to interleave with. A partial failure would leave a live `pending`
+    // token the operator already sent with the projection pointing at the old hash — and
+    // nothing could ever revoke it. This asserts the shape that makes that unrepresentable.
+    const { deps, calls } = fakeDeps({
+      member: { ...active, uid: "u1", invite: pendingProjection("d".repeat(64)) },
+      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
+    });
+    await issueInvite(deps, "m1", "admin-uid", ADMIN);
+    expect(calls.commits).toHaveLength(1);
+    const commit = calls.commits[0];
+    expect(commit?.revokeTokenHash).toBe("d".repeat(64));
+    expect(commit?.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(commit?.memberId).toBe("m1");
+  });
+
+  it.each([
+    // ADOPTION: an account already exists, the member doc is unlinked. The person may already
+    // have a password, so this is a recovery — not a first issue.
+    ["adoption", { ...active }, { "a@b.co": { uid: "u9", email: "a@b.co" } }, "recovery"],
+    // SELF-HEAL: a uid is stored but the account was deleted, so a BRAND-NEW account is minted
+    // with no password. That is a first issue, whatever the stored uid says.
+    ["self-heal", { ...active, uid: "dead-uid" }, {}, "initial"],
+  ])(
+    "labels %s correctly — kind follows the LOGIN, not the stored uid",
+    async (_l, member, users, kind) => {
+      const { deps, calls } = fakeDeps({ member, usersByEmail: users as never });
+      await issueInvite(deps, "m1", "admin-uid", ADMIN);
+      expect(calls.commits[0]?.invite.kind).toBe(kind);
+    },
+  );
+
+  it("does not claim to have revoked an ALREADY-EXPIRED prior link", async () => {
+    // An expired link needs no revoking, and saying "el anterior fue revocado" about one that
+    // died days ago is a lie to the operator. It also keeps the common re-issue off a document
+    // the purgeAt TTL policy may already have reaped.
+    const { deps, calls } = fakeDeps({
+      member: {
+        ...active,
+        uid: "u1",
+        invite: {
+          status: "pending",
+          tokenHash: "e".repeat(64),
+          expiresAt: { toMillis: () => NOW - 1 },
+        },
+      },
+      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
+    });
+    const result = await issueInvite(deps, "m1", "admin-uid", ADMIN);
+    expect(result.replacedPreviousLink).toBe(false);
+    expect(calls.commits[0]?.revokeTokenHash).toBeNull();
+  });
+
+  it("DOES revoke a prior link that is still live", async () => {
+    const { deps, calls } = fakeDeps({
+      member: {
+        ...active,
+        uid: "u1",
+        invite: {
+          status: "pending",
+          tokenHash: "f".repeat(64),
+          expiresAt: { toMillis: () => NOW + 1000 },
+        },
+      },
+      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
+    });
+    const result = await issueInvite(deps, "m1", "admin-uid", ADMIN);
+    expect(result.replacedPreviousLink).toBe(true);
+    expect(calls.commits[0]?.revokeTokenHash).toBe("f".repeat(64));
+  });
+
+  it("surfaces a commit failure instead of returning a token nothing stored", async () => {
+    // The caller must not receive a link the operator would then send for a document that was
+    // never written.
+    const boom = new Error("batch failed");
+    const { deps } = fakeDeps({ member: active, commitThrows: boom });
+    await expect(issueInvite(deps, "m1", "admin-uid", ADMIN)).rejects.toThrow("batch failed");
+  });
+
+  it("never lets the token reach a log line", async () => {
+    const seen: unknown[] = [];
+    const spies = (["log", "info", "warn", "error", "debug"] as const).map((level) => {
+      const original = console[level];
+      console[level] = (...args: unknown[]) => void seen.push(...args);
+      return () => {
+        console[level] = original;
+      };
+    });
+    try {
+      const { deps } = fakeDeps({
+        member: { ...active, uid: "u1", invite: "malformed" },
+        usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
+      });
+      const { token } = await issueInvite(deps, "m1", "admin-uid", ADMIN);
+      const dumped = seen.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+      expect(dumped).not.toContain(token);
+      // and the malformed projection still produced a diagnostic (guardrail #4)
+      expect(dumped).toContain("malformed");
+    } finally {
+      for (const restore of spies) restore();
     }
   });
 });
@@ -574,7 +897,7 @@ describe("provisionMember", () => {
 // Every case here exercises the ADOPTION path, which is Admin-only — hence the explicit
 // `true` third argument throughout. A non-Admin caller is refused before any of this runs
 // (see "a non-Admin caller may NOT adopt a pre-existing unlinked account").
-describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
+describe("issueInvite — stale-claims bootstrap (fresh adopt)", () => {
   it("strips stale org roles when adopting a pre-existing auth account, keeping Scanner", async () => {
     const claimsWrites: Record<string, unknown>[] = [];
     const { deps } = fakeDeps({
@@ -593,7 +916,7 @@ describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
         claimsWrites.push(claims);
       },
     };
-    await provisionMember(spied, "m1", true);
+    await issueInvite(spied, "m1", "caller", ADMIN);
     expect(claimsWrites).toEqual([{ roles: ["Scanner", "Member"] }]);
   });
 
@@ -611,7 +934,7 @@ describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
         claimsWrites.push(claims);
       },
     };
-    await provisionMember(spied, "m1", true);
+    await issueInvite(spied, "m1", "caller", ADMIN);
     expect(claimsWrites).toEqual([{ roles: ["Member"] }]);
   });
 
@@ -629,7 +952,7 @@ describe("provisionMember — stale-claims bootstrap (fresh adopt)", () => {
         claimsWrites.push(claims);
       },
     };
-    await provisionMember(spied, "m1", true);
+    await issueInvite(spied, "m1", "caller", ADMIN);
     expect(claimsWrites).toEqual([{ roles: ["Admin", "Member"] }]);
   });
 });

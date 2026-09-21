@@ -2,6 +2,10 @@ import { Link, getRouteApi } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { Badge, Button, Card, Dialog, type BadgeTone } from "@luminova/ui";
 import { currentTermKey, type Member, type MemberInput, type MemberStatus } from "@luminova/types";
+import { inviteActionLabel, memberInviteState } from "../lib/invite-state";
+import { inviteLink } from "../lib/invite-link";
+import { InviteStateBadge } from "./invite-state-badge";
+import { InviteLinkPanel } from "./invite-link-panel";
 import { ActionGate } from "../../../lib/authz/action-gate";
 import { useAuth } from "../../../lib/auth/auth";
 import { useCan } from "../../../lib/authz/use-can";
@@ -16,7 +20,7 @@ import { useActivitiesByTerm } from "../../activities/hooks/use-activities-by-te
 import { useInitiativesByTerm } from "../../initiatives/hooks/use-initiatives-by-term";
 import { summarizeParticipations } from "../lib/participation-summary";
 import { pointsRank } from "../../../lib/points-rank";
-import { useProvisionMemberLogin } from "../hooks/use-provision-member-login";
+import { useIssueMemberInvite } from "../hooks/use-issue-member-invite";
 import { useUpdateMember } from "../hooks/use-update-member";
 import { useSetMemberPositions } from "../hooks/use-set-member-positions";
 import { usePositions } from "../../positions/hooks/use-positions";
@@ -30,7 +34,6 @@ import { effectiveRoles, isSelfMember } from "../lib/member-permissions";
 import { memberEditMode } from "../lib/member-edit-gate";
 import { provisionErrorMessage } from "../lib/provision-error";
 import { memberProvisionBlocked } from "../lib/provision-gate";
-import { useCopyToClipboard } from "../../../lib/use-copy-to-clipboard";
 import { memberFormDefaults } from "../lib/member-form-defaults";
 
 // qrcode.react (~13 kB gz) lazy so it leaves the always-loaded index shell.
@@ -286,49 +289,45 @@ export function MemberProfilePage() {
 }
 
 function InviteAccess({ member, blocked }: { member: Member; blocked: boolean }) {
-  // Provisioning AND the reset mail are one mutation (use-provision-member-login): a mail sent
-  // from a component-scoped onSuccess is dropped whenever this component is gone by the time
-  // the callable resolves, which `key={member.id}` above makes reachable by merely switching
-  // members. So there is no floating promise left to interleave, and no attempt counter: the
-  // mutation's own state IS the latest attempt.
-  const provision = useProvisionMemberLogin();
+  // The callable is one mutation (use-issue-member-invite): everything that must happen lives
+  // in mutationFn, because a component-scoped onSuccess is dropped whenever this component is
+  // gone by the time the callable resolves — which `key={member.id}` above makes reachable by
+  // merely switching members. No floating promise, and no attempt counter: the mutation's own
+  // state IS the latest attempt.
+  const issue = useIssueMemberInvite();
   const [dismissed, setDismissed] = useState(false);
-  const { copyState, copy, resetCopyState } = useCopyToClipboard();
-  const label = member.uid ? "Reenviar acceso" : "Invitar acceso";
-  const result = provision.data;
-  // Only present when the mail did NOT go out — the hook nulls it otherwise, because sending
-  // the mail invalidates this oobCode. See InviteResult.fallbackLink.
-  const link = result?.fallbackLink ?? null;
-  const error = provision.isError
-    ? provisionErrorMessage(provision.error, "No se pudo generar el acceso.")
-    : result && !result.emailSent
-      ? "Se creó el acceso, pero no se pudo enviar el correo. " +
-        (result.fallbackLink
-          ? "Comparte el enlace manualmente."
-          : "Pídele a un administrador que lo reenvíe.")
-      : null;
+  // Derived, never hand-typed per surface — the row menu and this header used to disagree
+  // about what the same action was called.
+  const now = Date.now();
+  const label = inviteActionLabel(memberInviteState(member, now));
+  const result = issue.data;
+  // The link is ALWAYS shown on success; it is the only delivery mechanism, not a fallback.
+  const link = result ? inviteLink(result.token, window.location.origin) : null;
+  const error = issue.isError
+    ? provisionErrorMessage(issue.error, "No se pudo generar el enlace de acceso.")
+    : null;
 
   const invite = () => {
     setDismissed(false);
-    resetCopyState();
-    provision.mutate(member.id);
+    issue.mutate(member.id);
   };
 
   return (
     <>
+      <InviteStateBadge member={member} now={now} />
       {/* The BUTTON goes away when the callable would refuse; the feedback below does not.
-          `blocked` becomes true the moment this invite succeeds (the member now has a uid and
-          the hook invalidates the query), so gating the whole component on it would erase the
-          result of the click that set it. */}
+          Gating the whole component on `blocked` would erase the result of the click that set
+          it — and after D3 `blocked` no longer flips merely because the member gained a uid,
+          since recovery is an offered action rather than a refusal. */}
       {!blocked && (
         <Button
           as="button"
           type="button"
           variant="secondary"
-          disabled={provision.isPending}
+          disabled={issue.isPending}
           onClick={invite}
         >
-          {provision.isPending ? "Generando…" : label}
+          {issue.isPending ? "Generando…" : label}
         </Button>
       )}
       {error && (
@@ -336,38 +335,23 @@ function InviteAccess({ member, blocked }: { member: Member; blocked: boolean })
           {error}
         </p>
       )}
-      {result?.emailSent && (
-        <p role="status" className="basis-full text-right text-ui-xs text-ink-3">
-          Invitación enviada por correo.
-        </p>
-      )}
       <Dialog
         open={link !== null && !dismissed}
         onOpenChange={(o) => {
           if (!o) setDismissed(true);
         }}
-        title="Acceso de miembro"
+        /* Saying the previous link died is the VISIBLE half of our advantage over a Firebase
+           oobCode, which invalidates the previously-sent code silently — with no record, and
+           no way to tell the operator. Without this the advantage is only theoretical. */
+        title={
+          result?.replacedPreviousLink
+            ? "Enlace nuevo — el anterior fue revocado"
+            : "Enlace de acceso"
+        }
       >
-        <div className="flex flex-col gap-3">
-          {/* This dialog exists ONLY on the mail-failure branch, so it never claims the member
-              was emailed. The mail failure is repeated here rather than left to the header
-              alert: the modal's aria-hidden takes that alert out of the accessibility tree. */}
-          <p className="text-ui-sm text-ink-2">
-            No se pudo enviar el correo. Comparte este enlace con el miembro para que cree su
-            contraseña e inicie sesión.
-          </p>
-          <code className="block w-full overflow-x-auto rounded-[8px] bg-ink-1/[0.04] px-3 py-2 text-ui-xs text-ink-2">
-            {link}
-          </code>
-          <Button as="button" type="button" onClick={() => link && copy(link)}>
-            {copyState === "copied" ? "Enlace copiado" : "Copiar enlace"}
-          </Button>
-          {copyState === "failed" && (
-            <p role="alert" className="text-ui-xs text-error">
-              No se pudo copiar. Selecciona el enlace de arriba y cópialo manualmente.
-            </p>
-          )}
-        </div>
+        {result && link && (
+          <InviteLinkPanel name={member.name} url={link} expiresAt={result.expiresAt} />
+        )}
       </Dialog>
     </>
   );

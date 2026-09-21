@@ -7,7 +7,9 @@ import { useAddMember } from "../hooks/use-add-member";
 import { useUpdateMember } from "../hooks/use-update-member";
 import { useSetMemberStatus } from "../hooks/use-set-member-status";
 import { useUnpublishMember } from "../hooks/use-unpublish-member";
-import { useProvisionMemberLogin } from "../hooks/use-provision-member-login";
+import { useIssueMemberInvite } from "../hooks/use-issue-member-invite";
+import { inviteLink } from "../lib/invite-link";
+import { InviteLinkPanel } from "./invite-link-panel";
 import { provisionErrorMessage } from "../lib/provision-error";
 import { MemberTable } from "./member-table";
 import { MemberStatusFilter } from "./member-status-filter";
@@ -43,7 +45,14 @@ export function MembersPage() {
   const updateMember = useUpdateMember();
   const setMemberStatus = useSetMemberStatus();
   const unpublishMember = useUnpublishMember();
-  const provision = useProvisionMemberLogin();
+  const provision = useIssueMemberInvite();
+  // The row action's RESULT is a link the operator must copy — a toast cannot deliver it.
+  const [inviteShare, setInviteShare] = useState<{
+    name: string;
+    url: string;
+    expiresAt: number;
+    replacedPreviousLink: boolean;
+  } | null>(null);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("Todos");
@@ -96,14 +105,17 @@ export function MembersPage() {
   const handleProvision = async (member: Member) => {
     if (provision.isPending) return;
     try {
-      const { emailSent } = await provision.mutateAsync(member.id);
-      setToast(
-        emailSent
-          ? actionMessage(member.name, "invited")
-          : "Acceso creado, pero el correo no se envió.",
-      );
+      const result = await provision.mutateAsync(member.id);
+      // No toast on success: the operator needs the LINK, and a toast cannot carry one. The
+      // dialog is the delivery.
+      setInviteShare({
+        name: member.name,
+        url: inviteLink(result.token, window.location.origin),
+        expiresAt: result.expiresAt,
+        replacedPreviousLink: result.replacedPreviousLink,
+      });
     } catch (err) {
-      setToast(provisionErrorMessage(err, "No se pudo enviar la invitación."));
+      setToast(provisionErrorMessage(err, "No se pudo generar el enlace de acceso."));
     }
   };
 
@@ -261,6 +273,28 @@ export function MembersPage() {
             Desafiliar
           </Button>
         </div>
+      </Dialog>
+
+      <Dialog
+        open={inviteShare !== null}
+        onOpenChange={(open) => {
+          if (!open) setInviteShare(null);
+        }}
+        /* Saying the previous link died is the visible half of our advantage over a Firebase
+           oobCode, which invalidates the previously-sent code silently. */
+        title={
+          inviteShare?.replacedPreviousLink
+            ? "Enlace nuevo — el anterior fue revocado"
+            : "Enlace de acceso"
+        }
+      >
+        {inviteShare && (
+          <InviteLinkPanel
+            name={inviteShare.name}
+            url={inviteShare.url}
+            expiresAt={inviteShare.expiresAt}
+          />
+        )}
       </Dialog>
 
       {toast && <Toast message={toast} icon={Icon.check({ s: 18 })} />}

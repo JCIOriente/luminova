@@ -74,7 +74,7 @@ within the same project and share one Firestore database and one Storage bucket
 ### backstage (Admin Dashboard)
 - React SPA with Firebase Auth + Firestore, deployed to Firebase Hosting target `jcioriente-backstage`
 - Imports `@luminova/firebase` at boot (always included in the bundle)
-- All routes except `/login`, `/forgot-password`, and `/reset` require authentication
+- All routes except `/login` and `/invitacion` require authentication
 - CRUD/admin surfaces: members, positions, initiatives (programs/projects), activities
   + QR check-in, point rules, allies, roles/permissions (`/permisos`), site config (`/config`)
 - Member profile pictures and initiative/activity photos stored in Firebase Storage
@@ -90,7 +90,8 @@ within the same project and share one Firestore database and one Storage bucket
   `onMemberCreated` (stamps the `publicProfile` opt-out default — clients may not set it),
   `onBoardMemberWritten` (`boardShowcase` public Directiva projection),
   `onNotificationCreated` (inbox fan-out + best-effort FCM)
-- Callables: `setUserRoles`, `seedRoles`, `recomputeAllClaims`, `provisionMemberLogin`
+- Callables: `setUserRoles`, `seedRoles`, `recomputeAllClaims`, `issueMemberInvite`,
+  `describeInvite` + `redeemInvite` (the only UNAUTHENTICATED ones — see `docs/specs/invite-link-onboarding.md`)
 - Uses Firebase Admin SDK (server-side only)
 
 ## Data Flow: Point Calculation

@@ -1,4 +1,5 @@
 import type { ProvisionBlockReason } from "@luminova/types";
+import { refusalMessage } from "../../../lib/callable-refusal";
 
 // provisionMemberLogin tags every refusal it can be argued with using details.reason, so the
 // UI can name the actual blocker instead of a dead-end generic failure. Three of the five are
@@ -20,13 +21,17 @@ const MESSAGES: Readonly<Record<ProvisionBlockReason, string>> = {
     "El cargo de este miembro otorga permisos: solo un administrador puede crear su acceso.",
   "member-email-malformed":
     "El correo guardado de este miembro no es válido. Corrígelo en su ficha antes de crear su acceso.",
+  "privileged-account-requires-admin":
+    "La cuenta de este miembro tiene permisos especiales: solo un administrador puede generar su enlace.",
+  "account-disabled-requires-admin":
+    "La cuenta de este miembro está deshabilitada. Un administrador debe revisarla antes de generar un enlace.",
+  "member-not-found": "Este miembro ya no existe. Actualiza la lista e inténtalo de nuevo.",
+  "member-not-active":
+    "Este miembro está inactivo o desafiliado. Reactívalo antes de generar un enlace de acceso.",
 };
 
-// A Map, not the object literal above: `reason` is attacker-adjacent input (it arrives in the
-// callable's error payload), and `{...}[reason]` resolves "toString" / "constructor" /
-// "valueOf" to the inherited Object.prototype FUNCTION, which `?? fallback` then happily
-// returns as the message. TypeScript types that `string` and React would render a function.
-// The literal buys exhaustiveness against the union; the Map buys a safe lookup.
+// See lib/callable-refusal.ts for why this is a Map and not the literal above — the
+// prototype-pollution reasoning moved there with the helper, at its second occurrence.
 const REASON_MESSAGES = new Map<string, string>(Object.entries(MESSAGES));
 
 /** The callable's own explanation for a refusal, or null when it did not give one (a
@@ -38,13 +43,7 @@ const REASON_MESSAGES = new Map<string, string>(Object.entries(MESSAGES));
  *  its headline otherwise tells the operator to retry from the row menu on a refusal only an
  *  Admin can clear, with the real explanation demoted to small print underneath. */
 export function provisionRefusalMessage(err: unknown): string | null {
-  const details = (err as { details?: unknown } | null | undefined)?.details;
-  const reason =
-    typeof details === "object" && details !== null
-      ? (details as { reason?: unknown }).reason
-      : undefined;
-  if (typeof reason !== "string") return null;
-  return REASON_MESSAGES.get(reason) ?? null;
+  return refusalMessage(err, REASON_MESSAGES);
 }
 
 export function provisionErrorMessage(err: unknown, fallback: string): string {

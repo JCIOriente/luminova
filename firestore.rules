@@ -306,6 +306,7 @@ service cloud.firestore {
     function memberWriteInvariants() {
       return unchanged('totalPoints')
         && !touched('uid')
+        && !touched('invite')
         && !touched('publicProfile')
         && updatePermissionAssignmentSafe()
         && softDeleteSafe();
@@ -490,6 +491,7 @@ service cloud.firestore {
       allow create: if canDo('create', 'Member')
         && request.resource.data.totalPoints == 0
         && !('uid' in request.resource.data)
+        && !('invite' in request.resource.data)
         && !('publicProfile' in request.resource.data)
         && memberNameValid(request.resource.data.get('name', ''))
         && bornLive()
@@ -1104,6 +1106,16 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
       allow delete: if true;
       allow read, update: if false;
+    }
+
+    // Invite tokens. The doc id IS sha256(token) — a bearer credential's hash. Written and
+    // read ONLY by beacon's issueMemberInvite / describeInvite / redeemInvite through the
+    // admin SDK, which bypasses these rules. No client has any business here: the invite
+    // STATE clients need is projected onto members/{id}.invite, and the token hashes must
+    // never be listable. Granting read to create:MemberLogin holders would make every hash
+    // enumerable for a state that is three scalars.
+    match /memberInvites/{tokenHash} {
+      allow read, write: if false;
     }
 
     match /{document=**} {

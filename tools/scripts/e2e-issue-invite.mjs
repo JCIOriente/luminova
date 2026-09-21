@@ -1,8 +1,8 @@
-// One-shot e2e for B1 provisionMemberLogin, against the running emulator suite.
+// One-shot e2e for issueMemberInvite, against the running emulator suite.
 // Uses firebase-admin (setup/verify) + the Auth-emulator REST (mint an Admin ID
 // token) + fetch to the callable endpoint — no client SDK (not a root dep).
 // Run: FIRESTORE_EMULATOR_HOST=127.0.0.1:4010 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:4030 \
-//      node tools/scripts/e2e-provision-member.mjs
+//      node tools/scripts/e2e-issue-invite.mjs
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
@@ -13,7 +13,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST || !process.env.FIREBASE_AUTH_EMULATOR_
 }
 const projectId = process.env.GCLOUD_PROJECT ?? "jci-oriente";
 const AUTH_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST;
-const FN_URL = `http://127.0.0.1:4020/${projectId}/us-central1/provisionMemberLogin`;
+const FN_URL = `http://127.0.0.1:4020/${projectId}/us-central1/issueMemberInvite`;
 
 initializeApp({ projectId });
 const db = getFirestore();
@@ -60,7 +60,7 @@ async function adminIdToken() {
   return body.idToken;
 }
 
-async function callProvision(memberId, idToken) {
+async function callIssueInvite(memberId, idToken) {
   const res = await fetch(FN_URL, {
     method: "POST",
     headers: {
@@ -77,13 +77,13 @@ async function main() {
   await resetTarget();
 
   // 1) Guard: unauthenticated caller is rejected.
-  const guard = await callProvision(MEMBER_ID, null);
+  const guard = await callIssueInvite(MEMBER_ID, null);
   if (!guard.body.error) throw new Error("guard FAIL: unauthenticated call was not rejected");
   console.log("✓ guard: unauthenticated rejected:", guard.body.error.status);
 
   // 2) Admin success path.
   const token = await adminIdToken();
-  const ok = await callProvision(MEMBER_ID, token);
+  const ok = await callIssueInvite(MEMBER_ID, token);
   if (!ok.body.result) throw new Error(`callable FAIL: ${JSON.stringify(ok.body)}`);
   console.log("✓ callable result:", JSON.stringify(ok.body.result));
 
@@ -94,21 +94,39 @@ async function main() {
     member?.uid === provisioned.uid &&
     Array.isArray(provisioned.customClaims?.roles) &&
     provisioned.customClaims.roles.includes("Member") &&
-    typeof ok.body.result.actionLink === "string" &&
-    ok.body.result.actionLink.length > 0;
+    // The token is the credential now — 43 base64url chars, minted fresh each call.
+    /^[A-Za-z0-9_-]{43}$/.test(ok.body.result.token ?? "") &&
+    typeof ok.body.result.expiresAt === "number" &&
+    ok.body.result.replacedPreviousLink === false &&
+    // and the projection the operator surfaces read
+    member?.invite?.status === "pending" &&
+    member?.invite?.tokenHash?.length === 64;
 
   console.log("member.uid:", member?.uid, "claims:", JSON.stringify(provisioned.customClaims));
-  if (!pass) throw new Error("verify FAIL: uid / Member claim / actionLink incorrect");
+  if (!pass) throw new Error("verify FAIL: uid / Member claim / token / projection incorrect");
 
-  // 4) Idempotent re-invite reuses the same uid.
-  const again = await callProvision(MEMBER_ID, token);
+  // 4) Re-issue reuses the uid AND revokes the previous link.
+  const firstHash = member.invite.tokenHash;
+  const again = await callIssueInvite(MEMBER_ID, token);
   const member2 = (await db.doc(`members/${MEMBER_ID}`).get()).data();
   if (!again.body.result || member2?.uid !== provisioned.uid) {
     throw new Error("idempotency FAIL: re-invite changed the uid");
   }
-  console.log("✓ idempotent re-invite reuses uid");
+  if (again.body.result.replacedPreviousLink !== true) {
+    throw new Error("revocation FAIL: re-issue did not report replacing the previous link");
+  }
+  const revoked = (await db.doc(`memberInvites/${firstHash}`).get()).data();
+  if (revoked?.status !== "revoked") {
+    throw new Error(`revocation FAIL: prior invite is ${revoked?.status}, expected revoked`);
+  }
+  if (member2.invite.tokenHash === firstHash) {
+    throw new Error("revocation FAIL: projection still points at the revoked invite");
+  }
+  console.log("✓ re-issue reuses uid, revokes the prior link, re-points the projection");
 
-  console.log("\n✅ E2E PASS — provisionMemberLogin links uid + Member claim + returns a link");
+  console.log(
+    "\n✅ E2E PASS — issueMemberInvite links uid + Member claim + mints a revocable token",
+  );
   process.exit(0);
 }
 

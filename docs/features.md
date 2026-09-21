@@ -17,13 +17,25 @@ Acceptance criteria and UX flows for each Backstage feature.
   - `auth/wrong-password` → "Incorrect password"
   - `auth/too-many-requests` → "Too many attempts. Try again later"
 - No public signup — member accounts are provisioned via the invite flow
-  (`provisionMemberLogin` callable sends a Firebase invite email; the member sets
-  their password)
+  (`issueMemberInvite` mints a single-use link; an operator shares it by hand and the
+  member sets their password)
 
-### Password Recovery
-- `/forgot-password`: enumeration-safe reset request (always shows success copy)
-- `/reset`: verifies the `oobCode`, then sets a new password against the policy
-  (min 6 + lower/upper/digit) with a live requirements checklist
+### Access links — no email anywhere in the auth flow
+Firebase's transactional email is unbrandable, routes through `firebaseapp.com` and lands
+in spam, and the chapter coordinates over WhatsApp. So an operator with `create:MemberLogin`
+generates a link and sends it themselves.
+- `issueMemberInvite({ memberId })` mints a 256-bit single-use token, stored hashed
+  (`memberInvites/{sha256(token)}`), valid **7 days**, and revokes any outstanding link.
+- `/invitacion#<token>`: `describeInvite` shows who the link belongs to, then `redeemInvite`
+  sets the password against the shared policy (min 6 + lower/upper/digit) with a live
+  checklist. The invitee is not auto-signed-in.
+- The token rides in the URL **fragment**, which Hosting access logs and `Referer` headers
+  never record.
+
+### Password recovery
+There is **no self-service recovery**. An operator re-issues a link ("Recuperar acceso"); a
+locked-out Admin needs another Admin, or a project Owner setting a password in the console.
+**Keep at least two Admin accounts.**
 
 ### Protected Routes
 - All `_app.*` routes: check auth state in `beforeLoad`

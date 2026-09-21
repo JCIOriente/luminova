@@ -38,11 +38,18 @@ describe("LoginForm", () => {
     expect(signIn).not.toHaveBeenCalled();
   });
 
-  it("links to the password recovery flow", () => {
+  // Inverted: there is NO self-service recovery any more (all of it is operator-mediated), so
+  // a link here would point at a page that cannot help. The copy sends them to the directiva,
+  // and the CEL mailto below is the real escape hatch.
+  it("offers no self-service recovery link, only the operator route", () => {
     render(<LoginForm onSuccess={vi.fn()} />);
-    expect(screen.getByRole("link", { name: /la olvidaste/i })).toHaveAttribute(
+    expect(screen.queryByRole("link", { name: /la olvidaste/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Pídele a la directiva que te envíe un enlace de acceso/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /escríbele al cel/i })).toHaveAttribute(
       "href",
-      "/forgot-password",
+      "mailto:jci.orienteolm@gmail.com",
     );
   });
 

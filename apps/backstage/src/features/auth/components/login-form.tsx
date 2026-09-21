@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link } from "@tanstack/react-router";
 import { ArrowRight, Button, Checkbox, Field, Icon, Input, LogoLockup } from "@luminova/ui";
 import { loginSchema, type LoginInput } from "../types/login-schema";
 import { signIn } from "../../../lib/auth/sign-in";
@@ -70,17 +69,9 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         </Field>
 
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <label htmlFor="password" className="text-ui-sm font-semibold text-ink-1">
-              Contraseña
-            </label>
-            <Link
-              to="/forgot-password"
-              className="text-ui-xs font-semibold text-jci-blue transition-colors hover:text-jci-blue-2"
-            >
-              ¿La olvidaste?
-            </Link>
-          </div>
+          <label htmlFor="password" className="text-ui-sm font-semibold text-ink-1">
+            Contraseña
+          </label>
           <div className="group relative flex items-center">
             <span className="pointer-events-none absolute left-3.5 flex text-ink-3 transition-colors group-focus-within:text-jci-blue">
               {Icon.lock({ s: 19 })}
@@ -141,7 +132,14 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         </Button>
       </form>
 
+      {/* NOT a link any more. There is no self-service recovery: all of it is
+          operator-mediated, so pointing at a /forgot-password route would be pointing at a
+          page that cannot help. The CEL footnote below is now the actual escape hatch. */}
       <p className="mt-9 text-ui-xs leading-[1.5] text-ink-3">
+        ¿Olvidaste tu contraseña? Pídele a la directiva que te envíe un enlace de acceso.
+      </p>
+
+      <p className="mt-2 text-ui-xs leading-[1.5] text-ink-3">
         ¿Aún no tienes acceso? La cuenta la crea la directiva.{" "}
         <a
           href="mailto:jci.orienteolm@gmail.com"

@@ -421,29 +421,53 @@ becomes `repair-production-shapes-and-publish`, and the plain one is then reject
 The typed string names the consequence, rather than the one flag that can ADD public
 exposure being the one the prompt is silent about. The emulator needs no confirmation.
 
-## Correo de invitación
+## Enlaces de acceso (no hay correo)
 
-When an admin provisions login access for a member, the app calls Firebase Auth's
-`sendPasswordResetEmail` via `requestPasswordReset(email)` immediately after the
-`provisionMemberLogin` callable returns. Firebase delivers the set-password link directly
-to the member's inbox.
+**The app sends no email at all in the auth flow.** Firebase's transactional email cannot be
+meaningfully restyled, its sender is `noreply@<project>.firebaseapp.com`, and its links route
+through `firebaseapp.com` before redirecting — it reads as phishing and lands in spam. JCI
+Oriente coordinates over WhatsApp, so an operator generates a link and shares it by hand.
 
-- **Auth emulator** — the emulator does not send real email; it prints the generated link
-  to its log output (visible in the Emulator UI at http://localhost:4100 or in terminal).
-- **Email failure fallback** — if `sendPasswordResetEmail` throws (e.g. network error,
-  Auth quota), the drawer shows a warning and a "Copiar enlace de acceso" button so the
-  admin can share the `actionLink` manually. The row-menu "Invitar acceso" path sets a
-  toast instead.
-- **Spanish template / sender name** — Firebase Console → Authentication → Templates →
-  Password reset. Customizing the subject line, body, and "From" name is an owner op in
-  the Firebase Console; no code change required. **Still pending** — until completed,
-  members receive the default Firebase template in English.
-- **Email-enumeration protection** — if Firebase Auth's email-enumeration protection is
-  enabled, `sendPasswordResetEmail` resolves without revealing whether the address exists.
-  The invite UI already treats a silent success as "sent" and offers the copy-link fallback.
-  If invites stop arriving, check that setting and prefer the copy-link fallback.
+`issueMemberInvite({ memberId })` creates the Auth account if needed, links the uid, and mints
+a single-use token. Backstage assembles `https://<backstage-host>/invitacion#<token>` and shows
+it in a copy dialog with its expiry.
 
-## App Check (reCAPTCHA v3) & Password Reset
+- **A link IS a credential.** Whoever holds it sets that member's password. Send it in a direct
+  chat, never a group. There is no way to un-send one — the remedy is to re-issue, which
+  revokes the previous link.
+- **Links last 7 days**, enforced in code (not by the TTL policy). The badge shows the date.
+- **Re-issuing kills the previous link.** The copy dialog says so. If a member reports "el
+  enlace no sirve", check whether someone re-issued.
+- **Auth emulator** — nothing is mailed, so there is nothing to read from the emulator log; the
+  link is returned to the caller and rendered in the UI.
+- **Do NOT disable the Email/Password provider** — sign-in depends on it, even though no
+  Firebase email is sent.
+
+### Owner ops for this flow
+
+1. **REVERT the Password-reset action URL to the Firebase default.** Authentication →
+   Templates → **Password reset** → "Customize action URL" → clear the custom value (back to
+   `__/auth/action`). It previously pointed at `https://<backstage-host>/reset`, a route that
+   no longer exists — so until this is reverted, the console's own "⋮ → Reset password" mails a
+   link to a 404. **"Edit user → set password" always works and needs nothing.**
+2. **Firestore TTL policy** on `memberInvites.purgeAt` (cleanup only; expiry is code-enforced):
+   `gcloud firestore fields ttls update purgeAt --collection-group=memberInvites --enable-ttl --project=jci-oriente`
+3. **Decide on App Check for the two unauthenticated callables.** `describeInvite` and
+   `redeemInvite` ship `enforceAppCheck: false`. Note this is NOT because the keys are
+   missing — `apps/backstage/.env.production` carries a real `VITE_APPCHECK_SITE_KEY` and
+   `ensureApp()` wires `initAppCheck` unconditionally, so a prod backstage build already sends
+   a token. It is because enforcement is per-**product** and is confirmed only for Firestore
+   and Storage (see "App Check" above); Cloud Functions is not. To turn it on: confirm the
+   backstage app is registered for the Functions product, flip the boolean in
+   `apps/beacon/src/redeem-invite.ts`, and **test `/invitacion` end to end against a real
+   build before deploying**. Getting this wrong 403s every redemption, silently, on the only
+   onboarding path that now exists.
+4. **GCP budget alert.** Until that flip, both callables accept requests from any origin.
+   `maxInstances: 10` caps the blast radius but converts a cost problem into an availability
+   one — a flood saturating the pool blocks real invitees. A budget alert is the cheapest real
+   signal available in the meantime.
+
+## App Check (reCAPTCHA v3)
 
 The Firebase client (`@luminova/firebase`) already initializes App Check with the
 reCAPTCHA v3 provider when `VITE_APPCHECK_SITE_KEY` is set. To turn it on and wire
@@ -453,11 +477,13 @@ the branded reset flow:
    with a **reCAPTCHA v3** provider; copy the site key.
 2. **Env** — set `VITE_APPCHECK_SITE_KEY` in `.env.production` for prod builds. Leave
    `.env.local` blank so local dev runs against the emulators with App Check off.
-3. **Reset action URL** — Authentication → Templates → **Password reset** →
-   "Customize action URL" → `https://<backstage-host>/reset`. Without this the reset
-   email link lands on Firebase's default page instead of our branded `/reset` route
-   (which reads `?mode=resetPassword&oobCode=…`).
-4. **Localize** the password-reset email template to Spanish.
+3. **Reset action URL** — leave it at the Firebase DEFAULT. The `/reset` route it used to
+   point at is deleted; see owner op 1 above.
+4. **`describeInvite` / `redeemInvite` are the first functions to flip.** They are declared
+   `enforceAppCheck: false`, and the blocker is NOT the site key (production has one) — it is
+   that enforcement is per-product and Functions is not confirmed enabled below. Flip them
+   DELIBERATELY, with `/invitacion` tested against a real build: a misconfigured deploy breaks
+   member onboarding entirely, silently, for everyone.
 5. **Enforcement** — **enabled** for Firestore and Storage. Both frontends send a
    valid token (backstage via the full SDK, spotlight via `getFirestoreLite`). Only
    enable enforcement for a product after confirming real traffic carries valid

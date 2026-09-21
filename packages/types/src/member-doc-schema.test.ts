@@ -28,6 +28,41 @@ describe("memberDocSchema", () => {
     expect(parsed).toEqual(validDoc);
   });
 
+  // The whole invite feature is invisible without this: zod strips unknown keys, so a
+  // memberDocSchema that does not KNOW about `invite` drops beacon's projection on every
+  // read, and every operator surface renders "Sin invitar" for a member who has a live link.
+  it("round-trips beacon's invite projection", () => {
+    const invite = {
+      status: "pending",
+      kind: "initial",
+      tokenHash: "a".repeat(64),
+      issuedAt: fakeTimestamp,
+      expiresAt: fakeTimestamp,
+      issuedBy: "uid-admin",
+      usedAt: null,
+    };
+    expect(memberDocSchema.parse({ ...validDoc, invite }).invite).toEqual(invite);
+  });
+
+  // BLOCKING: a projection this build does not understand must cost the BADGE, never the
+  // MEMBER. beacon writing a fifth invite status during a staged rollout (functions deploy
+  // before hosting) would otherwise fail the whole parse, and parseDocs drops that member out
+  // of the roster, the CSV, the ranking and /me — while parseDoc throws on the detail route.
+  it("keeps the member when the invite projection cannot be parsed", () => {
+    const parsed = memberDocSchema.parse({
+      ...validDoc,
+      invite: { status: "some-future-status", kind: "initial", tokenHash: "x" },
+    });
+    expect(parsed.name).toBe("Ana Pérez");
+    expect(parsed.invite).toBeUndefined();
+  });
+
+  // The entire pre-feature roster. `memberInviteState` derives "legacy" from `uid && !invite`
+  // rather than backfilling, so an absent projection must PARSE, not drop the member.
+  it("parses a member provisioned before invites existed", () => {
+    expect(memberDocSchema.parse(without(validDoc, "invite")).invite).toBeUndefined();
+  });
+
   // Structural, not a comment: swapping this READ schema's `name` for the write-side
   // memberName compiles and passes every other test, while silently dropping any member
   // whose stored name predates memberNameValid() out of parseDocs — and so out of the
