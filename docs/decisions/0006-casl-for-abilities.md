@@ -3,7 +3,9 @@
 **Status:** Accepted
 **Date:** 2026-07-20
 **Source:** `packages/auth/src/ability.ts` (including its inline rationale comments);
-`docs/status/2026-07-20-authz-migration.md`. **The choice of CASL specifically is not
+`docs/status/2026-07-20-authz-migration.md`;
+`docs/status/2026-07-18-authz-audit.md` (the empty-instance probe and its verification);
+`apps/backstage/src/lib/authz/probe.ts`. **The choice of CASL specifically is not
 argued anywhere** — the migration handoff documents the move to capability-based gating,
 not the library evaluation.
 

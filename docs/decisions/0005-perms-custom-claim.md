@@ -3,8 +3,10 @@
 **Status:** Accepted
 **Date:** 2026-08-03 (role table); the claim mechanism predates it
 **Source:** `docs/specs/builtin-role-set.md`; `docs/specs/role-lifecycle.md`;
+`docs/specs/position-assignment-lane.md` (the reseed hazard);
 `packages/types/src/permission.ts` (`PERMISSION_CAP = 30`);
-`packages/auth/src/perms.ts` (`resolveEffectivePerms`); `firestore.rules`.
+`packages/auth/src/perms.ts` (`resolveEffectivePerms`);
+`packages/types/src/role-definition.ts` (`BUILT_IN_ROLE_PERMS`); `firestore.rules`.
 
 ## Context
 
@@ -54,10 +56,14 @@ own roles without a deploy; permissions are auditable as data.
 - **The claim is downstream of two triggers.** `onMemberWritten` and `onRoleWritten`
   re-mint it. A member's effective authority changes only after the trigger runs and
   their token refreshes — it is not instantaneous.
-- **A reseed strips hand-granted permissions.** Because the built-in constant is a seed
-  snapshot, re-running the seed overwrites a built-in role's permission list with the
-  constant's version. Permissions granted by hand in `/permisos` on a built-in role are
-  lost. This has happened in production, across five roles.
+- **A reseed silently strips hand-granted permissions.** Because the built-in constant
+  is a seed snapshot, `planRolePermReseed` walks every built-in role doc and rewrites
+  `permissions` back to the snapshot wherever they differ. A permission added by hand in
+  `/permisos` on a **built-in** role is removed without warning at the next reseed.
+  `docs/specs/position-assignment-lane.md` treats this as a standing hazard: its
+  owner-op instructions require handing new authority to a **custom** role
+  (`builtIn: false`, skipped by the reseed as `"not-built-in"`) rather than adding a
+  permission to `ExecutiveCommittee`, for exactly this reason.
 - **30 is a real ceiling.** A chapter wanting fine-grained roles will hit it.
 
 **Ruled out:** per-request permission lookups; Firebase's built-in role model, which
