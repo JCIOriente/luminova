@@ -25,7 +25,7 @@ const REGISTERED_PATHS = [...ROUTE_TREE.matchAll(/fullPath: '([^']*)'/g)].map((m
 // A plain allowlist filtered against every `fullPath:` in the generated tree, so layout
 // position is irrelevant — a top-level /invitacion belongs here exactly as an _auth child
 // would. It exempts the path from both the set-equality assertion and the nav-gate one.
-const AUTH_ROUTES = ["/login", "/forgot-password", "/reset", "/invitacion"];
+const AUTH_ROUTES = ["/login", "/invitacion"];
 const CONTENT_ROUTES = REGISTERED_PATHS.filter((p) => !p.includes("$"));
 const NAV_PATHS = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.to));
 

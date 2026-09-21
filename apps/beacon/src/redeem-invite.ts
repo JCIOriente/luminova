@@ -25,7 +25,7 @@ export interface InviteDoc {
   status: InviteStatus;
 }
 
-export interface RedeemUser {
+interface RedeemUser {
   uid: string;
   disabled?: boolean;
   customClaims?: Record<string, unknown>;
