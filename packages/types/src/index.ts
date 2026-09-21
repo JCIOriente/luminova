@@ -24,6 +24,14 @@ export {
   type RoleDefinitionInput,
 } from "./role-definition-schema.js";
 export { PROVISION_BLOCK_REASONS, type ProvisionBlockReason } from "./provision-block-reason.js";
+export { INVITE_BLOCK_REASONS, type InviteBlockReason } from "./invite-block-reason.js";
+export { INVITE_TTL_MS, INVITE_PURGE_MS } from "./member-invite.js";
+export type {
+  MemberInviteProjection,
+  InviteKind,
+  InviteStatus,
+  InviteState,
+} from "./member-invite.js";
 export type { Member, MemberStatus } from "./member.js";
 export { MEMBER_STATUSES } from "./member.js";
 export { MEMBER_GENDERS, type MemberGender } from "./member.js";

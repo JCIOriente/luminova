@@ -20,6 +20,10 @@ const MESSAGES: Readonly<Record<ProvisionBlockReason, string>> = {
     "El cargo de este miembro otorga permisos: solo un administrador puede crear su acceso.",
   "member-email-malformed":
     "El correo guardado de este miembro no es válido. Corrígelo en su ficha antes de crear su acceso.",
+  "privileged-account-requires-admin":
+    "La cuenta de este miembro tiene permisos especiales: solo un administrador puede generar su enlace.",
+  "account-disabled-requires-admin":
+    "La cuenta de este miembro está deshabilitada. Un administrador debe revisarla antes de generar un enlace.",
 };
 
 // A Map, not the object literal above: `reason` is attacker-adjacent input (it arrives in the

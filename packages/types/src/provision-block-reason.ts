@@ -28,6 +28,16 @@ export const PROVISION_BLOCK_REASONS = [
   // fail as an opaque `internal` and that member would stay unprovisionable until someone
   // edits the doc. `firestore.rules` does not shape-validate email on the admin write lane.
   "member-email-malformed",
+  // A non-Admin caller reached a member whose LIVE AUTH ACCOUNT carries claims beyond the
+  // ordinary allowlist. The member-doc checks cannot see this: claims can outlive the doc
+  // state that minted them (an orphaned Admin claim, or claims minted before a cargo was
+  // removed — syncMemberClaims does not recompute on cargo removal until the next member
+  // write).
+  "privileged-account-requires-admin",
+  // The Auth account is disabled. Nothing in beacon disables accounts, so this was a console
+  // containment measure; minting a link would report success while the member gets
+  // auth/user-disabled at login with no explanation.
+  "account-disabled-requires-admin",
 ] as const;
 
 export type ProvisionBlockReason = (typeof PROVISION_BLOCK_REASONS)[number];

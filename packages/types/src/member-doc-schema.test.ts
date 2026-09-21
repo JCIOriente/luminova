@@ -28,6 +28,28 @@ describe("memberDocSchema", () => {
     expect(parsed).toEqual(validDoc);
   });
 
+  // The whole invite feature is invisible without this: zod strips unknown keys, so a
+  // memberDocSchema that does not KNOW about `invite` drops beacon's projection on every
+  // read, and every operator surface renders "Sin invitar" for a member who has a live link.
+  it("round-trips beacon's invite projection", () => {
+    const invite = {
+      status: "pending",
+      kind: "initial",
+      tokenHash: "a".repeat(64),
+      issuedAt: fakeTimestamp,
+      expiresAt: fakeTimestamp,
+      issuedBy: "uid-admin",
+      usedAt: null,
+    };
+    expect(memberDocSchema.parse({ ...validDoc, invite }).invite).toEqual(invite);
+  });
+
+  // The entire pre-feature roster. `memberInviteState` derives "legacy" from `uid && !invite`
+  // rather than backfilling, so an absent projection must PARSE, not drop the member.
+  it("parses a member provisioned before invites existed", () => {
+    expect(memberDocSchema.parse(without(validDoc, "invite")).invite).toBeUndefined();
+  });
+
   // Structural, not a comment: swapping this READ schema's `name` for the write-side
   // memberName compiles and passes every other test, while silently dropping any member
   // whose stored name predates memberNameValid() out of parseDocs — and so out of the

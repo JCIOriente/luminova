@@ -1,6 +1,7 @@
 import type { Timestamp } from "firebase/firestore";
 import type { TermPositions } from "./position.js";
 import type { PermissionOverrides } from "./permission-overrides.js";
+import type { MemberInviteProjection } from "./member-invite.js";
 
 export const MEMBER_STATUSES = ["Activo", "Inactivo", "Desafiliado"] as const;
 
@@ -35,6 +36,11 @@ export interface Member {
   /** Linked Firebase Auth uid (member self-login). Set by `provisionMemberLogin`
    *  (admin SDK); absent until the member is invited. Immutable once set (rules). */
   uid?: string;
+  /** The outstanding (or most recent) access link, projected by beacon's issueMemberInvite.
+   *  Clients never read `memberInvites` itself. Absent on members provisioned before this
+   *  feature existed — `memberInviteState` derives "legacy" from `uid && !invite` rather than
+   *  backfilling. Beacon-owned: `firestore.rules` denies every client write lane. */
+  invite?: MemberInviteProjection;
   /** Custom role ids assigned directly (Admin-only; positions confer built-in roles). */
   roleIds?: string[];
   /** Per-member coarse permission grants/revocations layered on resolved role perms. */

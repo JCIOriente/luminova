@@ -5,6 +5,19 @@ import type { Member } from "./member.js";
 import { termPositionsDocSchema } from "./position-doc-schema.js";
 import { permissionOverridesSchema } from "./permission-overrides-schema.js";
 
+/** Beacon's invite projection. Read-only from the client's side — every `firestore.rules`
+ *  write lane denies `invite` — so this schema exists to stop zod STRIPPING the field on
+ *  read, which would make every live link render as "Sin invitar". */
+const memberInviteDocSchema = z.object({
+  status: z.enum(["pending", "used", "revoked", "failed"]),
+  kind: z.enum(["initial", "recovery"]),
+  tokenHash: z.string(),
+  issuedAt: clientTimestampSchema,
+  expiresAt: clientTimestampSchema,
+  issuedBy: z.string(),
+  usedAt: clientTimestampSchema.nullable().default(null),
+});
+
 export const memberDocSchema = z.object({
   // Stays unbounded on purpose — do NOT mirror memberName's pattern here. This is the READ
   // path: a legacy doc whose name predates the pattern must still parse, or parseDocs drops
@@ -28,6 +41,7 @@ export const memberDocSchema = z.object({
   publicProfile: z.boolean().optional(),
   positions: z.record(z.string(), termPositionsDocSchema).optional(),
   uid: z.string().optional(),
+  invite: memberInviteDocSchema.optional(),
   roleIds: z.array(z.string()).optional(),
   permissionOverrides: permissionOverridesSchema.optional(),
   active: z.boolean(),

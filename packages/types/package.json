@@ -23,6 +23,11 @@
       "types": "./src/role-definition.ts",
       "import": "./dist/role-definition.js",
       "default": "./dist/role-definition.js"
+    },
+    "./password-policy": {
+      "types": "./src/password-policy.ts",
+      "import": "./dist/password-policy.js",
+      "default": "./dist/password-policy.js"
     }
   },
   "scripts": {
