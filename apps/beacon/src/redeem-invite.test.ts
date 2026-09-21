@@ -33,8 +33,10 @@ function fakeDeps(opts: {
   member?: Record<string, unknown> | null;
   user?: { uid: string; disabled?: boolean; customClaims?: Record<string, unknown> } | null;
   positions?: Record<string, Role[]>;
-  claimOutcome?: "ok" | "already-used";
   setPasswordThrows?: Error;
+  /** Forces the CLAIM TRANSACTION to lose, independently of the pre-read — the only way to
+   *  reach the mutual-exclusion branch, which the shared-status fake can never exercise. */
+  claimLosesWith?: "used" | "revoked" | "failed" | "expired" | "gone";
 }) {
   const calls = {
     claims: [] as string[],
@@ -58,6 +60,7 @@ function fakeDeps(opts: {
     getPositionGrants: async (cargoId) => opts.positions?.[cargoId] ?? null,
     claimInvite: async (hash) => {
       calls.claims.push(hash);
+      if (opts.claimLosesWith) return { claimed: false, status: opts.claimLosesWith };
       // The transaction IS the mutual-exclusion primitive: a second claim must lose.
       if (status !== "pending") return { claimed: false, status: status as InviteDoc["status"] };
       status = "used";
@@ -367,5 +370,81 @@ describe("redeemInviteFor — secrets never reach a log line", () => {
     } finally {
       for (const [l, fn] of originals) console[l] = fn;
     }
+  });
+});
+
+describe("redeemInviteFor — losing the claim transaction", () => {
+  // THE MUTUAL-EXCLUSION BRANCH. The shared-status fake can never reach it (a second
+  // redemption is refused earlier, inside loadValidInvite), so it had no coverage at all —
+  // and it is the path the single-use guarantee actually rests on when two tabs race.
+  it.each([
+    ["another tab redeemed first", "used", "invite-used"],
+    ["it was revoked mid-flight", "revoked", "invite-revoked"],
+    // Each outcome keeps its OWN tag. Telling someone their link was "superseded by a newer
+    // one" when it actually expired sends them hunting for a link that does not exist; telling
+    // them to "sign in with your password" after a failed write names a password never set.
+    ["it expired between the read and the transaction", "expired", "invite-expired"],
+    ["a previous attempt had already failed", "failed", "invite-update-failed"],
+    ["the document vanished", "gone", "invite-invalid"],
+  ] as const)("refuses with the right tag when %s", async (_label, status, expected) => {
+    const { deps, calls } = fakeDeps({ claimLosesWith: status });
+    expect(await reasonOf(redeemInviteFor(deps, { token: TOKEN, password: GOOD_PASSWORD }))).toBe(
+      expected,
+    );
+    // The claim was attempted and lost; no password may be written.
+    expect(calls.claims).toEqual([HASH]);
+    expect(calls.setPassword).toEqual([]);
+  });
+});
+
+describe("redeemInviteFor — the Auth account's own address", () => {
+  it("refuses when the ACCOUNT's address was changed out of band", async () => {
+    // member.uid and member.email are both pinned, but the console can change the Auth
+    // account's own address — and then the password lands on an account whose address is not
+    // the one describeInvite showed the invitee.
+    const { deps, calls } = fakeDeps({ user: { uid: "u1", email: "otra@jci.bo" } });
+    expect(await reasonOf(redeemInviteFor(deps, { token: TOKEN, password: GOOD_PASSWORD }))).toBe(
+      "invite-email-changed",
+    );
+    expect(calls.setPassword).toEqual([]);
+  });
+
+  it("accepts a case/whitespace difference on the account address", async () => {
+    const { deps, calls } = fakeDeps({ user: { uid: "u1", email: " Ana@JCI.bo " } });
+    await expect(
+      redeemInviteFor(deps, { token: TOKEN, password: GOOD_PASSWORD }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(calls.setPassword).toHaveLength(1);
+  });
+
+  it("tolerates an account with no address recorded", async () => {
+    const { deps } = fakeDeps({ user: { uid: "u1" } });
+    await expect(
+      redeemInviteFor(deps, { token: TOKEN, password: GOOD_PASSWORD }),
+    ).resolves.toMatchObject({ ok: true });
+  });
+});
+
+describe("redeemInviteFor — the password shape bound", () => {
+  it("refuses an over-long password BEFORE burning the token", async () => {
+    // Identity Toolkit rejects it on shape, not policy — and would do so only after the claim,
+    // landing the invitee on invite-update-failed with a spent link.
+    const { deps, calls } = fakeDeps({});
+    expect(
+      await reasonOf(redeemInviteFor(deps, { token: TOKEN, password: `Aa1${"x".repeat(2000)}` })),
+    ).toBe("invite-password-weak");
+    expect(calls.claims).toEqual([]);
+  });
+});
+
+describe("describeInviteFor — the address it shows", () => {
+  it("shows the address NORMALIZED, as redemption will match it", async () => {
+    const { deps } = fakeDeps({
+      invite: inviteDoc({ email: "  Ana@JCI.bo " }),
+      member: { name: "Ana", email: "ana@jci.bo", active: true, uid: "u1" },
+    });
+    await expect(describeInviteFor(deps, { token: TOKEN })).resolves.toMatchObject({
+      email: "ana@jci.bo",
+    });
   });
 });

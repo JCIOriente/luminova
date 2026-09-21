@@ -168,15 +168,15 @@ describe("firestoreInviteDeps.createUser", () => {
 // repo while reintroducing the orphaned-live-token failure the whole design is built around.
 describe("firestoreInviteDeps — commitInvite is one atomic batch", () => {
   function fakeDb() {
-    const writes: { op: string; path: string; data: unknown }[] = [];
+    const writes: { op: string; path: string; data: unknown; merge?: boolean }[] = [];
     const commits: number[] = [];
     const batches: unknown[] = [];
     const db = {
       doc: (path: string) => ({ path }),
       batch: () => {
         const batch = {
-          set: (ref: { path: string }, data: unknown) =>
-            writes.push({ op: "set", path: ref.path, data }),
+          set: (ref: { path: string }, data: unknown, opts?: { merge?: boolean }) =>
+            writes.push({ op: "set", path: ref.path, data, merge: opts?.merge === true }),
           update: (ref: { path: string }, data: unknown) =>
             writes.push({ op: "update", path: ref.path, data }),
           commit: async () => void commits.push(writes.length),
@@ -213,10 +213,37 @@ describe("firestoreInviteDeps — commitInvite is one atomic batch", () => {
     expect(batches).toHaveLength(1);
     expect(commits).toEqual([3]);
     expect(writes.map((w) => `${w.op} ${w.path}`)).toEqual([
-      `update memberInvites/${"b".repeat(64)}`,
+      // `set` + merge, not `update` — see the purged-invite case below.
+      `set memberInvites/${"b".repeat(64)}`,
       `set memberInvites/${"a".repeat(64)}`,
       "update members/m1",
     ]);
+  });
+
+  // BLOCKING (H1): batch.update() REJECTS THE WHOLE BATCH if the target is missing. The
+  // projection keeps `status: "pending"` forever on a link nobody redeemed — "expired" is
+  // derived client-side and nothing writes a terminal status — while the invite DOCUMENT is
+  // reaped at issuedAt+90d by the purgeAt TTL policy. From day 91 every re-issue for that
+  // member fails identically and opaquely, with no retry that can clear it, and that includes
+  // the locked-out-Admin recovery path which is now the ONLY in-product remedy.
+  it("BLOCKING: revoking a PURGED invite must not fail the batch", async () => {
+    const { db, writes, commits } = fakeDb();
+    const { auth } = fakeAuth({});
+    await firestoreInviteDeps(db, auth).commitInvite({
+      memberId: "m1",
+      revokeTokenHash: "b".repeat(64),
+      revokedBy: "admin-uid",
+      tokenHash: "a".repeat(64),
+      invite,
+    });
+    const revoke = writes[0];
+    // `set` with merge, not `update`: a resurrected stub fails parseInvite (no memberId/uid/
+    // kind) and reads as the generic invite-invalid, and it carries purgeAt so it is reaped
+    // again rather than lingering forever.
+    expect(revoke?.op).toBe("set");
+    expect((revoke?.data as Record<string, unknown>).purgeAt).toBeDefined();
+    expect(revoke?.merge).toBe(true);
+    expect(commits).toEqual([3]);
   });
 
   it("omits only the revoke write on a first issue, still one commit", async () => {

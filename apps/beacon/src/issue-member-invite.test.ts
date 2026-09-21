@@ -759,6 +759,61 @@ describe("issueInvite — minting, revocation and atomicity", () => {
     expect(commit?.memberId).toBe("m1");
   });
 
+  it.each([
+    // ADOPTION: an account already exists, the member doc is unlinked. The person may already
+    // have a password, so this is a recovery — not a first issue.
+    ["adoption", { ...active }, { "a@b.co": { uid: "u9", email: "a@b.co" } }, "recovery"],
+    // SELF-HEAL: a uid is stored but the account was deleted, so a BRAND-NEW account is minted
+    // with no password. That is a first issue, whatever the stored uid says.
+    ["self-heal", { ...active, uid: "dead-uid" }, {}, "initial"],
+  ])(
+    "labels %s correctly — kind follows the LOGIN, not the stored uid",
+    async (_l, member, users, kind) => {
+      const { deps, calls } = fakeDeps({ member, usersByEmail: users as never });
+      await issueInvite(deps, "m1", "admin-uid", ADMIN);
+      expect(calls.commits[0]?.invite.kind).toBe(kind);
+    },
+  );
+
+  it("does not claim to have revoked an ALREADY-EXPIRED prior link", async () => {
+    // An expired link needs no revoking, and saying "el anterior fue revocado" about one that
+    // died days ago is a lie to the operator. It also keeps the common re-issue off a document
+    // the purgeAt TTL policy may already have reaped.
+    const { deps, calls } = fakeDeps({
+      member: {
+        ...active,
+        uid: "u1",
+        invite: {
+          status: "pending",
+          tokenHash: "e".repeat(64),
+          expiresAt: { toMillis: () => NOW - 1 },
+        },
+      },
+      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
+    });
+    const result = await issueInvite(deps, "m1", "admin-uid", ADMIN);
+    expect(result.replacedPreviousLink).toBe(false);
+    expect(calls.commits[0]?.revokeTokenHash).toBeNull();
+  });
+
+  it("DOES revoke a prior link that is still live", async () => {
+    const { deps, calls } = fakeDeps({
+      member: {
+        ...active,
+        uid: "u1",
+        invite: {
+          status: "pending",
+          tokenHash: "f".repeat(64),
+          expiresAt: { toMillis: () => NOW + 1000 },
+        },
+      },
+      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co" } },
+    });
+    const result = await issueInvite(deps, "m1", "admin-uid", ADMIN);
+    expect(result.replacedPreviousLink).toBe(true);
+    expect(calls.commits[0]?.revokeTokenHash).toBe("f".repeat(64));
+  });
+
   it("surfaces a commit failure instead of returning a token nothing stored", async () => {
     // The caller must not receive a link the operator would then send for a document that was
     // never written.

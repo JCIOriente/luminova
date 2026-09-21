@@ -83,11 +83,27 @@ async function commitInviteBatch(db: Firestore, commit: InviteCommit): Promise<v
   const batch = db.batch();
 
   if (commit.revokeTokenHash !== null) {
-    batch.update(db.doc(`memberInvites/${commit.revokeTokenHash}`), {
-      status: "revoked",
-      revokedAt: Timestamp.now(),
-      revokedBy: commit.revokedBy,
-    });
+    // `set` with merge, NOT `update`. update() rejects the WHOLE BATCH when the target is
+    // missing, and the target can legitimately be gone: the projection keeps
+    // `status: "pending"` forever on a link nobody redeemed ("expired" is derived, nothing
+    // writes a terminal status), while the invite DOCUMENT is reaped at issuedAt+90d by the
+    // purgeAt TTL policy. With update(), from day 91 every re-issue for that member would
+    // fail identically and opaquely, with no retry able to clear it — including the
+    // locked-out-Admin recovery path, which is now the only in-product remedy.
+    //
+    // A resurrected stub is harmless: it carries no memberId/uid/kind, so parseInvite rejects
+    // it and it reads as the generic `invite-invalid`. purgeAt rides along so the stub is
+    // reaped again rather than lingering forever.
+    batch.set(
+      db.doc(`memberInvites/${commit.revokeTokenHash}`),
+      {
+        status: "revoked",
+        revokedAt: Timestamp.now(),
+        revokedBy: commit.revokedBy,
+        purgeAt: Timestamp.fromMillis(invite.purgeAtMs),
+      },
+      { merge: true },
+    );
   }
 
   const issuedAt = Timestamp.fromMillis(invite.issuedAtMs);

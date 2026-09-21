@@ -66,11 +66,15 @@ describe("memberInviteState", () => {
     expect(memberInviteState(withInvite({ status: "failed" }), NOW)).toBe("failed");
   });
 
-  it("falls back to the uid-derived state on a malformed projection", () => {
-    const malformed = { uid: "u1", invite: { status: "nonsense" } } as unknown as Member;
-    expect(memberInviteState(malformed, NOW)).toBe("legacy");
-    const noUid = { invite: { status: "nonsense" } } as unknown as Member;
-    expect(memberInviteState(noUid, NOW)).toBe("never");
+  // This used to assert `{ uid, invite: { status: "nonsense" } } -> "legacy"` — an input that
+  // CANNOT reach this function, because memberDocSchema's enum would have failed the parse
+  // first. It was green either way, which is the definition of a vacuous test. The real
+  // invariant lives at the schema boundary and is asserted in member-doc-schema.test.ts: an
+  // unparseable projection degrades to ABSENT rather than dropping the whole member. What is
+  // left here is the reachable half of that outcome.
+  it("reads a member whose projection was dropped by the parser as legacy", () => {
+    expect(memberInviteState({ uid: "u1" } as Member, NOW)).toBe("legacy");
+    expect(memberInviteState({} as Member, NOW)).toBe("never");
   });
 });
 

@@ -10,7 +10,7 @@ import {
   readCargoIds,
 } from "./invite-guards.js";
 import { isSafeTokenHash, mintInviteToken } from "./invite-token.js";
-import { logWarn } from "./firestore-util.js";
+import { hasToMillis, logWarn } from "./firestore-util.js";
 import { INVITE_PURGE_MS, INVITE_TTL_MS } from "@luminova/types/member-invite";
 import type { InviteKind } from "@luminova/types";
 import { memberEmailMalformed, provisionBlocked } from "./provision-errors.js";
@@ -213,6 +213,8 @@ export async function issueInvite(
   const linkedUid = typeof member.uid === "string" && member.uid.length > 0 ? member.uid : null;
 
   let user = await deps.getUserByEmail(email);
+  // Captured BEFORE createUser: it is what distinguishes a first issue from a recovery.
+  const hadLoginAlready = user !== null;
   if (linkedUid !== null && user?.uid !== linkedUid) {
     // The stored link points elsewhere. Only a still-live account can be
     // orphaned; if it was deleted out-of-band, relinking by email is the
@@ -263,26 +265,24 @@ export async function issueInvite(
         "reprovision-requires-admin",
       );
     }
-  }
-  // POWER-SEAT GUARD. The check above asks whether this is a NEW login; it does not ask whose
-  // member doc it is, and "unprovisioned" does not mean "enrolled by this delegate". Any
-  // uid-less member is reachable, including one an Admin already seated on an Admin-granting
-  // cargo — the normal state between being seated and being invited.
-  //
-  // Without this guard that is a clean escalation, and the delegate forges nothing: linkUid()
-  // below fires onMemberWritten, resolveTrustedGrants reads the STORED assignedBy (a genuine
-  // Admin), honors the grants, and mints Admin onto the uid this call just created. The
-  // attacker then reaches that uid through the invite — the returned token IS the credential
-  // now, so there is no longer even a "suppress the link for a delegate" half-measure to fall
-  // back on. The mint has to be refused at the source.
-  //
-  // Both halves of the claims-mint surface are checked, mirroring how syncMemberClaims splits
-  // it: hasDirectGrants() for the roleIds/permissionOverrides -> perms path, and the cargo
-  // read below for the grants -> roles path. Closing only one leaves the other reachable.
-  //
-  // Grant-free, un-granted members stay open: they mint nothing, so enrolling and inviting
-  // them is exactly the flow this delegation exists for.
-  if (!callerHoldsAdminRole) {
+    // POWER-SEAT GUARD. The check above asks whether this is a NEW login; it does not ask whose
+    // member doc it is, and "unprovisioned" does not mean "enrolled by this delegate". Any
+    // uid-less member is reachable, including one an Admin already seated on an Admin-granting
+    // cargo — the normal state between being seated and being invited.
+    //
+    // Without this guard that is a clean escalation, and the delegate forges nothing: linkUid()
+    // below fires onMemberWritten, resolveTrustedGrants reads the STORED assignedBy (a genuine
+    // Admin), honors the grants, and mints Admin onto the uid this call just created. The
+    // attacker then reaches that uid through the invite — the returned token IS the credential
+    // now, so there is no longer even a "suppress the link for a delegate" half-measure to fall
+    // back on. The mint has to be refused at the source.
+    //
+    // Both halves of the claims-mint surface are checked, mirroring how syncMemberClaims splits
+    // it: hasDirectGrants() for the roleIds/permissionOverrides -> perms path, and the cargo
+    // read below for the grants -> roles path. Closing only one leaves the other reachable.
+    //
+    // Grant-free, un-granted members stay open: they mint nothing, so enrolling and inviting
+    // them is exactly the flow this delegation exists for.
     // Direct grants first — no read required, and it is the half a cargo check cannot see.
     if (hasDirectGrants(member)) {
       throw provisionBlocked(
@@ -344,8 +344,8 @@ export async function issueInvite(
   // Revocation needs no query and no composite index: `members/{id}.invite.tokenHash` points
   // at the one outstanding invite, so we revoke exactly that document BY KEY. At most one
   // outstanding invite per member, by construction.
-  const previousHash = pendingInviteHash(member, memberId);
   const issuedAtMs = deps.now();
+  const previousHash = pendingInviteHash(member, memberId, issuedAtMs);
   const { token, tokenHash } = mintInviteToken();
   await deps.commitInvite({
     memberId,
@@ -356,7 +356,12 @@ export async function issueInvite(
       memberId,
       uid: user.uid,
       email: targetEmail,
-      kind: linkedUid !== null ? "recovery" : "initial",
+      // Whether a usable Auth account ALREADY existed, not whether a uid was stored. The two
+      // disagree on exactly the quadrants the switch above separates: ADOPTION (an account
+      // exists, the member doc is unlinked) is a recovery for a person who may already have a
+      // password, and SELF-HEAL (a uid is stored but the account was deleted) mints a brand-new
+      // account and is therefore a first issue. Audit-trail label only — nothing gates on it.
+      kind: hadLoginAlready ? "recovery" : "initial",
       issuedBy,
       issuedByAdmin: callerHoldsAdminRole,
       issuedAtMs,
@@ -377,7 +382,11 @@ export async function issueInvite(
  *
  *  Only `pending` is revoked: rewriting a `used` doc would destroy its `usedAt` audit trail,
  *  and a `revoked`/`failed` one is already spent. */
-function pendingInviteHash(member: Record<string, unknown>, memberId: string): string | null {
+function pendingInviteHash(
+  member: Record<string, unknown>,
+  memberId: string,
+  now: number,
+): string | null {
   const invite = member.invite;
   if (invite === undefined || invite === null) return null;
   if (typeof invite !== "object" || Array.isArray(invite)) {
@@ -387,8 +396,17 @@ function pendingInviteHash(member: Record<string, unknown>, memberId: string): s
     logWarn("invite projection is malformed; cannot revoke a prior link by key", { memberId });
     return null;
   }
-  const { status, tokenHash } = invite as { status?: unknown; tokenHash?: unknown };
+  const { status, tokenHash, expiresAt } = invite as {
+    status?: unknown;
+    tokenHash?: unknown;
+    expiresAt?: unknown;
+  };
   if (status !== "pending") return null;
+  // An expired link needs no revoking — it is already unusable — and claiming we revoked one
+  // would put "el anterior fue revocado" in front of the operator about a link that died days
+  // ago. It also keeps the common re-issue off a document the TTL policy may already have
+  // reaped.
+  if (hasToMillis(expiresAt) && expiresAt.toMillis() <= now) return null;
   if (!isSafeTokenHash(tokenHash)) {
     logWarn("pending invite carries an unusable tokenHash; cannot revoke it by key", { memberId });
     return null;

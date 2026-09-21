@@ -97,6 +97,11 @@ describe("accountIsPrivileged", () => {
     ["perms as an object", { perms: {} }],
     ["perms as a string", { perms: "manage:all" }],
     ["an unknown role", { roles: ["Member", "Tesorero"] }],
+    // roles and perms are the COMPLETE key set beacon mints. A key beyond them is one this
+    // build cannot evaluate, and the function's entire job is "is this account too powerful
+    // for a delegate to take over" — so unknown is privileged, like malformed.
+    ["an unknown claim key", { roles: ["Member"], scopes: ["billing"] }],
+    ["an unknown key alone", { tenant: "x" }],
   ])("refuses %s", (_label, claims) => {
     expect(accountIsPrivileged(claims)).toBe(true);
   });

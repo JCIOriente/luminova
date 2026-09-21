@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link } from "@tanstack/react-router";
@@ -59,52 +59,56 @@ export function InviteRedeemForm({ token }: { token: string }) {
     defaultValues: { password: "", confirmPassword: "" },
   });
 
-  /** `alive` is what the component RePLACED here already had and this rewrite must not lose:
-   *  without it a resolved-but-stale `describeInvite` can overwrite a newer phase, and
-   *  StrictMode's double-invoke in dev makes that reachable on every mount. Passed in rather
-   *  than captured so the effect and the retry button share one cancellation token. */
-  const load = useCallback(
-    async (alive: () => boolean) => {
+  /** ONE cancellation token, held in a ref so the effect AND the retry button genuinely share
+   *  it. A retry that passed its own always-alive token would be exactly as unguarded as the
+   *  code this replaced — which is the bug the guard exists to prevent.
+   *
+   *  Without it a resolved-but-stale `describeInvite` overwrites a newer phase: the page would
+   *  render invite A's name and address while `onSubmit` still closes over token B.
+   *  StrictMode's double-invoke in dev makes that reachable on every mount. */
+  const runId = useRef(0);
+
+  const load = useCallback(async () => {
+    const mine = runId.current + 1;
+    runId.current = mine;
+    const alive = () => runId.current === mine;
+    setPhase({ kind: "loading" });
+    // An empty fragment — a truncated paste, or someone typing the path. Refuse locally
+    // rather than spending an unauthenticated call to be told the same thing.
+    if (token.length === 0) {
+      setPhase({
+        kind: "error",
+        message: "Este enlace está incompleto. Pídele a quien te invitó que te envíe uno nuevo.",
+        retryable: false,
+      });
+      return;
+    }
+    try {
+      const fn = httpsCallable<{ token: string }, InviteDescription>(
+        getFunctionsService(),
+        "describeInvite",
+      );
+      const invite = (await fn({ token })).data;
       if (!alive()) return;
-      setPhase({ kind: "loading" });
-      // An empty fragment — a truncated paste, or someone typing the path. Refuse locally
-      // rather than spending an unauthenticated call to be told the same thing.
-      if (token.length === 0) {
-        setPhase({
-          kind: "error",
-          message: "Este enlace está incompleto. Pídele a quien te invitó que te envíe uno nuevo.",
-          retryable: false,
-        });
-        return;
-      }
-      try {
-        const fn = httpsCallable<{ token: string }, InviteDescription>(
-          getFunctionsService(),
-          "describeInvite",
-        );
-        const invite = (await fn({ token })).data;
-        if (!alive()) return;
-        setPhase({ kind: "valid", invite });
-      } catch (err) {
-        if (!alive()) return;
-        const refusal = inviteRefusalMessage(err);
-        setPhase({
-          kind: "error",
-          message: refusal ?? GENERIC_LOAD_ERROR,
-          // Only an UNTAGGED failure is worth retrying: beacon's tagged refusals are all
-          // permanent for this token.
-          retryable: refusal === null,
-        });
-      }
-    },
-    [token],
-  );
+      setPhase({ kind: "valid", invite });
+    } catch (err) {
+      if (!alive()) return;
+      const refusal = inviteRefusalMessage(err);
+      setPhase({
+        kind: "error",
+        message: refusal ?? GENERIC_LOAD_ERROR,
+        // Only an UNTAGGED failure is worth retrying: beacon's tagged refusals are all
+        // permanent for this token.
+        retryable: refusal === null,
+      });
+    }
+  }, [token]);
 
   useEffect(() => {
-    let active = true;
-    void load(() => active);
+    void load();
     return () => {
-      active = false;
+      // Invalidate whatever is in flight: any later response fails its `alive()` check.
+      runId.current += 1;
     };
   }, [load]);
 
@@ -143,7 +147,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
           {phase.message}
         </p>
         {phase.retryable && (
-          <Button as="button" type="button" onClick={() => void load(() => true)} className="mt-8">
+          <Button as="button" type="button" onClick={() => void load()} className="mt-8">
             Reintentar
           </Button>
         )}

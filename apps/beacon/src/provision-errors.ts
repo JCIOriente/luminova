@@ -1,5 +1,5 @@
 import { HttpsError } from "firebase-functions/v2/https";
-import type { ProvisionBlockReason } from "@luminova/types";
+import type { InviteBlockReason, ProvisionBlockReason } from "@luminova/types";
 
 /**
  * The tagged refusals `provisionMemberLogin` can be argued with, in a module BOTH the callable
@@ -23,6 +23,26 @@ export function provisionBlocked(
   code: "failed-precondition" | "permission-denied",
   message: string,
   reason: ProvisionBlockReason,
+): HttpsError {
+  return taggedRefusal(code, message, reason);
+}
+
+/** The same contract for the INVITE side. One factory, generic over the reason union, rather
+ *  than a second byte-identical `new HttpsError(code, message, { reason })` in
+ *  redeem-invite.ts — the write-side twin of the read-side consolidation
+ *  `lib/callable-refusal.ts` made, and the drift class `firestore-util.ts`'s log-sink comment
+ *  records from a prior incident. */
+export function inviteBlocked(reason: InviteBlockReason, message: string): HttpsError {
+  // Always `failed-precondition`: every invite refusal is "this link cannot be used", and an
+  // unauthenticated caller learns nothing from the code the tagged reason does not already
+  // tell a legitimate token holder.
+  return taggedRefusal("failed-precondition", message, reason);
+}
+
+function taggedRefusal(
+  code: "failed-precondition" | "permission-denied",
+  message: string,
+  reason: ProvisionBlockReason | InviteBlockReason,
 ): HttpsError {
   return new HttpsError(code, message, { reason });
 }

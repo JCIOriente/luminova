@@ -41,7 +41,13 @@ export const memberDocSchema = z.object({
   publicProfile: z.boolean().optional(),
   positions: z.record(z.string(), termPositionsDocSchema).optional(),
   uid: z.string().optional(),
-  invite: memberInviteDocSchema.optional(),
+  // `.catch(undefined)` is load-bearing, not defensive noise. Without it a projection this
+  // build does not understand — beacon writing a fifth status during a staged rollout, since
+  // functions deploy before hosting — fails the WHOLE member parse, and parseDocs then drops
+  // that member out of the roster, the CSV, the ranking and /me, while parseDoc throws on the
+  // detail route. Degrading the invite to "absent" costs a badge reading "Con acceso"; the
+  // alternative costs the member.
+  invite: memberInviteDocSchema.optional().catch(undefined),
   roleIds: z.array(z.string()).optional(),
   permissionOverrides: permissionOverridesSchema.optional(),
   active: z.boolean(),

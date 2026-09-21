@@ -1,11 +1,13 @@
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { onCall } from "firebase-functions/v2/https";
+import type { HttpsError } from "firebase-functions/v2/https";
 import type { Role } from "@luminova/auth/roles";
-import { passwordPolicyViolations } from "@luminova/types/password-policy";
+import { passwordPolicyViolations, passwordTooLong } from "@luminova/types/password-policy";
 import type { InviteBlockReason, InviteKind, InviteStatus } from "@luminova/types";
 import { accountIsPrivileged, hasDirectGrants, readCargoIds } from "./invite-guards.js";
 import { hashInviteToken, isSafeTokenHash } from "./invite-token.js";
+import { inviteBlocked } from "./provision-errors.js";
 import { firestoreRedeemDeps } from "./redeem-deps.js";
 import { ensureApp } from "./runtime.js";
 
@@ -27,6 +29,8 @@ export interface InviteDoc {
 
 interface RedeemUser {
   uid: string;
+  /** The ACCOUNT's own address, which the console can change independently of the member doc. */
+  email?: string;
   disabled?: boolean;
   customClaims?: Record<string, unknown>;
 }
@@ -48,13 +52,6 @@ export interface RedeemDeps {
    *  password. */
   markInviteFailed(tokenHash: string): Promise<void>;
   setPassword(uid: string, password: string): Promise<void>;
-}
-
-function inviteBlocked(reason: InviteBlockReason, message: string): HttpsError {
-  // Always `failed-precondition`: every one of these is "this link cannot be used", and an
-  // unauthenticated caller learns nothing from the code that the tagged reason does not
-  // already tell a legitimate token holder.
-  return new HttpsError("failed-precondition", message, { reason });
 }
 
 /** The generic refusal. DELIBERATELY indistinguishable for an unknown or malformed token —
@@ -83,10 +80,17 @@ function tokenHashOf(token: unknown): string | null {
 
 /** Everything both callables must agree on, in ONE place so the validity rules cannot drift.
  *
- *  Shared WHOLE rather than only the document read: describeInvite needs the member doc anyway
- *  (for `name`), and running the same refusals there means the invitee learns a link is dead
- *  BEFORE typing a password rather than after. The cost is one extra keyed read and one Auth
- *  lookup on an unauthenticated endpoint — accepted; both are bounded and neither writes. */
+ *  Covers the INVITE DOCUMENT and the MEMBER DOCUMENT: describeInvite needs the member doc
+ *  anyway (for `name`), so running those refusals there too means the invitee learns a link is
+ *  dead before typing a password rather than after. The cost is one extra keyed read on an
+ *  unauthenticated endpoint — bounded, and it writes nothing.
+ *
+ *  What it deliberately does NOT cover, so this comment cannot outgrow the code: the three
+ *  AUTH-DIRECTORY refusals (`invite-account-changed` on a vanished account,
+ *  `invite-account-disabled`, and the privilege re-check) live in `redeemInviteFor` alone.
+ *  Each needs an Auth lookup, and one needs a positions read — real cost on an unauthenticated
+ *  READ endpoint, for refusals that must be correct at the moment of the WRITE anyway. The
+ *  consequence is honest and accepted: those three surface on submit, not on load. */
 async function loadValidInvite(
   deps: RedeemDeps,
   token: unknown,
@@ -175,6 +179,17 @@ async function memberBecamePrivileged(
   return false;
 }
 
+/** How a lost claim maps to what the invitee is told. `pending` cannot appear (the claim
+ *  would have succeeded) but is listed so the record stays exhaustive over the union. */
+const CLAIM_REFUSALS: Readonly<Record<InviteStatus | "expired" | "gone", InviteBlockReason>> = {
+  pending: "invite-invalid",
+  used: "invite-used",
+  revoked: "invite-revoked",
+  failed: "invite-update-failed",
+  expired: "invite-expired",
+  gone: "invite-invalid",
+};
+
 export interface DescribeInviteResult {
   email: string;
   name: string;
@@ -193,7 +208,11 @@ export async function describeInviteFor(
   const { tokenHash, invite, member } = await loadValidInvite(deps, data.token, "describeInvite");
   logOutcome("describeInvite", tokenHash, "ok", invite.memberId);
   return {
-    email: invite.email,
+    // Normalized, exactly as the redemption comparison normalizes it. Showing the raw pinned
+    // value would render "  Ana@JCI.bo " for a CSV-pasted ficha while the account Identity
+    // Toolkit actually holds is `ana@jci.bo` — and the whole reason the address is shown
+    // unmasked is so the invitee can verify it.
+    email: invite.email.trim().toLowerCase(),
     name: typeof member.name === "string" ? member.name : "",
     expiresAt: invite.expiresAtMs,
   };
@@ -211,6 +230,15 @@ export async function redeemInviteFor(
     throw refuse(fn, tokenHash, invite, "invite-account-changed", "the account no longer exists");
   if (user.disabled === true)
     throw refuse(fn, tokenHash, invite, "invite-account-disabled", "the account is disabled");
+  // The last leg of the identity-changed table. member.uid and member.email are both pinned
+  // above, but the AUTH account's own address can be changed from the console — and then the
+  // password would land on an account whose address is not the one describeInvite showed the
+  // invitee. Normalized, and only when the account actually carries one.
+  if (
+    typeof user.email === "string" &&
+    user.email.trim().toLowerCase() !== invite.email.trim().toLowerCase()
+  )
+    throw refuse(fn, tokenHash, invite, "invite-email-changed", "the account's address changed");
 
   if (await memberBecamePrivileged(deps, invite, member, user)) {
     throw refuse(
@@ -224,7 +252,7 @@ export async function redeemInviteFor(
 
   // SERVER-SIDE policy, and checked BEFORE the claim so a typo does not burn the link.
   // Claiming a policy a direct callable invocation bypasses would be guardrail #6.
-  if (passwordPolicyViolations(data.password).length > 0)
+  if (passwordPolicyViolations(data.password).length > 0 || passwordTooLong(data.password))
     throw refuse(fn, tokenHash, invite, "invite-password-weak", "the password is too weak");
   const password = data.password as string;
 
@@ -234,9 +262,11 @@ export async function redeemInviteFor(
   // LIVE token and a set password — a replay window. We take the annoyance.
   const claim = await deps.claimInvite(tokenHash, deps.now());
   if (!claim.claimed) {
-    // Lost the race, or the state moved under us.
-    const reason: InviteBlockReason = claim.status === "revoked" ? "invite-revoked" : "invite-used";
-    throw refuse(fn, tokenHash, invite, reason, "this link has already been used");
+    // Lost the race, or the state moved under us between the pre-read and the transaction.
+    // Each outcome keeps its own tag — telling someone their link was "superseded" when it
+    // actually expired sends them to the wrong remedy.
+    const reason: InviteBlockReason = CLAIM_REFUSALS[claim.status] ?? "invite-invalid";
+    throw refuse(fn, tokenHash, invite, reason, "this link can no longer be claimed");
   }
 
   try {

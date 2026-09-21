@@ -32,8 +32,10 @@ export function memberInviteState(member: Member, now: number): InviteState {
     case "failed":
       return "failed";
     default:
-      // A projection shape this build does not understand. Fall back to what the uid tells us
-      // rather than inventing a state — the member demonstrably has (or has not) an account.
+      // Unreachable through `memberDocSchema`, which now `.catch(undefined)`s an unparseable
+      // projection into absence (see that file for why). Kept as a runtime floor because the
+      // value ultimately comes off the network, and it falls back to what the uid tells us
+      // rather than inventing a state — the member demonstrably has, or has not, an account.
       return hasLogin ? "legacy" : "never";
   }
 }

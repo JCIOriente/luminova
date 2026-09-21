@@ -36,8 +36,9 @@ interface DoneState {
   /** The callable's own explanation, when it refused ON PURPOSE. Drives the HEADLINE, not the
    *  small print: these refusals ("ya existe un acceso para este correo") contradict the
    *  default "invítalo desde el menú de su fila", and the row action really is offered —
-   *  memberProvisionBlocked keys `hasLogin` on member.uid, which a just-created doc lacks,
-   *  because beacon refused on the Auth directory the client cannot see. */
+   *  memberProvisionBlocked no longer blocks on a stored uid at all (D3 moved that conjunct),
+   *  so the client still offers it while beacon refused on the Auth directory the client
+   *  cannot see. */
   refusalMessage: string | null;
   errorDetail: string | null;
 }

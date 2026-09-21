@@ -23,6 +23,18 @@ const PREDICATES: Readonly<Record<PasswordRuleId, (value: string) => boolean>> =
  *  Takes `unknown`, not `string`: beacon's caller is an UNAUTHENTICATED callable, so the
  *  value arrives straight off the wire. A non-string reaching `.length` would throw and
  *  surface as an opaque `internal` instead of the tagged refusal the page can explain. */
+/** Identity Toolkit rejects an over-long password on SHAPE, not policy — and it would do so
+ *  only AFTER the token had been claimed, landing the invitee on `invite-update-failed` with
+ *  a spent link. Bounded here so the refusal happens pre-claim instead.
+ *
+ *  Deliberately NOT one of the checklist rules: "Máximo 1024 caracteres" is noise in a
+ *  four-item list nobody will ever trip. It is a shape guard, not policy. */
+export const PASSWORD_MAX_LENGTH = 1024;
+
+export function passwordTooLong(value: unknown): boolean {
+  return typeof value === "string" && value.length > PASSWORD_MAX_LENGTH;
+}
+
 export function passwordPolicyViolations(value: unknown): PasswordRuleId[] {
   if (typeof value !== "string") return [...PASSWORD_RULE_IDS];
   return PASSWORD_RULE_IDS.filter((id) => !PREDICATES[id](value));

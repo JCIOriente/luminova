@@ -110,6 +110,15 @@ export function accountIsPrivileged(claims: Record<string, unknown> | undefined)
   if (claims === undefined || claims === null) return false;
   if (typeof claims !== "object" || Array.isArray(claims)) return true;
 
+  // `roles` and `perms` are the COMPLETE key set beacon ever mints (nextClaims, setUserRoles
+  // and syncMemberClaims are the only three setCustomUserClaims sites). A key beyond them is
+  // something this build cannot evaluate, and the whole job of this function is to answer
+  // "is this account too powerful for a delegate to take over" — so an unknown key is
+  // privileged, for the same fail-closed reason a malformed one is.
+  for (const key of Object.keys(claims)) {
+    if (key !== "roles" && key !== "perms") return true;
+  }
+
   const roles = (claims as { roles?: unknown }).roles;
   if (roles !== undefined && roles !== null) {
     if (!Array.isArray(roles)) return true;

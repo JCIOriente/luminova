@@ -8,19 +8,21 @@ import { refusalMessage } from "../../../lib/callable-refusal";
 // The AUDIENCE is the invitee, not an operator: someone who just opened a WhatsApp link and
 // has no idea what a cargo or a claim is. Every message says what happened and what to do
 // next, in that order.
+/** The four states that collapse to ONE message. Named once rather than pasted five times:
+ *  a wording tweak that landed on four of five would silently split the group the comment
+ *  below says is deliberate. */
+const GENERIC_INVALID =
+  "Este enlace ya no es válido. Pídele a quien te invitó que te envíe uno nuevo.";
+
 const MESSAGES: Readonly<Record<InviteBlockReason, string>> = {
   // The four states that collapse to one message on purpose. Distinguishing them would tell
   // the holder about a member record they may have no business knowing, and the remedy is
   // identical for all four.
-  "invite-invalid": "Este enlace ya no es válido. Pídele a quien te invitó que te envíe uno nuevo.",
-  "invite-member-missing":
-    "Este enlace ya no es válido. Pídele a quien te invitó que te envíe uno nuevo.",
-  "invite-member-inactive":
-    "Este enlace ya no es válido. Pídele a quien te invitó que te envíe uno nuevo.",
-  "invite-email-changed":
-    "Este enlace ya no es válido. Pídele a quien te invitó que te envíe uno nuevo.",
-  "invite-account-changed":
-    "Este enlace ya no es válido. Pídele a quien te invitó que te envíe uno nuevo.",
+  "invite-invalid": GENERIC_INVALID,
+  "invite-member-missing": GENERIC_INVALID,
+  "invite-member-inactive": GENERIC_INVALID,
+  "invite-email-changed": GENERIC_INVALID,
+  "invite-account-changed": GENERIC_INVALID,
   // These two keep their own copy: they are the difference between "pide otro" and "ya está
   // listo, solo inicia sesión", and getting them wrong sends the person in a circle.
   "invite-expired":
