@@ -48,14 +48,34 @@ describe("memberProvisionBlocked", () => {
     expect(memberProvisionBlocked(member(seat(null)), catalog, false)).toBe(false);
   });
 
-  it("blocks a member who already has a login (beacon's adoption guard)", () => {
-    expect(memberProvisionBlocked(member({ uid: "u1" }), catalog, false)).toBe(true);
+  it("D3: OFFERS recovery for a member who already has a login", () => {
+    // Inverted deliberately. This conjunct used to block every provisioned member, and in
+    // member-row-menu.tsx it is a MOUNT gate — the item does not render at all — so beacon
+    // would allow delegated recovery while the UI never offered it. The power-seat and
+    // direct-grant halves below are unchanged; only this one moved.
+    expect(memberProvisionBlocked(member({ uid: "u1" }), catalog, false)).toBe(false);
   });
 
-  it("treats an empty-string uid as no login", () => {
-    // A stored empty string is not a linked account; blocking on it would hide the invite for
-    // exactly the member who still needs one.
+  it("still offers for an empty-string uid, which is not a linked account", () => {
     expect(memberProvisionBlocked(member({ uid: "" }), catalog, false)).toBe(false);
+  });
+
+  it("BLOCKING: a login does NOT unlock a power-seated member", () => {
+    // The conjunct that moved must not drag the others with it: a provisioned member seated
+    // on a grant-conferring cargo stays Admin-only.
+    expect(
+      memberProvisionBlocked(
+        member({ uid: "u1", positions: { "2026": { cargoId: "power", comisionIds: [] } } }),
+        catalog,
+        false,
+      ),
+    ).toBe(true);
+  });
+
+  it("BLOCKING: a login does NOT unlock a directly-granted member", () => {
+    expect(memberProvisionBlocked(member({ uid: "u1", roleIds: ["custom"] }), catalog, false)).toBe(
+      true,
+    );
   });
 
   it("blocks a member carrying direct roleIds", () => {
@@ -159,7 +179,9 @@ describe("memberProvisionBlocked", () => {
   // whichever refusal a sampled test happened not to cover.
   it("BLOCKING: never blocks an Admin caller, on any refusal", () => {
     const blocked: Member[] = [
-      member({ uid: "u1" }),
+      // `member({ uid: "u1" })` is deliberately NOT here any more: after D3 a provisioned,
+      // grant-free member is offered to a delegate too. Every remaining entry is a refusal
+      // that still stands for a non-Admin.
       member({ roleIds: ["custom"] }),
       member({ permissionOverrides: { grant: ["update:Member"], revoke: [] } }),
       member(seat(POWER)),
@@ -171,6 +193,8 @@ describe("memberProvisionBlocked", () => {
       expect(memberProvisionBlocked(m, catalog, false)).toBe(true);
       expect(memberProvisionBlocked(m, catalog, true)).toBe(false);
     }
+    // An Admin is subject to none of beacon's guards, provisioned or not.
+    expect(memberProvisionBlocked(member({ uid: "u1" }), catalog, true)).toBe(false);
   });
 });
 

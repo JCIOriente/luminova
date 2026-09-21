@@ -1,8 +1,8 @@
 import type { Member, Position } from "@luminova/types";
 
 /**
- * Client mirror of the refusals `provisionMember` applies to a non-Admin caller — the
- * adoption guard and both halves of the power-seat guard. The reasons they throw are the
+ * Client mirror of the refusals `issueInvite` applies to a non-Admin caller — both halves of
+ * the power-seat guard. The reasons they throw are the
  * `ProvisionBlockReason` union in `@luminova/types` — named there, not spelled out here, so
  * this comment cannot quietly outlive a rename the way an unchecked prose copy would.
  *
@@ -21,10 +21,6 @@ import type { Member, Position } from "@luminova/types";
 // public surface, and a caller that re-assembled the input itself is how a mirror drifts from
 // the guard it mirrors.
 function provisionBlockedForNonAdmin(input: {
-  /** The member already has a login, or an Auth account exists for their address. Only the
-   *  first half is visible to the client; beacon checks both, so this is a subset — the
-   *  residual case still 403s and is what `provisionErrorMessage` explains. */
-  hasLogin: boolean;
   hasDirectGrants: boolean;
   /** Every seated cargo across EVERY term, resolved against the catalog. `undefined` = the id
    *  did not resolve. Beacon reads every term too: syncMemberClaims reads the current term at
@@ -32,7 +28,6 @@ function provisionBlockedForNonAdmin(input: {
   seatedCargos: readonly (Pick<Position, "grants"> | undefined)[];
 }): boolean {
   return (
-    input.hasLogin ||
     input.hasDirectGrants ||
     input.seatedCargos.some((cargo) => cargo === undefined || cargo.grants.length > 0)
   );
@@ -64,7 +59,20 @@ export function memberProvisionBlocked(
     term.cargoId === undefined || term.cargoId === null ? [] : [term.cargoId],
   );
   return provisionBlockedForNonAdmin({
-    hasLogin: typeof member.uid === "string" && member.uid.length > 0,
+    // NO `hasLogin` CONJUNCT. It used to block every provisioned member, and in
+    // member-row-menu.tsx that is a MOUNT gate — the item does not render at all. After D3,
+    // "already has a login" is the RECOVERY branch, not a refusal, so keeping it would let
+    // beacon allow recovery while the UI never offered it: the feature would ship as dead
+    // code. `invite-guard-parity.test.ts` asserts the offered set is non-empty for exactly
+    // this principal, because the implication it checks is vacuously true otherwise.
+    //
+    // Only this conjunct moved. The power-seat and direct-grants halves are unchanged.
+    //
+    // Three of beacon's refusals stay deliberately invisible here — the adoption branch, the
+    // self-heal branch and accountIsPrivileged — because each depends on Auth-directory state
+    // no client can read. They surface through the tagged refusal and `refusalMessage`, not
+    // by hiding the control: showing something that sometimes refuses with a clear reason is
+    // correct, and hiding it on a guess is what produced the #224 regression.
     // `grant` only, mirroring beacon's hasDirectGrants: a revoke-only override mints nothing,
     // so it is not a reason to withhold the invite.
     hasDirectGrants:
@@ -83,7 +91,6 @@ export function draftProvisionBlocked(
 ): boolean {
   if (callerIsAdmin) return false;
   return provisionBlockedForNonAdmin({
-    hasLogin: false,
     hasDirectGrants: false,
     // Explicitly null/undefined, NOT truthiness — same rule its sibling states 25 lines up.
     // `memberSchema` keeps "" out of this form today, so the divergence is latent; a mirror
