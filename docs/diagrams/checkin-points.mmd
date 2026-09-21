@@ -1,0 +1,33 @@
+%% Luminova — the Recognition Engine: one check-in becomes a member's points
+%% The flagship domain flow. Note step 5: the recompute is transactional, which is
+%% the whole point — concurrent check-ins for the same member must not race.
+%% Source of truth: docs/architecture.md "Data Flow: Point Calculation",
+%% docs/data-models.md "Recognition Engine (F3)"
+
+sequenceDiagram
+    autonumber
+    actor scanner as Admin / PM / Scanner<br/>(backstage)
+    participant fs as Firestore
+    participant beacon as beacon · awardPoints<br/>(Admin SDK)
+    participant ui as Leaderboard<br/>+ member profile
+
+    scanner->>fs: write checkIns/{id}
+    Note over scanner,fs: the only thing a human writes —<br/>everything below is derived
+
+    fs-->>beacon: onDocumentWritten checkIns/{id}
+
+    beacon->>fs: read activities/{activityId}
+    beacon->>fs: read pointRules/{termId__code}
+
+    beacon->>fs: derive participations/{activityId__memberId__role}
+    Note right of beacon: engine-written ledger,<br/>client read-only
+
+    rect rgb(232, 244, 234)
+        beacon->>fs: recompute memberPoints/{memberId__termId}
+        Note right of beacon: TRANSACTIONAL — read + write in one<br/>transaction, so concurrent check-ins<br/>for the same member cannot race
+    end
+
+    beacon->>fs: mirror members.totalPoints
+    Note right of beacon: write-skipped when unchanged,<br/>so no trigger feedback loop
+
+    fs-->>ui: read memberPoints
