@@ -94,11 +94,18 @@ export function firestoreRedeemDeps(db: Firestore, auth: Auth): RedeemDeps {
       try {
         const ref = db.doc(`memberInvites/${tokenHash}`);
         await db.runTransaction(async (tx) => {
+          // EVERY read before ANY write. Firestore transactions reject a read issued after a
+          // write in the same transaction, and this function's own catch would swallow that
+          // rejection into a log line — leaving the invite `used`, the badge green and the
+          // member passwordless, which is the exact state this write exists to prevent.
           const snap = await tx.get(ref);
           if (!snap.exists) return;
           const memberId = (snap.data() as { memberId?: unknown }).memberId;
+          const memberRef = isSafeDocId(memberId) ? db.doc(`members/${memberId}`) : null;
+          const memberSnap = memberRef === null ? null : await tx.get(memberRef);
+
           tx.update(ref, { status: "failed" });
-          if (!isSafeDocId(memberId)) return;
+          if (memberRef === null || memberSnap === null) return;
 
           // ONLY touch the projection if it still names THIS invite.
           //
@@ -110,8 +117,6 @@ export function firestoreRedeemDeps(db: Firestore, auth: Auth): RedeemDeps {
           // for its full seven days with nothing naming it — no `where` query on
           // memberInvites, no client access, no key. That is precisely the unrevocable live
           // token commitInviteBatch exists to make impossible.
-          const memberRef = db.doc(`members/${memberId}`);
-          const memberSnap = await tx.get(memberRef);
           const projected = (memberSnap.data() as { invite?: { tokenHash?: unknown } } | undefined)
             ?.invite?.tokenHash;
           if (projected !== tokenHash) {
