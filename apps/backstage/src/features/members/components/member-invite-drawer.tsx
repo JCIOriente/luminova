@@ -3,10 +3,11 @@ import { Button, Checkbox, Sheet } from "@luminova/ui";
 import { type MemberInput, type Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
 import { actionMessage } from "../lib/member-display";
-import type { InviteResult } from "../hooks/use-provision-member-login";
+import type { InviteResult } from "../hooks/use-issue-member-invite";
+import { inviteLink } from "../lib/invite-link";
+import { InviteLinkPanel } from "./invite-link-panel";
 import { draftProvisionBlocked } from "../lib/provision-gate";
 import { provisionRefusalMessage } from "../lib/provision-error";
-import { useCopyToClipboard } from "../../../lib/use-copy-to-clipboard";
 import { useCan } from "../../../lib/authz/use-can";
 
 interface MemberInviteDrawerProps {
@@ -27,8 +28,11 @@ interface DoneState {
   name: string;
   email: string;
   provisioned: boolean;
-  emailSent: boolean;
-  actionLink: string | null;
+  /** The assembled access link, present whenever the invite succeeded. NOT a fallback: it is
+   *  the only delivery mechanism, so it is always shown. */
+  inviteUrl: string | null;
+  /** Epoch ms, for the expiry line. */
+  expiresAt: number | null;
   /** The callable's own explanation, when it refused ON PURPOSE. Drives the HEADLINE, not the
    *  small print: these refusals ("ya existe un acceso para este correo") contradict the
    *  default "invítalo desde el menú de su fila", and the row action really is offered —
@@ -49,14 +53,13 @@ export function MemberInviteDrawer({
   onCreate,
   onProvision,
 }: MemberInviteDrawerProps) {
-  // Provisioning login is the Admin role OR the create:MemberLogin perm
-  // (provisionMemberLogin → requireAdminOrPerm). A member creator without either may still
+  // Issuing a link is the Admin role OR the create:MemberLogin perm
+  // (issueMemberInvite → requireAdminOrPerm). A member creator without either may still
   // create the member; they just can't send access here, so hide the option and default it
   // off — otherwise the provision step fails silently after the member is already created.
   const { canProvisionLogin, canAssignBoardSeat, isAdmin } = useCan();
   const [done, setDone] = useState<DoneState | null>(null);
   const [sendAccess, setSendAccess] = useState(canProvisionLogin);
-  const { copyState, copy, resetCopyState } = useCopyToClipboard();
 
   // The drawer mounts with the page, before the auth token's claims decode (the store
   // emits with empty claims first, then re-emits). Re-sync the default each time it
@@ -78,7 +81,6 @@ export function MemberInviteDrawer({
     attempt.current += 1;
     setDone(null);
     setSendAccess(canProvisionLogin);
-    resetCopyState();
   };
 
   const close = () => {
@@ -91,8 +93,8 @@ export function MemberInviteDrawer({
     attempt.current = mine;
     const id = await onCreate(data);
     let provisioned = false;
-    let emailSent = false;
-    let actionLink: string | null = null;
+    let inviteUrl: string | null = null;
+    let expiresAt: number | null = null;
     let refusalMessage: string | null = null;
     let errorDetail: string | null = null;
     // beacon refuses a non-Admin provisioning a member seated on a granting cargo (the
@@ -117,14 +119,13 @@ export function MemberInviteDrawer({
       // would invite a duplicate-create retry. Surface the real cause (App Check,
       // quota, config) instead of swallowing it — this is the only diagnostic we get.
       try {
-        // The mail is part of onProvision (use-provision-member-login), not a second step this
-        // component arranges: doing it here left one caller able to provision without mailing,
-        // and the action link is only valid when the mail did NOT go out.
+        // ONE callable does everything (use-issue-member-invite). There is no mail step to
+        // sequence any more, and no "sent vs fallback" distinction to get wrong: the link is
+        // the delivery mechanism.
         const result = await onProvision(id);
         provisioned = true;
-        emailSent = result.emailSent;
-        actionLink = result.fallbackLink;
-        errorDetail = result.mailError;
+        inviteUrl = inviteLink(result.token, window.location.origin);
+        expiresAt = result.expiresAt;
       } catch (err) {
         console.error("No se pudo aprovisionar el acceso del miembro", err);
         // A deliberate refusal becomes the headline; anything else keeps its raw message as
@@ -144,8 +145,8 @@ export function MemberInviteDrawer({
       name: data.name,
       email: data.email,
       provisioned,
-      emailSent,
-      actionLink,
+      inviteUrl,
+      expiresAt,
       refusalMessage,
       errorDetail,
     });
@@ -165,43 +166,12 @@ export function MemberInviteDrawer({
           <p className="text-ui-lg font-semibold text-ink-1">
             {actionMessage(done.name, "created")}
           </p>
-          {done.provisioned && done.emailSent ? (
-            <p className="text-ui-md text-ink-2">
-              {`Invitación enviada a ${done.email}. Recibirá un correo para crear su contraseña y acceder a la app.`}
-            </p>
+          {done.provisioned && done.inviteUrl ? (
+            <InviteLinkPanel name={done.name} url={done.inviteUrl} expiresAt={done.expiresAt} />
           ) : done.blockedByCargo ? (
             <p role="alert" className="text-ui-md text-error">
               {`${done.name} fue creado, pero su cargo otorga permisos: solo un administrador puede enviarle el acceso. Pídele a un administrador que complete la invitación.`}
             </p>
-          ) : done.provisioned && !done.emailSent ? (
-            <>
-              <p role="alert" className="text-ui-md text-error">
-                {done.actionLink
-                  ? "El correo no se pudo enviar. Comparte el enlace de acceso manualmente."
-                  : "El correo no se pudo enviar. Pídele a un administrador que reenvíe la invitación."}
-              </p>
-              {done.errorDetail && (
-                <p className="text-ui-xs text-ink-3">Detalle: {done.errorDetail}</p>
-              )}
-              {done.actionLink && (
-                <>
-                  <Button
-                    as="button"
-                    type="button"
-                    variant="secondary"
-                    onClick={() => copy(done.actionLink ?? "")}
-                    className="w-full justify-center"
-                  >
-                    {copyState === "copied" ? "Enlace copiado" : "Copiar enlace de acceso"}
-                  </Button>
-                  {copyState === "failed" && (
-                    <code className="text-ui-xs break-all select-all text-ink-2">
-                      {done.actionLink}
-                    </code>
-                  )}
-                </>
-              )}
-            </>
           ) : (
             <>
               {/* Only promise the row action to someone who will actually see it — the row
@@ -213,9 +183,10 @@ export function MemberInviteDrawer({
                   : done.provisionBlocked
                     ? "Aún no tiene acceso a la app. Su cargo otorga permisos, así que un administrador debe enviarle el acceso."
                     : canProvisionLogin
-                      ? "Aún no tiene acceso a la app. Podrás invitarlo desde el menú de su fila."
-                      : "Aún no tiene acceso a la app. Pídele a un administrador que le envíe el acceso."}
+                      ? "Aún no tiene acceso a la app. Podrás generar su enlace desde el menú de su fila."
+                      : "Aún no tiene acceso a la app. Pídele a un administrador que le genere su enlace."}
               </p>
+              {/* The only diagnostic for an untagged failure — App Check, quota, config. */}
               {done.errorDetail && (
                 <p className="text-ui-xs text-ink-3">Detalle: {done.errorDetail}</p>
               )}

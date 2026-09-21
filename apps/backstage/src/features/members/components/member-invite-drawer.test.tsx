@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactElement, ReactNode } from "react";
 import type { Position } from "@luminova/types";
 import type { AuthClaims } from "@luminova/auth/roles";
-import type { InviteResult } from "../hooks/use-provision-member-login";
+import type { InviteResult } from "../hooks/use-issue-member-invite";
 import { MemberInviteDrawer } from "./member-invite-drawer";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
 import { pickDate } from "../../../test/pick-date";
@@ -47,22 +47,21 @@ function renderWithAbility(
   });
 }
 
-/** The two invite outcomes, as `useProvisionMemberLogin` reports them. The MAIL is sent inside
- *  that hook now (a component-scoped onSuccess was dropped whenever the caller unmounted first),
- *  so this drawer never calls `requestPasswordReset` and the fixtures say what happened instead
- *  of mocking the mail module. `fallbackLink` is non-null ONLY on the failure branch: the mail,
- *  when it goes out, invalidates the oobCode the link carries. */
-const mailed = (email: string): InviteResult => ({
+/** What `useIssueMemberInvite` reports. There is no mail branch any more — no Firebase email
+ *  anywhere in the auth flow — so there is exactly ONE success shape and the link is always
+ *  shown. The old `mailed` / `mailFailed` pair encoded "mail primary, link fallback", a
+ *  distinction that no longer exists. */
+const TOKEN = "t".repeat(43);
+const EXPIRES = new Date("2026-09-28T12:00:00Z").getTime();
+/** Derived from the jsdom origin, exactly as the drawer builds it — hardcoding a host would
+ *  assert the test environment rather than the component. */
+const EXPECTED_URL = `${window.location.origin}/invitacion#${TOKEN}`;
+const issued = (email: string, over: Partial<InviteResult> = {}): InviteResult => ({
   email,
-  emailSent: true,
-  fallbackLink: null,
-  mailError: null,
-});
-const mailFailed = (email: string, link: string | null): InviteResult => ({
-  email,
-  emailSent: false,
-  fallbackLink: link,
-  mailError: "network error",
+  token: TOKEN,
+  expiresAt: EXPIRES,
+  replacedPreviousLink: false,
+  ...over,
 });
 
 async function fill() {
@@ -85,7 +84,7 @@ describe("MemberInviteDrawer", () => {
         positions={[]}
         onClose={() => {}}
         onCreate={onCreate}
-        onProvision={async () => mailed("")}
+        onProvision={async () => issued("")}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
@@ -97,7 +96,7 @@ describe("MemberInviteDrawer", () => {
 
   it("creates the member then provisions login when access is checked, reaching done", async () => {
     const onCreate = vi.fn().mockResolvedValue("new-id");
-    const onProvision = vi.fn().mockResolvedValue(mailed("ana@jci.bo"));
+    const onProvision = vi.fn().mockResolvedValue(issued("ana@jci.bo"));
     renderWithAbility(
       <MemberInviteDrawer
         open
@@ -112,12 +111,13 @@ describe("MemberInviteDrawer", () => {
     await waitFor(() => expect(screen.getByText("Ana Gómez fue agregada")).toBeInTheDocument());
     expect(onCreate).toHaveBeenCalledTimes(1);
     expect(onProvision).toHaveBeenCalledWith("new-id");
-    expect(screen.getByText(/Invitación enviada a ana@jci\.bo/)).toBeInTheDocument();
-    expect(screen.getByText(/recibirá un correo/i)).toBeInTheDocument();
+    // The LINK is the delivery, not a mail confirmation: there is nothing to confirm.
+    expect(screen.getByText(EXPECTED_URL)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /copiar enlace/i })).toBeInTheDocument();
   });
 
   it("skips provisioning when access is unchecked", async () => {
-    const onProvision = vi.fn().mockResolvedValue(mailed("ana@jci.bo"));
+    const onProvision = vi.fn().mockResolvedValue(issued("ana@jci.bo"));
     renderWithAbility(
       <MemberInviteDrawer
         open
@@ -135,42 +135,41 @@ describe("MemberInviteDrawer", () => {
     expect(screen.getByText(/Aún no tiene acceso/)).toBeInTheDocument();
   });
 
-  it("shows email-sent copy when the invite reports the mail went out", async () => {
+  it("shows the link, its expiry and the credential warning on the done screen", async () => {
     renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}
         onClose={() => {}}
         onCreate={async () => "id3"}
-        onProvision={async () => mailed("ana@jci.bo")}
+        onProvision={async () => issued("ana@jci.bo")}
       />,
     );
     await fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
-    await waitFor(() =>
-      expect(screen.getByText(/Invitación enviada a ana@jci\.bo/)).toBeInTheDocument(),
-    );
-    expect(screen.getByText(/recibirá un correo para crear su contraseña/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(EXPECTED_URL)).toBeInTheDocument());
+    expect(screen.getByText(/28 sept 2026/)).toBeInTheDocument();
+    // The operator is about to paste a bearer credential into a chat.
+    expect(screen.getByText(/chat directo, no en un grupo/i)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("shows warning and copy-link button when the invite reports the mail failed", async () => {
+  it("offers a copy button for the minted link", async () => {
+    // Replaces the old mail-failure branch: there is no mail to fail, and the link is not a
+    // fallback — it is the delivery mechanism, so it is always present on success.
     renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}
         onClose={() => {}}
         onCreate={async () => "id4"}
-        onProvision={async () => mailFailed("ana@jci.bo", "https://example.com/action-link")}
+        onProvision={async () => issued("ana@jci.bo")}
       />,
     );
     await fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
-    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "El correo no se pudo enviar. Comparte el enlace de acceso manualmente.",
-    );
-    expect(screen.getByRole("button", { name: "Copiar enlace de acceso" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /copiar enlace/i })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   // BLOCKING: the copy button is the fallback for a failed mail — the second fallback in a row
@@ -185,20 +184,22 @@ describe("MemberInviteDrawer", () => {
         positions={[]}
         onClose={() => {}}
         onCreate={async () => "idClip"}
-        onProvision={async () => mailFailed("ana@jci.bo", "https://example.com/action-link")}
+        onProvision={async () => issued("ana@jci.bo")}
       />,
     );
     await fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
-    const copyButton = await screen.findByRole("button", { name: "Copiar enlace de acceso" });
-    expect(navigator.clipboard).toBeUndefined();
+    const copyButton = await screen.findByRole("button", { name: /copiar enlace/i });
     await userEvent.click(copyButton);
-    expect(await screen.findByText("https://example.com/action-link")).toBeInTheDocument();
+    // The link stays on screen and selectable — it is the ONLY delivery mechanism, so a failed
+    // copy must never strand the operator.
+    expect(await screen.findByRole("alert")).toHaveTextContent(/cópialo manualmente/i);
+    expect(screen.getByText(EXPECTED_URL)).toBeInTheDocument();
   });
 
   // --- create:MemberLogin delegation ---
 
-  const drawer = (onProvision = vi.fn().mockResolvedValue(mailed("a@b.co"))) => ({
+  const drawer = (onProvision = vi.fn().mockResolvedValue(issued("a@b.co"))) => ({
     node: (
       <MemberInviteDrawer
         open
@@ -276,7 +277,7 @@ describe("MemberInviteDrawer", () => {
   // inviting a board member would be told "solo un administrador puede enviarle el acceso",
   // self-contradictory copy, suite green.
   it("BLOCKING: an ADMIN inviting a member on a power-granting cargo still provisions", async () => {
-    const onProvision = vi.fn().mockResolvedValue(mailed("ana@jci.bo"));
+    const onProvision = vi.fn().mockResolvedValue(issued("ana@jci.bo"));
     renderWithAbility(
       <MemberInviteDrawer
         open
@@ -291,7 +292,7 @@ describe("MemberInviteDrawer", () => {
     await userEvent.click(await screen.findByText(/Secretari[ao]/));
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
     await waitFor(() => expect(onProvision).toHaveBeenCalledWith("idAdminPower"));
-    expect(await screen.findByText(/Invitación enviada a ana@jci\.bo/)).toBeInTheDocument();
+    expect(await screen.findByText(EXPECTED_URL)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -367,7 +368,7 @@ describe("MemberInviteDrawer", () => {
     await fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
     expect(
-      await screen.findByText(/Pídele a un administrador que le envíe el acceso/),
+      await screen.findByText(/Pídele a un administrador que le genere su enlace/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/desde el menú de su fila/)).not.toBeInTheDocument();
   });
@@ -491,28 +492,24 @@ describe("MemberInviteDrawer", () => {
   });
 
   // beacon withholds the action link from a non-Admin caller (it is a bearer credential for
-  // the account), so a delegate whose reset mail then fails has NO manual fallback — the copy
-  // must send them to an Admin rather than to a copy button that would copy nothing. Only
-  // reachable as delegate + provision succeeded + the mail rejected.
-  it("BLOCKING: tells a delegate to ask an administrator when there is no action link to share", async () => {
+  // Replaces "tells a delegate to ask an administrator when there is no action link to share".
+  // That branch existed because beacon withheld the oobCode URL from a non-Admin; there is no
+  // second secret to withhold now, so a delegate gets the same real link an Admin gets. The
+  // guards are the only containment, which is exactly what D3 accepted.
+  it("gives a DELEGATE the same link an Admin gets — there is no withheld variant", async () => {
     renderWithAbility(
       <MemberInviteDrawer
         open
         positions={[]}
         onClose={() => {}}
         onCreate={async () => "idNoLink"}
-        onProvision={async () => mailFailed("ana@jci.bo", null)}
+        onProvision={async () => issued("ana@jci.bo")}
       />,
-      { roles: ["Member"], perms: ["create:Member", "create:MemberLogin"] },
+      { roles: ["Member"], perms: ["create:Member", "create:MemberLogin"] } as AuthClaims,
     );
     await fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
-    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "El correo no se pudo enviar. Pídele a un administrador que reenvíe la invitación.",
-    );
-    expect(
-      screen.queryByRole("button", { name: /Copiar enlace de acceso/ }),
-    ).not.toBeInTheDocument();
+    expect(await screen.findByText(EXPECTED_URL)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /copiar enlace/i })).toBeInTheDocument();
   });
 });

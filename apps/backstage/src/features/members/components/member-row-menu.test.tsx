@@ -83,19 +83,19 @@ const seated = (cargoId: string | null, term = "2026") => ({
 });
 
 describe("MemberRowMenu", () => {
-  it("shows Desactivar for an active member and Invitar when no uid", async () => {
+  it("shows Desactivar for an active member and Invitar acceso when no uid", async () => {
     renderMenu(member({ status: "Activo" }), ADMIN);
     await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
     expect(screen.getByText("Desactivar")).toBeInTheDocument();
-    expect(screen.getByText("Invitar a la app")).toBeInTheDocument();
+    expect(screen.getByText("Invitar acceso")).toBeInTheDocument();
     expect(screen.queryByText("Reactivar")).not.toBeInTheDocument();
   });
 
-  it("shows Reactivar + Reenviar for an inactive member with uid", async () => {
+  it("shows Reactivar + Recuperar acceso for an inactive member with uid", async () => {
     renderMenu(member({ status: "Inactivo", uid: "u1" }), ADMIN);
     await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
     expect(screen.getByText("Reactivar")).toBeInTheDocument();
-    expect(screen.getByText("Reenviar invitación")).toBeInTheDocument();
+    expect(screen.getByText("Recuperar acceso")).toBeInTheDocument();
     expect(screen.queryByText("Desactivar")).not.toBeInTheDocument();
   });
 
@@ -163,7 +163,7 @@ describe("MemberRowMenu", () => {
     expect(screen.queryByText("Editar miembro")).not.toBeInTheDocument();
     expect(screen.queryByText("Desactivar")).not.toBeInTheDocument();
     expect(screen.queryByText("Desafiliar")).not.toBeInTheDocument();
-    expect(screen.queryByText("Invitar a la app")).not.toBeInTheDocument();
+    expect(screen.queryByText("Invitar acceso")).not.toBeInTheDocument();
   });
 
   it("shows the invite item to a create:MemberLogin delegate with no privileged role", async () => {
@@ -174,7 +174,7 @@ describe("MemberRowMenu", () => {
       perms: ["update:Member", "create:MemberLogin"],
     });
     await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
-    expect(screen.getByText("Invitar a la app")).toBeInTheDocument();
+    expect(screen.getByText("Invitar acceso")).toBeInTheDocument();
   });
 
   it("BLOCKING: hides the invite item from a manage:all perm holder without the Admin role", async () => {
@@ -182,7 +182,7 @@ describe("MemberRowMenu", () => {
     // permission-denied from beacon after the fact.
     renderMenu(member({ status: "Activo" }), { roles: ["Member"], perms: ["manage:all"] });
     await userEvent.click(screen.getByLabelText(/Acciones para Ana/));
-    expect(screen.queryByText("Invitar a la app")).not.toBeInTheDocument();
+    expect(screen.queryByText("Invitar acceso")).not.toBeInTheDocument();
   });
 
   // --- memberProvisionBlocked, the non-Admin half of the invite gate ---
@@ -197,7 +197,7 @@ describe("MemberRowMenu", () => {
   it("shows the invite item to a delegate for a clean, unseated member", async () => {
     renderMenu(member({ status: "Activo" }), DELEGATE);
     await openMenu();
-    expect(screen.getByText("Invitar a la app")).toBeInTheDocument();
+    expect(screen.getByText("Invitar acceso")).toBeInTheDocument();
   });
 
   it("shows it to a delegate for a member seated on a GRANT-FREE cargo", async () => {
@@ -205,27 +205,37 @@ describe("MemberRowMenu", () => {
     // is. Without this the cargo clause could be "seated at all" and nothing would notice.
     renderMenu(member({ status: "Activo", ...seated("pos-plain") }), DELEGATE);
     await openMenu();
-    expect(screen.getByText("Invitar a la app")).toBeInTheDocument();
+    expect(screen.getByText("Invitar acceso")).toBeInTheDocument();
   });
 
-  it("BLOCKING: hides it from a delegate for a member who already has a login (adoption)", async () => {
-    // beacon tags this reprovision-requires-admin: a delegate may only mint a NEW login, so
-    // "Reenviar invitación" would 403 on every click.
+  it("D3: OFFERS recovery to a delegate for a member who already has a login", async () => {
+    // Inverted deliberately. beacon's recovery branch now allows a delegate on a grant-free,
+    // unseated member, and this gate is a MOUNT gate — hiding the item would have meant the
+    // feature shipping as dead code. The residual is named in the spec: a delegate can redeem
+    // the link themselves and be that member, which is why it is auditable (issuedBy).
     renderMenu(member({ status: "Activo", uid: "u1" }), DELEGATE);
     await openMenu();
-    expect(screen.queryByText("Reenviar invitación")).not.toBeInTheDocument();
+    expect(screen.getByText("Recuperar acceso")).toBeInTheDocument();
+  });
+
+  it("BLOCKING: a login still does NOT unlock a power-seated member for a delegate", async () => {
+    // The conjunct that moved must not drag the others with it.
+    renderMenu(member({ status: "Activo", uid: "u1", ...seated("pos-power") }), DELEGATE);
+    await openMenu();
+    expect(screen.queryByText("Recuperar acceso")).not.toBeInTheDocument();
+    expect(screen.queryByText("Invitar acceso")).not.toBeInTheDocument();
   });
 
   it("BLOCKING: hides it from a delegate for a member seated on a power-granting cargo", async () => {
     renderMenu(member({ status: "Activo", ...seated("pos-power") }), DELEGATE);
     await openMenu();
-    expect(screen.queryByText("Invitar a la app")).not.toBeInTheDocument();
+    expect(screen.queryByText("Invitar acceso")).not.toBeInTheDocument();
   });
 
   it("BLOCKING: hides it from a delegate for a member carrying direct roleIds", async () => {
     renderMenu(member({ status: "Activo", roleIds: ["custom-role"] }), DELEGATE);
     await openMenu();
-    expect(screen.queryByText("Invitar a la app")).not.toBeInTheDocument();
+    expect(screen.queryByText("Invitar acceso")).not.toBeInTheDocument();
   });
 
   it("BLOCKING: hides it from a delegate while the cargo catalog is still empty (fails closed)", async () => {
@@ -238,7 +248,7 @@ describe("MemberRowMenu", () => {
       new Map(),
     );
     await openMenu();
-    expect(screen.queryByText("Invitar a la app")).not.toBeInTheDocument();
+    expect(screen.queryByText("Invitar acceso")).not.toBeInTheDocument();
   });
 
   // BLOCKING: an EMPTY-STRING cargoId is a MALFORMED seat, not an empty one, and the gate used
@@ -250,7 +260,7 @@ describe("MemberRowMenu", () => {
   it("BLOCKING: hides it from a delegate for a member whose cargoId is an empty string", async () => {
     renderMenu(member({ status: "Activo", ...seated("") }), DELEGATE);
     await openMenu();
-    expect(screen.queryByText("Invitar a la app")).not.toBeInTheDocument();
+    expect(screen.queryByText("Invitar acceso")).not.toBeInTheDocument();
   });
 
   // The paired negative, so the fix cannot be over-applied into "any falsy cargoId blocks": a
@@ -259,7 +269,7 @@ describe("MemberRowMenu", () => {
   it("shows it to a delegate for a member whose term has a NULL cargoId", async () => {
     renderMenu(member({ status: "Activo", ...seated(null) }), DELEGATE);
     await openMenu();
-    expect(screen.getByText("Invitar a la app")).toBeInTheDocument();
+    expect(screen.getByText("Invitar acceso")).toBeInTheDocument();
   });
 
   it("still shows it to an Admin in every one of those cases", async () => {
@@ -271,9 +281,7 @@ describe("MemberRowMenu", () => {
     ]) {
       const { unmount } = renderMenu(m, ADMIN);
       await openMenu();
-      expect(
-        screen.getByText(m.uid ? "Reenviar invitación" : "Invitar a la app"),
-      ).toBeInTheDocument();
+      expect(screen.getByText(m.uid ? "Recuperar acceso" : "Invitar acceso")).toBeInTheDocument();
       unmount();
     }
   });
