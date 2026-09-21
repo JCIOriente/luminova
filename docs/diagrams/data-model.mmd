@@ -1,0 +1,76 @@
+erDiagram
+    terms ||--o{ programs : "scopes"
+    terms ||--o{ projects : "scopes"
+    terms ||--o{ activities : "scopes"
+    terms ||--o{ pointRules : "prices (16 fixed codes)"
+    terms ||--o{ memberPoints : "scopes"
+    terms }o--o{ members : "board roster (BoardSeat)"
+
+    members }o--|| positions : "holds cargo"
+    members ||--o{ checkIns : "attends"
+    members ||--o{ participations : "earns"
+    members ||--|| memberPoints : "aggregates to"
+    members }o--o{ roles : "roles claim"
+
+    programs ||--o{ activities : "parentId (ProjectExecution)"
+    projects ||--o{ activities : "parentId (ProjectExecution)"
+    activities ||--o{ checkIns : "attendable unit"
+
+    checkIns ||--|| participations : "engine derives"
+    participations }o--|| memberPoints : "engine recomputes"
+    pointRules ||--o{ participations : "values"
+
+    programs ||--o| showcase : "beacon projects"
+    projects ||--o| showcase : "beacon projects"
+    activities ||--o{ showcase : "photo roll-up"
+    allies ||--o| allyShowcase : "beacon projects"
+    terms ||--o{ boardShowcase : "beacon projects Directiva"
+
+    members ||--o{ notifications : "inbox (by auth UID)"
+    members ||--o{ pushTokens : "FCM tokens (by auth UID)"
+
+    terms {
+        string id PK "the doc id IS the year, e.g. 2026"
+        string status "Activo or Cerrado"
+    }
+    members {
+        string id PK "source of truth"
+        string membershipStatus "Activo, Inactivo, Desafiliado"
+        number totalPoints "engine-mirrored, never hand-edited"
+    }
+    activities {
+        string id PK "the unified attendable unit"
+        string category "Assembly through ProjectExecution"
+        string parentId "null means institutional"
+        boolean hasCheckIns "beacon-only; locks the doc once true"
+    }
+    checkIns {
+        string id PK "the only human-written engine input"
+        string role "Director, CoDirector, Team, Attendee"
+    }
+    participations {
+        string id PK "activityId__memberId__role"
+        string tier "ENGINE-WRITTEN, client read-only"
+    }
+    memberPoints {
+        string id PK "memberId__termId"
+        string tier "ENGINE-WRITTEN, recomputed transactionally"
+    }
+    pointRules {
+        string id PK "termId__code"
+    }
+    showcase {
+        string tier "PUBLIC PROJECTION, world-read, beacon-written"
+    }
+    allyShowcase {
+        string tier "PUBLIC PROJECTION, world-read, beacon-written"
+    }
+    boardShowcase {
+        string tier "PUBLIC PROJECTION, world-read, beacon-written"
+    }
+    leads {
+        string id PK "the one collection the public may write"
+    }
+    siteConfig {
+        string id PK "current, world-readable CMS document"
+    }

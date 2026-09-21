@@ -1,0 +1,63 @@
+%% Luminova — from a local edit to production
+%% Three hard gates, two of them on the contributor's own machine. Nothing reaches
+%% production unattended, and no long-lived deploy credential exists anywhere.
+%% Source of truth: docs/ci-cd.md sections 1-4, CLAUDE.md Tooling Index
+
+flowchart TB
+    subgraph local["On the contributor's machine — git hooks"]
+        edit["edit in a worktree<br/><i>.worktrees/slug</i>"]
+        bguard{"<b>branch-guard.sh</b><br/>on main?"}
+        precommit["<b>pre-commit.sh</b><br/>format · lint · typecheck<br/><i>auto-fixes, then re-stages</i>"]
+        router["<b>review-router.sh</b><br/>computes the mandated<br/>review set from the diff"]
+        rgate{"<b>review-gate.sh</b><br/>fresh review trailer<br/>covering this diff?"}
+        blocked["<b>blocked</b> — exit 2"]
+    end
+
+    subgraph ci["CI · ci.yml — every PR"]
+        checks["checks<br/>build · lint · typecheck · test<br/>bundle-budget · audit"]
+        emu["emulator suites<br/>Firestore + Storage rules<br/>beacon race guards"]
+    end
+
+    merge(["merge to main"])
+
+    subgraph cd["CD · deploy.yml — on CI success on main"]
+        filter["<b>filter</b><br/>which surfaces changed?"]
+        approve{{"<b>reviewer approval</b><br/>GitHub production environment<br/><i>one click, always required</i>"}}
+        drules["deploy-rules<br/>firestore + storage + indexes"]
+        dfunc["deploy-functions<br/>beacon gen2"]
+        dhost["deploy-hosting"]
+        preview["preview channel<br/><i>ci-sha, expires in 1 day</i>"]
+        smoke["smoke test"]
+        promote["promote to live"]
+    end
+
+    edit --> bguard
+    bguard -->|yes| blocked
+    bguard -->|no| precommit
+    precommit --> router
+    router --> rgate
+    rgate -->|no| blocked
+    rgate -->|yes| checks
+
+    checks --> emu
+    emu --> merge
+    merge --> filter
+    filter --> approve
+    approve --> drules
+    drules --> dfunc
+    dfunc --> dhost
+    dhost --> preview
+    preview --> smoke
+    smoke --> promote
+
+    pillars["<b>Why it is shaped this way</b><br/>• <b>Keyless</b> — WIF/OIDC; no service-account key exists<br/>  in GitHub secrets or on disk. A leaked env var is inert.<br/>• <b>Human-gated</b> — no unattended production change.<br/>• <b>Least blast radius</b> — only the changed surface deploys,<br/>  in the order data contract → backend → UI.<br/>• <b>Never serves unverified</b> — hosting goes preview → smoke → live,<br/>  which is why there is no rollback step."]
+    promote --- pillars
+
+    classDef gate fill:#fce8e6,stroke:#ea4335,stroke-width:2px,color:#111
+    classDef pass fill:#e6f4ea,stroke:#34a853,color:#111
+    classDef human fill:#fef7e0,stroke:#f9ab00,stroke-width:2px,color:#111
+    classDef note fill:#fff,stroke:#5f6368,stroke-dasharray:3 3,color:#111
+    class bguard,rgate,blocked gate
+    class checks,emu,promote pass
+    class approve human
+    class pillars note

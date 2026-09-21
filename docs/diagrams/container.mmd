@@ -1,0 +1,47 @@
+%% Luminova / JCI Oriente — container diagram
+%% The split is the trust boundary: everything above the rules membrane runs in a
+%% browser the chapter does not control. Everything below runs with the Admin SDK
+%% and bypasses rules entirely.
+%% Source of truth: docs/architecture.md
+
+flowchart TB
+    subgraph untrusted["Untrusted — runs in the visitor's browser"]
+        direction LR
+        spotlight["<b>spotlight</b><br/>Public site<br/><i>firebase/firestore/lite</i><br/>no Auth · no realtime"]
+        backstage["<b>backstage</b><br/>Admin dashboard<br/><i>full Firebase client SDK</i><br/>Auth required"]
+    end
+
+    rules{{"<b>firestore.rules</b> + storage.rules<br/>the only enforcement boundary"}}
+
+    subgraph data["Firebase project · jci-oriente"]
+        direction LR
+        firestore[("Firestore<br/>one database")]
+        storage[("Storage<br/>one bucket")]
+        fbauth["Firebase Auth<br/>custom claims: roles + perms"]
+    end
+
+    subgraph trusted["Trusted — Admin SDK, rules do not apply"]
+        beacon["<b>beacon</b><br/>Cloud Functions · nodejs24<br/>triggers + callables"]
+    end
+
+    spotlight -->|"read only: siteConfig · showcase<br/>allyShowcase · boardShowcase"| rules
+    spotlight -.->|"the one public write: <b>leads</b>"| rules
+    backstage <-->|"authenticated CRUD"| rules
+
+    rules <--> firestore
+    rules <--> storage
+    backstage <--> fbauth
+
+    firestore -->|"document triggers"| beacon
+    backstage -->|"callables"| beacon
+    beacon -->|"writes projections,<br/>ledgers and claims"| firestore
+    beacon --> fbauth
+
+    classDef client fill:#e8f0fe,stroke:#4285f4,stroke-width:1px,color:#111
+    classDef server fill:#e6f4ea,stroke:#34a853,stroke-width:1px,color:#111
+    classDef store fill:#fef7e0,stroke:#f9ab00,stroke-width:1px,color:#111
+    classDef boundary fill:#fce8e6,stroke:#ea4335,stroke-width:2px,color:#111
+    class spotlight,backstage client
+    class beacon server
+    class firestore,storage,fbauth store
+    class rules boundary

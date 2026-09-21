@@ -1,0 +1,62 @@
+%% Luminova — the authorization chain
+%% Two independent streams reach the CASL ability: coarse permissions from the
+%% runtime-editable `perms` claim, and hardcoded object-scoped grants from the
+%% built-in `roles` claim. Only the first is editable in /permisos.
+%% The client ability is UX. firestore.rules is enforcement. They must agree.
+%% Source of truth: packages/auth/src/{perms,ability}.ts,
+%% packages/types/src/permission.ts, firestore.rules
+
+flowchart TB
+    subgraph authored["Authored at runtime — no deploy needed"]
+        rolesdoc[("roles/{roleId}<br/>permissions: PermissionCode[]<br/><i>edited in /permisos</i>")]
+        overrides["member overrides<br/>grant[] / revoke[]<br/><i>revoke wins</i>"]
+    end
+
+    resolve["<b>resolveEffectivePerms()</b><br/>union of role perms<br/>+ grants − revokes<br/>deduped + sorted"]
+
+    cap{"length ≤ PERMISSION_CAP (30)?"}
+    failclosed["<b>fail closed</b><br/>claim not minted"]
+
+    subgraph token["Firebase ID token · custom claims"]
+        permsclaim["<b>perms</b><br/>coarse action:Subject codes"]
+        rolesclaim["<b>roles</b><br/>built-in role names"]
+    end
+
+    ability["<b>buildAbility()</b> · CASL<br/>@luminova/auth"]
+    conditional["applyConditional()<br/>object-scoped grants<br/><i>hardcoded, NOT UI-editable</i><br/>e.g. Member → update own uid"]
+
+    subgraph client["backstage UI — user experience only"]
+        cangate["&lt;Can&gt; gates · useCan()<br/>nav, buttons, routes"]
+    end
+
+    server["<b>firestore.rules</b><br/>server-side enforcement"]
+
+    rolesdoc --> resolve
+    overrides --> resolve
+    resolve --> cap
+    cap -->|no| failclosed
+    cap -->|yes| permsclaim
+
+    rolesdoc -. "onRoleWritten" .-> resolve
+    overrides -. "onMemberWritten" .-> resolve
+
+    permsclaim --> ability
+    rolesclaim --> conditional
+    conditional --> ability
+    ability --> cangate
+
+    ability <-- "MUST AGREE" --> server
+
+    note["A direct SDK write never executes client code.<br/>Hiding a button is not a permission.<br/>Every write-invariant needs a rules test.<br/>— engineering-guardrails.md #2"]
+    server --- note
+
+    classDef editable fill:#e8f0fe,stroke:#4285f4,color:#111
+    classDef claim fill:#fef7e0,stroke:#f9ab00,color:#111
+    classDef enforce fill:#fce8e6,stroke:#ea4335,stroke-width:2px,color:#111
+    classDef ux fill:#f3e8fd,stroke:#a142f4,color:#111
+    classDef warn fill:#fff,stroke:#ea4335,stroke-dasharray:3 3,color:#111
+    class rolesdoc,overrides editable
+    class permsclaim,rolesclaim claim
+    class server,failclosed enforce
+    class cangate,conditional ux
+    class note warn
