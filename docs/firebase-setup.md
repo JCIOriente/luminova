@@ -452,10 +452,20 @@ it in a copy dialog with its expiry.
    link to a 404. **"Edit user → set password" always works and needs nothing.**
 2. **Firestore TTL policy** on `memberInvites.purgeAt` (cleanup only; expiry is code-enforced):
    `gcloud firestore fields ttls update purgeAt --collection-group=memberInvites --enable-ttl --project=jci-oriente`
-3. **GCP budget alert.** `describeInvite` and `redeemInvite` are unauthenticated and callable
-   from any origin until App Check is enforced (G4). `maxInstances: 10` caps the blast radius
-   but converts a cost problem into an availability one — a flood saturating the pool blocks
-   real invitees. A budget alert is the cheapest real signal available before App Check.
+3. **Decide on App Check for the two unauthenticated callables.** `describeInvite` and
+   `redeemInvite` ship `enforceAppCheck: false`. Note this is NOT because the keys are
+   missing — `apps/backstage/.env.production` carries a real `VITE_APPCHECK_SITE_KEY` and
+   `ensureApp()` wires `initAppCheck` unconditionally, so a prod backstage build already sends
+   a token. It is because enforcement is per-**product** and is confirmed only for Firestore
+   and Storage (see "App Check" above); Cloud Functions is not. To turn it on: confirm the
+   backstage app is registered for the Functions product, flip the boolean in
+   `apps/beacon/src/redeem-invite.ts`, and **test `/invitacion` end to end against a real
+   build before deploying**. Getting this wrong 403s every redemption, silently, on the only
+   onboarding path that now exists.
+4. **GCP budget alert.** Until that flip, both callables accept requests from any origin.
+   `maxInstances: 10` caps the blast radius but converts a cost problem into an availability
+   one — a flood saturating the pool blocks real invitees. A budget alert is the cheapest real
+   signal available in the meantime.
 
 ## App Check (reCAPTCHA v3)
 
@@ -469,11 +479,11 @@ the branded reset flow:
    `.env.local` blank so local dev runs against the emulators with App Check off.
 3. **Reset action URL** — leave it at the Firebase DEFAULT. The `/reset` route it used to
    point at is deleted; see owner op 1 above.
-4. **`describeInvite` / `redeemInvite` are the first functions to flip** when App Check is
-   enforced. They are declared `enforceAppCheck: false` with a comment naming this item.
-   Flip them DELIBERATELY, with the invite page tested: they then depend on
-   `VITE_APPCHECK_SITE_KEY` being present in the backstage build, so a misconfigured deploy
-   breaks member onboarding entirely, silently, for everyone.
+4. **`describeInvite` / `redeemInvite` are the first functions to flip.** They are declared
+   `enforceAppCheck: false`, and the blocker is NOT the site key (production has one) — it is
+   that enforcement is per-product and Functions is not confirmed enabled below. Flip them
+   DELIBERATELY, with `/invitacion` tested against a real build: a misconfigured deploy breaks
+   member onboarding entirely, silently, for everyone.
 5. **Enforcement** — **enabled** for Firestore and Storage. Both frontends send a
    valid token (backstage via the full SDK, spotlight via `getFirestoreLite`). Only
    enable enforcement for a product after confirming real traffic carries valid

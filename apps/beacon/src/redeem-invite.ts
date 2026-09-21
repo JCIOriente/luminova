@@ -298,10 +298,21 @@ export async function redeemInviteFor(
 
 // THE PROJECT'S FIRST UNAUTHENTICATED CALLABLES.
 //
-// enforceAppCheck is FALSE and that is not a hedge: packages/firebase/src/app-check.ts
-// initializes App Check only `if (siteKey)`, and the reCAPTCHA keys do not exist in production
-// (roadmap G4). Setting it true here would 403 every redemption until an owner provisions
-// them. These two are the FIRST functions to flip when G4 lands — greppable, one boolean each.
+// enforceAppCheck is FALSE, and the reason is NOT the one an earlier draft of the spec gave.
+// That draft said the reCAPTCHA keys do not exist in production; they do —
+// `apps/backstage/.env.production` carries a real VITE_APPCHECK_SITE_KEY, and `ensureApp()`
+// wires `initAppCheck` unconditionally, so a prod backstage build already sends a token.
+// Leaving a justification in the code that the repository refutes would be guardrail #6.
+//
+// The REAL reason it is still false: App Check enforcement is per-PRODUCT, and
+// docs/firebase-setup.md records it as enabled for Firestore and Storage only — Cloud
+// Functions is not confirmed. Flipping it here without first confirming the backstage app is
+// registered for Functions, and without testing /invitacion against a real build, would 403
+// every redemption. That failure is silent and total: this is now the ONLY onboarding path,
+// so a misconfigured deploy locks out every new member with no error anyone sees.
+//
+// So it is a deliberate, staged flip with a named precondition — not an absent control. The
+// owner-op is in docs/firebase-setup.md; these two are the first functions to flip.
 //
 // maxInstances is both the control and the lever. Brute force is arithmetic, not a threat
 // (2^256, and a guess resolves to a nonexistent document — one read, no write). The real

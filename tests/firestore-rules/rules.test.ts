@@ -4760,6 +4760,35 @@ describe("members.invite is beacon-owned on every client lane", () => {
     );
   });
 
+  it("denies the POSITIONS lane touching invite", async () => {
+    // hasOnly(['positions']) already closes it, but the spec names this lane explicitly and a
+    // guard that is only closed incidentally is one refactor from being open.
+    await assertFails(
+      updateDoc(doc(as("u", ["ExecutiveCommittee"]), "members/m1"), {
+        positions: { [TERM]: { cargoId: null, comisionIds: [], assignedBy: "u" } },
+        invite: PROJECTION,
+      }),
+    );
+  });
+
+  it("denies the Admin TAKEDOWN arm smuggling invite alongside publicProfile", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "members/m1"), {
+        publicProfile: false,
+        invite: PROJECTION,
+      }),
+    );
+  });
+
+  it("denies a DOT-PATH write — the shape beacon itself uses", async () => {
+    // beacon writes `{"invite.status": "used"}` through the admin SDK. diff().affectedKeys()
+    // reports the top-level `invite`, so !touched('invite') catches it — but that is the exact
+    // shape a client would try if it knew the field name, so it gets its own case.
+    await assertFails(
+      updateDoc(doc(as("u", ["Admin"]), "members/m1"), { "invite.status": "used" }),
+    );
+  });
+
   it("denies writing an explicit null onto invite (touched, not unchanged)", async () => {
     // unchanged() would pass a null == null comparison on a doc that lacks the key.
     await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m1"), { invite: null }));

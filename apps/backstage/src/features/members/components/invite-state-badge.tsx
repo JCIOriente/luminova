@@ -14,10 +14,12 @@ const TONES: Readonly<Record<InviteState, BadgeTone>> = {
   failed: "red",
 };
 
-/** THE single renderer for invite state, used by the profile header, the drawer's done screen
- *  and the members table's "Acceso" column. One component rather than three copies of a
- *  label/tone table — the row menu and the profile header already carried different strings
- *  for the same action once. */
+/** THE single renderer for invite state: the profile header and the members table's "Acceso"
+ *  column. One component rather than two copies of a label/tone table — the row menu and the
+ *  profile header already carried different strings for the same action once, which is the
+ *  drift this exists to prevent. (The row menu renders `inviteActionLabel` instead; the
+ *  drawer's done screen shows the link itself, since the state there is always "just
+ *  issued".) */
 export function InviteStateBadge({ member, now }: { member: Member; now: number }) {
   const state = memberInviteState(member, now);
   return <Badge tone={TONES[state]}>{label(state, member)}</Badge>;

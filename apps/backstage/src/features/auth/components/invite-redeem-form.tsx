@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link } from "@tanstack/react-router";
 import { httpsCallable } from "firebase/functions";
@@ -35,6 +35,41 @@ function Shell({ children }: { children: ReactNode }) {
       </div>
       {children}
     </div>
+  );
+}
+
+/** The icon-prefixed password input, twice on this form. Local rather than pushed into
+ *  `@luminova/ui`: `login-form.tsx` has a third copy of the same treatment, so the shared
+ *  component is worth doing — but as its own change with all three call sites migrated
+ *  together, not smuggled in here. */
+function PasswordField({
+  id,
+  label,
+  error,
+  register,
+}: {
+  id: "password" | "confirmPassword";
+  label: string;
+  error?: string;
+  register: UseFormRegisterReturn;
+}) {
+  return (
+    <Field label={label} htmlFor={id} error={error}>
+      <div className="group relative flex items-center">
+        <span className="pointer-events-none absolute left-3.5 flex text-ink-3 transition-colors group-focus-within:text-jci-blue">
+          {Icon.lock({ s: 19 })}
+        </span>
+        <Input
+          id={id}
+          type="password"
+          autoComplete="new-password"
+          placeholder="••••••••"
+          className="pl-11"
+          aria-invalid={error ? true : undefined}
+          {...register}
+        />
+      </div>
+    </Field>
   );
 }
 
@@ -184,43 +219,19 @@ export function InviteRedeemForm({ token }: { token: string }) {
         Tu cuenta es <span className="font-semibold text-ink-2">{phase.invite.email}</span>.
       </p>
       <form onSubmit={onSubmit} noValidate className="mt-8 flex flex-col gap-[18px]">
-        <Field label="Nueva contraseña" htmlFor="password" error={errors.password?.message}>
-          <div className="group relative flex items-center">
-            <span className="pointer-events-none absolute left-3.5 flex text-ink-3 transition-colors group-focus-within:text-jci-blue">
-              {Icon.lock({ s: 19 })}
-            </span>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              placeholder="••••••••"
-              className="pl-11"
-              aria-invalid={errors.password ? true : undefined}
-              {...register("password")}
-            />
-          </div>
-        </Field>
+        <PasswordField
+          id="password"
+          label="Nueva contraseña"
+          error={errors.password?.message}
+          register={register("password")}
+        />
         <PasswordChecklist value={watch("password")} />
-        <Field
+        <PasswordField
+          id="confirmPassword"
           label="Confirmar contraseña"
-          htmlFor="confirmPassword"
           error={errors.confirmPassword?.message}
-        >
-          <div className="group relative flex items-center">
-            <span className="pointer-events-none absolute left-3.5 flex text-ink-3 transition-colors group-focus-within:text-jci-blue">
-              {Icon.lock({ s: 19 })}
-            </span>
-            <Input
-              id="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              placeholder="••••••••"
-              className="pl-11"
-              aria-invalid={errors.confirmPassword ? true : undefined}
-              {...register("confirmPassword")}
-            />
-          </div>
-        </Field>
+          register={register("confirmPassword")}
+        />
         {formError && (
           <div role="alert" className="text-ui-sm text-error">
             {formError}

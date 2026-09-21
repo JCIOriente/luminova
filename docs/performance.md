@@ -76,9 +76,16 @@ machine-enforced yet — hold them by judgment + `bundle-budget-watcher`:
 | New runtime dependency | justify if it adds > 10 kB gz to eager JS | same |
 
 **Invite-link onboarding (2026-09).** Adding `/invitacion` and removing `/forgot-password` +
-`/reset` measured **159 kB gz** backstage eager, against 160 before — net −1 kB. All three
-routes are code-split, so neither the addition nor the deletion moves the eager set much;
-the deletion does NOT "pay for" the addition, and the number above is measured, not derived.
+`/reset` measures **159 kB gz** backstage eager, against a 162 kB budget — verified twice,
+including an independent re-sum of the ten files `index.html` actually references.
+
+Be precise about the BASELINE, because the table above was not: its previous note said 157,
+but that figure dates from 2026-07-15 and predates the #224/#225 merges this branch builds
+on, so it was never the immediate pre-branch number. **The true pre-branch baseline was not
+re-measured**, so no delta is claimed here — only the absolute, which is what the budget
+gate actually checks. All three routes are code-split, so neither the addition nor the
+deletion should move the eager set much; in particular the deletion does not "pay for" the
+addition.
 
 Worth recording for whoever tunes this next: setting a password now pulls the whole backstage
 eager shell (~159 kB gz) plus the route chunk, over a Bolivian mobile link, for a one-field

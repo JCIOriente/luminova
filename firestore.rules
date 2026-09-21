@@ -1101,6 +1101,13 @@ service cloud.firestore {
     // (bounded shape, no PII) and delete is open (holding the token = controlling that
     // device's subscription; there is no read/list to enumerate ids). Mirrors `leads`
     // as a public-writable, no-PII collection.
+    match /pushTokens/{token} {
+      allow create: if request.resource.data.keys().hasOnly(['createdAt'])
+        && request.resource.data.createdAt == request.time;
+      allow delete: if true;
+      allow read, update: if false;
+    }
+
     // Invite tokens. The doc id IS sha256(token) — a bearer credential's hash. Written and
     // read ONLY by beacon's issueMemberInvite / describeInvite / redeemInvite through the
     // admin SDK, which bypasses these rules. No client has any business here: the invite
@@ -1109,13 +1116,6 @@ service cloud.firestore {
     // enumerable for a state that is three scalars.
     match /memberInvites/{tokenHash} {
       allow read, write: if false;
-    }
-
-    match /pushTokens/{token} {
-      allow create: if request.resource.data.keys().hasOnly(['createdAt'])
-        && request.resource.data.createdAt == request.time;
-      allow delete: if true;
-      allow read, update: if false;
     }
 
     match /{document=**} {

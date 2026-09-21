@@ -19,6 +19,7 @@ import {
 import { avatarColor, joinYear } from "../lib/member-display";
 import { MemberRowMenu } from "./member-row-menu";
 import { MemberCargoChips } from "./member-cargo-chips";
+import { InviteStateBadge } from "./invite-state-badge";
 
 interface MemberTableProps {
   members: Member[];
@@ -97,6 +98,16 @@ function buildColumns(
           {member.joinDate ? joinYear(member.joinDate) : "—"}
         </span>
       ),
+    },
+    {
+      // The operator surface the invite state exists FOR: the badge belongs in a column, not
+      // in the row menu, because a MenuItem is the wrong place for a status chip — you would
+      // have to open every row to see who still has no access.
+      id: "invite",
+      header: "Acceso",
+      className: "hidden lg:table-cell",
+      sortable: false,
+      cell: (member) => <InviteStateBadge member={member} now={Date.now()} />,
     },
     {
       id: "points",
