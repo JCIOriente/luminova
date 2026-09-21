@@ -4,6 +4,7 @@ import { hashInviteToken } from "./invite-token.js";
 import {
   describeInviteFor,
   redeemInviteFor,
+  type ClaimStatus,
   type InviteDoc,
   type RedeemDeps,
 } from "./redeem-invite.js";
@@ -36,7 +37,7 @@ function fakeDeps(opts: {
   setPasswordThrows?: Error;
   /** Forces the CLAIM TRANSACTION to lose, independently of the pre-read — the only way to
    *  reach the mutual-exclusion branch, which the shared-status fake can never exercise. */
-  claimLosesWith?: "used" | "revoked" | "failed" | "expired" | "gone";
+  claimLosesWith?: ClaimStatus;
 }) {
   const calls = {
     claims: [] as string[],

@@ -42,11 +42,13 @@ export interface RedeemDeps {
   getUserByUid(uid: string): Promise<RedeemUser | null>;
   getPositionGrants(cargoId: string): Promise<Role[] | null>;
   /** Flip `pending -> used` TRANSACTIONALLY. The transaction is also the mutual-exclusion
-   *  primitive for two tabs racing: the loser sees a non-pending status. */
-  claimInvite(
-    tokenHash: string,
-    nowMs: number,
-  ): Promise<{ claimed: boolean; status: InviteStatus }>;
+   *  primitive for two tabs racing: the loser sees a non-pending status.
+   *
+   *  `ClaimStatus`, not `InviteStatus`: two of the ways a claim loses have no stored status to
+   *  report — the document was purged mid-flight, or it expired between the pre-read and the
+   *  transaction. Widening the PORT is what lets the adapter name them, and what makes
+   *  CLAIM_REFUSALS' `expired`/`gone` keys reachable instead of decorative. */
+  claimInvite(tokenHash: string, nowMs: number): Promise<{ claimed: boolean; status: ClaimStatus }>;
   /** The token is spent but the Auth write failed. A distinct state, not `used`: otherwise it
    *  renders green and the operator has no reason to re-issue while the member has no
    *  password. */
@@ -179,9 +181,13 @@ async function memberBecamePrivileged(
   return false;
 }
 
+/** The outcomes a lost claim can report: every stored status, plus the two that have none —
+ *  the document is gone, or it expired against the transaction's own read. */
+export type ClaimStatus = InviteStatus | "expired" | "gone";
+
 /** How a lost claim maps to what the invitee is told. `pending` cannot appear (the claim
  *  would have succeeded) but is listed so the record stays exhaustive over the union. */
-const CLAIM_REFUSALS: Readonly<Record<InviteStatus | "expired" | "gone", InviteBlockReason>> = {
+const CLAIM_REFUSALS: Readonly<Record<ClaimStatus, InviteBlockReason>> = {
   pending: "invite-invalid",
   used: "invite-used",
   revoked: "invite-revoked",
@@ -265,7 +271,7 @@ export async function redeemInviteFor(
     // Lost the race, or the state moved under us between the pre-read and the transaction.
     // Each outcome keeps its own tag — telling someone their link was "superseded" when it
     // actually expired sends them to the wrong remedy.
-    const reason: InviteBlockReason = CLAIM_REFUSALS[claim.status] ?? "invite-invalid";
+    const reason: InviteBlockReason = CLAIM_REFUSALS[claim.status];
     throw refuse(fn, tokenHash, invite, reason, "this link can no longer be claimed");
   }
 

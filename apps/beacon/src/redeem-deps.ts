@@ -70,12 +70,20 @@ export function firestoreRedeemDeps(db: Firestore, auth: Auth): RedeemDeps {
       const ref = db.doc(`memberInvites/${tokenHash}`);
       return db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
-        if (!snap.exists) return { claimed: false as const, status: "revoked" as const };
+        // "gone", NOT "revoked". Both mean the claim lost, but they send the invitee to
+        // different remedies: "revoked" tells them a NEWER link superseded this one, so they
+        // should go find it. Nothing was superseded here — the document was purged by the
+        // 90-day TTL, or resurrected as an unparseable stub by commitInviteBatch's merge — and
+        // "gone" carries the neutral `invite-invalid` instead.
+        if (!snap.exists) return { claimed: false as const, status: "gone" as const };
         const invite = parseInvite(snap.data() as Record<string, unknown>);
-        if (invite === null) return { claimed: false as const, status: "revoked" as const };
+        if (invite === null) return { claimed: false as const, status: "gone" as const };
         if (invite.status !== "pending") return { claimed: false as const, status: invite.status };
+        // Likewise "expired": this is the window between loadValidInvite's read and this
+        // transaction. Reporting it as "revoked" would send someone hunting for a newer link
+        // that does not exist, when what they need is to ask for a fresh one.
         if (invite.expiresAtMs <= nowMs)
-          return { claimed: false as const, status: "revoked" as const };
+          return { claimed: false as const, status: "expired" as const };
         const usedAt = Timestamp.fromMillis(nowMs);
         tx.update(ref, { status: "used", usedAt });
         // Mirror onto the projection the operator surfaces read, in the SAME transaction.
@@ -99,7 +107,16 @@ export function firestoreRedeemDeps(db: Firestore, auth: Auth): RedeemDeps {
           // rejection into a log line — leaving the invite `used`, the badge green and the
           // member passwordless, which is the exact state this write exists to prevent.
           const snap = await tx.get(ref);
-          if (!snap.exists) return;
+          if (!snap.exists) {
+            // Guardrail #4: this return leaves the projection reading `used` — green badge,
+            // member with no password — and it is the ONE path that bypasses the catch below,
+            // so without this line the worst state the function exists to prevent would be
+            // reached with no trace at all.
+            logWarn("spent invite vanished before it could be marked failed", {
+              tokenPrefix: tokenHash.slice(0, 8),
+            });
+            return;
+          }
           const memberId = (snap.data() as { memberId?: unknown }).memberId;
           const memberRef = isSafeDocId(memberId) ? db.doc(`members/${memberId}`) : null;
           const memberSnap = memberRef === null ? null : await tx.get(memberRef);
