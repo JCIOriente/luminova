@@ -59,11 +59,14 @@ Two independent blockers, either sufficient:
    to hold `roles/iam.serviceAccountTokenCreator`. This project has prior pain with exactly that
    grant. Option (b) therefore makes the entire onboarding flow depend on an IAM change nobody has
    verified, on a path with no fallback — the invitee just gets a 500.
-2. **It fights this app's own routing contract.** `apps/backstage/src/routes/_auth.tsx` `beforeLoad`
-   awaits `context.auth.ready` and `throw redirect({ to: "/" })` if a user is present. The
-   redemption page lives under `_auth`. `signInWithCustomToken` would make the invitee signed-in
-   *while sitting on that route* — the router bounces them to `/` before `updatePassword` runs. This
-   is not hypothetical; it is the file as written.
+2. **CONTINGENT — it fights this app's routing contract *as of the original draft*.**
+   `apps/backstage/src/routes/_auth.tsx:4-9` `beforeLoad` awaits `context.auth.ready` and
+   `throw redirect({ to: "/" })` if a user is present, so a `signInWithCustomToken` invitee sitting
+   on an `_auth` child would be bounced before `updatePassword` ran. **This blocker no longer
+   applies:** review found the same `beforeLoad` breaks the operator's ability to test their own
+   link, so `/invitacion` now lives at `routes/invitacion.tsx`, outside `_auth` (see Q5). Recorded
+   as contingent rather than deleted so nobody revisits (b) believing two blockers fell. Blocker 1
+   stands alone and is sufficient.
 3. Additionally: a redeemed-but-abandoned token under (b) leaves a signed-in Auth account with **no
    password set**, reachable by nothing (there is no recovery mail any more) and invisible to the
    operator — the invite reads "usada" while the member cannot log in.
@@ -73,6 +76,12 @@ beacon's memory. Mitigations that are actually built:
 - `redeemInvite` never logs `request.data`. Its structured log line is
   `{ memberId, tokenPrefix: hash.slice(0, 8), outcome }` — nothing else. A unit test asserts no
   console argument contains the token or the password string.
+- **Redemption evicts existing sessions.** `auth.updateUser(uid, { password })` bumps
+  `tokensValidAfterTime`, exactly as `revokeRefreshTokens` does — verified empirically against the
+  Auth emulator during review. This is load-bearing: a recovery that left the previous holder's
+  session live would not be a recovery. It bites when the ID token next refreshes (≤1 h) or
+  wherever `verifyIdToken(_, true)` is used. Stated as an invariant so a future refactor cannot
+  quietly lose it.
 - The password policy is enforced **server-side**, not only by the client zod schema. The rule
   predicates move to a zod-free `@luminova/types/password-policy` consumed by both
   `apps/backstage/src/features/auth/types/password-policy.ts` (which keeps the Spanish labels and
@@ -103,9 +112,10 @@ security gain. SHA-256 is in Node core.
 |---|---|---|
 | `memberId` | string | resolves the invitee |
 | `uid` | string | the Auth account this link may write to, **pinned at issue** |
-| `email` | string | snapshot at issue; shown on the page and compared at redemption |
+| `email` | string | `member.email` **verbatim** at issue; compared at redemption after `trim().toLowerCase()` on both sides |
 | `kind` | `"initial" \| "recovery"` | operator copy + audit |
 | `issuedBy` | string | caller uid — makes D3's impersonation primitive auditable |
+| `issuedByAdmin` | boolean | whether the issuer held the Admin role. Required: it is what exempts an Admin-issued link from the privilege re-check at redemption (Q8) |
 | `issuedAt` / `expiresAt` | Timestamp | `expiresAt = issuedAt + 7d` |
 | `status` | `"pending" \| "used" \| "revoked"` | single-use + revocation |
 | `usedAt` / `revokedAt` / `revokedBy` | Timestamp \| string \| null | audit trail |
@@ -132,11 +142,31 @@ replayable one is a credential leak. On `updateUser` failure beacon `console.err
 (guardrail #4) and returns a tagged refusal telling the invitee to ask for a new link. The
 transaction is also the mutual-exclusion primitive for two tabs racing.
 
+**The email snapshot must be normalized on both sides.** `provisionMember` computes
+`targetEmail = user.email ?? email`, and Identity Toolkit lower-cases what it stores, while
+`firestore.rules` never constrains `members.email` — so a CSV paste can leave `Ana@JCI.bo` on the
+ficha. Snapshot `member.email` verbatim, and compare `invite.email.trim().toLowerCase()` against
+`member.email.trim().toLowerCase()` at redemption. Getting this wrong makes **every invite for a
+mixed-case address dead on arrival**, surfacing as the generic "este enlace ya no es válido" — which
+reads as operator error and is near-impossible to diagnose from the outside.
+
 **Re-issue revokes — and does so without a query.** `members/{id}.invite.tokenHash` points at the
 one outstanding invite, so re-issuing reads the member doc it already has, writes
 `status: "revoked"` + `revokedAt` + `revokedBy` on exactly that document by key, and then mints.
 **At most one outstanding invite per member, by construction.** No `where` query, no composite
-index, no owner-op. This is the concrete advantage over a Firebase oobCode, which silently
+index, no owner-op.
+
+**That construction holds ONLY if the three writes are atomic — they must be one batch.** Revoking
+the old invite, creating the new one, and updating `members/{id}.invite` touch three documents. If
+the projection write alone fails (the member doc is contended: `awardPoints` mirrors `totalPoints`
+on every check-in, and `onMemberWritten` fires on every member write), the result is a **live
+`pending` invite whose token the operator already pasted into WhatsApp, with the projection still
+pointing at the old revoked hash**. Nothing can ever revoke that orphan: there is no `where` query
+on `memberInvites`, `firestore.rules` denies all client access, and the only key into the collection
+no longer points at it. It stays redeemable for the full 7 days. So: **one `db.batch()` covering all
+three writes**, no exceptions. This is the single most important implementation constraint in the
+document. `memberId` is on the invite doc so a break-glass sweep remains *possible* for an operator
+with console access, but it is not a designed path and would need a composite index. This is the concrete advantage over a Firebase oobCode, which silently
 invalidates the previously-sent code with no record and no way to tell the operator — see Q6 for how
 it surfaces.
 
@@ -179,8 +209,19 @@ that the plan does not build would be guardrail #6. The controls that are real:
 - 7-day TTL, enforced in code;
 - single-use, enforced transactionally;
 - explicit revocation on re-issue;
-- `maxInstances: 10` set on both callables, so a flood cannot scale out and consume the project's
-  whole function budget. That is an availability control we actually configure.
+- `maxInstances: 10` set on both callables, plus an explicit short `timeoutSeconds` and the
+  smallest workable `memory`, so a flood cannot scale out and consume the project's whole function
+  budget.
+
+**Name the tradeoff honestly: `maxInstances` is both the control and the lever.** Brute force is
+arithmetic, not a threat. The real exposure is billing and availability. `describeInvite` is an
+unauthenticated, uncached function invocation plus one Firestore read, callable from any origin
+while App Check is off. Sustained traffic bills invocations and reads indefinitely; and the same
+cap that stops a flood consuming the project budget means a trivial flood **saturates the pool, so
+genuine invitees get 429/503 on the only onboarding path that now exists**. Capping converts a cost
+problem into an availability problem. That is probably the right trade for this chapter's scale, but
+it is a trade, not a mitigation. The cheapest real control available before App Check is a **GCP
+budget alert** — added to the operator notes.
 
 **App Check — NOT enforced, and this is not a hedge.** `packages/firebase/src/app-check.ts`
 initializes App Check only `if (siteKey)`, reading `VITE_APPCHECK_SITE_KEY`; `docs/roadmap.md:227`
@@ -214,10 +255,11 @@ email-only attack surface strictly shrinks.
 A query param or a path segment puts a live bearer credential into a log sink with a long retention
 that nobody on this team controls.
 
-**Router support — verified, no hack.** `@tanstack/react-router` ^1.170.11 (installed 1.171.9):
-`ParsedLocation.hash` is a typed first-class field —
-`node_modules/@tanstack/router-core/dist/esm/location.d.ts:30`, documented as "The hash of the
-location, excluding the leading hash character." Read it with
+**Router support — verified, no hack.** `@tanstack/react-router` is declared `^1.170.11` and
+installed at **1.170.11**; `ParsedLocation.hash` is a typed first-class field of `@tanstack/router-core`
+(installed **1.171.9**), at
+`node_modules/.pnpm/@tanstack+router-core@1.171.9/node_modules/@tanstack/router-core/dist/esm/location.d.ts:30`,
+documented as "The hash of the location, excluding the leading hash character." Read it with
 `useLocation({ select: (l) => l.hash })`. No `validateSearch`, no `window.location` reach-around.
 The SPA rewrite in `firebase.json` (`"source": "**" → "/index.html"`) preserves the fragment
 because the fragment never reaches the server at all, and the PWA
@@ -229,7 +271,9 @@ at roughly 70 characters — one line, no preview truncation, safely copy-pastea
 
 **Honest caveat.** The fragment is still in browser history, still readable by any JS on the page,
 and still copy-pasteable out of the chat. TTL + single-use + revocation are the real mitigations;
-the fragment removes the *server-log and Referer* copies and nothing more.
+the fragment removes the *server-log and Referer* copies and nothing more. After a successful
+redemption the page calls `history.replaceState` to drop the burnt token from the address bar and
+the history entry — one line, and it keeps a dead credential from lingering on a shared device.
 
 **Deviation from the brief, flagged once.** The brief says beacon "returns a backstage URL." beacon
 returns `{ token, expiresAt, email, replacedPreviousLink }` and the **client** assembles the URL from
@@ -242,8 +286,21 @@ emulator and in previews. One helper, not three, so the three surfaces cannot bu
 
 ### Q5 — Routing and the bundle
 
-**Route.** `apps/backstage/src/routes/_auth.invitacion.tsx`, under the `_auth` layout — it is
-unauthenticated, and the layout's `beforeLoad` already bounces an already-signed-in visitor.
+**Route.** `apps/backstage/src/routes/invitacion.tsx` — a **top-level route, deliberately NOT under
+the `_auth` layout.**
+
+`_auth.tsx:4-9`'s `beforeLoad` redirects any authenticated visitor to `/`. Under `_auth`, an
+operator who opens the link they just generated — the only way to sanity-check it, now that no mail
+exists — lands silently on the dashboard with no signal about whether the link works. For a feature
+whose sole delivery mechanism is a human pasting a URL into WhatsApp, "the operator cannot verify
+the artifact they just produced" is a product defect. Redeeming a token is orthogonal to whether the
+visitor is signed in, and `AuthScreen` / `BrandSide` are plain components rather than a route
+layout, so there is no guard to re-implement: moving the file out is the entire fix.
+
+`/invitacion` must still be listed in `AUTH_ROUTES` in `apps/backstage/src/components/nav-config.test.ts`.
+That list is an allowlist filtered against every `fullPath:` in the generated route tree, independent
+of layout position, and it exempts the path from both the set-equality assertion and the nav-gate
+assertion.
 
 **The rule that matters.** The route file exports **`Route` and nothing else.**
 `docs/performance.md:133` records the `/me` regression verbatim: "its stray `export function
@@ -257,6 +314,13 @@ firestore) + zod doc-schemas into the entry." `autoCodeSplitting: true` is on in
 form imports it; because the form is only reachable from a split route, it stays in that route's
 chunk. The failure mode to guard against is a *shared* module (e.g. `invite-link.ts`) acquiring a
 functions import and being pulled eager — keep `invite-link.ts` a pure string builder.
+
+**What the invitee downloads — asked, since the audience is now every new member.** Setting a
+password pulls the whole backstage eager shell (~160 kB gz) plus the route chunk, over a Bolivian
+mobile link, for a one-field form. This is **not a regression** — `/reset` had exactly the same
+property — and it is not in scope here. It is recorded because the budget section should ask the
+question for a page whose audience changed from "an admin who lost their password" to "every person
+who ever joins the chapter."
 
 **Budget accounting, honestly.** The budget is **162 kB gz eager** for backstage
 (`tools/scripts/check-bundle-budget.sh`, "backstage eager JS", cross-referenced in
@@ -274,9 +338,19 @@ preserves that shape rather than adding three copies.
 
 - `apps/backstage/src/features/members/lib/invite-state.ts` —
   `memberInviteState(member, now): InviteState` where
-  `InviteState = "never" | "pending" | "used" | "expired" | "revoked"`. `"expired"` is **derived**
-  (`pending && expiresAt <= now`), not stored, so a link that lapsed without any beacon write still
-  reads correctly. Also exports `inviteActionLabel(state)`.
+  `InviteState = "never" | "legacy" | "pending" | "used" | "expired" | "revoked" | "failed"`.
+  Two states are **derived**, not stored, so no migration is needed and no beacon write is required
+  for them to read correctly:
+  - `"expired"` — `pending && expiresAt <= now`.
+  - `"legacy"` — `member.uid && !member.invite`: a member provisioned before this feature existed.
+    Without this branch **the entire existing roster** renders "Sin invitar" on day one, making the
+    new column useless at launch and inviting operators to re-issue links for people who already
+    have accounts — which, for a delegate, is the D3 impersonation primitive. One line, zero writes,
+    zero migration.
+
+  `"failed"` IS stored: it is the `invite-update-failed` case (token burned, `auth.updateUser`
+  threw). Without a distinct state it renders as `used`/green and the operator has no reason to
+  re-issue while the member has no password. Also exports `inviteActionLabel(state)`.
 - `apps/backstage/src/features/members/components/invite-state-badge.tsx` — the single renderer,
   using `@luminova/ui`'s `Badge` (tones from `BadgeTone`: `blue | teal | green | amber | red | gray
   | navy`).
@@ -284,17 +358,19 @@ preserves that shape rather than adding three copies.
 | State | Label | Tone |
 |---|---|---|
 | `never` | Sin invitar | `gray` |
+| `legacy` | Con acceso | `gray` |
 | `pending` | Pendiente · vence el {fecha} | `amber` |
 | `used` | Usada el {fecha} | `green` |
 | `expired` | Expirada | `gray` |
 | `revoked` | Revocada | `red` |
+| `failed` | Falló al usarse — genera otro | `red` |
 
 | State | Action label |
 |---|---|
 | `never` | Invitar acceso |
+| `legacy` / `used` | Recuperar acceso |
 | `pending` | Reenviar enlace |
-| `used` | Recuperar acceso |
-| `expired` / `revoked` | Generar enlace nuevo |
+| `expired` / `revoked` / `failed` | Generar enlace nuevo |
 
 **Where each renders.**
 - `member-profile-page.tsx` `InviteAccess` — badge beside the button; the button's label is
@@ -361,13 +437,22 @@ short and the flow is low-frequency and operator-driven. Deploy `rules → funct
 operator cannot tolerate the window; it is not the default because a deprecated alias that nobody
 removes is how dead exports accumulate.
 
-**Test surface that must be rewritten** (line counts measured in the worktree):
+**One non-test consumer is easy to miss.** `tools/scripts/e2e-provision-member.mjs` hardcodes
+`http://127.0.0.1:4020/<project>/us-central1/provisionMemberLogin` and asserts `actionLink` in its
+pass condition. It is a standalone manual emulator script, wired into no `package.json` and no CI,
+so it will not fail the build — it will simply rot silently. It must be updated with the rename.
+
+**Mid-branch state, so a preview deploy is not misread.** Between the beacon rename and the hook
+rename the app is broken: the callable name in the hook is a string literal, so typecheck and tests
+stay green while the call 404s. Harmless on a branch; noted so it is not mistaken for a regression.
+
+**Test surface that must be rewritten** (line counts verified in the worktree):
 
 | File | Lines | What changes |
 |---|---|---|
 | `apps/beacon/src/provision-member-login.test.ts` | 635 | renamed to `issue-member-invite.test.ts`; every `actionLink` assertion removed; new cases for the restructured guard, minting, revocation |
 | `apps/beacon/src/provision-deps.test.ts` | 163 | the `passwordResetLink` port case deleted |
-| `apps/backstage/src/features/members/hooks/use-provision-member-login.test.tsx` | 107 | rewritten wholesale — the `requestPasswordReset` mock (lines 9–16) and all `emailSent`/`fallbackLink`/`mailError` assertions go |
+| `apps/backstage/src/features/members/hooks/use-provision-member-login.test.tsx` | 107 | rewritten wholesale — the `requestPasswordReset` mock (lines 11–17) and all `emailSent`/`fallbackLink`/`mailError` assertions go |
 | `apps/backstage/src/features/members/components/member-profile-page.test.tsx` | 512 | the `request-password-reset` mock (lines 79–96) deleted; all `InviteAccess` assertions rewritten onto invite state + the copy dialog |
 | `apps/backstage/src/features/members/components/member-invite-drawer.test.tsx` | 518 | the `DoneState` fixtures rewritten; the mail-failure branch removed; the "Detalle: AppCheck token is invalid" case (454/467) survives as the generic-error case |
 | `apps/backstage/src/features/members/components/member-row-menu.test.tsx` | 280 | label assertions move from `member.uid ? …` to `inviteActionLabel(memberInviteState(...))` |
@@ -401,8 +486,36 @@ snapshots `uid` and `email` at issue; redemption re-reads the live member doc an
 |---|---|
 | member doc absent | `invite-member-missing` |
 | `member.active !== true` | `invite-member-inactive` |
-| `member.email !== invite.email` (normalized) | `invite-email-changed` |
+| `member.email` ≠ `invite.email` after `trim().toLowerCase()` on both | `invite-email-changed` |
 | `member.uid !== invite.uid` | `invite-account-changed` |
+| the member became privileged since issue (see below) | `invite-member-now-privileged` |
+| the Auth account is `disabled` | `invite-account-disabled` |
+
+**The privilege guards must be RE-RUN at redemption, not only at issue.** This is the correction
+that keeps the D3 table below honest. Every guard in `issueMemberInvite` evaluates the authorization
+question at the instant the link is minted — but the token is a bearer credential that stays valid
+for seven days. Without a re-check:
+
+> Day 1, a delegate issues a recovery link for M: grant-free, unseated, claims `['Member']`. Every
+> guard passes; this is exactly D3's intent. Day 3, an Admin seats M on Tesorero and `claims-sync`
+> mints the role onto M's uid. Day 4, the delegate — who kept the token — redeems it, sets M's
+> password, and signs in as Tesorero.
+
+The same shape works on an initial invite: enrol a member, retain the token, redeem after they are
+promoted. That silently escalates the residual from "any ordinary grant-free member" to "any member
+who becomes privileged within the TTL."
+
+So `redeemInvite` re-runs `hasDirectGrants`, the power-seat cargo read, and `accountIsPrivileged`
+— two pure predicates plus one keyed `positions/{id}` read, all cheap — and refuses with
+`invite-member-now-privileged`, **unless the invite doc records `issuedByAdmin: true`** (an Admin is
+subject to none of these guards at issue, so re-imposing them at redemption would break the Admin's
+own recovery path). `issuedByAdmin` is therefore a required field on the invite document.
+
+**`user.disabled` is checked at both ends.** Nothing in `apps/beacon/src` reads `disabled` today. If
+an account was disabled from the console as a containment measure, the current design would mint a
+link, set the password, report success and flip the badge green — while the member gets
+`auth/user-disabled` at login with no explanation and the operator's UI insists it worked. Refuse at
+issue (`account-disabled-requires-admin`) and at redemption (`invite-account-disabled`).
 
 The last two are the important ones. `firestore.rules` never constrains `members.email` (the
 existing `provision-member-login.ts` adoption-guard comment says so at length), so any
@@ -426,8 +539,12 @@ Every reference (grepped), and what happens to it:
 - `apps/backstage/src/lib/auth/confirm-password-reset.ts` (`verifyPasswordResetCode` /
   `confirmPasswordReset`)
 
-**`/reset` is dead code, unambiguously.** It exists solely to consume Firebase's oobCode, which
-after this change arrives from nowhere. A live route reachable only by a mail we no longer send is
+**`/reset` is dead code — but only once the console action URL is reverted.** It exists to consume
+Firebase's oobCode. The app stops producing those, but the **console** can still send a reset mail,
+and `docs/firebase-setup.md:456-458` has configured that mail to land on `/reset`. Deleting the route
+without reverting the action URL leaves a documented escape hatch pointing at a 404. With the revert
+(owner-op, plan blocking table), the oobCode genuinely arrives from nowhere our code owns and the
+route is unambiguously dead. A live route reachable only by a mail we no longer send is
 exactly the guardrail-#6 lie ("a guard named in docs MUST actually exist and be wired"), and
 `pnpm knip` runs in `pr-tests` and will flag the orphaned modules anyway.
 
@@ -472,8 +589,16 @@ recovery after this lands. Two paths, in preference order:
 1. **Another Admin** uses "Recuperar acceso" in backstage. All guards in `issueMemberInvite` are
    `!callerHoldsAdminRole`, so an Admin is subject to none of them.
 2. **Firebase Console**, by a project Owner/Editor: Authentication → Users → find the account →
-   ⋮ → *Edit user* → set a password directly (or ⋮ → *Reset password*, which sends Firebase's own
-   mail — still available from the console even though the app no longer uses it).
+   ⋮ → *Edit user* → set a password directly.
+
+   **The "⋮ → Reset password" arm does NOT survive this change unless the owner-op below is done.**
+   `docs/firebase-setup.md:456-458` currently instructs the owner to point Authentication →
+   Templates → Password reset → "Customize action URL" at `https://<backstage-host>/reset` — the
+   route this change deletes. A console-issued reset mail would therefore link to a 404. The fix is
+   an owner-op, listed in the plan's blocking table: **revert that custom action URL to the Firebase
+   default (`__/auth/action`)**, so the console's mail lands on Firebase's own hosted handler and
+   depends on nothing of ours. `docs/firebase-setup.md:456-458` is rewritten accordingly. Until that
+   revert is done, "Edit user → set password" is the only working console path.
 
 Therefore: **the chapter must keep at least two Admin accounts at all times.** Path 1 is the
 in-product one and it requires a second Admin to exist. This is now an operational requirement, not
@@ -516,6 +641,21 @@ interface MemberInviteProjection {
 `tokenHash` is on the projection deliberately: it is an irreversible SHA-256, not a credential, and
 it is what lets revocation be a **keyed write** instead of a collection query (guardrail #5). Its
 presence is what makes "at most one outstanding invite, revocable without an index" true.
+
+**Who can actually read this projection — stated, because it is wider than it looks and it is
+deliberate.** `members/{memberId}` is `allow read: if canDo('read','Member') || self`, and per
+`nav-config.test.ts`'s `READ_MEMBER_ROLES` the unconditional `read:Member` holders are Admin,
+Membership, Treasury, ExecutiveCommittee **and the plain `Member` role** — i.e. the whole chapter.
+So every member can see who issued a link for whom, of what kind, and when.
+
+That is the intended outcome, not an oversight. `tokenHash` is a hash of 256 bits of CSPRNG output;
+exposing it grants nothing. And `issuedBy` + `kind: "recovery"` + `issuedAt` being visible to the
+*subject* is precisely what makes D3's residual accountable — a member who sees "Ana generó un
+enlace de recuperación para tu cuenta" is the alerting mechanism. Hiding the audit trail from the
+people it protects would invert its purpose. The alternative considered and rejected: trimming
+`tokenHash` to a beacon-only `members/{id}/private/invite` subdocument, which adds a write to the
+atomic batch, a rules block and a rules test in order to conceal a value that is not secret, and
+which would break the no-index guarantee.
 
 **Rules must mirror that ownership (guardrail #2).** The members `create` arm uses targeted negative
 checks (`!('uid' in request.resource.data)`, `!('publicProfile' in …)`), **not**
@@ -571,7 +711,8 @@ The current single guard in `provision-member-login.ts` is:
 if (!callerHoldsAdminRole && (user !== null || linkedUid !== null)) throw provisionBlocked(…)
 ```
 
-Its comment explains both halves. It is **split**, not loosened wholesale:
+Its comment explains both halves. It is replaced by an **exhaustive three-way switch on
+`(user, linkedUid)`** — not a two-way split, which is the trap:
 
 1. **Adoption branch — `user !== null && user.uid !== linkedUid`. Stays Admin-only, unchanged.**
    This is the branch the comment's account-takeover scenario runs through: a delegate files a
@@ -579,6 +720,17 @@ Its comment explains both halves. It is **split**, not loosened wholesale:
    link hand over that Admin's account. Nothing in D3 asks for adoption.
 2. **Recovery branch — `linkedUid !== null && user?.uid === linkedUid`. Now open to a delegate**,
    subject to every other guard.
+3. **Self-heal branch — `user === null && linkedUid !== null`. Stays Admin-only. This quadrant is
+   the reason the switch must be exhaustive.** The member doc carries a uid but no Auth account
+   resolves for their email, because the account was deleted out of band (the console; nothing in
+   `apps/beacon/src` deletes accounts — known-not-fixed #8). The relink guard deliberately lets this
+   through: `getUserByUid(linkedUid)` is null, so "relinking by email is the self-heal." Today the
+   single combined guard refuses a delegate here. **A two-branch split would match neither branch
+   and fall straight through** to `createUser` → fresh uid → `linkUid` onto the existing member doc
+   → invite minted, all by a delegate — an undocumented, untested change from Admin-only to
+   delegate-allowed. The escalation happens to be closed by the power-seat and `hasDirectGrants`
+   guards (a fresh account carries no claims, and `accountIsPrivileged` has no `user` to inspect),
+   but that is luck, not design. Pin it explicitly and test it.
 
 **The key claim, and why relaxing (2) does not reopen (1).** The takeover works by making
 `members.email` point at someone else's account — `firestore.rules` never pins `email`, so a
@@ -603,10 +755,39 @@ cargo was removed (`syncMemberClaims` does not recompute on cargo removal until 
 write; see board-seat-delegation operator note 4). So the recovery branch adds
 `accountIsPrivileged(user)`: refuse when `user.customClaims.roles` contains anything beyond
 `Member` / `Scanner`, or when `user.customClaims.perms` is non-empty. New tag
-`privileged-account-requires-admin`. The `Member`/`Scanner` allowlist is the same one
-`adoptedClaims()` already uses, kept as one exported constant so the two cannot drift.
+`privileged-account-requires-admin`.
+
+**Two constants, not one shared array.** It is tempting to reuse `adoptedClaims()`'s
+`Member`/`Scanner` allowlist, but the two answer different questions: `adoptedClaims` asks *which
+claims survive re-binding an orphaned account*, while `accountIsPrivileged` asks *is this account
+too powerful for a delegate to take over*. They are equal today and need not stay so — `Scanner`
+holds `checkIn:Attendance`, so a delegate impersonating a Scanner can award points. Sharing the
+array means any future widening of the adoption allowlist silently widens who a delegate may
+impersonate, with no test failing. Declare `ADOPTABLE_ROLES` and `NON_PRIVILEGED_ROLES` separately,
+each with a comment explaining why it holds what it holds, and assert their present equality in a
+test rather than encoding it in the type system.
+
+**What `accountIsPrivileged` returns for absent and malformed claims — this decides whether D3 works
+on day one.** Firebase returns `customClaims === undefined` when none are set, and per
+known-not-fixed #9 the entire pre-existing roster predates this feature. Fail-closed on *absent*
+claims would make D3 dead for exactly the membership it is meant to serve. The line:
+
+| `customClaims` | Privileged? | Why |
+|---|---|---|
+| `undefined`, `{}`, `{ roles: [] }` | **no** | absent is a genuine empty — a legacy or brand-new account, ordinary by default |
+| `{ roles: ["Member"] }`, `{ roles: ["Member","Scanner"] }` | no | the allowlist |
+| `{ roles: ["Member","Admin"] }` | yes | a role beyond the allowlist |
+| `{ perms: ["update:Showcase"] }` | yes | any non-empty `perms` |
+| `{ perms: [] }`, `{ perms: undefined }` | no | genuine empty |
+| `{ roles: "Admin" }` (string), `{ perms: {} }` (non-array), any other unparseable shape | **yes** | malformed is fail-closed |
+
+Absent ≠ malformed. Every one of these shapes gets a fixture.
 
 ### After this lands, a `create:MemberLogin` delegate…
+
+Every row is evaluated **twice** — once at issue, and again at redemption for the three privilege
+guards (see Q8). A row that reads "no" is therefore a standing property for the life of the token,
+not a snapshot taken when the link was minted.
 
 | Target | Delegate may issue a link? | Guard that decides |
 |---|---|---|
@@ -618,9 +799,38 @@ write; see board-seat-delegation operator note 4). So the recovery branch adds
 | Account holding an Admin claim with a clean member doc | no | `accountIsPrivileged()` (**new**) |
 | Member whose doc email ≠ their Auth account's email | no | relink guard → `linked-to-different-login` |
 | Member with no Auth account whose email matches an existing one | no | adoption guard (**unchanged**) |
+| Member whose linked Auth account was deleted out of band | no | self-heal branch — Admin-only (**newly explicit**) |
+| Member who becomes privileged *after* the link is issued | link is refused at redemption | the three guards re-run in `redeemInvite` → `invite-member-now-privileged` |
+| Member whose Auth account is `disabled` | no | `account-disabled-requires-admin` (**new**) |
 | Member with an unreadable / malformed `cargoId` | no | fail-closed: `getPositionGrants` → `null` → refuse |
 | Inactive or `Desafiliado` member | no | `active !== true` precondition |
 | Themselves | yes, and it is harmless — they already have their own session |
+
+### The client gate must move with it, or D3 is unreachable
+
+`memberProvisionBlocked` (`apps/backstage/src/features/members/lib/provision-gate.ts`) is the client
+mirror of these guards, and it blocks on `hasLogin: member.uid != null`. In `member-row-menu.tsx`
+that is a **mount** gate — the menu item does not render at all — and on the profile page it
+disables the button. So without a matching change, beacon would allow recovery and the UI would
+never offer it: D3 lands as dead code. The hook's own comment already documents this exact shape
+("`memberProvisionBlocked` (hasLogin) hides the retry from the delegate who caused it").
+
+**Only the `hasLogin` conjunct moves.** After D3, "already has a login" is the *recovery* branch, not
+a refusal. The power-seat and direct-grants half of `memberProvisionBlocked` stays exactly as it is.
+
+Three conjuncts remain deliberately invisible to the client, handled by `refusalMessage` on the
+server's tagged rejection rather than by hiding the control: the **adoption** branch (the client
+cannot see whether an Auth account exists for an unlinked email), the **self-heal** branch, and
+`accountIsPrivileged` (the client cannot read another user's custom claims). Showing a control that
+sometimes refuses with a clear reason is correct here; hiding it on a guess is what produced the
+#224 regression.
+
+**The parity test must be made non-vacuous.** `invite-guard-parity.test.ts` asserts
+`clientOffersInvite ⟹ beaconGuardsAllow`. When the client offers nothing, that implication is
+**vacuously true** — the designated guard is structurally incapable of catching this very defect. So
+the test additionally asserts that the offered set is **non-empty for the D3 principal** (a
+`create:MemberLogin` delegate against a provisioned, grant-free, unseated member). Without that
+assertion the suite goes green while proving nothing.
 
 ### The residual, named
 
@@ -684,8 +894,19 @@ the same policy the checklist renders.
 4. **A link is a credential.** Whoever holds it sets that member's password. Send it in a direct
    chat, not a group. There is no way to un-send; the remedy is to re-issue, which revokes it.
 5. **The Firebase "Password reset" template is no longer used by the app.** Do **not** disable the
-   Email/Password provider — sign-in depends on it. The console's own reset action still works and
-   is the Owner-level escape hatch in note 1.
+   Email/Password provider — sign-in depends on it. The console's own "⋮ → Reset password" action
+   works **only after** the owner-op in the plan's blocking table: reverting Authentication →
+   Templates → Password reset → "Customize action URL" to the Firebase default. Until then it mails
+   a link to a deleted route. "Edit user → set password" always works and needs nothing.
+
+9. **Set a GCP budget alert.** `describeInvite` and `redeemInvite` are unauthenticated and callable
+   from any origin until App Check is enforced (note: roadmap G4). `maxInstances` caps the blast
+   radius but converts a cost problem into an availability one — a flood saturating the pool blocks
+   real invitees. A budget alert is the cheapest real signal available before App Check.
+
+10. **An interrupted issue can strand a live link.** If the batch write is ever made non-atomic, a
+    partial failure leaves a redeemable token that nothing can revoke (see Q2). If a member reports a
+    link working that should have been replaced, escalate — do not simply re-issue.
 6. **A delegate cannot recover a privileged member.** If "Recuperar acceso" is refused with "solo un
    administrador puede…", that member holds a cargo, direct grants, or a privileged claim. An Admin
    must do it.
@@ -709,10 +930,10 @@ the same policy the checklist renders.
    accept requests from any origin.
 4. **No rate limiting beyond `maxInstances`.** Deliberate (Q3). If abuse ever materialises, the
    right fix is Cloud Armor or an App Check flip, not a Firestore counter.
-5. **An operator who opens an invite link while signed in is bounced to `/` with no explanation.**
-   `_auth.tsx`'s `beforeLoad` redirects any authenticated visitor, and a child route cannot remove a
-   parent's `beforeLoad`. Workaround: a private window. Fixing it means moving `/invitacion` out
-   from under `_auth` and re-implementing the signed-out guard there.
+5. ~~An operator who opens an invite link while signed in is bounced to `/`.~~ **FIXED in this
+   design** — see Q5. `/invitacion` is a top-level route, not an `_auth` child, so an operator can
+   open and verify the link they just produced. Kept in the list as a record of why the route sits
+   where it does: putting it back under `_auth` silently removes the only way to test a link.
 6. **TTL cleanup is best-effort.** Expiry is code-enforced, but a used invite document may linger
    past `purgeAt` by up to ~24 h. Harmless; noted so nobody reads the collection size as a bug.
 7. **`members.email` is still unconstrained by `firestore.rules`.** Every guard in this design works
@@ -721,12 +942,15 @@ the same policy the checklist renders.
 8. **Nothing disables or deletes an Auth account.** Unchanged from board-seat-delegation note 9: no
    `deleteUser` and no `updateUser({ disabled: true })` anywhere in `apps/beacon/src`. Revoking a
    delegate's code does not undo an account they caused to exist.
-9. **The invite projection is not backfilled.** Members provisioned before this lands have
-   `uid` set and no `invite` field, so they read as `never` — "Sin invitar" for someone who has an
-   account. The action label for that state is "Invitar acceso", which is merely inaccurate copy,
-   not a broken action (issuing works fine). A one-off backfill script writing
-   `invite: { status: "used", … }` for every member with a `uid` is possible and is deliberately not
-   in scope; the state self-corrects on the first issue.
+9. **The invite projection is not backfilled — handled by a derived state instead.** Members
+   provisioned before this lands have `uid` set and no `invite` field. Left alone they would read as
+   `never` / "Sin invitar" — meaning **the entire existing roster** shows as uninvited on day one,
+   making the new "Acceso" column useless at launch and prompting operators to re-issue links for
+   people who already have accounts (for a delegate, each such re-issue is the D3 impersonation
+   primitive). Rather than a migration, `memberInviteState` derives `"legacy"` from
+   `member.uid && !member.invite` and renders "Con acceso" / "Recuperar acceso" (Q6). One line, zero
+   writes. What genuinely is not fixed: a legacy member's *issue date and issuer are unknown*, so the
+   audit trail starts empty for them and fills on the first issue.
 
 ## Out of scope
 
