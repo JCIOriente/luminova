@@ -76,29 +76,35 @@ vi.mock("../hooks/use-set-member-positions", () => ({
 vi.mock("../../../lib/auth/auth", () => ({
   useAuth: () => ({ user: { uid: "admin" }, claims: { roles: ["Admin"] } }),
 }));
-vi.mock("../../../lib/auth/request-password-reset", () => ({
-  requestPasswordReset: vi.fn().mockResolvedValue(undefined),
-}));
-
-// The REAL useProvisionMemberLogin runs here, with only its two edges mocked: the callable and
-// the reset mail. Faking the hook itself is what let the "mail sent from a component-scoped
-// onSuccess" bug survive — a hand-written fake that invokes `opts.onSuccess` unconditionally
-// models a TanStack mutation that always has listeners, which is precisely the thing that is
-// not true. vi.hoisted because the factories run at import time.
+// The REAL useIssueMemberInvite runs here, with only its one edge mocked: the callable.
+// Faking the hook itself is what let the "sent from a component-scoped onSuccess" bug survive
+// — a hand-written fake that invokes `opts.onSuccess` unconditionally models a TanStack
+// mutation that always has listeners, which is precisely the thing that is not true.
+// vi.hoisted because the factories run at import time.
 const { callable } = vi.hoisted(() => ({ callable: vi.fn() }));
 vi.mock("firebase/functions", () => ({ httpsCallable: () => callable }));
 vi.mock("@luminova/firebase/functions", () => ({ getFunctionsService: () => ({}) }));
 
 import { MemberProfilePage } from "./member-profile-page";
 import { AbilityProvider } from "../../../lib/authz/ability-context";
-import { requestPasswordReset } from "../../../lib/auth/request-password-reset";
+const TOKEN = "t".repeat(43);
+const EXPIRES = new Date("2026-09-28T12:00:00Z").getTime();
+/** Derived from the jsdom origin exactly as InviteAccess builds it — hardcoding a host would
+ *  assert the test environment rather than the component. */
+const EXPECTED_URL = `${window.location.origin}/invitacion#${TOKEN}`;
 
-const mockedRequestPasswordReset = vi.mocked(requestPasswordReset);
-
-/** What beacon is pretending to return. The MAIL's outcome is the other knob
- *  (`mockedRequestPasswordReset`); together they decide whether a fallback link exists. */
-function provisionResolvesWith(result: { email: string; actionLink: string }) {
-  callable.mockResolvedValue({ data: result });
+/** What beacon is pretending to return. ONE success shape: there is no mail, so there is no
+ *  "sent vs fallback" knob any more. */
+function inviteResolvesWith(over: Partial<Record<string, unknown>> = {}) {
+  callable.mockResolvedValue({
+    data: {
+      email: "ana@jci.bo",
+      token: TOKEN,
+      expiresAt: EXPIRES,
+      replacedPreviousLink: false,
+      ...over,
+    },
+  });
 }
 
 function pageTree(claims: AuthClaims, queryClient: QueryClient) {
@@ -129,152 +135,131 @@ function renderPage(claims: AuthClaims = roleClaims("Admin")) {
 describe("MemberProfilePage — InviteAccess", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedRequestPasswordReset.mockResolvedValue(undefined);
     memberQuery.data = member();
+    inviteResolvesWith();
   });
 
-  // BLOCKING: the reset MAIL is the delivery path for every new login — a stated owner
-  // requirement that mail goes out for every new user. Returning an action link (which beacon
-  // does only for an ADMIN caller) used to short-circuit it with an early `return`, so this was
-  // the one surface where an Admin's invite sent nothing and the member waited for a mail that
-  // never came. The link is a manual FALLBACK on top, never a substitute.
-  it("BLOCKING: sends the reset mail even when beacon returns an action link", async () => {
-    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
-    renderPage();
-    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
-    await waitFor(() => expect(mockedRequestPasswordReset).toHaveBeenCalledWith("ana@jci.bo"));
-    expect(mockedRequestPasswordReset).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText("Invitación enviada por correo.")).toBeInTheDocument();
-    // BLOCKING, and the opposite of what this line used to assert: the link is NOT offered
-    // once the mail goes out. Firebase keeps only the most recent password-reset oobCode
-    // valid, so `sendPasswordResetEmail` above invalidated the one `actionLink` carries —
-    // offering it under "si no le llega el correo" hands the Admin a link that fails with
-    // auth/invalid-action-code, on the branch where the copy promises it works.
-    expect(screen.queryByRole("button", { name: /Copiar enlace/ })).not.toBeInTheDocument();
-    expect(screen.queryByText("https://example.com/link")).not.toBeInTheDocument();
-  });
-
-  it("sends the reset mail when beacon withholds the link (delegate caller)", async () => {
-    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "" });
-    renderPage();
-    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
-    await waitFor(() => expect(mockedRequestPasswordReset).toHaveBeenCalledWith("ana@jci.bo"));
-    expect(await screen.findByText("Invitación enviada por correo.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Copiar enlace/ })).not.toBeInTheDocument();
-  });
-
-  // BLOCKING: the dialog now exists ONLY on the mail-failure branch, so it must say so itself.
-  // Its modal `aria-hidden` takes the header alert out of the accessibility tree while it is
-  // open, and a dialog that only said "comparte este enlace" left a screen-reader user with no
-  // way to learn the mail had failed at all.
-  it("BLOCKING: the link dialog states the mail failed, not only the header", async () => {
-    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
-    mockedRequestPasswordReset.mockRejectedValue(new Error("network"));
+  it("shows the minted link, its expiry and the credential warning", async () => {
+    // The link IS the delivery mechanism now — there is no mail to confirm, and no "fallback"
+    // framing: it is always shown on success.
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(/No se pudo enviar el correo/)).toBeInTheDocument();
-    expect(within(dialog).getByText("https://example.com/link")).toBeInTheDocument();
-    // The header keeps its own copy for after the dialog is dismissed. getByText, not
-    // getByRole("alert"): the open modal's aria-hidden takes that alert out of the
-    // accessibility tree — which is the whole reason the dialog has to say it too.
+    expect(within(dialog).getByText(EXPECTED_URL)).toBeInTheDocument();
+    expect(within(dialog).getByText(/28 sept 2026/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/chat directo, no en un grupo/i)).toBeInTheDocument();
+  });
+
+  it("calls issueMemberInvite with the member id", async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
+    await waitFor(() => expect(callable).toHaveBeenCalledWith({ memberId: "m1" }));
+  });
+
+  // The VISIBLE half of our advantage over a Firebase oobCode, which invalidates the
+  // previously-sent code silently — with no record and no way to tell the operator. Without
+  // this the advantage is only theoretical.
+  it("says the previous link was revoked when one was replaced", async () => {
+    inviteResolvesWith({ replacedPreviousLink: true });
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
     expect(
-      screen.getByText(
-        "Se creó el acceso, pero no se pudo enviar el correo. Comparte el enlace manualmente.",
-      ),
+      await screen.findByRole("heading", { name: "Enlace nuevo — el anterior fue revocado" }),
     ).toBeInTheDocument();
   });
 
-  it("points at an administrator when the mail fails and there is no link to share", async () => {
-    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "" });
-    mockedRequestPasswordReset.mockRejectedValue(new Error("network"));
+  it("does NOT claim a revocation on a first issue", async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
+    expect(await screen.findByRole("heading", { name: "Enlace de acceso" })).toBeInTheDocument();
+    expect(screen.queryByText(/el anterior fue revocado/)).not.toBeInTheDocument();
+  });
+
+  // BLOCKING: everything the operator must see is inside the mutation, so `isPending` covers
+  // it. A step left outside used to re-enable the button the moment the callable resolved,
+  // letting a second click interleave with the first attempt's tail.
+  it("BLOCKING: stays disabled until the callable settles", async () => {
+    let settle: (v: unknown) => void = () => {};
+    callable.mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
+    expect(screen.getByRole("button", { name: "Generando…" })).toBeDisabled();
+    await act(async () => {
+      settle({
+        data: {
+          email: "ana@jci.bo",
+          token: TOKEN,
+          expiresAt: EXPIRES,
+          replacedPreviousLink: false,
+        },
+      });
+    });
+    expect(await screen.findByText(EXPECTED_URL)).toBeInTheDocument();
+  });
+
+  it("names the refusal when beacon refuses on purpose", async () => {
+    // Three of beacon's guards are invisible to the client (adoption, self-heal, a privileged
+    // Auth account), so a tagged refusal is the ONLY way the operator learns why — the
+    // dead-end generic "no se pudo" is what the reason table exists to remove.
+    callable.mockRejectedValue(
+      Object.assign(new Error("denied"), {
+        details: { reason: "privileged-account-requires-admin" },
+      }),
+    );
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/permisos especiales/i);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("falls back to a generic message for an untagged failure", async () => {
+    callable.mockRejectedValue(new Error("network"));
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Se creó el acceso, pero no se pudo enviar el correo. Pídele a un administrador que lo reenvíe.",
+      "No se pudo generar el enlace de acceso.",
     );
   });
 
-  // BLOCKING: the mail is INSIDE the mutation, so `isPending` covers it. It used to be a
-  // floating promise the mutation did not track, so the button re-enabled the moment the
-  // CALLABLE resolved and a second click could interleave — attempt one's mail resolving into
-  // `sent` while attempt two's rejected into `error`, leaving the header asserting both. The
-  // window is closed structurally now rather than by a `sending` flag beside it, and this is
-  // what pins that: the callable has already resolved here and the button is still disabled.
-  it("BLOCKING: stays disabled until the reset mail settles, not just the callable", async () => {
-    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "" });
-    let settleMail = () => {};
-    mockedRequestPasswordReset.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          settleMail = () => resolve();
-        }),
-    );
-    renderPage();
-    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
-    await waitFor(() => expect(mockedRequestPasswordReset).toHaveBeenCalled());
-    expect(screen.getByRole("button", { name: "Generando…" })).toBeDisabled();
-    await act(async () => {
-      settleMail();
-    });
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Invitar acceso" })).toBeEnabled(),
-    );
-    expect(screen.getByText("Invitación enviada por correo.")).toBeInTheDocument();
-  });
-
-  // The invariant the `attempt` ref and the resets exist to hold, asserted across the retry
-  // that the re-enabled button makes reachable: the header must never claim a failure and a
-  // success at the same time. `invite()` clears both up front, so the second attempt's outcome
-  // fully replaces the first one's rather than accumulating beside it.
-  it("BLOCKING: never shows the sent confirmation and the failure alert together", async () => {
-    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "" });
-    mockedRequestPasswordReset.mockRejectedValue(new Error("network"));
-    renderPage();
-    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
-    expect(screen.queryByText("Invitación enviada por correo.")).not.toBeInTheDocument();
-
-    mockedRequestPasswordReset.mockResolvedValue(undefined);
-    await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
-    expect(await screen.findByText("Invitación enviada por correo.")).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  });
-
-  // Dismissing the dialog must make it STAY dismissed. It is `open={link !== null && !dismissed}`
+  // Dismissing must make it STAY dismissed: the dialog is `open={link !== null && !dismissed}`
   // — derived from the mutation's own data plus one flag — so a dismiss that did not set the
   // flag would leave a dialog impossible to close at all.
   it("BLOCKING: closes the link dialog, and it stays closed", async () => {
-    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
-    mockedRequestPasswordReset.mockRejectedValue(new Error("network"));
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("https://example.com/link")).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(screen.queryByText("https://example.com/link")).not.toBeInTheDocument();
+    expect(screen.queryByText(EXPECTED_URL)).not.toBeInTheDocument();
   });
 
-  // A second attempt must not re-open the dialog on the FIRST attempt's credential — an action
-  // link is a bearer credential for the account. The mutation replaces `data` wholesale, and
-  // `dismissed` is reset per click, so the only link that can render is the current one's.
-  it("BLOCKING: a later successful invite does not resurrect the previous action link", async () => {
-    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "https://example.com/link" });
-    mockedRequestPasswordReset.mockRejectedValue(new Error("network"));
+  // BLOCKING: a second attempt must never re-open the dialog on the FIRST attempt's token — a
+  // link is a bearer credential. The mutation replaces `data` wholesale and `dismissed` resets
+  // per click, so only the current token can render.
+  it("BLOCKING: a later invite does not resurrect the previous token", async () => {
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
-    mockedRequestPasswordReset.mockResolvedValue(undefined);
+    const secondToken = "s".repeat(43);
+    inviteResolvesWith({ token: secondToken });
     await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
-    await waitFor(() =>
-      expect(screen.getByText("Invitación enviada por correo.")).toBeInTheDocument(),
-    );
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.queryByText("https://example.com/link")).not.toBeInTheDocument();
+    expect(
+      await screen.findByText(`${window.location.origin}/invitacion#${secondToken}`),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(EXPECTED_URL)).not.toBeInTheDocument();
+  });
+
+  it("renders the invite-state badge beside the action", () => {
+    // A member with a uid and no projection is the ENTIRE pre-feature roster.
+    renderPage();
+    expect(screen.getByText("Sin invitar")).toBeInTheDocument();
   });
 });
 
@@ -318,70 +303,70 @@ describe("MemberProfilePage — the positions query failed", () => {
   });
 });
 
-// A successful invite makes `memberProvisionBlocked` TRUE — beacon writes `member.uid`, and
-// `hasLogin` is the first clause of the gate. So the flag that decides whether to offer the
-// button flips as a RESULT of pressing it. It therefore cannot gate the mount.
+// A successful invite used to make `memberProvisionBlocked` TRUE — beacon writes member.uid,
+// and `hasLogin` was the first clause of the gate — so the flag that decided whether to offer
+// the button flipped as a RESULT of pressing it. D3 removed that conjunct, so the button now
+// SURVIVES its own success and relabels instead. Both halves are pinned here: the result must
+// outlive the refetch, and the gate must still be a gate for the conjuncts that remain.
 describe("MemberProfilePage — InviteAccess survives its own success", () => {
   // A delegate, not an Admin: memberProvisionBlocked short-circuits to false for an Admin, so
-  // the flag never flips for them and none of this is reachable.
+  // none of the remaining conjuncts are reachable for them.
   const DELEGATE: AuthClaims = { roles: ["Member"], perms: ["read:Member", "create:MemberLogin"] };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedRequestPasswordReset.mockResolvedValue(undefined);
     memberQuery.data = member();
+    inviteResolvesWith();
   });
 
-  // BLOCKING: the whole finding. beacon created the login but the reset MAIL failed, and beacon
-  // withholds the action link from a delegate — so this alert is the ONLY notice anywhere that
-  // an account now exists with no password mail sent. Gating the mount on `!inviteBlocked`
-  // unmounted the component on the very next refetch and deleted that notice, leaving a page
-  // that looks like nothing happened, on a member who can no longer be invited.
-  it("BLOCKING: keeps the mail-failure alert after `blocked` flips true", async () => {
-    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "" });
-    mockedRequestPasswordReset.mockRejectedValue(new Error("network"));
+  // BLOCKING: the link is the ONLY delivery mechanism, and beacon's write triggers a refetch
+  // of the very member doc this component keys on. If that refetch unmounted or reset
+  // InviteAccess, the operator would lose the token — which nothing stores in plaintext and
+  // nothing can re-derive. The only remedy would be re-issuing, revoking a link they may have
+  // already sent.
+  it("BLOCKING: keeps the minted link visible across the refetch that follows it", async () => {
     const { refetchMember } = renderPage(DELEGATE);
-
-    // Not blocked yet: no uid, no grants, no seat — the button is offered.
-    expect(screen.getByRole("button", { name: "Invitar acceso" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(
-      "Se creó el acceso, pero no se pudo enviar el correo. Pídele a un administrador que lo reenvíe.",
-    );
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(EXPECTED_URL)).toBeInTheDocument();
 
-    // What beacon actually did: the member now carries a uid, so the next refetch blocks.
+    // What beacon actually did: the member now carries a uid and an invite projection.
     memberQuery.data = member({ uid: "minted-uid" });
     refetchMember();
 
-    // The BUTTON is gone — the callable would refuse a second attempt from this caller…
-    expect(screen.queryByRole("button", { name: /acceso/ })).not.toBeInTheDocument();
-    // …and the alert is STILL the same node, not a re-created one: unmounting InviteAccess
-    // would have reset `error` to null and rendered nothing at all.
-    expect(screen.getByRole("alert")).toBe(alert);
-    expect(screen.getByRole("alert")).toHaveTextContent(/no se pudo enviar el correo/);
+    // Same node, not a re-created one: unmounting would have dropped the token for good.
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(within(screen.getByRole("dialog")).getByText(EXPECTED_URL)).toBeInTheDocument();
   });
 
-  // The success half of the same sequence. Same unmount, same erasure — the delegate would be
-  // left unable to tell a completed invite from one that never ran.
-  it("BLOCKING: keeps the sent confirmation after `blocked` flips true", async () => {
-    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "" });
+  it("D3: keeps offering the action to a DELEGATE after the member gains a login", async () => {
+    // Before D3 the button vanished here, which is exactly how delegated recovery would have
+    // shipped as dead code.
     const { refetchMember } = renderPage(DELEGATE);
     await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
-    expect(await screen.findByText("Invitación enviada por correo.")).toBeInTheDocument();
+    await screen.findByRole("dialog");
+    await userEvent.keyboard("{Escape}");
 
     memberQuery.data = member({ uid: "minted-uid" });
     refetchMember();
 
-    expect(screen.getByText("Invitación enviada por correo.")).toBeInTheDocument();
+    // "legacy" state — a uid with no projection — so the label becomes recovery.
+    expect(screen.getByRole("button", { name: "Recuperar acceso" })).toBeInTheDocument();
+  });
+
+  // The control: the gate is STILL a gate. Only the hasLogin conjunct moved, so a delegate is
+  // still refused for the conjuncts that remain.
+  it("still hides the button from a delegate for a POWER-SEATED member", () => {
+    memberQuery.data = member({
+      uid: "existing-uid",
+      positions: { [currentTermKey()]: { cargoId: POWER_CARGO.id, comisionIds: [] } },
+    });
+    renderPage(DELEGATE);
     expect(screen.queryByRole("button", { name: /acceso/ })).not.toBeInTheDocument();
   });
 
-  // The control: the gate is still a gate. A member who was ALREADY provisioned before the page
-  // loaded gets no button at all — `blocked` hides it on the first render too, not only after a
-  // flip, so moving it off the mount did not turn it into a no-op.
-  it("hides the button from the first render for an already-provisioned member", () => {
-    memberQuery.data = member({ uid: "existing-uid" });
+  it("still hides the button from a delegate for a member carrying direct grants", () => {
+    memberQuery.data = member({ uid: "existing-uid", roleIds: ["custom"] });
     renderPage(DELEGATE);
     expect(screen.queryByRole("button", { name: /acceso/ })).not.toBeInTheDocument();
   });
@@ -392,25 +377,19 @@ describe("MemberProfilePage — InviteAccess survives its own success", () => {
     expect(screen.queryByRole("button", { name: /acceso/ })).not.toBeInTheDocument();
   });
 
-  // An ADMIN is never blocked, so the button stays offered as "Reenviar acceso" after the same
-  // flip — the branch that proves `blocked`, not merely `member.uid`, is what hides it.
-  it("keeps offering a resend to an Admin after the same flip", async () => {
-    provisionResolvesWith({ email: "ana@jci.bo", actionLink: "" });
+  it("keeps offering the action to an Admin after the same flip", async () => {
     const { refetchMember } = renderPage();
     await userEvent.click(screen.getByRole("button", { name: "Invitar acceso" }));
-    expect(await screen.findByText("Invitación enviada por correo.")).toBeInTheDocument();
+    await screen.findByRole("dialog");
+    await userEvent.keyboard("{Escape}");
 
     memberQuery.data = member({ uid: "minted-uid" });
     refetchMember();
 
-    expect(screen.getByRole("button", { name: "Reenviar acceso" })).toBeInTheDocument();
-    expect(screen.getByText("Invitación enviada por correo.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Recuperar acceso" })).toBeInTheDocument();
   });
 });
 
-// The four call sites all pass `allowReplacePowerCargo={isAdmin}` — a value the two form unit
-// tests receive as a prop and therefore cannot police. These cover the profile page's two, the
-// only place a delegate meets a seated member.
 describe("MemberProfilePage — cargo editor for a board-seat delegate", () => {
   const term = currentTermKey();
   const seatedOnPower = () =>
