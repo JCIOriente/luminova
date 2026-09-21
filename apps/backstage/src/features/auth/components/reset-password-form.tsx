@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, Button, Field, Icon, Input } from "@luminova/ui";
-import { resetSchema, type ResetInput } from "../types/reset-schema";
+import { setPasswordSchema, type SetPasswordInput } from "../types/set-password-schema";
 import { confirmReset, verifyResetCode } from "../../../lib/auth/confirm-password-reset";
 import { authErrorMessage } from "../../../lib/auth/auth-errors";
 import { PasswordChecklist } from "./password-checklist";
@@ -29,8 +29,8 @@ export function ResetPasswordForm({ oobCode }: { oobCode: string }) {
     handleSubmit,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<ResetInput>({
-    resolver: zodResolver(resetSchema),
+  } = useForm<SetPasswordInput>({
+    resolver: zodResolver(setPasswordSchema),
     defaultValues: { password: "", confirmPassword: "" },
   });
 

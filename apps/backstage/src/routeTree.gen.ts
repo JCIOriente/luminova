@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as InvitacionRouteImport } from './routes/invitacion'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
@@ -31,6 +32,11 @@ import { Route as AppMembersMemberIdRouteImport } from './routes/_app.members_.$
 import { Route as AppActivitiesIdRouteImport } from './routes/_app.activities_.$id'
 import { Route as AppInitiativesTypeIdRouteImport } from './routes/_app.initiatives_.$type.$id'
 
+const InvitacionRoute = InvitacionRouteImport.update({
+  id: '/invitacion',
+  path: '/invitacion',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
   getParentRoute: () => rootRouteImport,
@@ -137,6 +143,7 @@ const AppInitiativesTypeIdRoute = AppInitiativesTypeIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/invitacion': typeof InvitacionRoute
   '/activities': typeof AppActivitiesRoute
   '/allies': typeof AppAlliesRoute
   '/config': typeof AppConfigRoute
@@ -158,6 +165,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
+  '/invitacion': typeof InvitacionRoute
   '/activities': typeof AppActivitiesRoute
   '/allies': typeof AppAlliesRoute
   '/config': typeof AppConfigRoute
@@ -181,6 +189,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
+  '/invitacion': typeof InvitacionRoute
   '/_app/activities': typeof AppActivitiesRoute
   '/_app/allies': typeof AppAlliesRoute
   '/_app/config': typeof AppConfigRoute
@@ -205,6 +214,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/invitacion'
     | '/activities'
     | '/allies'
     | '/config'
@@ -226,6 +236,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/invitacion'
     | '/activities'
     | '/allies'
     | '/config'
@@ -248,6 +259,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/_auth'
+    | '/invitacion'
     | '/_app/activities'
     | '/_app/allies'
     | '/_app/config'
@@ -272,10 +284,18 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
+  InvitacionRoute: typeof InvitacionRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/invitacion': {
+      id: '/invitacion'
+      path: '/invitacion'
+      fullPath: '/invitacion'
+      preLoaderRoute: typeof InvitacionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_auth': {
       id: '/_auth'
       path: ''
@@ -483,6 +503,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
+  InvitacionRoute: InvitacionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
