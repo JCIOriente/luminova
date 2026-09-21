@@ -70,10 +70,22 @@ machine-enforced yet — hold them by judgment + `bundle-budget-watcher`:
 
 | Budget | spotlight | backstage |
 |--------|-----------|-----------|
-| Eager JS (entry + modulepreloads) | ≤ **108 kB gz** (now 104) | ≤ **162 kB gz** (now 157 — full Firebase SDK split so firestore/storage/functions load lazily; `/me` route de-eagered) |
+| Eager JS (entry + modulepreloads) | ≤ **108 kB gz** (now 104) | ≤ **162 kB gz** (now 159 — full Firebase SDK split so firestore/storage/functions load lazily; `/me` route de-eagered) |
 | Initial CSS (`index` chunk) | ≤ **17 kB gz** (now 16 — +1.1 kB for the /about "El Masthead" Directiva section: token-based hand-authored gradients/ledger/chip layout, a permanent leadership page section) | ≤ 15 kB gz (now 13) |
 | Any single route chunk | ≤ 40 kB gz | ≤ 40 kB gz |
 | New runtime dependency | justify if it adds > 10 kB gz to eager JS | same |
+
+**Invite-link onboarding (2026-09).** Adding `/invitacion` and removing `/forgot-password` +
+`/reset` measured **159 kB gz** backstage eager, against 160 before — net −1 kB. All three
+routes are code-split, so neither the addition nor the deletion moves the eager set much;
+the deletion does NOT "pay for" the addition, and the number above is measured, not derived.
+
+Worth recording for whoever tunes this next: setting a password now pulls the whole backstage
+eager shell (~159 kB gz) plus the route chunk, over a Bolivian mobile link, for a one-field
+form — and the audience changed from "an admin who lost their password" to **every person who
+ever joins the chapter**. That is not a regression (`/reset` had exactly the same property)
+and it is not in scope, but it is the strongest remaining argument for a separate lightweight
+entry point.
 
 Breaching the eager-JS budget fails CI. A deliberate breach means raising the budget **both**
 here and in `tools/scripts/check-bundle-budget.sh` (the script hardcodes these numbers — keep the
