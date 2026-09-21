@@ -10,14 +10,30 @@ The repo has a documentation **surplus**, not a deficit: ~4,000 lines across 13
 top-level docs, ~30 specs, ~24 plans, ~34 status handoffs. What it lacks is a way
 *in*:
 
-- No index. A newcomer facing `docs/` has no idea which of 13 files answers their
-  question.
-- No onboarding path. Nothing takes a reader from "cloned the repo" to "opened a PR."
-- No rendered diagrams. `docs/architecture.md` carries ASCII art that cannot be
-  embedded in a deck, zoomed, or maintained.
+- No index inside `docs/`. A reader facing 13 files has no map of which is living
+  reference and which is a historical record.
+- No rendered diagrams. `docs/architecture.md` and `README.md` carry ASCII art that
+  cannot be embedded in a deck, zoomed, or maintained.
 - No decision record. The *why* behind Firestore, the `perms` claim, the lite SDK,
   worktree-first lives in scattered specs, status handoffs and PR threads.
-- Nothing addressed to a non-engineer. The Directiva cannot read `data-models.md`.
+- Nothing addressed to the Directiva **operating** the platform. `README.es.md` speaks
+  to other chapters adopting the software; nobody documents how to run it day to day.
+
+**Corrected 2026-09-20, mid-implementation.** The first draft of this spec also claimed
+"no onboarding path" and "nothing addressed to a non-engineer." Both were false, and the
+error came from writing the problem statement without reading the repository root. The
+repo already ships `README.md` (299 lines), `README.es.md` (214 lines, Spanish),
+`CONTRIBUTING.md`, `SECURITY.md` and `CODE_OF_CONDUCT.md`. `CONTRIBUTING.md` *is* the
+onboarding guide, and it is more accurate than the replacement this spec proposed —
+it documents the Java 21+ emulator requirement, the `.env.local.example` files that ship
+filled in, the correct `pnpm turbo run build --filter="./packages/*"` incantation for a
+fresh worktree, and the fact that `branch-guard.sh` only fires inside a Claude Code
+session rather than for all contributors.
+
+Consequences, applied: **Phase 1 is cancelled** (see Deliverables), the docs router is
+demoted to a directory map rather than a second copy of CONTRIBUTING's doc table, and
+the business track drops `resumen.md` and `hoja-de-ruta.md` as redundant with
+`README.es.md`.
 
 The unstated driver for both audiences is the same: **JCI boards rotate annually.**
 "Can a new volunteer ramp up without the current maintainer" and "what happens when
@@ -25,8 +41,9 @@ this board leaves" are one question asked twice.
 
 ## Goals
 
-1. An engineer new to the project can make their first correct PR from documentation
-   alone.
+1. A reader inside `docs/` can tell living reference from historical record, and find
+   the right file without opening all thirteen. (First-contribution onboarding is
+   already `CONTRIBUTING.md`'s job and stays there.)
 2. An engineer reviewing the architecture can see the real trust boundaries and read
    why each major call was made.
 3. The build can be presented to an engineering audience without writing slides from
@@ -71,15 +88,24 @@ Built once; every later phase and both tracks consume it.
 Claude Artifacts, so one source feeds the docs, the deck and the business one-pager
 without a second copy. `architecture.md` ASCII art is replaced by embedded Mermaid.
 
-### Phase 1 — Recruit contributors
+### Phase 1 — Recruit contributors — **CANCELLED 2026-09-20**
 
-| Artifact | Path | Contents |
-|----------|------|----------|
-| Onboarding guide | `docs/onboarding.md` | Node 24 / `.nvmrc`, `pnpm install`, `.env.local`, emulator ports, the first-run trap (`@luminova/auth`, `types`, `utils` must be built before app vitest in a fresh worktree), worktree-first, branch naming, review-router stamp, PR body template. |
-| Front door | `CONTRIBUTING.md` | Thin; points at `docs/onboarding.md` and `docs/README.md`. |
+Proposed a `docs/onboarding.md` plus a thin `CONTRIBUTING.md`. Both already exist and
+are better than the proposal. `CONTRIBUTING.md` covers prerequisites (including the
+Java 21+ requirement this spec missed), setup from the `.env.local.example` files,
+running the stack, the quality gate, repository layout, conventions, and how a change
+gets merged. `README.md` covers the quickstart, including the seeded admin credentials
+and the one manual first-run step.
 
-Success test: a reader who has never seen the repo follows it end-to-end and lands on
-a green `pnpm pr-tests`.
+A draft `docs/onboarding.md` was written and deleted before commit. It duplicated
+`CONTRIBUTING.md` and contradicted it twice: it told contributors to ask a maintainer
+for env values that ship in the repo, and it presented the git hooks as guards that
+block all contributors when they only run inside a Claude Code session. That second
+claim is exactly the failure guardrail 6 names — a documented guard that does not
+gate what it says it gates.
+
+**Nothing replaces Phase 1.** The onboarding path exists; the gap was in this spec's
+research, not in the repo.
 
 ### Phase 2 — Architecture review
 
@@ -120,14 +146,19 @@ DesignSync is **not** used here — it targets `@luminova/ui` components, not do
 
 ### Business track (Spanish) — parallel-safe
 
+Re-scoped 2026-09-20 against `README.es.md`, which already covers el problema, cómo
+funciona, características and hoja de ruta in Spanish.
+
 | Artifact | Path | Purpose |
 |----------|------|---------|
-| `resumen.md` | `docs/negocio/` | One page: three apps, three audiences, plain language. |
-| `capacidades-por-rol.md` | `docs/negocio/` | What a President / Secretary / PM / Member can actually do today. |
-| `impacto.md` | `docs/negocio/` | The buy-in doc: Recognition Engine, participation ledger, `/impacto`, Directiva showcase, leads capture — framed as what the chapter can now report upward. |
-| `manual-administracion.md` | `docs/negocio/` | Non-technical runbook: invite a member, run a QR check-in, edit site config, publish an ally. |
-| `hoja-de-ruta.md` | `docs/negocio/` | Roadmap as outcomes. No PR numbers, no `C1-lite` shorthand. |
-| `costos-y-continuidad.md` | `docs/negocio/` | Firebase spend, who can deploy, where secrets live, bus factor. |
+| `capacidades-por-rol.md` | `docs/negocio/` | What a President / Secretary / PM / Member can actually do today. Nothing else maps roles to capabilities. |
+| `manual-administracion.md` | `docs/negocio/` | Non-technical runbook: invite a member, run a QR check-in, edit site config, publish an ally, triage leads. Nothing else is a runbook. |
+| `impacto.md` | `docs/negocio/` | What the chapter can **report upward**, and the provenance of each figure. Distinct from `README.es.md` "Características", which lists capabilities for chapters *adopting* the software; this is about evidence for a board presenting results. Links there rather than repeating it. |
+| `costos-y-continuidad.md` | `docs/negocio/` | Firebase spend, who can deploy, where secrets live, bus factor. Nothing else addresses continuity. |
+
+**Dropped as redundant with `README.es.md`:** `resumen.md` (duplicates "El problema" +
+"Cómo funciona") and `hoja-de-ruta.md` (duplicates "Hoja de ruta"). `docs/README.md`
+links to `README.es.md` for both instead.
 
 ## Resolved gaps
 
@@ -145,9 +176,14 @@ Three gaps were raised on 2026-09-20. Defaults taken, revisable:
 
 ## Order of work
 
-Phase 0 first — it is the only phase the others depend on. Phases 1, 2 and the business
+Phase 0 first — it is the only phase the others depend on. Phase 2 and the business
 track are independent of each other and parallel-safe once Phase 0 lands. Phase 3 is
-last: the deck reuses Phase 0 diagrams and Phase 2 rationale.
+last: the deck reuses Phase 0 diagrams and Phase 2 rationale. (Phase 1 cancelled.)
+
+**Research rule, added after the Phase 1 error:** before writing any document, read the
+repository root — `README.md`, `README.es.md`, `CONTRIBUTING.md`, `SECURITY.md` — and
+grep for an existing home for the content. A new document must justify itself against
+what already ships, not against what the spec assumed.
 
 Checkpoint commit per phase; no batch exceeds 10 modified files.
 

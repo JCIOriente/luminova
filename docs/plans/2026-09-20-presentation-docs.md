@@ -387,7 +387,19 @@ Stage `docs/README.md` and commit with message:
 
 ---
 
-## Task 8: Onboarding guide
+## Task 8: Onboarding guide — **CANCELLED, do not execute**
+
+`CONTRIBUTING.md` and `README.md` already cover every step below, and more accurately:
+the Java 21+ emulator requirement, the `.env.local.example` files that ship filled in,
+`pnpm turbo run build --filter="./packages/*"` as the fresh-worktree build, and the fact
+that `branch-guard.sh` only fires inside a Claude Code session rather than for every
+contributor. A draft was written and deleted before commit.
+
+See the cancellation note in the spec. The remainder of this task is kept only so the
+record shows what was proposed and why it was dropped.
+
+<details>
+<summary>Original Task 8 (not to be executed)</summary>
 
 **Files:**
 - Create: `docs/onboarding.md`
@@ -458,6 +470,8 @@ Expected: `ok — Node <major> and <pm> both referenced`
 
 Stage `docs/onboarding.md` and `CONTRIBUTING.md` and commit with message:
 `docs: add onboarding guide and contributing front door`
+
+</details>
 
 ---
 
@@ -555,18 +569,16 @@ Stage `docs/decisions` and commit with message:
 ## Task 10: Business track (Spanish)
 
 **Files:**
-- Create: `docs/negocio/resumen.md`, `capacidades-por-rol.md`, `impacto.md`,
-  `manual-administracion.md`, `hoja-de-ruta.md`, `costos-y-continuidad.md`
+- Create: `docs/negocio/capacidades-por-rol.md`, `impacto.md`,
+  `manual-administracion.md`, `costos-y-continuidad.md`
 
-All six in **Spanish**. No code identifiers in prose except where naming a screen the
+All four in **Spanish**. No code identifiers in prose except where naming a screen the
 reader will see. No PR numbers.
 
-- [ ] **Step 1: `resumen.md`**
-
-One page. The three surfaces in plain language — the public site, the admin panel, the
-member area — mapped to their three audiences. What problem the platform replaced
-(spreadsheets and WhatsApp for an annually-rotating volunteer board). One embedded
-container diagram, simplified.
+**Re-scoped 2026-09-20.** `resumen.md` and `hoja-de-ruta.md` were **dropped** —
+`README.es.md` already covers "El problema", "Cómo funciona", "Características" and
+"Hoja de ruta" in Spanish. Read `README.es.md` in full before writing any of the four
+below, and link to it rather than restating it.
 
 - [ ] **Step 2: `capacidades-por-rol.md`**
 
@@ -597,11 +609,6 @@ Numbered, non-technical procedures: invite a member, register attendance with QR
 check-in, edit the public site's content, publish an ally, review incoming contacts.
 Each step gets a screenshot slot in the exact form `<!-- SCREENSHOT: descripción -->`
 so the slots are greppable for a later capture pass.
-
-- [ ] **Step 5: `hoja-de-ruta.md`**
-
-Outcomes, one page, from `docs/roadmap.md` — translated into results the board cares
-about. Strip PR numbers, `C1-lite`-style shorthand and workstream letters.
 
 - [ ] **Step 6: `costos-y-continuidad.md`**
 
