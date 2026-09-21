@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { isValidRole, type Role } from "@luminova/auth/roles";
 import { isSafeDocId } from "./firestore-util.js";
+import { ADOPTABLE_ROLES, hasDirectGrants, readCargoIds } from "./invite-guards.js";
 import { memberEmailMalformed, provisionBlocked } from "./provision-errors.js";
 import { callerIsAdmin, requireAdminOrPerm } from "./callable-auth.js";
 import { firestoreProvisionDeps } from "./provision-deps.js";
@@ -85,80 +86,9 @@ export interface ProvisionDeps {
  *  only Member and Scanner survive. Everything else must be re-earned through
  *  claims-sync. */
 function adoptedClaims(existing: RawClaims | undefined): RawClaims {
-  const roles = Array.isArray(existing?.roles)
-    ? existing.roles.filter((r) => r === "Member" || r === "Scanner")
-    : [];
+  const allowed = new Set<unknown>(ADOPTABLE_ROLES);
+  const roles = Array.isArray(existing?.roles) ? existing.roles.filter((r) => allowed.has(r)) : [];
   return { roles };
-}
-
-/** Whether this member carries DIRECT grants — a custom role or a per-member override.
- *
- *  The second half of the privileged-member question. syncMemberClaims mints from two
- *  independent sources: trusted cargo grants become `roles`, and `roleIds` +
- *  `permissionOverrides` become `perms` (resolveMemberPerms). A guard that reads only the
- *  cargo half leaves the other wide open — and `roleIds`/`permissionOverrides` are exactly
- *  what the Admin-only panel writes, so "granted but not yet invited" is as ordinary a state
- *  as "seated but not yet invited".
- *
- *  Fail-closed on any shape that is not a clean empty: a present-but-unparseable `roleIds`
- *  must refuse, not read as "no grants". Absent and null are the genuine empties — the rules'
- *  unchanged()/touched() gap admits an explicit null, and parseMember resolves that to []. */
-function hasDirectGrants(member: Record<string, unknown>): boolean {
-  const roleIds = member.roleIds;
-  if (roleIds !== undefined && roleIds !== null) {
-    if (!Array.isArray(roleIds)) return true;
-    if (roleIds.length > 0) return true;
-  }
-  const overrides = member.permissionOverrides;
-  if (overrides === undefined || overrides === null) return false;
-  // Array before the typeof: `typeof [] === "object"`, so a legacy/console
-  // `permissionOverrides: ["manage:all"]` would reach `.grant === undefined` and read as
-  // ungranted — failing OPEN, which is what the roleIds branch above refuses to do.
-  if (Array.isArray(overrides) || typeof overrides !== "object") return true;
-  const grant = (overrides as { grant?: unknown }).grant;
-  if (grant === undefined || grant === null) return false;
-  if (!Array.isArray(grant)) return true;
-  return grant.length > 0;
-}
-
-/** Every cargo id in the member's positions map, for the power-seat guard.
- *
- *  EVERY term, not just the current one — and that is the point. `syncMemberClaims` reads
- *  `positions[currentTermKey()]` at TRIGGER time, so a future-term entry is invisible today
- *  and mints on the UTC-year rollover. All client write lanes are term-pinned
- *  (`positionsDelta().hasOnly()` on update, `keys().hasOnly()` on create, both binding Admins
- *  too), so such a map takes a console edit, an admin-SDK write or a legacy migration — the
- *  same reachability this file already fail-closes on for a malformed cargoId, and a
- *  console-authored next-term board slate is the more plausible of the two.
- *
- *  Yields:
- *    a usable id   — read its grants.
- *    ""            — present but unreadable (a non-object entry, a non-string or empty
- *                    cargoId, or an id `isSafeDocId` rejects). Deliberately NOT skipped: ""
- *                    fails `isSafeDocId` at the port too, so the guard refuses. A malformed
- *                    shape must never read as "no cargo" — that is the guard's own bypass.
- *  A genuinely absent cargo (no map, no entry, or `cargoId` absent/null) yields nothing, so an
- *  unseated member produces an empty list and the delegate may enrol them. */
-function readCargoIds(member: Record<string, unknown>): string[] {
-  const positions = member.positions;
-  if (positions === undefined || positions === null) return [];
-  if (typeof positions !== "object") return [""];
-  const ids: string[] = [];
-  for (const term of Object.values(positions as Record<string, unknown>)) {
-    if (term === undefined || term === null) continue;
-    if (typeof term !== "object") {
-      ids.push("");
-      continue;
-    }
-    const cargoId = (term as { cargoId?: unknown }).cargoId;
-    if (cargoId === undefined || cargoId === null) continue;
-    if (typeof cargoId !== "string" || cargoId.length === 0) {
-      ids.push("");
-      continue;
-    }
-    ids.push(isSafeDocId(cargoId) ? cargoId : "");
-  }
-  return [...new Set(ids)];
 }
 
 /** Provision (or re-provision) a member's login. Refuses to relink a member whose
