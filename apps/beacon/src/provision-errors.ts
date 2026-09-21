@@ -20,7 +20,7 @@ import type { InviteBlockReason, ProvisionBlockReason } from "@luminova/types";
  *  routing every tagged throw through this helper is what makes renaming one a compile
  *  error on both ends instead of a silent degradation to the generic fallback. */
 export function provisionBlocked(
-  code: "failed-precondition" | "permission-denied",
+  code: "failed-precondition" | "permission-denied" | "not-found",
   message: string,
   reason: ProvisionBlockReason,
 ): HttpsError {
@@ -40,7 +40,7 @@ export function inviteBlocked(reason: InviteBlockReason, message: string): Https
 }
 
 function taggedRefusal(
-  code: "failed-precondition" | "permission-denied",
+  code: "failed-precondition" | "permission-denied" | "not-found",
   message: string,
   reason: ProvisionBlockReason | InviteBlockReason,
 ): HttpsError {

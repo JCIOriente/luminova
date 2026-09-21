@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { PASSWORD_RULE_IDS, passwordPolicyViolations } from "@luminova/types/password-policy";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_RULE_IDS,
+  passwordPolicyViolations,
+} from "@luminova/types/password-policy";
 import { PASSWORD_RULES, passwordSchema } from "./password-policy";
 
 describe("passwordSchema", () => {
@@ -28,5 +32,25 @@ describe("passwordSchema", () => {
       const failedHere = PASSWORD_RULES.filter((r) => !r.test(value)).map((r) => r.id);
       expect(failedHere).toEqual(passwordPolicyViolations(value));
     }
+  });
+
+  // The half this module originally left out. Importing only `passwordPolicyViolations` gave a
+  // password that ticks all four checklist rules and is still refused by the callable — and
+  // `invite-password-weak`'s copy says "revisa la lista de abajo" while every item in that
+  // list is green. An unresolvable dead end on the only onboarding path.
+  it("BLOCKING: rejects an over-long password the four rules all accept", () => {
+    const tooLong = "Abcde1".repeat(300);
+    expect(tooLong.length).toBeGreaterThan(PASSWORD_MAX_LENGTH);
+    // Every checklist row reads green...
+    expect(passwordPolicyViolations(tooLong)).toEqual([]);
+    expect(PASSWORD_RULES.every((r) => r.test(tooLong))).toBe(true);
+    // ...and the form must still refuse it, exactly as beacon does.
+    expect(passwordSchema.safeParse(tooLong).success).toBe(false);
+  });
+
+  it("accepts a password at the maximum length", () => {
+    const atLimit = "Abcde1" + "x".repeat(PASSWORD_MAX_LENGTH - 6);
+    expect(atLimit.length).toBe(PASSWORD_MAX_LENGTH);
+    expect(passwordSchema.safeParse(atLimit).success).toBe(true);
   });
 });

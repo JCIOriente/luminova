@@ -234,4 +234,23 @@ describe("draftProvisionBlocked", () => {
     expect(draftProvisionBlocked(POWER, catalog, true)).toBe(false);
     expect(draftProvisionBlocked("gone", catalog, true)).toBe(false);
   });
+
+  // beacon refuses `member-not-active` for every caller, Admin included — so this half of the
+  // mirror sits BEFORE the Admin early-return.
+  it("BLOCKING: hides the invite for an EXPELLED member, even from an Admin", () => {
+    // `active` stays true on expulsion — setStatus writes only `status` — so the member is
+    // still in the roster and the row menu was offering an invite beacon always refuses.
+    const expelled = member({ status: "Desafiliado" });
+    expect(memberProvisionBlocked(expelled, catalog, true)).toBe(true);
+    expect(memberProvisionBlocked(expelled, catalog, false)).toBe(true);
+  });
+
+  it("hides the invite for a soft-deleted member, even from an Admin", () => {
+    expect(memberProvisionBlocked(member({ active: false }), catalog, true)).toBe(true);
+  });
+
+  it("still offers the invite for an ordinary Activo member", () => {
+    expect(memberProvisionBlocked(member(), catalog, true)).toBe(false);
+    expect(memberProvisionBlocked(member(), catalog, false)).toBe(false);
+  });
 });

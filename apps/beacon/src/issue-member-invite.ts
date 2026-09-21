@@ -191,8 +191,17 @@ export async function issueInvite(
   callerHoldsAdminRole = false,
 ): Promise<InviteResult> {
   const member = await deps.getMember(memberId);
-  if (member === null) throw new HttpsError("not-found", "member not found");
-  if (member.active !== true) throw new HttpsError("failed-precondition", "member is not active");
+  // TAGGED, not bare. An untagged throw carries no `details.reason`, so
+  // provisionRefusalMessage returns null and the operator gets the generic "No se pudo generar
+  // el enlace de acceso." on every retry with nothing naming the remedy — verbatim the dead
+  // end PROVISION_BLOCK_REASONS exists to remove, as the comment below already argues.
+  if (member === null) throw provisionBlocked("not-found", "member not found", "member-not-found");
+  // Both fields, for the reason loadValidInvite spells out: setStatus and softDelete write
+  // different keys, so an expelled member keeps `active: true`. Without the status half the
+  // row menu happily offered "Invitar acceso" for a Desafiliado member and beacon minted them
+  // a fresh seven-day bearer link.
+  if (member.active !== true || member.status === "Desafiliado")
+    throw provisionBlocked("failed-precondition", "member is not active", "member-not-active");
   // Shape-screened BEFORE it reaches the Auth SDK, for the same reason cargoId and assignedBy
   // are screened in claims-sync: a stored value the SDK rejects throws a PERMANENT
   // auth/invalid-email. That used to reach the caller as an opaque `internal`, leaving the
@@ -312,15 +321,19 @@ export async function issueInvite(
         "privileged-account-requires-admin",
       );
     }
-    // A disabled account is a console containment measure. Minting would report success and
-    // flip the badge green while the member gets auth/user-disabled at login.
-    if (user?.disabled === true) {
-      throw provisionBlocked(
-        "failed-precondition",
-        "this member's account is disabled; an Admin must review it before issuing a link",
-        "account-disabled-requires-admin",
-      );
-    }
+  }
+  // OUTSIDE the non-Admin block, deliberately: this is not a delegation guard. A disabled
+  // account is a console containment measure, and minting a link for one reports success and
+  // flips the badge amber-pending for an account nobody can sign into — the operator sends a
+  // credential they were told works, and the invitee only discovers otherwise at redemption,
+  // where `invite-account-disabled` fires after the fact. That is just as wrong when an Admin
+  // does it, and ProvisionUser.disabled's own contract states it with no Admin carve-out.
+  if (user?.disabled === true) {
+    throw provisionBlocked(
+      "failed-precondition",
+      "this member's account is disabled; review it before issuing a link",
+      "account-disabled-requires-admin",
+    );
   }
   if (!user) user = await deps.createUser(email);
   const targetEmail = user.email ?? email;
@@ -342,8 +355,20 @@ export async function issueInvite(
   // InviteCommit for why this cannot be three calls.
   //
   // Revocation needs no query and no composite index: `members/{id}.invite.tokenHash` points
-  // at the one outstanding invite, so we revoke exactly that document BY KEY. At most one
-  // outstanding invite per member, by construction.
+  // at the one outstanding invite, so we revoke exactly that document BY KEY.
+  //
+  // "At most one outstanding invite per member" holds for SEQUENTIAL issues, NOT concurrently.
+  // `member` was read non-transactionally above, and commitInvite is a batch with no
+  // precondition on members/{id}: two overlapping issues for the same member both observe the
+  // same pending hash, both revoke it, and mint two live tokens. The loser's document is left
+  // `pending` with nothing naming it — no `where` query on memberInvites, no client lane in
+  // firestore.rules, and the projection now points at the winner — so it stays redeemable for
+  // its full seven days and cannot be revoked by key.
+  //
+  // Not closed here: the fix is a transaction with a member-doc read precondition, which is a
+  // redesign of this write path and is tracked as follow-up work. The window is one operator
+  // clicking while another's call is in flight; each surface guards its own `isPending`, so it
+  // takes two operators or two tabs. Recorded rather than left as a false absolute.
   const issuedAtMs = deps.now();
   const previousHash = pendingInviteHash(member, memberId, issuedAtMs);
   const { token, tokenHash } = mintInviteToken();

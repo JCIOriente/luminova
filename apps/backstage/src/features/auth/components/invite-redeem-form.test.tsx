@@ -168,6 +168,30 @@ describe("InviteRedeemForm", () => {
     replaceState.mockRestore();
   });
 
+  it("BLOCKING: the success screen survives the router clearing the token", async () => {
+    // The bug this pins was invisible to every other test in this file, because they all pass
+    // `token` as a STATIC prop while the real page feeds it from
+    // useLocation({ select: l => l.hash }).
+    //
+    // window.history.replaceState is not inert: @tanstack/history monkey-patches it and calls
+    // onPushPop("REPLACE"), so the router's location updates and the route re-renders this
+    // component with token="". The rerender below is that, reproduced. Without the `settled`
+    // guard the load effect re-fires, takes the `token.length === 0` branch, and replaces
+    // "Contraseña creada" with "este enlace está incompleto" — for someone whose password was
+    // just created successfully, on the only onboarding path there is.
+    const { rerender } = render(<InviteRedeemForm token="abc" />);
+    await screen.findByLabelText("Nueva contraseña");
+    await fillPasswords("Abcde1");
+    await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
+    await screen.findByText(/Contraseña creada/i);
+
+    rerender(<InviteRedeemForm token="" />);
+
+    expect(screen.getByText(/Contraseña creada/i)).toBeInTheDocument();
+    expect(screen.queryByText(/incompleto/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /iniciar sesión/i })).toHaveAttribute("href", "/login");
+  });
+
   it("keeps the form usable when redemption fails for a retryable reason", async () => {
     redeemCallable.mockRejectedValue(new Error("network"));
     render(<InviteRedeemForm token="abc" />);

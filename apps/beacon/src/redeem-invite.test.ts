@@ -158,6 +158,14 @@ describe("redeemInviteFor — the member must still match", () => {
       "invite-member-inactive",
     ],
     [
+      // `active` and `status` are SEPARATE fields with separate writers: setStatus writes only
+      // `status`, softDelete only `active`. Checking `active` alone let a link issued before an
+      // expulsion still mint a working login for the expelled member days later.
+      "the member was expelled but never soft-deleted",
+      { name: "Ana", email: "ana@jci.bo", active: true, status: "Desafiliado", uid: "u1" },
+      "invite-member-inactive",
+    ],
+    [
       "the email changed",
       { name: "Ana", email: "otra@jci.bo", active: true, uid: "u1" },
       "invite-email-changed",

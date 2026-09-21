@@ -103,6 +103,18 @@ export function InviteRedeemForm({ token }: { token: string }) {
    *  StrictMode's double-invoke in dev makes that reachable on every mount. */
   const runId = useRef(0);
 
+  /** Redemption is TERMINAL. Set before `replaceState`, because that call is not the inert
+   *  address-bar tidy it looks like: @tanstack/history monkey-patches
+   *  `window.history.replaceState` and calls `onPushPop("REPLACE")`, so the router's location
+   *  updates, `invitacion.tsx`'s `useLocation({ select: l => l.hash })` re-renders this
+   *  component with `token=""`, `load`'s identity changes, and the effect below re-fires —
+   *  overwriting the success screen with "este enlace está incompleto" for someone whose
+   *  password was just created successfully. On the only onboarding path there is.
+   *
+   *  A ref, not a phase check in the deps: the effect must stay reactive to a genuine hash
+   *  change (someone pasting a different link) right up until the moment one is redeemed. */
+  const settled = useRef(false);
+
   const load = useCallback(async () => {
     const mine = runId.current + 1;
     runId.current = mine;
@@ -140,6 +152,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
   }, [token]);
 
   useEffect(() => {
+    if (settled.current) return;
     void load();
     return () => {
       // Invalidate whatever is in flight: any later response fails its `alive()` check.
@@ -155,6 +168,8 @@ export function InviteRedeemForm({ token }: { token: string }) {
         "redeemInvite",
       );
       await fn({ token, password });
+      // BEFORE replaceState: the router observes that call and drives `token` to "".
+      settled.current = true;
       // Drop the burnt token from the address bar AND the history entry — a spent credential
       // must not linger on what may be a shared device.
       window.history.replaceState(null, "", window.location.pathname);

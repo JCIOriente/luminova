@@ -2,7 +2,9 @@ import { z } from "zod";
 import {
   PASSWORD_RULE_IDS,
   PASSWORD_MIN_LENGTH,
+  PASSWORD_MAX_LENGTH,
   passwordPolicyViolations,
+  passwordTooLong,
   type PasswordRuleId,
 } from "@luminova/types/password-policy";
 
@@ -30,6 +32,20 @@ export const passwordSchema = z.string().superRefine((value, ctx) => {
     ctx.addIssue({
       code: "custom",
       message: `La contraseña necesita: ${LABELS[id].toLowerCase()}.`,
+    });
+  }
+  // The OTHER half of what redeemInvite enforces. Importing only the violations left a dead
+  // end this module's own comment describes: beacon refuses a 1500-character passphrase with
+  // `invite-password-weak`, whose copy says "revisa la lista de abajo" — while every item in
+  // that list is ticked green, because all four rules pass. Nothing on the screen names the
+  // actual problem, and the invitee cannot get past it.
+  //
+  // No matching checklist row: a maximum is not a goal to work toward, and a fifth row that
+  // reads green for every realistic password is noise.
+  if (passwordTooLong(value)) {
+    ctx.addIssue({
+      code: "custom",
+      message: `La contraseña no puede pasar de ${PASSWORD_MAX_LENGTH} caracteres.`,
     });
   }
 });

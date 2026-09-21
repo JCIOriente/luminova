@@ -124,7 +124,12 @@ async function loadValidInvite(
   const member = await deps.getMember(invite.memberId);
   if (member === null)
     throw refuse(fn, tokenHash, invite, "invite-member-missing", "member no longer exists");
-  if (member.active !== true)
+  // `active` AND `status`. They are SEPARATE fields with separate writers: setStatus writes
+  // only `status` (Activo/Inactivo/Desafiliado), softDelete writes only `active`. So an
+  // expelled member keeps `active: true`, and checking `active` alone let a link issued before
+  // the expulsion still mint them a working login days after the board removed them —
+  // `invite-member-inactive`'s own contract says it covers "deactivated OR desafiliado".
+  if (member.active !== true || member.status === "Desafiliado")
     throw refuse(fn, tokenHash, invite, "invite-member-inactive", "member is not active");
 
   // Normalized on BOTH sides. Identity Toolkit lower-cases what it stores while

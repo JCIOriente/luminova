@@ -38,6 +38,13 @@ export const PROVISION_BLOCK_REASONS = [
   // containment measure; minting a link would report success while the member gets
   // auth/user-disabled at login with no explanation.
   "account-disabled-requires-admin",
+  // The member document does not exist. Reachable from a stale roster tab, or when another
+  // operator removes the member between the render and the click.
+  "member-not-found",
+  // The member is soft-deleted (`active: false`) or expelled (`status: "Desafiliado"`). TWO
+  // fields because they have two writers — `setStatus` writes only `status`, `softDelete` only
+  // `active` — so neither one alone answers "should this person get a login".
+  "member-not-active",
 ] as const;
 
 export type ProvisionBlockReason = (typeof PROVISION_BLOCK_REASONS)[number];

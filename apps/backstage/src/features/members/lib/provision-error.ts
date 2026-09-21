@@ -25,6 +25,9 @@ const MESSAGES: Readonly<Record<ProvisionBlockReason, string>> = {
     "La cuenta de este miembro tiene permisos especiales: solo un administrador puede generar su enlace.",
   "account-disabled-requires-admin":
     "La cuenta de este miembro está deshabilitada. Un administrador debe revisarla antes de generar un enlace.",
+  "member-not-found": "Este miembro ya no existe. Actualiza la lista e inténtalo de nuevo.",
+  "member-not-active":
+    "Este miembro está inactivo o desafiliado. Reactívalo antes de generar un enlace de acceso.",
 };
 
 // See lib/callable-refusal.ts for why this is a Map and not the literal above — the

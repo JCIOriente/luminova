@@ -33,6 +33,9 @@ function beaconGuardsAllow(
   cargoGrants: (id: string) => readonly string[] | undefined,
   callerIsAdmin: boolean,
 ): boolean {
+  // Mirrors issueInvite's ORDER: membership standing is checked before the Admin branch,
+  // because `member-not-active` is not a delegation refusal — it refuses every caller.
+  if (member.active !== true || member.status === "Desafiliado") return false;
   if (callerIsAdmin) return true;
   if (hasDirectGrants(member)) return false;
   for (const cargoId of readCargoIds(member)) {
@@ -88,6 +91,11 @@ const FIXTURES: Fixture[] = [
       positions: { "2027": { cargoId: "presidente", comisionIds: [] } },
     },
   },
+  // Membership STANDING, not a delegation refusal — beacon refuses `member-not-active` for
+  // every caller. Both shapes, because the two fields have two writers: an expelled member
+  // keeps active:true and stays in the roster.
+  { name: "expelled (Desafiliado), still active:true", member: { ...base, status: "Desafiliado" } },
+  { name: "soft-deleted (active:false)", member: { ...base, active: false } },
   { name: "direct roleIds", member: { ...base, uid: "u1", roleIds: ["r1"] } },
   {
     name: "permissionOverrides.grant",

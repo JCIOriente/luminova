@@ -303,6 +303,53 @@ describe("issueInvite", () => {
     expect(calls.commits).toEqual([]);
   });
 
+  it("BLOCKING: an ADMIN may NOT issue for a DISABLED account either", async () => {
+    // The disabled check is not a delegation guard, so it does not belong inside the non-Admin
+    // block. Minting flips the badge to amber "Pendiente" and hands the operator a link for an
+    // account nobody can sign into — the invitee only finds out at redemption, after the
+    // credential was sent and the operator was told it worked.
+    const { deps, calls } = fakeDeps({
+      member: { ...active, uid: "u1" },
+      usersByEmail: { "a@b.co": { uid: "u1", email: "a@b.co", disabled: true } },
+    });
+    await expect(issueInvite(deps, "m1", "caller", ADMIN)).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "account-disabled-requires-admin" },
+    });
+    expect(calls.commits).toEqual([]);
+  });
+
+  it("BLOCKING: refuses an EXPELLED member, who keeps active:true", async () => {
+    // setStatus writes only `status`; softDelete writes only `active`. Checking `active` alone
+    // let the row menu offer "Invitar acceso" for a Desafiliado member and minted them a fresh
+    // seven-day bearer link.
+    const { deps, calls } = fakeDeps({
+      member: { ...active, status: "Desafiliado" },
+    });
+    await expect(issueInvite(deps, "m1", "caller", ADMIN)).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "member-not-active" },
+    });
+    expect(calls.commits).toEqual([]);
+  });
+
+  it("tags the not-found and not-active refusals so the operator gets a real message", async () => {
+    // A bare HttpsError carries no details.reason, so provisionRefusalMessage returns null and
+    // every retry shows the generic "No se pudo generar el enlace de acceso." with nothing
+    // naming the remedy.
+    const gone = fakeDeps({ member: null });
+    await expect(issueInvite(gone.deps, "m1", "caller", ADMIN)).rejects.toMatchObject({
+      code: "not-found",
+      details: { reason: "member-not-found" },
+    });
+
+    const inactive = fakeDeps({ member: { ...active, active: false } });
+    await expect(issueInvite(inactive.deps, "m1", "caller", ADMIN)).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "member-not-active" },
+    });
+  });
+
   it("BLOCKING: a non-Admin caller may NOT provision a POWER-SEATED member", async () => {
     // The escalation this closes, and the delegate forges nothing to get it: any uid-less
     // member is reachable — including one an Admin already seated on an Admin-granting cargo,

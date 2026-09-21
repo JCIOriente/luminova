@@ -49,6 +49,20 @@ export function memberProvisionBlocked(
   cargo: CargoLookup,
   callerIsAdmin: boolean,
 ): boolean {
+  // BEFORE the Admin early-return: this is not a delegation refusal. beacon refuses
+  // `member-not-active` for EVERY caller, so an Admin is as unable to invite an expelled
+  // member as a delegate is.
+  //
+  // Both fields, because they have two writers: `setStatus` writes only `status`, `softDelete`
+  // only `active`. An expelled member keeps `active: true` and stays in the roster — the
+  // `getAll` query filters on `active`, not `status` — so without the second half the row menu
+  // offered "Invitar acceso" for someone the board had removed.
+  //
+  // Hidden rather than left to refuse, unlike the three Auth-directory guards above: those
+  // depend on state no client can read, whereas `status` is right here on the member doc. A
+  // control that can NEVER succeed is the render-then-die shape this module exists to prevent,
+  // not the "sometimes refuses with a clear reason" case its comment defends.
+  if (member.active !== true || member.status === "Desafiliado") return true;
   if (callerIsAdmin) return false;
   // `?? []` on absent/null only — an EMPTY-STRING cargoId must NOT be skipped. beacon's
   // readCargoIds pushes "" deliberately ("a malformed shape must never read as 'no cargo' —
