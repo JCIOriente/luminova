@@ -59,7 +59,16 @@ interface Member {
                               // current-term CEL/JDL cargo, and status != 'Desafiliado'.
   totalPoints: number         // default: 0 — mirrors MemberPoints.cumulative (engine-written)
   isPastPresident?: boolean   // eligibility flag (no Mejor Miembro accrual); missing = false
-  uid?: string                // linked Firebase Auth uid — set by provisionMemberLogin (admin SDK); absent until invited; immutable once set
+  uid?: string                // linked Firebase Auth uid — set by issueMemberInvite (admin SDK); absent until invited; immutable once set
+  invite?: {                  // beacon-owned access-link projection; absent on pre-feature docs
+    status: 'pending' | 'used' | 'revoked' | 'failed'
+    kind: 'initial' | 'recovery'
+    tokenHash: string           // sha256 of the token — the memberInvites doc id; NOT a credential
+    issuedAt: Timestamp
+    expiresAt: Timestamp
+    issuedBy: string            // uid of the operator who generated the link
+    usedAt: Timestamp | null
+  }
   roleIds?: string[]          // custom role ids assigned directly (Admin-only)
   permissionOverrides?: PermissionOverrides // per-member coarse perm grants/revocations
   positions?: {               // one cargo + N comisiones per term; key = calendar year string
@@ -84,6 +93,8 @@ standing — a `Desafiliado` member is **not** deleted and still appears in the 
 
 **Custom claims (`roles` + `perms`)**: recomputed by the beacon `onMemberWritten` trigger (`onDocumentWritten('members/{id}')`) on every member write. The `roles` claim is `['Member', ...trusted current-term grants]` in canonical `ROLES` order; the `perms` claim holds the coarse `action:Subject` permissions resolved from role definitions (`roles` collection) + `permissionOverrides` (cap 30, fail-closed). An existing `Scanner` role (set by `setUserRoles`) is preserved; event scoping was removed, so a Scanner's authority is the coarse `checkIn:Attendance` perm plus the Attendee-only conjunct in `firestore.rules`. Only applies to provisioned members (`uid` present). The `onRoleWritten` trigger re-syncs claims when a role definition changes.
 
+**`invite` projection**: beacon-owned, exactly as `uid` is — every client write lane in `firestore.rules` denies it (`!touched('invite')` on update, `!('invite' in ...)` on create). Clients never read `memberInvites` itself; this projection is the state the three operator surfaces render. Absent on members provisioned before the feature existed — `memberInviteState` derives `"legacy"` from `uid && !invite` rather than backfilling. `tokenHash` is present deliberately: it is an irreversible SHA-256 of 256 bits of CSPRNG output, and it is what makes revocation a **keyed** write instead of a collection query, which is what makes "at most one outstanding invite per member, revocable without a composite index" true by construction. Note it is readable by everyone with `read:Member` — i.e. the whole chapter — and that is intended: a member seeing who issued a recovery link for their own account is the alerting mechanism that makes delegated recovery accountable.
+
 **Soft delete**: Never hard-delete members. Set `active: false` and `deletedAt: serverTimestamp()`.
 
 > **Type location:** `Member` type + `MemberInput` Zod schema live in `@luminova/types`. Form input handles `joinDate`/`birthdate` as `YYYY-MM-DD` strings; the repository maps them to/from Firestore `Timestamp`.
@@ -93,6 +104,49 @@ standing — a `Desafiliado` member is **not** deleted and still appears in the 
 **Queries used**:
 - Get active members: `where('active', '==', true)`
 - Paginated: `orderBy('name'), limit(10), startAfter(cursor)`
+
+---
+
+## memberInvites/{sha256hex(token)}
+
+Access-link tokens. **Beacon-only**: `allow read, write: if false` — written and read solely by
+`issueMemberInvite` / `describeInvite` / `redeemInvite` through the Admin SDK, which bypasses
+rules.
+
+```typescript
+interface MemberInvite {
+  memberId: string            // resolves the invitee
+  uid: string                 // the Auth account this link may write to, PINNED at issue
+  email: string               // member.email verbatim at issue; compared after trim().toLowerCase()
+  kind: 'initial' | 'recovery'
+  issuedBy: string            // caller uid — makes delegated recovery auditable
+  issuedByAdmin: boolean      // exempts the link from the privilege re-check at redemption
+  issuedAt: Timestamp
+  expiresAt: Timestamp        // issuedAt + 7d, enforced in code (not by TTL)
+  status: 'pending' | 'used' | 'revoked' | 'failed'
+  usedAt: Timestamp | null
+  revokedAt: Timestamp | null
+  revokedBy: string | null
+  purgeAt: Timestamp          // issuedAt + 90d — Firestore TTL field, cleanup only
+}
+```
+
+**The doc id IS the hash.** Not a field on a queried doc: a keyed `get()` is bounded by
+construction, needs no index, and cannot be enumerated. Consequence worth stating — there is
+**no secret comparison anywhere in the codebase**, because a wrong token derives a different
+key and resolves to a nonexistent document.
+
+**At most one outstanding invite per member**, by construction: `members/{id}.invite.tokenHash`
+names it, so re-issuing revokes exactly that document by key. Revoke + mint + project are one
+`db.batch()` — a partial failure would strand a live token nothing could revoke.
+
+**No query is ever run against this collection.** `memberId` is stored so a break-glass console
+sweep remains *possible*, but it is not a designed path and would need a composite index.
+
+**TTL is cleanup, not the boundary.** Expiry is `expiresAt <= now` compared inside the
+redemption transaction; the TTL policy on `purgeAt` is best-effort with up to ~24 h of lag.
+
+**Queries used**: none — only keyed `get()` by token hash.
 
 ---
 

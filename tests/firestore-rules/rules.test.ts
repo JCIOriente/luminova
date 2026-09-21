@@ -4678,6 +4678,7 @@ describe("hard-delete denial — every collection the rules forbid client-deleti
     { name: "showcase", path: "showcase/s1" },
     { name: "allyShowcase", path: "allyShowcase/a1" },
     { name: "boardShowcase", path: "boardShowcase/b1" },
+    { name: "memberInvites", path: "memberInvites/h1" },
   ];
 
   it("the rules' unconditional delete-deny set is EXACTLY the collections we cover (no drift)", () => {
@@ -4691,4 +4692,76 @@ describe("hard-delete denial — every collection the rules forbid client-deleti
       await assertFails(deleteDoc(doc(as("u", ["Admin"]), path)));
     });
   }
+});
+
+// memberInvites holds the HASH of a bearer credential, keyed BY that hash. Beacon writes and
+// reads it through the admin SDK, which bypasses these rules; no client has any business
+// there. The invite state clients need is projected onto members/{id}.invite, so nothing is
+// lost by denying the collection outright — and the token hashes must never be listable.
+describe("memberInvites — beacon-only, no client access at all", () => {
+  const PRINCIPALS: [string, string[]][] = [
+    ["an Admin", ["Admin"]],
+    ["a Membership holder", ["Membership"]],
+    ["a plain Member", ["Member"]],
+  ];
+
+  for (const [label, roles] of PRINCIPALS) {
+    it(`denies ${label} every operation on an invite document`, async () => {
+      const db = as("u", roles);
+      await assertFails(getDoc(doc(db, "memberInvites/h1")));
+      await assertFails(setDoc(doc(db, "memberInvites/h2"), { memberId: "m1" }));
+      await assertFails(updateDoc(doc(db, "memberInvites/h1"), { status: "revoked" }));
+      await assertFails(deleteDoc(doc(db, "memberInvites/h1")));
+    });
+  }
+
+  it("denies LISTING the collection — the hashes must never be enumerable", async () => {
+    await assertFails(getDocs(collection(as("u", ["Admin"]), "memberInvites")));
+  });
+});
+
+// members/{id}.invite is beacon-owned, exactly as `uid` is. A client write lane that let it
+// through would let an operator forge an invite state — or, worse, point the projection at a
+// tokenHash of their choosing, which is the one key revocation uses.
+describe("members.invite is beacon-owned on every client lane", () => {
+  const PROJECTION = {
+    status: "pending",
+    kind: "initial",
+    tokenHash: "a".repeat(64),
+    issuedBy: "someone",
+    usedAt: null,
+  };
+
+  it("denies setting invite at CREATE, even for an Admin", async () => {
+    // The create arm uses targeted negative checks, not keys().hasOnly(), so an unknown field
+    // is NOT already denied there.
+    await assertFails(
+      setDoc(doc(as("u", ["Admin"]), "members/m_invite_new"), {
+        name: "Nueva Persona",
+        email: "n@jci.bo",
+        totalPoints: 0,
+        active: true,
+        deletedAt: null,
+        invite: PROJECTION,
+      }),
+    );
+  });
+
+  it.each([
+    ["an Admin", ["Admin"]],
+    ["a manage:Member holder", ["Membership"]],
+  ])("denies %s touching invite on the institutional lane", async (_label, roles) => {
+    await assertFails(updateDoc(doc(as("u", roles), "members/m1"), { invite: PROJECTION }));
+  });
+
+  it("denies the SELF lane touching invite", async () => {
+    await assertFails(
+      updateDoc(doc(as("self_uid", ["Member"]), "members/m1"), { invite: PROJECTION }),
+    );
+  });
+
+  it("denies writing an explicit null onto invite (touched, not unchanged)", async () => {
+    // unchanged() would pass a null == null comparison on a doc that lacks the key.
+    await assertFails(updateDoc(doc(as("u", ["Admin"]), "members/m1"), { invite: null }));
+  });
 });

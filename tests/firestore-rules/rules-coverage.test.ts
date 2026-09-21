@@ -47,6 +47,8 @@ const KNOWN_UNSURFACED: Record<string, string> = {
     "composed messages; surfaced by the /notificaciones compose route (PR3), not yet wired",
   pushTokens:
     "anonymous spotlight device tokens, public-create bounded shape; never a backstage route",
+  memberInvites:
+    "beacon-owned invite tokens; state is projected onto members/{id}.invite, never client-read",
 };
 
 describe("rules coverage: no orphaned firestore.rules collection", () => {
