@@ -100,6 +100,30 @@ describe("InviteRedeemForm", () => {
     expect(screen.queryByRole("button", { name: /reintentar/i })).not.toBeInTheDocument();
   });
 
+  // BLOCKING: the guard the component this replaced already had, and which the rewrite must
+  // not lose. Without it a resolved-but-stale describeInvite overwrites a newer phase —
+  // reachable on every mount under StrictMode's double-invoke, and on any token change.
+  it("BLOCKING: a stale describeInvite response never overwrites a newer one", async () => {
+    let resolveFirst: (v: unknown) => void = () => {};
+    describeCallable.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFirst = resolve;
+      }),
+    );
+    describeCallable.mockResolvedValueOnce({
+      data: { ...VALID, name: "Segunda Persona", email: "segunda@jci.bo" },
+    });
+
+    const { rerender } = render(<InviteRedeemForm token="first" />);
+    rerender(<InviteRedeemForm token="second" />);
+    expect(await screen.findByText("segunda@jci.bo")).toBeInTheDocument();
+
+    // The first request lands LAST. It must be ignored, not rendered over the second.
+    resolveFirst({ data: { ...VALID, name: "Primera Persona", email: "primera@jci.bo" } });
+    await waitFor(() => expect(screen.getByText("segunda@jci.bo")).toBeInTheDocument());
+    expect(screen.queryByText("primera@jci.bo")).not.toBeInTheDocument();
+  });
+
   it("never calls redeemInvite for a password the policy rejects", async () => {
     // The policy is enforced server-side too, but a round-trip that burns nothing and tells
     // the invitee something the checklist already shows is pure latency.

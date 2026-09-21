@@ -59,38 +59,53 @@ export function InviteRedeemForm({ token }: { token: string }) {
     defaultValues: { password: "", confirmPassword: "" },
   });
 
-  const load = useCallback(async () => {
-    setPhase({ kind: "loading" });
-    // An empty fragment — a truncated paste, or someone typing the path. Refuse locally
-    // rather than spending an unauthenticated call to be told the same thing.
-    if (token.length === 0) {
-      setPhase({
-        kind: "error",
-        message: "Este enlace está incompleto. Pídele a quien te invitó que te envíe uno nuevo.",
-        retryable: false,
-      });
-      return;
-    }
-    try {
-      const fn = httpsCallable<{ token: string }, InviteDescription>(
-        getFunctionsService(),
-        "describeInvite",
-      );
-      setPhase({ kind: "valid", invite: (await fn({ token })).data });
-    } catch (err) {
-      const refusal = inviteRefusalMessage(err);
-      setPhase({
-        kind: "error",
-        message: refusal ?? GENERIC_LOAD_ERROR,
-        // Only an UNTAGGED failure is worth retrying: beacon's tagged refusals are all
-        // permanent for this token.
-        retryable: refusal === null,
-      });
-    }
-  }, [token]);
+  /** `alive` is what the component RePLACED here already had and this rewrite must not lose:
+   *  without it a resolved-but-stale `describeInvite` can overwrite a newer phase, and
+   *  StrictMode's double-invoke in dev makes that reachable on every mount. Passed in rather
+   *  than captured so the effect and the retry button share one cancellation token. */
+  const load = useCallback(
+    async (alive: () => boolean) => {
+      if (!alive()) return;
+      setPhase({ kind: "loading" });
+      // An empty fragment — a truncated paste, or someone typing the path. Refuse locally
+      // rather than spending an unauthenticated call to be told the same thing.
+      if (token.length === 0) {
+        setPhase({
+          kind: "error",
+          message: "Este enlace está incompleto. Pídele a quien te invitó que te envíe uno nuevo.",
+          retryable: false,
+        });
+        return;
+      }
+      try {
+        const fn = httpsCallable<{ token: string }, InviteDescription>(
+          getFunctionsService(),
+          "describeInvite",
+        );
+        const invite = (await fn({ token })).data;
+        if (!alive()) return;
+        setPhase({ kind: "valid", invite });
+      } catch (err) {
+        if (!alive()) return;
+        const refusal = inviteRefusalMessage(err);
+        setPhase({
+          kind: "error",
+          message: refusal ?? GENERIC_LOAD_ERROR,
+          // Only an UNTAGGED failure is worth retrying: beacon's tagged refusals are all
+          // permanent for this token.
+          retryable: refusal === null,
+        });
+      }
+    },
+    [token],
+  );
 
   useEffect(() => {
-    void load();
+    let active = true;
+    void load(() => active);
+    return () => {
+      active = false;
+    };
   }, [load]);
 
   const onSubmit = handleSubmit(async ({ password }) => {
@@ -128,7 +143,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
           {phase.message}
         </p>
         {phase.retryable && (
-          <Button as="button" type="button" onClick={() => void load()} className="mt-8">
+          <Button as="button" type="button" onClick={() => void load(() => true)} className="mt-8">
             Reintentar
           </Button>
         )}
