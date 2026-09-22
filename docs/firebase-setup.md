@@ -435,7 +435,14 @@ it in a copy dialog with its expiry.
 - **A link IS a credential.** Whoever holds it sets that member's password. Send it in a direct
   chat, never a group. There is no way to un-send one — the remedy is to re-issue, which
   revokes the previous link.
-- **Links last 7 days**, enforced in code (not by the TTL policy). The badge shows the date.
+- **Links last 48 hours**, enforced in code (not by the TTL policy). The badge shows the date
+  **and the time**, on the Bolivian clock — at this window a bare date is not precise enough to
+  act on, since a link shared at 23:00 Monday dies at 23:00 Wednesday.
+- **Both callables are rate-limited**: 5 calls/min per link, 60/min endpoint-wide, held in the
+  function instance's memory (nothing is written to Firestore). An invitee who reloads the page
+  repeatedly can see *"Demasiados intentos. Espera unos segundos"* — this is **not** a broken
+  link and needs no operator action. The budget refills one slot every 12 s. The ceiling is per
+  function instance, so the effective figure is higher than 60 when several are warm.
 - **Re-issuing kills the previous link.** The copy dialog says so. If a member reports "el
   enlace no sirve", check whether someone re-issued.
 - **Auth emulator** — nothing is mailed, so there is nothing to read from the emulator log; the
@@ -450,22 +457,134 @@ it in a copy dialog with its expiry.
    `__/auth/action`). It previously pointed at `https://<backstage-host>/reset`, a route that
    no longer exists — so until this is reverted, the console's own "⋮ → Reset password" mails a
    link to a 404. **"Edit user → set password" always works and needs nothing.**
-2. **Firestore TTL policy** on `memberInvites.purgeAt` (cleanup only; expiry is code-enforced):
-   `gcloud firestore fields ttls update purgeAt --collection-group=memberInvites --enable-ttl --project=jci-oriente`
-3. **Decide on App Check for the two unauthenticated callables.** `describeInvite` and
-   `redeemInvite` ship `enforceAppCheck: false`. Note this is NOT because the keys are
-   missing — `apps/backstage/.env.production` carries a real `VITE_APPCHECK_SITE_KEY` and
-   `ensureApp()` wires `initAppCheck` unconditionally, so a prod backstage build already sends
-   a token. It is because enforcement is per-**product** and is confirmed only for Firestore
-   and Storage (see "App Check" above); Cloud Functions is not. To turn it on: confirm the
-   backstage app is registered for the Functions product, flip the boolean in
-   `apps/beacon/src/redeem-invite.ts`, and **test `/invitacion` end to end against a real
-   build before deploying**. Getting this wrong 403s every redemption, silently, on the only
-   onboarding path that now exists.
-4. **GCP budget alert.** Until that flip, both callables accept requests from any origin.
-   `maxInstances: 10` caps the blast radius but converts a cost problem into an availability
-   one — a flood saturating the pool blocks real invitees. A budget alert is the cheapest real
-   signal available in the meantime.
+2. **Firestore TTL policy** on `memberInvites.purgeAt` — **NOT YET APPLIED.** Cleanup only;
+   expiry is code-enforced against `expiresAt`, so nothing is broken without this. What it
+   buys: the collection stops growing without bound as invites accumulate.
+
+   ```bash
+   gcloud firestore fields ttls update purgeAt \
+     --collection-group=memberInvites --enable-ttl --project=jci-oriente
+   ```
+
+   **Verify it applied** — the command returns before the policy is live, so check the state
+   rather than the exit code:
+
+   ```bash
+   gcloud firestore fields ttls list --project=jci-oriente
+   ```
+
+   Expect one row for `memberInvites.purgeAt` with `ttlConfig.state: ACTIVE`. `CREATING` means
+   it is still building (minutes on a small collection) — re-run the list. **An empty result
+   means the policy does not exist**, which is the state as of this writing: the list returned
+   zero items, so the command above has never successfully run.
+
+   Deletion is best-effort with up to ~24 h of lag, which is why expiry is never left to it.
+
+3. ***** BLOCKING PRE-DEPLOY: confirm App Check covers Cloud Functions. *****
+
+   `describeInvite` and `redeemInvite` now ship `enforceAppCheck: true`. **If the Cloud
+   Functions product is not App-Check-enabled for this project, every redemption 403s the
+   moment this deploys** — silently, totally, on the only onboarding path that exists. No
+   operator surface reports it; the invitee simply cannot set a password.
+
+   Two earlier claims in the specs were WRONG and are corrected here: the production
+   reCAPTCHA site key *does* exist (`apps/backstage/.env.production` carries a real
+   `VITE_APPCHECK_SITE_KEY`), and "/invitacion has no session" was never the blocker —
+   attestation is app-level, `/invitacion` is deliberately a top-level route outside the
+   `_auth` layout, and the client wires `initAppCheck` on first app acquisition.
+
+   Before deploying:
+
+   1. Firebase Console → **App Check** → confirm the backstage web app is registered with the
+      reCAPTCHA v3 provider, and that **Cloud Functions** appears among its products with
+      enforcement on (enforcement is per-product; Firestore and Storage being on says nothing
+      about Functions).
+   2. Deploy the functions to a **preview or staging** target if one is available, or accept
+      that the first production deploy is the test, and immediately
+   3. **Open `/invitacion#<a real freshly-issued token>` against a real production build** and
+      complete a redemption end to end. Not a local build: the emulator path has no site key,
+      so it cannot exercise attestation at all.
+
+   If it does 403: revert `enforceAppCheck` to `false` in
+   `apps/beacon/src/redeem-invite.ts`, redeploy the two functions, and fix the registration
+   before trying again. The rate limiter is independent and keeps working either way.
+
+4. **Cost and abuse signal on the two callables.**
+
+   **Correction to what this document used to promise.** It said "a GCP budget alert on the
+   two callables". A **billing budget cannot be scoped to a function** — budgets attach to a
+   billing account and filter by project, label, or service (`--filter-projects`,
+   `--filter-services`), never per function. So the per-callable signal has to be a
+   **Cloud Monitoring alert policy** on the Cloud Run request count (gen2 functions run on
+   Cloud Run, one service per function), and the billing budget is the coarse backstop.
+
+   **a) Notification channel first.** An alert policy with no channel fires into nothing, and
+   this SDK has no `gcloud monitoring channels` command group — so create it in the console:
+   Cloud Console → **Monitoring → Alerting → Edit notification channels → Email → Add new**.
+   Copy the channel id (`projects/jci-oriente/notificationChannels/NNNN`).
+
+   **b) The alert policy.** Fires when either callable is invoked far above the chapter's real
+   rate. JCI Oriente issues a handful of invites a week, so sustained double-digit
+   requests-per-second is by definition not members onboarding:
+
+   ```bash
+   gcloud monitoring policies create \
+     --project=jci-oriente \
+     --display-name="Invite callables: abnormal request rate" \
+     --condition-display-name="describeInvite/redeemInvite > 10 req/s for 5 min" \
+     --condition-filter='metric.type="run.googleapis.com/request_count"
+       resource.type="cloud_run_revision"
+       resource.label."service_name"=monitoring.regex.full_match("describeinvite|redeeminvite")' \
+     --aggregation='{"alignmentPeriod":"60s","perSeriesAligner":"ALIGN_RATE","crossSeriesReducer":"REDUCE_SUM","groupByFields":["resource.label.service_name"]}' \
+     --if=10 \
+     --duration=300s \
+     --trigger-count=1 \
+     --combiner=OR \
+     --notification-channels=projects/jci-oriente/notificationChannels/NNNN
+   ```
+
+   Service names are lower-cased by Cloud Run, hence the lower-case regex. Substitute the real
+   channel id for `NNNN`.
+
+   **Verify it applied:**
+
+   ```bash
+   gcloud monitoring policies list --project=jci-oriente \
+     --format="table(displayName,enabled,conditions[0].displayName)"
+   ```
+
+   Expect the policy listed with `enabled: True`. To verify it can actually *fire*, open
+   Monitoring → Alerting → the policy → **Metrics Explorer** on its condition and confirm the
+   time series resolves to the two services (an empty series means the filter matches nothing,
+   and a policy that matches nothing is indistinguishable from a quiet week).
+
+   **c) Billing budget** — the backstop, project-scoped, on the open billing account:
+
+   ```bash
+   gcloud billing budgets create \
+     --billing-account=016148-904C31-A656A9 \
+     --display-name="jci-oriente monthly" \
+     --budget-amount=25USD \
+     --filter-projects=projects/jci-oriente \
+     --threshold-rule=percent=0.5 \
+     --threshold-rule=percent=0.9 \
+     --threshold-rule=percent=1.0
+   ```
+
+   **Verify:**
+
+   ```bash
+   gcloud billing budgets list --billing-account=016148-904C31-A656A9 \
+     --format="table(displayName,amount.specifiedAmount.units,budgetFilter.projects)"
+   ```
+
+   A budget **notifies, it does not cap** — nothing stops spend. It is the "something is
+   wrong" signal of last resort; the alert policy in (b) is the one that arrives in time to
+   act, and `maxInstances: 10` plus the in-process rate limiter are what actually bound the
+   damage.
+
+   Adjust `--budget-amount` to whatever the chapter's normal monthly spend plus headroom is —
+   25 USD is a placeholder, not a measured figure.
 
 ## App Check (reCAPTCHA v3)
 
@@ -479,16 +598,22 @@ the branded reset flow:
    `.env.local` blank so local dev runs against the emulators with App Check off.
 3. **Reset action URL** — leave it at the Firebase DEFAULT. The `/reset` route it used to
    point at is deleted; see owner op 1 above.
-4. **`describeInvite` / `redeemInvite` are the first functions to flip.** They are declared
-   `enforceAppCheck: false`, and the blocker is NOT the site key (production has one) — it is
-   that enforcement is per-product and Functions is not confirmed enabled below. Flip them
-   DELIBERATELY, with `/invitacion` tested against a real build: a misconfigured deploy breaks
-   member onboarding entirely, silently, for everyone.
-5. **Enforcement** — **enabled** for Firestore and Storage. Both frontends send a
-   valid token (backstage via the full SDK, spotlight via `getFirestoreLite`). Only
-   enable enforcement for a product after confirming real traffic carries valid
-   tokens, or you will lock out the app.
-6. **Password policy** — the seeded admin account's password must satisfy the policy
+4. **`describeInvite` / `redeemInvite` are the FIRST functions with it turned on.** They now
+   declare `enforceAppCheck: true`. The blocker was never the site key (production has one) —
+   it is that enforcement is per-product and **Cloud Functions is still not confirmed enabled**
+   below. That makes confirming it a BLOCKING pre-deploy step, not a follow-up: see owner op 3
+   under "Enlaces de acceso". A misconfigured deploy breaks member onboarding entirely,
+   silently, for everyone.
+5. **Enforcement** — **enabled** for Firestore and Storage. **Cloud Functions: UNCONFIRMED**,
+   and the two invite callables now depend on it. Both frontends send a valid token (backstage
+   via the full SDK, spotlight via `getFirestoreLite`). Only enable enforcement for a product
+   after confirming real traffic carries valid tokens, or you will lock out the app.
+6. **App Check is not a rate limiter, and the invite callables carry both.** A standard App
+   Check token lives ~30 minutes and is replayable, so harvesting one from the public
+   `/invitacion` page and flooding with it is not prevented by enforcement. `enforceAppCheck`
+   bounds *who* may call; the in-process limiter in `apps/beacon/src/rate-limit.ts` bounds
+   *how often*. Neither substitutes for the other.
+7. **Password policy** — the seeded admin account's password must satisfy the policy
    (min 6 + lower + upper + digit) or it can no longer sign in.
 
 ## Push Notifications (FCM Web Push)

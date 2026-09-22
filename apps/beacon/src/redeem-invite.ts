@@ -215,7 +215,7 @@ function refuse(
 
 /** The three privilege guards, re-run at redemption.
  *
- *  The token is a bearer credential valid for seven days, so every guard `issueMemberInvite`
+ *  The token is a bearer credential valid for 48 hours, so every guard `issueMemberInvite`
  *  ran evaluated the authorization question at the instant the link was minted. Without this:
  *  day 1 a delegate issues a recovery link for a grant-free member (D3's intent); day 3 an
  *  Admin seats them on Tesorero and claims-sync mints the role; day 4 the delegate redeems the

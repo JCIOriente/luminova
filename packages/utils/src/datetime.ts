@@ -11,6 +11,17 @@ export const BOLIVIA_OFFSET_MS = 4 * 60 * 60 * 1000;
 // formatDateChip → drops DATE_TIME/DATE_ONLY/TIME_ONLY). Bundlers otherwise keep
 // bare `new X()` as a side effect. Formatters referenced by a called function
 // (e.g. MONTH_YEAR_LONG via formatMonthYear) stay regardless.
+// The ONE formatter here that is not UTC-pinned, because its input is a real instant rather
+// than a wall-clock pinned to UTC. See formatInstant.
+const INSTANT_DATE_TIME = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "America/La_Paz",
+});
 const DATE_TIME = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
   day: "numeric",
   month: "short",
@@ -61,9 +72,30 @@ export function formatDateChip(ts: Timestamp): { month: string; day: string } {
   };
 }
 
-/** Full "14 jun 2026, 19:00" line for card bodies and the detail hero. */
+/** Full "14 jun 2026, 19:00" line for card bodies and the detail hero.
+ *
+ *  UTC-pinned, like every formatter above it: an ACTIVITY instant is the input wall-clock
+ *  pinned to UTC, so rendering it in UTC shows exactly what was scheduled. Use `formatInstant`
+ *  instead for a value that is a real moment in time. */
 export function formatDateTime(ts: Timestamp): string {
   return DATE_TIME.format(ts.toDate());
+}
+
+/** Full "28 sept 2026, 08:00" line for a value that is a REAL INSTANT, rendered on the
+ *  Bolivian wall clock.
+ *
+ *  The distinction from `formatDateTime` is load-bearing, not stylistic. Everything else in
+ *  this module formats a wall-clock that was pinned to UTC on the way in, so UTC is the right
+ *  zone to read it back in. An invite's `expiresAt` is different in kind: it is
+ *  `issuedAt + INVITE_TTL_MS`, an actual moment. Rendering that in UTC would show a Bolivian
+ *  operator a deadline four hours later than the real one — and near midnight, the wrong DAY.
+ *  Harmless while only a date was shown across a seven-day window; wrong once a time is shown
+ *  across a two-day one.
+ *
+ *  `America/La_Paz` rather than subtracting BOLIVIA_OFFSET_MS by hand: the zone has no DST, so
+ *  the two agree, and naming the zone keeps the intent legible. */
+export function formatInstant(ts: Timestamp): string {
+  return INSTANT_DATE_TIME.format(ts.toDate());
 }
 
 /** Date only, "14 jun 2026", for detail fact rows. */

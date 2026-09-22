@@ -26,7 +26,7 @@ const MESSAGES: Readonly<Record<InviteBlockReason, string>> = {
   // These two keep their own copy: they are the difference between "pide otro" and "ya está
   // listo, solo inicia sesión", and getting them wrong sends the person in a circle.
   "invite-expired":
-    "Este enlace ya venció. Pídele a quien te invitó que te envíe uno nuevo — los enlaces duran 7 días.",
+    "Este enlace ya venció. Pídele a quien te invitó que te envíe uno nuevo — los enlaces duran 48 horas.",
   "invite-used":
     "Este enlace ya se usó. Si fuiste tú, inicia sesión con tu contraseña; si no, avisa a la directiva.",
   "invite-revoked":

@@ -14,6 +14,7 @@ import {
   formatDateRange,
   formatDateTime,
   formatDayMonth,
+  formatInstant,
   formatMonthYear,
   formatTime,
   fullYearsBetween,
@@ -179,5 +180,42 @@ describe("fullYearsBetween", () => {
   });
   it("counts the year on the anniversary day", () => {
     expect(fullYearsBetween(ts("2020-07-10T00:00:00Z"), now)).toBe(6);
+  });
+});
+
+describe("formatInstant — a REAL instant, in Bolivia time", () => {
+  // The counterpart to formatDateTime, and the distinction is load-bearing.
+  //
+  // Activity instants are an input wall-clock PINNED to UTC (see activity-mapper), so
+  // formatDateTime renders them in UTC to show exactly what was scheduled. An invite's
+  // `expiresAt` is not that: it is `issuedAt + 48 h`, a true moment in time. Rendering it in
+  // UTC would tell a Bolivian operator a deadline four hours later than the one that actually
+  // applies — harmless when only a date was shown over a seven-day window, actively wrong once
+  // a time is shown over a two-day one.
+
+  it("renders 12:00Z as 08:00, the Bolivian wall clock", () => {
+    expect(formatInstant(ts("2026-09-28T12:00:00Z"))).toBe("28 sept 2026, 08:00");
+  });
+
+  it("rolls back to the previous day when UTC has already ticked over", () => {
+    // 02:00Z on the 29th is 22:00 on the 28th in Bolivia. A UTC-rendered deadline would name
+    // the wrong DAY, which is the failure an operator would actually act on.
+    expect(formatInstant(ts("2026-09-29T02:00:00Z"))).toBe("28 sept 2026, 22:00");
+  });
+
+  it("disagrees with formatDateTime by exactly the Bolivian offset", () => {
+    // Pins WHY both exist. If someone "consolidates" them, this fails.
+    const instant = ts("2026-09-28T12:00:00Z");
+    expect(formatInstant(instant)).not.toBe(formatDateTime(instant));
+    const shifted = ts(
+      new Date(Date.parse("2026-09-28T12:00:00Z") - BOLIVIA_OFFSET_MS).toISOString(),
+    );
+    expect(formatDateTime(shifted)).toBe(formatInstant(instant));
+  });
+
+  it("is independent of the host timezone", () => {
+    // The suite already runs under TZ=America/La_Paz; this asserts the formatter pins the zone
+    // itself rather than inheriting it, which is what makes it correct on a UTC CI runner.
+    expect(formatInstant(ts("2026-01-15T03:30:00Z"))).toBe("14 ene 2026, 23:30");
   });
 });

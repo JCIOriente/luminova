@@ -238,7 +238,7 @@ describe("redeemInviteFor — the member must still match", () => {
 });
 
 describe("redeemInviteFor — the privilege guards RE-RUN at redemption", () => {
-  // The token outlives the authorization decision by up to seven days. Without this: day 1 a
+  // The token outlives the authorization decision by up to 48 h. Without this: hour 1 a
   // delegate issues a recovery link for a grant-free member (exactly D3's intent); day 3 an
   // Admin seats them on Tesorero; day 4 the delegate redeems the token they kept and signs in
   // as Tesorero. The same shape works on an initial invite.

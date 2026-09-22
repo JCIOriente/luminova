@@ -30,6 +30,7 @@ describe("INVITE_BLOCK_REASONS", () => {
         "invite-member-now-privileged",
         "invite-password-weak",
         "invite-revoked",
+        "invite-too-many-attempts",
         "invite-update-failed",
         "invite-used",
       ].sort(),

@@ -134,7 +134,7 @@ export function firestoreRedeemDeps(db: Firestore, auth: Auth): Omit<RedeemDeps,
           // A is correctly NOT revoked, B is minted and the projection becomes
           // { pending, B }. This write would then stamp { failed, B }, and the next issue
           // sees a non-pending status and never revokes B. B stays pending and redeemable
-          // for its full seven days with nothing naming it — no `where` query on
+          // for its full 48 hours with nothing naming it — no `where` query on
           // memberInvites, no client access, no key. That is precisely the unrevocable live
           // token commitInviteBatch exists to make impossible.
           const projected = (memberSnap.data() as { invite?: { tokenHash?: unknown } } | undefined)

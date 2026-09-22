@@ -25,7 +25,7 @@ Firebase's transactional email is unbrandable, routes through `firebaseapp.com` 
 in spam, and the chapter coordinates over WhatsApp. So an operator with `create:MemberLogin`
 generates a link and sends it themselves.
 - `issueMemberInvite({ memberId })` mints a 256-bit single-use token, stored hashed
-  (`memberInvites/{sha256(token)}`), valid **7 days**, and revokes any outstanding link.
+  (`memberInvites/{sha256(token)}`), valid **48 hours**, and revokes any outstanding link.
 - `/invitacion#<token>`: `describeInvite` shows who the link belongs to, then `redeemInvite`
   sets the password against the shared policy (min 6 + lower/upper/digit) with a live
   checklist. The invitee is not auto-signed-in.

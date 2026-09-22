@@ -1,5 +1,5 @@
 import { Badge, type BadgeTone } from "@luminova/ui";
-import { formatDate } from "@luminova/utils/datetime";
+import { formatDate, formatInstant } from "@luminova/utils/datetime";
 import type { InviteState, Member } from "@luminova/types";
 import { memberInviteState } from "../lib/invite-state";
 
@@ -33,12 +33,15 @@ function label(state: InviteState, member: Member): string {
     case "legacy":
       return "Con acceso";
     case "pending":
-      // The date is the point: it is what tells the operator whether to chase the member or
-      // re-issue. `formatDate` is the shared UTC-pinned es-BO formatter.
-      return invite ? `Pendiente · vence el ${formatDate(invite.expiresAt)}` : "Pendiente";
+      // The deadline is the point: it is what tells the operator whether to chase the member
+      // or re-issue. Date AND TIME, unlike `usedAt` below — a 48 h window is not legible as a
+      // bare date. `formatInstant` renders on the Bolivian clock because expiresAt is a real
+      // instant; the UTC-pinned `formatDate` is right for usedAt, which is only ever a date.
+      return invite ? `Pendiente · vence el ${formatInstant(invite.expiresAt)}` : "Pendiente";
     case "used":
-      // Guard the date: a projection written before `usedAt` existed, or a partial write,
-      // must not render "Usada el undefined".
+      // Date only is right here: this one is a past event, not a deadline someone must beat.
+      // Guard it: a projection written before `usedAt` existed, or a partial write, must not
+      // render "Usada el undefined".
       return invite?.usedAt ? `Usada el ${formatDate(invite.usedAt)}` : "Usada";
     case "expired":
       return "Expirada";

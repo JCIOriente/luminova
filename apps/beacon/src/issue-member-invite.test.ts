@@ -322,7 +322,7 @@ describe("issueInvite", () => {
   it("BLOCKING: refuses an EXPELLED member, who keeps active:true", async () => {
     // setStatus writes only `status`; softDelete writes only `active`. Checking `active` alone
     // let the row menu offer "Invitar acceso" for a Desafiliado member and minted them a fresh
-    // seven-day bearer link.
+    // 48-hour bearer link.
     const { deps, calls } = fakeDeps({
       member: { ...active, status: "Desafiliado" },
     });

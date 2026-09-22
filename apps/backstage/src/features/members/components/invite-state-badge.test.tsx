@@ -22,12 +22,15 @@ const pending = {
 };
 
 describe("InviteStateBadge", () => {
-  it("renders the pending label WITH its expiry date", () => {
-    // The date is the whole point of the pending badge: "vence el 28 de septiembre" is what
-    // tells the operator whether to chase the member or re-issue.
+  it("renders the pending label WITH its expiry date AND time", () => {
+    // The deadline is the whole point of the pending badge: it is what tells the operator
+    // whether to chase the member or re-issue. The TIME is asserted because `/28 sept 2026/`
+    // alone matches the date-only format too, so it could not distinguish them — and a 48 h
+    // window is not legible as a bare date. On the BOLIVIAN clock, so 12:00Z is 08:00: the
+    // UTC-pinned formatter would have promised four hours that do not exist.
     render(<InviteStateBadge member={member(pending)} now={NOW} />);
     expect(screen.getByText(/Pendiente/)).toBeInTheDocument();
-    expect(screen.getByText(/28 sept 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/28 sept 2026, 08:00/)).toBeInTheDocument();
   });
 
   it("renders the used label with the date it was used", () => {
@@ -37,7 +40,9 @@ describe("InviteStateBadge", () => {
         now={NOW}
       />,
     );
-    expect(screen.getByText(/Usada el 21 sept 2026/)).toBeInTheDocument();
+    // Date only, deliberately: a past event is not a deadline anyone has to beat. Asserted
+    // as an exact end-of-string so it cannot silently pick up a time.
+    expect(screen.getByText(/Usada el 21 sept 2026$/)).toBeInTheDocument();
   });
 
   it("renders the used label without a date when usedAt is missing", () => {

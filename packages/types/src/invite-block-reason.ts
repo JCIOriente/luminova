@@ -31,7 +31,7 @@ export const INVITE_BLOCK_REASONS = [
   "invite-account-changed",
   "invite-email-changed",
   // The member became privileged (cargo, direct grants, or a privileged claim) after the link
-  // was minted. The token outlives the authorization decision by up to 7 days, so the guards
+  // was minted. The token outlives the authorization decision by up to 48 h, so the guards
   // re-run at redemption. Exempt when the invite was issued by an Admin.
   "invite-member-now-privileged",
   // The Auth account was disabled out of band — a containment measure we must not undo.

@@ -116,7 +116,7 @@ security gain. SHA-256 is in Node core.
 | `kind` | `"initial" \| "recovery"` | operator copy + audit |
 | `issuedBy` | string | caller uid — makes D3's impersonation primitive auditable |
 | `issuedByAdmin` | boolean | whether the issuer held the Admin role. Required: it is what exempts an Admin-issued link from the privilege re-check at redemption (Q8) |
-| `issuedAt` / `expiresAt` | Timestamp | `expiresAt = issuedAt + 7d` |
+| `issuedAt` / `expiresAt` | Timestamp | `expiresAt = issuedAt + 48h` (was 7d — see Amendment 1) |
 | `status` | `"pending" \| "used" \| "revoked"` | single-use + revocation |
 | `usedAt` / `revokedAt` / `revokedBy` | Timestamp \| string \| null | audit trail |
 | `purgeAt` | Timestamp | TTL field, `issuedAt + 90d` |
@@ -124,10 +124,11 @@ security gain. SHA-256 is in Node core.
 `uid` on the doc is load-bearing: it is what stops a stale link from writing a password onto a
 *different* Auth account after an out-of-band relink.
 
-**TTL — 7 days.** The operator sends the link on a Friday afternoon; the member reads WhatsApp on
-Monday. 24 h (roughly what a Firebase oobCode gives, console-controlled) is precisely the failure
-this feature exists to remove. 30 days is a bearer credential sitting in a chat thread for a month.
-Seven days covers a full week plus a weekend and renders legibly: "vence el 28 de septiembre".
+**TTL — 48 hours** (originally 7 days; see Amendment 1). 24 h (roughly what a Firebase oobCode
+gives, console-controlled) is precisely the failure this feature exists to remove. 30 days is a
+bearer credential sitting in a chat thread for a month. 48 h still covers an overnight and a
+next-day reminder, which is what the WhatsApp delivery flow actually needs, while halving the
+exposure of a credential that persists in a chat history.
 
 **Single use, and the ordering problem.** `auth.updateUser` is not transactional with Firestore, so
 one of two failure modes must be chosen:
@@ -163,7 +164,7 @@ on every check-in, and `onMemberWritten` fires on every member write), the resul
 `pending` invite whose token the operator already pasted into WhatsApp, with the projection still
 pointing at the old revoked hash**. Nothing can ever revoke that orphan: there is no `where` query
 on `memberInvites`, `firestore.rules` denies all client access, and the only key into the collection
-no longer points at it. It stays redeemable for the full 7 days. So: **one `db.batch()` covering all
+no longer points at it. It stays redeemable for its full 48 hours. So: **one `db.batch()` covering all
 three writes**, no exceptions. This is the single most important implementation constraint in the
 document. `memberId` is on the invite doc so a break-glass sweep remains *possible* for an operator
 with console access, but it is not a designed path and would need a composite index. This is the concrete advantage over a Firebase oobCode, which silently
@@ -200,13 +201,21 @@ write, no side channel, no distinguishable latency (the key derivation is consta
 "missing doc" path is the cheapest one).
 
 **Rate limiting — we are deliberately not building one, and here is why.** A per-token attempt
-counter is meaningless: each guess addresses a *different* nonexistent document, so there is nothing
-to count against. A global counter means a Firestore write per unauthenticated request — a
-self-inflicted DoS and a cost lever handed to the attacker. Inventing a limiter in this document
-that the plan does not build would be guardrail #6. The controls that are real:
+counter is meaningless *for guessing*: each guess addresses a *different* nonexistent document, so
+there is nothing to count against. A global counter **in Firestore** means a write per
+unauthenticated request — a self-inflicted DoS and a cost lever handed to the attacker.
+
+**Amended (Amendment 2): an IN-PROCESS limiter is now shipped.** The reasoning above rules out a
+*persisted* counter, and that part stands; it does not rule out one that holds no state outside the
+instance's own memory. Both objections dissolve when nothing is written: a refusal costs an integer
+comparison, and the per-token key — useless against guessing, as argued — is retained only because
+it can never refuse a *different* invitee, while a generous endpoint-wide key does the actual
+flood-bounding. See Amendment 2.
+
+The controls that are real:
 
 - 256-bit entropy (guessing is not a threat model, it is arithmetic);
-- 7-day TTL, enforced in code;
+- 48-hour TTL, enforced in code;
 - single-use, enforced transactionally;
 - explicit revocation on re-issue;
 - `maxInstances: 10` set on both callables, plus an explicit short `timeoutSeconds` and the
@@ -494,7 +503,7 @@ snapshots `uid` and `email` at issue; redemption re-reads the live member doc an
 **The privilege guards must be RE-RUN at redemption, not only at issue.** This is the correction
 that keeps the D3 table below honest. Every guard in `issueMemberInvite` evaluates the authorization
 question at the instant the link is minted — but the token is a bearer credential that stays valid
-for seven days. Without a re-check:
+for 48 hours. Without a re-check:
 
 > Day 1, a delegate issues a recovery link for M: grant-free, unseated, claims `['Member']`. Every
 > guard passes; this is exactly D3's intent. Day 3, an Admin seats M on Tesorero and `claims-sync`
@@ -889,7 +898,8 @@ the same policy the checklist renders.
 2. **Re-issuing kills the previous link.** This is the point of the feature, not a side effect. The
    confirm dialog says so, and the badge flips the old invite to "Revocada". If the member replies
    "el enlace no sirve", check whether someone re-issued.
-3. **Links last 7 days.** The badge shows the date. After that, generate a new one; there is no
+3. **Links last 48 hours.** The badge shows the date **and time** on the Bolivian clock — at this
+   window a bare date is not precise enough to act on. After that, generate a new one; there is no
    extension.
 4. **A link is a credential.** Whoever holds it sets that member's password. Send it in a direct
    chat, not a group. There is no way to un-send; the remedy is to re-issue, which revokes it.
@@ -957,3 +967,79 @@ the same policy the checklist renders.
 Email verification. Magic-link sign-in. Self-service password change from `/me` (the member can
 always ask an operator). Any second delivery channel (SMS, WhatsApp Business API). Pinning or
 de-duplicating `members.email`. Backfilling the invite projection.
+
+
+---
+
+## Amendment 1 — link validity shortened to 48 hours
+
+The link is the entire credential and it is delivered over WhatsApp, where it persists in chat
+history, notification previews, and phone backups. The window *is* the exposure, so seven days
+bought one weekend of operator convenience at the price of a five-day replay window on a live
+password-setting capability.
+
+48 hours still covers the flow the chapter actually runs — share it in the evening, the member
+opens it the next day — and re-issuing is one click that also revokes the previous link, so a
+lapsed invite costs an operator a click and costs the member nothing.
+
+`INVITE_PURGE_MS` is **deliberately unchanged at 90 days.** It answers a different question:
+`expiresAt` is the security boundary, `purgeAt` is audit retention, and beacon computes `purgeAt`
+from `issuedAt` so the two never move together. A used or revoked invite document is not a
+credential — it is the record of who issued a login and when.
+
+One consequence the original spec could not have: **a bare date is no longer precise enough.** A
+link minted at 23:00 Monday dies at 23:00 Wednesday, which an operator reads as "Wednesday, some
+time". The operator surfaces now render date and time via `formatInstant`, which pins the
+**Bolivian** clock — `expiresAt` is a real instant, unlike an activity's wall-clock-pinned
+schedule, so the repo's UTC-pinned `formatDateTime` would have named a deadline four hours late
+and, near midnight, the wrong day.
+
+## Amendment 2 — rate limiting and App Check
+
+Both callables now carry two controls. They are complementary: **App Check bounds *who* may call;
+the limiter bounds *how often*.** A standard App Check token lives ~30 minutes and is replayable,
+so harvesting one from the public `/invitacion` and flooding with it stays open with enforcement
+on — which is why neither replaces the other.
+
+**The limiter** is in-process and writes nothing. 5 calls/min per token, 60/min endpoint-wide,
+consulted before any I/O.
+
+- *Why no Firestore.* `describeInvite` is two keyed reads and zero writes. A counter doc would make
+  the limiter more expensive than the endpoint it protects and hand an unauthenticated caller a
+  guaranteed billable write per request. A limiter that is the cheapest way to run up the bill is
+  not a control.
+- *Why two keys.* The per-token bucket is tight because it is structurally incapable of refusing a
+  different invitee. It is also near-useless against the case that threatens availability — a flood
+  of distinct random tokens, where every token gets a fresh bucket — so the endpoint-wide bucket is
+  the one that actually bounds a flood, and it is sized generously on purpose: a 5/min endpoint
+  budget would be a self-inflicted outage, exhausted by three invites opened in the same minute
+  plus a reload and a retry, with the refusal landing on real invitees and no operator remedy.
+- *Why not per-IP.* Google's own documentation conflicts on which `X-Forwarded-For` entry is
+  trustworthy for a direct `run.app` invocation — the Cloud Functions header reference says the
+  first entry is "generally" the client, while the load-balancer documentation states that anything
+  preceding the last two entries is unverified and may contain arbitrary characters. That ambiguity
+  is disqualifying: if the frontend appends rather than replaces, an attacker mints unlimited fresh
+  buckets with one header. NAT and distributed floods then break it in both directions anyway.
+- *The honest ceiling* is "per minute **per instance**, times however many instances are warm",
+  bounded by `maxInstances: 10`. A cold start resets the buckets. It is never a global figure, and
+  the docs must not quote it as one.
+- *Memory is bounded* by an LRU at 2048 token buckets — the flood this exists to survive is exactly
+  the one that would otherwise grow a bucket per distinct token on a 256MiB instance. Eviction
+  hands an evicted key a fresh budget, which is a second reason the endpoint-wide bucket is the
+  real control; a test asserts that property so nobody mistakes the LRU for a security boundary.
+
+**App Check** is now enforced. Two claims in the original text were false and are corrected: the
+production reCAPTCHA site key *does* exist, and "/invitacion has no session" was never the blocker
+— attestation is app-level, the route deliberately sits outside the `_auth` layout, and the client
+wires `initAppCheck` on first app acquisition.
+
+**Enforcement is per-product, and that is a blocking pre-deploy step.** Cloud Functions must be
+registered for App Check and `/invitacion` tested against a real production build before this
+deploys; otherwise every redemption 403s, silently and totally, on the only onboarding path that
+exists. The owner-op is in `docs/firebase-setup.md`.
+
+`invite-too-many-attempts` joins `INVITE_BLOCK_REASONS`. It is the first **temporary** tagged
+refusal, which invalidated a client invariant: `retryable` was "beacon gave no tagged reason", on
+the stated grounds that every tagged refusal is permanent for this token. That would have hidden
+the retry affordance from someone whose only problem was reloading the page twice, so retryability
+is now keyed on the reason.
