@@ -51,6 +51,15 @@ describe("inviteErrorMessage", () => {
   });
 });
 
+/** The reasons `inviteRefusal` treats as temporary, derived from its OWN behaviour rather than
+ *  re-listing `RETRYABLE_REASONS` (which is not exported). A second copy of that list here
+ *  would be the drift these tests exist to catch. */
+const TEMPORARY_REASONS: ReadonlySet<string> = new Set(
+  INVITE_BLOCK_REASONS.filter(
+    (reason) => inviteRefusal({ details: { reason } }).retryAfterSeconds !== null,
+  ),
+);
+
 describe("inviteRefusal — which refusals a retry can clear", () => {
   it("offers a retry for rate limiting, the one TEMPORARY tagged refusal", () => {
     // The bucket refills a slot every 12 s, so the same link works again shortly. Hiding the
@@ -69,11 +78,16 @@ describe("inviteRefusal — which refusals a retry can clear", () => {
     expect(refusal.retryAfterSeconds).toBe(0);
   });
 
-  it("refuses a retry for every OTHER reason in the contract", () => {
+  it("refuses a retry for every reason NOT declared temporary", () => {
     // Iterates the contract, so a NEW temporary reason must be added to RETRYABLE_REASONS
     // deliberately rather than inheriting the wrong default.
+    //
+    // Excluded by asking `inviteRefusal` what it considers temporary rather than by the
+    // literal "invite-too-many-attempts". With the literal, this test and the copy/affordance
+    // property test below were UNSATISFIABLE together: adding a second temporary reason (the
+    // exact change that test instructs) made this one fail, so no state passed both.
     for (const reason of INVITE_BLOCK_REASONS) {
-      if (reason === "invite-too-many-attempts") continue;
+      if (TEMPORARY_REASONS.has(reason)) continue;
       const refusal = inviteRefusal({ details: { reason } });
       expect(refusal.retryAfterSeconds, reason).toBeNull();
       expect(refusal.message, reason).not.toBeNull();
@@ -106,7 +120,17 @@ describe("inviteRefusal — copy and affordance cannot contradict", () => {
    *  Written as an exclusion list rather than by loosening the regex: `invite-password-weak`
    *  SHOULD say "inténtalo de nuevo", and a regex tuned to let it through would also let
    *  through a load-path reason that must not. */
-  const SUBMIT_PATH_ONLY: ReadonlySet<string> = new Set(["invite-password-weak"]);
+  const SUBMIT_PATH_ONLY: ReadonlySet<string> = new Set([
+    // All four are raised inside `redeemInviteFor`, after `loadValidInvite` has already
+    // succeeded — `describeInvite` cannot reach any of them. Listing the whole category, not
+    // just the one member that trips the rule today: rewording any of the others to say
+    // "inténtalo de nuevo" would otherwise fail this test for a screen that has no Reintentar
+    // button to withhold in the first place.
+    "invite-password-weak",
+    "invite-account-changed",
+    "invite-account-disabled",
+    "invite-member-now-privileged",
+  ]);
 
   it("offers a retry for every LOAD-path message that tells the invitee to try again", () => {
     // The rule itself, not one assertion per branch. `retryAfterSeconds: null` removes the

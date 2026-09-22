@@ -22,7 +22,15 @@ export const BOLIVIA_OFFSET_MS = 4 * 60 * 60 * 1000;
 // field in the repo is called `*At`.
 //
 // The remaining formatters (formatDayMonth, formatMonthYear, formatDateChip, formatDateRange)
-// are civil dates and correctly UTC-pinned.
+// are UTC-pinned and have no instant counterpart yet.
+//
+// KNOWN GAP, do not mistake it for a safe set: `formatMonthYear` has two callers that pass
+// `finalReport.filedAt`, which `initiative-mapper` writes with `serverTimestamp()` — an
+// instant. `initiative-hero.tsx` and spotlight's `showcase-card.tsx` therefore name the wrong
+// MONTH for a report filed in the last four hours of a month's last day (21:00 on 31 Jan
+// Bolivia is 01:00Z on 1 Feb → "Feb 2026"). Narrow, real, and not fixed here only because it
+// reaches spotlight and wants its own change. The other `formatMonthYear` callers, and all of
+// formatDayMonth/formatDateChip/formatDateRange, take genuine civil dates.
 //
 // Marked /* @__PURE__ */ so an app tree-shakes the formatters backing functions it never
 // calls — spotlight calls only formatDateRange/formatMonthYear, so it drops DATE_TIME,
