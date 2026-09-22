@@ -47,6 +47,21 @@ describe("InviteStateBadge", () => {
     expect(screen.getByText(/^Usada el .*\b21\b[^:]*$/)).toBeInTheDocument();
   });
 
+  it("names the BOLIVIAN day for a late-evening redemption, not the UTC one", () => {
+    // The regression guard. `usedAt` is Timestamp.fromMillis(deps.now()) — a real instant — so
+    // a UTC-pinned formatter names tomorrow for anything redeemed after 20:00 local, roughly
+    // four hours of every day. 01:30Z on the 22nd is 21:30 on the 21st in Bolivia.
+    const usedAt = ts(new Date("2026-09-22T01:30:00Z").getTime());
+    render(
+      <InviteStateBadge
+        member={member({ ...pending, status: "used", usedAt })}
+        now={usedAt.toMillis() + 1000}
+      />,
+    );
+    expect(screen.getByText(/^Usada el .*\b21\b[^:]*$/)).toBeInTheDocument();
+    expect(screen.queryByText(/\b22\b/)).not.toBeInTheDocument();
+  });
+
   it("renders the used label without a date when usedAt is missing", () => {
     // A projection written before usedAt existed, or a partial write. Must not render
     // "Usada el undefined".

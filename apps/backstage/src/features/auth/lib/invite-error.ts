@@ -146,17 +146,28 @@ export function inviteRefusal(err: unknown): InviteRefusal {
   if (reason !== null) {
     const retryable = RETRYABLE_REASONS.has(reason);
     const message = REASON_MESSAGES.get(reason) ?? null;
+    /** A tagged reason this build does not recognize: a newer beacon deploying ahead of this
+     *  bundle, or a prototype key like "toString" reaching the lookup. We know only that
+     *  beacon refused — not WHY, and not whether the link survives it. */
+    const unrecognized = message === null;
     return {
       message,
       // Retryable == temporary, for tagged reasons: the only member of that set is rate
       // limiting. Everything else KNOWN and tagged means the link itself cannot be used again.
       //
-      // A tagged reason this build does not recognize (a newer beacon against an older client,
-      // or a prototype key like "toString" reaching the lookup) gets the NEUTRAL heading: we
-      // genuinely do not know the link is dead, so saying so would be a guess rendered as a
-      // fact — and the body falls back to generic copy that would not match it.
-      heading: retryable ? HEADINGS.wait : message === null ? HEADINGS.blocked : HEADINGS.dead,
-      retryAfterSeconds: retryable ? RATE_LIMIT_RETRY_AFTER_SECONDS : null,
+      // An unrecognized reason gets the NEUTRAL heading: we genuinely do not know the link is
+      // dead, so saying so would be a guess rendered as a fact — and the body falls back to
+      // generic copy that would not match it.
+      heading: retryable ? HEADINGS.wait : unrecognized ? HEADINGS.blocked : HEADINGS.dead,
+      // ...and it stays RETRYABLE, for the same reason the heading stays neutral. Withholding
+      // the retry here was a contradiction the invitee could read: `message` is null, so the
+      // form renders GENERIC_LOAD_ERROR — "Revisa tu conexión e inténtalo de nuevo" — with no
+      // Reintentar button to obey it. `0` rather than the rate-limit delay: nothing told us to
+      // wait, and this is the same treatment the untagged path below gives an unknown failure.
+      //
+      // NOT a fall-through to the attestation branch: a tag means beacon refused deliberately,
+      // and routing it there would console.error an App Check failure that did not happen.
+      retryAfterSeconds: retryable ? RATE_LIMIT_RETRY_AFTER_SECONDS : unrecognized ? 0 : null,
     };
   }
   if (isAttestationRejection(err)) {

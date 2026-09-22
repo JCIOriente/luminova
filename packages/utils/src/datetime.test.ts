@@ -15,6 +15,7 @@ import {
   formatDateTime,
   formatDayMonth,
   formatInstant,
+  formatInstantDate,
   formatMonthYear,
   formatTime,
   fullYearsBetween,
@@ -180,6 +181,43 @@ describe("fullYearsBetween", () => {
   });
   it("counts the year on the anniversary day", () => {
     expect(fullYearsBetween(ts("2020-07-10T00:00:00Z"), now)).toBe(6);
+  });
+});
+
+describe("formatInstantDate — a REAL instant, Bolivian DAY, no clock", () => {
+  // The zone question and the granularity question are independent. This one answers "real
+  // instant" like formatInstant and "no time component" like formatDate, which is the
+  // combination `member.invite.usedAt` needs and which neither of those two provides.
+
+  it("renders the Bolivian date with no time component", () => {
+    const out = formatInstantDate(ts("2026-09-21T16:00:00Z"));
+    expect(out).toMatch(/\b21\b/);
+    // No clock anywhere. Asserted on the absence of a colon rather than an exact string, so a
+    // locale month-abbreviation change does not turn this red.
+    expect(out).not.toMatch(/:/);
+  });
+
+  it("names the day BEFORE the one UTC would, for a late-evening instant", () => {
+    // THE bug this exists for. 01:30Z on the 22nd is 21:30 on the 21st in Bolivia, so a
+    // UTC-pinned formatter names tomorrow. Every redemption after 20:00 local took that path.
+    const lateEvening = ts("2026-09-22T01:30:00Z");
+    expect(formatInstantDate(lateEvening)).toMatch(/\b21\b/);
+    expect(formatInstantDate(lateEvening)).not.toMatch(/\b22\b/);
+    // And it genuinely DISAGREES with formatDate here — pins why both exist, so a later
+    // "consolidation" of the two fails rather than silently reintroducing the bug.
+    expect(formatInstantDate(lateEvening)).not.toBe(formatDate(lateEvening));
+  });
+
+  it("agrees with formatDate away from the boundary", () => {
+    // Mid-afternoon UTC is the same calendar day in both zones. The two formatters differ ONLY
+    // near the boundary, which is what makes the bug so easy to miss by hand.
+    const midday = ts("2026-09-21T16:00:00Z");
+    expect(formatInstantDate(midday)).toBe(formatDate(midday));
+  });
+
+  it("is independent of the host timezone", () => {
+    const out = formatInstantDate(ts("2026-01-15T03:30:00Z"));
+    expect(out).toMatch(/\b14\b/);
   });
 });
 

@@ -80,14 +80,21 @@ describe("inviteRefusal — which refusals a retry can clear", () => {
     }
   });
 
-  it.each(["toString", "constructor", "__proto__"])("is prototype-safe for %s", (reason) => {
-    // A prototype key is not a known reason, so it must not come back retryable-with-a-message
-    // — and it must not claim the link is invalid, which we have no basis to assert.
-    const refusal = inviteRefusal({ details: { reason } });
-    expect(refusal.message).toBeNull();
-    expect(refusal.retryAfterSeconds).toBeNull();
-    expect(refusal.heading).not.toMatch(/no v[áa]lido/i);
-  });
+  it.each(["toString", "constructor", "__proto__", "invite-reason-from-a-newer-beacon"])(
+    "treats the UNRECOGNIZED tagged reason %s like an unknown failure, not a dead link",
+    (reason) => {
+      // Two ways to get here: a prototype key reaching the lookup, and a beacon deploying a
+      // new InviteBlockReason ahead of this bundle. Neither tells us the link is spent, so we
+      // must not claim it is — and we must not withhold the retry either.
+      const refusal = inviteRefusal({ details: { reason } });
+      expect(refusal.message).toBeNull();
+      expect(refusal.heading).not.toMatch(/no v[áa]lido/i);
+      // 0, not null. `message` is null, so the form renders GENERIC_LOAD_ERROR — "Revisa tu
+      // conexión e inténtalo de nuevo". `null` here removes the Reintentar button, leaving
+      // copy that instructs a retry above a screen that offers none.
+      expect(refusal.retryAfterSeconds).toBe(0);
+    },
+  );
 });
 
 describe("inviteRefusal — an App Check rejection is not a network blip", () => {

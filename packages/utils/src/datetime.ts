@@ -11,9 +11,14 @@ export const BOLIVIA_OFFSET_MS = 4 * 60 * 60 * 1000;
 // formatDateChip → drops DATE_TIME/DATE_ONLY/TIME_ONLY). Bundlers otherwise keep
 // bare `new X()` as a side effect. Formatters referenced by a called function
 // (e.g. MONTH_YEAR_LONG via formatMonthYear) stay regardless.
-// One options literal, two zones. The pair differed ONLY in `timeZone` while listing the same
-// six keys twice, so a later tweak (adding `weekday`, say) had to be applied identically to
-// both with nothing enforcing it.
+// Two field sets, each used in BOTH zones. The variants differed only in `timeZone` while
+// listing the same keys twice, so a later tweak (adding `weekday`, say) had to be applied
+// identically to every copy with nothing enforcing it.
+const DATE_ONLY_FIELDS = {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+} as const;
 const DATE_TIME_FIELDS = {
   day: "numeric",
   month: "short",
@@ -32,6 +37,12 @@ const DATE_TIME = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
   ...DATE_TIME_FIELDS,
   timeZone: "UTC",
 });
+// The date-only half of the instant pair. Same zone as INSTANT_DATE_TIME, same fields as
+// DATE_ONLY: an instant whose TIME is noise but whose DAY still has to be the Bolivian one.
+const INSTANT_DATE_ONLY = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
+  ...DATE_ONLY_FIELDS,
+  timeZone: "America/La_Paz",
+});
 const MONTH_SHORT = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
   month: "short",
   timeZone: "UTC",
@@ -47,9 +58,7 @@ const MONTH_YEAR_LONG = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
   timeZone: "UTC",
 });
 const DATE_ONLY = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
+  ...DATE_ONLY_FIELDS,
   timeZone: "UTC",
 });
 const TIME_ONLY = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
@@ -108,7 +117,29 @@ export function formatInstant(ts: Timestamp): string {
   return INSTANT_DATE_TIME.format(ts.toDate());
 }
 
-/** Date only, "14 jun 2026", for detail fact rows. */
+/** Date only, "21 sept 2026", for a value that is a REAL INSTANT, rendered on the Bolivian
+ *  wall clock.
+ *
+ *  The third member of the pair, and it exists because the choice is TWO independent
+ *  questions, not one. `formatDateTime` vs `formatInstant` picks the ZONE — wall-clock pinned
+ *  to UTC, or a real moment. Date-only vs date-and-time picks the GRANULARITY, and that is a
+ *  question about the reader: a deadline needs its clock, a past event does not.
+ *
+ *  Before this existed the two questions were tangled, so a caller that wanted a Bolivian date
+ *  without a time had only `formatDate` — which answers the granularity question correctly and
+ *  the zone question wrongly. `member.invite.usedAt` took exactly that trade and rendered the
+ *  NEXT day for every redemption after 20:00 local, roughly four hours of every day.
+ *
+ *  Same rule as `formatInstant` for picking it: `serverTimestamp()`, `request.time` or
+ *  `Date.now()` on the way in means an instant, and an instant belongs in one of these two. */
+export function formatInstantDate(ts: Timestamp): string {
+  return INSTANT_DATE_ONLY.format(ts.toDate());
+}
+
+/** Date only, "14 jun 2026", for detail fact rows.
+ *
+ *  UTC-pinned. For a REAL INSTANT — anything written with `serverTimestamp()` — this renders
+ *  the wrong DAY near midnight in Bolivia; use `formatInstantDate`. */
 export function formatDate(ts: Timestamp): string {
   return DATE_ONLY.format(ts.toDate());
 }
