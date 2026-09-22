@@ -264,8 +264,8 @@ export function InviteRedeemForm({ token }: { token: string }) {
       // and the copy above it promises a wait. Reading only the message — which is what this
       // path used to do — dropped the refusal's wait on the floor and left the button live,
       // so every impatient click spent an ENDPOINT-WIDE slot to fail. That bucket has shared
-      // fate: those clicks push the ceiling that denies every OTHER invitee. `?? 0` clears the
-      // wait for refusals it cannot help, exactly as on load.
+      // fate: those clicks push the ceiling that denies every OTHER invitee. `waitFor` returns
+      // 0 for refusals a wait cannot help, exactly as on load.
       // Unlike the load path, `retry-or-reload` DOES take its wait here: the retry stays the
       // primary affordance, so the button that could not work yet must still be withheld.
       setCooldown(waitFor(refusal.recovery));

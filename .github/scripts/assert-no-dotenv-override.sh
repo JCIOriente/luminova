@@ -15,9 +15,11 @@
 # gitignored and wiped by apps/beacon/build.mjs, so it only exists once something has built
 # beacon. A turbo CACHE RESTORE is the one path that could put an unlisted file there — and no
 # turbo cache is configured in GitHub CI, so on that runner the arm scans a freshly built dist
-# and cannot fire. It is live locally under `pnpm pr-tests`. Keep the arm (it costs nothing and
-# a cache may be configured later) but do not call it a CI control; the CI-live arm is
-# `apps/beacon/.env*`, a hygiene signal, and the real control is the post-deploy assertion.
+# and cannot fire. It fires on a DEVELOPER MACHINE, where a cache hit can restore `dist/**`
+# without re-running the build — which is why `pnpm guard:beacon-dotenv` runs this script
+# against the real tree as part of `pnpm pr-tests`. Do not call the dist arm a CI control; the
+# CI-live arm is `apps/beacon/.env*`, a hygiene signal, and the real control is the post-deploy
+# assertion in deploy.yml.
 #
 # Usage: assert-no-dotenv-override.sh <dir> [<dir>...]
 set -euo pipefail

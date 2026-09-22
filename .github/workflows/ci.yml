@@ -84,9 +84,14 @@ jobs:
       # ON THIS RUNNER THAT ARM CANNOT FIRE. No turbo cache is configured in CI (only the pnpm
       # store and the firebase-tools/emulator binaries are cached), so `turbo run build` always
       # executes `apps/beacon/build.mjs`, whose first act is `rm(dist, {recursive, force})`. The
-      # dist it scans is therefore always freshly built and cannot hold a stray dotenv. The arm
-      # is live locally under `pnpm pr-tests`, where a turbo cache exists — belt and braces, not
-      # a CI control. An earlier draft claimed a CI cache restore made it live; there is none.
+      # dist it scans is therefore always freshly built and cannot hold a stray dotenv.
+      #
+      # WHERE IT CAN FIRE is a developer machine, where a turbo cache DOES exist and can restore
+      # `dist/**` without re-running build.mjs. So `pnpm guard:beacon-dotenv` runs this same
+      # script against the real tree and is part of `pnpm pr-tests`. Two earlier drafts of this
+      # comment got this wrong in opposite directions — one claimed a CI cache restore made the
+      # arm live (there is none), the next claimed `pr-tests` already covered it (it ran only
+      # the fixtures, never the script). It does now, because the script was wired in.
       #
       # So what this step actually catches is a committed `apps/beacon/.env*` — a file
       # firebase-tools never reads for this project, which is why it is a hygiene signal and not
