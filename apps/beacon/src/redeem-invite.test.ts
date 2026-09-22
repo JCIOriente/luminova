@@ -714,6 +714,13 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
 
     // The alert must warn BEFORE the ceiling denies, never after. If the ceiling is retuned,
     // docs/firebase-setup.md's `--if` threshold moves with it.
+    //
+    // Since App Check enforcement the two figures count DIFFERENT request populations: the
+    // alert is built on Cloud Run's request_count, which includes App-Check-rejected calls
+    // (401), while this ceiling only ever sees calls that reached our handler. The assertion
+    // stays valid and errs in the safe direction — the alert can only fire earlier than the
+    // ceiling denies, never later — but do not read the pair as measuring one thing. The
+    // response-code table in docs/firebase-setup.md is what separates them.
     const ALERT_THRESHOLD_PER_SECOND = 8;
     expect(ALERT_THRESHOLD_PER_SECOND).toBeLessThan(INVITE_GLOBAL_DENIAL_PER_SECOND);
   });

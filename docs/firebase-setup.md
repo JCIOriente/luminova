@@ -583,6 +583,26 @@ it in a copy dialog with its expiry.
    are what stand between that line and an unprotected endpoint. A `gcloud run services
    describe` of the two services will show the resolved env.
 
+   **Check for TWO variables there, not one.** `FUNCTIONS_EMULATOR` is what our own code keys
+   on, but `FIREBASE_DEBUG_MODE` (and `FIREBASE_DEBUG_FEATURES` carrying
+   `skipTokenVerification`) fails the control open one level lower, inside firebase-functions:
+   it routes App Check through `unsafeDecodeAppCheckToken`, which accepts a self-crafted
+   UNSIGNED token. Enforcement would still read as `true` in the log line while accepting
+   anything. Neither belongs on a deployed service; the CI guard greps only the first, because
+   the second cannot arrive from a repo file.
+
+   `us-central1` below is the gen2 default, which is what these get — beacon sets no `region`
+   on any callable and calls no `setGlobalOptions`. Confirm with
+   `gcloud run services list --project=jci-oriente` if a region is ever added.
+
+   ```bash
+   for svc in describeinvite redeeminvite; do
+     gcloud run services describe "$svc" --region=us-central1 --project=jci-oriente \
+       --format='value(spec.template.spec.containers[0].env)' | tr ',' '\n' \
+       | grep -E 'FUNCTIONS_EMULATOR|FIREBASE_DEBUG' || echo "$svc: clean"
+   done
+   ```
+
    If it does fail: hard-code `ENFORCE_APP_CHECK = false` in
    `apps/beacon/src/redeem-invite.ts`, redeploy the two functions, and fix the registration
    before trying again. The rate limiter is independent and keeps working either way.
@@ -669,6 +689,28 @@ it in a copy dialog with its expiry.
    can go unlogged for as long as the flood lasts. Do not build the alert on these lines either
    way: `shouldLogRefusal` caps them at one per gate per instance per 10 s, so they saturate at
    six a minute whether the flood is 11 req/s or 11,000 — presence, never rate.
+
+   **A THIRD population exists since App Check enforcement, and it charges no bucket.** An
+   App-Check-rejected call is thrown by firebase-functions inside `onCallHandler`, before our
+   handler — and therefore before `admitGlobal` — ever runs. Cloud Run counts it;
+   the limiter never sees it. So the three populations are distinguishable only by response
+   code:
+
+   | Population | `HttpsError` code | HTTP |
+   |---|---|---|
+   | App Check rejected / missing | `unauthenticated` | **401** |
+   | Rate-limit refusal | `resource-exhausted` | **429** |
+   | Tagged invite refusal (expired, used, …) | `failed-precondition` | **400** |
+
+   Before concluding anything from this alert, break the condition's series down by
+   `response_code` in Metrics Explorer. A 401 spike with NO `rate-limited-global` lines is not
+   a false positive — it is either a header-less flood burning invocations against
+   `maxInstances: 10`, or, in the days around this deploy, **the registration failure this
+   section's owner-op exists to prevent**, in which case every legitimate redemption is 401ing
+   too. That is the single best detector for it.
+
+   Leave the `--if='> 8'` filter unscoped — excluding 401 would blind the alert to both of
+   those.
 
    **Verify it applied:**
 
