@@ -212,7 +212,7 @@ describe("InviteRedeemForm", () => {
 
   it("WITHHOLDS the submit button after a THROTTLED redemption, not just the load retry", async () => {
     // The regression this pins. The submit path read only the refusal's message and dropped
-    // its `retryAfterSeconds`, so the button stayed live under copy promising a wait — and
+    // its wait, so the button stayed live under copy promising one — and
     // this is the button an invitee retries hardest, because it sits behind a password they
     // have already typed. Each impatient click spends an ENDPOINT-WIDE slot to fail, and that
     // bucket has shared fate: the clicks push the very ceiling that denies every OTHER
@@ -238,7 +238,7 @@ describe("InviteRedeemForm", () => {
 
   it("does NOT carry a throttled wait over to a newly pasted link", async () => {
     // `cooldown` gained a second writer when the submit path started honouring
-    // `retryAfterSeconds`, and both buckets are keyed PER TOKEN — so a wait one link earned
+    // the refusal's wait, and both buckets are keyed PER TOKEN — so a wait one link earned
     // must not disable the submit button for the next one. Reachable in one tab: invitacion.tsx
     // feeds `token` from the location hash, so pasting a second link re-runs load() with a
     // countdown still ticking from the first.

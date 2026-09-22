@@ -11,10 +11,13 @@
 # from the functions SOURCE (`opts.configDir || opts.functionsSource`) and firebase.json
 # declares `"source": "apps/beacon/dist"`. `apps/beacon/.env*` is never read for this project.
 #
-# RUN IT AFTER THE BUILD. dist is gitignored and wiped by apps/beacon/build.mjs, so it only
-# exists once something has built beacon — including a turbo cache restore, which is the one
-# path that can put an unlisted file there. In deploy.yml this same scan ran before predeploy
-# built dist, so the arm that mattered never executed; PR CI runs it after the build step.
+# RUN IT AFTER THE BUILD, and know what the dist arm is worth where you run it. dist is
+# gitignored and wiped by apps/beacon/build.mjs, so it only exists once something has built
+# beacon. A turbo CACHE RESTORE is the one path that could put an unlisted file there — and no
+# turbo cache is configured in GitHub CI, so on that runner the arm scans a freshly built dist
+# and cannot fire. It is live locally under `pnpm pr-tests`. Keep the arm (it costs nothing and
+# a cache may be configured later) but do not call it a CI control; the CI-live arm is
+# `apps/beacon/.env*`, a hygiene signal, and the real control is the post-deploy assertion.
 #
 # Usage: assert-no-dotenv-override.sh <dir> [<dir>...]
 set -euo pipefail

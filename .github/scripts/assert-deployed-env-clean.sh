@@ -73,7 +73,13 @@ probe() {
 }
 
 found=0
-unchecked=0
+# `checked` only, not a matching `unchecked` beside it: the two always summed to `$#`, and
+# keeping both meant a hidden invariant nothing asserted. This is the half that survives ON
+# PURPOSE, because the two are not symmetric under a future edit. The post-loop rule asks
+# "did anything get read?" — so a new branch that neither reads a service nor marks it absent
+# leaves `checked` low and FAILS, while the same branch counted from `unchecked` would leave
+# `unchecked < $#` and PASS. One direction fails closed; the other reintroduces the exact
+# silent green this script exists to prevent. The absent count is derived for messaging only.
 checked=0
 
 for svc in "$@"; do
@@ -96,7 +102,6 @@ for svc in "$@"; do
     # the raw API and other surfaces do use it; "Cannot find service" is the one that fires.
     if printf '%s' "$err" | grep -qE 'Cannot find service|NOT_FOUND'; then
       echo "::warning::$svc does not exist in $region, so its env was NOT checked. If this deploy was meant to create it, the deploy itself is what to look at."
-      unchecked=$((unchecked + 1))
       continue
     fi
     echo "::error::could not read the deployed env of $svc — this assertion did NOT run. ${err}" >&2
@@ -153,9 +158,9 @@ fi
 # every describe here returns NOT_FOUND and every miss is individually excusable. Fail instead,
 # so the assumption is corrected rather than silently outlived.
 if [ "$checked" -eq 0 ]; then
-  echo "::error::no service was actually checked (all $unchecked absent from $region), so App Check enforcement was NOT verified. If a callable now sets a region, pass GCP_REGION; otherwise look at whether the deploy created these services at all." >&2
+  echo "::error::no service was actually checked (all $# absent from $region), so App Check enforcement was NOT verified. If a callable now sets a region, pass GCP_REGION; otherwise look at whether the deploy created these services at all." >&2
   exit 2
 fi
-if [ "$unchecked" -gt 0 ]; then
-  echo "note: $unchecked service(s) could not be checked — see the warnings above."
+if [ "$checked" -lt "$#" ]; then
+  echo "note: $(($# - checked)) service(s) could not be checked — see the warnings above."
 fi

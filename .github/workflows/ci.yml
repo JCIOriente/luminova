@@ -75,13 +75,23 @@ jobs:
       # can hold — a committed dotenv that sets FUNCTIONS_EMULATOR, which would ship the two
       # unauthenticated invite callables with App Check disabled.
       #
-      # IT RUNS AFTER THE BUILD DELIBERATELY. firebase-tools resolves the dotenv directory from
-      # the functions SOURCE, not the repo path (`env.js` uses `opts.configDir ||
-      # opts.functionsSource`, and firebase.json declares `"source": "apps/beacon/dist"`), so
-      # `apps/beacon/dist/.env*` is what reaches the deployed runtime. In the deploy job this
-      # same scan ran BEFORE predeploy built dist, so the arm that mattered never executed. Here
-      # the build above has already run — including a turbo cache restore, the one path that can
-      # put an unlisted file in dist — so both arms are live.
+      # IT RUNS AFTER THE BUILD, but be honest about what that buys, because the first version
+      # of this comment was not. firebase-tools resolves the dotenv directory from the functions
+      # SOURCE, not the repo path (`env.js` uses `opts.configDir || opts.functionsSource`, and
+      # firebase.json declares `"source": "apps/beacon/dist"`), so `apps/beacon/dist/.env*` is
+      # what would reach the deployed runtime.
+      #
+      # ON THIS RUNNER THAT ARM CANNOT FIRE. No turbo cache is configured in CI (only the pnpm
+      # store and the firebase-tools/emulator binaries are cached), so `turbo run build` always
+      # executes `apps/beacon/build.mjs`, whose first act is `rm(dist, {recursive, force})`. The
+      # dist it scans is therefore always freshly built and cannot hold a stray dotenv. The arm
+      # is live locally under `pnpm pr-tests`, where a turbo cache exists — belt and braces, not
+      # a CI control. An earlier draft claimed a CI cache restore made it live; there is none.
+      #
+      # So what this step actually catches is a committed `apps/beacon/.env*` — a file
+      # firebase-tools never reads for this project, which is why it is a hygiene signal and not
+      # a production control. The control is the post-deploy assertion in deploy.yml. What keeps
+      # the committed-file vector unreachable at all is pinned by the invariant test below.
       #
       # The `(export)?` mirrors firebase-tools' own LINE_RE (`^\s*(?:export)?\s*([\w./]+)\s*=`),
       # which accepts the shell `export FOO=bar` spelling as an ordinary assignment. Without it

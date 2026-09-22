@@ -39,6 +39,17 @@ function reloadPage() {
   window.location.reload();
 }
 
+/** The wait a recovery asks for, in seconds; `0` when it asks for none.
+ *
+ *  ONE lookup, because the two call sites below used to spell it in opposite polarities —
+ *  `kind === "retry" ? afterSeconds : 0` on load against `kind === "none" ? 0 : afterSeconds`
+ *  on submit. They agreed on two arms and disagreed on the third, with nothing tying them
+ *  together, so a fourth recovery kind would have had to be reasoned about twice, backwards.
+ *  The per-path difference that IS real stays visible at its call site as a single clause. */
+function waitFor(recovery: InviteRecovery): number {
+  return recovery.kind === "none" ? 0 : recovery.afterSeconds;
+}
+
 function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="flex w-full max-w-[392px] flex-col">
@@ -95,11 +106,18 @@ function Heading({ children }: { children: ReactNode }) {
 
 export function InviteRedeemForm({ token }: { token: string }) {
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
-  /** The message AND whether a reload is worth offering beside it — one object, because they
-   *  are set from the same refusal and a second `useState` could drift out of step with it. */
-  const [formError, setFormError] = useState<{ message: string; reloadable: boolean } | null>(null);
+  /** The message AND the recovery it came with — one object, because they are set from the
+   *  same refusal and a second `useState` could drift out of step with it.
+   *
+   *  The RECOVERY, not a `reloadable` boolean derived from it: the error phase above stores the
+   *  same shape, and flattening it here made the two paths model one concept two ways — the
+   *  "derive a boolean beside the thing" asymmetry the union's own docblock argues against. A
+   *  fourth kind is now read the same way on both paths. */
+  const [formError, setFormError] = useState<{ message: string; recovery: InviteRecovery } | null>(
+    null,
+  );
   /** Seconds left before a withheld retry becomes available again. Driven off the refusal's
-   *  own `retryAfterSeconds` rather than a constant here, so the wait and the server's
+   *  own recovery rather than a constant here, so the wait and the server's
    *  refill interval cannot drift apart. */
   const [cooldown, setCooldown] = useState(0);
   const {
@@ -139,7 +157,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
     const alive = () => runId.current === mine;
     setPhase({ kind: "loading" });
     // Clear any wait the PREVIOUS token earned. `cooldown` gained a second writer when the
-    // submit path started honouring `retryAfterSeconds`, and the two buckets are per token:
+    // submit path started honouring the refusal's wait, and the two buckets are per token:
     // pasting a fresh link into the same tab while a throttled redeem is still counting down
     // would otherwise render the new invite's submit button disabled behind a countdown it
     // never earned. Whatever this load learns is set again below.
@@ -185,7 +203,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
       // limited, it spends no endpoint slot, and it is the one action that CAN work while the
       // App Check provider is throttled. Withholding it would be the copy/affordance
       // contradiction this file keeps fixing — a button that says "wait" for no reason.
-      setCooldown(refusal.recovery.kind === "retry" ? refusal.recovery.afterSeconds : 0);
+      setCooldown(refusal.recovery.kind === "retry-or-reload" ? 0 : waitFor(refusal.recovery));
     }
   }, [token]);
 
@@ -231,25 +249,26 @@ export function InviteRedeemForm({ token }: { token: string }) {
       // The form stays usable: several refusals (a weak password) are correctable in place,
       // and the ones that are not say so in their own copy.
       const refusal = inviteRefusal(err);
+      // THE DESIGN CALL is rendered below, gated on `recovery.kind === "retry-or-reload"`: a
+      // reload is the only escape from a 24 h App Check throttle, but on THIS path it throws
+      // away a password the invitee has already typed — to fix a cause that is transient two
+      // times out of three. So it is offered second, under the withheld retry, with its cost
+      // named. Never automatic: a component that reloaded on its own would destroy typed input
+      // to guess at a cause.
       setFormError({
         message: refusal.message ?? GENERIC_REDEEM_ERROR,
-        // THE DESIGN CALL, stated where it is made. A reload is the only escape from a 24 h App
-        // Check throttle, but on THIS path it throws away a password the invitee has already
-        // typed — to fix a cause that is transient two times out of three. So it is offered
-        // second, under the withheld retry, with its cost named. Never automatic: a component
-        // that reloaded on its own would destroy typed input to guess at a cause.
-        reloadable: refusal.recovery.kind === "retry-or-reload",
+        recovery: refusal.recovery,
       });
       // The SAME withholding the load path applies, and for a stronger reason: this button
       // sits behind a filled-in password form, so it is the one an invitee retries hardest,
       // and the copy above it promises a wait. Reading only the message — which is what this
-      // path used to do — dropped `retryAfterSeconds` on the floor and left the button live,
+      // path used to do — dropped the refusal's wait on the floor and left the button live,
       // so every impatient click spent an ENDPOINT-WIDE slot to fail. That bucket has shared
       // fate: those clicks push the ceiling that denies every OTHER invitee. `?? 0` clears the
       // wait for refusals it cannot help, exactly as on load.
       // Unlike the load path, `retry-or-reload` DOES take its wait here: the retry stays the
       // primary affordance, so the button that could not work yet must still be withheld.
-      setCooldown(refusal.recovery.kind === "none" ? 0 : refusal.recovery.afterSeconds);
+      setCooldown(waitFor(refusal.recovery));
     }
   });
 
@@ -341,7 +360,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
         {formError && (
           <div role="alert" className="text-ui-sm text-error">
             {formError.message}
-            {formError.reloadable && (
+            {formError.recovery.kind === "retry-or-reload" && (
               <span className="mt-1 block text-ink-3">{RELOAD_COSTS_THE_PASSWORD}</span>
             )}
           </div>
@@ -361,8 +380,8 @@ export function InviteRedeemForm({ token }: { token: string }) {
         >
           {submitLabel}
         </Button>
-        {formError?.reloadable && (
-          // SECOND, and secondary — see the `reloadable` comment in `onSubmit`. The invitee
+        {formError?.recovery.kind === "retry-or-reload" && (
+          // SECOND, and secondary — see the design-call comment in `onSubmit`. The invitee
           // reaches this only after the retry above has been withheld and, usually, tried; it
           // is the escape hatch for the one cause a retry can never clear, and its cost is
           // named in the alert above rather than discovered after the click.

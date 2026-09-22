@@ -223,6 +223,10 @@ test("TOLERATES a missing service, and says the env was not checked", () => {
   // Paired with a service that WAS read: one absent service says nothing about the other, so
   // the run still verified something. The all-absent case above is the one that did not.
   assert.match(r.out, /ok: redeeminvite/);
+  // The absent COUNT is derived (`$# - checked`) rather than tallied in a second counter, so
+  // it needs an assertion of its own: an off-by-one there would misreport how much of the
+  // release actually got verified, which is the one number a reader of this log needs.
+  assert.match(r.out, /note: 1 service\(s\) could not be checked/);
 });
 
 test("FAILS on a permission error instead of tolerating it", () => {
