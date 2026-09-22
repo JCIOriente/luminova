@@ -16,6 +16,7 @@ import {
   formatDayMonth,
   formatInstant,
   formatInstantDate,
+  formatInstantTime,
   formatMonthYear,
   formatTime,
   fullYearsBetween,
@@ -181,6 +182,33 @@ describe("fullYearsBetween", () => {
   });
   it("counts the year on the anniversary day", () => {
     expect(fullYearsBetween(ts("2020-07-10T00:00:00Z"), now)).toBe(6);
+  });
+});
+
+describe("formatInstantTime — a REAL instant, Bolivian CLOCK", () => {
+  // The cell that was missing, and whose absence is why `checkInAt` stayed on the UTC-pinned
+  // formatTime and rendered every arrival four hours late in production.
+
+  it("renders the Bolivian hour, four hours behind UTC", () => {
+    expect(formatInstantTime(ts("2026-09-21T19:00:00Z"))).toMatch(/\b15:00\b/);
+  });
+
+  it("disagrees with formatTime by exactly the Bolivian offset", () => {
+    // Pins WHY both exist. A "consolidation" of the two fails here.
+    const instant = ts("2026-09-21T19:00:00Z");
+    expect(formatInstantTime(instant)).not.toBe(formatTime(instant));
+    const shifted = ts(
+      new Date(Date.parse("2026-09-21T19:00:00Z") - BOLIVIA_OFFSET_MS).toISOString(),
+    );
+    expect(formatTime(shifted)).toBe(formatInstantTime(instant));
+  });
+
+  it("wraps past midnight rather than showing a 25th hour", () => {
+    expect(formatInstantTime(ts("2026-09-22T02:30:00Z"))).toMatch(/\b22:30\b/);
+  });
+
+  it("is independent of the host timezone", () => {
+    expect(formatInstantTime(ts("2026-01-15T03:30:00Z"))).toMatch(/\b23:30\b/);
   });
 });
 

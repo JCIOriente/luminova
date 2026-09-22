@@ -97,6 +97,43 @@ describe("inviteRefusal — which refusals a retry can clear", () => {
   );
 });
 
+describe("inviteRefusal — copy and affordance cannot contradict", () => {
+  /** Reasons only `redeemInvite` can raise, i.e. only AFTER the invite already validated and
+   *  the form is on screen. Their copy renders inline beside a form that stays usable, so
+   *  "inténtalo de nuevo" means "fix it and submit again" — there is no error screen and no
+   *  Reintentar button to withhold. The load-path rule below genuinely does not apply to them.
+   *
+   *  Written as an exclusion list rather than by loosening the regex: `invite-password-weak`
+   *  SHOULD say "inténtalo de nuevo", and a regex tuned to let it through would also let
+   *  through a load-path reason that must not. */
+  const SUBMIT_PATH_ONLY: ReadonlySet<string> = new Set(["invite-password-weak"]);
+
+  it("offers a retry for every LOAD-path message that tells the invitee to try again", () => {
+    // The rule itself, not one assertion per branch. `retryAfterSeconds: null` removes the
+    // Reintentar button, so any load-path message whose copy instructs a retry must not take
+    // that path.
+    //
+    // This is what makes the invariant hold by construction rather than by someone re-reading
+    // a 13-entry table: adding a reason whose Spanish says "inténtalo de nuevo" without adding
+    // it to RETRYABLE_REASONS fails HERE, which is exactly how the original defect got in.
+    let checked = 0;
+    for (const reason of INVITE_BLOCK_REASONS) {
+      if (SUBMIT_PATH_ONLY.has(reason)) continue;
+      const refusal = inviteRefusal({ details: { reason } });
+      if (refusal.message === null) continue;
+      if (!/int[ée]ntalo de nuevo|vuelve a intentarlo/i.test(refusal.message)) continue;
+      checked += 1;
+      expect(
+        refusal.retryAfterSeconds,
+        `${reason} tells them to retry but offers no button`,
+      ).not.toBeNull();
+    }
+    // The loop must actually have asserted something. Without this a copy edit that drops
+    // every "inténtalo de nuevo" turns this into a green test that checks nothing.
+    expect(checked).toBeGreaterThan(0);
+  });
+});
+
 describe("inviteRefusal — an App Check rejection is not a network blip", () => {
   // firebase-functions rejects a call that fails App Check with `unauthenticated` and NO
   // `details.reason`, so it used to land in the untagged branch and render "revisa tu

@@ -38,14 +38,9 @@ function label(state: InviteState, member: Member): string {
       // bare date.
       return invite ? `Pendiente · vence el ${formatInstant(invite.expiresAt)}` : "Pendiente";
     case "used":
-      // Date only is right here: this one is a past event, not a deadline someone must beat.
-      //
-      // But BOLIVIAN date. Both fields on this badge are real instants — `expiresAt` is
-      // `issuedAt + INVITE_TTL_MS` and `usedAt` is `Timestamp.fromMillis(deps.now())` — so
-      // both belong on the `formatInstant*` side. This line used the UTC-pinned `formatDate`
-      // under a comment asserting usedAt "is only ever a date", which confused GRANULARITY
-      // (no clock, correct) with ZONE (UTC, wrong): a redemption at 21:30 local is 01:30Z the
-      // next day, so every redemption after 20:00 rendered tomorrow's date.
+      // Date only: a past event, not a deadline someone must beat. Both fields here are real
+      // instants, so both take the `formatInstant*` side — see datetime.ts for why the zone
+      // and the granularity are separate questions.
       //
       // Guard it: a projection written before `usedAt` existed, or a partial write, must not
       // render "Usada el undefined".

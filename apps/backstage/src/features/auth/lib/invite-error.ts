@@ -144,31 +144,36 @@ export function inviteRefusal(err: unknown): InviteRefusal {
   // named it, and the tag is more specific than the transport code.
   const reason = refusalReason(err);
   if (reason !== null) {
-    const retryable = RETRYABLE_REASONS.has(reason);
     const message = REASON_MESSAGES.get(reason) ?? null;
-    /** A tagged reason this build does not recognize: a newer beacon deploying ahead of this
-     *  bundle, or a prototype key like "toString" reaching the lookup. We know only that
-     *  beacon refused — not WHY, and not whether the link survives it. */
-    const unrecognized = message === null;
-    return {
-      message,
-      // Retryable == temporary, for tagged reasons: the only member of that set is rate
-      // limiting. Everything else KNOWN and tagged means the link itself cannot be used again.
-      //
-      // An unrecognized reason gets the NEUTRAL heading: we genuinely do not know the link is
-      // dead, so saying so would be a guess rendered as a fact — and the body falls back to
-      // generic copy that would not match it.
-      heading: retryable ? HEADINGS.wait : unrecognized ? HEADINGS.blocked : HEADINGS.dead,
-      // ...and it stays RETRYABLE, for the same reason the heading stays neutral. Withholding
-      // the retry here was a contradiction the invitee could read: `message` is null, so the
-      // form renders GENERIC_LOAD_ERROR — "Revisa tu conexión e inténtalo de nuevo" — with no
-      // Reintentar button to obey it. `0` rather than the rate-limit delay: nothing told us to
-      // wait, and this is the same treatment the untagged path below gives an unknown failure.
-      //
-      // NOT a fall-through to the attestation branch: a tag means beacon refused deliberately,
-      // and routing it there would console.error an App Check failure that did not happen.
-      retryAfterSeconds: retryable ? RATE_LIMIT_RETRY_AFTER_SECONDS : unrecognized ? 0 : null,
-    };
+    // One return per outcome rather than two parallel ternaries. The ternaries had to branch
+    // on the same conditions in the same order for heading and retry to agree, with nothing
+    // enforcing it — which is the very coupling the `retryAfterSeconds` docblock above exists
+    // to warn about. A third case now cannot update one and forget the other.
+    //
+    // Temporary, and the only tagged reason that is: the bucket refills, so the same link
+    // works again shortly.
+    if (RETRYABLE_REASONS.has(reason)) {
+      return {
+        message,
+        heading: HEADINGS.wait,
+        retryAfterSeconds: RATE_LIMIT_RETRY_AFTER_SECONDS,
+      };
+    }
+    // A tagged reason this build does not recognize: a newer beacon deploying ahead of this
+    // bundle, or a prototype key like "toString" reaching the lookup. We know only that beacon
+    // refused — not WHY, and not whether the link survives it. So: the NEUTRAL heading, since
+    // claiming the link is dead would be a guess rendered as fact, and a retry, since
+    // withholding it leaves the invitee reading GENERIC_LOAD_ERROR ("Revisa tu conexión e
+    // inténtalo de nuevo") with no button to obey it. `0`, not the rate-limit delay — nothing
+    // told us to wait, and this is what the untagged path below gives an unknown failure.
+    //
+    // NOT a fall-through to the attestation branch: a tag means beacon refused deliberately,
+    // and routing it there would console.error an App Check failure that did not happen.
+    if (message === null) {
+      return { message, heading: HEADINGS.blocked, retryAfterSeconds: 0 };
+    }
+    // Known and tagged: the link itself cannot be used again, and its copy says so.
+    return { message, heading: HEADINGS.dead, retryAfterSeconds: null };
   }
   if (isAttestationRejection(err)) {
     // Guardrail #4: this is the one failure with no operator surface at all — the invitee sees
