@@ -20,7 +20,7 @@ type Phase =
   // `retryable` is the difference between a network blip and "ya se usó": offering a retry on
   // a deliberate refusal is a dead end, and guardrail #3 asks for a real error state, not a
   // spinner that never resolves.
-  | { kind: "error"; message: string; retryable: boolean }
+  | { kind: "error"; heading: string; message: string; retryable: boolean }
   | { kind: "valid"; invite: InviteDescription }
   | { kind: "done" };
 
@@ -84,6 +84,10 @@ function Heading({ children }: { children: ReactNode }) {
 export function InviteRedeemForm({ token }: { token: string }) {
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
   const [formError, setFormError] = useState<string | null>(null);
+  /** Seconds left before a withheld retry becomes available again. Driven off the refusal's
+   *  own `retryAfterSeconds` rather than a constant here, so the wait and the server's
+   *  refill interval cannot drift apart. */
+  const [cooldown, setCooldown] = useState(0);
   const {
     register,
     handleSubmit,
@@ -125,6 +129,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
     if (token.length === 0) {
       setPhase({
         kind: "error",
+        heading: "Enlace incompleto",
         message: "Este enlace está incompleto. Pídele a quien te invitó que te envíe uno nuevo.",
         retryable: false,
       });
@@ -143,14 +148,27 @@ export function InviteRedeemForm({ token }: { token: string }) {
       const refusal = inviteRefusal(err);
       setPhase({
         kind: "error",
+        // The heading comes from the refusal too. Hardcoding "Enlace no válido" here put that
+        // headline above the rate-limit copy, which says the link IS still valid.
+        heading: refusal.heading,
         message: refusal.message ?? GENERIC_LOAD_ERROR,
         // An untagged failure is a network blip. Among TAGGED refusals only rate limiting is
         // temporary — see RETRYABLE_REASONS. It used to be `refusal === null`, which would
         // hide the retry button from someone whose only problem is having reloaded twice.
         retryable: refusal.retryable,
       });
+      setCooldown(refusal.retryAfterSeconds);
     }
   }, [token]);
+
+  // Ticks the withheld-retry countdown down to zero and then stops. Self-terminating (the
+  // effect re-runs only while cooldown > 0) and cancelled on unmount, so it cannot outlive the
+  // page or leave a timer running behind the success screen.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((left) => left - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
   useEffect(() => {
     if (settled.current) return;
@@ -193,13 +211,22 @@ export function InviteRedeemForm({ token }: { token: string }) {
   if (phase.kind === "error") {
     return (
       <Shell>
-        <Heading>Enlace no válido</Heading>
+        <Heading>{phase.heading}</Heading>
         <p role="alert" className="mt-2.5 text-ui-md leading-[1.5] text-ink-3">
           {phase.message}
         </p>
         {phase.retryable && (
-          <Button as="button" type="button" onClick={() => void load()} className="mt-8">
-            Reintentar
+          <Button
+            as="button"
+            type="button"
+            // Withheld for the per-token emission interval on a throttled refusal. Retrying
+            // immediately spends an endpoint-wide slot to fail, and teaches the invitee the
+            // button does not work — while the copy right above promises "unos segundos".
+            disabled={cooldown > 0}
+            onClick={() => void load()}
+            className="mt-8"
+          >
+            {cooldown > 0 ? `Reintentar en ${cooldown}s` : "Reintentar"}
           </Button>
         )}
       </Shell>

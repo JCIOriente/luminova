@@ -20,7 +20,8 @@ describe("InviteLinkPanel", () => {
     // minted at 23:00 Monday dies at 23:00 Wednesday, which an operator reads as "Wednesday,
     // some time". Rendered on the BOLIVIAN clock (formatInstant), so 12:00Z is 08:00 — the
     // UTC-pinned formatter would have shown 12:00 and promised four hours that do not exist.
-    expect(screen.getByText(/28 sept 2026, 08:00/)).toBeInTheDocument();
+    expect(screen.getByText(/\b08:00\b/)).toBeInTheDocument();
+    expect(screen.getByText(/\b28\b/)).toBeInTheDocument();
     // The operator is about to paste a bearer credential into a chat.
     expect(screen.getByText(/chat directo, no en un grupo/i)).toBeInTheDocument();
   });

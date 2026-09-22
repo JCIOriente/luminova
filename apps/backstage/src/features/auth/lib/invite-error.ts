@@ -64,6 +64,58 @@ const RETRYABLE_REASONS: ReadonlySet<string> = new Set<InviteBlockReason>([
   "invite-too-many-attempts",
 ]);
 
+/** An App Check rejection, which is NOT a network problem and NOT retryable.
+ *
+ *  firebase-functions enforces `enforceAppCheck` itself and rejects a call whose App Check
+ *  token is missing or invalid with `unauthenticated` and NO `details.reason`. Without this
+ *  branch such a rejection fell through to the untagged case and rendered "revisa tu conexión"
+ *  beside a Reintentar button that could never succeed — blaming the invitee's connection for a
+ *  failure that is either our misconfiguration or their browser.
+ *
+ *  On THESE two callables `unauthenticated` can only mean App Check. They are unauthenticated
+ *  by design and never require a session, and firebase-functions raises this code for exactly
+ *  three cases: an INVALID auth token, and App Check missing or invalid under enforcement. An
+ *  invitee sends no auth token at all, which is MISSING rather than INVALID and does not
+ *  throw — so App Check is the only remaining source.
+ *
+ *  Two ways to reach it, and the second is permanent rather than a deploy slip: the
+ *  per-product registration gap `docs/firebase-setup.md` flags as BLOCKING, and any browser
+ *  that blocks reCAPTCHA v3 — a privacy extension, a blocked `google.com`, a corporate proxy —
+ *  for as long as it stays blocked. `packages/firebase/src/app-check.ts` hard-wires
+ *  `ReCaptchaV3Provider`, so there is no fallback attestation path. */
+function isAttestationRejection(err: unknown): boolean {
+  return (err as { code?: unknown } | null | undefined)?.code === "functions/unauthenticated";
+}
+
+/** Deliberately actionable and deliberately silent about connections. Waiting cannot help, and
+ *  neither can a new link, so the copy must not send them to the operator for a fresh one. */
+const ATTESTATION_BLOCKED =
+  "Tu navegador bloqueó la verificación de seguridad, así que no pudimos abrir el enlace. " +
+  "Prueba con otro navegador, desactiva las extensiones que bloquean contenido, o avisa a la directiva.";
+
+/** The headline above the message.
+ *
+ *  The invite page used to hardcode "Enlace no válido" above EVERY error, and for three states
+ *  that is false. The worst was a direct self-contradiction in 31px type: the rate-limit body
+ *  copy says "el enlace sigue siendo válido" while the headline above it said the opposite, to
+ *  someone whose only mistake was reloading the page. A network blip and a blocked attestation
+ *  are equally not the link's fault. */
+const HEADINGS = {
+  /** The link really is spent, expired, superseded or unknown. */
+  dead: "Enlace no válido",
+  /** Temporary and self-healing — the link is fine. */
+  wait: "Demasiados intentos",
+  /** Something between the invitee and us failed; the link is untouched. */
+  blocked: "No pudimos abrir el enlace",
+} as const;
+
+/** How long to withhold the retry affordance, in seconds.
+ *
+ *  12 s is not arbitrary: it is the per-token emission interval (5 per 60 s), so it is exactly
+ *  the wait the body copy's "espera unos segundos" promises. Offering an immediate retry would
+ *  spend an endpoint-wide slot to fail, and teach the invitee the button does not work. */
+const RATE_LIMIT_RETRY_AFTER_SECONDS = 12;
+
 /** Beacon's own explanation for refusing this link, or null when it did not give one (a
  *  network failure, or a reason this build does not know). */
 export function inviteRefusalMessage(err: unknown): string | null {
@@ -75,15 +127,56 @@ export function inviteRefusalMessage(err: unknown): string | null {
  *  An UNTAGGED failure is retryable (a network blip), a tagged one only if its reason is in
  *  `RETRYABLE_REASONS`. Returned together so a caller cannot take the message and decide
  *  retryability by its own rule. */
-export function inviteRefusal(err: unknown): { message: string | null; retryable: boolean } {
-  const reason = refusalReason(err);
-  if (reason === null) return { message: null, retryable: true };
-  return {
-    message: REASON_MESSAGES.get(reason) ?? null,
-    retryable: RETRYABLE_REASONS.has(reason),
-  };
+export interface InviteRefusal {
+  message: string | null;
+  /** Headline to render above `message`. Never "Enlace no válido" unless the link truly is. */
+  heading: string;
+  retryable: boolean;
+  /** Seconds to withhold the retry affordance; 0 means retry immediately. */
+  retryAfterSeconds: number;
 }
 
+export function inviteRefusal(err: unknown): InviteRefusal {
+  // A TAGGED reason wins: rate limiting also arrives on an unauthenticated call, but beacon
+  // named it, and the tag is more specific than the transport code.
+  const reason = refusalReason(err);
+  if (reason !== null) {
+    const retryable = RETRYABLE_REASONS.has(reason);
+    const message = REASON_MESSAGES.get(reason) ?? null;
+    return {
+      message,
+      // Retryable == temporary, for tagged reasons: the only member of that set is rate
+      // limiting. Everything else KNOWN and tagged means the link itself cannot be used again.
+      //
+      // A tagged reason this build does not recognize (a newer beacon against an older client,
+      // or a prototype key like "toString" reaching the lookup) gets the NEUTRAL heading: we
+      // genuinely do not know the link is dead, so saying so would be a guess rendered as a
+      // fact — and the body falls back to generic copy that would not match it.
+      heading: retryable ? HEADINGS.wait : message === null ? HEADINGS.blocked : HEADINGS.dead,
+      retryable,
+      retryAfterSeconds: retryable ? RATE_LIMIT_RETRY_AFTER_SECONDS : 0,
+    };
+  }
+  if (isAttestationRejection(err)) {
+    // Guardrail #4: this is the one failure with no operator surface at all — the invitee sees
+    // a dead end and nothing server-side is tagged — so it must at least leave a trace where
+    // someone helping them over the shoulder can find it.
+    console.error("invite: App Check rejected the call; the invitee cannot redeem", err);
+    return {
+      message: ATTESTATION_BLOCKED,
+      heading: HEADINGS.blocked,
+      retryable: false,
+      retryAfterSeconds: 0,
+    };
+  }
+  // Untagged: a network blip. Retryable, and NOT the link's fault.
+  return { message: null, heading: HEADINGS.blocked, retryable: true, retryAfterSeconds: 0 };
+}
+
+/** The submit path's renderer. Routed through `inviteRefusal` rather than
+ *  `inviteRefusalMessage` so the attestation branch surfaces on BOTH paths — `redeemInvite` is
+ *  rejected exactly the same way as `describeInvite`, and a form that fell back to "no se pudo
+ *  guardar tu contraseña" would hide the real cause at the last step. */
 export function inviteErrorMessage(err: unknown, fallback: string): string {
-  return inviteRefusalMessage(err) ?? fallback;
+  return inviteRefusal(err).message ?? fallback;
 }

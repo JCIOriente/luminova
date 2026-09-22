@@ -61,6 +61,14 @@ export interface RateGate {
   admitGlobal(nowMs: number): boolean;
   /** The per-token bucket, keyed on the HASH and never the plaintext token. */
   admitToken(tokenHash: string, nowMs: number): boolean;
+  /** Whether THIS refusal should be logged.
+   *
+   *  Lives on the gate because the gate is what knows the rate. A Cloud Logging line is a
+   *  billed write to a Google service on a path anyone can reach, and one line per refusal
+   *  would bury the stream the monitoring alert reads under 60 near-identical entries per
+   *  minute per instance. Sampled rather than dropped: throttling must stay visible, and a
+   *  long flood must not go silent after its first line. */
+  shouldLogRefusal(nowMs: number): boolean;
 }
 
 export interface RedeemDeps {
@@ -96,11 +104,19 @@ function inviteInvalid(): HttpsError {
 /** One structured line per call. Never the token, never the password, never `request.data`.
  *  `tokenPrefix` is the first 8 hex chars of the HASH — enough to correlate an issue with its
  *  redemption in Cloud Logging, and not a credential. */
-function logOutcome(fn: string, tokenHash: string, outcome: string, memberId?: string): void {
+function logOutcome(
+  fn: string,
+  /** `null` where there is no token to name: a malformed token, or a global-bucket refusal
+   *  charged before the hash is computed. Widened so those two paths CALL this instead of
+   *  hand-copying its four-key shape — two copies of a log contract is how the shape drifts. */
+  tokenHash: string | null,
+  outcome: string,
+  memberId?: string,
+): void {
   console.info("invite", {
     fn,
     memberId: memberId ?? null,
-    tokenPrefix: tokenHash.slice(0, 8),
+    tokenPrefix: tokenHash === null ? null : tokenHash.slice(0, 8),
     outcome,
   });
 }
@@ -137,18 +153,13 @@ async function loadValidInvite(
   // bounds a flood, and a refusal here must cost strictly less than the work it prevents —
   // an integer comparison against a number in memory, no Firestore access, no write.
   if (!deps.gate.admitGlobal(nowMs)) {
-    console.info("invite", {
-      fn,
-      memberId: null,
-      tokenPrefix: null,
-      outcome: "rate-limited-global",
-    });
+    if (deps.gate.shouldLogRefusal(nowMs)) logOutcome(fn, null, "rate-limited-global");
     throw inviteRateLimited();
   }
 
   const tokenHash = tokenHashOf(token);
   if (tokenHash === null) {
-    console.info("invite", { fn, memberId: null, tokenPrefix: null, outcome: "malformed-token" });
+    logOutcome(fn, null, "malformed-token");
     throw inviteInvalid();
   }
 
@@ -156,7 +167,7 @@ async function loadValidInvite(
   // would put the bearer credential in the heap, which is the one property this whole design
   // rests on not doing.
   if (!deps.gate.admitToken(tokenHash, nowMs)) {
-    logOutcome(fn, tokenHash, "rate-limited-token");
+    if (deps.gate.shouldLogRefusal(nowMs)) logOutcome(fn, tokenHash, "rate-limited-token");
     throw inviteRateLimited();
   }
 
@@ -416,6 +427,13 @@ const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== "true";
 export const UNAUTHENTICATED_CALL = {
   enforceAppCheck: ENFORCE_APP_CHECK,
   maxInstances: 10,
+  /** PINNED, not inherited. The limiter's honest ceiling is "per minute PER INSTANCE", which
+   *  only means something if both the instance count and their concurrency are known. Left
+   *  unset, the Firebase CLI derives concurrency from memory — `memoryToGen2Cpu(256)` is 1,
+   *  and `cpu >= 1` takes `DEFAULT_CONCURRENCY` (80), verified in the installed firebase-tools
+   *  rather than recalled. Pinning it means a later memory change cannot silently move the
+   *  ceiling this module documents. */
+  concurrency: 80,
   timeoutSeconds: 30,
   memory: "256MiB",
 } as const;
@@ -442,14 +460,20 @@ export const INVITE_RATE_LIMITS = {
    *  would otherwise grow a bucket per distinct token until the instance died. */
   tokenBuckets: 2048,
   windowMs: 60_000,
+  /** One logged refusal per instance per this interval. See `RateGate.shouldLogRefusal`. */
+  refusalLogIntervalMs: 10_000,
 } as const;
 
 /** One gate per callable.
  *
- *  Each gen2 function is its own Cloud Run service, so there is no cross-callable state to
- *  share even in principle — `describeInvite` and `redeemInvite` never run in the same
- *  process. Separate gates also mean a reload-happy invitee spending the describe budget
- *  cannot starve the redeem budget on the same token. */
+ *  IN PRODUCTION each gen2 function is its own Cloud Run service, so there is no cross-callable
+ *  state to share even in principle. Under the Firebase emulator that is NOT true — every
+ *  function runs in one process, and both gates below are constructed wherever `index.ts`
+ *  loads — so read the separation as a deployment fact, not an invariant of this file.
+ *
+ *  The separation earns its place either way, for a reason that holds in both: these are
+ *  distinct limiter instances, so a reload-happy invitee spending the describe budget cannot
+ *  starve the redeem budget on the same token. An unused gate costs an empty Map. */
 export function createRateGate(): RateGate {
   const perToken: RateLimiter = createRateLimiter({
     capacity: INVITE_RATE_LIMITS.perTokenPerMinute,
@@ -461,9 +485,18 @@ export function createRateGate(): RateGate {
     windowMs: INVITE_RATE_LIMITS.windowMs,
     maxKeys: 1,
   });
+  // The limiter, reused as its own log sampler: one line per instance per interval. Reuse
+  // rather than a second mechanism — "at most N per window" is exactly what this primitive
+  // already does, and the sampler inherits its clock handling for free.
+  const logs: RateLimiter = createRateLimiter({
+    capacity: 1,
+    windowMs: INVITE_RATE_LIMITS.refusalLogIntervalMs,
+    maxKeys: 1,
+  });
   return {
     admitGlobal: (nowMs) => global.tryConsume("*", nowMs),
     admitToken: (tokenHash, nowMs) => perToken.tryConsume(tokenHash, nowMs),
+    shouldLogRefusal: (nowMs) => logs.tryConsume("*", nowMs),
   };
 }
 

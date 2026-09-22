@@ -30,7 +30,7 @@ describe("InviteStateBadge", () => {
     // UTC-pinned formatter would have promised four hours that do not exist.
     render(<InviteStateBadge member={member(pending)} now={NOW} />);
     expect(screen.getByText(/Pendiente/)).toBeInTheDocument();
-    expect(screen.getByText(/28 sept 2026, 08:00/)).toBeInTheDocument();
+    expect(screen.getByText(/\b28\b.*\b08:00\b/)).toBeInTheDocument();
   });
 
   it("renders the used label with the date it was used", () => {
@@ -42,7 +42,9 @@ describe("InviteStateBadge", () => {
     );
     // Date only, deliberately: a past event is not a deadline anyone has to beat. Asserted
     // as an exact end-of-string so it cannot silently pick up a time.
-    expect(screen.getByText(/Usada el 21 sept 2026$/)).toBeInTheDocument();
+    // No time component — a past event is not a deadline. Matched as "ends without a clock"
+    // rather than on the month abbreviation.
+    expect(screen.getByText(/^Usada el .*\b21\b[^:]*$/)).toBeInTheDocument();
   });
 
   it("renders the used label without a date when usedAt is missing", () => {

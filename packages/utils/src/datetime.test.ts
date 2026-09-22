@@ -194,13 +194,22 @@ describe("formatInstant — a REAL instant, in Bolivia time", () => {
   // a time is shown over a two-day one.
 
   it("renders 12:00Z as 08:00, the Bolivian wall clock", () => {
+    // THE ONE EXACT-STRING ASSERTION in this describe, kept deliberately as an ICU canary: if
+    // a Node upgrade changes the es abbreviated month or the date-time connector, exactly this
+    // test goes red and the rest stay green, which localizes the breakage instead of turning
+    // five assertions red at once. Every sibling below matches loosely, the convention the
+    // rest of this file already follows.
     expect(formatInstant(ts("2026-09-28T12:00:00Z"))).toBe("28 sept 2026, 08:00");
   });
 
   it("rolls back to the previous day when UTC has already ticked over", () => {
     // 02:00Z on the 29th is 22:00 on the 28th in Bolivia. A UTC-rendered deadline would name
-    // the wrong DAY, which is the failure an operator would actually act on.
-    expect(formatInstant(ts("2026-09-29T02:00:00Z"))).toBe("28 sept 2026, 22:00");
+    // the wrong DAY, which is the failure an operator would actually act on. Asserted on the
+    // day number and the 24h time — both locale-stable — not on the month abbreviation.
+    const out = formatInstant(ts("2026-09-29T02:00:00Z"));
+    expect(out).toMatch(/\b28\b/);
+    expect(out).toMatch(/\b22:00\b/);
+    expect(out).not.toMatch(/\b29\b/);
   });
 
   it("disagrees with formatDateTime by exactly the Bolivian offset", () => {
@@ -216,6 +225,8 @@ describe("formatInstant — a REAL instant, in Bolivia time", () => {
   it("is independent of the host timezone", () => {
     // The suite already runs under TZ=America/La_Paz; this asserts the formatter pins the zone
     // itself rather than inheriting it, which is what makes it correct on a UTC CI runner.
-    expect(formatInstant(ts("2026-01-15T03:30:00Z"))).toBe("14 ene 2026, 23:30");
+    const out = formatInstant(ts("2026-01-15T03:30:00Z"));
+    expect(out).toMatch(/\b14\b/);
+    expect(out).toMatch(/\b23:30\b/);
   });
 });

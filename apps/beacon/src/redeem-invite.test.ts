@@ -25,9 +25,11 @@ const GOOD_PASSWORD = "Abcde1";
 function productionShapedGate(): RateGate {
   const perToken = createRateLimiter({ capacity: 5, windowMs: 60_000, maxKeys: 2048 });
   const global = createRateLimiter({ capacity: 60, windowMs: 60_000, maxKeys: 1 });
+  const logs = createRateLimiter({ capacity: 1, windowMs: 10_000, maxKeys: 1 });
   return {
     admitGlobal: (nowMs) => global.tryConsume("*", nowMs),
     admitToken: (hash, nowMs) => perToken.tryConsume(hash, nowMs),
+    shouldLogRefusal: (nowMs) => logs.tryConsume("*", nowMs),
   };
 }
 
@@ -505,6 +507,10 @@ describe("the rate gate in front of both callables", () => {
         asked.token.push(hash);
         return perToken.tryConsume(hash, nowMs);
       },
+      // Sampling OFF for the ordering tests: they assert which bucket was charged and whether
+      // a read happened, and a suppressed log line must not be mistaken for a suppressed
+      // refusal. The sampler has its own tests below.
+      shouldLogRefusal: () => true,
     };
     return { gate, asked };
   }
@@ -620,6 +626,7 @@ describe("the rate gate in front of both callables", () => {
     const gate: RateGate = {
       admitGlobal: (nowMs) => global.tryConsume("*", nowMs),
       admitToken: (hash, nowMs) => perToken.tryConsume(hash, nowMs),
+      shouldLogRefusal: () => true,
     };
     // The invite must outlive the clock advance below, or the refill assertion is answered by
     // `invite-expired` instead of the gate. The default fixture expires 1 s after NOW.
@@ -671,7 +678,10 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
   });
 
   it("bounds token buckets, so a flood cannot grow memory without limit", () => {
-    expect(INVITE_RATE_LIMITS.tokenBuckets).toBeLessThanOrEqual(4096);
+    // Exact, not `<= 4096`: a loose bound let the shipped figure silently double, while the
+    // neighbouring ceilings were pinned precisely. ~300 bytes per entry puts 2048 well under a
+    // megabyte against a 256MiB instance.
+    expect(INVITE_RATE_LIMITS.tokenBuckets).toBe(2048);
   });
 
   it("enforces App Check in production and caps instances", () => {
@@ -709,5 +719,73 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
       vi.unstubAllEnvs();
       vi.resetModules();
     }
+  });
+});
+
+describe("refusal logging is sampled, not one line per refusal", () => {
+  // A Cloud Logging write is a billed write to a Google service on a path anyone can reach,
+  // and at 60 refusals/min/instance a flood would bury the very stream the monitoring alert
+  // reads. The limiter's own logging must not become the load it exists to shed.
+
+  it("logs the FIRST refusal but not every one", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const { deps } = fakeDeps({});
+      for (let i = 0; i < 5; i += 1) await describeInviteFor(deps, { token: TOKEN });
+      info.mockClear();
+
+      for (let i = 0; i < 20; i += 1) {
+        await reasonOf(describeInviteFor(deps, { token: TOKEN }));
+      }
+      const throttleLines = info.mock.calls.filter(([, meta]) =>
+        String((meta as { outcome?: unknown })?.outcome).startsWith("rate-limited"),
+      );
+      // At least one — silence would make throttling invisible.
+      expect(throttleLines.length).toBeGreaterThanOrEqual(1);
+      // But nothing like 20. The sampler admits one per bucket per 10 s and the clock is
+      // frozen, so exactly one window is open.
+      expect(throttleLines.length).toBeLessThan(20);
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it("logs a throttle line again once the sampling window passes", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      let clock = NOW;
+      const base = fakeDeps({ invite: inviteDoc({ expiresAtMs: NOW + 600_000 }) }).deps;
+      const deps: RedeemDeps = { ...base, now: () => clock };
+      for (let i = 0; i < 5; i += 1) await describeInviteFor(deps, { token: TOKEN });
+
+      const countThrottleLines = () =>
+        info.mock.calls.filter(([, meta]) =>
+          String((meta as { outcome?: unknown })?.outcome).startsWith("rate-limited"),
+        ).length;
+
+      info.mockClear();
+      await reasonOf(describeInviteFor(deps, { token: TOKEN }));
+      const first = countThrottleLines();
+      expect(first).toBe(1);
+
+      // Same window: suppressed.
+      await reasonOf(describeInviteFor(deps, { token: TOKEN }));
+      expect(countThrottleLines()).toBe(first);
+
+      // A later window: audible again, so a LONG flood is not silent after its first second.
+      clock = NOW + 10_000;
+      await reasonOf(describeInviteFor(deps, { token: TOKEN }));
+      expect(countThrottleLines()).toBe(first + 1);
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it("pins concurrency, so the stated per-instance ceiling matches what deploys", () => {
+    // The limiter's honest ceiling is "per minute PER INSTANCE", which is only meaningful if
+    // the number of instances is bounded AND their concurrency is known. Left unset, the
+    // Firebase CLI derives it from memory (256MiB -> cpu 1 -> DEFAULT_CONCURRENCY 80); pinning
+    // it means a memory change cannot silently move the ceiling.
+    expect(UNAUTHENTICATED_CALL.concurrency).toBe(80);
   });
 });

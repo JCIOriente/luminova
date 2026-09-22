@@ -438,8 +438,9 @@ it in a copy dialog with its expiry.
 - **Links last 48 hours**, enforced in code (not by the TTL policy). The badge shows the date
   **and the time**, on the Bolivian clock — at this window a bare date is not precise enough to
   act on, since a link shared at 23:00 Monday dies at 23:00 Wednesday.
-- **Both callables are rate-limited**: 5 calls/min per link, 60/min endpoint-wide, held in the
-  function instance's memory (nothing is written to Firestore). An invitee who reloads the page
+- **Both callables are rate-limited**: per link, 5 calls/min to *each* callable (so 5 to open
+  the page plus 5 to submit), and 60/min endpoint-wide, held in the function instance's memory
+  (nothing is written to Firestore). An invitee who reloads the page
   repeatedly can see *"Demasiados intentos. Espera unos segundos"* — this is **not** a broken
   link and needs no operator action. The budget refills one slot every 12 s. The ceiling is per
   function instance, so the effective figure is higher than 60 when several are warm.
@@ -512,6 +513,16 @@ it in a copy dialog with its expiry.
    3. **Open `/invitacion#<a real freshly-issued token>` against a real production build** and
       complete a redemption end to end. Not a local build: the emulator path has no site key,
       so it cannot exercise attestation at all.
+
+   **One more thing only this smoke test can catch.** Enforcement is keyed on
+   `FUNCTIONS_EMULATOR`, and `firebase-tools` spreads whatever it reads from `apps/beacon/.env`
+   / `.env.<projectId>` into **both** the deploy-time discovery run and the deployed function's
+   environment. So a stray `FUNCTIONS_EMULATOR=true` line in a beacon dotenv would silently
+   disable App Check **in production** — and nothing else would notice: the unit tests pin both
+   branches, but they pin them at test time, never the deployed value. No such file exists today
+   (`apps/beacon/` has no `.env*`, and `.env`/`.env.local` are gitignored). If one is ever added,
+   this end-to-end check is the only thing standing between that line and an unprotected
+   endpoint. A `gcloud run services describe` of the two services will show the resolved env.
 
    If it does fail: hard-code `ENFORCE_APP_CHECK = false` in
    `apps/beacon/src/redeem-invite.ts`, redeploy the two functions, and fix the registration

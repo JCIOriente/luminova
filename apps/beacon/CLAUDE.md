@@ -76,8 +76,10 @@ the Admin SDK. Both share one `loadInvite` so the validity rules cannot drift.
 - **The token hash IS the document id** (`memberInvites/{sha256hex(token)}`), so there is no
   secret comparison anywhere, the lookup is bounded by construction, and the collection cannot
   be enumerated. A guess resolves to a nonexistent document.
-- **Rate-limited IN PROCESS, never in Firestore.** 5 calls/min per token (tight — it can only
-  ever refuse the token being hammered) plus 60/min endpoint-wide (generous — the key that
+- **Rate-limited IN PROCESS, never in Firestore.** 5 calls/min per token **per callable** —
+  each has its own gate, so a link gets 5 `describeInvite` AND 5 `redeemInvite` a minute
+  (tight, and it can only ever refuse the token being hammered) — plus 60/min endpoint-wide
+  per callable (generous — the key that
   actually bounds a flood, since every random token gets a fresh per-token bucket). Consulted
   before ANY read, so a refusal costs an integer comparison. It writes nothing on purpose:
   `describeInvite` is two keyed reads and zero writes, so a counter doc would make the limiter

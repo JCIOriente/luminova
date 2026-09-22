@@ -94,6 +94,33 @@ describe("createRateLimiter", () => {
     expect(rl.tryConsume("a", 0)).toBe(false);
   });
 
+  it("refuses a non-finite clock WITHOUT poisoning the bucket", () => {
+    // The sharp edge: persisting NaN makes `Math.max(NaN, now)` NaN forever, so every later
+    // call is refused — and on the global bucket (maxKeys 1) that is a permanent, silent,
+    // instance-wide denial of the only onboarding path, with no remedy short of a redeploy.
+    // `now` is an injected port, and this module advertises itself as clock-anomaly-safe.
+    const rl = limiter();
+    expect(rl.tryConsume("a", Number.NaN)).toBe(false);
+    expect(rl.tryConsume("a", Number.POSITIVE_INFINITY)).toBe(false);
+    expect(rl.tryConsume("a", Number.NEGATIVE_INFINITY)).toBe(false);
+
+    // The bucket must be untouched: a full cold burst still available.
+    for (let i = 0; i < 5; i += 1) {
+      expect(rl.tryConsume("a", 0), `call ${i}`).toBe(true);
+    }
+    expect(rl.tryConsume("a", 0)).toBe(false);
+  });
+
+  it("does not poison a bucket that was already in use", () => {
+    const rl = limiter();
+    rl.tryConsume("a", 0);
+    expect(rl.tryConsume("a", Number.NaN)).toBe(false);
+    // Four left from the original five, and the boundary still lands where it should.
+    for (let i = 0; i < 4; i += 1) expect(rl.tryConsume("a", 0), `call ${i}`).toBe(true);
+    expect(rl.tryConsume("a", 0)).toBe(false);
+    expect(rl.tryConsume("a", 12_000)).toBe(true);
+  });
+
   it("acts as a single shared bucket when maxKeys is 1 and the key is constant", () => {
     // How the GLOBAL limiter is built: one implementation, one test suite, no second code path.
     const rl = createRateLimiter({ capacity: 3, windowMs: MINUTE, maxKeys: 1 });

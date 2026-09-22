@@ -183,6 +183,9 @@ describe("invite rate gate (emulator)", () => {
     const { deps, reads } = countingDeps(() => NOW, {
       admitGlobal: (nowMs) => global.tryConsume("*", nowMs),
       admitToken: (hash, nowMs) => perToken.tryConsume(hash, nowMs),
+      // Unsampled: this test counts READS, and suppressing a log line must not be confusable
+      // with suppressing a refusal.
+      shouldLogRefusal: () => true,
     });
 
     const reasons: string[] = [];
