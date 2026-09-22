@@ -219,11 +219,3 @@ export function inviteRefusal(err: unknown): InviteRefusal {
   // Untagged: a network blip. Retryable, and NOT the link's fault.
   return { message: null, heading: HEADINGS.blocked, retryAfterSeconds: 0 };
 }
-
-/** The submit path's renderer. Routed through `inviteRefusal` rather than
- *  a message-only reader so the attestation branch surfaces on BOTH paths — `redeemInvite` is
- *  rejected exactly the same way as `describeInvite`, and a form that fell back to "no se pudo
- *  guardar tu contraseña" would hide the real cause at the last step. */
-export function inviteErrorMessage(err: unknown, fallback: string): string {
-  return inviteRefusal(err).message ?? fallback;
-}

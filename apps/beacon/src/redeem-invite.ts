@@ -389,25 +389,27 @@ export async function redeemInviteFor(
 // THE PROJECT'S FIRST UNAUTHENTICATED CALLABLES.
 //
 // Anyone who knows the URL can invoke these; an invitee has no account yet, so that is
-// inherent rather than an oversight. Three controls are designed to stand in front of them,
-// and TWO of the three are live as of this change.
+// inherent rather than an oversight. Three controls stand in front of them, and as of this
+// change all three are live.
 //
-// 1. APP CHECK — declared, NOT YET ENFORCED. `enforceAppCheck` is FALSE below; the flag
-//    carries the reasoning, and the flip is its own PR. Do not read the rest of this block as
-//    a description of what is running today.
+// 1. APP CHECK, now ENFORCED in production and deliberately NOT under the emulator — see the
+//    `ENFORCE_APP_CHECK` docblock below for why that carve-out is safe and must stay
+//    fail-closed.
 //
-//    Two claims earlier drafts made about WHY it was held are false, and are corrected here
-//    so the flip is not blocked on a phantom: the reCAPTCHA keys are NOT missing in
-//    production — `apps/backstage/.env.production` carries a real VITE_APPCHECK_SITE_KEY —
-//    and "/invitacion has no session" was never the blocker either. Attestation is app-level,
+//    Two claims earlier drafts made about why it was held back were false, and both are
+//    corrected here: the reCAPTCHA keys are NOT missing in production —
+//    `apps/backstage/.env.production` carries a real VITE_APPCHECK_SITE_KEY — and
+//    "/invitacion has no session" was never the blocker either. Attestation is app-level,
 //    `/invitacion` is deliberately a TOP-LEVEL route outside the `_auth` layout, and the
 //    client's `ensureApp()` wires `initAppCheck` on first app acquisition — which
 //    `getFunctionsService()` goes through. So an unauthenticated /invitacion load does attest.
 //
-//    What actually holds it is that ENFORCEMENT IS PER-PRODUCT: the backstage app's
-//    registration for the Cloud Functions product is unconfirmed, and flipping before that is
-//    verified 403s every redemption — silently, totally, on the only onboarding path there
-//    is. That check is a blocking owner-op, and it ships WITH the flip, not with this change.
+//    ENFORCEMENT IS PER-PRODUCT, and that is the live risk THIS change carries. See the
+//    BLOCKING owner-op in docs/firebase-setup.md: the backstage app must be registered for the
+//    Cloud Functions product and /invitacion tested against a real build BEFORE this deploys.
+//    Get it wrong and every redemption 403s — silently, totally, on the only onboarding path
+//    there is, and a 403 throttles that browser's App Check for TWENTY-FOUR HOURS, which no
+//    retry button can clear and only a page reload escapes.
 //
 // 2. THE RATE GATE, below. App Check bounds WHO may call; it does not bound HOW OFTEN. A
 //    standard App Check token lives ~30 minutes and is replayable, so harvesting one from the
