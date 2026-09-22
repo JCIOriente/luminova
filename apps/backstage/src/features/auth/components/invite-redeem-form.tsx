@@ -155,9 +155,9 @@ export function InviteRedeemForm({ token }: { token: string }) {
         // An untagged failure is a network blip. Among TAGGED refusals only rate limiting is
         // temporary — see RETRYABLE_REASONS. It used to be `refusal === null`, which would
         // hide the retry button from someone whose only problem is having reloaded twice.
-        retryable: refusal.retryable,
+        retryable: refusal.retryAfterSeconds !== null,
       });
-      setCooldown(refusal.retryAfterSeconds);
+      setCooldown(refusal.retryAfterSeconds ?? 0);
     }
   }, [token]);
 

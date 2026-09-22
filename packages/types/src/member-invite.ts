@@ -28,6 +28,39 @@ export const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
  *  would cost audit evidence and buy nothing. */
 export const INVITE_PURGE_MS = 90 * 24 * 60 * 60 * 1000;
 
+/** The rate ceilings on the two unauthenticated invite callables.
+ *
+ *  HERE, not in beacon, for the same reason `INVITE_TTL_MS` is here: the CLIENT needs these
+ *  too. The redemption page tells a throttled invitee how long to wait, and it derives that
+ *  from `windowMs / perTokenPerMinute` — so a hard-coded 12 on the client would be a second,
+ *  silently drifting model of the server's refill rate. One source, imported by both ends.
+ *
+ *  Beacon builds its limiters from these (`apps/beacon/src/redeem-invite.ts`) and a test pins
+ *  the resulting behaviour, so retuning a security-relevant ceiling shows up in the diff as a
+ *  changed test rather than one edited digit. */
+export const INVITE_RATE_LIMITS = {
+  /** Calls per minute per token, PER CALLABLE — each has its own bucket. Tight, because a
+   *  per-token bucket is structurally incapable of refusing a different invitee. A legitimate
+   *  redemption is one `describeInvite` on load plus one `redeemInvite` on submit; five leaves
+   *  room for a reload and a retry. */
+  perTokenPerMinute: 5,
+  /** Calls per minute per INSTANCE, endpoint-wide. The flood bound, and the one with shared
+   *  fate — see `rate-limit.ts` for the trade it accepts. */
+  globalPerMinute: 60,
+  /** Distinct token buckets held per instance: a HARD memory bound, because a flood of
+   *  distinct tokens is exactly what would otherwise grow one bucket per token. */
+  tokenBuckets: 2048,
+  windowMs: 60_000,
+  /** One logged refusal per instance per this interval, so a flood cannot bury the log stream
+   *  the monitoring alert reads. Beacon-only, but kept with its siblings. */
+  refusalLogIntervalMs: 10_000,
+} as const;
+
+/** Seconds an invitee should wait before a throttled retry can succeed: the per-token emission
+ *  interval. DERIVED, never typed out — this is the number the invite page's copy promises. */
+export const INVITE_RETRY_AFTER_SECONDS =
+  INVITE_RATE_LIMITS.windowMs / INVITE_RATE_LIMITS.perTokenPerMinute / 1000;
+
 export type InviteKind = "initial" | "recovery";
 
 export type InviteStatus = "pending" | "used" | "revoked" | "failed";

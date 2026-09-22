@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { INVITE_BLOCK_REASONS } from "@luminova/types";
-import { inviteErrorMessage, inviteRefusal, inviteRefusalMessage } from "./invite-error";
+import { INVITE_BLOCK_REASONS, INVITE_RETRY_AFTER_SECONDS } from "@luminova/types";
+import { inviteErrorMessage, inviteRefusal } from "./invite-error";
 
-describe("inviteRefusalMessage", () => {
+describe("inviteRefusal — the Spanish message table", () => {
   it("has a Spanish message for EVERY reason in the contract", () => {
     // Iterates the contract rather than re-listing it, so a reason added in @luminova/types
     // fails here instead of silently degrading to the generic fallback on the invite page.
     for (const reason of INVITE_BLOCK_REASONS) {
-      const message = inviteRefusalMessage({ details: { reason } });
+      const message = inviteRefusal({ details: { reason } }).message;
       expect(message, reason).not.toBeNull();
       expect(message!.length, reason).toBeGreaterThan(10);
     }
@@ -16,26 +16,26 @@ describe("inviteRefusalMessage", () => {
   it("sends a now-privileged member to an ADMINISTRATOR, not back to the issuer", () => {
     // The only remedy is an Admin re-issue: a delegate re-issuing hits the very same guard.
     // The generic "ask whoever invited you" copy would send them to someone who cannot help.
-    const message = inviteRefusalMessage({ details: { reason: "invite-member-now-privileged" } });
+    const message = inviteRefusal({ details: { reason: "invite-member-now-privileged" } }).message;
     expect(message).toMatch(/administrador/i);
   });
 
   it("keeps expired and used distinct from the generic refusal", () => {
-    const expired = inviteRefusalMessage({ details: { reason: "invite-expired" } });
-    const used = inviteRefusalMessage({ details: { reason: "invite-used" } });
-    const invalid = inviteRefusalMessage({ details: { reason: "invite-invalid" } });
+    const expired = inviteRefusal({ details: { reason: "invite-expired" } }).message;
+    const used = inviteRefusal({ details: { reason: "invite-used" } }).message;
+    const invalid = inviteRefusal({ details: { reason: "invite-invalid" } }).message;
     expect(expired).not.toBe(invalid);
     expect(used).not.toBe(invalid);
     expect(used).toMatch(/sesión/i);
   });
 
   it("returns null for an untagged or unknown failure", () => {
-    expect(inviteRefusalMessage(new Error("network"))).toBeNull();
-    expect(inviteRefusalMessage({ details: { reason: "not-a-reason" } })).toBeNull();
+    expect(inviteRefusal(new Error("network")).message).toBeNull();
+    expect(inviteRefusal({ details: { reason: "not-a-reason" } }).message).toBeNull();
   });
 
   it.each(["toString", "constructor", "__proto__"])("is prototype-safe for %s", (reason) => {
-    expect(inviteRefusalMessage({ details: { reason } })).toBeNull();
+    expect(inviteRefusal({ details: { reason } }).message).toBeNull();
   });
 });
 
@@ -56,7 +56,7 @@ describe("inviteRefusal — which refusals a retry can clear", () => {
     // The bucket refills a slot every 12 s, so the same link works again shortly. Hiding the
     // retry button here would strand someone whose only mistake was reloading the page.
     const refusal = inviteRefusal({ details: { reason: "invite-too-many-attempts" } });
-    expect(refusal.retryable).toBe(true);
+    expect(refusal.retryAfterSeconds).not.toBeNull();
     expect(refusal.message).toMatch(/segundos/i);
     // And it must NOT tell them to go find an operator — waiting is the entire remedy.
     expect(refusal.message).not.toMatch(/nuevo enlace|te env[ií]e|administrador/i);
@@ -65,8 +65,7 @@ describe("inviteRefusal — which refusals a retry can clear", () => {
   it("offers a retry for an UNTAGGED failure, with no message of its own", () => {
     const refusal = inviteRefusal(new Error("network"));
     expect(refusal.message).toBeNull();
-    expect(refusal.retryable).toBe(true);
-    // Immediately — a network blip has no server-side budget to wait out.
+    // 0, not null: retryable, and immediately — a network blip has no budget to wait out.
     expect(refusal.retryAfterSeconds).toBe(0);
   });
 
@@ -76,7 +75,7 @@ describe("inviteRefusal — which refusals a retry can clear", () => {
     for (const reason of INVITE_BLOCK_REASONS) {
       if (reason === "invite-too-many-attempts") continue;
       const refusal = inviteRefusal({ details: { reason } });
-      expect(refusal.retryable, reason).toBe(false);
+      expect(refusal.retryAfterSeconds, reason).toBeNull();
       expect(refusal.message, reason).not.toBeNull();
     }
   });
@@ -86,7 +85,7 @@ describe("inviteRefusal — which refusals a retry can clear", () => {
     // — and it must not claim the link is invalid, which we have no basis to assert.
     const refusal = inviteRefusal({ details: { reason } });
     expect(refusal.message).toBeNull();
-    expect(refusal.retryable).toBe(false);
+    expect(refusal.retryAfterSeconds).toBeNull();
     expect(refusal.heading).not.toMatch(/no v[áa]lido/i);
   });
 });
@@ -102,7 +101,7 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
 
   it("names the blocked security check and does NOT offer a retry", () => {
     const refusal = inviteRefusal(attestationFailure);
-    expect(refusal.retryable).toBe(false);
+    expect(refusal.retryAfterSeconds).toBeNull();
     expect(refusal.message).toMatch(/verificaci[óo]n de seguridad/i);
     // Must not blame the invitee's connection — that is the mis-attribution being fixed.
     expect(refusal.message).not.toMatch(/conexi[óo]n/i);
@@ -123,9 +122,9 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
   it("still treats a genuine network failure as retryable", () => {
     // The paired negative: the fix must not swallow every untagged error into the
     // attestation bucket.
-    expect(inviteRefusal(new Error("network")).retryable).toBe(true);
-    expect(inviteRefusal({ code: "functions/unavailable" }).retryable).toBe(true);
-    expect(inviteRefusal({ code: "functions/internal" }).retryable).toBe(true);
+    expect(inviteRefusal(new Error("network")).retryAfterSeconds).toBe(0);
+    expect(inviteRefusal({ code: "functions/unavailable" }).retryAfterSeconds).toBe(0);
+    expect(inviteRefusal({ code: "functions/internal" }).retryAfterSeconds).toBe(0);
   });
 
   it("surfaces on the SUBMIT path too, not only on load", () => {
@@ -147,7 +146,7 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
       code: "functions/unauthenticated",
       details: { reason: "invite-too-many-attempts" },
     };
-    expect(inviteRefusal(tagged).retryable).toBe(true);
+    expect(inviteRefusal(tagged).retryAfterSeconds).not.toBeNull();
     expect(inviteRefusal(tagged).message).toMatch(/segundos/i);
     // And it must not be logged as an attestation lockout, which it is not.
     expect(spy).not.toHaveBeenCalled();
@@ -159,7 +158,7 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
       code: "functions/resource-exhausted",
       details: { reason: "invite-too-many-attempts" },
     };
-    expect(inviteRefusal(rateLimited).retryable).toBe(true);
+    expect(inviteRefusal(rateLimited).retryAfterSeconds).not.toBeNull();
     expect(inviteRefusal(rateLimited).message).toMatch(/segundos/i);
   });
 });
@@ -206,8 +205,12 @@ describe("inviteRefusal — the HEADING must not contradict the body", () => {
     // The copy promises "unos segundos"; the button must honour it rather than offering an
     // immediate retry that spends an endpoint-wide slot and fails.
     const refusal = inviteRefusal({ details: { reason: "invite-too-many-attempts" } });
-    expect(refusal.retryable).toBe(true);
-    expect(refusal.retryAfterSeconds).toBe(12);
+    // Asserted against the SHARED constant, not a literal 12: the whole point of moving the
+    // ceilings into @luminova/types is that the client cannot hold its own copy of the
+    // server's refill rate. A literal here would be that copy, one layer out.
+    expect(refusal.retryAfterSeconds).toBe(INVITE_RETRY_AFTER_SECONDS);
+    // And the derivation itself, so a retune of either input is visible here.
+    expect(INVITE_RETRY_AFTER_SECONDS).toBe(12);
   });
 
   it("imposes no wait on an ordinary network retry", () => {

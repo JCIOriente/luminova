@@ -8,30 +8,23 @@ import {
   type InviteDoc,
   type RedeemDeps,
   createRateGate,
-  INVITE_RATE_LIMITS,
   UNAUTHENTICATED_CALL,
   type RateGate,
   type RedeemUser,
 } from "./redeem-invite.js";
 import { createRateLimiter } from "./rate-limit.js";
+import { INVITE_RATE_LIMITS } from "@luminova/types/member-invite";
 
 const NOW = 1_700_000_000_000;
 const TOKEN = "t".repeat(43);
 const HASH = hashInviteToken(TOKEN);
 const GOOD_PASSWORD = "Abcde1";
 
-/** The REAL limiter at the REAL production windows — 5 per token per minute, 60 per minute
- *  endpoint-wide. Built per `fakeDeps()` call so each test starts with cold buckets. */
-function productionShapedGate(): RateGate {
-  const perToken = createRateLimiter({ capacity: 5, windowMs: 60_000, maxKeys: 2048 });
-  const global = createRateLimiter({ capacity: 60, windowMs: 60_000, maxKeys: 1 });
-  const logs = createRateLimiter({ capacity: 1, windowMs: 10_000, maxKeys: 1 });
-  return {
-    admitGlobal: (nowMs) => global.tryConsume("*", nowMs),
-    admitToken: (hash, nowMs) => perToken.tryConsume(hash, nowMs),
-    shouldLogRefusal: (nowMs) => logs.tryConsume("*", nowMs),
-  };
-}
+/** The REAL production gate. `createRateGate()` rather than a hand-rebuilt copy: an earlier
+ *  version retyped the bucket parameters as literals, so retuning `INVITE_RATE_LIMITS` would
+ *  have left every test running against the OLD production shape with nothing failing — which
+ *  is exactly what those constants exist to prevent. Built per `fakeDeps()` call, so each test
+ *  starts with cold buckets. */
 
 function inviteDoc(over: Partial<InviteDoc> = {}): InviteDoc {
   return {
@@ -67,7 +60,7 @@ function fakeDeps(opts: {
     failed: [] as string[],
   };
   let status = opts.invite === undefined ? "pending" : (opts.invite?.status ?? "pending");
-  const gate = opts.gate ?? productionShapedGate();
+  const gate = opts.gate ?? createRateGate();
   const deps: RedeemDeps = {
     now: () => NOW,
     gate,
@@ -488,13 +481,13 @@ describe("the rate gate in front of both callables", () => {
    *  limiter refuses, in the right order, before any I/O. */
   function countingGate(over: { perToken?: number; global?: number } = {}) {
     const perToken = createRateLimiter({
-      capacity: over.perToken ?? 5,
-      windowMs: 60_000,
-      maxKeys: 2048,
+      capacity: over.perToken ?? INVITE_RATE_LIMITS.perTokenPerMinute,
+      windowMs: INVITE_RATE_LIMITS.windowMs,
+      maxKeys: INVITE_RATE_LIMITS.tokenBuckets,
     });
     const global = createRateLimiter({
-      capacity: over.global ?? 60,
-      windowMs: 60_000,
+      capacity: over.global ?? INVITE_RATE_LIMITS.globalPerMinute,
+      windowMs: INVITE_RATE_LIMITS.windowMs,
       maxKeys: 1,
     });
     const asked = { global: 0, token: [] as string[] };
@@ -507,10 +500,9 @@ describe("the rate gate in front of both callables", () => {
         asked.token.push(hash);
         return perToken.tryConsume(hash, nowMs);
       },
-      // Sampling OFF for the ordering tests: they assert which bucket was charged and whether
-      // a read happened, and a suppressed log line must not be mistaken for a suppressed
-      // refusal. The sampler has its own tests below.
-      shouldLogRefusal: () => true,
+      // `shouldLogRefusal` omitted: optional, and defaults to logging every refusal. These
+      // tests assert which bucket was charged and whether a read happened, so a suppressed
+      // log line must not be confusable with a suppressed refusal.
     };
     return { gate, asked };
   }
@@ -626,7 +618,6 @@ describe("the rate gate in front of both callables", () => {
     const gate: RateGate = {
       admitGlobal: (nowMs) => global.tryConsume("*", nowMs),
       admitToken: (hash, nowMs) => perToken.tryConsume(hash, nowMs),
-      shouldLogRefusal: () => true,
     };
     // The invite must outlive the clock advance below, or the refill assertion is answered by
     // `invite-expired` instead of the gate. The default fixture expires 1 s after NOW.
@@ -712,9 +703,15 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
     try {
       const underEmulator = await import("./redeem-invite.js");
       expect(underEmulator.UNAUTHENTICATED_CALL.enforceAppCheck).toBe(false);
-      // Everything else must be unchanged — this switch is about App Check alone.
+      // Everything else must be unchanged — this switch is about App Check alone. The rate
+      // ceilings cannot vary with the environment at all now: they live in @luminova/types,
+      // so the gate this module builds under the emulator is the production gate.
       expect(underEmulator.UNAUTHENTICATED_CALL.maxInstances).toBe(10);
-      expect(underEmulator.INVITE_RATE_LIMITS.perTokenPerMinute).toBe(5);
+      expect(underEmulator.UNAUTHENTICATED_CALL.concurrency).toBe(80);
+      let admitted = 0;
+      const emulatorGate = underEmulator.createRateGate();
+      while (emulatorGate.admitToken("a".repeat(64), NOW)) admitted += 1;
+      expect(admitted).toBe(INVITE_RATE_LIMITS.perTokenPerMinute);
     } finally {
       vi.unstubAllEnvs();
       vi.resetModules();

@@ -1,5 +1,5 @@
-import type { InviteBlockReason } from "@luminova/types";
-import { refusalMessage, refusalReason } from "../../../lib/callable-refusal";
+import { INVITE_RETRY_AFTER_SECONDS, type InviteBlockReason } from "@luminova/types";
+import { refusalReason } from "../../../lib/callable-refusal";
 
 // Keyed by InviteBlockReason, the union beacon throws from (@luminova/types) — a renamed or
 // added reason is a compile error here rather than a silent fall-through to the generic
@@ -109,18 +109,15 @@ const HEADINGS = {
   blocked: "No pudimos abrir el enlace",
 } as const;
 
-/** How long to withhold the retry affordance, in seconds.
+/** How long to withhold the retry affordance.
  *
- *  12 s is not arbitrary: it is the per-token emission interval (5 per 60 s), so it is exactly
- *  the wait the body copy's "espera unos segundos" promises. Offering an immediate retry would
- *  spend an endpoint-wide slot to fail, and teach the invitee the button does not work. */
-const RATE_LIMIT_RETRY_AFTER_SECONDS = 12;
-
-/** Beacon's own explanation for refusing this link, or null when it did not give one (a
- *  network failure, or a reason this build does not know). */
-export function inviteRefusalMessage(err: unknown): string | null {
-  return refusalMessage(err, REASON_MESSAGES);
-}
+ *  IMPORTED, not re-derived. It is the server's own per-token emission interval — 5 calls per
+ *  60 s means one slot every 12 s — and it lives in `@luminova/types` precisely so the client
+ *  cannot hold a second, silently drifting copy of the server's refill rate. An earlier draft
+ *  hard-coded 12 here under a comment claiming the two "cannot drift apart", which was the
+ *  drift it disclaimed: retuning `perTokenPerMinute` to 4 would make the server refill every
+ *  15 s while this promised 12, and nothing would fail. */
+const RATE_LIMIT_RETRY_AFTER_SECONDS = INVITE_RETRY_AFTER_SECONDS;
 
 /** What the load path needs: the message to show and whether offering a retry is honest.
  *
@@ -131,9 +128,12 @@ export interface InviteRefusal {
   message: string | null;
   /** Headline to render above `message`. Never "Enlace no válido" unless the link truly is. */
   heading: string;
-  retryable: boolean;
-  /** Seconds to withhold the retry affordance; 0 means retry immediately. */
-  retryAfterSeconds: number;
+  /** ONE field, not a `retryable` boolean beside it: `null` means a retry cannot help, `0`
+   *  means retry now, a positive number means wait that many seconds first. Two fields had to
+   *  be set in lockstep at every return below with nothing enforcing the pairing — a new
+   *  branch could offer a retry and forget its delay. Callers that want the boolean read
+   *  `retryAfterSeconds !== null`. */
+  retryAfterSeconds: number | null;
 }
 
 export function inviteRefusal(err: unknown): InviteRefusal {
@@ -153,8 +153,7 @@ export function inviteRefusal(err: unknown): InviteRefusal {
       // genuinely do not know the link is dead, so saying so would be a guess rendered as a
       // fact — and the body falls back to generic copy that would not match it.
       heading: retryable ? HEADINGS.wait : message === null ? HEADINGS.blocked : HEADINGS.dead,
-      retryable,
-      retryAfterSeconds: retryable ? RATE_LIMIT_RETRY_AFTER_SECONDS : 0,
+      retryAfterSeconds: retryable ? RATE_LIMIT_RETRY_AFTER_SECONDS : null,
     };
   }
   if (isAttestationRejection(err)) {
@@ -165,16 +164,15 @@ export function inviteRefusal(err: unknown): InviteRefusal {
     return {
       message: ATTESTATION_BLOCKED,
       heading: HEADINGS.blocked,
-      retryable: false,
-      retryAfterSeconds: 0,
+      retryAfterSeconds: null,
     };
   }
   // Untagged: a network blip. Retryable, and NOT the link's fault.
-  return { message: null, heading: HEADINGS.blocked, retryable: true, retryAfterSeconds: 0 };
+  return { message: null, heading: HEADINGS.blocked, retryAfterSeconds: 0 };
 }
 
 /** The submit path's renderer. Routed through `inviteRefusal` rather than
- *  `inviteRefusalMessage` so the attestation branch surfaces on BOTH paths — `redeemInvite` is
+ *  a message-only reader so the attestation branch surfaces on BOTH paths — `redeemInvite` is
  *  rejected exactly the same way as `describeInvite`, and a form that fell back to "no se pudo
  *  guardar tu contraseña" would hide the real cause at the last step. */
 export function inviteErrorMessage(err: unknown, fallback: string): string {

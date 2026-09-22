@@ -59,6 +59,8 @@ export interface RateLimiter {
   /** Buckets currently held. Exists for the memory-bound test; nothing in production reads
    *  it. */
   size(): number;
+  /** Whether a bucket is currently held. Test introspection only, like `size()` — it is how
+   *  the LRU-eviction assertions see which key was dropped. */
   has(key: string): boolean;
 }
 

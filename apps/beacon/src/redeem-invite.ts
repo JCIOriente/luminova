@@ -4,6 +4,7 @@ import { onCall } from "firebase-functions/v2/https";
 import type { HttpsError } from "firebase-functions/v2/https";
 import type { Role } from "@luminova/auth/roles";
 import { passwordPolicyViolations, passwordTooLong } from "@luminova/types/password-policy";
+import { INVITE_RATE_LIMITS } from "@luminova/types/member-invite";
 import type { InviteBlockReason, InviteKind, InviteStatus } from "@luminova/types";
 import { accountIsPrivileged, hasDirectGrants, readCargoIds } from "./invite-guards.js";
 import { hashInviteToken, isSafeTokenHash } from "./invite-token.js";
@@ -61,14 +62,20 @@ export interface RateGate {
   admitGlobal(nowMs: number): boolean;
   /** The per-token bucket, keyed on the HASH and never the plaintext token. */
   admitToken(tokenHash: string, nowMs: number): boolean;
-  /** Whether THIS refusal should be logged.
+  /** Whether THIS refusal should be logged. Omit to log every one.
    *
    *  Lives on the gate because the gate is what knows the rate. A Cloud Logging line is a
    *  billed write to a Google service on a path anyone can reach, and one line per refusal
    *  would bury the stream the monitoring alert reads under 60 near-identical entries per
    *  minute per instance. Sampled rather than dropped: throttling must stay visible, and a
-   *  long flood must not go silent after its first line. */
-  shouldLogRefusal(nowMs: number): boolean;
+   *  long flood must not go silent after its first line.
+   *
+   *  OPTIONAL, unlike the two `admit` methods, and the asymmetry is deliberate. A default that
+   *  admits everything would let a test pass while running no limiter at all, so admission is
+   *  required; over-logging is not a control failure, so a test that cares only about
+   *  admission may omit this instead of stubbing `() => true` — which five of them were
+   *  doing, identically. */
+  shouldLogRefusal?(nowMs: number): boolean;
 }
 
 export interface RedeemDeps {
@@ -153,7 +160,7 @@ async function loadValidInvite(
   // bounds a flood, and a refusal here must cost strictly less than the work it prevents —
   // an integer comparison against a number in memory, no Firestore access, no write.
   if (!deps.gate.admitGlobal(nowMs)) {
-    if (deps.gate.shouldLogRefusal(nowMs)) logOutcome(fn, null, "rate-limited-global");
+    if (deps.gate.shouldLogRefusal?.(nowMs) ?? true) logOutcome(fn, null, "rate-limited-global");
     throw inviteRateLimited();
   }
 
@@ -167,7 +174,8 @@ async function loadValidInvite(
   // would put the bearer credential in the heap, which is the one property this whole design
   // rests on not doing.
   if (!deps.gate.admitToken(tokenHash, nowMs)) {
-    if (deps.gate.shouldLogRefusal(nowMs)) logOutcome(fn, tokenHash, "rate-limited-token");
+    if (deps.gate.shouldLogRefusal?.(nowMs) ?? true)
+      logOutcome(fn, tokenHash, "rate-limited-token");
     throw inviteRateLimited();
   }
 
@@ -436,32 +444,6 @@ export const UNAUTHENTICATED_CALL = {
   concurrency: 80,
   timeoutSeconds: 30,
   memory: "256MiB",
-} as const;
-
-/** The agreed ceilings, EXPORTED so a test can pin them.
- *
- *  Not a tautological restatement of two literals: the test builds a real gate from this
- *  object and asserts the 6th call on a token and the 61st on the endpoint are refused. What
- *  it buys is that retuning a security-relevant ceiling shows up in the diff as a changed
- *  test, rather than as one silently edited digit. */
-export const INVITE_RATE_LIMITS = {
-  /** Calls per minute per TOKEN. Tight, because it is structurally incapable of refusing a
-   *  different invitee. A legitimate redemption is one `describeInvite` on page load plus one
-   *  `redeemInvite` on submit; five leaves room for a reload and a retry, and the bucket
-   *  refills one slot every 12 s so a refusal clears in seconds, not at a window boundary. */
-  perTokenPerMinute: 5,
-  /** Calls per minute per INSTANCE, endpoint-wide. Generous on purpose — see `RateGate`. This
-   *  is the flood bound, and it must sit well above any realistic legitimate burst; sizing it
-   *  down to the per-token figure would deny real invitees on the only onboarding path. */
-  globalPerMinute: 60,
-  /** Distinct token buckets held per instance. At ~300 bytes per entry (a 64-char hex key plus
-   *  Map overhead and a number) this is well under a megabyte against a 256MiB instance, and
-   *  it is a HARD bound: the flood this limiter exists to survive is precisely the one that
-   *  would otherwise grow a bucket per distinct token until the instance died. */
-  tokenBuckets: 2048,
-  windowMs: 60_000,
-  /** One logged refusal per instance per this interval. See `RateGate.shouldLogRefusal`. */
-  refusalLogIntervalMs: 10_000,
 } as const;
 
 /** One gate per callable.

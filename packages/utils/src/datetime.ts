@@ -11,24 +11,25 @@ export const BOLIVIA_OFFSET_MS = 4 * 60 * 60 * 1000;
 // formatDateChip → drops DATE_TIME/DATE_ONLY/TIME_ONLY). Bundlers otherwise keep
 // bare `new X()` as a side effect. Formatters referenced by a called function
 // (e.g. MONTH_YEAR_LONG via formatMonthYear) stay regardless.
+// One options literal, two zones. The pair differed ONLY in `timeZone` while listing the same
+// six keys twice, so a later tweak (adding `weekday`, say) had to be applied identically to
+// both with nothing enforcing it.
+const DATE_TIME_FIELDS = {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+} as const;
 // The ONE formatter here that is not UTC-pinned, because its input is a real instant rather
 // than a wall-clock pinned to UTC. See formatInstant.
 const INSTANT_DATE_TIME = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
+  ...DATE_TIME_FIELDS,
   timeZone: "America/La_Paz",
 });
 const DATE_TIME = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
+  ...DATE_TIME_FIELDS,
   timeZone: "UTC",
 });
 const MONTH_SHORT = /* @__PURE__ */ new Intl.DateTimeFormat("es-BO", {
@@ -72,11 +73,20 @@ export function formatDateChip(ts: Timestamp): { month: string; day: string } {
   };
 }
 
-/** Full "14 jun 2026, 19:00" line for card bodies and the detail hero.
+/** Full "14 jun 2026, 19:00" line for an ACTIVITY's scheduled time.
  *
- *  UTC-pinned, like every formatter above it: an ACTIVITY instant is the input wall-clock
- *  pinned to UTC, so rendering it in UTC shows exactly what was scheduled. Use `formatInstant`
- *  instead for a value that is a real moment in time. */
+ *  UTC-pinned, like every formatter above it, and only correct for a value that was PINNED to
+ *  UTC on the way in — an operator types "19:00" and 19:00 is what must come back, in any
+ *  viewer's zone.
+ *
+ *  THE RULE FOR PICKING BETWEEN THESE TWO: if the field is written with `serverTimestamp()`
+ *  (or otherwise records a real moment — `request.time`, `Date.now()`), it is an INSTANT and
+ *  belongs in `formatInstant`. This function would render it four hours early-to-late for a
+ *  Bolivian reader, and near midnight on the wrong day. That is not hypothetical: `leads` and
+ *  `notifications` both wrote `createdAt` with `serverTimestamp()` and rendered it here, and
+ *  both were four hours wrong in production until they were moved.
+ *
+ *  Its remaining callers are activity start/end times, which are genuinely wall-clocks. */
 export function formatDateTime(ts: Timestamp): string {
   return DATE_TIME.format(ts.toDate());
 }

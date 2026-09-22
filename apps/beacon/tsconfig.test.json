@@ -15,19 +15,36 @@
   "compilerOptions": {
     "noEmit": true,
     // `String.prototype.isWellFormed` is ES2024 and `firestore-util.test.ts` asserts it
-    // directly. Beacon runs on Node 24, which has it; only the shared base `lib` (ES2023, set
-    // for the browser apps) lags. Raised here rather than in `tsconfig.json` so production
-    // beacon code stays honest about the baseline it shares with the frontends.
+    // directly (2 errors without this). Beacon runs on Node 24, which has it; only the shared
+    // base `lib` (ES2023, set for the browser apps) lags.
+    //
+    // Raised HERE rather than in `tsconfig.json` so the first `tsc` pass still holds
+    // production beacon code to ES2023. That is a weak guarantee and worth stating as such:
+    // beacon is Node-only, and the shared packages it imports are typechecked at ES2023 in
+    // their own projects anyway. It costs ~1s of duplicated compile per CI run (the second
+    // pass re-checks all 41 production files, because `include`/`exclude` REPLACE rather than
+    // merge across `extends`). Kept because 1s is noise beside this script's Firestore
+    // emulator boot, not because the guarantee is strong.
     "lib": ["ES2024"]
   },
   "include": ["src"],
   "exclude": [
-    // Pre-existing `readonly`/mutable fixture mismatches — `as const` fixtures passed to
-    // parameters typed as mutable arrays, plus `.push`/`.sort` on a `readonly` array. 40-odd
-    // errors, all in the claims-sync and notifications surfaces, none of them in this
-    // change's blast radius. The real fix is widening those production signatures to
-    // `readonly` (a function that does not mutate should not demand a mutable array), which
-    // is its own change in its own subsystem.
+    // Pre-existing debt in the claims-sync and notifications surfaces, none of it in this
+    // change's blast radius. CENSUSED rather than estimated (run this config with
+    // `"exclude": []` to reproduce): 23 errors across these five files —
+    //
+    //   16 of the `readonly`/mutable class: 14 TS2345 (an `as const` fixture passed to a
+    //      parameter typed as a mutable array) + 2 TS2339 (`.push`/`.sort` on a readonly one).
+    //    7 unrelated: 6 TS2532 "possibly undefined" + 1 TS2322 optional-property mismatch.
+    //      Widening a signature does nothing for these; each is a one-line test-local fix.
+    //
+    // THE REAL FIX for the 16 is narrower than "widen the signatures": all 14 TS2345 are the
+    // same `{ grant, revoke }` argument against one parameter shape that is copy-pasted five
+    // times (claims-sync/parse-member.ts, resolve-member-perms.ts, sync.ts, and
+    // @luminova/auth's built-in-perms.ts + perms.ts). Naming that type ONCE in
+    // @luminova/auth with `readonly` arrays is guardrail #1 and would clear 14 of the 23,
+    // emptying two of these five entries outright. Deliberately not done here: it is a
+    // different subsystem, and this PR is already large.
     "src/claims-sync/firestore-deps.test.ts",
     "src/claims-sync/resolve-member-perms.test.ts",
     "src/claims-sync/role-docs.emulator.test.ts",
