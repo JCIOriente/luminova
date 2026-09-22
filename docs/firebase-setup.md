@@ -505,10 +505,40 @@ it in a copy dialog with its expiry.
    after 15 s. That copy is deliberately the SAME for a misconfigured deploy and for a browser
    blocking reCAPTCHA, because the invitee cannot tell those apart and both remedies are
    listed. So the page will NOT tell you which one you are looking at — the console check in
-   step 1 below is what distinguishes them, and **nothing in the operator UI flags it**. The
-   one machine-readable trace is a `console.error` on the invitee's own browser
-   ("invite: App Check rejected the call"), which only helps if someone is looking over their
-   shoulder.
+   step 1 below is what distinguishes them.
+
+   **There IS a server-side trace, and it is the fastest way to confirm this diagnosis.** An
+   unregistered-product 403 does not leave the invitee's browser sending nothing: the token
+   exchange fails, `@firebase/app-check` returns a **dummy** token rather than throwing, and
+   that dummy travels in the `X-Firebase-AppCheck` header. firebase-functions therefore takes
+   its `app === "INVALID"` arm and writes one line to Cloud Logging per failed redemption:
+
+   ```
+   Callable request verification failed: AppCheck token was rejected.
+   ```
+
+   Filter for it on the structured label the SDK attaches, OR on the message text. Both are in
+   the query on purpose: the label is narrower, but it only matches if the logging agent
+   promotes that payload key to `LogEntry.labels`, and a filter that silently matches nothing
+   would hand you the opposite diagnosis under the paragraph below.
+
+   ```bash
+   gcloud logging read \
+     'severity>=WARNING AND (labels."firebase-log-type"="callable-request-verification"
+        OR "AppCheck token was rejected")' \
+     --project=jci-oriente --freshness=1h --limit=20
+   ```
+
+   If the label half ever turns out to be the only one matching, drop the text half — not the
+   other way round.
+
+   Rows here mean attestation is reaching the server and being refused — this failure mode, or
+   a blocked browser. **Zero rows while invitees report the error means the opposite**: the
+   header never arrived at all, which takes firebase-functions' `MISSING` path and logs at
+   DEBUG ("verification passed") before the `enforceAppCheck` throw — so absence of warnings
+   is evidence too, not an all-clear. The `console.error` on the invitee's own browser
+   ("invite: App Check rejected the call") remains the only trace for that second case, and it
+   only helps if someone is looking over their shoulder.
 
    Two earlier claims in the specs were WRONG and are corrected here: the production
    reCAPTCHA site key *does* exist (`apps/backstage/.env.production` carries a real
@@ -529,14 +559,29 @@ it in a copy dialog with its expiry.
       so it cannot exercise attestation at all.
 
    **One more thing only this smoke test can catch.** Enforcement is keyed on
-   `FUNCTIONS_EMULATOR`, and `firebase-tools` spreads whatever it reads from `apps/beacon/.env`
-   / `.env.<projectId>` into **both** the deploy-time discovery run and the deployed function's
-   environment. So a stray `FUNCTIONS_EMULATOR=true` line in a beacon dotenv would silently
-   disable App Check **in production** — and nothing else would notice: the unit tests pin both
-   branches, but they pin them at test time, never the deployed value. No such file exists today
-   (`apps/beacon/` has no `.env*`, and `.env`/`.env.local` are gitignored). If one is ever added,
-   this end-to-end check is the only thing standing between that line and an unprotected
-   endpoint. A `gcloud run services describe` of the two services will show the resolved env.
+   `FUNCTIONS_EMULATOR`, and `firebase-tools` spreads whatever it reads from a dotenv file into
+   **both** the deploy-time discovery run and the deployed function's environment. So a stray
+   `FUNCTIONS_EMULATOR=true` line would silently disable App Check **in production** — and
+   nothing else would notice: the unit tests pin both branches, but they pin them at test time,
+   never the deployed value.
+
+   **Look in the right directory.** firebase-tools resolves the dotenv directory from the
+   functions SOURCE, not the repo path — `lib/functions/env.js` uses
+   `opts.configDir || opts.functionsSource`, and `firebase.json` declares
+   `"source": "apps/beacon/dist"`. The files that reach the deployed runtime are therefore
+   **`apps/beacon/dist/.env*`**, NOT `apps/beacon/.env*`, which firebase-tools never reads for
+   this project. Grepping `apps/beacon/` clean does not clear this vector — an earlier version
+   of this paragraph said it did, and the CI guard in `.github/workflows/deploy.yml` states the
+   correct path. Note also that the parser accepts the shell `export FOO=bar` spelling
+   (`LINE_RE` is `^\s*(?:export)?\s*([\w./]+)\s*=`), so grep for both forms.
+
+   `dist/` is gitignored and wiped by `apps/beacon/build.mjs` before every build, which
+   `predeploy` runs — so a committed override cannot reach the path that matters, and no such
+   file exists today. What remains reachable is what a repo grep cannot see: a turbo cache hit
+   restoring an unlisted file, a console edit, or a value set directly on the Cloud Run service.
+   For those, this end-to-end check and the module-scope `console.info` of the resolved value
+   are what stand between that line and an unprotected endpoint. A `gcloud run services
+   describe` of the two services will show the resolved env.
 
    If it does fail: hard-code `ENFORCE_APP_CHECK = false` in
    `apps/beacon/src/redeem-invite.ts`, redeploy the two functions, and fix the registration

@@ -228,7 +228,16 @@ jobs:
             [ -d "$dir" ] || continue
             # -s so a match is reported without the file contents; no `ls` short-circuit,
             # which is how the earlier version passed vacuously on a missing directory.
-            if grep -rlsE '^[[:space:]]*FUNCTIONS_EMULATOR[[:space:]]*=' "$dir"/.env* 2>/dev/null; then
+            #
+            # The `(export)?` mirrors firebase-tools' own LINE_RE
+            # (`^\s*(?:export)?\s*([\w./]+)\s*=`, flags `gms`), which accepts the shell
+            # `export FOO=bar` spelling as an ordinary assignment. Without it this grep
+            # missed a line the parser honours, and FUNCTIONS_EMULATOR is in neither
+            # RESERVED_KEYS nor RESERVED_PREFIXES, so the deploy would not have caught it
+            # either. `[[:space:]]*` rather than `+` for the same reason: the parser's `\s*`
+            # is also optional there, so it reads even `exportFUNCTIONS_EMULATOR=true` as
+            # that key.
+            if grep -rlsE '^[[:space:]]*(export)?[[:space:]]*FUNCTIONS_EMULATOR[[:space:]]*=' "$dir"/.env* 2>/dev/null; then
               found="yes"
             fi
           done
