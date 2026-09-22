@@ -117,8 +117,8 @@ function isAttestationRejection(err: unknown): boolean {
  *  `INVITE_RETRY_AFTER_SECONDS`.
  *
  *  WHAT 15 s DOES NOT CLEAR, and the reason `retry-or-reload` exists as its own arm. The
- *  per-product
- *  registration gap — the BLOCKING owner-op in `docs/firebase-setup.md` — surfaces as a 403
+ *  per-product registration gap — the BLOCKING owner-op in `docs/firebase-setup.md` —
+ *  surfaces as a 403
  *  from the token exchange, and `@firebase/app-check`'s `setBackoff` special-cases 403/404
  *  with a TWENTY-FOUR HOUR `allowRequestsAfter`. `throwIfThrottled` is the first statement of
  *  `ReCaptchaV3Provider.getToken()`, and the throttle lives on the provider instance
@@ -205,10 +205,14 @@ export type InviteRecovery =
    *  component's decision, not this file's. */
   | { kind: "retry-or-reload"; afterSeconds: number };
 
-/** Not exported, unlike `InviteRecovery` above: the only consumer is `inviteRefusal` below,
- *  and its call site infers the return type. An exported name nothing imports is dead weight
- *  `knip` cannot see, because types erase before it looks. The recovery IS imported — the form
- *  stores it on its error phase — so it carries its export honestly. */
+/** Not exported, unlike `InviteRecovery` above: the only consumer is `inviteRefusal` below and
+ *  its call site infers the return type, so exporting it would add a name nothing imports.
+ *
+ *  That IS caught, contrary to what this comment used to claim. `knip` reports unused exported
+ *  TYPES as well as values — verified by exporting an unimported type from this file and
+ *  watching `pnpm knip` fail on an "Unused exported types" line, not by reasoning about when
+ *  types erase. The recovery's export is load-bearing and provably so: the form imports it,
+ *  stores it on its error phase, and switches the affordance on its kind. */
 interface InviteRefusal {
   message: string | null;
   /** Headline to render above `message`. Never "Enlace no válido" unless the link truly is. */

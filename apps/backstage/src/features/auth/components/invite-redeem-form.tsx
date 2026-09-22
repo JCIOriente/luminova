@@ -31,6 +31,13 @@ const GENERIC_REDEEM_ERROR = "No se pudo guardar tu contraseña. Inténtalo de n
  *  load screen the invitee has typed nothing and a reload costs them exactly nothing. */
 const RELOAD_COSTS_THE_PASSWORD = "Tendrás que volver a escribir tu contraseña.";
 const RELOAD_LABEL = "Recargar la página";
+/** Both reload affordances call this. Hoisted rather than written twice as an inline arrow:
+ *  the two call sites must stay the same action — a full page load, which is the only thing
+ *  that builds a new App Check provider — and a second inline copy is where that quietly
+ *  becomes `load()` or a router navigation, neither of which would clear the throttle. */
+function reloadPage() {
+  window.location.reload();
+}
 
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -268,12 +275,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
           // requires, while costing the invitee nothing they have typed. Offering both would
           // put a weaker button first for no gain. The submit path below, where a reload DOES
           // cost something, makes the opposite call deliberately.
-          <Button
-            as="button"
-            type="button"
-            onClick={() => window.location.reload()}
-            className="mt-8"
-          >
+          <Button as="button" type="button" onClick={reloadPage} className="mt-8">
             {RELOAD_LABEL}
           </Button>
         ) : phase.recovery.kind === "retry" ? (
@@ -368,7 +370,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
             as="button"
             type="button"
             variant="secondary"
-            onClick={() => window.location.reload()}
+            onClick={reloadPage}
             className="w-full"
           >
             {RELOAD_LABEL}
