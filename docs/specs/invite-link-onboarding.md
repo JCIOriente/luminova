@@ -1033,6 +1033,12 @@ production reCAPTCHA site key *does* exist, and "/invitacion has no session" was
 — attestation is app-level, the route deliberately sits outside the `_auth` layout, and the client
 wires `initAppCheck` on first app acquisition.
 
+Enforcement is **off under the emulator** (`FUNCTIONS_EMULATOR`), because firebase-functions
+enforces `enforceAppCheck` itself and rejects a header-less request before any debug-token
+escape — and local dev deliberately has no site key, so the client sends no header. Without
+that carve-out the only onboarding path in the product would be unrunnable locally. Both
+branches are pinned by tests; the two failure directions are opposite and both silent.
+
 **Enforcement is per-product, and that is a blocking pre-deploy step.** Cloud Functions must be
 registered for App Check and `/invitacion` tested against a real production build before this
 deploys; otherwise every redemption 403s, silently and totally, on the only onboarding path that

@@ -482,10 +482,18 @@ it in a copy dialog with its expiry.
 
 3. ***** BLOCKING PRE-DEPLOY: confirm App Check covers Cloud Functions. *****
 
-   `describeInvite` and `redeemInvite` now ship `enforceAppCheck: true`. **If the Cloud
-   Functions product is not App-Check-enabled for this project, every redemption 403s the
-   moment this deploys** — silently, totally, on the only onboarding path that exists. No
-   operator surface reports it; the invitee simply cannot set a password.
+   `describeInvite` and `redeemInvite` now enforce App Check in production
+   (`enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true"` — off under the emulator, so
+   local `/invitacion` still works; see below). **If the Cloud Functions product is not
+   App-Check-enabled for this project, every redemption fails the moment this deploys** —
+   silently, totally, on the only onboarding path that exists.
+
+   **What it looks like when it breaks**, so you can recognize it: firebase-functions rejects
+   the call with `unauthenticated`, which carries no tagged `reason`. The invite page therefore
+   shows its generic *"No pudimos validar el enlace. Revisa tu conexión e inténtalo de nuevo"*
+   with a retry button that will never succeed. It reads to the invitee — and to whoever they
+   complain to — as a network problem, not a configuration one. Nothing in the operator UI
+   flags it.
 
    Two earlier claims in the specs were WRONG and are corrected here: the production
    reCAPTCHA site key *does* exist (`apps/backstage/.env.production` carries a real
@@ -505,9 +513,15 @@ it in a copy dialog with its expiry.
       complete a redemption end to end. Not a local build: the emulator path has no site key,
       so it cannot exercise attestation at all.
 
-   If it does 403: revert `enforceAppCheck` to `false` in
+   If it does fail: hard-code `ENFORCE_APP_CHECK = false` in
    `apps/beacon/src/redeem-invite.ts`, redeploy the two functions, and fix the registration
    before trying again. The rate limiter is independent and keeps working either way.
+
+   **Local development is unaffected.** Enforcement is keyed on `FUNCTIONS_EMULATOR`, which the
+   functions emulator sets and the deploy-time discovery run does not — so `/invitacion` works
+   against the emulator with no site key, while a real deploy still enforces. Do not "fix" this
+   by setting `VITE_APPCHECK_SITE_KEY` in `.env.local`: a production reCAPTCHA key cannot attest
+   `localhost`, so that would break local dev rather than repair it.
 
 4. **Cost and abuse signal on the two callables.**
 

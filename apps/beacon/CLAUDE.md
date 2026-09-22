@@ -86,7 +86,15 @@ the Admin SDK. Both share one `loadInvite` so the validity rules cannot drift.
   of distinct tokens is exactly what would otherwise grow one bucket per token.
   **The honest ceiling is per-INSTANCE**, times however many are warm, bounded by
   `maxInstances: 10`; a cold start resets the buckets. Never quote it as a global figure.
-- **App Check IS enforced** (`enforceAppCheck: true`). Two claims in the earlier spec were
+- **App Check IS enforced in production, and deliberately NOT under the emulator**
+  (`enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true"`). firebase-functions enforces
+  this ITSELF — a request with no `X-Firebase-AppCheck` header is rejected before the
+  debug-token escape — and local dev leaves `VITE_APPCHECK_SITE_KEY` blank, so the client sends
+  no header at all. Enforcing unconditionally would make `/invitacion` impossible to exercise
+  against the emulator. `FUNCTIONS_EMULATOR` is safe to key on: the emulator sets it, the
+  deploy-time discovery run does not (it sets `FUNCTIONS_CONTROL_API`), so a real deploy gets
+  `true`. A test pins BOTH branches — the two failure directions are opposite and both silent.
+  Two claims in the earlier spec were
   false: the production reCAPTCHA key does exist, and "/invitacion has no session" was never
   the blocker (attestation is app-level, the route sits outside `_auth`, and the client wires
   `initAppCheck` on first app acquisition). It bounds WHO may call and NOT how often — a
