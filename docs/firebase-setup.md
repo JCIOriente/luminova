@@ -600,6 +600,14 @@ it in a copy dialog with its expiry.
      describeinvite redeeminvite
    ```
 
+   Verified against the real thing on 2026-09-22: run against the deployed `describeinvite`,
+   the script reports `ok: describeinvite carries none of FUNCTIONS_EMULATOR FIREBASE_DEBUG_MODE
+   FIREBASE_DEBUG_FEATURES` and exits 0; with one of those keys injected into the same captured
+   output it exits 1 and names the `gcloud run services update … --remove-env-vars` remedy. The
+   service's env at that point was FIREBASE_CONFIG, GCLOUD_PROJECT, EVENTARC_CLOUD_EVENT_SOURCE,
+   FUNCTION_TARGET and LOG_EXECUTION_ID — that capture is the `CLEAN` fixture in the test file,
+   so the fixtures are pinned to output the tool really produces.
+
    Use the script rather than an ad-hoc `gcloud` pipeline, so the manual check and the deploy
    gate cannot drift — and because the ad-hoc form this replaced had a false pass in it: it
    piped a flattened `--format='value(...)'` rendering into `grep`, and an empty string (a

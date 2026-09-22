@@ -55,11 +55,30 @@ function run(responses, services, name) {
   }
 }
 
-/** What a clean gen2 callable actually carries. Firebase sets these; the shape is the Cloud
- *  Run v1 (Knative) `spec.template.spec.containers[0].env` list of `{name, value}`. */
+/** What a clean gen2 callable actually carries — CAPTURED, not imagined.
+ *
+ *  This is the verbatim env of the deployed `describeinvite` service, from
+ *  `gcloud run services describe describeinvite --region=us-central1 --project=jci-oriente
+ *  --format='json(spec.template.spec.containers[0].env)'` on 2026-09-22. An earlier version of
+ *  this constant was written from memory and listed a `FUNCTION_SIGNATURE_TYPE` the service
+ *  does not set — harmless in itself, but this file had already shipped one invented literal
+ *  (the not-found stderr) that made a dead code path look tested. A fixture that agrees only
+ *  with the code it tests proves nothing about the tool both depend on.
+ *
+ *  `FIREBASE_CONFIG` is kept with its embedded JSON exactly as emitted: it is the one value
+ *  containing quotes and braces, so it exercises the heredoc → `json.load` path that a naive
+ *  text-splitting parser would mangle. Do not "tidy" it. */
 const CLEAN = [
+  {
+    name: "FIREBASE_CONFIG",
+    value: '{"projectId":"jci-oriente","storageBucket":"jci-oriente.firebasestorage.app"}',
+  },
+  { name: "GCLOUD_PROJECT", value: "jci-oriente" },
+  {
+    name: "EVENTARC_CLOUD_EVENT_SOURCE",
+    value: "projects/jci-oriente/locations/us-central1/services/describeInvite",
+  },
   { name: "FUNCTION_TARGET", value: "describeInvite" },
-  { name: "FUNCTION_SIGNATURE_TYPE", value: "http" },
   { name: "LOG_EXECUTION_ID", value: "true" },
 ];
 
