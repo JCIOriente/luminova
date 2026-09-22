@@ -88,7 +88,7 @@ export const INVITE_RATE_LIMITS = {
    *  holder of a valid token could then never be refused by it, while an enumeration flood is
    *  still cut. The cost is moving one keyed read ahead of the global decision, which is
    *  exactly what `rate-limit.ts`'s header argues against — so it is a design change with its
-   *  own PR, not a tweak smuggled in beside a ceiling retune.
+   *  own PR, not a tweak to smuggle in beside an App Check flip.
    *
    *  Deleting it outright was considered and rejected: `maxInstances` bounds CONCURRENCY, not
    *  sustained throughput, so it is a weak cost bound on its own. This is the only control in

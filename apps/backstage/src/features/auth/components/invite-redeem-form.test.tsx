@@ -268,8 +268,13 @@ describe("InviteRedeemForm", () => {
       await fillPasswords("Abcde1");
       await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
       await waitFor(() => expect(hasAlertMatching(/verificaci[óo]n de seguridad/i)).toBe(true));
-      // Waiting cannot clear it, so the button must NOT be withheld behind a countdown.
-      expect(screen.getByRole("button", { name: /crear contraseña/i })).toBeEnabled();
+      // On the BASE branch this button stayed live, because attestation failure was treated
+      // as permanent. Enforcement adds two causes a retry does clear (a transient reCAPTCHA
+      // failure, and the owner fixing the registration while the invitee is still on the
+      // page), so the refusal now carries ATTESTATION_RETRY_AFTER_SECONDS and the button is
+      // withheld for it — the same treatment a throttled submit gets, for a different reason.
+      const waiting = await screen.findByRole("button", { name: /espera \d+s/i });
+      expect(waiting).toBeDisabled();
     } finally {
       consoleError.mockRestore();
     }

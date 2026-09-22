@@ -490,7 +490,142 @@ it in a copy dialog with its expiry.
 
    Deletion is best-effort with up to ~24 h of lag, which is why expiry is never left to it.
 
-3. **Cost and abuse signal on the two callables.**
+3. ***** BLOCKING PRE-DEPLOY: confirm App Check covers Cloud Functions. *****
+
+   `describeInvite` and `redeemInvite` now enforce App Check in production
+   (`enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true"` — off under the emulator, so
+   local `/invitacion` still works; see below). **If the Cloud Functions product is not
+   App-Check-enabled for this project, every redemption fails the moment this deploys** —
+   silently, totally, on the only onboarding path that exists.
+
+   **What it looks like when it breaks**, so you can recognize it: firebase-functions rejects
+   the call with `unauthenticated`, which carries no tagged `reason`. The invite page shows
+   *"No pudimos completar la verificación de seguridad. Inténtalo de nuevo en un momento…"*
+   under the heading *"No pudimos abrir el enlace"*, with a Reintentar button that unlocks
+   after 15 s. That copy is deliberately the SAME for a misconfigured deploy and for a browser
+   blocking reCAPTCHA, because the invitee cannot tell those apart and both remedies are
+   listed. So the page will NOT tell you which one you are looking at — the console check in
+   step 1 below is what distinguishes them.
+
+   **There IS a server-side trace, and it is the fastest way to confirm this diagnosis.** An
+   unregistered-product 403 does not leave the invitee's browser sending nothing: the token
+   exchange fails, `@firebase/app-check` returns a **dummy** token rather than throwing, and
+   that dummy travels in the `X-Firebase-AppCheck` header. firebase-functions therefore takes
+   its `app === "INVALID"` arm and writes one line to Cloud Logging per failed redemption:
+
+   ```
+   Callable request verification failed: AppCheck token was rejected.
+   ```
+
+   Filter for it on the structured label the SDK attaches, OR on the message text. Both are in
+   the query on purpose: the label is narrower, but it only matches if the logging agent
+   promotes that payload key to `LogEntry.labels`, and a filter that silently matches nothing
+   would hand you the opposite diagnosis under the paragraph below.
+
+   ```bash
+   gcloud logging read \
+     'severity>=WARNING AND (labels."firebase-log-type"="callable-request-verification"
+        OR "AppCheck token was rejected")' \
+     --project=jci-oriente --freshness=1h --limit=20
+   ```
+
+   If the label half ever turns out to be the only one matching, drop the text half — not the
+   other way round.
+
+   Rows here mean attestation is reaching the server and being refused — this failure mode, or
+   a blocked browser. **Zero rows while invitees report the error means the opposite**: the
+   header never arrived at all, which takes firebase-functions' `MISSING` path and logs at
+   DEBUG ("verification passed") before the `enforceAppCheck` throw — so absence of warnings
+   is evidence too, not an all-clear. The `console.error` on the invitee's own browser
+   ("invite: App Check rejected the call") remains the only trace for that second case, and it
+   only helps if someone is looking over their shoulder.
+
+   Two earlier claims in the specs were WRONG and are corrected here: the production
+   reCAPTCHA site key *does* exist (`apps/backstage/.env.production` carries a real
+   `VITE_APPCHECK_SITE_KEY`), and "/invitacion has no session" was never the blocker —
+   attestation is app-level, `/invitacion` is deliberately a top-level route outside the
+   `_auth` layout, and the client wires `initAppCheck` on first app acquisition.
+
+   Before deploying:
+
+   1. Firebase Console → **App Check** → confirm the backstage web app is registered with the
+      reCAPTCHA v3 provider, and that **Cloud Functions** appears among its products with
+      enforcement on (enforcement is per-product; Firestore and Storage being on says nothing
+      about Functions).
+   2. Deploy the functions to a **preview or staging** target if one is available, or accept
+      that the first production deploy is the test, and immediately
+   3. **Open `/invitacion#<a real freshly-issued token>` against a real production build** and
+      complete a redemption end to end. Not a local build: the emulator path has no site key,
+      so it cannot exercise attestation at all.
+
+   **One more thing only this smoke test can catch.** Enforcement is keyed on
+   `FUNCTIONS_EMULATOR`, and `firebase-tools` spreads whatever it reads from a dotenv file into
+   **both** the deploy-time discovery run and the deployed function's environment. So a stray
+   `FUNCTIONS_EMULATOR=true` line would silently disable App Check **in production** — and
+   nothing else would notice: the unit tests pin both branches, but they pin them at test time,
+   never the deployed value.
+
+   **Look in the right directory.** firebase-tools resolves the dotenv directory from the
+   functions SOURCE, not the repo path — `lib/functions/env.js` uses
+   `opts.configDir || opts.functionsSource`, and `firebase.json` declares
+   `"source": "apps/beacon/dist"`. The files that reach the deployed runtime are therefore
+   **`apps/beacon/dist/.env*`**, NOT `apps/beacon/.env*`, which firebase-tools never reads for
+   this project. Grepping `apps/beacon/` clean does not clear this vector — an earlier version
+   of this paragraph said it did, and the CI guard in `.github/workflows/deploy.yml` states the
+   correct path. Note also that the parser accepts the shell `export FOO=bar` spelling
+   (`LINE_RE` is `^\s*(?:export)?\s*([\w./]+)\s*=`), so grep for both forms.
+
+   `dist/` is gitignored and wiped by `apps/beacon/build.mjs` before every build, which
+   `predeploy` runs — so a committed override cannot reach the path that matters, and no such
+   file exists today. What remains reachable is what a repo grep cannot see: a turbo cache hit
+   restoring an unlisted file, a console edit, or a value set directly on the Cloud Run service.
+   For those, this end-to-end check and the module-scope `console.info` of the resolved value
+   are what stand between that line and an unprotected endpoint. It is emitted from
+   `apps/beacon/src/index.ts`, beacon's single bundled entrypoint, so every beacon container
+   logs it once at cold start — the value is the build's, identical on every service, and any
+   one of them answers "what did the deployed code resolve?" A `gcloud run services
+   describe` of the two services will show the resolved env.
+
+   **Check for TWO variables there, not one.** `FUNCTIONS_EMULATOR` is what our own code keys
+   on, but `FIREBASE_DEBUG_MODE` (and `FIREBASE_DEBUG_FEATURES` carrying
+   `skipTokenVerification`) fails the control open one level lower, inside firebase-functions:
+   it routes App Check through `unsafeDecodeAppCheckToken`, which accepts a self-crafted
+   UNSIGNED token. Enforcement would still read as `true` in the log line while accepting
+   anything. Neither belongs on a deployed service; the CI guard greps only the first, because
+   the second cannot arrive from a repo file.
+
+   `us-central1` below is the gen2 default, which is what these get — beacon sets no `region`
+   on any callable and calls no `setGlobalOptions`. Confirm with
+   `gcloud run services list --project=jci-oriente` if a region is ever added.
+
+   ```bash
+   for svc in describeinvite redeeminvite; do
+     gcloud run services describe "$svc" --region=us-central1 --project=jci-oriente \
+       --format='value(spec.template.spec.containers[0].env)' | tr ',' '\n' \
+       | grep -E 'FUNCTIONS_EMULATOR|FIREBASE_DEBUG' || echo "$svc: clean"
+   done
+   ```
+
+   If it does fail: hard-code `ENFORCE_APP_CHECK = false` in
+   `apps/beacon/src/redeem-invite.ts`, redeploy the two functions, and fix the registration
+   before trying again. The rate limiter is independent and keeps working either way.
+
+   **You must flip the pinned assertion in the same commit, or CI blocks the rollback.**
+   `apps/beacon/src/redeem-invite.test.ts` asserts
+   `expect(UNAUTHENTICATED_CALL.enforceAppCheck).toBe(true)` — deliberately, so nobody disables
+   enforcement by accident. During a real outage that guard is between you and restoring
+   onboarding: `pnpm --filter beacon ci` goes red and the PR is blocked. Change both files
+   together and say in the commit message that it is a deliberate temporary rollback, then
+   revert both once the registration is fixed. Flip the assertion to `false` rather than
+   deleting it — a deleted assertion is how enforcement silently never comes back.
+
+   **Local development is unaffected.** Enforcement is keyed on `FUNCTIONS_EMULATOR`, which the
+   functions emulator sets and the deploy-time discovery run does not — so `/invitacion` works
+   against the emulator with no site key, while a real deploy still enforces. Do not "fix" this
+   by setting `VITE_APPCHECK_SITE_KEY` in `.env.local`: a production reCAPTCHA key cannot attest
+   `localhost`, so that would break local dev rather than repair it.
+
+4. **Cost and abuse signal on the two callables.**
 
    **Correction to what this document used to promise.** It said "a GCP budget alert on the
    two callables". A **billing budget cannot be scoped to a function** — budgets attach to a
@@ -567,6 +702,28 @@ it in a copy dialog with its expiry.
    way: `shouldLogRefusal` caps them at one per gate per instance per 10 s, so they saturate at
    six a minute whether the flood is 11 req/s or 11,000 — presence, never rate.
 
+   **A THIRD population exists since App Check enforcement, and it charges no bucket.** An
+   App-Check-rejected call is thrown by firebase-functions inside `onCallHandler`, before our
+   handler — and therefore before `admitGlobal` — ever runs. Cloud Run counts it;
+   the limiter never sees it. So the three populations are distinguishable only by response
+   code:
+
+   | Population | `HttpsError` code | HTTP |
+   |---|---|---|
+   | App Check rejected / missing | `unauthenticated` | **401** |
+   | Rate-limit refusal | `resource-exhausted` | **429** |
+   | Tagged invite refusal (expired, used, …) | `failed-precondition` | **400** |
+
+   Before concluding anything from this alert, break the condition's series down by
+   `response_code` in Metrics Explorer. A 401 spike with NO `rate-limited-global` lines is not
+   a false positive — it is either a header-less flood burning invocations against
+   `maxInstances: 10`, or, in the days around this deploy, **the registration failure this
+   section's owner-op exists to prevent**, in which case every legitimate redemption is 401ing
+   too. That is the single best detector for it.
+
+   Leave the `--if='> 8'` filter unscoped — excluding 401 would blind the alert to both of
+   those.
+
    **Verify it applied:**
 
    ```bash
@@ -619,16 +776,16 @@ the branded reset flow:
    `.env.local` blank so local dev runs against the emulators with App Check off.
 3. **Reset action URL** — leave it at the Firebase DEFAULT. The `/reset` route it used to
    point at is deleted; see owner op 1 above.
-4. **`describeInvite` / `redeemInvite` will be the FIRST functions with it turned on** —
-   but they declare `enforceAppCheck: false` today. The blocker was never the site key
-   (production has one); it is that enforcement is per-product and **Cloud Functions is still
-   not confirmed enabled** below. The flip is deliberately its own PR, with the confirmation
-   step and a pre-deploy smoke test, because a misconfigured deploy breaks member onboarding
-   entirely, silently, for everyone.
-5. **Enforcement** — **enabled** for Firestore and Storage. **Cloud Functions: UNCONFIRMED.**
-   Both frontends send a valid token (backstage via the full SDK, spotlight via
-   `getFirestoreLite`). Only enable enforcement for a product after confirming real traffic
-   carries valid tokens, or you will lock out the app.
+4. **`describeInvite` / `redeemInvite` are the FIRST functions with it turned on.** They now
+   declare `enforceAppCheck: true`. The blocker was never the site key (production has one) —
+   it is that enforcement is per-product and **Cloud Functions is still not confirmed enabled**
+   below. That makes confirming it a BLOCKING pre-deploy step, not a follow-up: see owner op 3
+   under "Enlaces de acceso". A misconfigured deploy breaks member onboarding entirely,
+   silently, for everyone.
+5. **Enforcement** — **enabled** for Firestore and Storage. **Cloud Functions: UNCONFIRMED**,
+   and the two invite callables now depend on it. Both frontends send a valid token (backstage
+   via the full SDK, spotlight via `getFirestoreLite`). Only enable enforcement for a product
+   after confirming real traffic carries valid tokens, or you will lock out the app.
 6. **App Check is not a rate limiter, and the invite callables carry both.** A standard App
    Check token lives ~30 minutes and is replayable, so harvesting one from the public
    `/invitacion` page and flooding with it is not prevented by enforcement. `enforceAppCheck`

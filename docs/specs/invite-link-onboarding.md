@@ -237,7 +237,16 @@ initializes App Check only `if (siteKey)`, reading `VITE_APPCHECK_SITE_KEY`; `do
 records G4 as 🟡 — "client code scaffolded … Remaining = infra: provision key, set env, flip
 enforcement", and `:379` lists it under "Owner ops (not PRs)". **The keys do not exist in
 production.** Setting `enforceAppCheck: true` here would 403 every redemption until an owner
-provisions reCAPTCHA. What we do instead: both callables are declared
+provisions reCAPTCHA.
+
+> **SUPERSEDED — see Amendment 2.** The bolded claim above is false: the production reCAPTCHA
+> site key *does* exist in `apps/backstage/.env.production`, and the quoted roadmap text has
+> since been corrected. Enforcement is now ON in the code. The real blocker was never the key —
+> it is that App Check enforcement is per-PRODUCT, and the backstage app's registration for
+> Cloud Functions is the one remaining owner-op. Left standing rather than rewritten because
+> this section records what was believed when the decision was made.
+
+What we do instead: both callables are declared
 `onCall({ enforceAppCheck: false, maxInstances: 10 }, …)` with a comment naming G4, so the flip is
 one boolean and is greppable, and `redeemInvite` is added to the G4 checklist as the first function
 to flip. **Cost when it is flipped:** a reCAPTCHA v3 round-trip on an unauthenticated page, and a
@@ -935,12 +944,13 @@ the same policy the checklist renders.
    Auditable, not prevented.
 2. **The password crosses beacon in plaintext** (Q1a). TLS-protected, never logged, but it is in
    function memory and in any future request-body capture. Closing this means Q1b and the IAM grant.
-3. **App Check is not enforced on the unauthenticated callables.** Still true as of this change
-   — but ~~the keys do not exist (roadmap G4)~~ **was the wrong reason**, see Amendment 2:
-   `apps/backstage/.env.production` carries a real `VITE_APPCHECK_SITE_KEY`. What actually holds
-   the flip is that enforcement is per-PRODUCT and the backstage app's registration for Cloud
-   Functions is unconfirmed — a blocking owner-op, not a code change. The code is one boolean
-   away; until it is flipped these two endpoints accept requests from any origin.
+3. ~~**App Check is not enforced on the unauthenticated callables.** The keys do not exist
+   (roadmap G4). The code is one boolean away; the infra is an owner-op.~~ **FIXED in this
+   design** — see Amendment 2. Enforcement is ON in production (off under the emulator, or
+   `/invitacion` would be unrunnable locally). The stated reason was false too:
+   `apps/backstage/.env.production` carries a real `VITE_APPCHECK_SITE_KEY`. What actually held
+   it is that enforcement is per-PRODUCT, so the backstage app's registration for Cloud
+   Functions is now a BLOCKING pre-deploy owner-op rather than a code change.
 4. ~~**No rate limiting beyond `maxInstances`.** Deliberate (Q3). If abuse ever materialises, the
    right fix is Cloud Armor or an App Check flip, not a Firestore counter.~~ **FIXED in this
    design** — see Amendment 2. Both callables now carry an in-process GCRA limiter: a per-token
@@ -1058,21 +1068,21 @@ endpoint-wide per callable, consulted before any I/O.
   hands an evicted key a fresh budget, which is a second reason the endpoint-wide bucket is the
   real control; a test asserts that property so nobody mistakes the LRU for a security boundary.
 
-**App Check stays OFF on these two for now** (`enforceAppCheck: false`), and the flip is its
-own PR. Two claims in the original text were false and are corrected — the production reCAPTCHA
-site key *does* exist, and "/invitacion has no session" was never the blocker: attestation is
-app-level, the route deliberately sits outside the `_auth` layout, and the client wires
-`initAppCheck` on first app acquisition.
+**App Check** is now enforced. Two claims in the original text were false and are corrected: the
+production reCAPTCHA site key *does* exist, and "/invitacion has no session" was never the blocker
+— attestation is app-level, the route deliberately sits outside the `_auth` layout, and the client
+wires `initAppCheck` on first app acquisition.
 
-What actually holds it is that **enforcement is per-product**. Cloud Functions must be
-registered for App Check and `/invitacion` tested against a real production build first;
-otherwise every redemption 403s, silently and totally, on the only onboarding path that exists.
-That is a blocking owner-op, so it ships with the flip rather than ahead of it.
+Enforcement is **off under the emulator** (`FUNCTIONS_EMULATOR`), because firebase-functions
+enforces `enforceAppCheck` itself and rejects a header-less request before any debug-token
+escape — and local dev deliberately has no site key, so the client sends no header. Without
+that carve-out the only onboarding path in the product would be unrunnable locally. Both
+branches are pinned by tests; the two failure directions are opposite and both silent.
 
-The client half lands HERE, ahead of the flip, on purpose: `isAttestationRejection` already
-renders an honest message instead of "revisa tu conexión" if enforcement is ever switched on
-from any direction. The rate limiter is independent of all of this and is what this change
-delivers — App Check would bound *who* may call, never *how often*.
+**Enforcement is per-product, and that is a blocking pre-deploy step.** Cloud Functions must be
+registered for App Check and `/invitacion` tested against a real production build before this
+deploys; otherwise every redemption 403s, silently and totally, on the only onboarding path that
+exists. The owner-op is in `docs/firebase-setup.md`.
 
 `invite-too-many-attempts` joins `INVITE_BLOCK_REASONS`. It is the first **temporary** tagged
 refusal, which invalidated a client invariant: `retryable` was "beacon gave no tagged reason", on

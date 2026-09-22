@@ -195,6 +195,71 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      # App Check enforcement on describeInvite/redeemInvite is keyed on FUNCTIONS_EMULATOR
+      # (see apps/beacon/src/redeem-invite.ts): unset means ENFORCE. A dotenv file that set it
+      # true would ship those two callables with App Check disabled in production.
+      #
+      # BE PRECISE ABOUT WHAT THIS COVERS, because an earlier version of this step overstated
+      # it and a guard that gates nothing is worse than no guard. firebase-tools resolves the
+      # dotenv directory from the functions SOURCE, not the repo path: `env.js` uses
+      # `opts.configDir || opts.functionsSource`, and firebase.json declares
+      # `"source": "apps/beacon/dist"`. So the files that actually reach the deployed runtime
+      # are `apps/beacon/dist/.env*` — NOT `apps/beacon/.env*`, which firebase-tools never
+      # reads for this project.
+      #
+      # `dist/` is gitignored AND wiped by `apps/beacon/build.mjs` before every build, which
+      # `predeploy` runs — so a committed override cannot reach the path that matters. Note
+      # what that means for THIS step honestly: it runs before the deploy, so `apps/beacon/dist`
+      # does not exist yet and only the `apps/beacon` arm ever actually scans anything. The
+      # dist arm is there for the case where a future change builds earlier in the job, not
+      # because it fires today. What this step really buys is catching a stray committed
+      # dotenv early and cheaply. That is all — it is not the control.
+      #
+      # THE REAL CONTROLS are downstream and cover the vectors a repo grep cannot see (a
+      # console edit, a value set on the Cloud Run service, a turbo cache hit restoring an
+      # unlisted file): the module-scope `console.info` of the resolved value, which reports
+      # what the deployed container actually decided, and the pre-deploy smoke test in
+      # docs/firebase-setup.md.
+      - name: Guard — no FUNCTIONS_EMULATOR override in beacon env files
+        run: |
+          set -euo pipefail
+          found=""
+          scanned=""
+          for dir in apps/beacon apps/beacon/dist; do
+            [ -d "$dir" ] || continue
+            # ONE pass builds both accumulators. An earlier version walked this same fixed
+            # list twice — once to grep, once to compose the success message — so the list
+            # had to be edited in two places to stay in sync, and a slip would have made the
+            # "ok" line name a directory that was never actually scanned. That is the exact
+            # silent mismatch the rest of this step exists to prevent.
+            scanned="$scanned $dir/.env*"
+            # -s suppresses grep's "No such file or directory" when the .env* glob matches
+            # nothing (bash leaves an unmatched glob literal), which is the normal case here.
+            # -l reports the filename without the contents. Verified that -s alone covers it,
+            # so no 2>/dev/null: a redundant redirect reads as load-bearing to the next editor.
+            #
+            # The `(export)?` mirrors firebase-tools' own LINE_RE
+            # (`^\s*(?:export)?\s*([\w./]+)\s*=`, flags `gms`), which accepts the shell
+            # `export FOO=bar` spelling as an ordinary assignment. Without it this grep missed
+            # a line the parser honours, and FUNCTIONS_EMULATOR is in neither RESERVED_KEYS
+            # nor RESERVED_PREFIXES, so the deploy would not have caught it either.
+            # `[[:space:]]*` rather than `+` for the same reason: the parser's `\s*` is also
+            # optional there, so it reads even `exportFUNCTIONS_EMULATOR=true` as that key.
+            if grep -rlsE '^[[:space:]]*(export)?[[:space:]]*FUNCTIONS_EMULATOR[[:space:]]*=' "$dir"/.env*; then
+              found="yes"
+            fi
+          done
+          if [ -n "$found" ]; then
+            # Say what this actually proves. The live arm scans apps/beacon, which is NOT the
+            # directory firebase-tools reads (that is apps/beacon/dist, per the header above),
+            # and dist is wiped by build.mjs before every build. So a hit here is a committed
+            # dotenv that would NOT have reached production — worth removing, but asserting it
+            # was about to disable enforcement contradicts this step's own comment and sends
+            # the reader chasing a production incident that could not have happened.
+            echo "::error::FUNCTIONS_EMULATOR is set in a committed beacon env file. At this path firebase-tools never reads it, so production enforcement was NOT at risk — but remove it: it shadows local intent, and the day firebase.json points at a different functions source it becomes live."
+            exit 1
+          fi
+          echo "ok: no FUNCTIONS_EMULATOR override in${scanned:- (no beacon env directory present)}"
       # firebase.json `predeploy` runs `pnpm turbo run build --filter beacon`.
       # --force skips the gen2 delete-confirmation prompt under --non-interactive.
       - name: Deploy functions (beacon)

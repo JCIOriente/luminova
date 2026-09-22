@@ -64,44 +64,79 @@ const RETRYABLE_REASONS: ReadonlySet<string> = new Set<InviteBlockReason>([
   "invite-too-many-attempts",
 ]);
 
-/** An App Check rejection, which is NOT a network problem and NOT retryable.
+/** An App Check rejection: NOT a network problem, and not something a NEW LINK can fix.
  *
  *  firebase-functions enforces `enforceAppCheck` itself and rejects a call whose App Check
  *  token is missing or invalid with `unauthenticated` and NO `details.reason`. Without this
- *  branch such a rejection fell through to the untagged case and rendered "revisa tu conexión"
- *  beside a Reintentar button that could never succeed — blaming the invitee's connection for a
- *  failure that is either our misconfiguration or their browser.
+ *  branch such a rejection fell through to the untagged case and rendered "revisa tu conexión",
+ *  blaming the invitee's connection for a failure that is either our misconfiguration or their
+ *  browser.
  *
- *  On THESE two callables `unauthenticated` can only mean App Check. They are unauthenticated
- *  by design and never require a session, and firebase-functions raises this code for exactly
- *  three cases: an INVALID auth token, and App Check missing or invalid under enforcement. An
- *  invitee sends no auth token at all, which is MISSING rather than INVALID and does not
- *  throw — so App Check is the only remaining source.
+ *  On THESE two callables `unauthenticated` is ALMOST always App Check. They are
+ *  unauthenticated by design and never require a session, and firebase-functions raises this
+ *  code for exactly three cases: an INVALID auth token, and App Check missing or invalid under
+ *  enforcement. The ordinary invitee sends no auth token at all, which is MISSING rather than
+ *  INVALID and does not throw — so App Check is the only remaining source for them.
  *
- *  THAT DESCRIBES THE FLIP, NOT THIS BRANCH. `enforceAppCheck` is still false in
- *  `apps/beacon/src/redeem-invite.ts`, so today BOTH App Check cases are unreachable and the
- *  only way to land here is the INVALID-token case the paragraph above sets aside: an operator
- *  or a signed-in member opening an invite link in a browser still holding a stale backstage
- *  session. Rare, since the SDK refreshes ID tokens on its own — and the copy is a defensible
- *  dead end either way, because neither a wait nor a fresh link clears it. This ships ahead of
- *  the flip on purpose, so the bundle already renders an honest message before enforcement can
- *  produce one. Read the `console.error` below with the same caveat: until the flip it names a
- *  cause it cannot actually have observed.
+ *  THE ONE CASE THIS MIS-DIAGNOSES, stated rather than quietly dropped. `checkAuthToken`
+ *  returns INVALID when `verifyIdToken` throws, and firebase-functions checks auth BEFORE App
+ *  Check, so it wins the race and produces the identical untagged `unauthenticated`. Reaching
+ *  it needs a browser that is ALREADY signed in — an operator testing a link, or a member
+ *  opening one in a tab holding a session the SDK can no longer refresh (revoked, or a deleted
+ *  user). That person then gets ATTESTATION_BLOCKED: reload, try another browser, disable
+ *  extensions, tell the directiva — none of which is the remedy, which is to sign out.
  *
- *  Two ways to reach it, and the second is permanent rather than a deploy slip: the
- *  per-product registration gap `docs/firebase-setup.md` flags as BLOCKING, and any browser
- *  that blocks reCAPTCHA v3 — a privacy extension, a blocked `google.com`, a corporate proxy —
- *  for as long as it stays blocked. `packages/firebase/src/app-check.ts` hard-wires
- *  `ReCaptchaV3Provider`, so there is no fallback attestation path. */
+ *  Not special-cased here because the client cannot tell the two apart from the error alone,
+ *  and guessing wrong would send a genuinely blocked invitee to sign out of an account they do
+ *  not have. It is rare, it is recoverable, and the operator-facing path in
+ *  docs/firebase-setup.md is where a stuck tester gets diagnosed. If it ever shows up in
+ *  support traffic, the fix is a sign-out clause in ATTESTATION_BLOCKED gated on
+ *  `getAuth().currentUser !== null`, not a broader guess here. */
 function isAttestationRejection(err: unknown): boolean {
   return (err as { code?: unknown } | null | undefined)?.code === "functions/unauthenticated";
 }
 
-/** Deliberately actionable and deliberately silent about connections. Waiting cannot help, and
- *  neither can a new link, so the copy must not send them to the operator for a fresh one. */
+/** How long to withhold the retry on a blocked attestation.
+ *
+ *  This branch used to offer NO retry, on the reasoning that attestation failure is permanent.
+ *  That was written while `enforceAppCheck` was false, when a browser blocking reCAPTCHA v3
+ *  was the only reachable cause. Enforcement adds two causes that a retry DOES clear:
+ *
+ *    - `recaptcha-error` — the grecaptcha script failed to load or execute. Thrown before the
+ *      token exchange is attempted and sets no backoff at all, so the next attempt is clean.
+ *    - a non-403/404 `fetch-status-error` — a 5xx or a blip from the exchange endpoint. The
+ *      SDK's own backoff here is `calculateBackoffMillis(0, 1000, 2)`, about a second.
+ *
+ *  15 s comfortably covers both. Not `0`, which invites hammering and teaches the invitee the
+ *  button does not work; not the rate-limit interval, which is the server's promise about a
+ *  different mechanism — so this gets its own name rather than inheriting a retune of
+ *  `INVITE_RETRY_AFTER_SECONDS`.
+ *
+ *  WHAT 15 s DOES NOT CLEAR, and the reason the copy below names a reload. The per-product
+ *  registration gap — the BLOCKING owner-op in `docs/firebase-setup.md` — surfaces as a 403
+ *  from the token exchange, and `@firebase/app-check`'s `setBackoff` special-cases 403/404
+ *  with a TWENTY-FOUR HOUR `allowRequestsAfter`. `throwIfThrottled` is the first statement of
+ *  `ReCaptchaV3Provider.getToken()`, and the throttle lives on the provider instance
+ *  `initAppCheck` creates once per page load — so for the rest of that day this tab never even
+ *  attempts an exchange, and `getToken` returns a DUMMY token rather than throwing, which the
+ *  server rejects identically. An owner fixing the console sixty seconds later changes nothing
+ *  for that tab. Only a reload builds a new provider. */
+const ATTESTATION_RETRY_AFTER_SECONDS = 15;
+
+/** Every remedy that can actually work, in the order their causes are likely, and deliberately
+ *  silent about connections — blaming the invitee's network is the mis-attribution this branch
+ *  exists to fix.
+ *
+ *  Retry first: it clears the two transient causes and costs nothing. THEN the reload, because
+ *  it is the only thing that clears a 24 h App Check throttle (see above) — and that is the
+ *  state an invitee lands in during the exact window this feature is riskiest, between the
+ *  enforcement deploy and the console registration. Then the browser remedies, for the person
+ *  running a content blocker, for whom waiting is a trap with no exit. The operator is LAST:
+ *  they cannot unblock an extension, and a fresh link would not help either. */
 const ATTESTATION_BLOCKED =
-  "Tu navegador bloqueó la verificación de seguridad, así que no pudimos abrir el enlace. " +
-  "Prueba con otro navegador, desactiva las extensiones que bloquean contenido, o avisa a la directiva.";
+  "No pudimos completar la verificación de seguridad. Inténtalo de nuevo en un momento y, " +
+  "si sigue fallando, recarga la página. Si el problema continúa, prueba con otro navegador " +
+  "o desactiva las extensiones que bloquean contenido, y avisa a la directiva.";
 
 /** The headline above the message.
  *
@@ -193,7 +228,7 @@ export function inviteRefusal(err: unknown): InviteRefusal {
     return {
       message: ATTESTATION_BLOCKED,
       heading: HEADINGS.blocked,
-      retryAfterSeconds: null,
+      retryAfterSeconds: ATTESTATION_RETRY_AFTER_SECONDS,
     };
   }
   // Untagged: a network blip. Retryable, and NOT the link's fault.

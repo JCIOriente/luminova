@@ -389,25 +389,27 @@ export async function redeemInviteFor(
 // THE PROJECT'S FIRST UNAUTHENTICATED CALLABLES.
 //
 // Anyone who knows the URL can invoke these; an invitee has no account yet, so that is
-// inherent rather than an oversight. Three controls are designed to stand in front of them,
-// and TWO of the three are live as of this change.
+// inherent rather than an oversight. Three controls stand in front of them, and as of this
+// change all three are live.
 //
-// 1. APP CHECK — declared, NOT YET ENFORCED. `enforceAppCheck` is FALSE below; the flag
-//    carries the reasoning, and the flip is its own PR. Do not read the rest of this block as
-//    a description of what is running today.
+// 1. APP CHECK, now ENFORCED in production and deliberately NOT under the emulator — see the
+//    `ENFORCE_APP_CHECK` docblock below for why that carve-out is safe and must stay
+//    fail-closed.
 //
-//    Two claims earlier drafts made about WHY it was held are false, and are corrected here
-//    so the flip is not blocked on a phantom: the reCAPTCHA keys are NOT missing in
-//    production — `apps/backstage/.env.production` carries a real VITE_APPCHECK_SITE_KEY —
-//    and "/invitacion has no session" was never the blocker either. Attestation is app-level,
+//    Two claims earlier drafts made about why it was held back were false, and both are
+//    corrected here: the reCAPTCHA keys are NOT missing in production —
+//    `apps/backstage/.env.production` carries a real VITE_APPCHECK_SITE_KEY — and
+//    "/invitacion has no session" was never the blocker either. Attestation is app-level,
 //    `/invitacion` is deliberately a TOP-LEVEL route outside the `_auth` layout, and the
 //    client's `ensureApp()` wires `initAppCheck` on first app acquisition — which
 //    `getFunctionsService()` goes through. So an unauthenticated /invitacion load does attest.
 //
-//    What actually holds it is that ENFORCEMENT IS PER-PRODUCT: the backstage app's
-//    registration for the Cloud Functions product is unconfirmed, and flipping before that is
-//    verified 403s every redemption — silently, totally, on the only onboarding path there
-//    is. That check is a blocking owner-op, and it ships WITH the flip, not with this change.
+//    ENFORCEMENT IS PER-PRODUCT, and that is the live risk THIS change carries. See the
+//    BLOCKING owner-op in docs/firebase-setup.md: the backstage app must be registered for the
+//    Cloud Functions product and /invitacion tested against a real build BEFORE this deploys.
+//    Get it wrong and every redemption 403s — silently, totally, on the only onboarding path
+//    there is, and a 403 throttles that browser's App Check for TWENTY-FOUR HOURS, which no
+//    retry button can clear and only a page reload escapes.
 //
 // 2. THE RATE GATE, below. App Check bounds WHO may call; it does not bound HOW OFTEN. A
 //    standard App Check token lives ~30 minutes and is replayable, so harvesting one from the
@@ -421,20 +423,41 @@ export async function redeemInviteFor(
 //
 // Brute-forcing the token itself remains arithmetic rather than a threat: 2^256, and a guess
 // resolves to a nonexistent document id — one read, no write, no secret comparison anywhere.
+/** App Check enforcement: ON in production, OFF under the emulator.
+ *
+ *  `enforceAppCheck` is enforced BY firebase-functions ITSELF, not by the App Check service.
+ *  `common/providers/https.js` reads the `X-Firebase-AppCheck` header and throws
+ *  `unauthenticated` when `app === "MISSING"` — and the MISSING branch returns BEFORE the
+ *  `FIREBASE_DEBUG_MODE` / `skipTokenVerification` escape, so a debug token cannot rescue a
+ *  request that carries no header at all.
+ *
+ *  Local dev leaves `VITE_APPCHECK_SITE_KEY` blank on purpose (docs/firebase-setup.md), so the
+ *  client initializes no App Check and sends no header. Enforcing unconditionally would make
+ *  `/invitacion` — the one route a developer most needs to exercise, and the only onboarding
+ *  path in the product — impossible to run against the emulator.
+ *
+ *  KEYED ON `FUNCTIONS_EMULATOR`, and the reason it is safe is stronger than "the discovery
+ *  run sets a different variable". The discovery run is IRRELEVANT: `enforceAppCheck` is never
+ *  serialized into the deploy manifest at all — `v2/options.js` `optionsToEndpoint` copies
+ *  only omit, concurrency, minInstances, maxInstances, ingressSettings, labels, timeoutSeconds
+ *  and cpu. This value is read IN-PROCESS at container cold start
+ *  (`common/providers/https.js`), where `FUNCTIONS_EMULATOR` is unset because only the
+ *  emulator sets it (`functionsEmulator.js`: `envs.FUNCTIONS_EMULATOR = "true"`). So no
+ *  build-time process can affect it, and production resolves `true`.
+ *
+ *  The one thing that CAN change it is the deployed container's own environment — a dotenv
+ *  file firebase-tools spreads in, or a value set on the Cloud Run service. That is what the
+ *  log line below is for, and why the CI guard alone is not the control.
+ *
+ *  Fail-closed and it must stay that way: ABSENCE of the variable means ENFORCE. Do not
+ *  "improve" this into a positive check for a production marker like `K_SERVICE`, which would
+ *  fail OPEN the day that variable is renamed. A test pins BOTH branches — enforcing under the
+ *  emulator breaks local onboarding, and failing to enforce in production removes the
+ *  control. */
+const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== "true";
 
 export const UNAUTHENTICATED_CALL = {
-  // enforceAppCheck is FALSE, and this is a DEPLOY-ORDERING hold, not a judgment that the
-  // control is unwanted. Flipping it on is its own PR precisely because the failure is
-  // invisible: App Check enforcement is per-PRODUCT, the backstage web app's registration for
-  // the Cloud Functions product is unconfirmed, and if it is missing then every redemption
-  // fails the moment the flip deploys — on the only onboarding path that exists, rendering as
-  // "revisa tu conexión" with nothing server-side tagged and nothing in the operator UI.
-  //
-  // The client-side handling for that rejection ships HERE, ahead of the flip, on purpose:
-  // see `isAttestationRejection` in apps/backstage/src/features/auth/lib/invite-error.ts. That
-  // ordering means the bundle already renders an honest message before enforcement can ever
-  // produce one. The rate limiter above is independent and is the control this PR delivers.
-  enforceAppCheck: false,
+  enforceAppCheck: ENFORCE_APP_CHECK,
   maxInstances: 10,
   /** PINNED, not inherited. The limiter's honest ceiling is "per minute PER INSTANCE", which
    *  only means something if both the instance count and their concurrency are known. Left

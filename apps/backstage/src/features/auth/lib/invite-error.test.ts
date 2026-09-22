@@ -164,23 +164,60 @@ describe("inviteRefusal — copy and affordance cannot contradict", () => {
 describe("inviteRefusal — an App Check rejection is not a network blip", () => {
   // firebase-functions rejects a call that fails App Check with `unauthenticated` and NO
   // `details.reason`, so it used to land in the untagged branch and render "revisa tu
-  // conexión" with a Reintentar button that could never succeed. Reachable two ways, and the
-  // second is permanent: the per-product registration gap docs/firebase-setup.md calls
-  // BLOCKING, and any browser that blocks reCAPTCHA v3 (privacy extension, blocked
-  // google.com, corporate proxy) for as long as it stays blocked.
+  // conexión" with a Reintentar button that could never succeed.
+  //
+  // THREE causes now that enforcement is on, and only the last is permanent: a transient
+  // failure to mint a reCAPTCHA token, the per-product registration gap
+  // docs/firebase-setup.md calls BLOCKING (an owner fixes it in the console, possibly while
+  // the invitee is still on the page), and a browser that blocks reCAPTCHA v3 for as long as
+  // it stays blocked. The copy and the retry both have to serve all three.
   const attestationFailure = { code: "functions/unauthenticated", message: "Unauthenticated" };
 
-  it("names the blocked security check and does NOT offer a retry", () => {
+  it("names the blocked security check without blaming the invitee's connection", () => {
     const refusal = inviteRefusal(attestationFailure);
-    expect(refusal.retryAfterSeconds).toBeNull();
     expect(refusal.message).toMatch(/verificaci[óo]n de seguridad/i);
-    // Must not blame the invitee's connection — that is the mis-attribution being fixed.
+    // The mis-attribution this branch exists to fix.
     expect(refusal.message).not.toMatch(/conexi[óo]n/i);
+    // And it must not send them chasing a new link — a fresh token changes nothing here.
+    expect(refusal.message).not.toMatch(/enlace nuevo|uno nuevo/i);
   });
 
-  it("gives an actionable remedy, since waiting cannot help", () => {
+  it("offers a DELAYED retry, because two of the three causes clear on their own", () => {
+    // Withholding it entirely was right while enforcement was off and a content blocker was
+    // the only reachable cause. With enforcement on, the transient and misconfigured causes
+    // dominate — and a "inténtalo de nuevo en un momento" with no button is the same
+    // copy/affordance contradiction fixed for unrecognized tagged reasons above.
     const refusal = inviteRefusal(attestationFailure);
-    expect(refusal.message).toMatch(/navegador|extensi[óo]n|directiva/i);
+    expect(refusal.retryAfterSeconds).toBeGreaterThan(0);
+  });
+
+  it("names a RELOAD — the only remedy that clears a 24 h App Check throttle", () => {
+    // Not decoration. A 403 from the token exchange (the unregistered-product case, i.e. the
+    // BLOCKING owner-op) makes @firebase/app-check set a 24 h backoff on the provider
+    // instance, and `throwIfThrottled` runs before any exchange is attempted — so Reintentar
+    // cannot succeed for the rest of the day no matter what an owner fixes in the console.
+    // Only a reload builds a new provider. Without this line the copy would promise a retry
+    // that silently cannot work, which is the dead end the retry was added to avoid.
+    const refusal = inviteRefusal(attestationFailure);
+    expect(refusal.message).toMatch(/recarga la p[áa]gina/i);
+  });
+
+  it("tells them to try later FIRST, then gives the escape hatch for the permanent cause", () => {
+    // Both halves are load-bearing. "Try later" alone traps the person running a content
+    // blocker in a loop that never resolves; the browser remedies alone send someone whose
+    // problem is a five-minute console fix away for good.
+    const refusal = inviteRefusal(attestationFailure);
+    const ordered = refusal.message ?? "";
+    expect(ordered).toMatch(/de nuevo en un momento/i);
+    expect(ordered).toMatch(/navegador/i);
+    expect(ordered).toMatch(/extensi[óo]n|extensiones/i);
+    // Retry before reload before browser: cheapest working remedy first.
+    expect(ordered.indexOf("recarga")).toBeGreaterThan(ordered.indexOf("de nuevo"));
+    expect(ordered.indexOf("navegador")).toBeGreaterThan(ordered.indexOf("recarga"));
+    // The operator is the LAST resort, not the first instruction — they cannot unblock an
+    // extension, so naming them early would be advice that does not work.
+    const message = refusal.message ?? "";
+    expect(message.indexOf("directiva")).toBeGreaterThan(message.indexOf("navegador"));
   });
 
   it("logs it, so a silent lockout leaves a trace in the console", () => {
