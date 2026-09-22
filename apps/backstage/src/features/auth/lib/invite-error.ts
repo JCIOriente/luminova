@@ -98,6 +98,10 @@ function isAttestationRejection(err: unknown): boolean {
 
 /** How long to withhold the retry on a blocked attestation.
  *
+ *  Read by the SUBMIT path only. On the load screen a reload strictly dominates a retry — it
+ *  re-runs `describeInvite` AND builds a new App Check provider, and costs the invitee
+ *  nothing — so the component offers the reload there instead and withholds nothing.
+ *
  *  This branch used to offer NO retry, on the reasoning that attestation failure is permanent.
  *  That was written while `enforceAppCheck` was false, when a browser blocking reCAPTCHA v3
  *  was the only reachable cause. Enforcement adds two causes that a retry DOES clear:
@@ -112,7 +116,8 @@ function isAttestationRejection(err: unknown): boolean {
  *  different mechanism — so this gets its own name rather than inheriting a retune of
  *  `INVITE_RETRY_AFTER_SECONDS`.
  *
- *  WHAT 15 s DOES NOT CLEAR, and the reason the copy below names a reload. The per-product
+ *  WHAT 15 s DOES NOT CLEAR, and the reason `retry-or-reload` exists as its own arm. The
+ *  per-product
  *  registration gap — the BLOCKING owner-op in `docs/firebase-setup.md` — surfaces as a 403
  *  from the token exchange, and `@firebase/app-check`'s `setBackoff` special-cases 403/404
  *  with a TWENTY-FOUR HOUR `allowRequestsAfter`. `throwIfThrottled` is the first statement of
@@ -127,16 +132,21 @@ const ATTESTATION_RETRY_AFTER_SECONDS = 15;
  *  silent about connections — blaming the invitee's network is the mis-attribution this branch
  *  exists to fix.
  *
- *  Retry first: it clears the two transient causes and costs nothing. THEN the reload, because
- *  it is the only thing that clears a 24 h App Check throttle (see above) — and that is the
- *  state an invitee lands in during the exact window this feature is riskiest, between the
- *  enforcement deploy and the console registration. Then the browser remedies, for the person
- *  running a content blocker, for whom waiting is a trap with no exit. The operator is LAST:
- *  they cannot unblock an extension, and a fresh link would not help either. */
+ *  Retry first: it clears the two transient causes and costs nothing. Then the browser
+ *  remedies, for the person running a content blocker, for whom waiting is a trap with no
+ *  exit. The operator is LAST: they cannot unblock an extension, and a fresh link would not
+ *  help either.
+ *
+ *  THE RELOAD IS NOT IN THIS STRING, deliberately. It is the only remedy for a 24 h App Check
+ *  throttle (see ATTESTATION_RETRY_AFTER_SECONDS), which makes it too important to be a clause
+ *  someone has to read and act on manually — and its COST differs by path: free on the load
+ *  screen, a retyped password on submit. So the refusal names it in `recovery` and the
+ *  component renders it, with the warning the submit path owes. An earlier version put it here
+ *  as prose, and the tests could then only pin it by `indexOf` against three other remedies. */
 const ATTESTATION_BLOCKED =
-  "No pudimos completar la verificación de seguridad. Inténtalo de nuevo en un momento y, " +
-  "si sigue fallando, recarga la página. Si el problema continúa, prueba con otro navegador " +
-  "o desactiva las extensiones que bloquean contenido, y avisa a la directiva.";
+  "No pudimos completar la verificación de seguridad. Inténtalo de nuevo en un momento. " +
+  "Si sigue fallando, prueba con otro navegador o desactiva las extensiones que bloquean " +
+  "contenido, y avisa a la directiva.";
 
 /** The headline above the message.
  *
@@ -169,19 +179,44 @@ const RATE_LIMIT_RETRY_AFTER_SECONDS = INVITE_RETRY_AFTER_SECONDS;
  *  An UNTAGGED failure is retryable (a network blip), a tagged one only if its reason is in
  *  `RETRYABLE_REASONS`. Returned together so a caller cannot take the message and decide
  *  retryability by its own rule. */
-/** Not exported: the only consumer is `inviteRefusal` below, and its call site infers the
- *  return type. An exported name nothing imports is dead weight `knip` cannot see, because
- *  types erase before it looks. */
+/** What the invitee can actually DO about a refusal.
+ *
+ *  A TAGGED KIND, not the `retryAfterSeconds: number | null` this replaces. That field carried
+ *  three meanings at once — `null` "a retry cannot help", `0` "retry now", positive "wait this
+ *  long first" — and the attestation branch needed a fourth it had no way to express: a retry
+ *  MIGHT work, but only a page reload clears the 24 h App Check hold. With nowhere to put it,
+ *  that meaning went into the Spanish copy as a sentence, and the tests could only pin it by
+ *  `indexOf` against the three other remedies in the same string — word order standing in for
+ *  behaviour. The `retryAfterSeconds` name also asserted something false there: it means "the
+ *  server promised a wait this long", and on the attestation branch no server promised
+ *  anything.
+ *
+ *  It stops at naming the remedy. WHICH affordance to render, and in what order, is the
+ *  component's call, because only the component knows what a reload costs on the path it is
+ *  rendering: nothing on the load screen, a typed-but-unsaved password on submit. */
+export type InviteRecovery =
+  /** The link itself is spent, expired, superseded or unknown. No button here is honest. */
+  | { kind: "none" }
+  /** A retry clears it. `afterSeconds` is `0` for "now", positive for a promised wait. */
+  | { kind: "retry"; afterSeconds: number }
+  /** A retry MAY clear it — two of the three attestation causes are transient — but only a
+   *  reload builds the new App Check provider a 24 h 403 throttle requires. Both affordances
+   *  are honest; `ATTESTATION_RETRY_AFTER_SECONDS` above is why, and which comes first is the
+   *  component's decision, not this file's. */
+  | { kind: "retry-or-reload"; afterSeconds: number };
+
+/** Not exported, unlike `InviteRecovery` above: the only consumer is `inviteRefusal` below,
+ *  and its call site infers the return type. An exported name nothing imports is dead weight
+ *  `knip` cannot see, because types erase before it looks. The recovery IS imported — the form
+ *  stores it on its error phase — so it carries its export honestly. */
 interface InviteRefusal {
   message: string | null;
   /** Headline to render above `message`. Never "Enlace no válido" unless the link truly is. */
   heading: string;
-  /** ONE field, not a `retryable` boolean beside it: `null` means a retry cannot help, `0`
-   *  means retry now, a positive number means wait that many seconds first. Two fields had to
-   *  be set in lockstep at every return below with nothing enforcing the pairing — a new
-   *  branch could offer a retry and forget its delay. Callers that want the boolean read
-   *  `retryAfterSeconds !== null`. */
-  retryAfterSeconds: number | null;
+  /** ONE field, not a `retryable` boolean beside a delay: two fields had to be set in lockstep
+   *  at every return below with nothing enforcing the pairing — a new branch could offer a
+   *  retry and forget its delay. Callers that want the boolean read `kind !== "none"`. */
+  recovery: InviteRecovery;
 }
 
 export function inviteRefusal(err: unknown): InviteRefusal {
@@ -192,7 +227,7 @@ export function inviteRefusal(err: unknown): InviteRefusal {
     const message = REASON_MESSAGES.get(reason) ?? null;
     // One return per outcome rather than two parallel ternaries. The ternaries had to branch
     // on the same conditions in the same order for heading and retry to agree, with nothing
-    // enforcing it — which is the very coupling the `retryAfterSeconds` docblock above exists
+    // enforcing it — which is the very coupling the `recovery` docblock above exists
     // to warn about. A third case now cannot update one and forget the other.
     //
     // Temporary, and the only tagged reason that is: the bucket refills, so the same link
@@ -201,7 +236,7 @@ export function inviteRefusal(err: unknown): InviteRefusal {
       return {
         message,
         heading: HEADINGS.wait,
-        retryAfterSeconds: RATE_LIMIT_RETRY_AFTER_SECONDS,
+        recovery: { kind: "retry", afterSeconds: RATE_LIMIT_RETRY_AFTER_SECONDS },
       };
     }
     // A tagged reason this build does not recognize: a newer beacon deploying ahead of this
@@ -215,10 +250,10 @@ export function inviteRefusal(err: unknown): InviteRefusal {
     // NOT a fall-through to the attestation branch: a tag means beacon refused deliberately,
     // and routing it there would console.error an App Check failure that did not happen.
     if (message === null) {
-      return { message, heading: HEADINGS.blocked, retryAfterSeconds: 0 };
+      return { message, heading: HEADINGS.blocked, recovery: { kind: "retry", afterSeconds: 0 } };
     }
     // Known and tagged: the link itself cannot be used again, and its copy says so.
-    return { message, heading: HEADINGS.dead, retryAfterSeconds: null };
+    return { message, heading: HEADINGS.dead, recovery: { kind: "none" } };
   }
   if (isAttestationRejection(err)) {
     // Guardrail #4: this is the one failure with no operator surface at all — the invitee sees
@@ -228,9 +263,9 @@ export function inviteRefusal(err: unknown): InviteRefusal {
     return {
       message: ATTESTATION_BLOCKED,
       heading: HEADINGS.blocked,
-      retryAfterSeconds: ATTESTATION_RETRY_AFTER_SECONDS,
+      recovery: { kind: "retry-or-reload", afterSeconds: ATTESTATION_RETRY_AFTER_SECONDS },
     };
   }
   // Untagged: a network blip. Retryable, and NOT the link's fault.
-  return { message: null, heading: HEADINGS.blocked, retryAfterSeconds: 0 };
+  return { message: null, heading: HEADINGS.blocked, recovery: { kind: "retry", afterSeconds: 0 } };
 }

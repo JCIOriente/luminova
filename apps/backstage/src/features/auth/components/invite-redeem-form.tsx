@@ -6,7 +6,7 @@ import { httpsCallable } from "firebase/functions";
 import { getFunctionsService } from "@luminova/firebase/functions";
 import { ArrowRight, Button, Field, Icon, Input } from "@luminova/ui";
 import { setPasswordSchema, type SetPasswordInput } from "../types/set-password-schema";
-import { inviteRefusal } from "../lib/invite-error";
+import { inviteRefusal, type InviteRecovery } from "../lib/invite-error";
 import { PasswordChecklist } from "./password-checklist";
 
 interface InviteDescription {
@@ -17,15 +17,20 @@ interface InviteDescription {
 
 type Phase =
   | { kind: "loading" }
-  // `retryable` is the difference between a network blip and "ya se usó": offering a retry on
-  // a deliberate refusal is a dead end, and guardrail #3 asks for a real error state, not a
-  // spinner that never resolves.
-  | { kind: "error"; heading: string; message: string; retryable: boolean }
+  // The RECOVERY, not a `retryable` boolean derived from it. Offering a retry on a deliberate
+  // refusal is a dead end (guardrail #3 asks for a real error state, not a spinner that never
+  // resolves) — and a blocked attestation needs a third answer a boolean cannot give: a retry
+  // may work, but only a reload clears the 24 h App Check hold. See lib/invite-error.ts.
+  | { kind: "error"; heading: string; message: string; recovery: InviteRecovery }
   | { kind: "valid"; invite: InviteDescription }
   | { kind: "done" };
 
 const GENERIC_LOAD_ERROR = "No pudimos validar el enlace. Revisa tu conexión e inténtalo de nuevo.";
 const GENERIC_REDEEM_ERROR = "No se pudo guardar tu contraseña. Inténtalo de nuevo.";
+/** Only the SUBMIT path pays this, which is why it is not in the shared refusal copy: on the
+ *  load screen the invitee has typed nothing and a reload costs them exactly nothing. */
+const RELOAD_COSTS_THE_PASSWORD = "Tendrás que volver a escribir tu contraseña.";
+const RELOAD_LABEL = "Recargar la página";
 
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -83,7 +88,9 @@ function Heading({ children }: { children: ReactNode }) {
 
 export function InviteRedeemForm({ token }: { token: string }) {
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
-  const [formError, setFormError] = useState<string | null>(null);
+  /** The message AND whether a reload is worth offering beside it — one object, because they
+   *  are set from the same refusal and a second `useState` could drift out of step with it. */
+  const [formError, setFormError] = useState<{ message: string; reloadable: boolean } | null>(null);
   /** Seconds left before a withheld retry becomes available again. Driven off the refusal's
    *  own `retryAfterSeconds` rather than a constant here, so the wait and the server's
    *  refill interval cannot drift apart. */
@@ -141,7 +148,9 @@ export function InviteRedeemForm({ token }: { token: string }) {
         kind: "error",
         heading: "Enlace incompleto",
         message: "Este enlace está incompleto. Pídele a quien te invitó que te envíe uno nuevo.",
-        retryable: false,
+        // Nothing to retry and nothing to reload: the fragment is missing, and neither action
+        // puts a token in it.
+        recovery: { kind: "none" },
       });
       return;
     }
@@ -162,12 +171,14 @@ export function InviteRedeemForm({ token }: { token: string }) {
         // headline above the rate-limit copy, which says the link IS still valid.
         heading: refusal.heading,
         message: refusal.message ?? GENERIC_LOAD_ERROR,
-        // An untagged failure is a network blip. Among TAGGED refusals only rate limiting is
-        // temporary — see RETRYABLE_REASONS. It used to be `refusal === null`, which would
-        // hide the retry button from someone whose only problem is having reloaded twice.
-        retryable: refusal.retryAfterSeconds !== null,
+        recovery: refusal.recovery,
       });
-      setCooldown(refusal.retryAfterSeconds ?? 0);
+      // ONLY a `retry` recovery earns a wait here. On `retry-or-reload` this screen renders the
+      // reload instead (see below), and a reload has nothing to wait for: it is not rate
+      // limited, it spends no endpoint slot, and it is the one action that CAN work while the
+      // App Check provider is throttled. Withholding it would be the copy/affordance
+      // contradiction this file keeps fixing — a button that says "wait" for no reason.
+      setCooldown(refusal.recovery.kind === "retry" ? refusal.recovery.afterSeconds : 0);
     }
   }, [token]);
 
@@ -213,7 +224,15 @@ export function InviteRedeemForm({ token }: { token: string }) {
       // The form stays usable: several refusals (a weak password) are correctable in place,
       // and the ones that are not say so in their own copy.
       const refusal = inviteRefusal(err);
-      setFormError(refusal.message ?? GENERIC_REDEEM_ERROR);
+      setFormError({
+        message: refusal.message ?? GENERIC_REDEEM_ERROR,
+        // THE DESIGN CALL, stated where it is made. A reload is the only escape from a 24 h App
+        // Check throttle, but on THIS path it throws away a password the invitee has already
+        // typed — to fix a cause that is transient two times out of three. So it is offered
+        // second, under the withheld retry, with its cost named. Never automatic: a component
+        // that reloaded on its own would destroy typed input to guess at a cause.
+        reloadable: refusal.recovery.kind === "retry-or-reload",
+      });
       // The SAME withholding the load path applies, and for a stronger reason: this button
       // sits behind a filled-in password form, so it is the one an invitee retries hardest,
       // and the copy above it promises a wait. Reading only the message — which is what this
@@ -221,7 +240,9 @@ export function InviteRedeemForm({ token }: { token: string }) {
       // so every impatient click spent an ENDPOINT-WIDE slot to fail. That bucket has shared
       // fate: those clicks push the ceiling that denies every OTHER invitee. `?? 0` clears the
       // wait for refusals it cannot help, exactly as on load.
-      setCooldown(refusal.retryAfterSeconds ?? 0);
+      // Unlike the load path, `retry-or-reload` DOES take its wait here: the retry stays the
+      // primary affordance, so the button that could not work yet must still be withheld.
+      setCooldown(refusal.recovery.kind === "none" ? 0 : refusal.recovery.afterSeconds);
     }
   });
 
@@ -240,28 +261,35 @@ export function InviteRedeemForm({ token }: { token: string }) {
         <p role="alert" className="mt-2.5 text-ui-md leading-[1.5] text-ink-3">
           {phase.message}
         </p>
-        {phase.retryable && (
+        {phase.recovery.kind === "retry-or-reload" ? (
+          // A RELOAD, not Reintentar — and it replaces the retry rather than joining it,
+          // because here it strictly dominates: reloading re-runs `describeInvite` exactly as
+          // Reintentar would AND builds the new App Check provider that a 24 h 403 throttle
+          // requires, while costing the invitee nothing they have typed. Offering both would
+          // put a weaker button first for no gain. The submit path below, where a reload DOES
+          // cost something, makes the opposite call deliberately.
           <Button
             as="button"
             type="button"
-            // Withheld for whatever the refusal asked for: the server's per-token emission
-            // interval on a throttled refusal, or the App Check hold on a blocked attestation.
-            //
-            // The two waits are NOT withheld for the same reason, and an earlier version of
-            // this comment claimed they were. On a throttled refusal a retry really does
-            // spend an endpoint-wide slot to fail. On the attestation branch it does not:
-            // firebase-functions throws `unauthenticated` above our handler, so the call
-            // never reaches the rate gate and charges nothing. There the cooldown is purely
-            // UX — it stops the invitee hammering a button that cannot work yet and teaching
-            // themselves it is broken, while the copy above promises a short wait. Tune
-            // ATTESTATION_RETRY_AFTER_SECONDS on that basis, not as bucket protection.
+            onClick={() => window.location.reload()}
+            className="mt-8"
+          >
+            {RELOAD_LABEL}
+          </Button>
+        ) : phase.recovery.kind === "retry" ? (
+          <Button
+            as="button"
+            type="button"
+            // Withheld for the server's per-token emission interval on a throttled refusal.
+            // That retry really does spend an endpoint-wide slot to fail, and that bucket has
+            // shared fate — the clicks push the very ceiling that denies every other invitee.
             disabled={cooldown > 0}
             onClick={() => void load()}
             className="mt-8"
           >
             {cooldown > 0 ? `Reintentar en ${cooldown}s` : "Reintentar"}
           </Button>
-        )}
+        ) : null}
       </Shell>
     );
   }
@@ -310,7 +338,10 @@ export function InviteRedeemForm({ token }: { token: string }) {
         />
         {formError && (
           <div role="alert" className="text-ui-sm text-error">
-            {formError}
+            {formError.message}
+            {formError.reloadable && (
+              <span className="mt-1 block text-ink-3">{RELOAD_COSTS_THE_PASSWORD}</span>
+            )}
           </div>
         )}
         <Button
@@ -328,6 +359,21 @@ export function InviteRedeemForm({ token }: { token: string }) {
         >
           {submitLabel}
         </Button>
+        {formError?.reloadable && (
+          // SECOND, and secondary — see the `reloadable` comment in `onSubmit`. The invitee
+          // reaches this only after the retry above has been withheld and, usually, tried; it
+          // is the escape hatch for the one cause a retry can never clear, and its cost is
+          // named in the alert above rather than discovered after the click.
+          <Button
+            as="button"
+            type="button"
+            variant="secondary"
+            onClick={() => window.location.reload()}
+            className="w-full"
+          >
+            {RELOAD_LABEL}
+          </Button>
+        )}
       </form>
     </Shell>
   );
