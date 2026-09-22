@@ -39,6 +39,11 @@ export const INVITE_BLOCK_REASONS = [
   // The submitted password fails the shared policy. Checked BEFORE the token is claimed, so a
   // typo does not burn the link.
   "invite-password-weak",
+  // Too many calls in the last minute, from the in-process limiter in front of both
+  // callables. The ONLY tagged reason that is TEMPORARY: the bucket refills continuously, so
+  // the same token works again seconds later. The client's retryability table keys on that —
+  // every other tagged reason is permanent for this token.
+  "invite-too-many-attempts",
   // The token was claimed but the Auth write failed. The link is spent and the member still
   // has no password: the operator must issue a new one. Surfaced as its own invite state so
   // it cannot read as a successful redemption.

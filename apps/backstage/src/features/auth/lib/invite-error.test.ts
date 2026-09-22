@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { INVITE_BLOCK_REASONS } from "@luminova/types";
-import { inviteErrorMessage, inviteRefusalMessage } from "./invite-error";
+import { inviteErrorMessage, inviteRefusal, inviteRefusalMessage } from "./invite-error";
 
 describe("inviteRefusalMessage", () => {
   it("has a Spanish message for EVERY reason in the contract", () => {
@@ -48,5 +48,38 @@ describe("inviteErrorMessage", () => {
     expect(inviteErrorMessage({ details: { reason: "invite-expired" } }, "Generic.")).not.toBe(
       "Generic.",
     );
+  });
+});
+
+describe("inviteRefusal — which refusals a retry can clear", () => {
+  it("offers a retry for rate limiting, the one TEMPORARY tagged refusal", () => {
+    // The bucket refills a slot every 12 s, so the same link works again shortly. Hiding the
+    // retry button here would strand someone whose only mistake was reloading the page.
+    const refusal = inviteRefusal({ details: { reason: "invite-too-many-attempts" } });
+    expect(refusal.retryable).toBe(true);
+    expect(refusal.message).toMatch(/segundos/i);
+    // And it must NOT tell them to go find an operator — waiting is the entire remedy.
+    expect(refusal.message).not.toMatch(/nuevo enlace|te env[ií]e|administrador/i);
+  });
+
+  it("offers a retry for an UNTAGGED failure, with no message of its own", () => {
+    const refusal = inviteRefusal(new Error("network"));
+    expect(refusal).toEqual({ message: null, retryable: true });
+  });
+
+  it("refuses a retry for every OTHER reason in the contract", () => {
+    // Iterates the contract, so a NEW temporary reason must be added to RETRYABLE_REASONS
+    // deliberately rather than inheriting the wrong default.
+    for (const reason of INVITE_BLOCK_REASONS) {
+      if (reason === "invite-too-many-attempts") continue;
+      const refusal = inviteRefusal({ details: { reason } });
+      expect(refusal.retryable, reason).toBe(false);
+      expect(refusal.message, reason).not.toBeNull();
+    }
+  });
+
+  it.each(["toString", "constructor", "__proto__"])("is prototype-safe for %s", (reason) => {
+    // A prototype key is not a known reason, so it must not come back retryable-with-a-message.
+    expect(inviteRefusal({ details: { reason } })).toEqual({ message: null, retryable: false });
   });
 });

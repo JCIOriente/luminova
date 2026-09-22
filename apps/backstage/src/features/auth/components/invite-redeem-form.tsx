@@ -6,7 +6,7 @@ import { httpsCallable } from "firebase/functions";
 import { getFunctionsService } from "@luminova/firebase/functions";
 import { ArrowRight, Button, Field, Icon, Input } from "@luminova/ui";
 import { setPasswordSchema, type SetPasswordInput } from "../types/set-password-schema";
-import { inviteErrorMessage, inviteRefusalMessage } from "../lib/invite-error";
+import { inviteErrorMessage, inviteRefusal } from "../lib/invite-error";
 import { PasswordChecklist } from "./password-checklist";
 
 interface InviteDescription {
@@ -140,13 +140,14 @@ export function InviteRedeemForm({ token }: { token: string }) {
       setPhase({ kind: "valid", invite });
     } catch (err) {
       if (!alive()) return;
-      const refusal = inviteRefusalMessage(err);
+      const refusal = inviteRefusal(err);
       setPhase({
         kind: "error",
-        message: refusal ?? GENERIC_LOAD_ERROR,
-        // Only an UNTAGGED failure is worth retrying: beacon's tagged refusals are all
-        // permanent for this token.
-        retryable: refusal === null,
+        message: refusal.message ?? GENERIC_LOAD_ERROR,
+        // An untagged failure is a network blip. Among TAGGED refusals only rate limiting is
+        // temporary — see RETRYABLE_REASONS. It used to be `refusal === null`, which would
+        // hide the retry button from someone whose only problem is having reloaded twice.
+        retryable: refusal.retryable,
       });
     }
   }, [token]);

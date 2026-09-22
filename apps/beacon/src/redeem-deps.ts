@@ -42,7 +42,10 @@ function parseInvite(data: Record<string, unknown>): InviteDoc | null {
   };
 }
 
-export function firestoreRedeemDeps(db: Firestore, auth: Auth): RedeemDeps {
+/** The Firestore/Auth half of the port. `Omit<…, "gate">` so a caller CANNOT assemble a
+ *  complete `RedeemDeps` without supplying a rate gate — the limiter is then impossible to
+ *  forget at a new call site, rather than merely documented. */
+export function firestoreRedeemDeps(db: Firestore, auth: Auth): Omit<RedeemDeps, "gate"> {
   return {
     now: () => Date.now(),
     getInvite: async (tokenHash) => {

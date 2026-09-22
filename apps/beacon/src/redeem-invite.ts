@@ -7,7 +7,8 @@ import { passwordPolicyViolations, passwordTooLong } from "@luminova/types/passw
 import type { InviteBlockReason, InviteKind, InviteStatus } from "@luminova/types";
 import { accountIsPrivileged, hasDirectGrants, readCargoIds } from "./invite-guards.js";
 import { hashInviteToken, isSafeTokenHash } from "./invite-token.js";
-import { inviteBlocked } from "./provision-errors.js";
+import { inviteBlocked, inviteRateLimited } from "./provision-errors.js";
+import { createRateLimiter, type RateLimiter } from "./rate-limit.js";
 import { firestoreRedeemDeps } from "./redeem-deps.js";
 import { ensureApp } from "./runtime.js";
 
@@ -39,8 +40,34 @@ export interface RedeemUser {
   customClaims?: Record<string, unknown>;
 }
 
+/** The two rate buckets in front of an unauthenticated callable, injected so a test exercises
+ *  the REAL limiter rather than a stub that always admits.
+ *
+ *  Two keys, sized for opposite jobs:
+ *
+ *  - `admitToken` is TIGHT, and it is the SAFE key: a per-token bucket can only ever refuse
+ *    the token that is being hammered, never a different invitee's.
+ *  - `admitGlobal` is GENEROUS, and it is the EFFECTIVE key: a flood of DISTINCT random
+ *    tokens gets a fresh per-token bucket every time (and thrashes the LRU, see
+ *    `rate-limit.ts`), so the endpoint-wide bucket is the only thing that bounds it.
+ *
+ *  Sizing the global one tightly would be a self-inflicted outage on the only onboarding path
+ *  there is: three invites opened in the same minute plus a reload and a retry would exhaust a
+ *  5-per-minute endpoint budget with no abuse at all, and the refusal would land on real
+ *  invitees with no operator remedy. */
+export interface RateGate {
+  /** The endpoint-wide bucket. Charged FIRST and unconditionally — before the token is even
+   *  hashed — so a flood of malformed junk cannot bypass it. */
+  admitGlobal(nowMs: number): boolean;
+  /** The per-token bucket, keyed on the HASH and never the plaintext token. */
+  admitToken(tokenHash: string, nowMs: number): boolean;
+}
+
 export interface RedeemDeps {
   now(): number;
+  /** Consulted before ANY I/O. Part of the port, not a defaulted parameter: a default that
+   *  admits everything would let a test pass while running no limiter at all. */
+  gate: RateGate;
   getInvite(tokenHash: string): Promise<InviteDoc | null>;
   getMember(memberId: string): Promise<Record<string, unknown> | null>;
   getUserByUid(uid: string): Promise<RedeemUser | null>;
@@ -102,10 +129,35 @@ async function loadValidInvite(
   token: unknown,
   fn: string,
 ): Promise<{ tokenHash: string; invite: InviteDoc; member: Record<string, unknown> }> {
+  // ONE timestamp for the whole invocation: the two buckets and the expiry comparison must
+  // not disagree about when "now" is.
+  const nowMs = deps.now();
+
+  // BEFORE the hash and before any read. The order is the point: this is the bucket that
+  // bounds a flood, and a refusal here must cost strictly less than the work it prevents —
+  // an integer comparison against a number in memory, no Firestore access, no write.
+  if (!deps.gate.admitGlobal(nowMs)) {
+    console.info("invite", {
+      fn,
+      memberId: null,
+      tokenPrefix: null,
+      outcome: "rate-limited-global",
+    });
+    throw inviteRateLimited();
+  }
+
   const tokenHash = tokenHashOf(token);
   if (tokenHash === null) {
     console.info("invite", { fn, memberId: null, tokenPrefix: null, outcome: "malformed-token" });
     throw inviteInvalid();
+  }
+
+  // Also before the read. Charged on the HASH: keying an in-memory map by the plaintext token
+  // would put the bearer credential in the heap, which is the one property this whole design
+  // rests on not doing.
+  if (!deps.gate.admitToken(tokenHash, nowMs)) {
+    logOutcome(fn, tokenHash, "rate-limited-token");
+    throw inviteRateLimited();
   }
 
   const invite = await deps.getInvite(tokenHash);
@@ -122,8 +174,7 @@ async function loadValidInvite(
     throw refuse(fn, tokenHash, invite, "invite-revoked", "superseded by a newer link");
   if (invite.status === "failed")
     throw refuse(fn, tokenHash, invite, "invite-update-failed", "a previous attempt failed");
-  if (invite.expiresAtMs <= deps.now())
-    throw refuse(fn, tokenHash, invite, "invite-expired", "expired");
+  if (invite.expiresAtMs <= nowMs) throw refuse(fn, tokenHash, invite, "invite-expired", "expired");
 
   const member = await deps.getMember(invite.memberId);
   if (member === null)
@@ -313,45 +364,107 @@ export async function redeemInviteFor(
 
 // THE PROJECT'S FIRST UNAUTHENTICATED CALLABLES.
 //
-// enforceAppCheck is FALSE, and the reason is NOT the one an earlier draft of the spec gave.
-// That draft said the reCAPTCHA keys do not exist in production; they do —
-// `apps/backstage/.env.production` carries a real VITE_APPCHECK_SITE_KEY, and `ensureApp()`
-// wires `initAppCheck` unconditionally, so a prod backstage build already sends a token.
-// Leaving a justification in the code that the repository refutes would be guardrail #6.
+// Anyone who knows the URL can invoke these; an invitee has no account yet, so that is
+// inherent rather than an oversight. Three controls stand in front of them.
 //
-// The REAL reason it is still false: App Check enforcement is per-PRODUCT, and
-// docs/firebase-setup.md records it as enabled for Firestore and Storage only — Cloud
-// Functions is not confirmed. Flipping it here without first confirming the backstage app is
-// registered for Functions, and without testing /invitacion against a real build, would 403
-// every redemption. That failure is silent and total: this is now the ONLY onboarding path,
-// so a misconfigured deploy locks out every new member with no error anyone sees.
+// 1. APP CHECK, now ENFORCED. The earlier draft of the spec said the reCAPTCHA keys were
+//    missing in production; that was false — `apps/backstage/.env.production` carries a real
+//    VITE_APPCHECK_SITE_KEY. It was also NOT blocked by "/invitacion has no session":
+//    attestation is app-level, `/invitacion` is deliberately a TOP-LEVEL route outside the
+//    `_auth` layout, and the client's `ensureApp()` wires `initAppCheck` on first app
+//    acquisition — which `getFunctionsService()` goes through. So an unauthenticated
+//    /invitacion load does attest.
 //
-// So it is a deliberate, staged flip with a named precondition — not an absent control. The
-// owner-op is in docs/firebase-setup.md; these two are the first functions to flip.
+//    ENFORCEMENT IS PER-PRODUCT, and that is the live risk. See the blocking owner-op in
+//    docs/firebase-setup.md: the backstage app must be registered for the Cloud Functions
+//    product and /invitacion tested against a real build BEFORE this deploys. Get it wrong
+//    and every redemption 403s — silently, totally, on the only onboarding path there is.
 //
-// maxInstances is both the control and the lever. Brute force is arithmetic, not a threat
-// (2^256, and a guess resolves to a nonexistent document — one read, no write). The real
-// exposure is billing and availability: the same cap that stops a flood consuming the project
-// budget means a trivial flood saturates the pool, so genuine invitees get 429/503 on the only
-// onboarding path that now exists. That is a trade, not a mitigation — hence the GCP budget
-// alert in the operator notes.
-const UNAUTHENTICATED_CALL = {
-  enforceAppCheck: false,
+// 2. THE RATE GATE, below. App Check bounds WHO may call; it does not bound HOW OFTEN. A
+//    standard App Check token lives ~30 minutes and is replayable, so harvesting one from the
+//    public page and flooding with it stays open with enforcement on. The two are
+//    complementary, not alternatives, which is why both ship.
+//
+// 3. maxInstances, which is both a control and a lever: it caps billing but converts a cost
+//    problem into an availability one, since a flood that saturates the pool blocks real
+//    invitees. The rate gate is what makes that trade cheaper — a throttled request is
+//    refused on an integer comparison, before it can occupy an instance doing Firestore reads.
+//
+// Brute-forcing the token itself remains arithmetic rather than a threat: 2^256, and a guess
+// resolves to a nonexistent document id — one read, no write, no secret comparison anywhere.
+export const UNAUTHENTICATED_CALL = {
+  enforceAppCheck: true,
   maxInstances: 10,
   timeoutSeconds: 30,
   memory: "256MiB",
 } as const;
 
+/** The agreed ceilings, EXPORTED so a test can pin them.
+ *
+ *  Not a tautological restatement of two literals: the test builds a real gate from this
+ *  object and asserts the 6th call on a token and the 61st on the endpoint are refused. What
+ *  it buys is that retuning a security-relevant ceiling shows up in the diff as a changed
+ *  test, rather than as one silently edited digit. */
+export const INVITE_RATE_LIMITS = {
+  /** Calls per minute per TOKEN. Tight, because it is structurally incapable of refusing a
+   *  different invitee. A legitimate redemption is one `describeInvite` on page load plus one
+   *  `redeemInvite` on submit; five leaves room for a reload and a retry, and the bucket
+   *  refills one slot every 12 s so a refusal clears in seconds, not at a window boundary. */
+  perTokenPerMinute: 5,
+  /** Calls per minute per INSTANCE, endpoint-wide. Generous on purpose — see `RateGate`. This
+   *  is the flood bound, and it must sit well above any realistic legitimate burst; sizing it
+   *  down to the per-token figure would deny real invitees on the only onboarding path. */
+  globalPerMinute: 60,
+  /** Distinct token buckets held per instance. At ~300 bytes per entry (a 64-char hex key plus
+   *  Map overhead and a number) this is well under a megabyte against a 256MiB instance, and
+   *  it is a HARD bound: the flood this limiter exists to survive is precisely the one that
+   *  would otherwise grow a bucket per distinct token until the instance died. */
+  tokenBuckets: 2048,
+  windowMs: 60_000,
+} as const;
+
+/** One gate per callable.
+ *
+ *  Each gen2 function is its own Cloud Run service, so there is no cross-callable state to
+ *  share even in principle — `describeInvite` and `redeemInvite` never run in the same
+ *  process. Separate gates also mean a reload-happy invitee spending the describe budget
+ *  cannot starve the redeem budget on the same token. */
+export function createRateGate(): RateGate {
+  const perToken: RateLimiter = createRateLimiter({
+    capacity: INVITE_RATE_LIMITS.perTokenPerMinute,
+    windowMs: INVITE_RATE_LIMITS.windowMs,
+    maxKeys: INVITE_RATE_LIMITS.tokenBuckets,
+  });
+  const global: RateLimiter = createRateLimiter({
+    capacity: INVITE_RATE_LIMITS.globalPerMinute,
+    windowMs: INVITE_RATE_LIMITS.windowMs,
+    maxKeys: 1,
+  });
+  return {
+    admitGlobal: (nowMs) => global.tryConsume("*", nowMs),
+    admitToken: (tokenHash, nowMs) => perToken.tryConsume(tokenHash, nowMs),
+  };
+}
+
+// MODULE SCOPE, deliberately: the buckets must outlive a single invocation to mean anything,
+// and a warm instance is the only thing that carries them. A cold start resets them, which is
+// the honest limit of an in-process limiter — the ceiling is "per minute PER INSTANCE, times
+// however many instances are warm", bounded by maxInstances above and never a global figure.
+const describeGate = createRateGate();
+const redeemGate = createRateGate();
+
 export const describeInvite = onCall(UNAUTHENTICATED_CALL, async (request) => {
   ensureApp();
   const data = (request.data ?? {}) as { token?: unknown };
-  return describeInviteFor(firestoreRedeemDeps(getFirestore(), getAuth()), { token: data.token });
+  const deps = { ...firestoreRedeemDeps(getFirestore(), getAuth()), gate: describeGate };
+  return describeInviteFor(deps, { token: data.token });
 });
 
 export const redeemInvite = onCall(UNAUTHENTICATED_CALL, async (request) => {
   ensureApp();
   const data = (request.data ?? {}) as { token?: unknown; password?: unknown };
-  return redeemInviteFor(firestoreRedeemDeps(getFirestore(), getAuth()), {
+  const deps = { ...firestoreRedeemDeps(getFirestore(), getAuth()), gate: redeemGate };
+  return redeemInviteFor(deps, {
     token: data.token,
     password: data.password,
   });
