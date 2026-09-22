@@ -16,7 +16,7 @@ import {
   type LeadIntent,
   type LeadStatus,
 } from "@luminova/types";
-import { formatDateTime } from "@luminova/utils/datetime";
+import { formatInstant } from "@luminova/utils/datetime";
 
 interface LeadTableProps {
   leads: Lead[];
@@ -97,7 +97,10 @@ function buildColumns(
       sortValue: (lead) => lead.createdAt.toMillis(),
       cell: (lead) => (
         <span className="whitespace-nowrap text-ui-xs text-ink-3">
-          {formatDateTime(lead.createdAt)}
+          {/* formatInstant, not formatDateTime: `createdAt` is written with
+              `serverTimestamp()` (submit-lead.ts), so it is a real instant. The UTC-pinned
+              formatter rendered it four hours late for a Bolivian operator. */}
+          {formatInstant(lead.createdAt)}
         </span>
       ),
     },

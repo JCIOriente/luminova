@@ -1,6 +1,6 @@
 import { Avatar, DataTable, EmptyState, Icon, type DataTableColumn } from "@luminova/ui";
 import type { RosterEntry } from "../roster";
-import { formatTime } from "@luminova/utils/datetime";
+import { formatInstantTime } from "@luminova/utils/datetime";
 
 interface PresentTableProps {
   entries: RosterEntry[];
@@ -30,7 +30,12 @@ const columns: DataTableColumn<RosterEntry>[] = [
     header: "Hora",
     sortValue: (e) => e.checkInAt?.toMillis() ?? 0,
     cell: (e) => (
-      <span className="tabular-nums text-ink-2">{e.checkInAt ? formatTime(e.checkInAt) : "—"}</span>
+      // `checkInAt` is written `serverTimestamp()` — a real instant, not the UTC-pinned
+      // wall-clock an activity's startAt is — so it needs the Bolivian formatter. On the
+      // UTC one every arrival read four hours late: a 15:00 check-in showed "19:00".
+      <span className="tabular-nums text-ink-2">
+        {e.checkInAt ? formatInstantTime(e.checkInAt) : "—"}
+      </span>
     ),
   },
 ];

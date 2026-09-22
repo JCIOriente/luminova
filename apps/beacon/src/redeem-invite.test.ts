@@ -7,12 +7,28 @@ import {
   type ClaimStatus,
   type InviteDoc,
   type RedeemDeps,
+  createRateGate,
+  UNAUTHENTICATED_CALL,
+  type RateGate,
+  type RedeemUser,
 } from "./redeem-invite.js";
+import { createRateLimiter } from "./rate-limit.js";
+import {
+  INVITE_GLOBAL_DENIAL_PER_SECOND,
+  INVITE_GLOBAL_READS_PER_MINUTE,
+  INVITE_RATE_LIMITS,
+} from "@luminova/types/member-invite";
 
 const NOW = 1_700_000_000_000;
 const TOKEN = "t".repeat(43);
 const HASH = hashInviteToken(TOKEN);
 const GOOD_PASSWORD = "Abcde1";
+
+/** The REAL production gate. `createRateGate()` rather than a hand-rebuilt copy: an earlier
+ *  version retyped the bucket parameters as literals, so retuning `INVITE_RATE_LIMITS` would
+ *  have left every test running against the OLD production shape with nothing failing — which
+ *  is exactly what those constants exist to prevent. Built per `fakeDeps()` call, so each test
+ *  starts with cold buckets. */
 
 function inviteDoc(over: Partial<InviteDoc> = {}): InviteDoc {
   return {
@@ -32,12 +48,15 @@ function inviteDoc(over: Partial<InviteDoc> = {}): InviteDoc {
 function fakeDeps(opts: {
   invite?: InviteDoc | null;
   member?: Record<string, unknown> | null;
-  user?: { uid: string; disabled?: boolean; customClaims?: Record<string, unknown> } | null;
+  user?: RedeemUser | null;
   positions?: Record<string, Role[]>;
   setPasswordThrows?: Error;
   /** Forces the CLAIM TRANSACTION to lose, independently of the pre-read — the only way to
    *  reach the mutual-exclusion branch, which the shared-status fake can never exercise. */
   claimLosesWith?: ClaimStatus;
+  /** Override only to drive the limiter itself; every other test runs the REAL gate at the
+   *  production windows, so a regression that bypasses it fails here rather than in prod. */
+  gate?: RateGate;
 }) {
   const calls = {
     claims: [] as string[],
@@ -45,8 +64,10 @@ function fakeDeps(opts: {
     failed: [] as string[],
   };
   let status = opts.invite === undefined ? "pending" : (opts.invite?.status ?? "pending");
+  const gate = opts.gate ?? createRateGate();
   const deps: RedeemDeps = {
     now: () => NOW,
+    gate,
     getInvite: async (hash) => {
       if (hash !== HASH) return null;
       if (opts.invite === undefined) return inviteDoc();
@@ -216,7 +237,7 @@ describe("redeemInviteFor — the member must still match", () => {
 });
 
 describe("redeemInviteFor — the privilege guards RE-RUN at redemption", () => {
-  // The token outlives the authorization decision by up to seven days. Without this: day 1 a
+  // The token outlives the authorization decision by up to 48 h. Without this: hour 1 a
   // delegate issues a recovery link for a grant-free member (exactly D3's intent); day 3 an
   // Admin seats them on Tesorero; day 4 the delegate redeems the token they kept and signs in
   // as Tesorero. The same shape works on an initial invite.
@@ -455,5 +476,336 @@ describe("describeInviteFor — the address it shows", () => {
     await expect(describeInviteFor(deps, { token: TOKEN })).resolves.toMatchObject({
       email: "ana@jci.bo",
     });
+  });
+});
+
+describe("the rate gate in front of both callables", () => {
+  /** A gate wrapping the REAL limiter, plus a count of how many times each bucket was asked.
+   *  Deliberately not a stub that always admits: the point of these tests is that the shipped
+   *  limiter refuses, in the right order, before any I/O. */
+  function countingGate(over: { perToken?: number; global?: number } = {}) {
+    const perToken = createRateLimiter({
+      capacity: over.perToken ?? INVITE_RATE_LIMITS.perTokenPerMinute,
+      windowMs: INVITE_RATE_LIMITS.windowMs,
+      maxKeys: INVITE_RATE_LIMITS.tokenBuckets,
+    });
+    const global = createRateLimiter({
+      capacity: over.global ?? INVITE_RATE_LIMITS.globalPerMinute,
+      windowMs: INVITE_RATE_LIMITS.windowMs,
+      maxKeys: 1,
+    });
+    const asked = { global: 0, token: [] as string[] };
+    const gate: RateGate = {
+      admitGlobal: (nowMs) => {
+        asked.global += 1;
+        return global.tryConsume("*", nowMs);
+      },
+      admitToken: (hash, nowMs) => {
+        asked.token.push(hash);
+        return perToken.tryConsume(hash, nowMs);
+      },
+      // `shouldLogRefusal` omitted: optional, and defaults to logging every refusal. These
+      // tests assert which bucket was charged and whether a read happened, so a suppressed
+      // log line must not be confusable with a suppressed refusal.
+    };
+    return { gate, asked };
+  }
+
+  it("refuses the 6th call on one token, and the refusal reads no Firestore", async () => {
+    const { gate } = countingGate();
+    const reads: string[] = [];
+    const { deps } = fakeDeps({ gate });
+    const counted: RedeemDeps = {
+      ...deps,
+      getInvite: async (hash) => {
+        reads.push(hash);
+        return deps.getInvite(hash);
+      },
+    };
+
+    for (let i = 0; i < 5; i += 1) {
+      await expect(describeInviteFor(counted, { token: TOKEN })).resolves.toMatchObject({
+        email: "ana@jci.bo",
+      });
+    }
+    expect(reads).toHaveLength(5);
+
+    expect(await reasonOf(describeInviteFor(counted, { token: TOKEN }))).toBe(
+      "invite-too-many-attempts",
+    );
+    // THE POINT OF THE WHOLE DESIGN: a throttled request must cost less than the work it
+    // prevents. Still 5 — the refused call issued no read, so the limiter can never become
+    // the cheapest way to run up a Firestore bill on an unauthenticated endpoint.
+    expect(reads).toHaveLength(5);
+  });
+
+  it("charges the GLOBAL bucket before the token is even hashed, so junk cannot bypass it", async () => {
+    // A flood of malformed tokens never reaches `admitToken` (there is no hash to charge), so
+    // if the global bucket were charged after the hash this would be a free unbounded channel.
+    const { gate, asked } = countingGate({ global: 3 });
+    const { deps } = fakeDeps({ gate });
+
+    for (let i = 0; i < 3; i += 1) {
+      expect(await reasonOf(describeInviteFor(deps, { token: 7 as never }))).toBe("invite-invalid");
+    }
+    expect(await reasonOf(describeInviteFor(deps, { token: 7 as never }))).toBe(
+      "invite-too-many-attempts",
+    );
+    expect(asked.global).toBe(4);
+    // Never keyed, because a malformed token has no hash.
+    expect(asked.token).toEqual([]);
+  });
+
+  it("bounds a flood of DISTINCT tokens, which the per-token bucket alone cannot", async () => {
+    // The abuse case that actually threatens availability: every random token gets its own
+    // fresh per-token budget, so only the endpoint-wide bucket stops this.
+    const { gate } = countingGate({ global: 10 });
+    const reads: string[] = [];
+    const { deps } = fakeDeps({ gate });
+    const counted: RedeemDeps = {
+      ...deps,
+      getInvite: async (hash) => {
+        reads.push(hash);
+        return deps.getInvite(hash);
+      },
+    };
+
+    const reasons: string[] = [];
+    for (let i = 0; i < 25; i += 1) {
+      reasons.push(await reasonOf(describeInviteFor(counted, { token: `tok-${i}`.repeat(6) })));
+    }
+    // First 10 are admitted and refused on the merits (unknown token); the rest are throttled.
+    expect(reasons.filter((r) => r === "invite-invalid")).toHaveLength(10);
+    expect(reasons.filter((r) => r === "invite-too-many-attempts")).toHaveLength(15);
+    // 15 floods' worth of Firestore reads never happened.
+    expect(reads).toHaveLength(10);
+  });
+
+  it("never lets one token's exhaustion refuse a DIFFERENT invitee", async () => {
+    // Why the per-token bucket is the one that may be tight: it is structurally incapable of
+    // denying anyone but the token being hammered.
+    const { gate } = countingGate();
+    const { deps } = fakeDeps({ gate });
+    const other = "o".repeat(43);
+
+    for (let i = 0; i < 6; i += 1) await reasonOf(describeInviteFor(deps, { token: TOKEN }));
+    expect(await reasonOf(describeInviteFor(deps, { token: TOKEN }))).toBe(
+      "invite-too-many-attempts",
+    );
+    // A different token still gets a full budget, and is refused on the MERITS, not throttled.
+    expect(await reasonOf(describeInviteFor(deps, { token: other }))).toBe("invite-invalid");
+  });
+
+  it("throttles redeemInvite BEFORE the claim, so a throttled call cannot burn the token", async () => {
+    const { gate } = countingGate({ perToken: 1 });
+    const { deps, calls } = fakeDeps({ gate });
+
+    await expect(
+      redeemInviteFor(deps, { token: TOKEN, password: GOOD_PASSWORD }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(calls.claims).toEqual([HASH]);
+
+    expect(await reasonOf(redeemInviteFor(deps, { token: TOKEN, password: GOOD_PASSWORD }))).toBe(
+      "invite-too-many-attempts",
+    );
+    // No second claim attempt and no password write: the token is not spent by being throttled.
+    expect(calls.claims).toEqual([HASH]);
+    expect(calls.setPassword).toHaveLength(1);
+  });
+
+  it("clears on its own as the bucket refills, without a new link", async () => {
+    // A rate-limited invitee must not need an operator. 5 per 60 s refills one slot every
+    // 12 s, and the deps clock is what the gate is charged against.
+    const perToken = createRateLimiter({ capacity: 5, windowMs: 60_000, maxKeys: 8 });
+    const global = createRateLimiter({ capacity: 60, windowMs: 60_000, maxKeys: 1 });
+    let clock = NOW;
+    const gate: RateGate = {
+      admitGlobal: (nowMs) => global.tryConsume("*", nowMs),
+      admitToken: (hash, nowMs) => perToken.tryConsume(hash, nowMs),
+    };
+    // The invite must outlive the clock advance below, or the refill assertion is answered by
+    // `invite-expired` instead of the gate. The default fixture expires 1 s after NOW.
+    const base = fakeDeps({ gate, invite: inviteDoc({ expiresAtMs: NOW + 60_000 }) }).deps;
+    const deps: RedeemDeps = { ...base, now: () => clock };
+
+    for (let i = 0; i < 5; i += 1) await describeInviteFor(deps, { token: TOKEN });
+    expect(await reasonOf(describeInviteFor(deps, { token: TOKEN }))).toBe(
+      "invite-too-many-attempts",
+    );
+
+    clock = NOW + 11_999;
+    expect(await reasonOf(describeInviteFor(deps, { token: TOKEN }))).toBe(
+      "invite-too-many-attempts",
+    );
+    clock = NOW + 12_000;
+    await expect(describeInviteFor(deps, { token: TOKEN })).resolves.toMatchObject({
+      email: "ana@jci.bo",
+    });
+  });
+});
+
+describe("the shipped configuration of the two unauthenticated callables", () => {
+  // These assert the REAL exported gate and options object, not a fixture. Retuning a
+  // security-relevant ceiling or dropping a control then shows up in the diff as a changed
+  // test rather than one silently edited digit.
+
+  it("admits exactly 5 calls per token per minute", async () => {
+    const gate = createRateGate();
+    const hash = "a".repeat(64);
+    let admitted = 0;
+    while (gate.admitToken(hash, NOW)) admitted += 1;
+    expect(admitted).toBe(5);
+    expect(INVITE_RATE_LIMITS.perTokenPerMinute).toBe(5);
+  });
+
+  it("admits 600 calls per minute endpoint-wide — far above any legitimate burst", async () => {
+    // Raised from 60 deliberately. At 60 ONE sustained request per second from a single
+    // source denied every invitee on the only onboarding path — the limiter made a total
+    // outage far cheaper to cause than saturating the instance pool it nominally protects.
+    // 600 keeps a real cost bound (INVITE_GLOBAL_READS_PER_MINUTE, on ONE instance) and moves
+    // the denial threshold to INVITE_GLOBAL_DENIAL_PER_SECOND — both DERIVED, both pinned by
+    // the tripwire below rather than retyped here.
+    //
+    // NOT ~100 req/s: the ceiling is per instance, but refusals do not multiply it by
+    // `maxInstances`. The reason is LATENCY, not the absence of I/O — Cloud Run's concurrency
+    // signal is in-flight requests over the concurrency limit, and a refusal is in flight for
+    // microseconds, so it takes thousands per second to dent 80 slots. CPU utilization is a
+    // separate signal a big enough flood does trip, so one instance is a conservative FLOOR
+    // rather than a guarantee. Canonical: the `globalPerMinute` docblock in
+    // packages/types/src/member-invite.ts.
+    const gate = createRateGate();
+    let admitted = 0;
+    while (gate.admitGlobal(NOW)) admitted += 1;
+    expect(admitted).toBe(600);
+    // The global ceiling must stay STRICTLY ABOVE the per-token one. If they were equal, five
+    // invitees opening links in the same minute would exhaust the endpoint and the sixth
+    // would be refused with no abuse at all — a self-inflicted outage on the only onboarding
+    // path there is.
+    // Not merely greater — ORDERS greater. If the endpoint ceiling sat anywhere near the
+    // per-token one, a handful of invitees opening links together would exhaust it with no
+    // abuse at all, and the refusal would land on real people with no operator remedy.
+    expect(INVITE_RATE_LIMITS.globalPerMinute).toBeGreaterThanOrEqual(
+      INVITE_RATE_LIMITS.perTokenPerMinute * 100,
+    );
+  });
+
+  it("TRIPWIRE: the ceiling's derived figures, and where they are quoted in prose", () => {
+    // The sibling of the INVITE_RETRY_AFTER_SECONDS tripwire, and it exists because the
+    // figures below were hand-written into prose in six places and were wrong in all six,
+    // twice — while the one constant that WAS derived and tripwired has never been wrong.
+    //
+    // WHEN THIS FIRES, these are the prose sites that restate it. Update them, then update
+    // this test. Do not route around it, and do not grep for the number instead — this list
+    // is the substitute for the grep that missed four copies last time:
+    //
+    //   1. packages/types/src/member-invite.ts  — `globalPerMinute` docblock (CANONICAL)
+    //   2. apps/beacon/src/rate-limit.ts        — the shared-fate paragraph
+    //   3. apps/beacon/CLAUDE.md                — the rate-limiting bullet
+    //   4. docs/firebase-setup.md               — the operator bullet AND the alert policy,
+    //                                             whose threshold must stay UNDER this figure
+    //   5. docs/specs/invite-link-onboarding.md — Amendment 2
+    expect(INVITE_GLOBAL_DENIAL_PER_SECOND).toBe(10);
+    expect(INVITE_GLOBAL_READS_PER_MINUTE).toBe(1_200);
+
+    // The whole-deployment read bound. It lives HERE and not in @luminova/types because it
+    // needs `maxInstances`, a Cloud Functions option that package cannot see — which is how an
+    // earlier draft came to print the saturated-pool figure as the single-instance one.
+    expect(INVITE_GLOBAL_READS_PER_MINUTE * UNAUTHENTICATED_CALL.maxInstances).toBe(12_000);
+
+    // The alert must warn BEFORE the ceiling denies, never after. If the ceiling is retuned,
+    // docs/firebase-setup.md's `--if` threshold moves with it.
+    const ALERT_THRESHOLD_PER_SECOND = 8;
+    expect(ALERT_THRESHOLD_PER_SECOND).toBeLessThan(INVITE_GLOBAL_DENIAL_PER_SECOND);
+  });
+
+  it("bounds token buckets, so a flood cannot grow memory without limit", () => {
+    // Exact, not `<= 4096`: a loose bound let the shipped figure silently double, while the
+    // neighbouring ceilings were pinned precisely. ~300 bytes per entry puts 2048 well under a
+    // megabyte against a 256MiB instance.
+    expect(INVITE_RATE_LIMITS.tokenBuckets).toBe(2048);
+  });
+
+  it("does NOT enforce App Check yet — a deliberate deploy-ordering hold", () => {
+    // Pinned so the hold is a decision rather than an oversight, and so flipping it is a
+    // visible test change. Enforcement is per-PRODUCT and the backstage app's registration
+    // for Cloud Functions is unconfirmed; enabling it before that is verified fails every
+    // redemption silently, on the only onboarding path there is. It lands in its own PR with
+    // the owner-op and the pre-deploy smoke test, where a bad deploy is recoverable.
+    //
+    // maxInstances is the control that DOES ship here, alongside the rate limiter above:
+    // enforceAppCheck would bound WHO may call, these bound HOW OFTEN and HOW MUCH.
+    expect(UNAUTHENTICATED_CALL.enforceAppCheck).toBe(false);
+    expect(UNAUTHENTICATED_CALL.maxInstances).toBe(10);
+    expect(UNAUTHENTICATED_CALL.concurrency).toBe(80);
+  });
+});
+
+describe("refusal logging is sampled, not one line per refusal", () => {
+  // A Cloud Logging write is a billed write to a Google service on a path anyone can reach.
+  // The bucket caps GRANTS, never refusals — past the ceiling every arriving request is
+  // refused, so a 1,000 req/s flood produces ~1,000 refusals/second — and one line apiece
+  // would bury the very stream an operator reads. That unboundedness is the whole reason
+  // `shouldLogRefusal` exists; do not retune it against the 600/min ceiling.
+
+  it("logs the FIRST refusal but not every one", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const { deps } = fakeDeps({});
+      for (let i = 0; i < 5; i += 1) await describeInviteFor(deps, { token: TOKEN });
+      info.mockClear();
+
+      for (let i = 0; i < 20; i += 1) {
+        await reasonOf(describeInviteFor(deps, { token: TOKEN }));
+      }
+      const throttleLines = info.mock.calls.filter(([, meta]) =>
+        String((meta as { outcome?: unknown })?.outcome).startsWith("rate-limited"),
+      );
+      // At least one — silence would make throttling invisible.
+      expect(throttleLines.length).toBeGreaterThanOrEqual(1);
+      // But nothing like 20. The sampler admits one per bucket per 10 s and the clock is
+      // frozen, so exactly one window is open.
+      expect(throttleLines.length).toBeLessThan(20);
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it("logs a throttle line again once the sampling window passes", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      let clock = NOW;
+      const base = fakeDeps({ invite: inviteDoc({ expiresAtMs: NOW + 600_000 }) }).deps;
+      const deps: RedeemDeps = { ...base, now: () => clock };
+      for (let i = 0; i < 5; i += 1) await describeInviteFor(deps, { token: TOKEN });
+
+      const countThrottleLines = () =>
+        info.mock.calls.filter(([, meta]) =>
+          String((meta as { outcome?: unknown })?.outcome).startsWith("rate-limited"),
+        ).length;
+
+      info.mockClear();
+      await reasonOf(describeInviteFor(deps, { token: TOKEN }));
+      const first = countThrottleLines();
+      expect(first).toBe(1);
+
+      // Same window: suppressed.
+      await reasonOf(describeInviteFor(deps, { token: TOKEN }));
+      expect(countThrottleLines()).toBe(first);
+
+      // A later window: audible again, so a LONG flood is not silent after its first second.
+      clock = NOW + 10_000;
+      await reasonOf(describeInviteFor(deps, { token: TOKEN }));
+      expect(countThrottleLines()).toBe(first + 1);
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it("pins concurrency, so the stated per-instance ceiling matches what deploys", () => {
+    // The limiter's honest ceiling is "per minute PER INSTANCE", which is only meaningful if
+    // the number of instances is bounded AND their concurrency is known. Left unset, the
+    // Firebase CLI derives it from memory (256MiB -> cpu 1 -> DEFAULT_CONCURRENCY 80); pinning
+    // it means a memory change cannot silently move the ceiling.
+    expect(UNAUTHENTICATED_CALL.concurrency).toBe(80);
   });
 });

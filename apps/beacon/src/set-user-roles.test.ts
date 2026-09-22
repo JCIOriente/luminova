@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ROLES } from "@luminova/auth/roles";
-import { assertRequestedRolesActive, validateSetRolesInput } from "./set-user-roles";
+import { assertRequestedRolesActive, validateSetRolesInput } from "./set-user-roles.js";
 
 describe("validateSetRolesInput", () => {
   it("validates a plain role assignment", () => {

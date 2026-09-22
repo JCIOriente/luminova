@@ -1,6 +1,6 @@
 import { Timestamp } from "firebase/firestore";
 import { Button } from "@luminova/ui";
-import { formatDate } from "@luminova/utils/datetime";
+import { formatInstant } from "@luminova/utils/datetime";
 import { useCopyToClipboard } from "../../../lib/use-copy-to-clipboard";
 
 /** The share-this-link body, rendered identically by all three operator surfaces: the profile
@@ -25,7 +25,12 @@ export function InviteLinkPanel({
     <div className="flex flex-col gap-3">
       <p className="text-ui-sm text-ink-2">
         {`Comparte este enlace con ${name} para que cree su contraseña.`}
-        {expiresAt !== null && ` Vence el ${formatDate(Timestamp.fromMillis(expiresAt))}.`}
+        {/* Date AND TIME, on the BOLIVIAN clock. At a seven-day TTL "vence el 23 de
+            septiembre" was precise enough; at 48 hours a bare date is misleading — a link
+            minted 23:00 Monday dies 23:00 Wednesday, which reads as "Wednesday, some time".
+            `formatInstant`, not `formatDateTime`: expiresAt is a real instant, and the
+            UTC-pinned formatter would name a deadline four hours late. */}
+        {expiresAt !== null && ` Vence el ${formatInstant(Timestamp.fromMillis(expiresAt))}.`}
       </p>
       {/* A LINK IS A CREDENTIAL: whoever holds it sets this member's password, and there is no
           way to un-send one — the remedy is to re-issue, which revokes it. Said where the

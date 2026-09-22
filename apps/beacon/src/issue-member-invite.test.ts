@@ -322,7 +322,7 @@ describe("issueInvite", () => {
   it("BLOCKING: refuses an EXPELLED member, who keeps active:true", async () => {
     // setStatus writes only `status`; softDelete writes only `active`. Checking `active` alone
     // let the row menu offer "Invitar acceso" for a Desafiliado member and minted them a fresh
-    // seven-day bearer link.
+    // 48-hour bearer link.
     const { deps, calls } = fakeDeps({
       member: { ...active, status: "Desafiliado" },
     });
@@ -522,7 +522,7 @@ describe("issueInvite", () => {
         positions: { [TERM]: { cargoId: "pos-ghost", comisionIds: [], assignedBy: "admin-uid" } },
       },
     });
-    await expect(issueInvite(missing.deps, "m1", false)).rejects.toMatchObject({
+    await expect(issueInvite(missing.deps, "m1", "caller-uid", false)).rejects.toMatchObject({
       code: "permission-denied",
       details: { reason: "power-seat-requires-admin" },
     });
@@ -538,7 +538,7 @@ describe("issueInvite", () => {
       },
       positions: { "a/b": [] },
     });
-    await expect(issueInvite(malformed.deps, "m1", false)).rejects.toMatchObject({
+    await expect(issueInvite(malformed.deps, "m1", "caller-uid", false)).rejects.toMatchObject({
       code: "permission-denied",
       details: { reason: "power-seat-requires-admin" },
     });
@@ -617,11 +617,17 @@ describe("issueInvite", () => {
   });
 
   it("rejects a missing / inactive / email-less member", async () => {
-    await expect(issueInvite(fakeDeps({ member: null }).deps, "m1")).rejects.toMatchObject({
+    await expect(
+      issueInvite(fakeDeps({ member: null }).deps, "m1", "caller-uid"),
+    ).rejects.toMatchObject({
       code: "not-found",
     });
     await expect(
-      issueInvite(fakeDeps({ member: { email: "a@b.co", active: false } }).deps, "m1"),
+      issueInvite(
+        fakeDeps({ member: { email: "a@b.co", active: false } }).deps,
+        "m1",
+        "caller-uid",
+      ),
     ).rejects.toMatchObject({ code: "failed-precondition" });
     // BLOCKING: an absent or empty email is TAGGED, like every other refusal. It used to throw
     // bare ("member has no email"), so `provisionRefusalMessage` returned null and the operator
@@ -629,7 +635,9 @@ describe("issueInvite", () => {
     // and it shadowed the tagged malformed-email refusal for the "" case, which is the likelier
     // one (memberDocSchema's `email` is a bare z.string()).
     for (const member of [{ active: true }, { active: true, email: "" }]) {
-      await expect(issueInvite(fakeDeps({ member }).deps, "m1")).rejects.toMatchObject({
+      await expect(
+        issueInvite(fakeDeps({ member }).deps, "m1", "caller-uid"),
+      ).rejects.toMatchObject({
         code: "failed-precondition",
         details: { reason: "member-email-malformed" },
       });
@@ -656,10 +664,10 @@ describe("issueInvite", () => {
       "pres@jci.bo\n",
       "a b@jci.bo",
       "a@b\t.bo",
-      "a@b .bo",
+      "a@b\u0000.bo",
     ]) {
       const { deps, calls } = fakeDeps({ member: { email, active: true } });
-      const spied: ProvisionDeps = {
+      const spied: InviteDeps = {
         ...deps,
         getUserByEmail: async (value) => {
           reached.push(value);
@@ -910,7 +918,7 @@ describe("issueInvite — stale-claims bootstrap (fresh adopt)", () => {
         },
       },
     });
-    const spied: ProvisionDeps = {
+    const spied: InviteDeps = {
       ...deps,
       setClaims: async (_uid, claims) => {
         claimsWrites.push(claims);
@@ -928,7 +936,7 @@ describe("issueInvite — stale-claims bootstrap (fresh adopt)", () => {
         "a@b.co": { uid: "u2", email: "a@b.co", customClaims: { roles: ["Admin", "Member"] } },
       },
     });
-    const spied: ProvisionDeps = {
+    const spied: InviteDeps = {
       ...deps,
       setClaims: async (_uid, claims) => {
         claimsWrites.push(claims);
@@ -946,7 +954,7 @@ describe("issueInvite — stale-claims bootstrap (fresh adopt)", () => {
         "a@b.co": { uid: "u1", email: "a@b.co", customClaims: { roles: ["Admin", "Member"] } },
       },
     });
-    const spied: ProvisionDeps = {
+    const spied: InviteDeps = {
       ...deps,
       setClaims: async (_uid, claims) => {
         claimsWrites.push(claims);

@@ -42,7 +42,10 @@ function parseInvite(data: Record<string, unknown>): InviteDoc | null {
   };
 }
 
-export function firestoreRedeemDeps(db: Firestore, auth: Auth): RedeemDeps {
+/** The Firestore/Auth half of the port. `Omit<…, "gate">` so a caller CANNOT assemble a
+ *  complete `RedeemDeps` without supplying a rate gate — the limiter is then impossible to
+ *  forget at a new call site, rather than merely documented. */
+export function firestoreRedeemDeps(db: Firestore, auth: Auth): Omit<RedeemDeps, "gate"> {
   return {
     now: () => Date.now(),
     getInvite: async (tokenHash) => {
@@ -131,7 +134,7 @@ export function firestoreRedeemDeps(db: Firestore, auth: Auth): RedeemDeps {
           // A is correctly NOT revoked, B is minted and the projection becomes
           // { pending, B }. This write would then stamp { failed, B }, and the next issue
           // sees a non-pending status and never revokes B. B stays pending and redeemable
-          // for its full seven days with nothing naming it — no `where` query on
+          // for its full 48 hours with nothing naming it — no `where` query on
           // memberInvites, no client access, no key. That is precisely the unrevocable live
           // token commitInviteBatch exists to make impossible.
           const projected = (memberSnap.data() as { invite?: { tokenHash?: unknown } } | undefined)

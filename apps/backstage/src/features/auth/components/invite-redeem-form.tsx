@@ -6,7 +6,7 @@ import { httpsCallable } from "firebase/functions";
 import { getFunctionsService } from "@luminova/firebase/functions";
 import { ArrowRight, Button, Field, Icon, Input } from "@luminova/ui";
 import { setPasswordSchema, type SetPasswordInput } from "../types/set-password-schema";
-import { inviteErrorMessage, inviteRefusalMessage } from "../lib/invite-error";
+import { inviteRefusal } from "../lib/invite-error";
 import { PasswordChecklist } from "./password-checklist";
 
 interface InviteDescription {
@@ -20,7 +20,7 @@ type Phase =
   // `retryable` is the difference between a network blip and "ya se usó": offering a retry on
   // a deliberate refusal is a dead end, and guardrail #3 asks for a real error state, not a
   // spinner that never resolves.
-  | { kind: "error"; message: string; retryable: boolean }
+  | { kind: "error"; heading: string; message: string; retryable: boolean }
   | { kind: "valid"; invite: InviteDescription }
   | { kind: "done" };
 
@@ -84,6 +84,10 @@ function Heading({ children }: { children: ReactNode }) {
 export function InviteRedeemForm({ token }: { token: string }) {
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
   const [formError, setFormError] = useState<string | null>(null);
+  /** Seconds left before a withheld retry becomes available again. Driven off the refusal's
+   *  own `retryAfterSeconds` rather than a constant here, so the wait and the server's
+   *  refill interval cannot drift apart. */
+  const [cooldown, setCooldown] = useState(0);
   const {
     register,
     handleSubmit,
@@ -120,11 +124,22 @@ export function InviteRedeemForm({ token }: { token: string }) {
     runId.current = mine;
     const alive = () => runId.current === mine;
     setPhase({ kind: "loading" });
+    // Clear any wait the PREVIOUS token earned. `cooldown` gained a second writer when the
+    // submit path started honouring `retryAfterSeconds`, and the two buckets are per token:
+    // pasting a fresh link into the same tab while a throttled redeem is still counting down
+    // would otherwise render the new invite's submit button disabled behind a countdown it
+    // never earned. Whatever this load learns is set again below.
+    //
+    // Keyed on load() RUNNING, not on `token` changing — and that is only safe because the
+    // retry button below carries `disabled={cooldown > 0}`, so the one other caller cannot
+    // reach here while a wait is live. Drop that guard and this clears a wait it should honour.
+    setCooldown(0);
     // An empty fragment — a truncated paste, or someone typing the path. Refuse locally
     // rather than spending an unauthenticated call to be told the same thing.
     if (token.length === 0) {
       setPhase({
         kind: "error",
+        heading: "Enlace incompleto",
         message: "Este enlace está incompleto. Pídele a quien te invitó que te envíe uno nuevo.",
         retryable: false,
       });
@@ -140,16 +155,30 @@ export function InviteRedeemForm({ token }: { token: string }) {
       setPhase({ kind: "valid", invite });
     } catch (err) {
       if (!alive()) return;
-      const refusal = inviteRefusalMessage(err);
+      const refusal = inviteRefusal(err);
       setPhase({
         kind: "error",
-        message: refusal ?? GENERIC_LOAD_ERROR,
-        // Only an UNTAGGED failure is worth retrying: beacon's tagged refusals are all
-        // permanent for this token.
-        retryable: refusal === null,
+        // The heading comes from the refusal too. Hardcoding "Enlace no válido" here put that
+        // headline above the rate-limit copy, which says the link IS still valid.
+        heading: refusal.heading,
+        message: refusal.message ?? GENERIC_LOAD_ERROR,
+        // An untagged failure is a network blip. Among TAGGED refusals only rate limiting is
+        // temporary — see RETRYABLE_REASONS. It used to be `refusal === null`, which would
+        // hide the retry button from someone whose only problem is having reloaded twice.
+        retryable: refusal.retryAfterSeconds !== null,
       });
+      setCooldown(refusal.retryAfterSeconds ?? 0);
     }
   }, [token]);
+
+  // Ticks the withheld-retry countdown down to zero and then stops. Self-terminating (the
+  // effect re-runs only while cooldown > 0) and cancelled on unmount, so it cannot outlive the
+  // page or leave a timer running behind the success screen.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((left) => left - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
   useEffect(() => {
     if (settled.current) return;
@@ -159,6 +188,12 @@ export function InviteRedeemForm({ token }: { token: string }) {
       runId.current += 1;
     };
   }, [load]);
+
+  const submitLabel = isSubmitting
+    ? "Guardando…"
+    : cooldown > 0
+      ? `Espera ${cooldown}s`
+      : "Crear contraseña";
 
   const onSubmit = handleSubmit(async ({ password }) => {
     setFormError(null);
@@ -177,7 +212,16 @@ export function InviteRedeemForm({ token }: { token: string }) {
     } catch (err) {
       // The form stays usable: several refusals (a weak password) are correctable in place,
       // and the ones that are not say so in their own copy.
-      setFormError(inviteErrorMessage(err, GENERIC_REDEEM_ERROR));
+      const refusal = inviteRefusal(err);
+      setFormError(refusal.message ?? GENERIC_REDEEM_ERROR);
+      // The SAME withholding the load path applies, and for a stronger reason: this button
+      // sits behind a filled-in password form, so it is the one an invitee retries hardest,
+      // and the copy above it promises a wait. Reading only the message — which is what this
+      // path used to do — dropped `retryAfterSeconds` on the floor and left the button live,
+      // so every impatient click spent an ENDPOINT-WIDE slot to fail. That bucket has shared
+      // fate: those clicks push the ceiling that denies every OTHER invitee. `?? 0` clears the
+      // wait for refusals it cannot help, exactly as on load.
+      setCooldown(refusal.retryAfterSeconds ?? 0);
     }
   });
 
@@ -192,13 +236,22 @@ export function InviteRedeemForm({ token }: { token: string }) {
   if (phase.kind === "error") {
     return (
       <Shell>
-        <Heading>Enlace no válido</Heading>
+        <Heading>{phase.heading}</Heading>
         <p role="alert" className="mt-2.5 text-ui-md leading-[1.5] text-ink-3">
           {phase.message}
         </p>
         {phase.retryable && (
-          <Button as="button" type="button" onClick={() => void load()} className="mt-8">
-            Reintentar
+          <Button
+            as="button"
+            type="button"
+            // Withheld for the per-token emission interval on a throttled refusal. Retrying
+            // immediately spends an endpoint-wide slot to fail, and teaches the invitee the
+            // button does not work — while the copy right above promises "unos segundos".
+            disabled={cooldown > 0}
+            onClick={() => void load()}
+            className="mt-8"
+          >
+            {cooldown > 0 ? `Reintentar en ${cooldown}s` : "Reintentar"}
           </Button>
         )}
       </Shell>
@@ -255,7 +308,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
         <Button
           as="button"
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || cooldown > 0}
           className="mt-2 w-full"
           iconRight={
             isSubmitting ? (
@@ -265,7 +318,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
             )
           }
         >
-          {isSubmitting ? "Guardando…" : "Crear contraseña"}
+          {submitLabel}
         </Button>
       </form>
     </Shell>

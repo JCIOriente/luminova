@@ -25,7 +25,12 @@ export {
 } from "./role-definition-schema.js";
 export { PROVISION_BLOCK_REASONS, type ProvisionBlockReason } from "./provision-block-reason.js";
 export { INVITE_BLOCK_REASONS, type InviteBlockReason } from "./invite-block-reason.js";
-export { INVITE_TTL_MS, INVITE_PURGE_MS } from "./member-invite.js";
+export {
+  INVITE_TTL_MS,
+  INVITE_PURGE_MS,
+  INVITE_RATE_LIMITS,
+  INVITE_RETRY_AFTER_SECONDS,
+} from "./member-invite.js";
 export type {
   MemberInviteProjection,
   InviteKind,

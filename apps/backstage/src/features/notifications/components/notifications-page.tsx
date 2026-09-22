@@ -25,7 +25,7 @@ import {
   type NotificationDoc,
   type RoleDefinition,
 } from "@luminova/types";
-import { formatDateTime } from "@luminova/utils/datetime";
+import { formatInstant } from "@luminova/utils/datetime";
 import { PageHeader } from "../../../components/page-header";
 import { QueryErrorState } from "../../../components/query-error-state";
 import { useCan } from "../../../lib/authz/use-can";
@@ -219,7 +219,11 @@ function SentHistory() {
                   {audienceLabel(n.audience, roleName)}
                 </TableCell>
                 <TableCell className="hidden whitespace-nowrap text-ui-xs text-ink-3 md:table-cell">
-                  {formatDateTime(n.createdAt)}
+                  {/* formatInstant: `createdAt` is `serverTimestamp()` (the rules require
+                      `createdAt == request.time`), so it is a real instant and the UTC-pinned
+                      formatter showed it four hours late. `notification-bell.tsx` was already
+                      correct because `relativeTimeEs` is zone-free. */}
+                  {formatInstant(n.createdAt)}
                 </TableCell>
                 <TableCell className="text-right text-ui-sm text-ink-2">
                   {n.stats ? n.stats.pushSent : "—"}

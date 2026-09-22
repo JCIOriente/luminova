@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { INVITE_RETRY_AFTER_SECONDS } from "@luminova/types";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -23,6 +24,12 @@ const VALID = { email: "ana@jci.bo", name: "Ana Pérez", expiresAt: Date.now() +
 
 function refusal(reason: string) {
   return Object.assign(new Error("refused"), { details: { reason } });
+}
+
+/** Any live alert whose text matches. Three call sites wanted the same four lines — RTL has
+ *  no "some alert says this" query, and the page can show more than one at once. */
+function hasAlertMatching(pattern: RegExp) {
+  return screen.getAllByRole("alert").some((a) => pattern.test(a.textContent ?? ""));
 }
 
 async function fillPasswords(password: string, confirm = password) {
@@ -203,6 +210,71 @@ describe("InviteRedeemForm", () => {
     expect(screen.getByRole("button", { name: /crear contraseña/i })).toBeEnabled();
   });
 
+  it("WITHHOLDS the submit button after a THROTTLED redemption, not just the load retry", async () => {
+    // The regression this pins. The submit path read only the refusal's message and dropped
+    // its `retryAfterSeconds`, so the button stayed live under copy promising a wait — and
+    // this is the button an invitee retries hardest, because it sits behind a password they
+    // have already typed. Each impatient click spends an ENDPOINT-WIDE slot to fail, and that
+    // bucket has shared fate: the clicks push the very ceiling that denies every OTHER
+    // invitee. The load path got this treatment; the submit path is where it matters more.
+    redeemCallable.mockRejectedValue(refusal("invite-too-many-attempts"));
+    render(<InviteRedeemForm token="abc" />);
+    await screen.findByLabelText("Nueva contraseña");
+    await fillPasswords("Abcde1");
+    await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
+
+    // `/espera \d+s/`, not the literal starting value: the countdown ticks on a real 1 s
+    // timer, so asserting `espera 12s` would race it — one tick and that regex can never
+    // match again, which flakes on a loaded runner. The starting figure is pinned against the
+    // shared constant in invite-error.test.ts; what belongs HERE is that a wait is shown at
+    // all and that the button is withheld while it runs.
+    const waiting = await screen.findByRole("button", { name: /espera \d+s/i });
+    expect(waiting).toBeDisabled();
+    expect(Number(/espera (\d+)s/i.exec(waiting.textContent ?? "")?.[1])).toBeLessThanOrEqual(
+      INVITE_RETRY_AFTER_SECONDS,
+    );
+    expect(hasAlertMatching(/Demasiados intentos/i)).toBe(true);
+  });
+
+  it("does NOT carry a throttled wait over to a newly pasted link", async () => {
+    // `cooldown` gained a second writer when the submit path started honouring
+    // `retryAfterSeconds`, and both buckets are keyed PER TOKEN — so a wait one link earned
+    // must not disable the submit button for the next one. Reachable in one tab: invitacion.tsx
+    // feeds `token` from the location hash, so pasting a second link re-runs load() with a
+    // countdown still ticking from the first.
+    redeemCallable.mockRejectedValueOnce(refusal("invite-too-many-attempts"));
+    const { rerender } = render(<InviteRedeemForm token="first" />);
+    await screen.findByLabelText("Nueva contraseña");
+    await fillPasswords("Abcde1");
+    await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
+    await screen.findByRole("button", { name: /espera \d+s/i });
+
+    rerender(<InviteRedeemForm token="second" />);
+
+    // The new link's own redeem bucket is untouched; its button must be live immediately.
+    expect(await screen.findByRole("button", { name: /crear contraseña/i })).toBeEnabled();
+  });
+
+  it("names the blocked security check when the SUBMIT call fails attestation", async () => {
+    // The submit path must surface the attestation branch too, not fall back to "no pudimos
+    // guardar tu contraseña" — which would hide the real cause at the very last step. This is
+    // the assertion that used to sit in invite-error.test.ts against the message-only wrapper;
+    // once both paths read `inviteRefusal`, only the component can still tell them apart.
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      redeemCallable.mockRejectedValue({ code: "functions/unauthenticated" });
+      render(<InviteRedeemForm token="abc" />);
+      await screen.findByLabelText("Nueva contraseña");
+      await fillPasswords("Abcde1");
+      await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
+      await waitFor(() => expect(hasAlertMatching(/verificaci[óo]n de seguridad/i)).toBe(true));
+      // Waiting cannot clear it, so the button must NOT be withheld behind a countdown.
+      expect(screen.getByRole("button", { name: /crear contraseña/i })).toBeEnabled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("names a TAGGED redemption failure instead of a generic one", async () => {
     // invite-update-failed in particular: the token is spent and the password was never set,
     // so "inténtalo de nuevo" would be a lie.
@@ -211,10 +283,6 @@ describe("InviteRedeemForm", () => {
     await screen.findByLabelText("Nueva contraseña");
     await fillPasswords("Abcde1");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
-    await waitFor(() =>
-      expect(
-        screen.getAllByRole("alert").some((a) => /ya se consumió/i.test(a.textContent ?? "")),
-      ).toBe(true),
-    );
+    await waitFor(() => expect(hasAlertMatching(/ya se consumió/i)).toBe(true));
   });
 });

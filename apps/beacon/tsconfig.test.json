@@ -1,0 +1,54 @@
+{
+  // Typechecks the TEST files, which `tsconfig.json` excludes so `build` emits only src.
+  //
+  // That exclusion is why three of PR #227's defects reached production green: a test file can
+  // reference a type that does not exist, call a function with the wrong arity, or bind a fake
+  // to a stale hand-copied shape, and nothing fails. Two real examples this config caught the
+  // day it was added: `const spied: ProvisionDeps` named a type that exists nowhere (so four
+  // spread-and-override fakes were unchecked objects with implicitly-any parameters), and
+  // `issueInvite(deps, "m1", false)` put `false` on the `issuedBy: string` parameter while the
+  // admin flag it meant to set came out false only via its default.
+  //
+  // `exclude` is an allowlist in reverse ON PURPOSE: a NEW test file is typechecked by
+  // default, and the debt below is visible and finite. Shrink this list; never grow it.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // `String.prototype.isWellFormed` is ES2024 and `firestore-util.test.ts` asserts it
+    // directly (2 errors without this). Beacon runs on Node 24, which has it; only the shared
+    // base `lib` (ES2023, set for the browser apps) lags.
+    //
+    // Raised HERE rather than in `tsconfig.json` so the first `tsc` pass still holds
+    // production beacon code to ES2023. That is a weak guarantee and worth stating as such:
+    // beacon is Node-only, and the shared packages it imports are typechecked at ES2023 in
+    // their own projects anyway. It costs ~1s of duplicated compile per CI run (the second
+    // pass re-checks all 41 production files, because `include`/`exclude` REPLACE rather than
+    // merge across `extends`). Kept because 1s is noise beside this script's Firestore
+    // emulator boot, not because the guarantee is strong.
+    "lib": ["ES2024"]
+  },
+  "include": ["src"],
+  "exclude": [
+    // Pre-existing debt in the claims-sync and notifications surfaces, none of it in this
+    // change's blast radius. CENSUSED rather than estimated (run this config with
+    // `"exclude": []` to reproduce): 23 errors across these five files —
+    //
+    //   16 of the `readonly`/mutable class: 14 TS2345 (an `as const` fixture passed to a
+    //      parameter typed as a mutable array) + 2 TS2339 (`.push`/`.sort` on a readonly one).
+    //    7 unrelated: 6 TS2532 "possibly undefined" + 1 TS2322 optional-property mismatch.
+    //      Widening a signature does nothing for these; each is a one-line test-local fix.
+    //
+    // THE REAL FIX for the 16 is narrower than "widen the signatures": all 14 TS2345 are the
+    // same `{ grant, revoke }` argument against one parameter shape that is copy-pasted five
+    // times (claims-sync/parse-member.ts, resolve-member-perms.ts, sync.ts, and
+    // @luminova/auth's built-in-perms.ts + perms.ts). Naming that type ONCE in
+    // @luminova/auth with `readonly` arrays is guardrail #1 and would clear 14 of the 23,
+    // emptying two of these five entries outright. Deliberately not done here: it is a
+    // different subsystem, and this PR is already large.
+    "src/claims-sync/firestore-deps.test.ts",
+    "src/claims-sync/resolve-member-perms.test.ts",
+    "src/claims-sync/role-docs.emulator.test.ts",
+    "src/claims-sync/sync.test.ts",
+    "src/notifications/send.emulator.test.ts"
+  ]
+}

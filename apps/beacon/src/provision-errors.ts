@@ -39,8 +39,21 @@ export function inviteBlocked(reason: InviteBlockReason, message: string): Https
   return taggedRefusal("failed-precondition", message, reason);
 }
 
+/** The rate-limit refusal. `resource-exhausted`, NOT `failed-precondition`: every other
+ *  invite refusal means "this link cannot be used", while this one means "not right now" —
+ *  the link is fine and the same call succeeds seconds later. The distinction is load-bearing
+ *  in two places: the client's retry affordance keys on the tagged reason, and a
+ *  log-based alert on the callables wants to tell throttling apart from a broken link. */
+export function inviteRateLimited(): HttpsError {
+  return taggedRefusal(
+    "resource-exhausted",
+    "too many attempts; try again in a moment",
+    "invite-too-many-attempts",
+  );
+}
+
 function taggedRefusal(
-  code: "failed-precondition" | "permission-denied" | "not-found",
+  code: "failed-precondition" | "permission-denied" | "not-found" | "resource-exhausted",
   message: string,
   reason: ProvisionBlockReason | InviteBlockReason,
 ): HttpsError {

@@ -122,7 +122,7 @@ interface MemberInvite {
   issuedBy: string            // caller uid — makes delegated recovery auditable
   issuedByAdmin: boolean      // exempts the link from the privilege re-check at redemption
   issuedAt: Timestamp
-  expiresAt: Timestamp        // issuedAt + 7d, enforced in code (not by TTL)
+  expiresAt: Timestamp        // issuedAt + 48h, enforced in code (not by TTL)
   status: 'pending' | 'used' | 'revoked' | 'failed'
   usedAt: Timestamp | null
   revokedAt: Timestamp | null
@@ -145,6 +145,19 @@ sweep remains *possible*, but it is not a designed path and would need a composi
 
 **TTL is cleanup, not the boundary.** Expiry is `expiresAt <= now` compared inside the
 redemption transaction; the TTL policy on `purgeAt` is best-effort with up to ~24 h of lag.
+
+**`expiresAt` and `purgeAt` are independent, and only one of them moved.** `expiresAt` is the
+security boundary: the link is the whole credential and it travels through WhatsApp, so the
+window is the exposure — 48 h, down from 7 d. `purgeAt` is retention, computed from `issuedAt`,
+and stays at 90 d: a used or revoked invite document is not a credential but the record of who
+issued a login and when, so shrinking it would cost audit evidence and buy no security. Both
+constants live in `packages/types/src/member-invite.ts` and are pinned by tests on their
+DURATION, not merely on `now + CONSTANT`.
+
+**Rendering `expiresAt` uses `formatInstant`, not `formatDateTime`.** It is a real instant
+(`issuedAt + 48h`), unlike an activity's wall-clock-pinned schedule, so it renders on the
+Bolivian clock. The UTC-pinned formatter would show an operator a deadline four hours late —
+and near midnight, the wrong day.
 
 **Queries used**: none — only keyed `get()` by token hash.
 

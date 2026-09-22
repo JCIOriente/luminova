@@ -14,6 +14,9 @@ import {
   formatDateRange,
   formatDateTime,
   formatDayMonth,
+  formatInstant,
+  formatInstantDate,
+  formatInstantTime,
   formatMonthYear,
   formatTime,
   fullYearsBetween,
@@ -179,5 +182,117 @@ describe("fullYearsBetween", () => {
   });
   it("counts the year on the anniversary day", () => {
     expect(fullYearsBetween(ts("2020-07-10T00:00:00Z"), now)).toBe(6);
+  });
+});
+
+describe("formatInstantTime — a REAL instant, Bolivian CLOCK", () => {
+  // The cell that was missing, and whose absence is why `checkInAt` stayed on the UTC-pinned
+  // formatTime and rendered every arrival four hours late in production.
+
+  it("renders the Bolivian hour, four hours behind UTC", () => {
+    expect(formatInstantTime(ts("2026-09-21T19:00:00Z"))).toMatch(/\b15:00\b/);
+  });
+
+  it("disagrees with formatTime by exactly the Bolivian offset", () => {
+    // Pins WHY both exist. A "consolidation" of the two fails here.
+    const instant = ts("2026-09-21T19:00:00Z");
+    expect(formatInstantTime(instant)).not.toBe(formatTime(instant));
+    const shifted = ts(
+      new Date(Date.parse("2026-09-21T19:00:00Z") - BOLIVIA_OFFSET_MS).toISOString(),
+    );
+    expect(formatTime(shifted)).toBe(formatInstantTime(instant));
+  });
+
+  it("wraps past midnight rather than showing a 25th hour", () => {
+    expect(formatInstantTime(ts("2026-09-22T02:30:00Z"))).toMatch(/\b22:30\b/);
+  });
+
+  it("is independent of the host timezone", () => {
+    expect(formatInstantTime(ts("2026-01-15T03:30:00Z"))).toMatch(/\b23:30\b/);
+  });
+});
+
+describe("formatInstantDate — a REAL instant, Bolivian DAY, no clock", () => {
+  // The zone question and the granularity question are independent. This one answers "real
+  // instant" like formatInstant and "no time component" like formatDate, which is the
+  // combination `member.invite.usedAt` needs and which neither of those two provides.
+
+  it("renders the Bolivian date with no time component", () => {
+    const out = formatInstantDate(ts("2026-09-21T16:00:00Z"));
+    expect(out).toMatch(/\b21\b/);
+    // No clock anywhere. Asserted on the absence of a colon rather than an exact string, so a
+    // locale month-abbreviation change does not turn this red.
+    expect(out).not.toMatch(/:/);
+  });
+
+  it("names the day BEFORE the one UTC would, for a late-evening instant", () => {
+    // THE bug this exists for. 01:30Z on the 22nd is 21:30 on the 21st in Bolivia, so a
+    // UTC-pinned formatter names tomorrow. Every redemption after 20:00 local took that path.
+    const lateEvening = ts("2026-09-22T01:30:00Z");
+    expect(formatInstantDate(lateEvening)).toMatch(/\b21\b/);
+    expect(formatInstantDate(lateEvening)).not.toMatch(/\b22\b/);
+    // And it genuinely DISAGREES with formatDate here — pins why both exist, so a later
+    // "consolidation" of the two fails rather than silently reintroducing the bug.
+    expect(formatInstantDate(lateEvening)).not.toBe(formatDate(lateEvening));
+  });
+
+  it("agrees with formatDate away from the boundary", () => {
+    // Mid-afternoon UTC is the same calendar day in both zones. The two formatters differ ONLY
+    // near the boundary, which is what makes the bug so easy to miss by hand.
+    const midday = ts("2026-09-21T16:00:00Z");
+    expect(formatInstantDate(midday)).toBe(formatDate(midday));
+  });
+
+  it("is independent of the host timezone", () => {
+    const out = formatInstantDate(ts("2026-01-15T03:30:00Z"));
+    expect(out).toMatch(/\b14\b/);
+  });
+});
+
+describe("formatInstant — a REAL instant, in Bolivia time", () => {
+  // The counterpart to formatDateTime, and the distinction is load-bearing.
+  //
+  // Activity instants are an input wall-clock PINNED to UTC (see activity-mapper), so
+  // formatDateTime renders them in UTC to show exactly what was scheduled. An invite's
+  // `expiresAt` is not that: it is `issuedAt + 48 h`, a true moment in time. Rendering it in
+  // UTC would tell a Bolivian operator a deadline four hours later than the one that actually
+  // applies — harmless when only a date was shown over a seven-day window, actively wrong once
+  // a time is shown over a two-day one.
+
+  it("renders 12:00Z as 08:00, the Bolivian wall clock", () => {
+    // THE ONE EXACT-STRING ASSERTION in this describe, kept deliberately as an ICU canary: if
+    // a Node upgrade changes the es abbreviated month or the date-time connector, exactly this
+    // test goes red and the rest stay green, which localizes the breakage instead of turning
+    // five assertions red at once. Every sibling below matches loosely, the convention the
+    // rest of this file already follows.
+    expect(formatInstant(ts("2026-09-28T12:00:00Z"))).toBe("28 sept 2026, 08:00");
+  });
+
+  it("rolls back to the previous day when UTC has already ticked over", () => {
+    // 02:00Z on the 29th is 22:00 on the 28th in Bolivia. A UTC-rendered deadline would name
+    // the wrong DAY, which is the failure an operator would actually act on. Asserted on the
+    // day number and the 24h time — both locale-stable — not on the month abbreviation.
+    const out = formatInstant(ts("2026-09-29T02:00:00Z"));
+    expect(out).toMatch(/\b28\b/);
+    expect(out).toMatch(/\b22:00\b/);
+    expect(out).not.toMatch(/\b29\b/);
+  });
+
+  it("disagrees with formatDateTime by exactly the Bolivian offset", () => {
+    // Pins WHY both exist. If someone "consolidates" them, this fails.
+    const instant = ts("2026-09-28T12:00:00Z");
+    expect(formatInstant(instant)).not.toBe(formatDateTime(instant));
+    const shifted = ts(
+      new Date(Date.parse("2026-09-28T12:00:00Z") - BOLIVIA_OFFSET_MS).toISOString(),
+    );
+    expect(formatDateTime(shifted)).toBe(formatInstant(instant));
+  });
+
+  it("is independent of the host timezone", () => {
+    // The suite already runs under TZ=America/La_Paz; this asserts the formatter pins the zone
+    // itself rather than inheriting it, which is what makes it correct on a UTC CI runner.
+    const out = formatInstant(ts("2026-01-15T03:30:00Z"));
+    expect(out).toMatch(/\b14\b/);
+    expect(out).toMatch(/\b23:30\b/);
   });
 });

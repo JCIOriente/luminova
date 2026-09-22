@@ -15,7 +15,13 @@ describe("InviteLinkPanel", () => {
       />,
     );
     expect(screen.getByText(URL)).toBeInTheDocument();
-    expect(screen.getByText(/28 sept 2026/)).toBeInTheDocument();
+    // The TIME, not only the date. `/28 sept 2026/` alone also matches the date-only format,
+    // so it could not tell the two apart — and at a 48 h TTL a bare date is misleading: a link
+    // minted at 23:00 Monday dies at 23:00 Wednesday, which an operator reads as "Wednesday,
+    // some time". Rendered on the BOLIVIAN clock (formatInstant), so 12:00Z is 08:00 — the
+    // UTC-pinned formatter would have shown 12:00 and promised four hours that do not exist.
+    expect(screen.getByText(/\b08:00\b/)).toBeInTheDocument();
+    expect(screen.getByText(/\b28\b/)).toBeInTheDocument();
     // The operator is about to paste a bearer credential into a chat.
     expect(screen.getByText(/chat directo, no en un grupo/i)).toBeInTheDocument();
   });

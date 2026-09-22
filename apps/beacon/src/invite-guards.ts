@@ -11,7 +11,7 @@ import { isSafeDocId } from "./firestore-util.js";
  *
  *  These decide whether a `create:MemberLogin` delegate may mint a link for a given member.
  *  They are evaluated TWICE: once in `issueMemberInvite`, and again in `redeemInvite`, because
- *  the token outlives the authorization decision by up to seven days. */
+ *  the token outlives the authorization decision by up to 48 hours. */
 
 /** Claims carried over when ADOPTING an Auth account not currently linked to the member. An
  *  orphaned account may still hold org roles (even Admin); only these survive, everything else

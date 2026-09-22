@@ -435,7 +435,24 @@ it in a copy dialog with its expiry.
 - **A link IS a credential.** Whoever holds it sets that member's password. Send it in a direct
   chat, never a group. There is no way to un-send one — the remedy is to re-issue, which
   revokes the previous link.
-- **Links last 7 days**, enforced in code (not by the TTL policy). The badge shows the date.
+- **Links last 48 hours**, enforced in code (not by the TTL policy). The badge shows the date
+  **and the time**, on the Bolivian clock — at this window a bare date is not precise enough to
+  act on, since a link shared at 23:00 Monday dies at 23:00 Wednesday.
+- **Both callables are rate-limited**: per link, 5 calls/min to *each* callable (so 5 to open
+  the page plus 5 to submit), and 600/min endpoint-wide, held in the function instance's memory
+  (nothing is written to Firestore). An invitee who reloads the page
+  repeatedly can see *"Demasiados intentos. Espera unos segundos"* — this is **not** a broken
+  link and needs no operator action. That **per-link** budget refills one slot every 12 s.
+- **The endpoint-wide ceiling is where an outage would come from, and it is ~10 req/s.** It is
+  held per function instance, but do not read that as headroom that multiplies by
+  `maxInstances`: a refusal is in flight for microseconds, so a flood barely moves the
+  concurrency signal Cloud Run scales on and the pool stays near **one** instance well past
+  the point where onboarding is already down. (CPU is a separate scaling signal a large enough
+  flood does trip — so one instance is a conservative floor, not a guarantee.) Treat 600/min —
+  about **10 requests/second sustained** — as the point where onboarding stops working *for
+  everyone*, not just for the caller. That is the number the request-rate alert below is set
+  against. (Canonical: `INVITE_GLOBAL_DENIAL_PER_SECOND` in `packages/types/src/member-invite.ts`,
+  derived from the ceiling and pinned by a tripwire test that lists every site quoting it.)
 - **Re-issuing kills the previous link.** The copy dialog says so. If a member reports "el
   enlace no sirve", check whether someone re-issued.
 - **Auth emulator** — nothing is mailed, so there is nothing to read from the emulator log; the
@@ -450,22 +467,145 @@ it in a copy dialog with its expiry.
    `__/auth/action`). It previously pointed at `https://<backstage-host>/reset`, a route that
    no longer exists — so until this is reverted, the console's own "⋮ → Reset password" mails a
    link to a 404. **"Edit user → set password" always works and needs nothing.**
-2. **Firestore TTL policy** on `memberInvites.purgeAt` (cleanup only; expiry is code-enforced):
-   `gcloud firestore fields ttls update purgeAt --collection-group=memberInvites --enable-ttl --project=jci-oriente`
-3. **Decide on App Check for the two unauthenticated callables.** `describeInvite` and
-   `redeemInvite` ship `enforceAppCheck: false`. Note this is NOT because the keys are
-   missing — `apps/backstage/.env.production` carries a real `VITE_APPCHECK_SITE_KEY` and
-   `ensureApp()` wires `initAppCheck` unconditionally, so a prod backstage build already sends
-   a token. It is because enforcement is per-**product** and is confirmed only for Firestore
-   and Storage (see "App Check" above); Cloud Functions is not. To turn it on: confirm the
-   backstage app is registered for the Functions product, flip the boolean in
-   `apps/beacon/src/redeem-invite.ts`, and **test `/invitacion` end to end against a real
-   build before deploying**. Getting this wrong 403s every redemption, silently, on the only
-   onboarding path that now exists.
-4. **GCP budget alert.** Until that flip, both callables accept requests from any origin.
-   `maxInstances: 10` caps the blast radius but converts a cost problem into an availability
-   one — a flood saturating the pool blocks real invitees. A budget alert is the cheapest real
-   signal available in the meantime.
+2. **Firestore TTL policy** on `memberInvites.purgeAt` — **NOT YET APPLIED.** Cleanup only;
+   expiry is code-enforced against `expiresAt`, so nothing is broken without this. What it
+   buys: the collection stops growing without bound as invites accumulate.
+
+   ```bash
+   gcloud firestore fields ttls update purgeAt \
+     --collection-group=memberInvites --enable-ttl --project=jci-oriente
+   ```
+
+   **Verify it applied** — the command returns before the policy is live, so check the state
+   rather than the exit code:
+
+   ```bash
+   gcloud firestore fields ttls list --project=jci-oriente
+   ```
+
+   Expect one row for `memberInvites.purgeAt` with `ttlConfig.state: ACTIVE`. `CREATING` means
+   it is still building (minutes on a small collection) — re-run the list. **An empty result
+   means the policy does not exist**, which is the state as of this writing: the list returned
+   zero items, so the command above has never successfully run.
+
+   Deletion is best-effort with up to ~24 h of lag, which is why expiry is never left to it.
+
+3. **Cost and abuse signal on the two callables.**
+
+   **Correction to what this document used to promise.** It said "a GCP budget alert on the
+   two callables". A **billing budget cannot be scoped to a function** — budgets attach to a
+   billing account and filter by project, label, or service (`--filter-projects`,
+   `--filter-services`), never per function. So the per-callable signal has to be a
+   **Cloud Monitoring alert policy** on the Cloud Run request count (gen2 functions run on
+   Cloud Run, one service per function), and the billing budget is the coarse backstop.
+
+   **a) Notification channel first.** An alert policy with no channel fires into nothing, and
+   this SDK has no `gcloud monitoring channels` command group — so create it in the console:
+   Cloud Console → **Monitoring → Alerting → Edit notification channels → Email → Add new**.
+   Copy the channel id (`projects/jci-oriente/notificationChannels/NNNN`).
+
+   **b) The alert policy.** It must fire *below* the rate limiter's own ceiling, because that
+   ceiling is where onboarding breaks: the endpoint-wide bucket is 600/min **per instance**,
+   and a flood barely moves Cloud Run's concurrency signal — a refusal is in flight for
+   microseconds — so the pool stays near one instance and ~10 req/s sustained denies every
+   invitee. An alert above that point could only ever report an outage already in progress.
+
+   Hence **`> 8` req/s over a single 60 s window** — just under the ceiling
+   (`INVITE_GLOBAL_DENIAL_PER_SECOND`, canonical in `packages/types/src/member-invite.ts`; if
+   that figure is ever retuned, this threshold moves with it and a tripwire test says so), and
+   matched to the
+   limiter's own 60 s window. There is no false-positive budget to protect: JCI Oriente issues
+   a handful of invites a week, so the normal rate is indistinguishable from zero and an early,
+   twitchy alert costs nothing. `--duration=60s`, not the 300 s (five minutes) an earlier draft
+   used, for the same reason.
+
+   **How much warning this buys, honestly.** The policy needs one full 60 s aligned point plus
+   its duration, so ~2 minutes at best, before ingestion delay. The bucket's burst tolerance
+   means a *marginal* flood takes much longer than that to bite — at 11 req/s the first refusal
+   is roughly ten minutes out, so the alert genuinely precedes the outage. A serious flood does
+   not wait: at 50 req/s refusals begin within ~15 s and the alert is a post-mortem. Treat it
+   as a detector, not a guard. The guard is the ceiling itself.
+
+   ```bash
+   gcloud monitoring policies create \
+     --project=jci-oriente \
+     --display-name="Invite callables: abnormal request rate" \
+     --condition-display-name="describeInvite/redeemInvite > 8 req/s for 1 min" \
+     --condition-filter='metric.type="run.googleapis.com/request_count"
+       resource.type="cloud_run_revision"
+       resource.label."service_name"=monitoring.regex.full_match("describeinvite|redeeminvite")' \
+     --aggregation='{"alignmentPeriod":"60s","perSeriesAligner":"ALIGN_RATE","crossSeriesReducer":"REDUCE_SUM","groupByFields":["resource.label.service_name"]}' \
+     --if='> 8' \
+     --duration=60s \
+     --trigger-count=1 \
+     --combiner=OR \
+     --notification-channels=projects/jci-oriente/notificationChannels/NNNN
+   ```
+
+   `--if` takes a **comparison**, not a bare number — `gcloud monitoring policies create --help`
+   gives it as one of `absent`, `< THRESHOLD`, `> THRESHOLD`. A bare `--if=50` (what an earlier
+   draft of this document printed) is rejected as an argument error, so the policy never gets
+   created. Quote it, or the shell eats the `>` as a redirect.
+
+   Service names are lower-cased by Cloud Run, hence the lower-case regex. The bucket is
+   per-callable — each gen2 function is its own Cloud Run service and `createRateGate()` runs
+   once per callable — so keeping the two on separate series via `groupByFields` matches how
+   the limiter counts. One mismatch remains, in the safe direction: `REDUCE_SUM` adds every
+   series of a service, i.e. across *instances*, while the bucket is per instance. If the pool
+   ever does scale out, the summed figure over-reports against any single bucket, so the alert
+   fires early rather than not at all.
+
+   **What this metric does and does not tell you.** `run.googleapis.com/request_count` counts
+   served and throttled requests identically, so it is a *request-rate* alert, not a
+   throttle-rate one. That is the right signal here — crossing the ceiling is exactly what
+   total request rate measures — but it means the alert cannot confirm on its own that anyone
+   was actually refused. For that, grep Logs Explorer for the sampled refusal lines the gate
+   emits: `rate-limited-global` and `rate-limited-token`. Expect the **global** line during a
+   flood, and treat the token line as best-effort — the two branches share ONE sampler slot per
+   gate, so sustained global refusals win it every interval and a real invitee's token refusal
+   can go unlogged for as long as the flood lasts. Do not build the alert on these lines either
+   way: `shouldLogRefusal` caps them at one per gate per instance per 10 s, so they saturate at
+   six a minute whether the flood is 11 req/s or 11,000 — presence, never rate.
+
+   **Verify it applied:**
+
+   ```bash
+   gcloud monitoring policies list --project=jci-oriente \
+     --format="table(displayName,enabled,conditions[0].displayName)"
+   ```
+
+   Expect the policy listed with `enabled: True`. To verify it can actually *fire*, open
+   Monitoring → Alerting → the policy → **Metrics Explorer** on its condition and confirm the
+   time series resolves to the two services (an empty series means the filter matches nothing,
+   and a policy that matches nothing is indistinguishable from a quiet week).
+
+   **c) Billing budget** — the backstop, project-scoped, on the open billing account:
+
+   ```bash
+   gcloud billing budgets create \
+     --billing-account=016148-904C31-A656A9 \
+     --display-name="jci-oriente monthly" \
+     --budget-amount=25USD \
+     --filter-projects=projects/jci-oriente \
+     --threshold-rule=percent=0.5 \
+     --threshold-rule=percent=0.9 \
+     --threshold-rule=percent=1.0
+   ```
+
+   **Verify:**
+
+   ```bash
+   gcloud billing budgets list --billing-account=016148-904C31-A656A9 \
+     --format="table(displayName,amount.specifiedAmount.units,budgetFilter.projects)"
+   ```
+
+   A budget **notifies, it does not cap** — nothing stops spend. It is the "something is
+   wrong" signal of last resort; the alert policy in (b) is the one that arrives in time to
+   act, and `maxInstances: 10` plus the in-process rate limiter are what actually bound the
+   damage.
+
+   Adjust `--budget-amount` to whatever the chapter's normal monthly spend plus headroom is —
+   25 USD is a placeholder, not a measured figure.
 
 ## App Check (reCAPTCHA v3)
 
@@ -479,16 +619,22 @@ the branded reset flow:
    `.env.local` blank so local dev runs against the emulators with App Check off.
 3. **Reset action URL** — leave it at the Firebase DEFAULT. The `/reset` route it used to
    point at is deleted; see owner op 1 above.
-4. **`describeInvite` / `redeemInvite` are the first functions to flip.** They are declared
-   `enforceAppCheck: false`, and the blocker is NOT the site key (production has one) — it is
-   that enforcement is per-product and Functions is not confirmed enabled below. Flip them
-   DELIBERATELY, with `/invitacion` tested against a real build: a misconfigured deploy breaks
-   member onboarding entirely, silently, for everyone.
-5. **Enforcement** — **enabled** for Firestore and Storage. Both frontends send a
-   valid token (backstage via the full SDK, spotlight via `getFirestoreLite`). Only
-   enable enforcement for a product after confirming real traffic carries valid
-   tokens, or you will lock out the app.
-6. **Password policy** — the seeded admin account's password must satisfy the policy
+4. **`describeInvite` / `redeemInvite` will be the FIRST functions with it turned on** —
+   but they declare `enforceAppCheck: false` today. The blocker was never the site key
+   (production has one); it is that enforcement is per-product and **Cloud Functions is still
+   not confirmed enabled** below. The flip is deliberately its own PR, with the confirmation
+   step and a pre-deploy smoke test, because a misconfigured deploy breaks member onboarding
+   entirely, silently, for everyone.
+5. **Enforcement** — **enabled** for Firestore and Storage. **Cloud Functions: UNCONFIRMED.**
+   Both frontends send a valid token (backstage via the full SDK, spotlight via
+   `getFirestoreLite`). Only enable enforcement for a product after confirming real traffic
+   carries valid tokens, or you will lock out the app.
+6. **App Check is not a rate limiter, and the invite callables carry both.** A standard App
+   Check token lives ~30 minutes and is replayable, so harvesting one from the public
+   `/invitacion` page and flooding with it is not prevented by enforcement. `enforceAppCheck`
+   bounds *who* may call; the in-process limiter in `apps/beacon/src/rate-limit.ts` bounds
+   *how often*. Neither substitutes for the other.
+7. **Password policy** — the seeded admin account's password must satisfy the policy
    (min 6 + lower + upper + digit) or it can no longer sign in.
 
 ## Push Notifications (FCM Web Push)

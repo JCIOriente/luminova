@@ -105,7 +105,7 @@ export interface InviteResult {
  *  projection still pointing at the old revoked hash. Nothing could ever revoke that orphan —
  *  there is no `where` query on memberInvites, firestore.rules denies all client access, and
  *  the only key into the collection no longer points at it. It would stay redeemable for the
- *  full seven days.
+ *  full 48 hours.
  *
  *  Expressing it as a single port makes atomicity STRUCTURAL rather than asserted: there is
  *  no way to write these documents separately, so a unit test counting mock calls is not what
@@ -199,7 +199,7 @@ export async function issueInvite(
   // Both fields, for the reason loadValidInvite spells out: setStatus and softDelete write
   // different keys, so an expelled member keeps `active: true`. Without the status half the
   // row menu happily offered "Invitar acceso" for a Desafiliado member and beacon minted them
-  // a fresh seven-day bearer link.
+  // a fresh 48-hour bearer link.
   if (member.active !== true || member.status === "Desafiliado")
     throw provisionBlocked("failed-precondition", "member is not active", "member-not-active");
   // Shape-screened BEFORE it reaches the Auth SDK, for the same reason cargoId and assignedBy
@@ -363,7 +363,7 @@ export async function issueInvite(
   // same pending hash, both revoke it, and mint two live tokens. The loser's document is left
   // `pending` with nothing naming it — no `where` query on memberInvites, no client lane in
   // firestore.rules, and the projection now points at the winner — so it stays redeemable for
-  // its full seven days and cannot be revoked by key.
+  // its full 48 hours and cannot be revoked by key.
   //
   // Not closed here: the fix is a transaction with a member-doc read precondition, which is a
   // redesign of this write path and is tracked as follow-up work. The window is one operator

@@ -65,25 +65,59 @@ URL and one would be wrong in the emulator and in previews.
   Admin-only, recovery and initial are delegate-allowed. A two-way split would let the
   self-heal quadrant fall through to `createUser` for a delegate.
 - **The privilege guards re-run in `redeemInvite`**, because the token outlives the
-  authorization decision by up to 7 days. `issuedByAdmin: true` exempts.
+  authorization decision by up to 48 h. `issuedByAdmin: true` exempts.
 
 ### `describeInvite` / `redeemInvite` — `onCall`, UNAUTHENTICATED
 
 The project's first unauthenticated callables. `describeInvite` is a read-only lookup
 (`{ email, name, expiresAt }`); `redeemInvite` burns the token and sets the password through
-the Admin SDK. Both share one `loadInvite` so the validity rules cannot drift.
+the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot drift.
 
 - **The token hash IS the document id** (`memberInvites/{sha256hex(token)}`), so there is no
   secret comparison anywhere, the lookup is bounded by construction, and the collection cannot
   be enumerated. A guess resolves to a nonexistent document.
-- **No rate limiter, deliberately.** A per-token counter is meaningless (each guess addresses a
-  different nonexistent doc) and a global one is a Firestore write per unauthenticated request
-  — a self-inflicted DoS. The controls are 256-bit entropy, the 7-day TTL, single-use, explicit
-  revocation, and `maxInstances`. **`maxInstances` is both the control and the lever**: it caps
-  billing but converts a cost problem into an availability one.
-- **App Check is NOT enforced** (`enforceAppCheck: false`, roadmap G4) — the keys do not exist
-  in production, so flipping it would 403 every redemption. These two are the first functions to
-  flip when G4 lands.
+- **Rate-limited IN PROCESS, never in Firestore.** 5 calls/min per token **per callable** —
+  each has its own gate, so a link gets 5 `describeInvite` AND 5 `redeemInvite` a minute
+  (tight, and it can only ever refuse the token being hammered) — plus 600/min endpoint-wide
+  per callable (deliberately generous — the key that
+  actually bounds a flood, since every random token gets a fresh per-token bucket). Consulted
+  before ANY read, so a refusal costs an integer comparison. It writes nothing on purpose:
+  `describeInvite` is two keyed reads and zero writes, so a counter doc would make the limiter
+  more expensive than the endpoint it protects and hand an unauthenticated caller a guaranteed
+  billable write per request. `rate-limit.ts` bounds memory too (LRU, 2048 buckets) — a flood
+  of distinct tokens is exactly what would otherwise grow one bucket per token.
+  **The honest ceiling is per-INSTANCE**, times however many are warm, bounded by
+  `maxInstances: 10`; a cold start resets the buckets. Never quote it as a global figure — and
+  note that "times however many are warm" is headroom for LEGITIMATE traffic only. It does NOT
+  apply to the denial threshold: a refusal is in flight for microseconds, so a flood barely
+  moves Cloud Run's concurrency signal and the pool stays near one instance well past the point
+  where onboarding is already down. (CPU utilization is a separate autoscaling signal that a
+  big enough flood does trip — so treat one instance as a conservative floor, not a guarantee.)
+  The endpoint-wide bucket has SHARED FATE — exhausting it refuses everyone — so it is sized
+  to bound cost, not availability, which `maxInstances` already bounds: ~1,200 reads/min on one
+  instance (600 admitted calls x at most two keyed reads), ~12k across a saturated pool of ten.
+  It was 60/min and that was wrong: ONE sustained request per second from a single source
+  denied every invitee, far cheaper than saturating the pool it nominally protected. The
+  denial threshold is now ~10 req/s — `INVITE_GLOBAL_DENIAL_PER_SECOND`, derived, not typed.
+  CANONICAL for every figure here: the `globalPerMinute` docblock in
+  `packages/types/src/member-invite.ts`. A tripwire test in `redeem-invite.test.ts` pins the
+  derived values and lists every prose site that restates them, this bullet included — retune
+  the ceiling and it stops you with the list. The request-rate alert in
+  `docs/firebase-setup.md` is set just under the denial point.
+- **App Check is NOT enforced on these two yet** (`enforceAppCheck: false`) — a deliberate
+  deploy-ordering hold with its own PR, not an oversight. Enforcement is per-PRODUCT, and the
+  backstage web app's registration for **Cloud Functions** is unconfirmed; flipping it before
+  that is verified 403s every redemption silently, on the only onboarding path there is. Two
+  claims in the earlier spec were false and do NOT block it: the production reCAPTCHA key does
+  exist, and "/invitacion has no session" was never the blocker (attestation is app-level, the
+  route sits outside `_auth`, and the client wires `initAppCheck` on first app acquisition).
+  When it does flip, it bounds WHO may call and NOT how often — a standard token lives ~30 min
+  and is replayable — which is why the limiter ships alongside it, not instead of it. The
+  client already renders an honest message for an attestation rejection
+  (`isAttestationRejection`), so that handling is in place ahead of the flip.
+- **`maxInstances` is both a control and a lever**: it caps billing but converts a cost problem
+  into an availability one. The rate gate is what makes that trade cheaper — a throttled
+  request never occupies an instance doing Firestore reads.
 - **The token claim precedes `auth.updateUser`.** A crash between burns the token (annoying,
   one-click operator remedy) rather than leaving a replayable one.
 - Logs `{ fn, memberId, tokenPrefix, outcome }` and nothing else — never the token, never the

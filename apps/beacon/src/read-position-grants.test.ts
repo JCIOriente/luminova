@@ -63,7 +63,9 @@ describe("readPositionGrants", () => {
     // Ids, never the doc — and bounded, because Cloud Logging drops an over-large entry
     // whole and isSafeDocId tolerates 1500 bytes.
     await readPositionGrants(db, "x".repeat(1501), log);
-    expect(String(logged[4].meta.cargoId).length).toBeLessThanOrEqual(65);
+    const oversized = logged[4];
+    expect(oversized).toBeDefined();
+    expect(String(oversized?.meta.cargoId).length).toBeLessThanOrEqual(65);
   });
 
   it("stays quiet on the paths that resolve", async () => {

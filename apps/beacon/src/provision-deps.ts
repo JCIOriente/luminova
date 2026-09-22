@@ -71,7 +71,7 @@ export function firestoreInviteDeps(db: Firestore, auth: Auth): InviteDeps {
  *  operator has already sent, with `members/{id}.invite` still pointing at the OLD revoked
  *  hash — and nothing could ever revoke that orphan: there is no `where` query on
  *  memberInvites, firestore.rules denies every client lane, and the only key into the
- *  collection no longer names it. It would stay redeemable for the full seven days.
+ *  collection no longer names it. It would stay redeemable for its full 48 hours.
  *
  *  The member doc is contended (awardPoints mirrors totalPoints on every check-in, and
  *  onMemberWritten fires on every member write), so this is not a theoretical failure.
