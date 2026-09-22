@@ -104,17 +104,22 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   derived values and lists every prose site that restates them, this bullet included — retune
   the ceiling and it stops you with the list. The request-rate alert in
   `docs/firebase-setup.md` is set just under the denial point.
-- **App Check is NOT enforced on these two yet** (`enforceAppCheck: false`) — a deliberate
-  deploy-ordering hold with its own PR, not an oversight. Enforcement is per-PRODUCT, and the
-  backstage web app's registration for **Cloud Functions** is unconfirmed; flipping it before
-  that is verified 403s every redemption silently, on the only onboarding path there is. Two
-  claims in the earlier spec were false and do NOT block it: the production reCAPTCHA key does
-  exist, and "/invitacion has no session" was never the blocker (attestation is app-level, the
-  route sits outside `_auth`, and the client wires `initAppCheck` on first app acquisition).
-  When it does flip, it bounds WHO may call and NOT how often — a standard token lives ~30 min
-  and is replayable — which is why the limiter ships alongside it, not instead of it. The
-  client already renders an honest message for an attestation rejection
-  (`isAttestationRejection`), so that handling is in place ahead of the flip.
+- **App Check IS enforced in production, and deliberately NOT under the emulator**
+  (`enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true"`). firebase-functions enforces
+  this ITSELF — a request with no `X-Firebase-AppCheck` header is rejected before the
+  debug-token escape — and local dev leaves `VITE_APPCHECK_SITE_KEY` blank, so the client sends
+  no header at all. Enforcing unconditionally would make `/invitacion` impossible to exercise
+  against the emulator. `FUNCTIONS_EMULATOR` is safe to key on: the emulator sets it, the
+  deploy-time discovery run does not (it sets `FUNCTIONS_CONTROL_API`), so a real deploy gets
+  `true`. A test pins BOTH branches — the two failure directions are opposite and both silent.
+  Two claims in the earlier spec were
+  false: the production reCAPTCHA key does exist, and "/invitacion has no session" was never
+  the blocker (attestation is app-level, the route sits outside `_auth`, and the client wires
+  `initAppCheck` on first app acquisition). It bounds WHO may call and NOT how often — a
+  standard token lives ~30 min and is replayable — which is why the limiter ships alongside it,
+  not instead of it. **Enforcement is per-PRODUCT: Cloud Functions must be registered and
+  `/invitacion` tested against a real build before deploy**, or every redemption 403s silently
+  on the only onboarding path. See docs/firebase-setup.md.
 - **`maxInstances` is both a control and a lever**: it caps billing but converts a cost problem
   into an availability one. The rate gate is what makes that trade cheaper — a throttled
   request never occupies an instance doing Firestore reads.

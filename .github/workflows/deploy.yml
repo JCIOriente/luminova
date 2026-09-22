@@ -195,6 +195,30 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      # App Check enforcement on describeInvite/redeemInvite is keyed on FUNCTIONS_EMULATOR
+      # (see apps/beacon/src/redeem-invite.ts). firebase-tools spreads apps/beacon/.env* into
+      # BOTH the deploy-time discovery run and the deployed function's environment, so a stray
+      # `FUNCTIONS_EMULATOR=true` line there would silently ship those two callables with App
+      # Check DISABLED. The unit tests pin both branches, but only at test time against a
+      # stubbed env — they cannot see a dotenv file. This is the check that can.
+      #
+      # WHAT IT ACTUALLY COVERS, precisely: firebase-tools reads `.env`, `.env.<projectId>` and
+      # `.env.<projectAlias>` (lib/functions/env.js). `.env` and `.env.local` are gitignored, so
+      # they can never reach a CI checkout — but `.env.jci-oriente` is NOT ignored and is
+      # exactly the file a production override would live in. So this covers the whole set that
+      # can reach CI. It does NOT cover an override applied outside the repo (a console edit, or
+      # a value set on the deployed service); `gcloud run services describe` is the check for
+      # that, and the pre-deploy smoke test in docs/firebase-setup.md is what catches it in
+      # practice.
+      - name: Guard — no FUNCTIONS_EMULATOR override in beacon env files
+        run: |
+          set -euo pipefail
+          if ls apps/beacon/.env* >/dev/null 2>&1 &&
+             grep -rlE '^[[:space:]]*FUNCTIONS_EMULATOR[[:space:]]*=' apps/beacon/.env*; then
+            echo "::error::FUNCTIONS_EMULATOR is set in a beacon env file. firebase-tools"                  "spreads these into the deployed runtime, which would disable App Check"                  "enforcement on the unauthenticated invite callables in production."
+            exit 1
+          fi
+          echo "ok: no FUNCTIONS_EMULATOR override in apps/beacon/.env*"
       # firebase.json `predeploy` runs `pnpm turbo run build --filter beacon`.
       # --force skips the gen2 delete-confirmation prompt under --non-interactive.
       - name: Deploy functions (beacon)
