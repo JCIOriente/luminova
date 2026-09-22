@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { INVITE_BLOCK_REASONS, INVITE_RETRY_AFTER_SECONDS } from "@luminova/types";
-import { inviteErrorMessage, inviteRefusal } from "./invite-error";
+import { inviteRefusal } from "./invite-error";
 
 describe("inviteRefusal — the Spanish message table", () => {
   it("has a Spanish message for EVERY reason in the contract", () => {
@@ -39,15 +39,18 @@ describe("inviteRefusal — the Spanish message table", () => {
   });
 });
 
-describe("inviteErrorMessage", () => {
-  it("falls back when the failure is untagged", () => {
-    expect(inviteErrorMessage(new Error("boom"), "Generic.")).toBe("Generic.");
-  });
-
-  it("prefers the tagged message", () => {
-    expect(inviteErrorMessage({ details: { reason: "invite-expired" } }, "Generic.")).not.toBe(
-      "Generic.",
-    );
+describe("what the SUBMIT path renders", () => {
+  // The form reads `inviteRefusal` directly — message AND delay. It used to read a
+  // message-only wrapper, which is how a throttled submit kept a live button. Only the delay
+  // is asserted here: "untagged yields no message" and "a tagged reason has one" are already
+  // pinned above, by the untagged test and by the one that iterates INVITE_BLOCK_REASONS, and
+  // restating them as submit-path tests would be the same call with the same input.
+  it("carries the WAIT, not just the message, on a throttled refusal", () => {
+    // The regression this pins: the submit path dropped `retryAfterSeconds` and left its
+    // button enabled, so each impatient click spent a shared endpoint-wide slot to fail.
+    const throttled = inviteRefusal({ details: { reason: "invite-too-many-attempts" } });
+    expect(throttled.message).not.toBeNull();
+    expect(throttled.retryAfterSeconds).toBe(INVITE_RETRY_AFTER_SECONDS);
   });
 });
 
@@ -195,13 +198,10 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
     expect(inviteRefusal({ code: "functions/internal" }).retryAfterSeconds).toBe(0);
   });
 
-  it("surfaces on the SUBMIT path too, not only on load", () => {
-    // redeemInvite is rejected the same way, and inviteErrorMessage is what the form renders.
-    expect(inviteErrorMessage(attestationFailure, "Generic.")).not.toBe("Generic.");
-    expect(inviteErrorMessage(attestationFailure, "Generic.")).toMatch(
-      /verificaci[óo]n de seguridad/i,
-    );
-  });
+  // "surfaces on the SUBMIT path too" used to live here, exercising the message-only wrapper
+  // the form called. With both paths reading `inviteRefusal` directly it became the same call
+  // with the same input as the test above and could no longer fail independently, so the
+  // submit-path assertion moved to where it can: the component test.
 
   it("prefers a TAGGED reason over the attestation branch", () => {
     // The fixture carries BOTH signals on purpose — `unauthenticated` AND a tag — because a
@@ -277,7 +277,10 @@ describe("inviteRefusal — the HEADING must not contradict the body", () => {
     // ceilings into @luminova/types is that the client cannot hold its own copy of the
     // server's refill rate. A literal here would be that copy, one layer out.
     expect(refusal.retryAfterSeconds).toBe(INVITE_RETRY_AFTER_SECONDS);
-    // And the derivation itself, so a retune of either input is visible here.
+    // And the derivation itself. A deliberate TRIPWIRE, not a second hardcoded copy: it does
+    // not constrain the client, it makes a change to `perTokenPerMinute` or `windowMs` stop
+    // here and be acknowledged, since that retune also changes what the invite page promises
+    // an invitee. When it fires, update this number — do not route around it.
     expect(INVITE_RETRY_AFTER_SECONDS).toBe(12);
   });
 

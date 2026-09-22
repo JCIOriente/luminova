@@ -159,6 +159,11 @@ async function loadValidInvite(
   // BEFORE the hash and before any read. The order is the point: this is the bucket that
   // bounds a flood, and a refusal here must cost strictly less than the work it prevents —
   // an integer comparison against a number in memory, no Firestore access, no write.
+  //
+  // "Strictly less than the work it prevents", not "free": the onCall handlers below build
+  // `firestoreRedeemDeps` before calling in here, so a refused request has already paid for
+  // two memoized SDK accessors and a handful of closures. No I/O, and immaterial against a
+  // keyed read — but the sentence above is about the GATE, not about the whole invocation.
   if (!deps.gate.admitGlobal(nowMs)) {
     if (deps.gate.shouldLogRefusal?.(nowMs) ?? true) logOutcome(fn, null, "rate-limited-global");
     throw inviteRateLimited();
@@ -384,20 +389,25 @@ export async function redeemInviteFor(
 // THE PROJECT'S FIRST UNAUTHENTICATED CALLABLES.
 //
 // Anyone who knows the URL can invoke these; an invitee has no account yet, so that is
-// inherent rather than an oversight. Three controls stand in front of them.
+// inherent rather than an oversight. Three controls are designed to stand in front of them,
+// and TWO of the three are live as of this change.
 //
-// 1. APP CHECK, now ENFORCED. The earlier draft of the spec said the reCAPTCHA keys were
-//    missing in production; that was false — `apps/backstage/.env.production` carries a real
-//    VITE_APPCHECK_SITE_KEY. It was also NOT blocked by "/invitacion has no session":
-//    attestation is app-level, `/invitacion` is deliberately a TOP-LEVEL route outside the
-//    `_auth` layout, and the client's `ensureApp()` wires `initAppCheck` on first app
-//    acquisition — which `getFunctionsService()` goes through. So an unauthenticated
-//    /invitacion load does attest.
+// 1. APP CHECK — declared, NOT YET ENFORCED. `enforceAppCheck` is FALSE below; the flag
+//    carries the reasoning, and the flip is its own PR. Do not read the rest of this block as
+//    a description of what is running today.
 //
-//    ENFORCEMENT IS PER-PRODUCT, and that is the live risk. See the blocking owner-op in
-//    docs/firebase-setup.md: the backstage app must be registered for the Cloud Functions
-//    product and /invitacion tested against a real build BEFORE this deploys. Get it wrong
-//    and every redemption 403s — silently, totally, on the only onboarding path there is.
+//    Two claims earlier drafts made about WHY it was held are false, and are corrected here
+//    so the flip is not blocked on a phantom: the reCAPTCHA keys are NOT missing in
+//    production — `apps/backstage/.env.production` carries a real VITE_APPCHECK_SITE_KEY —
+//    and "/invitacion has no session" was never the blocker either. Attestation is app-level,
+//    `/invitacion` is deliberately a TOP-LEVEL route outside the `_auth` layout, and the
+//    client's `ensureApp()` wires `initAppCheck` on first app acquisition — which
+//    `getFunctionsService()` goes through. So an unauthenticated /invitacion load does attest.
+//
+//    What actually holds it is that ENFORCEMENT IS PER-PRODUCT: the backstage app's
+//    registration for the Cloud Functions product is unconfirmed, and flipping before that is
+//    verified 403s every redemption — silently, totally, on the only onboarding path there
+//    is. That check is a blocking owner-op, and it ships WITH the flip, not with this change.
 //
 // 2. THE RATE GATE, below. App Check bounds WHO may call; it does not bound HOW OFTEN. A
 //    standard App Check token lives ~30 minutes and is replayable, so harvesting one from the
@@ -461,6 +471,13 @@ export function createRateGate(): RateGate {
   // The limiter, reused as its own log sampler: one line per instance per interval. Reuse
   // rather than a second mechanism — "at most N per window" is exactly what this primitive
   // already does, and the sampler inherits its clock handling for free.
+  //
+  // ONE slot, SHARED by both refusal branches of this gate. So under a sustained global flood
+  // the `rate-limited-global` lines win it every interval and a legitimate invitee's
+  // `rate-limited-token` line can be starved for as long as the flood lasts. That is a
+  // deliberate trade — one sampler per bucket would cost only a second empty Map — but it
+  // means the token line is best-effort evidence and never a census. docs/firebase-setup.md
+  // says so where it tells an operator what to grep.
   const logs: RateLimiter = createRateLimiter({
     capacity: 1,
     windowMs: INVITE_RATE_LIMITS.refusalLogIntervalMs,

@@ -442,8 +442,17 @@ it in a copy dialog with its expiry.
   the page plus 5 to submit), and 600/min endpoint-wide, held in the function instance's memory
   (nothing is written to Firestore). An invitee who reloads the page
   repeatedly can see *"Demasiados intentos. Espera unos segundos"* — this is **not** a broken
-  link and needs no operator action. The budget refills one slot every 12 s. The ceiling is per
-  function instance, so the effective figure is higher than 60 when several are warm.
+  link and needs no operator action. That **per-link** budget refills one slot every 12 s.
+- **The endpoint-wide ceiling is where an outage would come from, and it is ~10 req/s.** It is
+  held per function instance, but do not read that as headroom that multiplies by
+  `maxInstances`: a refusal is in flight for microseconds, so a flood barely moves the
+  concurrency signal Cloud Run scales on and the pool stays near **one** instance well past
+  the point where onboarding is already down. (CPU is a separate scaling signal a large enough
+  flood does trip — so one instance is a conservative floor, not a guarantee.) Treat 600/min —
+  about **10 requests/second sustained** — as the point where onboarding stops working *for
+  everyone*, not just for the caller. That is the number the request-rate alert below is set
+  against. (Canonical: `INVITE_GLOBAL_DENIAL_PER_SECOND` in `packages/types/src/member-invite.ts`,
+  derived from the ceiling and pinned by a tripwire test that lists every site quoting it.)
 - **Re-issuing kills the previous link.** The copy dialog says so. If a member reports "el
   enlace no sirve", check whether someone re-issued.
 - **Auth emulator** — nothing is mailed, so there is nothing to read from the emulator log; the
@@ -495,28 +504,68 @@ it in a copy dialog with its expiry.
    Cloud Console → **Monitoring → Alerting → Edit notification channels → Email → Add new**.
    Copy the channel id (`projects/jci-oriente/notificationChannels/NNNN`).
 
-   **b) The alert policy.** Fires when either callable is invoked far above the chapter's real
-   rate. JCI Oriente issues a handful of invites a week, so sustained triple-digit
-   requests-per-second is by definition not members onboarding:
+   **b) The alert policy.** It must fire *below* the rate limiter's own ceiling, because that
+   ceiling is where onboarding breaks: the endpoint-wide bucket is 600/min **per instance**,
+   and a flood barely moves Cloud Run's concurrency signal — a refusal is in flight for
+   microseconds — so the pool stays near one instance and ~10 req/s sustained denies every
+   invitee. An alert above that point could only ever report an outage already in progress.
+
+   Hence **`> 8` req/s over a single 60 s window** — just under the ceiling
+   (`INVITE_GLOBAL_DENIAL_PER_SECOND`, canonical in `packages/types/src/member-invite.ts`; if
+   that figure is ever retuned, this threshold moves with it and a tripwire test says so), and
+   matched to the
+   limiter's own 60 s window. There is no false-positive budget to protect: JCI Oriente issues
+   a handful of invites a week, so the normal rate is indistinguishable from zero and an early,
+   twitchy alert costs nothing. `--duration=60s`, not the 300 s (five minutes) an earlier draft
+   used, for the same reason.
+
+   **How much warning this buys, honestly.** The policy needs one full 60 s aligned point plus
+   its duration, so ~2 minutes at best, before ingestion delay. The bucket's burst tolerance
+   means a *marginal* flood takes much longer than that to bite — at 11 req/s the first refusal
+   is roughly ten minutes out, so the alert genuinely precedes the outage. A serious flood does
+   not wait: at 50 req/s refusals begin within ~15 s and the alert is a post-mortem. Treat it
+   as a detector, not a guard. The guard is the ceiling itself.
 
    ```bash
    gcloud monitoring policies create \
      --project=jci-oriente \
      --display-name="Invite callables: abnormal request rate" \
-     --condition-display-name="describeInvite/redeemInvite > 50 req/s for 5 min" \
+     --condition-display-name="describeInvite/redeemInvite > 8 req/s for 1 min" \
      --condition-filter='metric.type="run.googleapis.com/request_count"
        resource.type="cloud_run_revision"
        resource.label."service_name"=monitoring.regex.full_match("describeinvite|redeeminvite")' \
      --aggregation='{"alignmentPeriod":"60s","perSeriesAligner":"ALIGN_RATE","crossSeriesReducer":"REDUCE_SUM","groupByFields":["resource.label.service_name"]}' \
-     --if=50 \
-     --duration=300s \
+     --if='> 8' \
+     --duration=60s \
      --trigger-count=1 \
      --combiner=OR \
      --notification-channels=projects/jci-oriente/notificationChannels/NNNN
    ```
 
-   Service names are lower-cased by Cloud Run, hence the lower-case regex. Substitute the real
-   channel id for `NNNN`.
+   `--if` takes a **comparison**, not a bare number — `gcloud monitoring policies create --help`
+   gives it as one of `absent`, `< THRESHOLD`, `> THRESHOLD`. A bare `--if=50` (what an earlier
+   draft of this document printed) is rejected as an argument error, so the policy never gets
+   created. Quote it, or the shell eats the `>` as a redirect.
+
+   Service names are lower-cased by Cloud Run, hence the lower-case regex. The bucket is
+   per-callable — each gen2 function is its own Cloud Run service and `createRateGate()` runs
+   once per callable — so keeping the two on separate series via `groupByFields` matches how
+   the limiter counts. One mismatch remains, in the safe direction: `REDUCE_SUM` adds every
+   series of a service, i.e. across *instances*, while the bucket is per instance. If the pool
+   ever does scale out, the summed figure over-reports against any single bucket, so the alert
+   fires early rather than not at all.
+
+   **What this metric does and does not tell you.** `run.googleapis.com/request_count` counts
+   served and throttled requests identically, so it is a *request-rate* alert, not a
+   throttle-rate one. That is the right signal here — crossing the ceiling is exactly what
+   total request rate measures — but it means the alert cannot confirm on its own that anyone
+   was actually refused. For that, grep Logs Explorer for the sampled refusal lines the gate
+   emits: `rate-limited-global` and `rate-limited-token`. Expect the **global** line during a
+   flood, and treat the token line as best-effort — the two branches share ONE sampler slot per
+   gate, so sustained global refusals win it every interval and a real invitee's token refusal
+   can go unlogged for as long as the flood lasts. Do not build the alert on these lines either
+   way: `shouldLogRefusal` caps them at one per gate per instance per 10 s, so they saturate at
+   six a minute whether the flood is 11 req/s or 11,000 — presence, never rate.
 
    **Verify it applied:**
 

@@ -78,6 +78,16 @@ const RETRYABLE_REASONS: ReadonlySet<string> = new Set<InviteBlockReason>([
  *  invitee sends no auth token at all, which is MISSING rather than INVALID and does not
  *  throw — so App Check is the only remaining source.
  *
+ *  THAT DESCRIBES THE FLIP, NOT THIS BRANCH. `enforceAppCheck` is still false in
+ *  `apps/beacon/src/redeem-invite.ts`, so today BOTH App Check cases are unreachable and the
+ *  only way to land here is the INVALID-token case the paragraph above sets aside: an operator
+ *  or a signed-in member opening an invite link in a browser still holding a stale backstage
+ *  session. Rare, since the SDK refreshes ID tokens on its own — and the copy is a defensible
+ *  dead end either way, because neither a wait nor a fresh link clears it. This ships ahead of
+ *  the flip on purpose, so the bundle already renders an honest message before enforcement can
+ *  produce one. Read the `console.error` below with the same caveat: until the flip it names a
+ *  cause it cannot actually have observed.
+ *
  *  Two ways to reach it, and the second is permanent rather than a deploy slip: the
  *  per-product registration gap `docs/firebase-setup.md` flags as BLOCKING, and any browser
  *  that blocks reCAPTCHA v3 — a privacy extension, a blocked `google.com`, a corporate proxy —
@@ -188,12 +198,4 @@ export function inviteRefusal(err: unknown): InviteRefusal {
   }
   // Untagged: a network blip. Retryable, and NOT the link's fault.
   return { message: null, heading: HEADINGS.blocked, retryAfterSeconds: 0 };
-}
-
-/** The submit path's renderer. Routed through `inviteRefusal` rather than
- *  a message-only reader so the attestation branch surfaces on BOTH paths — `redeemInvite` is
- *  rejected exactly the same way as `describeInvite`, and a form that fell back to "no se pudo
- *  guardar tu contraseña" would hide the real cause at the last step. */
-export function inviteErrorMessage(err: unknown, fallback: string): string {
-  return inviteRefusal(err).message ?? fallback;
 }

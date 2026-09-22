@@ -13,7 +13,11 @@ import {
   type RedeemUser,
 } from "./redeem-invite.js";
 import { createRateLimiter } from "./rate-limit.js";
-import { INVITE_RATE_LIMITS } from "@luminova/types/member-invite";
+import {
+  INVITE_GLOBAL_DENIAL_PER_SECOND,
+  INVITE_GLOBAL_READS_PER_MINUTE,
+  INVITE_RATE_LIMITS,
+} from "@luminova/types/member-invite";
 
 const NOW = 1_700_000_000_000;
 const TOKEN = "t".repeat(43);
@@ -655,12 +659,20 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
   });
 
   it("admits 600 calls per minute endpoint-wide — far above any legitimate burst", async () => {
-    // Raised from 60 deliberately. At 60 the bucket tripped ~3 orders of magnitude below the
-    // 800 concurrent slots it nominally protects, which meant ~10 req/s from ONE attacker
-    // denied every invitee on the only onboarding path — the limiter made a total outage
-    // roughly 100x cheaper to cause than saturating the instance pool. 600 keeps a real cost
-    // bound (~12k Firestore reads/min worst case) while putting the denial threshold at
-    // ~100 req/s, about 30x above any plausible legitimate burst.
+    // Raised from 60 deliberately. At 60 ONE sustained request per second from a single
+    // source denied every invitee on the only onboarding path — the limiter made a total
+    // outage far cheaper to cause than saturating the instance pool it nominally protects.
+    // 600 keeps a real cost bound (INVITE_GLOBAL_READS_PER_MINUTE, on ONE instance) and moves
+    // the denial threshold to INVITE_GLOBAL_DENIAL_PER_SECOND — both DERIVED, both pinned by
+    // the tripwire below rather than retyped here.
+    //
+    // NOT ~100 req/s: the ceiling is per instance, but refusals do not multiply it by
+    // `maxInstances`. The reason is LATENCY, not the absence of I/O — Cloud Run's concurrency
+    // signal is in-flight requests over the concurrency limit, and a refusal is in flight for
+    // microseconds, so it takes thousands per second to dent 80 slots. CPU utilization is a
+    // separate signal a big enough flood does trip, so one instance is a conservative FLOOR
+    // rather than a guarantee. Canonical: the `globalPerMinute` docblock in
+    // packages/types/src/member-invite.ts.
     const gate = createRateGate();
     let admitted = 0;
     while (gate.admitGlobal(NOW)) admitted += 1;
@@ -675,6 +687,35 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
     expect(INVITE_RATE_LIMITS.globalPerMinute).toBeGreaterThanOrEqual(
       INVITE_RATE_LIMITS.perTokenPerMinute * 100,
     );
+  });
+
+  it("TRIPWIRE: the ceiling's derived figures, and where they are quoted in prose", () => {
+    // The sibling of the INVITE_RETRY_AFTER_SECONDS tripwire, and it exists because the
+    // figures below were hand-written into prose in six places and were wrong in all six,
+    // twice — while the one constant that WAS derived and tripwired has never been wrong.
+    //
+    // WHEN THIS FIRES, these are the prose sites that restate it. Update them, then update
+    // this test. Do not route around it, and do not grep for the number instead — this list
+    // is the substitute for the grep that missed four copies last time:
+    //
+    //   1. packages/types/src/member-invite.ts  — `globalPerMinute` docblock (CANONICAL)
+    //   2. apps/beacon/src/rate-limit.ts        — the shared-fate paragraph
+    //   3. apps/beacon/CLAUDE.md                — the rate-limiting bullet
+    //   4. docs/firebase-setup.md               — the operator bullet AND the alert policy,
+    //                                             whose threshold must stay UNDER this figure
+    //   5. docs/specs/invite-link-onboarding.md — Amendment 2
+    expect(INVITE_GLOBAL_DENIAL_PER_SECOND).toBe(10);
+    expect(INVITE_GLOBAL_READS_PER_MINUTE).toBe(1_200);
+
+    // The whole-deployment read bound. It lives HERE and not in @luminova/types because it
+    // needs `maxInstances`, a Cloud Functions option that package cannot see — which is how an
+    // earlier draft came to print the saturated-pool figure as the single-instance one.
+    expect(INVITE_GLOBAL_READS_PER_MINUTE * UNAUTHENTICATED_CALL.maxInstances).toBe(12_000);
+
+    // The alert must warn BEFORE the ceiling denies, never after. If the ceiling is retuned,
+    // docs/firebase-setup.md's `--if` threshold moves with it.
+    const ALERT_THRESHOLD_PER_SECOND = 8;
+    expect(ALERT_THRESHOLD_PER_SECOND).toBeLessThan(INVITE_GLOBAL_DENIAL_PER_SECOND);
   });
 
   it("bounds token buckets, so a flood cannot grow memory without limit", () => {
@@ -700,9 +741,11 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
 });
 
 describe("refusal logging is sampled, not one line per refusal", () => {
-  // A Cloud Logging write is a billed write to a Google service on a path anyone can reach,
-  // and at 60 refusals/min/instance a flood would bury the very stream the monitoring alert
-  // reads. The limiter's own logging must not become the load it exists to shed.
+  // A Cloud Logging write is a billed write to a Google service on a path anyone can reach.
+  // The bucket caps GRANTS, never refusals — past the ceiling every arriving request is
+  // refused, so a 1,000 req/s flood produces ~1,000 refusals/second — and one line apiece
+  // would bury the very stream an operator reads. That unboundedness is the whole reason
+  // `shouldLogRefusal` exists; do not retune it against the 600/min ceiling.
 
   it("logs the FIRST refusal but not every one", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});

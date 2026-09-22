@@ -935,11 +935,19 @@ the same policy the checklist renders.
    Auditable, not prevented.
 2. **The password crosses beacon in plaintext** (Q1a). TLS-protected, never logged, but it is in
    function memory and in any future request-body capture. Closing this means Q1b and the IAM grant.
-3. **App Check is not enforced on the unauthenticated callables.** The keys do not exist (roadmap
-   G4). The code is one boolean away; the infra is an owner-op. Until then these two endpoints
-   accept requests from any origin.
-4. **No rate limiting beyond `maxInstances`.** Deliberate (Q3). If abuse ever materialises, the
-   right fix is Cloud Armor or an App Check flip, not a Firestore counter.
+3. **App Check is not enforced on the unauthenticated callables.** Still true as of this change
+   — but ~~the keys do not exist (roadmap G4)~~ **was the wrong reason**, see Amendment 2:
+   `apps/backstage/.env.production` carries a real `VITE_APPCHECK_SITE_KEY`. What actually holds
+   the flip is that enforcement is per-PRODUCT and the backstage app's registration for Cloud
+   Functions is unconfirmed — a blocking owner-op, not a code change. The code is one boolean
+   away; until it is flipped these two endpoints accept requests from any origin.
+4. ~~**No rate limiting beyond `maxInstances`.** Deliberate (Q3). If abuse ever materialises, the
+   right fix is Cloud Armor or an App Check flip, not a Firestore counter.~~ **FIXED in this
+   design** — see Amendment 2. Both callables now carry an in-process GCRA limiter: a per-token
+   bucket and an endpoint-wide one, consulted before any I/O. Kept in the list as the record of
+   why it is a Firestore counter that stayed rejected while the rest of Q3 did not — a
+   persisted counter would cost a billable write per unauthenticated request, making the
+   limiter more expensive than the endpoint it protects.
 5. ~~An operator who opens an invite link while signed in is bounced to `/`.~~ **FIXED in this
    design** — see Q5. `/invitacion` is a top-level route, not an `_auth` child, so an operator can
    open and verify the link they just produced. Kept in the list as a record of why the route sits
@@ -1014,11 +1022,26 @@ endpoint-wide per callable, consulted before any I/O.
   the one that actually bounds a flood, and it has SHARED FATE, so its sizing matters in both
   directions. A 5/min endpoint budget would be a self-inflicted outage, exhausted by three
   invites opened in the same minute plus a reload and a retry. The 60/min it first shipped with
-  was still wrong the other way: it tripped roughly three orders of magnitude below the 800
-  concurrent slots it nominally protected, so ~10 req/s from one source denied every invitee —
-  making a total onboarding outage ~100x cheaper to cause than saturating the pool. 600 bounds
-  what `maxInstances` cannot (sustained read COST, ~12k reads/min worst case) and puts denial
-  near 100 req/s, ~30x above any burst this chapter can generate.
+  was still wrong the other way: ONE sustained request per second from a single source denied
+  every invitee, making a total onboarding outage far cheaper to cause than saturating the pool
+  it nominally protected. 600 bounds what `maxInstances` cannot — sustained read COST, ~1,200
+  reads/min on one instance (600 admitted calls x at most two keyed reads), ~12k only across a
+  saturated pool of ten — and puts denial at **~10 req/s sustained**.
+- *Why the threshold is ~10 req/s and not ~100.* (Canonical:
+  `INVITE_GLOBAL_DENIAL_PER_SECOND` in `packages/types/src/member-invite.ts`, derived rather
+  than typed, with a tripwire test listing every prose site that restates it — this section
+  included.) The ceiling is per instance, but a flood does
+  NOT multiply it by `maxInstances`. The operative reason is LATENCY, not the absence of I/O:
+  Cloud Run's concurrency signal is in-flight requests over the concurrency limit, and a
+  refusal is in flight for microseconds, so by Little's law it takes thousands of requests per
+  second to dent 80 slots. Stating it as "a refusal touches no Firestore" would equally
+  "prove" that any zero-I/O endpoint has infinite headroom, which is not a property of the
+  metric. Nor is scale-out impossible: CPU utilization is an independent autoscaling signal,
+  and refusals are still TLS termination and JSON parsing, so a large enough flood does add
+  instances — far past the point where onboarding is already down. So ONE instance's 600/min
+  is a conservative floor for the denial threshold, not a guarantee, and it is what the alert
+  is sized against. An earlier draft of this section, and of the code comment, quoted
+  ~100 req/s on the multiplying reasoning.
 - *Why not per-IP.* Google's own documentation conflicts on which `X-Forwarded-For` entry is
   trustworthy for a direct `run.app` invocation — the Cloud Functions header reference says the
   first entry is "generally" the client, while the load-balancer documentation states that anything
@@ -1027,7 +1050,9 @@ endpoint-wide per callable, consulted before any I/O.
   buckets with one header. NAT and distributed floods then break it in both directions anyway.
 - *The honest ceiling* is "per minute **per instance**, times however many instances are warm",
   bounded by `maxInstances: 10`. A cold start resets the buckets. It is never a global figure, and
-  the docs must not quote it as one.
+  the docs must not quote it as one — but note that "times however many are warm" is headroom for
+  LEGITIMATE traffic only. A refusal flood keeps the pool at one instance (above), so the number
+  that matters for an outage is the single-instance 600/min.
 - *Memory is bounded* by an LRU at 2048 token buckets — the flood this exists to survive is exactly
   the one that would otherwise grow a bucket per distinct token on a 256MiB instance. Eviction
   hands an evicted key a fresh budget, which is a second reason the endpoint-wide bucket is the

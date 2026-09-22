@@ -6,7 +6,7 @@ import { httpsCallable } from "firebase/functions";
 import { getFunctionsService } from "@luminova/firebase/functions";
 import { ArrowRight, Button, Field, Icon, Input } from "@luminova/ui";
 import { setPasswordSchema, type SetPasswordInput } from "../types/set-password-schema";
-import { inviteErrorMessage, inviteRefusal } from "../lib/invite-error";
+import { inviteRefusal } from "../lib/invite-error";
 import { PasswordChecklist } from "./password-checklist";
 
 interface InviteDescription {
@@ -124,6 +124,16 @@ export function InviteRedeemForm({ token }: { token: string }) {
     runId.current = mine;
     const alive = () => runId.current === mine;
     setPhase({ kind: "loading" });
+    // Clear any wait the PREVIOUS token earned. `cooldown` gained a second writer when the
+    // submit path started honouring `retryAfterSeconds`, and the two buckets are per token:
+    // pasting a fresh link into the same tab while a throttled redeem is still counting down
+    // would otherwise render the new invite's submit button disabled behind a countdown it
+    // never earned. Whatever this load learns is set again below.
+    //
+    // Keyed on load() RUNNING, not on `token` changing — and that is only safe because the
+    // retry button below carries `disabled={cooldown > 0}`, so the one other caller cannot
+    // reach here while a wait is live. Drop that guard and this clears a wait it should honour.
+    setCooldown(0);
     // An empty fragment — a truncated paste, or someone typing the path. Refuse locally
     // rather than spending an unauthenticated call to be told the same thing.
     if (token.length === 0) {
@@ -179,6 +189,12 @@ export function InviteRedeemForm({ token }: { token: string }) {
     };
   }, [load]);
 
+  const submitLabel = isSubmitting
+    ? "Guardando…"
+    : cooldown > 0
+      ? `Espera ${cooldown}s`
+      : "Crear contraseña";
+
   const onSubmit = handleSubmit(async ({ password }) => {
     setFormError(null);
     try {
@@ -196,7 +212,16 @@ export function InviteRedeemForm({ token }: { token: string }) {
     } catch (err) {
       // The form stays usable: several refusals (a weak password) are correctable in place,
       // and the ones that are not say so in their own copy.
-      setFormError(inviteErrorMessage(err, GENERIC_REDEEM_ERROR));
+      const refusal = inviteRefusal(err);
+      setFormError(refusal.message ?? GENERIC_REDEEM_ERROR);
+      // The SAME withholding the load path applies, and for a stronger reason: this button
+      // sits behind a filled-in password form, so it is the one an invitee retries hardest,
+      // and the copy above it promises a wait. Reading only the message — which is what this
+      // path used to do — dropped `retryAfterSeconds` on the floor and left the button live,
+      // so every impatient click spent an ENDPOINT-WIDE slot to fail. That bucket has shared
+      // fate: those clicks push the ceiling that denies every OTHER invitee. `?? 0` clears the
+      // wait for refusals it cannot help, exactly as on load.
+      setCooldown(refusal.retryAfterSeconds ?? 0);
     }
   });
 
@@ -283,7 +308,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
         <Button
           as="button"
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || cooldown > 0}
           className="mt-2 w-full"
           iconRight={
             isSubmitting ? (
@@ -293,7 +318,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
             )
           }
         >
-          {isSubmitting ? "Guardando…" : "Crear contraseña"}
+          {submitLabel}
         </Button>
       </form>
     </Shell>

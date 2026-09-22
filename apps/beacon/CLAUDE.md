@@ -71,7 +71,7 @@ URL and one would be wrong in the emulator and in previews.
 
 The project's first unauthenticated callables. `describeInvite` is a read-only lookup
 (`{ email, name, expiresAt }`); `redeemInvite` burns the token and sets the password through
-the Admin SDK. Both share one `loadInvite` so the validity rules cannot drift.
+the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot drift.
 
 - **The token hash IS the document id** (`memberInvites/{sha256hex(token)}`), so there is no
   secret comparison anywhere, the lookup is bounded by construction, and the collection cannot
@@ -87,12 +87,23 @@ the Admin SDK. Both share one `loadInvite` so the validity rules cannot drift.
   billable write per request. `rate-limit.ts` bounds memory too (LRU, 2048 buckets) — a flood
   of distinct tokens is exactly what would otherwise grow one bucket per token.
   **The honest ceiling is per-INSTANCE**, times however many are warm, bounded by
-  `maxInstances: 10`; a cold start resets the buckets. Never quote it as a global figure.
+  `maxInstances: 10`; a cold start resets the buckets. Never quote it as a global figure — and
+  note that "times however many are warm" is headroom for LEGITIMATE traffic only. It does NOT
+  apply to the denial threshold: a refusal is in flight for microseconds, so a flood barely
+  moves Cloud Run's concurrency signal and the pool stays near one instance well past the point
+  where onboarding is already down. (CPU utilization is a separate autoscaling signal that a
+  big enough flood does trip — so treat one instance as a conservative floor, not a guarantee.)
   The endpoint-wide bucket has SHARED FATE — exhausting it refuses everyone — so it is sized
-  to bound cost (~12k reads/min worst case), not availability, which `maxInstances` already
-  bounds. It was 60/min and that was wrong: it tripped ~3 orders of magnitude below the 800
-  concurrent slots it nominally protected, making a total onboarding outage ~100x cheaper to
-  cause than saturating the pool.
+  to bound cost, not availability, which `maxInstances` already bounds: ~1,200 reads/min on one
+  instance (600 admitted calls x at most two keyed reads), ~12k across a saturated pool of ten.
+  It was 60/min and that was wrong: ONE sustained request per second from a single source
+  denied every invitee, far cheaper than saturating the pool it nominally protected. The
+  denial threshold is now ~10 req/s — `INVITE_GLOBAL_DENIAL_PER_SECOND`, derived, not typed.
+  CANONICAL for every figure here: the `globalPerMinute` docblock in
+  `packages/types/src/member-invite.ts`. A tripwire test in `redeem-invite.test.ts` pins the
+  derived values and lists every prose site that restates them, this bullet included — retune
+  the ceiling and it stops you with the list. The request-rate alert in
+  `docs/firebase-setup.md` is set just under the denial point.
 - **App Check is NOT enforced on these two yet** (`enforceAppCheck: false`) — a deliberate
   deploy-ordering hold with its own PR, not an oversight. Enforcement is per-PRODUCT, and the
   backstage web app's registration for **Cloud Functions** is unconfirmed; flipping it before

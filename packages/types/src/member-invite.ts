@@ -48,14 +48,47 @@ export const INVITE_RATE_LIMITS = {
    *  FATE: exhausting it refuses every invitee, not just the caller who exhausted it.
    *
    *  Sized to bound COST, not availability, because availability is already bounded by
-   *  `maxInstances` — and a tight ceiling here is actively harmful. At 60 this tripped roughly
-   *  three orders of magnitude below the 800 concurrent slots it nominally protects, so ~10
-   *  requests/second from a single source denied every invitee on the only onboarding path in
-   *  the product: the limiter made a total outage about 100x cheaper to cause than saturating
-   *  the instance pool. 600 keeps the cost bound that matters (~12k Firestore reads/minute
-   *  worst case, against a per-request cost of one keyed read of a nonexistent document) while
-   *  putting the denial threshold near 100 requests/second — some 30x above any burst this
-   *  chapter could generate, since it issues a handful of invites a week.
+   *  `maxInstances` — and a tight ceiling here is actively harmful. At 60 this tripped at
+   *  roughly ONE sustained request/second from a single source, which denied every invitee on
+   *  the only onboarding path in the product: the limiter made a total outage far cheaper to
+   *  cause than saturating the instance pool it nominally protects.
+   *
+   *  THE COST BOUND, stated PER INSTANCE because that is where the bucket lives: 600 admitted
+   *  calls/minute times at most two keyed reads each — `loadValidInvite` reads the invite, then
+   *  the member — is ~1,200 Firestore reads/minute on one instance. A flood of random tokens
+   *  costs one read apiece rather than two, since an unknown token resolves to a nonexistent
+   *  document and returns there. The whole-deployment figure multiplies by `maxInstances`,
+   *  which lives in `apps/beacon/src/redeem-invite.ts` and cannot be seen from this package —
+   *  quoting it here as though it were the single-instance number is exactly what an earlier
+   *  draft did, and it is the same multiply the next paragraph refutes. Beacon owns it.
+   *
+   *  DO NOT read "per instance" as headroom that multiplies by `maxInstances` when sizing the
+   *  DENIAL threshold. An earlier version put it near 100 req/s on that reasoning — the same
+   *  arithmetic that made 60 look survivable — and the real figure is about 10 req/s
+   *  sustained, the floor being one warm instance's 600/min.
+   *
+   *  The reason a flood does not simply buy itself more instances is LATENCY, not the absence
+   *  of I/O. Cloud Run's concurrency signal is in-flight requests over the concurrency limit,
+   *  and a refusal is in flight for microseconds, so by Little's law it takes thousands of
+   *  requests per second to make a dent in 80 slots. State it that way and not as "a refusal
+   *  touches no Firestore", which would equally "prove" that any zero-I/O endpoint has
+   *  infinite headroom.
+   *
+   *  And NOT "never scales out": CPU utilization is an independent autoscaling signal, and a
+   *  refusal is still TLS termination, JSON parsing and event-loop work. A large enough flood
+   *  does add instances and does raise the aggregate ceiling — but that is already far past
+   *  the point where onboarding is down, so ~10 req/s remains the number to alert on. It is a
+   *  conservative FLOOR, not a guarantee, and `docs/firebase-setup.md` sets the request-rate
+   *  alert just under it. Still far above a chapter that issues a handful of invites a week,
+   *  but it is a total outage of the only onboarding path when it does trip, and it lands on
+   *  legitimate invitees whose own per-token budgets are untouched.
+   *
+   *  The fix that would remove shared fate entirely, deliberately NOT taken here: charge this
+   *  bucket only on the UNKNOWN/malformed-token outcomes and raise the cap well above 600. A
+   *  holder of a valid token could then never be refused by it, while an enumeration flood is
+   *  still cut. The cost is moving one keyed read ahead of the global decision, which is
+   *  exactly what `rate-limit.ts`'s header argues against — so it is a design change with its
+   *  own PR, not a tweak smuggled in beside a ceiling retune.
    *
    *  Deleting it outright was considered and rejected: `maxInstances` bounds CONCURRENCY, not
    *  sustained throughput, so it is a weak cost bound on its own. This is the only control in
@@ -74,6 +107,26 @@ export const INVITE_RATE_LIMITS = {
  *  interval. DERIVED, never typed out — this is the number the invite page's copy promises. */
 export const INVITE_RETRY_AFTER_SECONDS =
   INVITE_RATE_LIMITS.windowMs / INVITE_RATE_LIMITS.perTokenPerMinute / 1000;
+
+/** Sustained requests/second at which the endpoint-wide bucket starts refusing EVERY invitee,
+ *  on one warm instance. DERIVED for the same reason `INVITE_RETRY_AFTER_SECONDS` is: this
+ *  figure was hand-written into prose in six places and was wrong in all six, twice. Its
+ *  sibling — the one constant that WAS derived and tripwired — has never been wrong.
+ *
+ *  A conservative FLOOR, not a guarantee: see `globalPerMinute` above for why a flood does not
+ *  simply buy itself more instances, and why "never scales out" would overstate it. */
+export const INVITE_GLOBAL_DENIAL_PER_SECOND =
+  INVITE_RATE_LIMITS.globalPerMinute / (INVITE_RATE_LIMITS.windowMs / 1000);
+
+/** Firestore reads/minute the endpoint-wide bucket admits on ONE instance: every admitted call
+ *  costs at most two keyed reads (`loadValidInvite` reads the invite, then the member).
+ *
+ *  Deliberately NOT the whole-deployment figure. That one multiplies by `maxInstances`, which
+ *  is a Cloud Functions option living in `apps/beacon/src/redeem-invite.ts` and invisible from
+ *  here — a docblock in this package cannot derive or verify it, which is exactly how an
+ *  earlier draft came to quote the saturated-pool number as if it were this one. Beacon owns
+ *  that figure, and a test there pins it. */
+export const INVITE_GLOBAL_READS_PER_MINUTE = INVITE_RATE_LIMITS.globalPerMinute * 2;
 
 export type InviteKind = "initial" | "recovery";
 

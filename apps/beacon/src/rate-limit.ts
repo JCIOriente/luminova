@@ -10,9 +10,11 @@
  *  Not "no I/O, ever", which an earlier draft of this comment claimed and which was false: the
  *  caller emits a Cloud Logging line, and log ingestion is a billed write to a Google service
  *  on an attacker-reachable path. It stays inside the free tier even at full flood, so the
- *  consequence is signal rather than cost — 60 refusals/min/instance would bury the stream the
- *  monitoring alert has to read — which is why the caller SAMPLES those lines through
- *  `shouldLogRefusal` instead of writing one per refusal.
+ *  consequence is signal rather than cost: a flood is refused at whatever rate it arrives, so
+ *  one line per refusal would bury the stream an operator has to read — which is why the
+ *  caller SAMPLES those lines through `shouldLogRefusal` instead of writing one per refusal.
+ *  The sampling is also why those lines are evidence and never a rate: capped at one per gate
+ *  per instance per interval, they look identical at 11 req/s and at 11,000.
  *
  *  WHAT THIS DOES NOT PREVENT, stated here rather than only in a test. The endpoint-wide
  *  bucket is shared fate: a caller who can sustain its rate denies every legitimate invitee,
@@ -22,8 +24,19 @@
  *  oversight: the alternative is either a tight per-token-only limiter that does not bound a
  *  distinct-token flood at all, or a per-source key, which needs a trustworthy client address
  *  that Cloud Run does not give us (see `redeem-invite.ts`). What makes it acceptable is that
- *  the outage is observable — hence the throttle-rate alert in docs/firebase-setup.md — and
- *  that the refusal is cheap enough not to also cost money.
+ *  the outage is observable — hence the request-rate alert in docs/firebase-setup.md, set just
+ *  BELOW this bucket's ceiling (8 req/s against `INVITE_GLOBAL_DENIAL_PER_SECOND`) rather than
+ *  above it — and that the refusal is cheap enough not to also cost money.
+ *
+ *  CANONICAL for every figure in this paragraph: the `globalPerMinute` docblock in
+ *  `packages/types/src/member-invite.ts`. Restate numbers from there, never re-derive them
+ *  here — a tripwire in `redeem-invite.test.ts` lists each site that quotes them.
+ *
+ *  "Below the ceiling" buys WARNING, not prevention, and how much warning depends on the rate:
+ *  the alert needs one full 60 s aligned point plus its duration, so ~2 minutes at best. At
+ *  11 req/s the burst tolerance puts the first refusal ~10 minutes out and the alert lands well
+ *  ahead of it; at 50 req/s refusals start within ~15 s and the alert is a post-mortem. It is a
+ *  detector, not a guard. The guard is the ceiling itself.
  *
  *  WHAT THIS DOES AND DOES NOT BOUND. State lives in ONE instance's memory. The honest ceiling
  *  is therefore "`capacity` per window PER INSTANCE, times however many instances are warm" —
