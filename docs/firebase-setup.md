@@ -606,8 +606,10 @@ it in a copy dialog with its expiry.
    changed rendering, an env list that did not load) matches nothing and reads as "clean". The
    script parses the JSON and treats an empty env list as a failure to verify, not a pass. Its
    arms are covered by fixtures in `.github/scripts/assert-deployed-env-clean.test.mjs`
-   (`pnpm test:ci-scripts`): a missing service is tolerated with a warning, while a permission
-   error, a wrong region or an unparseable response fail.
+   (`pnpm test:ci-scripts`): a permission error or an unparseable response fail, and a missing
+   service is tolerated with a warning — one absent service says nothing about the other. But
+   if **no** service can be read the job fails, because then nothing was verified at all. That
+   is also what catches a wrong region, which looks exactly like every service being absent.
 
    **It checks THREE variables, not one.** `FUNCTIONS_EMULATOR` is what our own code keys on,
    but `FIREBASE_DEBUG_MODE` (and `FIREBASE_DEBUG_FEATURES` carrying `skipTokenVerification`)

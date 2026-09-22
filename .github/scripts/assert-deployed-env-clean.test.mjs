@@ -173,9 +173,22 @@ test("FAILS when the container has no env key at all", () => {
   assert.equal(r.status, 2);
 });
 
+/** THE REAL not-found output, read out of the installed SDK rather than imagined.
+ *
+ *  `lib/surface/run/services/describe.py:114` raises
+ *  `exceptions.ArgumentError('Cannot find service [{}]')` — reachable because
+ *  `command_lib/run/serverless_operations.py` `GetService` returns `None` on
+ *  `HttpNotFoundError` — and calliope prints it with the `ERROR: (<command>)` prefix.
+ *  Verified against Cloud SDK 577.0.0.
+ *
+ *  This fixture carried invented text ("NOT_FOUND: Resource not found") in its first version,
+ *  and the script's regex was written to match THAT. Both tests below passed while the arm
+ *  they cover could never fire against real gcloud — a fixture agreeing with the code about a
+ *  third party neither had consulted. The literal stays here, spelled as the tool spells it,
+ *  so the next edit to the regex has something real to disagree with. */
 const GONE = {
   fail: true,
-  stderr: "ERROR: (gcloud.run.services.describe) NOT_FOUND: Resource not found",
+  stderr: "ERROR: (gcloud.run.services.describe) Cannot find service [describeinvite]",
 };
 
 test("FAILS when NO service could be checked, even though each miss is tolerated", () => {

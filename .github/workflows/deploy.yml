@@ -195,6 +195,13 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      # gcloud is NOT installed by firebase-setup. `google-github-actions/auth` writes ADC and
+      # exports the credential override, but installs no CLI. ubuntu-24.04 does ship the Cloud
+      # SDK today — the runner-images readme lists Google Cloud CLI 583.0.0 — so the assert
+      # step below would run without this. Pinned anyway: the day that image detail changes,
+      # the failure is every functions release failing AFTER the functions are already live.
+      # A guard is not allowed to depend on something we neither pin nor control (guardrail #6).
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
       # firebase.json `predeploy` runs `pnpm turbo run build --filter beacon`.
       # --force skips the gen2 delete-confirmation prompt under --non-interactive.
       - name: Deploy functions (beacon)

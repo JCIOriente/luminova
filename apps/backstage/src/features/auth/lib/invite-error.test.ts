@@ -151,9 +151,10 @@ describe("inviteRefusal — copy and affordance cannot contradict", () => {
       if (refusal.message === null) continue;
       if (!/int[ée]ntalo de nuevo|vuelve a intentarlo/i.test(refusal.message)) continue;
       checked += 1;
-      expect(refusal.recovery.kind, `${reason} tells them to retry but offers no button`).not.toBe(
-        "none",
-      );
+      expect(
+        refusal.recovery.kind,
+        `${reason} tells them to act but offers no affordance at all`,
+      ).not.toBe("none");
     }
     // The loop must actually have asserted something. Without this a copy edit that drops
     // every "inténtalo de nuevo" turns this into a green test that checks nothing.

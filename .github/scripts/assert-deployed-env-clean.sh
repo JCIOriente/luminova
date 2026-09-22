@@ -50,11 +50,11 @@ if [ -z "${ENV_PROBE:-}" ]; then
   # A MISSING BINARY IS A WIRING BUG, not a runtime condition, so it fails hard here rather
   # than falling into the tolerant "couldn't check" arm below.
   #
-  # `firebase-setup` installs Node, pnpm and firebase-tools and runs google-github-actions/auth
-  # — which writes ADC only; it does NOT install the CLI, and no setup-gcloud runs. So this
-  # depends on the runner image, checked rather than assumed: the ubuntu-24.04 image readme in
-  # actions/runner-images lists "Google Cloud CLI 583.0.0". If that ever stops being true this
-  # must be loud on the first run, not a green check over an assertion that stopped running.
+  # `firebase-setup` installs Node, pnpm and firebase-tools and runs google-github-actions/auth,
+  # which writes ADC only and installs no CLI — so deploy.yml runs a pinned setup-gcloud before
+  # the step that calls this. ubuntu-24.04 also ships the SDK today, which makes this check
+  # belt-and-braces rather than load-bearing; it stays because the message it prints is the
+  # difference between a five-minute fix and a confusing post-deploy failure.
   command -v gcloud >/dev/null 2>&1 || {
     echo "::error::gcloud is not on PATH, so the deployed env was never read. Add google-github-actions/setup-gcloud to this job." >&2
     exit 2
@@ -82,10 +82,19 @@ for svc in "$@"; do
     err="$(cat "$stderr_file")"
     rm -f "$stderr_file"
     # ONLY a missing service is tolerated, and only as a warning. Everything else — a revoked
-    # permission, a wrong region, a typo'd service name, an API outage — FAILS. A tolerant
-    # catch-all would leave this assertion permanently silent under a green check, which is
-    # the exact "guard that gates nothing" failure this step was written to replace.
-    if printf '%s' "$err" | grep -qE 'NOT_FOUND|could not be found|does not exist'; then
+    # permission, a typo'd service name, an API outage — FAILS. A tolerant catch-all would
+    # leave this assertion permanently silent under a green check, which is the exact "guard
+    # that gates nothing" failure this step was written to replace.
+    #
+    # THE PATTERN IS THE TOOL'S ACTUAL WORDING, not a guess at it. `gcloud run services
+    # describe` does NOT say "NOT_FOUND" for an absent service: `GetService` swallows the
+    # HttpNotFoundError and returns None, and `lib/surface/run/services/describe.py:114` then
+    # raises `Cannot find service [<name>]` (Cloud SDK 577.0.0). The first version of this
+    # regex matched only NOT_FOUND-ish spellings, so this arm — and the all-absent rule below
+    # that depends on it — could never fire in production, while the fixtures passed because
+    # they carried the same invented text. NOT_FOUND is kept as a second alternative because
+    # the raw API and other surfaces do use it; "Cannot find service" is the one that fires.
+    if printf '%s' "$err" | grep -qE 'Cannot find service|NOT_FOUND'; then
       echo "::warning::$svc does not exist in $region, so its env was NOT checked. If this deploy was meant to create it, the deploy itself is what to look at."
       unchecked=$((unchecked + 1))
       continue
