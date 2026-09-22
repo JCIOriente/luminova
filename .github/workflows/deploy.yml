@@ -242,10 +242,23 @@ jobs:
             fi
           done
           if [ -n "$found" ]; then
-            echo "::error::FUNCTIONS_EMULATOR is set in a beacon env file. firebase-tools"                  "spreads these into the deployed runtime, which would disable App Check"                  "enforcement on the unauthenticated invite callables in production."
+            # Say what this actually proves. The live arm scans apps/beacon, which is NOT the
+            # directory firebase-tools reads (that is apps/beacon/dist, per the header above),
+            # and dist is wiped by build.mjs before every build. So a hit here is a committed
+            # dotenv that would NOT have reached production — worth removing, but asserting it
+            # was about to disable enforcement contradicts this step's own comment and sends
+            # the reader chasing a production incident that could not have happened.
+            echo "::error::FUNCTIONS_EMULATOR is set in a committed beacon env file. At this path firebase-tools never reads it, so production enforcement was NOT at risk — but remove it: it shadows local intent, and the day firebase.json points at a different functions source it becomes live."
             exit 1
           fi
-          echo "ok: no FUNCTIONS_EMULATOR override in apps/beacon/.env* or apps/beacon/dist/.env*"
+          # Name only what was actually scanned. `apps/beacon/dist` does not exist at this
+          # point in the job (predeploy builds it in the next step), so its arm is skipped —
+          # an unconditional "checked both" line would claim coverage the step did not earn.
+          scanned=""
+          for dir in apps/beacon apps/beacon/dist; do
+            [ -d "$dir" ] && scanned="$scanned $dir/.env*"
+          done
+          echo "ok: no FUNCTIONS_EMULATOR override in${scanned:- (no beacon env directory present)}"
       # firebase.json `predeploy` runs `pnpm turbo run build --filter beacon`.
       # --force skips the gen2 delete-confirmation prompt under --non-interactive.
       - name: Deploy functions (beacon)

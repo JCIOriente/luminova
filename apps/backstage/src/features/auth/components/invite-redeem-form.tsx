@@ -246,8 +246,15 @@ export function InviteRedeemForm({ token }: { token: string }) {
             type="button"
             // Withheld for whatever the refusal asked for: the server's per-token emission
             // interval on a throttled refusal, or the App Check hold on a blocked attestation.
-            // Retrying immediately spends an endpoint-wide slot to fail and teaches the
-            // invitee the button does not work, while the copy above promises a short wait.
+            //
+            // The two waits are NOT withheld for the same reason, and an earlier version of
+            // this comment claimed they were. On a throttled refusal a retry really does
+            // spend an endpoint-wide slot to fail. On the attestation branch it does not:
+            // firebase-functions throws `unauthenticated` above our handler, so the call
+            // never reaches the rate gate and charges nothing. There the cooldown is purely
+            // UX — it stops the invitee hammering a button that cannot work yet and teaching
+            // themselves it is broken, while the copy above promises a short wait. Tune
+            // ATTESTATION_RETRY_AFTER_SECONDS on that basis, not as bucket protection.
             disabled={cooldown > 0}
             onClick={() => void load()}
             className="mt-8"

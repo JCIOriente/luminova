@@ -462,7 +462,16 @@ const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== "true";
 // changes the answer without touching a file. Both failure directions are silent and total on
 // the only onboarding path there is, so the resolved value belongs in Cloud Logging where an
 // operator can grep it. No PII, no secret — one boolean.
-console.info("invite callables: App Check", { enforceAppCheck: ENFORCE_APP_CHECK });
+//
+// PROCESS-WIDE, not invite-specific, and the log line says so rather than implying otherwise.
+// index.ts re-exports these two callables and build.mjs bundles a single dist/index.js, so
+// EVERY beacon service loads this module and emits this line at its own cold start. The line
+// appearing on `onRoleWritten` therefore says nothing about whether the invite callables are
+// enforcing — it reports this container's resolved value, and every container resolves it the
+// same way. Filter by service before drawing a conclusion about the invite path.
+console.info("beacon: App Check enforcement for the invite callables (process-wide value)", {
+  enforceAppCheck: ENFORCE_APP_CHECK,
+});
 
 export const UNAUTHENTICATED_CALL = {
   enforceAppCheck: ENFORCE_APP_CHECK,

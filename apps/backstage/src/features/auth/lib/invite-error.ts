@@ -72,11 +72,26 @@ const RETRYABLE_REASONS: ReadonlySet<string> = new Set<InviteBlockReason>([
  *  blaming the invitee's connection for a failure that is either our misconfiguration or their
  *  browser.
  *
- *  On THESE two callables `unauthenticated` can only mean App Check. They are unauthenticated
- *  by design and never require a session, and firebase-functions raises this code for exactly
- *  three cases: an INVALID auth token, and App Check missing or invalid under enforcement. An
- *  invitee sends no auth token at all, which is MISSING rather than INVALID and does not
- *  throw — so App Check is the only remaining source. */
+ *  On THESE two callables `unauthenticated` is ALMOST always App Check. They are
+ *  unauthenticated by design and never require a session, and firebase-functions raises this
+ *  code for exactly three cases: an INVALID auth token, and App Check missing or invalid under
+ *  enforcement. The ordinary invitee sends no auth token at all, which is MISSING rather than
+ *  INVALID and does not throw — so App Check is the only remaining source for them.
+ *
+ *  THE ONE CASE THIS MIS-DIAGNOSES, stated rather than quietly dropped. `checkAuthToken`
+ *  returns INVALID when `verifyIdToken` throws, and firebase-functions checks auth BEFORE App
+ *  Check, so it wins the race and produces the identical untagged `unauthenticated`. Reaching
+ *  it needs a browser that is ALREADY signed in — an operator testing a link, or a member
+ *  opening one in a tab holding a session the SDK can no longer refresh (revoked, or a deleted
+ *  user). That person then gets ATTESTATION_BLOCKED: reload, try another browser, disable
+ *  extensions, tell the directiva — none of which is the remedy, which is to sign out.
+ *
+ *  Not special-cased here because the client cannot tell the two apart from the error alone,
+ *  and guessing wrong would send a genuinely blocked invitee to sign out of an account they do
+ *  not have. It is rare, it is recoverable, and the operator-facing path in
+ *  docs/firebase-setup.md is where a stuck tester gets diagnosed. If it ever shows up in
+ *  support traffic, the fix is a sign-out clause in ATTESTATION_BLOCKED gated on
+ *  `getAuth().currentUser !== null`, not a broader guess here. */
 function isAttestationRejection(err: unknown): boolean {
   return (err as { code?: unknown } | null | undefined)?.code === "functions/unauthenticated";
 }

@@ -580,7 +580,11 @@ it in a copy dialog with its expiry.
    file exists today. What remains reachable is what a repo grep cannot see: a turbo cache hit
    restoring an unlisted file, a console edit, or a value set directly on the Cloud Run service.
    For those, this end-to-end check and the module-scope `console.info` of the resolved value
-   are what stand between that line and an unprotected endpoint. A `gcloud run services
+   are what stand between that line and an unprotected endpoint. That log line is
+   **process-wide**: `index.ts` re-exports the invite callables into beacon's single bundled
+   entrypoint, so every beacon service emits it at its own cold start. Filter by service before
+   reading it as a statement about the invite path — every container resolves the same value,
+   so seeing it on an unrelated function tells you the build's value, not that function's role. A `gcloud run services
    describe` of the two services will show the resolved env.
 
    **Check for TWO variables there, not one.** `FUNCTIONS_EMULATOR` is what our own code keys
@@ -606,6 +610,15 @@ it in a copy dialog with its expiry.
    If it does fail: hard-code `ENFORCE_APP_CHECK = false` in
    `apps/beacon/src/redeem-invite.ts`, redeploy the two functions, and fix the registration
    before trying again. The rate limiter is independent and keeps working either way.
+
+   **You must flip the pinned assertion in the same commit, or CI blocks the rollback.**
+   `apps/beacon/src/redeem-invite.test.ts` asserts
+   `expect(UNAUTHENTICATED_CALL.enforceAppCheck).toBe(true)` — deliberately, so nobody disables
+   enforcement by accident. During a real outage that guard is between you and restoring
+   onboarding: `pnpm --filter beacon ci` goes red and the PR is blocked. Change both files
+   together and say in the commit message that it is a deliberate temporary rollback, then
+   revert both once the registration is fixed. Flip the assertion to `false` rather than
+   deleting it — a deleted assertion is how enforcement silently never comes back.
 
    **Local development is unaffected.** Enforcement is keyed on `FUNCTIONS_EMULATOR`, which the
    functions emulator sets and the deploy-time discovery run does not — so `/invitacion` works
