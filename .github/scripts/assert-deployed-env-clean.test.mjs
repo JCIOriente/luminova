@@ -82,6 +82,10 @@ test("FAILS on FUNCTIONS_EMULATOR — the variable our own enforcement keys on",
   );
   assert.equal(r.status, 1);
   assert.match(r.out, /::error::describeinvite has FUNCTIONS_EMULATOR set/);
+  // And it must NOT also print an "ok" line for the same service. That line used to be
+  // unconditional, so a dirty service logged both — the exit code was still 1, but a reader
+  // scanning the log found the service declared clean by name.
+  assert.doesNotMatch(r.out, /ok: describeinvite/);
   // The remedy must name the SERVICE. Nothing in the checkout put this there, so sending the
   // reader to the repo — or to the ENFORCE_APP_CHECK rollback recipe, which is for a
   // different problem entirely — wastes the only minutes that matter.
@@ -169,28 +173,54 @@ test("FAILS when the container has no env key at all", () => {
   assert.equal(r.status, 2);
 });
 
+const GONE = {
+  fail: true,
+  stderr: "ERROR: (gcloud.run.services.describe) NOT_FOUND: Resource not found",
+};
+
+test("FAILS when NO service could be checked, even though each miss is tolerated", () => {
+  // THE FAIL-OPEN THE PER-SERVICE TOLERANCE OPENS, found by the security review. `region`
+  // defaults to us-central1 on the script's own stated assumption that beacon sets no region
+  // and calls no setGlobalOptions. The day a callable gets one, BOTH describes return
+  // NOT_FOUND, every miss is tolerated, and the deploy goes green having verified nothing —
+  // the exact "guard that gates nothing" this branch exists to remove.
+  //
+  // Tolerating ONE absent service is still right: it says nothing about the other. Verifying
+  // NOTHING is not a tolerable outcome, it is the check having silently stopped running.
+  const r = run(
+    { describeinvite: GONE, redeeminvite: GONE },
+    ["describeinvite", "redeeminvite"],
+    "all-gone",
+  );
+  assert.equal(r.status, 2);
+  assert.match(r.out, /no service was actually checked/i);
+});
+
 test("TOLERATES a missing service, and says the env was not checked", () => {
   // The one condition that is not this check's business: if the service does not exist there
   // is no deployed env to read, and the deploy itself is what to look at. Warned, not failed.
   const r = run(
-    {
-      describeinvite: {
-        fail: true,
-        stderr: "ERROR: (gcloud.run.services.describe) NOT_FOUND: Resource not found",
-      },
-    },
-    ["describeinvite"],
+    { describeinvite: GONE, redeeminvite: { env: CLEAN } },
+    ["describeinvite", "redeeminvite"],
     "notfound",
   );
   assert.equal(r.status, 0);
   assert.match(r.out, /::warning::describeinvite does not exist/);
   assert.match(r.out, /NOT checked/);
+  // Paired with a service that WAS read: one absent service says nothing about the other, so
+  // the run still verified something. The all-absent case above is the one that did not.
+  assert.match(r.out, /ok: redeeminvite/);
 });
 
 test("FAILS on a permission error instead of tolerating it", () => {
-  // The distinction the whole failure arm turns on. A revoked role, a wrong region or an API
-  // outage must not be swallowed by the missing-service tolerance, or this assertion goes
-  // permanently silent under a green check — the precise failure mode it replaces.
+  // The distinction the whole failure arm turns on. A revoked role or an API outage must not
+  // be swallowed by the missing-service tolerance, or this assertion goes permanently silent
+  // under a green check — the precise failure mode it replaces.
+  //
+  // A WRONG REGION is deliberately NOT in that list, though an earlier version of this comment
+  // claimed it was: a wrong region surfaces as NOT_FOUND, which this arm tolerates. It is
+  // caught by the all-absent rule two tests up instead — which is the only thing that can
+  // catch it, since every service looks equally missing from the wrong region.
   const r = run(
     {
       describeinvite: {

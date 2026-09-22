@@ -48,9 +48,13 @@ fi
 
 if [ -z "${ENV_PROBE:-}" ]; then
   # A MISSING BINARY IS A WIRING BUG, not a runtime condition, so it fails hard here rather
-  # than falling into the tolerant "couldn't check" arm below. ubuntu-24.04 ships the Google
-  # Cloud SDK; the day it does not, this must be loud on the first run instead of a green
-  # check over an assertion that silently stopped running.
+  # than falling into the tolerant "couldn't check" arm below.
+  #
+  # `firebase-setup` installs Node, pnpm and firebase-tools and runs google-github-actions/auth
+  # — which writes ADC only; it does NOT install the CLI, and no setup-gcloud runs. So this
+  # depends on the runner image, checked rather than assumed: the ubuntu-24.04 image readme in
+  # actions/runner-images lists "Google Cloud CLI 583.0.0". If that ever stops being true this
+  # must be loud on the first run, not a green check over an assertion that stopped running.
   command -v gcloud >/dev/null 2>&1 || {
     echo "::error::gcloud is not on PATH, so the deployed env was never read. Add google-github-actions/setup-gcloud to this job." >&2
     exit 2
@@ -70,6 +74,7 @@ probe() {
 
 found=0
 unchecked=0
+checked=0
 
 for svc in "$@"; do
   stderr_file="$(mktemp)"
@@ -108,18 +113,39 @@ print("\n".join(names))
     exit 2
   }
 
+  checked=$((checked + 1))
+  hits=0
   for key in "${BANNED_KEYS[@]}"; do
     if printf '%s\n' "$names" | grep -qx "$key"; then
       # The remedy is the SERVICE, not the repo: nothing in the checkout put this here.
       echo "::error::$svc has $key set on the deployed Cloud Run service. App Check on the unauthenticated invite callables is not enforced. Remove it from the service (gcloud run services update $svc --region=$region --remove-env-vars=$key), find who set it, and redeploy."
       found=$((found + 1))
+      hits=$((hits + 1))
     fi
   done
-  echo "ok: $svc carries none of ${BANNED_KEYS[*]}"
+  # Only when it really is clean. This line used to print unconditionally, so a service that
+  # had just been reported dirty also got an "ok" line naming it — the exit code was still 1,
+  # but a reader scanning the log found the service declared clean by name.
+  if [ "$hits" -eq 0 ]; then
+    echo "ok: $svc carries none of ${BANNED_KEYS[*]}"
+  fi
 done
 
 if [ "$found" -gt 0 ]; then
   exit 1
+fi
+# TOLERATING EACH MISS IS NOT THE SAME AS TOLERATING ALL OF THEM. One absent service says
+# nothing about the other, so it is a warning. Zero services read means this assertion verified
+# NOTHING and reported success — a guard that gates nothing, which is the failure mode the step
+# it replaced actually had.
+#
+# The reachable cause is the region. `region` defaults to us-central1 on the stated assumption
+# that beacon sets no `region` and calls no `setGlobalOptions`; the day a callable gets one,
+# every describe here returns NOT_FOUND and every miss is individually excusable. Fail instead,
+# so the assumption is corrected rather than silently outlived.
+if [ "$checked" -eq 0 ]; then
+  echo "::error::no service was actually checked (all $unchecked absent from $region), so App Check enforcement was NOT verified. If a callable now sets a region, pass GCP_REGION; otherwise look at whether the deploy created these services at all." >&2
+  exit 2
 fi
 if [ "$unchecked" -gt 0 ]; then
   echo "note: $unchecked service(s) could not be checked — see the warnings above."
