@@ -191,14 +191,29 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
     expect(refusal.retryAfterSeconds).toBeGreaterThan(0);
   });
 
+  it("names a RELOAD — the only remedy that clears a 24 h App Check throttle", () => {
+    // Not decoration. A 403 from the token exchange (the unregistered-product case, i.e. the
+    // BLOCKING owner-op) makes @firebase/app-check set a 24 h backoff on the provider
+    // instance, and `throwIfThrottled` runs before any exchange is attempted — so Reintentar
+    // cannot succeed for the rest of the day no matter what an owner fixes in the console.
+    // Only a reload builds a new provider. Without this line the copy would promise a retry
+    // that silently cannot work, which is the dead end the retry was added to avoid.
+    const refusal = inviteRefusal(attestationFailure);
+    expect(refusal.message).toMatch(/recarga la p[áa]gina/i);
+  });
+
   it("tells them to try later FIRST, then gives the escape hatch for the permanent cause", () => {
     // Both halves are load-bearing. "Try later" alone traps the person running a content
     // blocker in a loop that never resolves; the browser remedies alone send someone whose
     // problem is a five-minute console fix away for good.
     const refusal = inviteRefusal(attestationFailure);
-    expect(refusal.message).toMatch(/de nuevo en un momento/i);
-    expect(refusal.message).toMatch(/navegador/i);
-    expect(refusal.message).toMatch(/extensi[óo]n|extensiones/i);
+    const ordered = refusal.message ?? "";
+    expect(ordered).toMatch(/de nuevo en un momento/i);
+    expect(ordered).toMatch(/navegador/i);
+    expect(ordered).toMatch(/extensi[óo]n|extensiones/i);
+    // Retry before reload before browser: cheapest working remedy first.
+    expect(ordered.indexOf("recarga")).toBeGreaterThan(ordered.indexOf("de nuevo"));
+    expect(ordered.indexOf("navegador")).toBeGreaterThan(ordered.indexOf("recarga"));
     // The operator is the LAST resort, not the first instruction — they cannot unblock an
     // extension, so naming them early would be advice that does not work.
     const message = refusal.message ?? "";

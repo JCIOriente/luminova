@@ -208,9 +208,12 @@ jobs:
       # reads for this project.
       #
       # `dist/` is gitignored AND wiped by `apps/beacon/build.mjs` before every build, which
-      # `predeploy` runs — so a committed override cannot reach the path that matters. That
-      # makes this step belt-and-braces over both directories rather than the real control:
-      # it catches a stray committed dotenv early and cheaply, and nothing more.
+      # `predeploy` runs — so a committed override cannot reach the path that matters. Note
+      # what that means for THIS step honestly: it runs before the deploy, so `apps/beacon/dist`
+      # does not exist yet and only the `apps/beacon` arm ever actually scans anything. The
+      # dist arm is there for the case where a future change builds earlier in the job, not
+      # because it fires today. What this step really buys is catching a stray committed
+      # dotenv early and cheaply. That is all — it is not the control.
       #
       # THE REAL CONTROLS are downstream and cover the vectors a repo grep cannot see (a
       # console edit, a value set on the Cloud Run service, a turbo cache hit restoring an

@@ -83,37 +83,45 @@ function isAttestationRejection(err: unknown): boolean {
 
 /** How long to withhold the retry on a blocked attestation.
  *
- *  This branch used to offer NO retry at all, on the reasoning that attestation failure is
- *  permanent. That reasoning was written while `enforceAppCheck` was false, when the only
- *  reachable cause was a browser blocking reCAPTCHA v3 — genuinely permanent for as long as it
- *  stays blocked. Turning enforcement ON adds two causes that are NOT permanent and are, in
- *  the days around this deploy, the LIKELIER ones: the per-product registration gap
- *  `docs/firebase-setup.md` flags as BLOCKING, which an owner fixes in the console while the
- *  invitee is still on the page, and a transient failure to mint a token (reCAPTCHA slow or
- *  briefly unreachable). Withholding the retry sends someone whose problem clears in a minute
- *  away for good.
+ *  This branch used to offer NO retry, on the reasoning that attestation failure is permanent.
+ *  That was written while `enforceAppCheck` was false, when a browser blocking reCAPTCHA v3
+ *  was the only reachable cause. Enforcement adds two causes that a retry DOES clear:
  *
- *  Not `0`: an immediate button invites hammering an endpoint that, in the misconfigured case,
- *  cannot succeed yet — and teaches the invitee the button does not work. Not the rate-limit
- *  interval either, which is a different server's different promise; this one is ours, so it
- *  gets its own name rather than borrowing INVITE_RETRY_AFTER_SECONDS and silently inheriting
- *  a retune of the server's refill rate. */
+ *    - `recaptcha-error` — the grecaptcha script failed to load or execute. Thrown before the
+ *      token exchange is attempted and sets no backoff at all, so the next attempt is clean.
+ *    - a non-403/404 `fetch-status-error` — a 5xx or a blip from the exchange endpoint. The
+ *      SDK's own backoff here is `calculateBackoffMillis(0, 1000, 2)`, about a second.
+ *
+ *  15 s comfortably covers both. Not `0`, which invites hammering and teaches the invitee the
+ *  button does not work; not the rate-limit interval, which is the server's promise about a
+ *  different mechanism — so this gets its own name rather than inheriting a retune of
+ *  `INVITE_RETRY_AFTER_SECONDS`.
+ *
+ *  WHAT 15 s DOES NOT CLEAR, and the reason the copy below names a reload. The per-product
+ *  registration gap — the BLOCKING owner-op in `docs/firebase-setup.md` — surfaces as a 403
+ *  from the token exchange, and `@firebase/app-check`'s `setBackoff` special-cases 403/404
+ *  with a TWENTY-FOUR HOUR `allowRequestsAfter`. `throwIfThrottled` is the first statement of
+ *  `ReCaptchaV3Provider.getToken()`, and the throttle lives on the provider instance
+ *  `initAppCheck` creates once per page load — so for the rest of that day this tab never even
+ *  attempts an exchange, and `getToken` returns a DUMMY token rather than throwing, which the
+ *  server rejects identically. An owner fixing the console sixty seconds later changes nothing
+ *  for that tab. Only a reload builds a new provider. */
 const ATTESTATION_RETRY_AFTER_SECONDS = 15;
 
-/** Both remedies, in the order the causes are likely, and deliberately silent about
- *  connections — blaming the invitee's network is the mis-attribution this branch exists to
- *  fix.
+/** Every remedy that can actually work, in the order their causes are likely, and deliberately
+ *  silent about connections — blaming the invitee's network is the mis-attribution this branch
+ *  exists to fix.
  *
- *  "Inténtalo de nuevo en un momento" FIRST, because the transient and misconfigured causes
- *  now dominate and both clear on their own. The browser remedies stay, because for the person
- *  running a content blocker waiting is a trap: a "try later" with no escape hatch would loop
- *  them forever, which is exactly the dead end the old copy avoided and the new copy must not
- *  reintroduce. The operator is named LAST and only as the final fallback — they cannot fix a
- *  blocked extension, and a fresh link would not help either. */
+ *  Retry first: it clears the two transient causes and costs nothing. THEN the reload, because
+ *  it is the only thing that clears a 24 h App Check throttle (see above) — and that is the
+ *  state an invitee lands in during the exact window this feature is riskiest, between the
+ *  enforcement deploy and the console registration. Then the browser remedies, for the person
+ *  running a content blocker, for whom waiting is a trap with no exit. The operator is LAST:
+ *  they cannot unblock an extension, and a fresh link would not help either. */
 const ATTESTATION_BLOCKED =
-  "No pudimos completar la verificación de seguridad. Inténtalo de nuevo en un momento. " +
-  "Si sigue fallando, prueba con otro navegador o desactiva las extensiones que bloquean " +
-  "contenido — y si aun así no funciona, avisa a la directiva.";
+  "No pudimos completar la verificación de seguridad. Inténtalo de nuevo en un momento y, " +
+  "si sigue fallando, recarga la página. Si el problema continúa, prueba con otro navegador " +
+  "o desactiva las extensiones que bloquean contenido, y avisa a la directiva.";
 
 /** The headline above the message.
  *

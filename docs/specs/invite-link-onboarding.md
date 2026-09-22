@@ -245,7 +245,8 @@ provisions reCAPTCHA.
 > it is that App Check enforcement is per-PRODUCT, and the backstage app's registration for
 > Cloud Functions is the one remaining owner-op. Left standing rather than rewritten because
 > this section records what was believed when the decision was made.
- What we do instead: both callables are declared
+
+What we do instead: both callables are declared
 `onCall({ enforceAppCheck: false, maxInstances: 10 }, …)` with a comment naming G4, so the flip is
 one boolean and is greppable, and `redeemInvite` is added to the G4 checklist as the first function
 to flip. **Cost when it is flipped:** a reCAPTCHA v3 round-trip on an unauthenticated page, and a

@@ -244,9 +244,10 @@ export function InviteRedeemForm({ token }: { token: string }) {
           <Button
             as="button"
             type="button"
-            // Withheld for the per-token emission interval on a throttled refusal. Retrying
-            // immediately spends an endpoint-wide slot to fail, and teaches the invitee the
-            // button does not work — while the copy right above promises "unos segundos".
+            // Withheld for whatever the refusal asked for: the server's per-token emission
+            // interval on a throttled refusal, or the App Check hold on a blocked attestation.
+            // Retrying immediately spends an endpoint-wide slot to fail and teaches the
+            // invitee the button does not work, while the copy above promises a short wait.
             disabled={cooldown > 0}
             onClick={() => void load()}
             className="mt-8"
