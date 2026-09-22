@@ -1,0 +1,37 @@
+{
+  // Typechecks the TEST files, which `tsconfig.json` excludes so `build` emits only src.
+  //
+  // That exclusion is why three of PR #227's defects reached production green: a test file can
+  // reference a type that does not exist, call a function with the wrong arity, or bind a fake
+  // to a stale hand-copied shape, and nothing fails. Two real examples this config caught the
+  // day it was added: `const spied: ProvisionDeps` named a type that exists nowhere (so four
+  // spread-and-override fakes were unchecked objects with implicitly-any parameters), and
+  // `issueInvite(deps, "m1", false)` put `false` on the `issuedBy: string` parameter while the
+  // admin flag it meant to set came out false only via its default.
+  //
+  // `exclude` is an allowlist in reverse ON PURPOSE: a NEW test file is typechecked by
+  // default, and the debt below is visible and finite. Shrink this list; never grow it.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // `String.prototype.isWellFormed` is ES2024 and `firestore-util.test.ts` asserts it
+    // directly. Beacon runs on Node 24, which has it; only the shared base `lib` (ES2023, set
+    // for the browser apps) lags. Raised here rather than in `tsconfig.json` so production
+    // beacon code stays honest about the baseline it shares with the frontends.
+    "lib": ["ES2024"]
+  },
+  "include": ["src"],
+  "exclude": [
+    // Pre-existing `readonly`/mutable fixture mismatches — `as const` fixtures passed to
+    // parameters typed as mutable arrays, plus `.push`/`.sort` on a `readonly` array. 40-odd
+    // errors, all in the claims-sync and notifications surfaces, none of them in this
+    // change's blast radius. The real fix is widening those production signatures to
+    // `readonly` (a function that does not mutate should not demand a mutable array), which
+    // is its own change in its own subsystem.
+    "src/claims-sync/firestore-deps.test.ts",
+    "src/claims-sync/resolve-member-perms.test.ts",
+    "src/claims-sync/role-docs.emulator.test.ts",
+    "src/claims-sync/sync.test.ts",
+    "src/notifications/send.emulator.test.ts"
+  ]
+}

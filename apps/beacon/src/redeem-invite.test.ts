@@ -7,6 +7,7 @@ import {
   type ClaimStatus,
   type InviteDoc,
   type RedeemDeps,
+  type RedeemUser,
 } from "./redeem-invite.js";
 
 const NOW = 1_700_000_000_000;
@@ -32,7 +33,7 @@ function inviteDoc(over: Partial<InviteDoc> = {}): InviteDoc {
 function fakeDeps(opts: {
   invite?: InviteDoc | null;
   member?: Record<string, unknown> | null;
-  user?: { uid: string; disabled?: boolean; customClaims?: Record<string, unknown> } | null;
+  user?: RedeemUser | null;
   positions?: Record<string, Role[]>;
   setPasswordThrows?: Error;
   /** Forces the CLAIM TRANSACTION to lose, independently of the pre-read — the only way to

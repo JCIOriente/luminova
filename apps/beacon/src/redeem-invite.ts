@@ -27,7 +27,11 @@ export interface InviteDoc {
   status: InviteStatus;
 }
 
-interface RedeemUser {
+/** Exported so test fakes bind to the PORT instead of hand-copying its shape. The private
+ *  version drifted: a fake's local copy omitted `email`, so the three account-address tests
+ *  passed an excess property that only ran correctly because test files were excluded from
+ *  typecheck. */
+export interface RedeemUser {
   uid: string;
   /** The ACCOUNT's own address, which the console can change independently of the member doc. */
   email?: string;
