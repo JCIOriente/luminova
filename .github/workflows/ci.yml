@@ -91,7 +91,10 @@ jobs:
       # script against the real tree and is part of `pnpm pr-tests`. Two earlier drafts of this
       # comment got this wrong in opposite directions — one claimed a CI cache restore made the
       # arm live (there is none), the next claimed `pr-tests` already covered it (it ran only
-      # the fixtures, never the script). It does now, because the script was wired in.
+      # the fixtures, never the script). It does now — verified by running the chain and seeing
+      # this guard's own output in it, which also required moving `pnpm audit` to the END of
+      # `pr-tests`: it fails repo-wide on transitive advisories, and every step after it was
+      # being skipped.
       #
       # So what this step actually catches is a committed `apps/beacon/.env*` — a file
       # firebase-tools never reads for this project, which is why it is a hygiene signal and not

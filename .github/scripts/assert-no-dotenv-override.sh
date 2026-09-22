@@ -17,7 +17,10 @@
 # turbo cache is configured in GitHub CI, so on that runner the arm scans a freshly built dist
 # and cannot fire. It fires on a DEVELOPER MACHINE, where a cache hit can restore `dist/**`
 # without re-running the build — which is why `pnpm guard:beacon-dotenv` runs this script
-# against the real tree as part of `pnpm pr-tests`. Do not call the dist arm a CI control; the
+# against the real tree as part of `pnpm pr-tests`. That chain runs `pnpm audit` LAST for this
+# reason: audit fails repo-wide on transitive advisories, and while it sat mid-chain every `&&`
+# after it — this guard and all three node test suites — was silently skipped. Do not move it
+# back. Do not call the dist arm a CI control either; the
 # CI-live arm is `apps/beacon/.env*`, a hygiene signal, and the real control is the post-deploy
 # assertion in deploy.yml.
 #

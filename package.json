@@ -23,7 +23,7 @@
     "test:harness": "node --test \".claude/hooks/**/*.test.mjs\"",
     "test:ci-scripts": "node --test \".github/scripts/**/*.test.mjs\"",
     "guard:beacon-dotenv": "bash .github/scripts/assert-no-dotenv-override.sh apps/beacon apps/beacon/dist",
-    "pr-tests": "pnpm format && turbo run ci && pnpm knip && pnpm audit --audit-level=high && pnpm test:seed && pnpm test:harness && pnpm test:ci-scripts && pnpm guard:beacon-dotenv",
+    "pr-tests": "pnpm format && turbo run ci && pnpm knip && pnpm test:seed && pnpm test:harness && pnpm test:ci-scripts && pnpm guard:beacon-dotenv && pnpm audit --audit-level=high",
     "seed:emulator": "FIRESTORE_EMULATOR_HOST=127.0.0.1:4010 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:4030 node tools/scripts/seed-emulator.mjs",
     "seed:production": "node tools/scripts/seed-production.mjs",
     "audit:soft-delete-shapes": "node tools/scripts/audit-soft-delete-shapes.mjs",
