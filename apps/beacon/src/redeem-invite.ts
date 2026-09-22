@@ -434,13 +434,33 @@ export async function redeemInviteFor(
  *  `/invitacion` — the one route a developer most needs to exercise, and the only onboarding
  *  path in the product — impossible to run against the emulator.
  *
- *  KEYED ON `FUNCTIONS_EMULATOR`, verified rather than assumed: firebase-tools sets it only in
- *  the emulator (`functionsEmulator.js`: `envs.FUNCTIONS_EMULATOR = "true"`), while the
- *  deploy-time discovery run that resolves these options sets `FUNCTIONS_CONTROL_API` and NOT
- *  this. So a real deploy resolves this to `true`. That is load-bearing and silent if it ever
- *  changes, so a test pins BOTH branches — enforcing under the emulator breaks local
- *  onboarding, and failing to enforce in production removes the control. */
+ *  KEYED ON `FUNCTIONS_EMULATOR`, and the reason it is safe is stronger than "the discovery
+ *  run sets a different variable". The discovery run is IRRELEVANT: `enforceAppCheck` is never
+ *  serialized into the deploy manifest at all — `v2/options.js` `optionsToEndpoint` copies
+ *  only omit, concurrency, minInstances, maxInstances, ingressSettings, labels, timeoutSeconds
+ *  and cpu. This value is read IN-PROCESS at container cold start
+ *  (`common/providers/https.js`), where `FUNCTIONS_EMULATOR` is unset because only the
+ *  emulator sets it (`functionsEmulator.js`: `envs.FUNCTIONS_EMULATOR = "true"`). So no
+ *  build-time process can affect it, and production resolves `true`.
+ *
+ *  The one thing that CAN change it is the deployed container's own environment — a dotenv
+ *  file firebase-tools spreads in, or a value set on the Cloud Run service. That is what the
+ *  log line below is for, and why the CI guard alone is not the control.
+ *
+ *  Fail-closed and it must stay that way: ABSENCE of the variable means ENFORCE. Do not
+ *  "improve" this into a positive check for a production marker like `K_SERVICE`, which would
+ *  fail OPEN the day that variable is renamed. A test pins BOTH branches — enforcing under the
+ *  emulator breaks local onboarding, and failing to enforce in production removes the
+ *  control. */
 const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== "true";
+
+// One line per cold start, and the ONLY signal that reports what the deployed container
+// actually decided. Everything else — the unit tests, the CI dotenv guard — inspects the repo,
+// and the repo is not where this can go wrong: a console edit or a service-level env var
+// changes the answer without touching a file. Both failure directions are silent and total on
+// the only onboarding path there is, so the resolved value belongs in Cloud Logging where an
+// operator can grep it. No PII, no secret — one boolean.
+console.info("invite callables: App Check", { enforceAppCheck: ENFORCE_APP_CHECK });
 
 export const UNAUTHENTICATED_CALL = {
   enforceAppCheck: ENFORCE_APP_CHECK,

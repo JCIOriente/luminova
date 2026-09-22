@@ -237,7 +237,15 @@ initializes App Check only `if (siteKey)`, reading `VITE_APPCHECK_SITE_KEY`; `do
 records G4 as 🟡 — "client code scaffolded … Remaining = infra: provision key, set env, flip
 enforcement", and `:379` lists it under "Owner ops (not PRs)". **The keys do not exist in
 production.** Setting `enforceAppCheck: true` here would 403 every redemption until an owner
-provisions reCAPTCHA. What we do instead: both callables are declared
+provisions reCAPTCHA.
+
+> **SUPERSEDED — see Amendment 2.** The bolded claim above is false: the production reCAPTCHA
+> site key *does* exist in `apps/backstage/.env.production`, and the quoted roadmap text has
+> since been corrected. Enforcement is now ON in the code. The real blocker was never the key —
+> it is that App Check enforcement is per-PRODUCT, and the backstage app's registration for
+> Cloud Functions is the one remaining owner-op. Left standing rather than rewritten because
+> this section records what was believed when the decision was made.
+ What we do instead: both callables are declared
 `onCall({ enforceAppCheck: false, maxInstances: 10 }, …)` with a comment naming G4, so the flip is
 one boolean and is greppable, and `redeemInvite` is added to the G4 checklist as the first function
 to flip. **Cost when it is flipped:** a reCAPTCHA v3 round-trip on an unauthenticated page, and a
@@ -935,12 +943,13 @@ the same policy the checklist renders.
    Auditable, not prevented.
 2. **The password crosses beacon in plaintext** (Q1a). TLS-protected, never logged, but it is in
    function memory and in any future request-body capture. Closing this means Q1b and the IAM grant.
-3. **App Check is not enforced on the unauthenticated callables.** Still true as of this change
-   — but ~~the keys do not exist (roadmap G4)~~ **was the wrong reason**, see Amendment 2:
-   `apps/backstage/.env.production` carries a real `VITE_APPCHECK_SITE_KEY`. What actually holds
-   the flip is that enforcement is per-PRODUCT and the backstage app's registration for Cloud
-   Functions is unconfirmed — a blocking owner-op, not a code change. The code is one boolean
-   away; until it is flipped these two endpoints accept requests from any origin.
+3. ~~**App Check is not enforced on the unauthenticated callables.** The keys do not exist
+   (roadmap G4). The code is one boolean away; the infra is an owner-op.~~ **FIXED in this
+   design** — see Amendment 2. Enforcement is ON in production (off under the emulator, or
+   `/invitacion` would be unrunnable locally). The stated reason was false too:
+   `apps/backstage/.env.production` carries a real `VITE_APPCHECK_SITE_KEY`. What actually held
+   it is that enforcement is per-PRODUCT, so the backstage app's registration for Cloud
+   Functions is now a BLOCKING pre-deploy owner-op rather than a code change.
 4. ~~**No rate limiting beyond `maxInstances`.** Deliberate (Q3). If abuse ever materialises, the
    right fix is Cloud Armor or an App Check flip, not a Firestore counter.~~ **FIXED in this
    design** — see Amendment 2. Both callables now carry an in-process GCRA limiter: a per-token
