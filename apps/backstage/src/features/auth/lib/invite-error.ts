@@ -124,7 +124,10 @@ const RATE_LIMIT_RETRY_AFTER_SECONDS = INVITE_RETRY_AFTER_SECONDS;
  *  An UNTAGGED failure is retryable (a network blip), a tagged one only if its reason is in
  *  `RETRYABLE_REASONS`. Returned together so a caller cannot take the message and decide
  *  retryability by its own rule. */
-export interface InviteRefusal {
+/** Not exported: the only consumer is `inviteRefusal` below, and its call site infers the
+ *  return type. An exported name nothing imports is dead weight `knip` cannot see, because
+ *  types erase before it looks. */
+interface InviteRefusal {
   message: string | null;
   /** Headline to render above `message`. Never "Enlace no válido" unless the link truly is. */
   heading: string;
