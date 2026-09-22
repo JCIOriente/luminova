@@ -69,6 +69,29 @@ jobs:
         run: pnpm format
       - if: steps.code.outputs.run == 'true'
         run: pnpm turbo run lint typecheck build
+      # The repo half of the App Check enforcement guard, and ONLY the repo half: the deployed
+      # services are asserted after every release in deploy.yml, which is where a console edit
+      # or a service-level env var can be seen at all. This catches the one thing a checkout
+      # can hold — a committed dotenv that sets FUNCTIONS_EMULATOR, which would ship the two
+      # unauthenticated invite callables with App Check disabled.
+      #
+      # IT RUNS AFTER THE BUILD DELIBERATELY. firebase-tools resolves the dotenv directory from
+      # the functions SOURCE, not the repo path (`env.js` uses `opts.configDir ||
+      # opts.functionsSource`, and firebase.json declares `"source": "apps/beacon/dist"`), so
+      # `apps/beacon/dist/.env*` is what reaches the deployed runtime. In the deploy job this
+      # same scan ran BEFORE predeploy built dist, so the arm that mattered never executed. Here
+      # the build above has already run — including a turbo cache restore, the one path that can
+      # put an unlisted file in dist — so both arms are live.
+      #
+      # The `(export)?` mirrors firebase-tools' own LINE_RE (`^\s*(?:export)?\s*([\w./]+)\s*=`),
+      # which accepts the shell `export FOO=bar` spelling as an ordinary assignment. Without it
+      # this grep missed a line the parser honours. `[[:space:]]*` rather than `+` for the same
+      # reason: the parser's `\s*` is optional there too, so even `exportFUNCTIONS_EMULATOR=true`
+      # reads as that key. `-s` suppresses grep's complaint when the `.env*` glob matches
+      # nothing, which is the normal case.
+      - if: steps.code.outputs.run == 'true'
+        name: Guard — no FUNCTIONS_EMULATOR override in a beacon env file
+        run: bash .github/scripts/assert-no-dotenv-override.sh apps/beacon apps/beacon/dist
       # Initial-chunk gzip budgets (docs/performance.md §2). Runs after build so
       # apps/*/dist is present; fails the gate on a breach.
       - if: steps.code.outputs.run == 'true'
@@ -93,6 +116,11 @@ jobs:
       # class. Gate them like any other guard (guardrail #6, claim == reality).
       - if: steps.code.outputs.run == 'true'
         run: pnpm test:harness
+      # Same reasoning one layer out: the post-deploy App Check assertion runs once per
+      # release against real services, so its fixtures are the only thing that exercises its
+      # failure arms before they matter (guardrail #6, claim == reality).
+      - if: steps.code.outputs.run == 'true'
+        run: pnpm test:ci-scripts
 
   emulator:
     name: emulator
