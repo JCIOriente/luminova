@@ -44,9 +44,23 @@ export const INVITE_RATE_LIMITS = {
    *  redemption is one `describeInvite` on load plus one `redeemInvite` on submit; five leaves
    *  room for a reload and a retry. */
   perTokenPerMinute: 5,
-  /** Calls per minute per INSTANCE, endpoint-wide. The flood bound, and the one with shared
-   *  fate — see `rate-limit.ts` for the trade it accepts. */
-  globalPerMinute: 60,
+  /** Calls per minute per INSTANCE, endpoint-wide. The flood bound, and the one with SHARED
+   *  FATE: exhausting it refuses every invitee, not just the caller who exhausted it.
+   *
+   *  Sized to bound COST, not availability, because availability is already bounded by
+   *  `maxInstances` — and a tight ceiling here is actively harmful. At 60 this tripped roughly
+   *  three orders of magnitude below the 800 concurrent slots it nominally protects, so ~10
+   *  requests/second from a single source denied every invitee on the only onboarding path in
+   *  the product: the limiter made a total outage about 100x cheaper to cause than saturating
+   *  the instance pool. 600 keeps the cost bound that matters (~12k Firestore reads/minute
+   *  worst case, against a per-request cost of one keyed read of a nonexistent document) while
+   *  putting the denial threshold near 100 requests/second — some 30x above any burst this
+   *  chapter could generate, since it issues a handful of invites a week.
+   *
+   *  Deleting it outright was considered and rejected: `maxInstances` bounds CONCURRENCY, not
+   *  sustained throughput, so it is a weak cost bound on its own. This is the only control in
+   *  the design that bounds total reads over time. */
+  globalPerMinute: 600,
   /** Distinct token buckets held per instance: a HARD memory bound, because a flood of
    *  distinct tokens is exactly what would otherwise grow one bucket per token. */
   tokenBuckets: 2048,

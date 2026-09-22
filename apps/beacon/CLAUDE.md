@@ -78,8 +78,8 @@ the Admin SDK. Both share one `loadInvite` so the validity rules cannot drift.
   be enumerated. A guess resolves to a nonexistent document.
 - **Rate-limited IN PROCESS, never in Firestore.** 5 calls/min per token **per callable** —
   each has its own gate, so a link gets 5 `describeInvite` AND 5 `redeemInvite` a minute
-  (tight, and it can only ever refuse the token being hammered) — plus 60/min endpoint-wide
-  per callable (generous — the key that
+  (tight, and it can only ever refuse the token being hammered) — plus 600/min endpoint-wide
+  per callable (deliberately generous — the key that
   actually bounds a flood, since every random token gets a fresh per-token bucket). Consulted
   before ANY read, so a refusal costs an integer comparison. It writes nothing on purpose:
   `describeInvite` is two keyed reads and zero writes, so a counter doc would make the limiter
@@ -88,6 +88,11 @@ the Admin SDK. Both share one `loadInvite` so the validity rules cannot drift.
   of distinct tokens is exactly what would otherwise grow one bucket per token.
   **The honest ceiling is per-INSTANCE**, times however many are warm, bounded by
   `maxInstances: 10`; a cold start resets the buckets. Never quote it as a global figure.
+  The endpoint-wide bucket has SHARED FATE — exhausting it refuses everyone — so it is sized
+  to bound cost (~12k reads/min worst case), not availability, which `maxInstances` already
+  bounds. It was 60/min and that was wrong: it tripped ~3 orders of magnitude below the 800
+  concurrent slots it nominally protected, making a total onboarding outage ~100x cheaper to
+  cause than saturating the pool.
 - **App Check IS enforced in production, and deliberately NOT under the emulator**
   (`enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true"`). firebase-functions enforces
   this ITSELF — a request with no `X-Firebase-AppCheck` header is rejected before the

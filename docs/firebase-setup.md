@@ -439,7 +439,7 @@ it in a copy dialog with its expiry.
   **and the time**, on the Bolivian clock — at this window a bare date is not precise enough to
   act on, since a link shared at 23:00 Monday dies at 23:00 Wednesday.
 - **Both callables are rate-limited**: per link, 5 calls/min to *each* callable (so 5 to open
-  the page plus 5 to submit), and 60/min endpoint-wide, held in the function instance's memory
+  the page plus 5 to submit), and 600/min endpoint-wide, held in the function instance's memory
   (nothing is written to Firestore). An invitee who reloads the page
   repeatedly can see *"Demasiados intentos. Espera unos segundos"* — this is **not** a broken
   link and needs no operator action. The budget refills one slot every 12 s. The ceiling is per
@@ -549,19 +549,19 @@ it in a copy dialog with its expiry.
    Copy the channel id (`projects/jci-oriente/notificationChannels/NNNN`).
 
    **b) The alert policy.** Fires when either callable is invoked far above the chapter's real
-   rate. JCI Oriente issues a handful of invites a week, so sustained double-digit
+   rate. JCI Oriente issues a handful of invites a week, so sustained triple-digit
    requests-per-second is by definition not members onboarding:
 
    ```bash
    gcloud monitoring policies create \
      --project=jci-oriente \
      --display-name="Invite callables: abnormal request rate" \
-     --condition-display-name="describeInvite/redeemInvite > 10 req/s for 5 min" \
+     --condition-display-name="describeInvite/redeemInvite > 50 req/s for 5 min" \
      --condition-filter='metric.type="run.googleapis.com/request_count"
        resource.type="cloud_run_revision"
        resource.label."service_name"=monitoring.regex.full_match("describeinvite|redeeminvite")' \
      --aggregation='{"alignmentPeriod":"60s","perSeriesAligner":"ALIGN_RATE","crossSeriesReducer":"REDUCE_SUM","groupByFields":["resource.label.service_name"]}' \
-     --if=10 \
+     --if=50 \
      --duration=300s \
      --trigger-count=1 \
      --combiner=OR \

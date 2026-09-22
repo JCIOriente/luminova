@@ -654,17 +654,26 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
     expect(INVITE_RATE_LIMITS.perTokenPerMinute).toBe(5);
   });
 
-  it("admits 60 calls per minute endpoint-wide — well above any legitimate burst", async () => {
+  it("admits 600 calls per minute endpoint-wide — far above any legitimate burst", async () => {
+    // Raised from 60 deliberately. At 60 the bucket tripped ~3 orders of magnitude below the
+    // 800 concurrent slots it nominally protects, which meant ~10 req/s from ONE attacker
+    // denied every invitee on the only onboarding path — the limiter made a total outage
+    // roughly 100x cheaper to cause than saturating the instance pool. 600 keeps a real cost
+    // bound (~12k Firestore reads/min worst case) while putting the denial threshold at
+    // ~100 req/s, about 30x above any plausible legitimate burst.
     const gate = createRateGate();
     let admitted = 0;
     while (gate.admitGlobal(NOW)) admitted += 1;
-    expect(admitted).toBe(60);
+    expect(admitted).toBe(600);
     // The global ceiling must stay STRICTLY ABOVE the per-token one. If they were equal, five
     // invitees opening links in the same minute would exhaust the endpoint and the sixth
     // would be refused with no abuse at all — a self-inflicted outage on the only onboarding
     // path there is.
-    expect(INVITE_RATE_LIMITS.globalPerMinute).toBeGreaterThan(
-      INVITE_RATE_LIMITS.perTokenPerMinute,
+    // Not merely greater — ORDERS greater. If the endpoint ceiling sat anywhere near the
+    // per-token one, a handful of invitees opening links together would exhaust it with no
+    // abuse at all, and the refusal would land on real people with no operator remedy.
+    expect(INVITE_RATE_LIMITS.globalPerMinute).toBeGreaterThanOrEqual(
+      INVITE_RATE_LIMITS.perTokenPerMinute * 100,
     );
   });
 

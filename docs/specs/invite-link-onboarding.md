@@ -1001,8 +1001,8 @@ the limiter bounds *how often*.** A standard App Check token lives ~30 minutes a
 so harvesting one from the public `/invitacion` and flooding with it stays open with enforcement
 on — which is why neither replaces the other.
 
-**The limiter** is in-process and writes nothing. 5 calls/min per token, 60/min endpoint-wide,
-consulted before any I/O.
+**The limiter** is in-process and writes nothing. 5 calls/min per token per callable, 600/min
+endpoint-wide per callable, consulted before any I/O.
 
 - *Why no Firestore.* `describeInvite` is two keyed reads and zero writes. A counter doc would make
   the limiter more expensive than the endpoint it protects and hand an unauthenticated caller a
@@ -1011,9 +1011,14 @@ consulted before any I/O.
 - *Why two keys.* The per-token bucket is tight because it is structurally incapable of refusing a
   different invitee. It is also near-useless against the case that threatens availability — a flood
   of distinct random tokens, where every token gets a fresh bucket — so the endpoint-wide bucket is
-  the one that actually bounds a flood, and it is sized generously on purpose: a 5/min endpoint
-  budget would be a self-inflicted outage, exhausted by three invites opened in the same minute
-  plus a reload and a retry, with the refusal landing on real invitees and no operator remedy.
+  the one that actually bounds a flood, and it has SHARED FATE, so its sizing matters in both
+  directions. A 5/min endpoint budget would be a self-inflicted outage, exhausted by three
+  invites opened in the same minute plus a reload and a retry. The 60/min it first shipped with
+  was still wrong the other way: it tripped roughly three orders of magnitude below the 800
+  concurrent slots it nominally protected, so ~10 req/s from one source denied every invitee —
+  making a total onboarding outage ~100x cheaper to cause than saturating the pool. 600 bounds
+  what `maxInstances` cannot (sustained read COST, ~12k reads/min worst case) and puts denial
+  near 100 req/s, ~30x above any burst this chapter can generate.
 - *Why not per-IP.* Google's own documentation conflicts on which `X-Forwarded-For` entry is
   trustworthy for a direct `run.app` invocation — the Cloud Functions header reference says the
   first entry is "generally" the client, while the load-balancer documentation states that anything
