@@ -64,44 +64,56 @@ const RETRYABLE_REASONS: ReadonlySet<string> = new Set<InviteBlockReason>([
   "invite-too-many-attempts",
 ]);
 
-/** An App Check rejection, which is NOT a network problem and NOT retryable.
+/** An App Check rejection: NOT a network problem, and not something a NEW LINK can fix.
  *
  *  firebase-functions enforces `enforceAppCheck` itself and rejects a call whose App Check
  *  token is missing or invalid with `unauthenticated` and NO `details.reason`. Without this
- *  branch such a rejection fell through to the untagged case and rendered "revisa tu conexión"
- *  beside a Reintentar button that could never succeed — blaming the invitee's connection for a
- *  failure that is either our misconfiguration or their browser.
+ *  branch such a rejection fell through to the untagged case and rendered "revisa tu conexión",
+ *  blaming the invitee's connection for a failure that is either our misconfiguration or their
+ *  browser.
  *
  *  On THESE two callables `unauthenticated` can only mean App Check. They are unauthenticated
  *  by design and never require a session, and firebase-functions raises this code for exactly
  *  three cases: an INVALID auth token, and App Check missing or invalid under enforcement. An
  *  invitee sends no auth token at all, which is MISSING rather than INVALID and does not
- *  throw — so App Check is the only remaining source.
- *
- *  THAT DESCRIBES THE FLIP, NOT THIS BRANCH. `enforceAppCheck` is still false in
- *  `apps/beacon/src/redeem-invite.ts`, so today BOTH App Check cases are unreachable and the
- *  only way to land here is the INVALID-token case the paragraph above sets aside: an operator
- *  or a signed-in member opening an invite link in a browser still holding a stale backstage
- *  session. Rare, since the SDK refreshes ID tokens on its own — and the copy is a defensible
- *  dead end either way, because neither a wait nor a fresh link clears it. This ships ahead of
- *  the flip on purpose, so the bundle already renders an honest message before enforcement can
- *  produce one. Read the `console.error` below with the same caveat: until the flip it names a
- *  cause it cannot actually have observed.
- *
- *  Two ways to reach it, and the second is permanent rather than a deploy slip: the
- *  per-product registration gap `docs/firebase-setup.md` flags as BLOCKING, and any browser
- *  that blocks reCAPTCHA v3 — a privacy extension, a blocked `google.com`, a corporate proxy —
- *  for as long as it stays blocked. `packages/firebase/src/app-check.ts` hard-wires
- *  `ReCaptchaV3Provider`, so there is no fallback attestation path. */
+ *  throw — so App Check is the only remaining source. */
 function isAttestationRejection(err: unknown): boolean {
   return (err as { code?: unknown } | null | undefined)?.code === "functions/unauthenticated";
 }
 
-/** Deliberately actionable and deliberately silent about connections. Waiting cannot help, and
- *  neither can a new link, so the copy must not send them to the operator for a fresh one. */
+/** How long to withhold the retry on a blocked attestation.
+ *
+ *  This branch used to offer NO retry at all, on the reasoning that attestation failure is
+ *  permanent. That reasoning was written while `enforceAppCheck` was false, when the only
+ *  reachable cause was a browser blocking reCAPTCHA v3 — genuinely permanent for as long as it
+ *  stays blocked. Turning enforcement ON adds two causes that are NOT permanent and are, in
+ *  the days around this deploy, the LIKELIER ones: the per-product registration gap
+ *  `docs/firebase-setup.md` flags as BLOCKING, which an owner fixes in the console while the
+ *  invitee is still on the page, and a transient failure to mint a token (reCAPTCHA slow or
+ *  briefly unreachable). Withholding the retry sends someone whose problem clears in a minute
+ *  away for good.
+ *
+ *  Not `0`: an immediate button invites hammering an endpoint that, in the misconfigured case,
+ *  cannot succeed yet — and teaches the invitee the button does not work. Not the rate-limit
+ *  interval either, which is a different server's different promise; this one is ours, so it
+ *  gets its own name rather than borrowing INVITE_RETRY_AFTER_SECONDS and silently inheriting
+ *  a retune of the server's refill rate. */
+const ATTESTATION_RETRY_AFTER_SECONDS = 15;
+
+/** Both remedies, in the order the causes are likely, and deliberately silent about
+ *  connections — blaming the invitee's network is the mis-attribution this branch exists to
+ *  fix.
+ *
+ *  "Inténtalo de nuevo en un momento" FIRST, because the transient and misconfigured causes
+ *  now dominate and both clear on their own. The browser remedies stay, because for the person
+ *  running a content blocker waiting is a trap: a "try later" with no escape hatch would loop
+ *  them forever, which is exactly the dead end the old copy avoided and the new copy must not
+ *  reintroduce. The operator is named LAST and only as the final fallback — they cannot fix a
+ *  blocked extension, and a fresh link would not help either. */
 const ATTESTATION_BLOCKED =
-  "Tu navegador bloqueó la verificación de seguridad, así que no pudimos abrir el enlace. " +
-  "Prueba con otro navegador, desactiva las extensiones que bloquean contenido, o avisa a la directiva.";
+  "No pudimos completar la verificación de seguridad. Inténtalo de nuevo en un momento. " +
+  "Si sigue fallando, prueba con otro navegador o desactiva las extensiones que bloquean " +
+  "contenido — y si aun así no funciona, avisa a la directiva.";
 
 /** The headline above the message.
  *
@@ -193,9 +205,17 @@ export function inviteRefusal(err: unknown): InviteRefusal {
     return {
       message: ATTESTATION_BLOCKED,
       heading: HEADINGS.blocked,
-      retryAfterSeconds: null,
+      retryAfterSeconds: ATTESTATION_RETRY_AFTER_SECONDS,
     };
   }
   // Untagged: a network blip. Retryable, and NOT the link's fault.
   return { message: null, heading: HEADINGS.blocked, retryAfterSeconds: 0 };
+}
+
+/** The submit path's renderer. Routed through `inviteRefusal` rather than
+ *  a message-only reader so the attestation branch surfaces on BOTH paths — `redeemInvite` is
+ *  rejected exactly the same way as `describeInvite`, and a form that fell back to "no se pudo
+ *  guardar tu contraseña" would hide the real cause at the last step. */
+export function inviteErrorMessage(err: unknown, fallback: string): string {
+  return inviteRefusal(err).message ?? fallback;
 }
