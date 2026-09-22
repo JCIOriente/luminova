@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
+import { UNAUTHENTICATED_CALL } from "./redeem-invite.js";
 import { createFirestoreStore, parseInitiativeWrite } from "./award-points/firestore-store.js";
 import { syncActivityCheckInFlag } from "./award-points/activity-lock.js";
 import { checkInActivityIds, validateCheckIn } from "./award-points/check-in.js";
@@ -475,3 +476,19 @@ export { setUserRoles } from "./set-user-roles.js";
 export { seedRoles, recomputeAllClaims, reseedBuiltInRolePerms } from "./recompute-claims.js";
 export { issueMemberInvite } from "./issue-member-invite.js";
 export { describeInvite, redeemInvite } from "./redeem-invite.js";
+
+// HERE, not in redeem-invite.ts, because this is a PROCESS-wide fact and this is the process.
+// build.mjs bundles every trigger into one dist/index.js, so this module is loaded by every
+// beacon container and the line is emitted once per cold start of each. Stated from the
+// entrypoint it is simply true; stated from the invite module it invited the reader to take
+// it as that service's own verdict, and needed a paragraph of caveat to walk that back.
+//
+// It is the ONLY signal reporting what a deployed container actually resolved. Everything
+// else — the unit tests, the CI dotenv guard — inspects the repo, and the repo is not where
+// this can go wrong: a console edit or a service-level env var changes the answer without
+// touching a file. Both failure directions are silent and total on the only onboarding path
+// there is. Read from UNAUTHENTICATED_CALL rather than re-deriving the env, so the line can
+// never disagree with the value the callables actually ship. No PII, no secret — one boolean.
+console.info("beacon: App Check enforcement resolved for the invite callables", {
+  enforceAppCheck: UNAUTHENTICATED_CALL.enforceAppCheck,
+});

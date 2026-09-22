@@ -580,11 +580,10 @@ it in a copy dialog with its expiry.
    file exists today. What remains reachable is what a repo grep cannot see: a turbo cache hit
    restoring an unlisted file, a console edit, or a value set directly on the Cloud Run service.
    For those, this end-to-end check and the module-scope `console.info` of the resolved value
-   are what stand between that line and an unprotected endpoint. That log line is
-   **process-wide**: `index.ts` re-exports the invite callables into beacon's single bundled
-   entrypoint, so every beacon service emits it at its own cold start. Filter by service before
-   reading it as a statement about the invite path — every container resolves the same value,
-   so seeing it on an unrelated function tells you the build's value, not that function's role. A `gcloud run services
+   are what stand between that line and an unprotected endpoint. It is emitted from
+   `apps/beacon/src/index.ts`, beacon's single bundled entrypoint, so every beacon container
+   logs it once at cold start — the value is the build's, identical on every service, and any
+   one of them answers "what did the deployed code resolve?" A `gcloud run services
    describe` of the two services will show the resolved env.
 
    **Check for TWO variables there, not one.** `FUNCTIONS_EMULATOR` is what our own code keys

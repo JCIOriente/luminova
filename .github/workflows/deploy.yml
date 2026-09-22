@@ -224,20 +224,28 @@ jobs:
         run: |
           set -euo pipefail
           found=""
+          scanned=""
           for dir in apps/beacon apps/beacon/dist; do
             [ -d "$dir" ] || continue
-            # -s so a match is reported without the file contents; no `ls` short-circuit,
-            # which is how the earlier version passed vacuously on a missing directory.
+            # ONE pass builds both accumulators. An earlier version walked this same fixed
+            # list twice — once to grep, once to compose the success message — so the list
+            # had to be edited in two places to stay in sync, and a slip would have made the
+            # "ok" line name a directory that was never actually scanned. That is the exact
+            # silent mismatch the rest of this step exists to prevent.
+            scanned="$scanned $dir/.env*"
+            # -s suppresses grep's "No such file or directory" when the .env* glob matches
+            # nothing (bash leaves an unmatched glob literal), which is the normal case here.
+            # -l reports the filename without the contents. Verified that -s alone covers it,
+            # so no 2>/dev/null: a redundant redirect reads as load-bearing to the next editor.
             #
             # The `(export)?` mirrors firebase-tools' own LINE_RE
             # (`^\s*(?:export)?\s*([\w./]+)\s*=`, flags `gms`), which accepts the shell
-            # `export FOO=bar` spelling as an ordinary assignment. Without it this grep
-            # missed a line the parser honours, and FUNCTIONS_EMULATOR is in neither
-            # RESERVED_KEYS nor RESERVED_PREFIXES, so the deploy would not have caught it
-            # either. `[[:space:]]*` rather than `+` for the same reason: the parser's `\s*`
-            # is also optional there, so it reads even `exportFUNCTIONS_EMULATOR=true` as
-            # that key.
-            if grep -rlsE '^[[:space:]]*(export)?[[:space:]]*FUNCTIONS_EMULATOR[[:space:]]*=' "$dir"/.env* 2>/dev/null; then
+            # `export FOO=bar` spelling as an ordinary assignment. Without it this grep missed
+            # a line the parser honours, and FUNCTIONS_EMULATOR is in neither RESERVED_KEYS
+            # nor RESERVED_PREFIXES, so the deploy would not have caught it either.
+            # `[[:space:]]*` rather than `+` for the same reason: the parser's `\s*` is also
+            # optional there, so it reads even `exportFUNCTIONS_EMULATOR=true` as that key.
+            if grep -rlsE '^[[:space:]]*(export)?[[:space:]]*FUNCTIONS_EMULATOR[[:space:]]*=' "$dir"/.env*; then
               found="yes"
             fi
           done
@@ -251,13 +259,6 @@ jobs:
             echo "::error::FUNCTIONS_EMULATOR is set in a committed beacon env file. At this path firebase-tools never reads it, so production enforcement was NOT at risk — but remove it: it shadows local intent, and the day firebase.json points at a different functions source it becomes live."
             exit 1
           fi
-          # Name only what was actually scanned. `apps/beacon/dist` does not exist at this
-          # point in the job (predeploy builds it in the next step), so its arm is skipped —
-          # an unconditional "checked both" line would claim coverage the step did not earn.
-          scanned=""
-          for dir in apps/beacon apps/beacon/dist; do
-            [ -d "$dir" ] && scanned="$scanned $dir/.env*"
-          done
           echo "ok: no FUNCTIONS_EMULATOR override in${scanned:- (no beacon env directory present)}"
       # firebase.json `predeploy` runs `pnpm turbo run build --filter beacon`.
       # --force skips the gen2 delete-confirmation prompt under --non-interactive.
