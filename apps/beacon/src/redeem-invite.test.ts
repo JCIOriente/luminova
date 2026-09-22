@@ -684,47 +684,18 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
     expect(INVITE_RATE_LIMITS.tokenBuckets).toBe(2048);
   });
 
-  it("enforces App Check in production and caps instances", () => {
-    // enforceAppCheck bounds WHO may call; the gate above bounds HOW OFTEN. Both ship,
-    // because a standard App Check token lives ~30 min and is replayable — harvesting one
-    // from the public page and flooding with it is open with enforcement on.
+  it("does NOT enforce App Check yet — a deliberate deploy-ordering hold", () => {
+    // Pinned so the hold is a decision rather than an oversight, and so flipping it is a
+    // visible test change. Enforcement is per-PRODUCT and the backstage app's registration
+    // for Cloud Functions is unconfirmed; enabling it before that is verified fails every
+    // redemption silently, on the only onboarding path there is. It lands in its own PR with
+    // the owner-op and the pre-deploy smoke test, where a bad deploy is recoverable.
     //
-    // FUNCTIONS_EMULATOR is unset here, which is also what a deploy-time discovery run sees,
-    // so this is the value production actually gets.
-    expect(process.env.FUNCTIONS_EMULATOR).toBeUndefined();
-    expect(UNAUTHENTICATED_CALL.enforceAppCheck).toBe(true);
+    // maxInstances is the control that DOES ship here, alongside the rate limiter above:
+    // enforceAppCheck would bound WHO may call, these bound HOW OFTEN and HOW MUCH.
+    expect(UNAUTHENTICATED_CALL.enforceAppCheck).toBe(false);
     expect(UNAUTHENTICATED_CALL.maxInstances).toBe(10);
-  });
-
-  it("disables App Check enforcement UNDER THE EMULATOR, or local /invitacion is unusable", async () => {
-    // `enforceAppCheck` is enforced by firebase-functions ITSELF, not by the App Check
-    // service: a request with no `X-Firebase-AppCheck` header is rejected outright, and the
-    // MISSING branch returns before the FIREBASE_DEBUG_MODE escape, so a debug token cannot
-    // rescue it. Local dev deliberately leaves VITE_APPCHECK_SITE_KEY blank, so the client
-    // sends no header at all — unconditional enforcement would make the ONE route a developer
-    // most needs to exercise impossible to run against the emulator.
-    //
-    // Both branches are pinned because the failure directions are opposite and both silent:
-    // enforcing under the emulator breaks local onboarding, and NOT enforcing in production
-    // removes the control entirely.
-    vi.stubEnv("FUNCTIONS_EMULATOR", "true");
-    vi.resetModules();
-    try {
-      const underEmulator = await import("./redeem-invite.js");
-      expect(underEmulator.UNAUTHENTICATED_CALL.enforceAppCheck).toBe(false);
-      // Everything else must be unchanged — this switch is about App Check alone. The rate
-      // ceilings cannot vary with the environment at all now: they live in @luminova/types,
-      // so the gate this module builds under the emulator is the production gate.
-      expect(underEmulator.UNAUTHENTICATED_CALL.maxInstances).toBe(10);
-      expect(underEmulator.UNAUTHENTICATED_CALL.concurrency).toBe(80);
-      let admitted = 0;
-      const emulatorGate = underEmulator.createRateGate();
-      while (emulatorGate.admitToken("a".repeat(64), NOW)) admitted += 1;
-      expect(admitted).toBe(INVITE_RATE_LIMITS.perTokenPerMinute);
-    } finally {
-      vi.unstubAllEnvs();
-      vi.resetModules();
-    }
+    expect(UNAUTHENTICATED_CALL.concurrency).toBe(80);
   });
 });
 

@@ -1033,21 +1033,21 @@ endpoint-wide per callable, consulted before any I/O.
   hands an evicted key a fresh budget, which is a second reason the endpoint-wide bucket is the
   real control; a test asserts that property so nobody mistakes the LRU for a security boundary.
 
-**App Check** is now enforced. Two claims in the original text were false and are corrected: the
-production reCAPTCHA site key *does* exist, and "/invitacion has no session" was never the blocker
-— attestation is app-level, the route deliberately sits outside the `_auth` layout, and the client
-wires `initAppCheck` on first app acquisition.
+**App Check stays OFF on these two for now** (`enforceAppCheck: false`), and the flip is its
+own PR. Two claims in the original text were false and are corrected — the production reCAPTCHA
+site key *does* exist, and "/invitacion has no session" was never the blocker: attestation is
+app-level, the route deliberately sits outside the `_auth` layout, and the client wires
+`initAppCheck` on first app acquisition.
 
-Enforcement is **off under the emulator** (`FUNCTIONS_EMULATOR`), because firebase-functions
-enforces `enforceAppCheck` itself and rejects a header-less request before any debug-token
-escape — and local dev deliberately has no site key, so the client sends no header. Without
-that carve-out the only onboarding path in the product would be unrunnable locally. Both
-branches are pinned by tests; the two failure directions are opposite and both silent.
+What actually holds it is that **enforcement is per-product**. Cloud Functions must be
+registered for App Check and `/invitacion` tested against a real production build first;
+otherwise every redemption 403s, silently and totally, on the only onboarding path that exists.
+That is a blocking owner-op, so it ships with the flip rather than ahead of it.
 
-**Enforcement is per-product, and that is a blocking pre-deploy step.** Cloud Functions must be
-registered for App Check and `/invitacion` tested against a real production build before this
-deploys; otherwise every redemption 403s, silently and totally, on the only onboarding path that
-exists. The owner-op is in `docs/firebase-setup.md`.
+The client half lands HERE, ahead of the flip, on purpose: `isAttestationRejection` already
+renders an honest message instead of "revisa tu conexión" if enforcement is ever switched on
+from any direction. The rate limiter is independent of all of this and is what this change
+delivers — App Check would bound *who* may call, never *how often*.
 
 `invite-too-many-attempts` joins `INVITE_BLOCK_REASONS`. It is the first **temporary** tagged
 refusal, which invalidated a client invariant: `retryable` was "beacon gave no tagged reason", on

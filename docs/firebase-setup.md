@@ -481,60 +481,7 @@ it in a copy dialog with its expiry.
 
    Deletion is best-effort with up to ~24 h of lag, which is why expiry is never left to it.
 
-3. ***** BLOCKING PRE-DEPLOY: confirm App Check covers Cloud Functions. *****
-
-   `describeInvite` and `redeemInvite` now enforce App Check in production
-   (`enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true"` — off under the emulator, so
-   local `/invitacion` still works; see below). **If the Cloud Functions product is not
-   App-Check-enabled for this project, every redemption fails the moment this deploys** —
-   silently, totally, on the only onboarding path that exists.
-
-   **What it looks like when it breaks**, so you can recognize it: firebase-functions rejects
-   the call with `unauthenticated`, which carries no tagged `reason`. The invite page therefore
-   shows its generic *"No pudimos validar el enlace. Revisa tu conexión e inténtalo de nuevo"*
-   with a retry button that will never succeed. It reads to the invitee — and to whoever they
-   complain to — as a network problem, not a configuration one. Nothing in the operator UI
-   flags it.
-
-   Two earlier claims in the specs were WRONG and are corrected here: the production
-   reCAPTCHA site key *does* exist (`apps/backstage/.env.production` carries a real
-   `VITE_APPCHECK_SITE_KEY`), and "/invitacion has no session" was never the blocker —
-   attestation is app-level, `/invitacion` is deliberately a top-level route outside the
-   `_auth` layout, and the client wires `initAppCheck` on first app acquisition.
-
-   Before deploying:
-
-   1. Firebase Console → **App Check** → confirm the backstage web app is registered with the
-      reCAPTCHA v3 provider, and that **Cloud Functions** appears among its products with
-      enforcement on (enforcement is per-product; Firestore and Storage being on says nothing
-      about Functions).
-   2. Deploy the functions to a **preview or staging** target if one is available, or accept
-      that the first production deploy is the test, and immediately
-   3. **Open `/invitacion#<a real freshly-issued token>` against a real production build** and
-      complete a redemption end to end. Not a local build: the emulator path has no site key,
-      so it cannot exercise attestation at all.
-
-   **One more thing only this smoke test can catch.** Enforcement is keyed on
-   `FUNCTIONS_EMULATOR`, and `firebase-tools` spreads whatever it reads from `apps/beacon/.env`
-   / `.env.<projectId>` into **both** the deploy-time discovery run and the deployed function's
-   environment. So a stray `FUNCTIONS_EMULATOR=true` line in a beacon dotenv would silently
-   disable App Check **in production** — and nothing else would notice: the unit tests pin both
-   branches, but they pin them at test time, never the deployed value. No such file exists today
-   (`apps/beacon/` has no `.env*`, and `.env`/`.env.local` are gitignored). If one is ever added,
-   this end-to-end check is the only thing standing between that line and an unprotected
-   endpoint. A `gcloud run services describe` of the two services will show the resolved env.
-
-   If it does fail: hard-code `ENFORCE_APP_CHECK = false` in
-   `apps/beacon/src/redeem-invite.ts`, redeploy the two functions, and fix the registration
-   before trying again. The rate limiter is independent and keeps working either way.
-
-   **Local development is unaffected.** Enforcement is keyed on `FUNCTIONS_EMULATOR`, which the
-   functions emulator sets and the deploy-time discovery run does not — so `/invitacion` works
-   against the emulator with no site key, while a real deploy still enforces. Do not "fix" this
-   by setting `VITE_APPCHECK_SITE_KEY` in `.env.local`: a production reCAPTCHA key cannot attest
-   `localhost`, so that would break local dev rather than repair it.
-
-4. **Cost and abuse signal on the two callables.**
+3. **Cost and abuse signal on the two callables.**
 
    **Correction to what this document used to promise.** It said "a GCP budget alert on the
    two callables". A **billing budget cannot be scoped to a function** — budgets attach to a
@@ -623,16 +570,16 @@ the branded reset flow:
    `.env.local` blank so local dev runs against the emulators with App Check off.
 3. **Reset action URL** — leave it at the Firebase DEFAULT. The `/reset` route it used to
    point at is deleted; see owner op 1 above.
-4. **`describeInvite` / `redeemInvite` are the FIRST functions with it turned on.** They now
-   declare `enforceAppCheck: true`. The blocker was never the site key (production has one) —
-   it is that enforcement is per-product and **Cloud Functions is still not confirmed enabled**
-   below. That makes confirming it a BLOCKING pre-deploy step, not a follow-up: see owner op 3
-   under "Enlaces de acceso". A misconfigured deploy breaks member onboarding entirely,
-   silently, for everyone.
-5. **Enforcement** — **enabled** for Firestore and Storage. **Cloud Functions: UNCONFIRMED**,
-   and the two invite callables now depend on it. Both frontends send a valid token (backstage
-   via the full SDK, spotlight via `getFirestoreLite`). Only enable enforcement for a product
-   after confirming real traffic carries valid tokens, or you will lock out the app.
+4. **`describeInvite` / `redeemInvite` will be the FIRST functions with it turned on** —
+   but they declare `enforceAppCheck: false` today. The blocker was never the site key
+   (production has one); it is that enforcement is per-product and **Cloud Functions is still
+   not confirmed enabled** below. The flip is deliberately its own PR, with the confirmation
+   step and a pre-deploy smoke test, because a misconfigured deploy breaks member onboarding
+   entirely, silently, for everyone.
+5. **Enforcement** — **enabled** for Firestore and Storage. **Cloud Functions: UNCONFIRMED.**
+   Both frontends send a valid token (backstage via the full SDK, spotlight via
+   `getFirestoreLite`). Only enable enforcement for a product after confirming real traffic
+   carries valid tokens, or you will lock out the app.
 6. **App Check is not a rate limiter, and the invite callables carry both.** A standard App
    Check token lives ~30 minutes and is replayable, so harvesting one from the public
    `/invitacion` page and flooding with it is not prevented by enforcement. `enforceAppCheck`
