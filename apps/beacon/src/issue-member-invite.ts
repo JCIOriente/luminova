@@ -450,7 +450,7 @@ function pendingInviteHash(
 // above, re-checked at redemption. It is auditable, not prevented: the invite records issuedBy
 // and the projection surfaces it to the member themselves.
 export const issueMemberInvite = onCall(async (request) => {
-  requireAdminOrPerm(request, "create:MemberLogin");
+  requireAdminOrPerm(request, "create:MemberLogin", "issueMemberInvite");
   const { memberId } = validateProvisionInput(request.data);
   // requireAdminOrPerm throws `unauthenticated` on a missing auth context, so uid is present.
   const issuedBy = request.auth?.uid ?? "";

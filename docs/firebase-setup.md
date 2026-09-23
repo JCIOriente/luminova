@@ -589,8 +589,9 @@ it in a copy dialog with its expiry.
    one of them answers "what did the deployed code resolve?"
 
    **The deploy now asserts this for you.** `.github/workflows/deploy.yml` runs
-   `.github/scripts/assert-deployed-env-clean.sh describeinvite redeeminvite` straight after
-   `firebase deploy --only functions`, and a hit fails the job — which also holds back
+   `.github/scripts/assert-deployed-env-clean.sh` straight after
+   `firebase deploy --only functions` — with the argument list spelled out in the block below,
+   and nowhere else in this page — and a hit fails the job — which also holds back
    `deploy-hosting`, since it gates on the functions stage. Be clear on what that is worth:
    it **detects, it does not prevent**. The functions are already live when it reads them; what
    it stops is the rest of the release. Run the same script by hand any time:

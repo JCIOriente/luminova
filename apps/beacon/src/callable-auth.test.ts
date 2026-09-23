@@ -182,6 +182,37 @@ describe("the debug bypass defeats these gates entirely, so they refuse first", 
     expect(underBypass(() => codeOf(() => requireAdmin(req())))).toBe("internal");
   });
 
+  it("logs the CALLABLE's name, not the gate's", () => {
+    // Four callables share `requireAdmin`. Keying the refusal log on "requireAdmin" would tell an
+    // operator that something is being hammered without saying which of four destructive
+    // operations is the target — and the sampler is keyed on the same string, so three of them
+    // would also share one slot and go unreported. `loadValidInvite` threads the real name
+    // through for exactly this reason; these gates must match.
+    vi.stubEnv("FIREBASE_DEBUG_MODE", "true");
+    vi.stubEnv("FIREBASE_DEBUG_FEATURES", JSON.stringify({ skipTokenVerification: true }));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(codeOf(() => requireAdmin(req({ roles: ["Admin"] }), "setUserRoles"))).toBe(
+        "internal",
+      );
+      expect(error.mock.calls.at(-1)?.[1]).toEqual({ fn: "setUserRoles" });
+
+      // And the sibling gate, which takes its name in a third position.
+      expect(
+        codeOf(() =>
+          requireAdminOrPerm(
+            req({ perms: ["create:MemberLogin"] }),
+            "create:MemberLogin",
+            "issueMemberInvite",
+          ),
+        ),
+      ).toBe("internal");
+      expect(error.mock.calls.at(-1)?.[1]).toEqual({ fn: "issueMemberInvite" });
+    } finally {
+      error.mockRestore();
+    }
+  });
+
   it("still serves normally when the bypass is inert", () => {
     // The predicate is the real condition, not the presence of the key names: a provably inert
     // FIREBASE_DEBUG_MODE=false must not take the admin surface down.

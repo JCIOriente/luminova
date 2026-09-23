@@ -19,7 +19,7 @@ import { ensureApp, currentTermKey } from "./runtime.js";
 
 /** Admin-only: seed the built-in role docs (idempotent). Run once at rollout. */
 export const seedRoles = onCall(async (request) => {
-  requireAdmin(request);
+  requireAdmin(request, "seedRoles");
   ensureApp();
   const created = await seedBuiltInRoles(getFirestore());
   return { ok: true as const, created };
@@ -62,7 +62,7 @@ export function recomputeClaimsResult(
 export const recomputeAllClaims = onCall(
   { timeoutSeconds: 540, memory: "512MiB" },
   async (request) => {
-    requireAdmin(request);
+    requireAdmin(request, "recomputeAllClaims");
     ensureApp();
     const db = getFirestore();
     const deps = firestoreClaimsDeps(db, getAuth());
@@ -264,7 +264,7 @@ export function planRolePermReseed(snapshots: readonly RoleSnapshot[]): ReseedPl
 export const reseedBuiltInRolePerms = onCall(
   { timeoutSeconds: 120, memory: "512MiB" },
   async (request) => {
-    requireAdmin(request);
+    requireAdmin(request, "reseedBuiltInRolePerms");
     const data = (request.data ?? {}) as { confirm?: unknown; dryRun?: unknown };
     const dryRun = data.dryRun === true;
     if (!dryRun && data.confirm !== RESEED_CONFIRM) {

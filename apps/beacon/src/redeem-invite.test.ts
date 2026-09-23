@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Role } from "@luminova/auth/roles";
 import { hashInviteToken } from "./invite-token.js";
 import {
@@ -779,6 +779,13 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
 });
 
 describe("the invite callables refuse while token verification is bypassed", () => {
+  // Cleanup in ONE place rather than a try/finally per test: three copies each had to remember
+  // both calls. Stubbing stays inline, so what each test controls is still visible where it runs.
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
   // The guard itself, its parity with the real firebase-functions gate, its log sampling and its
   // emulator carve-out are covered in `token-verification-bypass.test.ts`. What belongs HERE is
   // the wiring: that both invite entry points actually reach it, and that they reach it before
@@ -799,9 +806,9 @@ describe("the invite callables refuse while token verification is bypassed", () 
     // BOTH entry points, because both take UNAUTHENTICATED_CALL. Writing one and calling it done
     // is the easy miss here.
     const { deps, calls } = fakeDeps({});
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
     stubBypass();
-    try {
+    {
       // TAGGED, and that is load-bearing on the client: a BARE `internal` is also what an
       // uncaught transient failure produces (a Firestore `unavailable` inside `getInvite`), and
       // the two need opposite affordances — retry now versus never, since this condition lasts as
@@ -810,9 +817,6 @@ describe("the invite callables refuse while token verification is bypassed", () 
       expect(await reasonOf(call(deps))).toBe("invite-service-misconfigured");
       expect(calls.claims).toEqual([]);
       expect(calls.setPassword).toEqual([]);
-    } finally {
-      vi.unstubAllEnvs();
-      error.mockRestore();
     }
   });
 
@@ -841,9 +845,9 @@ describe("the invite callables refuse while token verification is bypassed", () 
         return inviteDoc();
       },
     };
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
     stubBypass();
-    try {
+    {
       expect(await reasonOf(describeInviteFor(deps, { token: TOKEN }))).toBe(
         "invite-service-misconfigured",
       );
@@ -851,9 +855,6 @@ describe("the invite callables refuse while token verification is bypassed", () 
       // and no Firestore read issued.
       expect(consulted).toEqual([]);
       expect(reads).toEqual([]);
-    } finally {
-      vi.unstubAllEnvs();
-      error.mockRestore();
     }
   });
 
@@ -874,13 +875,9 @@ describe("the invite callables refuse while token verification is bypassed", () 
     const { deps } = fakeDeps({});
     vi.stubEnv("FIREBASE_DEBUG_MODE", mode);
     vi.stubEnv("FIREBASE_DEBUG_FEATURES", features);
-    try {
-      await expect(describeInviteFor(deps, { token: TOKEN })).resolves.toMatchObject({
-        email: "ana@jci.bo",
-      });
-    } finally {
-      vi.unstubAllEnvs();
-    }
+    await expect(describeInviteFor(deps, { token: TOKEN })).resolves.toMatchObject({
+      email: "ana@jci.bo",
+    });
   });
 });
 
@@ -897,15 +894,25 @@ describe("the services deploy.yml asserts the environment of", () => {
   const DEPLOY_YML = new URL("../../../.github/workflows/deploy.yml", import.meta.url);
   const SCRIPT = "assert-deployed-env-clean.sh";
 
-  /** The step's shell command, reassembled from the workflow.
-   *
-   *  Deliberately not a one-line `.find()` + `indexOf` slice. That version failed OPEN four ways,
-   *  each of which leaves a green test over a broken assertion: a second textual occurrence
-   *  anywhere above (a staging or dry-run step) silently retargeted `.find()`; the script name
-   *  appearing in the step's `name:` parsed that line instead of `run:`; and `if: false` or
-   *  `continue-on-error: true` on the step went unnoticed. Hence: exactly one occurrence, it must
-   *  be the `run:`, the step must be unconditional, and a folded multi-line command is joined. */
   const indentOf = (line: string): number => line.length - line.trimStart().length;
+
+  /** The lines belonging to `start`: everything indented deeper than it. ONE primitive for both
+   *  scans below, which were two copies of the same indent bookkeeping — and that bookkeeping has
+   *  already been wrong once, walking to the next `- ` and swallowing the following step's
+   *  comments into the argument list. `stopAtGap` is the only difference: a folded plain scalar
+   *  ends at a blank or comment line, a step's key block does not. */
+  function linesUnder(lines: string[], start: number, stopAtGap: boolean): string[] {
+    const indent = indentOf(lines[start] as string);
+    const out: string[] = [lines[start] as string];
+    for (let n = start + 1; n < lines.length; n += 1) {
+      const line = lines[n] as string;
+      const blank = line.trim() === "" || line.trimStart().startsWith("#");
+      if (stopAtGap && blank) break;
+      if (!blank && indentOf(line) <= indent) break;
+      out.push(line);
+    }
+    return out;
+  }
 
   function assertStep(): string[] {
     const lines = readFileSync(DEPLOY_YML, "utf8").split("\n");
@@ -913,38 +920,22 @@ describe("the services deploy.yml asserts the environment of", () => {
       .map((line, i) => ({ line, i }))
       .filter(({ line }) => line.includes(SCRIPT) && !line.trimStart().startsWith("#"));
 
-    // EXACTLY one. A second occurrence — a staging or dry-run step above — silently retargeted
+    // Fail-open #1: a second invocation — a staging or dry-run step above — silently retargeted
     // the `.find()` this replaced, so the prod step's args were never the ones checked.
     expect(hits.length, `expected exactly one ${SCRIPT} invocation in deploy.yml`).toBe(1);
     const { line, i } = hits[0] as { line: string; i: number };
-    // On the `run:` itself. The script name appearing in the step's `name:` parsed that line.
+    // Fail-open #2: the script name in the step's `name:` parsed that line instead of its `run:`.
     expect(line, `${SCRIPT} must appear in the step's run:, not its name`).toContain("run:");
 
-    // A YAML plain scalar folds onto lines indented DEEPER than the key. Indentation is what
-    // delimits it — a previous version walked until the next `- ` and swallowed the following
-    // step's comment block into the argument list.
-    const runIndent = indentOf(line);
-    const command: string[] = [line];
-    for (let n = i + 1; n < lines.length; n += 1) {
-      const next = lines[n] as string;
-      if (next.trim() === "" || next.trimStart().startsWith("#")) break;
-      if (indentOf(next) <= runIndent) break;
-      command.push(next);
-    }
+    // Fail-open #3: the command folds onto deeper-indented lines, and a scan that ignored that
+    // read only the first line's arguments.
+    const command = linesUnder(lines, i, true).join(" ");
 
-    // The step's own keys, for the conditionals below: back to its `- `, then everything indented
-    // deeper than that dash.
+    // Fail-open #4: `if:` or `continue-on-error:` on the step made it assert nothing at all. Walk
+    // back to the step's own `- ` so its keys are in view.
     let from = i;
     while (from > 0 && !lines[from]!.trimStart().startsWith("- ")) from -= 1;
-    const stepIndent = indentOf(lines[from] as string);
-    const block: string[] = [lines[from] as string];
-    for (let n = from + 1; n < lines.length; n += 1) {
-      const next = lines[n] as string;
-      if (next.trim() !== "" && indentOf(next) <= stepIndent) break;
-      block.push(next);
-    }
-
-    // A skipped or ignored step asserts nothing, and neither may be added silently.
+    const block = linesUnder(lines, from, false);
     for (const forbidden of ["if:", "continue-on-error:"]) {
       expect(
         block.some((l) => l.trimStart().startsWith(forbidden)),
@@ -952,9 +943,8 @@ describe("the services deploy.yml asserts the environment of", () => {
       ).toBe(false);
     }
 
-    const joined = command.join(" ");
-    return joined
-      .slice(joined.indexOf(SCRIPT))
+    return command
+      .slice(command.indexOf(SCRIPT))
       .split(/\s+/)
       .slice(1)
       .filter((a) => a.length > 0);

@@ -11,7 +11,7 @@ import { hashInviteToken, isSafeTokenHash } from "./invite-token.js";
 import { inviteBlocked, inviteRateLimited } from "./provision-errors.js";
 import { createRateLimiter, type RateLimiter } from "./rate-limit.js";
 import { firestoreRedeemDeps } from "./redeem-deps.js";
-import { assertTokenVerificationNotBypassed } from "./token-verification-bypass.js";
+import { UNDER_EMULATOR, assertTokenVerificationNotBypassed } from "./token-verification-bypass.js";
 import { ensureApp } from "./runtime.js";
 
 /** The invite document, with its Timestamps already flattened to epoch ms by the port. */
@@ -164,9 +164,8 @@ async function loadValidInvite(
   // is reached by the tests that drive the real exported entry points rather than only by a
   // direct call to the guard. The AUTHENTICATED callables are guarded at their own choke point,
   // `callable-auth.ts` — the same flag forges Auth ID tokens there, which is strictly worse.
-  // TAGGED here, unlike the authenticated gates: `/invitacion` keys a Spanish message table on
-  // `details.reason`, and a bare `internal` is indistinguishable there from an uncaught transient
-  // failure that SHOULD offer a retry. The link is untouched — this refuses before the claim.
+  // TAGGED here, unlike the authenticated gates, so `/invitacion` can tell this apart from a
+  // transient `internal` — see the `refusal` parameter's docblock for why that matters.
   assertTokenVerificationNotBypassed(fn, () =>
     inviteBlocked("invite-service-misconfigured", "this service is temporarily misconfigured"),
   );
@@ -471,9 +470,11 @@ export async function redeemInviteFor(
  *  Fail-closed and it must stay that way: ABSENCE of the variable means ENFORCE. Do not
  *  "improve" this into a positive check for a production marker like `K_SERVICE`, which would
  *  fail OPEN the day that variable is renamed. A test pins BOTH branches — enforcing under the
- *  emulator breaks local onboarding, and failing to enforce in production removes the
- *  control. */
-const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== "true";
+ *  emulator breaks local onboarding, and failing to enforce in production removes the control.
+ *
+ *  DERIVED from `UNDER_EMULATOR`, the single place the variable is read, so this and the token
+ *  verification guard cannot drift into two spellings of the same comparison. */
+const ENFORCE_APP_CHECK = !UNDER_EMULATOR;
 
 export const UNAUTHENTICATED_CALL = {
   enforceAppCheck: ENFORCE_APP_CHECK,

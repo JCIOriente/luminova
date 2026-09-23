@@ -120,27 +120,18 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   not instead of it. **Enforcement is per-PRODUCT: Cloud Functions must be registered and
   `/invitacion` tested against a real build before deploy**, or every redemption 403s silently
   on the only onboarding path. See docs/firebase-setup.md.
-- **One debug flag defeats BOTH token verifications, and the refusal is at the two choke
-  points.** `FIREBASE_DEBUG_MODE=true` plus a `FIREBASE_DEBUG_FEATURES` object carrying
-  `skipTokenVerification` makes firebase-functions consult
-  `isDebugFeatureEnabled("skipTokenVerification")` **twice**: `checkAppCheckToken` decodes the
-  App Check header with `unsafeDecodeAppCheckToken`, and `checkAuthToken` swaps `verifyIdToken`
-  for `unsafeDecodeIdToken` — base64, `uid = sub`, **no signature check**. So a forged
-  `roles: ["Admin"]` claim satisfies `callable-auth.ts`, which is beacon's only authorization
-  gate. It is **strictly worse on the five authenticated callables** than on the invite pair:
-  they pass no `onCall` options, so `enforceAppCheck` is falsy there and the forged claim is the
-  only gate. `enforceAppCheck: true` is NOT self-sufficient, and our own cold-start log still
-  prints it as `true` throughout. `assertTokenVerificationNotBypassed` (in
-  `token-verification-bypass.ts`) refuses with `internal` from `loadValidInvite` **and** from
-  `requireAdmin` / `requireAdminOrPerm` — the two choke points every callable already crosses —
-  gated on the emulator. It is the REAL predicate, not a presence check on the key names: a
-  provably inert `FIREBASE_DEBUG_MODE=false` must not take down the admin surface and onboarding
-  at once. A **parity test** runs it against the installed library's own gate over 13
-  environments, so a version bump that moves the condition fails a test instead of silently
-  disarming the guard — the drift class this repo already paid for with the client⟷rules mirror.
-  `FUNCTIONS_EMULATOR` cannot be guarded in-process (keying on it is what disables the guard), so
-  `assert-deployed-env-clean.sh` stays the only control for that one key; its service list now
-  covers **every deployed callable** and is derived from `index.ts`'s callable exports by a test.
+- **One debug flag defeats BOTH token verifications, and the refusal is at the choke points.**
+  `FIREBASE_DEBUG_MODE=true` plus `FIREBASE_DEBUG_FEATURES` carrying `skipTokenVerification` makes
+  firebase-functions decode BOTH the App Check header and the **Auth ID token** without verifying
+  either, so a forged `roles: ["Admin"]` claim satisfies `callable-auth.ts`. It is worse on the
+  five authenticated callables than on the invite pair, and `enforceAppCheck: true` does not help.
+  `assertTokenVerificationNotBypassed` refuses from `loadValidInvite` and from `requireAdmin` /
+  `requireAdminOrPerm`, gated on the emulator, keyed on the real callable name. Mechanism, the
+  deliberate predicate-not-presence choice, the parity test against the installed library, and the
+  coverage hole it does NOT close: `apps/beacon/src/token-verification-bypass.ts` and the operator
+  section of `docs/firebase-setup.md`. `FUNCTIONS_EMULATOR` cannot be guarded in-process, so
+  `assert-deployed-env-clean.sh` stays its only control; that list covers every deployed callable
+  and is derived from `index.ts` by a test.
 - **`maxInstances` is both a control and a lever**: it caps billing but converts a cost problem
   into an availability one. The rate gate is what makes that trade cheaper — a throttled
   request never occupies an instance doing Firestore reads.

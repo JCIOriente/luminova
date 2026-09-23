@@ -151,33 +151,41 @@ describe("the refusal", () => {
 });
 
 describe("the operator log line", () => {
+  /** A module with a COLD sampler, under a live bypass, on a frozen clock. Both tests below need
+   *  all three: the `logs` limiter is module scope, so a shared instance would carry the first
+   *  test's consumed slot into the second. */
+  async function freshBypassModule(): Promise<typeof import("./token-verification-bypass.js")> {
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.stubEnv("FUNCTIONS_EMULATOR", undefined);
+    stubEnv("true", JSON.stringify({ skipTokenVerification: true }));
+    return import("./token-verification-bypass.js");
+  }
+
+  /** The refusal is expected; these tests are about what it logs. */
+  function hit(mod: typeof import("./token-verification-bypass.js"), fn: string): void {
+    try {
+      mod.assertTokenVerificationNotBypassed(fn);
+    } catch {
+      /* refusal expected — the log is what is under test */
+    }
+  }
+
   it("is sampled per interval, not once per request and not once per process", async () => {
     // A latch (one line per container, ever) cannot arm a log-based alert: in this state 100% of
     // guarded traffic is refused and no other line is emitted, so the evidence must recur for as
     // long as the condition lasts. Same reasoning the invite gate's `shouldLogRefusal` gives.
-    vi.resetModules();
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.useFakeTimers();
-    vi.stubEnv("FUNCTIONS_EMULATOR", undefined);
-    stubEnv("true", JSON.stringify({ skipTokenVerification: true }));
     try {
-      const fresh = await import("./token-verification-bypass.js");
-      const hit = () => {
-        try {
-          fresh.assertTokenVerificationNotBypassed("requireAdmin");
-        } catch {
-          /* the refusal is the point; this test is about the log */
-        }
-      };
-
-      for (let i = 0; i < 20; i += 1) hit();
+      const fresh = await freshBypassModule();
+      for (let i = 0; i < 20; i += 1) hit(fresh, "requireAdmin");
       // Not twenty lines.
       expect(error).toHaveBeenCalledTimes(1);
       expect(error.mock.calls[0]?.[0]).toBe(BYPASS_LOG_MESSAGE);
 
       // A later window speaks again, so a long outage does not go silent after its first line.
       vi.advanceTimersByTime(10_000);
-      hit();
+      hit(fresh, "requireAdmin");
       expect(error).toHaveBeenCalledTimes(2);
     } finally {
       error.mockRestore();
@@ -186,20 +194,10 @@ describe("the operator log line", () => {
   });
 
   it("names the choke point, and keys the sample per choke point", async () => {
-    vi.resetModules();
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.useFakeTimers();
-    vi.stubEnv("FUNCTIONS_EMULATOR", undefined);
-    stubEnv("true", JSON.stringify({ skipTokenVerification: true }));
     try {
-      const fresh = await import("./token-verification-bypass.js");
-      for (const fn of ["requireAdmin", "describeInvite"]) {
-        try {
-          fresh.assertTokenVerificationNotBypassed(fn);
-        } catch {
-          /* refusal expected */
-        }
-      }
+      const fresh = await freshBypassModule();
+      for (const fn of ["requireAdmin", "describeInvite"]) hit(fresh, fn);
       // Two DIFFERENT choke points in the same window both get a line: an invite outage must not
       // be masked by an admin-gate flood holding the only slot.
       expect(error).toHaveBeenCalledTimes(2);

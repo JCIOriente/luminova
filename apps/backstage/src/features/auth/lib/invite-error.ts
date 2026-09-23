@@ -78,12 +78,13 @@ const RETRYABLE_REASONS: ReadonlySet<string> = new Set<InviteBlockReason>([
  *
  *  The tagged path otherwise ends in `HEADINGS.dead` ("Enlace no válido") with no retry, which is
  *  correct for every reason naming a spent, expired or superseded token — and a lie for this one.
- *  `invite-service-misconfigured` means beacon refused BEFORE claiming the token because its own
- *  environment would have it accept unsigned tokens; the link is untouched and will work once the
- *  deployment is fixed. So: the neutral heading, and still no retry, because the condition lasts
- *  as long as the container. Two reasons this is a SET and not an `if`: the next such refusal
- *  joins a list instead of adding a branch, and the heading/recovery pairing stays in one place —
- *  the coupling the `recovery` docblock warns about. */
+ *  `invite-service-misconfigured` means beacon refused BEFORE claiming the token, so the link is
+ *  untouched and works once the deployment is fixed: neutral heading, and still no retry, because
+ *  the condition lasts as long as the container.
+ *
+ *  A SET, not an `if`, for two reasons: the next such refusal joins a list instead of adding a
+ *  branch, and the heading/recovery pairing stays in one place — the coupling the `recovery`
+ *  docblock warns about. */
 const OUR_FAULT_REASONS: ReadonlySet<string> = new Set<InviteBlockReason>([
   "invite-service-misconfigured",
 ]);

@@ -1,4 +1,5 @@
 import { HttpsError } from "firebase-functions/v2/https";
+import { INVITE_RATE_LIMITS } from "@luminova/types/member-invite";
 import { createRateLimiter, type RateLimiter } from "./rate-limit.js";
 
 /** `true` only under the Firebase emulator, which is the ONE environment allowed to run with
@@ -11,11 +12,11 @@ import { createRateLimiter, type RateLimiter } from "./rate-limit.js";
  *  does not, and no build-time process can reach it, because it is read in-process at container
  *  cold start.
  *
- *  Shared with `redeem-invite.ts`'s `ENFORCE_APP_CHECK`, which keys on the same variable for the
- *  same reason. Kept as two names because they answer different questions — "may this instance
- *  skip attestation?" versus "may this instance trust a decoded token?" — and only the second
- *  one is what this module gates. */
-const UNDER_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
+ *  EXPORTED, and `redeem-invite.ts`'s `ENFORCE_APP_CHECK` is derived from it rather than reading
+ *  the variable a second time. Two names survive because they answer different questions — "may
+ *  this instance skip attestation?" versus "may it trust a decoded token?" — but there is now one
+ *  read, so a third consumer cannot introduce a third spelling of the comparison. */
+export const UNDER_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 
 /** Whether firebase-functions would accept SELF-CRAFTED, UNSIGNED tokens on this process right
  *  now — BOTH an Auth ID token and an App Check token. One flag defeats both.
@@ -76,10 +77,6 @@ export function tokenVerificationBypassEnabled(): boolean {
   return Boolean((features as Record<string, unknown>).skipTokenVerification);
 }
 
-/** How often one instance may log the misconfiguration. Matches the invite gate's
- *  `refusalLogIntervalMs` in spirit: bounded, but never permanently silent. */
-const BYPASS_LOG_INTERVAL_MS = 10_000;
-
 /** One line per choke point per interval per instance — NOT one per request, and NOT one per
  *  process.
  *
@@ -92,7 +89,10 @@ const BYPASS_LOG_INTERVAL_MS = 10_000;
  *  `maxKeys` bounds the map against an unbounded key space. */
 const logs: RateLimiter = createRateLimiter({
   capacity: 1,
-  windowMs: BYPASS_LOG_INTERVAL_MS,
+  // IMPORTED, not a second literal. One refusal-log cadence across beacon, canonical in
+  // @luminova/types — whose own docblock calls it beacon-wide rather than invite-specific. A
+  // retyped 10_000 here would sit outside the tripwire that lists every site quoting it.
+  windowMs: INVITE_RATE_LIMITS.refusalLogIntervalMs,
   maxKeys: 16,
 });
 
@@ -107,30 +107,52 @@ export const BYPASS_LOG_MESSAGE =
  *  `assert-deployed-env-clean.sh` only DETECTS post-deploy — and it needs no gcloud, no region
  *  assumption and no service list.
  *
- *  Called from the TWO CHOKE POINTS every callable already crosses: `loadValidInvite` for the
+ *  Called from the TWO CHOKE POINTS every callable currently crosses: `loadValidInvite` for the
  *  unauthenticated invite pair, and `requireAdmin` / `requireAdminOrPerm` for every
  *  authenticated one. Both are the first statement of their callers, so the refusal precedes
  *  every read and every write.
+ *
+ *  COMPLETE BY CONVENTION, NOT BY CONSTRUCTION — stated plainly, because "every callable crosses
+ *  a gate" reads like a structural guarantee and is not one. All five authenticated callables
+ *  happen to call one of the two gates first; nothing forces a new one to. Two specific ways the
+ *  coverage can be lost:
+ *
+ *    - a new `onCall` that rolls its own claims check, or none, never reaches this function; and
+ *    - `callerIsAdmin` is EXPORTED and reads the same forgeable `roles` claim with no guard of
+ *      its own. Its only caller today (`issue-member-invite.ts`) sits behind
+ *      `requireAdminOrPerm`, so it is covered in practice — but a future direct call would not be.
+ *
+ *  What catches that today is the DERIVED deploy list, which is detection rather than prevention:
+ *  a new callable must be added to `assert-deployed-env-clean.sh`'s arguments or a test goes red,
+ *  so the misconfiguration would still be caught post-deploy — a strictly weaker guarantee than
+ *  the refusal these five get. The structural fix is a shared `onCall` wrapper taking the refusal
+ *  factory in its options, which would cover `callerIsAdmin` too. Deliberately NOT done here: it
+ *  touches all seven callable definitions and the `__endpoint` shape the deploy-list test
+ *  introspects. Same shape, and same deferral, as `UNAUTHENTICATED_CALLABLES` records for the
+ *  eslint rule its own hole needs.
  *
  *  GATED ON THE EMULATOR, so local dev is untouched: `FIREBASE_DEBUG_MODE=true` is the supported
  *  way to run the emulator, and there is no verification to bypass there anyway.
  *
  *  This covers TWO of the three keys `assert-deployed-env-clean.sh` bans. `FUNCTIONS_EMULATOR`
- *  cannot be covered from inside the process: keying on it is what turns the guard off, and
- *  separating a real emulator run from an injected value would need a positive production
- *  marker, which `UNDER_EMULATOR` above explains must never be added. For that one key the
- *  post-deploy assertion remains the only control. */
+ *  cannot be covered from inside the process — keying on it is what turns the guard off — for the
+ *  reasons `UNDER_EMULATOR` documents above. For that one key the post-deploy assertion remains
+ *  the only control. */
 export function assertTokenVerificationNotBypassed(
   fn: string,
   /** The error to raise, so each boundary keeps its own contract. Defaults to an UNTAGGED
    *  `internal`, which is right for the authenticated gates: backstage's admin surface has no
    *  per-reason message table for them, and an operator reads the log line, not the toast.
    *
-   *  The INVITE callables pass a tagged `invite-service-misconfigured` instead, because their
-   *  client does have such a table and needs this distinguishable from a transient `internal` —
-   *  an uncaught Firestore `unavailable` arrives with the same code and needs the OPPOSITE
-   *  affordance (retry now, versus never). Parameterized rather than duplicated so the emulator
-   *  gate, the predicate and the sampled log have exactly one implementation. */
+   *  The INVITE callables pass a tagged `invite-service-misconfigured` instead. CANONICAL
+   *  STATEMENT of why, since three other sites now point here rather than restate it: a bare
+   *  `functions/internal` is ALSO what an uncaught transient failure produces — a Firestore
+   *  `unavailable` inside `getInvite`, say — and the two need OPPOSITE client affordances. Retry
+   *  now for the transient one; never for this one, which lasts as long as the container. The
+   *  untagged version of this refusal rendered "revisa tu conexión" under a retry button that
+   *  could not clear it. Parameterized rather than duplicated so the emulator gate, the predicate
+   *  and the sampled log keep exactly one implementation, and kept as a THUNK so `HttpsError`
+   *  (which captures a stack trace) is not constructed on the happy path. */
   refusal: () => HttpsError = serviceMisconfigured,
 ): void {
   if (UNDER_EMULATOR || !tokenVerificationBypassEnabled()) return;
