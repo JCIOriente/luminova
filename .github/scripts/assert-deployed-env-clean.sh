@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 #
-# Post-deploy assertion: neither unauthenticated invite callable carries an environment
-# variable that disables App Check on the service that is now LIVE.
+# Post-deploy assertion: no deployed CALLABLE carries an environment variable that disables
+# token verification on the service that is now LIVE.
+#
+# EVERY callable, not just the unauthenticated invite pair, and App Check is only half the risk.
+# `FIREBASE_DEBUG_MODE` + `skipTokenVerification` make firebase-functions decode the Auth ID
+# token with `unsafeDecodeIdToken` — base64, `uid = sub`, no signature check — as well as the
+# App Check header. On the five AUTHENTICATED callables that is strictly worse: they pass no
+# `onCall` options, so App Check was never enforced on them at all, and the forged `roles` claim
+# is the only thing standing in front of custom-claim assignment and a project-wide role reseed.
 #
 # WHAT THIS IS AND IS NOT. It runs AFTER `firebase deploy --only functions`, so it does not
 # prevent a bad deploy — the bad config is already serving by the time this reads it. It
@@ -19,7 +26,8 @@
 # hit restoring an unlisted dotenv.
 #
 # TWO VARIABLE FAMILIES, not one. `FUNCTIONS_EMULATOR` is what our own code keys on
-# (`enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true"`). `FIREBASE_DEBUG_MODE` — and
+# (`ENFORCE_APP_CHECK`, derived from `UNDER_EMULATOR` in token-verification-bypass.ts).
+# `FIREBASE_DEBUG_MODE` — and
 # `FIREBASE_DEBUG_FEATURES` carrying `skipTokenVerification` — fails the control open ONE LEVEL
 # BELOW our code, inside firebase-functions: it routes App Check through
 # `unsafeDecodeAppCheckToken`, which accepts a self-crafted UNSIGNED token. Enforcement would
@@ -75,11 +83,11 @@ probe() {
 found=0
 # `checked` only, not a matching `unchecked` beside it: the two always summed to `$#`, and
 # keeping both meant a hidden invariant nothing asserted. This is the half that survives ON
-# PURPOSE, because the two are not symmetric under a future edit. The post-loop rule asks
-# "did anything get read?" — so a new branch that neither reads a service nor marks it absent
-# leaves `checked` low and FAILS, while the same branch counted from `unchecked` would leave
-# `unchecked < $#` and PASS. One direction fails closed; the other reintroduces the exact
-# silent green this script exists to prevent. The absent count is derived for messaging only.
+# PURPOSE, because the two are not symmetric under a future edit. The post-loop rule asks "was
+# EVERY service read?" — so a new branch that neither reads a service nor marks it absent leaves
+# `checked` low and FAILS, while the same branch counted from `unchecked` would leave
+# `unchecked < $#` and PASS. One direction fails closed; the other reintroduces the exact silent
+# green this script exists to prevent. The absent count is derived for messaging only.
 checked=0
 
 for svc in "$@"; do
@@ -132,7 +140,7 @@ print("\n".join(names))
   for key in "${BANNED_KEYS[@]}"; do
     if printf '%s\n' "$names" | grep -qx "$key"; then
       # The remedy is the SERVICE, not the repo: nothing in the checkout put this here.
-      echo "::error::$svc has $key set on the deployed Cloud Run service. App Check on the unauthenticated invite callables is not enforced. Remove it from the service (gcloud run services update $svc --region=$region --remove-env-vars=$key), find who set it, and redeploy."
+      echo "::error::$svc has $key set on the deployed Cloud Run service. Token verification is not trusted on this service (unsigned Auth ID tokens and App Check tokens are accepted). Remove it from the service (gcloud run services update $svc --region=$region --remove-env-vars=$key), find who set it, and redeploy."
       found=$((found + 1))
       hits=$((hits + 1))
     fi
@@ -148,19 +156,22 @@ done
 if [ "$found" -gt 0 ]; then
   exit 1
 fi
-# TOLERATING EACH MISS IS NOT THE SAME AS TOLERATING ALL OF THEM. One absent service says
-# nothing about the other, so it is a warning. Zero services read means this assertion verified
-# NOTHING and reported success — a guard that gates nothing, which is the failure mode the step
-# it replaced actually had.
+# EVERY named service must have been read. This used to tolerate all but one absence, and that
+# was defensible while the caller passed two hand-picked names: "one absent service says nothing
+# about the other." It is NOT defensible now. The caller passes every callable, pinned by a test
+# to `index.ts`'s own callable exports, and `firebase deploy --only functions` is unfiltered — so
+# after the deploy that just ran, all of them exist. An absence now means a name that does not
+# match the deployed service, and tolerating n-1 of them would let the five authenticated
+# callables — the ones this assertion was widened to cover — go unchecked behind a green check
+# forever, while `ok: describeinvite` made it look verified. That is precisely the guard-that-
+# gates-nothing failure this script exists to replace, so it fails.
 #
-# The reachable cause is the region. `region` defaults to us-central1 on the stated assumption
-# that beacon sets no `region` and calls no `setGlobalOptions`; the day a callable gets one,
-# every describe here returns NOT_FOUND and every miss is individually excusable. Fail instead,
-# so the assumption is corrected rather than silently outlived.
-if [ "$checked" -eq 0 ]; then
-  echo "::error::no service was actually checked (all $# absent from $region), so App Check enforcement was NOT verified. If a callable now sets a region, pass GCP_REGION; otherwise look at whether the deploy created these services at all." >&2
-  exit 2
-fi
+# The two reachable causes are named in the message because they have different fixes: a region
+# (pass GCP_REGION — `region` defaults to us-central1 on the assumption that beacon sets none),
+# and a service-naming mismatch (gen2 names the Cloud Run service after the function id,
+# lower-cased; `describeinvite` is confirmed, the rest follow the same rule).
 if [ "$checked" -lt "$#" ]; then
-  echo "note: $(($# - checked)) service(s) could not be checked — see the warnings above."
+  missing=$(($# - checked))
+  echo "::error::$missing of $# service(s) could not be read from $region, so token verification was NOT verified on them. Every argument is a deployed callable, so each must exist: if a callable now sets a region pass GCP_REGION; otherwise the name does not match its Cloud Run service (gen2 lower-cases the function id) — reconcile it with the list in deploy.yml." >&2
+  exit 2
 fi

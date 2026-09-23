@@ -347,3 +347,61 @@ describe("inviteRefusal — the HEADING must not contradict the body", () => {
     });
   });
 });
+
+describe("inviteRefusal — a refused MISCONFIGURED service is not a network blip either", () => {
+  // beacon refuses every invite call while the deployed service carries FIREBASE_DEBUG_MODE +
+  // skipTokenVerification — the environment that makes firebase-functions accept UNSIGNED Auth and
+  // App Check tokens. On THIS path the refusal is TAGGED, and the tag is what matters: an untagged
+  // error falls to the "revisa tu conexión" branch `isAttestationRejection` was written to remove,
+  // and here that is worse still, because the condition lasts as long as the container and the
+  // retry loops forever.
+  //
+  // `failed-precondition`, because that is what beacon actually emits: the invite path raises
+  // through `inviteBlocked`, which is hard-coded to that code (provision-errors.ts). The FIRST
+  // version of this fixture said `functions/internal` — a shape beacon cannot produce on this
+  // path — and passed anyway, because `inviteRefusal` reads `details.reason` before it looks at
+  // any code. State that plainly so the next reader does not "correct" the code and believe they
+  // changed behaviour: they would not have. What the honest code buys is that a future
+  // code-keyed branch added ABOVE the tagged one is exercised by this suite instead of skipped.
+  const misconfigured = {
+    code: "functions/failed-precondition",
+    message: "FAILED_PRECONDITION",
+    details: { reason: "invite-service-misconfigured" },
+  };
+
+  it("blames our configuration, not the invitee's connection", () => {
+    const refusal = inviteRefusal(misconfigured);
+    expect(refusal.message).toMatch(/configuraci[óo]n/i);
+    expect(refusal.message).not.toMatch(/conexi[óo]n/i);
+  });
+
+  it("says the link is still valid, and points at the directiva", () => {
+    // Accurate and load-bearing: the token was never consumed — the guard refuses before the
+    // claim — so sending them to chase a new link would waste an invite for nothing.
+    const refusal = inviteRefusal(misconfigured);
+    expect(refusal.message).toMatch(/sigue siendo v[áa]lido/i);
+    expect(refusal.message).toMatch(/directiva/i);
+  });
+
+  it("withholds the retry affordance, because a retry can NEVER clear it", () => {
+    // The defect this whole branch exists for: `{ kind: "retry", afterSeconds: 0 }` handed the
+    // invitee an immediate button against a condition fixed for the life of the process.
+    expect(inviteRefusal(misconfigured).recovery).toEqual({ kind: "none" });
+  });
+
+  it("does not claim the link is dead", () => {
+    // `blocked`, not `dead` — "Enlace no válido" over a link that is perfectly valid is the
+    // heading/body contradiction HEADINGS was introduced to end.
+    expect(inviteRefusal(misconfigured).heading).toBe("No pudimos abrir el enlace");
+  });
+
+  it("leaves a console trace for whoever is helping over the shoulder", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      inviteRefusal(misconfigured);
+      expect(error).toHaveBeenCalledTimes(1);
+    } finally {
+      error.mockRestore();
+    }
+  });
+});

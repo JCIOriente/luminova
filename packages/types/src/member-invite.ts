@@ -98,8 +98,10 @@ export const INVITE_RATE_LIMITS = {
    *  distinct tokens is exactly what would otherwise grow one bucket per token. */
   tokenBuckets: 2048,
   windowMs: 60_000,
-  /** One logged refusal per instance per this interval, so a flood cannot bury the log stream
-   *  the monitoring alert reads. Beacon-only, but kept with its siblings. */
+  /** One logged refusal per instance PER KEY per this interval, so a flood cannot bury the log
+   *  stream the monitoring alert reads. The invite gate uses a single key; the token-verification
+   *  bypass guard keys by callable, so its bound is this interval times its own `maxKeys`.
+   *  Beacon-only, but kept with its siblings. */
   refusalLogIntervalMs: 10_000,
 } as const;
 
