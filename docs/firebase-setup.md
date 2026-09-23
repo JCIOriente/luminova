@@ -597,8 +597,14 @@ it in a copy dialog with its expiry.
 
    ```bash
    GCP_PROJECT_ID=jci-oriente bash .github/scripts/assert-deployed-env-clean.sh \
-     describeinvite redeeminvite
+     describeinvite redeeminvite issuememberinvite recomputeallclaims \
+     reseedbuiltinroleperms seedroles setuserroles
    ```
+
+   **Every deployed CALLABLE, not just the invite pair** — the debug pair forges Auth tokens on
+   the authenticated ones too (above), so scoping the assertion to two services left the five
+   with the most reach unchecked. The list is derived from `index.ts`'s own callable exports by a
+   test, so a new callable that is not asserted here turns that test red.
 
    Verified against the real thing on 2026-09-22: run against the deployed `describeinvite`,
    the script reports `ok: describeinvite carries none of FUNCTIONS_EMULATOR FIREBASE_DEBUG_MODE
@@ -627,21 +633,58 @@ it in a copy dialog with its expiry.
    cold-start log cannot catch that family. The repo-side grep in `ci.yml` still covers only
    `FUNCTIONS_EMULATOR`, because the debug pair cannot arrive from a repo file.
 
-   **Two of the three are also refused IN-PROCESS, which is prevention rather than detection.**
-   Unlike `FUNCTIONS_EMULATOR`, the debug pair is readable by the running container itself, so
-   `appCheckBypassEnabled()` in `apps/beacon/src/redeem-invite.ts` evaluates the real bypass
-   condition on every invite call and throws `internal` while it holds — no gcloud, no region
-   assumption, no service list. It is gated on `ENFORCE_APP_CHECK`, so the emulator is
-   unaffected. Note the deliberate difference in strictness: this script bans all three keys at
-   **any value**, because from outside the process it cannot evaluate three consumers'
-   truthiness rules and none of them belong on a deployed service; the in-process guard fires
-   only on the condition firebase-functions actually acts on (`FIREBASE_DEBUG_MODE` exactly
-   `"true"` **and** a parseable `FIREBASE_DEBUG_FEATURES` object with a truthy
-   `skipTokenVerification`), because a false positive there would take down the only onboarding
-   path in the product. `FUNCTIONS_EMULATOR` gets no in-process guard and cannot: keying on it
-   is what turns enforcement off, and separating a real emulator run from an injected value
-   would need a positive production marker, which must never be added (it would fail open the
-   day that variable is renamed). **For that one key this script remains the only control.**
+   **THE DEBUG PAIR IS NOT AN APP CHECK PROBLEM — IT FORGES AUTH TOKENS TOO.** This is the part
+   worth understanding before reading the guard, because the first version of that guard got it
+   wrong. `isDebugFeatureEnabled("skipTokenVerification")` is consulted **twice** in
+   firebase-functions' `common/providers/https.js`: once in `checkAppCheckToken`, and once in
+   `checkAuthToken`, where it swaps `getAuth().verifyIdToken()` for `unsafeDecodeIdToken` — a JWT
+   shape test, a base64 decode of the payload, and `uid = sub`, with **no signature check**. It
+   then sets `ctx.auth` and reports the token VALID. `apps/beacon/src/callable-auth.ts` is
+   beacon's only authorization gate and reads its `roles` / `perms` claims straight off that
+   payload, so while the bypass is live:
+
+   ```
+   Authorization: Bearer <base64 header>.<base64 {"sub":"x","roles":["Admin"]}>.<junk>
+   ```
+
+   satisfies `requireAdmin` on `setUserRoles`, `seedRoles`, `recomputeAllClaims`,
+   `reseedBuiltInRolePerms` and `issueMemberInvite` — custom-claim assignment and a project-wide
+   role reseed. It is **strictly worse** on those five than on the invite pair, because they pass
+   no options to `onCall`, so `enforceAppCheck` defaults falsy and there is no attestation gate
+   there to lose: the forged claim is the only gate.
+
+   **Both halves are refused IN-PROCESS, which is prevention rather than detection.** Unlike
+   `FUNCTIONS_EMULATOR`, the debug pair is readable by the running container itself, so
+   `tokenVerificationBypassEnabled()` in `apps/beacon/src/token-verification-bypass.ts` evaluates
+   the real condition and `assertTokenVerificationNotBypassed()` throws `internal` while it holds
+   — no gcloud, no region assumption, no service list. It runs from the two choke points every
+   callable already crosses: `loadValidInvite` for the unauthenticated invite pair, and
+   `requireAdmin` / `requireAdminOrPerm` for every authenticated one. It is gated on the
+   emulator, so local dev is unaffected.
+
+   Note the deliberate difference in strictness: this script bans all three keys at **any
+   value**, because from outside the process it cannot evaluate three consumers' truthiness rules
+   and none of them belong on a deployed service; the in-process guard fires only on the
+   condition firebase-functions actually acts on (`FIREBASE_DEBUG_MODE` exactly `"true"` **and** a
+   parseable `FIREBASE_DEBUG_FEATURES` object with a truthy `skipTokenVerification`), because a
+   false positive would take down the admin surface and the only onboarding path at once. A
+   parity test (`token-verification-bypass.test.ts`) runs our predicate and the installed
+   library's own gate against the same 13 environments, so a version bump that moves the
+   condition fails a test instead of silently disarming the guard.
+
+   `FUNCTIONS_EMULATOR` gets no in-process guard and cannot: keying on it is what turns the guard
+   off, and separating a real emulator run from an injected value would need a positive
+   production marker, which must never be added (it would fail open the day that variable is
+   renamed). **For that one key this script remains the only control.**
+
+   **Alert on the refusal.** While the bypass is live every guarded call is refused and no other
+   log line is emitted, so this is the only evidence there is. It recurs at most once per choke
+   point per 10 s per instance — bounded, but never permanently silent, so a log-based alert can
+   be armed on it. The exact string (pinned by a test, so it cannot drift away from this page):
+
+   ```
+   REFUSING traffic: FIREBASE_DEBUG_MODE + skipTokenVerification make this instance accept UNSIGNED Auth and App Check tokens. Remove both from the service environment.
+   ```
 
    `us-central1` is the gen2 default, which is what these get — beacon sets no `region` on any
    callable and calls no `setGlobalOptions`. The script defaults to it and takes `GCP_REGION`

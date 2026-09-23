@@ -45,6 +45,16 @@ const MESSAGES: Readonly<Record<InviteBlockReason, string>> = {
   // because waiting is the whole remedy and a new link would not help.
   "invite-too-many-attempts":
     "Demasiados intentos. Espera unos segundos y vuelve a intentarlo — el enlace sigue siendo válido.",
+  // OUR misconfiguration, not the invitee's connection and not the link. Names the directiva
+  // because telling someone who can fix the deployment is the only remedy they have, and says
+  // the link survives so they do not burn a fresh invite for nothing.
+  //
+  // NO "vuelve a intentarlo" clause, deliberately: this reason takes `recovery: none`, and the
+  // copy/affordance guard in the tests fails any load-path message that instructs a retry while
+  // withholding the button. Telling someone to retry a condition that lasts as long as the
+  // container is the defect, not the wording.
+  "invite-service-misconfigured":
+    "No pudimos abrir el enlace por un problema de configuración de nuestro servidor. El enlace sigue siendo válido: avisa a la directiva para que lo revise.",
   // The token is spent and the member still has no password — they cannot simply retry.
   "invite-update-failed":
     "No pudimos guardar tu contraseña y este enlace ya se consumió. Pídele a quien te invitó que te envíe uno nuevo.",
@@ -62,6 +72,20 @@ const REASON_MESSAGES = new Map<string, string>(Object.entries(MESSAGES));
  *  the error code so the rule stays next to the message table it must agree with. */
 const RETRYABLE_REASONS: ReadonlySet<string> = new Set<InviteBlockReason>([
   "invite-too-many-attempts",
+]);
+
+/** Tagged refusals where the LINK IS FINE and the fault is ours.
+ *
+ *  The tagged path otherwise ends in `HEADINGS.dead` ("Enlace no válido") with no retry, which is
+ *  correct for every reason naming a spent, expired or superseded token — and a lie for this one.
+ *  `invite-service-misconfigured` means beacon refused BEFORE claiming the token because its own
+ *  environment would have it accept unsigned tokens; the link is untouched and will work once the
+ *  deployment is fixed. So: the neutral heading, and still no retry, because the condition lasts
+ *  as long as the container. Two reasons this is a SET and not an `if`: the next such refusal
+ *  joins a list instead of adding a branch, and the heading/recovery pairing stays in one place —
+ *  the coupling the `recovery` docblock warns about. */
+const OUR_FAULT_REASONS: ReadonlySet<string> = new Set<InviteBlockReason>([
+  "invite-service-misconfigured",
 ]);
 
 /** An App Check rejection: NOT a network problem, and not something a NEW LINK can fix.
@@ -255,6 +279,12 @@ export function inviteRefusal(err: unknown): InviteRefusal {
     // and routing it there would console.error an App Check failure that did not happen.
     if (message === null) {
       return { message, heading: HEADINGS.blocked, recovery: { kind: "retry", afterSeconds: 0 } };
+    }
+    // Tagged, known, and OUR fault: the link is untouched, so the neutral heading. Still no
+    // retry — a service env var does not clear because someone pressed a button.
+    if (OUR_FAULT_REASONS.has(reason)) {
+      console.error("invite: beacon refused the call as misconfigured", err);
+      return { message, heading: HEADINGS.blocked, recovery: { kind: "none" } };
     }
     // Known and tagged: the link itself cannot be used again, and its copy says so.
     return { message, heading: HEADINGS.dead, recovery: { kind: "none" } };

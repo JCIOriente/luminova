@@ -9,7 +9,6 @@ import {
   type InviteDoc,
   type RedeemDeps,
   createRateGate,
-  appCheckBypassEnabled,
   UNAUTHENTICATED_CALL,
   UNAUTHENTICATED_CALLABLES,
   type RateGate,
@@ -779,25 +778,16 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
   });
 });
 
-describe("the App Check bypass that lives BENEATH enforceAppCheck", () => {
-  // `enforceAppCheck: true` is not self-sufficient. `common/debug.js` +
-  // `common/providers/https.js` in firebase-functions 7.2.5 route App Check through
-  // `unsafeDecodeAppCheckToken` when FIREBASE_DEBUG_MODE is "true" AND FIREBASE_DEBUG_FEATURES
-  // parses to an object with a truthy `skipTokenVerification` — a self-crafted UNSIGNED token
-  // is then accepted, `tokenStatus.app` is VALID, and our own cold-start log still reports
-  // enforcement as `true`. `assert-deployed-env-clean.sh` DETECTS that post-deploy; these
-  // assertions are the in-process REFUSAL, which needs no gcloud and no service list.
+describe("the invite callables refuse while token verification is bypassed", () => {
+  // The guard itself, its parity with the real firebase-functions gate, its log sampling and its
+  // emulator carve-out are covered in `token-verification-bypass.test.ts`. What belongs HERE is
+  // the wiring: that both invite entry points actually reach it, and that they reach it before
+  // spending anything.
 
-  /** Both keys, in the shape that actually enables the bypass. */
   function stubBypass(): void {
     vi.stubEnv("FIREBASE_DEBUG_MODE", "true");
     vi.stubEnv("FIREBASE_DEBUG_FEATURES", JSON.stringify({ skipTokenVerification: true }));
   }
-
-  it("is not enabled in the environment these tests run in", () => {
-    // Otherwise every negative assertion below would pass for the wrong reason.
-    expect(appCheckBypassEnabled()).toBe(false);
-  });
 
   it.each([
     ["describeInvite", (deps: RedeemDeps) => describeInviteFor(deps, { token: TOKEN })],
@@ -805,56 +795,65 @@ describe("the App Check bypass that lives BENEATH enforceAppCheck", () => {
       "redeemInvite",
       (deps: RedeemDeps) => redeemInviteFor(deps, { token: TOKEN, password: GOOD_PASSWORD }),
     ],
-  ])("refuses %s outright while the bypass is live", async (_name, call) => {
-    // BOTH callables, because both take UNAUTHENTICATED_CALL and both are in deploy.yml's
-    // assert list. Writing one and calling it done is the easy miss here.
+  ])("refuses %s outright, tagged so the page can tell it apart", async (_name, call) => {
+    // BOTH entry points, because both take UNAUTHENTICATED_CALL. Writing one and calling it done
+    // is the easy miss here.
     const { deps, calls } = fakeDeps({});
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     stubBypass();
     try {
-      expect(appCheckBypassEnabled()).toBe(true);
-      // UNTAGGED and `internal`: a server misconfiguration is not an InviteBlockReason the
-      // invitee can act on, so no dead string enters the @luminova/types contract.
-      expect(await reasonOf(call(deps))).toBe("untagged");
-      await expect(call(deps)).rejects.toMatchObject({ code: "internal" });
-      // BEFORE any I/O and before the token is consumed.
+      // TAGGED, and that is load-bearing on the client: a BARE `internal` is also what an
+      // uncaught transient failure produces (a Firestore `unavailable` inside `getInvite`), and
+      // the two need opposite affordances — retry now versus never, since this condition lasts as
+      // long as the container. `invite-error.ts` keys a no-retry refusal on this reason, and its
+      // own test pins that an untagged `functions/internal` stays retryable.
+      expect(await reasonOf(call(deps))).toBe("invite-service-misconfigured");
       expect(calls.claims).toEqual([]);
       expect(calls.setPassword).toEqual([]);
-      // No count assertion here on purpose: the log is latched PER MODULE INSTANCE, so
-      // whichever of these two rows runs first burns it. The latch gets its own test below,
-      // against a freshly imported module, so neither depends on execution order.
     } finally {
       vi.unstubAllEnvs();
       error.mockRestore();
     }
   });
 
-  it("logs the misconfiguration ONCE per instance, not once per refused request", async () => {
-    // In the bypassed state every arriving call refuses, so one `console.error` apiece would
-    // bill a Google service per request on a path anyone can reach — the same unboundedness
-    // `shouldLogRefusal` exists for. A latch rather than that sampler: the condition cannot
-    // change while the process lives, so the first line carries all the information there is.
-    //
-    // Fresh module import for a cold latch, which is also what makes this independent of the
-    // order the rows above run in.
-    vi.resetModules();
+  it("refuses BEFORE the rate gate is charged and before any read", async () => {
+    // The ordering the `loadValidInvite` comment makes the point of, which nothing asserted: the
+    // previous test's empty `calls.claims`/`calls.setPassword` are VACUOUS for describeInvite,
+    // which never claims or sets a password on any path, so moving the guard later inside
+    // `loadValidInvite` would not have failed anything. This gate throws if consulted at all.
+    const consulted: string[] = [];
+    const gate: RateGate = {
+      admitGlobal: () => {
+        consulted.push("admitGlobal");
+        return true;
+      },
+      admitToken: () => {
+        consulted.push("admitToken");
+        return true;
+      },
+    };
+    const reads: string[] = [];
+    const base = fakeDeps({ gate }).deps;
+    const deps: RedeemDeps = {
+      ...base,
+      getInvite: async (hash) => {
+        reads.push(hash);
+        return inviteDoc();
+      },
+    };
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     stubBypass();
     try {
-      const fresh = await import("./redeem-invite.js");
-      const { deps } = fakeDeps({});
-      for (let i = 0; i < 4; i += 1) {
-        await expect(fresh.describeInviteFor(deps, { token: TOKEN })).rejects.toMatchObject({
-          code: "internal",
-        });
-      }
-      expect(error).toHaveBeenCalledTimes(1);
-      // Names the key an operator has to remove, not just "misconfigured".
-      expect(String(error.mock.calls[0]?.[0])).toContain("FIREBASE_DEBUG_MODE");
+      expect(await reasonOf(describeInviteFor(deps, { token: TOKEN }))).toBe(
+        "invite-service-misconfigured",
+      );
+      // Neither bucket charged — a refused request must not consume a real invitee's budget —
+      // and no Firestore read issued.
+      expect(consulted).toEqual([]);
+      expect(reads).toEqual([]);
     } finally {
       vi.unstubAllEnvs();
       error.mockRestore();
-      vi.resetModules();
     }
   });
 
@@ -865,20 +864,17 @@ describe("the App Check bypass that lives BENEATH enforceAppCheck", () => {
     ["the features object omits the key", "true", JSON.stringify({ somethingElse: true })],
     ["the features key is falsy", "true", JSON.stringify({ skipTokenVerification: false })],
     ["the features value is not an object", "true", "42"],
-    ["the features value is absent", "true", ""],
+    ["the features value is an empty string", "true", ""],
+    ["the features value is ABSENT", "true", undefined],
   ])("keeps serving when %s — the bypass is INERT there", async (_label, mode, features) => {
-    // THIS is the assertion that distinguishes the real predicate from a presence check on the
-    // two key names. `assert-deployed-env-clean.sh` bans them at any value, correctly: it reads
-    // a deployed env from outside and cannot evaluate three consumers' truthiness rules. This
-    // guard runs INSIDE the process, where the condition is exactly computable and where a
-    // false positive takes down the only onboarding path in the product. Without these rows,
-    // "simplifying" the predicate to a presence check would leave every test green while
-    // arming a self-inflicted outage on a provably harmless `FIREBASE_DEBUG_MODE=false`.
+    // The rows that distinguish the real predicate from a presence check on the two key names.
+    // `vi.stubEnv` DELETES the key when given undefined, which is what makes the last row
+    // genuinely "absent" rather than a second empty-string case — the earlier version of this
+    // table claimed absence and stubbed "" for it.
     const { deps } = fakeDeps({});
     vi.stubEnv("FIREBASE_DEBUG_MODE", mode);
     vi.stubEnv("FIREBASE_DEBUG_FEATURES", features);
     try {
-      expect(appCheckBypassEnabled()).toBe(false);
       await expect(describeInviteFor(deps, { token: TOKEN })).resolves.toMatchObject({
         email: "ana@jci.bo",
       });
@@ -886,53 +882,114 @@ describe("the App Check bypass that lives BENEATH enforceAppCheck", () => {
       vi.unstubAllEnvs();
     }
   });
+});
 
-  it("does NOT refuse under the emulator, where the debug keys are the supported thing", async () => {
-    // Gated on ENFORCE_APP_CHECK, so a developer running with FIREBASE_DEBUG_MODE=true is
-    // unaffected — there is no App Check to bypass there. Module re-import because
-    // ENFORCE_APP_CHECK is module scope; the guard's own env read is NOT, which is why every
-    // other test here just stubs and calls.
-    vi.stubEnv("FUNCTIONS_EMULATOR", "true");
-    stubBypass();
-    vi.resetModules();
-    try {
-      const underEmulator = await import("./redeem-invite.js");
-      expect(underEmulator.UNAUTHENTICATED_CALL.enforceAppCheck).toBe(false);
-      // The predicate still reports the bypass — it describes the environment, not the policy.
-      expect(underEmulator.appCheckBypassEnabled()).toBe(true);
-      const { deps } = fakeDeps({});
-      await expect(underEmulator.describeInviteFor(deps, { token: TOKEN })).resolves.toMatchObject({
-        email: "ana@jci.bo",
-      });
-    } finally {
-      vi.unstubAllEnvs();
-      vi.resetModules();
+describe("the services deploy.yml asserts the environment of", () => {
+  // DERIVED, not enumerated. The list must cover EVERY deployed callable — the debug flag forges
+  // Auth ID tokens, so the five authenticated callables are the ones with the most reach — and
+  // `__endpoint.callableTrigger` distinguishes a callable from an event trigger on the object
+  // `onCall` returns. So the source of truth is `index.ts`, which is also what actually gets
+  // deployed; no hand-maintained list, and no scanning source text.
+  //
+  // This replaces a first version that pinned deploy.yml's args to UNAUTHENTICATED_CALLABLES.
+  // That conflated two different sets and had teeth: widening the assertion to the authenticated
+  // callables — the correct fix — would have turned the tripwire RED.
+  const DEPLOY_YML = new URL("../../../.github/workflows/deploy.yml", import.meta.url);
+  const SCRIPT = "assert-deployed-env-clean.sh";
+
+  /** The step's shell command, reassembled from the workflow.
+   *
+   *  Deliberately not a one-line `.find()` + `indexOf` slice. That version failed OPEN four ways,
+   *  each of which leaves a green test over a broken assertion: a second textual occurrence
+   *  anywhere above (a staging or dry-run step) silently retargeted `.find()`; the script name
+   *  appearing in the step's `name:` parsed that line instead of `run:`; and `if: false` or
+   *  `continue-on-error: true` on the step went unnoticed. Hence: exactly one occurrence, it must
+   *  be the `run:`, the step must be unconditional, and a folded multi-line command is joined. */
+  const indentOf = (line: string): number => line.length - line.trimStart().length;
+
+  function assertStep(): string[] {
+    const lines = readFileSync(DEPLOY_YML, "utf8").split("\n");
+    const hits = lines
+      .map((line, i) => ({ line, i }))
+      .filter(({ line }) => line.includes(SCRIPT) && !line.trimStart().startsWith("#"));
+
+    // EXACTLY one. A second occurrence — a staging or dry-run step above — silently retargeted
+    // the `.find()` this replaced, so the prod step's args were never the ones checked.
+    expect(hits.length, `expected exactly one ${SCRIPT} invocation in deploy.yml`).toBe(1);
+    const { line, i } = hits[0] as { line: string; i: number };
+    // On the `run:` itself. The script name appearing in the step's `name:` parsed that line.
+    expect(line, `${SCRIPT} must appear in the step's run:, not its name`).toContain("run:");
+
+    // A YAML plain scalar folds onto lines indented DEEPER than the key. Indentation is what
+    // delimits it — a previous version walked until the next `- ` and swallowed the following
+    // step's comment block into the argument list.
+    const runIndent = indentOf(line);
+    const command: string[] = [line];
+    for (let n = i + 1; n < lines.length; n += 1) {
+      const next = lines[n] as string;
+      if (next.trim() === "" || next.trimStart().startsWith("#")) break;
+      if (indentOf(next) <= runIndent) break;
+      command.push(next);
     }
+
+    // The step's own keys, for the conditionals below: back to its `- `, then everything indented
+    // deeper than that dash.
+    let from = i;
+    while (from > 0 && !lines[from]!.trimStart().startsWith("- ")) from -= 1;
+    const stepIndent = indentOf(lines[from] as string);
+    const block: string[] = [lines[from] as string];
+    for (let n = from + 1; n < lines.length; n += 1) {
+      const next = lines[n] as string;
+      if (next.trim() !== "" && indentOf(next) <= stepIndent) break;
+      block.push(next);
+    }
+
+    // A skipped or ignored step asserts nothing, and neither may be added silently.
+    for (const forbidden of ["if:", "continue-on-error:"]) {
+      expect(
+        block.some((l) => l.trimStart().startsWith(forbidden)),
+        `the ${SCRIPT} step must not carry ${forbidden} — it would stop gating`,
+      ).toBe(false);
+    }
+
+    const joined = command.join(" ");
+    return joined
+      .slice(joined.indexOf(SCRIPT))
+      .split(/\s+/)
+      .slice(1)
+      .filter((a) => a.length > 0);
+  }
+
+  it("covers every callable index.ts actually deploys", async () => {
+    const entry: Record<string, unknown> = await import("./index.js");
+    const callables = Object.entries(entry)
+      .filter(([, v]) => {
+        const endpoint = (v as { __endpoint?: { callableTrigger?: unknown } })?.__endpoint;
+        return typeof v === "function" && endpoint !== undefined && !!endpoint.callableTrigger;
+      })
+      .map(([name]) => name.toLowerCase())
+      .sort();
+
+    // Sanity: the derivation must find something, or an empty list would match an empty args
+    // list and this whole test would assert nothing.
+    expect(callables.length).toBeGreaterThanOrEqual(7);
+    // Cloud Run lower-cases the service name, so the EXPECTATION is lowercased and deploy.yml
+    // must spell it that way too — the previous comment here claimed the comparison was
+    // case-insensitive, which was backwards: the args are taken verbatim.
+    expect(assertStep().sort()).toEqual(callables);
+  });
+
+  it("names the two unauthenticated callables among them", () => {
+    // UNAUTHENTICATED_CALLABLES keeps its own narrower meaning; this is the only place the two
+    // lists are related, and it is a subset check rather than an equality one.
+    expect(assertStep()).toEqual(
+      expect.arrayContaining([...UNAUTHENTICATED_CALLABLES].map((n) => n.toLowerCase())),
+    );
   });
 });
 
-describe("the unauthenticated-callable list deploy.yml asserts on", () => {
-  // DECISION: the list stays EXPLICIT in deploy.yml and is tripwired here, because it cannot be
-  // derived. `enforceAppCheck` is never serialized into the deploy manifest — verified in the
-  // installed firebase-functions 7.2.5: `v2/options.js` `optionsToEndpoint` copies only omit,
-  // concurrency, minInstances, maxInstances, ingressSettings, labels, timeoutSeconds, cpu,
-  // serviceAccount, vpc, memory, region and secrets — so nothing downstream of the build tells
-  // an unauthenticated callable from an authenticated one, and the only other route is scanning
-  // source text for the symbol, which this repo bans.
-  //
-  // The FAN-OUT a third unauthenticated callable has to reach, in the test rather than in prose
-  // a later grep will miss:
-  //   1. UNAUTHENTICATED_CALLABLES in apps/beacon/src/redeem-invite.ts
-  //   2. the `assert-deployed-env-clean.sh` args in .github/workflows/deploy.yml
-  //   3. apps/beacon/src/index.ts, or it is never deployed at all
-
-  const DEPLOY_YML = new URL("../../../.github/workflows/deploy.yml", import.meta.url);
-
+describe("the unauthenticated callables are exactly the ones declared so", () => {
   it("names every onCall export of this module, and nothing else", async () => {
-    // Identified by `__endpoint`, which `v2/providers/https.js` attaches to what `onCall`
-    // returns — NOT by fingerprinting maxInstances/concurrency, which other callables could
-    // legitimately share. Every callable in THIS module is unauthenticated by construction, so
-    // an unlisted one is the drift this catches.
     const mod: Record<string, unknown> = await import("./redeem-invite.js");
     const callables = Object.entries(mod)
       .filter(([, v]) => typeof v === "function" && "__endpoint" in (v as object))
@@ -941,22 +998,28 @@ describe("the unauthenticated-callable list deploy.yml asserts on", () => {
     expect(callables).toEqual([...UNAUTHENTICATED_CALLABLES].sort());
   });
 
-  it("matches the services deploy.yml reads the env of, post-deploy", () => {
-    const yml = readFileSync(DEPLOY_YML, "utf8");
-    const line = yml
-      .split("\n")
-      .find((l) => l.includes("assert-deployed-env-clean.sh") && !l.trimStart().startsWith("#"));
-    // The step existing at all is part of the assertion: a rename that drops it must fail here
-    // rather than leave this test passing over nothing.
-    expect(line, "deploy.yml no longer runs assert-deployed-env-clean.sh").toBeDefined();
-    const args = (line as string)
-      .slice((line as string).indexOf("assert-deployed-env-clean.sh"))
-      .split(/\s+/)
-      .slice(1)
-      .filter((a) => a.length > 0);
-    // Cloud Run lower-cases the service name (`describeinvite`), so compare case-insensitively
-    // instead of pinning the lowercase spelling in a second place.
-    expect(args.sort()).toEqual([...UNAUTHENTICATED_CALLABLES].map((n) => n.toLowerCase()).sort());
+  it("is reachable from index.ts, or it is never deployed at all", async () => {
+    // The third leg of the fan-out, previously named in a comment and enforced by nothing:
+    // deleting a re-export from index.ts left both other tripwires green while the callable
+    // simply vanished from the deploy, and the post-deploy script tolerates an absent service
+    // with a warning.
+    const entry: Record<string, unknown> = await import("./index.js");
+    expect(Object.keys(entry)).toEqual(expect.arrayContaining([...UNAUTHENTICATED_CALLABLES]));
+  });
+
+  it("were each built with UNAUTHENTICATED_CALL, not merely listed", async () => {
+    // The premise the list's name asserts, previously unchecked: a future
+    // `onCall({ maxInstances: 1 }, ...)` in this module would be forced into a constant called
+    // UNAUTHENTICATED_CALLABLES. `enforceAppCheck` is not serialized into `__endpoint`, so this
+    // compares the options that ARE — which is why it is a check on these two callables rather
+    // than a fingerprint used to identify unknown ones.
+    const mod: Record<string, unknown> = await import("./redeem-invite.js");
+    for (const name of UNAUTHENTICATED_CALLABLES) {
+      const endpoint = (mod[name] as { __endpoint: Record<string, unknown> }).__endpoint;
+      expect(endpoint.concurrency, name).toBe(UNAUTHENTICATED_CALL.concurrency);
+      expect(endpoint.maxInstances, name).toBe(UNAUTHENTICATED_CALL.maxInstances);
+      expect(endpoint.timeoutSeconds, name).toBe(UNAUTHENTICATED_CALL.timeoutSeconds);
+    }
   });
 });
 

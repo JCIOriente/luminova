@@ -1,6 +1,7 @@
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { onCall } from "firebase-functions/v2/https";
+import type { HttpsError } from "firebase-functions/v2/https";
 import type { Role } from "@luminova/auth/roles";
 import { passwordPolicyViolations, passwordTooLong } from "@luminova/types/password-policy";
 import { INVITE_RATE_LIMITS } from "@luminova/types/member-invite";
@@ -10,6 +11,7 @@ import { hashInviteToken, isSafeTokenHash } from "./invite-token.js";
 import { inviteBlocked, inviteRateLimited } from "./provision-errors.js";
 import { createRateLimiter, type RateLimiter } from "./rate-limit.js";
 import { firestoreRedeemDeps } from "./redeem-deps.js";
+import { assertTokenVerificationNotBypassed } from "./token-verification-bypass.js";
 import { ensureApp } from "./runtime.js";
 
 /** The invite document, with its Timestamps already flattened to epoch ms by the port. */
@@ -133,91 +135,6 @@ function tokenHashOf(token: unknown): string | null {
   return isSafeTokenHash(hash) ? hash : null;
 }
 
-/** Whether firebase-functions would accept a SELF-CRAFTED, UNSIGNED App Check token on this
- *  process right now.
- *
- *  `enforceAppCheck` below is a control the deployed CONTAINER'S OWN ENVIRONMENT can switch
- *  off one level beneath us, and two of the three keys that do it are readable from inside the
- *  process — which is what makes this guard possible at all.
- *
- *  The mechanism, read out of the installed firebase-functions 7.2.5 rather than recalled:
- *  `common/debug.js` sets `debugMode = process.env.FIREBASE_DEBUG_MODE === "true"` and
- *  `isDebugFeatureEnabled(f)` is `debugMode && !!loadDebugFeatures()[f]`, where
- *  `loadDebugFeatures` is `JSON.parse(process.env.FIREBASE_DEBUG_FEATURES)` behind a
- *  try/catch returning `{}`. `common/providers/https.js` `checkAppCheckToken` then branches on
- *  `isDebugFeatureEnabled("skipTokenVerification")` and, when it holds, decodes the header with
- *  `unsafeDecodeAppCheckToken` — NO signature check. `tokenStatus.app` comes back `VALID`, so
- *  the `enforceAppCheck` test at the bottom of that file passes and our own cold-start log line
- *  still prints enforcement as `true`. The control reads healthy while accepting anything.
- *
- *  THE PREDICATE IS THE REAL CONDITION, NOT THE PRESENCE OF THE KEYS, and the asymmetry with
- *  `.github/scripts/assert-deployed-env-clean.sh` — which bans all three keys at ANY value —
- *  is deliberate in both directions. That script reads a deployed service's env from OUTSIDE
- *  the process, where it cannot evaluate three consumers' truthiness rules and where no key in
- *  this family belongs at any value. This runs INSIDE the process, where the condition is
- *  exactly computable, and where a false positive takes down the only onboarding path in the
- *  product. `FIREBASE_DEBUG_MODE=false`, or `=true` with no parseable features object, is
- *  provably inert here — refusing on it would be a self-inflicted outage. Do not "simplify"
- *  this into a presence check to match the shell script.
- *
- *  READ PER CALL, never hoisted to module scope. Two reasons, and the second is the one a
- *  refactor is likely to miss:
- *
- *  1. `build.mjs` bundles every trigger into one `dist/index.js`, so a module-scope throw
- *     would crash-loop ALL of beacon for a defect scoped to two invite endpoints.
- *  2. `debug.js` captures `debugMode` at ITS OWN module load. Reading here instead of at ours
- *     is independent of the load order between the two modules, and the only way they can
- *     disagree — the variable arriving after both have loaded — leaves the bypass inert while
- *     this guard refuses. That is the safe direction, on an invite-only path. */
-export function appCheckBypassEnabled(): boolean {
-  if (process.env.FIREBASE_DEBUG_MODE !== "true") return false;
-  let features: unknown;
-  try {
-    features = JSON.parse(process.env.FIREBASE_DEBUG_FEATURES ?? "");
-  } catch {
-    // Not a silent catch (guardrail #4): an unparseable value is the NORMAL negative case —
-    // `debug.js` swallows the same throw and returns `{}` — so there is nothing to report.
-    return false;
-  }
-  if (typeof features !== "object" || features === null) return false;
-  return Boolean((features as Record<string, unknown>).skipTokenVerification);
-}
-
-/** One line per INSTANCE, not per request. In the bypassed state every arriving call refuses,
- *  and one `console.error` apiece would bill a Google service per request on a path anyone can
- *  reach — the same unboundedness `shouldLogRefusal` exists for. A latch rather than reusing
- *  that sampler: this condition cannot change while the process lives, so the first line
- *  carries all the information there is. */
-let bypassLogged = false;
-
-/** Refuse the call outright when the bypass is live. PREVENTION, where
- *  `assert-deployed-env-clean.sh` only DETECTS post-deploy — and it needs no gcloud, no region
- *  assumption and no service list.
- *
- *  GATED ON `ENFORCE_APP_CHECK`, so the emulator is untouched: a developer running with
- *  `FIREBASE_DEBUG_MODE=true` is doing the supported thing, and there is no App Check to
- *  bypass there anyway. That gating is also why this covers only TWO of the three banned keys
- *  — `FUNCTIONS_EMULATOR=true` injected onto a production service turns `ENFORCE_APP_CHECK`
- *  off and this guard with it, and separating that case from a real emulator run would need a
- *  positive production marker, which the `ENFORCE_APP_CHECK` docblock explains must never be
- *  added. The deploy-time assertion stays the only control for that key. */
-function assertAppCheckNotBypassed(fn: string): void {
-  if (!ENFORCE_APP_CHECK || !appCheckBypassEnabled()) return;
-  if (!bypassLogged) {
-    bypassLogged = true;
-    console.error(
-      "REFUSING invite traffic: FIREBASE_DEBUG_MODE + skipTokenVerification make App Check " +
-        "accept unsigned tokens on this instance. Remove both from the service environment.",
-      { fn },
-    );
-  }
-  // UNTAGGED, and the only throw in this file that is. Every `InviteBlockReason` is something
-  // a token holder can act on and backstage has a Spanish message for; this is a server
-  // misconfiguration no invitee can reach legitimately or do anything about. Minting a reason
-  // for it would put a dead string in a cross-boundary `@luminova/types` contract.
-  throw new HttpsError("internal", "this service is misconfigured; contact an administrator");
-}
-
 /** Everything both callables must agree on, in ONE place so the validity rules cannot drift.
  *
  *  Covers the INVITE DOCUMENT and the MEMBER DOCUMENT: describeInvite needs the member doc
@@ -239,13 +156,20 @@ async function loadValidInvite(
   // FIRST, ahead of even the global bucket. Not a contradiction of that bucket's "charged
   // FIRST and unconditionally" contract: this refuses EVERY call while it holds, so there is no
   // traffic left for a bucket to bound, and skipping the charge keeps the buckets from filling
-  // with requests that were never served. It costs one string comparison on the happy path.
+  // with requests that were never served. It costs one string comparison on the happy path, and
+  // a test asserts the gate is never consulted when it refuses.
   //
   // HERE rather than duplicated in the two `onCall` bodies below: this is the single choke
   // point both callables already share, so a third one cannot forget it (guardrail #1), and it
   // is reached by the tests that drive the real exported entry points rather than only by a
-  // direct call to the guard.
-  assertAppCheckNotBypassed(fn);
+  // direct call to the guard. The AUTHENTICATED callables are guarded at their own choke point,
+  // `callable-auth.ts` — the same flag forges Auth ID tokens there, which is strictly worse.
+  // TAGGED here, unlike the authenticated gates: `/invitacion` keys a Spanish message table on
+  // `details.reason`, and a bare `internal` is indistinguishable there from an uncaught transient
+  // failure that SHOULD offer a retry. The link is untouched — this refuses before the claim.
+  assertTokenVerificationNotBypassed(fn, () =>
+    inviteBlocked("invite-service-misconfigured", "this service is temporarily misconfigured"),
+  );
 
   // ONE timestamp for the whole invocation: the two buckets and the expiry comparison must
   // not disagree about when "now" is.
@@ -622,28 +546,23 @@ export const describeInvite = onCall(UNAUTHENTICATED_CALL, async (request) => {
   return describeInviteFor(deps, { token: data.token });
 });
 
-/** The unauthenticated callables BY DEPLOYED NAME, so the one place that has to enumerate them
- *  can be checked against the code instead of trusted.
+/** The callables that take `UNAUTHENTICATED_CALL`, by export name.
  *
- *  DECISION — the `deploy.yml` service list stays EXPLICIT, and is tripwired rather than
- *  derived. A third callable taking `UNAUTHENTICATED_CALL` must be added to this constant, and
- *  the tests then force it into `deploy.yml` too.
+ *  NARROW ON PURPOSE, and deliberately NOT the list `deploy.yml` asserts the environment of.
+ *  The first version of this constant served both jobs, which was a conflation with teeth: the
+ *  env-clean assertion has to cover EVERY deployed callable (the debug flag forges Auth tokens
+ *  on the authenticated ones too), so a test pinning `deploy.yml`'s args to this two-element
+ *  list actively blocked widening the assertion — it would have turned the tripwire red for
+ *  doing the right thing. The deploy list is now DERIVED from `index.ts`'s own callable exports
+ *  instead of enumerated here; see `redeem-invite.test.ts`.
  *
- *  Deriving it was ruled out on a verified fact, not a preference: `enforceAppCheck` is never
- *  serialized into the deploy manifest — `v2/options.js` `optionsToEndpoint` copies only omit,
- *  concurrency, minInstances, maxInstances, ingressSettings, labels, timeoutSeconds, cpu,
- *  serviceAccount, vpc, memory, region and secrets — so nothing CI can read downstream of the
- *  build distinguishes an unauthenticated callable from an authenticated one. The remaining way
- *  to derive it would be scanning source text for `UNAUTHENTICATED_CALL`, which this repo bans
- *  outright: three text-scanning guards each missed the very file they were written for.
+ *  What this list is still for: pinning which callables are reachable WITHOUT a session, so
+ *  adding a third one is a deliberate act that fails a test until it is acknowledged here.
  *
- *  Lowercased for the deployed service name — Cloud Run lower-cases it (`describeinvite`), which
- *  is why the tests compare case-insensitively rather than pinning the lowercase spelling twice.
- *
- *  THE HOLE, stated rather than papered over: this covers a callable added to THIS module. One
+ *  THE HOLE, stated rather than papered over: the check covers callables in THIS module. One
  *  added in a DIFFERENT file with `UNAUTHENTICATED_CALL` imported would slip past, and closing
- *  that needs an eslint AST rule forbidding the symbol outside this file. Not built here — it
- *  is a lint-config change, and there is exactly one unauthenticated-callable module. */
+ *  that needs an eslint AST rule forbidding the symbol outside this file. Not built here — it is
+ *  a lint-config change, and there is exactly one unauthenticated-callable module. */
 export const UNAUTHENTICATED_CALLABLES = ["describeInvite", "redeemInvite"] as const;
 
 export const redeemInvite = onCall(UNAUTHENTICATED_CALL, async (request) => {

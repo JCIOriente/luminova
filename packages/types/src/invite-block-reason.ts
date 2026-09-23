@@ -44,6 +44,17 @@ export const INVITE_BLOCK_REASONS = [
   // the same token works again seconds later. The client's retryability table keys on that —
   // every other tagged reason is permanent for this token.
   "invite-too-many-attempts",
+  // The SERVICE is misconfigured: its environment carries FIREBASE_DEBUG_MODE +
+  // skipTokenVerification, which makes firebase-functions accept UNSIGNED Auth and App Check
+  // tokens, so beacon refuses all traffic rather than serve with verification off.
+  //
+  // TAGGED rather than left as a bare `internal`, and the reason is the client's, not the
+  // server's: `functions/internal` is ALSO what an uncaught transient failure surfaces as (a
+  // Firestore `unavailable` inside `getInvite`, say), and those two need OPPOSITE affordances —
+  // retry now versus do not retry at all, because this condition lasts as long as the container.
+  // An untagged version of this refusal rendered "revisa tu conexión" with a button that could
+  // never succeed. The link itself is untouched: the guard refuses before the token is claimed.
+  "invite-service-misconfigured",
   // The token was claimed but the Auth write failed. The link is spent and the member still
   // has no password: the operator must issue a new one. Surfaced as its own invite state so
   // it cannot read as a successful redemption.
