@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type { Role } from "@luminova/auth/roles";
 import { hashInviteToken } from "./invite-token.js";
@@ -8,7 +9,9 @@ import {
   type InviteDoc,
   type RedeemDeps,
   createRateGate,
+  appCheckBypassEnabled,
   UNAUTHENTICATED_CALL,
+  UNAUTHENTICATED_CALLABLES,
   type RateGate,
   type RedeemUser,
 } from "./redeem-invite.js";
@@ -773,6 +776,187 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
       vi.unstubAllEnvs();
       vi.resetModules();
     }
+  });
+});
+
+describe("the App Check bypass that lives BENEATH enforceAppCheck", () => {
+  // `enforceAppCheck: true` is not self-sufficient. `common/debug.js` +
+  // `common/providers/https.js` in firebase-functions 7.2.5 route App Check through
+  // `unsafeDecodeAppCheckToken` when FIREBASE_DEBUG_MODE is "true" AND FIREBASE_DEBUG_FEATURES
+  // parses to an object with a truthy `skipTokenVerification` — a self-crafted UNSIGNED token
+  // is then accepted, `tokenStatus.app` is VALID, and our own cold-start log still reports
+  // enforcement as `true`. `assert-deployed-env-clean.sh` DETECTS that post-deploy; these
+  // assertions are the in-process REFUSAL, which needs no gcloud and no service list.
+
+  /** Both keys, in the shape that actually enables the bypass. */
+  function stubBypass(): void {
+    vi.stubEnv("FIREBASE_DEBUG_MODE", "true");
+    vi.stubEnv("FIREBASE_DEBUG_FEATURES", JSON.stringify({ skipTokenVerification: true }));
+  }
+
+  it("is not enabled in the environment these tests run in", () => {
+    // Otherwise every negative assertion below would pass for the wrong reason.
+    expect(appCheckBypassEnabled()).toBe(false);
+  });
+
+  it.each([
+    ["describeInvite", (deps: RedeemDeps) => describeInviteFor(deps, { token: TOKEN })],
+    [
+      "redeemInvite",
+      (deps: RedeemDeps) => redeemInviteFor(deps, { token: TOKEN, password: GOOD_PASSWORD }),
+    ],
+  ])("refuses %s outright while the bypass is live", async (_name, call) => {
+    // BOTH callables, because both take UNAUTHENTICATED_CALL and both are in deploy.yml's
+    // assert list. Writing one and calling it done is the easy miss here.
+    const { deps, calls } = fakeDeps({});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    stubBypass();
+    try {
+      expect(appCheckBypassEnabled()).toBe(true);
+      // UNTAGGED and `internal`: a server misconfiguration is not an InviteBlockReason the
+      // invitee can act on, so no dead string enters the @luminova/types contract.
+      expect(await reasonOf(call(deps))).toBe("untagged");
+      await expect(call(deps)).rejects.toMatchObject({ code: "internal" });
+      // BEFORE any I/O and before the token is consumed.
+      expect(calls.claims).toEqual([]);
+      expect(calls.setPassword).toEqual([]);
+      // No count assertion here on purpose: the log is latched PER MODULE INSTANCE, so
+      // whichever of these two rows runs first burns it. The latch gets its own test below,
+      // against a freshly imported module, so neither depends on execution order.
+    } finally {
+      vi.unstubAllEnvs();
+      error.mockRestore();
+    }
+  });
+
+  it("logs the misconfiguration ONCE per instance, not once per refused request", async () => {
+    // In the bypassed state every arriving call refuses, so one `console.error` apiece would
+    // bill a Google service per request on a path anyone can reach — the same unboundedness
+    // `shouldLogRefusal` exists for. A latch rather than that sampler: the condition cannot
+    // change while the process lives, so the first line carries all the information there is.
+    //
+    // Fresh module import for a cold latch, which is also what makes this independent of the
+    // order the rows above run in.
+    vi.resetModules();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    stubBypass();
+    try {
+      const fresh = await import("./redeem-invite.js");
+      const { deps } = fakeDeps({});
+      for (let i = 0; i < 4; i += 1) {
+        await expect(fresh.describeInviteFor(deps, { token: TOKEN })).rejects.toMatchObject({
+          code: "internal",
+        });
+      }
+      expect(error).toHaveBeenCalledTimes(1);
+      // Names the key an operator has to remove, not just "misconfigured".
+      expect(String(error.mock.calls[0]?.[0])).toContain("FIREBASE_DEBUG_MODE");
+    } finally {
+      vi.unstubAllEnvs();
+      error.mockRestore();
+      vi.resetModules();
+    }
+  });
+
+  it.each([
+    ["the mode is off", "false", JSON.stringify({ skipTokenVerification: true })],
+    ['the mode is not the literal "true"', "1", JSON.stringify({ skipTokenVerification: true })],
+    ["the features value is unparseable", "true", "skipTokenVerification"],
+    ["the features object omits the key", "true", JSON.stringify({ somethingElse: true })],
+    ["the features key is falsy", "true", JSON.stringify({ skipTokenVerification: false })],
+    ["the features value is not an object", "true", "42"],
+    ["the features value is absent", "true", ""],
+  ])("keeps serving when %s — the bypass is INERT there", async (_label, mode, features) => {
+    // THIS is the assertion that distinguishes the real predicate from a presence check on the
+    // two key names. `assert-deployed-env-clean.sh` bans them at any value, correctly: it reads
+    // a deployed env from outside and cannot evaluate three consumers' truthiness rules. This
+    // guard runs INSIDE the process, where the condition is exactly computable and where a
+    // false positive takes down the only onboarding path in the product. Without these rows,
+    // "simplifying" the predicate to a presence check would leave every test green while
+    // arming a self-inflicted outage on a provably harmless `FIREBASE_DEBUG_MODE=false`.
+    const { deps } = fakeDeps({});
+    vi.stubEnv("FIREBASE_DEBUG_MODE", mode);
+    vi.stubEnv("FIREBASE_DEBUG_FEATURES", features);
+    try {
+      expect(appCheckBypassEnabled()).toBe(false);
+      await expect(describeInviteFor(deps, { token: TOKEN })).resolves.toMatchObject({
+        email: "ana@jci.bo",
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("does NOT refuse under the emulator, where the debug keys are the supported thing", async () => {
+    // Gated on ENFORCE_APP_CHECK, so a developer running with FIREBASE_DEBUG_MODE=true is
+    // unaffected — there is no App Check to bypass there. Module re-import because
+    // ENFORCE_APP_CHECK is module scope; the guard's own env read is NOT, which is why every
+    // other test here just stubs and calls.
+    vi.stubEnv("FUNCTIONS_EMULATOR", "true");
+    stubBypass();
+    vi.resetModules();
+    try {
+      const underEmulator = await import("./redeem-invite.js");
+      expect(underEmulator.UNAUTHENTICATED_CALL.enforceAppCheck).toBe(false);
+      // The predicate still reports the bypass — it describes the environment, not the policy.
+      expect(underEmulator.appCheckBypassEnabled()).toBe(true);
+      const { deps } = fakeDeps({});
+      await expect(underEmulator.describeInviteFor(deps, { token: TOKEN })).resolves.toMatchObject({
+        email: "ana@jci.bo",
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+});
+
+describe("the unauthenticated-callable list deploy.yml asserts on", () => {
+  // DECISION: the list stays EXPLICIT in deploy.yml and is tripwired here, because it cannot be
+  // derived. `enforceAppCheck` is never serialized into the deploy manifest — verified in the
+  // installed firebase-functions 7.2.5: `v2/options.js` `optionsToEndpoint` copies only omit,
+  // concurrency, minInstances, maxInstances, ingressSettings, labels, timeoutSeconds, cpu,
+  // serviceAccount, vpc, memory, region and secrets — so nothing downstream of the build tells
+  // an unauthenticated callable from an authenticated one, and the only other route is scanning
+  // source text for the symbol, which this repo bans.
+  //
+  // The FAN-OUT a third unauthenticated callable has to reach, in the test rather than in prose
+  // a later grep will miss:
+  //   1. UNAUTHENTICATED_CALLABLES in apps/beacon/src/redeem-invite.ts
+  //   2. the `assert-deployed-env-clean.sh` args in .github/workflows/deploy.yml
+  //   3. apps/beacon/src/index.ts, or it is never deployed at all
+
+  const DEPLOY_YML = new URL("../../../.github/workflows/deploy.yml", import.meta.url);
+
+  it("names every onCall export of this module, and nothing else", async () => {
+    // Identified by `__endpoint`, which `v2/providers/https.js` attaches to what `onCall`
+    // returns — NOT by fingerprinting maxInstances/concurrency, which other callables could
+    // legitimately share. Every callable in THIS module is unauthenticated by construction, so
+    // an unlisted one is the drift this catches.
+    const mod: Record<string, unknown> = await import("./redeem-invite.js");
+    const callables = Object.entries(mod)
+      .filter(([, v]) => typeof v === "function" && "__endpoint" in (v as object))
+      .map(([k]) => k)
+      .sort();
+    expect(callables).toEqual([...UNAUTHENTICATED_CALLABLES].sort());
+  });
+
+  it("matches the services deploy.yml reads the env of, post-deploy", () => {
+    const yml = readFileSync(DEPLOY_YML, "utf8");
+    const line = yml
+      .split("\n")
+      .find((l) => l.includes("assert-deployed-env-clean.sh") && !l.trimStart().startsWith("#"));
+    // The step existing at all is part of the assertion: a rename that drops it must fail here
+    // rather than leave this test passing over nothing.
+    expect(line, "deploy.yml no longer runs assert-deployed-env-clean.sh").toBeDefined();
+    const args = (line as string)
+      .slice((line as string).indexOf("assert-deployed-env-clean.sh"))
+      .split(/\s+/)
+      .slice(1)
+      .filter((a) => a.length > 0);
+    // Cloud Run lower-cases the service name (`describeinvite`), so compare case-insensitively
+    // instead of pinning the lowercase spelling in a second place.
+    expect(args.sort()).toEqual([...UNAUTHENTICATED_CALLABLES].map((n) => n.toLowerCase()).sort());
   });
 });
 

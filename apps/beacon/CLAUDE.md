@@ -120,6 +120,21 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   not instead of it. **Enforcement is per-PRODUCT: Cloud Functions must be registered and
   `/invitacion` tested against a real build before deploy**, or every redemption 403s silently
   on the only onboarding path. See docs/firebase-setup.md.
+- **`enforceAppCheck: true` is not self-sufficient, and the bypass beneath it is refused
+  in-process.** `FIREBASE_DEBUG_MODE=true` plus a `FIREBASE_DEBUG_FEATURES` object carrying
+  `skipTokenVerification` makes firebase-functions decode the App Check header with
+  `unsafeDecodeAppCheckToken` — a self-crafted UNSIGNED token is accepted while our own
+  cold-start log still prints enforcement as `true`. `appCheckBypassEnabled()` evaluates that
+  exact condition per call and throws `internal`; it is gated on `ENFORCE_APP_CHECK`, so the
+  emulator is untouched. It is the real predicate, NOT a presence check on the key names —
+  `FIREBASE_DEBUG_MODE=false` is provably inert, and refusing on it would be a self-inflicted
+  outage. `FUNCTIONS_EMULATOR` cannot be guarded this way (keying on it is what disables
+  enforcement), so the post-deploy `assert-deployed-env-clean.sh` stays the only control for
+  that key. `UNAUTHENTICATED_CALLABLES` is the tripwired list that step's args must match — a
+  third unauthenticated callable has to be added to it, and the tests then force it into
+  `deploy.yml`. The list is explicit on purpose: `enforceAppCheck` is never serialized into the
+  deploy manifest, so nothing downstream of the build can derive it, and scanning source text
+  for the symbol is a banned guard shape.
 - **`maxInstances` is both a control and a lever**: it caps billing but converts a cost problem
   into an availability one. The rate gate is what makes that trade cheaper — a throttled
   request never occupies an instance doing Firestore reads.

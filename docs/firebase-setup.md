@@ -624,9 +624,24 @@ it in a copy dialog with its expiry.
    fails the control open one level lower, inside firebase-functions: it routes App Check
    through `unsafeDecodeAppCheckToken`, which accepts a self-crafted UNSIGNED token.
    Enforcement would still read as `true` in the log line while accepting anything — so the
-   cold-start log cannot catch that family, and reading the deployed env is the only thing
-   that can. The repo-side grep in `ci.yml` still covers only `FUNCTIONS_EMULATOR`, because the
-   debug pair cannot arrive from a repo file.
+   cold-start log cannot catch that family. The repo-side grep in `ci.yml` still covers only
+   `FUNCTIONS_EMULATOR`, because the debug pair cannot arrive from a repo file.
+
+   **Two of the three are also refused IN-PROCESS, which is prevention rather than detection.**
+   Unlike `FUNCTIONS_EMULATOR`, the debug pair is readable by the running container itself, so
+   `appCheckBypassEnabled()` in `apps/beacon/src/redeem-invite.ts` evaluates the real bypass
+   condition on every invite call and throws `internal` while it holds — no gcloud, no region
+   assumption, no service list. It is gated on `ENFORCE_APP_CHECK`, so the emulator is
+   unaffected. Note the deliberate difference in strictness: this script bans all three keys at
+   **any value**, because from outside the process it cannot evaluate three consumers'
+   truthiness rules and none of them belong on a deployed service; the in-process guard fires
+   only on the condition firebase-functions actually acts on (`FIREBASE_DEBUG_MODE` exactly
+   `"true"` **and** a parseable `FIREBASE_DEBUG_FEATURES` object with a truthy
+   `skipTokenVerification`), because a false positive there would take down the only onboarding
+   path in the product. `FUNCTIONS_EMULATOR` gets no in-process guard and cannot: keying on it
+   is what turns enforcement off, and separating a real emulator run from an injected value
+   would need a positive production marker, which must never be added (it would fail open the
+   day that variable is renamed). **For that one key this script remains the only control.**
 
    `us-central1` is the gen2 default, which is what these get — beacon sets no `region` on any
    callable and calls no `setGlobalOptions`. The script defaults to it and takes `GCP_REGION`
