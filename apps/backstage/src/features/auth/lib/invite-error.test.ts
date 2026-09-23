@@ -46,11 +46,11 @@ describe("what the SUBMIT path renders", () => {
   // pinned above, by the untagged test and by the one that iterates INVITE_BLOCK_REASONS, and
   // restating them as submit-path tests would be the same call with the same input.
   it("carries the WAIT, not just the message, on a throttled refusal", () => {
-    // The regression this pins: the submit path dropped `retryAfterSeconds` and left its
+    // The regression this pins: the submit path dropped the refusal's delay and left its
     // button enabled, so each impatient click spent a shared endpoint-wide slot to fail.
     const throttled = inviteRefusal({ details: { reason: "invite-too-many-attempts" } });
     expect(throttled.message).not.toBeNull();
-    expect(throttled.retryAfterSeconds).toBe(INVITE_RETRY_AFTER_SECONDS);
+    expect(throttled.recovery).toEqual({ kind: "retry", afterSeconds: INVITE_RETRY_AFTER_SECONDS });
   });
 });
 
@@ -59,7 +59,7 @@ describe("what the SUBMIT path renders", () => {
  *  would be the drift these tests exist to catch. */
 const TEMPORARY_REASONS: ReadonlySet<string> = new Set(
   INVITE_BLOCK_REASONS.filter(
-    (reason) => inviteRefusal({ details: { reason } }).retryAfterSeconds !== null,
+    (reason) => inviteRefusal({ details: { reason } }).recovery.kind !== "none",
   ),
 );
 
@@ -68,7 +68,7 @@ describe("inviteRefusal — which refusals a retry can clear", () => {
     // The bucket refills a slot every 12 s, so the same link works again shortly. Hiding the
     // retry button here would strand someone whose only mistake was reloading the page.
     const refusal = inviteRefusal({ details: { reason: "invite-too-many-attempts" } });
-    expect(refusal.retryAfterSeconds).not.toBeNull();
+    expect(refusal.recovery.kind).not.toBe("none");
     expect(refusal.message).toMatch(/segundos/i);
     // And it must NOT tell them to go find an operator — waiting is the entire remedy.
     expect(refusal.message).not.toMatch(/nuevo enlace|te env[ií]e|administrador/i);
@@ -77,8 +77,9 @@ describe("inviteRefusal — which refusals a retry can clear", () => {
   it("offers a retry for an UNTAGGED failure, with no message of its own", () => {
     const refusal = inviteRefusal(new Error("network"));
     expect(refusal.message).toBeNull();
-    // 0, not null: retryable, and immediately — a network blip has no budget to wait out.
-    expect(refusal.retryAfterSeconds).toBe(0);
+    // `retry` at 0, not `none`: retryable, and immediately — a network blip has no budget to
+    // wait out.
+    expect(refusal.recovery).toEqual({ kind: "retry", afterSeconds: 0 });
   });
 
   it("refuses a retry for every reason NOT declared temporary", () => {
@@ -92,7 +93,7 @@ describe("inviteRefusal — which refusals a retry can clear", () => {
     for (const reason of INVITE_BLOCK_REASONS) {
       if (TEMPORARY_REASONS.has(reason)) continue;
       const refusal = inviteRefusal({ details: { reason } });
-      expect(refusal.retryAfterSeconds, reason).toBeNull();
+      expect(refusal.recovery.kind, reason).toBe("none");
       expect(refusal.message, reason).not.toBeNull();
     }
   });
@@ -109,7 +110,7 @@ describe("inviteRefusal — which refusals a retry can clear", () => {
       // 0, not null. `message` is null, so the form renders GENERIC_LOAD_ERROR — "Revisa tu
       // conexión e inténtalo de nuevo". `null` here removes the Reintentar button, leaving
       // copy that instructs a retry above a screen that offers none.
-      expect(refusal.retryAfterSeconds).toBe(0);
+      expect(refusal.recovery).toEqual({ kind: "retry", afterSeconds: 0 });
     },
   );
 });
@@ -136,7 +137,7 @@ describe("inviteRefusal — copy and affordance cannot contradict", () => {
   ]);
 
   it("offers a retry for every LOAD-path message that tells the invitee to try again", () => {
-    // The rule itself, not one assertion per branch. `retryAfterSeconds: null` removes the
+    // The rule itself, not one assertion per branch. `recovery: { kind: "none" }` removes the
     // Reintentar button, so any load-path message whose copy instructs a retry must not take
     // that path.
     //
@@ -151,9 +152,9 @@ describe("inviteRefusal — copy and affordance cannot contradict", () => {
       if (!/int[ée]ntalo de nuevo|vuelve a intentarlo/i.test(refusal.message)) continue;
       checked += 1;
       expect(
-        refusal.retryAfterSeconds,
-        `${reason} tells them to retry but offers no button`,
-      ).not.toBeNull();
+        refusal.recovery.kind,
+        `${reason} tells them to act but offers no affordance at all`,
+      ).not.toBe("none");
     }
     // The loop must actually have asserted something. Without this a copy edit that drops
     // every "inténtalo de nuevo" turns this into a green test that checks nothing.
@@ -188,36 +189,53 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
     // dominate — and a "inténtalo de nuevo en un momento" with no button is the same
     // copy/affordance contradiction fixed for unrecognized tagged reasons above.
     const refusal = inviteRefusal(attestationFailure);
-    expect(refusal.retryAfterSeconds).toBeGreaterThan(0);
+    expect(refusal.recovery.kind).not.toBe("none");
+    expect(refusal.recovery.kind === "none" ? 0 : refusal.recovery.afterSeconds).toBeGreaterThan(0);
   });
 
-  it("names a RELOAD — the only remedy that clears a 24 h App Check throttle", () => {
+  it("names the RELOAD in the recovery — the only remedy that clears a 24 h throttle", () => {
     // Not decoration. A 403 from the token exchange (the unregistered-product case, i.e. the
     // BLOCKING owner-op) makes @firebase/app-check set a 24 h backoff on the provider
     // instance, and `throwIfThrottled` runs before any exchange is attempted — so Reintentar
     // cannot succeed for the rest of the day no matter what an owner fixes in the console.
-    // Only a reload builds a new provider. Without this line the copy would promise a retry
-    // that silently cannot work, which is the dead end the retry was added to avoid.
+    // Only a reload builds a new provider.
+    //
+    // THIS IS THE ONE ARM WITH TWO HONEST REMEDIES, which is why it is a kind of its own and
+    // not a number: a retry clears the two transient causes, a reload additionally clears the
+    // throttle. Asserting the kind pins the behaviour. The predecessor asserted that the
+    // Spanish string contained "recarga la página", which pinned a sentence — and a sentence
+    // is not an affordance: the invitee had to read it and act on it themselves.
     const refusal = inviteRefusal(attestationFailure);
-    expect(refusal.message).toMatch(/recarga la p[áa]gina/i);
+    expect(refusal.recovery.kind).toBe("retry-or-reload");
   });
 
-  it("tells them to try later FIRST, then gives the escape hatch for the permanent cause", () => {
+  it("no longer spells the reload out in the copy, because the component renders it", () => {
+    // The paired negative. If the instruction stayed in the string too, the invitee would be
+    // told to reload AND shown a button that does it — and the string would drift from the
+    // affordance the next time either is edited. It also let the component keep the reload
+    // COST out of the shared copy: free on the load screen, a retyped password on submit, and
+    // only the component knows which path it is on.
+    const refusal = inviteRefusal(attestationFailure);
+    expect(refusal.message).not.toMatch(/recarga/i);
+  });
+
+  it("still names the remedies a button cannot perform for them", () => {
     // Both halves are load-bearing. "Try later" alone traps the person running a content
     // blocker in a loop that never resolves; the browser remedies alone send someone whose
     // problem is a five-minute console fix away for good.
-    const refusal = inviteRefusal(attestationFailure);
-    const ordered = refusal.message ?? "";
-    expect(ordered).toMatch(/de nuevo en un momento/i);
-    expect(ordered).toMatch(/navegador/i);
-    expect(ordered).toMatch(/extensi[óo]n|extensiones/i);
-    // Retry before reload before browser: cheapest working remedy first.
-    expect(ordered.indexOf("recarga")).toBeGreaterThan(ordered.indexOf("de nuevo"));
-    expect(ordered.indexOf("navegador")).toBeGreaterThan(ordered.indexOf("recarga"));
-    // The operator is the LAST resort, not the first instruction — they cannot unblock an
-    // extension, so naming them early would be advice that does not work.
-    const message = refusal.message ?? "";
-    expect(message.indexOf("directiva")).toBeGreaterThan(message.indexOf("navegador"));
+    //
+    // CONTENT, not order. This test used to pin four remedies by `indexOf` — "recarga" after
+    // "de nuevo", "navegador" after "recarga", "directiva" after "navegador" — which made
+    // word order the proxy for an affordance decision the type could not hold. It can now, so
+    // the ordering that matters (retry, then reload) is asserted where it lives: in the
+    // recovery kind above and in the component that renders the two buttons. What is left
+    // here is the part no affordance can replace — unblocking an extension and telling the
+    // directiva are things only the invitee can do, so the copy must still say them.
+    const message = inviteRefusal(attestationFailure).message ?? "";
+    expect(message).toMatch(/de nuevo en un momento/i);
+    expect(message).toMatch(/navegador/i);
+    expect(message).toMatch(/extensi[óo]n|extensiones/i);
+    expect(message).toMatch(/directiva/i);
   });
 
   it("logs it, so a silent lockout leaves a trace in the console", () => {
@@ -230,9 +248,10 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
   it("still treats a genuine network failure as retryable", () => {
     // The paired negative: the fix must not swallow every untagged error into the
     // attestation bucket.
-    expect(inviteRefusal(new Error("network")).retryAfterSeconds).toBe(0);
-    expect(inviteRefusal({ code: "functions/unavailable" }).retryAfterSeconds).toBe(0);
-    expect(inviteRefusal({ code: "functions/internal" }).retryAfterSeconds).toBe(0);
+    const immediate = { kind: "retry", afterSeconds: 0 };
+    expect(inviteRefusal(new Error("network")).recovery).toEqual(immediate);
+    expect(inviteRefusal({ code: "functions/unavailable" }).recovery).toEqual(immediate);
+    expect(inviteRefusal({ code: "functions/internal" }).recovery).toEqual(immediate);
   });
 
   // "surfaces on the SUBMIT path too" used to live here, exercising the message-only wrapper
@@ -251,7 +270,7 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
       code: "functions/unauthenticated",
       details: { reason: "invite-too-many-attempts" },
     };
-    expect(inviteRefusal(tagged).retryAfterSeconds).not.toBeNull();
+    expect(inviteRefusal(tagged).recovery.kind).not.toBe("none");
     expect(inviteRefusal(tagged).message).toMatch(/segundos/i);
     // And it must not be logged as an attestation lockout, which it is not.
     expect(spy).not.toHaveBeenCalled();
@@ -263,7 +282,7 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
       code: "functions/resource-exhausted",
       details: { reason: "invite-too-many-attempts" },
     };
-    expect(inviteRefusal(rateLimited).retryAfterSeconds).not.toBeNull();
+    expect(inviteRefusal(rateLimited).recovery.kind).not.toBe("none");
     expect(inviteRefusal(rateLimited).message).toMatch(/segundos/i);
   });
 });
@@ -313,7 +332,7 @@ describe("inviteRefusal — the HEADING must not contradict the body", () => {
     // Asserted against the SHARED constant, not a literal 12: the whole point of moving the
     // ceilings into @luminova/types is that the client cannot hold its own copy of the
     // server's refill rate. A literal here would be that copy, one layer out.
-    expect(refusal.retryAfterSeconds).toBe(INVITE_RETRY_AFTER_SECONDS);
+    expect(refusal.recovery).toEqual({ kind: "retry", afterSeconds: INVITE_RETRY_AFTER_SECONDS });
     // And the derivation itself. A deliberate TRIPWIRE, not a second hardcoded copy: it does
     // not constrain the client, it makes a change to `perTokenPerMinute` or `windowMs` stop
     // here and be acknowledged, since that retune also changes what the invite page promises
@@ -322,6 +341,9 @@ describe("inviteRefusal — the HEADING must not contradict the body", () => {
   });
 
   it("imposes no wait on an ordinary network retry", () => {
-    expect(inviteRefusal(new Error("network")).retryAfterSeconds).toBe(0);
+    expect(inviteRefusal(new Error("network")).recovery).toEqual({
+      kind: "retry",
+      afterSeconds: 0,
+    });
   });
 });

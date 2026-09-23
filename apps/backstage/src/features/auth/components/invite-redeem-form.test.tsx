@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { INVITE_RETRY_AFTER_SECONDS } from "@luminova/types";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -212,7 +212,7 @@ describe("InviteRedeemForm", () => {
 
   it("WITHHOLDS the submit button after a THROTTLED redemption, not just the load retry", async () => {
     // The regression this pins. The submit path read only the refusal's message and dropped
-    // its `retryAfterSeconds`, so the button stayed live under copy promising a wait — and
+    // its wait, so the button stayed live under copy promising one — and
     // this is the button an invitee retries hardest, because it sits behind a password they
     // have already typed. Each impatient click spends an ENDPOINT-WIDE slot to fail, and that
     // bucket has shared fate: the clicks push the very ceiling that denies every OTHER
@@ -238,7 +238,7 @@ describe("InviteRedeemForm", () => {
 
   it("does NOT carry a throttled wait over to a newly pasted link", async () => {
     // `cooldown` gained a second writer when the submit path started honouring
-    // `retryAfterSeconds`, and both buckets are keyed PER TOKEN — so a wait one link earned
+    // the refusal's wait, and both buckets are keyed PER TOKEN — so a wait one link earned
     // must not disable the submit button for the next one. Reachable in one tab: invitacion.tsx
     // feeds `token` from the location hash, so pasting a second link re-runs load() with a
     // countdown still ticking from the first.
@@ -289,5 +289,88 @@ describe("InviteRedeemForm", () => {
     await fillPasswords("Abcde1");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
     await waitFor(() => expect(hasAlertMatching(/ya se consumió/i)).toBe(true));
+  });
+});
+
+describe("InviteRedeemForm — the reload a blocked attestation needs", () => {
+  // `inviteRefusal` now names `retry-or-reload` on an App Check rejection instead of hiding a
+  // "recarga la página" sentence in the Spanish copy. Which affordance the invitee gets is
+  // THIS component's decision, because only it knows what a reload costs on the path it is
+  // rendering — and the two paths differ.
+  const attestationFailure = { code: "functions/unauthenticated" };
+  let reload: ReturnType<typeof vi.fn>;
+  let consoleError: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    describeCallable.mockResolvedValue({ data: VALID });
+    redeemCallable.mockResolvedValue({ data: { ok: true, email: VALID.email } });
+    reload = vi.fn();
+    vi.stubGlobal("location", { ...window.location, reload });
+    // inviteRefusal logs the rejection so a silent lockout leaves a trace; keep it out of the
+    // test output without losing the assertion that it happens (pinned in invite-error.test).
+    consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    consoleError.mockRestore();
+  });
+
+  it("offers a RELOAD instead of Reintentar on the load path, where it costs nothing", async () => {
+    // A reload strictly dominates a retry here: it re-runs describeInvite AND builds a new App
+    // Check provider, which is the only thing that clears the 24 h 403 throttle. Nothing the
+    // invitee has typed exists yet, so there is no reason to offer the weaker button.
+    describeCallable.mockRejectedValue(attestationFailure);
+    render(<InviteRedeemForm token="abc" />);
+    const button = await screen.findByRole("button", { name: /recargar la página/i });
+    expect(screen.queryByRole("button", { name: /reintentar/i })).not.toBeInTheDocument();
+    // And it must not be withheld: the wait existed to stop someone hammering a button that
+    // could not work yet, and this one can work immediately.
+    expect(button).toBeEnabled();
+    await userEvent.click(button);
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it("keeps Reintentar for a THROTTLED load failure — a reload would not help there", async () => {
+    // The paired negative. Rate limiting is keyed per token on the server; reloading the page
+    // does not refill the bucket, and it would throw away nothing useful either. The reload
+    // belongs to the attestation arm alone.
+    describeCallable.mockRejectedValue(refusal("invite-too-many-attempts"));
+    render(<InviteRedeemForm token="abc" />);
+    expect(await screen.findByRole("button", { name: /reintentar/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /recargar/i })).not.toBeInTheDocument();
+  });
+
+  it("puts the reload BEHIND the retry on submit, and warns what it costs", async () => {
+    // THE DESIGN CALL. On this path a reload throws away a password the invitee has already
+    // typed, to fix a cause that is transient two times out of three. So the withheld retry
+    // stays the primary affordance and the reload sits under it — offered, because it is the
+    // only escape from a 24 h throttle, but never taken silently and never unannounced.
+    redeemCallable.mockRejectedValue(attestationFailure);
+    render(<InviteRedeemForm token="abc" />);
+    await screen.findByLabelText("Nueva contraseña");
+    await fillPasswords("Abcde1");
+    await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
+
+    expect(await screen.findByRole("button", { name: /espera \d+s/i })).toBeDisabled();
+    const reloadButton = screen.getByRole("button", { name: /recargar la página/i });
+    expect(reloadButton).toBeEnabled();
+    // The warning is the whole reason this is a button and not an automatic reload.
+    expect(hasAlertMatching(/volver a escribir tu contraseña/i)).toBe(true);
+    await userEvent.click(reloadButton);
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it("shows NO reload on an ordinary failed submit", async () => {
+    // A weak password or a network blip is not an attestation problem, and offering to throw
+    // the typed password away for either would be actively harmful advice.
+    redeemCallable.mockRejectedValue(refusal("invite-password-weak"));
+    render(<InviteRedeemForm token="abc" />);
+    await screen.findByLabelText("Nueva contraseña");
+    await fillPasswords("Abcde1");
+    await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
+    await waitFor(() => expect(hasAlertMatching(/no cumple los requisitos/i)).toBe(true));
+    expect(screen.queryByRole("button", { name: /recargar/i })).not.toBeInTheDocument();
   });
 });

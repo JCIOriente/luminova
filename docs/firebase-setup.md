@@ -571,40 +571,67 @@ it in a copy dialog with its expiry.
    `"source": "apps/beacon/dist"`. The files that reach the deployed runtime are therefore
    **`apps/beacon/dist/.env*`**, NOT `apps/beacon/.env*`, which firebase-tools never reads for
    this project. Grepping `apps/beacon/` clean does not clear this vector — an earlier version
-   of this paragraph said it did, and the CI guard in `.github/workflows/deploy.yml` states the
-   correct path. Note also that the parser accepts the shell `export FOO=bar` spelling
+   of this paragraph said it did, and the CI guard in `.github/workflows/ci.yml` states the
+   correct path. That guard runs in PR CI **after** the build, which is the only place both of
+   its arms are live: `dist` exists by then, including after a turbo cache restore. It used to
+   sit in `deploy.yml` ahead of `predeploy`, where the arm that mattered never executed. Note also that the parser accepts the shell `export FOO=bar` spelling
    (`LINE_RE` is `^\s*(?:export)?\s*([\w./]+)\s*=`), so grep for both forms.
 
    `dist/` is gitignored and wiped by `apps/beacon/build.mjs` before every build, which
    `predeploy` runs — so a committed override cannot reach the path that matters, and no such
    file exists today. What remains reachable is what a repo grep cannot see: a turbo cache hit
    restoring an unlisted file, a console edit, or a value set directly on the Cloud Run service.
-   For those, this end-to-end check and the module-scope `console.info` of the resolved value
-   are what stand between that line and an unprotected endpoint. It is emitted from
+   For those, three things stand between that line and an unprotected endpoint: this
+   end-to-end check, the module-scope `console.info` of the resolved value, and — since the
+   App Check work — an automatic assertion on every deploy. The log line is emitted from
    `apps/beacon/src/index.ts`, beacon's single bundled entrypoint, so every beacon container
-   logs it once at cold start — the value is the build's, identical on every service, and any
-   one of them answers "what did the deployed code resolve?" A `gcloud run services
-   describe` of the two services will show the resolved env.
+   logs it once at cold start; the value is the build's, identical on every service, and any
+   one of them answers "what did the deployed code resolve?"
 
-   **Check for TWO variables there, not one.** `FUNCTIONS_EMULATOR` is what our own code keys
-   on, but `FIREBASE_DEBUG_MODE` (and `FIREBASE_DEBUG_FEATURES` carrying
-   `skipTokenVerification`) fails the control open one level lower, inside firebase-functions:
-   it routes App Check through `unsafeDecodeAppCheckToken`, which accepts a self-crafted
-   UNSIGNED token. Enforcement would still read as `true` in the log line while accepting
-   anything. Neither belongs on a deployed service; the CI guard greps only the first, because
-   the second cannot arrive from a repo file.
-
-   `us-central1` below is the gen2 default, which is what these get — beacon sets no `region`
-   on any callable and calls no `setGlobalOptions`. Confirm with
-   `gcloud run services list --project=jci-oriente` if a region is ever added.
+   **The deploy now asserts this for you.** `.github/workflows/deploy.yml` runs
+   `.github/scripts/assert-deployed-env-clean.sh describeinvite redeeminvite` straight after
+   `firebase deploy --only functions`, and a hit fails the job — which also holds back
+   `deploy-hosting`, since it gates on the functions stage. Be clear on what that is worth:
+   it **detects, it does not prevent**. The functions are already live when it reads them; what
+   it stops is the rest of the release. Run the same script by hand any time:
 
    ```bash
-   for svc in describeinvite redeeminvite; do
-     gcloud run services describe "$svc" --region=us-central1 --project=jci-oriente \
-       --format='value(spec.template.spec.containers[0].env)' | tr ',' '\n' \
-       | grep -E 'FUNCTIONS_EMULATOR|FIREBASE_DEBUG' || echo "$svc: clean"
-   done
+   GCP_PROJECT_ID=jci-oriente bash .github/scripts/assert-deployed-env-clean.sh \
+     describeinvite redeeminvite
    ```
+
+   Verified against the real thing on 2026-09-22: run against the deployed `describeinvite`,
+   the script reports `ok: describeinvite carries none of FUNCTIONS_EMULATOR FIREBASE_DEBUG_MODE
+   FIREBASE_DEBUG_FEATURES` and exits 0; with one of those keys injected into the same captured
+   output it exits 1 and names the `gcloud run services update … --remove-env-vars` remedy. The
+   service's env at that point was FIREBASE_CONFIG, GCLOUD_PROJECT, EVENTARC_CLOUD_EVENT_SOURCE,
+   FUNCTION_TARGET and LOG_EXECUTION_ID — that capture is the `CLEAN` fixture in the test file,
+   so the fixtures are pinned to output the tool really produces.
+
+   Use the script rather than an ad-hoc `gcloud` pipeline, so the manual check and the deploy
+   gate cannot drift — and because the ad-hoc form this replaced had a false pass in it: it
+   piped a flattened `--format='value(...)'` rendering into `grep`, and an empty string (a
+   changed rendering, an env list that did not load) matches nothing and reads as "clean". The
+   script parses the JSON and treats an empty env list as a failure to verify, not a pass. Its
+   arms are covered by fixtures in `.github/scripts/assert-deployed-env-clean.test.mjs`
+   (`pnpm test:ci-scripts`): a permission error or an unparseable response fail, and a missing
+   service is tolerated with a warning — one absent service says nothing about the other. But
+   if **no** service can be read the job fails, because then nothing was verified at all. That
+   is also what catches a wrong region, which looks exactly like every service being absent.
+
+   **It checks THREE variables, not one.** `FUNCTIONS_EMULATOR` is what our own code keys on,
+   but `FIREBASE_DEBUG_MODE` (and `FIREBASE_DEBUG_FEATURES` carrying `skipTokenVerification`)
+   fails the control open one level lower, inside firebase-functions: it routes App Check
+   through `unsafeDecodeAppCheckToken`, which accepts a self-crafted UNSIGNED token.
+   Enforcement would still read as `true` in the log line while accepting anything — so the
+   cold-start log cannot catch that family, and reading the deployed env is the only thing
+   that can. The repo-side grep in `ci.yml` still covers only `FUNCTIONS_EMULATOR`, because the
+   debug pair cannot arrive from a repo file.
+
+   `us-central1` is the gen2 default, which is what these get — beacon sets no `region` on any
+   callable and calls no `setGlobalOptions`. The script defaults to it and takes `GCP_REGION`
+   if a region is ever added; confirm with `gcloud run services list --project=jci-oriente`.
+
 
    If it does fail: hard-code `ENFORCE_APP_CHECK = false` in
    `apps/beacon/src/redeem-invite.ts`, redeploy the two functions, and fix the registration
