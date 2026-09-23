@@ -105,7 +105,8 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   the ceiling and it stops you with the list. The request-rate alert in
   `docs/firebase-setup.md` is set just under the denial point.
 - **App Check IS enforced in production, and deliberately NOT under the emulator**
-  (`enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true"`). firebase-functions enforces
+  (`ENFORCE_APP_CHECK`, derived from `UNDER_EMULATOR` — one read of `FUNCTIONS_EMULATOR`, in
+  `token-verification-bypass.ts`). firebase-functions enforces
   this ITSELF — a request with no `X-Firebase-AppCheck` header is rejected before the
   debug-token escape — and local dev leaves `VITE_APPCHECK_SITE_KEY` blank, so the client sends
   no header at all. Enforcing unconditionally would make `/invitacion` impossible to exercise

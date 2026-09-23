@@ -554,8 +554,10 @@ export const describeInvite = onCall(UNAUTHENTICATED_CALL, async (request) => {
  *  env-clean assertion has to cover EVERY deployed callable (the debug flag forges Auth tokens
  *  on the authenticated ones too), so a test pinning `deploy.yml`'s args to this two-element
  *  list actively blocked widening the assertion — it would have turned the tripwire red for
- *  doing the right thing. The deploy list is now DERIVED from `index.ts`'s own callable exports
- *  instead of enumerated here; see `redeem-invite.test.ts`.
+ *  doing the right thing. The deploy list is still ENUMERATED in `deploy.yml`; what changed is
+ *  that a test PINS it against a derivation from `index.ts`'s callable exports, so adding a
+ *  callable turns that test red until the YAML is widened. Nothing auto-widens — the derivation
+ *  is the expectation, not the source. See `redeem-invite.test.ts`.
  *
  *  What this list is still for: pinning which callables are reachable WITHOUT a session, so
  *  adding a third one is a deliberate act that fails a test until it is acknowledged here.

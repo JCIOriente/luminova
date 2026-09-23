@@ -349,18 +349,23 @@ describe("inviteRefusal — the HEADING must not contradict the body", () => {
 });
 
 describe("inviteRefusal — a refused MISCONFIGURED service is not a network blip either", () => {
-  // beacon's `assertTokenVerificationNotBypassed` throws `internal` with no `details.reason` when
-  // the deployed service carries FIREBASE_DEBUG_MODE + skipTokenVerification — the environment
-  // that makes firebase-functions accept UNSIGNED Auth and App Check tokens. Untagged there on
-  // purpose, which is exactly why it needs a branch here: the untagged fallback is the same
-  // "revisa tu conexión" mis-attribution `isAttestationRejection` was written to remove, and this
-  // one is worse, because the condition lasts as long as the container and a retry loops forever.
-  // TAGGED, which is the whole point: a bare `functions/internal` stays retryable (the test
-  // above pins that) because an uncaught transient failure arrives with the same code. Only the
-  // tag says "our environment is wrong, do not retry".
+  // beacon refuses every invite call while the deployed service carries FIREBASE_DEBUG_MODE +
+  // skipTokenVerification — the environment that makes firebase-functions accept UNSIGNED Auth and
+  // App Check tokens. On THIS path the refusal is TAGGED, and the tag is what matters: an untagged
+  // error falls to the "revisa tu conexión" branch `isAttestationRejection` was written to remove,
+  // and here that is worse still, because the condition lasts as long as the container and the
+  // retry loops forever.
+  //
+  // `failed-precondition`, because that is what beacon actually emits: the invite path raises
+  // through `inviteBlocked`, which is hard-coded to that code (provision-errors.ts). The FIRST
+  // version of this fixture said `functions/internal` — a shape beacon cannot produce on this
+  // path — and passed anyway, because `inviteRefusal` reads `details.reason` before it looks at
+  // any code. State that plainly so the next reader does not "correct" the code and believe they
+  // changed behaviour: they would not have. What the honest code buys is that a future
+  // code-keyed branch added ABOVE the tagged one is exercised by this suite instead of skipped.
   const misconfigured = {
-    code: "functions/internal",
-    message: "INTERNAL",
+    code: "functions/failed-precondition",
+    message: "FAILED_PRECONDITION",
     details: { reason: "invite-service-misconfigured" },
   };
 

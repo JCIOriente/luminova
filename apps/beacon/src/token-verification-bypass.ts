@@ -7,7 +7,9 @@ import { createRateLimiter, type RateLimiter } from "./rate-limit.js";
  *
  *  Fail-closed, and it must stay that way: ABSENCE of the variable means "this is real". Do not
  *  "improve" this into a positive check for a production marker like `K_SERVICE`, which would
- *  fail OPEN the day that variable is renamed. Only the emulator sets `FUNCTIONS_EMULATOR`
+ *  fail OPEN the day that variable is renamed — and `K_SERVICE` in particular is not even a
+ *  production marker at all: firebase-tools sets it under the emulator too. Only the emulator
+ *  sets `FUNCTIONS_EMULATOR`
  *  (`functionsEmulator.js`: `envs.FUNCTIONS_EMULATOR = "true"`); the deploy-time discovery run
  *  does not, and no build-time process can reach it, because it is read in-process at container
  *  cold start.
@@ -136,8 +138,10 @@ export const BYPASS_LOG_MESSAGE =
  *
  *  This covers TWO of the three keys `assert-deployed-env-clean.sh` bans. `FUNCTIONS_EMULATOR`
  *  cannot be covered from inside the process — keying on it is what turns the guard off — for the
- *  reasons `UNDER_EMULATOR` documents above. For that one key the post-deploy assertion remains
- *  the only control. */
+ *  reasons `UNDER_EMULATOR` documents above. For that key the post-deploy assertion is the only
+ *  DEPLOY-TIME control; it does not see a value set on the service between releases. The other
+ *  signal for it is per-container and already shipping: `index.ts` logs `enforceAppCheck` at
+ *  every cold start, and it reads `false` if and only if that variable is set. */
 export function assertTokenVerificationNotBypassed(
   fn: string,
   /** The error to raise, so each boundary keeps its own contract. Defaults to an UNTAGGED

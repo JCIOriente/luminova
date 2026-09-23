@@ -29,8 +29,19 @@ const DEBUG_JS = main.slice(0, main.indexOf(PKG) + PKG.length) + "lib/common/deb
  *  dropped for each case or every row after the first would read the first row's capture. */
 function libraryWouldBypass(): boolean | "threw" {
   delete require.cache[DEBUG_JS];
+  let debug: { isDebugFeatureEnabled(f: string): boolean };
   try {
-    const debug = require(DEBUG_JS) as { isDebugFeatureEnabled(f: string): boolean };
+    debug = require(DEBUG_JS) as { isDebugFeatureEnabled(f: string): boolean };
+  } catch (err) {
+    // NOT folded into the call's catch below. A bare catch around both would report "threw" for a
+    // MODULE_NOT_FOUND as readily as for the TypeError the null row is asserting — so the day the
+    // library moves `lib/common/debug.js`, that row would keep passing against a file that no
+    // longer exists. Re-thrown, so the whole file fails loudly instead.
+    throw new Error(`the installed firebase-functions debug.js is not at ${DEBUG_JS}`, {
+      cause: err,
+    });
+  }
+  try {
     return debug.isDebugFeatureEnabled("skipTokenVerification");
   } catch {
     return "threw";
@@ -132,6 +143,31 @@ describe("the refusal", () => {
   it("does nothing when the bypass is inert", () => {
     stubEnv("false", JSON.stringify({ skipTokenVerification: true }));
     expect(refuse()).toBe("no-throw");
+  });
+
+  it("does NOT build the HttpsError on the happy path", () => {
+    // The `refusal` parameter is a THUNK rather than a value precisely so this holds: it is passed
+    // on EVERY authenticated request, and `new HttpsError` captures a stack trace. `not.toThrow()`
+    // cannot prove non-invocation — only counting can, which is why this exists rather than being
+    // asserted in a docblock.
+    let built = 0;
+    const thunk = (): HttpsError => {
+      built += 1;
+      return new HttpsError("internal", "never reached");
+    };
+    stubEnv(undefined, undefined);
+    assertTokenVerificationNotBypassed("f", thunk);
+    expect(built).toBe(0);
+
+    // And it IS invoked once when the guard actually refuses, so the counter is meaningful.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      stubEnv("true", JSON.stringify({ skipTokenVerification: true }));
+      expect(() => assertTokenVerificationNotBypassed("f", thunk)).toThrow();
+      expect(built).toBe(1);
+    } finally {
+      error.mockRestore();
+    }
   });
 
   it("does NOT fire under the emulator, where the debug keys are the supported thing", async () => {

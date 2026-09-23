@@ -23,9 +23,10 @@ export function callerIsAdmin(request: CallableRequest): boolean {
 
 /** Reject anyone who isn't a signed-in Admin. Shared by every admin-only callable.
  *
- *  `fn` is the CALLABLE's name, not this gate's, and it is what the bypass refusal logs. Three
- *  callables share this gate, so keying the log on "requireAdmin" would tell an operator that
- *  something is being hammered without saying which of three destructive operations it is —
+ *  `fn` is the CALLABLE's name, not this gate's, and it is what the bypass refusal logs. FOUR
+ *  callables share this gate (seedRoles, recomputeAllClaims, reseedBuiltInRolePerms,
+ *  setUserRoles), so keying the log on "requireAdmin" would tell an operator that something is
+ *  being hammered without saying which of four destructive operations it is —
  *  `loadValidInvite` threads the real name through for exactly this reason. */
 export function requireAdmin(request: CallableRequest, fn = "requireAdmin"): void {
   // BEFORE the claims are read, because under the debug bypass they are ATTACKER-SUPPLIED:

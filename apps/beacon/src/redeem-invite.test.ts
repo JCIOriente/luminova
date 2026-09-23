@@ -815,6 +815,10 @@ describe("the invite callables refuse while token verification is bypassed", () 
       // long as the container. `invite-error.ts` keys a no-retry refusal on this reason, and its
       // own test pins that an untagged `functions/internal` stays retryable.
       expect(await reasonOf(call(deps))).toBe("invite-service-misconfigured");
+      // The CODE too, not just the reason. The client's fixture has to carry the same shape, and
+      // for one revision it did not — it used `internal`, which this path never emits, and passed
+      // because the tag is read first. Pinning both ends is what keeps the two in step.
+      await expect(call(deps)).rejects.toMatchObject({ code: "failed-precondition" });
       expect(calls.claims).toEqual([]);
       expect(calls.setPassword).toEqual([]);
     }
@@ -914,33 +918,49 @@ describe("the services deploy.yml asserts the environment of", () => {
     return out;
   }
 
-  function assertStep(): string[] {
-    const lines = readFileSync(DEPLOY_YML, "utf8").split("\n");
+  /** PURE, and separated from the file read on purpose.
+   *
+   *  The four fail-open modes below are properties of this function, not of the workflow that
+   *  happens to be checked in — and mutating the real `deploy.yml` can only exercise the cases it
+   *  already contains. Two mutants proved that: flipping the step scan's stop condition, and
+   *  moving its indent boundary, both left every assertion green, because today's step holds no
+   *  comment before its keys and no later step carries `if:`. So the modes are asserted directly,
+   *  against fixtures, and `assertStep()` below just feeds this the real file.
+   *
+   *  Returns the service arguments; THROWS with a named reason on anything it will not vouch for. */
+  function parseAssertStep(lines: string[]): string[] {
     const hits = lines
       .map((line, i) => ({ line, i }))
       .filter(({ line }) => line.includes(SCRIPT) && !line.trimStart().startsWith("#"));
 
     // Fail-open #1: a second invocation — a staging or dry-run step above — silently retargeted
     // the `.find()` this replaced, so the prod step's args were never the ones checked.
-    expect(hits.length, `expected exactly one ${SCRIPT} invocation in deploy.yml`).toBe(1);
+    if (hits.length !== 1)
+      throw new Error(`expected exactly one ${SCRIPT} invocation, got ${hits.length}`);
     const { line, i } = hits[0] as { line: string; i: number };
     // Fail-open #2: the script name in the step's `name:` parsed that line instead of its `run:`.
-    expect(line, `${SCRIPT} must appear in the step's run:, not its name`).toContain("run:");
+    if (!line.includes("run:"))
+      throw new Error(`${SCRIPT} must appear in the step's run:, not its name`);
 
     // Fail-open #3: the command folds onto deeper-indented lines, and a scan that ignored that
     // read only the first line's arguments.
+    //
+    // This scan encodes a BELIEF about how YAML folds a plain scalar, which is the same belief the
+    // assertion would be validating — so it was checked against a real parser rather than reasoned
+    // about: `yaml.safe_load` on deploy.yml yields one command carrying all seven service names,
+    // matching what this produces. Re-check that way, not by re-reading this code, if the step is
+    // ever reformatted.
     const command = linesUnder(lines, i, true).join(" ");
 
     // Fail-open #4: `if:` or `continue-on-error:` on the step made it assert nothing at all. Walk
-    // back to the step's own `- ` so its keys are in view.
+    // back to the step's own `- ` so its keys are in view — and do NOT stop at a comment, or a
+    // comment sitting above those keys would hide them.
     let from = i;
     while (from > 0 && !lines[from]!.trimStart().startsWith("- ")) from -= 1;
     const block = linesUnder(lines, from, false);
     for (const forbidden of ["if:", "continue-on-error:"]) {
-      expect(
-        block.some((l) => l.trimStart().startsWith(forbidden)),
-        `the ${SCRIPT} step must not carry ${forbidden} — it would stop gating`,
-      ).toBe(false);
+      if (block.some((l) => l.trimStart().startsWith(forbidden)))
+        throw new Error(`the ${SCRIPT} step must not carry ${forbidden} — it would stop gating`);
     }
 
     return command
@@ -949,6 +969,77 @@ describe("the services deploy.yml asserts the environment of", () => {
       .slice(1)
       .filter((a) => a.length > 0);
   }
+
+  function assertStep(): string[] {
+    return parseAssertStep(readFileSync(DEPLOY_YML, "utf8").split("\n"));
+  }
+
+  describe("the parse fails CLOSED, asserted against fixtures not just the checked-in workflow", () => {
+    const GOOD = [
+      "    steps:",
+      "      # a comment above the step",
+      "      - name: Assert token verification is not bypassed on the DEPLOYED callables",
+      `        run: bash .github/scripts/${SCRIPT} alpha bravo`,
+      "          charlie",
+      "      # a comment belonging to the NEXT step",
+      "      - name: Something else",
+      "        run: echo hi",
+      "",
+    ];
+
+    it("reads a folded plain scalar as one command", () => {
+      // Three args, the third on a continuation line — the shape deploy.yml actually uses.
+      expect(parseAssertStep(GOOD)).toEqual(["alpha", "bravo", "charlie"]);
+    });
+
+    it("does not swallow the next step's comment into the argument list", () => {
+      // The bug the merged primitive already had once.
+      expect(parseAssertStep(GOOD)).not.toContain("belonging");
+    });
+
+    it.each([
+      [
+        "a second invocation elsewhere",
+        [...GOOD.slice(0, 2), `        run: echo ${SCRIPT} decoy`, ...GOOD.slice(2)],
+        /exactly one/,
+      ],
+      [
+        "the script named only in the step's name:",
+        [
+          "      - name: run .github/scripts/" + SCRIPT + " alpha",
+          "        run: echo unrelated",
+          "",
+        ],
+        /must appear in the step's run:/,
+      ],
+      [
+        "if: on the step",
+        [...GOOD.slice(0, 3), "        if: false", ...GOOD.slice(3)],
+        /must not carry if:/,
+      ],
+      [
+        "continue-on-error: on the step",
+        [...GOOD.slice(0, 3), "        continue-on-error: true", ...GOOD.slice(3)],
+        /must not carry continue-on-error:/,
+      ],
+      [
+        "a comment hiding if: from the step scan",
+        [...GOOD.slice(0, 3), "        # sneaky", "        if: false", ...GOOD.slice(3)],
+        /must not carry if:/,
+      ],
+      [
+        "if: on a LATER step, which must NOT be attributed to this one",
+        // The negative of the case above: over-collecting past the step boundary would make this
+        // throw. It must parse cleanly instead — which is what pins the indent comparison.
+        [...GOOD.slice(0, 7), "        if: false", ...GOOD.slice(7)],
+        null,
+      ],
+    ])("%s", (_label, lines, expected) => {
+      if (expected === null)
+        expect(parseAssertStep(lines as string[])).toEqual(["alpha", "bravo", "charlie"]);
+      else expect(() => parseAssertStep(lines as string[])).toThrow(expected as RegExp);
+    });
+  });
 
   it("covers every callable index.ts actually deploys", async () => {
     const entry: Record<string, unknown> = await import("./index.js");

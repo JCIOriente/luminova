@@ -33,14 +33,20 @@ export function provisionBlocked(
  *  `lib/callable-refusal.ts` made, and the drift class `firestore-util.ts`'s log-sink comment
  *  records from a prior incident. */
 export function inviteBlocked(reason: InviteBlockReason, message: string): HttpsError {
-  // Always `failed-precondition`: every invite refusal is "this link cannot be used", and an
-  // unauthenticated caller learns nothing from the code the tagged reason does not already
-  // tell a legitimate token holder.
+  // Always `failed-precondition` — a transport DEFAULT, not a meaning. The client branches on the
+  // tagged reason alone (`inviteRefusal` reads `details.reason` before any code), so this code is
+  // inert on the wire and an unauthenticated caller learns nothing from it.
+  //
+  // It USED to carry a meaning — "this link cannot be used" — which is no longer true of every
+  // reason: `invite-service-misconfigured` refuses BEFORE the token is claimed because the
+  // SERVICE is wrong, so the link is untouched and the client's copy promises exactly that. Do
+  // not reintroduce a code-based branch on the strength of the old reading.
   return taggedRefusal("failed-precondition", message, reason);
 }
 
-/** The rate-limit refusal. `resource-exhausted`, NOT `failed-precondition`: every other
- *  invite refusal means "this link cannot be used", while this one means "not right now" —
+/** The rate-limit refusal. `resource-exhausted`, NOT `failed-precondition`: most other invite
+ *  refusals mean "this link cannot be used" (`invite-service-misconfigured` is the other
+ *  exception — see `inviteBlocked`), while this one means "not right now" —
  *  the link is fine and the same call succeeds seconds later. The distinction is load-bearing
  *  in two places: the client's retry affordance keys on the tagged reason, and a
  *  log-based alert on the callables wants to tell throttling apart from a broken link. */

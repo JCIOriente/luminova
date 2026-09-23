@@ -493,7 +493,7 @@ it in a copy dialog with its expiry.
 3. ***** BLOCKING PRE-DEPLOY: confirm App Check covers Cloud Functions. *****
 
    `describeInvite` and `redeemInvite` now enforce App Check in production
-   (`enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true"` — off under the emulator, so
+   (`enforceAppCheck: ENFORCE_APP_CHECK`, derived from `UNDER_EMULATOR` — off under the emulator, so
    local `/invitacion` still works; see below). **If the Cloud Functions product is not
    App-Check-enabled for this project, every redemption fails the moment this deploys** —
    silently, totally, on the only onboarding path that exists.
@@ -603,9 +603,19 @@ it in a copy dialog with its expiry.
    ```
 
    **Every deployed CALLABLE, not just the invite pair** — the debug pair forges Auth tokens on
-   the authenticated ones too (above), so scoping the assertion to two services left the five
-   with the most reach unchecked. The list is derived from `index.ts`'s own callable exports by a
-   test, so a new callable that is not asserted here turns that test red.
+   the authenticated ones too (above), so scoping the assertion to two services left the five with
+   the most reach unchecked. The list lives in `deploy.yml`; a test pins it against a derivation
+   from `index.ts`'s own callable exports, so a new callable turns that test red until the YAML is
+   widened. Nothing auto-widens.
+
+   **CHECK THE FIRST DEPLOY LOG AFTER THIS LANDS: it must print `ok:` seven times.** Every
+   argument is now required to exist — one unreadable service fails the step, where it used to
+   warn and continue. That tightening is the point: with the old rule, six of the seven could have
+   been silently skipped behind `ok: describeinvite` and the release would still have gone green,
+   leaving the five highest-reach callables unchecked forever. Only `describeinvite` has ever been
+   verified against the real project (2026-09-22); the other six rest on gen2 naming the Cloud Run
+   service after the function id, lower-cased. If one of them is spelled differently, this step
+   will say so — fix the name in `deploy.yml` rather than relaxing the rule.
 
    Verified against the real thing on 2026-09-22: run against the deployed `describeinvite`,
    the script reports `ok: describeinvite carries none of FUNCTIONS_EMULATOR FIREBASE_DEBUG_MODE
@@ -657,8 +667,11 @@ it in a copy dialog with its expiry.
    **Both halves are refused IN-PROCESS, which is prevention rather than detection.** Unlike
    `FUNCTIONS_EMULATOR`, the debug pair is readable by the running container itself, so
    `tokenVerificationBypassEnabled()` in `apps/beacon/src/token-verification-bypass.ts` evaluates
-   the real condition and `assertTokenVerificationNotBypassed()` throws `internal` while it holds
-   — no gcloud, no region assumption, no service list. It runs from the two choke points every
+   the real condition and `assertTokenVerificationNotBypassed()` refuses while it holds — `internal`
+   on the five admin gates, and on the invite pair `failed-precondition` tagged
+   `invite-service-misconfigured`, which is what lets `/invitacion` withhold the retry button and
+   tell the invitee the link is still good. If someone reports *"problema de configuración de
+   nuestro servidor"* on `/invitacion`, this is the section they are in. No gcloud, no region assumption, no service list. It runs from the two choke points every
    callable already crosses: `loadValidInvite` for the unauthenticated invite pair, and
    `requireAdmin` / `requireAdminOrPerm` for every authenticated one. It is gated on the
    emulator, so local dev is unaffected.

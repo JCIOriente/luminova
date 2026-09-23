@@ -212,9 +212,13 @@ jobs:
           firebase deploy --only functions \
             --project "$GCP_PROJECT_ID" --non-interactive --force \
             --message "$SHA"
-      # App Check enforcement on describeInvite/redeemInvite is keyed on FUNCTIONS_EMULATOR
-      # (see apps/beacon/src/redeem-invite.ts): unset means ENFORCE. This asserts against the
-      # env of the services that are now LIVE — not against a file in the checkout.
+      # EVERY deployed callable, and App Check is only half of it. FIREBASE_DEBUG_MODE +
+      # skipTokenVerification make firebase-functions accept an UNSIGNED Auth ID token as well as
+      # an unsigned App Check token, so a forged `roles: ["Admin"]` claim satisfies callable-auth.
+      # On the five authenticated callables that is strictly worse than the invite pair: they pass
+      # no onCall options, so App Check was never enforced on them at all. Our own guard refuses
+      # in-process (token-verification-bypass.ts); this asserts the env of the services that are
+      # now LIVE, which is the only control for FUNCTIONS_EMULATOR itself.
       #
       # BE HONEST ABOUT WHAT IT BUYS, because the step it replaces overstated itself twice and
       # a guard that gates nothing is worse than no guard. IT DETECTS, IT DOES NOT PREVENT:
@@ -235,7 +239,7 @@ jobs:
       # callable and calls no `setGlobalOptions`. The logic is in a script with a probe seam
       # so its arms are covered by fixtures — `node --test .github/scripts/*.test.mjs` — rather
       # than first executing against production.
-      - name: Assert App Check is enforced on the DEPLOYED invite callables
+      - name: Assert token verification is not bypassed on the DEPLOYED callables
         run: bash .github/scripts/assert-deployed-env-clean.sh describeinvite redeeminvite
           issuememberinvite recomputeallclaims reseedbuiltinroleperms seedroles setuserroles
       # Sanity: confirm the deploy registered functions (no auto-rollback for gen2 —
