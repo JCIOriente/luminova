@@ -719,8 +719,8 @@ it in a copy dialog with its expiry.
    Redeploy whichever callables the scope covers, and fix the cause before trying again. The
    rate limiter is independent and keeps working either way.
 
-   Note: during a **full** rollback the cold-start log reads `enforceAppCheck: false` even with
-   `FUNCTIONS_EMULATOR` unset — that is `ENFORCE_APP_CHECK` hard-coded, not the emulator carve-out.
+   During a **full** rollback the cold-start log reads `enforceAppCheck: false` even with
+   `FUNCTIONS_EMULATOR` unset: that is the hard-coded `ENFORCE_APP_CHECK`, not the emulator.
 
    **You must flip the assertion in the same commit, or CI blocks the rollback.**
    `pnpm --filter beacon ci` goes red on the unflipped `toBe(true)` — during a real outage that

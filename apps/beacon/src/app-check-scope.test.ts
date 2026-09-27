@@ -21,10 +21,8 @@ vi.mock("firebase-functions/v2/https", async (importOriginal) => {
   };
 });
 
-// Pinned against the SAME constant `index.ts` logs, not a second hand-typed list — a rollback
-// that flips a callable's `enforceAppCheck` without editing `APP_CHECK_ENFORCED_CALLABLES`
-// turns this test red instead of leaving the constant (and the log) to claim enforcement that
-// no longer happens.
+// The constant `index.ts` logs. A rollback that flips a callable's `enforceAppCheck` without
+// editing `APP_CHECK_ENFORCED_CALLABLES` turns this test red, so the log cannot overclaim.
 const ENFORCED: readonly string[] = APP_CHECK_ENFORCED_CALLABLES;
 
 async function declaredEnforcement(): Promise<Record<string, unknown>> {
@@ -43,6 +41,7 @@ async function declaredEnforcement(): Promise<Record<string, unknown>> {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllEnvs();
   vi.resetModules();
 });
@@ -83,12 +82,11 @@ describe("the cold-start log", () => {
       "beacon: App Check enforcement resolved for the invite callables",
       { enforceAppCheck: live.ENFORCE_APP_CHECK, callables: live.APP_CHECK_ENFORCED_CALLABLES },
     );
-    // Cross-check against what index.ts actually registered each callable with, so a hand
-    // literal in the log OR a hand-flipped `enforceAppCheck` on one callable both go red.
+    // Cross-check against what index.ts registered each callable with: a hand-flipped
+    // `enforceAppCheck` on one listed callable goes red.
     for (const name of live.APP_CHECK_ENFORCED_CALLABLES) {
       expect(declared[name], name).toBe(live.ENFORCE_APP_CHECK);
     }
-    infoSpy.mockRestore();
   });
 
   it("logs the shared constant honestly, under the emulator", async () => {
@@ -104,6 +102,5 @@ describe("the cold-start log", () => {
     for (const name of live.APP_CHECK_ENFORCED_CALLABLES) {
       expect(declared[name], name).toBe(live.ENFORCE_APP_CHECK);
     }
-    infoSpy.mockRestore();
   });
 });
