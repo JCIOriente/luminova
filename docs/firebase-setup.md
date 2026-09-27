@@ -715,7 +715,10 @@ it in a copy dialog with its expiry.
    - **Only the invite pair** (leaving `issueMemberInvite` enforcing). Set
      `enforceAppCheck: false` directly on `UNAUTHENTICATED_CALL` in `redeem-invite.ts` instead
      of touching the shared constant, redeploy `describeInvite` and `redeemInvite`, and fix the
-     cause before trying again.
+     cause before trying again. **Also drop `describeInvite` and `redeemInvite` from the
+     `callables` array in the cold-start log in `apps/beacon/src/index.ts`, in the same commit**
+     — that log reads `ENFORCE_APP_CHECK`, which this narrower rollback leaves `true`, so left
+     unedited it would keep naming two callables that no longer enforce.
 
    The rate limiter is independent and keeps working either way.
 

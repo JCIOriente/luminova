@@ -490,8 +490,11 @@ export { describeInvite, redeemInvite } from "./redeem-invite.js";
 // there is. Read `ENFORCE_APP_CHECK` itself, not `UNAUTHENTICATED_CALL.enforceAppCheck`: the
 // invite pair's `enforceAppCheck` is derived from it (redeem-invite.ts), but `issueMemberInvite`
 // reads the same constant directly rather than through `UNAUTHENTICATED_CALL`, so logging the
-// shared upstream value is what actually can't disagree with what all three callables ship.
-// No PII, no secret — one boolean, plus the three names it covers.
+// shared upstream value covers all three callables BY DEFAULT. A per-callable rollback (the
+// invite-pair-only path in docs/firebase-setup.md) sets `enforceAppCheck: false` directly on
+// `UNAUTHENTICATED_CALL` without touching this constant — that commit MUST also drop
+// `describeInvite` and `redeemInvite` from `callables` below, or this line keeps naming two
+// callables that no longer enforce. No PII, no secret — one boolean, plus the names it covers.
 console.info("beacon: App Check enforcement resolved for the invite callables", {
   enforceAppCheck: ENFORCE_APP_CHECK,
   callables: ["describeInvite", "redeemInvite", "issueMemberInvite"],
