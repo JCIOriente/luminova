@@ -215,8 +215,9 @@ jobs:
       # EVERY deployed callable, and App Check is only half of it. FIREBASE_DEBUG_MODE +
       # skipTokenVerification make firebase-functions accept an UNSIGNED Auth ID token as well as
       # an unsigned App Check token, so a forged `roles: ["Admin"]` claim satisfies callable-auth.
-      # On the five authenticated callables that is strictly worse than the invite pair: they pass
-      # no onCall options, so App Check was never enforced on them at all. Our own guard refuses
+      # On the five authenticated callables that is strictly worse than the invite pair: four
+      # declare no enforceAppCheck at all, and on issueMemberInvite, which does, the same flag
+      # forges the App Check token too. Our own guard refuses
       # in-process (token-verification-bypass.ts); this asserts the env of the services that are
       # now LIVE, which is the only control for FUNCTIONS_EMULATOR itself.
       #

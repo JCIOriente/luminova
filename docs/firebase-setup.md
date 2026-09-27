@@ -582,9 +582,11 @@ it in a copy dialog with its expiry.
         --format="value(timestamp,resource.labels.service_name,httpRequest.requestMethod,httpRequest.status)"
       ```
 
-      **Pass = a `POST` with status 200 on `issuememberinvite` and on `redeeminvite`.** Fail =
-      `POST` 401 on any of the three, or no `POST` at all — see "When it fails". On a pass, mark roadmap G4 done and
-      drop the OPEN marker from this op.
+      **Pass = a `POST` with status 200 on `issuememberinvite` and on `redeeminvite`, both
+      timestamped after the functions deploy that turned enforcement on for
+      `issueMemberInvite`** — admins issued invites before it, so an older 200 there proves
+      nothing. Fail = `POST` 401 on any of the three, or no `POST` at all — see "When it
+      fails". On a pass, mark roadmap G4 done and drop the OPEN marker from this op.
 
    **When it fails.** If issuing fails (`issueMemberInvite` refused), backstage shows *"No
    pudimos verificar tu sesión en este navegador. Recarga la página e inténtalo de nuevo; si
@@ -593,7 +595,9 @@ it in a copy dialog with its expiry.
    acceso a la app. Recarga la página y luego genera su enlace desde el menú de su fila; si
    persiste, avisa a un administrador."* The same message covers an expired session, so a
    reload that fixes it proves nothing; an admin failing on every attempt in a fresh profile is
-   the deployment. The server-side signs below apply to all three services.
+   the deployment. The `POST` 401 and WARNING signs below apply to all three services; the
+   hung call and the browser-console trace are described for an invitee, and look the same for
+   an admin.
 
    On the invite page, both screens show *"No pudimos completar la verificación de
    seguridad. Inténtalo de nuevo en un momento…"*. On load (`describeInvite` refused) it sits
