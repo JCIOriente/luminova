@@ -498,8 +498,7 @@ it in a copy dialog with its expiry.
    container logs `beacon: App Check enforcement resolved for the invite callables
    { enforceAppCheck: true }` at cold start, first seen in production at 2026-09-23T04:04Z.
 
-   **There is no "Cloud Functions" App Check product to register — an earlier version of this
-   step said there was, and sent you to a console toggle that does not exist.** The App Check
+   **There is no "Cloud Functions" App Check product to register.** The App Check
    API's own schema lists the service IDs that take a console-side enforcement mode; Cloud
    Functions and Cloud Run are not among them:
 
@@ -547,14 +546,13 @@ it in a copy dialog with its expiry.
    listed. So the page will NOT tell you which one you are looking at — the server-side trace
    below is what distinguishes them.
 
-   **The server-side trace is a 401 with NO warning — an earlier version of this paragraph had
-   it backwards.** When the attestation exchange fails, `@firebase/app-check` hands back a
-   dummy token *together with an error*, and `@firebase/functions` (0.13.5,
-   `dist/esm/index.esm.js`: "Do not send the App Check header to the functions endpoint if
-   there was an error from the App Check exchange endpoint") then sends **no
-   `X-Firebase-AppCheck` header at all**. firebase-functions takes its `MISSING` path, logs
-   "Callable request verification passed" at **DEBUG**, and the `enforceAppCheck` throw
-   returns `unauthenticated` → HTTP **401**. So the signature of a failed exchange, and of a
+   **The server-side trace is a 401 with NO warning.** When the attestation exchange fails,
+   `@firebase/app-check` hands back a dummy token *together with an error*, and
+   `@firebase/functions` (0.13.5, `dist/esm/index.esm.js`: "Do not send the App Check header
+   to the functions endpoint if there was an error from the App Check exchange endpoint")
+   then sends **no `X-Firebase-AppCheck` header at all**. firebase-functions takes its
+   `MISSING` path, logs "Callable request verification passed" at **DEBUG**, and the
+   `enforceAppCheck` throw returns `unauthenticated` → HTTP **401**. So the signature of a failed exchange, and of a
    browser that blocks reCAPTCHA, is: `POST` 401 rows in the request-log query above, and
    **zero** rows here:
 
@@ -918,11 +916,10 @@ the branded reset flow:
    console to register or toggle. What is unproven is a real redemption end to end: see owner
    op 3 under "Enlaces de acceso". If attestation fails for real invitees, member onboarding
    breaks entirely, silently, for everyone.
-5. **Enforcement** — console-side: **Storage ENFORCED, Firestore UNENFORCED, Authentication
-   UNENFORCED**, read 2026-09-27 from
-   `GET https://firebaseappcheck.googleapis.com/v1/projects/jci-oriente/services` (same auth
-   headers as the `recaptchaV3Config` call in owner op 3). Code-side:
-   the two invite callables. Both frontends send a token (backstage via the full SDK,
+5. **Enforcement** — console-side state is in the App Check bullet at the top of this page,
+   read from `GET https://firebaseappcheck.googleapis.com/v1/projects/jci-oriente/services`
+   (same auth headers as the `recaptchaV3Config` call in owner op 3). Code-side: the two
+   invite callables. Both frontends send a token (backstage via the full SDK,
    spotlight via `getFirestoreLite`). Turning Firestore enforcement on is a client-breakage
    decision, not a checkbox: any client or script that reads Firestore without attesting
    starts failing, so it is only ever done after the App Check metrics show real traffic

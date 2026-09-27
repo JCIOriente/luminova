@@ -736,7 +736,7 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
 
   it("enforces App Check in production and caps instances", () => {
     // enforceAppCheck bounds WHO may call; the gate above bounds HOW OFTEN. Both ship,
-    // because an App Check token is replayable for its whole TTL (72 h in backstage's config)
+    // because an App Check token is replayable for its whole TTL (value in docs/firebase-setup.md)
     // — harvesting one from the public page and flooding with it is open with enforcement on.
     //
     // FUNCTIONS_EMULATOR is unset here, which is also what a deploy-time discovery run sees,

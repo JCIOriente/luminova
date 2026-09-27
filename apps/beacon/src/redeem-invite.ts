@@ -423,14 +423,14 @@ export async function redeemInviteFor(
 //    `getFunctionsService()` goes through. So an unauthenticated /invitacion load does attest.
 //
 //    For a callable this flag IS the enforcement — App Check has no Cloud Functions product
-//    to register (an earlier comment here said otherwise). The live risk is that no real
-//    redemption has proven it yet; see owner op 3 in docs/firebase-setup.md. If attestation
+//    to register. The live risk is that no real redemption has proven it yet; see owner op 3
+//    in docs/firebase-setup.md. If attestation
 //    fails for real invitees, every redemption is refused — silently, totally, on the only
 //    onboarding path there is, and a 403 throttles that browser's App Check for TWENTY-FOUR
 //    HOURS, which no retry button can clear and only a page reload escapes.
 //
-// 2. THE RATE GATE, below. App Check bounds WHO may call; it does not bound HOW OFTEN. A
-//    App Check token is replayable for its whole TTL (72 h in backstage's reCAPTCHA config), so
+// 2. THE RATE GATE, below. App Check bounds WHO may call; it does not bound HOW OFTEN. An
+//    App Check token is replayable for its whole TTL (docs/firebase-setup.md has the value), so
 //    harvesting one from the public page and flooding with it stays open with enforcement on.
 //    The two are complementary, not alternatives, which is why both ship.
 //

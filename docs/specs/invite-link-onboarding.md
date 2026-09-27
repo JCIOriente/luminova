@@ -246,10 +246,8 @@ provisions reCAPTCHA.
 > Cloud Functions is the one remaining owner-op. Left standing rather than rewritten because
 > this section records what was believed when the decision was made.
 >
-> **CORRECTED 2026-09-27 — the correction above was itself wrong:** there is no Cloud Functions
-> App Check product. The App Check API's supported service IDs carry no `cloudfunctions`/`run` entry; a
-> callable's enforcement is code-side only (`enforceAppCheck`), and the one console prerequisite,
-> backstage's reCAPTCHA v3 provider, is configured. See `docs/firebase-setup.md` owner op 3.
+> **CORRECTED 2026-09-27:** that correction was itself wrong — there is no Cloud Functions
+> App Check product to register. See `docs/firebase-setup.md` owner op 3.
 
 What we do instead: both callables are declared
 `onCall({ enforceAppCheck: false, maxInstances: 10 }, …)` with a comment naming G4, so the flip is
@@ -1022,10 +1020,9 @@ and, near midnight, the wrong day.
 ## Amendment 2 — rate limiting and App Check
 
 Both callables now carry two controls. They are complementary: **App Check bounds *who* may call;
-the limiter bounds *how often*.** An App Check token is replayable for its whole TTL — **72 h** in
-backstage's reCAPTCHA config (`tokenTtl: 259200s`, read 2026-09-27; this line originally said
-"~30 minutes"), so harvesting one from the public `/invitacion` and flooding with it stays open with enforcement
-on — which is why neither replaces the other.
+the limiter bounds *how often*.** An App Check token is replayable for its whole TTL (value in
+`docs/firebase-setup.md`), so harvesting one from the public `/invitacion` and flooding with it
+stays open with enforcement on — which is why neither replaces the other.
 
 **The limiter** is in-process and writes nothing. 5 calls/min per token per callable, 600/min
 endpoint-wide per callable, consulted before any I/O.
@@ -1090,10 +1087,8 @@ branches are pinned by tests; the two failure directions are opposite and both s
 ~~**Enforcement is per-product, and that is a blocking pre-deploy step.** Cloud Functions must be
 registered for App Check and `/invitacion` tested against a real production build before this
 deploys; otherwise every redemption 403s, silently and totally, on the only onboarding path that
-exists.~~ **Corrected 2026-09-27:** there is no Cloud Functions App Check product to register — a
-callable's enforcement is the code-side `enforceAppCheck` flag, first seen in the cold-start log
-2026-09-23. The real-build redemption test still stands and is still undone; it is owner op 3 in
-`docs/firebase-setup.md`.
+exists.~~ **Corrected 2026-09-27:** there is no Cloud Functions App Check product to
+register; the real-build redemption test still stands. See `docs/firebase-setup.md` owner op 3.
 
 `invite-too-many-attempts` joins `INVITE_BLOCK_REASONS`. It is the first **temporary** tagged
 refusal, which invalidated a client invariant: `retryable` was "beacon gave no tagged reason", on
