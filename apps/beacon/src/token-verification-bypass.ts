@@ -80,7 +80,7 @@ export function tokenVerificationBypassEnabled(): boolean {
 /** One line per callable per interval per instance — NOT one per request, and NOT one per
  *  process.
  *
- *  A latch (log once, ever) was the first version and it was wrong for the same reason the
+ *  A latch (log once, ever) would be wrong for the same reason the
  *  invite gate's `shouldLogRefusal` docblock already gives: "throttling must stay visible, and a
  *  long flood must not go silent after its first line." That argument is STRONGER here, because
  *  in this state 100% of guarded traffic is refused and `logOutcome` never runs — this line is
@@ -142,9 +142,8 @@ export function assertTokenVerificationNotBypassed(
    *  STATEMENT of why, since the other sites point here rather than restate it: a bare
    *  `functions/internal` is ALSO what an uncaught transient failure produces — a Firestore
    *  `unavailable` inside `getInvite`, say — and the two need OPPOSITE client affordances. Retry
-   *  now for the transient one; never for this one, which lasts as long as the container. The
-   *  untagged version of this refusal rendered "revisa tu conexión" under a retry button that
-   *  could not clear it. Parameterized rather than duplicated so the emulator gate, the predicate
+   *  now for the transient one; never for this one, which lasts as long as the container. An
+   *  untagged refusal renders "revisa tu conexión" under a retry button that cannot clear it. Parameterized rather than duplicated so the emulator gate, the predicate
    *  and the sampled log keep exactly one implementation, and kept as a THUNK so `HttpsError`
    *  (which captures a stack trace) is not constructed on the happy path. */
   refusal: () => HttpsError = serviceMisconfigured,

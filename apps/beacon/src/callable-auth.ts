@@ -2,7 +2,7 @@ import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import type { PermissionCode } from "@luminova/types";
 
 /** One reader for both string-array claims. `roles` and `perms` are read identically and
- *  had drifted into two copies of the same three lines the moment a second gate needed one.
+ *  one reader keeps the two gates from drifting apart.
  *
  *  The `as` narrows `DecodedIdToken`'s `[key: string]: any` index signature to `unknown`,
  *  which is a tightening — every value is still filtered before use. Deliberately NOT
