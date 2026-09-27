@@ -713,8 +713,8 @@ it in a copy dialog with its expiry.
    **You must flip the pinned assertion in the same commit, or CI blocks the rollback.**
    `apps/beacon/src/redeem-invite.test.ts` asserts
    `expect(UNAUTHENTICATED_CALL.enforceAppCheck).toBe(true)`, and
-   `apps/beacon/src/app-check-scope.test.ts` pins which callables enforce — deliberately, so nobody disables
-   enforcement by accident. During a real outage that guard is between you and restoring
+   `apps/beacon/src/app-check-scope.test.ts` pins which callables enforce — deliberately, so
+   nobody disables enforcement by accident. During a real outage that guard is between you and restoring
    onboarding: `pnpm --filter beacon ci` goes red and the PR is blocked. Change the constant and
    both tests together and say in the commit message that it is a deliberate temporary
    rollback, then revert them once the cause is fixed. Flip the assertion to `false` rather than
