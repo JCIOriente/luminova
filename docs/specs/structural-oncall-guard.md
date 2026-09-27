@@ -36,19 +36,22 @@ a gate.
 
 ## Enforcement
 
-1. **ESLint** (`no-restricted-imports`, AST-based) in a beacon-scoped block: importing `onCall` /
+1. **ESLint** (`no-restricted-imports`, AST-based), built once in `eslint.config.js`
+   (`CALLABLE_CONSTRUCTOR_IMPORTS` / `beaconRestrictedImports`): importing `onCall` /
    `onCallGenkit` from `firebase-functions/v2/https`, `firebase-functions/https`,
    `firebase-functions/v1/https`, the `https` namespace from `firebase-functions`,
    `firebase-functions/v2`, `firebase-functions/v1`, or v1's `runWith` / `region` builders and
    `FunctionBuilder` class (each reaches `.https.onCall`) is an error everywhere in
-   `apps/beacon/src` except `guarded-on-call.ts`. A namespace import (`import * as x`), a
-   default import (under CJS interop the whole module object) and an `export { onCall } from`
-   re-export are reported too. A deep path under `firebase-functions/lib/` (e.g.
-   `firebase-functions/lib/v2/providers/https.js`) is banned too, by `pattern`. That list is
-   every public-entry export reaching a callable constructor: in the installed
-   firebase-functions only `lib/v1/providers/https.js` and `lib/v2/providers/https.js` emit a
-   `callableTrigger`. Outside the rule: `require()` and dynamic `import()` — the test below is
-   the backstop.
+   `apps/beacon/src`. `guarded-on-call.ts` is exempt from exactly one entry, `onCall` from
+   `firebase-functions/v2/https`: a later block for that file alone re-sets the rule from the
+   same builder minus that name, so every other ban still applies there. A namespace import
+   (`import * as x`), a default import (under CJS interop the whole module object) and an
+   `export { onCall } from` re-export are reported too. A deep path under
+   `firebase-functions/lib/` (e.g. `firebase-functions/lib/v2/providers/https.js`) is banned
+   too, by `pattern`. That list is every public-entry export reaching a callable constructor: in
+   the installed firebase-functions only `lib/v1/providers/https.js` and
+   `lib/v2/providers/https.js` emit a `callableTrigger`. Outside the rule: `require()` and
+   dynamic `import()` — the test below is the backstop.
 2. **Type** (`GuardedCallableOptions` omits `authPolicy`): firebase-functions runs
    `options.authPolicy` before the registered handler, so a policy would read forged claims
    ahead of the guard. A `@ts-expect-error` case in `guarded-on-call.test.ts`, typechecked by
