@@ -192,7 +192,7 @@ export function MemberInviteDrawer({
                     ? "Aún no tiene acceso a la app. Su cargo otorga permisos, así que un administrador debe enviarle el acceso."
                     : canProvisionLogin
                       ? done.needsReload
-                        ? "Aún no tiene acceso a la app. Recarga la página y luego genera su enlace desde el menú de su fila."
+                        ? "Aún no tiene acceso a la app. Recarga la página y luego genera su enlace desde el menú de su fila; si persiste, avisa al administrador."
                         : "Aún no tiene acceso a la app. Podrás generar su enlace desde el menú de su fila."
                       : "Aún no tiene acceso a la app. Pídele a un administrador que le genere su enlace."}
               </p>

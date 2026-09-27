@@ -35,10 +35,12 @@ const MESSAGES: Readonly<Record<ProvisionBlockReason, string>> = {
 const REASON_MESSAGES = new Map<string, string>(Object.entries(MESSAGES));
 
 // issueMemberInvite enforces App Check, so an untagged `unauthenticated` is a failed attestation
-// or an expired session. A reload clears both; a retry clears neither while the App Check
-// client is throttled (24 h after a 403 from the token exchange).
+// or an expired session. A reload clears a throttled App Check client or a stale session token;
+// if the cause is server-side (a misconfigured App Check product, a revoked user) it persists,
+// so the copy escalates to the administrator rather than promising a reload fixes everything.
 const UNAUTHENTICATED =
-  "No pudimos verificar tu sesión en este navegador. Recarga la página e inténtalo de nuevo.";
+  "No pudimos verificar tu sesión en este navegador. Recarga la página e inténtalo de nuevo; " +
+  "si persiste, avisa al administrador.";
 
 /** The callable's own explanation for a refusal, or null when it did not give one (an
  *  untagged failure — App Check, session, quota, config — or a reason this build does not

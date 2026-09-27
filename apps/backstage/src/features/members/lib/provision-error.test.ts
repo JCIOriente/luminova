@@ -61,12 +61,15 @@ describe("provisionErrorMessage", () => {
   it("sends an untagged unauthenticated to a reload, not a retry", () => {
     // issueMemberInvite enforces App Check, and firebase-functions rejects a failed attestation
     // with an untagged `unauthenticated` — the same code as an expired session. A reload clears
-    // both (a new App Check provider, a refreshed session); a retry clears neither while the
-    // App Check client is throttled.
+    // a throttled App Check client or a stale session; it does nothing for a server-side cause,
+    // so the message also escalates to the administrator rather than promising a fix.
     const rejected = Object.assign(new Error("Unauthenticated"), {
       code: "functions/unauthenticated",
     });
     expect(provisionErrorMessage(rejected, FALLBACK)).toMatch(/Recarga la página/);
+    expect(provisionErrorMessage(rejected, FALLBACK)).toMatch(
+      /si persiste, avisa al administrador/,
+    );
     // Not a deliberate refusal: the invite drawer keeps its row-menu guidance and raw detail.
     expect(provisionRefusalMessage(rejected)).toBeNull();
     // A tagged refusal still wins over the code.

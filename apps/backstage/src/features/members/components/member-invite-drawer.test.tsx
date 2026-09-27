@@ -489,11 +489,11 @@ describe("MemberInviteDrawer", () => {
     );
     await fill();
     fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
-    expect(
-      await screen.findByText(
-        /Recarga la página y luego genera su enlace desde el menú de su fila/,
-      ),
-    ).toBeInTheDocument();
+    const reloadMessage = await screen.findByText(
+      /Recarga la página y luego genera su enlace desde el menú de su fila/,
+    );
+    expect(reloadMessage).toBeInTheDocument();
+    expect(reloadMessage.textContent).toMatch(/si persiste, avisa al administrador\./);
     expect(screen.getByText(/Detalle: Unauthenticated/)).toBeInTheDocument();
   });
 
