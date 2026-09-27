@@ -5,7 +5,13 @@
  *  matching Cloud Run's service-name casing) so the filter cannot drift between the two copies. */
 export function callableExports(mod: Record<string, unknown>): Array<[string, unknown]> {
   return Object.entries(mod).filter(([, v]) => {
-    const endpoint = (v as { __endpoint?: { callableTrigger?: unknown } })?.__endpoint;
-    return typeof v === "function" && endpoint !== undefined && !!endpoint.callableTrigger;
+    if (typeof v !== "function" || !("__endpoint" in v)) return false;
+    const endpoint: unknown = v.__endpoint;
+    return (
+      typeof endpoint === "object" &&
+      endpoint !== null &&
+      "callableTrigger" in endpoint &&
+      !!endpoint.callableTrigger
+    );
   });
 }

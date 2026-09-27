@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import { INVITE_RATE_LIMITS } from "@luminova/types/member-invite";
 import { BYPASS_LOG_MESSAGE } from "./token-verification-bypass.js";
 import { UNAUTHENTICATED_CALLABLES } from "./redeem-invite.js";
@@ -7,12 +7,18 @@ import { guardedOnCall, type GuardedCallableOptions } from "./guarded-on-call.js
 import { callableExports } from "./test-support/callable-exports.js";
 
 // SANDBOX, before `index.ts` loads: it calls `initializeApp()` at module scope, and a mutated
-// handler that gets past the guard would otherwise reach whatever project the machine's
-// credentials name. A `demo-*` project plus dead emulator hosts turn any such leak into a fast
-// connection failure (caught by the per-call timeout below), never a live read or write.
+// handler that gets past the guard would otherwise reach whatever the machine's environment
+// names. The dead emulator hosts are what keep Firestore and Auth off live data: the admin SDK
+// sends their calls to a closed port, a fast connection failure the per-call timeout below
+// catches. The project id is pinned at every source firebase-admin consults for an
+// option-less `initializeApp()` with application-default credentials, in its order:
+// `FIREBASE_CONFIG`'s `projectId`, then `GOOGLE_CLOUD_PROJECT`, then `GCLOUD_PROJECT`.
 // `FUNCTIONS_EMULATOR` stays unset — it is what switches the guard off.
+const DEMO_PROJECT = "demo-guarded-on-call";
 const SANDBOX: Record<string, string> = {
-  GCLOUD_PROJECT: "demo-guarded-on-call",
+  FIREBASE_CONFIG: JSON.stringify({ projectId: DEMO_PROJECT }),
+  GOOGLE_CLOUD_PROJECT: DEMO_PROJECT,
+  GCLOUD_PROJECT: DEMO_PROJECT,
   FIRESTORE_EMULATOR_HOST: "127.0.0.1:1",
   FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:1",
 };
@@ -29,25 +35,37 @@ interface Callable {
   run(request: CallableRequest<unknown>): unknown;
 }
 
+function isCallable(v: unknown): v is Callable {
+  return typeof v === "function" && "run" in v && typeof v.run === "function";
+}
+
 // The SAME selection as the deploy-list test in `redeem-invite.test.ts` (`callableExports`):
 // whatever `index.ts` exports with a `callableTrigger` is a deployed callable, however it was
 // declared.
 const entry: Record<string, unknown> = await import("./index.js");
-const CALLABLES = new Map(callableExports(entry).map(([name, v]) => [name, v as Callable]));
+const CALLABLES = new Map<string, Callable>();
+for (const [name, v] of callableExports(entry)) {
+  if (!isCallable(v)) throw new Error(`callable export ${name} has no .run`);
+  CALLABLES.set(name, v);
+}
 const NAMES = [...CALLABLES.keys()].sort();
 const UNAUTHENTICATED: readonly string[] = UNAUTHENTICATED_CALLABLES;
 
-/** The claims a forged token carries: enough to pass every gate beacon has. The cast is
- *  test-only: `rawRequest` and the streaming plumbing are never read by a handler. */
+// The cast stands in for the fields no handler reads: `rawRequest` and the streaming plumbing.
 function request(auth?: { uid: string; token: Record<string, unknown> }): CallableRequest<unknown> {
   return { data: {}, auth, rawRequest: { headers: {} } } as unknown as CallableRequest<unknown>;
 }
+/** The claims a forged token carries: enough to pass every gate beacon has. */
 const FORGED_ADMIN = {
   uid: "forged",
   token: { roles: ["Admin"], perms: ["create:MemberLogin"] },
 };
 
-type Outcome = { code: string; reason: string | null } | "resolved" | "timeout";
+type Outcome =
+  | { code: string; reason: string | null }
+  | { notAnHttpsError: string }
+  | "resolved"
+  | "timeout";
 
 /** Settles a `.run` within a short budget, so a mutated handler that reaches for Firestore
  *  fails fast instead of hanging the suite. */
@@ -61,11 +79,16 @@ async function settle(call: () => unknown): Promise<Outcome> {
     .then(
       (): Outcome => "resolved",
       (err: unknown): Outcome => {
-        const e = err as { code?: unknown; details?: { reason?: unknown } };
-        return {
-          code: String(e.code),
-          reason: typeof e.details?.reason === "string" ? e.details.reason : null,
-        };
+        if (!(err instanceof HttpsError)) return { notAnHttpsError: String(err) };
+        const { details } = err;
+        const reason =
+          typeof details === "object" &&
+          details !== null &&
+          "reason" in details &&
+          typeof details.reason === "string"
+            ? details.reason
+            : null;
+        return { code: err.code, reason };
       },
     );
   try {
@@ -179,41 +202,28 @@ describe("every exported callable refuses while token verification is bypassed",
 });
 
 describe("every exported callable passes through the guard when the bypass is INERT", () => {
-  // The predicate is the real condition, not the presence of the two key names — a provably
-  // inert value must not take the admin surface and the only onboarding path down. The predicate
-  // itself is pinned against the installed library in `token-verification-bypass.test.ts`; what
-  // belongs here is that the wrapper consults IT. Each callable's first refusal past the guard
-  // is cheap and reads nothing: no session for the gated five, no token for the invite pair.
+  // Both keys present, the mode off: a wrapper keyed on the keys' presence would refuse here,
+  // so this pins that the wrapper consults the real predicate. The predicate's own inert cases
+  // are pinned against the installed library in `token-verification-bypass.test.ts`. Each
+  // callable's first refusal past the guard is cheap and reads nothing: no session for the gated
+  // five, no token for the invite pair.
   function passedThrough(name: string): Outcome {
     return UNAUTHENTICATED.includes(name)
       ? { code: "failed-precondition", reason: "invite-invalid" }
       : { code: "unauthenticated", reason: null };
   }
 
-  it.each([
-    ["the mode is off", "false", JSON.stringify({ skipTokenVerification: true })],
-    ['the mode is not the literal "true"', "1", JSON.stringify({ skipTokenVerification: true })],
-    ["the features value is unparseable", "true", "skipTokenVerification"],
-    ["the features object omits the key", "true", JSON.stringify({ somethingElse: true })],
-    ["the features key is falsy", "true", JSON.stringify({ skipTokenVerification: false })],
-    ["the features value is not an object", "true", "42"],
-    ["the features value is an empty string", "true", ""],
-    // `vi.stubEnv` DELETES the key when given undefined, so this row is genuinely absent.
-    ["the features value is ABSENT", "true", undefined],
-  ])("serves when %s", async (_label, mode, features) => {
-    vi.stubEnv("FIREBASE_DEBUG_MODE", mode);
-    vi.stubEnv("FIREBASE_DEBUG_FEATURES", features);
-    for (const name of NAMES) {
-      expect(await settle(() => callable(name).run(request())), name).toEqual(passedThrough(name));
-    }
+  it.each(NAMES)("%s serves when the mode is off but the features key is set", async (name) => {
+    vi.stubEnv("FIREBASE_DEBUG_MODE", "false");
+    vi.stubEnv("FIREBASE_DEBUG_FEATURES", JSON.stringify({ skipTokenVerification: true }));
+    expect(await settle(() => callable(name).run(request()))).toEqual(passedThrough(name));
   });
 });
 
 describe("guardedOnCall itself", () => {
   it("delegates the request and returns the handler's value when the bypass is inert", async () => {
     const probe = guardedOnCall({ name: "probe" }, async (r) => ({ echoed: r.data }));
-    const req = { ...request(), data: 42 } as CallableRequest<unknown>;
-    await expect(probe.run(req)).resolves.toEqual({ echoed: 42 });
+    await expect(probe.run({ ...request(), data: 42 })).resolves.toEqual({ echoed: 42 });
   });
 
   it("defaults to an UNTAGGED internal, and never enters the handler", async () => {
@@ -247,7 +257,10 @@ describe("guardedOnCall itself", () => {
       { name: "probe", maxInstances: 3, timeoutSeconds: 12 },
       async () => null,
     );
-    const endpoint = (probe as unknown as { __endpoint: Record<string, unknown> }).__endpoint;
-    expect(endpoint).toMatchObject({ maxInstances: 3, timeoutSeconds: 12, callableTrigger: {} });
+    expect(probe.__endpoint).toMatchObject({
+      maxInstances: 3,
+      timeoutSeconds: 12,
+      callableTrigger: {},
+    });
   });
 });
