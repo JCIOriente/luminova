@@ -1,10 +1,11 @@
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
 import { ROLES } from "@luminova/auth/roles";
 import { BUILT_IN_ROLE_PERMS } from "@luminova/types/role-definition";
 import type { PermissionCode } from "@luminova/types/permission";
 import { requireAdmin } from "./callable-auth.js";
+import { guardedOnCall } from "./guarded-on-call.js";
 import {
   isActiveRoleDoc,
   permsFromRoleDoc,
@@ -18,8 +19,8 @@ import { seedBuiltInRoles } from "./seed-roles.js";
 import { ensureApp, currentTermKey } from "./runtime.js";
 
 /** Admin-only: seed the built-in role docs (idempotent). Run once at rollout. */
-export const seedRoles = onCall(async (request) => {
-  requireAdmin(request, "seedRoles");
+export const seedRoles = guardedOnCall({ name: "seedRoles" }, async (request) => {
+  requireAdmin(request);
   ensureApp();
   const created = await seedBuiltInRoles(getFirestore());
   return { ok: true as const, created };
@@ -59,10 +60,10 @@ export function recomputeClaimsResult(
  *  (so no member is left without perms when the rules start gating on them).
  *  Per-member errors are collected, not thrown, so one bad member can't abort the
  *  whole backfill; a long timeout covers a large collection. */
-export const recomputeAllClaims = onCall(
-  { timeoutSeconds: 540, memory: "512MiB" },
+export const recomputeAllClaims = guardedOnCall(
+  { name: "recomputeAllClaims", timeoutSeconds: 540, memory: "512MiB" },
   async (request) => {
-    requireAdmin(request, "recomputeAllClaims");
+    requireAdmin(request);
     ensureApp();
     const db = getFirestore();
     const deps = firestoreClaimsDeps(db, getAuth());
@@ -261,10 +262,10 @@ export function planRolePermReseed(snapshots: readonly RoleSnapshot[]): ReseedPl
  *  BLAST RADIUS — read apps/beacon/CLAUDE.md before running this in production.
  *  Every applied doc fires onRoleWritten, which scans the ENTIRE members collection for
  *  docs carrying a builtInKey. Run recomputeAllClaims afterwards as the observable backstop. */
-export const reseedBuiltInRolePerms = onCall(
-  { timeoutSeconds: 120, memory: "512MiB" },
+export const reseedBuiltInRolePerms = guardedOnCall(
+  { name: "reseedBuiltInRolePerms", timeoutSeconds: 120, memory: "512MiB" },
   async (request) => {
-    requireAdmin(request, "reseedBuiltInRolePerms");
+    requireAdmin(request);
     const data = (request.data ?? {}) as { confirm?: unknown; dryRun?: unknown };
     const dryRun = data.dryRun === true;
     if (!dryRun && data.confirm !== RESEED_CONFIRM) {

@@ -1,6 +1,5 @@
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { onCall } from "firebase-functions/v2/https";
 import type { HttpsError } from "firebase-functions/v2/https";
 import type { Role } from "@luminova/auth/roles";
 import { passwordPolicyViolations, passwordTooLong } from "@luminova/types/password-policy";
@@ -11,7 +10,8 @@ import { hashInviteToken, isSafeTokenHash } from "./invite-token.js";
 import { inviteBlocked, inviteRateLimited } from "./provision-errors.js";
 import { createRateLimiter, type RateLimiter } from "./rate-limit.js";
 import { firestoreRedeemDeps } from "./redeem-deps.js";
-import { UNDER_EMULATOR, assertTokenVerificationNotBypassed } from "./token-verification-bypass.js";
+import { UNDER_EMULATOR } from "./token-verification-bypass.js";
+import { guardedOnCall } from "./guarded-on-call.js";
 import { ensureApp } from "./runtime.js";
 
 /** The invite document, with its Timestamps already flattened to epoch ms by the port. */
@@ -153,23 +153,10 @@ async function loadValidInvite(
   token: unknown,
   fn: string,
 ): Promise<{ tokenHash: string; invite: InviteDoc; member: Record<string, unknown> }> {
-  // FIRST, ahead of even the global bucket. Not a contradiction of that bucket's "charged
-  // FIRST and unconditionally" contract: this refuses EVERY call while it holds, so there is no
-  // traffic left for a bucket to bound, and skipping the charge keeps the buckets from filling
-  // with requests that were never served. It costs one string comparison on the happy path, and
-  // a test asserts the gate is never consulted when it refuses.
+  // `guardedOnCall` refuses bypassed traffic before either handler starts, so a refused request
+  // never reaches this bucket and never charges an invitee's budget (`guarded-on-call.test.ts`
+  // asserts it against the exported callables).
   //
-  // HERE rather than duplicated in the two `onCall` bodies below: this is the single choke
-  // point both callables already share, so a third one cannot forget it (guardrail #1), and it
-  // is reached by the tests that drive the real exported entry points rather than only by a
-  // direct call to the guard. The AUTHENTICATED callables are guarded at their own choke point,
-  // `callable-auth.ts` — the same flag forges Auth ID tokens there, which is strictly worse.
-  // TAGGED here, unlike the authenticated gates, so `/invitacion` can tell this apart from a
-  // transient `internal` — see the `refusal` parameter's docblock for why that matters.
-  assertTokenVerificationNotBypassed(fn, () =>
-    inviteBlocked("invite-service-misconfigured", "this service is temporarily misconfigured"),
-  );
-
   // ONE timestamp for the whole invocation: the two buckets and the expiry comparison must
   // not disagree about when "now" is.
   const nowMs = deps.now();
@@ -178,7 +165,7 @@ async function loadValidInvite(
   // bounds a flood, and a refusal here must cost strictly less than the work it prevents —
   // an integer comparison against a number in memory, no Firestore access, no write.
   //
-  // "Strictly less than the work it prevents", not "free": the onCall handlers below build
+  // "Strictly less than the work it prevents", not "free": the handlers below build
   // `firestoreRedeemDeps` before calling in here, so a refused request has already paid for
   // two memoized SDK accessors and a handful of closures. No I/O, and immaterial against a
   // keyed read — but the sentence above is about the GATE, not about the whole invocation.
@@ -537,40 +524,51 @@ export function createRateGate(): RateGate {
 const describeGate = createRateGate();
 const redeemGate = createRateGate();
 
-export const describeInvite = onCall(UNAUTHENTICATED_CALL, async (request) => {
-  ensureApp();
-  const data = (request.data ?? {}) as { token?: unknown };
-  const deps = { ...firestoreRedeemDeps(getFirestore(), getAuth()), gate: describeGate };
-  return describeInviteFor(deps, { token: data.token });
-});
+/** The invite pair's refusal while token verification is bypassed: TAGGED, unlike the untagged
+ *  `internal` the authenticated callables raise, so `/invitacion` can tell it apart from a
+ *  transient `internal` — see the `refusal` parameter of `assertTokenVerificationNotBypassed`
+ *  for why that matters. */
+function inviteServiceMisconfigured(): HttpsError {
+  return inviteBlocked("invite-service-misconfigured", "this service is temporarily misconfigured");
+}
+
+export const describeInvite = guardedOnCall(
+  { ...UNAUTHENTICATED_CALL, name: "describeInvite", refusal: inviteServiceMisconfigured },
+  async (request) => {
+    ensureApp();
+    const data = (request.data ?? {}) as { token?: unknown };
+    const deps = { ...firestoreRedeemDeps(getFirestore(), getAuth()), gate: describeGate };
+    return describeInviteFor(deps, { token: data.token });
+  },
+);
 
 /** The callables that take `UNAUTHENTICATED_CALL`, by export name.
  *
- *  NARROW ON PURPOSE, and deliberately NOT the list `deploy.yml` asserts the environment of.
- *  The first version of this constant served both jobs, which was a conflation with teeth: the
- *  env-clean assertion has to cover EVERY deployed callable (the debug flag forges Auth tokens
- *  on the authenticated ones too), so a test pinning `deploy.yml`'s args to this two-element
- *  list actively blocked widening the assertion — it would have turned the tripwire red for
- *  doing the right thing. The deploy list is still ENUMERATED in `deploy.yml`; what changed is
- *  that a test PINS it against a derivation from `index.ts`'s callable exports, so adding a
- *  callable turns that test red until the YAML is widened. Nothing auto-widens — the derivation
- *  is the expectation, not the source. See `redeem-invite.test.ts`.
+ *  What it is for: pinning which callables are reachable WITHOUT a session, so adding a third one
+ *  is a deliberate act that fails a test until it is acknowledged here. It also picks the refusal
+ *  `guarded-on-call.test.ts` expects under the token-verification bypass.
  *
- *  What this list is still for: pinning which callables are reachable WITHOUT a session, so
- *  adding a third one is a deliberate act that fails a test until it is acknowledged here.
+ *  Deliberately NOT the list `deploy.yml` asserts the environment of: that one must cover EVERY
+ *  deployed callable, and the deploy-list test in `redeem-invite.test.ts` pins it against
+ *  `index.ts`'s callable exports.
  *
  *  THE HOLE, stated rather than papered over: the check covers callables in THIS module. One
- *  added in a DIFFERENT file with `UNAUTHENTICATED_CALL` imported would slip past, and closing
- *  that needs an eslint AST rule forbidding the symbol outside this file. Not built here — it is
- *  a lint-config change, and there is exactly one unauthenticated-callable module. */
+ *  added in a DIFFERENT file with `UNAUTHENTICATED_CALL` imported would slip past it, and an eslint
+ *  ban on the symbol would need an exemption for `index.ts`, which imports it to log
+ *  `enforceAppCheck` at cold start. It could not slip past the bypass refusal: `guardedOnCall` is
+ *  the only way to declare a callable, so it refuses wherever it is declared — with the untagged
+ *  `internal` unless it passes the invite `refusal`. */
 export const UNAUTHENTICATED_CALLABLES = ["describeInvite", "redeemInvite"] as const;
 
-export const redeemInvite = onCall(UNAUTHENTICATED_CALL, async (request) => {
-  ensureApp();
-  const data = (request.data ?? {}) as { token?: unknown; password?: unknown };
-  const deps = { ...firestoreRedeemDeps(getFirestore(), getAuth()), gate: redeemGate };
-  return redeemInviteFor(deps, {
-    token: data.token,
-    password: data.password,
-  });
-});
+export const redeemInvite = guardedOnCall(
+  { ...UNAUTHENTICATED_CALL, name: "redeemInvite", refusal: inviteServiceMisconfigured },
+  async (request) => {
+    ensureApp();
+    const data = (request.data ?? {}) as { token?: unknown; password?: unknown };
+    const deps = { ...firestoreRedeemDeps(getFirestore(), getAuth()), gate: redeemGate };
+    return redeemInviteFor(deps, {
+      token: data.token,
+      password: data.password,
+    });
+  },
+);

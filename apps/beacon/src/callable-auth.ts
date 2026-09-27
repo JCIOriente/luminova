@@ -1,9 +1,8 @@
 import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import type { PermissionCode } from "@luminova/types";
-import { assertTokenVerificationNotBypassed } from "./token-verification-bypass.js";
 
 /** One reader for both string-array claims. `roles` and `perms` are read identically and
- *  had drifted into two copies of the same three lines the moment a second gate needed one.
+ *  one reader keeps the two gates from drifting apart.
  *
  *  The `as` narrows `DecodedIdToken`'s `[key: string]: any` index signature to `unknown`,
  *  which is a tightening — every value is still filtered before use. Deliberately NOT
@@ -17,22 +16,18 @@ function stringArrayClaim(request: CallableRequest, key: "roles" | "perms"): str
   return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === "string") : [];
 }
 
-export function callerIsAdmin(request: CallableRequest): boolean {
+/** Module-private: the `roles` claim is attacker-authored while token verification is bypassed,
+ *  and the only refusal of that state is `guardedOnCall`. A caller that needs the answer gets it
+ *  from `requireAdminOrPerm`, i.e. only after a gate has run. */
+function callerIsAdmin(request: CallableRequest): boolean {
   return stringArrayClaim(request, "roles").includes("Admin");
 }
 
 /** Reject anyone who isn't a signed-in Admin. Shared by every admin-only callable.
  *
- *  `fn` is the CALLABLE's name, not this gate's, and it is what the bypass refusal logs. FOUR
- *  callables share this gate (seedRoles, recomputeAllClaims, reseedBuiltInRolePerms,
- *  setUserRoles), so keying the log on "requireAdmin" would tell an operator that something is
- *  being hammered without saying which of four destructive operations it is —
- *  `loadValidInvite` threads the real name through for exactly this reason. */
-export function requireAdmin(request: CallableRequest, fn = "requireAdmin"): void {
-  // BEFORE the claims are read, because under the debug bypass they are ATTACKER-SUPPLIED:
-  // `checkAuthToken` decodes the bearer token with `unsafeDecodeIdToken` (no signature check), so
-  // `roles: ["Admin"]` below is free to anyone. See `token-verification-bypass.ts`.
-  assertTokenVerificationNotBypassed(fn);
+ *  The claims it reads are only as trustworthy as token verification: every callable is declared
+ *  through `guardedOnCall`, which refuses before this runs while verification is bypassed. */
+export function requireAdmin(request: CallableRequest): void {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "sign-in required");
   }
@@ -47,18 +42,18 @@ export function requireAdmin(request: CallableRequest, fn = "requireAdmin"): voi
  *  Exact-code, deliberately not a `canDo`-style expansion: `manage:all` must not satisfy a
  *  delegation gate, or every wildcard holder silently becomes a delegate. Same discipline as
  *  the rules' `hasPerm()` and backstage's `hasPerm`. A malformed `perms` claim (non-array,
- *  string, absent) reads as empty and therefore denies. */
+ *  string, absent) reads as empty and therefore denies.
+ *
+ *  Returns which disjunct passed, so a caller that treats an Admin differently reads the role
+ *  from the gate rather than from the claim directly. */
 export function requireAdminOrPerm(
   request: CallableRequest,
   code: PermissionCode,
-  fn = "requireAdminOrPerm",
-): void {
-  // Same reason as `requireAdmin`: the `perms` claim this consults is unsigned under the bypass.
-  assertTokenVerificationNotBypassed(fn);
+): { isAdmin: boolean } {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "sign-in required");
   }
-  if (callerIsAdmin(request)) return;
-  if (stringArrayClaim(request, "perms").includes(code)) return;
+  if (callerIsAdmin(request)) return { isAdmin: true };
+  if (stringArrayClaim(request, "perms").includes(code)) return { isAdmin: false };
   throw new HttpsError("permission-denied", `Admin role or ${code} required`);
 }

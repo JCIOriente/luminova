@@ -715,24 +715,23 @@ it in a copy dialog with its expiry.
    Authorization: Bearer <base64 header>.<base64 {"sub":"x","roles":["Admin"]}>.<junk>
    ```
 
-   satisfies `requireAdmin` on `setUserRoles`, `seedRoles`, `recomputeAllClaims`,
+   satisfies the Admin-role gate on `setUserRoles`, `seedRoles`, `recomputeAllClaims`,
    `reseedBuiltInRolePerms` and `issueMemberInvite` — custom-claim assignment and a project-wide
-   role reseed. It is **strictly worse** on those five than on the invite pair, because they pass
-   no options to `onCall`, so `enforceAppCheck` defaults falsy and there is no attestation gate
-   there to lose: the forged claim is the only gate.
+   role reseed. It is **strictly worse** on those five than on the invite pair, because none of
+   them sets `enforceAppCheck`, so it defaults falsy and there is no attestation gate there to
+   lose: the forged claim is the only gate.
 
    **Both halves are refused IN-PROCESS, which is prevention rather than detection.** Unlike
    `FUNCTIONS_EMULATOR`, the debug pair is readable by the running container itself, so
    `tokenVerificationBypassEnabled()` in `apps/beacon/src/token-verification-bypass.ts` evaluates
-   the real condition and `assertTokenVerificationNotBypassed()` refuses while it holds — `internal`
-   on the five admin gates, and on the invite pair `failed-precondition` tagged
-   `invite-service-misconfigured`, which is what lets `/invitacion` withhold the retry button and
-   tell the invitee the link is still good. If someone reports *"problema de configuración de
-   nuestro servidor"* on `/invitacion`, this is the section they are in. No gcloud, no region
-   assumption, no service list. It runs from the two choke points every callable already crosses:
-   `loadValidInvite` for the unauthenticated invite pair, and `requireAdmin` /
-   `requireAdminOrPerm` for every authenticated one. It is gated on the
-   emulator, so local dev is unaffected.
+   the real condition and `assertTokenVerificationNotBypassed()` refuses while it holds —
+   `internal` on the five authenticated callables, and on the invite pair `failed-precondition`
+   tagged `invite-service-misconfigured`, which is what lets `/invitacion` withhold the retry
+   button and tell the invitee the link is still good. If someone reports *"problema de
+   configuración de nuestro servidor"* on `/invitacion`, this is the section they are in. It runs
+   first in every callable's handler, because `guardedOnCall` (`apps/beacon/src/guarded-on-call.ts`)
+   is the only way beacon declares a callable; it needs no gcloud, no region assumption and no
+   service list, and it is gated on the emulator, so local dev is unaffected.
 
    Note the deliberate difference in strictness: this script bans all three keys at **any
    value**, because from outside the process it cannot evaluate three consumers' truthiness rules
@@ -750,8 +749,8 @@ it in a copy dialog with its expiry.
    renamed). **For that one key this script remains the only control.**
 
    **Alert on the refusal.** While the bypass is live every guarded call is refused and no other
-   log line is emitted, so this is the only evidence there is. It recurs at most once per choke
-   point per 10 s per instance — bounded, but never permanently silent, so a log-based alert can
+   log line is emitted, so this is the only evidence there is. It recurs at most once per callable
+   per 10 s per instance — bounded, but never permanently silent, so a log-based alert can
    be armed on it. The exact string (pinned by a test, so it cannot drift away from this page):
 
    ```

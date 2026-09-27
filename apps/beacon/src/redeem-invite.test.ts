@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Role } from "@luminova/auth/roles";
 import { hashInviteToken } from "./invite-token.js";
 import {
@@ -15,6 +15,7 @@ import {
   type RedeemUser,
 } from "./redeem-invite.js";
 import { createRateLimiter } from "./rate-limit.js";
+import { callableExports } from "./test-support/callable-exports.js";
 import {
   INVITE_GLOBAL_DENIAL_PER_SECOND,
   INVITE_GLOBAL_READS_PER_MINUTE,
@@ -778,123 +779,16 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
   });
 });
 
-describe("the invite callables refuse while token verification is bypassed", () => {
-  // Cleanup in ONE place rather than a try/finally per test: three copies each had to remember
-  // both calls. Stubbing stays inline, so what each test controls is still visible where it runs.
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.restoreAllMocks();
-  });
-
-  // The guard itself, its parity with the real firebase-functions gate, its log sampling and its
-  // emulator carve-out are covered in `token-verification-bypass.test.ts`. What belongs HERE is
-  // the wiring: that both invite entry points actually reach it, and that they reach it before
-  // spending anything.
-
-  function stubBypass(): void {
-    vi.stubEnv("FIREBASE_DEBUG_MODE", "true");
-    vi.stubEnv("FIREBASE_DEBUG_FEATURES", JSON.stringify({ skipTokenVerification: true }));
-  }
-
-  it.each([
-    ["describeInvite", (deps: RedeemDeps) => describeInviteFor(deps, { token: TOKEN })],
-    [
-      "redeemInvite",
-      (deps: RedeemDeps) => redeemInviteFor(deps, { token: TOKEN, password: GOOD_PASSWORD }),
-    ],
-  ])("refuses %s outright, tagged so the page can tell it apart", async (_name, call) => {
-    // BOTH entry points, because both take UNAUTHENTICATED_CALL. Writing one and calling it done
-    // is the easy miss here.
-    const { deps, calls } = fakeDeps({});
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    stubBypass();
-    {
-      // TAGGED, and that is load-bearing on the client: a BARE `internal` is also what an
-      // uncaught transient failure produces (a Firestore `unavailable` inside `getInvite`), and
-      // the two need opposite affordances — retry now versus never, since this condition lasts as
-      // long as the container. `invite-error.ts` keys a no-retry refusal on this reason, and its
-      // own test pins that an untagged `functions/internal` stays retryable.
-      expect(await reasonOf(call(deps))).toBe("invite-service-misconfigured");
-      // The CODE too, not just the reason. The client's fixture has to carry the same shape, and
-      // for one revision it did not — it used `internal`, which this path never emits, and passed
-      // because the tag is read first. Pinning both ends is what keeps the two in step.
-      await expect(call(deps)).rejects.toMatchObject({ code: "failed-precondition" });
-      expect(calls.claims).toEqual([]);
-      expect(calls.setPassword).toEqual([]);
-    }
-  });
-
-  it("refuses BEFORE the rate gate is charged and before any read", async () => {
-    // The ordering the `loadValidInvite` comment makes the point of, which nothing asserted: the
-    // previous test's empty `calls.claims`/`calls.setPassword` are VACUOUS for describeInvite,
-    // which never claims or sets a password on any path, so moving the guard later inside
-    // `loadValidInvite` would not have failed anything. This gate throws if consulted at all.
-    const consulted: string[] = [];
-    const gate: RateGate = {
-      admitGlobal: () => {
-        consulted.push("admitGlobal");
-        return true;
-      },
-      admitToken: () => {
-        consulted.push("admitToken");
-        return true;
-      },
-    };
-    const reads: string[] = [];
-    const base = fakeDeps({ gate }).deps;
-    const deps: RedeemDeps = {
-      ...base,
-      getInvite: async (hash) => {
-        reads.push(hash);
-        return inviteDoc();
-      },
-    };
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    stubBypass();
-    {
-      expect(await reasonOf(describeInviteFor(deps, { token: TOKEN }))).toBe(
-        "invite-service-misconfigured",
-      );
-      // Neither bucket charged — a refused request must not consume a real invitee's budget —
-      // and no Firestore read issued.
-      expect(consulted).toEqual([]);
-      expect(reads).toEqual([]);
-    }
-  });
-
-  it.each([
-    ["the mode is off", "false", JSON.stringify({ skipTokenVerification: true })],
-    ['the mode is not the literal "true"', "1", JSON.stringify({ skipTokenVerification: true })],
-    ["the features value is unparseable", "true", "skipTokenVerification"],
-    ["the features object omits the key", "true", JSON.stringify({ somethingElse: true })],
-    ["the features key is falsy", "true", JSON.stringify({ skipTokenVerification: false })],
-    ["the features value is not an object", "true", "42"],
-    ["the features value is an empty string", "true", ""],
-    ["the features value is ABSENT", "true", undefined],
-  ])("keeps serving when %s — the bypass is INERT there", async (_label, mode, features) => {
-    // The rows that distinguish the real predicate from a presence check on the two key names.
-    // `vi.stubEnv` DELETES the key when given undefined, which is what makes the last row
-    // genuinely "absent" rather than a second empty-string case — the earlier version of this
-    // table claimed absence and stubbed "" for it.
-    const { deps } = fakeDeps({});
-    vi.stubEnv("FIREBASE_DEBUG_MODE", mode);
-    vi.stubEnv("FIREBASE_DEBUG_FEATURES", features);
-    await expect(describeInviteFor(deps, { token: TOKEN })).resolves.toMatchObject({
-      email: "ana@jci.bo",
-    });
-  });
-});
-
 describe("the services deploy.yml asserts the environment of", () => {
-  // DERIVED, not enumerated. The list must cover EVERY deployed callable — the debug flag forges
-  // Auth ID tokens, so the five authenticated callables are the ones with the most reach — and
-  // `__endpoint.callableTrigger` distinguishes a callable from an event trigger on the object
-  // `onCall` returns. So the source of truth is `index.ts`, which is also what actually gets
-  // deployed; no hand-maintained list, and no scanning source text.
+  // ENUMERATED in deploy.yml, PINNED here against index.ts's callable exports. The list must cover
+  // EVERY deployed callable — the debug flag forges Auth ID tokens, so the five authenticated
+  // callables are the ones with the most reach — and `__endpoint.callableTrigger` distinguishes a
+  // callable from an event trigger on the object `onCall` returns. So the EXPECTATION comes from
+  // `index.ts`, which is what actually gets deployed, without scanning source text; the YAML stays
+  // hand-written, and a new callable turns this red until it is named there.
   //
-  // This replaces a first version that pinned deploy.yml's args to UNAUTHENTICATED_CALLABLES.
-  // That conflated two different sets and had teeth: widening the assertion to the authenticated
-  // callables — the correct fix — would have turned the tripwire RED.
+  // Deliberately NOT pinned to UNAUTHENTICATED_CALLABLES: that is a different, narrower set, and
+  // equating them would turn this red for widening the assertion to the authenticated callables.
   const DEPLOY_YML = new URL("../../../.github/workflows/deploy.yml", import.meta.url);
   const SCRIPT = "assert-deployed-env-clean.sh";
 
@@ -1043,20 +937,15 @@ describe("the services deploy.yml asserts the environment of", () => {
 
   it("covers every callable index.ts actually deploys", async () => {
     const entry: Record<string, unknown> = await import("./index.js");
-    const callables = Object.entries(entry)
-      .filter(([, v]) => {
-        const endpoint = (v as { __endpoint?: { callableTrigger?: unknown } })?.__endpoint;
-        return typeof v === "function" && endpoint !== undefined && !!endpoint.callableTrigger;
-      })
+    const callables = callableExports(entry)
       .map(([name]) => name.toLowerCase())
       .sort();
 
-    // Sanity: the derivation must find something, or an empty list would match an empty args
+    // Sanity: the selection must find something, or an empty list would match an empty args
     // list and this whole test would assert nothing.
     expect(callables.length).toBeGreaterThanOrEqual(7);
     // Cloud Run lower-cases the service name, so the EXPECTATION is lowercased and deploy.yml
-    // must spell it that way too — the previous comment here claimed the comparison was
-    // case-insensitive, which was backwards: the args are taken verbatim.
+    // must spell it that way too: the args are compared verbatim, not case-insensitively.
     expect(assertStep().sort()).toEqual(callables);
   });
 

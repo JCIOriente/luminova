@@ -116,18 +116,20 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   App Check bounds WHO may call, not how often, which is why the limiter ships alongside it.
   For a callable the `onCall` flag IS the enforcement. Attestation chain, setup, enforcement
   state and failure diagnosis: docs/firebase-setup.md, owner op 3.
-- **One debug flag defeats BOTH token verifications, and the refusal is at the choke points.**
+- **One debug flag defeats BOTH token verifications, and every callable refuses it.**
   `FIREBASE_DEBUG_MODE=true` plus `FIREBASE_DEBUG_FEATURES` carrying `skipTokenVerification` makes
   firebase-functions decode BOTH the App Check header and the **Auth ID token** without verifying
   either, so a forged `roles: ["Admin"]` claim satisfies `callable-auth.ts`. It is worse on the
   five authenticated callables than on the invite pair, and `enforceAppCheck: true` does not help.
-  `assertTokenVerificationNotBypassed` refuses from `loadValidInvite` and from `requireAdmin` /
-  `requireAdminOrPerm`, gated on the emulator, keyed on the real callable name. Mechanism, the
-  deliberate predicate-not-presence choice, the parity test against the installed library, and the
-  coverage hole it does NOT close: `apps/beacon/src/token-verification-bypass.ts` and the operator
-  section of `docs/firebase-setup.md`. `FUNCTIONS_EMULATOR` cannot be guarded in-process, so
-  `assert-deployed-env-clean.sh` stays its only control; that list covers every deployed callable
-  and is derived from `index.ts` by a test.
+  **Every callable is declared through `guardedOnCall`** (`src/guarded-on-call.ts`), whose handler
+  refuses before delegating; that file's header states what makes the coverage structural, and
+  `docs/specs/structural-oncall-guard.md` is the design. The refusal itself — predicate, emulator
+  gate, per-callable refusal shape, sampled log and the parity test against the installed
+  library — is documented on `assertTokenVerificationNotBypassed` in
+  `src/token-verification-bypass.ts`; the operator view is in `docs/firebase-setup.md`.
+  `FUNCTIONS_EMULATOR` cannot be guarded in-process, so `assert-deployed-env-clean.sh` stays its
+  only control; its service list is enumerated in `deploy.yml` and pinned by the deploy-list test
+  in `src/redeem-invite.test.ts`.
 - **`maxInstances` is both a control and a lever**: it caps billing but converts a cost problem
   into an availability one. The rate gate is what makes that trade cheaper — a throttled
   request never occupies an instance doing Firestore reads.

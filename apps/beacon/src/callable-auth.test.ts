@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
-import { callerIsAdmin, requireAdmin, requireAdminOrPerm } from "./callable-auth.js";
+import { requireAdmin, requireAdminOrPerm } from "./callable-auth.js";
 
 /** A callable request carrying just the claim shape the gates read. The cast is test-only
  *  and justified: CallableRequest carries rawRequest/acceptsStreaming/etc. that no gate
@@ -111,113 +111,29 @@ describe("requireAdminOrPerm", () => {
   });
 });
 
-describe("callerIsAdmin", () => {
-  it("is false for an unauthenticated caller and for a wildcard perm holder", () => {
-    expect(callerIsAdmin(req())).toBe(false);
-    expect(callerIsAdmin(req({ roles: ["Member"], perms: ["manage:all"] }))).toBe(false);
+describe("requireAdminOrPerm reports which disjunct passed", () => {
+  // `issueMemberInvite` stamps `issuedByAdmin` from this, and that flag exempts a link from the
+  // privilege re-check at redemption — so a delegate must never read as Admin.
+  it("is Admin for the Admin role", () => {
+    expect(requireAdminOrPerm(req({ roles: ["Admin"] }), "create:MemberLogin")).toEqual({
+      isAdmin: true,
+    });
   });
-  it("is true for the Admin role", () => {
-    expect(callerIsAdmin(req({ roles: ["Admin"] }))).toBe(true);
-  });
-});
-
-describe("the debug bypass defeats these gates entirely, so they refuse first", () => {
-  // THE EXPLOIT THIS CLOSES. With FIREBASE_DEBUG_MODE=true and a FIREBASE_DEBUG_FEATURES object
-  // carrying skipTokenVerification, firebase-functions' `checkAuthToken` swaps
-  // `getAuth().verifyIdToken` for `unsafeDecodeIdToken` — a JWT shape test, a base64 decode and
-  // `uid = sub`, with NO signature check — then sets `ctx.auth = { uid, token }` and returns
-  // "VALID". Everything these gates read is therefore attacker-authored: `roles: ["Admin"]` is
-  // free to anyone who can reach the URL.
-  //
-  // Neither gate can tell a forged claim from a real one — the payload is identical. So the only
-  // available defence is to refuse ALL traffic while the bypass is live, which is what
-  // `assertTokenVerificationNotBypassed` does, and it must run BEFORE the claims are consulted.
-  //
-  // These five callables are what it protects: setUserRoles, seedRoles, recomputeAllClaims,
-  // reseedBuiltInRolePerms, issueMemberInvite. They pass no options to `onCall`, so
-  // `enforceAppCheck` defaults falsy and there is no attestation gate there to lose — the forged
-  // claim is the ONLY gate. That makes the bypass strictly worse here than on the invite pair.
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  function underBypass<T>(body: () => T): T {
-    vi.stubEnv("FIREBASE_DEBUG_MODE", "true");
-    vi.stubEnv("FIREBASE_DEBUG_FEATURES", JSON.stringify({ skipTokenVerification: true }));
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      return body();
-    } finally {
-      error.mockRestore();
-    }
-  }
-
-  it("refuses a FORGED Admin claim that would otherwise pass requireAdmin", () => {
-    // Identical to the accepted case above except for the environment — which is the point:
-    // the claim is indistinguishable, so the environment is the only thing left to key on.
-    expect(codeOf(() => requireAdmin(req({ roles: ["Admin"] })))).toBe("no-throw");
-    expect(underBypass(() => codeOf(() => requireAdmin(req({ roles: ["Admin"] }))))).toBe(
-      "internal",
-    );
-  });
-
-  it("refuses a FORGED perm claim that would otherwise pass requireAdminOrPerm", () => {
+  it("is NOT Admin for a delegate holding the exact code", () => {
     expect(
-      codeOf(() =>
-        requireAdminOrPerm(req({ perms: ["create:MemberLogin"] }), "create:MemberLogin"),
+      requireAdminOrPerm(
+        req({ roles: ["Member"], perms: ["create:MemberLogin"] }),
+        "create:MemberLogin",
       ),
-    ).toBe("no-throw");
+    ).toEqual({ isAdmin: false });
+  });
+  it("is NOT Admin for a wildcard perm holder who also holds the code", () => {
+    // `manage:all` is a permission, not the role — the role disjunct reads `roles` alone.
     expect(
-      underBypass(() =>
-        codeOf(() =>
-          requireAdminOrPerm(req({ perms: ["create:MemberLogin"] }), "create:MemberLogin"),
-        ),
+      requireAdminOrPerm(
+        req({ roles: ["Member"], perms: ["manage:all", "create:MemberLogin"] }),
+        "create:MemberLogin",
       ),
-    ).toBe("internal");
-  });
-
-  it("refuses BEFORE reading the claims, so an absent session is not what it reports", () => {
-    // `internal`, not `unauthenticated`: the refusal is about the SERVER, and reporting it as a
-    // missing session would send an operator hunting the caller instead of the environment.
-    expect(underBypass(() => codeOf(() => requireAdmin(req())))).toBe("internal");
-  });
-
-  it("logs the CALLABLE's name, not the gate's", () => {
-    // Four callables share `requireAdmin`. Keying the refusal log on "requireAdmin" would tell an
-    // operator that something is being hammered without saying which of four destructive
-    // operations is the target — and the sampler is keyed on the same string, so three of them
-    // would also share one slot and go unreported. `loadValidInvite` threads the real name
-    // through for exactly this reason; these gates must match.
-    vi.stubEnv("FIREBASE_DEBUG_MODE", "true");
-    vi.stubEnv("FIREBASE_DEBUG_FEATURES", JSON.stringify({ skipTokenVerification: true }));
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      expect(codeOf(() => requireAdmin(req({ roles: ["Admin"] }), "setUserRoles"))).toBe(
-        "internal",
-      );
-      expect(error.mock.calls.at(-1)?.[1]).toEqual({ fn: "setUserRoles" });
-
-      // And the sibling gate, which takes its name in a third position.
-      expect(
-        codeOf(() =>
-          requireAdminOrPerm(
-            req({ perms: ["create:MemberLogin"] }),
-            "create:MemberLogin",
-            "issueMemberInvite",
-          ),
-        ),
-      ).toBe("internal");
-      expect(error.mock.calls.at(-1)?.[1]).toEqual({ fn: "issueMemberInvite" });
-    } finally {
-      error.mockRestore();
-    }
-  });
-
-  it("still serves normally when the bypass is inert", () => {
-    // The predicate is the real condition, not the presence of the key names: a provably inert
-    // FIREBASE_DEBUG_MODE=false must not take the admin surface down.
-    vi.stubEnv("FIREBASE_DEBUG_MODE", "false");
-    vi.stubEnv("FIREBASE_DEBUG_FEATURES", JSON.stringify({ skipTokenVerification: true }));
-    expect(codeOf(() => requireAdmin(req({ roles: ["Admin"] })))).toBe("no-throw");
+    ).toEqual({ isAdmin: false });
   });
 });

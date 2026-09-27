@@ -96,6 +96,55 @@ const RAW_ABILITY_CALL_SELECTORS = [
   },
 ];
 
+// THE CANONICAL LIST of what beacon may not import; the guard's code, docs and spec point here.
+// Every beacon callable is declared through guardedOnCall (apps/beacon/src/guarded-on-call.ts),
+// which refuses all traffic while token verification is bypassed. These are the package entries
+// that expose a callable constructor: `onCall`/`onCallGenkit` by name, the `https` namespaces
+// that carry them, v1's `runWith`/`region` builders and `FunctionBuilder` class
+// (`.https.onCall`), and the default import (under CJS interop it is the whole module object).
+// ESLint also reports `import * as x` and `export ... from` of a restricted name, and a deep
+// `firebase-functions/lib/...` path is banned too (by `pattern`). guarded-on-call.ts is exempt
+// from exactly one entry, `onCall` from `firebase-functions/v2/https`. `require()`, a dynamic
+// `import()` and an eslint-disable are outside this rule; guarded-on-call.test.ts, which drives
+// `.run` on every callable export of index.ts under a live bypass, is the backstop.
+const CALLABLE_CONSTRUCTOR_IMPORTS = [
+  ["firebase-functions/v2/https", ["onCall", "onCallGenkit"]],
+  ["firebase-functions/https", ["onCall", "onCallGenkit"]],
+  ["firebase-functions/v1/https", ["onCall"]],
+  ["firebase-functions", ["https"]],
+  ["firebase-functions/v2", ["https"]],
+  ["firebase-functions/v1", ["https", "runWith", "region", "FunctionBuilder"]],
+];
+const GUARDED_ON_CALL_MESSAGE =
+  "Declare callables with guardedOnCall (apps/beacon/src/guarded-on-call.ts), " +
+  "which refuses all traffic while token verification is bypassed.";
+
+// The beacon no-restricted-imports options, minus at most one `{ name, importName }`. Flat config
+// replaces a rule's options when a later block matches the same file, so both beacon blocks
+// build from here and any further beacon import ban belongs in this function.
+function beaconRestrictedImports(exempt) {
+  return [
+    "error",
+    {
+      paths: CALLABLE_CONSTRUCTOR_IMPORTS.map(([name, importNames]) => ({
+        name,
+        importNames: [...importNames, "default"].filter(
+          (n) => !(exempt && exempt.name === name && exempt.importName === n),
+        ),
+        message: GUARDED_ON_CALL_MESSAGE,
+      })),
+      // `paths` matches only the exact module names listed; nothing beacon imports legitimately
+      // lives under `firebase-functions/lib/`, so the whole deep-path tree is banned.
+      patterns: [
+        {
+          group: ["firebase-functions/lib/*", "firebase-functions/lib/**"],
+          message: GUARDED_ON_CALL_MESSAGE,
+        },
+      ],
+    },
+  ];
+}
+
 export default tseslint.config(
   {
     ignores: [
@@ -279,6 +328,23 @@ export default tseslint.config(
         URL: "readonly",
         URLSearchParams: "readonly",
       },
+    },
+  },
+  {
+    // See CALLABLE_CONSTRUCTOR_IMPORTS for what this bans and what it cannot see.
+    files: ["apps/beacon/src/**/*.ts"],
+    rules: { "no-restricted-imports": beaconRestrictedImports() },
+  },
+  {
+    // guarded-on-call.ts is the one declaration site: it may import `onCall` from
+    // `firebase-functions/v2/https` and nothing else on the list. This later block replaces the
+    // options above for that file only.
+    files: ["apps/beacon/src/guarded-on-call.ts"],
+    rules: {
+      "no-restricted-imports": beaconRestrictedImports({
+        name: "firebase-functions/v2/https",
+        importName: "onCall",
+      }),
     },
   },
   {
