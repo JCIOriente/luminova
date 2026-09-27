@@ -32,7 +32,7 @@ export function callableOptions<T>(options: GuardedCallableOptions<T>): Callable
   const { name, refusal, ...rest } = options;
   const wide: CallableOptions<T> = rest;
   const { authPolicy } = wide;
-  if (authPolicy === undefined) return wide;
+  if (!authPolicy) return wide;
   return {
     ...wide,
     authPolicy: (auth, data) => {
