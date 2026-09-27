@@ -286,13 +286,13 @@ export default tseslint.config(
     // which refuses all traffic while token verification is bypassed. This bans each package
     // entry that exposes a callable constructor everywhere else in apps/beacon/src:
     // `onCall`/`onCallGenkit` by name, the `https` namespaces that carry them, v1's
-    // `runWith`/`region` builders (`.https.onCall`), and the default import (under CJS interop
-    // it is the whole module object). ESLint also reports `import * as x` and `export ... from`
-    // of a restricted name, and a deep `firebase-functions/lib/...` path is banned too (by
-    // `pattern`, below). `require()` and a dynamic `import()` are outside this rule;
-    // guarded-on-call.test.ts is the backstop. Flat config replaces a rule's options when a
-    // later matching block sets the same rule, so any further beacon import ban belongs in
-    // THIS block.
+    // `runWith`/`region` builders and `FunctionBuilder` class (`.https.onCall`), and the default
+    // import (under CJS interop it is the whole module object). ESLint also reports
+    // `import * as x` and `export ... from` of a restricted name, and a deep
+    // `firebase-functions/lib/...` path is banned too (by `pattern`, below). `require()` and a
+    // dynamic `import()` are outside this rule; guarded-on-call.test.ts is the backstop. Flat
+    // config replaces a rule's options when a later matching block sets the same rule, so any
+    // further beacon import ban belongs in THIS block.
     files: ["apps/beacon/src/**/*.ts"],
     ignores: ["apps/beacon/src/guarded-on-call.ts"],
     rules: {
@@ -305,7 +305,7 @@ export default tseslint.config(
             ["firebase-functions/v1/https", ["onCall"]],
             ["firebase-functions", ["https"]],
             ["firebase-functions/v2", ["https"]],
-            ["firebase-functions/v1", ["https", "runWith", "region"]],
+            ["firebase-functions/v1", ["https", "runWith", "region", "FunctionBuilder"]],
           ].map(([name, importNames]) => ({
             name,
             // "default": under CJS interop a default import is the whole module object.

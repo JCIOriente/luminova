@@ -15,11 +15,11 @@ convention each callable has to follow.
 **One wrapper is the only way to declare a callable.** `apps/beacon/src/guarded-on-call.ts`
 exports `guardedOnCall(options, handler)`:
 
-- `options` is firebase-functions' `CallableOptions` plus two fields the wrapper consumes and
-  strips before calling `onCall`: `name` (the export name; it keys the refusal log and its
-  sampler) and an optional `refusal` factory (default: untagged `internal`; the invite pair
-  passes its tagged `invite-service-misconfigured`, for the reason stated on the `refusal`
-  parameter of `assertTokenVerificationNotBypassed`).
+- `options` is firebase-functions' `CallableOptions` without `authPolicy` (see Enforcement),
+  plus two fields the wrapper consumes and strips before calling `onCall`: `name` (the export
+  name; it keys the refusal log and its sampler) and an optional `refusal` factory (default:
+  untagged `internal`; the invite pair passes its tagged `invite-service-misconfigured`, for
+  the reason stated on the `refusal` parameter of `assertTokenVerificationNotBypassed`).
 - The handler it registers calls `assertTokenVerificationNotBypassed(name, refusal)` as its first
   statement, then delegates. firebase-functions wires `func.run` to that registered handler, so
   the guard is on the same path in production and under `.run` in tests.
@@ -39,14 +39,22 @@ a gate.
 1. **ESLint** (`no-restricted-imports`, AST-based) in a beacon-scoped block: importing `onCall` /
    `onCallGenkit` from `firebase-functions/v2/https`, `firebase-functions/https`,
    `firebase-functions/v1/https`, the `https` namespace from `firebase-functions`,
-   `firebase-functions/v2`, `firebase-functions/v1`, or v1's `runWith` / `region` builders (each
-   reaches `.https.onCall`) is an error everywhere in `apps/beacon/src` except
-   `guarded-on-call.ts`. A namespace import (`import * as x`), a default import (under CJS
-   interop the whole module object) and an `export { onCall } from` re-export are reported too.
-   A deep path under `firebase-functions/lib/` (e.g.
-   `firebase-functions/lib/v2/providers/https.js`) is banned too, by `pattern`. Outside the rule:
-   `require()` and dynamic `import()` — the test below is the backstop.
-2. **Behavioural test** (`guarded-on-call.test.ts`) over every callable export of `index.ts`
+   `firebase-functions/v2`, `firebase-functions/v1`, or v1's `runWith` / `region` builders and
+   `FunctionBuilder` class (each reaches `.https.onCall`) is an error everywhere in
+   `apps/beacon/src` except `guarded-on-call.ts`. A namespace import (`import * as x`), a
+   default import (under CJS interop the whole module object) and an `export { onCall } from`
+   re-export are reported too. A deep path under `firebase-functions/lib/` (e.g.
+   `firebase-functions/lib/v2/providers/https.js`) is banned too, by `pattern`. That list is
+   every public-entry export reaching a callable constructor: in the installed
+   firebase-functions only `lib/v1/providers/https.js` and `lib/v2/providers/https.js` emit a
+   `callableTrigger`. Outside the rule: `require()` and dynamic `import()` — the test below is
+   the backstop.
+2. **Type** (`GuardedCallableOptions` omits `authPolicy`): firebase-functions runs
+   `options.authPolicy` before the registered handler, so a policy would read forged claims
+   ahead of the guard. A `@ts-expect-error` case in `guarded-on-call.test.ts`, typechecked by
+   `tsconfig.test.json`, pins the omission. A spread from a wider, non-literal object escapes
+   the excess-property check; the type catches only a literal `authPolicy`.
+3. **Behavioural test** (`guarded-on-call.test.ts`) over every callable export of `index.ts`
    (same selection as the deploy-list test: `__endpoint.callableTrigger`). With the bypass on,
    `.run(request)` rejects with the exact refusal (untagged `internal` for the five
    authenticated callables, tagged `invite-service-misconfigured` for the invite pair) and logs

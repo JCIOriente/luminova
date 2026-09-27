@@ -1,9 +1,11 @@
 // The ONE file allowed to import `onCall`. Two things make that structural rather than a
-// convention: eslint.config.js bans every import that reaches a callable constructor everywhere
-// else in apps/beacon/src (the list is in that block), and guarded-on-call.test.ts drives `.run`
-// on every callable export of index.ts under a live bypass — the backstop for what lint cannot
-// see (an eslint-disable, `require()`, a dynamic `import()`). Design:
-// docs/specs/structural-oncall-guard.md.
+// convention: eslint.config.js bans, everywhere else in apps/beacon/src, every static import or
+// re-export that reaches a callable constructor — `onCall`/`onCallGenkit`, the `https`
+// namespaces, v1's `runWith`/`region`/`FunctionBuilder`, the default import and any
+// `firebase-functions/lib/` deep path (the list is in that block). `require()` and a dynamic
+// `import()` are outside that rule, as is an eslint-disable; guarded-on-call.test.ts drives
+// `.run` on every callable export of index.ts under a live bypass and is the backstop for them.
+// Design: docs/specs/structural-oncall-guard.md.
 import {
   onCall,
   type CallableOptions,
@@ -13,7 +15,9 @@ import {
 } from "firebase-functions/v2/https";
 import { assertTokenVerificationNotBypassed } from "./token-verification-bypass.js";
 
-export interface GuardedCallableOptions<T> extends CallableOptions<T> {
+// No `authPolicy`: firebase-functions runs it before the handler, so it would read forged claims
+// ahead of the guard.
+export interface GuardedCallableOptions<T> extends Omit<CallableOptions<T>, "authPolicy"> {
   /** The EXPORT name. It keys the refusal log and its sampler, so an operator is told which
    *  endpoint is being hit and one endpoint's flood cannot hold another's log slot. */
   name: string;

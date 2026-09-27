@@ -3,7 +3,7 @@ import type { CallableRequest } from "firebase-functions/v2/https";
 import { INVITE_RATE_LIMITS } from "@luminova/types/member-invite";
 import { BYPASS_LOG_MESSAGE } from "./token-verification-bypass.js";
 import { UNAUTHENTICATED_CALLABLES } from "./redeem-invite.js";
-import { guardedOnCall } from "./guarded-on-call.js";
+import { guardedOnCall, type GuardedCallableOptions } from "./guarded-on-call.js";
 import { callableExports } from "./test-support/callable-exports.js";
 
 // SANDBOX, before `index.ts` loads: it calls `initializeApp()` at module scope, and a mutated
@@ -227,6 +227,17 @@ describe("guardedOnCall itself", () => {
     });
     expect(handler).not.toHaveBeenCalled();
     expect(error).toHaveBeenCalledWith(BYPASS_LOG_MESSAGE, { fn: "probe" });
+  });
+
+  it("rejects an authPolicy at the type level, since firebase-functions runs it first", () => {
+    // Pinned by `pnpm --filter beacon typecheck` (tsconfig.test.json): drop the `Omit` and the
+    // directive below is unused, which fails the build.
+    const options: GuardedCallableOptions<unknown> = {
+      name: "probe",
+      // @ts-expect-error — an authPolicy would read forged claims before the guard runs.
+      authPolicy: () => true,
+    };
+    expect(options.name).toBe("probe");
   });
 
   it("hands onCall its options, so __endpoint keeps its shape", () => {

@@ -45,10 +45,13 @@ export const UNDER_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
  *  lose — the forged claim is the only gate, and this flag is exactly what breaks it.
  *
  *  The same file consults it once more for v1 callables only (`version === "gcfv1"`, trusting
- *  the raw auth header), which beacon cannot declare: the lint rule bans v1's `https`,
- *  `runWith` and `region`. `lib/common/providers/identity.js` consults it for an Auth Blocking
- *  function's token decode. Beacon declares no blocking functions, and `guardedOnCall` covers
- *  callables only — a blocking function would need its own refusal at its declaration site.
+ *  the raw auth header). Beacon's lint rule bans every static import of a v1 callable
+ *  constructor (`https`, `onCall`, `runWith`, `region`, `FunctionBuilder`, the default import);
+ *  a `require()` or dynamic `import()` is outside it, and `guarded-on-call.test.ts` fails on
+ *  any such callable `index.ts` exports. `lib/common/providers/identity.js` consults it for an
+ *  Auth Blocking function's token decode. Beacon declares no blocking functions, and
+ *  `guardedOnCall` covers callables only — a blocking function would need its own refusal at
+ *  its declaration site.
  *
  *  THE PREDICATE IS THE REAL CONDITION, NOT THE PRESENCE OF THE KEYS, and the asymmetry with
  *  `.github/scripts/assert-deployed-env-clean.sh` — which bans the keys at ANY value — is
