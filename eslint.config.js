@@ -286,7 +286,7 @@ export default tseslint.config(
     // token verification is bypassed (apps/beacon/src/guarded-on-call.ts). So every OTHER way to
     // reach a callable constructor is banned here: `onCall`/`onCallGenkit` by name, the `https`
     // namespace that carries them, and v1's `runWith`/`region` builders (`.https.onCall`). A
-    // namespace import (`import * as x`) of any of these modules is reported too. The
+    // namespace import (`import * as x`) or default import of any of these modules is reported too. The
     // behavioural test in guarded-on-call.test.ts is the backstop for what lint cannot see (an
     // eslint-disable, a dynamic import). No other block sets no-restricted-imports for beacon.
     files: ["apps/beacon/src/**/*.ts"],
@@ -304,7 +304,8 @@ export default tseslint.config(
             ["firebase-functions/v1", ["https", "runWith", "region"]],
           ].map(([name, importNames]) => ({
             name,
-            importNames,
+            // "default": under CJS interop a default import is the whole module object.
+            importNames: [...importNames, "default"],
             message:
               "Declare callables with guardedOnCall from apps/beacon/src/guarded-on-call.ts, which refuses all traffic while token verification is bypassed.",
           })),
