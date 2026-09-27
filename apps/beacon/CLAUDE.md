@@ -123,8 +123,8 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   on the only onboarding path. See docs/firebase-setup.md.
 - **`issueMemberInvite` enforces App Check too; the other four admin callables do not.** Its
   only caller is backstage, which attests. `setUserRoles`, `seedRoles`, `recomputeAllClaims` and
-  `reseedBuiltInRolePerms` are called by owner-op scripts that send no App Check token, so
-  enforcing there would lock those scripts out. `app-check-scope.test.ts` pins exactly which
+  `reseedBuiltInRolePerms` are called by hand by the owner with an ID token and no App Check
+  token, so enforcing there would lock those calls out. `app-check-scope.test.ts` pins exactly which
   callables declare it, in both emulator branches. Defence in depth only: the debug flag below
   forges the App Check token as well.
 - **One debug flag defeats BOTH token verifications, and every callable refuses it.**

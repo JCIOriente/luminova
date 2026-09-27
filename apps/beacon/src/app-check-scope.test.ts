@@ -14,17 +14,20 @@ vi.mock("firebase-functions/v2/https", async (importOriginal) => {
 });
 
 // Enforced where every caller attests: the invite pair (backstage's /invitacion) and
-// issueMemberInvite (backstage's member pages). The other four are called by owner-op scripts
-// that send no App Check token, so enforcing there would lock those scripts out.
+// issueMemberInvite (backstage's member pages). The other four are called by hand by the owner
+// with an ID token and no App Check token, so enforcing there would lock those calls out.
 const ENFORCED = ["describeInvite", "issueMemberInvite", "redeemInvite"];
 
 async function declaredEnforcement(): Promise<Record<string, unknown>> {
   const entry: Record<string, unknown> = await import("./index.js");
   return Object.fromEntries(
-    callableExports(entry).map(([name, fn]) => [
-      name,
-      (fn as { declaredWith?: { enforceAppCheck?: unknown } }).declaredWith?.enforceAppCheck,
-    ]),
+    callableExports(entry).map(([name, fn]) => {
+      const { declaredWith } = fn as { declaredWith?: { enforceAppCheck?: unknown } };
+      // Without this, a mock that stopped intercepting would read every callable as unenforced
+      // and pass the emulator case vacuously.
+      expect(declaredWith, name).toBeDefined();
+      return [name, declaredWith?.enforceAppCheck];
+    }),
   );
 }
 
@@ -45,7 +48,6 @@ describe("which callables enforce App Check", () => {
 
   it("enforces on none of them under the emulator, where local dev sends no token", async () => {
     vi.stubEnv("FUNCTIONS_EMULATOR", "true");
-    vi.resetModules();
     const declared = await declaredEnforcement();
     for (const [name, enforce] of Object.entries(declared)) {
       expect(enforce === true, name).toBe(false);

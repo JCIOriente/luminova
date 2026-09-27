@@ -18,6 +18,12 @@ export function refusalMessage(err: unknown, table: ReadonlyMap<string, string>)
   return table.get(reason) ?? null;
 }
 
+/** Whether a callable failed with `unauthenticated`: an expired or invalid session, or a failed
+ *  App Check attestation under `enforceAppCheck`. firebase-functions tags neither. */
+export function isUnauthenticated(err: unknown): boolean {
+  return (err as { code?: unknown } | null | undefined)?.code === "functions/unauthenticated";
+}
+
 /** The raw tag, for callers that need to branch on WHICH refusal it was rather than only
  *  render it — the invite page decides retryability from it. Extracted from `refusalMessage`
  *  rather than re-parsed at the call site (guardrail #1): two copies of this unwrapping would

@@ -16,8 +16,8 @@ import type { InviteKind } from "@luminova/types";
 import { memberEmailMalformed, provisionBlocked } from "./provision-errors.js";
 import { requireAdminOrPerm } from "./callable-auth.js";
 import { guardedOnCall } from "./guarded-on-call.js";
+import { ENFORCE_APP_CHECK } from "./token-verification-bypass.js";
 import { firestoreInviteDeps } from "./provision-deps.js";
-import { ENFORCE_APP_CHECK } from "./redeem-invite.js";
 import { ensureApp } from "./runtime.js";
 
 export interface ProvisionInput {
@@ -451,9 +451,7 @@ function pendingInviteHash(
 // deliberate (D3) and contained to grant-free, unseated, unprivileged members by the guards
 // above, re-checked at redemption. It is auditable, not prevented: the invite records issuedBy
 // and the projection surfaces it to the member themselves.
-// App Check is enforced here, unlike on the other admin callables: its only caller is
-// backstage, which attests (the four owner-op callables are called by scripts that do not).
-// Defence in depth only — the debug flag that forges the Auth token forges this one too.
+// Enforces App Check, unlike the other admin callables — see apps/beacon/CLAUDE.md.
 export const issueMemberInvite = guardedOnCall(
   { name: "issueMemberInvite", enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {

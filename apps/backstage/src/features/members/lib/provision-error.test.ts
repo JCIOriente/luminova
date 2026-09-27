@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PROVISION_BLOCK_REASONS, type ProvisionBlockReason } from "@luminova/types";
-import { provisionErrorMessage } from "./provision-error";
+import { provisionErrorMessage, provisionRefusalMessage } from "./provision-error";
 
 const FALLBACK = "No se pudo enviar la invitación.";
 
@@ -56,6 +56,24 @@ describe("provisionErrorMessage", () => {
     expect(messages).toHaveLength(PROVISION_BLOCK_REASONS.length);
     expect(messages).not.toContain(FALLBACK);
     expect(new Set(messages).size).toBe(messages.length);
+  });
+
+  it("sends an untagged unauthenticated to a reload, not a retry", () => {
+    // issueMemberInvite enforces App Check, and firebase-functions rejects a failed attestation
+    // with an untagged `unauthenticated` — the same code as an expired session. A reload clears
+    // both (a new App Check provider, a refreshed session); a retry clears neither while the
+    // App Check client is throttled.
+    const rejected = Object.assign(new Error("Unauthenticated"), {
+      code: "functions/unauthenticated",
+    });
+    expect(provisionRefusalMessage(rejected)).toMatch(/Recarga la página/);
+    expect(provisionErrorMessage(rejected, FALLBACK)).toMatch(/Recarga la página/);
+    // A tagged refusal still wins over the code.
+    expect(
+      provisionRefusalMessage(
+        Object.assign(blocked("member-not-found"), { code: "functions/unauthenticated" }),
+      ),
+    ).not.toMatch(/Recarga la página/);
   });
 
   it("falls back to the generic message for any other failure", () => {
