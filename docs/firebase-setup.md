@@ -578,8 +578,8 @@ it in a copy dialog with its expiry.
    seguridad. Inténtalo de nuevo en un momento…"*. On load (`describeInvite` refused) it sits
    under the heading *"No pudimos abrir el enlace"* with a **Recargar la página** button. On
    submit (`redeemInvite` refused) the form stays up with the message inline, the submit button
-   counts down *"Espera 15s"* before it re-enables, and a secondary **Recargar la página** warns
-   *"Tendrás que volver a escribir tu contraseña."* The copy is the same whether the deployment
+   counts down *"Espera 15s"* before it re-enables, and the inline message adds *"Tendrás que
+   volver a escribir tu contraseña."* above a secondary **Recargar la página** button. The copy is the same whether the deployment
    is misconfigured or the invitee's browser is blocking reCAPTCHA; neither the invitee nor the
    server can tell those apart — the population can. **Every** invitee failing is the
    deployment; **some** failing is their browsers.
@@ -834,9 +834,8 @@ it in a copy dialog with its expiry.
    ```
 
    `--if` takes a **comparison**, not a bare number — `gcloud monitoring policies create --help`
-   gives it as one of `absent`, `< THRESHOLD`, `> THRESHOLD`. A bare `--if=50` (what an earlier
-   draft of this document printed) is rejected as an argument error, so the policy never gets
-   created. Quote it, or the shell eats the `>` as a redirect.
+   gives it as one of `absent`, `< THRESHOLD`, `> THRESHOLD`. A bare `--if=50` is rejected as an
+   argument error, so the policy never gets created. Quote it, or the shell eats the `>` as a redirect.
 
    Service names are lower-cased by Cloud Run, hence the lower-case regex. The bucket is
    per-callable — each gen2 function is its own Cloud Run service and `createRateGate()` runs
