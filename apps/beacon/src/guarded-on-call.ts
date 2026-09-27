@@ -1,8 +1,8 @@
 // The ONE file allowed to import `onCall`. Two things make that structural rather than a
-// convention: eslint.config.js bans `onCall`, `onCallGenkit`, the `https` namespaces that carry
-// them and v1's `runWith`/`region` builders everywhere else in apps/beacon/src, and
-// guarded-on-call.test.ts drives `.run` on every callable export of index.ts under a live bypass,
-// the backstop for what lint cannot see (an eslint-disable, a deep or dynamic import). Design:
+// convention: eslint.config.js bans every import that reaches a callable constructor everywhere
+// else in apps/beacon/src (the list is in that block), and guarded-on-call.test.ts drives `.run`
+// on every callable export of index.ts under a live bypass — the backstop for what lint cannot
+// see (an eslint-disable, `require()`, a dynamic `import()`). Design:
 // docs/specs/structural-oncall-guard.md.
 import {
   onCall,

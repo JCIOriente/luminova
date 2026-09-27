@@ -316,9 +316,8 @@ export default tseslint.config(
           })),
           // Deep paths under firebase-functions/lib/ reach the same callable constructors the
           // `paths` entries above ban by public specifier — `paths` matches only the exact
-          // module names listed, so it does not cover this. `no-restricted-imports` has no
-          // `importNames` support on `patterns`, so this bans the whole deep-path module, not
-          // just its `onCall` export; nothing beacon imports legitimately lives under
+          // module names listed, so it does not cover this. The whole deep-path tree is banned,
+          // not just its `onCall` exports: nothing beacon imports legitimately lives under
           // `firebase-functions/lib/`.
           patterns: [
             {

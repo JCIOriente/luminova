@@ -24,7 +24,7 @@ export const UNDER_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
  *  now — BOTH an Auth ID token and an App Check token. One flag defeats both.
  *
  *  THE SCOPE IS THE WHOLE TRUST BOUNDARY, not the invite endpoints: the same
- *  `isDebugFeatureEnabled("skipTokenVerification")` is consulted TWICE in
+ *  `isDebugFeatureEnabled("skipTokenVerification")` is consulted by two v2 callable paths in
  *  `common/providers/https.js` of the installed firebase-functions 7.2.5 —
  *
  *    - `checkAppCheckToken` decodes the `X-Firebase-AppCheck` header with
@@ -44,10 +44,11 @@ export const UNDER_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
  *  those sets `enforceAppCheck`, so it defaults falsy and there is no attestation gate there to
  *  lose — the forged claim is the only gate, and this flag is exactly what breaks it.
  *
- *  The installed firebase-functions 7.2.5 ALSO consults the same flag a third time, in
- *  `lib/common/providers/identity.js` (an Auth Blocking function's token decode). Beacon
- *  declares no blocking functions today, and `guardedOnCall` covers callables only — a
- *  blocking function would need its own refusal wired at its own declaration site.
+ *  The same file consults it once more for v1 callables only (`version === "gcfv1"`, trusting
+ *  the raw auth header), which beacon cannot declare: the lint rule bans v1's `https`,
+ *  `runWith` and `region`. `lib/common/providers/identity.js` consults it for an Auth Blocking
+ *  function's token decode. Beacon declares no blocking functions, and `guardedOnCall` covers
+ *  callables only — a blocking function would need its own refusal at its declaration site.
  *
  *  THE PREDICATE IS THE REAL CONDITION, NOT THE PRESENCE OF THE KEYS, and the asymmetry with
  *  `.github/scripts/assert-deployed-env-clean.sh` — which bans the keys at ANY value — is

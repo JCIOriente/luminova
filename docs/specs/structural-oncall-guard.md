@@ -26,8 +26,8 @@ exports `guardedOnCall(options, handler)`:
 - It returns `onCall`'s value unchanged, so `__endpoint` keeps the shape the deploy-list test
   reads off `index.ts`'s exports.
 
-**The guard has one call site.** `loadValidInvite`, `requireAdmin` and `requireAdminOrPerm` read
-claims and rate buckets only; the refusal precedes all of them, so a refused request charges no
+**The guard has one call site.** `loadValidInvite`, `requireAdmin` and `requireAdminOrPerm` carry no
+guard of their own; the refusal precedes all of them, so a refused request charges no
 invite bucket and reads no claim.
 
 **`callerIsAdmin` is module-private.** `requireAdminOrPerm` returns `{ isAdmin }`, which
