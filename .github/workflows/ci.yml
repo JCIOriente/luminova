@@ -72,8 +72,11 @@ jobs:
       # The repo half of the App Check enforcement guard, and ONLY the repo half: the deployed
       # services are asserted after every release in deploy.yml, which is where a console edit
       # or a service-level env var can be seen at all. This catches the one thing a checkout
-      # can hold — a committed dotenv that sets FUNCTIONS_EMULATOR, which would ship the two
-      # unauthenticated invite callables with App Check disabled.
+      # can hold — a committed dotenv that sets FUNCTIONS_EMULATOR, which would make the deployed
+      # container resolve UNDER_EMULATOR true and ship all three App-Check-enforcing callables
+      # (describeInvite, redeemInvite, and the authenticated issueMemberInvite) with enforcement
+      # disabled — and, since UNDER_EMULATOR also gates assertTokenVerificationNotBypassed, would
+      # disable the token-verification-bypass refusal on every callable beacon declares.
       #
       # IT RUNS AFTER THE BUILD, but be honest about what that buys, because the first version
       # of this comment was not. firebase-tools resolves the dotenv directory from the functions

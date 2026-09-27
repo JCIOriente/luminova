@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 #
 # The REPO half of the App Check enforcement guard: no committed (or built) beacon env file
-# sets FUNCTIONS_EMULATOR, which would ship the two unauthenticated invite callables with
-# enforcement off (`ENFORCE_APP_CHECK, derived from UNDER_EMULATOR in token-verification-bypass.ts`).
+# sets FUNCTIONS_EMULATOR, which would make the deployed container resolve UNDER_EMULATOR true
+# and ship all three App-Check-enforcing callables — describeInvite, redeemInvite, and the
+# authenticated issueMemberInvite — with enforcement off (`ENFORCE_APP_CHECK`, derived from
+# `UNDER_EMULATOR` in token-verification-bypass.ts). The same flip also disables the
+# token-verification-bypass refusal (`assertTokenVerificationNotBypassed`) on every callable
+# beacon declares, since that guard's own emulator gate reads `UNDER_EMULATOR` too.
 #
 # This is the narrow half. A console edit or a value set on the Cloud Run service cannot be
 # seen from a checkout at all; those are covered after every release by
@@ -59,7 +63,7 @@ for dir in "$@"; do
 done
 
 if [ -n "$found" ]; then
-  echo "::error::${KEY} is set in a beacon env file (listed above). Under apps/beacon/dist that is the directory firebase-tools deploys from, so it would disable App Check on the unauthenticated invite callables in production. Remove it."
+  echo "::error::${KEY} is set in a beacon env file (listed above). Under apps/beacon/dist that is the directory firebase-tools deploys from, so it would disable App Check enforcement on describeInvite, redeemInvite and issueMemberInvite in production, plus the token-verification-bypass refusal on every callable. Remove it."
   exit 1
 fi
 echo "ok: no ${KEY} override in${scanned:- (none of the given directories exist)}"
