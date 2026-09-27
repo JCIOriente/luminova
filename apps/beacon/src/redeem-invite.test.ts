@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Role } from "@luminova/auth/roles";
 import { hashInviteToken } from "./invite-token.js";
 import {
@@ -775,113 +775,6 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
       vi.unstubAllEnvs();
       vi.resetModules();
     }
-  });
-});
-
-describe("the invite callables refuse while token verification is bypassed", () => {
-  // Cleanup in ONE place rather than a try/finally per test: three copies each had to remember
-  // both calls. Stubbing stays inline, so what each test controls is still visible where it runs.
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.restoreAllMocks();
-  });
-
-  // The guard itself, its parity with the real firebase-functions gate, its log sampling and its
-  // emulator carve-out are covered in `token-verification-bypass.test.ts`. What belongs HERE is
-  // the wiring: that both invite entry points actually reach it, and that they reach it before
-  // spending anything.
-
-  function stubBypass(): void {
-    vi.stubEnv("FIREBASE_DEBUG_MODE", "true");
-    vi.stubEnv("FIREBASE_DEBUG_FEATURES", JSON.stringify({ skipTokenVerification: true }));
-  }
-
-  it.each([
-    ["describeInvite", (deps: RedeemDeps) => describeInviteFor(deps, { token: TOKEN })],
-    [
-      "redeemInvite",
-      (deps: RedeemDeps) => redeemInviteFor(deps, { token: TOKEN, password: GOOD_PASSWORD }),
-    ],
-  ])("refuses %s outright, tagged so the page can tell it apart", async (_name, call) => {
-    // BOTH entry points, because both take UNAUTHENTICATED_CALL. Writing one and calling it done
-    // is the easy miss here.
-    const { deps, calls } = fakeDeps({});
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    stubBypass();
-    {
-      // TAGGED, and that is load-bearing on the client: a BARE `internal` is also what an
-      // uncaught transient failure produces (a Firestore `unavailable` inside `getInvite`), and
-      // the two need opposite affordances — retry now versus never, since this condition lasts as
-      // long as the container. `invite-error.ts` keys a no-retry refusal on this reason, and its
-      // own test pins that an untagged `functions/internal` stays retryable.
-      expect(await reasonOf(call(deps))).toBe("invite-service-misconfigured");
-      // The CODE too, not just the reason. The client's fixture has to carry the same shape, and
-      // for one revision it did not — it used `internal`, which this path never emits, and passed
-      // because the tag is read first. Pinning both ends is what keeps the two in step.
-      await expect(call(deps)).rejects.toMatchObject({ code: "failed-precondition" });
-      expect(calls.claims).toEqual([]);
-      expect(calls.setPassword).toEqual([]);
-    }
-  });
-
-  it("refuses BEFORE the rate gate is charged and before any read", async () => {
-    // The ordering the `loadValidInvite` comment makes the point of, which nothing asserted: the
-    // previous test's empty `calls.claims`/`calls.setPassword` are VACUOUS for describeInvite,
-    // which never claims or sets a password on any path, so moving the guard later inside
-    // `loadValidInvite` would not have failed anything. This gate throws if consulted at all.
-    const consulted: string[] = [];
-    const gate: RateGate = {
-      admitGlobal: () => {
-        consulted.push("admitGlobal");
-        return true;
-      },
-      admitToken: () => {
-        consulted.push("admitToken");
-        return true;
-      },
-    };
-    const reads: string[] = [];
-    const base = fakeDeps({ gate }).deps;
-    const deps: RedeemDeps = {
-      ...base,
-      getInvite: async (hash) => {
-        reads.push(hash);
-        return inviteDoc();
-      },
-    };
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    stubBypass();
-    {
-      expect(await reasonOf(describeInviteFor(deps, { token: TOKEN }))).toBe(
-        "invite-service-misconfigured",
-      );
-      // Neither bucket charged — a refused request must not consume a real invitee's budget —
-      // and no Firestore read issued.
-      expect(consulted).toEqual([]);
-      expect(reads).toEqual([]);
-    }
-  });
-
-  it.each([
-    ["the mode is off", "false", JSON.stringify({ skipTokenVerification: true })],
-    ['the mode is not the literal "true"', "1", JSON.stringify({ skipTokenVerification: true })],
-    ["the features value is unparseable", "true", "skipTokenVerification"],
-    ["the features object omits the key", "true", JSON.stringify({ somethingElse: true })],
-    ["the features key is falsy", "true", JSON.stringify({ skipTokenVerification: false })],
-    ["the features value is not an object", "true", "42"],
-    ["the features value is an empty string", "true", ""],
-    ["the features value is ABSENT", "true", undefined],
-  ])("keeps serving when %s — the bypass is INERT there", async (_label, mode, features) => {
-    // The rows that distinguish the real predicate from a presence check on the two key names.
-    // `vi.stubEnv` DELETES the key when given undefined, which is what makes the last row
-    // genuinely "absent" rather than a second empty-string case — the earlier version of this
-    // table claimed absence and stubbed "" for it.
-    const { deps } = fakeDeps({});
-    vi.stubEnv("FIREBASE_DEBUG_MODE", mode);
-    vi.stubEnv("FIREBASE_DEBUG_FEATURES", features);
-    await expect(describeInviteFor(deps, { token: TOKEN })).resolves.toMatchObject({
-      email: "ana@jci.bo",
-    });
   });
 });
 

@@ -1,6 +1,5 @@
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { onCall } from "firebase-functions/v2/https";
 import type { HttpsError } from "firebase-functions/v2/https";
 import type { Role } from "@luminova/auth/roles";
 import { passwordPolicyViolations, passwordTooLong } from "@luminova/types/password-policy";
@@ -11,7 +10,8 @@ import { hashInviteToken, isSafeTokenHash } from "./invite-token.js";
 import { inviteBlocked, inviteRateLimited } from "./provision-errors.js";
 import { createRateLimiter, type RateLimiter } from "./rate-limit.js";
 import { firestoreRedeemDeps } from "./redeem-deps.js";
-import { UNDER_EMULATOR, assertTokenVerificationNotBypassed } from "./token-verification-bypass.js";
+import { UNDER_EMULATOR } from "./token-verification-bypass.js";
+import { guardedOnCall } from "./guarded-on-call.js";
 import { ensureApp } from "./runtime.js";
 
 /** The invite document, with its Timestamps already flattened to epoch ms by the port. */
@@ -153,23 +153,10 @@ async function loadValidInvite(
   token: unknown,
   fn: string,
 ): Promise<{ tokenHash: string; invite: InviteDoc; member: Record<string, unknown> }> {
-  // FIRST, ahead of even the global bucket. Not a contradiction of that bucket's "charged
-  // FIRST and unconditionally" contract: this refuses EVERY call while it holds, so there is no
-  // traffic left for a bucket to bound, and skipping the charge keeps the buckets from filling
-  // with requests that were never served. It costs one string comparison on the happy path, and
-  // a test asserts the gate is never consulted when it refuses.
+  // The token-verification refusal is not here: `guardedOnCall` runs it before either handler
+  // starts, so it precedes this bucket too. A refused request never charges an invitee's budget
+  // (`guarded-on-call.test.ts` asserts it against the exported callables).
   //
-  // HERE rather than duplicated in the two `onCall` bodies below: this is the single choke
-  // point both callables already share, so a third one cannot forget it (guardrail #1), and it
-  // is reached by the tests that drive the real exported entry points rather than only by a
-  // direct call to the guard. The AUTHENTICATED callables are guarded at their own choke point,
-  // `callable-auth.ts` — the same flag forges Auth ID tokens there, which is strictly worse.
-  // TAGGED here, unlike the authenticated gates, so `/invitacion` can tell this apart from a
-  // transient `internal` — see the `refusal` parameter's docblock for why that matters.
-  assertTokenVerificationNotBypassed(fn, () =>
-    inviteBlocked("invite-service-misconfigured", "this service is temporarily misconfigured"),
-  );
-
   // ONE timestamp for the whole invocation: the two buckets and the expiry comparison must
   // not disagree about when "now" is.
   const nowMs = deps.now();
@@ -540,12 +527,23 @@ export function createRateGate(): RateGate {
 const describeGate = createRateGate();
 const redeemGate = createRateGate();
 
-export const describeInvite = onCall(UNAUTHENTICATED_CALL, async (request) => {
-  ensureApp();
-  const data = (request.data ?? {}) as { token?: unknown };
-  const deps = { ...firestoreRedeemDeps(getFirestore(), getAuth()), gate: describeGate };
-  return describeInviteFor(deps, { token: data.token });
-});
+/** The invite pair's refusal while token verification is bypassed: TAGGED, unlike the untagged
+ *  `internal` the authenticated callables raise, so `/invitacion` can tell it apart from a
+ *  transient `internal` — see the `refusal` parameter of `assertTokenVerificationNotBypassed`
+ *  for why that matters. */
+function inviteServiceMisconfigured(): HttpsError {
+  return inviteBlocked("invite-service-misconfigured", "this service is temporarily misconfigured");
+}
+
+export const describeInvite = guardedOnCall(
+  { ...UNAUTHENTICATED_CALL, name: "describeInvite", refusal: inviteServiceMisconfigured },
+  async (request) => {
+    ensureApp();
+    const data = (request.data ?? {}) as { token?: unknown };
+    const deps = { ...firestoreRedeemDeps(getFirestore(), getAuth()), gate: describeGate };
+    return describeInviteFor(deps, { token: data.token });
+  },
+);
 
 /** The callables that take `UNAUTHENTICATED_CALL`, by export name.
  *
@@ -568,12 +566,15 @@ export const describeInvite = onCall(UNAUTHENTICATED_CALL, async (request) => {
  *  a lint-config change, and there is exactly one unauthenticated-callable module. */
 export const UNAUTHENTICATED_CALLABLES = ["describeInvite", "redeemInvite"] as const;
 
-export const redeemInvite = onCall(UNAUTHENTICATED_CALL, async (request) => {
-  ensureApp();
-  const data = (request.data ?? {}) as { token?: unknown; password?: unknown };
-  const deps = { ...firestoreRedeemDeps(getFirestore(), getAuth()), gate: redeemGate };
-  return redeemInviteFor(deps, {
-    token: data.token,
-    password: data.password,
-  });
-});
+export const redeemInvite = guardedOnCall(
+  { ...UNAUTHENTICATED_CALL, name: "redeemInvite", refusal: inviteServiceMisconfigured },
+  async (request) => {
+    ensureApp();
+    const data = (request.data ?? {}) as { token?: unknown; password?: unknown };
+    const deps = { ...firestoreRedeemDeps(getFirestore(), getAuth()), gate: redeemGate };
+    return redeemInviteFor(deps, {
+      token: data.token,
+      password: data.password,
+    });
+  },
+);

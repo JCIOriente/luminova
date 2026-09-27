@@ -1,6 +1,6 @@
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
 import { isValidRole, type Role } from "@luminova/auth/roles";
 import { isSafeDocId } from "./firestore-util.js";
 import {
@@ -14,7 +14,8 @@ import { hasToMillis, logWarn } from "./firestore-util.js";
 import { INVITE_PURGE_MS, INVITE_TTL_MS } from "@luminova/types/member-invite";
 import type { InviteKind } from "@luminova/types";
 import { memberEmailMalformed, provisionBlocked } from "./provision-errors.js";
-import { callerIsAdmin, requireAdminOrPerm } from "./callable-auth.js";
+import { requireAdminOrPerm } from "./callable-auth.js";
+import { guardedOnCall } from "./guarded-on-call.js";
 import { firestoreInviteDeps } from "./provision-deps.js";
 import { ensureApp } from "./runtime.js";
 
@@ -449,16 +450,11 @@ function pendingInviteHash(
 // deliberate (D3) and contained to grant-free, unseated, unprivileged members by the guards
 // above, re-checked at redemption. It is auditable, not prevented: the invite records issuedBy
 // and the projection surfaces it to the member themselves.
-export const issueMemberInvite = onCall(async (request) => {
-  requireAdminOrPerm(request, "create:MemberLogin", "issueMemberInvite");
+export const issueMemberInvite = guardedOnCall({ name: "issueMemberInvite" }, async (request) => {
+  const { isAdmin } = requireAdminOrPerm(request, "create:MemberLogin");
   const { memberId } = validateProvisionInput(request.data);
   // requireAdminOrPerm throws `unauthenticated` on a missing auth context, so uid is present.
   const issuedBy = request.auth?.uid ?? "";
   ensureApp();
-  return issueInvite(
-    firestoreInviteDeps(getFirestore(), getAuth()),
-    memberId,
-    issuedBy,
-    callerIsAdmin(request),
-  );
+  return issueInvite(firestoreInviteDeps(getFirestore(), getAuth()), memberId, issuedBy, isAdmin);
 });

@@ -1,9 +1,10 @@
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
 import { ROLES, isValidRole, type Role } from "@luminova/auth/roles";
 import { PERMISSION_CAP } from "@luminova/types/permission";
 import { requireAdmin } from "./callable-auth.js";
+import { guardedOnCall } from "./guarded-on-call.js";
 import { firestoreClaimsDeps } from "./claims-sync/firestore-deps.js";
 import { resolveMemberPerms } from "./claims-sync/resolve-member-perms.js";
 import { ensureApp } from "./runtime.js";
@@ -82,8 +83,8 @@ export function assertRequestedRolesActive(
   );
 }
 
-export const setUserRoles = onCall(async (request) => {
-  requireAdmin(request, "setUserRoles");
+export const setUserRoles = guardedOnCall({ name: "setUserRoles" }, async (request) => {
+  requireAdmin(request);
 
   const input = validateSetRolesInput(request.data);
 
