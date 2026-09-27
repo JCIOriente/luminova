@@ -547,23 +547,24 @@ export const describeInvite = guardedOnCall(
 
 /** The callables that take `UNAUTHENTICATED_CALL`, by export name.
  *
- *  NARROW ON PURPOSE, and deliberately NOT the list `deploy.yml` asserts the environment of.
- *  The first version of this constant served both jobs, which was a conflation with teeth: the
- *  env-clean assertion has to cover EVERY deployed callable (the debug flag forges Auth tokens
- *  on the authenticated ones too), so a test pinning `deploy.yml`'s args to this two-element
- *  list actively blocked widening the assertion — it would have turned the tripwire red for
- *  doing the right thing. The deploy list is still ENUMERATED in `deploy.yml`; what changed is
- *  that a test PINS it against a derivation from `index.ts`'s callable exports, so adding a
- *  callable turns that test red until the YAML is widened. Nothing auto-widens — the derivation
- *  is the expectation, not the source. See `redeem-invite.test.ts`.
+ *  NARROW ON PURPOSE, and deliberately NOT the list `deploy.yml` asserts the environment of. That
+ *  assertion has to cover EVERY deployed callable (the debug flag forges Auth tokens on the
+ *  authenticated ones too), so pinning `deploy.yml`'s args to this two-element list would block
+ *  the correct widening. The deploy list is ENUMERATED in `deploy.yml` and PINNED by a test
+ *  against `index.ts`'s callable exports, so adding a callable turns that test red until the YAML
+ *  names it; nothing auto-widens. See `redeem-invite.test.ts`.
  *
- *  What this list is still for: pinning which callables are reachable WITHOUT a session, so
- *  adding a third one is a deliberate act that fails a test until it is acknowledged here.
+ *  What this list is for: pinning which callables are reachable WITHOUT a session, so adding a
+ *  third one is a deliberate act that fails a test until it is acknowledged here. It also picks
+ *  the refusal `guarded-on-call.test.ts` expects under the token-verification bypass.
  *
  *  THE HOLE, stated rather than papered over: the check covers callables in THIS module. One
- *  added in a DIFFERENT file with `UNAUTHENTICATED_CALL` imported would slip past, and closing
- *  that needs an eslint AST rule forbidding the symbol outside this file. Not built here — it is
- *  a lint-config change, and there is exactly one unauthenticated-callable module. */
+ *  added in a DIFFERENT file with `UNAUTHENTICATED_CALL` imported would slip past it, and an eslint
+ *  ban on the symbol would need an exemption for `index.ts`, which imports it to log
+ *  `enforceAppCheck` at cold start. What such a callable could NOT slip past is the bypass
+ *  refusal: it would have to be declared through `guardedOnCall` like every other callable, so it
+ *  refuses while token verification is bypassed wherever it is declared — just with the untagged
+ *  `internal` unless it passes the invite `refusal`. */
 export const UNAUTHENTICATED_CALLABLES = ["describeInvite", "redeemInvite"] as const;
 
 export const redeemInvite = guardedOnCall(

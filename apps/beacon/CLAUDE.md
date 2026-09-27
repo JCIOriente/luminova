@@ -121,18 +121,22 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   not instead of it. **Enforcement is per-PRODUCT: Cloud Functions must be registered and
   `/invitacion` tested against a real build before deploy**, or every redemption 403s silently
   on the only onboarding path. See docs/firebase-setup.md.
-- **One debug flag defeats BOTH token verifications, and the refusal is at the choke points.**
+- **One debug flag defeats BOTH token verifications, and every callable refuses it.**
   `FIREBASE_DEBUG_MODE=true` plus `FIREBASE_DEBUG_FEATURES` carrying `skipTokenVerification` makes
   firebase-functions decode BOTH the App Check header and the **Auth ID token** without verifying
   either, so a forged `roles: ["Admin"]` claim satisfies `callable-auth.ts`. It is worse on the
   five authenticated callables than on the invite pair, and `enforceAppCheck: true` does not help.
-  `assertTokenVerificationNotBypassed` refuses from `loadValidInvite` and from `requireAdmin` /
-  `requireAdminOrPerm`, gated on the emulator, keyed on the real callable name. Mechanism, the
-  deliberate predicate-not-presence choice, the parity test against the installed library, and the
-  coverage hole it does NOT close: `apps/beacon/src/token-verification-bypass.ts` and the operator
-  section of `docs/firebase-setup.md`. `FUNCTIONS_EMULATOR` cannot be guarded in-process, so
-  `assert-deployed-env-clean.sh` stays its only control; that list covers every deployed callable
-  and is derived from `index.ts` by a test.
+  **Every callable is declared through `guardedOnCall`** (`src/guarded-on-call.ts`), whose handler
+  calls `assertTokenVerificationNotBypassed` before delegating — gated on the emulator, keyed on
+  the export name, untagged `internal` by default and the tagged `invite-service-misconfigured`
+  for the invite pair. An eslint `no-restricted-imports` block bans `onCall` and every other
+  callable constructor in `apps/beacon/src` outside that file, and `guarded-on-call.test.ts`
+  drives `.run` on every callable export of `index.ts` under a live bypass. Mechanism, the
+  deliberate predicate-not-presence choice and the parity test against the installed library:
+  `apps/beacon/src/token-verification-bypass.ts` and the operator section of
+  `docs/firebase-setup.md`. `FUNCTIONS_EMULATOR` cannot be guarded in-process, so
+  `assert-deployed-env-clean.sh` stays its only control; its service list is enumerated in
+  `deploy.yml` and pinned by a test against `index.ts`'s callable exports.
 - **`maxInstances` is both a control and a lever**: it caps billing but converts a cost problem
   into an availability one. The rate gate is what makes that trade cheaper — a throttled
   request never occupies an instance doing Firestore reads.

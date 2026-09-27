@@ -668,13 +668,14 @@ it in a copy dialog with its expiry.
    `FUNCTIONS_EMULATOR`, the debug pair is readable by the running container itself, so
    `tokenVerificationBypassEnabled()` in `apps/beacon/src/token-verification-bypass.ts` evaluates
    the real condition and `assertTokenVerificationNotBypassed()` refuses while it holds — `internal`
-   on the five admin gates, and on the invite pair `failed-precondition` tagged
+   on the five authenticated callables, and on the invite pair `failed-precondition` tagged
    `invite-service-misconfigured`, which is what lets `/invitacion` withhold the retry button and
    tell the invitee the link is still good. If someone reports *"problema de configuración de
-   nuestro servidor"* on `/invitacion`, this is the section they are in. No gcloud, no region assumption, no service list. It runs from the two choke points every
-   callable already crosses: `loadValidInvite` for the unauthenticated invite pair, and
-   `requireAdmin` / `requireAdminOrPerm` for every authenticated one. It is gated on the
-   emulator, so local dev is unaffected.
+   nuestro servidor"* on `/invitacion`, this is the section they are in. No gcloud, no region assumption, no service list. It runs first in every
+   callable's handler: beacon declares callables only through `guardedOnCall`
+   (`apps/beacon/src/guarded-on-call.ts`), an eslint rule bans `onCall` everywhere else in
+   `apps/beacon/src`, and a test drives every deployed callable under a live bypass. It is gated
+   on the emulator, so local dev is unaffected.
 
    Note the deliberate difference in strictness: this script bans all three keys at **any
    value**, because from outside the process it cannot evaluate three consumers' truthiness rules
@@ -692,8 +693,8 @@ it in a copy dialog with its expiry.
    renamed). **For that one key this script remains the only control.**
 
    **Alert on the refusal.** While the bypass is live every guarded call is refused and no other
-   log line is emitted, so this is the only evidence there is. It recurs at most once per choke
-   point per 10 s per instance — bounded, but never permanently silent, so a log-based alert can
+   log line is emitted, so this is the only evidence there is. It recurs at most once per callable
+   per 10 s per instance — bounded, but never permanently silent, so a log-based alert can
    be armed on it. The exact string (pinned by a test, so it cannot drift away from this page):
 
    ```

@@ -214,14 +214,14 @@ describe("the operator log line", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const fresh = await freshBypassModule();
-      for (let i = 0; i < 20; i += 1) hit(fresh, "requireAdmin");
+      for (let i = 0; i < 20; i += 1) hit(fresh, "setUserRoles");
       // Not twenty lines.
       expect(error).toHaveBeenCalledTimes(1);
       expect(error.mock.calls[0]?.[0]).toBe(BYPASS_LOG_MESSAGE);
 
       // A later window speaks again, so a long outage does not go silent after its first line.
       vi.advanceTimersByTime(10_000);
-      hit(fresh, "requireAdmin");
+      hit(fresh, "setUserRoles");
       expect(error).toHaveBeenCalledTimes(2);
     } finally {
       error.mockRestore();
@@ -229,16 +229,16 @@ describe("the operator log line", () => {
     }
   });
 
-  it("names the choke point, and keys the sample per choke point", async () => {
+  it("names the callable, and keys the sample per callable", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const fresh = await freshBypassModule();
-      for (const fn of ["requireAdmin", "describeInvite"]) hit(fresh, fn);
-      // Two DIFFERENT choke points in the same window both get a line: an invite outage must not
-      // be masked by an admin-gate flood holding the only slot.
+      for (const fn of ["setUserRoles", "describeInvite"]) hit(fresh, fn);
+      // Two DIFFERENT callables in the same window both get a line: an invite outage must not be
+      // masked by an admin-callable flood holding the only slot.
       expect(error).toHaveBeenCalledTimes(2);
       expect(error.mock.calls.map((c) => (c[1] as { fn: string }).fn)).toEqual([
-        "requireAdmin",
+        "setUserRoles",
         "describeInvite",
       ]);
     } finally {

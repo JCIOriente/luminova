@@ -36,9 +36,12 @@ exported callables themselves.
 
 1. **ESLint** (`no-restricted-imports`, AST-based) in a beacon-scoped block: importing `onCall` /
    `onCallGenkit` from `firebase-functions/v2/https`, `firebase-functions/https`,
-   `firebase-functions/v1/https`, or the `https` namespace from `firebase-functions`,
-   `firebase-functions/v2`, `firebase-functions/v1` is an error everywhere in `apps/beacon/src`
-   except `guarded-on-call.ts`. Verified against each import form on a scratch file.
+   `firebase-functions/v1/https`, the `https` namespace from `firebase-functions`,
+   `firebase-functions/v2`, `firebase-functions/v1`, or v1's `runWith` / `region` builders (each
+   reaches `.https.onCall`) is an error everywhere in `apps/beacon/src` except
+   `guarded-on-call.ts`. A namespace import (`import * as x`) of any of those modules and an
+   `export { onCall } from` re-export are reported too. Verified against each import form on a
+   scratch file.
 2. **Behavioural test** over every callable export of `index.ts` (same selection as the
    deploy-list test: `__endpoint.callableTrigger`): with the bypass on, `.run(request)` rejects
    with the exact refusal (untagged `internal` for five, tagged `invite-service-misconfigured`

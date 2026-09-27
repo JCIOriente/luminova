@@ -779,15 +779,15 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
 });
 
 describe("the services deploy.yml asserts the environment of", () => {
-  // DERIVED, not enumerated. The list must cover EVERY deployed callable — the debug flag forges
-  // Auth ID tokens, so the five authenticated callables are the ones with the most reach — and
-  // `__endpoint.callableTrigger` distinguishes a callable from an event trigger on the object
-  // `onCall` returns. So the source of truth is `index.ts`, which is also what actually gets
-  // deployed; no hand-maintained list, and no scanning source text.
+  // ENUMERATED in deploy.yml, PINNED here against index.ts's callable exports. The list must cover
+  // EVERY deployed callable — the debug flag forges Auth ID tokens, so the five authenticated
+  // callables are the ones with the most reach — and `__endpoint.callableTrigger` distinguishes a
+  // callable from an event trigger on the object `onCall` returns. So the EXPECTATION comes from
+  // `index.ts`, which is what actually gets deployed, without scanning source text; the YAML stays
+  // hand-written, and a new callable turns this red until it is named there.
   //
-  // This replaces a first version that pinned deploy.yml's args to UNAUTHENTICATED_CALLABLES.
-  // That conflated two different sets and had teeth: widening the assertion to the authenticated
-  // callables — the correct fix — would have turned the tripwire RED.
+  // Deliberately NOT pinned to UNAUTHENTICATED_CALLABLES: that is a different, narrower set, and
+  // equating them would turn this red for widening the assertion to the authenticated callables.
   const DEPLOY_YML = new URL("../../../.github/workflows/deploy.yml", import.meta.url);
   const SCRIPT = "assert-deployed-env-clean.sh";
 
