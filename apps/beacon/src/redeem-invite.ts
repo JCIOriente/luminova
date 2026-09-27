@@ -397,29 +397,26 @@ export async function redeemInviteFor(
 // inherent rather than an oversight. Three controls stand in front of them, and as of this
 // change all three are live.
 //
-// 1. APP CHECK, now ENFORCED in production and deliberately NOT under the emulator — see the
+// 1. APP CHECK, ENFORCED in production and deliberately NOT under the emulator — see the
 //    `ENFORCE_APP_CHECK` docblock below for why that carve-out is safe and must stay
 //    fail-closed.
 //
-//    Two claims earlier drafts made about why it was held back were false, and both are
-//    corrected here: the reCAPTCHA keys are NOT missing in production —
-//    `apps/backstage/.env.production` carries a real VITE_APPCHECK_SITE_KEY — and
-//    "/invitacion has no session" was never the blocker either. Attestation is app-level,
-//    `/invitacion` is deliberately a TOP-LEVEL route outside the `_auth` layout, and the
-//    client's `ensureApp()` wires `initAppCheck` on first app acquisition — which
-//    `getFunctionsService()` goes through. So an unauthenticated /invitacion load does attest.
+//    An unauthenticated /invitacion load does attest: attestation is app-level, `/invitacion`
+//    is deliberately a TOP-LEVEL route outside the `_auth` layout,
+//    `apps/backstage/.env.production` carries the site key, and the client's `ensureApp()`
+//    wires `initAppCheck` on first app acquisition — which `getFunctionsService()` goes through.
 //
-//    ENFORCEMENT IS PER-PRODUCT, and that is the live risk THIS change carries. See the
-//    BLOCKING owner-op in docs/firebase-setup.md: the backstage app must be registered for the
-//    Cloud Functions product and /invitacion tested against a real build BEFORE this deploys.
-//    Get it wrong and every redemption 403s — silently, totally, on the only onboarding path
-//    there is, and a 403 throttles that browser's App Check for TWENTY-FOUR HOURS, which no
-//    retry button can clear and only a page reload escapes.
+//    For a callable this flag IS the enforcement — the App Check console has no Cloud
+//    Functions switch. The live risk is that no real redemption has proven it yet (owner op 3
+//    in docs/firebase-setup.md, which also holds the failure diagnosis). If attestation fails
+//    for real invitees, every redemption is refused — silently, totally, on the only onboarding
+//    path there is — and a 403/404 from the token exchange throttles App Check in that page
+//    for TWENTY-FOUR HOURS, which no retry button can clear and only a page reload escapes.
 //
-// 2. THE RATE GATE, below. App Check bounds WHO may call; it does not bound HOW OFTEN. A
-//    standard App Check token lives ~30 minutes and is replayable, so harvesting one from the
-//    public page and flooding with it stays open with enforcement on. The two are
-//    complementary, not alternatives, which is why both ship.
+// 2. THE RATE GATE, below. App Check bounds WHO may call; it does not bound HOW OFTEN. An
+//    App Check token is replayable for its whole TTL (docs/firebase-setup.md has the value), so
+//    harvesting one from the public page and flooding with it stays open with enforcement on.
+//    The two are complementary, not alternatives, which is why both ship.
 //
 // 3. maxInstances, which is both a control and a lever: it caps billing but converts a cost
 //    problem into an availability one, since a flood that saturates the pool blocks real

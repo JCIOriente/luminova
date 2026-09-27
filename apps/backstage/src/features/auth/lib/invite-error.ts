@@ -127,11 +127,9 @@ function isAttestationRejection(err: unknown): boolean {
  *  re-runs `describeInvite` AND builds a new App Check provider, and costs the invitee
  *  nothing — so the component offers the reload there instead and withholds nothing.
  *
- *  This branch used to offer NO retry, on the reasoning that attestation failure is permanent.
- *  That was written while `enforceAppCheck` was false, when a browser blocking reCAPTCHA v3
- *  was the only reachable cause. Enforcement adds two causes that a retry DOES clear:
+ *  Attestation failure is not always permanent. Two causes clear on a retry:
  *
- *    - `recaptcha-error` — the grecaptcha script failed to load or execute. Thrown before the
+ *    - `recaptcha-error` — the loaded grecaptcha script failed to execute. Thrown before the
  *      token exchange is attempted and sets no backoff at all, so the next attempt is clean.
  *    - a non-403/404 `fetch-status-error` — a 5xx or a blip from the exchange endpoint. The
  *      SDK's own backoff here is `calculateBackoffMillis(0, 1000, 2)`, about a second.
@@ -141,15 +139,14 @@ function isAttestationRejection(err: unknown): boolean {
  *  different mechanism — so this gets its own name rather than inheriting a retune of
  *  `INVITE_RETRY_AFTER_SECONDS`.
  *
- *  WHAT 15 s DOES NOT CLEAR, and the reason `retry-or-reload` exists as its own arm. The
- *  per-product registration gap — the BLOCKING owner-op in `docs/firebase-setup.md` —
- *  surfaces as a 403
- *  from the token exchange, and `@firebase/app-check`'s `setBackoff` special-cases 403/404
- *  with a TWENTY-FOUR HOUR `allowRequestsAfter`. `throwIfThrottled` is the first statement of
+ *  WHAT 15 s DOES NOT CLEAR, and the reason `retry-or-reload` exists as its own arm. A 403 or
+ *  404 from the token exchange makes `@firebase/app-check`'s `setBackoff` set a TWENTY-FOUR
+ *  HOUR `allowRequestsAfter`. `throwIfThrottled` is the first statement of
  *  `ReCaptchaV3Provider.getToken()`, and the throttle lives on the provider instance
  *  `initAppCheck` creates once per page load — so for the rest of that day this tab never even
- *  attempts an exchange, and `getToken` returns a DUMMY token rather than throwing, which the
- *  server rejects identically. An owner fixing the console sixty seconds later changes nothing
+ *  attempts an exchange, and `getToken` returns a DUMMY token plus an error rather than
+ *  throwing; `@firebase/functions` then omits the App Check header, and the server refuses the
+ *  header-less call identically. An owner fixing the console sixty seconds later changes nothing
  *  for that tab. Only a reload builds a new provider. */
 const ATTESTATION_RETRY_AFTER_SECONDS = 15;
 
@@ -166,8 +163,8 @@ const ATTESTATION_RETRY_AFTER_SECONDS = 15;
  *  throttle (see ATTESTATION_RETRY_AFTER_SECONDS), which makes it too important to be a clause
  *  someone has to read and act on manually — and its COST differs by path: free on the load
  *  screen, a retyped password on submit. So the refusal names it in `recovery` and the
- *  component renders it, with the warning the submit path owes. An earlier version put it here
- *  as prose, and the tests could then only pin it by `indexOf` against three other remedies. */
+ *  component renders it, with the warning the submit path owes. As prose here, the tests could
+ *  only pin it by `indexOf` against three other remedies. */
 const ATTESTATION_BLOCKED =
   "No pudimos completar la verificación de seguridad. Inténtalo de nuevo en un momento. " +
   "Si sigue fallando, prueba con otro navegador o desactiva las extensiones que bloquean " +
