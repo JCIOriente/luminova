@@ -54,6 +54,17 @@ export const UNDER_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
  *  Read from `UNDER_EMULATOR` above, the one read of the variable. */
 export const ENFORCE_APP_CHECK = !UNDER_EMULATOR;
 
+/** The callables that declare `enforceAppCheck: ENFORCE_APP_CHECK` — every caller of these
+ *  attests via App Check. ONE list: `index.ts`'s cold-start log and `app-check-scope.test.ts`'s
+ *  enforcement pin both read this constant, so a rollback that flips a callable's
+ *  `enforceAppCheck` without editing this tuple turns the test red instead of letting the log
+ *  claim enforcement that no longer happens. */
+export const APP_CHECK_ENFORCED_CALLABLES = [
+  "describeInvite",
+  "redeemInvite",
+  "issueMemberInvite",
+] as const;
+
 /** Whether firebase-functions would accept SELF-CRAFTED, UNSIGNED tokens on this process right
  *  now — BOTH an Auth ID token and an App Check token. One flag defeats both.
  *
@@ -164,7 +175,8 @@ export const BYPASS_LOG_MESSAGE =
  *  service list is enumerated in `deploy.yml` and pinned by the deploy-list test in
  *  `redeem-invite.test.ts`. The other signal for it is per-container and already shipping:
  *  `index.ts` logs `enforceAppCheck` at every cold start, and it reads `false` if and only if
- *  that variable is set. */
+ *  that variable is set — absent a deliberate full rollback of `ENFORCE_APP_CHECK` itself,
+ *  which also reads `false` with the variable unset. */
 export function assertTokenVerificationNotBypassed(
   fn: string,
   /** The error to raise, so each boundary keeps its own contract. Defaults to an UNTAGGED

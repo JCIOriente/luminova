@@ -3,7 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
-import { ENFORCE_APP_CHECK } from "./token-verification-bypass.js";
+import { ENFORCE_APP_CHECK, APP_CHECK_ENFORCED_CALLABLES } from "./token-verification-bypass.js";
 import { createFirestoreStore, parseInitiativeWrite } from "./award-points/firestore-store.js";
 import { syncActivityCheckInFlag } from "./award-points/activity-lock.js";
 import { checkInActivityIds, validateCheckIn } from "./award-points/check-in.js";
@@ -477,25 +477,8 @@ export { seedRoles, recomputeAllClaims, reseedBuiltInRolePerms } from "./recompu
 export { issueMemberInvite } from "./issue-member-invite.js";
 export { describeInvite, redeemInvite } from "./redeem-invite.js";
 
-// HERE, not in redeem-invite.ts, because this is a PROCESS-wide fact and this is the process.
-// build.mjs bundles every trigger into one dist/index.js, so this module is loaded by every
-// beacon container and the line is emitted once per cold start of each. Stated from the
-// entrypoint it is simply true; stated from the invite module it invited the reader to take
-// it as that service's own verdict, and needed a paragraph of caveat to walk that back.
-//
-// It is the ONLY signal reporting what a deployed container actually resolved. Everything
-// else — the unit tests, the CI dotenv guard — inspects the repo, and the repo is not where
-// this can go wrong: a console edit or a service-level env var changes the answer without
-// touching a file. Both failure directions are silent and total on the only onboarding path
-// there is. Read `ENFORCE_APP_CHECK` itself, not `UNAUTHENTICATED_CALL.enforceAppCheck`: the
-// invite pair's `enforceAppCheck` is derived from it (redeem-invite.ts), but `issueMemberInvite`
-// reads the same constant directly rather than through `UNAUTHENTICATED_CALL`, so logging the
-// shared upstream value covers all three callables BY DEFAULT. A per-callable rollback (the
-// invite-pair-only path in docs/firebase-setup.md) sets `enforceAppCheck: false` directly on
-// `UNAUTHENTICATED_CALL` without touching this constant — that commit MUST also drop
-// `describeInvite` and `redeemInvite` from `callables` below, or this line keeps naming two
-// callables that no longer enforce. No PII, no secret — one boolean, plus the names it covers.
+// HERE, not in redeem-invite.ts: PROCESS-wide fact, one line per cold start, no PII/secret.
 console.info("beacon: App Check enforcement resolved for the invite callables", {
   enforceAppCheck: ENFORCE_APP_CHECK,
-  callables: ["describeInvite", "redeemInvite", "issueMemberInvite"],
+  callables: APP_CHECK_ENFORCED_CALLABLES,
 });

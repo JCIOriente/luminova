@@ -5,6 +5,7 @@ import type {
   CallableResponse,
 } from "firebase-functions/v2/https";
 import { callableExports } from "./test-support/callable-exports.js";
+import { APP_CHECK_ENFORCED_CALLABLES } from "./token-verification-bypass.js";
 
 // `enforceAppCheck` is not serialized into `__endpoint`, and `.run` skips firebase-functions'
 // token checks, so neither shows whether a callable was DECLARED with it. This records the
@@ -20,10 +21,11 @@ vi.mock("firebase-functions/v2/https", async (importOriginal) => {
   };
 });
 
-// Enforced where every caller attests: the invite pair (backstage's /invitacion) and
-// issueMemberInvite (backstage's member pages). The other four are called by hand by the owner
-// with an ID token and no App Check token, so enforcing there would lock those calls out.
-const ENFORCED = ["describeInvite", "issueMemberInvite", "redeemInvite"];
+// Pinned against the SAME constant `index.ts` logs, not a second hand-typed list — a rollback
+// that flips a callable's `enforceAppCheck` without editing `APP_CHECK_ENFORCED_CALLABLES`
+// turns this test red instead of leaving the constant (and the log) to claim enforcement that
+// no longer happens.
+const ENFORCED: readonly string[] = APP_CHECK_ENFORCED_CALLABLES;
 
 async function declaredEnforcement(): Promise<Record<string, unknown>> {
   const entry: Record<string, unknown> = await import("./index.js");
@@ -67,5 +69,41 @@ describe("which callables enforce App Check", () => {
     for (const [name, enforce] of Object.entries(declared)) {
       expect(enforce === true, name).toBe(false);
     }
+  });
+});
+
+describe("the cold-start log", () => {
+  it("logs the shared constant honestly, in production", async () => {
+    expect(process.env.FUNCTIONS_EMULATOR).toBeUndefined();
+    vi.resetModules();
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    const live = await import("./token-verification-bypass.js");
+    const declared = await declaredEnforcement();
+    expect(infoSpy).toHaveBeenCalledWith(
+      "beacon: App Check enforcement resolved for the invite callables",
+      { enforceAppCheck: live.ENFORCE_APP_CHECK, callables: live.APP_CHECK_ENFORCED_CALLABLES },
+    );
+    // Cross-check against what index.ts actually registered each callable with, so a hand
+    // literal in the log OR a hand-flipped `enforceAppCheck` on one callable both go red.
+    for (const name of live.APP_CHECK_ENFORCED_CALLABLES) {
+      expect(declared[name], name).toBe(live.ENFORCE_APP_CHECK);
+    }
+    infoSpy.mockRestore();
+  });
+
+  it("logs the shared constant honestly, under the emulator", async () => {
+    vi.stubEnv("FUNCTIONS_EMULATOR", "true");
+    vi.resetModules();
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    const live = await import("./token-verification-bypass.js");
+    const declared = await declaredEnforcement();
+    expect(infoSpy).toHaveBeenCalledWith(
+      "beacon: App Check enforcement resolved for the invite callables",
+      { enforceAppCheck: live.ENFORCE_APP_CHECK, callables: live.APP_CHECK_ENFORCED_CALLABLES },
+    );
+    for (const name of live.APP_CHECK_ENFORCED_CALLABLES) {
+      expect(declared[name], name).toBe(live.ENFORCE_APP_CHECK);
+    }
+    infoSpy.mockRestore();
   });
 });

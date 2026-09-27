@@ -521,11 +521,11 @@ export const describeInvite = guardedOnCall(
  *  `index.ts`'s callable exports.
  *
  *  THE HOLE, stated rather than papered over: the check covers callables in THIS module. One
- *  added in a DIFFERENT file with `UNAUTHENTICATED_CALL` imported would slip past it, and an eslint
- *  ban on the symbol would need an exemption for `index.ts`, which imports it to log
- *  `enforceAppCheck` at cold start. It could not slip past the bypass refusal: `guardedOnCall` is
- *  the only way to declare a callable, so it refuses wherever it is declared — with the untagged
- *  `internal` unless it passes the invite `refusal`. */
+ *  added in a DIFFERENT file with `UNAUTHENTICATED_CALL` imported would slip past it, and an
+ *  eslint ban on the symbol would need an exemption for `redeem-invite.test.ts`, which imports
+ *  it to assert `enforceAppCheck`/`maxInstances` directly. It could not slip past the bypass
+ *  refusal: `guardedOnCall` is the only way to declare a callable, so it refuses wherever it is
+ *  declared — with the untagged `internal` unless it passes the invite `refusal`. */
 export const UNAUTHENTICATED_CALLABLES = ["describeInvite", "redeemInvite"] as const;
 
 export const redeemInvite = guardedOnCall(
