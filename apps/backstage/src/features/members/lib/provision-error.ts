@@ -40,7 +40,7 @@ const REASON_MESSAGES = new Map<string, string>(Object.entries(MESSAGES));
 // so the copy escalates to the administrator rather than promising a reload fixes everything.
 const UNAUTHENTICATED =
   "No pudimos verificar tu sesión en este navegador. Recarga la página e inténtalo de nuevo; " +
-  "si persiste, avisa al administrador.";
+  "si persiste, avisa a un administrador.";
 
 /** The callable's own explanation for a refusal, or null when it did not give one (an
  *  untagged failure — App Check, session, quota, config — or a reason this build does not

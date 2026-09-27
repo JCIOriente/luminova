@@ -493,7 +493,7 @@ describe("MemberInviteDrawer", () => {
       /Recarga la página y luego genera su enlace desde el menú de su fila/,
     );
     expect(reloadMessage).toBeInTheDocument();
-    expect(reloadMessage.textContent).toMatch(/si persiste, avisa al administrador\./);
+    expect(reloadMessage.textContent).toMatch(/si persiste, avisa a un administrador\./);
     expect(screen.getByText(/Detalle: Unauthenticated/)).toBeInTheDocument();
   });
 

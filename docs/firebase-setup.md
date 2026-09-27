@@ -705,35 +705,29 @@ it in a copy dialog with its expiry.
    if a region is ever added; confirm with `gcloud run services list --project=jci-oriente`.
 
 
-   If it does fail, there are two rollback scopes, because `issueMemberInvite` reads
-   `ENFORCE_APP_CHECK` directly while the invite pair reads it only through
-   `UNAUTHENTICATED_CALL.enforceAppCheck` (`redeem-invite.ts`):
+   If it does fail, there are two rollback scopes. Both edit
+   `apps/beacon/src/token-verification-bypass.ts` and/or `apps/beacon/src/redeem-invite.ts`;
+   neither touches `apps/beacon/src/index.ts` or `apps/beacon/src/app-check-scope.test.ts` —
+   the cold-start log and that test's enforcement pin both read
+   `APP_CHECK_ENFORCED_CALLABLES`, so editing the constant is enough for both to follow.
 
-   - **All three callables.** Hard-code `ENFORCE_APP_CHECK = false` in
-     `apps/beacon/src/token-verification-bypass.ts`, redeploy `describeInvite`, `redeemInvite`
-     and `issueMemberInvite`, and fix the cause before trying again.
-   - **Only the invite pair** (leaving `issueMemberInvite` enforcing). Set
-     `enforceAppCheck: false` directly on `UNAUTHENTICATED_CALL` in `redeem-invite.ts` instead
-     of touching the shared constant, redeploy `describeInvite` and `redeemInvite`, and fix the
-     cause before trying again. **Also drop `describeInvite` and `redeemInvite` from the
-     `callables` array in the cold-start log in `apps/beacon/src/index.ts`, in the same commit**
-     — that log reads `ENFORCE_APP_CHECK`, which this narrower rollback leaves `true`, so left
-     unedited it would keep naming two callables that no longer enforce.
+   | Scope | Edit | Assertion to flip |
+   |---|---|---|
+   | **Full** (all three callables) | In `token-verification-bypass.ts`: hard-code `ENFORCE_APP_CHECK = false`; set `APP_CHECK_ENFORCED_CALLABLES = []`. | `redeem-invite.test.ts`: `UNAUTHENTICATED_CALL.enforceAppCheck` → `expect(...).toBe(false)` |
+   | **Invite pair only** (leaving `issueMemberInvite` enforcing) | In `redeem-invite.ts`: set `enforceAppCheck: false` directly on `UNAUTHENTICATED_CALL`, remove the now-unused `ENFORCE_APP_CHECK` import (`noUnusedLocals` fails typecheck otherwise); in `token-verification-bypass.ts`: set `APP_CHECK_ENFORCED_CALLABLES = ["issueMemberInvite"]`. | same assertion, same flip |
 
-   The rate limiter is independent and keeps working either way.
+   Redeploy whichever callables the scope covers, and fix the cause before trying again. The
+   rate limiter is independent and keeps working either way.
 
-   **You must flip the pinned assertions in the same commit, or CI blocks the rollback.**
-   `apps/beacon/src/redeem-invite.test.ts` asserts
-   `expect(UNAUTHENTICATED_CALL.enforceAppCheck).toBe(true)` — flip it to `false` for either
-   rollback, since both take that value to `false`. `apps/beacon/src/app-check-scope.test.ts`
-   pins which callables enforce in its `ENFORCED` list — deliberately, so nobody disables
-   enforcement by accident: drop all three names for the full rollback, or just `describeInvite`
-   and `redeemInvite` for the invite-pair-only rollback (leaving `issueMemberInvite` in the
-   list). During a real outage that guard is between you and restoring onboarding:
-   `pnpm --filter beacon ci` goes red and the PR is blocked. Change the constant (or the
-   assignment) and both tests together, and say in the commit message that it is a deliberate
-   temporary rollback, then revert them once the cause is fixed. Flip the assertions rather than
-   deleting them — a deleted assertion is how enforcement silently never comes back.
+   Note: during a **full** rollback the cold-start log reads `enforceAppCheck: false` even with
+   `FUNCTIONS_EMULATOR` unset — that is `ENFORCE_APP_CHECK` hard-coded, not the emulator carve-out.
+
+   **You must flip the assertion in the same commit, or CI blocks the rollback.**
+   `pnpm --filter beacon ci` goes red on the unflipped `toBe(true)` — during a real outage that
+   guard is between you and restoring onboarding. Say in the commit message that it is a
+   deliberate temporary rollback, then revert the edits once the cause is fixed. Flip the
+   assertion rather than deleting it — a deleted assertion is how enforcement silently never
+   comes back.
 
    **Local development is unaffected.** Enforcement is keyed on `FUNCTIONS_EMULATOR`, which the
    functions emulator sets and the deploy-time discovery run does not — so `/invitacion` works

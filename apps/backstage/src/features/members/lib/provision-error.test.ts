@@ -68,7 +68,7 @@ describe("provisionErrorMessage", () => {
     });
     expect(provisionErrorMessage(rejected, FALLBACK)).toMatch(/Recarga la página/);
     expect(provisionErrorMessage(rejected, FALLBACK)).toMatch(
-      /si persiste, avisa al administrador/,
+      /si persiste, avisa a un administrador/,
     );
     // Not a deliberate refusal: the invite drawer keeps its row-menu guidance and raw detail.
     expect(provisionRefusalMessage(rejected)).toBeNull();
