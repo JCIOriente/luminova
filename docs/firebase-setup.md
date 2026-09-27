@@ -706,16 +706,18 @@ it in a copy dialog with its expiry.
 
 
    If it does fail: hard-code `ENFORCE_APP_CHECK = false` in
-   `apps/beacon/src/redeem-invite.ts`, redeploy the two functions, and fix the registration
-   before trying again. The rate limiter is independent and keeps working either way.
+   `apps/beacon/src/token-verification-bypass.ts`, redeploy the three functions that read it
+   (`describeInvite`, `redeemInvite`, `issueMemberInvite`), and fix the cause before trying
+   again. The rate limiter is independent and keeps working either way.
 
    **You must flip the pinned assertion in the same commit, or CI blocks the rollback.**
    `apps/beacon/src/redeem-invite.test.ts` asserts
-   `expect(UNAUTHENTICATED_CALL.enforceAppCheck).toBe(true)` — deliberately, so nobody disables
+   `expect(UNAUTHENTICATED_CALL.enforceAppCheck).toBe(true)`, and
+   `apps/beacon/src/app-check-scope.test.ts` pins which callables enforce — deliberately, so nobody disables
    enforcement by accident. During a real outage that guard is between you and restoring
-   onboarding: `pnpm --filter beacon ci` goes red and the PR is blocked. Change both files
-   together and say in the commit message that it is a deliberate temporary rollback, then
-   revert both once the registration is fixed. Flip the assertion to `false` rather than
+   onboarding: `pnpm --filter beacon ci` goes red and the PR is blocked. Change the constant and
+   both tests together and say in the commit message that it is a deliberate temporary
+   rollback, then revert them once the cause is fixed. Flip the assertion to `false` rather than
    deleting it — a deleted assertion is how enforcement silently never comes back.
 
    **Local development is unaffected.** Enforcement is keyed on `FUNCTIONS_EMULATOR`, which the

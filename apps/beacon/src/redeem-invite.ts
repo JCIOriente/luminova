@@ -398,8 +398,8 @@ export async function redeemInviteFor(
 // change all three are live.
 //
 // 1. APP CHECK, now ENFORCED in production and deliberately NOT under the emulator — see the
-//    `ENFORCE_APP_CHECK` docblock below for why that carve-out is safe and must stay
-//    fail-closed.
+//    `ENFORCE_APP_CHECK` docblock in token-verification-bypass.ts for why that carve-out is
+//    safe and must stay fail-closed.
 //
 //    Two claims earlier drafts made about why it was held back were false, and both are
 //    corrected here: the reCAPTCHA keys are NOT missing in production —

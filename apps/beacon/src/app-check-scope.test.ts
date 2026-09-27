@@ -49,6 +49,7 @@ describe("which callables enforce App Check", () => {
   it("enforces on none of them under the emulator, where local dev sends no token", async () => {
     vi.stubEnv("FUNCTIONS_EMULATOR", "true");
     const declared = await declaredEnforcement();
+    expect(Object.keys(declared).length).toBeGreaterThanOrEqual(7);
     for (const [name, enforce] of Object.entries(declared)) {
       expect(enforce === true, name).toBe(false);
     }

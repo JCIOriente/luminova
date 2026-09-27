@@ -8,6 +8,7 @@ import { inviteLink } from "../lib/invite-link";
 import { InviteLinkPanel } from "./invite-link-panel";
 import { draftProvisionBlocked } from "../lib/provision-gate";
 import { provisionRefusalMessage } from "../lib/provision-error";
+import { isUnauthenticated } from "../../../lib/callable-refusal";
 import { useCan } from "../../../lib/authz/use-can";
 
 interface MemberInviteDrawerProps {
@@ -41,6 +42,9 @@ interface DoneState {
    *  cannot see. */
   refusalMessage: string | null;
   errorDetail: string | null;
+  /** An untagged `unauthenticated`: App Check or the session. The row action only works after a
+   *  reload, since a throttled App Check client stays throttled for this page's lifetime. */
+  needsReload: boolean;
 }
 
 function today(): string {
@@ -98,6 +102,7 @@ export function MemberInviteDrawer({
     let expiresAt: number | null = null;
     let refusalMessage: string | null = null;
     let errorDetail: string | null = null;
+    let needsReload = false;
     // beacon refuses a non-Admin provisioning a member seated on a granting cargo (the
     // power-seat guard). The rules DO let that member be created, so without this check the
     // drawer would create them, 403 on the invite, and send the user to a row action that
@@ -134,6 +139,7 @@ export function MemberInviteDrawer({
         refusalMessage = provisionRefusalMessage(err);
         if (refusalMessage === null) {
           errorDetail = err instanceof Error ? err.message : String(err);
+          needsReload = isUnauthenticated(err);
         }
       }
     }
@@ -150,6 +156,7 @@ export function MemberInviteDrawer({
       expiresAt,
       refusalMessage,
       errorDetail,
+      needsReload,
     });
   };
 
@@ -184,7 +191,9 @@ export function MemberInviteDrawer({
                   : done.provisionBlocked
                     ? "Aún no tiene acceso a la app. Su cargo otorga permisos, así que un administrador debe enviarle el acceso."
                     : canProvisionLogin
-                      ? "Aún no tiene acceso a la app. Podrás generar su enlace desde el menú de su fila."
+                      ? done.needsReload
+                        ? "Aún no tiene acceso a la app. Recarga la página y luego genera su enlace desde el menú de su fila."
+                        : "Aún no tiene acceso a la app. Podrás generar su enlace desde el menú de su fila."
                       : "Aún no tiene acceso a la app. Pídele a un administrador que le genere su enlace."}
               </p>
               {/* The only diagnostic for an untagged failure — App Check, quota, config. */}

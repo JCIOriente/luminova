@@ -44,7 +44,7 @@ export const UNDER_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
  *
  *  The one thing that CAN change it is the deployed container's own environment — a dotenv
  *  file firebase-tools spreads in, or a value set on the Cloud Run service. That is what the
- *  log line below is for, and why the CI guard alone is not the control.
+ *  cold-start log line in `index.ts` is for, and why the CI guard alone is not the control.
  *
  *  Fail-closed and it must stay that way: ABSENCE of the variable means ENFORCE. Do not
  *  "improve" this into a positive check for a production marker like `K_SERVICE`, which would

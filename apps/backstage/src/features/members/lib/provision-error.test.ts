@@ -66,12 +66,14 @@ describe("provisionErrorMessage", () => {
     const rejected = Object.assign(new Error("Unauthenticated"), {
       code: "functions/unauthenticated",
     });
-    expect(provisionRefusalMessage(rejected)).toMatch(/Recarga la página/);
     expect(provisionErrorMessage(rejected, FALLBACK)).toMatch(/Recarga la página/);
+    // Not a deliberate refusal: the invite drawer keeps its row-menu guidance and raw detail.
+    expect(provisionRefusalMessage(rejected)).toBeNull();
     // A tagged refusal still wins over the code.
     expect(
-      provisionRefusalMessage(
+      provisionErrorMessage(
         Object.assign(blocked("member-not-found"), { code: "functions/unauthenticated" }),
+        FALLBACK,
       ),
     ).not.toMatch(/Recarga la página/);
   });

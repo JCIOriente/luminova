@@ -40,8 +40,8 @@ const REASON_MESSAGES = new Map<string, string>(Object.entries(MESSAGES));
 const UNAUTHENTICATED =
   "No pudimos verificar tu sesión en este navegador. Recarga la página e inténtalo de nuevo.";
 
-/** The callable's own explanation for a refusal, the reload instruction for an untagged
- *  `unauthenticated`, or null for anything else (quota, config, a reason this build does not
+/** The callable's own explanation for a refusal, or null when it did not give one (an
+ *  untagged failure — App Check, session, quota, config — or a reason this build does not
  *  know).
  *
  *  Separate from `provisionErrorMessage` because the two answer different questions. A caller
@@ -50,9 +50,9 @@ const UNAUTHENTICATED =
  *  its headline otherwise tells the operator to retry from the row menu on a refusal only an
  *  Admin can clear, with the real explanation demoted to small print underneath. */
 export function provisionRefusalMessage(err: unknown): string | null {
-  return refusalMessage(err, REASON_MESSAGES) ?? (isUnauthenticated(err) ? UNAUTHENTICATED : null);
+  return refusalMessage(err, REASON_MESSAGES);
 }
 
 export function provisionErrorMessage(err: unknown, fallback: string): string {
-  return provisionRefusalMessage(err) ?? fallback;
+  return provisionRefusalMessage(err) ?? (isUnauthenticated(err) ? UNAUTHENTICATED : fallback);
 }
