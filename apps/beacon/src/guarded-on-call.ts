@@ -1,12 +1,7 @@
-// The ONE file allowed to import `onCall`. Two things make that structural rather than a
-// convention: eslint.config.js bans, across apps/beacon/src, every static import or re-export
-// that reaches a callable constructor — `onCall`/`onCallGenkit`, the `https` namespaces, v1's
-// `runWith`/`region`/`FunctionBuilder`, the default import and any `firebase-functions/lib/`
-// deep path (the list is `CALLABLE_CONSTRUCTOR_IMPORTS`); this file is exempt from exactly one
-// entry, `onCall` from `firebase-functions/v2/https`. `require()` and a dynamic `import()` are
-// outside that rule, as is an eslint-disable; guarded-on-call.test.ts drives `.run` on every
-// callable export of index.ts under a live bypass and is the backstop for them.
-// Design: docs/specs/structural-oncall-guard.md.
+// The ONE file allowed to import `onCall`: eslint.config.js bans every callable constructor
+// import across apps/beacon/src (the canonical list is above `CALLABLE_CONSTRUCTOR_IMPORTS`),
+// and guarded-on-call.test.ts is the behavioural backstop. Design:
+// docs/specs/structural-oncall-guard.md.
 import {
   onCall,
   type CallableOptions,

@@ -96,14 +96,17 @@ const RAW_ABILITY_CALL_SELECTORS = [
   },
 ];
 
+// THE CANONICAL LIST of what beacon may not import; the guard's code, docs and spec point here.
 // Every beacon callable is declared through guardedOnCall (apps/beacon/src/guarded-on-call.ts),
 // which refuses all traffic while token verification is bypassed. These are the package entries
 // that expose a callable constructor: `onCall`/`onCallGenkit` by name, the `https` namespaces
 // that carry them, v1's `runWith`/`region` builders and `FunctionBuilder` class
 // (`.https.onCall`), and the default import (under CJS interop it is the whole module object).
 // ESLint also reports `import * as x` and `export ... from` of a restricted name, and a deep
-// `firebase-functions/lib/...` path is banned too (by `pattern`). `require()` and a dynamic
-// `import()` are outside this rule; guarded-on-call.test.ts is the backstop.
+// `firebase-functions/lib/...` path is banned too (by `pattern`). guarded-on-call.ts is exempt
+// from exactly one entry, `onCall` from `firebase-functions/v2/https`. `require()`, a dynamic
+// `import()` and an eslint-disable are outside this rule; guarded-on-call.test.ts, which drives
+// `.run` on every callable export of index.ts under a live bypass, is the backstop.
 const CALLABLE_CONSTRUCTOR_IMPORTS = [
   ["firebase-functions/v2/https", ["onCall", "onCallGenkit"]],
   ["firebase-functions/https", ["onCall", "onCallGenkit"]],

@@ -202,11 +202,12 @@ describe("every exported callable refuses while token verification is bypassed",
 });
 
 describe("every exported callable passes through the guard when the bypass is INERT", () => {
-  // Both keys present, the mode off: a wrapper keyed on the keys' presence would refuse here,
-  // so this pins that the wrapper consults the real predicate. The predicate's own inert cases
-  // are pinned against the installed library in `token-verification-bypass.test.ts`. Each
-  // callable's first refusal past the guard is cheap and reads nothing: no session for the gated
-  // five, no token for the invite pair.
+  // Two inert configurations per callable, each a half of the live bypass: the features key
+  // with the mode off, and the mode on with no features. A wrapper that refuses on either key
+  // alone (the keys' presence, or `FIREBASE_DEBUG_MODE === "true"`) fails one of them. The
+  // predicate's remaining inert cases are pinned against the installed library in
+  // `token-verification-bypass.test.ts`. Each callable's first refusal past the guard is cheap
+  // and reads nothing: no session for the gated five, no token for the invite pair.
   function passedThrough(name: string): Outcome {
     return UNAUTHENTICATED.includes(name)
       ? { code: "failed-precondition", reason: "invite-invalid" }
@@ -216,6 +217,12 @@ describe("every exported callable passes through the guard when the bypass is IN
   it.each(NAMES)("%s serves when the mode is off but the features key is set", async (name) => {
     vi.stubEnv("FIREBASE_DEBUG_MODE", "false");
     vi.stubEnv("FIREBASE_DEBUG_FEATURES", JSON.stringify({ skipTokenVerification: true }));
+    expect(await settle(() => callable(name).run(request()))).toEqual(passedThrough(name));
+  });
+
+  it.each(NAMES)("%s serves when the mode is on but no features are set", async (name) => {
+    vi.stubEnv("FIREBASE_DEBUG_MODE", "true");
+    vi.stubEnv("FIREBASE_DEBUG_FEATURES", undefined);
     expect(await settle(() => callable(name).run(request()))).toEqual(passedThrough(name));
   });
 });
