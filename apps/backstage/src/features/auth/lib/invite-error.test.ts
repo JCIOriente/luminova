@@ -167,11 +167,11 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
   // `details.reason`, so it used to land in the untagged branch and render "revisa tu
   // conexión" with a Reintentar button that could never succeed.
   //
-  // THREE causes now that enforcement is on, and only the last is permanent: a transient
-  // failure to mint a reCAPTCHA token, a refused attestation exchange (an owner may fix its
-  // cause in the console while the invitee is still on the page), and a browser that blocks
-  // reCAPTCHA v3 for as long as it stays blocked. The copy and the retry both have to serve
-  // all three.
+  // THREE causes now that enforcement is on: a transient failure to mint or exchange a token
+  // (a retry clears it), a 403/404 from the token exchange (a 24 h throttle in this tab — only
+  // a reload clears it, whatever an owner fixes in the console meanwhile), and a browser that
+  // blocks reCAPTCHA v3 for as long as it stays blocked. The copy and the retry both have to
+  // serve all three.
   const attestationFailure = { code: "functions/unauthenticated", message: "Unauthenticated" };
 
   it("names the blocked security check without blaming the invitee's connection", () => {
@@ -183,11 +183,11 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
     expect(refusal.message).not.toMatch(/enlace nuevo|uno nuevo/i);
   });
 
-  it("offers a DELAYED retry, because two of the three causes clear on their own", () => {
+  it("offers a DELAYED retry, because the transient causes clear on their own", () => {
     // Withholding it entirely was right while enforcement was off and a content blocker was
-    // the only reachable cause. With enforcement on, the transient and misconfigured causes
-    // dominate — and a "inténtalo de nuevo en un momento" with no button is the same
-    // copy/affordance contradiction fixed for unrecognized tagged reasons above.
+    // the only reachable cause. With enforcement on, the transient causes dominate — and a
+    // "inténtalo de nuevo en un momento" with no button is the same copy/affordance
+    // contradiction fixed for unrecognized tagged reasons above.
     const refusal = inviteRefusal(attestationFailure);
     expect(refusal.recovery.kind).not.toBe("none");
     expect(refusal.recovery.kind === "none" ? 0 : refusal.recovery.afterSeconds).toBeGreaterThan(0);

@@ -113,15 +113,13 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   against the emulator. `FUNCTIONS_EMULATOR` is safe to key on: the emulator sets it, the
   deploy-time discovery run does not (it sets `FUNCTIONS_CONTROL_API`), so a real deploy gets
   `true`. A test pins BOTH branches — the two failure directions are opposite and both silent.
-  Two claims in the earlier spec were
-  false: the production reCAPTCHA key does exist, and "/invitacion has no session" was never
-  the blocker (attestation is app-level, the route sits outside `_auth`, and the client wires
-  `initAppCheck` on first app acquisition). It bounds WHO may call and NOT how often — an
-  App Check token is replayable for its whole TTL (value in docs/firebase-setup.md), which is
-  why the limiter ships alongside it, not instead of it. **There is no Cloud Functions App
-  Check product to register** — for a callable the code-side flag IS the enforcement. What is
-  unproven is one real redemption against the production build; until then a broken
-  attestation path would fail every redemption silently. See docs/firebase-setup.md owner op 3.
+  The unauthenticated `/invitacion` page does attest: attestation is app-level, the route sits
+  outside `_auth`, the production build carries the site key, and the client wires
+  `initAppCheck` on first app acquisition. App Check bounds WHO may call and NOT how often — a
+  token is replayable for its whole TTL — which is why the limiter ships alongside it, not
+  instead of it. For a callable the `onCall` flag IS the enforcement; the App Check console has
+  no Cloud Functions switch. Still unproven: one real redemption against the production build.
+  Steps, TTL, enforcement state and failure diagnosis: docs/firebase-setup.md, owner op 3.
 - **One debug flag defeats BOTH token verifications, and the refusal is at the choke points.**
   `FIREBASE_DEBUG_MODE=true` plus `FIREBASE_DEBUG_FEATURES` carrying `skipTokenVerification` makes
   firebase-functions decode BOTH the App Check header and the **Auth ID token** without verifying
