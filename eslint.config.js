@@ -282,6 +282,37 @@ export default tseslint.config(
     },
   },
   {
+    // Every beacon callable is declared through guardedOnCall, which refuses all traffic while
+    // token verification is bypassed (apps/beacon/src/guarded-on-call.ts). So every OTHER way to
+    // reach a callable constructor is banned here: `onCall`/`onCallGenkit` by name, the `https`
+    // namespace that carries them, and v1's `runWith`/`region` builders (`.https.onCall`). A
+    // namespace import (`import * as x`) of any of these modules is reported too. The
+    // behavioural test in guarded-on-call.test.ts is the backstop for what lint cannot see (an
+    // eslint-disable, a dynamic import). No other block sets no-restricted-imports for beacon.
+    files: ["apps/beacon/src/**/*.ts"],
+    ignores: ["apps/beacon/src/guarded-on-call.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            ["firebase-functions/v2/https", ["onCall", "onCallGenkit"]],
+            ["firebase-functions/https", ["onCall", "onCallGenkit"]],
+            ["firebase-functions/v1/https", ["onCall"]],
+            ["firebase-functions", ["https"]],
+            ["firebase-functions/v2", ["https"]],
+            ["firebase-functions/v1", ["https", "runWith", "region"]],
+          ].map(([name, importNames]) => ({
+            name,
+            importNames,
+            message:
+              "Declare callables with guardedOnCall from apps/beacon/src/guarded-on-call.ts, which refuses all traffic while token verification is bypassed.",
+          })),
+        },
+      ],
+    },
+  },
+  {
     // Spotlight is the public, no-auth site. It must only touch Firestore via the
     // lite SDK; importing the @luminova/firebase barrel pulls the full firebase
     // SDK (auth/storage/functions) into the public bundle. Steer to the /lite
