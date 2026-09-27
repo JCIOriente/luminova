@@ -168,9 +168,8 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
   // conexión" with a Reintentar button that could never succeed.
   //
   // THREE causes now that enforcement is on, and only the last is permanent: a transient
-  // failure to mint a reCAPTCHA token, the per-product registration gap
-  // docs/firebase-setup.md calls BLOCKING (an owner fixes it in the console, possibly while
-  // the invitee is still on the page), and a browser that blocks reCAPTCHA v3 for as long as
+  // failure to mint a reCAPTCHA token, a refused attestation exchange
+  // (an owner may fix its cause in the console while the invitee is still on the page), and a browser that blocks reCAPTCHA v3 for as long as
   // it stays blocked. The copy and the retry both have to serve all three.
   const attestationFailure = { code: "functions/unauthenticated", message: "Unauthenticated" };
 
@@ -194,8 +193,7 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
   });
 
   it("names the RELOAD in the recovery — the only remedy that clears a 24 h throttle", () => {
-    // Not decoration. A 403 from the token exchange (the unregistered-product case, i.e. the
-    // BLOCKING owner-op) makes @firebase/app-check set a 24 h backoff on the provider
+    // Not decoration. A 403 from the token exchange makes @firebase/app-check set a 24 h backoff on the provider
     // instance, and `throwIfThrottled` runs before any exchange is attempted — so Reintentar
     // cannot succeed for the rest of the day no matter what an owner fixes in the console.
     // Only a reload builds a new provider.

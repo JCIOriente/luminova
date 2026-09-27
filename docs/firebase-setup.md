@@ -79,7 +79,7 @@ For local emulator, the Firebase CLI handles credentials automatically.
 App Check uses **reCAPTCHA v3** to protect the Firebase backend from abuse.
 
 - Setting `VITE_APPCHECK_SITE_KEY` enables App Check for that app; leaving it blank disables it. Prod builds carry the real site keys (`.env.production`); local `.env.local` leaves the key blank, so App Check is off in local dev and you develop against the emulators without a token.
-- Enforcement is **ON** in production for Firestore and Storage. Every deployed client must send a valid token — that is why the lite read path (`getFirestoreLite`) also initializes App Check, not just the full SDK.
+- Console-side enforcement in production (App Check API `services` list, read 2026-09-27): **Storage ENFORCED; Firestore and Authentication (`identitytoolkit`) UNENFORCED** — Firestore is monitor-only. Callables have no console-side entry at all; the invite pair enforces in code (`enforceAppCheck`). Every deployed client still sends a token — that is why the lite read path (`getFirestoreLite`) also initializes App Check, not just the full SDK — and that traffic is what would have to be confirmed valid before Firestore enforcement could even be considered.
 
 The `@luminova/firebase` package initializes App Check automatically when `VITE_APPCHECK_SITE_KEY` is set (shared `initAppCheck` helper, used by both `getFirebase` and `getFirestoreLite`).
 
@@ -490,13 +490,53 @@ it in a copy dialog with its expiry.
 
    Deletion is best-effort with up to ~24 h of lag, which is why expiry is never left to it.
 
-3. ***** BLOCKING PRE-DEPLOY: confirm App Check covers Cloud Functions. *****
+3. ***** OPEN: prove App Check on the invite callables with ONE real redemption. *****
 
-   `describeInvite` and `redeemInvite` now enforce App Check in production
-   (`enforceAppCheck: ENFORCE_APP_CHECK`, derived from `UNDER_EMULATOR` — off under the emulator, so
-   local `/invitacion` still works; see below). **If the Cloud Functions product is not
-   App-Check-enabled for this project, every redemption fails the moment this deploys** —
-   silently, totally, on the only onboarding path that exists.
+   `describeInvite` and `redeemInvite` enforce App Check in production
+   (`enforceAppCheck: ENFORCE_APP_CHECK`, keyed on `UNDER_EMULATOR` — off under the emulator, so
+   local `/invitacion` still works; see below). This is **live, not pending**: every beacon
+   container logs `beacon: App Check enforcement resolved for the invite callables
+   { enforceAppCheck: true }` at cold start, first seen in production at 2026-09-23T04:04Z.
+
+   **There is no "Cloud Functions" App Check product to register — an earlier version of this
+   step said there was, and sent you to a console toggle that does not exist.** The App Check
+   API's own schema lists the service IDs that take a console-side enforcement mode; Cloud
+   Functions and Cloud Run are not among them:
+
+   ```bash
+   curl -sS 'https://firebaseappcheck.googleapis.com/$discovery/rest?version=v1' \
+     | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['schemas']['GoogleFirebaseAppcheckV1Service']['properties']['name']['description'])"
+   ```
+
+   For a callable, enforcement is **code-side only** — `enforceAppCheck` in the `onCall`
+   options. The one console-side prerequisite is that the calling web app has an attestation
+   provider configured, and backstage does (reCAPTCHA v3, site secret set):
+
+   ```bash
+   TOKEN=$(gcloud auth print-access-token)
+   curl -sS -H "Authorization: Bearer $TOKEN" -H "x-goog-user-project: jci-oriente" \
+     "https://firebaseappcheck.googleapis.com/v1/projects/jci-oriente/apps/1:953870918238:web:acbd53d377846bd88b4acf/recaptchaV3Config"
+   # → "siteSecretSet": true, "tokenTtl": "259200s", "minValidScore": 0.5   (read 2026-09-27)
+   ```
+
+   The path segment is **`/apps/`**, not `/webApps/`. `/webApps/` returns an HTML 404 that reads
+   like "not registered" and actually means "no such route".
+
+   **What is NOT proven: that a real invitee gets through.** No callable has been invoked for
+   real. The request log for both services, from their creation on 2026-09-22 to 2026-09-27,
+   holds 8 rows — all `GET` 400/404 at 2026-09-23T03:59, zero `POST`s:
+
+   ```bash
+   gcloud logging read 'resource.labels.service_name=("describeinvite" OR "redeeminvite")
+      AND httpRequest.requestMethod!=""' --project=jci-oriente --freshness=30d \
+     --format="value(timestamp,resource.labels.service_name,httpRequest.requestMethod,httpRequest.status)"
+   ```
+
+   Query the REQUEST log (`httpRequest.*`), not the application log — a successful callable may
+   log nothing of its own. The smoke test below is therefore the only thing that will ever show
+   a code-side `enforceAppCheck` accepting real attestation with no console-side product entry
+   behind it. If it does not, every redemption fails — silently, totally, on the only
+   onboarding path that exists.
 
    **What it looks like when it breaks**, so you can recognize it: firebase-functions rejects
    the call with `unauthenticated`, which carries no tagged `reason`. The invite page shows
@@ -504,12 +544,12 @@ it in a copy dialog with its expiry.
    under the heading *"No pudimos abrir el enlace"*, with a Reintentar button that unlocks
    after 15 s. That copy is deliberately the SAME for a misconfigured deploy and for a browser
    blocking reCAPTCHA, because the invitee cannot tell those apart and both remedies are
-   listed. So the page will NOT tell you which one you are looking at — the console check in
-   step 1 below is what distinguishes them.
+   listed. So the page will NOT tell you which one you are looking at — the server-side trace
+   below is what distinguishes them.
 
-   **There IS a server-side trace, and it is the fastest way to confirm this diagnosis.** An
-   unregistered-product 403 does not leave the invitee's browser sending nothing: the token
-   exchange fails, `@firebase/app-check` returns a **dummy** token rather than throwing, and
+   **There IS a server-side trace, and it is the fastest way to confirm this diagnosis.** A
+   failed attestation exchange does not leave the invitee's browser sending nothing:
+   `@firebase/app-check` returns a **dummy** token rather than throwing, and
    that dummy travels in the `X-Firebase-AppCheck` header. firebase-functions therefore takes
    its `app === "INVALID"` arm and writes one line to Cloud Logging per failed redemption:
 
@@ -546,17 +586,17 @@ it in a copy dialog with its expiry.
    attestation is app-level, `/invitacion` is deliberately a top-level route outside the
    `_auth` layout, and the client wires `initAppCheck` on first app acquisition.
 
-   Before deploying:
+   What remains — the smoke test, and the only open part of roadmap G4:
 
-   1. Firebase Console → **App Check** → confirm the backstage web app is registered with the
-      reCAPTCHA v3 provider, and that **Cloud Functions** appears among its products with
-      enforcement on (enforcement is per-product; Firestore and Storage being on says nothing
-      about Functions).
-   2. Deploy the functions to a **preview or staging** target if one is available, or accept
-      that the first production deploy is the test, and immediately
-   3. **Open `/invitacion#<a real freshly-issued token>` against a real production build** and
-      complete a redemption end to end. Not a local build: the emulator path has no site key,
-      so it cannot exercise attestation at all.
+   1. Re-run the `recaptchaV3Config` check above; `siteSecretSet: true` is the console-side
+      prerequisite, and there is nothing else to register.
+   2. Issue a real invite from production backstage, then **open
+      `/invitacion#<that freshly-issued token>` against the production build in a FRESH browser
+      profile** and complete a redemption end to end. Not a local build: the emulator path has
+      no site key, so it cannot exercise attestation at all. Fresh profile, because a refused
+      exchange throttles App Check in that browser for 24 h (see above).
+   3. **Pass = a `POST` with status 200 on `redeeminvite`** in the request-log query above.
+      A `POST` 401 on either service is this failure mode; pair it with the WARNING query.
 
    **One more thing only this smoke test can catch.** Enforcement is keyed on
    `FUNCTIONS_EMULATOR`, and `firebase-tools` spreads whatever it reads from a dotenv file into
@@ -876,17 +916,23 @@ the branded reset flow:
 3. **Reset action URL** — leave it at the Firebase DEFAULT. The `/reset` route it used to
    point at is deleted; see owner op 1 above.
 4. **`describeInvite` / `redeemInvite` are the FIRST functions with it turned on.** They now
-   declare `enforceAppCheck: true`. The blocker was never the site key (production has one) —
-   it is that enforcement is per-product and **Cloud Functions is still not confirmed enabled**
-   below. That makes confirming it a BLOCKING pre-deploy step, not a follow-up: see owner op 3
-   under "Enlaces de acceso". A misconfigured deploy breaks member onboarding entirely,
-   silently, for everyone.
-5. **Enforcement** — **enabled** for Firestore and Storage. **Cloud Functions: UNCONFIRMED**,
-   and the two invite callables now depend on it. Both frontends send a valid token (backstage
-   via the full SDK, spotlight via `getFirestoreLite`). Only enable enforcement for a product
-   after confirming real traffic carries valid tokens, or you will lock out the app.
-6. **App Check is not a rate limiter, and the invite callables carry both.** A standard App
-   Check token lives ~30 minutes and is replayable, so harvesting one from the public
+   declare `enforceAppCheck: true`, live in production since 2026-09-23. For a callable that
+   code-side flag IS the enforcement — there is no Cloud Functions product in the App Check
+   console to register or toggle. What is unproven is a real redemption end to end: see owner
+   op 3 under "Enlaces de acceso". If attestation fails for real invitees, member onboarding
+   breaks entirely, silently, for everyone.
+5. **Enforcement** — console-side: **Storage ENFORCED, Firestore UNENFORCED, Authentication
+   UNENFORCED**, read 2026-09-27 from
+   `GET https://firebaseappcheck.googleapis.com/v1/projects/jci-oriente/services` (same auth
+   headers as the `recaptchaV3Config` call in owner op 3). Code-side:
+   the two invite callables. Both frontends send a token (backstage via the full SDK,
+   spotlight via `getFirestoreLite`). Turning Firestore enforcement on is a client-breakage
+   decision, not a checkbox: any client or script that reads Firestore without attesting
+   starts failing, so it is only ever done after the App Check metrics show real traffic
+   carrying valid tokens.
+6. **App Check is not a rate limiter, and the invite callables carry both.** This project's
+   reCAPTCHA v3 config issues App Check tokens with a **72 h** TTL (`tokenTtl: 259200s`, read
+   from the App Check API 2026-09-27) and they are replayable, so harvesting one from the public
    `/invitacion` page and flooding with it is not prevented by enforcement. `enforceAppCheck`
    bounds *who* may call; the in-process limiter in `apps/beacon/src/rate-limit.ts` bounds
    *how often*. Neither substitutes for the other.

@@ -422,15 +422,15 @@ export async function redeemInviteFor(
 //    client's `ensureApp()` wires `initAppCheck` on first app acquisition — which
 //    `getFunctionsService()` goes through. So an unauthenticated /invitacion load does attest.
 //
-//    ENFORCEMENT IS PER-PRODUCT, and that is the live risk THIS change carries. See the
-//    BLOCKING owner-op in docs/firebase-setup.md: the backstage app must be registered for the
-//    Cloud Functions product and /invitacion tested against a real build BEFORE this deploys.
-//    Get it wrong and every redemption 403s — silently, totally, on the only onboarding path
-//    there is, and a 403 throttles that browser's App Check for TWENTY-FOUR HOURS, which no
+//    For a callable this flag IS the enforcement — App Check has no Cloud Functions product
+//    to register (an earlier comment here said otherwise). The live risk is that no real
+//    redemption has proven it yet; see owner op 3 in docs/firebase-setup.md. If attestation
+//    fails for real invitees, every redemption is refused — silently, totally, on the only
+//    onboarding path there is, and a 403 throttles that browser's App Check for TWENTY-FOUR HOURS, which no
 //    retry button can clear and only a page reload escapes.
 //
 // 2. THE RATE GATE, below. App Check bounds WHO may call; it does not bound HOW OFTEN. A
-//    standard App Check token lives ~30 minutes and is replayable, so harvesting one from the
+//    App Check token is replayable for its whole TTL (72 h in this project), so harvesting one from the
 //    public page and flooding with it stays open with enforcement on. The two are
 //    complementary, not alternatives, which is why both ship.
 //

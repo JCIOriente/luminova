@@ -245,6 +245,8 @@ provisions reCAPTCHA.
 > it is that App Check enforcement is per-PRODUCT, and the backstage app's registration for
 > Cloud Functions is the one remaining owner-op. Left standing rather than rewritten because
 > this section records what was believed when the decision was made.
+>
+> **CORRECTED 2026-09-27 — the correction above was itself wrong:** there is no Cloud Functions App Check product. The App Check API's supported service IDs carry no `cloudfunctions`/`run` entry; a callable's enforcement is code-side only (`enforceAppCheck`), and the one console prerequisite, backstage's reCAPTCHA v3 provider, is configured. See `docs/firebase-setup.md` owner op 3.
 
 What we do instead: both callables are declared
 `onCall({ enforceAppCheck: false, maxInstances: 10 }, …)` with a comment naming G4, so the flip is
@@ -950,7 +952,9 @@ the same policy the checklist renders.
    `/invitacion` would be unrunnable locally). The stated reason was false too:
    `apps/backstage/.env.production` carries a real `VITE_APPCHECK_SITE_KEY`. What actually held
    it is that enforcement is per-PRODUCT, so the backstage app's registration for Cloud
-   Functions is now a BLOCKING pre-deploy owner-op rather than a code change.
+   Functions is now a BLOCKING pre-deploy owner-op rather than a code change. *(Corrected
+   2026-09-27: that last sentence is false — no Cloud Functions App Check product exists; the
+   code-side flag is the enforcement. What remains is a real-redemption smoke test.)*
 4. ~~**No rate limiting beyond `maxInstances`.** Deliberate (Q3). If abuse ever materialises, the
    right fix is Cloud Armor or an App Check flip, not a Firestore counter.~~ **FIXED in this
    design** — see Amendment 2. Both callables now carry an in-process GCRA limiter: a per-token
@@ -1015,7 +1019,8 @@ and, near midnight, the wrong day.
 ## Amendment 2 — rate limiting and App Check
 
 Both callables now carry two controls. They are complementary: **App Check bounds *who* may call;
-the limiter bounds *how often*.** A standard App Check token lives ~30 minutes and is replayable,
+the limiter bounds *how often*.** An App Check token is replayable for its whole TTL — **72 h** in this project
+(`tokenTtl: 259200s`, read 2026-09-27; this line originally said "~30 minutes"),
 so harvesting one from the public `/invitacion` and flooding with it stays open with enforcement
 on — which is why neither replaces the other.
 
@@ -1079,10 +1084,10 @@ escape — and local dev deliberately has no site key, so the client sends no he
 that carve-out the only onboarding path in the product would be unrunnable locally. Both
 branches are pinned by tests; the two failure directions are opposite and both silent.
 
-**Enforcement is per-product, and that is a blocking pre-deploy step.** Cloud Functions must be
+~~**Enforcement is per-product, and that is a blocking pre-deploy step.** Cloud Functions must be
 registered for App Check and `/invitacion` tested against a real production build before this
 deploys; otherwise every redemption 403s, silently and totally, on the only onboarding path that
-exists. The owner-op is in `docs/firebase-setup.md`.
+exists.~~ **Corrected 2026-09-27:** there is no Cloud Functions App Check product to register — a callable's enforcement is the code-side `enforceAppCheck` flag, live since 2026-09-23. The real-build redemption test still stands and is still undone; it is owner op 3 in `docs/firebase-setup.md`.
 
 `invite-too-many-attempts` joins `INVITE_BLOCK_REASONS`. It is the first **temporary** tagged
 refusal, which invalidated a client invariant: `retryable` was "beacon gave no tagged reason", on

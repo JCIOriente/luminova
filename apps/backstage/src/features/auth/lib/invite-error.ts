@@ -141,10 +141,8 @@ function isAttestationRejection(err: unknown): boolean {
  *  different mechanism — so this gets its own name rather than inheriting a retune of
  *  `INVITE_RETRY_AFTER_SECONDS`.
  *
- *  WHAT 15 s DOES NOT CLEAR, and the reason `retry-or-reload` exists as its own arm. The
- *  per-product registration gap — the BLOCKING owner-op in `docs/firebase-setup.md` —
- *  surfaces as a 403
- *  from the token exchange, and `@firebase/app-check`'s `setBackoff` special-cases 403/404
+ *  WHAT 15 s DOES NOT CLEAR, and the reason `retry-or-reload` exists as its own arm. A
+ *  refused attestation exchange surfaces as a 403 from the token exchange, and `@firebase/app-check`'s `setBackoff` special-cases 403/404
  *  with a TWENTY-FOUR HOUR `allowRequestsAfter`. `throwIfThrottled` is the first statement of
  *  `ReCaptchaV3Provider.getToken()`, and the throttle lives on the provider instance
  *  `initAppCheck` creates once per page load — so for the rest of that day this tab never even
