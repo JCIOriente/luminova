@@ -184,10 +184,8 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
   });
 
   it("offers a DELAYED retry, because the transient causes clear on their own", () => {
-    // Withholding it entirely was right while enforcement was off and a content blocker was
-    // the only reachable cause. With enforcement on, the transient causes dominate — and a
-    // "inténtalo de nuevo en un momento" with no button is the same copy/affordance
-    // contradiction fixed for unrecognized tagged reasons above.
+    // The transient causes dominate, and a "inténtalo de nuevo en un momento" with no button
+    // is the same copy/affordance contradiction fixed for unrecognized tagged reasons above.
     const refusal = inviteRefusal(attestationFailure);
     expect(refusal.recovery.kind).not.toBe("none");
     expect(refusal.recovery.kind === "none" ? 0 : refusal.recovery.afterSeconds).toBeGreaterThan(0);

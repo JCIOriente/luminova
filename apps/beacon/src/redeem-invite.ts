@@ -423,8 +423,8 @@ export async function redeemInviteFor(
 //    Functions switch. The live risk is that no real redemption has proven it yet (owner op 3
 //    in docs/firebase-setup.md, which also holds the failure diagnosis). If attestation fails
 //    for real invitees, every redemption is refused — silently, totally, on the only onboarding
-//    path there is — and a refused token exchange throttles that browser's App Check for
-//    TWENTY-FOUR HOURS, which no retry button can clear and only a page reload escapes.
+//    path there is — and a 403/404 from the token exchange throttles App Check in that page
+//    for TWENTY-FOUR HOURS, which no retry button can clear and only a page reload escapes.
 //
 // 2. THE RATE GATE, below. App Check bounds WHO may call; it does not bound HOW OFTEN. An
 //    App Check token is replayable for its whole TTL (docs/firebase-setup.md has the value), so

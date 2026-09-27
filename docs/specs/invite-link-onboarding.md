@@ -1053,10 +1053,9 @@ endpoint-wide per callable, consulted before any I/O.
   hands an evicted key a fresh budget, which is a second reason the endpoint-wide bucket is the
   real control; a test asserts that property so nobody mistakes the LRU for a security boundary.
 
-**App Check** is now enforced. The production reCAPTCHA site key lives in
-`apps/backstage/.env.production`, and the unauthenticated `/invitacion` page attests: attestation
-is app-level, the route deliberately sits outside the `_auth` layout, and the client wires
-`initAppCheck` on first app acquisition.
+**App Check** is now enforced. The unauthenticated `/invitacion` page attests because the route
+deliberately sits outside the `_auth` layout; the attestation chain is in `docs/firebase-setup.md`,
+owner op 3.
 
 Enforcement is **off under the emulator** (`FUNCTIONS_EMULATOR`), because firebase-functions
 enforces `enforceAppCheck` itself and rejects a header-less request before any debug-token

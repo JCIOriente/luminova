@@ -79,7 +79,7 @@ For local emulator, the Firebase CLI handles credentials automatically.
 App Check uses **reCAPTCHA v3** to protect the Firebase backend from abuse.
 
 - Setting `VITE_APPCHECK_SITE_KEY` enables App Check for that app; leaving it blank disables it. Prod builds carry the real site keys (`.env.production`); local `.env.local` leaves the key blank, so App Check is off in local dev and you develop against the emulators without a token.
-- Every deployed client sends a token — that is why the lite read path (`getFirestoreLite`) also initializes App Check, not just the full SDK. What is enforced and where, registering a web app, verification and failure diagnosis: owner op 3 under "Enlaces de acceso" below.
+- Every deployed client initializes App Check and attests — that is why the lite read path (`getFirestoreLite`) also initializes App Check, not just the full SDK. What is enforced and where, registering a web app, verification and failure diagnosis: owner op 3 under "Enlaces de acceso" below.
 
 The `@luminova/firebase` package initializes App Check automatically when `VITE_APPCHECK_SITE_KEY` is set (shared `initAppCheck` helper, used by both `getFirebase` and `getFirestoreLite`).
 
@@ -501,8 +501,9 @@ it in a copy dialog with its expiry.
    - **Firebase products enforce from the console** (App Check → **APIs** tab). Production
      state: **Cloud Storage enforced; Cloud Firestore and Authentication unenforced**
      (monitoring only). Turning Firestore on is a separate client-breakage decision — every
-     client or script that reads Firestore without attesting starts failing — and is not part
-     of this op or of roadmap G4.
+     client or script that reads Firestore without attesting starts failing — made only after
+     the APIs tab's request metrics show real traffic carrying valid tokens. It is not part of
+     this op or of roadmap G4.
 
    Backstage's registration issues tokens with a **72 h** TTL and a minimum reCAPTCHA score of
    0.5. A token is replayable for its whole TTL, so App Check bounds *who* may call, never *how
@@ -557,9 +558,9 @@ it in a copy dialog with its expiry.
    1. Issue a real invite from production backstage.
    2. Open `/invitacion#<that token>` against the production build in a **fresh browser
       profile** and complete the redemption. Not a local build: the emulator path has no site
-      key, so it cannot exercise attestation. Fresh profile, because a refused token exchange
-      throttles App Check in that browser for 24 h and only a new page load (a new provider
-      instance) clears it.
+      key, so it cannot exercise attestation. Fresh profile, because the SDK reuses a still-valid
+      App Check token cached in the browser (IndexedDB) without exchanging a new one — your own
+      profile likely holds one, and would pass while a new invitee's exchange fails.
    3. Read the REQUEST log (`httpRequest.*`), not the application log — a successful callable
       may log nothing of its own:
 
@@ -573,27 +574,28 @@ it in a copy dialog with its expiry.
       service, or no `POST` at all — see "When it fails". On a pass, mark roadmap G4 done and
       drop the OPEN marker from this op.
 
-   **When it fails.** The page shows *"No pudimos completar la verificación de seguridad.
-   Inténtalo de nuevo en un momento…"* under *"No pudimos abrir el enlace"*, with a Reintentar
-   button that unlocks after 15 s. The copy is deliberately the same whether the deployment is
-   misconfigured or the invitee's browser is blocking reCAPTCHA: the invitee cannot tell those
-   apart and both remedies are listed. The server cannot tell them apart either — what does is
-   the population. **Every** invitee failing is the deployment; **some** failing is their
-   browsers.
+   **When it fails.** Both invite screens show *"No pudimos completar la verificación de
+   seguridad. Inténtalo de nuevo en un momento…"*. On load (`describeInvite` refused) it sits
+   under the heading *"No pudimos abrir el enlace"* with a **Recargar la página** button. On
+   submit (`redeemInvite` refused) the form stays up with the message inline, the submit button
+   counts down *"Espera 15s"* before it re-enables, and a secondary **Recargar la página** warns
+   *"Tendrás que volver a escribir tu contraseña."* The copy is the same whether the deployment
+   is misconfigured or the invitee's browser is blocking reCAPTCHA; neither the invitee nor the
+   server can tell those apart — the population can. **Every** invitee failing is the
+   deployment; **some** failing is their browsers.
 
    - **`POST` 401 rows, and no WARNING rows** (query below). When the token exchange fails,
      `@firebase/app-check` returns a dummy token together with an error, and
      `@firebase/functions` then sends no `X-Firebase-AppCheck` header at all. firebase-functions
      takes its MISSING path, logs "Callable request verification passed" at DEBUG, and the
      `enforceAppCheck` throw becomes `unauthenticated` → HTTP 401. Nothing at WARNING or above.
-     This is the signature of a misconfigured deployment and of a reCAPTCHA that loads but
-     fails in that browser alike.
    - **No `POST` at all** while the invitee reports the page never finishes: the reCAPTCHA
      script itself was blocked (a content blocker). The SDK's script loader has no error
      handler, so the token promise never settles, and `@firebase/functions` waits for it before
      its own timeout starts — the call hangs and nothing reaches the server.
-   - **WARNING rows** (`Callable request verification failed: AppCheck token was rejected.`)
-     are a different problem: a token that DID exchange reached the server and was refused —
+   - **WARNING rows reading `AppCheck token was rejected`** are a different problem (the
+     label also matches `Auth token was rejected` from the authenticated callables — ignore
+     those here): a token that DID exchange reached the server and was refused —
      minted for another project, expired, or forged. They do not diagnose an invitee who cannot
      attest.
 
@@ -610,8 +612,9 @@ it in a copy dialog with its expiry.
    On the invitee's side the only trace is their browser console: our `console.error` with the
    message "invite: App Check rejected the call; the invitee cannot redeem", plus the SDK's own
    warning once the 24 h throttle is active. Neither says why the exchange failed,
-   and both need someone looking over the invitee's shoulder. The request-rate alert in op 4
-   below is the detector that does not: a 401 spike with no `rate-limited-global` lines.
+   and both need someone looking over the invitee's shoulder. No alert covers this at the
+   chapter's volume: op 4's request-rate alert fires above 8 req/s, far over a few invitees'
+   401s, so a broken attestation path shows up as invitees reporting the error.
    Rollback, if enforcement itself must come off: "If the smoke test fails", further down.
 
    **One more thing only this smoke test can catch.** Enforcement is keyed on
@@ -804,8 +807,8 @@ it in a copy dialog with its expiry.
    matched to the
    limiter's own 60 s window. There is no false-positive budget to protect: JCI Oriente issues
    a handful of invites a week, so the normal rate is indistinguishable from zero and an early,
-   twitchy alert costs nothing. `--duration=60s`, not the 300 s (five minutes) an earlier draft
-   used, for the same reason.
+   twitchy alert costs nothing. `--duration=60s` rather than five minutes, for the same
+   reason.
 
    **How much warning this buys, honestly.** The policy needs one full 60 s aligned point plus
    its duration, so ~2 minutes at best, before ingestion delay. The bucket's burst tolerance
@@ -871,8 +874,8 @@ it in a copy dialog with its expiry.
    `response_code` in Metrics Explorer. A 401 spike with NO `rate-limited-global` lines is not
    a false positive — it is either a header-less flood burning invocations against
    `maxInstances: 10`, or **an attestation failure on the real client path** (op 3 above,
-   "When it fails"), in which case every legitimate redemption is 401ing too. That is the
-   single best detector for it.
+   "When it fails"), in which case every legitimate redemption is 401ing too — but it only
+   crosses the threshold with flood-level traffic behind it.
 
    Leave the `--if='> 8'` filter unscoped — excluding 401 would blind the alert to both of
    those.
