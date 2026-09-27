@@ -17,6 +17,7 @@ import { memberEmailMalformed, provisionBlocked } from "./provision-errors.js";
 import { requireAdminOrPerm } from "./callable-auth.js";
 import { guardedOnCall } from "./guarded-on-call.js";
 import { firestoreInviteDeps } from "./provision-deps.js";
+import { ENFORCE_APP_CHECK } from "./redeem-invite.js";
 import { ensureApp } from "./runtime.js";
 
 export interface ProvisionInput {
@@ -450,11 +451,17 @@ function pendingInviteHash(
 // deliberate (D3) and contained to grant-free, unseated, unprivileged members by the guards
 // above, re-checked at redemption. It is auditable, not prevented: the invite records issuedBy
 // and the projection surfaces it to the member themselves.
-export const issueMemberInvite = guardedOnCall({ name: "issueMemberInvite" }, async (request) => {
-  const { isAdmin } = requireAdminOrPerm(request, "create:MemberLogin");
-  const { memberId } = validateProvisionInput(request.data);
-  // requireAdminOrPerm throws `unauthenticated` on a missing auth context, so uid is present.
-  const issuedBy = request.auth?.uid ?? "";
-  ensureApp();
-  return issueInvite(firestoreInviteDeps(getFirestore(), getAuth()), memberId, issuedBy, isAdmin);
-});
+// App Check is enforced here, unlike on the other admin callables: its only caller is
+// backstage, which attests (the four owner-op callables are called by scripts that do not).
+// Defence in depth only — the debug flag that forges the Auth token forges this one too.
+export const issueMemberInvite = guardedOnCall(
+  { name: "issueMemberInvite", enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    const { isAdmin } = requireAdminOrPerm(request, "create:MemberLogin");
+    const { memberId } = validateProvisionInput(request.data);
+    // requireAdminOrPerm throws `unauthenticated` on a missing auth context, so uid is present.
+    const issuedBy = request.auth?.uid ?? "";
+    ensureApp();
+    return issueInvite(firestoreInviteDeps(getFirestore(), getAuth()), memberId, issuedBy, isAdmin);
+  },
+);

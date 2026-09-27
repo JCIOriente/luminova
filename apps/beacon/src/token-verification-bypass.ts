@@ -40,9 +40,9 @@ export const UNDER_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
  *  satisfies `requireAdmin`. That reaches `setUserRoles` and `reseedBuiltInRolePerms`, i.e.
  *  custom-claim assignment and a project-wide role reseed.
  *
- *  It is STRICTLY WORSE on the authenticated callables than on the invite pair, because none of
- *  those sets `enforceAppCheck`, so it defaults falsy and there is no attestation gate there to
- *  lose — the forged claim is the only gate, and this flag is exactly what breaks it.
+ *  It is STRICTLY WORSE on the authenticated callables than on the invite pair: the forged claim
+ *  is their only effective gate. Four of them declare no `enforceAppCheck`, and on
+ *  `issueMemberInvite`, which does, this same flag forges the App Check token too.
  *
  *  The same file consults it once more for v1 callables only (`version === "gcfv1"`, trusting
  *  the raw auth header). Beacon's lint rule bans importing any callable constructor, v1's

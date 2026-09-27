@@ -660,9 +660,9 @@ it in a copy dialog with its expiry.
 
    satisfies the Admin-role gate on `setUserRoles`, `seedRoles`, `recomputeAllClaims`,
    `reseedBuiltInRolePerms` and `issueMemberInvite` — custom-claim assignment and a project-wide
-   role reseed. It is **strictly worse** on those five than on the invite pair, because none of
-   them sets `enforceAppCheck`, so it defaults falsy and there is no attestation gate there to
-   lose: the forged claim is the only gate.
+   role reseed. It is **strictly worse** on those five than on the invite pair: the forged claim
+   is their only effective gate. Four of them declare no `enforceAppCheck`, and on
+   `issueMemberInvite`, which does, the same flag forges the App Check token too.
 
    **Both halves are refused IN-PROCESS, which is prevention rather than detection.** Unlike
    `FUNCTIONS_EMULATOR`, the debug pair is readable by the running container itself, so

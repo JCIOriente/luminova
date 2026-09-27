@@ -121,6 +121,12 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   not instead of it. **Enforcement is per-PRODUCT: Cloud Functions must be registered and
   `/invitacion` tested against a real build before deploy**, or every redemption 403s silently
   on the only onboarding path. See docs/firebase-setup.md.
+- **`issueMemberInvite` enforces App Check too; the other four admin callables do not.** Its
+  only caller is backstage, which attests. `setUserRoles`, `seedRoles`, `recomputeAllClaims` and
+  `reseedBuiltInRolePerms` are called by owner-op scripts that send no App Check token, so
+  enforcing there would lock those scripts out. `app-check-scope.test.ts` pins exactly which
+  callables declare it, in both emulator branches. Defence in depth only: the debug flag below
+  forges the App Check token as well.
 - **One debug flag defeats BOTH token verifications, and every callable refuses it.**
   `FIREBASE_DEBUG_MODE=true` plus `FIREBASE_DEBUG_FEATURES` carrying `skipTokenVerification` makes
   firebase-functions decode BOTH the App Check header and the **Auth ID token** without verifying

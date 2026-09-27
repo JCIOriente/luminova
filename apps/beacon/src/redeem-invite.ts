@@ -461,7 +461,7 @@ export async function redeemInviteFor(
  *
  *  DERIVED from `UNDER_EMULATOR`, the single place the variable is read, so this and the token
  *  verification guard cannot drift into two spellings of the same comparison. */
-const ENFORCE_APP_CHECK = !UNDER_EMULATOR;
+export const ENFORCE_APP_CHECK = !UNDER_EMULATOR;
 
 export const UNAUTHENTICATED_CALL = {
   enforceAppCheck: ENFORCE_APP_CHECK,
