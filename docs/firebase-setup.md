@@ -560,11 +560,12 @@ it in a copy dialog with its expiry.
       this; run it by hand with the `assert-deployed-env-clean.sh` command further down.
    4. Real traffic gets through — the open item below.
 
-   **The open item: one real invite, issued and redeemed.** Neither invite callable has served
-   a real call yet: the request log since the services were created (2026-09-22) holds only
-   `GET` 400/404 probes and no `POST`. Until an invite is issued and redeemed, nothing shows the
-   deployed flag accepting real attestation; if it does not, every redemption is refused —
-   silently, totally, on the only onboarding path there is — and admins cannot issue links.
+   **The open item: one real invite, issued and redeemed.** Neither `describeInvite` nor
+   `redeemInvite` has served a real call yet: the request log since the services were created
+   (2026-09-22) holds only `GET` 400/404 probes and no `POST`. Until an invite is issued and
+   redeemed, nothing shows the deployed flag accepting real attestation; if it does not, every
+   redemption is refused — silently, totally, on the only onboarding path there is — and admins
+   cannot issue links.
 
    1. Issue a real invite from production backstage. This is itself an App Check-enforced call
       (`issueMemberInvite`).
@@ -582,11 +583,11 @@ it in a copy dialog with its expiry.
         --format="value(timestamp,resource.labels.service_name,httpRequest.requestMethod,httpRequest.status)"
       ```
 
-      **Pass = a `POST` with status 200 on `issuememberinvite` and on `redeeminvite`, both
-      timestamped after the functions deploy that turned enforcement on for
-      `issueMemberInvite`** — admins issued invites before it, so an older 200 there proves
-      nothing. Fail = `POST` 401 on any of the three, or no `POST` at all — see "When it
-      fails". On a pass, mark roadmap G4 done and drop the OPEN marker from this op.
+      Read only rows timestamped after the functions deploy that turned enforcement on for
+      `issueMemberInvite`; a row from before it was not an enforced call on that service. **Pass = a
+      `POST` with status 200 on `issuememberinvite` and on `redeeminvite`.** Fail = `POST` 401 on
+      any of the three, or no `POST` at all — see "When it fails". On a pass, mark roadmap G4 done
+      and drop the OPEN marker from this op.
 
    **When it fails.** If issuing fails (`issueMemberInvite` refused), backstage shows *"No
    pudimos verificar tu sesión en este navegador. Recarga la página e inténtalo de nuevo; si
@@ -595,9 +596,9 @@ it in a copy dialog with its expiry.
    acceso a la app. Recarga la página y luego genera su enlace desde el menú de su fila; si
    persiste, avisa a un administrador."* The same message covers an expired session, so a
    reload that fixes it proves nothing; an admin failing on every attempt in a fresh profile is
-   the deployment. The `POST` 401 and WARNING signs below apply to all three services; the
-   hung call and the browser-console trace are described for an invitee, and look the same for
-   an admin.
+   the deployment. The `POST` 401 and WARNING signs below apply to all three services, and
+   so do the hung call and the SDK's 24 h throttle warning. The app's own console message is
+   invite-page only; backstage shows its message and logs nothing more.
 
    On the invite page, both screens show *"No pudimos completar la verificación de
    seguridad. Inténtalo de nuevo en un momento…"*. On load (`describeInvite` refused) it sits
@@ -788,10 +789,10 @@ it in a copy dialog with its expiry.
    if a region is ever added; confirm with `gcloud run services list --project=jci-oriente`.
 
    **If the smoke test fails**, there are three rollback scopes. Each edits
-   `apps/beacon/src/token-verification-bypass.ts` and at most one callable's declaration; none
-   touches `apps/beacon/src/index.ts` or `apps/beacon/src/app-check-scope.test.ts` —
-   the cold-start log and that test's enforcement pin both read
-   `APP_CHECK_ENFORCED_CALLABLES`, so editing the constant is enough for both to follow.
+   `apps/beacon/src/token-verification-bypass.ts` and at most one callable module
+   (`redeem-invite.ts` or `issue-member-invite.ts`); none touches `apps/beacon/src/index.ts` or
+   `apps/beacon/src/app-check-scope.test.ts` — the cold-start log and that test's enforcement pin
+   both read `APP_CHECK_ENFORCED_CALLABLES`, so editing the constant is enough for both to follow.
 
    | Scope | Edit | Assertion to flip |
    |---|---|---|
