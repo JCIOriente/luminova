@@ -52,11 +52,15 @@ a gate.
    the installed firebase-functions only `lib/v1/providers/https.js` and
    `lib/v2/providers/https.js` emit a `callableTrigger`. Outside the rule: `require()` and
    dynamic `import()` — the test below is the backstop.
-2. **Type** (`GuardedCallableOptions` omits `authPolicy`): firebase-functions runs
-   `options.authPolicy` before the registered handler, so a policy would read forged claims
-   ahead of the guard. A `@ts-expect-error` case in `guarded-on-call.test.ts`, typechecked by
-   `tsconfig.test.json`, pins the omission. A spread from a wider, non-literal object escapes
-   the excess-property check; the type catches only a literal `authPolicy`.
+2. **`authPolicy`** (type + runtime): firebase-functions awaits `options.authPolicy` before the
+   registered handler, so a policy would read forged claims ahead of the guard.
+   `GuardedCallableOptions` omits it, pinned by a `@ts-expect-error` case typechecked by
+   `tsconfig.test.json`; that catches only a literal `authPolicy`. A spread from a wider object
+   escapes the type, so `callableOptions` (what `guardedOnCall` hands `onCall`) wraps any
+   `authPolicy` it finds to run the bypass refusal first. The policy is awaited inside the same
+   `try` as the handler and a thrown `HttpsError` is sent as-is, so the client sees the same
+   refusal. `guarded-on-call.test.ts` pins that the wrapped policy refuses under the bypass
+   without calling the original and delegates when the bypass is inert.
 3. **Behavioural test** (`guarded-on-call.test.ts`) over every callable export of `index.ts`
    (same selection as the deploy-list test: `__endpoint.callableTrigger`). With the bypass on,
    `.run(request)` rejects with the exact refusal (untagged `internal` for the five

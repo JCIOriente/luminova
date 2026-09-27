@@ -3,7 +3,7 @@ import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import { INVITE_RATE_LIMITS } from "@luminova/types/member-invite";
 import { BYPASS_LOG_MESSAGE } from "./token-verification-bypass.js";
 import { UNAUTHENTICATED_CALLABLES } from "./redeem-invite.js";
-import { guardedOnCall, type GuardedCallableOptions } from "./guarded-on-call.js";
+import { callableOptions, guardedOnCall, type GuardedCallableOptions } from "./guarded-on-call.js";
 import { callableExports } from "./test-support/callable-exports.js";
 
 // SANDBOX, before `index.ts` loads: it calls `initializeApp()` at module scope, and a mutated
@@ -239,9 +239,10 @@ describe("guardedOnCall itself", () => {
     expect(error).toHaveBeenCalledWith(BYPASS_LOG_MESSAGE, { fn: "probe" });
   });
 
-  it("rejects an authPolicy at the type level, since firebase-functions runs it first", () => {
+  it("rejects a literal authPolicy at the type level: firebase-functions runs it first", () => {
     // Pinned by `pnpm --filter beacon typecheck` (tsconfig.test.json): drop the `Omit` and the
-    // directive below is unused, which fails the build.
+    // directive below is unused, which fails the build. A spread escapes the type; the runtime
+    // wrap is pinned below.
     const options: GuardedCallableOptions<unknown> = {
       name: "probe",
       // @ts-expect-error — an authPolicy would read forged claims before the guard runs.
@@ -250,9 +251,48 @@ describe("guardedOnCall itself", () => {
     expect(options.name).toBe("probe");
   });
 
+  describe("an authPolicy spread past the type", () => {
+    // firebase-functions awaits `options.authPolicy` in its HTTP wrapper before the handler, so
+    // `.run` never reaches it: the options `guardedOnCall` hands `onCall` are tested directly.
+    // Typed `object`, the spread adds no known property, so the excess-property check is silent.
+    function optionsWithPolicy(policy: () => boolean) {
+      const wider: object = { authPolicy: policy };
+      const { authPolicy } = callableOptions({ name: "probe", ...wider });
+      if (authPolicy === undefined) throw new Error("authPolicy was dropped");
+      return authPolicy;
+    }
+
+    it("refuses under the bypass without calling the policy", async () => {
+      stubBypass();
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const policy = vi.fn(() => true);
+      expect(await settle(() => optionsWithPolicy(policy)(null, {}))).toEqual({
+        code: "internal",
+        reason: null,
+      });
+      expect(policy).not.toHaveBeenCalled();
+      expect(error).toHaveBeenCalledWith(BYPASS_LOG_MESSAGE, { fn: "probe" });
+    });
+
+    it("delegates to the policy when the bypass is inert", async () => {
+      const policy = vi.fn(() => false);
+      expect(await optionsWithPolicy(policy)(null, { x: 1 })).toBe(false);
+      expect(policy).toHaveBeenCalledWith(null, { x: 1 });
+    });
+  });
+
+  it("strips name and refusal from what onCall sees", () => {
+    const options = callableOptions({
+      name: "probe",
+      refusal: () => new HttpsError("internal", "x"),
+      maxInstances: 3,
+    });
+    expect(options).toEqual({ maxInstances: 3 });
+  });
+
   it("hands onCall its options, so __endpoint keeps its shape", () => {
-    // Whether `name`/`refusal` are stripped is not observable here — firebase-functions copies
-    // only the fields it knows into `__endpoint` — so this pins the pass-through alone.
+    // firebase-functions copies only the fields it knows into `__endpoint`, so the stripping is
+    // pinned on `callableOptions` above; this pins the pass-through alone.
     const probe = guardedOnCall(
       { name: "probe", maxInstances: 3, timeoutSeconds: 12 },
       async () => null,
