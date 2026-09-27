@@ -64,7 +64,7 @@ pnpm deploy:all              # rules → functions → hosting, in that order
 
 ## Post-deploy hardening (follow-ups, not blockers)
 
-- **App Check (G4):** create a reCAPTCHA v3 site key, set `VITE_APPCHECK_SITE_KEY` in `apps/*/.env.production`, rebuild + redeploy hosting, then flip **enforcement** in Console → App Check for Firestore + Functions. Rules already role-guard every collection, so App Check is defense-in-depth.
+- **App Check (G4):** create a reCAPTCHA v3 site key, set `VITE_APPCHECK_SITE_KEY` in `apps/*/.env.production`, rebuild + redeploy hosting, then enforce — on callables in code via `enforceAppCheck`, and per product in Console → App Check → APIs only once its metrics show real traffic carrying valid tokens. Current state and steps: `docs/firebase-setup.md`, owner op 3. Rules already role-guard every collection, so App Check is defense-in-depth.
 - **I2:** enable Java in CI so `firestore-rules-tests` runs on every PR.
 - **I5:** resolve the moderate Dependabot advisory.
 - First-admin bootstrap: ensure at least one user has the `Admin` role claim (`setUserRoles`) so the console is manageable.

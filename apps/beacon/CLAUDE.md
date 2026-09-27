@@ -113,14 +113,9 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   against the emulator. `FUNCTIONS_EMULATOR` is safe to key on: the emulator sets it, the
   deploy-time discovery run does not (it sets `FUNCTIONS_CONTROL_API`), so a real deploy gets
   `true`. A test pins BOTH branches — the two failure directions are opposite and both silent.
-  Two claims in the earlier spec were
-  false: the production reCAPTCHA key does exist, and "/invitacion has no session" was never
-  the blocker (attestation is app-level, the route sits outside `_auth`, and the client wires
-  `initAppCheck` on first app acquisition). It bounds WHO may call and NOT how often — a
-  standard token lives ~30 min and is replayable — which is why the limiter ships alongside it,
-  not instead of it. **Enforcement is per-PRODUCT: Cloud Functions must be registered and
-  `/invitacion` tested against a real build before deploy**, or every redemption 403s silently
-  on the only onboarding path. See docs/firebase-setup.md.
+  App Check bounds WHO may call, not how often, which is why the limiter ships alongside it.
+  For a callable the `onCall` flag IS the enforcement. Attestation chain, setup, enforcement
+  state and failure diagnosis: docs/firebase-setup.md, owner op 3.
 - **`issueMemberInvite` enforces App Check too; the other four admin callables do not.** Its
   only caller is backstage, which attests. `setUserRoles`, `seedRoles`, `recomputeAllClaims` and
   `reseedBuiltInRolePerms` are called by hand by the owner with an ID token and no App Check

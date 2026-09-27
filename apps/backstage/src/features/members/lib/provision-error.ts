@@ -36,7 +36,7 @@ const REASON_MESSAGES = new Map<string, string>(Object.entries(MESSAGES));
 
 // issueMemberInvite enforces App Check, so an untagged `unauthenticated` is a failed attestation
 // or an expired session. A reload clears a throttled App Check client or a stale session token;
-// if the cause is server-side (a misconfigured App Check product, a revoked user) it persists,
+// if the cause is server-side (a broken App Check registration, a revoked user) it persists,
 // so the copy escalates to the administrator rather than promising a reload fixes everything.
 const UNAUTHENTICATED =
   "No pudimos verificar tu sesión en este navegador. Recarga la página e inténtalo de nuevo; " +

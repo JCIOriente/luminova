@@ -224,7 +224,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/A t
 | G1 | **Soft-delete write-guard** — pre-flight existence/`active` check in **both** Member & Ally repos; route `handleSubmit`/`confirmDelete` try/catch | — | `[P]` | `/security-review` + `firestore-security-reviewer` |
 | G2 🟡 | Confirm-or-restrict public read on `projects`/`board` — **`projects` restricted to signedIn in D1 (#22)** (D1 added member-id rosters); **`board` still public** (confirm or restrict). C4 will expose curated public project fields, not raw docs. | C1 | `[S]` | `/security-review` |
 | G3 | `.env.local.example` real keys → placeholders | — | `[P]` | — |
-| G4 🟡 | App Check enforcement ON. **Code: DONE** — `redeemInvite` and `describeInvite`, the project's only unauthenticated callables, now declare `enforceAppCheck: ENFORCE_APP_CHECK` (keyed on `FUNCTIONS_EMULATOR` via `UNDER_EMULATOR`; ON in production, OFF under the emulator so `/invitacion` stays runnable locally); the client inits reCAPTCHA v3 App Check when `VITE_APPCHECK_SITE_KEY` is set, and the production key already exists in `.env.production`. **Remaining = ONE owner-op, and it is BLOCKING:** enforcement is per-PRODUCT and only Firestore + Storage are confirmed enabled — the backstage web app must be registered for the **Cloud Functions** product, then a real invite redeemed against a real production build. Until that is confirmed, a deploy 403s every redemption silently and breaks ALL member onboarding. See `docs/firebase-setup.md`. | infra keys | `[S]` | `/security-review` |
+| G4 🟡 | App Check enforcement ON. **Code: DONE and live** — `redeemInvite` and `describeInvite`, the project's only unauthenticated callables, and `issueMemberInvite`, whose only caller is backstage, declare `enforceAppCheck: ENFORCE_APP_CHECK` (keyed on `FUNCTIONS_EMULATOR` via `UNDER_EMULATOR`; ON in production, OFF under the emulator so `/invitacion` stays runnable locally); the client inits reCAPTCHA v3 App Check when `VITE_APPCHECK_SITE_KEY` is set, and the production key exists in `.env.production`. Firestore enforcement is a separate decision, not part of G4. **Remaining = ONE smoke test:** neither invite callable has served a real `POST` yet; issue and redeem one real invite against the production build. Steps, pass criterion and failure diagnosis: `docs/firebase-setup.md`, owner op 3 under "Enlaces de acceso". | infra keys | `[S]` | `/security-review` |
 
 > Note: the bulk of rules hardening moved into **F1** (rules must be role-aware now,
 > not just `delete:if false`).
@@ -376,7 +376,7 @@ al día. Closing that gap is the biggest remaining correctness item.
 4. **Smaller wins, parallel anytime:** FX7 DS pass on remaining screens · **L4 SSG/prerender**
    (biggest spotlight FCP/LCP win — brainstorm first) · L5 critical CSS · D2 Reports · D4/N5 real
    Settings page · G1 soft-delete write-guard · G3 env placeholders · A4 offline check-in (low pri).
-5. **Owner ops (not PRs):** App Check keys + enforcement (G4) · I3 storage wipe.
+5. **Owner ops (not PRs):** G4 invite-redemption smoke test · I3 storage wipe.
    (CI required + ruleset active + indexes deployed — done 2026-06-24; CD WIF/IAM
    provisioning — done 2026-07-01.)
 

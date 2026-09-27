@@ -225,34 +225,21 @@ The controls that are real:
 **Name the tradeoff honestly: `maxInstances` is both the control and the lever.** Brute force is
 arithmetic, not a threat. The real exposure is billing and availability. `describeInvite` is an
 unauthenticated, uncached function invocation plus one Firestore read, callable from any origin
-while App Check is off. Sustained traffic bills invocations and reads indefinitely; and the same
-cap that stops a flood consuming the project budget means a trivial flood **saturates the pool, so
-genuine invitees get 429/503 on the only onboarding path that now exists**. Capping converts a cost
-problem into an availability problem. That is probably the right trade for this chapter's scale, but
-it is a trade, not a mitigation. The cheapest real control available before App Check is a **GCP
-budget alert** — added to the operator notes.
+(App Check bounds who may call, not how often). Sustained traffic bills invocations and reads
+indefinitely; and the same cap that stops a flood consuming the project budget means a trivial
+flood **saturates the pool, so genuine invitees get 429/503 on the only onboarding path that now
+exists**. Capping converts a cost problem into an availability problem. That is probably the
+right trade for this chapter's scale, but it is a trade, not a mitigation. A **GCP budget alert**
+is the signal of last resort — added to the operator notes.
 
-**App Check — NOT enforced, and this is not a hedge.** `packages/firebase/src/app-check.ts`
-initializes App Check only `if (siteKey)`, reading `VITE_APPCHECK_SITE_KEY`; `docs/roadmap.md:227`
-records G4 as 🟡 — "client code scaffolded … Remaining = infra: provision key, set env, flip
-enforcement", and `:379` lists it under "Owner ops (not PRs)". **The keys do not exist in
-production.** Setting `enforceAppCheck: true` here would 403 every redemption until an owner
-provisions reCAPTCHA.
-
-> **SUPERSEDED — see Amendment 2.** The bolded claim above is false: the production reCAPTCHA
-> site key *does* exist in `apps/backstage/.env.production`, and the quoted roadmap text has
-> since been corrected. Enforcement is now ON in the code. The real blocker was never the key —
-> it is that App Check enforcement is per-PRODUCT, and the backstage app's registration for
-> Cloud Functions is the one remaining owner-op. Left standing rather than rewritten because
-> this section records what was believed when the decision was made.
-
-What we do instead: both callables are declared
-`onCall({ enforceAppCheck: false, maxInstances: 10 }, …)` with a comment naming G4, so the flip is
-one boolean and is greppable, and `redeemInvite` is added to the G4 checklist as the first function
-to flip. **Cost when it is flipped:** a reCAPTCHA v3 round-trip on an unauthenticated page, and a
-hard dependency on `VITE_APPCHECK_SITE_KEY` being present in the backstage build — a misconfigured
-deploy then breaks member onboarding entirely, silently, for everyone. That is a real operational
-risk and is why it should be flipped deliberately, with the invite page tested, not as a sweep.
+**App Check** shipped off in the first version of this design and was turned on by Amendment 2.
+Both callables declare `enforceAppCheck: ENFORCE_APP_CHECK` — on in production, off under the
+emulator. **Cost:** a reCAPTCHA v3 round-trip on an unauthenticated page, and a hard dependency on
+`VITE_APPCHECK_SITE_KEY` being present in the backstage build — a misconfigured deploy breaks
+member onboarding entirely, silently, for everyone. That is a real operational risk and is why
+the flip was deliberate, one function pair at a time, and is not done until one real redemption
+succeeds. Enforcement state, verification and failure diagnosis: `docs/firebase-setup.md`, owner
+op 3.
 
 **Abuse logging.** One structured line per call:
 `{ fn, memberId, tokenPrefix, outcome }`. Never the token, never the password, never
@@ -919,9 +906,10 @@ the same policy the checklist renders.
    a link to a deleted route. "Edit user → set password" always works and needs nothing.
 
 9. **Set a GCP budget alert.** `describeInvite` and `redeemInvite` are unauthenticated and callable
-   from any origin until App Check is enforced (note: roadmap G4). `maxInstances` caps the blast
+   from any origin; App Check bounds who may call, not how often. `maxInstances` caps the blast
    radius but converts a cost problem into an availability one — a flood saturating the pool blocks
-   real invitees. A budget alert is the cheapest real signal available before App Check.
+   real invitees. A budget alert is the signal of last resort; what it can and cannot be scoped to
+   is in `docs/firebase-setup.md`, owner op 4.
 
 10. **An interrupted issue can strand a live link.** If the batch write is ever made non-atomic, a
     partial failure leaves a redeemable token that nothing can revoke (see Q2). If a member reports a
@@ -944,13 +932,10 @@ the same policy the checklist renders.
    Auditable, not prevented.
 2. **The password crosses beacon in plaintext** (Q1a). TLS-protected, never logged, but it is in
    function memory and in any future request-body capture. Closing this means Q1b and the IAM grant.
-3. ~~**App Check is not enforced on the unauthenticated callables.** The keys do not exist
-   (roadmap G4). The code is one boolean away; the infra is an owner-op.~~ **FIXED in this
+3. ~~**App Check is not enforced on the unauthenticated callables.**~~ **FIXED in this
    design** — see Amendment 2. Enforcement is ON in production (off under the emulator, or
-   `/invitacion` would be unrunnable locally). The stated reason was false too:
-   `apps/backstage/.env.production` carries a real `VITE_APPCHECK_SITE_KEY`. What actually held
-   it is that enforcement is per-PRODUCT, so the backstage app's registration for Cloud
-   Functions is now a BLOCKING pre-deploy owner-op rather than a code change.
+   `/invitacion` would be unrunnable locally). The one open owner-op is a real redemption
+   against the production build: `docs/firebase-setup.md`, owner op 3.
 4. ~~**No rate limiting beyond `maxInstances`.** Deliberate (Q3). If abuse ever materialises, the
    right fix is Cloud Armor or an App Check flip, not a Firestore counter.~~ **FIXED in this
    design** — see Amendment 2. Both callables now carry an in-process GCRA limiter: a per-token
@@ -1015,9 +1000,9 @@ and, near midnight, the wrong day.
 ## Amendment 2 — rate limiting and App Check
 
 Both callables now carry two controls. They are complementary: **App Check bounds *who* may call;
-the limiter bounds *how often*.** A standard App Check token lives ~30 minutes and is replayable,
-so harvesting one from the public `/invitacion` and flooding with it stays open with enforcement
-on — which is why neither replaces the other.
+the limiter bounds *how often*.** An App Check token is replayable for its whole TTL (value in
+`docs/firebase-setup.md`), so harvesting one from the public `/invitacion` and flooding with it
+stays open with enforcement on — which is why neither replaces the other.
 
 **The limiter** is in-process and writes nothing. 5 calls/min per token per callable, 600/min
 endpoint-wide per callable, consulted before any I/O.
@@ -1068,10 +1053,9 @@ endpoint-wide per callable, consulted before any I/O.
   hands an evicted key a fresh budget, which is a second reason the endpoint-wide bucket is the
   real control; a test asserts that property so nobody mistakes the LRU for a security boundary.
 
-**App Check** is now enforced. Two claims in the original text were false and are corrected: the
-production reCAPTCHA site key *does* exist, and "/invitacion has no session" was never the blocker
-— attestation is app-level, the route deliberately sits outside the `_auth` layout, and the client
-wires `initAppCheck` on first app acquisition.
+**App Check** is now enforced. The unauthenticated `/invitacion` page attests even though the route
+deliberately sits outside the `_auth` layout: attestation is app-level. The chain is in
+`docs/firebase-setup.md`, owner op 3.
 
 Enforcement is **off under the emulator** (`FUNCTIONS_EMULATOR`), because firebase-functions
 enforces `enforceAppCheck` itself and rejects a header-less request before any debug-token
@@ -1079,10 +1063,9 @@ escape — and local dev deliberately has no site key, so the client sends no he
 that carve-out the only onboarding path in the product would be unrunnable locally. Both
 branches are pinned by tests; the two failure directions are opposite and both silent.
 
-**Enforcement is per-product, and that is a blocking pre-deploy step.** Cloud Functions must be
-registered for App Check and `/invitacion` tested against a real production build before this
-deploys; otherwise every redemption 403s, silently and totally, on the only onboarding path that
-exists. The owner-op is in `docs/firebase-setup.md`.
+For a callable the `enforceAppCheck` option is the whole control — the App Check console has no
+Cloud Functions switch. What remains is one redemption against the production build; steps, pass
+criterion and failure diagnosis are in `docs/firebase-setup.md`, owner op 3.
 
 `invite-too-many-attempts` joins `INVITE_BLOCK_REASONS`. It is the first **temporary** tagged
 refusal, which invalidated a client invariant: `retryable` was "beacon gave no tagged reason", on
