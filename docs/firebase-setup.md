@@ -618,11 +618,12 @@ it in a copy dialog with its expiry.
      script itself was blocked (a content blocker). The SDK's script loader has no error
      handler, so the token promise never settles, and `@firebase/functions` waits for it before
      its own timeout starts — the call hangs and nothing reaches the server.
-   - **WARNING rows reading `AppCheck token was rejected`** are a different problem (the
-     label also matches `Auth token was rejected` from the authenticated callables — ignore
-     those here): a token that DID exchange reached the server and was refused —
-     minted for another project, expired, or forged. They do not diagnose an invitee who cannot
-     attest.
+   - **WARNING rows reading `AppCheck token was rejected`** are a different problem: a token
+     that DID exchange reached the server and was refused — minted for another project,
+     expired, or forged. They do not diagnose a caller who cannot attest. The label also matches
+     `Auth token was rejected`. Ignore those on the four admin callables. On
+     `issuememberinvite` they matter: an `Auth token was rejected` row there is the admin's own
+     ID token failing, which gets the same backstage message as an App Check failure.
 
      ```bash
      gcloud logging read \
@@ -786,9 +787,9 @@ it in a copy dialog with its expiry.
    callable and calls no `setGlobalOptions`. The script defaults to it and takes `GCP_REGION`
    if a region is ever added; confirm with `gcloud run services list --project=jci-oriente`.
 
-   **If the smoke test fails**, there are two rollback scopes. Both edit
-   `apps/beacon/src/token-verification-bypass.ts` and/or `apps/beacon/src/redeem-invite.ts`;
-   neither touches `apps/beacon/src/index.ts` or `apps/beacon/src/app-check-scope.test.ts` —
+   **If the smoke test fails**, there are three rollback scopes. Each edits
+   `apps/beacon/src/token-verification-bypass.ts` and at most one callable's declaration; none
+   touches `apps/beacon/src/index.ts` or `apps/beacon/src/app-check-scope.test.ts` —
    the cold-start log and that test's enforcement pin both read
    `APP_CHECK_ENFORCED_CALLABLES`, so editing the constant is enough for both to follow.
 
@@ -796,6 +797,7 @@ it in a copy dialog with its expiry.
    |---|---|---|
    | **Full** (all three callables) | In `token-verification-bypass.ts`: hard-code `ENFORCE_APP_CHECK = false`; set `APP_CHECK_ENFORCED_CALLABLES = []`. | `redeem-invite.test.ts`: `UNAUTHENTICATED_CALL.enforceAppCheck` → `expect(...).toBe(false)` |
    | **Invite pair only** (leaving `issueMemberInvite` enforcing) | In `redeem-invite.ts`: set `enforceAppCheck: false` directly on `UNAUTHENTICATED_CALL`, remove the now-unused `ENFORCE_APP_CHECK` import (`noUnusedLocals` fails typecheck otherwise); in `token-verification-bypass.ts`: set `APP_CHECK_ENFORCED_CALLABLES = ["issueMemberInvite"]`. | same assertion, same flip |
+   | **`issueMemberInvite` only** (leaving the invite pair enforcing) | In `issue-member-invite.ts`: set `enforceAppCheck: false` in its `guardedOnCall` options and remove the now-unused `ENFORCE_APP_CHECK` import; in `token-verification-bypass.ts`: set `APP_CHECK_ENFORCED_CALLABLES = ["describeInvite", "redeemInvite"]`. | none |
 
    Redeploy whichever callables the scope covers, and fix the cause before trying again. The
    rate limiter is independent and keeps working either way.
@@ -803,7 +805,8 @@ it in a copy dialog with its expiry.
    During a **full** rollback the cold-start log reads `enforceAppCheck: false` even with
    `FUNCTIONS_EMULATOR` unset: that is the hard-coded `ENFORCE_APP_CHECK`, not the emulator.
 
-   **You must flip the assertion in the same commit, or CI blocks the rollback.**
+   **For the first two scopes, flip the assertion in the same commit, or CI blocks the
+   rollback.**
    `pnpm --filter beacon ci` goes red on the unflipped `toBe(true)` — during a real outage that
    guard is between you and restoring onboarding. Say in the commit message that it is a
    deliberate temporary rollback, then revert the edits once the cause is fixed. Flip the
