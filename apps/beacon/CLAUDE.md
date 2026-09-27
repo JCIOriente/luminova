@@ -127,16 +127,14 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   either, so a forged `roles: ["Admin"]` claim satisfies `callable-auth.ts`. It is worse on the
   five authenticated callables than on the invite pair, and `enforceAppCheck: true` does not help.
   **Every callable is declared through `guardedOnCall`** (`src/guarded-on-call.ts`), whose handler
-  calls `assertTokenVerificationNotBypassed` before delegating — gated on the emulator, keyed on
-  the export name, untagged `internal` by default and the tagged `invite-service-misconfigured`
-  for the invite pair. An eslint `no-restricted-imports` block bans `onCall` and every other
-  callable constructor in `apps/beacon/src` outside that file, and `guarded-on-call.test.ts`
-  drives `.run` on every callable export of `index.ts` under a live bypass. Mechanism, the
-  deliberate predicate-not-presence choice and the parity test against the installed library:
-  `apps/beacon/src/token-verification-bypass.ts` and the operator section of
-  `docs/firebase-setup.md`. `FUNCTIONS_EMULATOR` cannot be guarded in-process, so
-  `assert-deployed-env-clean.sh` stays its only control; its service list is enumerated in
-  `deploy.yml` and pinned by a test against `index.ts`'s callable exports.
+  refuses before delegating; that file's header states what makes the coverage structural, and
+  `docs/specs/structural-oncall-guard.md` is the design. The refusal itself — predicate, emulator
+  gate, per-callable refusal shape, sampled log and the parity test against the installed
+  library — is documented on `assertTokenVerificationNotBypassed` in
+  `src/token-verification-bypass.ts`; the operator view is in `docs/firebase-setup.md`.
+  `FUNCTIONS_EMULATOR` cannot be guarded in-process, so `assert-deployed-env-clean.sh` stays its
+  only control; its service list is enumerated in `deploy.yml` and pinned by the deploy-list test
+  in `src/redeem-invite.test.ts`.
 - **`maxInstances` is both a control and a lever**: it caps billing but converts a cost problem
   into an availability one. The rate gate is what makes that trade cheaper — a throttled
   request never occupies an instance doing Firestore reads.

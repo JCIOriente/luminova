@@ -1,5 +1,9 @@
-// The ONE file allowed to import `onCall`: eslint.config.js bans it (and every other way of
-// reaching a callable constructor) everywhere else in apps/beacon/src.
+// The ONE file allowed to import `onCall`. Two things make that structural rather than a
+// convention: eslint.config.js bans `onCall`, `onCallGenkit`, the `https` namespaces that carry
+// them and v1's `runWith`/`region` builders everywhere else in apps/beacon/src, and
+// guarded-on-call.test.ts drives `.run` on every callable export of index.ts under a live bypass,
+// the backstop for what lint cannot see (an eslint-disable, a deep or dynamic import). Design:
+// docs/specs/structural-oncall-guard.md.
 import {
   onCall,
   type CallableOptions,
@@ -19,13 +23,12 @@ export interface GuardedCallableOptions<T> extends CallableOptions<T> {
   refusal?: () => HttpsError;
 }
 
-/** The only way to declare a callable in beacon. Its handler refuses while token verification is
- *  bypassed — before the handler runs, so before any claim is read and before any I/O — and then
- *  delegates.
+/** The only way to declare a callable in beacon. The handler it registers refuses while token
+ *  verification is bypassed — before any claim is read and before any I/O — and then delegates.
  *
  *  `name` and `refusal` are stripped before `onCall` sees the options, and `onCall`'s value is
  *  returned unchanged, so `__endpoint` keeps the shape the deploy-list test reads. firebase-
- *  functions sets `.run` to this same handler, which is how the tests reach the guard. */
+ *  functions wires `.run` to the registered handler, which is how the tests reach the guard. */
 export function guardedOnCall<T, Return>(
   options: GuardedCallableOptions<T>,
   handler: (request: CallableRequest<T>, response?: CallableResponse) => Promise<Return>,

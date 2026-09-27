@@ -44,6 +44,11 @@ export const UNDER_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
  *  those sets `enforceAppCheck`, so it defaults falsy and there is no attestation gate there to
  *  lose — the forged claim is the only gate, and this flag is exactly what breaks it.
  *
+ *  The installed firebase-functions 7.2.5 ALSO consults the same flag a third time, in
+ *  `lib/common/providers/identity.js` (an Auth Blocking function's token decode). Beacon
+ *  declares no blocking functions today, and `guardedOnCall` covers callables only — a
+ *  blocking function would need its own refusal wired at its own declaration site.
+ *
  *  THE PREDICATE IS THE REAL CONDITION, NOT THE PRESENCE OF THE KEYS, and the asymmetry with
  *  `.github/scripts/assert-deployed-env-clean.sh` — which bans the keys at ANY value — is
  *  deliberate in both directions. That script reads a deployed service's env from OUTSIDE the
@@ -109,29 +114,20 @@ export const BYPASS_LOG_MESSAGE =
  *
  *  Called from ONE place, `guardedOnCall` (`guarded-on-call.ts`), as the first statement of the
  *  handler it registers — so the refusal precedes every claim read, every rate-gate charge, every
- *  read and every write. That wrapper is the only way to declare a callable in beacon, which is
- *  what makes the coverage structural:
- *
- *    - eslint.config.js bans `onCall`, `onCallGenkit`, the `https` namespaces that carry them and
- *      v1's `runWith`/`region` builders everywhere in `apps/beacon/src` except the wrapper; and
- *    - `guarded-on-call.test.ts` drives `.run` on every callable export of `index.ts` under a live
- *      bypass and asserts each one's exact refusal and log line — the backstop for what lint
- *      cannot see (an `eslint-disable`, a dynamic import).
- *
- *  The claim readers in `callable-auth.ts` therefore carry no guard of their own, and
- *  `callerIsAdmin` is module-private so its answer is reachable only through a gate.
+ *  read and every write. That wrapper is the only way to declare a callable in beacon; its header
+ *  states what enforces that.
  *
  *  GATED ON THE EMULATOR, so local dev is untouched: `FIREBASE_DEBUG_MODE=true` is the supported
  *  way to run the emulator, and there is no verification to bypass there anyway.
  *
  *  This covers TWO of the three keys `assert-deployed-env-clean.sh` bans. `FUNCTIONS_EMULATOR`
- *  cannot be covered from inside the process — keying on it is what turns the guard off — for the
- *  reasons `UNDER_EMULATOR` documents above. For that key the post-deploy assertion is the only
- *  DEPLOY-TIME control; it does not see a value set on the service between releases. Its service
- *  list is ENUMERATED in `deploy.yml` and PINNED by a test against `index.ts`'s callable exports,
- *  so a new callable turns that test red until the YAML names it. The other signal for it is
- *  per-container and already shipping: `index.ts` logs `enforceAppCheck` at every cold start, and
- *  it reads `false` if and only if that variable is set. */
+ *  cannot be covered from inside the process — keying on it is what turns the guard off — for
+ *  the reasons `UNDER_EMULATOR` documents above. For that key the post-deploy assertion is the
+ *  only DEPLOY-TIME control; it does not see a value set on the service between releases. Its
+ *  service list is enumerated in `deploy.yml` and pinned by the deploy-list test in
+ *  `redeem-invite.test.ts`. The other signal for it is per-container and already shipping:
+ *  `index.ts` logs `enforceAppCheck` at every cold start, and it reads `false` if and only if
+ *  that variable is set. */
 export function assertTokenVerificationNotBypassed(
   fn: string,
   /** The error to raise, so each boundary keeps its own contract. Defaults to an UNTAGGED
@@ -143,9 +139,10 @@ export function assertTokenVerificationNotBypassed(
    *  `functions/internal` is ALSO what an uncaught transient failure produces — a Firestore
    *  `unavailable` inside `getInvite`, say — and the two need OPPOSITE client affordances. Retry
    *  now for the transient one; never for this one, which lasts as long as the container. An
-   *  untagged refusal renders "revisa tu conexión" under a retry button that cannot clear it. Parameterized rather than duplicated so the emulator gate, the predicate
-   *  and the sampled log keep exactly one implementation, and kept as a THUNK so `HttpsError`
-   *  (which captures a stack trace) is not constructed on the happy path. */
+   *  untagged refusal renders "revisa tu conexión" under a retry button that cannot clear it.
+   *  Parameterized rather than duplicated so the emulator gate, the predicate and the sampled log
+   *  keep exactly one implementation, and kept as a THUNK so `HttpsError` (which captures a stack
+   *  trace) is not constructed on the happy path. */
   refusal: () => HttpsError = serviceMisconfigured,
 ): void {
   if (UNDER_EMULATOR || !tokenVerificationBypassEnabled()) return;

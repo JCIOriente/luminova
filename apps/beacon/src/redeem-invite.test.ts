@@ -941,12 +941,11 @@ describe("the services deploy.yml asserts the environment of", () => {
       .map(([name]) => name.toLowerCase())
       .sort();
 
-    // Sanity: the derivation must find something, or an empty list would match an empty args
+    // Sanity: the selection must find something, or an empty list would match an empty args
     // list and this whole test would assert nothing.
     expect(callables.length).toBeGreaterThanOrEqual(7);
     // Cloud Run lower-cases the service name, so the EXPECTATION is lowercased and deploy.yml
-    // must spell it that way too — the previous comment here claimed the comparison was
-    // case-insensitive, which was backwards: the args are taken verbatim.
+    // must spell it that way too: the args are compared verbatim, not case-insensitively.
     expect(assertStep().sort()).toEqual(callables);
   });
 

@@ -153,9 +153,9 @@ async function loadValidInvite(
   token: unknown,
   fn: string,
 ): Promise<{ tokenHash: string; invite: InviteDoc; member: Record<string, unknown> }> {
-  // The token-verification refusal is not here: `guardedOnCall` runs it before either handler
-  // starts, so it precedes this bucket too. A refused request never charges an invitee's budget
-  // (`guarded-on-call.test.ts` asserts it against the exported callables).
+  // `guardedOnCall` refuses bypassed traffic before either handler starts, so a refused request
+  // never reaches this bucket and never charges an invitee's budget (`guarded-on-call.test.ts`
+  // asserts it against the exported callables).
   //
   // ONE timestamp for the whole invocation: the two buckets and the expiry comparison must
   // not disagree about when "now" is.
@@ -165,7 +165,7 @@ async function loadValidInvite(
   // bounds a flood, and a refusal here must cost strictly less than the work it prevents —
   // an integer comparison against a number in memory, no Firestore access, no write.
   //
-  // "Strictly less than the work it prevents", not "free": the onCall handlers below build
+  // "Strictly less than the work it prevents", not "free": the handlers below build
   // `firestoreRedeemDeps` before calling in here, so a refused request has already paid for
   // two memoized SDK accessors and a handful of closures. No I/O, and immaterial against a
   // keyed read — but the sentence above is about the GATE, not about the whole invocation.
@@ -547,23 +547,19 @@ export const describeInvite = guardedOnCall(
 
 /** The callables that take `UNAUTHENTICATED_CALL`, by export name.
  *
- *  NARROW ON PURPOSE, and deliberately NOT the list `deploy.yml` asserts the environment of. That
- *  assertion has to cover EVERY deployed callable (the debug flag forges Auth tokens on the
- *  authenticated ones too), so pinning `deploy.yml`'s args to this two-element list would block
- *  the correct widening. The deploy list is ENUMERATED in `deploy.yml` and PINNED by a test
- *  against `index.ts`'s callable exports, so adding a callable turns that test red until the YAML
- *  names it; nothing auto-widens. See `redeem-invite.test.ts`.
+ *  What it is for: pinning which callables are reachable WITHOUT a session, so adding a third one
+ *  is a deliberate act that fails a test until it is acknowledged here. It also picks the refusal
+ *  `guarded-on-call.test.ts` expects under the token-verification bypass.
  *
- *  What this list is for: pinning which callables are reachable WITHOUT a session, so adding a
- *  third one is a deliberate act that fails a test until it is acknowledged here. It also picks
- *  the refusal `guarded-on-call.test.ts` expects under the token-verification bypass.
+ *  Deliberately NOT the list `deploy.yml` asserts the environment of: that one must cover EVERY
+ *  deployed callable, and the deploy-list test in `redeem-invite.test.ts` pins it against
+ *  `index.ts`'s callable exports.
  *
  *  THE HOLE, stated rather than papered over: the check covers callables in THIS module. One
  *  added in a DIFFERENT file with `UNAUTHENTICATED_CALL` imported would slip past it, and an eslint
  *  ban on the symbol would need an exemption for `index.ts`, which imports it to log
- *  `enforceAppCheck` at cold start. What such a callable could NOT slip past is the bypass
- *  refusal: it would have to be declared through `guardedOnCall` like every other callable, so it
- *  refuses while token verification is bypassed wherever it is declared — just with the untagged
+ *  `enforceAppCheck` at cold start. It could not slip past the bypass refusal: `guardedOnCall` is
+ *  the only way to declare a callable, so it refuses wherever it is declared — with the untagged
  *  `internal` unless it passes the invite `refusal`. */
 export const UNAUTHENTICATED_CALLABLES = ["describeInvite", "redeemInvite"] as const;
 

@@ -282,13 +282,17 @@ export default tseslint.config(
     },
   },
   {
-    // Every beacon callable is declared through guardedOnCall, which refuses all traffic while
-    // token verification is bypassed (apps/beacon/src/guarded-on-call.ts). So every OTHER way to
-    // reach a callable constructor is banned here: `onCall`/`onCallGenkit` by name, the `https`
-    // namespace that carries them, and v1's `runWith`/`region` builders (`.https.onCall`). A
-    // namespace import (`import * as x`) or default import of any of these modules is reported too. The
-    // behavioural test in guarded-on-call.test.ts is the backstop for what lint cannot see (an
-    // eslint-disable, a dynamic import). No other block sets no-restricted-imports for beacon.
+    // Every beacon callable is declared through guardedOnCall (apps/beacon/src/guarded-on-call.ts)
+    // which refuses all traffic while token verification is bypassed. This bans each package
+    // entry that exposes a callable constructor everywhere else in apps/beacon/src:
+    // `onCall`/`onCallGenkit` by name, the `https` namespaces that carry them, v1's
+    // `runWith`/`region` builders (`.https.onCall`), and the default import (under CJS interop
+    // it is the whole module object). ESLint also reports `import * as x` and `export ... from`
+    // of a restricted name, and a deep `firebase-functions/lib/...` path is banned too (by
+    // `pattern`, below). `require()` and a dynamic `import()` are outside this rule;
+    // guarded-on-call.test.ts is the backstop. Flat config replaces a rule's options when a
+    // later matching block sets the same rule, so any further beacon import ban belongs in
+    // THIS block.
     files: ["apps/beacon/src/**/*.ts"],
     ignores: ["apps/beacon/src/guarded-on-call.ts"],
     rules: {
@@ -307,7 +311,8 @@ export default tseslint.config(
             // "default": under CJS interop a default import is the whole module object.
             importNames: [...importNames, "default"],
             message:
-              "Declare callables with guardedOnCall from apps/beacon/src/guarded-on-call.ts, which refuses all traffic while token verification is bypassed.",
+              "Declare callables with guardedOnCall (apps/beacon/src/guarded-on-call.ts), " +
+              "which refuses all traffic while token verification is bypassed.",
           })),
           // Deep paths under firebase-functions/lib/ reach the same callable constructors the
           // `paths` entries above ban by public specifier — `paths` matches only the exact
@@ -319,7 +324,8 @@ export default tseslint.config(
             {
               group: ["firebase-functions/lib/*", "firebase-functions/lib/**"],
               message:
-                "Declare callables with guardedOnCall from apps/beacon/src/guarded-on-call.ts, which refuses all traffic while token verification is bypassed.",
+                "Declare callables with guardedOnCall (apps/beacon/src/guarded-on-call.ts), " +
+                "which refuses all traffic while token verification is bypassed.",
             },
           ],
         },
