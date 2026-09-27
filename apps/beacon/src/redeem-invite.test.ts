@@ -15,6 +15,7 @@ import {
   type RedeemUser,
 } from "./redeem-invite.js";
 import { createRateLimiter } from "./rate-limit.js";
+import { callableExports } from "./test-support/callable-exports.js";
 import {
   INVITE_GLOBAL_DENIAL_PER_SECOND,
   INVITE_GLOBAL_READS_PER_MINUTE,
@@ -936,11 +937,7 @@ describe("the services deploy.yml asserts the environment of", () => {
 
   it("covers every callable index.ts actually deploys", async () => {
     const entry: Record<string, unknown> = await import("./index.js");
-    const callables = Object.entries(entry)
-      .filter(([, v]) => {
-        const endpoint = (v as { __endpoint?: { callableTrigger?: unknown } })?.__endpoint;
-        return typeof v === "function" && endpoint !== undefined && !!endpoint.callableTrigger;
-      })
+    const callables = callableExports(entry)
       .map(([name]) => name.toLowerCase())
       .sort();
 

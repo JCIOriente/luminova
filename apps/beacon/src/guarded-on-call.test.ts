@@ -4,6 +4,7 @@ import { INVITE_RATE_LIMITS } from "@luminova/types/member-invite";
 import { BYPASS_LOG_MESSAGE } from "./token-verification-bypass.js";
 import { UNAUTHENTICATED_CALLABLES } from "./redeem-invite.js";
 import { guardedOnCall } from "./guarded-on-call.js";
+import { callableExports } from "./test-support/callable-exports.js";
 
 // SANDBOX, before `index.ts` loads: it calls `initializeApp()` at module scope, and a mutated
 // handler that gets past the guard would otherwise reach whatever project the machine's
@@ -28,17 +29,11 @@ interface Callable {
   run(request: CallableRequest<unknown>): unknown;
 }
 
-// The SAME selection as the deploy-list test in `redeem-invite.test.ts`: whatever `index.ts`
-// exports with a `callableTrigger` is a deployed callable, however it was declared.
+// The SAME selection as the deploy-list test in `redeem-invite.test.ts` (`callableExports`):
+// whatever `index.ts` exports with a `callableTrigger` is a deployed callable, however it was
+// declared.
 const entry: Record<string, unknown> = await import("./index.js");
-const CALLABLES = new Map(
-  Object.entries(entry)
-    .filter(([, v]) => {
-      const endpoint = (v as { __endpoint?: { callableTrigger?: unknown } })?.__endpoint;
-      return typeof v === "function" && endpoint !== undefined && !!endpoint.callableTrigger;
-    })
-    .map(([name, v]) => [name, v as Callable]),
-);
+const CALLABLES = new Map(callableExports(entry).map(([name, v]) => [name, v as Callable]));
 const NAMES = [...CALLABLES.keys()].sort();
 const UNAUTHENTICATED: readonly string[] = UNAUTHENTICATED_CALLABLES;
 
