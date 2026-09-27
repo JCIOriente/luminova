@@ -117,9 +117,10 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   false: the production reCAPTCHA key does exist, and "/invitacion has no session" was never
   the blocker (attestation is app-level, the route sits outside `_auth`, and the client wires
   `initAppCheck` on first app acquisition). It bounds WHO may call and NOT how often — a
-  token is replayable for its whole TTL, 72 h in this project — which is why the limiter ships alongside it,
-  not instead of it. **There is no Cloud Functions App Check product to register** — for a callable
-  the code-side flag IS the enforcement (live since 2026-09-23). What is unproven is one real
+  token is replayable for its whole TTL, 72 h in backstage's reCAPTCHA config — which is why
+  the limiter ships alongside it, not instead of it. **There is no Cloud Functions App Check
+  product to register** — for a callable the code-side flag IS the enforcement (cold-start log
+  first seen 2026-09-23). What is unproven is one real
   redemption against the production build; until then a broken attestation path would fail
   every redemption silently. See docs/firebase-setup.md owner op 3.
 - **One debug flag defeats BOTH token verifications, and the refusal is at the choke points.**

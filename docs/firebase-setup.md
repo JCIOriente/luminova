@@ -522,9 +522,9 @@ it in a copy dialog with its expiry.
    The path segment is **`/apps/`**, not `/webApps/`. `/webApps/` returns an HTML 404 that reads
    like "not registered" and actually means "no such route".
 
-   **What is NOT proven: that a real invitee gets through.** No callable has been invoked for
-   real. The request log for both services, from their creation on 2026-09-22 to 2026-09-27,
-   holds 8 rows — all `GET` 400/404 at 2026-09-23T03:59, zero `POST`s:
+   **What is NOT proven: that a real invitee gets through.** Neither invite callable has been
+   invoked for real. The request log for both services, from their creation on 2026-09-22 to
+   2026-09-27, holds 8 rows — all `GET` 400/404 at 2026-09-23T03:59, zero `POST`s:
 
    ```bash
    gcloud logging read 'resource.labels.service_name=("describeinvite" OR "redeeminvite")
@@ -533,10 +533,10 @@ it in a copy dialog with its expiry.
    ```
 
    Query the REQUEST log (`httpRequest.*`), not the application log — a successful callable may
-   log nothing of its own. The smoke test below is therefore the only thing that will ever show
-   a code-side `enforceAppCheck` accepting real attestation with no console-side product entry
-   behind it. If it does not, every redemption fails — silently, totally, on the only
-   onboarding path that exists.
+   log nothing of its own. Until a real redemption succeeds — the smoke test below, or the first
+   real invitee — nothing shows a code-side `enforceAppCheck` accepting real attestation with
+   no console-side product entry behind it. If it does not, every redemption fails — silently,
+   totally, on the only onboarding path that exists.
 
    **What it looks like when it breaks**, so you can recognize it: firebase-functions rejects
    the call with `unauthenticated`, which carries no tagged `reason`. The invite page shows
@@ -547,20 +547,16 @@ it in a copy dialog with its expiry.
    listed. So the page will NOT tell you which one you are looking at — the server-side trace
    below is what distinguishes them.
 
-   **There IS a server-side trace, and it is the fastest way to confirm this diagnosis.** A
-   failed attestation exchange does not leave the invitee's browser sending nothing:
-   `@firebase/app-check` returns a **dummy** token rather than throwing, and
-   that dummy travels in the `X-Firebase-AppCheck` header. firebase-functions therefore takes
-   its `app === "INVALID"` arm and writes one line to Cloud Logging per failed redemption:
-
-   ```
-   Callable request verification failed: AppCheck token was rejected.
-   ```
-
-   Filter for it on the structured label the SDK attaches, OR on the message text. Both are in
-   the query on purpose: the label is narrower, but it only matches if the logging agent
-   promotes that payload key to `LogEntry.labels`, and a filter that silently matches nothing
-   would hand you the opposite diagnosis under the paragraph below.
+   **The server-side trace is a 401 with NO warning — an earlier version of this paragraph had
+   it backwards.** When the attestation exchange fails, `@firebase/app-check` hands back a
+   dummy token *together with an error*, and `@firebase/functions` (0.13.5,
+   `dist/esm/index.esm.js`: "Do not send the App Check header to the functions endpoint if
+   there was an error from the App Check exchange endpoint") then sends **no
+   `X-Firebase-AppCheck` header at all**. firebase-functions takes its `MISSING` path, logs
+   "Callable request verification passed" at **DEBUG**, and the `enforceAppCheck` throw
+   returns `unauthenticated` → HTTP **401**. So the signature of a failed exchange, and of a
+   browser that blocks reCAPTCHA, is: `POST` 401 rows in the request-log query above, and
+   **zero** rows here:
 
    ```bash
    gcloud logging read \
@@ -569,16 +565,16 @@ it in a copy dialog with its expiry.
      --project=jci-oriente --freshness=1h --limit=20
    ```
 
-   If the label half ever turns out to be the only one matching, drop the text half — not the
-   other way round.
+   Rows here (`Callable request verification failed: AppCheck token was rejected.`, the
+   `app === "INVALID"` arm) mean something different: a token that DID exchange reached the
+   server and was refused — a token minted for another project, expired, or forged. That is not
+   the invitee-can't-attest failure; it is worth looking at, but it will not diagnose this one.
+   The filter carries both the structured label and the message text because the label only
+   matches if the logging agent promotes that payload key to `LogEntry.labels`.
 
-   Rows here mean attestation is reaching the server and being refused — this failure mode, or
-   a blocked browser. **Zero rows while invitees report the error means the opposite**: the
-   header never arrived at all, which takes firebase-functions' `MISSING` path and logs at
-   DEBUG ("verification passed") before the `enforceAppCheck` throw — so absence of warnings
-   is evidence too, not an all-clear. The `console.error` on the invitee's own browser
-   ("invite: App Check rejected the call") remains the only trace for that second case, and it
-   only helps if someone is looking over their shoulder.
+   The `console.error` on the invitee's own browser ("invite: App Check rejected the call")
+   and the App Check SDK's own console error from the failed exchange are the only traces that
+   say WHY, and they only help if someone is looking over their shoulder.
 
    Two earlier claims in the specs were WRONG and are corrected here: the production
    reCAPTCHA site key *does* exist (`apps/backstage/.env.production` carries a real
@@ -596,7 +592,8 @@ it in a copy dialog with its expiry.
       no site key, so it cannot exercise attestation at all. Fresh profile, because a refused
       exchange throttles App Check in that browser for 24 h (see above).
    3. **Pass = a `POST` with status 200 on `redeeminvite`** in the request-log query above.
-      A `POST` 401 on either service is this failure mode; pair it with the WARNING query.
+      A `POST` 401 on either service with zero WARNING rows is this failure mode (see the
+      trace paragraph above).
 
    **One more thing only this smoke test can catch.** Enforcement is keyed on
    `FUNCTIONS_EMULATOR`, and `firebase-tools` spreads whatever it reads from a dotenv file into
@@ -856,9 +853,9 @@ it in a copy dialog with its expiry.
    Before concluding anything from this alert, break the condition's series down by
    `response_code` in Metrics Explorer. A 401 spike with NO `rate-limited-global` lines is not
    a false positive — it is either a header-less flood burning invocations against
-   `maxInstances: 10`, or, in the days around this deploy, **the registration failure this
-   section's owner-op exists to prevent**, in which case every legitimate redemption is 401ing
-   too. That is the single best detector for it.
+   `maxInstances: 10`, or, in the days around this deploy, **an attestation failure on the real
+   client path (owner op 3's smoke test is what rules it out)**, in which case every legitimate
+   redemption is 401ing too. That is the single best detector for it.
 
    Leave the `--if='> 8'` filter unscoped — excluding 401 would blind the alert to both of
    those.
@@ -930,8 +927,9 @@ the branded reset flow:
    decision, not a checkbox: any client or script that reads Firestore without attesting
    starts failing, so it is only ever done after the App Check metrics show real traffic
    carrying valid tokens.
-6. **App Check is not a rate limiter, and the invite callables carry both.** This project's
-   reCAPTCHA v3 config issues App Check tokens with a **72 h** TTL (`tokenTtl: 259200s`, read
+6. **App Check is not a rate limiter, and the invite callables carry both.** Backstage's
+   reCAPTCHA v3 config (the app `/invitacion` is served from) issues App Check tokens with a
+   **72 h** TTL (`tokenTtl: 259200s`, read
    from the App Check API 2026-09-27) and they are replayable, so harvesting one from the public
    `/invitacion` page and flooding with it is not prevented by enforcement. `enforceAppCheck`
    bounds *who* may call; the in-process limiter in `apps/beacon/src/rate-limit.ts` bounds
