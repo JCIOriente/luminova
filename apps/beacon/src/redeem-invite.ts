@@ -11,6 +11,7 @@ import { hashInviteToken, isSafeTokenHash } from "./invite-token.js";
 import { inviteBlocked, inviteRateLimited } from "./provision-errors.js";
 import { createRateLimiter, type RateLimiter } from "./rate-limit.js";
 import { firestoreRedeemDeps } from "./redeem-deps.js";
+import { UNDER_EMULATOR, assertTokenVerificationNotBypassed } from "./token-verification-bypass.js";
 import { ensureApp } from "./runtime.js";
 
 /** The invite document, with its Timestamps already flattened to epoch ms by the port. */
@@ -152,6 +153,23 @@ async function loadValidInvite(
   token: unknown,
   fn: string,
 ): Promise<{ tokenHash: string; invite: InviteDoc; member: Record<string, unknown> }> {
+  // FIRST, ahead of even the global bucket. Not a contradiction of that bucket's "charged
+  // FIRST and unconditionally" contract: this refuses EVERY call while it holds, so there is no
+  // traffic left for a bucket to bound, and skipping the charge keeps the buckets from filling
+  // with requests that were never served. It costs one string comparison on the happy path, and
+  // a test asserts the gate is never consulted when it refuses.
+  //
+  // HERE rather than duplicated in the two `onCall` bodies below: this is the single choke
+  // point both callables already share, so a third one cannot forget it (guardrail #1), and it
+  // is reached by the tests that drive the real exported entry points rather than only by a
+  // direct call to the guard. The AUTHENTICATED callables are guarded at their own choke point,
+  // `callable-auth.ts` — the same flag forges Auth ID tokens there, which is strictly worse.
+  // TAGGED here, unlike the authenticated gates, so `/invitacion` can tell this apart from a
+  // transient `internal` — see the `refusal` parameter's docblock for why that matters.
+  assertTokenVerificationNotBypassed(fn, () =>
+    inviteBlocked("invite-service-misconfigured", "this service is temporarily misconfigured"),
+  );
+
   // ONE timestamp for the whole invocation: the two buckets and the expiry comparison must
   // not disagree about when "now" is.
   const nowMs = deps.now();
@@ -452,9 +470,11 @@ export async function redeemInviteFor(
  *  Fail-closed and it must stay that way: ABSENCE of the variable means ENFORCE. Do not
  *  "improve" this into a positive check for a production marker like `K_SERVICE`, which would
  *  fail OPEN the day that variable is renamed. A test pins BOTH branches — enforcing under the
- *  emulator breaks local onboarding, and failing to enforce in production removes the
- *  control. */
-const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== "true";
+ *  emulator breaks local onboarding, and failing to enforce in production removes the control.
+ *
+ *  DERIVED from `UNDER_EMULATOR`, the single place the variable is read, so this and the token
+ *  verification guard cannot drift into two spellings of the same comparison. */
+const ENFORCE_APP_CHECK = !UNDER_EMULATOR;
 
 export const UNAUTHENTICATED_CALL = {
   enforceAppCheck: ENFORCE_APP_CHECK,
@@ -526,6 +546,27 @@ export const describeInvite = onCall(UNAUTHENTICATED_CALL, async (request) => {
   const deps = { ...firestoreRedeemDeps(getFirestore(), getAuth()), gate: describeGate };
   return describeInviteFor(deps, { token: data.token });
 });
+
+/** The callables that take `UNAUTHENTICATED_CALL`, by export name.
+ *
+ *  NARROW ON PURPOSE, and deliberately NOT the list `deploy.yml` asserts the environment of.
+ *  The first version of this constant served both jobs, which was a conflation with teeth: the
+ *  env-clean assertion has to cover EVERY deployed callable (the debug flag forges Auth tokens
+ *  on the authenticated ones too), so a test pinning `deploy.yml`'s args to this two-element
+ *  list actively blocked widening the assertion — it would have turned the tripwire red for
+ *  doing the right thing. The deploy list is still ENUMERATED in `deploy.yml`; what changed is
+ *  that a test PINS it against a derivation from `index.ts`'s callable exports, so adding a
+ *  callable turns that test red until the YAML is widened. Nothing auto-widens — the derivation
+ *  is the expectation, not the source. See `redeem-invite.test.ts`.
+ *
+ *  What this list is still for: pinning which callables are reachable WITHOUT a session, so
+ *  adding a third one is a deliberate act that fails a test until it is acknowledged here.
+ *
+ *  THE HOLE, stated rather than papered over: the check covers callables in THIS module. One
+ *  added in a DIFFERENT file with `UNAUTHENTICATED_CALL` imported would slip past, and closing
+ *  that needs an eslint AST rule forbidding the symbol outside this file. Not built here — it is
+ *  a lint-config change, and there is exactly one unauthenticated-callable module. */
+export const UNAUTHENTICATED_CALLABLES = ["describeInvite", "redeemInvite"] as const;
 
 export const redeemInvite = onCall(UNAUTHENTICATED_CALL, async (request) => {
   ensureApp();

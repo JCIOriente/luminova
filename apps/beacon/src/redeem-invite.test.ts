@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Role } from "@luminova/auth/roles";
 import { hashInviteToken } from "./invite-token.js";
 import {
@@ -9,6 +10,7 @@ import {
   type RedeemDeps,
   createRateGate,
   UNAUTHENTICATED_CALL,
+  UNAUTHENTICATED_CALLABLES,
   type RateGate,
   type RedeemUser,
 } from "./redeem-invite.js";
@@ -772,6 +774,332 @@ describe("the shipped configuration of the two unauthenticated callables", () =>
     } finally {
       vi.unstubAllEnvs();
       vi.resetModules();
+    }
+  });
+});
+
+describe("the invite callables refuse while token verification is bypassed", () => {
+  // Cleanup in ONE place rather than a try/finally per test: three copies each had to remember
+  // both calls. Stubbing stays inline, so what each test controls is still visible where it runs.
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  // The guard itself, its parity with the real firebase-functions gate, its log sampling and its
+  // emulator carve-out are covered in `token-verification-bypass.test.ts`. What belongs HERE is
+  // the wiring: that both invite entry points actually reach it, and that they reach it before
+  // spending anything.
+
+  function stubBypass(): void {
+    vi.stubEnv("FIREBASE_DEBUG_MODE", "true");
+    vi.stubEnv("FIREBASE_DEBUG_FEATURES", JSON.stringify({ skipTokenVerification: true }));
+  }
+
+  it.each([
+    ["describeInvite", (deps: RedeemDeps) => describeInviteFor(deps, { token: TOKEN })],
+    [
+      "redeemInvite",
+      (deps: RedeemDeps) => redeemInviteFor(deps, { token: TOKEN, password: GOOD_PASSWORD }),
+    ],
+  ])("refuses %s outright, tagged so the page can tell it apart", async (_name, call) => {
+    // BOTH entry points, because both take UNAUTHENTICATED_CALL. Writing one and calling it done
+    // is the easy miss here.
+    const { deps, calls } = fakeDeps({});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    stubBypass();
+    {
+      // TAGGED, and that is load-bearing on the client: a BARE `internal` is also what an
+      // uncaught transient failure produces (a Firestore `unavailable` inside `getInvite`), and
+      // the two need opposite affordances — retry now versus never, since this condition lasts as
+      // long as the container. `invite-error.ts` keys a no-retry refusal on this reason, and its
+      // own test pins that an untagged `functions/internal` stays retryable.
+      expect(await reasonOf(call(deps))).toBe("invite-service-misconfigured");
+      // The CODE too, not just the reason. The client's fixture has to carry the same shape, and
+      // for one revision it did not — it used `internal`, which this path never emits, and passed
+      // because the tag is read first. Pinning both ends is what keeps the two in step.
+      await expect(call(deps)).rejects.toMatchObject({ code: "failed-precondition" });
+      expect(calls.claims).toEqual([]);
+      expect(calls.setPassword).toEqual([]);
+    }
+  });
+
+  it("refuses BEFORE the rate gate is charged and before any read", async () => {
+    // The ordering the `loadValidInvite` comment makes the point of, which nothing asserted: the
+    // previous test's empty `calls.claims`/`calls.setPassword` are VACUOUS for describeInvite,
+    // which never claims or sets a password on any path, so moving the guard later inside
+    // `loadValidInvite` would not have failed anything. This gate throws if consulted at all.
+    const consulted: string[] = [];
+    const gate: RateGate = {
+      admitGlobal: () => {
+        consulted.push("admitGlobal");
+        return true;
+      },
+      admitToken: () => {
+        consulted.push("admitToken");
+        return true;
+      },
+    };
+    const reads: string[] = [];
+    const base = fakeDeps({ gate }).deps;
+    const deps: RedeemDeps = {
+      ...base,
+      getInvite: async (hash) => {
+        reads.push(hash);
+        return inviteDoc();
+      },
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    stubBypass();
+    {
+      expect(await reasonOf(describeInviteFor(deps, { token: TOKEN }))).toBe(
+        "invite-service-misconfigured",
+      );
+      // Neither bucket charged — a refused request must not consume a real invitee's budget —
+      // and no Firestore read issued.
+      expect(consulted).toEqual([]);
+      expect(reads).toEqual([]);
+    }
+  });
+
+  it.each([
+    ["the mode is off", "false", JSON.stringify({ skipTokenVerification: true })],
+    ['the mode is not the literal "true"', "1", JSON.stringify({ skipTokenVerification: true })],
+    ["the features value is unparseable", "true", "skipTokenVerification"],
+    ["the features object omits the key", "true", JSON.stringify({ somethingElse: true })],
+    ["the features key is falsy", "true", JSON.stringify({ skipTokenVerification: false })],
+    ["the features value is not an object", "true", "42"],
+    ["the features value is an empty string", "true", ""],
+    ["the features value is ABSENT", "true", undefined],
+  ])("keeps serving when %s — the bypass is INERT there", async (_label, mode, features) => {
+    // The rows that distinguish the real predicate from a presence check on the two key names.
+    // `vi.stubEnv` DELETES the key when given undefined, which is what makes the last row
+    // genuinely "absent" rather than a second empty-string case — the earlier version of this
+    // table claimed absence and stubbed "" for it.
+    const { deps } = fakeDeps({});
+    vi.stubEnv("FIREBASE_DEBUG_MODE", mode);
+    vi.stubEnv("FIREBASE_DEBUG_FEATURES", features);
+    await expect(describeInviteFor(deps, { token: TOKEN })).resolves.toMatchObject({
+      email: "ana@jci.bo",
+    });
+  });
+});
+
+describe("the services deploy.yml asserts the environment of", () => {
+  // DERIVED, not enumerated. The list must cover EVERY deployed callable — the debug flag forges
+  // Auth ID tokens, so the five authenticated callables are the ones with the most reach — and
+  // `__endpoint.callableTrigger` distinguishes a callable from an event trigger on the object
+  // `onCall` returns. So the source of truth is `index.ts`, which is also what actually gets
+  // deployed; no hand-maintained list, and no scanning source text.
+  //
+  // This replaces a first version that pinned deploy.yml's args to UNAUTHENTICATED_CALLABLES.
+  // That conflated two different sets and had teeth: widening the assertion to the authenticated
+  // callables — the correct fix — would have turned the tripwire RED.
+  const DEPLOY_YML = new URL("../../../.github/workflows/deploy.yml", import.meta.url);
+  const SCRIPT = "assert-deployed-env-clean.sh";
+
+  const indentOf = (line: string): number => line.length - line.trimStart().length;
+
+  /** The lines belonging to `start`: everything indented deeper than it. ONE primitive for both
+   *  scans below, which were two copies of the same indent bookkeeping — and that bookkeeping has
+   *  already been wrong once, walking to the next `- ` and swallowing the following step's
+   *  comments into the argument list. `stopAtGap` is the only difference: a folded plain scalar
+   *  ends at a blank or comment line, a step's key block does not. */
+  function linesUnder(lines: string[], start: number, stopAtGap: boolean): string[] {
+    const indent = indentOf(lines[start] as string);
+    const out: string[] = [lines[start] as string];
+    for (let n = start + 1; n < lines.length; n += 1) {
+      const line = lines[n] as string;
+      const blank = line.trim() === "" || line.trimStart().startsWith("#");
+      if (stopAtGap && blank) break;
+      if (!blank && indentOf(line) <= indent) break;
+      out.push(line);
+    }
+    return out;
+  }
+
+  /** PURE, and separated from the file read on purpose.
+   *
+   *  The four fail-open modes below are properties of this function, not of the workflow that
+   *  happens to be checked in — and mutating the real `deploy.yml` can only exercise the cases it
+   *  already contains. Two mutants proved that: flipping the step scan's stop condition, and
+   *  moving its indent boundary, both left every assertion green, because today's step holds no
+   *  comment before its keys and no later step carries `if:`. So the modes are asserted directly,
+   *  against fixtures, and `assertStep()` below just feeds this the real file.
+   *
+   *  Returns the service arguments; THROWS with a named reason on anything it will not vouch for. */
+  function parseAssertStep(lines: string[]): string[] {
+    const hits = lines
+      .map((line, i) => ({ line, i }))
+      .filter(({ line }) => line.includes(SCRIPT) && !line.trimStart().startsWith("#"));
+
+    // Fail-open #1: a second invocation — a staging or dry-run step above — silently retargeted
+    // the `.find()` this replaced, so the prod step's args were never the ones checked.
+    if (hits.length !== 1)
+      throw new Error(`expected exactly one ${SCRIPT} invocation, got ${hits.length}`);
+    const { line, i } = hits[0] as { line: string; i: number };
+    // Fail-open #2: the script name in the step's `name:` parsed that line instead of its `run:`.
+    if (!line.includes("run:"))
+      throw new Error(`${SCRIPT} must appear in the step's run:, not its name`);
+
+    // Fail-open #3: the command folds onto deeper-indented lines, and a scan that ignored that
+    // read only the first line's arguments.
+    //
+    // This scan encodes a BELIEF about how YAML folds a plain scalar, which is the same belief the
+    // assertion would be validating — so it was checked against a real parser rather than reasoned
+    // about: `yaml.safe_load` on deploy.yml yields one command carrying all seven service names,
+    // matching what this produces. Re-check that way, not by re-reading this code, if the step is
+    // ever reformatted.
+    const command = linesUnder(lines, i, true).join(" ");
+
+    // Fail-open #4: `if:` or `continue-on-error:` on the step made it assert nothing at all. Walk
+    // back to the step's own `- ` so its keys are in view — and do NOT stop at a comment, or a
+    // comment sitting above those keys would hide them.
+    let from = i;
+    while (from > 0 && !lines[from]!.trimStart().startsWith("- ")) from -= 1;
+    const block = linesUnder(lines, from, false);
+    for (const forbidden of ["if:", "continue-on-error:"]) {
+      if (block.some((l) => l.trimStart().startsWith(forbidden)))
+        throw new Error(`the ${SCRIPT} step must not carry ${forbidden} — it would stop gating`);
+    }
+
+    return command
+      .slice(command.indexOf(SCRIPT))
+      .split(/\s+/)
+      .slice(1)
+      .filter((a) => a.length > 0);
+  }
+
+  function assertStep(): string[] {
+    return parseAssertStep(readFileSync(DEPLOY_YML, "utf8").split("\n"));
+  }
+
+  describe("the parse fails CLOSED, asserted against fixtures not just the checked-in workflow", () => {
+    const GOOD = [
+      "    steps:",
+      "      # a comment above the step",
+      "      - name: Assert token verification is not bypassed on the DEPLOYED callables",
+      `        run: bash .github/scripts/${SCRIPT} alpha bravo`,
+      "          charlie",
+      "      # a comment belonging to the NEXT step",
+      "      - name: Something else",
+      "        run: echo hi",
+      "",
+    ];
+
+    it("reads a folded plain scalar as one command", () => {
+      // Three args, the third on a continuation line — the shape deploy.yml actually uses.
+      expect(parseAssertStep(GOOD)).toEqual(["alpha", "bravo", "charlie"]);
+    });
+
+    it("does not swallow the next step's comment into the argument list", () => {
+      // The bug the merged primitive already had once.
+      expect(parseAssertStep(GOOD)).not.toContain("belonging");
+    });
+
+    it.each([
+      [
+        "a second invocation elsewhere",
+        [...GOOD.slice(0, 2), `        run: echo ${SCRIPT} decoy`, ...GOOD.slice(2)],
+        /exactly one/,
+      ],
+      [
+        "the script named only in the step's name:",
+        [
+          "      - name: run .github/scripts/" + SCRIPT + " alpha",
+          "        run: echo unrelated",
+          "",
+        ],
+        /must appear in the step's run:/,
+      ],
+      [
+        "if: on the step",
+        [...GOOD.slice(0, 3), "        if: false", ...GOOD.slice(3)],
+        /must not carry if:/,
+      ],
+      [
+        "continue-on-error: on the step",
+        [...GOOD.slice(0, 3), "        continue-on-error: true", ...GOOD.slice(3)],
+        /must not carry continue-on-error:/,
+      ],
+      [
+        "a comment hiding if: from the step scan",
+        [...GOOD.slice(0, 3), "        # sneaky", "        if: false", ...GOOD.slice(3)],
+        /must not carry if:/,
+      ],
+      [
+        "if: on a LATER step, which must NOT be attributed to this one",
+        // The negative of the case above: over-collecting past the step boundary would make this
+        // throw. It must parse cleanly instead — which is what pins the indent comparison.
+        [...GOOD.slice(0, 7), "        if: false", ...GOOD.slice(7)],
+        null,
+      ],
+    ])("%s", (_label, lines, expected) => {
+      if (expected === null)
+        expect(parseAssertStep(lines as string[])).toEqual(["alpha", "bravo", "charlie"]);
+      else expect(() => parseAssertStep(lines as string[])).toThrow(expected as RegExp);
+    });
+  });
+
+  it("covers every callable index.ts actually deploys", async () => {
+    const entry: Record<string, unknown> = await import("./index.js");
+    const callables = Object.entries(entry)
+      .filter(([, v]) => {
+        const endpoint = (v as { __endpoint?: { callableTrigger?: unknown } })?.__endpoint;
+        return typeof v === "function" && endpoint !== undefined && !!endpoint.callableTrigger;
+      })
+      .map(([name]) => name.toLowerCase())
+      .sort();
+
+    // Sanity: the derivation must find something, or an empty list would match an empty args
+    // list and this whole test would assert nothing.
+    expect(callables.length).toBeGreaterThanOrEqual(7);
+    // Cloud Run lower-cases the service name, so the EXPECTATION is lowercased and deploy.yml
+    // must spell it that way too — the previous comment here claimed the comparison was
+    // case-insensitive, which was backwards: the args are taken verbatim.
+    expect(assertStep().sort()).toEqual(callables);
+  });
+
+  it("names the two unauthenticated callables among them", () => {
+    // UNAUTHENTICATED_CALLABLES keeps its own narrower meaning; this is the only place the two
+    // lists are related, and it is a subset check rather than an equality one.
+    expect(assertStep()).toEqual(
+      expect.arrayContaining([...UNAUTHENTICATED_CALLABLES].map((n) => n.toLowerCase())),
+    );
+  });
+});
+
+describe("the unauthenticated callables are exactly the ones declared so", () => {
+  it("names every onCall export of this module, and nothing else", async () => {
+    const mod: Record<string, unknown> = await import("./redeem-invite.js");
+    const callables = Object.entries(mod)
+      .filter(([, v]) => typeof v === "function" && "__endpoint" in (v as object))
+      .map(([k]) => k)
+      .sort();
+    expect(callables).toEqual([...UNAUTHENTICATED_CALLABLES].sort());
+  });
+
+  it("is reachable from index.ts, or it is never deployed at all", async () => {
+    // The third leg of the fan-out, previously named in a comment and enforced by nothing:
+    // deleting a re-export from index.ts left both other tripwires green while the callable
+    // simply vanished from the deploy, and the post-deploy script tolerates an absent service
+    // with a warning.
+    const entry: Record<string, unknown> = await import("./index.js");
+    expect(Object.keys(entry)).toEqual(expect.arrayContaining([...UNAUTHENTICATED_CALLABLES]));
+  });
+
+  it("were each built with UNAUTHENTICATED_CALL, not merely listed", async () => {
+    // The premise the list's name asserts, previously unchecked: a future
+    // `onCall({ maxInstances: 1 }, ...)` in this module would be forced into a constant called
+    // UNAUTHENTICATED_CALLABLES. `enforceAppCheck` is not serialized into `__endpoint`, so this
+    // compares the options that ARE — which is why it is a check on these two callables rather
+    // than a fingerprint used to identify unknown ones.
+    const mod: Record<string, unknown> = await import("./redeem-invite.js");
+    for (const name of UNAUTHENTICATED_CALLABLES) {
+      const endpoint = (mod[name] as { __endpoint: Record<string, unknown> }).__endpoint;
+      expect(endpoint.concurrency, name).toBe(UNAUTHENTICATED_CALL.concurrency);
+      expect(endpoint.maxInstances, name).toBe(UNAUTHENTICATED_CALL.maxInstances);
+      expect(endpoint.timeoutSeconds, name).toBe(UNAUTHENTICATED_CALL.timeoutSeconds);
     }
   });
 });

@@ -105,7 +105,8 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   the ceiling and it stops you with the list. The request-rate alert in
   `docs/firebase-setup.md` is set just under the denial point.
 - **App Check IS enforced in production, and deliberately NOT under the emulator**
-  (`enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true"`). firebase-functions enforces
+  (`ENFORCE_APP_CHECK`, derived from `UNDER_EMULATOR` — one read of `FUNCTIONS_EMULATOR`, in
+  `token-verification-bypass.ts`). firebase-functions enforces
   this ITSELF — a request with no `X-Firebase-AppCheck` header is rejected before the
   debug-token escape — and local dev leaves `VITE_APPCHECK_SITE_KEY` blank, so the client sends
   no header at all. Enforcing unconditionally would make `/invitacion` impossible to exercise
@@ -120,6 +121,18 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   not instead of it. **Enforcement is per-PRODUCT: Cloud Functions must be registered and
   `/invitacion` tested against a real build before deploy**, or every redemption 403s silently
   on the only onboarding path. See docs/firebase-setup.md.
+- **One debug flag defeats BOTH token verifications, and the refusal is at the choke points.**
+  `FIREBASE_DEBUG_MODE=true` plus `FIREBASE_DEBUG_FEATURES` carrying `skipTokenVerification` makes
+  firebase-functions decode BOTH the App Check header and the **Auth ID token** without verifying
+  either, so a forged `roles: ["Admin"]` claim satisfies `callable-auth.ts`. It is worse on the
+  five authenticated callables than on the invite pair, and `enforceAppCheck: true` does not help.
+  `assertTokenVerificationNotBypassed` refuses from `loadValidInvite` and from `requireAdmin` /
+  `requireAdminOrPerm`, gated on the emulator, keyed on the real callable name. Mechanism, the
+  deliberate predicate-not-presence choice, the parity test against the installed library, and the
+  coverage hole it does NOT close: `apps/beacon/src/token-verification-bypass.ts` and the operator
+  section of `docs/firebase-setup.md`. `FUNCTIONS_EMULATOR` cannot be guarded in-process, so
+  `assert-deployed-env-clean.sh` stays its only control; that list covers every deployed callable
+  and is derived from `index.ts` by a test.
 - **`maxInstances` is both a control and a lever**: it caps billing but converts a cost problem
   into an availability one. The rate gate is what makes that trade cheaper — a throttled
   request never occupies an instance doing Firestore reads.

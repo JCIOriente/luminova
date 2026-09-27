@@ -217,35 +217,38 @@ test("FAILS when NO service could be checked, even though each miss is tolerated
   // NOT_FOUND, every miss is tolerated, and the deploy goes green having verified nothing —
   // the exact "guard that gates nothing" this branch exists to remove.
   //
-  // Tolerating ONE absent service is still right: it says nothing about the other. Verifying
-  // NOTHING is not a tolerable outcome, it is the check having silently stopped running.
   const r = run(
     { describeinvite: GONE, redeeminvite: GONE },
     ["describeinvite", "redeeminvite"],
     "all-gone",
   );
   assert.equal(r.status, 2);
-  assert.match(r.out, /no service was actually checked/i);
+  assert.match(r.out, /could not be read/i);
 });
 
-test("TOLERATES a missing service, and says the env was not checked", () => {
-  // The one condition that is not this check's business: if the service does not exist there
-  // is no deployed env to read, and the deploy itself is what to look at. Warned, not failed.
+test("FAILS when even ONE named service is absent", () => {
+  // CHANGED, deliberately, when the caller widened from two hand-picked services to every
+  // deployed callable. Tolerating a single absence was defensible while the list was hand-made
+  // ("one absent service says nothing about the other"); it is not now. Every argument is a
+  // callable pinned to index.ts's own exports, and `firebase deploy --only functions` is
+  // unfiltered, so after the deploy that just ran every one of them exists. An absence means a
+  // name that does not match its Cloud Run service — and tolerating n-1 of those would let the
+  // five AUTHENTICATED callables go unchecked behind `ok: describeinvite` forever, which is the
+  // silent green this whole script exists to prevent.
   const r = run(
     { describeinvite: GONE, redeeminvite: { env: CLEAN } },
     ["describeinvite", "redeeminvite"],
     "notfound",
   );
-  assert.equal(r.status, 0);
+  assert.equal(r.status, 2);
+  // Still warns per service, so the log names WHICH one.
   assert.match(r.out, /::warning::describeinvite does not exist/);
-  assert.match(r.out, /NOT checked/);
-  // Paired with a service that WAS read: one absent service says nothing about the other, so
-  // the run still verified something. The all-absent case above is the one that did not.
-  assert.match(r.out, /ok: redeeminvite/);
-  // The absent COUNT is derived (`$# - checked`) rather than tallied in a second counter, so
-  // it needs an assertion of its own: an off-by-one there would misreport how much of the
-  // release actually got verified, which is the one number a reader of this log needs.
-  assert.match(r.out, /note: 1 service\(s\) could not be checked/);
+  // The count is derived (`$# - checked`), so an off-by-one there would misreport how much of
+  // the release got verified — the one number a reader of this log needs.
+  assert.match(r.out, /1 of 2 service\(s\) could not be read/);
+  // And it names both fixes, because they are different: a region, or a naming mismatch.
+  assert.match(r.out, /GCP_REGION/);
+  assert.match(r.out, /lower-cases the function id/);
 });
 
 test("FAILS on a permission error instead of tolerating it", () => {

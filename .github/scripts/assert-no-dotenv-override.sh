@@ -2,7 +2,7 @@
 #
 # The REPO half of the App Check enforcement guard: no committed (or built) beacon env file
 # sets FUNCTIONS_EMULATOR, which would ship the two unauthenticated invite callables with
-# enforcement off (`enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true"`).
+# enforcement off (`ENFORCE_APP_CHECK, derived from UNDER_EMULATOR in token-verification-bypass.ts`).
 #
 # This is the narrow half. A console edit or a value set on the Cloud Run service cannot be
 # seen from a checkout at all; those are covered after every release by

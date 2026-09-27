@@ -83,7 +83,7 @@ export function assertRequestedRolesActive(
 }
 
 export const setUserRoles = onCall(async (request) => {
-  requireAdmin(request);
+  requireAdmin(request, "setUserRoles");
 
   const input = validateSetRolesInput(request.data);
 
