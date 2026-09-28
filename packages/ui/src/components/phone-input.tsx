@@ -1,4 +1,10 @@
-import { useRef, type ChangeEvent, type ComponentPropsWithRef, type FocusEvent } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useRef,
+  type ChangeEvent,
+  type ComponentPropsWithRef,
+} from "react";
 import { Input } from "./input";
 
 interface PhoneInputProps extends Omit<ComponentPropsWithRef<"input">, "type" | "inputMode"> {
@@ -12,49 +18,62 @@ interface PhoneInputProps extends Omit<ComponentPropsWithRef<"input">, "type" | 
 
 /** Phone control: tel keypad, and a value capped at input time for typing and pasting alike.
  *  Works for RHF `register` (uncontrolled) and controlled callers, since both read
- *  `event.target.value` after this rewrites it.
+ *  `event.target.value` after onChange rewrites it.
  *
- *  A single keystroke into a full field is rejected the way `maxLength` would reject it: the
- *  previous value and caret stay. A paste is sanitized and truncated. When sanitizing strips
- *  characters, the caret keeps its place among the characters that remain. */
-export function PhoneInput({ sanitize, onChange, onFocus, ...props }: PhoneInputProps) {
-  // The last value this field settled on. Refreshed on focus so an RHF reset or a controlled
-  // update made while the field was idle is picked up before the next keystroke.
-  const settled = useRef("");
+ *  A typed key that adds nothing (a digit into a full field, or a non-digit) is cancelled in
+ *  `beforeinput`, so value and caret stay exactly as they were, like `maxLength`. Everything
+ *  else (paste, autofill, IME, a key that replaces a selection) goes through `sanitize` in
+ *  onChange, and the caret keeps its place among the digits that remain. */
+export function PhoneInput({ sanitize, onChange, ref, ...props }: PhoneInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleFocus = (event: FocusEvent<HTMLInputElement>) => {
-    settled.current = event.target.value;
-    onFocus?.(event);
+  // An Effect Event, so the listener attached once below always sees the current `sanitize`.
+  const rejectDeadKey = useEffectEvent((event: InputEvent) => {
+    const input = inputRef.current;
+    if (!input || event.inputType !== "insertText" || event.data == null) return;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    if (start === null || start !== end) return;
+    const current = input.value;
+    const next = current.slice(0, start) + event.data + current.slice(end);
+    // Same sanitized length means the key survived only by pushing a digit off the end, or
+    // was stripped. A length drop (a 591 prefix collapsing) or a gain is allowed through.
+    if (sanitize(next).length === sanitize(current).length) event.preventDefault();
+  });
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const listener = (event: InputEvent) => rejectDeadKey(event);
+    input.addEventListener("beforeinput", listener);
+    return () => input.removeEventListener("beforeinput", listener);
+  }, []);
+
+  const setRefs = (node: HTMLInputElement | null) => {
+    inputRef.current = node;
+    if (typeof ref === "function") ref(node);
+    else if (ref) ref.current = node;
   };
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     const input = event.target;
     const raw = input.value;
-    const caret = input.selectionStart ?? raw.length;
-    const previous = settled.current;
     const clean = sanitize(raw);
-    const oneCharInserted = raw.length === previous.length + 1;
-    let nextCaret: number | null = null;
-
-    // Same length and different content means sanitize had to push a character off the end
-    // to fit the inserted one, so the keystroke overflowed a full field.
-    if (oneCharInserted && clean.length === previous.length && clean !== previous) {
-      input.value = previous;
-      nextCaret = caret - 1;
-    } else if (clean !== raw) {
+    if (clean !== raw) {
+      const caret = input.selectionStart ?? raw.length;
+      // Digits before the caret, minus any leading digits sanitize dropped as a prefix.
+      const dropped = Math.max(0, raw.replace(/\D/g, "").indexOf(clean));
+      const digitsBefore = raw.slice(0, caret).replace(/\D/g, "").length - dropped;
       input.value = clean;
-      nextCaret = Math.min(sanitize(raw.slice(0, caret)).length, clean.length);
+      // Only a focused field owns a caret. Setting one on a blurred input can pull focus in
+      // some browsers.
+      if (input.ownerDocument.activeElement === input) {
+        const at = Math.min(Math.max(digitsBefore, 0), clean.length);
+        input.setSelectionRange(at, at);
+      }
     }
-    // Only a focused field owns a caret. Setting one on a blurred input can pull focus in
-    // some browsers.
-    if (nextCaret !== null && input.ownerDocument.activeElement === input) {
-      input.setSelectionRange(nextCaret, nextCaret);
-    }
-    settled.current = input.value;
     onChange?.(event);
   };
 
-  return (
-    <Input type="tel" inputMode="tel" {...props} onFocus={handleFocus} onChange={handleChange} />
-  );
+  return <Input type="tel" inputMode="tel" {...props} ref={setRefs} onChange={handleChange} />;
 }

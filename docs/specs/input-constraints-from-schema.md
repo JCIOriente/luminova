@@ -31,10 +31,18 @@ from typing past it.
 - It renders `type="tel"` with `inputMode="tel"`, and rewrites `event.target.value` before
   calling the caller's `onChange`. That serves RHF `register` (uncontrolled) and controlled
   callers alike.
-- A single keystroke into a full field is rejected the way `maxLength` would reject it: the
-  previous value and caret are kept. A paste is sanitized and truncated.
-- When sanitizing strips characters mid-string, the caret is restored to its place among the
-  characters that remain.
+- A native `beforeinput` listener cancels a typed key that adds nothing: a digit into a full
+  field, or a non-digit. The rule: for `insertText` into a collapsed selection, if sanitizing the
+  would-be value gives the same length as sanitizing the current one, the key is cancelled. Value
+  and caret stay as they were, like `maxLength`. A key whose insertion shortens the sanitized value
+  (a typed `591` prefix collapsing on the ninth digit) goes through.
+- Everything else (paste, autofill, IME, a key that replaces a selection) is sanitized in
+  `onChange`. A paste into a selection keeps its first digits up to the cap, as `maxLength` would.
+- After sanitizing, the caret is set to the number of digits before it in the raw value, minus
+  any prefix digits that were dropped, clamped to the new value. It is only set while the field
+  is focused.
+- There is no cached "previous value". The rules read the live field, so a legacy stored value
+  with separators, or a reset made while focused, cannot go stale.
 - The sanitizer is injected rather than imported so that `@luminova/ui` keeps no dependency on
   `@luminova/types`.
 

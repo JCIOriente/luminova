@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { useState } from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PhoneInput } from "./phone-input";
@@ -95,5 +95,69 @@ describe("PhoneInput caret", () => {
     await userEvent.click(input);
     await userEvent.paste("7001234567890");
     expect(input.value).toBe("70012345");
+  });
+});
+
+describe("PhoneInput overflow and caret: regression cases", () => {
+  it("accepts typing into a legacy stored value that carries a separator", async () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="346-7890" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    await userEvent.type(input, "1");
+    expect(input.value).toBe("34678901");
+  });
+
+  it("does not restore a stale value after a same-length reset while focused", async () => {
+    let setValue: (v: string) => void = () => {};
+    function Resettable() {
+      const [value, set] = useState("70012345");
+      setValue = set;
+      return (
+        <PhoneInput
+          aria-label="Tel"
+          sanitize={eightDigits}
+          value={value}
+          onChange={(e) => set(e.target.value)}
+        />
+      );
+    }
+    render(<Resettable />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    await userEvent.click(input);
+    act(() => setValue("60012345"));
+    await userEvent.type(input, "9");
+    expect(input.value).toBe("60012345");
+  });
+
+  it("puts the caret back at 0 after pasting a +591 prefix at the start", async () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="7001234" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    await userEvent.click(input);
+    input.setSelectionRange(0, 0);
+    await userEvent.paste("+591");
+    expect(input.value).toBe("7001234");
+    expect(input.selectionStart).toBe(0);
+  });
+
+  it("keeps the first pasted digit up to the cap when replacing a selection, like maxLength", async () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="70012345" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    await userEvent.click(input);
+    input.setSelectionRange(7, 8);
+    await userEvent.paste("67");
+    expect(input.value).toBe("70012346");
+  });
+
+  it("replaces the whole value when everything is selected and a digit is typed", async () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="70012345" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    await userEvent.type(input, "6", { initialSelectionStart: 0, initialSelectionEnd: 8 });
+    expect(input.value).toBe("6");
+  });
+
+  it("deletes with backspace in a full field", async () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="70012345" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    await userEvent.type(input, "{Backspace}");
+    expect(input.value).toBe("7001234");
   });
 });
