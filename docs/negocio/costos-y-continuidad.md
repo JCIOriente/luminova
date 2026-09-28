@@ -42,7 +42,8 @@ Dos protecciones recomendadas, ambas de configuración única:
 > - **Plan actual:** ¿Spark (gratuito) o Blaze (pago por uso)?
 > - **Gasto mensual real** de los últimos 3 meses.
 > - **¿Existe una alerta de presupuesto** configurada en el proyecto `jci-oriente`?
-> - **Dominio propio:** ¿se paga alguno, o se usan los subdominios `.web.app`?
+> - **Dominio `jcioriente.org`:** costo anual, registrador y fecha de renovación. Si vence,
+>   el sitio sigue en `jcioriente.web.app` (ver `docs/domains.md`).
 >
 > Estos datos no están en el repositorio y no se pueden deducir del código.
 

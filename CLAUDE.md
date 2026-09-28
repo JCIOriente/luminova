@@ -349,6 +349,7 @@ and its fixture tests together (`node --test .claude/hooks/review-route.test.mjs
 - `docs/data-models.md` — all Firestore schemas with constraints
 - `docs/features.md` — feature specs and UX flows
 - `docs/firebase-setup.md` — emulator and deploy instructions
+- `docs/domains.md` — custom domains vs Firebase defaults: where the hostname lives in code, console lists that must carry every hostname, fallback runbook
 - `docs/ci-cd.md` — CI + keyless CD pipeline: trust model, as-provisioned WIF/IAM inventory, deploy flow, validation, rollback
 - `docs/performance.md` — perf budgets, Core-Web-Vitals targets, optimization playbook + the Claude guardrails for keeping the frontends fast
 - `docs/engineering-guardrails.md` — the recurring audit mistake-classes, each with its rule + real example + enforcing guard (expands the "Recurring pitfalls" rules above)

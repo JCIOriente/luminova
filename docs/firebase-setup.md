@@ -17,17 +17,20 @@ Two web app registrations share one Firebase project and one Firestore database:
 
 | App | appId | Hosting target | URL |
 |-----|-------|----------------|-----|
-| spotlight | `1:953870918238:web:63d0034740735d618b4acf` | `jcioriente` | https://jcioriente.web.app |
-| backstage | `1:953870918238:web:acbd53d377846bd88b4acf` | `jcioriente-backstage` | https://jcioriente-backstage.web.app |
+| spotlight | `1:953870918238:web:63d0034740735d618b4acf` | `jcioriente` | https://jcioriente.org |
+| backstage | `1:953870918238:web:acbd53d377846bd88b4acf` | `jcioriente-backstage` | https://admin.jcioriente.org |
 
 Each app reads its Firebase config from its own `apps/<app>/.env.local` (template at `apps/<app>/.env.local.example`). The two apps share the same project and database but use separate app registrations and separate App Check site keys.
 
 ## Hosting Targets
 
-| Target | App | URL |
-|--------|-----|-----|
-| `jcioriente` | spotlight | https://jcioriente.web.app |
-| `jcioriente-backstage` | backstage | https://jcioriente-backstage.web.app |
+| Target | App | URL | Firebase default (fallback) |
+|--------|-----|-----|-----------------------------|
+| `jcioriente` | spotlight | https://jcioriente.org | https://jcioriente.web.app |
+| `jcioriente-backstage` | backstage | https://admin.jcioriente.org | https://jcioriente-backstage.web.app |
+
+Both hostnames serve the same deploy. Which one the code announces, the console settings
+that must list every hostname, and how to fall back: `docs/domains.md`.
 
 ## Initial Setup (one-time)
 
@@ -488,7 +491,8 @@ it in a copy dialog with its expiry.
 
    Deletion is best-effort with up to ~24 h of lag, which is why expiry is never left to it.
 
-3. ***** OPEN: prove App Check on the enforcing callables with ONE real invite, issued and redeemed. *****
+3. **Prove App Check on the enforcing callables with a real invite, issued and redeemed.**
+   (Status: `docs/roadmap.md` G4.)
 
    **What is enforced, and where.** App Check has two enforcement layers, configured in
    different places:
@@ -498,10 +502,10 @@ it in a copy dialog with its expiry.
      `UNDER_EMULATOR`: on in production, off under the emulator so local `/invitacion` still
      works). The list lives in `APP_CHECK_ENFORCED_CALLABLES`
      (`apps/beacon/src/token-verification-bypass.ts`), pinned against each callable's declaration
-     by `app-check-scope.test.ts`. The App Check console has no Cloud Functions switch; the
-     `onCall` option is the whole control, and firebase-functions applies it itself before the
-     handler runs. The invite pair was first logged live in production on 2026-09-23.
-   - **The other four callables do not enforce.** `setUserRoles`, `seedRoles`,
+     by `app-check-scope.test.ts`. The App Check console has no Cloud Functions switch, because
+     Cloud Functions is not an App Check-enforceable product; the `onCall` option is the whole
+     control, and firebase-functions applies it itself before the handler runs. The invite pair was first logged live in production on 2026-09-23.
+   - **The rest of the deploy list does not enforce.** `setUserRoles`, `seedRoles`,
      `recomputeAllClaims` and `reseedBuiltInRolePerms` are called by hand by the owner with an ID
      token and no App Check token, so enforcing there would lock those calls out.
      `issueMemberInvite` is called only by backstage, which attests. On it, App Check is defence
@@ -521,7 +525,8 @@ it in a copy dialog with its expiry.
 
    The unauthenticated `/invitacion` page does attest: it is a top-level route outside the
    `_auth` layout, the production build carries `VITE_APPCHECK_SITE_KEY` from
-   `apps/backstage/.env.production`, and `initAppCheck` runs on first app acquisition, which
+   `apps/backstage/.env.production`, and the client's `ensureApp()`
+   (`packages/firebase/src/app-core.ts`) wires `initAppCheck` on first app acquisition, which
    `getFunctionsService()` goes through.
 
    **Set up** — once per web app, in the Firebase console. There is no gcloud or Firebase CLI
@@ -530,7 +535,8 @@ it in a copy dialog with its expiry.
    1. Find the app id: `firebase apps:list WEB --project jci-oriente`. Backstage is
       `1:953870918238:web:acbd53d377846bd88b4acf`; spotlight is
       `1:953870918238:web:63d0034740735d618b4acf`.
-   2. Create a reCAPTCHA **v3** key for the app's hosting domain at
+   2. Create a reCAPTCHA **v3** key for the app's hosting domains — the custom domain AND
+      the Firebase default, see `docs/domains.md` — at
       https://www.google.com/recaptcha/admin and keep both the **site key** and the
       **secret key**.
    3. Firebase console → **App Check**
@@ -544,7 +550,8 @@ it in a copy dialog with its expiry.
    **Verify** — console first, then gcloud.
 
    1. Console → App Check → **Apps**: the web app lists reCAPTCHA v3 as its provider.
-      **APIs**: the per-product state above. Nothing for Cloud Functions is expected there.
+      **APIs**: the per-product state above; Cloud Functions has no row there either — see
+      "What is enforced, and where" above for why.
    2. The deployed code resolved enforcement on. Every beacon container logs it once at cold
       start, so any service answers for the build:
 
@@ -553,19 +560,18 @@ it in a copy dialog with its expiry.
         --project=jci-oriente --freshness=7d --limit=3
       ```
 
-      Expect `{ enforceAppCheck: true, callables: ["describeInvite", "redeemInvite",
-      "issueMemberInvite"] }`. No rows means no cold start in the window — widen
+      Expect `enforceAppCheck: true` and `callables` listing exactly the names in
+      `APP_CHECK_ENFORCED_CALLABLES`. No rows means no cold start in the window — widen
       `--freshness`, or call a function to force one.
    3. The deployed environment carries none of the three bypass variables. Every deploy asserts
       this; run it by hand with the `assert-deployed-env-clean.sh` command further down.
-   4. Real traffic gets through — the open item below.
+   4. Real traffic gets through — confirmed below.
 
-   **The open item: one real invite, issued and redeemed.** Neither `describeInvite` nor
-   `redeemInvite` has served a real call yet: the request log since the services were created
-   (2026-09-22) holds only `GET` 400/404 probes and no `POST`. Until an invite is issued and
-   redeemed, nothing shows the deployed flag accepting real attestation; if it does not, every
-   redemption is refused — silently, totally, on the only onboarding path there is — and admins
-   cannot issue links.
+   **Smoke test.** Real `POST` traffic is the only evidence that the deployed flag accepts real
+   attestation; `GET` 400/404 rows are probes and prove nothing. First real traffic: 2026-09-28
+   (the pass recorded under smoke-test step 3). Re-run this smoke test (its steps 1–3) after any
+   App Check key rotation or enforcement rollback. A key rotation does not touch Verify steps
+   2–3; re-run those after any functions deploy or any change to a service's environment.
 
    1. Issue a real invite from production backstage. This is itself an App Check-enforced call
       (`issueMemberInvite`).
@@ -586,8 +592,20 @@ it in a copy dialog with its expiry.
       Read only rows timestamped after the functions deploy that turned enforcement on for
       `issueMemberInvite`; a row from before it was not an enforced call on that service. **Pass = a
       `POST` with status 200 on `issuememberinvite` and on `redeeminvite`.** Fail = `POST` 401 on
-      any of the three, or no `POST` at all — see "When it fails". On a pass, mark roadmap G4 done
-      and drop the OPEN marker from this op.
+      any of the three, or no `POST` at all — see "When it fails".
+
+      **Passed 2026-09-28** (`--freshness=3d`): `POST 200` on `issuememberinvite` (10:49:41Z),
+      `describeinvite` (10:50:21Z) and `redeeminvite` (10:51:04Z), all after the
+      `issueMemberInvite` enforcement deploy at 2026-09-28T01:29Z. This is the fact roadmap G4
+      records as done.
+
+   **Owner's remaining manual test: the 48 h expired-link path.** Not yet exercised. Issue an
+   invite, wait for it to pass its 48 h expiry (or reuse one already expired), then open
+   `/invitacion#<token>`. Expect the page to refuse on load with *"Este enlace ya venció.
+   Pídele a quien te invitó que te envíe uno nuevo — los enlaces duran 48 horas."*, and one
+   `POST` **400** on `describeinvite` (`failed-precondition`, see the response-code table below);
+   `redeeminvite` is not called. Confirm with the smoke-test step 3 query. Never a 401 — a 401
+   there is App Check rejecting the call, a different failure to chase.
 
    **When it fails.** If issuing fails (`issueMemberInvite` refused), backstage shows *"No
    pudimos verificar tu sesión en este navegador. Recarga la página e inténtalo de nuevo; si
@@ -601,8 +619,10 @@ it in a copy dialog with its expiry.
    invite-page only; backstage shows its message and logs nothing more.
 
    On the invite page, both screens show *"No pudimos completar la verificación de
-   seguridad. Inténtalo de nuevo en un momento…"*. On load (`describeInvite` refused) it sits
-   under the heading *"No pudimos abrir el enlace"* with a **Recargar la página** button. On
+   seguridad. Inténtalo de nuevo en un momento. Si sigue fallando, prueba con otro navegador o
+   desactiva las extensiones que bloquean contenido, y avisa a la directiva."* On load
+   (`describeInvite` refused) it sits under the heading *"No pudimos abrir el enlace"* with a
+   **Recargar la página** button. On
    submit (`redeemInvite` refused) the form stays up with the message inline, the submit button
    counts down *"Espera 15s"* before it re-enables, and the inline message adds *"Tendrás que
    volver a escribir tu contraseña."* above a secondary **Recargar la página** button. The copy is the same whether the deployment
@@ -622,7 +642,7 @@ it in a copy dialog with its expiry.
    - **WARNING rows reading `AppCheck token was rejected`** are a different problem: a token
      that DID exchange reached the server and was refused — minted for another project,
      expired, or forged. They do not diagnose a caller who cannot attest. The label also matches
-     `Auth token was rejected`. Ignore those on the four admin callables. On
+     `Auth token was rejected`. Ignore those on the non-enforcing callables listed above. On
      `issuememberinvite` they matter: an `Auth token was rejected` row there is the admin's own
      ID token failing, which gets the same backstage message as an App Check failure.
 
@@ -689,14 +709,14 @@ it in a copy dialog with its expiry.
 
    **Every deployed CALLABLE, not just the invite pair** — the debug pair forges Auth tokens on
    the authenticated ones too (below), so scoping the assertion to two services would leave the
-   five with the most reach unchecked. The list lives in `deploy.yml`; a test pins it against a
-   derivation from `index.ts`'s own callable exports, so a new callable turns that test red until
-   the YAML is widened. Nothing auto-widens.
+   callables with the most reach unchecked. The list is enumerated in `deploy.yml` and pinned by
+   a test in `redeem-invite.test.ts` against `index.ts`'s own callable exports, so a new callable
+   turns that test red until the YAML is widened. Nothing auto-widens.
 
-   **A healthy deploy prints `ok:` seven times** — the 2026-09-27 deploy (run 36290598970) did,
-   one line per callable. Every argument is required to exist — one unreadable service fails the
-   step. That strictness is the point: a rule that warned and continued would let six of the
-   seven be silently skipped behind `ok: describeinvite` while the release still went green.
+   **A healthy deploy prints one `ok:` line per callable in that list** — the 2026-09-27 deploy
+   (run 36290598970) did. Every argument is required to exist — one unreadable service fails the
+   step. That strictness is the point: a rule that warned and continued would let some be
+   silently skipped behind an early `ok: describeinvite` while the release still went green.
    The names rest on gen2 naming the Cloud Run service after the function id, lower-cased; if a
    new callable is spelled differently, this step says so — fix the name in `deploy.yml` rather
    than relaxing the rule.
@@ -742,18 +762,18 @@ it in a copy dialog with its expiry.
    Authorization: Bearer <base64 header>.<base64 {"sub":"x","roles":["Admin"]}>.<junk>
    ```
 
-   satisfies the Admin-role gate on `setUserRoles`, `seedRoles`, `recomputeAllClaims`,
-   `reseedBuiltInRolePerms` and `issueMemberInvite` — custom-claim assignment and a project-wide
-   role reseed. It is **strictly worse** on those five than on the invite pair: the forged claim
-   is their only effective gate. Four of them declare no `enforceAppCheck`, and on
-   `issueMemberInvite`, which does, the same flag forges the App Check token too.
+   satisfies the Admin-role gate on every callable outside the invite pair — custom-claim
+   assignment, a project-wide role reseed, and invite issuance. It is **strictly worse** on the
+   authenticated callables than on the invite pair: the forged claim is their only effective
+   gate. Of them only `issueMemberInvite` declares `enforceAppCheck`
+   (`APP_CHECK_ENFORCED_CALLABLES`), and there the same flag forges the App Check token too.
 
    **Both halves are refused IN-PROCESS, which is prevention rather than detection.** Unlike
    `FUNCTIONS_EMULATOR`, the debug pair is readable by the running container itself, so
    `tokenVerificationBypassEnabled()` in `apps/beacon/src/token-verification-bypass.ts` evaluates
    the real condition and `assertTokenVerificationNotBypassed()` refuses while it holds —
-   `internal` on the five authenticated callables, and on the invite pair `failed-precondition`
-   tagged `invite-service-misconfigured`, which is what lets `/invitacion` withhold the retry
+   `internal` on the authenticated callables outside the invite pair, and on the invite pair
+   `failed-precondition` tagged `invite-service-misconfigured`, which is what lets `/invitacion` withhold the retry
    button and tell the invitee the link is still good. If someone reports *"problema de
    configuración de nuestro servidor"* on `/invitacion`, this is the section they are in. It runs
    first in every callable's handler, because `guardedOnCall` (`apps/beacon/src/guarded-on-call.ts`)
