@@ -12,6 +12,22 @@ overrides:
   # One version each restores Radix's nested-layer/focus coordination.
   "@radix-ui/react-dismissable-layer": "1.1.12"
   "@radix-ui/react-focus-scope": "1.1.9"
+  # Patch browserslist GHSA-c83g-rgw3-j3cx (unbounded memory growth / cache
+  # eviction OOM) and GHSA-73wf-gq98-2v4g (uncaught crash / prototype write via
+  # browserslist-stats.json), both <=4.28.6, patched >=4.28.7 — and the
+  # baseline-browser-mapping DoS it pulls in, GHSA-w5vr-8v7q-w6rv (<2.11.0,
+  # patched >=2.11.0). Deep transitive via @babel/core (eslint-plugin-react-hooks,
+  # @tanstack/router-plugin); @babel/helper-compilation-targets@7.29.7 already
+  # declares browserslist ^4.24.0, which admits the patch — but its lockfile
+  # snapshot doesn't re-resolve on a plain `pnpm update browserslist`, so two
+  # copies (one old, one new) coexist instead of converging. Forcing one version
+  # resolves baseline-browser-mapping too (browserslist's own dependency, no
+  # other consumer in the tree). Pinned exactly to 4.29.1, not caret — 4.29.2
+  # published the same day this override was written, and pinning (rather than
+  # `^4.29.1`, which would silently admit it) keeps a few days of real-world use
+  # on the version actually installed. Dev tooling only, never shipped. Remove
+  # once the lockfile naturally converges to one instance.
+  "browserslist@<4.28.7": "4.29.1"
   # Patch HIGH advisory GHSA-gv7w-rqvm-qjhr (esbuild <0.28.1: RCE via NPM_CONFIG_REGISTRY).
   # Pre-existing repo-wide transitive (vite/vitest/@tailwindcss/vite); dev tooling only.
   "esbuild@<0.28.1": "^0.28.1"
@@ -47,9 +63,24 @@ overrides:
   # Transitive via wait-on (dev only). >=1.18.0 patches all; scoped to the vuln line.
   "axios@<1.18.0": ">=1.18.0"
   # Patch body-parser GHSA-v422-hmwv-36x6 (<1.20.6: DoS when an invalid limit value
-  # silently disables size enforcement). Transitive via firebase-functions>express@4
-  # (apps/beacon); express 4 requires body-parser ~1.20.x, so stay in the 1.x line.
-  "body-parser@<1.20.6": "^1.20.6"
+  # silently disables size enforcement) AND, via body-parser's own bundled qs,
+  # GHSA-x5fp-wj9c-mxmx / GHSA-4mjr-xmp4-gh2g (qs array-limit bypass / isBuffer
+  # DoS, both patched at qs >=6.16.0). Widened from <1.20.6 to <1.20.8: 1.20.6
+  # cleared the first advisory but still bundles qs ~6.15.1 (below the qs floor);
+  # 1.20.8 bundles qs ~6.16.0. RUNTIME dep of apps/beacon (Cloud Functions) via
+  # firebase-functions>express@4 (express 4 requires body-parser ~1.20.x, so stay
+  # in the 1.x line — 1.20.8 is inside express@4.22.3's own ~1.20.5 range below).
+  "body-parser@<1.20.8": "^1.20.8"
+  # Patch qs GHSA-x5fp-wj9c-mxmx / GHSA-4mjr-xmp4-gh2g (see body-parser above) on
+  # express's OWN direct qs edge (separate from the one bundled inside
+  # body-parser). RUNTIME dep of apps/beacon via firebase-functions>express@4;
+  # express@4.22.3 is the newest 4.x, already inside firebase-functions@7.2.5's
+  # own express ^4.21.0, and its own qs range floors at ~6.16.0 — patched, no
+  # major bump needed. A lockfile refresh alone didn't converge to this version
+  # (confirmed: `pnpm --filter beacon update qs express body-parser` left it
+  # stuck on the old pinned snapshot), hence the override. Remove once the
+  # lockfile naturally resolves express >=4.22.3 unaided.
+  "express@<4.22.3": "^4.22.3"
   # Patch brace-expansion ReDoS, now flagged on BOTH copies in the tree, each with its
   # own vulnerable range, so each needs its own selector inside its own major:
   #   v5 line (minimatch@10 requires ^5.0.5, via eslint>@eslint/config-array) — the
@@ -61,10 +92,14 @@ overrides:
   # Both are dev/build tooling only, never shipped.
   "brace-expansion@>=2.0.0 <2.1.4": "^2.1.4"
   "brace-expansion@>=3.0.0 <5.0.9": ">=5.0.9"
-  # Patch fast-uri GHSA (>=3.0.0 <3.1.5 — widened from the <=3.1.3 this override was
-  # first written for). Transitive via ajv (workbox-build, dev), which requires
-  # fast-uri ^3.0.1 — stay in the 3.x line (latest 4.x would break that range).
-  "fast-uri@>=3.0.0 <3.1.5": "^3.1.5"
+  # Patch fast-uri GHSA-5jgf-p345-68v8 / -f65p-4m7j-42xc / -fph4-wmhf-6fwf /
+  # -jqff-g426-hqxp (widened again 2026-09-28: the floor this override targeted,
+  # 3.1.5, is now itself flagged — every one of these four now reads <3.1.6).
+  # Transitive via ajv (workbox-build, dev), which requires fast-uri ^3.0.1 — stay
+  # in the 3.x line (latest 4.x would break that range). Targets 3.1.8, the latest
+  # 3.x, not just the 3.1.6 floor. Remove once ajv's own floor clears 3.1.6+ on its
+  # own (unlikely before a workbox-build major) or pnpm audit stops flagging it.
+  "fast-uri@>=3.0.0 <3.1.6": "^3.1.8"
   # Patch nanoid GHSA-2v37-7h3g-55p8 and its predecessor (<3.3.18). Transitive via
   # postcss (vite/vitest/@tailwindcss/vite, dev). postcss requires nanoid ^3.3.x, so
   # the fix stays in the 3.x line; the selector's upper bound keeps any 5.x/6.x copy
@@ -75,10 +110,6 @@ overrides:
   # the traversal needs an attacker-authored stylesheet, which this repo does not
   # process). 8.5.18 patches it; 8.5.26 is the latest 8.x.
   "postcss@<8.5.18": "^8.5.18"
-  # Patch sharp <0.35.0 (native libvips advisory). Transitive via
-  # @vite-pwa/assets-generator (backstage icon regen, dev). >=0.35.0 patched; sharp
-  # must stay listed under allowBuilds below (native postinstall or CI hard-fails).
-  "sharp@<0.35.0": ">=0.35.0"
   # Patch shell-quote GHSA (<=1.8.4). Transitive via concurrently (dev). >=1.8.5 patched.
   "shell-quote@<1.8.5": ">=1.8.5"
 allowBuilds:

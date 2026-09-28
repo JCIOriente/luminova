@@ -11,6 +11,6 @@
     "@firebase/rules-unit-testing": "^5.0.1",
     "@types/node": "^25.9.1",
     "firebase": "12.14.0",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.11"
   }
 }

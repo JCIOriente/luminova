@@ -32,7 +32,7 @@
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.16",
     "@types/react-dom": "^19.2.3",
-    "@vite-pwa/assets-generator": "^1.0.2",
+    "@vite-pwa/assets-generator": "^1.0.4",
     "@vitejs/plugin-react": "^6.0.2",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.3.0",
