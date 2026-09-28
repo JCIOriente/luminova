@@ -42,28 +42,48 @@ export { MEMBER_STATUSES } from "./member.js";
 export { MEMBER_GENDERS, type MemberGender } from "./member.js";
 export type { Position, PositionCategory, TermPositions } from "./position.js";
 export { POSITION_CATEGORIES, positionTitle, currentTermKey, femaleTitle } from "./position.js";
-export { positionSchema, type PositionInput } from "./position-schema.js";
+export {
+  positionSchema,
+  POSITION_TERM_MIN,
+  POSITION_TERM_MAX,
+  type PositionInput,
+} from "./position-schema.js";
 export {
   memberSchema,
   selfProfileSchema,
   type MemberInput,
   type SelfProfileInput,
 } from "./member-schema.js";
-export { memberSchemaFor, selfProfileSchemaFor } from "./member-schema.js";
+export { memberSchemaFor, selfProfileSchemaFor, PROFESSION_MAX_LENGTH } from "./member-schema.js";
 export { MEMBER_NAME_MAX_LENGTH } from "./member-name.js";
 export {
   BOLIVIA_PHONE_LENGTH,
+  BOLIVIA_PHONE_PLACEHOLDER,
   isBoliviaPhone,
   boliviaWhatsAppUrl,
   boliviaPhoneRequired,
   boliviaPhoneOptional,
+  sanitizeBoliviaPhoneInput,
 } from "./phone.js";
 export type { Ally } from "./ally.js";
 export { allySchema, type AllyInput } from "./ally-schema.js";
 export type { Lead, LeadIntent, LeadStatus } from "./lead.js";
 export { LEAD_INTENTS, LEAD_STATUSES } from "./lead.js";
-export { leadSchema, type LeadInput } from "./lead-schema.js";
-export { audienceSchema, notificationCreateSchema, INBOX_MUTABLE_FIELDS } from "./notification.js";
+export {
+  leadSchema,
+  LEAD_NAME_MAX_LENGTH,
+  LEAD_EMAIL_MAX_LENGTH,
+  LEAD_MESSAGE_MAX_LENGTH,
+  type LeadInput,
+} from "./lead-schema.js";
+export {
+  audienceSchema,
+  notificationCreateSchema,
+  INBOX_MUTABLE_FIELDS,
+  NOTIFICATION_TITLE_MAX_LENGTH,
+  NOTIFICATION_BODY_MAX_LENGTH,
+  NOTIFICATION_URL_MAX_LENGTH,
+} from "./notification.js";
 export type {
   Audience,
   NotificationCreate,
@@ -74,7 +94,11 @@ export type {
 
 export * from "./engine/index.js";
 export { pointRuleSchema, type PointRuleInput } from "./engine/point-rule-schema.js";
-export { activitySchema, type ActivityInput } from "./engine/activity-schema.js";
+export {
+  activitySchema,
+  ACTIVITY_LOCATION_MAX_LENGTH,
+  type ActivityInput,
+} from "./engine/activity-schema.js";
 export { checkInSchema, type CheckInInput } from "./engine/check-in-schema.js";
 export {
   initiativeRosterSchema,
@@ -104,7 +128,12 @@ export type {
   LinktreeSocialPlatform,
 } from "./site-config.js";
 export { LINKTREE_ICONS, LINKTREE_SOCIAL_PLATFORMS } from "./site-config.js";
-export { siteConfigSchema, type SiteConfigInput } from "./site-config-schema.js";
+export {
+  siteConfigSchema,
+  EFFICIENCY_PCT_MIN,
+  EFFICIENCY_PCT_MAX,
+  type SiteConfigInput,
+} from "./site-config-schema.js";
 export { clientTimestampSchema } from "./client-timestamp-schema.js";
 export { positionDocSchema, termPositionsDocSchema } from "./position-doc-schema.js";
 export { memberDocSchema } from "./member-doc-schema.js";

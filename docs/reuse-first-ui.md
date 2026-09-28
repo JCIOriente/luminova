@@ -211,6 +211,7 @@ Full manifest with props/variants: `packages/ui/DESIGN.md`. Import
 | `IconButton` | Icon-only button, variants subtle/ghost/danger, sm/md, required `aria-label`; `a` or `button` | Hand-rolled square / row-action icon buttons |
 | `Input` | Text input (also exports `fieldControlClasses` for custom hosts) | Raw `<input>` — eslint errors on it |
 | `SearchInput` | Search box with leading icon; sr-only `label` required; `size` md/sm | Input + absolute-positioned icon combos |
+| `PhoneInput` | Phone field: `type="tel"`, tel keypad, `sanitize` caps typed and pasted input (pass `sanitizeBoliviaPhoneInput`) | `Input` + `maxLength`, which truncates a pasted `+591 …` before onChange |
 | `Textarea` | Multi-line input | Raw `<textarea>` — eslint errors |
 | `Select` | Native styled select | Raw `<select>` — eslint errors |
 | `Field` | Label + error wrapper around any control | Per-form label/error markup |

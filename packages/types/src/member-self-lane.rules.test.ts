@@ -6,7 +6,7 @@ import {
   parseMemberNameGate,
 } from "../../../tools/scripts/lib/rules-locked-fields.mjs";
 import { selfProfileSchema, PROFESSION_MAX_LENGTH } from "./member-schema.js";
-import { BOLIVIA_PHONE_LENGTH } from "./phone.js";
+import { BOLIVIA_PHONE_PATTERN } from "./phone.js";
 import {
   MEMBER_NAME_MAX_LENGTH,
   MEMBER_NAME_MIN_LENGTH,
@@ -40,8 +40,8 @@ describe("firestore.rules members self lane is in sync with selfProfileSchema", 
     expect(LANE.professionMax).toBe(PROFESSION_MAX_LENGTH);
   });
 
-  it("bounds the phone at the same digit count the schema does", () => {
-    expect(LANE.phoneDigits).toBe(BOLIVIA_PHONE_LENGTH);
+  it("matches the phone against the byte-identical pattern the schema does", () => {
+    expect(LANE.phonePattern).toBe(BOLIVIA_PHONE_PATTERN);
   });
 
   it("bounds the name at the same lengths the schema does", () => {

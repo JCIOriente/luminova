@@ -4,6 +4,7 @@ import { Root, Trigger, Portal, Content } from "@radix-ui/react-popover";
 import { cn } from "../lib/cn";
 import { fieldControlClasses } from "./input";
 import { Icon } from "./icons";
+import { useFieldTriggerDescribedBy } from "./field-context";
 
 export type ComboboxOption = { value: string; label: string; disabled?: boolean };
 
@@ -36,6 +37,7 @@ export function Combobox({
   "aria-describedby": describedBy,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
+  const ariaDescribedBy = useFieldTriggerDescribedBy(describedBy);
   const selected = options.find((o) => o.value === value) ?? null;
 
   return (
@@ -45,7 +47,7 @@ export function Combobox({
           type="button"
           id={id}
           disabled={disabled}
-          aria-describedby={describedBy}
+          aria-describedby={ariaDescribedBy}
           aria-haspopup="listbox"
           aria-expanded={open}
           className={cn(

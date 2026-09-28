@@ -60,29 +60,41 @@ function PointsCell({
   const [value, setValue] = useState(String(rule.points));
   const parsed = pointsSchema.safeParse(Number(value));
   const changed = value.trim() !== "" && Number(value) !== rule.points;
+  const error = parsed.success ? undefined : parsed.error.issues[0]?.message;
+  const errorId = `points-${rule.id}-err`;
 
   return (
-    <div className="flex items-center gap-2">
-      <Input
-        type="number"
-        min={0}
-        step={1}
-        className="w-24 px-3 py-2"
-        value={value}
-        aria-label={`Puntos de ${rule.label}`}
-        onChange={(event) => setValue(event.target.value)}
-      />
-      {changed && (
-        <Button
-          as="button"
-          variant="primary"
-          size="sm"
-          disabled={!parsed.success || isSaving}
-          aria-label={`Guardar ${rule.label}`}
-          onClick={() => parsed.success && onSave(rule.id, parsed.data)}
-        >
-          Guardar
-        </Button>
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          step={1}
+          className="w-24 px-3 py-2"
+          value={value}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+          aria-label={`Puntos de ${rule.label}`}
+          onChange={(event) => setValue(event.target.value)}
+        />
+        {changed && (
+          <Button
+            as="button"
+            variant="primary"
+            size="sm"
+            disabled={!parsed.success || isSaving}
+            aria-label={`Guardar ${rule.label}`}
+            onClick={() => parsed.success && onSave(rule.id, parsed.data)}
+          >
+            Guardar
+          </Button>
+        )}
+      </div>
+      {error && (
+        <div id={errorId} className="text-ui-xs text-error">
+          {error}
+        </div>
       )}
     </div>
   );

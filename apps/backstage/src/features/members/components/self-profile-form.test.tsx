@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Timestamp } from "firebase/firestore";
-import type { Member } from "@luminova/types";
+import { PROFESSION_MAX_LENGTH, type Member } from "@luminova/types";
 
 const mutateAsync = vi.fn().mockResolvedValue(undefined);
 vi.mock("../hooks/use-update-self-profile", () => ({
@@ -36,6 +36,15 @@ async function submitWithName(value: string, on: Member = member) {
 }
 
 describe("SelfProfileForm", () => {
+  it("stops the profession at the schema's cap, pasted text included", async () => {
+    render(<SelfProfileForm member={member} />);
+    const profession = screen.getByLabelText<HTMLInputElement>(/Profesión/);
+    await userEvent.clear(profession);
+    await userEvent.click(profession);
+    await userEvent.paste("x".repeat(PROFESSION_MAX_LENGTH + 1));
+    expect(profession.value).toHaveLength(PROFESSION_MAX_LENGTH);
+  });
+
   beforeEach(() => mutateAsync.mockClear());
 
   it("pre-fills the member's current name", () => {
@@ -123,5 +132,22 @@ describe("SelfProfileForm", () => {
       render(<SelfProfileForm member={{ ...member, publicProfile: undefined }} />);
       expect(screen.queryByText(PHOTO_WARNING)).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("SelfProfileForm validates on blur", () => {
+  it("rejects a phone starting with a digit no Bolivian line uses, on leaving the field", async () => {
+    mutateAsync.mockClear();
+    const user = userEvent.setup();
+    render(<SelfProfileForm member={member} />);
+    const phone = screen.getByLabelText(/Teléfono/);
+    await user.clear(phone);
+    await user.type(phone, "12345678");
+    await user.tab();
+    expect(
+      await screen.findByText("El teléfono debe tener 8 dígitos y empezar con 2, 3, 4, 6 o 7."),
+    ).toBeInTheDocument();
+    expect(phone).toHaveAttribute("aria-invalid", "true");
+    expect(mutateAsync).not.toHaveBeenCalled();
   });
 });

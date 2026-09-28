@@ -62,6 +62,7 @@ export function InitiativeForm({
     handleSubmit,
     formState: { errors },
   } = useForm<InitiativeInput>({
+    mode: "onTouched",
     resolver: zodResolver(initiativeFormSchema),
     defaultValues: { ...EMPTY, ...defaultValues },
   });

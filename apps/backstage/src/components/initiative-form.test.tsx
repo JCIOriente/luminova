@@ -124,3 +124,20 @@ describe("InitiativeForm", () => {
     expect(screen.queryByLabelText(/destacar en \/programas/i)).not.toBeInTheDocument();
   });
 });
+
+describe("InitiativeForm validates on blur", () => {
+  it("shows the title error when the user leaves the field, without submitting", async () => {
+    const user = userEvent.setup();
+    render(
+      <InitiativeForm
+        memberOptions={members}
+        submitLabel="Crear"
+        isSaving={false}
+        onSubmit={vi.fn()}
+      />,
+    );
+    await user.type(screen.getByLabelText(/título/i), "AB");
+    await user.tab();
+    expect(await screen.findByText("Mínimo 3 caracteres.")).toBeInTheDocument();
+  });
+});

@@ -83,3 +83,12 @@ describe("ActivityForm", () => {
     expect(screen.queryByText("Programa")).not.toBeInTheDocument();
   });
 });
+
+describe("ActivityForm validates on blur", () => {
+  it("shows the title error when the user leaves the field, without submitting", async () => {
+    render(<ActivityForm {...NO_OPTIONS} onSubmit={vi.fn()} isSaving={false} />);
+    await userEvent.type(screen.getByLabelText(/título/i), "AB");
+    await userEvent.tab();
+    expect(await screen.findByText("Mínimo 3 caracteres.")).toBeInTheDocument();
+  });
+});

@@ -54,7 +54,7 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="flex w-full max-w-[392px] flex-col">
       <div className="mb-4 font-mono text-ui-2xs uppercase tracking-[0.2em] text-jci-blue">
-        Backstage · Crea tu contraseña
+        Portal de miembros · Crea tu contraseña
       </div>
       {children}
     </div>
@@ -77,7 +77,7 @@ function PasswordField({
   register: UseFormRegisterReturn;
 }) {
   return (
-    <Field label={label} htmlFor={id} error={error}>
+    <Field label={label} htmlFor={id} required error={error}>
       <div className="group relative flex items-center">
         <span className="pointer-events-none absolute left-3.5 flex text-ink-3 transition-colors group-focus-within:text-jci-blue">
           {Icon.lock({ s: 19 })}
@@ -88,7 +88,6 @@ function PasswordField({
           autoComplete="new-password"
           placeholder="••••••••"
           className="pl-11"
-          aria-invalid={error ? true : undefined}
           {...register}
         />
       </div>
@@ -124,8 +123,11 @@ export function InviteRedeemForm({ token }: { token: string }) {
     register,
     handleSubmit,
     watch,
+    trigger,
+    getFieldState,
     formState: { errors, isSubmitting },
   } = useForm<SetPasswordInput>({
+    mode: "onTouched",
     resolver: zodResolver(setPasswordSchema),
     defaultValues: { password: "", confirmPassword: "" },
   });
@@ -348,7 +350,12 @@ export function InviteRedeemForm({ token }: { token: string }) {
           id="password"
           label="Nueva contraseña"
           error={errors.password?.message}
-          register={register("password")}
+          register={register("password", {
+            // Not `deps`: that flags a confirmation the user has not reached yet.
+            onChange: () => {
+              if (getFieldState("confirmPassword").isTouched) void trigger("confirmPassword");
+            },
+          })}
         />
         <PasswordChecklist value={watch("password")} />
         <PasswordField

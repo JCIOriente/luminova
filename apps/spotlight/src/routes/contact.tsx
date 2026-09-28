@@ -6,12 +6,21 @@ import {
   Reveal,
   Icon,
   Input,
+  PhoneInput,
   Textarea,
   Select,
   Field,
   Toast,
 } from "@luminova/ui";
-import { LEAD_INTENTS, leadSchema, type LeadIntent } from "@luminova/types";
+import {
+  LEAD_INTENTS,
+  leadSchema,
+  LEAD_EMAIL_MAX_LENGTH,
+  LEAD_MESSAGE_MAX_LENGTH,
+  LEAD_NAME_MAX_LENGTH,
+  sanitizeBoliviaPhoneInput,
+  type LeadIntent,
+} from "@luminova/types";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { safeHref } from "../site-config/safe-href";
 import { submitLead } from "../leads/submit-lead";
@@ -105,10 +114,9 @@ function ContactForm({ onSuccess }: { onSuccess: () => void }) {
             id="ct-name"
             type="text"
             autoComplete="name"
+            maxLength={LEAD_NAME_MAX_LENGTH}
             value={form.name}
             onChange={(e) => update("name", e.target.value)}
-            aria-invalid={!!errors.name}
-            aria-describedby={errors.name ? "ct-name-err" : undefined}
           />
         </Field>
         <Field label="Email" htmlFor="ct-email" required error={errors.email}>
@@ -116,10 +124,9 @@ function ContactForm({ onSuccess }: { onSuccess: () => void }) {
             id="ct-email"
             type="email"
             autoComplete="email"
+            maxLength={LEAD_EMAIL_MAX_LENGTH}
             value={form.email}
             onChange={(e) => update("email", e.target.value)}
-            aria-invalid={!!errors.email}
-            aria-describedby={errors.email ? "ct-email-err" : undefined}
           />
         </Field>
       </div>
@@ -130,15 +137,12 @@ function ContactForm({ onSuccess }: { onSuccess: () => void }) {
           hint="Para contactarte más rápido por WhatsApp."
           error={errors.phone}
         >
-          <Input
+          <PhoneInput
             id="ct-phone"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
+            sanitize={sanitizeBoliviaPhoneInput}
+            autoComplete="tel-national"
             value={form.phone}
             onChange={(e) => update("phone", e.target.value)}
-            aria-invalid={!!errors.phone}
-            aria-describedby={errors.phone ? "ct-phone-err" : undefined}
             placeholder="70000000"
           />
         </Field>
@@ -163,10 +167,9 @@ function ContactForm({ onSuccess }: { onSuccess: () => void }) {
           <Textarea
             id="ct-message"
             rows={5}
+            maxLength={LEAD_MESSAGE_MAX_LENGTH}
             value={form.message}
             onChange={(e) => update("message", e.target.value)}
-            aria-invalid={!!errors.message}
-            aria-describedby={errors.message ? "ct-message-err" : undefined}
             placeholder="Cuéntanos brevemente qué te interesa."
           />
         </Field>

@@ -20,6 +20,9 @@ import {
 } from "@luminova/ui";
 import {
   notificationCreateSchema,
+  NOTIFICATION_BODY_MAX_LENGTH,
+  NOTIFICATION_TITLE_MAX_LENGTH,
+  NOTIFICATION_URL_MAX_LENGTH,
   type Audience,
   type NotificationCreate,
   type NotificationDoc,
@@ -65,7 +68,7 @@ export function NotificationsPage() {
     return (
       <EmptyState
         icon={Icon.lock({ s: 40 })}
-        title="Acceso restringido"
+        title="Esta sección no está en tu perfil"
         description="No tienes permiso para las notificaciones. Pídele acceso a un administrador."
       />
     );
@@ -102,6 +105,7 @@ function ComposeForm() {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<NotificationCreate>({
+    mode: "onTouched",
     resolver: zodResolver(notificationCreateSchema),
     defaultValues: { title: "", body: "", url: "", audience: { type: "everyone" } },
   });
@@ -121,10 +125,10 @@ function ComposeForm() {
   return (
     <form onSubmit={submit} noValidate className="flex max-w-2xl flex-col gap-4">
       <Field label="Título" htmlFor="title" required error={errors.title?.message}>
-        <Input id="title" maxLength={120} {...register("title")} />
+        <Input id="title" maxLength={NOTIFICATION_TITLE_MAX_LENGTH} {...register("title")} />
       </Field>
       <Field label="Mensaje" htmlFor="body" required error={errors.body?.message}>
-        <Textarea id="body" maxLength={1000} {...register("body")} />
+        <Textarea id="body" maxLength={NOTIFICATION_BODY_MAX_LENGTH} {...register("body")} />
       </Field>
       <Field
         label="Enlace (opcional)"
@@ -136,7 +140,7 @@ function ComposeForm() {
           id="url"
           type="url"
           inputMode="url"
-          maxLength={2000}
+          maxLength={NOTIFICATION_URL_MAX_LENGTH}
           placeholder="https://…"
           {...register("url", { setValueAs: (v) => (v === "" ? null : v) })}
         />
@@ -158,12 +162,16 @@ function ComposeForm() {
           ))}
         </Select>
       </Field>
+      {/* Both flags: isSubmitting covers validation, and compose.isPending covers the send.
+          The handler calls mutate() (not mutateAsync), so isSubmitting is already false
+          while the send is in flight. */}
       <Button
         as="button"
         type="submit"
+        disabled={isSubmitting || compose.isPending}
         className="mt-1 w-full justify-center sm:w-auto sm:self-start"
       >
-        {isSubmitting ? "Enviando…" : "Enviar notificación"}
+        {isSubmitting || compose.isPending ? "Enviando…" : "Enviar notificación"}
       </Button>
 
       {successToast && <Toast message={successToast} icon={Icon.check({ s: 18 })} />}

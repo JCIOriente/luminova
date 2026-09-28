@@ -5,6 +5,7 @@ import { es } from "date-fns/locale";
 import { cn } from "../lib/cn";
 import { fieldControlClasses } from "./input";
 import { Icon } from "./icons";
+import { useFieldTriggerDescribedBy } from "./field-context";
 import { Calendar } from "./calendar";
 import {
   formatISODate,
@@ -52,6 +53,7 @@ function BasePicker({
   children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const ariaDescribedBy = useFieldTriggerDescribedBy(undefined);
   return (
     <Root open={open} onOpenChange={setOpen}>
       <Trigger asChild>
@@ -59,6 +61,7 @@ function BasePicker({
           type="button"
           id={id}
           disabled={disabled}
+          aria-describedby={ariaDescribedBy}
           aria-haspopup="dialog"
           aria-expanded={open}
           className={cn(

@@ -1,10 +1,13 @@
 import { useMemo } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Checkbox, DatePicker, Field, Input } from "@luminova/ui";
+import { Button, Checkbox, DatePicker, Field, Input, PhoneInput } from "@luminova/ui";
 import {
   selfProfileSchemaFor,
   MEMBER_NAME_MAX_LENGTH,
+  PROFESSION_MAX_LENGTH,
+  BOLIVIA_PHONE_PLACEHOLDER,
+  sanitizeBoliviaPhoneInput,
   type Member,
   type SelfProfileInput,
 } from "@luminova/types";
@@ -26,6 +29,7 @@ export function SelfProfileForm({ member }: { member: Member }) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<SelfProfileInput>({
+    mode: "onTouched",
     resolver: zodResolver(schema),
     defaultValues: {
       name: member.name,
@@ -61,17 +65,16 @@ export function SelfProfileForm({ member }: { member: Member }) {
         />
       </Field>
       <Field label="Teléfono" htmlFor="self-phone" error={errors.phone?.message}>
-        <Input
+        <PhoneInput
           id="self-phone"
-          inputMode="numeric"
-          maxLength={16}
+          sanitize={sanitizeBoliviaPhoneInput}
           autoComplete="tel-national"
-          placeholder="8 dígitos"
+          placeholder={BOLIVIA_PHONE_PLACEHOLDER}
           {...register("phone")}
         />
       </Field>
       <Field label="Profesión" htmlFor="self-profession" error={errors.profession?.message}>
-        <Input id="self-profession" {...register("profession")} />
+        <Input id="self-profession" maxLength={PROFESSION_MAX_LENGTH} {...register("profession")} />
       </Field>
       <Field
         label="Fecha de nacimiento"

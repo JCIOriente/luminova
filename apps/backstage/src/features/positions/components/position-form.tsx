@@ -6,6 +6,8 @@ import {
   positionSchema,
   POSITION_CATEGORIES,
   femaleTitle,
+  POSITION_TERM_MIN,
+  POSITION_TERM_MAX,
   type PositionCategory,
   type PositionInput,
 } from "@luminova/types";
@@ -68,6 +70,7 @@ export function PositionForm({
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<PositionInput>({
+    mode: "onTouched",
     resolver: zodResolver(positionSchema),
     // On an EDIT the stored category wins — it is pinned, not chosen. Both branches are
     // module constants, so no fresh object is allocated per render.
@@ -163,7 +166,15 @@ export function PositionForm({
         )}
         {isTermVisible && (
           <Field label="Gestión" htmlFor="term" required error={errors.term?.message}>
-            <Input id="term" type="number" {...register("term", { valueAsNumber: true })} />
+            <Input
+              id="term"
+              type="number"
+              inputMode="numeric"
+              min={POSITION_TERM_MIN}
+              max={POSITION_TERM_MAX}
+              step={1}
+              {...register("term", { valueAsNumber: true })}
+            />
           </Field>
         )}
         <Field

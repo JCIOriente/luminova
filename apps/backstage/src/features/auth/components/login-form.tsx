@@ -19,6 +19,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<LoginInput>({
+    mode: "onTouched",
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
@@ -40,17 +41,17 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       </div>
 
       <div className="mb-4 font-mono text-ui-2xs uppercase tracking-[0.2em] text-jci-blue">
-        Backstage · Acceso privado
+        Portal de miembros · JCI Oriente
       </div>
       <h1 className="text-[31px] font-normal leading-[1.1] -tracking-[0.025em] text-ink-1">
         Bienvenida de nuevo
       </h1>
       <p className="mt-2.5 text-ui-md leading-[1.5] text-ink-3">
-        Inicia sesión para coordinar a la directiva de JCI Oriente.
+        Inicia sesión para participar en la vida del capítulo.
       </p>
 
       <form onSubmit={onSubmit} noValidate className="mt-8 flex flex-col gap-[18px]">
-        <Field label="Correo electrónico" htmlFor="email" error={errors.email?.message}>
+        <Field label="Correo electrónico" htmlFor="email" required error={errors.email?.message}>
           <div className="group relative flex items-center">
             <span className="pointer-events-none absolute left-3.5 flex text-ink-3 transition-colors group-focus-within:text-jci-blue">
               {Icon.mail({ s: 19 })}
@@ -61,17 +62,12 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
               autoComplete="email"
               placeholder="tu.nombre@jcioriente.bo"
               className="pl-11"
-              aria-invalid={errors.email ? true : undefined}
-              aria-describedby={errors.email ? "email-err" : undefined}
               {...register("email")}
             />
           </div>
         </Field>
 
-        <div className="flex flex-col gap-2">
-          <label htmlFor="password" className="text-ui-sm font-semibold text-ink-1">
-            Contraseña
-          </label>
+        <Field label="Contraseña" htmlFor="password" required error={errors.password?.message}>
           <div className="group relative flex items-center">
             <span className="pointer-events-none absolute left-3.5 flex text-ink-3 transition-colors group-focus-within:text-jci-blue">
               {Icon.lock({ s: 19 })}
@@ -82,8 +78,6 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
               autoComplete="current-password"
               placeholder="••••••••"
               className="pl-11 pr-12"
-              aria-invalid={errors.password ? true : undefined}
-              aria-describedby={errors.password ? "password-err" : undefined}
               {...register("password")}
             />
             <button
@@ -95,17 +89,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
               {showPassword ? Icon.eyeOff({ s: 19 }) : Icon.eye({ s: 19 })}
             </button>
           </div>
-          {errors.password && (
-            <div
-              id="password-err"
-              role="alert"
-              className="flex items-center gap-1.5 text-ui-sm text-error"
-            >
-              {Icon.close({ s: 13 })}
-              {errors.password.message}
-            </div>
-          )}
-        </div>
+        </Field>
 
         <Checkbox checked={remember} onChange={setRemember} label="Recordarme" />
 
@@ -128,24 +112,24 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
             )
           }
         >
-          {isSubmitting ? "Entrando…" : "Entrar a Backstage"}
+          {isSubmitting ? "Entrando…" : "Entrar al portal"}
         </Button>
       </form>
 
       {/* NOT a link any more. There is no self-service recovery: all of it is
           operator-mediated, so pointing at a /forgot-password route would be pointing at a
-          page that cannot help. The CEL footnote below is now the actual escape hatch. */}
+          page that cannot help. The mailto footnote below is now the actual escape hatch. */}
       <p className="mt-9 text-ui-xs leading-[1.5] text-ink-3">
-        ¿Olvidaste tu contraseña? Pídele a la directiva que te envíe un enlace de acceso.
+        ¿Olvidaste tu contraseña? Escríbenos y te enviamos un nuevo enlace de acceso.
       </p>
 
       <p className="mt-2 text-ui-xs leading-[1.5] text-ink-3">
-        ¿Aún no tienes acceso? La cuenta la crea la directiva.{" "}
+        ¿Aún no tienes cuenta? Te la creamos al unirte al capítulo.{" "}
         <a
           href="mailto:jci.orienteolm@gmail.com"
           className="font-semibold text-jci-blue hover:text-jci-blue-2"
         >
-          Escríbele al CEL
+          Escríbenos
         </a>
         .
       </p>

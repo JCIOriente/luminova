@@ -41,7 +41,7 @@ export type InitiativeRosterInput = z.infer<typeof initiativeRosterSchema>;
 
 export const initiativeFormSchema = z
   .object({
-    title: z.string().min(3, "Mínimo 3 caracteres."),
+    title: z.string().trim().min(3, "Mínimo 3 caracteres."),
     description: z.string().min(10, "Mínimo 10 caracteres."),
     category: z.enum(AREAS_OF_OPPORTUNITY),
     startDate: z.string().min(1, "Requerido."),

@@ -6,6 +6,7 @@ export { Card, cardSurfaceClasses, cardInteractiveClasses } from "./components/c
 export { ArrowLink } from "./components/arrow-link";
 export { Icon, ArrowRight, type IconKey } from "./components/icons";
 export { Input, fieldControlClasses } from "./components/input";
+export { PhoneInput } from "./components/phone-input";
 export { SearchInput } from "./components/search-input";
 export { Textarea } from "./components/textarea";
 export { Select } from "./components/select";

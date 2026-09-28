@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Field, Input, Select } from "@luminova/ui";
+import { Button, Field, Input, PhoneInput, Select } from "@luminova/ui";
 import {
   allySchema,
   ALLY_CATEGORIES,
   ALLY_CATEGORY_LABELS,
+  BOLIVIA_PHONE_PLACEHOLDER,
+  sanitizeBoliviaPhoneInput,
   type AllyInput,
   type Ally,
 } from "@luminova/types";
@@ -42,6 +44,7 @@ export function AllyForm({
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<AllyInput>({
+    mode: "onTouched",
     resolver: zodResolver(allySchema),
     defaultValues: toDefaults(ally),
   });
@@ -69,17 +72,16 @@ export function AllyForm({
         <Input id="contactPerson" {...register("contactPerson")} />
       </Field>
       <Field label="Teléfono" htmlFor="phone" required error={errors.phone?.message}>
-        <Input
+        <PhoneInput
           id="phone"
-          inputMode="numeric"
-          maxLength={16}
-          autoComplete="tel-national"
-          placeholder="8 dígitos"
+          sanitize={sanitizeBoliviaPhoneInput}
+          autoComplete="off"
+          placeholder={BOLIVIA_PHONE_PLACEHOLDER}
           {...register("phone")}
         />
       </Field>
       <Field label="Correo" htmlFor="email" required error={errors.email?.message}>
-        <Input id="email" type="email" {...register("email")} />
+        <Input id="email" type="email" autoComplete="off" {...register("email")} />
       </Field>
       <Field label="Categoría" htmlFor="category" error={errors.category?.message}>
         <Select
@@ -113,7 +115,12 @@ export function AllyForm({
           {formError}
         </div>
       )}
-      <Button as="button" type="submit" className="mt-1 w-full justify-center">
+      <Button
+        as="button"
+        type="submit"
+        disabled={isSubmitting}
+        className="mt-1 w-full justify-center"
+      >
         {isSubmitting ? "Guardando…" : submitLabel}
       </Button>
     </form>

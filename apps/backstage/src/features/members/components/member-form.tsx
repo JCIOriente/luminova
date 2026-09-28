@@ -9,6 +9,7 @@ import {
   Field,
   Input,
   MultiSelect,
+  PhoneInput,
   SegmentedControl,
   Select,
   initials,
@@ -21,6 +22,9 @@ import {
   MEMBER_STATUSES,
   MEMBER_GENDERS,
   MEMBER_NAME_MAX_LENGTH,
+  PROFESSION_MAX_LENGTH,
+  BOLIVIA_PHONE_PLACEHOLDER,
+  sanitizeBoliviaPhoneInput,
 } from "@luminova/types";
 import { avatarColor } from "../lib/member-display";
 import {
@@ -124,6 +128,7 @@ export function MemberForm({
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<MemberInput>({
+    mode: "onTouched",
     resolver: zodResolver(schema),
     defaultValues: { ...EMPTY, ...defaultValues },
   });
@@ -224,7 +229,7 @@ export function MemberForm({
           <Input id="name" maxLength={MEMBER_NAME_MAX_LENGTH} {...register("name")} />
         </Field>
         <Field label="Correo" htmlFor="email" required error={errors.email?.message}>
-          <Input id="email" type="email" {...register("email")} />
+          <Input id="email" type="email" autoComplete="off" {...register("email")} />
         </Field>
         <Field label="Género" htmlFor="gender" required error={errors.gender?.message}>
           <Controller
@@ -243,17 +248,16 @@ export function MemberForm({
           />
         </Field>
         <Field label="Teléfono" htmlFor="phone" error={errors.phone?.message}>
-          <Input
+          <PhoneInput
             id="phone"
-            inputMode="numeric"
-            maxLength={16}
-            autoComplete="tel-national"
-            placeholder="8 dígitos"
+            sanitize={sanitizeBoliviaPhoneInput}
+            autoComplete="off"
+            placeholder={BOLIVIA_PHONE_PLACEHOLDER}
             {...register("phone")}
           />
         </Field>
         <Field label="Profesión" htmlFor="profession" error={errors.profession?.message}>
-          <Input id="profession" {...register("profession")} />
+          <Input id="profession" maxLength={PROFESSION_MAX_LENGTH} {...register("profession")} />
         </Field>
         <Field
           label="Fecha de nacimiento"

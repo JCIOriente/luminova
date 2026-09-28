@@ -28,7 +28,7 @@ const MESSAGES: Readonly<Record<InviteBlockReason, string>> = {
   "invite-expired":
     "Este enlace ya venció. Pídele a quien te invitó que te envíe uno nuevo — los enlaces duran 48 horas.",
   "invite-used":
-    "Este enlace ya se usó. Si fuiste tú, inicia sesión con tu contraseña; si no, avisa a la directiva.",
+    "Este enlace ya se usó. Si fuiste tú, inicia sesión con tu contraseña; si no, avísanos para revisarlo.",
   "invite-revoked":
     "Se generó un enlace más reciente y este dejó de funcionar. Busca el último que te enviaron.",
   // NOT the generic copy: the only remedy is an ADMINISTRATOR re-issuing, because a delegate
@@ -37,7 +37,7 @@ const MESSAGES: Readonly<Record<InviteBlockReason, string>> = {
   "invite-member-now-privileged":
     "Tu cuenta ahora tiene permisos especiales, así que este enlace dejó de servir. Pídele a un administrador que te genere uno nuevo.",
   "invite-account-disabled":
-    "Tu cuenta está deshabilitada. Comunícate con la directiva antes de crear tu contraseña.",
+    "Tu cuenta está deshabilitada. Escríbenos para reactivarla antes de crear tu contraseña.",
   "invite-password-weak":
     "Esa contraseña no cumple los requisitos. Revisa la lista de abajo e inténtalo de nuevo.",
   // The only TEMPORARY refusal. The bucket refills one slot every 12 s, so "unos segundos" is
@@ -45,16 +45,16 @@ const MESSAGES: Readonly<Record<InviteBlockReason, string>> = {
   // because waiting is the whole remedy and a new link would not help.
   "invite-too-many-attempts":
     "Demasiados intentos. Espera unos segundos y vuelve a intentarlo — el enlace sigue siendo válido.",
-  // OUR misconfiguration, not the invitee's connection and not the link. Names the directiva
-  // because telling someone who can fix the deployment is the only remedy they have, and says
-  // the link survives so they do not burn a fresh invite for nothing.
+  // OUR misconfiguration, not the invitee's connection and not the link. Asks them to let us
+  // know because telling someone who can fix the deployment is the only remedy they have, and
+  // says the link survives so they do not burn a fresh invite for nothing.
   //
   // NO "vuelve a intentarlo" clause, deliberately: this reason takes `recovery: none`, and the
   // copy/affordance guard in the tests fails any load-path message that instructs a retry while
   // withholding the button. Telling someone to retry a condition that lasts as long as the
   // container is the defect, not the wording.
   "invite-service-misconfigured":
-    "No pudimos abrir el enlace por un problema de configuración de nuestro servidor. El enlace sigue siendo válido: avisa a la directiva para que lo revise.",
+    "No pudimos abrir el enlace por un problema de configuración de nuestro servidor. El enlace sigue siendo válido: avísanos para que lo revisemos.",
   // The token is spent and the member still has no password — they cannot simply retry.
   "invite-update-failed":
     "No pudimos guardar tu contraseña y este enlace ya se consumió. Pídele a quien te invitó que te envíe uno nuevo.",
@@ -109,7 +109,7 @@ const OUR_FAULT_REASONS: ReadonlySet<string> = new Set<InviteBlockReason>([
  *  it needs a browser that is ALREADY signed in — an operator testing a link, or a member
  *  opening one in a tab holding a session the SDK can no longer refresh (revoked, or a deleted
  *  user). That person then gets ATTESTATION_BLOCKED: reload, try another browser, disable
- *  extensions, tell the directiva — none of which is the remedy, which is to sign out.
+ *  extensions, let us know — none of which is the remedy, which is to sign out.
  *
  *  Not special-cased here because the client cannot tell the two apart from the error alone,
  *  and guessing wrong would send a genuinely blocked invitee to sign out of an account they do
@@ -168,7 +168,7 @@ const ATTESTATION_RETRY_AFTER_SECONDS = 15;
 const ATTESTATION_BLOCKED =
   "No pudimos completar la verificación de seguridad. Inténtalo de nuevo en un momento. " +
   "Si sigue fallando, prueba con otro navegador o desactiva las extensiones que bloquean " +
-  "contenido, y avisa a la directiva.";
+  "contenido, y avísanos.";
 
 /** The headline above the message.
  *

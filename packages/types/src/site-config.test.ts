@@ -137,3 +137,13 @@ describe("siteConfigSchema", () => {
     expect(r.success).toBe(false);
   });
 });
+
+describe("siteConfigSchema contact email", () => {
+  it("trims a padded email to the bare address", () => {
+    const r = siteConfigSchema.safeParse({
+      ...valid,
+      contact: { ...valid.contact, email: "  a@b.co  " },
+    });
+    expect(r.success && r.data.contact.email).toBe("a@b.co");
+  });
+});

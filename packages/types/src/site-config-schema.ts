@@ -40,6 +40,9 @@ const linktreeSchema = z.object({
   ),
 });
 
+export const EFFICIENCY_PCT_MIN = 0;
+export const EFFICIENCY_PCT_MAX = 100;
+
 export const siteConfigSchema = z.object({
   hero: z.object({ motto: reqText, submotto: z.string() }),
   stats: z.object({
@@ -49,15 +52,15 @@ export const siteConfigSchema = z.object({
     nationalAwards: intMin0,
     efficiencyPct: z
       .number({ error: "Ingresa un número" })
-      .min(0, "Mínimo 0")
-      .max(100, "Máximo 100"),
+      .min(EFFICIENCY_PCT_MIN, `Mínimo ${EFFICIENCY_PCT_MIN}`)
+      .max(EFFICIENCY_PCT_MAX, `Máximo ${EFFICIENCY_PCT_MAX}`),
     standoutOrg: z.object({ year: reqText, title: reqText }),
   }),
   timeline: z.array(z.object({ year: reqText, title: reqText, description: z.string() })),
   mvv: z.object({ mision: reqText, vision: reqText, valores: reqText }),
   reasons: z.array(z.object({ number: z.string(), title: reqText, body: z.string() })),
   contact: z.object({
-    email: z.string().email("Correo no válido"),
+    email: z.string().trim().email("Correo no válido"),
     location: reqText,
     meetingSchedule: reqText,
     mapUrl: optionalSafeUrl,

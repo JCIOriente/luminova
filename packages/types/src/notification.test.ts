@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { audienceSchema, notificationCreateSchema, INBOX_MUTABLE_FIELDS } from "./notification.js";
+import {
+  audienceSchema,
+  notificationCreateSchema,
+  INBOX_MUTABLE_FIELDS,
+  NOTIFICATION_BODY_MAX_LENGTH,
+  NOTIFICATION_TITLE_MAX_LENGTH,
+  NOTIFICATION_URL_MAX_LENGTH,
+} from "./notification.js";
 
 describe("audienceSchema", () => {
   it("accepts everyone and members without roleId", () => {
@@ -40,5 +47,41 @@ describe("notificationCreateSchema", () => {
 describe("INBOX_MUTABLE_FIELDS", () => {
   it("locks everything except read", () => {
     expect(INBOX_MUTABLE_FIELDS).toEqual(["read"]);
+  });
+});
+
+describe("notificationCreateSchema messages are Spanish", () => {
+  const payload = {
+    title: "Hola",
+    body: "Cuerpo",
+    url: null,
+    audience: { type: "everyone" as const },
+  };
+  const messageFor = (input: Record<string, unknown>) => {
+    const r = notificationCreateSchema.safeParse({ ...payload, ...input });
+    return r.success ? null : r.error.issues[0]?.message;
+  };
+  it("requires a title", () => {
+    expect(messageFor({ title: "" })).toBe("Requerido.");
+  });
+  it("requires a body", () => {
+    expect(messageFor({ body: "" })).toBe("Requerido.");
+  });
+  it("caps the title", () => {
+    expect(messageFor({ title: "x".repeat(NOTIFICATION_TITLE_MAX_LENGTH + 1) })).toBe(
+      `Máximo ${NOTIFICATION_TITLE_MAX_LENGTH} caracteres.`,
+    );
+  });
+  it("caps the body", () => {
+    expect(messageFor({ body: "x".repeat(NOTIFICATION_BODY_MAX_LENGTH + 1) })).toBe(
+      `Máximo ${NOTIFICATION_BODY_MAX_LENGTH} caracteres.`,
+    );
+  });
+  it("caps the url", () => {
+    const url = `https://jci.bo/${"x".repeat(NOTIFICATION_URL_MAX_LENGTH)}`;
+    expect(messageFor({ url })).toBe(`Máximo ${NOTIFICATION_URL_MAX_LENGTH} caracteres.`);
+  });
+  it("rejects a malformed url", () => {
+    expect(messageFor({ url: "no es un enlace" })).toBe("Ingresa un enlace válido.");
   });
 });

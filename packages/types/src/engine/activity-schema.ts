@@ -1,11 +1,15 @@
 import { z } from "zod";
 import { ACTIVITY_CATEGORIES, INITIATIVE_KINDS } from "./activity.js";
 
+export const ACTIVITY_LOCATION_MAX_LENGTH = 300;
+
 export const activitySchema = z
   .object({
-    title: z.string().min(3, "Mínimo 3 caracteres."),
+    title: z.string().trim().min(3, "Mínimo 3 caracteres."),
     description: z.string(),
-    location: z.string().max(300, "Máximo 300 caracteres."),
+    location: z
+      .string()
+      .max(ACTIVITY_LOCATION_MAX_LENGTH, `Máximo ${ACTIVITY_LOCATION_MAX_LENGTH} caracteres.`),
     category: z.enum(ACTIVITY_CATEGORIES),
     parentType: z.enum(INITIATIVE_KINDS).nullable(),
     parentId: z.string().min(1).nullable(),

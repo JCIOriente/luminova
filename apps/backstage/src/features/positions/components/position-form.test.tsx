@@ -268,3 +268,12 @@ describe("PositionForm category-aware fields", () => {
     expect(screen.getByLabelText(/variante femenina/i)).toHaveAttribute("placeholder", "Directora");
   });
 });
+
+describe("PositionForm validates on blur", () => {
+  it("shows the title error when the user leaves the field, without submitting", async () => {
+    render(<PositionForm submitLabel="Crear" canEditGrants onSubmit={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Cargo *"), "AB");
+    await userEvent.tab();
+    expect(await screen.findByText("Mínimo 3 caracteres.")).toBeInTheDocument();
+  });
+});

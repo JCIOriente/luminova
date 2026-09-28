@@ -107,6 +107,7 @@ chunks). Paths are relative to `packages/ui/src/`.
 | `Button` (variants: primary/secondary/ghost, `onDark`/`onBlue`, `sm`; polymorphic `a`/`button`) | `components/button.tsx`             |
 | `Input`                                                                                         | `components/input.tsx`              |
 | `SearchInput` (leading icon; `label` sr-only required, `size` md/sm)                            | `components/search-input.tsx`       |
+| `PhoneInput` (tel keypad; required `sanitize` caps typed + pasted text, no `maxLength`)       | `components/phone-input.tsx`        |
 | `Textarea`                                                                                      | `components/textarea.tsx`           |
 | `Select`                                                                                        | `components/select.tsx`             |
 | `Field` (label + error wrapper)                                                                 | `components/field.tsx`              |

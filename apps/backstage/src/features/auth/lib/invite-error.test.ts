@@ -227,13 +227,13 @@ describe("inviteRefusal — an App Check rejection is not a network blip", () =>
     // word order the proxy for an affordance decision the type could not hold. It can now, so
     // the ordering that matters (retry, then reload) is asserted where it lives: in the
     // recovery kind above and in the component that renders the two buttons. What is left
-    // here is the part no affordance can replace — unblocking an extension and telling the
-    // directiva are things only the invitee can do, so the copy must still say them.
+    // here is the part no affordance can replace — unblocking an extension and letting us know
+    // are things only the invitee can do, so the copy must still say them.
     const message = inviteRefusal(attestationFailure).message ?? "";
     expect(message).toMatch(/de nuevo en un momento/i);
     expect(message).toMatch(/navegador/i);
     expect(message).toMatch(/extensi[óo]n|extensiones/i);
-    expect(message).toMatch(/directiva/i);
+    expect(message).toMatch(/av[íi]sanos/i);
   });
 
   it("logs it, so a silent lockout leaves a trace in the console", () => {
@@ -373,12 +373,12 @@ describe("inviteRefusal — a refused MISCONFIGURED service is not a network bli
     expect(refusal.message).not.toMatch(/conexi[óo]n/i);
   });
 
-  it("says the link is still valid, and points at the directiva", () => {
+  it("says the link is still valid, and asks us to review it", () => {
     // Accurate and load-bearing: the token was never consumed — the guard refuses before the
     // claim — so sending them to chase a new link would waste an invite for nothing.
     const refusal = inviteRefusal(misconfigured);
     expect(refusal.message).toMatch(/sigue siendo v[áa]lido/i);
-    expect(refusal.message).toMatch(/directiva/i);
+    expect(refusal.message).toMatch(/av[íi]sanos/i);
   });
 
   it("withholds the retry affordance, because a retry can NEVER clear it", () => {

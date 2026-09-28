@@ -171,3 +171,9 @@ describe("initiativeImpactSchema", () => {
     ).toBe(false);
   });
 });
+
+describe("initiativeFormSchema title", () => {
+  it("rejects a whitespace-only title", () => {
+    expect(initiativeFormSchema.safeParse({ ...base, title: "     " }).success).toBe(false);
+  });
+});

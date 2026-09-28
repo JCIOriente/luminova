@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { LINKTREE_SOCIAL_PLATFORMS, type SiteConfigInput } from "@luminova/types";
 import { SiteConfigForm } from "./site-config-form";
 
@@ -42,7 +43,7 @@ function renderForm(defaultValues: SiteConfigInput) {
     <SiteConfigForm defaultValues={defaultValues} lastSaved={new Date(0)} onSubmit={onSubmit} />,
   );
   // The submit button is disabled until the form is dirty; edit the open field.
-  fireEvent.change(screen.getByLabelText("Lema"), { target: { value: "Nuevo lema" } });
+  fireEvent.change(screen.getByLabelText("Lema *"), { target: { value: "Nuevo lema" } });
   return { onSubmit };
 }
 
@@ -52,13 +53,25 @@ describe("SiteConfigForm error visibility", () => {
     renderForm(bad);
 
     // MVV section starts collapsed — its field is not mounted.
-    expect(screen.queryByLabelText("Misión")).toBeNull();
+    expect(screen.queryByLabelText("Misión *")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
     // It auto-expands so the invalid field becomes visible and flagged.
-    await waitFor(() => expect(screen.getByLabelText("Misión")).toBeInTheDocument());
-    expect(screen.getByLabelText("Misión")).toHaveAttribute("aria-invalid", "true");
+    await waitFor(() => expect(screen.getByLabelText("Misión *")).toBeInTheDocument());
+    expect(screen.getByLabelText("Misión *")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("shows the error for a blank linktree handle, which it used to count but never render", async () => {
+    const bad = { ...validInput, linktree: { ...validInput.linktree, handle: "" } };
+    renderForm(bad);
+
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Usuario *")).toBeInTheDocument());
+    const handle = screen.getByLabelText("Usuario *");
+    expect(handle).toHaveAttribute("aria-describedby", "lt-handle-err");
+    expect(document.getElementById("lt-handle-err")).toHaveTextContent("Requerido.");
   });
 
   it("counts invalid fields, not top-level sections", async () => {
@@ -72,5 +85,21 @@ describe("SiteConfigForm error visibility", () => {
       expect(screen.getByText("Corrige 2 campos antes de guardar")).toBeInTheDocument(),
     );
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe("SiteConfigForm keeps errors behind the first save attempt", () => {
+  // Blur validation populates RHF's errors, but this form reveals them only once a save has
+  // been attempted: a long form lit up while the editor is still filling it reads as nagging.
+  it("does not flag a blanked field when the user merely leaves it", async () => {
+    render(
+      <SiteConfigForm defaultValues={validInput} lastSaved={new Date(0)} onSubmit={vi.fn()} />,
+    );
+    const motto = screen.getByLabelText("Lema *");
+    await userEvent.clear(motto);
+    await userEvent.tab();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(motto).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByText("Requerido.")).toBeNull();
   });
 });

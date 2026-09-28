@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import type { AuthClaims } from "@luminova/auth/roles";
 import type { NotificationDoc, RoleDefinition } from "@luminova/types";
@@ -8,7 +9,11 @@ const mutate = vi.fn();
 
 // Mutable so the lifecycle cases can vary the role list and the sent history without
 // re-mocking per test; reset in beforeEach so no case leaks into the next.
-const state = vi.hoisted(() => ({ roles: [] as unknown[], sent: [] as unknown[] }));
+const state = vi.hoisted(() => ({
+  roles: [] as unknown[],
+  sent: [] as unknown[],
+  isPending: false,
+}));
 
 vi.mock("../hooks/use-sent-notifications", () => ({
   useSentNotifications: () => ({
@@ -20,7 +25,7 @@ vi.mock("../hooks/use-sent-notifications", () => ({
   }),
 }));
 vi.mock("../hooks/use-compose-notification", () => ({
-  useComposeNotification: () => ({ mutate, isPending: false }),
+  useComposeNotification: () => ({ mutate, isPending: state.isPending }),
 }));
 vi.mock("../../permissions/hooks/use-roles", () => ({
   useRoles: () => ({ data: state.roles, isLoading: false }),
@@ -67,6 +72,7 @@ const sentTo = (roleId: string): NotificationDoc =>
 beforeEach(() => {
   state.roles = [];
   state.sent = [];
+  state.isPending = false;
 });
 
 function renderWith(claims: AuthClaims, ui: ReactElement) {
@@ -80,13 +86,13 @@ function renderWith(claims: AuthClaims, ui: ReactElement) {
 describe("NotificationsPage — access gate", () => {
   it("fences out a principal without create:Notification or read:Notification", () => {
     renderWith({ roles: ["Member"] }, <NotificationsPage />);
-    expect(screen.getByText(/acceso restringido/i)).toBeInTheDocument();
+    expect(screen.getByText(/esta sección no está en tu perfil/i)).toBeInTheDocument();
     expect(screen.queryByText(/^Notificaciones$/)).not.toBeInTheDocument();
   });
 
   it("renders the compose form + history for an authorized principal", () => {
     renderWith(FULL_ACCESS, <NotificationsPage />);
-    expect(screen.queryByText(/acceso restringido/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/esta sección no está en tu perfil/i)).not.toBeInTheDocument();
     expect(screen.getByText(/envía un aviso a los miembros/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^Título/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /enviar notificación/i })).toBeInTheDocument();
@@ -111,6 +117,18 @@ describe("NotificationsPage — compose submit", () => {
       url: null,
       audience: { type: "everyone" },
     });
+  });
+});
+
+describe("NotificationsPage — in-flight send", () => {
+  // Pins that the button reads the mutation's own pending state. The handler calls mutate(),
+  // not mutateAsync(), so RHF's isSubmitting alone would read false here. This does not
+  // exercise real double-click timing: the mutation is mocked.
+  it("disables the send button while the mutation is pending", () => {
+    state.isPending = true;
+    renderWith(FULL_ACCESS, <NotificationsPage />);
+    const button = screen.getByRole("button", { name: /enviando/i });
+    expect(button).toBeDisabled();
   });
 });
 
@@ -143,5 +161,16 @@ describe("NotificationsPage — audience options", () => {
 
     expect(screen.getByRole("cell", { name: "Comunicaciones Retirado" })).toBeInTheDocument();
     expect(screen.queryByText("c_dead")).not.toBeInTheDocument();
+  });
+});
+
+describe("NotificationsPage — validates on blur", () => {
+  it("shows the title error in Spanish when the user leaves it empty, without submitting", async () => {
+    mutate.mockClear();
+    renderWith(FULL_ACCESS, <NotificationsPage />);
+    await userEvent.click(screen.getByLabelText(/^Título/));
+    await userEvent.tab();
+    expect(await screen.findByText("Requerido.")).toBeInTheDocument();
+    expect(mutate).not.toHaveBeenCalled();
   });
 });

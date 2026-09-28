@@ -21,7 +21,7 @@ export function AppTopbar({ onOpenNav }: { onOpenNav: () => void }) {
         {Icon.menu({ s: 22 })}
       </IconButton>
       <div className="flex min-w-0 items-center gap-2.5">
-        <span className="text-ui-sm font-medium text-ink-3">Backstage</span>
+        <span className="text-ui-sm font-medium text-ink-3">Portal de miembros</span>
         <span className="text-ink-3">{Icon.chevRight({ s: 14 })}</span>
         <span className="min-w-0 truncate text-ui-lg font-semibold text-ink-1">{current}</span>
       </div>
@@ -43,7 +43,7 @@ export function AppTopbar({ onOpenNav }: { onOpenNav: () => void }) {
         className="hidden h-[38px] w-[268px] items-center gap-2.5 rounded-[10px] border border-line bg-surface-2 px-3 text-ink-3 transition-colors hover:border-line-strong hover:text-ink-2 lg:flex"
       >
         {Icon.search({ s: 17 })}
-        <span className="flex-1 text-left text-ui-sm">Buscar en Backstage…</span>
+        <span className="flex-1 text-left text-ui-sm">Buscar en el portal…</span>
         <kbd className="rounded-[6px] border border-line-strong px-1.5 py-0.5 font-mono text-ui-2xs text-ink-3">
           ⌘K
         </kbd>

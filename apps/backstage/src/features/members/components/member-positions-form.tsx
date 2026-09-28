@@ -67,7 +67,11 @@ export function MemberPositionsForm({
     handleSubmit,
     watch,
     formState: { isSubmitting },
-  } = useForm<PositionsInput>({ resolver: zodResolver(positionsSchema), defaultValues });
+  } = useForm<PositionsInput>({
+    mode: "onTouched",
+    resolver: zodResolver(positionsSchema),
+    defaultValues,
+  });
 
   // A power-granting current cargo locks the whole slot for anyone but an Admin: every save
   // re-stamps that cargoId, and `currentCargoGrantsEmpty()` blocks clearing it too, so nothing
