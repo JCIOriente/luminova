@@ -60,6 +60,13 @@ describe("PhoneInput caret", () => {
     return screen.getByLabelText<HTMLInputElement>("Tel");
   }
 
+  it("finds the prefix sanitize actually stripped when the kept digits repeat it", async () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="59159159" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    await userEvent.type(input, "1", { initialSelectionStart: 8, initialSelectionEnd: 8 });
+    expect(input.value).toBe("591591");
+  });
+
   it("rejects a digit inserted mid-string into a full field, keeping value and caret", async () => {
     const input = setup();
     await userEvent.type(input, "70012345");

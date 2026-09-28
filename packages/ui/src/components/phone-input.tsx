@@ -42,8 +42,10 @@ function placeSelection(input: HTMLInputElement, start: number, end = start) {
  *  of raw's digits. */
 function digitLoss(raw: string, clean: string) {
   const digits = raw.replace(/\D/g, "");
-  const prefix = Math.max(0, digits.indexOf(clean));
-  return { prefix, truncated: digits.length - prefix > clean.length };
+  // Not indexOf alone: kept digits that repeat the prefix ("591591") would match too early.
+  const truncated = !digits.endsWith(clean);
+  const prefix = truncated ? Math.max(0, digits.indexOf(clean)) : digits.length - clean.length;
+  return { prefix, truncated };
 }
 
 /** Phone control: tel keypad, and a value capped at input time for typing and pasting alike.
@@ -65,6 +67,7 @@ export function PhoneInput({ sanitize, onChange, ref, ...props }: PhoneInputProp
 
   // An Effect Event, so the listener attached once below always sees the current `sanitize`.
   const onBeforeInput = useEffectEvent((event: InputEvent) => {
+    snapshot.current = null;
     const input = inputRef.current;
     if (!input || TRUNCATABLE_INPUT.has(event.inputType)) return;
     const start = input.selectionStart ?? input.value.length;
