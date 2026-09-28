@@ -501,8 +501,7 @@ it in a copy dialog with its expiry.
      (`apps/beacon/src/token-verification-bypass.ts`), pinned against each callable's declaration
      by `app-check-scope.test.ts`. The App Check console has no Cloud Functions switch, because
      Cloud Functions is not an App Check-enforceable product; the `onCall` option is the whole
-     control, and firebase-functions applies it itself before the
-     handler runs. The invite pair was first logged live in production on 2026-09-23.
+     control, and firebase-functions applies it itself before the handler runs. The invite pair was first logged live in production on 2026-09-23.
    - **The rest of the deploy list does not enforce.** `setUserRoles`, `seedRoles`,
      `recomputeAllClaims` and `reseedBuiltInRolePerms` are called by hand by the owner with an ID
      token and no App Check token, so enforcing there would lock those calls out.
@@ -706,9 +705,9 @@ it in a copy dialog with its expiry.
 
    **Every deployed CALLABLE, not just the invite pair** — the debug pair forges Auth tokens on
    the authenticated ones too (below), so scoping the assertion to two services would leave the
-   callables with the most reach unchecked. The list is enumerated in `deploy.yml` and pinned by a test
-   in `redeem-invite.test.ts` against `index.ts`'s own callable exports, so a new callable turns
-   that test red until the YAML is widened. Nothing auto-widens.
+   callables with the most reach unchecked. The list is enumerated in `deploy.yml` and pinned by
+   a test in `redeem-invite.test.ts` against `index.ts`'s own callable exports, so a new callable
+   turns that test red until the YAML is widened. Nothing auto-widens.
 
    **A healthy deploy prints one `ok:` line per callable in that list** — the 2026-09-27 deploy
    (run 36290598970) did. Every argument is required to exist — one unreadable service fails the
@@ -769,8 +768,8 @@ it in a copy dialog with its expiry.
    `FUNCTIONS_EMULATOR`, the debug pair is readable by the running container itself, so
    `tokenVerificationBypassEnabled()` in `apps/beacon/src/token-verification-bypass.ts` evaluates
    the real condition and `assertTokenVerificationNotBypassed()` refuses while it holds —
-   `internal` on the authenticated callables outside the invite pair, and on the invite pair `failed-precondition`
-   tagged `invite-service-misconfigured`, which is what lets `/invitacion` withhold the retry
+   `internal` on the authenticated callables outside the invite pair, and on the invite pair
+   `failed-precondition` tagged `invite-service-misconfigured`, which is what lets `/invitacion` withhold the retry
    button and tell the invitee the link is still good. If someone reports *"problema de
    configuración de nuestro servidor"* on `/invitacion`, this is the section they are in. It runs
    first in every callable's handler, because `guardedOnCall` (`apps/beacon/src/guarded-on-call.ts`)
