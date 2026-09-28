@@ -2,10 +2,13 @@ import { z } from "zod";
 
 /** Bolivia phone numbers are exactly 8 digits (mobiles start 6/7, landlines 2/3/4). */
 export const BOLIVIA_PHONE_LENGTH = 8;
-const BOLIVIA_PHONE_REGEX = new RegExp(`^\\d{${BOLIVIA_PHONE_LENGTH}}$`);
+/** Mirrored byte-for-byte by selfProfileValid() in firestore.rules, which has no `\d`, so
+ *  this is written with `[0-9]`. member-self-lane.rules.test.ts fails if the two drift. */
+export const BOLIVIA_PHONE_PATTERN = `^[23467][0-9]{${BOLIVIA_PHONE_LENGTH - 1}}$`;
+const BOLIVIA_PHONE_REGEX = new RegExp(BOLIVIA_PHONE_PATTERN);
 /** Placeholder for a phone input, derived so it cannot disagree with the length. */
 export const BOLIVIA_PHONE_PLACEHOLDER = `${BOLIVIA_PHONE_LENGTH} dígitos`;
-const DIGITS_MESSAGE = `El teléfono debe tener ${BOLIVIA_PHONE_LENGTH} dígitos.`;
+const DIGITS_MESSAGE = `El teléfono debe tener ${BOLIVIA_PHONE_LENGTH} dígitos y empezar con 2, 3, 4, 6 o 7.`;
 
 /**
  * Reduce user-entered or legacy phone input to bare national digits: strip spaces,
@@ -53,14 +56,14 @@ export function boliviaWhatsAppUrl(value: string | undefined, text?: string): st
   return text ? `${base}?text=${encodeURIComponent(text)}` : base;
 }
 
-/** Required phone: normalizes formatting/country code, then requires 8 digits (empty → "Requerido."). */
+/** Required phone: normalizes formatting/country code, then requires 8 digits starting 2, 3, 4, 6 or 7 (empty → "Requerido."). */
 export const boliviaPhoneRequired = z
   .string()
   .transform(normalizeBoliviaPhone)
   .refine((v) => v.length > 0, "Requerido.")
   .refine((v) => BOLIVIA_PHONE_REGEX.test(v), DIGITS_MESSAGE);
 
-/** Optional phone: blank allowed; a provided value is normalized then must be 8 digits. */
+/** Optional phone: blank allowed; a provided value is normalized then must be 8 digits starting 2, 3, 4, 6 or 7. */
 export const boliviaPhoneOptional = z
   .string()
   .transform(normalizeBoliviaPhone)

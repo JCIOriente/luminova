@@ -45,3 +45,16 @@ describe("allySchema", () => {
     expect(allySchema.safeParse(valid).success).toBe(true);
   });
 });
+
+describe("allySchema trims what it validates", () => {
+  it("trims a padded email to the bare address", () => {
+    const r = allySchema.safeParse({ ...valid, email: "  a@b.co  " });
+    expect(r.success && r.data.email).toBe("a@b.co");
+  });
+  it("rejects a whitespace-only companyName", () => {
+    expect(allySchema.safeParse({ ...valid, companyName: "     " }).success).toBe(false);
+  });
+  it("rejects a whitespace-only contactPerson", () => {
+    expect(allySchema.safeParse({ ...valid, contactPerson: "     " }).success).toBe(false);
+  });
+});

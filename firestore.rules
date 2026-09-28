@@ -450,13 +450,14 @@ service cloud.firestore {
     // it drifts from selfProfileSchema (rules mirror code — guardrail #2).
     //
     // Mirrors memberSchema (packages/types/src/member-schema.ts + phone.ts + member-name.ts):
-    // the phone is 8 national digits or blank, profession is capped free text, birthdate is
-    // a real date. The admin lane is not held to these — it writes them through a form that
-    // already validates them, while a self-write is the one path a member reaches without
-    // that form. The name is the exception: memberNameValid() binds every lane.
+    // the phone is 8 national digits starting 2/3/4 (landline) or 6/7 (mobile), or blank;
+    // profession is capped free text; birthdate is a real date. The admin lane is not held
+    // to these — it writes them through a form that already validates them, while a
+    // self-write is the one path a member reaches without that form. The name is the
+    // exception: memberNameValid() binds every lane.
     //
     // Only the keys a write TOUCHES are shape-checked: a member's photo upload must not be
-    // denied by a legacy phone value stored before the 8-digit format was enforced.
+    // denied by a legacy phone value stored before the current format was enforced.
     function selfProfileValid(changed) {
       let d = request.resource.data;
       // .get(...) everywhere: clearing a field makes it ABSENT, and a bare d.phone would
@@ -470,7 +471,7 @@ service cloud.firestore {
           || (d.get('profession', '') is string && d.get('profession', '').size() <= 80))
         && (!changed.hasAny(['phone'])
           || (d.get('phone', '') is string
-              && (d.get('phone', '') == '' || d.get('phone', '').matches('^[0-9]{8}$'))))
+              && (d.get('phone', '') == '' || d.get('phone', '').matches('^[23467][0-9]{7}$'))))
         && (!changed.hasAny(['publicProfile']) || d.get('publicProfile', false) is bool);
     }
 

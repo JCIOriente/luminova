@@ -18,7 +18,7 @@ export const PROFESSION_MAX_LENGTH = 80;
 
 export const memberSchema = z.object({
   name: memberName,
-  email: z.string().email("Correo inválido."),
+  email: z.string().trim().email("Correo inválido."),
   phone: boliviaPhoneOptional,
   gender: z.enum(MEMBER_GENDERS, { message: "Requerido." }),
   profession: z

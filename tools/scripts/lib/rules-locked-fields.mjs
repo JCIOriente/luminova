@@ -62,20 +62,20 @@ export function parseMemberNameGate(source) {
  *  boundary, so the `hasOnly([...])` key list cannot satisfy it.
  *
  * @param {string} source
- * @returns {{ fields: string[], professionMax: number, phoneDigits: number }}
+ * @returns {{ fields: string[], professionMax: number, phonePattern: string }}
  */
 export function parseSelfProfileLane(source) {
   const guard = ruleFunctionBody(source, "selfProfileValid(changed)");
   const list = guard.match(/hasOnly\(\[([^\]]+)\]\)/);
   const professionMax = guard.match(/profession[^\n]*size\(\) <= (\d+)/);
-  const phoneDigits = guard.match(/matches\('\^\[0-9\]\{(\d+)\}\$'\)/);
-  if (!list || !professionMax || !phoneDigits) {
+  const phonePattern = guard.match(/phone[^\n]*matches\('([^']+)'\)/);
+  if (!list || !professionMax || !phonePattern) {
     throw new Error("selfProfileValid() key set or bounds not found in firestore.rules");
   }
 
   return {
     fields: [...list[1].matchAll(/'([^']+)'/g)].map((m) => m[1]),
     professionMax: Number(professionMax[1]),
-    phoneDigits: Number(phoneDigits[1]),
+    phonePattern: phonePattern[1],
   };
 }

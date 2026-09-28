@@ -5,7 +5,7 @@ export const ACTIVITY_LOCATION_MAX_LENGTH = 300;
 
 export const activitySchema = z
   .object({
-    title: z.string().min(3, "Mínimo 3 caracteres."),
+    title: z.string().trim().min(3, "Mínimo 3 caracteres."),
     description: z.string(),
     location: z
       .string()

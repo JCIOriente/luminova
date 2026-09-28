@@ -7,6 +7,7 @@ import {
   normalizeBoliviaPhone,
   sanitizeBoliviaPhoneInput,
   BOLIVIA_PHONE_LENGTH,
+  BOLIVIA_PHONE_PATTERN,
 } from "./phone.js";
 
 describe("isBoliviaPhone", () => {
@@ -19,6 +20,22 @@ describe("isBoliviaPhone", () => {
   });
   it("rejects a value with too few real digits", () => {
     expect(isBoliviaPhone("7001-345")).toBe(false); // 7 digits after stripping
+  });
+  it("rejects a number whose first digit no Bolivian line uses (0, 1, 5)", () => {
+    for (const phone of ["01234567", "12345678", "51234567", "81234567", "91234567"]) {
+      expect(isBoliviaPhone(phone)).toBe(false);
+    }
+  });
+  it("accepts landline and mobile first digits at both edges (2 and 7)", () => {
+    expect(isBoliviaPhone("20000000")).toBe(true);
+    expect(isBoliviaPhone("79999999")).toBe(true);
+  });
+});
+
+describe("BOLIVIA_PHONE_PATTERN", () => {
+  // firestore.rules has no \d, so the pattern it mirrors byte-for-byte must not use one.
+  it("is written with [0-9] classes only", () => {
+    expect(BOLIVIA_PHONE_PATTERN).toBe("^[23467][0-9]{7}$");
   });
 });
 
@@ -55,7 +72,10 @@ describe("boliviaPhoneRequired", () => {
   it("reports the digits message on wrong length", () => {
     const r = boliviaPhoneRequired.safeParse("123");
     expect(r.success).toBe(false);
-    if (!r.success) expect(r.error.issues[0].message).toBe("El teléfono debe tener 8 dígitos.");
+    if (!r.success)
+      expect(r.error.issues[0].message).toBe(
+        "El teléfono debe tener 8 dígitos y empezar con 2, 3, 4, 6 o 7.",
+      );
   });
 });
 
@@ -142,5 +162,21 @@ describe("sanitizeBoliviaPhoneInput", () => {
     for (const raw of ["+591 7000 0000 99", "(700) 000-00 123", "59170012345"]) {
       expect(isBoliviaPhone(sanitizeBoliviaPhoneInput(raw))).toBe(true);
     }
+  });
+});
+
+describe("phone schemas reject a leading 0, 1 or 5", () => {
+  it("required: names the first-digit rule", () => {
+    const r = boliviaPhoneRequired.safeParse("12345678");
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0].message).toBe(
+        "El teléfono debe tener 8 dígitos y empezar con 2, 3, 4, 6 o 7.",
+      );
+    }
+  });
+  it("optional: still rejects a provided 0/5-leading number", () => {
+    expect(boliviaPhoneOptional.safeParse("01234567").success).toBe(false);
+    expect(boliviaPhoneOptional.safeParse("51234567").success).toBe(false);
   });
 });

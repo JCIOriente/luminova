@@ -60,7 +60,7 @@ export const siteConfigSchema = z.object({
   mvv: z.object({ mision: reqText, vision: reqText, valores: reqText }),
   reasons: z.array(z.object({ number: z.string(), title: reqText, body: z.string() })),
   contact: z.object({
-    email: z.string().email("Correo no válido"),
+    email: z.string().trim().email("Correo no válido"),
     location: reqText,
     meetingSchedule: reqText,
     mapUrl: optionalSafeUrl,

@@ -1476,6 +1476,20 @@ describe("firestore.rules — members", () => {
       updateDoc(doc(as("eva-uid", ["Member"]), "members/m_legacyphone"), { phone: "70099887" }),
     );
   });
+  // Bolivian landlines start 2/3/4 and mobiles 6/7; mirrors BOLIVIA_PHONE_PATTERN in
+  // packages/types/src/phone.ts (this package cannot import it).
+  it.each(["01234567", "12345678", "51234567", "81234567", "91234567"])(
+    "denies the owning member an 8-digit phone starting with an unused digit (%s)",
+    async (phone) => {
+      await assertFails(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { phone }));
+    },
+  );
+  it.each(["20000000", "39999999", "40000000", "60000000", "79999999"])(
+    "allows the owning member a phone starting with a used digit (%s)",
+    async (phone) => {
+      await assertSucceeds(updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { phone }));
+    },
+  );
   // The cap the Zod schema mirrors (packages/types/src/member-schema.ts).
   it("allows a profession at the 80-character cap and denies 81", async () => {
     await assertSucceeds(

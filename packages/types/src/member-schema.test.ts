@@ -87,3 +87,10 @@ describe("memberSchema isPastPresident", () => {
     expect(parsed.isPastPresident).toBeUndefined();
   });
 });
+
+describe("memberSchema email", () => {
+  it("trims a padded email to the bare address", () => {
+    const r = memberSchema.safeParse({ ...valid, email: "  a@b.co  " });
+    expect(r.success && r.data.email).toBe("a@b.co");
+  });
+});

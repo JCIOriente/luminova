@@ -14,7 +14,7 @@ export const POSITION_TERM_MAX = 2100;
 
 export const positionSchema = z
   .object({
-    title: z.string().min(3, "Mínimo 3 caracteres."),
+    title: z.string().trim().min(3, "Mínimo 3 caracteres."),
     titleFemale: optionalText(3, "Mínimo 3 caracteres."),
     sigla: optionalText(1, "Requerido."),
     category: z.enum(POSITION_CATEGORIES),

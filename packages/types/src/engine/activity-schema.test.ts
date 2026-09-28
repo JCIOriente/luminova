@@ -115,3 +115,9 @@ describe("activitySchema coDirectorIds", () => {
     expect(r.coDirectorIds).toEqual(["m2"]);
   });
 });
+
+describe("activitySchema title", () => {
+  it("rejects a whitespace-only title", () => {
+    expect(activitySchema.safeParse({ ...VALID, title: "     " }).success).toBe(false);
+  });
+});

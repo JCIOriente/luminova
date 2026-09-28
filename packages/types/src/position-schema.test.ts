@@ -52,3 +52,9 @@ describe("positionSchema", () => {
     expect(positionSchema.safeParse({ ...base, grants: ["SuperUser"] }).success).toBe(false);
   });
 });
+
+describe("positionSchema title", () => {
+  it("rejects a whitespace-only title", () => {
+    expect(positionSchema.safeParse({ ...base, title: "     " }).success).toBe(false);
+  });
+});
