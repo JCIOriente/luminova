@@ -18,8 +18,11 @@ from typing past it.
 
 **Phone numbers are sanitized, not `maxLength`-capped.**
 - `sanitizeBoliviaPhoneInput` in `packages/types/src/phone.ts` keeps digits only, drops a leading
-  `591` once it pushes past the national length, and truncates to `BOLIVIA_PHONE_LENGTH`.
-- Stripping `591` is safe because no Bolivian national number starts with 5.
+  `591` or `00591` once it pushes past the national length, and truncates to
+  `BOLIVIA_PHONE_LENGTH`.
+- Stripping the prefix is safe because no Bolivian national number starts with 0 or 5.
+- Truncation is deliberate: pasting can never go past the length. The trade-off is that a
+  9-digit typo is cut to a valid-looking 8-digit number.
 - `maxLength` would be wrong. A browser truncates a paste to it before `onChange` runs, so a
   pasted `+591 700 00000` would become `+591 700`.
 - `normalizeBoliviaPhone`, and the schemas built on it, are unchanged.
@@ -28,7 +31,10 @@ from typing past it.
 - It renders `type="tel"` with `inputMode="tel"`, and rewrites `event.target.value` before
   calling the caller's `onChange`. That serves RHF `register` (uncontrolled) and controlled
   callers alike.
-- The value is only written back when it changed, so the caret does not jump.
+- A single keystroke into a full field is rejected the way `maxLength` would reject it: the
+  previous value and caret are kept. A paste is sanitized and truncated.
+- When sanitizing strips characters mid-string, the caret is restored to its place among the
+  characters that remain.
 - The sanitizer is injected rather than imported so that `@luminova/ui` keeps no dependency on
   `@luminova/types`.
 

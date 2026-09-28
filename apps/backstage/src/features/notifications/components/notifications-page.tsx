@@ -103,7 +103,7 @@ function ComposeForm() {
     setValue,
     watch,
     reset,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<NotificationCreate>({
     resolver: zodResolver(notificationCreateSchema),
     defaultValues: { title: "", body: "", url: "", audience: { type: "everyone" } },
@@ -161,16 +161,16 @@ function ComposeForm() {
           ))}
         </Select>
       </Field>
-      {/* compose.isPending, not RHF's isSubmitting: the handler calls mutate() (not
-          mutateAsync), so isSubmitting is already false while the send is in flight and a
-          second click would push the same notification twice. */}
+      {/* Both flags: isSubmitting covers validation, and compose.isPending covers the send.
+          The handler calls mutate() (not mutateAsync), so isSubmitting is already false
+          while the send is in flight. */}
       <Button
         as="button"
         type="submit"
-        disabled={compose.isPending}
+        disabled={isSubmitting || compose.isPending}
         className="mt-1 w-full justify-center sm:w-auto sm:self-start"
       >
-        {compose.isPending ? "Enviando…" : "Enviar notificación"}
+        {isSubmitting || compose.isPending ? "Enviando…" : "Enviar notificación"}
       </Button>
 
       {successToast && <Toast message={successToast} icon={Icon.check({ s: 18 })} />}

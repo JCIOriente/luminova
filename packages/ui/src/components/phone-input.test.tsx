@@ -8,6 +8,13 @@ import { PhoneInput } from "./phone-input";
 afterEach(cleanup);
 
 const fourDigits = (raw: string) => raw.replace(/\D/g, "").slice(0, 4);
+// Shaped like sanitizeBoliviaPhoneInput: digits only, a leading 591 dropped once it runs
+// past 8, then capped at 8. Local so @luminova/ui keeps no dependency on @luminova/types.
+const eightDigits = (raw: string) => {
+  const digits = raw.replace(/\D/g, "");
+  const national = digits.length > 8 && digits.startsWith("591") ? digits.slice(3) : digits;
+  return national.slice(0, 8);
+};
 
 function Controlled() {
   const [value, setValue] = useState("");
@@ -44,5 +51,49 @@ describe("PhoneInput", () => {
     await userEvent.click(input);
     await userEvent.paste("+9 87 654 321");
     expect(input.value).toBe("9876");
+  });
+});
+
+describe("PhoneInput caret", () => {
+  function setup() {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} />);
+    return screen.getByLabelText<HTMLInputElement>("Tel");
+  }
+
+  it("rejects a digit inserted mid-string into a full field, keeping value and caret", async () => {
+    const input = setup();
+    await userEvent.type(input, "70012345");
+    await userEvent.type(input, "9", { initialSelectionStart: 3, initialSelectionEnd: 3 });
+    expect(input.value).toBe("70012345");
+    expect(input.selectionStart).toBe(3);
+  });
+
+  it("keeps the caret in place when a non-digit typed mid-string is stripped", async () => {
+    const input = setup();
+    await userEvent.type(input, "7001");
+    await userEvent.type(input, "a", { initialSelectionStart: 2, initialSelectionEnd: 2 });
+    expect(input.value).toBe("7001");
+    expect(input.selectionStart).toBe(2);
+  });
+
+  it("keeps a mid-string digit insertion when the field has room", async () => {
+    const input = setup();
+    await userEvent.type(input, "7001");
+    await userEvent.type(input, "9", { initialSelectionStart: 2, initialSelectionEnd: 2 });
+    expect(input.value).toBe("70901");
+    expect(input.selectionStart).toBe(3);
+  });
+
+  it("still lets a typed +591 prefix collapse once the ninth digit arrives", async () => {
+    const input = setup();
+    await userEvent.type(input, "+59170012345");
+    expect(input.value).toBe("70012345");
+  });
+
+  it("still truncates an over-long paste", async () => {
+    const input = setup();
+    await userEvent.click(input);
+    await userEvent.paste("7001234567890");
+    expect(input.value).toBe("70012345");
   });
 });

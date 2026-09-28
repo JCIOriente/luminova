@@ -96,6 +96,30 @@ describe("boliviaWhatsAppUrl", () => {
 });
 
 describe("sanitizeBoliviaPhoneInput", () => {
+  // One sanitize per keystroke, feeding each result back in: how a field sees typed input.
+  const typeInto = (keys: string) =>
+    [...keys].reduce((value, key) => sanitizeBoliviaPhoneInput(value + key), "");
+
+  it("strips a pasted 00591 international prefix instead of truncating it into the number", () => {
+    expect(sanitizeBoliviaPhoneInput("00591 70012345")).toBe("70012345");
+    expect(sanitizeBoliviaPhoneInput("0059170012345")).toBe("70012345");
+  });
+  it("strips 00591 typed one key at a time without freezing on the way", () => {
+    expect(typeInto("0")).toBe("0");
+    expect(typeInto("00")).toBe("00");
+    expect(typeInto("005")).toBe("005");
+    expect(typeInto("0059")).toBe("0059");
+    expect(typeInto("00591")).toBe("00591");
+    expect(typeInto("0059170012345")).toBe("70012345");
+    expect(typeInto("00591 70012345")).toBe("70012345");
+  });
+  it("strips +591 typed one key at a time", () => {
+    expect(typeInto("+59170012345")).toBe("70012345");
+    expect(typeInto("+591 700 12345")).toBe("70012345");
+  });
+  it("still truncates genuinely over-long national input", () => {
+    expect(typeInto("700123456")).toBe("70012345");
+  });
   it("caps typed or pasted digits at the schema's length", () => {
     expect(sanitizeBoliviaPhoneInput("7001234567890")).toBe("70012345");
     expect(sanitizeBoliviaPhoneInput("7001234567890")).toHaveLength(BOLIVIA_PHONE_LENGTH);

@@ -120,8 +120,9 @@ describe("NotificationsPage — compose submit", () => {
 });
 
 describe("NotificationsPage — in-flight send", () => {
-  // The handler calls mutate(), not mutateAsync(), so RHF's isSubmitting drops back to false
-  // while the send is still in flight. Keying the button on it left a second click live.
+  // Pins that the button reads the mutation's own pending state. The handler calls mutate(),
+  // not mutateAsync(), so RHF's isSubmitting alone would read false here. This does not
+  // exercise real double-click timing: the mutation is mocked.
   it("disables the send button while the mutation is pending", () => {
     state.isPending = true;
     renderWith(FULL_ACCESS, <NotificationsPage />);
