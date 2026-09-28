@@ -8,7 +8,7 @@ hizo qué.
 [![Licencia: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Node 24](https://img.shields.io/badge/node-24-green.svg)](.nvmrc)
 
-Desarrollado y en uso en [JCI Oriente](https://jcioriente.web.app), el capítulo de Santa
+Desarrollado y en uso en [JCI Oriente](https://jcioriente.org), el capítulo de Santa
 Cruz de la Sierra de Junior Chamber International. Abierto para que cualquier capítulo lo
 use o lo adapte.
 
@@ -44,8 +44,8 @@ Tres superficies:
 
 | Aplicación | Qué es | En vivo |
 |-----|------|------|
-| `apps/spotlight` | Sitio público — programas, galería de impacto, directiva, formulario de contacto | https://jcioriente.web.app |
-| `apps/backstage` | Panel administrativo — todo lo anterior, requiere autenticación | https://jcioriente-backstage.web.app |
+| `apps/spotlight` | Sitio público — programas, galería de impacto, directiva, formulario de contacto | https://jcioriente.org |
+| `apps/backstage` | Panel administrativo — todo lo anterior, requiere autenticación | https://admin.jcioriente.org |
 | `apps/beacon` | Cloud Functions — el motor de reconocimiento y las proyecciones públicas | — |
 
 ## Características
@@ -158,11 +158,11 @@ haz un fork y cambia esto:
      teléfono.
    - El título por defecto de las notificaciones en ambos
      `public/firebase-messaging-sw.js`.
-   - El `https://jcioriente.web.app` fijo en `apps/spotlight/index.html` (`rel=canonical`,
-     `og:url`, `og:image`, `twitter:image`), `apps/spotlight/public/sitemap.xml` y
-     `apps/spotlight/public/robots.txt`. Si los dejas, tu sitio le declara a los buscadores
-     que es una copia del nuestro, y cada vez que alguien comparta el enlace por WhatsApp
-     saldrá nuestra imagen.
+   - `SITE_URL` y `BACKSTAGE_URL` en `apps/spotlight/src/config/external-links.ts`.
+     `SITE_URL` se escribe en `index.html` (`rel=canonical`, `og:url`, `og:image`,
+     `twitter:image`), `sitemap.xml` y `robots.txt` al compilar. Si lo dejas, tu sitio le
+     declara a los buscadores que es una copia del nuestro, y cada vez que alguien comparta
+     el enlace por WhatsApp saldrá nuestra imagen. Ver `docs/domains.md`.
 
    Las marcas de JCI **no** están cubiertas por la licencia de este repositorio — ver
    [NOTICE](NOTICE).

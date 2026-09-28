@@ -60,7 +60,7 @@ reescribe.
 ### Presencia pública
 
 **De dónde sale:** el sitio público
-([jcioriente.web.app](https://jcioriente.web.app)) — galería de impacto, directiva
+([jcioriente.org](https://jcioriente.org)) — galería de impacto, directiva
 actual, muro de aliados.
 
 **Qué se puede afirmar:** el capítulo tiene presencia pública verificable y actualizada,
