@@ -78,6 +78,7 @@ export function RoleEditor({ role, holderCount, onSubmit, onDelete }: RoleEditor
   // matrix, and the eager form built and discarded a Set on every one of them.
   const [perms, setPerms] = useState<Set<PermissionCode>>(() => new Set(role?.permissions ?? []));
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
 
   const toggle = (code: PermissionCode) => {
@@ -92,13 +93,16 @@ export function RoleEditor({ role, holderCount, onSubmit, onDelete }: RoleEditor
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
+    setNameError(undefined);
     const parsed = roleDefinitionSchema.safeParse({
       name,
       description,
       permissions: [...perms],
     });
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Datos inválidos.");
+      const issue = parsed.error.issues[0];
+      if (issue?.path[0] === "name") setNameError(issue.message);
+      else setError(issue?.message ?? "Datos inválidos.");
       return;
     }
     setSaving(true);
@@ -118,7 +122,7 @@ export function RoleEditor({ role, holderCount, onSubmit, onDelete }: RoleEditor
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
-      <Field label="Nombre" htmlFor="role-name" required>
+      <Field label="Nombre" htmlFor="role-name" required error={nameError}>
         <Input
           id="role-name"
           value={name}

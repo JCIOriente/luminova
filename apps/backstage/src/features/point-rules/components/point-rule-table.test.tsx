@@ -65,3 +65,28 @@ describe("PointRuleTable", () => {
     expect(screen.getByText("10")).toBeInTheDocument();
   });
 });
+
+describe("PointRuleTable invalid points", () => {
+  it.each([
+    ["-3", "No puede ser negativo."],
+    ["1.5", "Debe ser un entero."],
+  ])("explains why %s is rejected, on screen and to assistive tech", async (typed, message) => {
+    renderWith(["Admin"], <PointRuleTable rules={rules} onSave={vi.fn()} isSaving={false} />);
+    const input = screen.getByLabelText(/puntos de dirección de programa/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, typed);
+    const error = screen.getByText(message);
+    expect(error).toBeVisible();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input.getAttribute("aria-describedby")).toBe(error.id);
+  });
+
+  it("shows no error for a valid value", async () => {
+    renderWith(["Admin"], <PointRuleTable rules={rules} onSave={vi.fn()} isSaving={false} />);
+    const input = screen.getByLabelText(/puntos de dirección de programa/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, "12");
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(input).not.toHaveAttribute("aria-describedby");
+  });
+});
