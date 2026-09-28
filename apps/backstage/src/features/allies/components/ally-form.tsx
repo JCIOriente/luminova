@@ -6,7 +6,7 @@ import {
   allySchema,
   ALLY_CATEGORIES,
   ALLY_CATEGORY_LABELS,
-  BOLIVIA_PHONE_LENGTH,
+  BOLIVIA_PHONE_PLACEHOLDER,
   sanitizeBoliviaPhoneInput,
   type AllyInput,
   type Ally,
@@ -20,8 +20,6 @@ interface AllyFormProps {
   onUploadLogo?: (file: File) => Promise<void>;
   onRemoveLogo?: () => Promise<void>;
 }
-
-const PHONE_PLACEHOLDER = `${BOLIVIA_PHONE_LENGTH} dígitos`;
 
 function toDefaults(ally?: Ally): AllyInput {
   return {
@@ -77,7 +75,7 @@ export function AllyForm({
           id="phone"
           sanitize={sanitizeBoliviaPhoneInput}
           autoComplete="off"
-          placeholder={PHONE_PLACEHOLDER}
+          placeholder={BOLIVIA_PHONE_PLACEHOLDER}
           {...register("phone")}
         />
       </Field>

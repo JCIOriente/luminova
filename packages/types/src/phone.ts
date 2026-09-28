@@ -3,6 +3,8 @@ import { z } from "zod";
 /** Bolivia phone numbers are exactly 8 digits (mobiles start 6/7, landlines 2/3/4). */
 export const BOLIVIA_PHONE_LENGTH = 8;
 const BOLIVIA_PHONE_REGEX = new RegExp(`^\\d{${BOLIVIA_PHONE_LENGTH}}$`);
+/** Placeholder for a phone input, derived so it cannot disagree with the length. */
+export const BOLIVIA_PHONE_PLACEHOLDER = `${BOLIVIA_PHONE_LENGTH} dígitos`;
 const DIGITS_MESSAGE = `El teléfono debe tener ${BOLIVIA_PHONE_LENGTH} dígitos.`;
 
 /**

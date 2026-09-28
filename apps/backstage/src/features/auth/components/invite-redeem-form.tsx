@@ -88,7 +88,6 @@ function PasswordField({
           autoComplete="new-password"
           placeholder="••••••••"
           className="pl-11"
-          aria-invalid={error ? true : undefined}
           {...register}
         />
       </div>

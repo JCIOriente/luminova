@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  EFFICIENCY_PCT_MAX,
+  EFFICIENCY_PCT_MIN,
   LINKTREE_ICONS,
   LINKTREE_SOCIAL_PLATFORMS,
   siteConfigSchema,
@@ -138,11 +140,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             hint="Ej. el lema de la gestión o el lema institucional"
             error={err(errors.hero?.motto?.message)}
           >
-            <Input
-              id="hero-motto"
-              aria-invalid={attempted && !!errors.hero?.motto}
-              {...register("hero.motto")}
-            />
+            <Input id="hero-motto" {...register("hero.motto")} />
           </Field>
           <Field label="Sublema" htmlFor="hero-submotto" hint="Opcional — texto de acento debajo">
             <Input id="hero-submotto" {...register("hero.submotto")} />
@@ -171,7 +169,6 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
               inputMode="numeric"
               min={0}
               step={1}
-              aria-invalid={attempted && !!errors.stats?.programCount}
               {...register("stats.programCount", { valueAsNumber: true })}
             />
           </Field>
@@ -187,7 +184,6 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
               inputMode="numeric"
               min={0}
               step={1}
-              aria-invalid={attempted && !!errors.stats?.nationalAwards}
               {...register("stats.nationalAwards", { valueAsNumber: true })}
             />
           </Field>
@@ -198,11 +194,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             hint="Ej. 100+"
             error={err(errors.stats?.countries?.message)}
           >
-            <Input
-              id="countries"
-              aria-invalid={attempted && !!errors.stats?.countries}
-              {...register("stats.countries")}
-            />
+            <Input id="countries" {...register("stats.countries")} />
           </Field>
           <Field
             label="Miembros en el mundo"
@@ -211,11 +203,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             hint="Ej. 200.000+"
             error={err(errors.stats?.membersWorldwide?.message)}
           >
-            <Input
-              id="membersWorldwide"
-              aria-invalid={attempted && !!errors.stats?.membersWorldwide}
-              {...register("stats.membersWorldwide")}
-            />
+            <Input id="membersWorldwide" {...register("stats.membersWorldwide")} />
           </Field>
           <Field
             label="Eficiencia (%)"
@@ -227,9 +215,8 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
               id="efficiencyPct"
               type="number"
               inputMode="decimal"
-              min={0}
-              max={100}
-              aria-invalid={attempted && !!errors.stats?.efficiencyPct}
+              min={EFFICIENCY_PCT_MIN}
+              max={EFFICIENCY_PCT_MAX}
               {...register("stats.efficiencyPct", { valueAsNumber: true })}
             />
           </Field>
@@ -246,11 +233,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
               required
               error={err(errors.stats?.standoutOrg?.year?.message)}
             >
-              <Input
-                id="standoutYear"
-                aria-invalid={attempted && !!errors.stats?.standoutOrg?.year}
-                {...register("stats.standoutOrg.year")}
-              />
+              <Input id="standoutYear" {...register("stats.standoutOrg.year")} />
             </Field>
             <Field
               label="Título"
@@ -258,11 +241,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
               required
               error={err(errors.stats?.standoutOrg?.title?.message)}
             >
-              <Input
-                id="standoutTitle"
-                aria-invalid={attempted && !!errors.stats?.standoutOrg?.title}
-                {...register("stats.standoutOrg.title")}
-              />
+              <Input id="standoutTitle" {...register("stats.standoutOrg.title")} />
             </Field>
           </div>
         </Card>
@@ -291,11 +270,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                   required
                   error={err(errors.timeline?.[index]?.year?.message)}
                 >
-                  <Input
-                    id={`timeline-year-${index}`}
-                    aria-invalid={attempted && !!errors.timeline?.[index]?.year}
-                    {...register(`timeline.${index}.year`)}
-                  />
+                  <Input id={`timeline-year-${index}`} {...register(`timeline.${index}.year`)} />
                 </Field>
                 <Field
                   label="Título"
@@ -303,11 +278,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                   required
                   error={err(errors.timeline?.[index]?.title?.message)}
                 >
-                  <Input
-                    id={`timeline-title-${index}`}
-                    aria-invalid={attempted && !!errors.timeline?.[index]?.title}
-                    {...register(`timeline.${index}.title`)}
-                  />
+                  <Input id={`timeline-title-${index}`} {...register(`timeline.${index}.title`)} />
                 </Field>
               </div>
               <Field label="Descripción" htmlFor={`timeline-desc-${index}`}>
@@ -331,18 +302,10 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       >
         <div className="flex flex-col gap-4">
           <Field label="Misión" htmlFor="mision" required error={err(errors.mvv?.mision?.message)}>
-            <Textarea
-              id="mision"
-              aria-invalid={attempted && !!errors.mvv?.mision}
-              {...register("mvv.mision")}
-            />
+            <Textarea id="mision" {...register("mvv.mision")} />
           </Field>
           <Field label="Visión" htmlFor="vision" required error={err(errors.mvv?.vision?.message)}>
-            <Textarea
-              id="vision"
-              aria-invalid={attempted && !!errors.mvv?.vision}
-              {...register("mvv.vision")}
-            />
+            <Textarea id="vision" {...register("mvv.vision")} />
           </Field>
           <Field
             label="Valores"
@@ -350,11 +313,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             required
             error={err(errors.mvv?.valores?.message)}
           >
-            <Textarea
-              id="valores"
-              aria-invalid={attempted && !!errors.mvv?.valores}
-              {...register("mvv.valores")}
-            />
+            <Textarea id="valores" {...register("mvv.valores")} />
           </Field>
         </div>
       </CollapsibleSection>
@@ -385,11 +344,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                   required
                   error={err(errors.reasons?.[index]?.title?.message)}
                 >
-                  <Input
-                    id={`reason-title-${index}`}
-                    aria-invalid={attempted && !!errors.reasons?.[index]?.title}
-                    {...register(`reasons.${index}.title`)}
-                  />
+                  <Input id={`reason-title-${index}`} {...register(`reasons.${index}.title`)} />
                 </Field>
               </div>
               <Field label="Cuerpo" htmlFor={`reason-body-${index}`}>
@@ -419,7 +374,6 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
               id="contactEmail"
               type="email"
               autoComplete="off"
-              aria-invalid={attempted && !!errors.contact?.email}
               {...register("contact.email")}
             />
           </Field>
@@ -429,11 +383,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             required
             error={err(errors.contact?.location?.message)}
           >
-            <Input
-              id="contactLocation"
-              aria-invalid={attempted && !!errors.contact?.location}
-              {...register("contact.location")}
-            />
+            <Input id="contactLocation" {...register("contact.location")} />
           </Field>
           <Field
             label="Horario de reuniones"
@@ -441,11 +391,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             required
             error={err(errors.contact?.meetingSchedule?.message)}
           >
-            <Input
-              id="contactSchedule"
-              aria-invalid={attempted && !!errors.contact?.meetingSchedule}
-              {...register("contact.meetingSchedule")}
-            />
+            <Input id="contactSchedule" {...register("contact.meetingSchedule")} />
           </Field>
           <Field
             label="Mapa (Google Maps)"
@@ -453,12 +399,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             hint="Enlace a la ubicación de la sede"
             error={err(errors.contact?.mapUrl?.message)}
           >
-            <Input
-              id="contactMapUrl"
-              inputMode="url"
-              aria-invalid={attempted && !!errors.contact?.mapUrl}
-              {...register("contact.mapUrl")}
-            />
+            <Input id="contactMapUrl" inputMode="url" {...register("contact.mapUrl")} />
           </Field>
           <Field
             label="WhatsApp (chat directo)"
@@ -466,12 +407,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             hint="Enlace wa.me, ej. https://wa.me/59170000000. Vacío = se oculta."
             error={err(errors.contact?.whatsapp?.message)}
           >
-            <Input
-              id="contactWhatsapp"
-              inputMode="url"
-              aria-invalid={attempted && !!errors.contact?.whatsapp}
-              {...register("contact.whatsapp")}
-            />
+            <Input id="contactWhatsapp" inputMode="url" {...register("contact.whatsapp")} />
           </Field>
           <Field
             label="Canal Difusión Oriente"
@@ -482,7 +418,6 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             <Input
               id="contactBroadcast"
               inputMode="url"
-              aria-invalid={attempted && !!errors.contact?.broadcastChannel}
               {...register("contact.broadcastChannel")}
             />
           </Field>
@@ -500,7 +435,6 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                   <Input
                     id={`contact-social-${key}`}
                     inputMode="url"
-                    aria-invalid={attempted && !!errors.contact?.socials?.[key]}
                     {...register(`contact.socials.${key}`)}
                   />
                 </Field>
@@ -526,7 +460,6 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                   >
                     <Input
                       id={`link-label-${index}`}
-                      aria-invalid={attempted && !!errors.contact?.links?.[index]?.label}
                       {...register(`contact.links.${index}.label`)}
                     />
                   </Field>
@@ -539,7 +472,6 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                     <Input
                       id={`link-url-${index}`}
                       inputMode="url"
-                      aria-invalid={attempted && !!errors.contact?.links?.[index]?.url}
                       {...register(`contact.links.${index}.url`)}
                     />
                   </Field>
@@ -623,7 +555,6 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                     >
                       <Input
                         id={`lt-link-title-${index}`}
-                        aria-invalid={attempted && !!errors.linktree?.links?.[index]?.title}
                         {...register(`linktree.links.${index}.title`)}
                       />
                     </Field>
@@ -645,7 +576,6 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                       <Input
                         id={`lt-link-url-${index}`}
                         inputMode="url"
-                        aria-invalid={attempted && !!errors.linktree?.links?.[index]?.url}
                         {...register(`linktree.links.${index}.url`)}
                       />
                     </Field>
@@ -694,7 +624,6 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                   <Input
                     id={`lt-social-${platform}`}
                     inputMode="url"
-                    aria-invalid={attempted && !!errors.linktree?.socials?.[index]?.url}
                     {...register(`linktree.socials.${index}.url`)}
                   />
                 </Field>

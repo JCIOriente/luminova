@@ -6,15 +6,13 @@ import {
   selfProfileSchemaFor,
   MEMBER_NAME_MAX_LENGTH,
   PROFESSION_MAX_LENGTH,
-  BOLIVIA_PHONE_LENGTH,
+  BOLIVIA_PHONE_PLACEHOLDER,
   sanitizeBoliviaPhoneInput,
   type Member,
   type SelfProfileInput,
 } from "@luminova/types";
 import { dateInputValue } from "../repositories/member-mapper";
 import { useUpdateSelfProfile } from "../hooks/use-update-self-profile";
-
-const PHONE_PLACEHOLDER = `${BOLIVIA_PHONE_LENGTH} dígitos`;
 
 /** The fields a member owns about themselves. Deliberately NOT MemberForm: that form
  *  carries email, status and cargo, which the rules' self lane rejects — offering them here
@@ -70,7 +68,7 @@ export function SelfProfileForm({ member }: { member: Member }) {
           id="self-phone"
           sanitize={sanitizeBoliviaPhoneInput}
           autoComplete="tel-national"
-          placeholder={PHONE_PLACEHOLDER}
+          placeholder={BOLIVIA_PHONE_PLACEHOLDER}
           {...register("phone")}
         />
       </Field>

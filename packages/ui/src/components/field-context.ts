@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, type AriaAttributes } from "react";
 
 interface FieldAria {
   /** Id of whichever of the hint or the error Field is actually rendering. */
@@ -9,13 +9,7 @@ interface FieldAria {
 
 export const FieldContext = createContext<FieldAria | null>(null);
 
-type AriaBool = boolean | "true" | "false";
-
-interface ControlAria {
-  "aria-describedby"?: string;
-  "aria-invalid"?: AriaBool | "grammar" | "spelling";
-  "aria-required"?: AriaBool;
-}
+type ControlAria = Pick<AriaAttributes, "aria-describedby" | "aria-invalid" | "aria-required">;
 
 function mergeIds(own: string | undefined, fromField: string | undefined): string | undefined {
   // Deduped: a form that still wires `${id}-err` by hand must not have it announced twice.

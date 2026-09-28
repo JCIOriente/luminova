@@ -58,6 +58,7 @@ export { memberSchemaFor, selfProfileSchemaFor, PROFESSION_MAX_LENGTH } from "./
 export { MEMBER_NAME_MAX_LENGTH } from "./member-name.js";
 export {
   BOLIVIA_PHONE_LENGTH,
+  BOLIVIA_PHONE_PLACEHOLDER,
   isBoliviaPhone,
   boliviaWhatsAppUrl,
   boliviaPhoneRequired,
@@ -127,7 +128,12 @@ export type {
   LinktreeSocialPlatform,
 } from "./site-config.js";
 export { LINKTREE_ICONS, LINKTREE_SOCIAL_PLATFORMS } from "./site-config.js";
-export { siteConfigSchema, type SiteConfigInput } from "./site-config-schema.js";
+export {
+  siteConfigSchema,
+  EFFICIENCY_PCT_MIN,
+  EFFICIENCY_PCT_MAX,
+  type SiteConfigInput,
+} from "./site-config-schema.js";
 export { clientTimestampSchema } from "./client-timestamp-schema.js";
 export { positionDocSchema, termPositionsDocSchema } from "./position-doc-schema.js";
 export { memberDocSchema } from "./member-doc-schema.js";

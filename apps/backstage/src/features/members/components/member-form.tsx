@@ -23,7 +23,7 @@ import {
   MEMBER_GENDERS,
   MEMBER_NAME_MAX_LENGTH,
   PROFESSION_MAX_LENGTH,
-  BOLIVIA_PHONE_LENGTH,
+  BOLIVIA_PHONE_PLACEHOLDER,
   sanitizeBoliviaPhoneInput,
 } from "@luminova/types";
 import { avatarColor } from "../lib/member-display";
@@ -43,7 +43,6 @@ import {
 import { cargoNoteIds, MintPendingNote, NoAssignableCargosNote } from "./no-assignable-cargos-note";
 
 const NOTE_IDS = cargoNoteIds("member");
-const PHONE_PLACEHOLDER = `${BOLIVIA_PHONE_LENGTH} dígitos`;
 
 /** The four authority props are REQUIRED, not optional-with-a-false-default, and the defaults
  *  they used to carry were not all safe in the same direction: `isSelfAssignment = false`
@@ -252,7 +251,7 @@ export function MemberForm({
             id="phone"
             sanitize={sanitizeBoliviaPhoneInput}
             autoComplete="off"
-            placeholder={PHONE_PLACEHOLDER}
+            placeholder={BOLIVIA_PHONE_PLACEHOLDER}
             {...register("phone")}
           />
         </Field>
