@@ -224,7 +224,7 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/A t
 | G1 | **Soft-delete write-guard** — pre-flight existence/`active` check in **both** Member & Ally repos; route `handleSubmit`/`confirmDelete` try/catch | — | `[P]` | `/security-review` + `firestore-security-reviewer` |
 | G2 🟡 | Confirm-or-restrict public read on `projects`/`board` — **`projects` restricted to signedIn in D1 (#22)** (D1 added member-id rosters); **`board` still public** (confirm or restrict). C4 will expose curated public project fields, not raw docs. | C1 | `[S]` | `/security-review` |
 | G3 | `.env.local.example` real keys → placeholders | — | `[P]` | — |
-| ~~G4~~ ✅ | App Check enforcement ON — DONE and live, code and smoke test both. `redeemInvite` and `describeInvite`, the project's only unauthenticated callables, and `issueMemberInvite`, whose only caller is backstage, declare `enforceAppCheck: ENFORCE_APP_CHECK` (keyed on `FUNCTIONS_EMULATOR` via `UNDER_EMULATOR`; ON in production, OFF under the emulator so `/invitacion` stays runnable locally); the client inits reCAPTCHA v3 App Check when `VITE_APPCHECK_SITE_KEY` is set, and the production key exists in `.env.production`. Firestore enforcement is a separate decision, not part of G4. **Smoke test passed 2026-09-28:** a real invite was issued and redeemed against the production build — `POST 200` on `issuememberinvite`, `describeinvite` and `redeeminvite`, all after the enforcement deploy. Procedure, evidence and failure diagnosis: `docs/firebase-setup.md`, owner op 3 under "Enlaces de acceso", which also names the one remaining owner test (the 48 h expired-link path, not yet exercised). | infra keys | `[S]` | `/security-review` |
+| ~~G4~~ ✅ | App Check enforcement ON — DONE and live, code and smoke test both. The enforced callables are `APP_CHECK_ENFORCED_CALLABLES` (`apps/beacon/src/token-verification-bypass.ts`). Firestore enforcement is a separate decision, not part of G4. **Smoke test passed 2026-09-28** — a real invite issued and redeemed against the production build, `POST 200` on all three services after the enforcement deploy. Evidence, procedure and failure diagnosis: `docs/firebase-setup.md`, owner op 3 under "Enlaces de acceso". | infra keys | `[S]` | `/security-review` |
 
 > Note: the bulk of rules hardening moved into **F1** (rules must be role-aware now,
 > not just `delete:if false`).
@@ -376,8 +376,8 @@ al día. Closing that gap is the biggest remaining correctness item.
 4. **Smaller wins, parallel anytime:** FX7 DS pass on remaining screens · **L4 SSG/prerender**
    (biggest spotlight FCP/LCP win — brainstorm first) · L5 critical CSS · D2 Reports · D4/N5 real
    Settings page · G1 soft-delete write-guard · G3 env placeholders · A4 offline check-in (low pri).
-5. **Owner ops (not PRs):** I3 storage wipe · G4's 48 h expired-link manual test (not yet
-   exercised; steps in `docs/firebase-setup.md`, owner op 3).
+5. **Owner ops (not PRs):** I3 storage wipe · G4's 48 h expired-link manual test
+   (`docs/firebase-setup.md`, owner op 3).
    (CI required + ruleset active + indexes deployed — done 2026-06-24; CD WIF/IAM
    provisioning — done 2026-07-01; G4 invite-redemption smoke test — done 2026-09-28.)
 

@@ -394,8 +394,7 @@ export async function redeemInviteFor(
 // THE PROJECT'S FIRST UNAUTHENTICATED CALLABLES.
 //
 // Anyone who knows the URL can invoke these; an invitee has no account yet, so that is
-// inherent rather than an oversight. Three controls stand in front of them, and as of this
-// change all three are live.
+// inherent rather than an oversight. Three controls stand in front of them.
 //
 // 1. APP CHECK, ENFORCED in production and deliberately NOT under the emulator — see the
 //    `ENFORCE_APP_CHECK` docblock in token-verification-bypass.ts for why that carve-out is
@@ -406,9 +405,9 @@ export async function redeemInviteFor(
 //    diagnosis are documented once, not repeated here: docs/firebase-setup.md, owner op 3.
 //
 //    If attestation fails for real invitees, every redemption is refused — silently, totally,
-//    on the only onboarding path there is — and a 403/404 from the token exchange throttles
-//    App Check in that page for TWENTY-FOUR HOURS, which no retry button can clear and only a
-//    page reload escapes.
+//    on the only onboarding path there is. The client-side consequence (a 24 h SDK throttle
+//    only a reload clears) is documented on `ATTESTATION_RETRY_AFTER_SECONDS` in backstage's
+//    invite-error.ts.
 //
 // 2. THE RATE GATE, below. App Check bounds WHO may call; it does not bound HOW OFTEN. An
 //    App Check token is replayable for its whole TTL (docs/firebase-setup.md has the value), so

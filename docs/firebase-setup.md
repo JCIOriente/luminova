@@ -499,8 +499,9 @@ it in a copy dialog with its expiry.
      `UNDER_EMULATOR`: on in production, off under the emulator so local `/invitacion` still
      works). The list lives in `APP_CHECK_ENFORCED_CALLABLES`
      (`apps/beacon/src/token-verification-bypass.ts`), pinned against each callable's declaration
-     by `app-check-scope.test.ts`. The App Check console has no Cloud Functions switch; the
-     `onCall` option is the whole control, and firebase-functions applies it itself before the
+     by `app-check-scope.test.ts`. The App Check console has no Cloud Functions switch, because
+     Cloud Functions is not an App Check-enforceable product; the `onCall` option is the whole
+     control, and firebase-functions applies it itself before the
      handler runs. The invite pair was first logged live in production on 2026-09-23.
    - **The rest of the deploy list does not enforce.** `setUserRoles`, `seedRoles`,
      `recomputeAllClaims` and `reseedBuiltInRolePerms` are called by hand by the owner with an ID
@@ -558,18 +559,17 @@ it in a copy dialog with its expiry.
         --project=jci-oriente --freshness=7d --limit=3
       ```
 
-      Expect `{ enforceAppCheck: true, callables: ["describeInvite", "redeemInvite",
-      "issueMemberInvite"] }`. No rows means no cold start in the window — widen
+      Expect `enforceAppCheck: true` and `callables` listing exactly the names in
+      `APP_CHECK_ENFORCED_CALLABLES`. No rows means no cold start in the window — widen
       `--freshness`, or call a function to force one.
    3. The deployed environment carries none of the three bypass variables. Every deploy asserts
       this; run it by hand with the `assert-deployed-env-clean.sh` command further down.
    4. Real traffic gets through — confirmed below.
 
-   **Neither `describeInvite` nor `redeemInvite` had served a real call** between the services'
-   creation (2026-09-22) and the fact below: the request log held only `GET` 400/404 probes, no
-   `POST`. Real `POST` traffic is the only evidence the deployed flag accepts real attestation.
-   Re-run the procedure below (steps 1–3) after any App Check key rotation or enforcement
-   rollback, to re-confirm.
+   **Real `POST` traffic is the only evidence that the deployed flag accepts real attestation**;
+   `GET` 400/404 rows are probes and prove nothing. First real traffic: 2026-09-28 (the pass
+   recorded under step 3). Re-run steps 1–3 after any App Check key rotation or enforcement
+   rollback.
 
    1. Issue a real invite from production backstage. This is itself an App Check-enforced call
       (`issueMemberInvite`).
@@ -599,10 +599,11 @@ it in a copy dialog with its expiry.
 
    **Owner's remaining manual test: the 48 h expired-link path.** Not yet exercised. Issue an
    invite, wait for it to pass its 48 h expiry (or reuse one already expired), then open
-   `/invitacion#<token>` and attempt the redemption. Expect a **tagged** refusal — `POST` **400**
-   on `describeinvite` or `redeeminvite` (`failed-precondition`, see the response-code table
-   below) — never a 401; a 401 there would mean App Check rejected the call, a different
-   failure to chase.
+   `/invitacion#<token>`. Expect the page to refuse on load with *"Este enlace ya venció.
+   Pídele a quien te invitó que te envíe uno nuevo — los enlaces duran 48 horas."*, and one
+   `POST` **400** on `describeinvite` (`failed-precondition`, see the response-code table below);
+   `redeeminvite` is not called. Never a 401 — a 401 there is App Check rejecting the call, a
+   different failure to chase.
 
    **When it fails.** If issuing fails (`issueMemberInvite` refused), backstage shows *"No
    pudimos verificar tu sesión en este navegador. Recarga la página e inténtalo de nuevo; si
@@ -760,11 +761,11 @@ it in a copy dialog with its expiry.
    Authorization: Bearer <base64 header>.<base64 {"sub":"x","roles":["Admin"]}>.<junk>
    ```
 
-   satisfies the Admin-role gate on `setUserRoles`, `seedRoles`, `recomputeAllClaims`,
-   `reseedBuiltInRolePerms` and `issueMemberInvite` — custom-claim assignment and a project-wide
-   role reseed. It is **strictly worse** on those five than on the invite pair: the forged claim
-   is their only effective gate. Four of them declare no `enforceAppCheck`, and on
-   `issueMemberInvite`, which does, the same flag forges the App Check token too.
+   satisfies the Admin-role gate on every callable outside the invite pair — custom-claim
+   assignment and a project-wide role reseed. It is **strictly worse** on the authenticated
+   callables than on the invite pair: the forged claim is their only effective gate. Of them only
+   `issueMemberInvite` declares `enforceAppCheck` (`APP_CHECK_ENFORCED_CALLABLES`), and there the
+   same flag forges the App Check token too.
 
    **Both halves are refused IN-PROCESS, which is prevention rather than detection.** Unlike
    `FUNCTIONS_EMULATOR`, the debug pair is readable by the running container itself, so
