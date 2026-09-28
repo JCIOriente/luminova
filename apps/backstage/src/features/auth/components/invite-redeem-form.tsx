@@ -77,7 +77,7 @@ function PasswordField({
   register: UseFormRegisterReturn;
 }) {
   return (
-    <Field label={label} htmlFor={id} error={error}>
+    <Field label={label} htmlFor={id} required error={error}>
       <div className="group relative flex items-center">
         <span className="pointer-events-none absolute left-3.5 flex text-ink-3 transition-colors group-focus-within:text-jci-blue">
           {Icon.lock({ s: 19 })}
@@ -125,6 +125,7 @@ export function InviteRedeemForm({ token }: { token: string }) {
     watch,
     formState: { errors, isSubmitting },
   } = useForm<SetPasswordInput>({
+    mode: "onTouched",
     resolver: zodResolver(setPasswordSchema),
     defaultValues: { password: "", confirmPassword: "" },
   });

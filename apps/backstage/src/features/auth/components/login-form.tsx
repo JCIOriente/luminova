@@ -19,6 +19,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<LoginInput>({
+    mode: "onTouched",
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
@@ -50,7 +51,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       </p>
 
       <form onSubmit={onSubmit} noValidate className="mt-8 flex flex-col gap-[18px]">
-        <Field label="Correo electrónico" htmlFor="email" error={errors.email?.message}>
+        <Field label="Correo electrónico" htmlFor="email" required error={errors.email?.message}>
           <div className="group relative flex items-center">
             <span className="pointer-events-none absolute left-3.5 flex text-ink-3 transition-colors group-focus-within:text-jci-blue">
               {Icon.mail({ s: 19 })}
@@ -66,10 +67,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           </div>
         </Field>
 
-        <div className="flex flex-col gap-2">
-          <label htmlFor="password" className="text-ui-sm font-semibold text-ink-1">
-            Contraseña
-          </label>
+        <Field label="Contraseña" htmlFor="password" required error={errors.password?.message}>
           <div className="group relative flex items-center">
             <span className="pointer-events-none absolute left-3.5 flex text-ink-3 transition-colors group-focus-within:text-jci-blue">
               {Icon.lock({ s: 19 })}
@@ -80,8 +78,6 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
               autoComplete="current-password"
               placeholder="••••••••"
               className="pl-11 pr-12"
-              aria-invalid={errors.password ? true : undefined}
-              aria-describedby={errors.password ? "password-err" : undefined}
               {...register("password")}
             />
             <button
@@ -93,17 +89,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
               {showPassword ? Icon.eyeOff({ s: 19 }) : Icon.eye({ s: 19 })}
             </button>
           </div>
-          {errors.password && (
-            <div
-              id="password-err"
-              role="alert"
-              className="flex items-center gap-1.5 text-ui-sm text-error"
-            >
-              {Icon.close({ s: 13 })}
-              {errors.password.message}
-            </div>
-          )}
-        </div>
+        </Field>
 
         <Checkbox checked={remember} onChange={setRemember} label="Recordarme" />
 

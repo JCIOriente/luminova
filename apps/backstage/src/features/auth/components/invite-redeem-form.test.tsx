@@ -20,6 +20,10 @@ vi.mock("@tanstack/react-router", () => ({
 
 import { InviteRedeemForm } from "./invite-redeem-form";
 
+// Anchored: the required marker makes the label text "Nueva contraseña *".
+const NEW_PASSWORD = /^nueva contraseña/i;
+const CONFIRM_PASSWORD = /^confirmar contraseña/i;
+
 const VALID = { email: "ana@jci.bo", name: "Ana Pérez", expiresAt: Date.now() + 86_400_000 };
 
 function refusal(reason: string) {
@@ -33,8 +37,8 @@ function hasAlertMatching(pattern: RegExp) {
 }
 
 async function fillPasswords(password: string, confirm = password) {
-  await userEvent.type(screen.getByLabelText("Nueva contraseña"), password);
-  await userEvent.type(screen.getByLabelText("Confirmar contraseña"), confirm);
+  await userEvent.type(screen.getByLabelText(NEW_PASSWORD), password);
+  await userEvent.type(screen.getByLabelText(CONFIRM_PASSWORD), confirm);
 }
 
 describe("InviteRedeemForm", () => {
@@ -80,7 +84,7 @@ describe("InviteRedeemForm", () => {
     render(<InviteRedeemForm token="abc" />);
     expect(await screen.findByRole("alert")).toHaveTextContent(pattern);
     // A dead link must not also offer the form.
-    expect(screen.queryByLabelText("Nueva contraseña")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(NEW_PASSWORD)).not.toBeInTheDocument();
   });
 
   it("offers a RETRY for an untagged failure", async () => {
@@ -131,11 +135,29 @@ describe("InviteRedeemForm", () => {
     expect(screen.queryByText("primera@jci.bo")).not.toBeInTheDocument();
   });
 
+  it("marks both password fields required, visibly and to assistive tech", async () => {
+    render(<InviteRedeemForm token="abc" />);
+    const password = await screen.findByLabelText(NEW_PASSWORD);
+    const confirm = screen.getByLabelText(CONFIRM_PASSWORD);
+    expect(password).toHaveAttribute("aria-required", "true");
+    expect(confirm).toHaveAttribute("aria-required", "true");
+    expect(document.querySelector('label[for="password"]')?.textContent).toContain("*");
+    expect(document.querySelector('label[for="confirmPassword"]')?.textContent).toContain("*");
+  });
+
+  it("shows the policy error when the user leaves the new password, without submitting", async () => {
+    render(<InviteRedeemForm token="abc" />);
+    await userEvent.type(await screen.findByLabelText(NEW_PASSWORD), "weak");
+    await userEvent.tab();
+    expect(await screen.findByText(/la contraseña necesita/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(NEW_PASSWORD)).toHaveAttribute("aria-invalid", "true");
+  });
+
   it("never calls redeemInvite for a password the policy rejects", async () => {
     // The policy is enforced server-side too, but a round-trip that burns nothing and tells
     // the invitee something the checklist already shows is pure latency.
     render(<InviteRedeemForm token="abc" />);
-    await screen.findByLabelText("Nueva contraseña");
+    await screen.findByLabelText(NEW_PASSWORD);
     await fillPasswords("weak");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
     await waitFor(() => expect(screen.getAllByRole("alert").length).toBeGreaterThan(0));
@@ -144,7 +166,7 @@ describe("InviteRedeemForm", () => {
 
   it("refuses mismatched confirmations", async () => {
     render(<InviteRedeemForm token="abc" />);
-    await screen.findByLabelText("Nueva contraseña");
+    await screen.findByLabelText(NEW_PASSWORD);
     await fillPasswords("Abcde1", "Abcde2");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
     expect(await screen.findByText(/no coinciden/i)).toBeInTheDocument();
@@ -153,7 +175,7 @@ describe("InviteRedeemForm", () => {
 
   it("redeems and confirms, with a way to sign in", async () => {
     render(<InviteRedeemForm token="abc" />);
-    await screen.findByLabelText("Nueva contraseña");
+    await screen.findByLabelText(NEW_PASSWORD);
     await fillPasswords("Abcde1");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
     expect(await screen.findByText(/Contraseña creada/i)).toBeInTheDocument();
@@ -167,7 +189,7 @@ describe("InviteRedeemForm", () => {
     // be a shared device.
     const replaceState = vi.spyOn(window.history, "replaceState");
     render(<InviteRedeemForm token="abc" />);
-    await screen.findByLabelText("Nueva contraseña");
+    await screen.findByLabelText(NEW_PASSWORD);
     await fillPasswords("Abcde1");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
     await screen.findByText(/Contraseña creada/i);
@@ -187,7 +209,7 @@ describe("InviteRedeemForm", () => {
     // "Contraseña creada" with "este enlace está incompleto" — for someone whose password was
     // just created successfully, on the only onboarding path there is.
     const { rerender } = render(<InviteRedeemForm token="abc" />);
-    await screen.findByLabelText("Nueva contraseña");
+    await screen.findByLabelText(NEW_PASSWORD);
     await fillPasswords("Abcde1");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
     await screen.findByText(/Contraseña creada/i);
@@ -202,11 +224,11 @@ describe("InviteRedeemForm", () => {
   it("keeps the form usable when redemption fails for a retryable reason", async () => {
     redeemCallable.mockRejectedValue(new Error("network"));
     render(<InviteRedeemForm token="abc" />);
-    await screen.findByLabelText("Nueva contraseña");
+    await screen.findByLabelText(NEW_PASSWORD);
     await fillPasswords("Abcde1");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
     await waitFor(() => expect(screen.getAllByRole("alert").length).toBeGreaterThan(0));
-    expect(screen.getByLabelText("Nueva contraseña")).toBeInTheDocument();
+    expect(screen.getByLabelText(NEW_PASSWORD)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /crear contraseña/i })).toBeEnabled();
   });
 
@@ -219,7 +241,7 @@ describe("InviteRedeemForm", () => {
     // invitee. The load path got this treatment; the submit path is where it matters more.
     redeemCallable.mockRejectedValue(refusal("invite-too-many-attempts"));
     render(<InviteRedeemForm token="abc" />);
-    await screen.findByLabelText("Nueva contraseña");
+    await screen.findByLabelText(NEW_PASSWORD);
     await fillPasswords("Abcde1");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
 
@@ -244,7 +266,7 @@ describe("InviteRedeemForm", () => {
     // countdown still ticking from the first.
     redeemCallable.mockRejectedValueOnce(refusal("invite-too-many-attempts"));
     const { rerender } = render(<InviteRedeemForm token="first" />);
-    await screen.findByLabelText("Nueva contraseña");
+    await screen.findByLabelText(NEW_PASSWORD);
     await fillPasswords("Abcde1");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
     await screen.findByRole("button", { name: /espera \d+s/i });
@@ -264,7 +286,7 @@ describe("InviteRedeemForm", () => {
     try {
       redeemCallable.mockRejectedValue({ code: "functions/unauthenticated" });
       render(<InviteRedeemForm token="abc" />);
-      await screen.findByLabelText("Nueva contraseña");
+      await screen.findByLabelText(NEW_PASSWORD);
       await fillPasswords("Abcde1");
       await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
       await waitFor(() => expect(hasAlertMatching(/verificaci[óo]n de seguridad/i)).toBe(true));
@@ -285,7 +307,7 @@ describe("InviteRedeemForm", () => {
     // so "inténtalo de nuevo" would be a lie.
     redeemCallable.mockRejectedValue(refusal("invite-update-failed"));
     render(<InviteRedeemForm token="abc" />);
-    await screen.findByLabelText("Nueva contraseña");
+    await screen.findByLabelText(NEW_PASSWORD);
     await fillPasswords("Abcde1");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
     await waitFor(() => expect(hasAlertMatching(/ya se consumió/i)).toBe(true));
@@ -349,7 +371,7 @@ describe("InviteRedeemForm — the reload a blocked attestation needs", () => {
     // only escape from a 24 h throttle, but never taken silently and never unannounced.
     redeemCallable.mockRejectedValue(attestationFailure);
     render(<InviteRedeemForm token="abc" />);
-    await screen.findByLabelText("Nueva contraseña");
+    await screen.findByLabelText(NEW_PASSWORD);
     await fillPasswords("Abcde1");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
 
@@ -367,7 +389,7 @@ describe("InviteRedeemForm — the reload a blocked attestation needs", () => {
     // the typed password away for either would be actively harmful advice.
     redeemCallable.mockRejectedValue(refusal("invite-password-weak"));
     render(<InviteRedeemForm token="abc" />);
-    await screen.findByLabelText("Nueva contraseña");
+    await screen.findByLabelText(NEW_PASSWORD);
     await fillPasswords("Abcde1");
     await userEvent.click(screen.getByRole("button", { name: /crear contraseña/i }));
     await waitFor(() => expect(hasAlertMatching(/no cumple los requisitos/i)).toBe(true));
