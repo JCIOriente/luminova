@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { useState } from "react";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PhoneInput } from "./phone-input";
@@ -159,5 +159,92 @@ describe("PhoneInput overflow and caret: regression cases", () => {
     const input = screen.getByLabelText<HTMLInputElement>("Tel");
     await userEvent.type(input, "{Backspace}");
     expect(input.value).toBe("7001234");
+  });
+});
+
+// Sets the value the way a browser's own editing does, so React's value tracker sees a change.
+function setNativeValue(input: HTMLInputElement, value: string, caret: number) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  setter?.call(input, value);
+  input.setSelectionRange(caret, caret);
+}
+
+describe("PhoneInput: input that beforeinput cannot cancel", () => {
+  it("restores the field when a composed digit overflows a full field", () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="70012345" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    input.focus();
+    input.setSelectionRange(3, 3);
+    fireEvent(
+      input,
+      new InputEvent("beforeinput", {
+        inputType: "insertCompositionText",
+        data: "9",
+        bubbles: true,
+        cancelable: false,
+      }),
+    );
+    setNativeValue(input, "700912345", 4);
+    fireEvent.input(input);
+    expect(input.value).toBe("70012345");
+    expect(input.selectionStart).toBe(3);
+  });
+
+  it("sanitizes and truncates an input that arrives with no beforeinput (documented fallback)", () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="70012345" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    input.focus();
+    setNativeValue(input, "700912345", 4);
+    fireEvent.input(input);
+    expect(input.value).toBe("70091234");
+  });
+});
+
+describe("PhoneInput: non-digit over a selection", () => {
+  it("cancels a typed non-digit instead of deleting the selection", async () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="70012345" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    await userEvent.type(input, "a", { initialSelectionStart: 2, initialSelectionEnd: 5 });
+    expect(input.value).toBe("70012345");
+  });
+});
+
+describe("PhoneInput: forwarded ref", () => {
+  it("keeps a stable callback ref attached across re-renders", () => {
+    const ref = vi.fn();
+    const { rerender } = render(<PhoneInput aria-label="Tel" sanitize={eightDigits} ref={ref} />);
+    rerender(<PhoneInput aria-label="Tel" sanitize={eightDigits} ref={ref} placeholder="x" />);
+    expect(ref).toHaveBeenCalledTimes(1);
+    expect(ref.mock.calls[0]?.[0]).toBeInstanceOf(HTMLInputElement);
+  });
+
+  it("runs a React 19 ref cleanup on unmount instead of calling the ref with null", () => {
+    const cleanupRef = vi.fn();
+    const ref = vi.fn(() => cleanupRef);
+    const { unmount } = render(<PhoneInput aria-label="Tel" sanitize={eightDigits} ref={ref} />);
+    unmount();
+    expect(cleanupRef).toHaveBeenCalledTimes(1);
+    expect(ref).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PhoneInput: caret edge cases", () => {
+  it("clamps the caret at 0 when a typed 5 completes a 591 prefix at the start", async () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="91700123" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    await userEvent.type(input, "5", { initialSelectionStart: 0, initialSelectionEnd: 0 });
+    expect(input.value).toBe("700123");
+    expect(input.selectionStart).toBe(0);
+  });
+
+  it("does not move the selection of a field that is not focused", () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="7001" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    const setSelection = vi.spyOn(input, "setSelectionRange");
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    setter?.call(input, "70a01");
+    fireEvent.input(input);
+    expect(input.value).toBe("7001");
+    expect(setSelection).not.toHaveBeenCalled();
   });
 });
