@@ -110,11 +110,9 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   this ITSELF — a request with no `X-Firebase-AppCheck` header is rejected before the
   debug-token escape — and local dev leaves `VITE_APPCHECK_SITE_KEY` blank, so the client sends
   no header at all. Enforcing unconditionally would make `/invitacion` impossible to exercise
-  against the emulator. `FUNCTIONS_EMULATOR` is safe to key on: only the emulator sets it. (The
-  deploy-time discovery run sets `FUNCTIONS_CONTROL_API=true` instead — set by firebase-tools'
-  `spawnFunctionsProcess`, read by firebase-functions' CLI to serve `/__/functions.yaml`;
-  nothing to do with App Check.) Why the discovery run cannot affect the value at all is in the
-  `ENFORCE_APP_CHECK` docblock in `token-verification-bypass.ts`. A test pins BOTH branches —
+  against the emulator. `FUNCTIONS_EMULATOR` is safe to key on: only the emulator sets it, and why
+  the deploy-time discovery run cannot affect the value is in the `ENFORCE_APP_CHECK` docblock
+  in `token-verification-bypass.ts`. A test pins BOTH branches —
   the two failure directions are opposite and both silent.
   App Check bounds WHO may call, not how often, which is why the limiter ships alongside it.
   For a callable the `onCall` flag IS the enforcement. Attestation chain, setup, enforcement

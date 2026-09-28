@@ -525,9 +525,7 @@ it in a copy dialog with its expiry.
    `_auth` layout, the production build carries `VITE_APPCHECK_SITE_KEY` from
    `apps/backstage/.env.production`, and the client's `ensureApp()`
    (`packages/firebase/src/app-core.ts`) wires `initAppCheck` on first app acquisition, which
-   `getFunctionsService()` goes through. This is the one place the chain is spelled out; the
-   beacon-side comment on `UNAUTHENTICATED_CALL` (`apps/beacon/src/redeem-invite.ts`) points
-   back here rather than repeating it.
+   `getFunctionsService()` goes through.
 
    **Set up** — once per web app, in the Firebase console. There is no gcloud or Firebase CLI
    command for App Check.
@@ -568,8 +566,8 @@ it in a copy dialog with its expiry.
 
    **Real `POST` traffic is the only evidence that the deployed flag accepts real attestation**;
    `GET` 400/404 rows are probes and prove nothing. First real traffic: 2026-09-28 (the pass
-   recorded under step 3). Re-run steps 1–3 after any App Check key rotation or enforcement
-   rollback.
+   recorded under step 3). Re-run this smoke test (steps 1–3 below) after any App Check key
+   rotation or enforcement rollback; Verify steps 2–3 above only change with a redeploy.
 
    1. Issue a real invite from production backstage. This is itself an App Check-enforced call
       (`issueMemberInvite`).
@@ -602,7 +600,7 @@ it in a copy dialog with its expiry.
    `/invitacion#<token>`. Expect the page to refuse on load with *"Este enlace ya venció.
    Pídele a quien te invitó que te envíe uno nuevo — los enlaces duran 48 horas."*, and one
    `POST` **400** on `describeinvite` (`failed-precondition`, see the response-code table below);
-   `redeeminvite` is not called. Never a 401 — a 401 there is App Check rejecting the call, a
+   `redeeminvite` is not called. Confirm with the step 3 query. Never a 401 — a 401 there is App Check rejecting the call, a
    different failure to chase.
 
    **When it fails.** If issuing fails (`issueMemberInvite` refused), backstage shows *"No
@@ -707,8 +705,7 @@ it in a copy dialog with its expiry.
 
    **Every deployed CALLABLE, not just the invite pair** — the debug pair forges Auth tokens on
    the authenticated ones too (below), so scoping the assertion to two services would leave the
-   callables with the most reach unchecked. The list is enumerated in `deploy.yml` (the
-   `describeinvite redeeminvite issuememberinvite …` argument list above) and pinned by a test
+   callables with the most reach unchecked. The list is enumerated in `deploy.yml` and pinned by a test
    in `redeem-invite.test.ts` against `index.ts`'s own callable exports, so a new callable turns
    that test red until the YAML is widened. Nothing auto-widens.
 
