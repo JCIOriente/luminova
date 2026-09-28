@@ -70,10 +70,35 @@ from typing past it.
 - The button-rendered pickers (Combobox, MultiSelect, DatePicker, DateTimePicker) take only the
   describedby. `aria-invalid` and `aria-required` are not supported on `role=button`.
 
-## Out of scope (decided separately)
+**Forms validate on blur.**
+- Every backstage `useForm` sets `mode: "onTouched"`. A field shows its error when the user
+  leaves it, then re-validates as they type.
+- A rejected submit still focuses the first invalid field (RHF's `shouldFocusError` default).
+- site-config still hides every error until the first save attempt (`attempted`), so a long
+  form does not light up while the editor is filling it in.
 
-These are behavior changes:
-- when errors appear (submit vs blur)
-- trimming what gets saved
-- login enforcing the full password policy client-side
-- password `maxLength` (truncating a pasted password would silently save a different one)
+**Schemas trim what they validate.**
+- Emails are `.trim()`ed before `.email()` in the member, ally, login and site-config contact
+  schemas, so a pasted address with padding is saved bare.
+- Ally company and contact names, and position, activity and initiative titles, are
+  `.trim()`ed before `.min()`, so whitespace alone does not pass.
+
+**Login checks only that a password was typed.**
+- The strength policy (`passwordSchema`) applies where a password is chosen, on the invite
+  redeem page. On login it would lock out every member whose password predates the policy.
+- Login and invite-redeem fields carry the required marker and `aria-required`.
+
+**A Bolivian number starts with 2, 3, 4, 6 or 7.**
+- Landlines start 2, 3 or 4, and mobiles start 6 or 7. `BOLIVIA_PHONE_PATTERN` in
+  `packages/types/src/phone.ts` is `^[23467][0-9]{7}$`.
+- `firestore.rules` holds the same text in `selfProfileValid()`.
+  `member-self-lane.rules.test.ts` fails if the two differ by a byte.
+- `PhoneInput` does not block a leading 0, 1 or 5. Typing `00591…` or `591…` one key at a time
+  passes through those digits before the prefix is stripped. The field shows the validation
+  error instead.
+- `boliviaWhatsAppUrl` relies on the same check. A stored number that no longer passes gets
+  no WhatsApp link.
+
+## Out of scope
+
+- Password `maxLength`. Truncating a pasted password would silently save a different one.
