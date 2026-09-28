@@ -9,6 +9,9 @@ const optionalText = (min: number, msg: string) =>
     .transform((v) => (v === "" ? undefined : v))
     .pipe(z.string().min(min, msg).optional());
 
+export const POSITION_TERM_MIN = 2000;
+export const POSITION_TERM_MAX = 2100;
+
 export const positionSchema = z
   .object({
     title: z.string().min(3, "Mínimo 3 caracteres."),
@@ -19,8 +22,8 @@ export const positionSchema = z
     term: z
       .number({ error: "Requerido." })
       .int()
-      .min(2000, "Año inválido.")
-      .max(2100, "Año inválido.")
+      .min(POSITION_TERM_MIN, "Año inválido.")
+      .max(POSITION_TERM_MAX, "Año inválido.")
       .nullable(),
     description: z.string().min(1, "Requerido."),
   })

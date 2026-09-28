@@ -17,6 +17,7 @@ import {
   type ActivityInput,
   type ActivityCategory,
   ACTIVITY_CATEGORIES,
+  ACTIVITY_LOCATION_MAX_LENGTH,
 } from "@luminova/types";
 import { CATEGORY_LABELS } from "../category-labels";
 import { ParentPicker } from "./parent-picker";
@@ -139,6 +140,7 @@ export function ActivityForm({
       <Field label="Ubicación" htmlFor="location" error={errors.location?.message}>
         <Input
           id="location"
+          maxLength={ACTIVITY_LOCATION_MAX_LENGTH}
           {...register("location")}
           placeholder="Dirección física o enlace virtual (opcional)"
         />

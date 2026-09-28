@@ -40,7 +40,7 @@ describe("contact form phone", () => {
     expect(phone.value).toBe("70012345");
     fireEvent.click(screen.getByRole("button", { name: /enviar mensaje/i }));
     await waitFor(() => expect(submitLead).toHaveBeenCalled());
-    expect(submitLead.mock.calls[0][0]).toMatchObject({ phone: "70012345" });
+    expect(submitLead.mock.calls[0]?.[0]).toMatchObject({ phone: "70012345" });
   });
 
   it("caps an over-long paste and keeps a pasted +591 number whole", () => {

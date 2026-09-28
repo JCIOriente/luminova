@@ -8,7 +8,11 @@ const mutate = vi.fn();
 
 // Mutable so the lifecycle cases can vary the role list and the sent history without
 // re-mocking per test; reset in beforeEach so no case leaks into the next.
-const state = vi.hoisted(() => ({ roles: [] as unknown[], sent: [] as unknown[] }));
+const state = vi.hoisted(() => ({
+  roles: [] as unknown[],
+  sent: [] as unknown[],
+  isPending: false,
+}));
 
 vi.mock("../hooks/use-sent-notifications", () => ({
   useSentNotifications: () => ({
@@ -20,7 +24,7 @@ vi.mock("../hooks/use-sent-notifications", () => ({
   }),
 }));
 vi.mock("../hooks/use-compose-notification", () => ({
-  useComposeNotification: () => ({ mutate, isPending: false }),
+  useComposeNotification: () => ({ mutate, isPending: state.isPending }),
 }));
 vi.mock("../../permissions/hooks/use-roles", () => ({
   useRoles: () => ({ data: state.roles, isLoading: false }),
@@ -67,6 +71,7 @@ const sentTo = (roleId: string): NotificationDoc =>
 beforeEach(() => {
   state.roles = [];
   state.sent = [];
+  state.isPending = false;
 });
 
 function renderWith(claims: AuthClaims, ui: ReactElement) {
@@ -111,6 +116,17 @@ describe("NotificationsPage — compose submit", () => {
       url: null,
       audience: { type: "everyone" },
     });
+  });
+});
+
+describe("NotificationsPage — in-flight send", () => {
+  // The handler calls mutate(), not mutateAsync(), so RHF's isSubmitting drops back to false
+  // while the send is still in flight. Keying the button on it left a second click live.
+  it("disables the send button while the mutation is pending", () => {
+    state.isPending = true;
+    renderWith(FULL_ACCESS, <NotificationsPage />);
+    const button = screen.getByRole("button", { name: /enviando/i });
+    expect(button).toBeDisabled();
   });
 });
 

@@ -8,10 +8,14 @@ export const audienceSchema = z.discriminatedUnion("type", [
 ]);
 export type Audience = z.infer<typeof audienceSchema>;
 
+export const NOTIFICATION_TITLE_MAX_LENGTH = 120;
+export const NOTIFICATION_BODY_MAX_LENGTH = 1000;
+export const NOTIFICATION_URL_MAX_LENGTH = 2000;
+
 export const notificationCreateSchema = z.object({
-  title: z.string().min(1).max(120),
-  body: z.string().min(1).max(1000),
-  url: z.string().url().max(2000).nullable(),
+  title: z.string().min(1).max(NOTIFICATION_TITLE_MAX_LENGTH),
+  body: z.string().min(1).max(NOTIFICATION_BODY_MAX_LENGTH),
+  url: z.string().url().max(NOTIFICATION_URL_MAX_LENGTH).nullable(),
   audience: audienceSchema,
 });
 export type NotificationCreate = z.infer<typeof notificationCreateSchema>;
