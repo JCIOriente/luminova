@@ -29,6 +29,7 @@ export function SelfProfileForm({ member }: { member: Member }) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<SelfProfileInput>({
+    mode: "onTouched",
     resolver: zodResolver(schema),
     defaultValues: {
       name: member.name,

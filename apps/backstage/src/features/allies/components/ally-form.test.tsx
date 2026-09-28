@@ -134,3 +134,13 @@ describe("AllyForm", () => {
     });
   });
 });
+
+describe("AllyForm validates on blur", () => {
+  it("shows the company error when the user leaves the field, without submitting", async () => {
+    render(<AllyForm submitLabel="Crear" onSubmit={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText(/^empresa/i), "AB");
+    await userEvent.tab();
+    expect(await screen.findByText("Mínimo 3 caracteres.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^empresa/i)).toHaveAttribute("aria-invalid", "true");
+  });
+});

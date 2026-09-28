@@ -70,6 +70,7 @@ export function PositionForm({
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<PositionInput>({
+    mode: "onTouched",
     resolver: zodResolver(positionSchema),
     // On an EDIT the stored category wins — it is pinned, not chosen. Both branches are
     // module constants, so no fresh object is allocated per render.

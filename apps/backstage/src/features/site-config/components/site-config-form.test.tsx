@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { LINKTREE_SOCIAL_PLATFORMS, type SiteConfigInput } from "@luminova/types";
 import { SiteConfigForm } from "./site-config-form";
 
@@ -84,5 +85,21 @@ describe("SiteConfigForm error visibility", () => {
       expect(screen.getByText("Corrige 2 campos antes de guardar")).toBeInTheDocument(),
     );
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe("SiteConfigForm keeps errors behind the first save attempt", () => {
+  // Blur validation populates RHF's errors, but this form reveals them only once a save has
+  // been attempted: a long form lit up while the editor is still filling it reads as nagging.
+  it("does not flag a blanked field when the user merely leaves it", async () => {
+    render(
+      <SiteConfigForm defaultValues={validInput} lastSaved={new Date(0)} onSubmit={vi.fn()} />,
+    );
+    const motto = screen.getByLabelText("Lema *");
+    await userEvent.clear(motto);
+    await userEvent.tab();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(motto).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByText("Requerido.")).toBeNull();
   });
 });

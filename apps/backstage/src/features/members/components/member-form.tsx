@@ -128,6 +128,7 @@ export function MemberForm({
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<MemberInput>({
+    mode: "onTouched",
     resolver: zodResolver(schema),
     defaultValues: { ...EMPTY, ...defaultValues },
   });

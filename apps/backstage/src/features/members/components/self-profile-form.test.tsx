@@ -134,3 +134,20 @@ describe("SelfProfileForm", () => {
     });
   });
 });
+
+describe("SelfProfileForm validates on blur", () => {
+  it("rejects a phone starting with a digit no Bolivian line uses, on leaving the field", async () => {
+    mutateAsync.mockClear();
+    const user = userEvent.setup();
+    render(<SelfProfileForm member={member} />);
+    const phone = screen.getByLabelText(/Teléfono/);
+    await user.clear(phone);
+    await user.type(phone, "12345678");
+    await user.tab();
+    expect(
+      await screen.findByText("El teléfono debe tener 8 dígitos y empezar con 2, 3, 4, 6 o 7."),
+    ).toBeInTheDocument();
+    expect(phone).toHaveAttribute("aria-invalid", "true");
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+});

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import type { AuthClaims } from "@luminova/auth/roles";
 import type { NotificationDoc, RoleDefinition } from "@luminova/types";
@@ -160,5 +161,16 @@ describe("NotificationsPage — audience options", () => {
 
     expect(screen.getByRole("cell", { name: "Comunicaciones Retirado" })).toBeInTheDocument();
     expect(screen.queryByText("c_dead")).not.toBeInTheDocument();
+  });
+});
+
+describe("NotificationsPage — validates on blur", () => {
+  it("shows the title error in Spanish when the user leaves it empty, without submitting", async () => {
+    mutate.mockClear();
+    renderWith(FULL_ACCESS, <NotificationsPage />);
+    await userEvent.click(screen.getByLabelText(/^Título/));
+    await userEvent.tab();
+    expect(await screen.findByText("Requerido.")).toBeInTheDocument();
+    expect(mutate).not.toHaveBeenCalled();
   });
 });

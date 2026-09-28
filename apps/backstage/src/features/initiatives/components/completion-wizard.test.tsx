@@ -106,3 +106,13 @@ describe("CompletionWizard", () => {
     expect(screen.getByLabelText(/resumen de cierre/i)).toHaveValue("Resumen que debe sobrevivir.");
   });
 });
+
+describe("CompletionWizard validates on blur", () => {
+  it("shows the summary error when the user leaves the field, without advancing", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await user.type(screen.getByLabelText(/resumen de cierre/i), "corto");
+    await user.tab();
+    expect(await screen.findByText(/mínimo 10 caracteres/i)).toBeInTheDocument();
+  });
+});

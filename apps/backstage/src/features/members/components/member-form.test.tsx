@@ -724,3 +724,14 @@ describe("MemberForm", () => {
     expect(await screen.findByText(/CCE — Comisión de Conducta y Ética/)).toBeInTheDocument();
   });
 });
+
+describe("MemberForm validates on blur", () => {
+  it("shows the email error when the user leaves the field, without submitting", async () => {
+    render(
+      <MemberForm {...FORM_AUTHORITY} positions={[]} submitLabel="Crear" onSubmit={vi.fn()} />,
+    );
+    await userEvent.type(screen.getByLabelText(/correo/i), "nope");
+    await userEvent.tab();
+    expect(await screen.findByText("Correo inválido.")).toBeInTheDocument();
+  });
+});

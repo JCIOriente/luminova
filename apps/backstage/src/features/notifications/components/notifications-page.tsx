@@ -105,6 +105,7 @@ function ComposeForm() {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<NotificationCreate>({
+    mode: "onTouched",
     resolver: zodResolver(notificationCreateSchema),
     defaultValues: { title: "", body: "", url: "", audience: { type: "everyone" } },
   });

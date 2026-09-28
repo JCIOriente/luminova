@@ -75,6 +75,7 @@ export function ActivityForm({
     handleSubmit,
     formState: { errors },
   } = useForm<ActivityInput>({
+    mode: "onTouched",
     resolver: zodResolver(activitySchema),
     defaultValues: { ...EMPTY, ...defaultValues },
   });

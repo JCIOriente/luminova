@@ -44,6 +44,7 @@ export function AllyForm({
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<AllyInput>({
+    mode: "onTouched",
     resolver: zodResolver(allySchema),
     defaultValues: toDefaults(ally),
   });

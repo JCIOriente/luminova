@@ -91,6 +91,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
     reset,
     formState: { errors, isDirty, isSubmitting },
   } = useForm<SiteConfigInput>({
+    mode: "onTouched",
     resolver: zodResolver(siteConfigSchema),
     defaultValues,
   });

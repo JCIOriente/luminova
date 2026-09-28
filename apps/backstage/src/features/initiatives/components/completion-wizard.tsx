@@ -42,6 +42,7 @@ export function CompletionWizard({
     trigger,
     formState: { errors },
   } = useForm<InitiativeImpactInput>({
+    mode: "onTouched",
     resolver: zodResolver(initiativeImpactSchema),
     defaultValues: EMPTY,
   });
