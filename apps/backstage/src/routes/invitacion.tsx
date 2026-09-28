@@ -37,7 +37,7 @@ function InvitePage() {
               Ya casi <b className="font-semibold">estás dentro.</b>
             </>
           }
-          lead="Elige una contraseña segura para entrar a la plataforma de la directiva."
+          lead="Elige una contraseña segura para entrar al portal de miembros."
         />
       }
     >

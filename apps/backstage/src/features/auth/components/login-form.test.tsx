@@ -24,7 +24,7 @@ describe("LoginForm", () => {
     render(<LoginForm onSuccess={vi.fn()} />);
     await userEvent.type(screen.getByLabelText(/correo/i), "nope");
     await userEvent.type(screen.getByLabelText("Contraseña"), "Secret1");
-    await userEvent.click(screen.getByRole("button", { name: /entrar a backstage/i }));
+    await userEvent.click(screen.getByRole("button", { name: /entrar al portal/i }));
     expect(await screen.findByText("Ingresa un correo válido.")).toBeInTheDocument();
     expect(signIn).not.toHaveBeenCalled();
   });
@@ -33,21 +33,21 @@ describe("LoginForm", () => {
     render(<LoginForm onSuccess={vi.fn()} />);
     await userEvent.type(screen.getByLabelText(/correo/i), "admin@jci.bo");
     await userEvent.type(screen.getByLabelText("Contraseña"), "weak");
-    await userEvent.click(screen.getByRole("button", { name: /entrar a backstage/i }));
+    await userEvent.click(screen.getByRole("button", { name: /entrar al portal/i }));
     expect(await screen.findByText(/la contraseña necesita/i)).toBeInTheDocument();
     expect(signIn).not.toHaveBeenCalled();
   });
 
   // Inverted: there is NO self-service recovery any more (all of it is operator-mediated), so
-  // a link here would point at a page that cannot help. The copy sends them to the directiva,
-  // and the CEL mailto below is the real escape hatch.
+  // a link here would point at a page that cannot help. The copy sends them to write in, and
+  // the mailto below is the real escape hatch.
   it("offers no self-service recovery link, only the operator route", () => {
     render(<LoginForm onSuccess={vi.fn()} />);
     expect(screen.queryByRole("link", { name: /la olvidaste/i })).not.toBeInTheDocument();
     expect(
-      screen.getByText(/Pídele a la directiva que te envíe un enlace de acceso/i),
+      screen.getByText(/Escríbenos y te enviamos un nuevo enlace de acceso/i),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /escríbele al cel/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /escríbenos/i })).toHaveAttribute(
       "href",
       "mailto:jci.orienteolm@gmail.com",
     );
@@ -59,7 +59,7 @@ describe("LoginForm", () => {
     render(<LoginForm onSuccess={onSuccess} />);
     await userEvent.type(screen.getByLabelText(/correo/i), "admin@jci.bo");
     await userEvent.type(screen.getByLabelText("Contraseña"), "Secret1");
-    await userEvent.click(screen.getByRole("button", { name: /entrar a backstage/i }));
+    await userEvent.click(screen.getByRole("button", { name: /entrar al portal/i }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
     expect(signIn).toHaveBeenCalledWith("admin@jci.bo", "Secret1", true);
   });
@@ -69,7 +69,7 @@ describe("LoginForm", () => {
     render(<LoginForm onSuccess={vi.fn()} />);
     await userEvent.type(screen.getByLabelText(/correo/i), "admin@jci.bo");
     await userEvent.type(screen.getByLabelText("Contraseña"), "Secret1");
-    await userEvent.click(screen.getByRole("button", { name: /entrar a backstage/i }));
+    await userEvent.click(screen.getByRole("button", { name: /entrar al portal/i }));
     expect(await screen.findByText("Correo o contraseña incorrectos.")).toBeInTheDocument();
   });
 });

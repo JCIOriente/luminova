@@ -76,7 +76,7 @@ export function LeadsPage() {
     return (
       <EmptyState
         icon={Icon.lock({ s: 40 })}
-        title="Acceso restringido"
+        title="Esta sección no está en tu perfil"
         description="No tienes permiso para ver los prospectos. Pídele acceso a un administrador."
       />
     );

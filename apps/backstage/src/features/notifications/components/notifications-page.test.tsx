@@ -85,13 +85,13 @@ function renderWith(claims: AuthClaims, ui: ReactElement) {
 describe("NotificationsPage — access gate", () => {
   it("fences out a principal without create:Notification or read:Notification", () => {
     renderWith({ roles: ["Member"] }, <NotificationsPage />);
-    expect(screen.getByText(/acceso restringido/i)).toBeInTheDocument();
+    expect(screen.getByText(/esta sección no está en tu perfil/i)).toBeInTheDocument();
     expect(screen.queryByText(/^Notificaciones$/)).not.toBeInTheDocument();
   });
 
   it("renders the compose form + history for an authorized principal", () => {
     renderWith(FULL_ACCESS, <NotificationsPage />);
-    expect(screen.queryByText(/acceso restringido/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/esta sección no está en tu perfil/i)).not.toBeInTheDocument();
     expect(screen.getByText(/envía un aviso a los miembros/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^Título/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /enviar notificación/i })).toBeInTheDocument();

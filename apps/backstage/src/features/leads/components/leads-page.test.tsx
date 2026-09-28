@@ -27,13 +27,13 @@ function renderWith(claims: AuthClaims, ui: ReactElement) {
 describe("LeadsPage — read gate", () => {
   it("fences out a principal without read:Lead", () => {
     renderWith({ roles: ["Member"] }, <LeadsPage />);
-    expect(screen.getByText(/acceso restringido/i)).toBeInTheDocument();
+    expect(screen.getByText(/esta sección no está en tu perfil/i)).toBeInTheDocument();
     expect(screen.queryByText(/^Prospectos$/)).not.toBeInTheDocument();
   });
 
   it("renders the inbox for a principal with read:Lead", () => {
     renderWith({ roles: ["Member"], perms: ["read:Lead"] }, <LeadsPage />);
-    expect(screen.queryByText(/acceso restringido/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/esta sección no está en tu perfil/i)).not.toBeInTheDocument();
     expect(screen.getByText(/personas que nos escribieron/i)).toBeInTheDocument();
   });
 });

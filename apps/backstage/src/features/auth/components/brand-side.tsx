@@ -22,13 +22,13 @@ const BRAND_RIPPLE = [
 
 export function BrandSide({
   tone = "dark",
-  eyebrow = "Portal de la directiva",
+  eyebrow = "Portal de miembros",
   title = (
     <>
       Inspira<b className="font-semibold">.</b>
     </>
   ),
-  lead = "El panel interno de JCI Oriente. Coordina miembros, eventos y proyectos del capítulo desde un solo lugar.",
+  lead = "El espacio de todos los miembros de JCI Oriente: tus eventos, proyectos y tu perfil, en un solo lugar.",
 }: BrandSideProps) {
   const blue = tone === "blue";
   return (

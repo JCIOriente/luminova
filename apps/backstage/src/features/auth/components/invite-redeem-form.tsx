@@ -54,7 +54,7 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="flex w-full max-w-[392px] flex-col">
       <div className="mb-4 font-mono text-ui-2xs uppercase tracking-[0.2em] text-jci-blue">
-        Backstage · Crea tu contraseña
+        Portal de miembros · Crea tu contraseña
       </div>
       {children}
     </div>
