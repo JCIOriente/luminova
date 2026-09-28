@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Timestamp } from "firebase/firestore";
-import type { Member } from "@luminova/types";
+import { PROFESSION_MAX_LENGTH, type Member } from "@luminova/types";
 
 const mutateAsync = vi.fn().mockResolvedValue(undefined);
 vi.mock("../hooks/use-update-self-profile", () => ({
@@ -36,6 +36,15 @@ async function submitWithName(value: string, on: Member = member) {
 }
 
 describe("SelfProfileForm", () => {
+  it("stops the profession at the schema's cap, pasted text included", async () => {
+    render(<SelfProfileForm member={member} />);
+    const profession = screen.getByLabelText<HTMLInputElement>(/Profesión/);
+    await userEvent.clear(profession);
+    await userEvent.click(profession);
+    await userEvent.paste("x".repeat(PROFESSION_MAX_LENGTH + 1));
+    expect(profession.value).toHaveLength(PROFESSION_MAX_LENGTH);
+  });
+
   beforeEach(() => mutateAsync.mockClear());
 
   it("pre-fills the member's current name", () => {

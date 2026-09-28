@@ -5,6 +5,7 @@ import { Button, Checkbox, DatePicker, Field, Input, PhoneInput } from "@luminov
 import {
   selfProfileSchemaFor,
   MEMBER_NAME_MAX_LENGTH,
+  PROFESSION_MAX_LENGTH,
   BOLIVIA_PHONE_LENGTH,
   sanitizeBoliviaPhoneInput,
   type Member,
@@ -74,7 +75,7 @@ export function SelfProfileForm({ member }: { member: Member }) {
         />
       </Field>
       <Field label="Profesión" htmlFor="self-profession" error={errors.profession?.message}>
-        <Input id="self-profession" {...register("profession")} />
+        <Input id="self-profession" maxLength={PROFESSION_MAX_LENGTH} {...register("profession")} />
       </Field>
       <Field
         label="Fecha de nacimiento"

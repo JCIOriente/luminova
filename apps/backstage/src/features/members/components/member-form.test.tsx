@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { MemberInput, Position } from "@luminova/types";
+import { PROFESSION_MAX_LENGTH, type MemberInput, type Position } from "@luminova/types";
 import { MemberForm } from "./member-form";
 import { cargoNoteIds } from "./no-assignable-cargos-note";
 import { toMemberUpdateDoc } from "../repositories/member-mapper";
@@ -99,6 +99,16 @@ const inactiveCargoPosition: Position = {
 };
 
 describe("MemberForm", () => {
+  it("stops the profession at the schema's cap, pasted text included", async () => {
+    render(
+      <MemberForm {...FORM_AUTHORITY} positions={[]} submitLabel="Crear" onSubmit={vi.fn()} />,
+    );
+    const profession = screen.getByLabelText<HTMLInputElement>(/profesión/i);
+    await userEvent.click(profession);
+    await userEvent.paste("x".repeat(PROFESSION_MAX_LENGTH + 1));
+    expect(profession.value).toHaveLength(PROFESSION_MAX_LENGTH);
+  });
+
   it("blocks submit and shows an error when required fields are empty", async () => {
     const onSubmit = vi.fn();
     render(

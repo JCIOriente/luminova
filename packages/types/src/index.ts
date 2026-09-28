@@ -54,7 +54,7 @@ export {
   type MemberInput,
   type SelfProfileInput,
 } from "./member-schema.js";
-export { memberSchemaFor, selfProfileSchemaFor } from "./member-schema.js";
+export { memberSchemaFor, selfProfileSchemaFor, PROFESSION_MAX_LENGTH } from "./member-schema.js";
 export { MEMBER_NAME_MAX_LENGTH } from "./member-name.js";
 export {
   BOLIVIA_PHONE_LENGTH,

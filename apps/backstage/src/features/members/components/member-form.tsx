@@ -22,6 +22,7 @@ import {
   MEMBER_STATUSES,
   MEMBER_GENDERS,
   MEMBER_NAME_MAX_LENGTH,
+  PROFESSION_MAX_LENGTH,
   BOLIVIA_PHONE_LENGTH,
   sanitizeBoliviaPhoneInput,
 } from "@luminova/types";
@@ -256,7 +257,7 @@ export function MemberForm({
           />
         </Field>
         <Field label="Profesión" htmlFor="profession" error={errors.profession?.message}>
-          <Input id="profession" {...register("profession")} />
+          <Input id="profession" maxLength={PROFESSION_MAX_LENGTH} {...register("profession")} />
         </Field>
         <Field
           label="Fecha de nacimiento"
