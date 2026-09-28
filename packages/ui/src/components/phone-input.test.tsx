@@ -248,3 +248,45 @@ describe("PhoneInput: caret edge cases", () => {
     expect(setSelection).not.toHaveBeenCalled();
   });
 });
+
+// One composition update the way Chromium delivers it: the composed range is selected, then
+// beforeinput (not cancellable) carries the whole composition string, then the value changes.
+function composeUpdate(input: HTMLInputElement, text: string, from: number, to: number) {
+  input.setSelectionRange(from, to);
+  fireEvent(
+    input,
+    new InputEvent("beforeinput", {
+      inputType: "insertCompositionText",
+      data: text,
+      bubbles: true,
+      cancelable: false,
+    }),
+  );
+  const next = input.value.slice(0, from) + text + input.value.slice(to);
+  setNativeValue(input, next, from + text.length);
+  fireEvent.input(input);
+}
+
+describe("PhoneInput: multi-update composition (Chromium)", () => {
+  it("never lets a later composition update push a digit off the end", () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="7001234" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    input.focus();
+    composeUpdate(input, "9", 3, 3);
+    expect(input.value).toBe("70091234");
+    composeUpdate(input, "98", 3, 4);
+    expect(input.value).toBe("70091234");
+    expect(input.selectionStart).toBe(3);
+    expect(input.selectionEnd).toBe(4);
+  });
+
+  it("keeps a multi-update composition that fits", () => {
+    render(<PhoneInput aria-label="Tel" sanitize={eightDigits} defaultValue="7001" />);
+    const input = screen.getByLabelText<HTMLInputElement>("Tel");
+    input.focus();
+    composeUpdate(input, "9", 2, 2);
+    expect(input.value).toBe("70901");
+    composeUpdate(input, "98", 2, 3);
+    expect(input.value).toBe("709801");
+  });
+});

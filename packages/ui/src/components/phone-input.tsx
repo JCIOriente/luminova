@@ -23,24 +23,40 @@ interface PhoneInputProps extends Omit<ComponentPropsWithRef<"input">, "type" | 
 
 interface Snapshot {
   value: string;
-  caret: number;
+  start: number;
+  end: number;
 }
+
+/** Edits that may legitimately be cut down to fit. Everything else the user types or composes
+ *  is never truncated. */
+const TRUNCATABLE_INPUT = new Set(["insertFromPaste", "insertFromDrop", "insertReplacementText"]);
 
 /** Only a focused field owns a caret. Setting one on a blurred input can pull focus in some
  *  browsers. */
-function placeCaret(input: HTMLInputElement, at: number) {
-  if (input.ownerDocument.activeElement === input) input.setSelectionRange(at, at);
+function placeSelection(input: HTMLInputElement, start: number, end = start) {
+  if (input.ownerDocument.activeElement === input) input.setSelectionRange(start, end);
+}
+
+/** How many leading digits of `raw` sanitize dropped as a prefix, and whether it also dropped
+ *  any after that (a truncation). Relies on the sanitize contract: `clean` is a contiguous run
+ *  of raw's digits. */
+function digitLoss(raw: string, clean: string) {
+  const digits = raw.replace(/\D/g, "");
+  const prefix = Math.max(0, digits.indexOf(clean));
+  return { prefix, truncated: digits.length - prefix > clean.length };
 }
 
 /** Phone control: tel keypad, and a value capped at input time for typing and pasting alike.
  *  Works for RHF `register` (uncontrolled) and controlled callers, since both read
  *  `event.target.value` after onChange rewrites it.
  *
- *  A typed key that adds nothing (a digit into a full field, or any non-digit) is cancelled in
- *  `beforeinput`, so value and caret stay exactly as they were, like `maxLength`. Input that
- *  cannot be cancelled (composition) is undone in onChange against a one-event snapshot taken
- *  in `beforeinput`. Everything else (paste, autofill, a key that replaces a selection) goes
- *  through `sanitize`, and the caret keeps its place among the digits that remain. */
+ *  One rule: typing and composing can never truncate. `beforeinput` snapshots the value and
+ *  selection for every edit except paste, drop and autofill. If sanitizing the resulting raw
+ *  value would drop digits beyond a leading country-code prefix, onChange restores the
+ *  snapshot instead. Paste, drop, autofill (and input with no beforeinput) are sanitized and
+ *  truncated, and the caret keeps its place among the digits that remain. Two cancellable
+ *  keys are also rejected up front: one that sanitizes to nothing, and a digit into a full
+ *  field. */
 export function PhoneInput({ sanitize, onChange, ref, ...props }: PhoneInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   // The field as it stood just before the edit now in flight. Lives for one event: onChange
@@ -50,24 +66,21 @@ export function PhoneInput({ sanitize, onChange, ref, ...props }: PhoneInputProp
   // An Effect Event, so the listener attached once below always sees the current `sanitize`.
   const onBeforeInput = useEffectEvent((event: InputEvent) => {
     const input = inputRef.current;
-    if (!input) return;
-    const start = input.selectionStart;
-    const end = input.selectionEnd;
-    if (event.inputType === "insertText" && event.data != null && start !== null) {
-      // A key that sanitizes to nothing would only delete whatever it replaces.
+    if (!input || TRUNCATABLE_INPUT.has(event.inputType)) return;
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? start;
+    if (event.inputType === "insertText" && event.data != null) {
+      const next = input.value.slice(0, start) + event.data + input.value.slice(end);
+      // A key that sanitizes to nothing would only delete what it replaces; a digit at the caret
+      // of a full field would be undone in onChange anyway. Cancelling spares the input event.
       const addsNothing = sanitize(event.data) === "";
-      const next = input.value.slice(0, start) + event.data + input.value.slice(end ?? start);
-      // Same sanitized length into a caret means the key survives only by pushing a digit off
-      // the end. A length drop (a 591 prefix collapsing) or a gain is allowed through.
       const overflows = start === end && sanitize(next).length === sanitize(input.value).length;
       if (addsNothing || overflows) {
         event.preventDefault();
         return;
       }
     }
-    // Only an insertion at a caret can overflow by one. A replaced selection keeps what fits.
-    if (start === null || start !== end) return;
-    snapshot.current = { value: input.value, caret: start };
+    snapshot.current = { value: input.value, start, end };
     setTimeout(() => {
       snapshot.current = null;
     });
@@ -107,19 +120,15 @@ export function PhoneInput({ sanitize, onChange, ref, ...props }: PhoneInputProp
     const before = snapshot.current;
     snapshot.current = null;
     const clean = sanitize(raw);
-    if (
-      before &&
-      raw.length === before.value.length + 1 &&
-      clean.length === sanitize(before.value).length
-    ) {
+    const loss = digitLoss(raw, clean);
+    if (before && loss.truncated) {
       input.value = before.value;
-      placeCaret(input, before.caret);
+      placeSelection(input, before.start, before.end);
     } else if (clean !== raw) {
       const caret = input.selectionStart ?? raw.length;
-      const dropped = Math.max(0, raw.replace(/\D/g, "").indexOf(clean));
-      const digitsBefore = raw.slice(0, caret).replace(/\D/g, "").length - dropped;
+      const digitsBefore = raw.slice(0, caret).replace(/\D/g, "").length - loss.prefix;
       input.value = clean;
-      placeCaret(input, Math.min(Math.max(digitsBefore, 0), clean.length));
+      placeSelection(input, Math.min(Math.max(digitsBefore, 0), clean.length));
     }
     onChange?.(event);
   };

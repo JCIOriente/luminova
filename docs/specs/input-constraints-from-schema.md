@@ -31,28 +31,32 @@ from typing past it.
 - It renders `type="tel"` with `inputMode="tel"`, and rewrites `event.target.value` before
   calling the caller's `onChange`. That serves RHF `register` (uncontrolled) and controlled
   callers alike.
-- A native `beforeinput` listener cancels a typed key (`insertText`) that adds nothing:
-  - any key that sanitizes to nothing (a non-digit), whatever the selection, so it cannot
-    delete what it would replace;
-  - a key into a collapsed selection when sanitizing the would-be value gives the same length
-    as sanitizing the current one (a digit into a full field).
-
-  Value and caret stay as they were, like `maxLength`. A key whose insertion shortens the
-  sanitized value (a typed `591` prefix collapsing on the ninth digit) goes through.
-- Input that cannot be cancelled (`insertCompositionText` from an IME) is undone in `onChange`.
-  For an edit at a caret, `beforeinput` snapshots the value and caret. If the raw value then
-  grew by exactly one character without the sanitized length growing, the snapshot is restored.
-  The snapshot lives for one event: `onChange` consumes it, and a timer drops it if no input
-  event follows. So there is still no long-lived cached value.
-- An `input` event with no `beforeinput` at all is sanitized and truncated like a paste.
-- Everything else (paste, autofill, a key that replaces a selection) is sanitized in `onChange`.
-  A paste into a selection keeps its first digits up to the cap, as `maxLength` would.
+- **One rule: typing and composing can never truncate.** A native `beforeinput` listener
+  snapshots the value and selection for every edit except `insertFromPaste`, `insertFromDrop`
+  and `insertReplacementText` (autofill), whatever the selection. If sanitizing the resulting
+  raw value would drop digits beyond a leading country-code prefix, `onChange` restores the
+  snapshot's value and selection instead. That covers a digit typed into a full field, and
+  every update of an IME composition, including the later updates Chromium delivers with the
+  composed range selected.
+- The prefix strip is not a drop: a typed `591` collapsing on the ninth digit goes through.
+- The snapshot lives for one event. `onChange` consumes it, and a timer drops it if no input
+  event follows, so there is no long-lived cached value.
+- Two cancellable `insertText` keys are rejected up front in `beforeinput`, so no input event
+  fires at all:
+  - a key that sanitizes to nothing, whatever the selection, so it cannot delete what it
+    would replace;
+  - a digit into a full field at a collapsed caret.
+- Paste, drop and autofill, and an `input` event with no `beforeinput`, are sanitized and
+  truncated. A paste into a selection keeps its first digits up to the cap, as `maxLength`
+  would.
 - After sanitizing, the caret is set to the number of digits before it in the raw value, minus
   any prefix digits that were dropped, clamped to `[0, clean.length]`. It is only set while the
   field is focused. This relies on the `sanitize` contract: the result is an in-order,
   contiguous run of the raw digits.
-- The forwarded ref is merged through a `useCallback` keyed on `ref`, so RHF's register ref is
-  not detached and reattached on every render. A React 19 ref cleanup is honored.
+- The forwarded ref is merged through a `useCallback` keyed on `ref`, so a stable callback or
+  object ref stays attached across renders, and a React 19 ref cleanup is honored. RHF's
+  `register()` returns a new ref on every render, so that one reattaches each render, as it
+  does on a plain `<input>`.
 - The sanitizer is injected rather than imported so that `@luminova/ui` keeps no dependency on
   `@luminova/types`.
 
