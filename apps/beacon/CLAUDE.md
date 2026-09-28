@@ -116,6 +116,9 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   App Check bounds WHO may call, not how often, which is why the limiter ships alongside it.
   For a callable the `onCall` flag IS the enforcement. Attestation chain, setup, enforcement
   state and failure diagnosis: docs/firebase-setup.md, owner op 3.
+- **`issueMemberInvite` enforces App Check too; the other four admin callables do not.** The
+  list is `APP_CHECK_ENFORCED_CALLABLES`, pinned by `app-check-scope.test.ts`; why these three
+  and not the rest: docs/firebase-setup.md, owner op 3.
 - **One debug flag defeats BOTH token verifications, and every callable refuses it.**
   `FIREBASE_DEBUG_MODE=true` plus `FIREBASE_DEBUG_FEATURES` carrying `skipTokenVerification` makes
   firebase-functions decode BOTH the App Check header and the **Auth ID token** without verifying

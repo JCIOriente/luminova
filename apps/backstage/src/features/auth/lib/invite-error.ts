@@ -1,5 +1,5 @@
 import { INVITE_RETRY_AFTER_SECONDS, type InviteBlockReason } from "@luminova/types";
-import { refusalReason } from "../../../lib/callable-refusal";
+import { isUnauthenticated, refusalReason } from "../../../lib/callable-refusal";
 
 // Keyed by InviteBlockReason, the union beacon throws from (@luminova/types) — a renamed or
 // added reason is a compile error here rather than a silent fall-through to the generic
@@ -118,7 +118,7 @@ const OUR_FAULT_REASONS: ReadonlySet<string> = new Set<InviteBlockReason>([
  *  support traffic, the fix is a sign-out clause in ATTESTATION_BLOCKED gated on
  *  `getAuth().currentUser !== null`, not a broader guess here. */
 function isAttestationRejection(err: unknown): boolean {
-  return (err as { code?: unknown } | null | undefined)?.code === "functions/unauthenticated";
+  return isUnauthenticated(err);
 }
 
 /** How long to withhold the retry on a blocked attestation.

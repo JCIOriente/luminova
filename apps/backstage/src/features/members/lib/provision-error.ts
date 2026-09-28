@@ -1,5 +1,5 @@
 import type { ProvisionBlockReason } from "@luminova/types";
-import { refusalMessage } from "../../../lib/callable-refusal";
+import { isUnauthenticated, refusalMessage } from "../../../lib/callable-refusal";
 
 // provisionMemberLogin tags every refusal it can be argued with using details.reason, so the
 // UI can name the actual blocker instead of a dead-end generic failure. Three of the five are
@@ -34,8 +34,17 @@ const MESSAGES: Readonly<Record<ProvisionBlockReason, string>> = {
 // prototype-pollution reasoning moved there with the helper, at its second occurrence.
 const REASON_MESSAGES = new Map<string, string>(Object.entries(MESSAGES));
 
-/** The callable's own explanation for a refusal, or null when it did not give one (a
- *  transient failure — App Check, quota, config — or a reason this build does not know).
+// issueMemberInvite enforces App Check, so an untagged `unauthenticated` is a failed attestation
+// or an expired session. A reload clears a throttled App Check client or a stale session token;
+// if the cause is server-side (a broken App Check registration, a revoked user) it persists,
+// so the copy escalates to the administrator rather than promising a reload fixes everything.
+const UNAUTHENTICATED =
+  "No pudimos verificar tu sesión en este navegador. Recarga la página e inténtalo de nuevo; " +
+  "si persiste, avisa a un administrador.";
+
+/** The callable's own explanation for a refusal, or null when it did not give one (an
+ *  untagged failure — App Check, session, quota, config — or a reason this build does not
+ *  know).
  *
  *  Separate from `provisionErrorMessage` because the two answer different questions. A caller
  *  that only needs text takes the message; a caller that must also decide WHAT TO SAY NEXT
@@ -47,5 +56,5 @@ export function provisionRefusalMessage(err: unknown): string | null {
 }
 
 export function provisionErrorMessage(err: unknown, fallback: string): string {
-  return provisionRefusalMessage(err) ?? fallback;
+  return provisionRefusalMessage(err) ?? (isUnauthenticated(err) ? UNAUTHENTICATED : fallback);
 }

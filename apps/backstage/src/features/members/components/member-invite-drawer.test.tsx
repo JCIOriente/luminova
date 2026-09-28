@@ -468,6 +468,35 @@ describe("MemberInviteDrawer", () => {
     expect(await screen.findByText(/Detalle: AppCheck token is invalid/)).toBeInTheDocument();
   });
 
+  it("sends an App Check rejection to a reload before the row action, keeping the detail", async () => {
+    // What firebase-functions actually raises under enforceAppCheck: an untagged
+    // `unauthenticated`. The member already exists, so the guidance is reload-then-row-menu,
+    // never a second create.
+    const onProvision = vi
+      .fn()
+      .mockRejectedValue(
+        Object.assign(new Error("Unauthenticated"), { code: "functions/unauthenticated" }),
+      );
+    renderWithAbility(
+      <MemberInviteDrawer
+        open
+        positions={[]}
+        onClose={() => {}}
+        onCreate={async () => "idAttest"}
+        onProvision={onProvision}
+      />,
+      { roles: ["Member"], perms: ["create:Member", "create:MemberLogin"] },
+    );
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar invitación" }));
+    const reloadMessage = await screen.findByText(
+      /Recarga la página y luego genera su enlace desde el menú de su fila/,
+    );
+    expect(reloadMessage).toBeInTheDocument();
+    expect(reloadMessage.textContent).toMatch(/si persiste, avisa a un administrador\./);
+    expect(screen.getByText(/Detalle: Unauthenticated/)).toBeInTheDocument();
+  });
+
   // A `reason` that is not in the table — beacon adding one before the client ships the copy —
   // falls back the same way. Pinned separately because a Map lookup returning `undefined` and a
   // plain-object lookup returning `Object.prototype.toString` are both "not found", and only

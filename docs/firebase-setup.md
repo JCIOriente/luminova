@@ -488,16 +488,26 @@ it in a copy dialog with its expiry.
 
    Deletion is best-effort with up to ~24 h of lag, which is why expiry is never left to it.
 
-3. ***** OPEN: prove App Check on the invite callables with ONE real redemption. *****
+3. ***** OPEN: prove App Check on the enforcing callables with ONE real invite, issued and redeemed. *****
 
    **What is enforced, and where.** App Check has two enforcement layers, configured in
    different places:
 
-   - **Callables enforce in code only.** `describeInvite` and `redeemInvite` are declared with
-     `enforceAppCheck: ENFORCE_APP_CHECK` (keyed on `UNDER_EMULATOR`: on in production, off
-     under the emulator so local `/invitacion` still works). The App Check console has no
-     Cloud Functions switch; the `onCall` option is the whole control, and firebase-functions
-     applies it itself before the handler runs. First logged live in production on 2026-09-23.
+   - **Callables enforce in code only.** `describeInvite`, `redeemInvite` and
+     `issueMemberInvite` are declared with `enforceAppCheck: ENFORCE_APP_CHECK` (keyed on
+     `UNDER_EMULATOR`: on in production, off under the emulator so local `/invitacion` still
+     works). The list lives in `APP_CHECK_ENFORCED_CALLABLES`
+     (`apps/beacon/src/token-verification-bypass.ts`), pinned against each callable's declaration
+     by `app-check-scope.test.ts`. The App Check console has no Cloud Functions switch; the
+     `onCall` option is the whole control, and firebase-functions applies it itself before the
+     handler runs. The invite pair was first logged live in production on 2026-09-23.
+   - **The other four callables do not enforce.** `setUserRoles`, `seedRoles`,
+     `recomputeAllClaims` and `reseedBuiltInRolePerms` are called by hand by the owner with an ID
+     token and no App Check token, so enforcing there would lock those calls out.
+     `issueMemberInvite` is called only by backstage, which attests. On it, App Check is defence
+     in depth: the Admin/permission check is the real gate, and the token-verification debug
+     flag forges the App Check token as well (see "Every deployed CALLABLE" further down this
+     op).
    - **Firebase products enforce from the console** (App Check → **APIs** tab). Production
      state: **Cloud Storage enforced; Cloud Firestore and Authentication unenforced**
      (monitoring only). Turning Firestore on is a separate client-breakage decision — every
@@ -543,19 +553,22 @@ it in a copy dialog with its expiry.
         --project=jci-oriente --freshness=7d --limit=3
       ```
 
-      Expect `{ enforceAppCheck: true }`. No rows means no cold start in the window — widen
+      Expect `{ enforceAppCheck: true, callables: ["describeInvite", "redeemInvite",
+      "issueMemberInvite"] }`. No rows means no cold start in the window — widen
       `--freshness`, or call a function to force one.
    3. The deployed environment carries none of the three bypass variables. Every deploy asserts
       this; run it by hand with the `assert-deployed-env-clean.sh` command further down.
    4. Real traffic gets through — the open item below.
 
-   **The open item: one real redemption.** Neither callable has served a real call yet: the
-   request log since the services were created (2026-09-22) holds only `GET` 400/404 probes and
-   no `POST`. Until a redemption succeeds, nothing shows the deployed flag accepting real
-   attestation; if it does not, every redemption is refused — silently, totally, on the only
-   onboarding path there is.
+   **The open item: one real invite, issued and redeemed.** Neither `describeInvite` nor
+   `redeemInvite` has served a real call yet: the request log since the services were created
+   (2026-09-22) holds only `GET` 400/404 probes and no `POST`. Until an invite is issued and
+   redeemed, nothing shows the deployed flag accepting real attestation; if it does not, every
+   redemption is refused — silently, totally, on the only onboarding path there is — and admins
+   cannot issue links.
 
-   1. Issue a real invite from production backstage.
+   1. Issue a real invite from production backstage. This is itself an App Check-enforced call
+      (`issueMemberInvite`).
    2. Open `/invitacion#<that token>` against the production build in a **fresh browser
       profile** and complete the redemption. Not a local build: the emulator path has no site
       key, so it cannot exercise attestation. Fresh profile, because the SDK reuses a still-valid
@@ -565,16 +578,29 @@ it in a copy dialog with its expiry.
       may log nothing of its own:
 
       ```bash
-      gcloud logging read 'resource.labels.service_name=("describeinvite" OR "redeeminvite")
-         AND httpRequest.requestMethod!=""' --project=jci-oriente --freshness=30d \
+      gcloud logging read 'resource.labels.service_name=("issuememberinvite" OR "describeinvite"
+         OR "redeeminvite") AND httpRequest.requestMethod!=""' --project=jci-oriente --freshness=30d \
         --format="value(timestamp,resource.labels.service_name,httpRequest.requestMethod,httpRequest.status)"
       ```
 
-      **Pass = a `POST` with status 200 on `redeeminvite`.** Fail = `POST` 401 on either
-      service, or no `POST` at all — see "When it fails". On a pass, mark roadmap G4 done and
-      drop the OPEN marker from this op.
+      Read only rows timestamped after the functions deploy that turned enforcement on for
+      `issueMemberInvite`; a row from before it was not an enforced call on that service. **Pass = a
+      `POST` with status 200 on `issuememberinvite` and on `redeeminvite`.** Fail = `POST` 401 on
+      any of the three, or no `POST` at all — see "When it fails". On a pass, mark roadmap G4 done
+      and drop the OPEN marker from this op.
 
-   **When it fails.** Both invite screens show *"No pudimos completar la verificación de
+   **When it fails.** If issuing fails (`issueMemberInvite` refused), backstage shows *"No
+   pudimos verificar tu sesión en este navegador. Recarga la página e inténtalo de nuevo; si
+   persiste, avisa a un administrador."* in the toast or on the member's profile. When the
+   refusal comes right after creating a member, the invite drawer instead says *"Aún no tiene
+   acceso a la app. Recarga la página y luego genera su enlace desde el menú de su fila; si
+   persiste, avisa a un administrador."* The same message covers an expired session, so a
+   reload that fixes it proves nothing; an admin failing on every attempt in a fresh profile is
+   the deployment. The `POST` 401 and WARNING signs below apply to all three services, and
+   so do the hung call and the SDK's 24 h throttle warning. The app's own console message is
+   invite-page only; backstage shows its message and logs nothing more.
+
+   On the invite page, both screens show *"No pudimos completar la verificación de
    seguridad. Inténtalo de nuevo en un momento…"*. On load (`describeInvite` refused) it sits
    under the heading *"No pudimos abrir el enlace"* with a **Recargar la página** button. On
    submit (`redeemInvite` refused) the form stays up with the message inline, the submit button
@@ -593,11 +619,12 @@ it in a copy dialog with its expiry.
      script itself was blocked (a content blocker). The SDK's script loader has no error
      handler, so the token promise never settles, and `@firebase/functions` waits for it before
      its own timeout starts — the call hangs and nothing reaches the server.
-   - **WARNING rows reading `AppCheck token was rejected`** are a different problem (the
-     label also matches `Auth token was rejected` from the authenticated callables — ignore
-     those here): a token that DID exchange reached the server and was refused —
-     minted for another project, expired, or forged. They do not diagnose an invitee who cannot
-     attest.
+   - **WARNING rows reading `AppCheck token was rejected`** are a different problem: a token
+     that DID exchange reached the server and was refused — minted for another project,
+     expired, or forged. They do not diagnose a caller who cannot attest. The label also matches
+     `Auth token was rejected`. Ignore those on the four admin callables. On
+     `issuememberinvite` they matter: an `Auth token was rejected` row there is the admin's own
+     ID token failing, which gets the same backstage message as an App Check failure.
 
      ```bash
      gcloud logging read \
@@ -717,9 +744,9 @@ it in a copy dialog with its expiry.
 
    satisfies the Admin-role gate on `setUserRoles`, `seedRoles`, `recomputeAllClaims`,
    `reseedBuiltInRolePerms` and `issueMemberInvite` — custom-claim assignment and a project-wide
-   role reseed. It is **strictly worse** on those five than on the invite pair, because none of
-   them sets `enforceAppCheck`, so it defaults falsy and there is no attestation gate there to
-   lose: the forged claim is the only gate.
+   role reseed. It is **strictly worse** on those five than on the invite pair: the forged claim
+   is their only effective gate. Four of them declare no `enforceAppCheck`, and on
+   `issueMemberInvite`, which does, the same flag forges the App Check token too.
 
    **Both halves are refused IN-PROCESS, which is prevention rather than detection.** Unlike
    `FUNCTIONS_EMULATOR`, the debug pair is readable by the running container itself, so
@@ -761,19 +788,31 @@ it in a copy dialog with its expiry.
    callable and calls no `setGlobalOptions`. The script defaults to it and takes `GCP_REGION`
    if a region is ever added; confirm with `gcloud run services list --project=jci-oriente`.
 
-   **If the smoke test fails** for every invitee: hard-code `ENFORCE_APP_CHECK = false` in
-   `apps/beacon/src/redeem-invite.ts`, redeploy the two functions, and fix the cause ("When it
-   fails", above) before turning it back on. The rate limiter is independent and keeps working
-   either way.
+   **If the smoke test fails**, there are three rollback scopes. Each edits
+   `apps/beacon/src/token-verification-bypass.ts` and at most one callable module
+   (`redeem-invite.ts` or `issue-member-invite.ts`); none touches `apps/beacon/src/index.ts` or
+   `apps/beacon/src/app-check-scope.test.ts` — the cold-start log and that test's enforcement pin
+   both read `APP_CHECK_ENFORCED_CALLABLES`, so editing the constant is enough for both to follow.
 
-   **You must flip the pinned assertion in the same commit, or CI blocks the rollback.**
-   `apps/beacon/src/redeem-invite.test.ts` asserts
-   `expect(UNAUTHENTICATED_CALL.enforceAppCheck).toBe(true)` — deliberately, so nobody disables
-   enforcement by accident. During a real outage that guard is between you and restoring
-   onboarding: `pnpm --filter beacon ci` goes red and the PR is blocked. Change both files
-   together and say in the commit message that it is a deliberate temporary rollback, then
-   revert both once the cause is fixed. Flip the assertion to `false` rather than
-   deleting it — a deleted assertion is how enforcement silently never comes back.
+   | Scope | Edit | Assertion to flip |
+   |---|---|---|
+   | **Full** (all three callables) | In `token-verification-bypass.ts`: hard-code `ENFORCE_APP_CHECK = false`; set `APP_CHECK_ENFORCED_CALLABLES = []`. | `redeem-invite.test.ts`: `UNAUTHENTICATED_CALL.enforceAppCheck` → `expect(...).toBe(false)` |
+   | **Invite pair only** (leaving `issueMemberInvite` enforcing) | In `redeem-invite.ts`: set `enforceAppCheck: false` directly on `UNAUTHENTICATED_CALL`, remove the now-unused `ENFORCE_APP_CHECK` import (`noUnusedLocals` fails typecheck otherwise); in `token-verification-bypass.ts`: set `APP_CHECK_ENFORCED_CALLABLES = ["issueMemberInvite"]`. | same assertion, same flip |
+   | **`issueMemberInvite` only** (leaving the invite pair enforcing) | In `issue-member-invite.ts`: set `enforceAppCheck: false` in its `guardedOnCall` options and remove the now-unused `ENFORCE_APP_CHECK` import; in `token-verification-bypass.ts`: set `APP_CHECK_ENFORCED_CALLABLES = ["describeInvite", "redeemInvite"]`. | none |
+
+   Redeploy whichever callables the scope covers, and fix the cause before trying again. The
+   rate limiter is independent and keeps working either way.
+
+   During a **full** rollback the cold-start log reads `enforceAppCheck: false` even with
+   `FUNCTIONS_EMULATOR` unset: that is the hard-coded `ENFORCE_APP_CHECK`, not the emulator.
+
+   **For the first two scopes, flip the assertion in the same commit, or CI blocks the
+   rollback.**
+   `pnpm --filter beacon ci` goes red on the unflipped `toBe(true)` — during a real outage that
+   guard is between you and restoring onboarding. Say in the commit message that it is a
+   deliberate temporary rollback, then revert the edits once the cause is fixed. Flip the
+   assertion rather than deleting it — a deleted assertion is how enforcement silently never
+   comes back.
 
    **Local development is unaffected.** Enforcement is keyed on `FUNCTIONS_EMULATOR`, which the
    functions emulator sets and the deploy-time discovery run does not — so `/invitacion` works

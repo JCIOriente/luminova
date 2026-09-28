@@ -16,6 +16,7 @@ import type { InviteKind } from "@luminova/types";
 import { memberEmailMalformed, provisionBlocked } from "./provision-errors.js";
 import { requireAdminOrPerm } from "./callable-auth.js";
 import { guardedOnCall } from "./guarded-on-call.js";
+import { ENFORCE_APP_CHECK } from "./token-verification-bypass.js";
 import { firestoreInviteDeps } from "./provision-deps.js";
 import { ensureApp } from "./runtime.js";
 
@@ -450,11 +451,15 @@ function pendingInviteHash(
 // deliberate (D3) and contained to grant-free, unseated, unprivileged members by the guards
 // above, re-checked at redemption. It is auditable, not prevented: the invite records issuedBy
 // and the projection surfaces it to the member themselves.
-export const issueMemberInvite = guardedOnCall({ name: "issueMemberInvite" }, async (request) => {
-  const { isAdmin } = requireAdminOrPerm(request, "create:MemberLogin");
-  const { memberId } = validateProvisionInput(request.data);
-  // requireAdminOrPerm throws `unauthenticated` on a missing auth context, so uid is present.
-  const issuedBy = request.auth?.uid ?? "";
-  ensureApp();
-  return issueInvite(firestoreInviteDeps(getFirestore(), getAuth()), memberId, issuedBy, isAdmin);
-});
+// Enforces App Check, unlike the other admin callables — see apps/beacon/CLAUDE.md.
+export const issueMemberInvite = guardedOnCall(
+  { name: "issueMemberInvite", enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    const { isAdmin } = requireAdminOrPerm(request, "create:MemberLogin");
+    const { memberId } = validateProvisionInput(request.data);
+    // requireAdminOrPerm throws `unauthenticated` on a missing auth context, so uid is present.
+    const issuedBy = request.auth?.uid ?? "";
+    ensureApp();
+    return issueInvite(firestoreInviteDeps(getFirestore(), getAuth()), memberId, issuedBy, isAdmin);
+  },
+);

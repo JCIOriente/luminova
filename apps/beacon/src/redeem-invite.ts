@@ -10,7 +10,7 @@ import { hashInviteToken, isSafeTokenHash } from "./invite-token.js";
 import { inviteBlocked, inviteRateLimited } from "./provision-errors.js";
 import { createRateLimiter, type RateLimiter } from "./rate-limit.js";
 import { firestoreRedeemDeps } from "./redeem-deps.js";
-import { UNDER_EMULATOR } from "./token-verification-bypass.js";
+import { ENFORCE_APP_CHECK } from "./token-verification-bypass.js";
 import { guardedOnCall } from "./guarded-on-call.js";
 import { ensureApp } from "./runtime.js";
 
@@ -398,8 +398,8 @@ export async function redeemInviteFor(
 // change all three are live.
 //
 // 1. APP CHECK, ENFORCED in production and deliberately NOT under the emulator — see the
-//    `ENFORCE_APP_CHECK` docblock below for why that carve-out is safe and must stay
-//    fail-closed.
+//    `ENFORCE_APP_CHECK` docblock in token-verification-bypass.ts for why that carve-out is
+//    safe and must stay fail-closed.
 //
 //    An unauthenticated /invitacion load does attest: attestation is app-level, `/invitacion`
 //    is deliberately a TOP-LEVEL route outside the `_auth` layout,
@@ -425,41 +425,6 @@ export async function redeemInviteFor(
 //
 // Brute-forcing the token itself remains arithmetic rather than a threat: 2^256, and a guess
 // resolves to a nonexistent document id — one read, no write, no secret comparison anywhere.
-/** App Check enforcement: ON in production, OFF under the emulator.
- *
- *  `enforceAppCheck` is enforced BY firebase-functions ITSELF, not by the App Check service.
- *  `common/providers/https.js` reads the `X-Firebase-AppCheck` header and throws
- *  `unauthenticated` when `app === "MISSING"` — and the MISSING branch returns BEFORE the
- *  `FIREBASE_DEBUG_MODE` / `skipTokenVerification` escape, so a debug token cannot rescue a
- *  request that carries no header at all.
- *
- *  Local dev leaves `VITE_APPCHECK_SITE_KEY` blank on purpose (docs/firebase-setup.md), so the
- *  client initializes no App Check and sends no header. Enforcing unconditionally would make
- *  `/invitacion` — the one route a developer most needs to exercise, and the only onboarding
- *  path in the product — impossible to run against the emulator.
- *
- *  KEYED ON `FUNCTIONS_EMULATOR`, and the reason it is safe is stronger than "the discovery
- *  run sets a different variable". The discovery run is IRRELEVANT: `enforceAppCheck` is never
- *  serialized into the deploy manifest at all — `v2/options.js` `optionsToEndpoint` copies
- *  only omit, concurrency, minInstances, maxInstances, ingressSettings, labels, timeoutSeconds
- *  and cpu. This value is read IN-PROCESS at container cold start
- *  (`common/providers/https.js`), where `FUNCTIONS_EMULATOR` is unset because only the
- *  emulator sets it (`functionsEmulator.js`: `envs.FUNCTIONS_EMULATOR = "true"`). So no
- *  build-time process can affect it, and production resolves `true`.
- *
- *  The one thing that CAN change it is the deployed container's own environment — a dotenv
- *  file firebase-tools spreads in, or a value set on the Cloud Run service. That is what the
- *  log line below is for, and why the CI guard alone is not the control.
- *
- *  Fail-closed and it must stay that way: ABSENCE of the variable means ENFORCE. Do not
- *  "improve" this into a positive check for a production marker like `K_SERVICE`, which would
- *  fail OPEN the day that variable is renamed. A test pins BOTH branches — enforcing under the
- *  emulator breaks local onboarding, and failing to enforce in production removes the control.
- *
- *  DERIVED from `UNDER_EMULATOR`, the single place the variable is read, so this and the token
- *  verification guard cannot drift into two spellings of the same comparison. */
-const ENFORCE_APP_CHECK = !UNDER_EMULATOR;
-
 export const UNAUTHENTICATED_CALL = {
   enforceAppCheck: ENFORCE_APP_CHECK,
   maxInstances: 10,
@@ -553,11 +518,11 @@ export const describeInvite = guardedOnCall(
  *  `index.ts`'s callable exports.
  *
  *  THE HOLE, stated rather than papered over: the check covers callables in THIS module. One
- *  added in a DIFFERENT file with `UNAUTHENTICATED_CALL` imported would slip past it, and an eslint
- *  ban on the symbol would need an exemption for `index.ts`, which imports it to log
- *  `enforceAppCheck` at cold start. It could not slip past the bypass refusal: `guardedOnCall` is
- *  the only way to declare a callable, so it refuses wherever it is declared — with the untagged
- *  `internal` unless it passes the invite `refusal`. */
+ *  added in a DIFFERENT file with `UNAUTHENTICATED_CALL` imported would slip past it, and an
+ *  eslint ban on the symbol would need an exemption for `redeem-invite.test.ts`, which imports
+ *  it to assert `enforceAppCheck`/`maxInstances` directly. It could not slip past the bypass
+ *  refusal: `guardedOnCall` is the only way to declare a callable, so it refuses wherever it is
+ *  declared — with the untagged `internal` unless it passes the invite `refusal`. */
 export const UNAUTHENTICATED_CALLABLES = ["describeInvite", "redeemInvite"] as const;
 
 export const redeemInvite = guardedOnCall(

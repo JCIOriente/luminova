@@ -14,11 +14,56 @@ import { createRateLimiter, type RateLimiter } from "./rate-limit.js";
  *  does not, and no build-time process can reach it, because it is read in-process at container
  *  cold start.
  *
- *  EXPORTED, and `redeem-invite.ts`'s `ENFORCE_APP_CHECK` is derived from it rather than reading
- *  the variable a second time. Two names survive because they answer different questions — "may
- *  this instance skip attestation?" versus "may it trust a decoded token?" — but there is now one
- *  read, so a third consumer cannot introduce a third spelling of the comparison. */
+ *  `ENFORCE_APP_CHECK` below is computed from it rather than reading the variable a second time.
+ *  Two names survive because they answer different questions — "may this instance skip
+ *  attestation?" versus "may it trust a decoded token?" — but there is one read, so no consumer
+ *  can introduce a second spelling of the comparison. */
 export const UNDER_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
+
+/** App Check enforcement: ON in production, OFF under the emulator.
+ *
+ *  `enforceAppCheck` is enforced BY firebase-functions ITSELF, not by the App Check service.
+ *  `common/providers/https.js` reads the `X-Firebase-AppCheck` header and throws
+ *  `unauthenticated` when `app === "MISSING"` — and the MISSING branch returns BEFORE the
+ *  `FIREBASE_DEBUG_MODE` / `skipTokenVerification` escape, so a debug token cannot rescue a
+ *  request that carries no header at all.
+ *
+ *  Local dev leaves `VITE_APPCHECK_SITE_KEY` blank on purpose (docs/firebase-setup.md), so the
+ *  client initializes no App Check and sends no header. Enforcing unconditionally would make
+ *  `/invitacion` — the one route a developer most needs to exercise, and the only onboarding
+ *  path in the product — impossible to run against the emulator.
+ *
+ *  KEYED ON `FUNCTIONS_EMULATOR`, and the reason it is safe is stronger than "the discovery
+ *  run sets a different variable". The discovery run is IRRELEVANT: `enforceAppCheck` is never
+ *  serialized into the deploy manifest at all — `v2/options.js` `optionsToEndpoint` copies
+ *  only omit, concurrency, minInstances, maxInstances, ingressSettings, labels, timeoutSeconds
+ *  and cpu. This value is read IN-PROCESS at container cold start
+ *  (`common/providers/https.js`), where `FUNCTIONS_EMULATOR` is unset because only the
+ *  emulator sets it (`functionsEmulator.js`: `envs.FUNCTIONS_EMULATOR = "true"`). So no
+ *  build-time process can affect it, and production resolves `true`.
+ *
+ *  The one thing that CAN change it is the deployed container's own environment — a dotenv
+ *  file firebase-tools spreads in, or a value set on the Cloud Run service. That is what the
+ *  cold-start log line in `index.ts` is for, and why the CI guard alone is not the control.
+ *
+ *  Fail-closed and it must stay that way: ABSENCE of the variable means ENFORCE. Do not
+ *  "improve" this into a positive check for a production marker like `K_SERVICE`, which would
+ *  fail OPEN the day that variable is renamed. A test pins BOTH branches — enforcing under the
+ *  emulator breaks local onboarding, and failing to enforce in production removes the control.
+ *
+ *  Read from `UNDER_EMULATOR` above, the one read of the variable. */
+export const ENFORCE_APP_CHECK = !UNDER_EMULATOR;
+
+/** The callables that declare `enforceAppCheck: ENFORCE_APP_CHECK` — every caller of these
+ *  attests via App Check. ONE list: `index.ts`'s cold-start log and `app-check-scope.test.ts`'s
+ *  enforcement pin both read this constant, so a rollback that flips a callable's
+ *  `enforceAppCheck` without editing this tuple turns the test red instead of letting the log
+ *  claim enforcement that no longer happens. */
+export const APP_CHECK_ENFORCED_CALLABLES = [
+  "describeInvite",
+  "redeemInvite",
+  "issueMemberInvite",
+] as const;
 
 /** Whether firebase-functions would accept SELF-CRAFTED, UNSIGNED tokens on this process right
  *  now — BOTH an Auth ID token and an App Check token. One flag defeats both.
@@ -40,9 +85,9 @@ export const UNDER_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
  *  satisfies `requireAdmin`. That reaches `setUserRoles` and `reseedBuiltInRolePerms`, i.e.
  *  custom-claim assignment and a project-wide role reseed.
  *
- *  It is STRICTLY WORSE on the authenticated callables than on the invite pair, because none of
- *  those sets `enforceAppCheck`, so it defaults falsy and there is no attestation gate there to
- *  lose — the forged claim is the only gate, and this flag is exactly what breaks it.
+ *  It is STRICTLY WORSE on the authenticated callables than on the invite pair: the forged claim
+ *  is their only effective gate. Four of them declare no `enforceAppCheck`, and on
+ *  `issueMemberInvite`, which does, this same flag forges the App Check token too.
  *
  *  The same file consults it once more for v1 callables only (`version === "gcfv1"`, trusting
  *  the raw auth header). Beacon's lint rule bans importing any callable constructor, v1's
@@ -130,7 +175,8 @@ export const BYPASS_LOG_MESSAGE =
  *  service list is enumerated in `deploy.yml` and pinned by the deploy-list test in
  *  `redeem-invite.test.ts`. The other signal for it is per-container and already shipping:
  *  `index.ts` logs `enforceAppCheck` at every cold start, and it reads `false` if and only if
- *  that variable is set. */
+ *  that variable is set — absent a deliberate full rollback of `ENFORCE_APP_CHECK` itself,
+ *  which also reads `false` with the variable unset. */
 export function assertTokenVerificationNotBypassed(
   fn: string,
   /** The error to raise, so each boundary keeps its own contract. Defaults to an UNTAGGED
