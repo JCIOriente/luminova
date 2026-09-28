@@ -8,8 +8,8 @@ import { PhoneInput } from "./phone-input";
 afterEach(cleanup);
 
 const fourDigits = (raw: string) => raw.replace(/\D/g, "").slice(0, 4);
-// Shaped like sanitizeBoliviaPhoneInput: digits only, a leading 591 dropped once it runs
-// past 8, then capped at 8. Local so @luminova/ui keeps no dependency on @luminova/types.
+// A minimal 8-digit sanitizer with a 591 prefix, enough to drive the caret paths. The real
+// prefix rules are tested in @luminova/types; ui takes no dependency on that package.
 const eightDigits = (raw: string) => {
   const digits = raw.replace(/\D/g, "");
   const national = digits.length > 8 && digits.startsWith("591") ? digits.slice(3) : digits;

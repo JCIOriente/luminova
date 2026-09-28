@@ -20,29 +20,21 @@ export function normalizeBoliviaPhone(value: string): string {
     : digits;
 }
 
-/** Country-code prefixes a pasted or typed number may carry, longest first so "00591" is
- *  not half-matched as a bare "00". */
-const BOLIVIA_COUNTRY_PREFIXES = ["00591", "591"] as const;
-
 /**
  * What a phone field may hold while the user is still typing or pasting: digits only, never
  * more than BOLIVIA_PHONE_LENGTH. Input-time companion to normalizeBoliviaPhone, which stays
- * the submit-time backstop and is deliberately left unchanged.
+ * the submit-time backstop.
  *
  * A leading country code ("+591", or the "00591" international-dial form) is dropped as soon
  * as the digits run past the national length. Waiting for a complete number instead would
  * break typing: keyed one digit at a time, the field would freeze at "59170000" or
  * "00591700". Dropping it is safe because no Bolivian national number starts with 0 or 5
- * (mobiles 6/7, landlines 2/3/4). Anything still too long after that is truncated, which is
- * what caps a pasted over-long number.
+ * (mobiles 6/7, landlines 2/3/4).
  */
 export function sanitizeBoliviaPhoneInput(value: string): string {
   const digits = value.replace(/\D/g, "");
-  const prefix =
-    digits.length > BOLIVIA_PHONE_LENGTH
-      ? BOLIVIA_COUNTRY_PREFIXES.find((p) => digits.startsWith(p))
-      : undefined;
-  const national = prefix ? digits.slice(prefix.length) : digits;
+  const national =
+    digits.length > BOLIVIA_PHONE_LENGTH ? digits.replace(/^(?:00)?591/, "") : digits;
   return national.slice(0, BOLIVIA_PHONE_LENGTH);
 }
 
