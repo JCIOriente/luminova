@@ -26,17 +26,25 @@ export const BACKSTAGE_URL = "https://admin.jcioriente.org";
   `og:image`, `twitter:image` — written as `__SITE_URL__` there) and into the generated
   `sitemap.xml` and `robots.txt`, by the `seoFiles` Vite plugin
   (`apps/spotlight/seo-files.ts`). `seo-files.test.ts` fails if a hardcoded origin comes
-  back into `index.html`.
+  back into `index.html`, or if a static page route is missing from the sitemap.
 - `BACKSTAGE_URL` is the header and footer link from the public site into the admin.
 
-Nothing else carries a hostname:
+Nothing else links to a hostname:
 
 - **Invite links** are built from `window.location.origin`, so an operator on
   `admin.jcioriente.org` issues `admin.jcioriente.org` links, and one on the fallback
   issues fallback links. Both redeem.
-- **`VITE_FIREBASE_AUTH_DOMAIN`** stays `jci-oriente.firebaseapp.com`. It is only used by
-  popup/redirect sign-in providers, and backstage signs in with Email/Password only.
+- **`VITE_FIREBASE_AUTH_DOMAIN`** stays `jci-oriente.firebaseapp.com`. Firebase Auth uses it
+  only for popup/redirect sign-in providers, and backstage signs in with Email/Password
+  only.
 - **beacon** has no hostname configuration.
+
+Two places name the domain without linking to it, and are updated by hand on a switch:
+
+- `.github/workflows/deploy.yml` — the `production` environment `url`, the link GitHub
+  shows on a deploy.
+- `apps/backstage/src/features/members/components/self-profile-form.tsx` — the member
+  profile hint "sección Directiva de jcioriente.org".
 
 ## Console settings that must list every hostname
 
@@ -46,7 +54,7 @@ it is needed, not after a console change.
 | Where | Entry | What breaks if a hostname is missing |
 |-------|-------|--------------------------------------|
 | reCAPTCHA admin (https://www.google.com/recaptcha/admin) → the spotlight key → Domains | `jcioriente.org`, `jcioriente.web.app` | App Check tokens fail on that hostname. The contact form and push opt-in write to Firestore, so they are refused once Firestore App Check enforcement is turned on (it is off today) |
-| reCAPTCHA admin → the backstage key → Domains | `admin.jcioriente.org`, `jcioriente-backstage.web.app` | App Check tokens fail on the three enforced callables (invites included). The SDK then **throttles App Check for 24 hours** in that browser; only a page reload after the fix clears it |
+| reCAPTCHA admin → the backstage key → Domains | `admin.jcioriente.org`, `jcioriente-backstage.web.app` | App Check tokens fail on the three enforced callables (invites included) and on Storage, which enforces App Check (member photo uploads). The SDK then **throttles App Check for 24 hours** in that browser; only a page reload after the fix clears it |
 | Firebase console → Authentication → Settings → Authorized domains | all four hostnames | Auth operations that validate the origin are refused |
 | Google Cloud console → APIs & Services → Credentials → the browser API key → Website restrictions (only if restrictions are set) | all four hostnames | Every Firebase call from that hostname fails |
 | Firebase console → Hosting → each site → Custom domains | `jcioriente.org` on `jcioriente`, `admin.jcioriente.org` on `jcioriente-backstage` | The custom hostname stops serving (DNS / certificate) |
@@ -73,8 +81,9 @@ site's admin link stop sending people to the dead hostname:
    export const BACKSTAGE_URL = "https://jcioriente-backstage.web.app";
    ```
 
-2. Update the "Canonical" column of the table at the top of this file and the admin URL
-   in `docs/negocio/manual-administracion.md`, so the docs match.
+2. Update the two hand-maintained mentions listed under "Where the domain lives in code",
+   the "Canonical" column of the table at the top of this file, and the admin URL in
+   `docs/negocio/manual-administracion.md`.
 3. Open a PR and merge it. The Deploy workflow redeploys hosting (`docs/ci-cd.md`); in an
    emergency, `pnpm deploy:hosting` (`docs/firebase-setup.md`, "Deploying").
 4. Verify in a browser:

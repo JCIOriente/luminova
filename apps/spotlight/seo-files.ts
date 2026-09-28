@@ -20,12 +20,11 @@ export function normalizeSiteUrl(siteUrl: string): string {
   return url.origin;
 }
 
-export function renderIndexHtml(html: string, siteUrl: string): string {
-  return html.replaceAll(SITE_URL_PLACEHOLDER, normalizeSiteUrl(siteUrl));
+export function renderIndexHtml(html: string, origin: string): string {
+  return html.replaceAll(SITE_URL_PLACEHOLDER, origin);
 }
 
-export function renderSitemap(siteUrl: string): string {
-  const origin = normalizeSiteUrl(siteUrl);
+export function renderSitemap(origin: string): string {
   const urls = SITEMAP_ROUTES.map(
     ({ path, priority }) =>
       `  <url><loc>${origin}${path}</loc><priority>${priority}</priority></url>`,
@@ -39,22 +38,36 @@ export function renderSitemap(siteUrl: string): string {
   ].join("\n");
 }
 
-export function renderRobots(siteUrl: string): string {
-  return `User-agent: *\nAllow: /\n\nSitemap: ${normalizeSiteUrl(siteUrl)}/sitemap.xml\n`;
+export function renderRobots(origin: string): string {
+  return `User-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`;
 }
 
 // sitemap.xml and robots.txt need absolute URLs, so they are generated rather than
 // shipped from public/ — otherwise a domain switch leaves them pointing at the old host.
 export function seoFiles(siteUrl: string): Plugin {
+  const origin = normalizeSiteUrl(siteUrl);
+  const files = [
+    { fileName: "sitemap.xml", contentType: "application/xml", source: renderSitemap(origin) },
+    { fileName: "robots.txt", contentType: "text/plain", source: renderRobots(origin) },
+  ];
   return {
     name: "seo-files",
     transformIndexHtml: {
       order: "pre",
-      handler: (html) => renderIndexHtml(html, siteUrl),
+      handler: (html) => renderIndexHtml(html, origin),
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const file = files.find((f) => req.url === `/${f.fileName}`);
+        if (!file) return next();
+        res.setHeader("Content-Type", file.contentType);
+        res.end(file.source);
+      });
     },
     generateBundle() {
-      this.emitFile({ type: "asset", fileName: "sitemap.xml", source: renderSitemap(siteUrl) });
-      this.emitFile({ type: "asset", fileName: "robots.txt", source: renderRobots(siteUrl) });
+      for (const { fileName, source } of files) {
+        this.emitFile({ type: "asset", fileName, source });
+      }
     },
   };
 }
