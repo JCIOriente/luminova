@@ -6,6 +6,7 @@ import { fieldControlClasses } from "./input";
 import { Icon } from "./icons";
 import type { ComboboxOption } from "./combobox";
 import { removeValue, selectedOptions, toggleValue } from "./multi-select";
+import { useFieldTriggerDescribedBy } from "./field-context";
 
 interface MultiSelectProps {
   options: ComboboxOption[];
@@ -36,6 +37,7 @@ export function MultiSelect({
   "aria-describedby": describedBy,
 }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
+  const ariaDescribedBy = useFieldTriggerDescribedBy(describedBy);
   const chosen = selectedOptions(options, value);
 
   return (
@@ -47,7 +49,7 @@ export function MultiSelect({
           disabled={disabled}
           aria-haspopup="listbox"
           aria-expanded={open}
-          aria-describedby={describedBy}
+          aria-describedby={ariaDescribedBy}
           className={cn(
             fieldControlClasses,
             "flex h-auto min-h-[52px] flex-wrap items-center gap-1.5 px-3 py-[7px] text-left disabled:opacity-60",
