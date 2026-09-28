@@ -123,6 +123,8 @@ export function InviteRedeemForm({ token }: { token: string }) {
     register,
     handleSubmit,
     watch,
+    trigger,
+    getFieldState,
     formState: { errors, isSubmitting },
   } = useForm<SetPasswordInput>({
     mode: "onTouched",
@@ -348,7 +350,12 @@ export function InviteRedeemForm({ token }: { token: string }) {
           id="password"
           label="Nueva contraseña"
           error={errors.password?.message}
-          register={register("password")}
+          register={register("password", {
+            // Not `deps`: that flags a confirmation the user has not reached yet.
+            onChange: () => {
+              if (getFieldState("confirmPassword").isTouched) void trigger("confirmPassword");
+            },
+          })}
         />
         <PasswordChecklist value={watch("password")} />
         <PasswordField

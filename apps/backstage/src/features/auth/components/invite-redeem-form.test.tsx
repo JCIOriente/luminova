@@ -173,6 +173,34 @@ describe("InviteRedeemForm", () => {
     expect(redeemCallable).not.toHaveBeenCalled();
   });
 
+  it("clears the mismatch once the new password is edited to match the confirmation", async () => {
+    render(<InviteRedeemForm token="abc" />);
+    const password = await screen.findByLabelText(NEW_PASSWORD);
+    const confirm = screen.getByLabelText(CONFIRM_PASSWORD);
+    await userEvent.type(password, "Abcdefgh1!x");
+    await userEvent.tab();
+    await userEvent.type(confirm, "Abcdefgh1!");
+    await userEvent.tab();
+    expect(await screen.findByText(/no coinciden/i)).toBeInTheDocument();
+
+    await userEvent.click(password);
+    await userEvent.keyboard("{Backspace}");
+    await userEvent.tab();
+    await waitFor(() => expect(screen.queryByText(/no coinciden/i)).not.toBeInTheDocument());
+    expect(confirm).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("does not flag a confirmation the user has not reached yet", async () => {
+    render(<InviteRedeemForm token="abc" />);
+    await userEvent.type(await screen.findByLabelText(NEW_PASSWORD), "Abcdefgh1!");
+    await userEvent.tab();
+    await waitFor(() =>
+      expect(screen.getByLabelText(NEW_PASSWORD)).not.toHaveAttribute("aria-invalid", "true"),
+    );
+    expect(screen.queryByText(/no coinciden/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(CONFIRM_PASSWORD)).not.toHaveAttribute("aria-invalid", "true");
+  });
+
   it("redeems and confirms, with a way to sign in", async () => {
     render(<InviteRedeemForm token="abc" />);
     await screen.findByLabelText(NEW_PASSWORD);

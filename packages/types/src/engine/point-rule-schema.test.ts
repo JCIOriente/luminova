@@ -24,6 +24,11 @@ describe("pointRuleSchema", () => {
     ).toBe(false);
   });
 
+  it.each([Infinity, NaN])("rejects %s points with a Spanish message", (points) => {
+    const result = pointRuleSchema.safeParse({ code: "DirectProgram", points, label: "x" });
+    expect(result.error?.issues[0]?.message).toBe("Ingresa un número válido.");
+  });
+
   it("requires a non-empty label", () => {
     expect(pointRuleSchema.safeParse({ code: "DirectProgram", points: 1, label: "" }).success).toBe(
       false,

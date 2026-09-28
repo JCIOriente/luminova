@@ -65,7 +65,9 @@ export function parseMemberNameGate(source) {
  * @returns {{ fields: string[], professionMax: number, phonePattern: string }}
  */
 export function parseSelfProfileLane(source) {
-  const guard = ruleFunctionBody(source, "selfProfileValid(changed)");
+  // Comment lines stripped first: the phone and profession probes match the first line
+  // that names the field, and a comment above the real check would otherwise win.
+  const guard = ruleFunctionBody(source, "selfProfileValid(changed)").replace(/^\s*\/\/.*$/gm, "");
   const list = guard.match(/hasOnly\(\[([^\]]+)\]\)/);
   const professionMax = guard.match(/profession[^\n]*size\(\) <= (\d+)/);
   const phonePattern = guard.match(/phone[^\n]*matches\('([^']+)'\)/);

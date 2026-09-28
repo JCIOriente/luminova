@@ -128,7 +128,10 @@ export function RoleEditor({ role, holderCount, onSubmit, onDelete }: RoleEditor
           value={name}
           disabled={locked}
           maxLength={ROLE_NAME_MAX_LENGTH}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            setNameError(undefined);
+          }}
         />
       </Field>
       <Field label="Descripción" htmlFor="role-description">

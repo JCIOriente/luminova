@@ -21,7 +21,7 @@ describe("isBoliviaPhone", () => {
   it("rejects a value with too few real digits", () => {
     expect(isBoliviaPhone("7001-345")).toBe(false); // 7 digits after stripping
   });
-  it("rejects a number whose first digit no Bolivian line uses (0, 1, 5)", () => {
+  it("rejects a number whose first digit no Bolivian line uses (0, 1, 5, 8, 9)", () => {
     for (const phone of ["01234567", "12345678", "51234567", "81234567", "91234567"]) {
       expect(isBoliviaPhone(phone)).toBe(false);
     }

@@ -67,6 +67,17 @@ describe("RoleEditor", () => {
     expect(screen.getByLabelText(/nombre/i)).not.toHaveAttribute("aria-invalid");
   });
 
+  it("clears the name error as soon as the name is edited, without re-submitting", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<RoleEditor role={null} holderCount={null} onSubmit={onSubmit} />);
+    fireEvent.click(screen.getByRole("button", { name: /crear rol/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Requerido.");
+    fireEvent.change(screen.getByLabelText(/nombre/i), { target: { value: "Coordinador" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByLabelText(/nombre/i)).not.toHaveAttribute("aria-invalid");
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("renders the locked Admin role read-only (no save button)", () => {
     render(<RoleEditor role={builtInAdmin} holderCount={null} onSubmit={vi.fn()} />);
     expect(screen.getByLabelText(/nombre/i)).toBeDisabled();
