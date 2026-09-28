@@ -6,12 +6,18 @@ import {
   Reveal,
   Icon,
   Input,
+  PhoneInput,
   Textarea,
   Select,
   Field,
   Toast,
 } from "@luminova/ui";
-import { LEAD_INTENTS, leadSchema, type LeadIntent } from "@luminova/types";
+import {
+  LEAD_INTENTS,
+  leadSchema,
+  sanitizeBoliviaPhoneInput,
+  type LeadIntent,
+} from "@luminova/types";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { safeHref } from "../site-config/safe-href";
 import { submitLead } from "../leads/submit-lead";
@@ -130,11 +136,10 @@ function ContactForm({ onSuccess }: { onSuccess: () => void }) {
           hint="Para contactarte más rápido por WhatsApp."
           error={errors.phone}
         >
-          <Input
+          <PhoneInput
             id="ct-phone"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
+            sanitize={sanitizeBoliviaPhoneInput}
+            autoComplete="tel-national"
             value={form.phone}
             onChange={(e) => update("phone", e.target.value)}
             aria-invalid={!!errors.phone}

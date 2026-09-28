@@ -1,15 +1,19 @@
 import { useMemo } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Checkbox, DatePicker, Field, Input } from "@luminova/ui";
+import { Button, Checkbox, DatePicker, Field, Input, PhoneInput } from "@luminova/ui";
 import {
   selfProfileSchemaFor,
   MEMBER_NAME_MAX_LENGTH,
+  BOLIVIA_PHONE_LENGTH,
+  sanitizeBoliviaPhoneInput,
   type Member,
   type SelfProfileInput,
 } from "@luminova/types";
 import { dateInputValue } from "../repositories/member-mapper";
 import { useUpdateSelfProfile } from "../hooks/use-update-self-profile";
+
+const PHONE_PLACEHOLDER = `${BOLIVIA_PHONE_LENGTH} dígitos`;
 
 /** The fields a member owns about themselves. Deliberately NOT MemberForm: that form
  *  carries email, status and cargo, which the rules' self lane rejects — offering them here
@@ -61,12 +65,11 @@ export function SelfProfileForm({ member }: { member: Member }) {
         />
       </Field>
       <Field label="Teléfono" htmlFor="self-phone" error={errors.phone?.message}>
-        <Input
+        <PhoneInput
           id="self-phone"
-          inputMode="numeric"
-          maxLength={16}
+          sanitize={sanitizeBoliviaPhoneInput}
           autoComplete="tel-national"
-          placeholder="8 dígitos"
+          placeholder={PHONE_PLACEHOLDER}
           {...register("phone")}
         />
       </Field>

@@ -57,6 +57,7 @@ export {
   boliviaWhatsAppUrl,
   boliviaPhoneRequired,
   boliviaPhoneOptional,
+  sanitizeBoliviaPhoneInput,
 } from "./phone.js";
 export type { Ally } from "./ally.js";
 export { allySchema, type AllyInput } from "./ally-schema.js";

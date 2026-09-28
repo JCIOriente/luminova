@@ -18,6 +18,23 @@ export function normalizeBoliviaPhone(value: string): string {
     : digits;
 }
 
+/**
+ * What a phone field may hold while the user is still typing or pasting: digits only, never
+ * more than BOLIVIA_PHONE_LENGTH. Input-time companion to normalizeBoliviaPhone, which stays
+ * the submit-time backstop and is deliberately left unchanged.
+ *
+ * Its own prefix rule rather than normalize-then-slice: keyed one digit at a time, "+591…"
+ * never reaches the 11 digits normalize waits for — the eighth key would freeze the field at
+ * "59170000". Dropping a leading 591 as soon as it pushes past the national length is safe
+ * because no Bolivian national number starts with 5 (mobiles 6/7, landlines 2/3/4).
+ */
+export function sanitizeBoliviaPhoneInput(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  const national =
+    digits.length > BOLIVIA_PHONE_LENGTH && digits.startsWith("591") ? digits.slice(3) : digits;
+  return national.slice(0, BOLIVIA_PHONE_LENGTH);
+}
+
 export function isBoliviaPhone(value: string): boolean {
   return BOLIVIA_PHONE_REGEX.test(normalizeBoliviaPhone(value));
 }

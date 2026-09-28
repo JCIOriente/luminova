@@ -91,4 +91,40 @@ describe("AllyForm", () => {
       }),
     );
   });
+
+  describe("phone is capped at input time, not only on submit", () => {
+    async function fillValid() {
+      await userEvent.type(screen.getByLabelText(/empresa/i), "Acme Bolivia");
+      await userEvent.type(screen.getByLabelText(/encargado/i), "Ana Pérez");
+      await userEvent.type(screen.getByLabelText(/correo/i), "a@b.co");
+    }
+
+    it("stops typing at 8 digits and submits exactly those", async () => {
+      const onSubmit = vi.fn().mockResolvedValue(undefined);
+      render(<AllyForm submitLabel="Crear" onSubmit={onSubmit} />);
+      await fillValid();
+      const phone = screen.getByLabelText<HTMLInputElement>(/teléfono/i);
+      await userEvent.type(phone, "7001234567890");
+      expect(phone.value).toBe("70012345");
+      await userEvent.click(screen.getByRole("button", { name: /crear/i }));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(onSubmit.mock.calls[0][0].phone).toBe("70012345");
+    });
+
+    it("caps an over-long paste at 8 digits", async () => {
+      render(<AllyForm submitLabel="Crear" onSubmit={vi.fn()} />);
+      const phone = screen.getByLabelText<HTMLInputElement>(/teléfono/i);
+      await userEvent.click(phone);
+      await userEvent.paste("7001 2345 6789");
+      expect(phone.value).toBe("70012345");
+    });
+
+    it("keeps a pasted +591 number whole", async () => {
+      render(<AllyForm submitLabel="Crear" onSubmit={vi.fn()} />);
+      const phone = screen.getByLabelText<HTMLInputElement>(/teléfono/i);
+      await userEvent.click(phone);
+      await userEvent.paste("+591 700 00000");
+      expect(phone.value).toBe("70000000");
+    });
+  });
 });

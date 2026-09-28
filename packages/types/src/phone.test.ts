@@ -5,6 +5,8 @@ import {
   boliviaWhatsAppUrl,
   isBoliviaPhone,
   normalizeBoliviaPhone,
+  sanitizeBoliviaPhoneInput,
+  BOLIVIA_PHONE_LENGTH,
 } from "./phone.js";
 
 describe("isBoliviaPhone", () => {
@@ -90,5 +92,31 @@ describe("boliviaWhatsAppUrl", () => {
     expect(boliviaWhatsAppUrl(undefined)).toBeNull();
     expect(boliviaWhatsAppUrl("")).toBeNull();
     expect(boliviaWhatsAppUrl("123")).toBeNull();
+  });
+});
+
+describe("sanitizeBoliviaPhoneInput", () => {
+  it("caps typed or pasted digits at the schema's length", () => {
+    expect(sanitizeBoliviaPhoneInput("7001234567890")).toBe("70012345");
+    expect(sanitizeBoliviaPhoneInput("7001234567890")).toHaveLength(BOLIVIA_PHONE_LENGTH);
+  });
+  it("strips everything that is not a digit", () => {
+    expect(sanitizeBoliviaPhoneInput("700-12a 345")).toBe("70012345");
+  });
+  it("keeps a pasted +591 number whole instead of truncating the prefix", () => {
+    expect(sanitizeBoliviaPhoneInput("+591 700 00000")).toBe("70000000");
+  });
+  it("drops the 591 prefix as soon as it pushes past 8 digits while typing", () => {
+    expect(sanitizeBoliviaPhoneInput("591700")).toBe("591700");
+    expect(sanitizeBoliviaPhoneInput("591700000")).toBe("700000");
+  });
+  it("leaves a short or empty value alone", () => {
+    expect(sanitizeBoliviaPhoneInput("")).toBe("");
+    expect(sanitizeBoliviaPhoneInput("700")).toBe("700");
+  });
+  it("always yields something the schema accepts once 8 digits are in", () => {
+    for (const raw of ["+591 7000 0000 99", "(700) 000-00 123", "59170012345"]) {
+      expect(isBoliviaPhone(sanitizeBoliviaPhoneInput(raw))).toBe(true);
+    }
   });
 });

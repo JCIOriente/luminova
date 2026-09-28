@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Field, Input, Select } from "@luminova/ui";
+import { Button, Field, Input, PhoneInput, Select } from "@luminova/ui";
 import {
   allySchema,
   ALLY_CATEGORIES,
   ALLY_CATEGORY_LABELS,
+  BOLIVIA_PHONE_LENGTH,
+  sanitizeBoliviaPhoneInput,
   type AllyInput,
   type Ally,
 } from "@luminova/types";
@@ -18,6 +20,8 @@ interface AllyFormProps {
   onUploadLogo?: (file: File) => Promise<void>;
   onRemoveLogo?: () => Promise<void>;
 }
+
+const PHONE_PLACEHOLDER = `${BOLIVIA_PHONE_LENGTH} dígitos`;
 
 function toDefaults(ally?: Ally): AllyInput {
   return {
@@ -69,12 +73,11 @@ export function AllyForm({
         <Input id="contactPerson" {...register("contactPerson")} />
       </Field>
       <Field label="Teléfono" htmlFor="phone" required error={errors.phone?.message}>
-        <Input
+        <PhoneInput
           id="phone"
-          inputMode="numeric"
-          maxLength={16}
-          autoComplete="tel-national"
-          placeholder="8 dígitos"
+          sanitize={sanitizeBoliviaPhoneInput}
+          autoComplete="off"
+          placeholder={PHONE_PLACEHOLDER}
           {...register("phone")}
         />
       </Field>
