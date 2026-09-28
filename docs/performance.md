@@ -216,4 +216,4 @@ Apply on **every** frontend change. These are the rules, not aspirations.
   The hosting emulator serves each target on its own port (printed at startup); free port 4000 first
   (kill any running dev emulator) or override `emulators.hosting.port` transiently.
 - **Field/lab Core Web Vitals:** Lighthouse / PageSpeed Insights against the deployed site
-  (`https://jcioriente.web.app`), mobile profile.
+  (`https://jcioriente.org`), mobile profile.
