@@ -4,6 +4,8 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { imagetools } from "vite-imagetools";
 import { VitePWA } from "vite-plugin-pwa";
+import { seoFiles } from "./seo-files";
+import { SITE_URL } from "./src/config/external-links";
 
 // Preload the above-the-fold latin Plus Jakarta Sans woff2 so the browser fetches
 // it before CSS parse/layout (kills the swap delay on hero text). The emitted name
@@ -59,6 +61,7 @@ export default defineConfig({
       namedExports: false,
     }),
     preloadJakartaLatin(),
+    seoFiles(SITE_URL),
     VitePWA({
       registerType: "prompt",
       includeAssets: ["favicon-16.png", "favicon-32.png", "apple-touch-icon-180x180.png"],

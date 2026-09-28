@@ -4,6 +4,9 @@ Para quienes operan la plataforma: Presidencia, Secretaría, Membresía y las di
 de proyecto. No hace falta saber programar.
 
 Todo esto se hace desde el panel de administración:
+**https://admin.jcioriente.org**
+
+Si esa dirección no carga, usa la dirección de respaldo, que siempre funciona:
 **https://jcioriente-backstage.web.app**
 
 > Las capturas de pantalla están pendientes. Los pasos son correctos y se pueden seguir

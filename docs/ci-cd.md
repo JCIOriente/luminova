@@ -347,8 +347,8 @@ Use for first-run validation, targeted re-deploy, or rollback re-deploy.
 
 Run once, after the workflow is on `main`, dispatching from `main`:
 
-1. **`surface=hosting`** → approve → confirm https://jcioriente.web.app and
-   https://jcioriente-backstage.web.app both serve. (First real WIF token mint +
+1. **`surface=hosting`** → approve → confirm https://jcioriente.org and
+   https://admin.jcioriente.org both serve. (First real WIF token mint +
    impersonation + deploy.)
 2. **`surface=rules`** → approve → confirm rules + indexes published (Console →
    Firestore → Rules; a signed-out `members` read is denied).

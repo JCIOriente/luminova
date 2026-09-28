@@ -7,7 +7,7 @@ up and doing the work. The chapter gets a permanent, auditable record of who did
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Node 24](https://img.shields.io/badge/node-24-green.svg)](.nvmrc)
 
-Built by and running at [JCI Oriente](https://jcioriente.web.app), the Santa Cruz de la
+Built by and running at [JCI Oriente](https://jcioriente.org), the Santa Cruz de la
 Sierra chapter of Junior Chamber International. Open for any chapter to use or adapt.
 
 *[Leer en español](README.es.md) — versión resumida para capítulos.*
@@ -37,8 +37,8 @@ Three surfaces:
 
 | App | What | Live |
 |-----|------|------|
-| `apps/spotlight` | Public site — programs, impact gallery, the board, contact form | https://jcioriente.web.app |
-| `apps/backstage` | Admin dashboard — everything above, auth required | https://jcioriente-backstage.web.app |
+| `apps/spotlight` | Public site — programs, impact gallery, the board, contact form | https://jcioriente.org |
+| `apps/backstage` | Admin dashboard — everything above, auth required | https://admin.jcioriente.org |
 | `apps/beacon` | Cloud Functions — the recognition engine and public projections | — |
 
 ## Features
@@ -228,11 +228,11 @@ fork it and change these:
    - PWA `name` / `short_name` in `apps/spotlight/vite.config.ts` and
      `apps/backstage/vite.config.ts` — this is what the app installs as on a phone.
    - The notification fallback title in both `public/firebase-messaging-sw.js`.
-   - The hardcoded `https://jcioriente.web.app` in `apps/spotlight/index.html`
-     (`rel=canonical`, `og:url`, `og:image`, `twitter:image`),
-     `apps/spotlight/public/sitemap.xml` and `apps/spotlight/public/robots.txt`. Leave
-     these and your site tells search engines it is a copy of ours, and every WhatsApp
-     share renders our image.
+   - `SITE_URL` and `BACKSTAGE_URL` in `apps/spotlight/src/config/external-links.ts`.
+     `SITE_URL` is stamped into `index.html` (`rel=canonical`, `og:url`, `og:image`,
+     `twitter:image`), `sitemap.xml` and `robots.txt` at build. Leave it and your site
+     tells search engines it is a copy of ours, and every WhatsApp share renders our
+     image. See `docs/domains.md`.
 
    The JCI marks are **not** covered by this repository's license — see [NOTICE](NOTICE).
 4. **Points matrix.** Defaults follow JCI Oriente's "Mejor Miembro Individual" scoring

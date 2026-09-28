@@ -263,7 +263,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://jcioriente.web.app
+      url: https://jcioriente.org
     timeout-minutes: 15
     permissions:
       id-token: write

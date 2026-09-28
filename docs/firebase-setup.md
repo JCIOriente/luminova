@@ -17,17 +17,20 @@ Two web app registrations share one Firebase project and one Firestore database:
 
 | App | appId | Hosting target | URL |
 |-----|-------|----------------|-----|
-| spotlight | `1:953870918238:web:63d0034740735d618b4acf` | `jcioriente` | https://jcioriente.web.app |
-| backstage | `1:953870918238:web:acbd53d377846bd88b4acf` | `jcioriente-backstage` | https://jcioriente-backstage.web.app |
+| spotlight | `1:953870918238:web:63d0034740735d618b4acf` | `jcioriente` | https://jcioriente.org |
+| backstage | `1:953870918238:web:acbd53d377846bd88b4acf` | `jcioriente-backstage` | https://admin.jcioriente.org |
 
 Each app reads its Firebase config from its own `apps/<app>/.env.local` (template at `apps/<app>/.env.local.example`). The two apps share the same project and database but use separate app registrations and separate App Check site keys.
 
 ## Hosting Targets
 
-| Target | App | URL |
-|--------|-----|-----|
-| `jcioriente` | spotlight | https://jcioriente.web.app |
-| `jcioriente-backstage` | backstage | https://jcioriente-backstage.web.app |
+| Target | App | URL | Firebase default (fallback) |
+|--------|-----|-----|-----------------------------|
+| `jcioriente` | spotlight | https://jcioriente.org | https://jcioriente.web.app |
+| `jcioriente-backstage` | backstage | https://admin.jcioriente.org | https://jcioriente-backstage.web.app |
+
+Both hostnames serve the same deploy. Which one the code announces, the console settings
+that must list every hostname, and how to fall back: `docs/domains.md`.
 
 ## Initial Setup (one-time)
 
@@ -532,7 +535,8 @@ it in a copy dialog with its expiry.
    1. Find the app id: `firebase apps:list WEB --project jci-oriente`. Backstage is
       `1:953870918238:web:acbd53d377846bd88b4acf`; spotlight is
       `1:953870918238:web:63d0034740735d618b4acf`.
-   2. Create a reCAPTCHA **v3** key for the app's hosting domain at
+   2. Create a reCAPTCHA **v3** key for the app's hosting domains — the custom domain AND
+      the Firebase default, see `docs/domains.md` — at
       https://www.google.com/recaptcha/admin and keep both the **site key** and the
       **secret key**.
    3. Firebase console → **App Check**
