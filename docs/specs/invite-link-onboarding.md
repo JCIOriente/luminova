@@ -1063,9 +1063,9 @@ escape — and local dev deliberately has no site key, so the client sends no he
 that carve-out the only onboarding path in the product would be unrunnable locally. Both
 branches are pinned by tests; the two failure directions are opposite and both silent.
 
-For a callable the `enforceAppCheck` option is the whole control — the App Check console has no
-Cloud Functions switch. What remains is one invite issued and redeemed against the production build; steps,
-pass criterion and failure diagnosis are in `docs/firebase-setup.md`, owner op 3.
+For a callable the `enforceAppCheck` option is the whole control (why the App Check console has
+no equivalent switch is in `docs/firebase-setup.md`, owner op 3, which is also the one place the
+chain, the procedure and the pass criterion are spelled out). Status: `docs/roadmap.md` G4.
 
 `invite-too-many-attempts` joins `INVITE_BLOCK_REASONS`. It is the first **temporary** tagged
 refusal, which invalidated a client invariant: `retryable` was "beacon gave no tagged reason", on

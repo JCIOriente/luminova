@@ -110,20 +110,28 @@ the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot dri
   this ITSELF — a request with no `X-Firebase-AppCheck` header is rejected before the
   debug-token escape — and local dev leaves `VITE_APPCHECK_SITE_KEY` blank, so the client sends
   no header at all. Enforcing unconditionally would make `/invitacion` impossible to exercise
-  against the emulator. `FUNCTIONS_EMULATOR` is safe to key on: the emulator sets it, the
-  deploy-time discovery run does not (it sets `FUNCTIONS_CONTROL_API`), so a real deploy gets
-  `true`. A test pins BOTH branches — the two failure directions are opposite and both silent.
+  against the emulator. `FUNCTIONS_EMULATOR` is safe to key on: only the emulator sets it — the
+  deploy-time discovery run instead gets `FUNCTIONS_CONTROL_API=true`, an unrelated
+  firebase-tools flag (`spawnFunctionsProcess` in its `deploy/functions/runtimes/node`) that
+  exposes the discovery child process's `/__/functions.yaml` manifest endpoint; it carries no
+  App Check meaning. That is not why the discovery run is safe to ignore, though — see the
+  `ENFORCE_APP_CHECK` docblock in `token-verification-bypass.ts` for the actual reason
+  (`enforceAppCheck` is read in-process at cold start and never serialized into the deploy
+  manifest at all). A real deploy leaves `FUNCTIONS_EMULATOR` unset, resolving
+  `ENFORCE_APP_CHECK: true`. A test pins BOTH branches — the two failure directions are
+  opposite and both silent.
   App Check bounds WHO may call, not how often, which is why the limiter ships alongside it.
   For a callable the `onCall` flag IS the enforcement. Attestation chain, setup, enforcement
   state and failure diagnosis: docs/firebase-setup.md, owner op 3.
-- **`issueMemberInvite` enforces App Check too; the other four admin callables do not.** The
-  list is `APP_CHECK_ENFORCED_CALLABLES`, pinned by `app-check-scope.test.ts`; why these three
-  and not the rest: docs/firebase-setup.md, owner op 3.
+- **`issueMemberInvite` enforces App Check too; the admin-only callables do not.** The enforced
+  list is `APP_CHECK_ENFORCED_CALLABLES`, pinned by `app-check-scope.test.ts`; why those and not
+  the rest: docs/firebase-setup.md, owner op 3.
 - **One debug flag defeats BOTH token verifications, and every callable refuses it.**
   `FIREBASE_DEBUG_MODE=true` plus `FIREBASE_DEBUG_FEATURES` carrying `skipTokenVerification` makes
   firebase-functions decode BOTH the App Check header and the **Auth ID token** without verifying
   either, so a forged `roles: ["Admin"]` claim satisfies `callable-auth.ts`. It is worse on the
-  five authenticated callables than on the invite pair, and `enforceAppCheck: true` does not help.
+  authenticated callables outside the invite pair than on the invite pair, and
+  `enforceAppCheck: true` does not help.
   **Every callable is declared through `guardedOnCall`** (`src/guarded-on-call.ts`), whose handler
   refuses before delegating; that file's header states what makes the coverage structural, and
   `docs/specs/structural-oncall-guard.md` is the design. The refusal itself — predicate, emulator

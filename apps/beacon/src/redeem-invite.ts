@@ -401,17 +401,14 @@ export async function redeemInviteFor(
 //    `ENFORCE_APP_CHECK` docblock in token-verification-bypass.ts for why that carve-out is
 //    safe and must stay fail-closed.
 //
-//    An unauthenticated /invitacion load does attest: attestation is app-level, `/invitacion`
-//    is deliberately a TOP-LEVEL route outside the `_auth` layout,
-//    `apps/backstage/.env.production` carries the site key, and the client's `ensureApp()`
-//    wires `initAppCheck` on first app acquisition — which `getFunctionsService()` goes through.
+//    The unauthenticated /invitacion load does attest: attestation is app-level. The chain,
+//    why this flag alone is the enforcement, the verification procedure and the failure
+//    diagnosis are documented once, not repeated here: docs/firebase-setup.md, owner op 3.
 //
-//    For a callable this flag IS the enforcement — the App Check console has no Cloud
-//    Functions switch. The live risk is that no real redemption has proven it yet (owner op 3
-//    in docs/firebase-setup.md, which also holds the failure diagnosis). If attestation fails
-//    for real invitees, every redemption is refused — silently, totally, on the only onboarding
-//    path there is — and a 403/404 from the token exchange throttles App Check in that page
-//    for TWENTY-FOUR HOURS, which no retry button can clear and only a page reload escapes.
+//    If attestation fails for real invitees, every redemption is refused — silently, totally,
+//    on the only onboarding path there is — and a 403/404 from the token exchange throttles
+//    App Check in that page for TWENTY-FOUR HOURS, which no retry button can clear and only a
+//    page reload escapes.
 //
 // 2. THE RATE GATE, below. App Check bounds WHO may call; it does not bound HOW OFTEN. An
 //    App Check token is replayable for its whole TTL (docs/firebase-setup.md has the value), so
