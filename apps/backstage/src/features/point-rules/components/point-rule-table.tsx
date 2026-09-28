@@ -65,10 +65,12 @@ function PointsCell({
     <div className="flex items-center gap-2">
       <Input
         type="number"
+        inputMode="numeric"
         min={0}
         step={1}
         className="w-24 px-3 py-2"
         value={value}
+        aria-invalid={!parsed.success || undefined}
         aria-label={`Puntos de ${rule.label}`}
         onChange={(event) => setValue(event.target.value)}
       />

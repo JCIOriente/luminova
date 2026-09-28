@@ -228,7 +228,7 @@ export function MemberForm({
           <Input id="name" maxLength={MEMBER_NAME_MAX_LENGTH} {...register("name")} />
         </Field>
         <Field label="Correo" htmlFor="email" required error={errors.email?.message}>
-          <Input id="email" type="email" {...register("email")} />
+          <Input id="email" type="email" autoComplete="off" {...register("email")} />
         </Field>
         <Field label="Género" htmlFor="gender" required error={errors.gender?.message}>
           <Controller

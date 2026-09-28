@@ -92,6 +92,12 @@ describe("AllyForm", () => {
     );
   });
 
+  it("disables submit while the save is in flight", async () => {
+    render(<AllyForm ally={ALLY} submitLabel="Guardar" onSubmit={() => new Promise(() => {})} />);
+    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /guardando/i })).toBeDisabled());
+  });
+
   describe("phone is capped at input time, not only on submit", () => {
     async function fillValid() {
       await userEvent.type(screen.getByLabelText(/empresa/i), "Acme Bolivia");
@@ -108,7 +114,7 @@ describe("AllyForm", () => {
       expect(phone.value).toBe("70012345");
       await userEvent.click(screen.getByRole("button", { name: /crear/i }));
       await waitFor(() => expect(onSubmit).toHaveBeenCalled());
-      expect(onSubmit.mock.calls[0][0].phone).toBe("70012345");
+      expect(onSubmit.mock.calls[0]?.[0].phone).toBe("70012345");
     });
 
     it("caps an over-long paste at 8 digits", async () => {

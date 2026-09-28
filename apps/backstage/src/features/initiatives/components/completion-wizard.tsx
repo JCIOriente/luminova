@@ -96,7 +96,9 @@ export function CompletionWizard({
               <Input
                 id="personsImpacted"
                 type="number"
+                inputMode="numeric"
                 min={0}
+                step={1}
                 {...register("personsImpacted", { valueAsNumber: true })}
               />
             </Field>
@@ -109,7 +111,9 @@ export function CompletionWizard({
               <Input
                 id="volunteers"
                 type="number"
+                inputMode="numeric"
                 min={0}
+                step={1}
                 {...register("volunteers", { valueAsNumber: true })}
               />
             </Field>
@@ -124,6 +128,7 @@ export function CompletionWizard({
                 <Field
                   label="Etiqueta"
                   htmlFor={`custom-label-${i}`}
+                  required
                   error={errors.custom?.[i]?.label?.message}
                 >
                   <Input id={`custom-label-${i}`} {...register(`custom.${i}.label`)} />
@@ -132,6 +137,7 @@ export function CompletionWizard({
                   <Field
                     label="Valor"
                     htmlFor={`custom-value-${i}`}
+                    required
                     error={errors.custom?.[i]?.value?.message}
                   >
                     <Input id={`custom-value-${i}`} {...register(`custom.${i}.value`)} />

@@ -134,6 +134,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           <Field
             label="Lema"
             htmlFor="hero-motto"
+            required
             hint="Ej. el lema de la gestión o el lema institucional"
             error={err(errors.hero?.motto?.message)}
           >
@@ -161,11 +162,15 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           <Field
             label="Programas activos"
             htmlFor="programCount"
+            required
             error={err(errors.stats?.programCount?.message)}
           >
             <Input
               id="programCount"
               type="number"
+              inputMode="numeric"
+              min={0}
+              step={1}
               aria-invalid={attempted && !!errors.stats?.programCount}
               {...register("stats.programCount", { valueAsNumber: true })}
             />
@@ -173,11 +178,15 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           <Field
             label="Reconocimientos nacionales"
             htmlFor="nationalAwards"
+            required
             error={err(errors.stats?.nationalAwards?.message)}
           >
             <Input
               id="nationalAwards"
               type="number"
+              inputMode="numeric"
+              min={0}
+              step={1}
               aria-invalid={attempted && !!errors.stats?.nationalAwards}
               {...register("stats.nationalAwards", { valueAsNumber: true })}
             />
@@ -185,6 +194,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           <Field
             label="Países"
             htmlFor="countries"
+            required
             hint="Ej. 100+"
             error={err(errors.stats?.countries?.message)}
           >
@@ -197,6 +207,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           <Field
             label="Miembros en el mundo"
             htmlFor="membersWorldwide"
+            required
             hint="Ej. 200.000+"
             error={err(errors.stats?.membersWorldwide?.message)}
           >
@@ -209,11 +220,13 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           <Field
             label="Eficiencia (%)"
             htmlFor="efficiencyPct"
+            required
             error={err(errors.stats?.efficiencyPct?.message)}
           >
             <Input
               id="efficiencyPct"
               type="number"
+              inputMode="decimal"
               min={0}
               max={100}
               aria-invalid={attempted && !!errors.stats?.efficiencyPct}
@@ -230,6 +243,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             <Field
               label="Año"
               htmlFor="standoutYear"
+              required
               error={err(errors.stats?.standoutOrg?.year?.message)}
             >
               <Input
@@ -241,6 +255,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             <Field
               label="Título"
               htmlFor="standoutTitle"
+              required
               error={err(errors.stats?.standoutOrg?.title?.message)}
             >
               <Input
@@ -273,6 +288,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                 <Field
                   label="Año"
                   htmlFor={`timeline-year-${index}`}
+                  required
                   error={err(errors.timeline?.[index]?.year?.message)}
                 >
                   <Input
@@ -284,6 +300,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                 <Field
                   label="Título"
                   htmlFor={`timeline-title-${index}`}
+                  required
                   error={err(errors.timeline?.[index]?.title?.message)}
                 >
                   <Input
@@ -313,21 +330,26 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
         forceOpen={sectionHasError("mvv")}
       >
         <div className="flex flex-col gap-4">
-          <Field label="Misión" htmlFor="mision" error={err(errors.mvv?.mision?.message)}>
+          <Field label="Misión" htmlFor="mision" required error={err(errors.mvv?.mision?.message)}>
             <Textarea
               id="mision"
               aria-invalid={attempted && !!errors.mvv?.mision}
               {...register("mvv.mision")}
             />
           </Field>
-          <Field label="Visión" htmlFor="vision" error={err(errors.mvv?.vision?.message)}>
+          <Field label="Visión" htmlFor="vision" required error={err(errors.mvv?.vision?.message)}>
             <Textarea
               id="vision"
               aria-invalid={attempted && !!errors.mvv?.vision}
               {...register("mvv.vision")}
             />
           </Field>
-          <Field label="Valores" htmlFor="valores" error={err(errors.mvv?.valores?.message)}>
+          <Field
+            label="Valores"
+            htmlFor="valores"
+            required
+            error={err(errors.mvv?.valores?.message)}
+          >
             <Textarea
               id="valores"
               aria-invalid={attempted && !!errors.mvv?.valores}
@@ -360,6 +382,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                 <Field
                   label="Título"
                   htmlFor={`reason-title-${index}`}
+                  required
                   error={err(errors.reasons?.[index]?.title?.message)}
                 >
                   <Input
@@ -386,10 +409,16 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
         forceOpen={sectionHasError("contact")}
       >
         <div className="flex flex-col gap-4">
-          <Field label="Correo" htmlFor="contactEmail" error={err(errors.contact?.email?.message)}>
+          <Field
+            label="Correo"
+            htmlFor="contactEmail"
+            required
+            error={err(errors.contact?.email?.message)}
+          >
             <Input
               id="contactEmail"
               type="email"
+              autoComplete="off"
               aria-invalid={attempted && !!errors.contact?.email}
               {...register("contact.email")}
             />
@@ -397,6 +426,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           <Field
             label="Ubicación"
             htmlFor="contactLocation"
+            required
             error={err(errors.contact?.location?.message)}
           >
             <Input
@@ -408,6 +438,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           <Field
             label="Horario de reuniones"
             htmlFor="contactSchedule"
+            required
             error={err(errors.contact?.meetingSchedule?.message)}
           >
             <Input
@@ -424,6 +455,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           >
             <Input
               id="contactMapUrl"
+              inputMode="url"
               aria-invalid={attempted && !!errors.contact?.mapUrl}
               {...register("contact.mapUrl")}
             />
@@ -436,6 +468,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           >
             <Input
               id="contactWhatsapp"
+              inputMode="url"
               aria-invalid={attempted && !!errors.contact?.whatsapp}
               {...register("contact.whatsapp")}
             />
@@ -448,6 +481,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
           >
             <Input
               id="contactBroadcast"
+              inputMode="url"
               aria-invalid={attempted && !!errors.contact?.broadcastChannel}
               {...register("contact.broadcastChannel")}
             />
@@ -465,6 +499,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                 >
                   <Input
                     id={`contact-social-${key}`}
+                    inputMode="url"
                     aria-invalid={attempted && !!errors.contact?.socials?.[key]}
                     {...register(`contact.socials.${key}`)}
                   />
@@ -486,6 +521,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                   <Field
                     label="Etiqueta"
                     htmlFor={`link-label-${index}`}
+                    required
                     error={err(errors.contact?.links?.[index]?.label?.message)}
                   >
                     <Input
@@ -497,10 +533,12 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                   <Field
                     label="URL"
                     htmlFor={`link-url-${index}`}
+                    required
                     error={err(errors.contact?.links?.[index]?.url?.message)}
                   >
                     <Input
                       id={`link-url-${index}`}
+                      inputMode="url"
                       aria-invalid={attempted && !!errors.contact?.links?.[index]?.url}
                       {...register(`contact.links.${index}.url`)}
                     />
@@ -522,10 +560,22 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
       >
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Usuario" htmlFor="lt-handle" hint="Ej. @jci.oriente">
+            <Field
+              label="Usuario"
+              htmlFor="lt-handle"
+              required
+              hint="Ej. @jci.oriente"
+              error={err(errors.linktree?.handle?.message)}
+            >
               <Input id="lt-handle" {...register("linktree.handle")} />
             </Field>
-            <Field label="Lema" htmlFor="lt-tagline" hint="Ej. Lema 2026">
+            <Field
+              label="Lema"
+              htmlFor="lt-tagline"
+              required
+              hint="Ej. Lema 2026"
+              error={err(errors.linktree?.tagline?.message)}
+            >
               <Input id="lt-tagline" {...register("linktree.tagline")} />
             </Field>
             <Field label="Lema (acento azul)" htmlFor="lt-accent" hint="Ej. Sublema 2026">
@@ -568,6 +618,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                     <Field
                       label="Título"
                       htmlFor={`lt-link-title-${index}`}
+                      required
                       error={err(errors.linktree?.links?.[index]?.title?.message)}
                     >
                       <Input
@@ -587,11 +638,13 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                     <Field
                       label="URL"
                       htmlFor={`lt-link-url-${index}`}
+                      required
                       hint="http(s):// o mailto:"
                       error={err(errors.linktree?.links?.[index]?.url?.message)}
                     >
                       <Input
                         id={`lt-link-url-${index}`}
+                        inputMode="url"
                         aria-invalid={attempted && !!errors.linktree?.links?.[index]?.url}
                         {...register(`linktree.links.${index}.url`)}
                       />
@@ -640,6 +693,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
                 >
                   <Input
                     id={`lt-social-${platform}`}
+                    inputMode="url"
                     aria-invalid={attempted && !!errors.linktree?.socials?.[index]?.url}
                     {...register(`linktree.socials.${index}.url`)}
                   />

@@ -82,7 +82,7 @@ export function AllyForm({
         />
       </Field>
       <Field label="Correo" htmlFor="email" required error={errors.email?.message}>
-        <Input id="email" type="email" {...register("email")} />
+        <Input id="email" type="email" autoComplete="off" {...register("email")} />
       </Field>
       <Field label="Categoría" htmlFor="category" error={errors.category?.message}>
         <Select
@@ -116,7 +116,12 @@ export function AllyForm({
           {formError}
         </div>
       )}
-      <Button as="button" type="submit" className="mt-1 w-full justify-center">
+      <Button
+        as="button"
+        type="submit"
+        disabled={isSubmitting}
+        className="mt-1 w-full justify-center"
+      >
         {isSubmitting ? "Guardando…" : submitLabel}
       </Button>
     </form>

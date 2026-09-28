@@ -42,7 +42,7 @@ function renderForm(defaultValues: SiteConfigInput) {
     <SiteConfigForm defaultValues={defaultValues} lastSaved={new Date(0)} onSubmit={onSubmit} />,
   );
   // The submit button is disabled until the form is dirty; edit the open field.
-  fireEvent.change(screen.getByLabelText("Lema"), { target: { value: "Nuevo lema" } });
+  fireEvent.change(screen.getByLabelText("Lema *"), { target: { value: "Nuevo lema" } });
   return { onSubmit };
 }
 
@@ -52,13 +52,25 @@ describe("SiteConfigForm error visibility", () => {
     renderForm(bad);
 
     // MVV section starts collapsed — its field is not mounted.
-    expect(screen.queryByLabelText("Misión")).toBeNull();
+    expect(screen.queryByLabelText("Misión *")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
     // It auto-expands so the invalid field becomes visible and flagged.
-    await waitFor(() => expect(screen.getByLabelText("Misión")).toBeInTheDocument());
-    expect(screen.getByLabelText("Misión")).toHaveAttribute("aria-invalid", "true");
+    await waitFor(() => expect(screen.getByLabelText("Misión *")).toBeInTheDocument());
+    expect(screen.getByLabelText("Misión *")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("shows the error for a blank linktree handle, which it used to count but never render", async () => {
+    const bad = { ...validInput, linktree: { ...validInput.linktree, handle: "" } };
+    renderForm(bad);
+
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Usuario *")).toBeInTheDocument());
+    const handle = screen.getByLabelText("Usuario *");
+    expect(handle).toHaveAttribute("aria-describedby", "lt-handle-err");
+    expect(document.getElementById("lt-handle-err")).toHaveTextContent("Requerido.");
   });
 
   it("counts invalid fields, not top-level sections", async () => {

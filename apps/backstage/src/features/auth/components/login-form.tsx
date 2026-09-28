@@ -61,8 +61,6 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
               autoComplete="email"
               placeholder="tu.nombre@jcioriente.bo"
               className="pl-11"
-              aria-invalid={errors.email ? true : undefined}
-              aria-describedby={errors.email ? "email-err" : undefined}
               {...register("email")}
             />
           </div>
