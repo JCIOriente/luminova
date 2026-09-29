@@ -1,51 +1,143 @@
 # JCI Oriente — Product Roadmap
 
-Living doc. Each item is a self-contained workstream: brainstorm → plan → TDD →
-PR, one at a time or in parallel where dependencies allow. `[P]` = parallel-safe,
-`[S]` = sequential (dependency noted).
+Living doc. **Last synced: 2026-09-29**, with every PR through #238 merged (`main` at `f148ee9`).
 
-**Status legend:** ✅ done (merged) · 🟡 partial (a slice shipped, rest deferred) ·
-⬜ not started. The `#` column strikes through (`~~A1~~ ✅`) completed items and
-notes the merged PR.
+How to read it:
 
-_Last synced: 2026-07-01 — large batch merged since the 2026-06-10 sync (PRs #44–#119,
-all merged except #118 which is still open). Highlights:_
+- **Section 1 is the work queue.** One row is one session and one PR, done in priority
+  order unless the row says otherwise. Work that is not a row here is not scheduled; a
+  session that notices something new reports it and does not act on it.
+- **Section 2** holds what only the owner can do: decisions and console operations. Some
+  rows in section 1 wait on them.
+- **Section 3** is the product backlog: epics not yet broken into sessions.
+- **Section 4** records what shipped. **Section 5** is the product reference the epics
+  are designed against.
 
-- **NEW — Real board dashboard (B3, #115):** killed `overview-mock.ts`; the `/` dashboard now
-  renders real aggregates + honest empty/loading states.
-- **NEW — Backstage design-system polish (FX7):** Mi panel v2 (#111, black hero + credential
-  card + QR modal), Actividades as a DS card grid + `Activity.location` physical/virtual (#112),
-  activity-detail tabs + check-in scan modal restyle + datetime-helper consolidation (#114),
-  rich activity Resumen + ActivityForm description fix (#116), DS check-in tab — attendance
-  charts + roster table + undo (#117).
-  Pattern: generate the screen via frontend-design on claude.ai/design, implement through DesignSync.
-- **NEW — Keyless CD pipeline (I7, #113 + hardening #119 MERGED):** Firebase deploy via WIF/OIDC
-  (no stored key), approval-gated `production` env, path-filtered rules→functions→hosting,
-  hosting preview→smoke→promote. WIF/IAM provisioned; canonical reference: `docs/ci-cd.md`.
-- **C Projects:** **C1-lite COMPLETE** (slices 1–6: schema #49 · `/initiatives` grid #51 ·
-  detail #55 · activity detail #62 · completion wizard #63 · galleries #64) — absorbs **H2 ✅**.
-  **C4 Spotlight public showcase SHIPPED** (`/impacto` #66 + executed-activity photo roll-up #69).
-  C1-dossier + C2/C3 still gated on `jci-award-criteria.md`.
-- **NEW — Custom roles & permissions epic (N):** coarse `action:Subject` perms in a `perms`
-  custom claim, Admin-only authority, runtime-editable roles (4 slices #84–#87 + seeding #88/#89).
-- **NEW — Positions catalog & member governance:** CEL/JDL/comisiones catalog + gendered cargos (#52),
-  member claims-sync trigger + edit page + permissions panel (#54), Firebase invite email (#53),
-  check-in window gating (#73), Sheet size prop (#50).
-- **NEW — Spotlight public site & lightweight CMS (M):** president-editable site config + SWR (#82),
-  Linktree `/enlaces` (#91), public allies wall (#83), curated `/programas` + lightbox (#77/#80).
-- **NEW — Performance & Web Vitals track (L):** firebase/lite, font diet, WebP, deferred reads,
-  immutable caching + preconnect, lazy lightbox/QrCode (#93–#105). Playbook: `docs/performance.md`.
-- **NEW — CI is now live:** GitHub Actions PR gate (fast checks + emulator suites) + minutes/bundle
-  budget tuning (#104/#106). Removes the standing "no CI" risk.
-- **Beacon correctness:** atomic member-points recompute (#100) + totalPoints write-skip (#103).
+Every row follows CLAUDE.md: worktree first, route the diff (`.claude/hooks/route.sh`), run
+every review it lists, stamp, `gh pr create`, `pnpm pr-tests`. The review set in each row is
+what the rubric (`.claude/review-routing.json`) mandates for the paths the row touches; the
+router's output for the real diff wins if they differ. Mark the row ✅ with its PR number in
+this file, in the same PR.
 
-_Older context (still valid): A Recognition Engine complete + fed (F3·A1·A2·A5·A6·A3);
-B1 member home (#20); D1 Events/Activities CRUD (#22); A7 roster→participation (#23);
-login redesign + auth hardening (#35/#36); FX batch (#37/#38/#39); first prod deploy (#43, I4);
-Members console (#41/#42); B2 board home (#45); H1 profilePicture (#46). Reshaped around the
-**Recognition Engine** (points, QR attendance, multi-role access, award submissions)._
+**Status legend:** ✅ done · 🟡 partial · ⬜ not started · ⏸ waiting on section 2.
 
-## Naming conventions
+## 1. Work queue
+
+| # | Item | Scope | Owner | Review set (router) | Ordering |
+|---|------|-------|-------|---------------------|----------|
+| R1 ⬜ | **Hooks: exact-or-old target tree** | Finish `chore/hooks-git-c-target` (worktree `.worktrees/hooks-git-c-target`, 9 commits, HEAD `7301878`, not pushed). `.claude/hooks/target-tree.mjs` resolves a target tree only for an allowlisted `&&` chain (literal `cd`; `git -C <literal>` with `add\|status\|commit\|rev-parse\|ls-files`, plus `push` in a PR chain; `gh pr create`; no redirection except heredoc input, fd-dup and `/dev/null`). Everything else is judged at the payload `.cwd`, as before. `hook-differential.test.mjs` proves it never allows what baseline `55ca768` blocked. code-review (adversarial Opus substitute) and simplify are done on the final state. | **Owner** runs `/security-review`; agent rebases, re-runs the suite, stamps, pushes, opens the PR | security-review (hard), code-review, simplify | First. R9 and R10 build on it |
+| R2 ⬜ | **Docs accuracy sweep** | (a) `docs/firebase-setup.md:623` quotes the ATTESTATION_BLOCKED copy as "…y avisa a la directiva."; the app says "…y avísanos." — copy it byte-for-byte from `apps/backstage/src/features/auth/lib/invite-error.ts`. (b) `docs/performance.md`: the section-1 eager-JS row (spotlight "104", backstage "278 kB gz") and the budget table's "now" values are stale — measure with a build and write the current figures (last measured: spotlight 109,232 B gz ≈ 106.7 kB; backstage ≈ 159 kB). (c) `docs/specs/invite-link-onboarding.md:558` quotes the old forgot-password copy "Pídele a la directiva…" — replace with the shipped login copy. Facts only, no "corrected" framing. | Agent | Lighter review (docs only): `Review-Exception` + correctness gate | Any time |
+| R3 ⬜ | **Orphaned auth users keep their claims** | `recomputeAllClaims` iterates `members`, so an auth user whose member doc is gone is never revisited and keeps its custom claims (reported 2026-09: two stale test accounts with extra perms). `apps/beacon/src/issue-member-invite.ts:165` already names the risk ("An orphaned account may still hold org roles (even Admin)"). Build an Admin-only reconciliation that lists auth users, diffs against member docs, and clears the claims of orphans, with a dry-run mode that reports first. Spec first (auth + Cloud Functions). | Agent; owner runs it in prod | security-review (hard), firebase-functions-reviewer, code-review, simplify | security-review (hard), firebase-functions-reviewer, code-review, simplify; + react-best-practices if it adds a backstage `.tsx` |
+| R4 ⏸ | **Phone rule consistency** | (a) `firestore.rules` `leads` create checks only `phone.size()` 1–20 while the client requires `^[23467][0-9]{7}$`: mirror the pattern and add a rules test (guardrail 2, rules mirror code). (b) `normalizeBoliviaPhone` (`packages/types/src/phone.ts`, submit backstop) strips a leading `591` but not `00591`, unlike `sanitizeBoliviaPhoneInput`: align them, with tests. Staff member/ally lanes stay unshaped (deliberate). | Agent | security-review (hard), firestore-security-reviewer, code-review, simplify | After D1 | After Q1 
+| R5 ⬜ | **Callable counts in prose point at the list** | Replace "five authenticated callables" / "four declare no enforceAppCheck" with a pointer to `APP_CHECK_ENFORCED_CALLABLES` and the deploy list ("enumerated in `deploy.yml` and pinned by a test", never "derived"): `.github/workflows/deploy.yml:218-219`, `.github/scripts/assert-deployed-env-clean.sh:9,164`, `.github/scripts/assert-deployed-env-clean.test.mjs:236`, `apps/beacon/src/redeem-invite.test.ts:784`, `docs/specs/structural-oncall-guard.md:59,70`, `apps/beacon/src/token-verification-bypass.ts:88-90`. Comments and prose only; no behavior change. The word "derived" at `assert-deployed-env-clean.sh:29,90` means something else and stays. | Agent | security-review (hard), firebase-functions-reviewer; code-review + simplify only if ≥ 15 source lines change | Any time |
+| R6 ⬜ | **A deploy parked on approval blocks CD silently** | `deploy.yml` `concurrency: deploy-production` with a run waiting on `production` approval holds the group; every later run queues and is cancelled, and `notify` is cancelled with it. Happened Aug 12–15 2026: about three days, thirteen cancelled runs. Make a parked or cancelled deploy visible — alert on a run waiting past a threshold, or fail fast instead of parking. | Agent | security-review (hard), code-review, simplify | Any time |
+| R7 ⬜ | **Role-permission drift detection** | Prod drifted across five built-in roles unseen. `reseedBuiltInRolePerms {dryRun:true}` already returns the exact diff. Run it on a schedule and alert when the preview is non-empty. Beacon has no scheduled function yet, so this is the first one. | Agent | security-review (hard), firebase-functions-reviewer, code-review, simplify | After R3 (same claims area) |
+| R8 ⬜ | **Scheduled dependency audit** | Advisory ranges widen under existing overrides, so `pnpm audit` starts failing every PR at once (fixed twice after the fact: #223, #236). Add a scheduled workflow that runs the audit and reports on its own, so it no longer surprises an unrelated PR. Renovate is out of scope. | Agent | code-review, simplify (≥ 15 source lines) | Any time |
+| R9 ⬜ | **Hook text-match false positives** | (a) `.claude/hooks/pre-commit.sh:17` treats `[[:space:]]-n` as `--no-verify`, so `… \| tail -n 5` skips the lint gate. (b) The branch-guard / pre-commit regex floor fires on quoted text (a PR body mentioning "git commit") from the primary checkout. Both pre-existing. | Agent | security-review (hard), code-review, simplify | After R1 |
+| R10 ⬜ | **Hooks follow-ups** | (a) `git switch main && git commit` in one command from a worktree cwd is not caught. (b) `git commit && gh pr create` judges the pre-commit HEAD. (c) `hook-differential` costs ~14 s CPU per core at pool 4 (target ~10 s) — measure CI headroom (`checks` ~5 min of a 10 min timeout) and cut it if needed. | Agent | security-review (hard), code-review, simplify | After R1 and R9 |
+| R11 ⬜ | **Locked-fields parser comments** | `tools/scripts/lib/rules-locked-fields.mjs` strips whole-line `//` comments but not trailing ones, and its other two parsers strip none. Handle both, with fixtures in `rules-locked-fields.test.mjs`. | Agent | code-review, simplify (≥ 15 source lines) | Any time |
+| R12 ⬜ | **Owner-op tooling — spec only** | The owner-op sequence (seedRoles → grant → reseed → recompute → verify the claim) is rebuilt by hand each time and needs a temporary IAM token-creator grant. Write `docs/specs/` for putting it behind Admin buttons in `/permisos`, where R3's and R7's checks can live too. The spec is the deliverable; building it is a later row. | Agent | Lighter review (docs only) | After R3 and R7 |
+| R13 ⏸ | **Legacy phone backfill** | Only if Q2 = backfill: a one-shot script (dry-run first) normalizing stored member/ally phones that start 0/1/5/8/9 or carry a country code, so forms save again and WhatsApp links return. | Agent; owner runs it in prod | code-review, simplify | code-review, simplify (named `tools/scripts/seed-*.mjs` or placed in beacon, it becomes auth surface: + security-review) | After Q2 and R4 
+| R14 ⏸ | **firebase-functions 7.4 / express 5** | Only if Q3 = upgrade: move beacon from `firebase-functions` 7.2.5 (express 4.22.3 + overrides in `pnpm-workspace.yaml`) to 7.4.0 (express `^5.2.1`), drop the express-4 overrides that no longer apply, re-run the beacon emulator suites. | Agent | secure-dep-vetting, security-review (hard), firebase-functions-reviewer, bundle-budget-watcher | After D3 | After Q3 
+
+## 2. Owner decisions and operations
+
+### Decisions
+
+| # | Decision | Unblocks |
+|---|----------|----------|
+| Q1 | Confirm the Bolivian phone rule `^[23467][0-9]{7}$` (landlines 2/3/4, mobiles 6/7; 5 rejected). It is what `packages/types/src/phone.ts` and the member self lane enforce today. | R4 |
+| Q2 | Legacy phones starting 0/1/5/8/9: backfill them, or leave them until each is edited? Until fixed, their forms won't save and their WhatsApp links don't render. | R13 |
+| Q3 | Upgrade to `firebase-functions` 7.4.0 (express 5), or stay on 7.2.5 + express 4.22.3 with overrides? | R14 |
+| Q4 | `feat/brand-config` holds an unmerged design spec for build-time brand configuration (2026-08-19, no PR). Open it or drop it. | — |
+
+### Operations
+
+| # | Operation | Where | Status |
+|---|-----------|-------|--------|
+| O1 | Expired-link manual test: the invite issued 2026-09-28T10:52:14Z expires ~2026-09-30T10:52Z; redeem it after that and confirm the refusal. | `docs/firebase-setup.md`, owner op 3 | ⬜ time-boxed |
+| O2 | Enable Web Push in production: Cloud Messaging API + VAPID key into both `.env.production` (`VITE_FIREBASE_VAPID_KEY` is not set in either today). | `docs/firebase-setup.md`, "Push Notifications" | ⬜ |
+| O3 | Custom domains: all four hostnames in Auth → Authorized domains; stored URLs in backstage `/config` moved off `web.app`. reCAPTCHA keys are done. | `docs/domains.md` | ⬜ |
+| O4 | Google Search Console for `jcioriente.org`, submit `/sitemap.xml`. | `docs/domains.md` | ⬜ deferred |
+| O5 | Confirm the Password-reset action URL is back at the Firebase default. | `docs/firebase-setup.md`, owner op 1 | ⬜ unverified |
+| O6 | Confirm prod `roles/Member` carries `read:Member` (fix in `/permisos`, not code). | backstage `/permisos` | ⬜ unverified |
+| O7 | Confirm prod `siteConfig/current` has `contact.mapUrl` and `socials` (seed backfill, #155). | backstage `/config` | ⬜ unverified |
+| O8 | Storage wipe of rewrite-era objects. | Firebase console | ⬜ |
+
+### Standing decisions
+
+- **Firestore App Check stays unenforced in prod.** Do not enable it or recommend enabling it.
+  The enforced callables are `APP_CHECK_ENFORCED_CALLABLES`; Storage enforces App Check.
+- Firebase web API keys in `.env.production` / `.env.local.example` are public client
+  identifiers, not secrets, so they stay as they are.
+- `/code-review` is user-invoked only. Sessions substitute an adversarial Opus pass and say so
+  in the PR.
+- Until R1 merges, main's hooks match raw command text: keep the literal words
+  "git commit" and "gh pr create" out of command text, heredocs included, except in the
+  command that performs them.
+- Subagents run with the primary checkout as cwd; the orchestrator commits, stamps and opens
+  PRs. Model tiering: Opus for React, rules and complex logic; Sonnet for mechanical work;
+  Fable for docs review.
+
+## 3. Product backlog
+
+Epics not yet split into sessions. When one is picked up it gets a spec, then its slices
+become rows in section 1.
+
+| # | Epic | State | Notes |
+|---|------|-------|-------|
+| J | **Finance & Treasury** (detail below) | ⬜ | The largest unbuilt epic. Closes the leaderboard's `duesStatus` eligibility gap: today points accrue to members who are not al día. Input ready: `docs/reference/dues-config.md`. |
+| K2 | **Scheduled notification triggers** — birthdays → Membership + CEL, dues reminders/overdue, monthly report | ⬜ | Needs J4. Rides on the shipped inbox + push (#203–#208). K3 email / K4 WhatsApp later. |
+| C | **Award dossier track** — C1-dossier (phases, budget vs actual, SDG tags), C2 dossier export per level, C3 recognition calendar | ⛔ | Blocked on `docs/reference/jci-award-criteria.md`. |
+| L4 | **Prerender static spotlight routes** — real HTML before JS, biggest remaining FCP/LCP win | ⬜ | Approach open: build-time snapshot (recommended start), TanStack Start, or vite-react-ssg. Brainstorm → spec first. |
+| L5 | Inline critical CSS on spotlight | ⬜ | Medium effort, low-medium impact. |
+| FX7 | Design-system pass on the remaining backstage screens | 🟡 | Last listed as remaining: Members, Leaderboard, Allies, Initiatives. Re-check before starting. |
+| D2 | Reports | ⬜ | Needs the J data. |
+| D4 | Real Settings page (also known as N5) — profile, theme, org; home for role management | ⬜ | |
+| G1 | Soft-delete write guard — pre-flight existence/`active` check in the member and ally repositories | ⬜ | |
+| I1 | Codegen-drift CI gate for `@luminova/types` shared schemas | ⬜ | No CI step exists yet. |
+| H4 | Real spotlight images — `ImgSlot` placeholders remain in `home-programs.tsx` and `showcase-card.tsx` | ⬜ | Needs photos from the chapter. |
+| A4 | Offline check-in — queue scans, sync when back online | ⬜ | Low priority; `CheckInRepository.create` is the seam. |
+| M6 | Spotlight dark mode | ⬜ | Only if the brand calls for it. |
+
+### J. Finance & Treasury detail
+
+Two money flows: **dues IN** (members → chapter, the v1 core) and the chapter's
+**obligation OUT to JCI Bolivia** (USD + BOB, yearly — tracked as a reference
+figure only). Payments are **ledger entries**, mirroring the points engine; member
+dues are **BOB**; everything is **year-scoped** because tiers change yearly.
+
+| # | Item | Dep | Parallel | Notes |
+|---|------|-----|----------|-------|
+| J1 | **Dues config** (year-scoped): named **tiers** `{name, amount, cadence}` (BOB) with **per-tier cadence** (monthly/semestral/yearly; some tiers exempt = 0), the 30/90 lapse thresholds, and the yearly JCI-Bolivia obligation (USD+BOB) | F2; ✅ dues-config | `[S]` | tiers + cadence vary per year; keep history |
+| J2 | **Payment ledger** — Treasury records offline payments (date, amount, method, period/year, tier, recordedBy); append-only | J1 | `[S]` | `/security-review` + `firestore-security-reviewer` (Treasury-only writes). **Re-add here:** the inert `Payment` subject + `manage:Payment` Treasury grant were pruned as unbuilt scaffolding in the authz capability migration (PR #187, audit C9) — re-introduce the subject (`permission.ts`, `SUBJECT_LABELS`), the Treasury grant (`role-definition.ts` + `role-seed.mjs` mirror), and the `payments` `firestore.rules` block when this ships. |
+| J3 | **Member ↔ tier assignment** per year (carry-over default) + derived `duesStatus` | J1, J2 | `[S]` | duesStatus computed, not stored mutable |
+| J4 | **Auto-lapse** scheduled function (beacon cron) — overdue computed **per the member's tier cadence**; `Al día → Pendiente (30d) → Inactivo (90d)`; auto-reinstate on payment; fires reminders. Also **voids the lapsed month's points** + awards **+5 for joining a payment plan** (Finance→Points hooks) | J3, A2 | `[S]` | `firebase-functions-reviewer`; audited, reversible |
+| J5 | **Treasury dashboard + monthly money-movement report** — collected vs outstanding by tier/member; export | J2 | `[S]` | export for the board |
+
+## 4. Shipped
+
+Everything below is merged and live. PR numbers are the record; `git log` has the detail.
+
+| Track | What shipped | PRs |
+|-------|--------------|-----|
+| Foundations | Roles + CASL ability + role-aware rules (F1), `@luminova/types` with zod schemas (F2), recognition-engine data model (F3) | #12 and earlier |
+| Recognition engine | Point rules admin, `awardPoints` engine, QR check-in, member profile + points history, leaderboard, roster → participation expansion, atomic points recompute | #13–#18, #23, #100, #103 |
+| Member surface | `/me` home, role-aware board home, real dashboard, `/me` retention (upcoming events, birthdays, anniversaries), self-rename, public-profile consent (on by default) | #20, #45, #111, #115, #153, #210, #214, #215 |
+| Initiatives | Events/activities CRUD, C1-lite (grid, detail, completion wizard, galleries), programs + projects folded into one initiative layer, finalized-initiative lock | #22, #49–#64, #137, #169 |
+| Public site | Public showcase `/impacto` (absorbed `/programas`), president-editable site config, `/linktree`, allies wall, board showcase (Directiva), legal pages, lead capture hub with WhatsApp reach, editorial redesign, custom domains `jcioriente.org` / `admin.jcioriente.org` | #66, #69, #82, #83, #91, #149–#152, #157, #158, #164, #209, #211, #238 |
+| Roles & governance | Dynamic permissions (`perms` claim), positions catalog, claims-sync, nine built-in roles + reseed callable, role lifecycle, position-assignment lane, delegable board-seat + member-login permissions | #52, #54, #84–#89, #107, #216, #219, #221, #222, #224, #225 |
+| Authorization & page extraction | Route/nav ⟷ rules parity, capability migration, UI gate leak fix, emulator-driven parity tests | #183–#202 |
+| Onboarding & App Check | Invite-link onboarding (replaced Firebase auth email), rate limit + 48 h TTL, App Check on the invite callables and `issueMemberInvite`, deploy-time assertion, token-verification bypass refusal; **G4** (App Check enforcement) done, smoke test passed 2026-09-28 | #227–#235 |
+| Notifications | Model + rules + beacon fan-out, lazy messaging client, backstage compose + inbox + push opt-in, spotlight anonymous push opt-in | #203–#208 |
+| UI & design system | `@luminova/ui` widgets (Combobox, MultiSelect, Popover, CommandPalette, DataTable, QR), dark mode, ⌘K, sidebar collapse, login redesign, DS polish, card/search/badge/dialog primitives, type scale, responsive shell + Drawer, installable PWAs | #21, #37–#39, #111–#117, #131–#136, #171, #173, #175–#177 |
+| Performance | firebase/lite, font diet, WebP, deferred reads, immutable caching, lazy chunks, split Firebase SDK out of the login path | #93–#105, #172, #174 |
+| Quality & audit | 2026-07 full audit and its 15 items, read mapper + parse-on-read, datetime consolidation, error states, engineering guardrails, test-quality guards | #123–#148, #160 |
+| Infra & harness | CI PR gate, keyless CD (WIF/OIDC), deterministic review router, hooks that target the worktree, dependency audits | #104, #106, #113, #119, #154, #156, #189, #197, #207, #223, #236 |
+
+## 5. Product reference
+
+### Naming conventions
 
 Identifiers in this doc and the code follow one rule to avoid mixed-language names:
 
@@ -63,7 +155,7 @@ Identifiers in this doc and the code follow one rule to avoid mixed-language nam
   `member.status` → `membershipStatus` (once `duesStatus` coexists);
   consider `ally.personInCharge` → `contactPerson` (more idiomatic).
 
-## Strategic frame
+### Strategic frame
 
 The product's job isn't "CRUD records" — it's **run the membership loop
 (Recruit → Engage → Recognize → Retain) with little time, and survive the annual
@@ -77,7 +169,7 @@ below). **Projects** are not rows; they're **award-submission dossiers**
 lapses automatically, and money movement is reported — so a **Finance/Treasury
 engine** and a cross-cutting **Notifications layer** are first-class, not extras.
 
-## Personas & permissions
+### Personas & permissions
 
 A **permission role ≠ a chapter title** (Presidenta is a title; *Admin* is a
 permission). A person holds **multiple additive roles**. Model permissions with
@@ -96,7 +188,7 @@ CASL on the client and **mirror them in `firestore.rules`** server-side.
 - `membershipStatus` — `Activo / Inactivo / Desafiliado` — lifecycle, owned by Membership/Admin.
 - `duesStatus` — derived from the payment ledger: `Al día → Pendiente` (after X overdue days) → a scheduled job flips `membershipStatus → Inactivo` (after Y more days). X/Y configurable; auto-reinstate on payment. Gives honest reporting ("left" vs "non-payment").
 
-## Input artifacts
+### Input artifacts
 
 - ✅ **Points matrix** → `docs/reference/points-matrix.md` — received. It's the
   **"Mejor Miembro Individual"** evaluation (a monthly competition), richer than a
@@ -106,7 +198,7 @@ CASL on the client and **mirror them in `firestore.rules`** server-side.
 - ⛔ **JCI award criteria** → `docs/reference/jci-award-criteria.md` — still pending;
   gates the Project schema (C1) + dossier export (C2).
 
-## Recognition Engine — rules that shape the model (from the points matrix)
+### Recognition Engine — rules that shape the model (from the points matrix)
 
 The points system is the **Mejor Miembro Individual** competition. Design F3/A to these:
 
@@ -134,252 +226,3 @@ The points system is the **Mejor Miembro Individual** competition. Design F3/A t
   history rather than stored booleans — decide in the F3 brainstorm.)
 - **Tiebreaker:** social media (like 1 / comment 2 / share 3) — **manual monthly entry,
   low-priority** (assess its value when the slice is built).
-
-## Done (baseline)
-
-- Monorepo harness; **Spotlight** (images still placeholders); **@luminova/ui**
-  primitives; **@luminova/firebase** + emulator; **firebase.json/.firebaserc**.
-- **Backstage**: bootstrap + auth, **Members CRUD**, **Allies CRUD**, **UI uplift**, **role-aware ability gating (F1)**, **Point Rules admin (A1)**, **Member profile (A5)**, **Leaderboard (A6)**, **Activities create + QR check-in (A3)**.
-- **Beacon**: **`awardPoints` real engine (A2)** — `checkIns` → `participations` + `memberPoints`; report-confirm triggers; **`setUserRoles` callable + seed bootstrap (F1)**.
-- **`@luminova/auth` (F1)**: role contract + CASL ability builder; role-aware `firestore.rules`.
-- **`@luminova/types` (F2)**: shared `Member`/`MemberStatus`/`Ally` types + zod schemas; **`/engine` subpath (F3)** — engine model + helpers + `CheckIn`/`checkInSchema` (BUILT package); backstage + beacon consume them.
-- **`@luminova/ui`**: primitives + **QR widgets (E4)** (`/qr-code`, `/qr-scanner`) + **Popover (E5) / Combobox (E1) / MultiSelect (E2)** (Radix popover + cmdk).
-- **A Recognition Engine COMPLETE + FED (F3·A1·A2·A5·A6·A3)** — points flow end-to-end; verified by a live functions-emulator e2e.
-
----
-
-## 0. Foundations (build/design first — the epics lean on these)
-
-| # | Item | Dep | Parallel | Notes / Triggers |
-|---|------|-----|----------|------------------|
-| ~~F1~~ ✅ | **Roles & permissions** — DONE (PR `feat/roles-permissions`). `@luminova/auth` (roles + CASL ability), role-aware `firestore.rules`, beacon `setUserRoles` callable + seed bootstrap, backstage claim decode + `<Can>` gating. 7 roles incl. **ProjectManager**. Absorbed rules-hardening (follow-up #1). | CASL ✅ | `[S]` | **Deferred:** uid-on-create + member self-login (B1); role UI (D4); functions-deploy packaging |
-| ~~F2~~ ✅ | **@luminova/types** — DONE (PR `feat/luminova-types`). BUILT package (emits `dist/`); promoted shipped `Member`/`MemberStatus` + `Ally` types **and** their zod schemas; renamed `ally.personInCharge → contactPerson`; rewired backstage to `@luminova/types`. **Promote-shipped-only** — engine/finance entities (`Program`/`Project`/`Activity`/`Participation`/`PointRule`/`DuesConfig`/`Payment`) deferred to F3/J where their shapes are designed. | — | `[P]` | **Deferred:** engine/finance types (F3/J); `member.status → membershipStatus` (when `duesStatus` lands); beacon-safe subpath export (A2 — `member.ts`/`ally.ts` kept framework-free for it); I1 codegen-drift gate |
-| ~~F3~~ ✅ | **Recognition Engine data model** — DONE (#12). **participation ledger** with `provisional\|confirmed` state (gates: final report + attendance) + punctuality factor + month bucket + role/activity link; **distinct Program/Project + Activity** entities; a separate **eligibility** layer (flags) and **Finance→Points** read. In `@luminova/types/engine` (pure subpath). | F2; ✅ matrix | `[S]` design-first | the dependency under everything in A; richer than "sum of points" |
-
-## A. Recognition Engine (the spine — epic, ship in slices)
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| ~~A1~~ ✅ | **Point Rules** admin (matrix CRUD) — DONE (#13). `/point-rules`: Admin inits the 16 matrix rows per term + edits points inline | F3; matrix | `[S]` | mirrors the points matrix exactly |
-| ~~A2~~ ✅ | **`awardPoints` real logic** (beacon) — DONE (#14). `onDocumentWritten('checkIns/{id}')` → derives `participations` + `memberPoints` + mirrors `members.totalPoints`; report-confirm triggers. Real chain e2e'd in A3. | F3, A1 | `[S]` | `firebase-functions-reviewer`; replaced the "not implemented" throw |
-| ~~A3~~ ✅ | **Attendance / QR check-in** (mobile-first) — DONE (#18). Admin/PM `/check-in`: scan member QR or manual tap → writes `checkIns` → A2 awards. Live roster. Bundled minimal E4 (QR widgets) + thin D1 (activity create). | F1, F3, B-QR | `[S]` | the day-of mobile flagship; live roster + manual tap fallback |
-| A4 ⬜ | **Offline check-in** — queue scans, sync when back online | A3 | `[S]` | roadmap, **not priority** (bad venue wifi is real); A3's `CheckInRepository.create` is the wrap seam |
-| ~~A5~~ ✅ | **Member profile / points history** — DONE (#15). `/members/:id` board view: cumulative + byMonth + ParticipationLedger + (A3) personal QR. **Member self-view still pending → B1.** | F3 | `[S]` | makes points "very visible" |
-| ~~A6~~ ✅ | **Leaderboard / recognition surface** — DONE (#16). `/leaderboard` public to all members; annual + monthly (top 3 + Best of Month); eligibility flags applied (inert until a board is designated) | F3, A5 | `[S]` | the engagement flywheel; social tiebreak deferred |
-| ~~A7~~ ✅ | **Roster → participation auto-expansion** (beacon) — DONE (#23). `onProgramWritten`/`onProjectWritten` → idempotent `processInitiativeWrite` reconciles roster rows (Director/CoDirector/Team, anchored on the initiative id) + re-confirms attendance rows; confirms on report-filed (`monthBucket`=report month), voids on roster removal. Closes trust model #7. | A2, D1 | `[S]` | check-in convention: execution activities tap Attendee; e2e deferred |
-
-## B. Member-facing surface & role-aware home
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| B1 🟡 | **Member home** — DONE core (#20). `/me`: points + rank + **personal QR** + participation ledger (redesigned in FX7 #111). **NEXT slice (active, retention focus):** upcoming-events feed + milestones (birthday/anniversary — we store `birthdate`/`joinDate` and use neither). Cheap, emotional, gives a member a reason to return between events; pairs with K1 notifications. | F1, A5 | `[S]` | the reason a member opens the app |
-| ~~B2~~ ✅ | **Role-aware board home (layout)** — DONE (#45). Pure `boardHomeLayout(roles)` orders/hides the Overview widgets per role (Admin full · Membership members-first · Treasury money-first · ProjectManager events/projects-first · ExecutiveCommittee read-only); multi-role = highest-precedence layout + union of visible widgets. **Layout only — the widgets it arranges are still mock data (see B3).** **Side effect:** Overview grid → vertical stack (re-grid within each role's order deferred). | F1 | `[S]` | — |
-| ~~B3~~ ✅ | **Real board dashboard (kill the mock)** — DONE (#115). `overview-mock.ts` deleted; the `/` dashboard renders real aggregates via pure selectors (member/ally counts · real upcoming activities · real recent check-ins / activity feed) + **honest empty/loading states** for anything without a backend yet (notifications → K1, money → J5). | A*, D1 | `[S]` | was the highest-leverage trust fix |
-
-## C. Projects & Recognition Submissions (reframed)
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| C1 🟡 | **Rich Project model** — SPLIT (spec `docs/specs/2026-06-10-initiatives-c1-lite-design.md`). **C1-lite ✅ COMPLETE** (slices 1–6: schema #49 · `/initiatives` grid #51 · detail #55 · activity detail #62 · completion wizard #63 · galleries #64): shared `InitiativeCore` on both `programs`/`projects`; unified `/initiatives` card-grid + detail; completion wizard = final-report ceremony; activity refinement + `/activities/$id` detail w/ embedded check-in; galleries (absorbs **H2 ✅**). **C1-dossier ⬜ (still gated on award criteria):** phases, budget vs actual, SDG tags, readiness fields, `published` public projection. | F2; ~~award criteria~~ (lite) | `[S]` | one model, three consumers (manage / dossier / public) |
-| C2 | **Award dossier** assembly + export per level (National/Area/World) against criteria, with a **readiness checklist** | C1; criteria | `[S]` | uniquely-JCI; the chapter's recognition engine |
-| C3 | **Recognition calendar** — submission windows, candidate projects, readiness % | C2 | `[S]` | competitive cadence |
-| ~~C4~~ ✅ | **Spotlight project showcase** — DONE (#66 + #69). Beacon projection → world-read `showcase` collection; spotlight `/impacto` reads via firestore-lite, full team-name credits, curated `ShowcaseItem`; executed-activity photos roll up into the showcase. | C1, F2 | `[S]` | reflects "what we do" publicly |
-
-## D. Remaining admin CRUD
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| ~~D1~~ ✅ | **Events / Activities CRUD** — DONE (#22). Program + Project CRUD (`/programs`, `/projects`) with roster selects (Combobox/MultiSelect) + status + `fileFinalReport` (flips child points provisional→confirmed); Activity edit/cancel + real program/project **parent picker** (replaces A3's free-text id); `startAt`/`category` lock once check-ins exist. New `programs` rule; `projects` read tightened public→signedIn (resolves G2 for projects). | ~~E1, E2~~ ✅ | `[S]` | upcoming-events feed still ⬜ (D2); roster→participation auto-expansion → A7 |
-| D2 | **Reports** | A*, D1 | `[S]` | needs members/events/points data |
-| D3 | **Communications** | external email | `[S]` | scope before committing (likely a backend/email integration) |
-| D4 | **Settings** page (real) | F1 | `[P]` | profile + theme + org + role mgmt |
-
-## E. @luminova/ui widget gaps
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| ~~E1~~ ✅ | **Combobox** (single-select + search) — DONE (#21). `@luminova/ui` `Combobox` on Radix Popover + cmdk; re-select clears; barrel-exported | — | `[P]` | unblocked Events (D1) |
-| ~~E2~~ ✅ | **Multi-select** with search — DONE (#21). `MultiSelect` (same Popover+cmdk body) with removable chips; pure helpers unit-tested | E1 | `[S]` | unblocked Events (D1) |
-| ~~E3~~ ✅ | **Command palette** primitive — DONE (#39). `@luminova/ui` `CommandPalette` (cmdk dialog + grouped, fuzzy, keyboard-nav); backs ⌘K (FX3) | E5 | `[P]` | cmdk (added in #21) seeded it |
-| ~~E4~~ ✅ | **QR generator + QR scanner** components — DONE (#18, with A3). `@luminova/ui/qr-code` (qrcode.react) + `@luminova/ui/qr-scanner` (@zxing camera), deep-imported for lazy chunking | camera/lib (vet dep) | `[P]` | unblocked A3; mobile camera UX |
-| ~~E5~~ ✅ | **Popover** primitive — DONE (#21). `Popover` wraps `@radix-ui/react-popover`, JCI-token styled; backs E1/E2 (and later menus/E3) | — | `[P]` | shared by combobox/menus/command |
-| ~~E6~~ 🟡 | **DataTable** — DONE client-side (#38). `@luminova/ui` `DataTable` (search + filter-chips + column sort + skeleton/empty; composes `Table`); adopted on Members (FX1). **Server-side pagination deferred** (> ~1–2k docs); Allies/Events adoption are follow-ups | — | `[P]` | consolidates tables |
-
-## F. UI polish / follow-ons (mostly independent)
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| ~~FX1~~ ✅ | **Table search + filter-chips + column sort** — DONE (#38). Built on the new `DataTable` (E6) and adopted on Members (search over name+email+role, status chips, sortable columns). **Server pagination still deferred** (> ~1–2k docs); Allies/Events adoption follow-ups | E6 | `[P]` | table-stakes UX |
-| ~~FX2~~ ✅ | **Dark mode** — DONE (#37). `[data-theme="dark"]` neutral-token override in `@luminova/ui/theme.css` (brand locked); `ThemeController` follows `prefers-color-scheme` + persisted toggle (Claro/Oscuro/Sistema) via shared `ui-prefs` store. Backstage only; a few hardcoded `rgba` shadows don't invert yet | — | `[P]` | spotlight dark mode out of scope |
-| ~~FX3~~ ✅ | **⌘K command palette** — DONE (#39). `CommandMenu` wires the E3 `CommandPalette`: ability-filtered nav (from `NAV_GROUPS`) + navigate-only quick actions; topbar ⌘K affordance now real | E3 | `[S]` | — |
-| ~~FX4~~ ✅ | **Sidebar collapse** — DONE (#37). 72px icon-rail w/ per-item tooltips, header toggle, `_app` grid driven by the persisted `ui-prefs` `sidebarCollapsed` | — | `[P]` | — |
-| FX6 ✅ | **Auth hardening** — DONE, then SUPERSEDED in part by invite-link onboarding (`docs/specs/invite-link-onboarding.md`). Still live: remember-me → Firebase auth persistence (local/session); password policy (min 6 + lower/upper/digit), now shared with beacon via `@luminova/types/password-policy` and enforced server-side; blue brand panel + entrance motion, reused by `/invitacion`; footnote → CEL (`jci.orienteolm@gmail.com`), now the real escape hatch. **Removed:** `/forgot-password` and `/reset` — all recovery is operator-mediated and there is no Firebase email anywhere in the auth flow. |
-| FX5 ✅ | **Login redesign** — DONE. `/login` split-screen (dark brand panel + ripple + "Sé el cambio" / light form card) from Claude Design handoff; reuses `@luminova/ui` (`RippleBackground`, `LogoLockup`, `Button`, `Field`, `Input`, new `Checkbox`; added `lock`/`eye`/`eyeOff` icons). Email/password auth unchanged. SSO omitted; "¿La olvidaste?" + "Recordarme" visual-only (deferred). | — | `[P]` | `react-best-practices`; brand side hides < `lg` |
-| FX7 🟡 | **Backstage DS polish** — restyle existing screens to the JCI Oriente design system (generate via frontend-design on claude.ai/design → implement via DesignSync). **Done:** Mi panel v2 (#111, black hero + credential card + QR modal), Actividades DS card grid + `Activity.location` physical/virtual (#112), activity-detail tabs + check-in scan modal + datetime-helper consolidation (#114), rich activity Resumen + ActivityForm description fix (#116), DS check-in tab (#117), Overview via B3 (#115). **Remaining:** roll the DS pass across the rest (Members, Leaderboard, Allies, Initiatives). | — | `[P]` | `frontend-design` → DesignSync; consolidate datetime helpers when touched |
-
-## G. Security & data hardening (non-role)
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| G1 | **Soft-delete write-guard** — pre-flight existence/`active` check in **both** Member & Ally repos; route `handleSubmit`/`confirmDelete` try/catch | — | `[P]` | `/security-review` + `firestore-security-reviewer` |
-| G2 🟡 | Confirm-or-restrict public read on `projects`/`board` — **`projects` restricted to signedIn in D1 (#22)** (D1 added member-id rosters); **`board` still public** (confirm or restrict). C4 will expose curated public project fields, not raw docs. | C1 | `[S]` | `/security-review` |
-| G3 | `.env.local.example` real keys → placeholders | — | `[P]` | — |
-| ~~G4~~ ✅ | App Check enforcement ON — DONE and live, code and smoke test both. The enforced callables are `APP_CHECK_ENFORCED_CALLABLES` (`apps/beacon/src/token-verification-bypass.ts`). Firestore enforcement is a separate decision, not part of G4. **Smoke test passed 2026-09-28.** Evidence, procedure and failure diagnosis: `docs/firebase-setup.md`, owner op 3 under "Enlaces de acceso". | infra keys | `[S]` | `/security-review` |
-
-> Note: the bulk of rules hardening moved into **F1** (rules must be role-aware now,
-> not just `delete:if false`).
-
-## H. Media / Storage
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| ~~H1~~ ✅ | `profilePicture` upload — DONE (#46). Shared `@luminova/ui` `Avatar` + lazy `ImageUploader` (square-crop via `react-easy-crop`, client downscale 512px/JPEG, ≤5MB) on two surfaces (admin member drawer + member self on `/me`); `@luminova/firebase` `uploadMemberPhoto`/`deleteMemberPhoto` (path `members/{id}/profile.jpg`); scoped `storage.rules` + new `@luminova/storage-rules-tests`. **Fixed a self-upload break:** added owner-only `members` update branch scoped to `profilePicture`. | — | `[P]` | — |
-| ~~H2~~ ✅ | Project **evidence gallery** uploads — DONE (#64, C1-lite slice 6): activity photos + initiative destacadas, `storage.rules` + tests | C1, ~~H1~~ ✅ | `[S]` | award evidence + public showcase |
-| H3 | Ally logos (greyscale→color hover) — chains off H1's uploader (`allies/{id}/logo.*`) | ~~H1~~ ✅ | `[S]` | — |
-| H4 | Spotlight real images (replace `ImgSlot`) | — | `[P]` | needs real photos |
-
-## I. Infra / deploy / CI
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| ~~I0~~ ✅ | **GitHub Actions CI PR gate** — DONE (#104 + #106). Fast `checks` job (lint/tsc/build/vitest/knip/audit) + `emulator` job (firestore-rules + beacon emulator suites); path-filtered + firebase-tools cache to cut Actions minutes; bundle-budget gate. Both jobs are **required** and the branch ruleset is **active** (owner op completed 2026-06-24). | — | `[P]` | removes the standing "no CI" risk |
-| I1 | Codegen-drift CI gate for shared `@luminova/types` schemas | F2 | `[S]` | root CLAUDE.md discipline; can now ride on I0 |
-| I2 🟡 | Java in CI so `firestore-rules-tests` runs — **the emulator job in I0 runs the rules tests**; confirm Java is provisioned there and retire this item if so | — | `[P]` | likely subsumed by I0 |
-| I3 | Storage wipe (manual Console) | — | `[P]` | pending from rewrite |
-| ~~I4~~ ✅ | First prod deploy (hosting + functions) — DONE (#43). Both Hosting sites + rules + beacon functions LIVE. | F1, G* | `[S]` | gate on access + hardening |
-| I5 🟡 | Bump remaining Dependabot/audit advisories — **batch cleared in #97** (undici/uuid/protobufjs) + #75 (form-data) | — | `[P]` | `secure-dep-vetting`; recheck periodically |
-| ~~I6~~ ✅ | **`pnpm deploy:indexes`** — Firestore composite indexes for the new queries deployed (owner op completed 2026-06-24, surfaced by the points-race + permissions work). | — | `[P]` | owner op, not a PR |
-| ~~I7~~ ✅ | **Keyless CD pipeline** — DONE (#113 + hardening #119). Firebase deploy via WIF/OIDC (no stored service-account key), approval-gated `production` env, path-filtered rules→functions→hosting, hosting preview→smoke→promote. WIF/IAM + GitHub `production` env provisioned 2026-07-01. Canonical reference: `docs/ci-cd.md`. GOTCHA: no `firebase hosting:rollback` command exists (smoke-then-promote + Console version restore instead). Terraform/staging deferred (solo-dev scale). | I0 | `[S]` | — |
-
-## J. Finance & Treasury (membership dues — v1 = record offline, not full accounting)
-
-Two money flows: **dues IN** (members → chapter, the v1 core) and the chapter's
-**obligation OUT to JCI Bolivia** (USD + BOB, yearly — tracked as a reference
-figure only). Payments are **ledger entries**, mirroring the points engine; member
-dues are **BOB**; everything is **year-scoped** because tiers change yearly.
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| J1 | **Dues config** (year-scoped): named **tiers** `{name, amount, cadence}` (BOB) with **per-tier cadence** (monthly/semestral/yearly; some tiers exempt = 0), the 30/90 lapse thresholds, and the yearly JCI-Bolivia obligation (USD+BOB) | F2; ✅ dues-config | `[S]` | tiers + cadence vary per year; keep history |
-| J2 | **Payment ledger** — Treasury records offline payments (date, amount, method, period/year, tier, recordedBy); append-only | J1 | `[S]` | `/security-review` + `firestore-security-reviewer` (Treasury-only writes). **Re-add here:** the inert `Payment` subject + `manage:Payment` Treasury grant were pruned as unbuilt scaffolding in the authz capability migration (PR #187, audit C9) — re-introduce the subject (`permission.ts`, `SUBJECT_LABELS`), the Treasury grant (`role-definition.ts` + `role-seed.mjs` mirror), and the `payments` `firestore.rules` block when this ships. |
-| J3 | **Member ↔ tier assignment** per year (carry-over default) + derived `duesStatus` | J1, J2 | `[S]` | duesStatus computed, not stored mutable |
-| J4 | **Auto-lapse** scheduled function (beacon cron) — overdue computed **per the member's tier cadence**; `Al día → Pendiente (30d) → Inactivo (90d)`; auto-reinstate on payment; fires reminders. Also **voids the lapsed month's points** + awards **+5 for joining a payment plan** (Finance→Points hooks) | J3, A2 | `[S]` | `firebase-functions-reviewer`; audited, reversible |
-| J5 | **Treasury dashboard + monthly money-movement report** — collected vs outstanding by tier/member; export | J2 | `[S]` | export for the board |
-
-## K. Notifications & automation (in-app first; channel-agnostic)
-
-One layer, many triggers: **birthdays** (→ Membership + CEL), **dues reminders**
-(→ members), **overdue alerts** (→ Treasury), **monthly reports** (→ Treasury/
-Presidency). Start **in-app**, behind an interface so **email → WhatsApp** plug in
-later (Bolivia is WhatsApp-first, but its API has real cost — defer to "enough
-resources").
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| K1 | **Notification model + in-app center** (channel-agnostic delivery interface) — real data behind the topbar bell + Overview activity feed | F2 | `[P]` | the bell/activity are currently mocked |
-| K2 | **Scheduled triggers** (beacon cron): birthday checks, dues reminders/overdue, monthly report | K1, J4 | `[S]` | `firebase-functions-reviewer` |
-| K3 | **Email channel** (later) | K1 | `[S]` | plugs into the interface |
-| K4 | **WhatsApp channel** (when resources allow) | K1 | `[S]` | WhatsApp Business API |
-
-> Note: the memory/PR shorthand "K1–K4" used during 2026-06-11 (#50–#54) referred to a
-> different batch (Sheet sizes, positions catalog, invite email, member claims-sync) — see
-> N, **not** this Notifications track. This K is still ⬜ not started.
-
-## L. Performance & Web Vitals (NEW — playbook: `docs/performance.md`)
-
-Spotlight is the public, unauthenticated site → first-paint matters; backstage is behind a
-login wall → load perf is monitored, not aggressively tuned. Budgets + CWV targets + the
-Claude perf guardrails live in `docs/performance.md`; the ranked backlog there is the source
-of truth, mirrored here for roadmap visibility.
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| ~~L1~~ ✅ | **Spotlight bundle diet** — DONE. firebase `/lite` subpath (#93, 378k→40.7kgz), variable Jakarta font + latin-only diet (#94/#99), build-time WebP logos (#95), defer below-fold Firestore reads (#96). | — | `[P]` | public bundle shrunk hard |
-| ~~L2~~ ✅ | **Hosting cache + hints** — DONE (#101). Immutable `Cache-Control` on `/assets/**` (both apps) + preconnect hints + `docs/performance.md` playbook wired into CLAUDE.md governance. | — | `[P]` | was missing entirely |
-| ~~L3~~ ✅ | **Shell measurement + quick wins** — DONE (#102/#105). Measured both index shells (spotlight ~85% react-dom+router = irreducible); lazy lightbox on `/impacto/$id` (20→2.2kgz); `decoding=async`/`fetchPriority`; backstage lazy `QrCode` (index 108.66→102.88kgz). | — | `[P]` | — |
-| **L4** ⬜ | **SSG / prerender static spotlight routes** — ship real HTML instead of a blank `<div id="root">` + JS render, so FCP/LCP (the hero text is the spotlight LCP) paint before the ~91 kB JS executes. Fully-static routes (`about`, `contact`, `privacidad`, `terminos`) prerender cleanly; Firestore-driven routes (`index`, `programas`, `impacto`, `enlaces`) prerender the static shell + above-the-fold defaults, then hydrate. **Approach is undecided** — weigh (a) lightweight build-time snapshot (post-build crawl / vite prerender plugin; SPA runtime untouched, hydrate over HTML; LOW risk), (b) migrate to TanStack Start (real SSR/SSG + loaders; HIGH effort/risk, biggest long-term payoff), (c) `vite-react-ssg` (weak TanStack-Router compat, likely forces router changes; MED-HIGH risk). Recommended starting point: (a). **Biggest remaining FCP/LCP win.** Brainstorm → spec before building. | — | `[S]` | L effort; **next perf effort when prioritized** |
-| L5 ⬜ | **Inline critical CSS / cut render-blocking CSS** on spotlight | — | `[P]` | M effort, low-med impact |
-
-## M. Spotlight public site & lightweight CMS (NEW)
-
-The public site grew a president-editable content layer (no extra backend — folded into
-`siteConfig` + world-read beacon projections, read by spotlight via a zero-dep SWR
-localStorage hook; TanStack Query is banned in spotlight).
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| ~~M1~~ ✅ | **President-editable site config** — DONE (#82). World-read `siteConfig/current` singleton edited in backstage `/config`, read by spotlight via SWR; motto, socials, contact, comité from CEL catalog. | F1 | `[P]` | RQ banned in spotlight (SWR hook instead) |
-| ~~M2~~ ✅ | **Linktree `/enlaces`** — DONE (#91). President-editable link page folded into `siteConfig`, bespoke Icon picker, `active` filter, two-layer URL guard. | M1 | `[S]` | — |
-| ~~M3~~ ✅ | **Public allies wall** — DONE (#83). Real allies (name + logo + category chip) via world-read `allyShowcase` beacon projection; backstage logo upload + 4-category select; logo host-allowlist. | F1 | `[P]` | — |
-| ~~M4~~ ✅ | **Curated `/programas` + legal pages + nav polish** — DONE (#80/#98). Curated programs page, `/privacidad` + `/terminos`, navbar contrast fixes. | — | `[P]` | pairs with C4 `/impacto` |
-| M5 ⬜ | **Spotlight real images** (replace `ImgSlot` placeholders) — also roadmap **H4** | — | `[P]` | needs real photos from the chapter |
-| M6 | **Spotlight dark mode** (out of scope so far — FX2 was backstage-only) | — | `[P]` | only if the brand calls for it |
-
-## N. Custom roles, permissions & member governance (NEW)
-
-Extends F1's fixed-role contract into runtime-editable custom roles + a positions catalog that
-drives both titles and (via a claims-sync trigger) permission grants.
-
-| # | Item | Dep | Parallel | Notes |
-|---|------|-----|----------|-------|
-| ~~N1~~ ✅ | **Dynamic permissions epic** — DONE (#84–#87 + seeding #88/#89/#107). Coarse `action:Subject` perms in a `perms` custom claim; Admin-only authority; runtime role CRUD UI + per-member assignment; rules enforce perm gates; cap 30 fail-closed. **Deploy op:** run `seedRoles` + `recomputeAllClaims` callables before the perm rules bite. | F1 | `[S]` | `/security-review` + `firestore-security-reviewer` |
-| ~~N2~~ ✅ | **Positions catalog** (CEL/JDL/comisiones) + gender-aware cargos — DONE (#52). | F1 | `[S]` | feeds permission grants |
-| ~~N3~~ ✅ | **Member claims-sync + edit page + permissions panel** — DONE (#54). Beacon `onMemberWritten` trigger mints role/cargo claims from signed `positions.<term>.assignedBy`; 2-layer assignment-trust gate (rules + trigger re-check); member edit (full + EC positions-only). | F1, N2 | `[S]` | `firebase-functions-reviewer`; CREATE-path escalation caught + fixed |
-| ~~N4~~ ✅ | **Member invite / self-login provisioning** — DONE (#53). Firebase Auth invitation email → member sets password (closes F1's deferred "member self-login"). | F1 | `[S]` | — |
-| N5 ⬜ | **Settings page (real)** — also roadmap **D4**: profile + theme + org + role mgmt landing | F1, N1 | `[P]` | role mgmt now exists; needs a home |
-
----
-
-## Sequencing
-
-**The critical path runs through Foundations.** F1 (roles + role-aware rules) and
-F2/F3 (types + engine model) unblock the most and can't be designed piecemeal.
-
-1. **Foundation track** — F2 (types) ∥ F1 (roles + role-aware rules). Then F3
-   (engine model) **once the points matrix lands**.
-2. **Recognition Engine track** (after F3) — A1 Point Rules → A2 awardPoints →
-   A5 member profile → A3 QR check-in (needs E4) → A6 leaderboard → B1 member home.
-3. **Projects/Submissions track** (after F2 + award criteria) — C1 → C2 → C3, with
-   C4 surfacing on Spotlight.
-4. **Finance track** (after F1 roles + F2 types + dues-config doc) — J1 → J2 → J3 →
-   J4 (auto-lapse) → J5 (reports), with K1/K2 (notifications) riding alongside J4.
-5. **Independent / parallel anytime** (no shared files, no gating inputs):
-   FX2 dark mode, FX4 sidebar collapse, FX1 table filtering, E1/E5/E6 widgets,
-   G1 soft-delete guard, G3 env placeholders, H1 uploads, I5 dependabot.
-
-**Where we are (2026-07-01):** Foundations (F1/F2/F3), the whole Recognition Engine (A),
-member surface (B1/B2 + real dashboard B3 #115), Projects-lite (C1-lite + C4 public showcase),
-admin CRUD (D1), all UI widgets (E), UI polish + backstage DS pass (F, incl. FX7
-#111/#112/#114/#116/#117), media (H), the permissions/positions epic (N), the spotlight
-CMS (M), the performance track (L1–L3), CI (I0), and the keyless CD pipeline (I7 #113/#119)
-are **shipped and live**.
-
-**Product diagnosis (2026-07-01):** the engine is real and the board dashboard is now honest
-(B3 done), but the live leaderboard still runs without its `duesStatus` eligibility gate
-because **Finance (J) is unbuilt**, so it currently awards points to members who aren't
-al día. Closing that gap is the biggest remaining correctness item.
-
-**Active now (this cycle):**
-
-1. **B1 retention slice.** Upcoming-events feed + birthday/anniversary milestones on `/me`
-   (stored-but-unused `birthdate`/`joinDate`). A reason to return between events.
-
-**What's genuinely left after that (recommended order):**
-
-1. **J Finance & Treasury** — largest unbuilt epic, ready input artifact (`dues-config.md`).
-   J1 → J2 → J3 → J4 (auto-lapse + Finance→Points hooks) → J5. **Closes the leaderboard's
-   `duesStatus` eligibility hole** — frame it as completing the engine, not a new epic.
-2. **K Notifications** — K1 (in-app model; the bell + activity feed are still mocked) → K2
-   (scheduled triggers), riding alongside J4. K3/K4 (email/WhatsApp) deferred to "enough resources".
-3. **C dossier track (C1-dossier → C2 → C3)** — **blocked** on `docs/reference/jci-award-criteria.md`.
-   Chase that artifact to unblock.
-4. **Smaller wins, parallel anytime:** FX7 DS pass on remaining screens · **L4 SSG/prerender**
-   (biggest spotlight FCP/LCP win — brainstorm first) · L5 critical CSS · D2 Reports · D4/N5 real
-   Settings page · G1 soft-delete write-guard · G3 env placeholders · A4 offline check-in (low pri).
-5. **Owner ops (not PRs):** I3 storage wipe · G4's 48 h expired-link manual test
-   (`docs/firebase-setup.md`, owner op 3).
-   (CI required + ruleset active + indexes deployed — done 2026-06-24; CD WIF/IAM
-   provisioning — done 2026-07-01; G4 invite-redemption smoke test — done 2026-09-28.)
-
-Pick an item → `prompt-refine` → `superpowers:brainstorming` → `writing-plans` →
-subagent TDD, branch off `main`.
