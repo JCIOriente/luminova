@@ -1,319 +1,109 @@
 # Luminova — Claude Code Guide
 
-## Project
+**JCI Oriente** platform (Junior Chamber International, Eastern Bolivia chapter): two frontends and one serverless backend on Firebase. Each app and package below has its own `CLAUDE.md` that loads when you work there.
 
-**JCI Oriente** platform — Junior Chamber International, Eastern Bolivia chapter.
+| Path | Purpose |
+| --- | --- |
+| `apps/spotlight` | Public marketing site, no auth. Hosting target `jcioriente` |
+| `apps/backstage` | Admin dashboard, auth required. Hosting target `jcioriente-backstage` |
+| `apps/beacon` | Firebase Cloud Functions backend |
+| `packages/ui` (`@luminova/ui`) | Bespoke token-driven components (Tailwind utilities); shadcn/Radix only for complex widgets |
+| `packages/firebase` (`@luminova/firebase`) | Firebase client singleton (auth, firestore, storage) |
+| `packages/types` (`@luminova/types`) | Shared TypeScript types and zod schemas |
+| `packages/auth` (`@luminova/auth`) | CASL roles, permissions, ability builder |
+| `packages/utils` (`@luminova/utils`) | Intl-only helpers, no runtime deps (es-BO datetime with the Bolivia UTC pin) |
 
-Two public-facing and admin apps + one serverless backend, deployed to Firebase.
-
-## Apps
-
-| App | Purpose | URL target |
-|-----|---------|-----------|
-| `apps/spotlight` | Public marketing site (no auth) | Firebase Hosting: `jcioriente` |
-| `apps/backstage` | Admin dashboard (auth required) | Firebase Hosting: `jcioriente-backstage` |
-| `apps/beacon` | Firebase Cloud Functions backend | — |
-
-## Packages
-
-| Package | Name | Purpose |
-|---------|------|---------|
-| `packages/ui` | `@luminova/ui` | Bespoke token-driven components (Tailwind utilities) shared across apps; shadcn/Radix for complex widgets (deferred) |
-| `packages/firebase` | `@luminova/firebase` | Firebase client singleton (auth, firestore, storage) |
-| `packages/types` | `@luminova/types` | Shared TypeScript types and data models |
-| `packages/auth` | `@luminova/auth` | CASL-based roles, permissions, ability builder |
-| `packages/utils` | `@luminova/utils` | Intl-only shared helpers, no runtime deps (es-BO datetime with the Bolivia UTC pin) consumed by both apps |
-
-## Runtime
-
-- **Node 24** (LTS) — pinned via `.nvmrc` and `engines.node` in root `package.json`
-- **pnpm** — pinned via `packageManager` field in root `package.json`
-
-## Stack
-
-- **React 19** + **TypeScript 6.0** (strict mode)
-- **TanStack Router** (file-based routing)
-- **TanStack Query v5** (server state)
-- **React Hook Form** + **Zod** (forms + validation)
-- **shadcn/ui** + **Radix UI** + **Tailwind CSS v4**
-- **Lucide React** (icons)
-- **Firebase** (Auth, Firestore, Storage, Functions, Hosting)
-- **Turborepo** + **pnpm** workspaces
+Stack: React 19, TypeScript 6 strict, TanStack Router (file-based) + Query v5, React Hook Form + Zod, Tailwind v4, Lucide, Firebase, Turborepo + pnpm workspaces. Node 24 and pnpm are pinned (`.nvmrc`, `engines.node`, `packageManager`).
 
 ## Commands
 
 ```bash
-# Install all dependencies
 pnpm install
-
-# Start all apps in dev mode
-pnpm dev
-
-# Start specific app
-pnpm --filter backstage dev
-pnpm --filter spotlight dev
-
-# Build all
-pnpm build
-
-# Build specific app
-pnpm --filter backstage build
-
-# Lint all
-pnpm lint
-
-# Type check all
-pnpm typecheck
-
-# Start Firebase emulators (run before dev for local Firebase)
+pnpm dev                                    # emulators + seed + all apps
+pnpm --filter backstage dev                 # one app (also: build, lint, typecheck)
+pnpm build | pnpm lint | pnpm typecheck
+pnpm turbo run build --filter="./packages/*"  # fresh worktree: build packages before app vitest/typecheck
+pnpm pr-tests                               # the full local gate
 firebase emulators:start
-
-# Deploy hosting
-firebase deploy --only hosting
-
-# Deploy functions
-firebase deploy --only functions
 ```
 
-## Firebase Emulators
-
-| Service | Port |
-|---------|------|
-| Auth | 4030 |
-| Firestore | 4010 |
-| Functions | 4020 |
-| Hosting | 4000 |
-| Storage | 9199 |
-| Emulator UI | 4100 |
-
-Set `VITE_FIREBASE_EMULATOR_ENABLED=true` in `.env.local` to connect to emulators.
-
-## Environment Variables
-
-Each frontend app needs a `.env.local`:
-```
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-VITE_FIREBASE_APP_ID=
-VITE_FIREBASE_VAPID_KEY=
-VITE_FIREBASE_EMULATOR_ENABLED=false
-```
+Emulator ports: Auth 4030, Firestore 4010, Functions 4020, Hosting 4000, Storage 9199, UI 4100. Each frontend needs `.env.local` with `VITE_FIREBASE_{API_KEY,AUTH_DOMAIN,PROJECT_ID,STORAGE_BUCKET,MESSAGING_SENDER_ID,APP_ID,VAPID_KEY}` and `VITE_FIREBASE_EMULATOR_ENABLED` (`true` connects to the emulators). The flag is read at runtime, so a normal `pnpm build` served by the Hosting emulator (:4000) logs in against **prod** Auth; for local auth use `pnpm dev` or `pnpm build:local` / `preview:local`.
 
 ## Conventions
 
-- **TypeScript strict** — no `any`, no `as` casts without justification
-- **No barrel files in features** — import directly from the file, not an `index.ts` re-export
-- **shadcn/ui** — add components via `pnpm dlx shadcn@latest add <component>` run from `packages/ui`
-- **No comments** unless the WHY is non-obvious
-- **Naming — English identifiers, Spanish values.** Code identifiers (types, fields, functions, enum *names*) are **English**, no diacritics (`PascalCase` types, `camelCase` fields). Only **user-facing enum values / labels** may be Spanish — e.g. `membershipStatus` (English key) holds `"Activo" | "Inactivo" | "Desafiliado"`. Expand acronyms (`isExecutiveCommittee`, not `isCEL`); translate domain terms (`gestión` → `term`). Never mix languages in one identifier.
-- **pnpm only** — never use npm or yarn in this repo
-- **Latest secure versions** — never type a version from memory. Use the `secure-dep-vetting` skill before adding or upgrading any dependency. Pin security-critical deps (firebase, auth, crypto, zod) exact; caret-range everything else.
+- **TypeScript strict**: no `any`, no `as` casts without justification.
+- **No barrel files in features**: import directly from the file, not an `index.ts` re-export.
+- **shadcn/ui**: add components with `pnpm dlx shadcn@latest add <component>`, run from `packages/ui`.
+- **No comments** unless the WHY is non-obvious.
+- **English identifiers, Spanish values.** Types, fields, functions and enum _names_ are English without diacritics (`PascalCase` types, `camelCase` fields). Only user-facing enum values and labels may be Spanish (`membershipStatus` holds `"Activo" | "Inactivo" | "Desafiliado"`). Expand acronyms (`isExecutiveCommittee`, not `isCEL`); translate domain terms (`gestión` → `term`). Never mix languages in one identifier.
+- **pnpm only**: never npm or yarn.
+- **Latest secure versions**: never type a version from memory; run `secure-dep-vetting` before adding, upgrading or removing any dependency. Pin security-critical deps (firebase, auth, crypto, zod) exact; caret-range everything else.
 
 ## Skill Workflow
 
-Skills are stage-specific. Don't invoke them all at once — map each to its phase.
+The `feature-flow` skill drives this sequence end to end. Per feature, in order:
 
-### Skill catalog
+1. **Explore intent** before any creative work: `superpowers:brainstorming`. Ask, never assume.
+2. **Plan**: `superpowers:writing-plans`, saved to a plan file.
+3. **Design** (UI only): `frontend-design` first, then `ui-ux-pro-max` to validate palette, type, a11y and contrast. Never the reverse.
+4. **Isolate**: a worktree, before the first edit (see Worktree-first).
+5. **Dependencies**: `secure-dep-vetting`.
+6. **Implement**: TDD (`superpowers:test-driven-development`); `react-best-practices` on `.tsx`.
+7. **Debug** when something breaks: `superpowers:systematic-debugging`.
+8. **Cleanup**: `/simplify` on the diff, only once the feature is functionally done.
+9. **Verify**: `superpowers:verification-before-completion`. Run commands, show the output.
+10. **Security**: `/security-review`, required for auth, Firestore rules and Cloud Functions.
+11. **Review**: the set the review router prints (see Review routing).
+12. **Finish**: `superpowers:finishing-a-development-branch`; `/security-review` once more on the full branch before the PR.
 
-**Suite skills** (multiple sub-skills under one namespace):
+Rules:
 
-| Skill | Publisher | Auto-trigger? |
-|-------|-----------|---------------|
-| `superpowers:*` (14 sub-skills) | community | Mostly manual; `using-superpowers` triggers on conversation start |
-
-**Single-purpose skills:**
-
-| Skill | Publisher | What it does | Auto-trigger? |
-|-------|-----------|--------------|---------------|
-| `secure-dep-vetting` | local (this repo) | Vets npm packages: latest secure version, Node 24 compat, CVE block | Auto on dep changes |
-| `react-best-practices` | Vercel | 70 React perf checks: barrel imports, re-renders, async waterfalls | Auto on `.tsx` edits |
-| `frontend-design:frontend-design` | Anthropic | Distinctive aesthetic direction: bold type, palettes, layouts, animations | Manual |
-| `ui-ux-pro-max:ui-ux-pro-max` | community | Design database: 161 palettes, 57 font pairings, accessibility (a11y) validation | Manual |
-| `simplify` | Anthropic (bundled) | Post-write cleanup: redundant vars, unused imports, dead defensive code | Manual |
-| `security-review` | Anthropic (bundled) | Vulnerability scan on diff: auth flaws, injection, secret leaks | Manual |
-| `feature-flow` | local (this repo) | End-to-end ship conductor: worktree → design → review → PR → handoff; enforces worktree-first + subagent model tiering | Manual |
-
-### Superpowers sub-skills — which one when
-
-| Sub-skill | When to invoke |
-|-----------|----------------|
-| `superpowers:brainstorming` | **Before** any creative work — new feature, new component, behavior change. Explore intent before designing. |
-| `superpowers:writing-plans` | After brainstorming — have a spec, need to break into multi-step plan before code |
-| `superpowers:executing-plans` | Have a written plan, executing in a separate session with review checkpoints |
-| `superpowers:subagent-driven-development` | Executing a plan with independent tasks in the **same** session |
-| `superpowers:test-driven-development` | Implementing any feature or bugfix — write test first |
-| `superpowers:dispatching-parallel-agents` | 2+ independent tasks with no shared state — run them in parallel |
-| `superpowers:using-git-worktrees` | Starting feature work that needs isolation from current workspace |
-| `superpowers:systematic-debugging` | Hit a bug, test failure, or unexpected behavior — before proposing fixes |
-| `superpowers:verification-before-completion` | About to claim work is done — must run verification commands and confirm output |
-| `superpowers:requesting-code-review` | Completing a task, before merge — verify work meets requirements |
-| `superpowers:receiving-code-review` | Got code review feedback — apply with rigor, not blind agreement |
-| `superpowers:finishing-a-development-branch` | All tests pass, deciding how to integrate (merge vs PR vs cleanup) |
-| `superpowers:writing-skills` | Creating or editing skills |
-| `superpowers:using-superpowers` | Auto: establishes how to find/use skills |
-
-### Full workflow (in order, per feature)
-
-> Invoke the **`feature-flow`** skill to drive this whole sequence start-to-finish
-> (worktree-first → design → review → PR → resume → handoff). The steps below are
-> the underlying reference it orchestrates.
-
-```
-1. EXPLORE INTENT (before any creative work)
-   → superpowers:brainstorming
-   Ask the user about goals, constraints, edge cases. Never assume.
-
-2. PLAN
-   → superpowers:writing-plans
-   Multi-step plan saved to a plan file.
-
-3. DESIGN (UI work only — skip for pure-logic features)
-   → frontend-design first   → aesthetic vision, layout, palette direction
-   → ui-ux-pro-max  second   → validate palette, typography, a11y, contrast
-
-4. ISOLATE WORKSPACE (MANDATORY — every feature/fix, no exceptions)
-   → superpowers:using-git-worktrees
-   All work runs in a `.worktrees/<slug>` worktree off `main`. Never edit in the
-   primary checkout. See the "Worktree-first" rule under Cross-Cutting Discipline.
-
-5. ADD DEPENDENCIES
-   → secure-dep-vetting (auto on package.json edit)
-   Never type a version from memory.
-
-6. IMPLEMENT
-   → superpowers:test-driven-development     (write test first)
-   → superpowers:executing-plans             (if separate session)
-   → superpowers:subagent-driven-development (if same session, parallel tasks)
-   → superpowers:dispatching-parallel-agents (if 2+ independent jobs)
-   → react-best-practices (auto on .tsx edits)
-
-7. DEBUG (only when something breaks)
-   → superpowers:systematic-debugging
-
-8. CLEANUP (before claiming done)
-   → /simplify on the diff
-
-9. VERIFY (before claiming done)
-   → superpowers:verification-before-completion
-   Run commands. Confirm output. Evidence before assertions.
-
-10. SECURITY (REQUIRED for auth, Firestore rules, Cloud Functions)
-    → /security-review on the diff
-
-11. REVIEW
-    → superpowers:requesting-code-review
-    → superpowers:receiving-code-review (when feedback arrives)
-
-12. FINISH
-    → superpowers:finishing-a-development-branch
-    → /security-review one more time on full branch (before PR)
-```
-
-### Per-app skill emphasis
-
-| App | Heaviest use |
-|-----|--------------|
-| `apps/spotlight` (public site) | `frontend-design`, `ui-ux-pro-max` (heavy aesthetic work, brand identity) |
-| `apps/backstage` (admin) | `react-best-practices`, `security-review` (auth, Firestore writes), `ui-ux-pro-max` (a11y validation for admin tables/forms) |
-| `apps/beacon` (functions) | `security-review`, `secure-dep-vetting` (server-side trust boundary) |
-| `packages/ui` | `react-best-practices`, `ui-ux-pro-max` (component-level a11y) |
-
-### Rules
-
-- **Never decide the review set by judgment** — run the review router (below) and run what it lists.
-- **Never skip `secure-dep-vetting`** — it auto-triggers, do not override.
-- **Never skip `/security-review`** when touching auth, Firestore rules, or Cloud Functions code.
-- **`frontend-design` before `ui-ux-pro-max`** — vision first, validation second. Reversing creates "designed by committee" results.
-- **`/simplify` is for post-feature cleanup**, not for code under active iteration. Run it when the feature is functionally done.
+- **Never decide the review set by judgment**: run the router and run what it lists.
+- **Never skip `secure-dep-vetting`** or **`/security-review`** where they apply.
+- When several tools apply: process skills (brainstorming, debugging) → domain skills → review subagents (`*-reviewer`, `*-watcher`) → cross-stack review (`/security-review`, `/code-review`).
+- `/code-review` is user-invoked only. When the router lists it, run an adversarial Opus review subagent instead and say so in the PR.
+- Heaviest skills per area: spotlight → `frontend-design`, `ui-ux-pro-max`; backstage → `react-best-practices`, `security-review`, `ui-ux-pro-max` (a11y of tables/forms); beacon → `security-review`, `secure-dep-vetting`; `packages/ui` → `react-best-practices`, `ui-ux-pro-max`.
+- **Subagent models**: choose `model` on every dispatch. Opus for React, rules, security and complex logic; Sonnet for mechanical work; Fable to review docs-heavy PRs.
 
 ## Tooling Index
 
-Single source of truth for every harness tool. The **Skill Workflow** section above is the full skill catalog + ordering — not repeated here. This index adds the non-skill tools (hooks, subagents, MCP) and the cross-tool routing.
+Subagents (`.claude/agents/`, read-only, report only): `firebase-functions-reviewer` for any `apps/beacon` change; `firestore-security-reviewer` for `firestore.rules`, repositories or auth-guarded routes; `bundle-budget-watcher` after frontend changes that add deps or routes.
 
-### Subagents (`.claude/agents/*`) — read-only reviewers
+Hooks (`.claude/hooks/`, wired in `.claude/settings.json`), all judging the tree the Bash call runs in (its cwd), not `CLAUDE_PROJECT_DIR`:
 
-| Agent | When to dispatch | Walks |
-|-------|------------------|-------|
-| `firebase-functions-reviewer` | Reviewing any `apps/beacon` change before "done" | Cloud Functions readiness: admin-SDK-only, input validation, idempotency, error handling, no client SDK |
-| `firestore-security-reviewer` | Touching `firestore.rules`, repositories, or auth-guarded routes | Rules vs repository access, auth checks, soft-delete invariants, least-privilege |
-| `bundle-budget-watcher` | After frontend (`spotlight`/`backstage`/`ui`) changes that add deps or routes | build + bundle size + unused exports; reports budget breaches |
+- `branch-guard.sh` (before a commit): hard-blocks commits on `main`/`master`, `--no-verify` included; warns on branch names outside `feat/ fix/ chore/ migration/`.
+- `pre-commit.sh` (before a commit): auto-formats and re-stages, then lint + typecheck; blocks only if still failing. Honors `--no-verify` with a warning.
+- `review-gate.sh` (before PR creation): **hard gate**. Blocks the PR unless a fresh review trailer covers every rule the rubric marks `gate: "hard"`.
+- `review-router.sh` (after PR creation): prints the mandated review set (ENFORCED vs REQUIRED) and the stamp command. Advisory.
+- `stop.sh`: prints `git status`; nudges a checkpoint commit past 10 files.
 
-### Hooks (`.claude/hooks/*`, wired in `.claude/settings.json`)
+Hook traps:
 
-| Hook | Event | Does |
-|------|-------|------|
-| `branch-guard.sh` | `PreToolUse` Bash `git commit` | runs first: hard-blocks (exit 2) commits on `main`/`master` (ignores `--no-verify`); warns on branch names outside `feat/\|fix/\|chore/\|migration/` |
-| `pre-commit.sh` | `PreToolUse` Bash `git commit` | auto fmt-fix + re-stage, then lint/typecheck; blocks only if still failing. Honors `--no-verify` w/ warning |
-| `review-gate.sh` | `PreToolUse` Bash `gh pr create` | **hard gate** (exit 2) on whichever rules the rubric marks `gate: "hard"`: blocks the PR unless a fresh review trailer covering them is in range — the trailer sha must be HEAD-ancestor and nothing in that review's scope may have changed after it. Freshness re-runs the router over `<sha>..HEAD`, so gate and checklist can't drift; trailer key names come from the rubric, not the shell. Diffs the **worktree the PR runs from** (PreToolUse `.cwd`), not the main checkout |
-| `review-router.sh` | `PostToolUse` Bash `gh pr create` | runs the **review router** (`review-route.mjs` over `.claude/review-routing.json`) on the branch diff and prints the exact mandated review set for THIS diff, split into ENFORCED vs REQUIRED, plus the stamp command. Always reminds `pnpm pr-tests`. Advisory counterpart to `review-gate.sh` |
-| `stop.sh` | `Stop` | prints `git status -sb` + uncommitted count; nudges checkpoint commit if >10 files. Read-only |
+- Until roadmap R1 merges, the hooks match raw command text. Keep the literal words for committing and for opening a PR out of every command's text, heredocs included, except in the command that performs them. Pass PR bodies with `--body-file`.
+- Hooks read the Bash tool's persistent cwd, not an inline `cd`. Before committing in a worktree, run a standalone `cd .worktrees/<slug>` call first.
+- Hooks run from the primary checkout's working tree: a merged hook or rubric change is inactive until the primary checkout is pulled, and a PR that adds a gate is not gated by it.
+- Subagents cannot commit in a worktree (their cwd resets to the primary checkout, so the guard blocks them, and `git -C` skips every hook). Brief them to edit and stop; the orchestrator commits, stamps and opens the PR.
 
-### MCP servers (`.mcp.json`)
-
-None. DB is Firestore (NoSQL) — no SQL introspection MCP applies. GitHub ops go through `gh` CLI. Firebase introspection via emulators.
-
-### Routing quick-reference
-
-| If the task is… | Reach for… |
-|---|---|
-| New feature / behavior change | `superpowers:brainstorming` → `writing-plans` → TDD |
-| UI / aesthetic work (spotlight) | `frontend-design` → `ui-ux-pro-max` |
-| Add / upgrade / replace / **remove** / security-patch a dependency | `secure-dep-vetting` (auto) — full lifecycle; uses `pnpm audit` (CVEs) + `pnpm knip` (unused) |
-| `.tsx` edits | `react-best-practices` (auto) |
-| Deciding which reviews a change owes | `.claude/hooks/route.sh` — never your own judgment |
-| Bug / test failure | `superpowers:systematic-debugging` |
-| About to claim "done" | `superpowers:verification-before-completion` + dispatch relevant `-reviewer` |
+MCP servers: none. GitHub goes through `gh`; Firebase through the emulators.
 
 ### Review routing (BINDING — no judgment call)
 
-Which reviews a diff needs is **not** decided per PR. It is computed from
-`.claude/review-routing.json` by `.claude/hooks/review-route.mjs`. Same diff →
-same review set, every time. Before opening any PR:
+Which reviews a diff needs is computed from `.claude/review-routing.json` by `.claude/hooks/review-route.mjs`. Same diff, same review set. Before opening any PR:
 
-1. **Route the diff.** Run it yourself; don't guess:
-   ```bash
-   .claude/hooks/route.sh
-   ```
-   (`review-router.sh` prints the same thing automatically right after
-   `gh pr create` — but routing *after* the PR is open is late. Route first.)
-2. **Run every review it lists.** ENFORCED and REQUIRED alike. "The diff looks
-   simple" is not an input to the rubric; the rubric already accounts for size
-   via its line thresholds.
-3. **Stamp the evidence** on a commit in range — one trailer, exactly the token set
-   the router printed. It prints the command; copy it. A stamp is honored only while
-   nothing in that review's scope changes after its sha — re-review and re-stamp
-   after later commits touching those paths. Keep the trailer in the commit
-   message's **last** paragraph (git trailer parsing).
-4. **Mirror it in the PR body** under a `## Reviews` heading, so review coverage is
-   visible without reading the git log.
-5. **Lighter review** (router verdict `lighter` or `minor`): the skills may be
-   skipped, never silently. The router prints the exception terms — follow them
-   verbatim; they live in the rubric, not here.
+1. **Route the diff** yourself: `.claude/hooks/route.sh`. Routing after the PR is open is late.
+2. **Run every review it lists**, ENFORCED and REQUIRED alike. The rubric already accounts for size through its line thresholds.
+3. **Stamp the evidence** on a commit in range: one `Reviews:` trailer with exactly the token set the router printed (it prints the command). Keep the trailer in the commit message's **last** paragraph. Stamp in its own Bash call before PR creation. A stamp holds only while nothing in that review's scope changes after its sha; re-review and re-stamp after later commits touching those paths.
+4. **Mirror it in the PR body** under `## Reviews`.
+5. **Lighter review** (verdict `lighter` or `minor`): the skills may be skipped, never silently. Follow the exception terms the router prints, verbatim.
 
-Only the `hard` class is shell-enforced (`review-gate.sh` blocks `gh pr create`).
-The rest is enforced by this contract — a mandated review that was not run and not
-excepted is a process failure, not a judgment call. Never hand-write a review
-assessment in place of running the mandated skill.
-
-Changing the rubric = changing the contract: edit `.claude/review-routing.json`
-and its fixture tests together (`node --test .claude/hooks/review-route.test.mjs`).
-
-### Ordering when several tools apply
-
-1. **Process skills** (brainstorming, debugging) — decide HOW.
-2. **Domain skills** (frontend-design, react-best-practices) — execute.
-3. **Review subagents** (`-reviewer`, `-watcher`) — audit risky surfaces.
-4. **Cross-stack review** (`/security-review`, `/code-review`) — last, before PR.
+Only the `hard` class is shell-enforced. A mandated review that was neither run nor excepted is a process failure. Never hand-write a review assessment in place of running the mandated skill. Changing the rubric changes the contract: edit `.claude/review-routing.json` and its fixture tests together (`node --test .claude/hooks/review-route.test.mjs`).
 
 ## Cross-Cutting Discipline
 
-- **Spec threshold.** Open a `docs/specs/` design doc when **≥2** of: new route/endpoint, new cross-boundary contract, >3 files touched, touches auth/Firestore-rules/Cloud-Functions, user-facing copy/flow change, measurable perf impact, schema/migration-coupled. Single-file polish doesn't need a spec.
-- **Prompt-refine default.** Non-trivial request (>1 file, opens a PR, changes a contract, edits CI/hooks, invokes a project skill) → first reply with (1) refined prompt (1–3 lines), (2) numbered tool plan, (3) one-line proceed/adjust question. Then wait. Bypass words: `auto`, `go`, `just do it`.
-- **Checkpoint commits.** Commit per milestone; never batch >10 modified files. Stop hook nudges this.
-- **PR workflow.** Always `gh pr create`, never web UI. Body template:
+- **Spec threshold.** Open a `docs/specs/` design doc when **≥2** of: new route/endpoint, new cross-boundary contract, >3 files touched, touches auth/Firestore-rules/Cloud-Functions, user-facing copy/flow change, measurable perf impact, schema/migration-coupled.
+- **Prompt-refine default.** Non-trivial request (>1 file, opens a PR, changes a contract, edits CI/hooks, invokes a project skill): first reply with a refined prompt (1–3 lines), a numbered tool plan and a one-line proceed/adjust question, then wait. Bypass words: `auto`, `go`, `just do it`.
+- **Checkpoint commits.** Commit per milestone; never batch >10 modified files.
+- **PR workflow.** Always `gh pr create`, never the web UI. Run `pnpm pr-tests` right after opening. Body:
   ```
   ## Summary
   - <what changed>
@@ -327,31 +117,20 @@ and its fixture tests together (`node --test .claude/hooks/review-route.test.mjs
   <!-- or, for a lighter-review diff: -->
   Review-Exception: <reason> — <correctness gate run + invariant asserted>
   ```
-  The Reviews list is not free-form: it is whatever `review-route.mjs` printed for
-  this diff. See "Review routing" under Skill Workflow.
-  Run `pnpm pr-tests` locally right after opening.
-- **Worktree-first (MANDATORY).** Every feature/fix runs in its own git worktree — not optional, no exceptions. Create it **before** the first edit: `git worktree add .worktrees/<slug> -b <branch> main` (worktrees live in `.worktrees/`, which is gitignored and excluded from prettier/knip). Never edit, build, or run tests in the primary checkout. Tooling/config-only changes count too. Remove the worktree after the PR merges (`git worktree remove .worktrees/<slug>`).
-- **Branch per feature.** Every feature/fix gets its own branch off `main`, created **before** the first edit — never commit feature work directly to `main`/`master`. Branches `feat/ fix/ chore/ migration/` (e.g. `feat/shared-ui-components`); open a PR to integrate. Commits = Conventional Commits with module scope (`feat(backstage): …`). `master` always deployable.
-- **Codegen-drift gate.** Any artifact generated on one boundary and consumed on another (e.g. `@luminova/types` shared schemas, generated Firestore types) gets a CI check that regenerates and fails on diff.
-- **Performance budget.** Frontend changes hold the bundle budgets + Core-Web-Vitals targets in `docs/performance.md` and follow its Claude guardrails. After any dep/route change, dispatch `bundle-budget-watcher` and note the `index`-chunk gz delta; a budget breach must be a conscious, noted decision.
-- **Docs layout.** `docs/specs/` (designs), `docs/plans/` (impl plans), `docs/status/` (handoffs), `docs/tooling/skill-development-log.md` (skill history).
-- **Recurring pitfalls (2026-07 audit) — guardrails.** The mistake-classes that each recurred across multiple audit findings, now standing rules. Detail + real examples + the enforcing guard for each in `docs/engineering-guardrails.md`.
-  1. **Extract, don't copy.** Same logic in 2+ places → parameterize/extract (rule of three), consolidate-when-touched — never copy-paste a feature/hook/shell. UI duplication has its own guide (linked from `docs/engineering-guardrails.md` #1).
-  2. **Rules mirror code.** Any repository write-invariant (a locked/gated field, soft-delete) MUST also be enforced in `firestore.rules` with a rules test — a direct write bypasses client code. Dispatch `firestore-security-reviewer`.
-  3. **Three query states.** Every data view handles loading / **error** / absent; never gate on `!data` alone (renders an infinite skeleton or a false "no encontrado"). Use `ErrorState` / backstage `QueryErrorState`; permission-denied = no retry.
-  4. **No silent catch.** Never swallow a caught error — `console.error` (or surface it); an intentional ignore needs a one-line justifying comment. A prod rules/index regression must not be invisible.
-  5. **Bound every query.** Server-side `where`/`.limit`; batch `getAll` fan-out with `chunk()` at 300 (`apps/beacon/src/chunk.ts`) — no unbounded collection scan or ref splat. Dispatch `firebase-functions-reviewer` for beacon.
-  6. **Claim == reality.** A guard named in CLAUDE.md/docs MUST actually exist and be wired (CI/hook/eslint), else it's a lie that gates nothing; orphaned `firestore.rules` collections with no consumer get removed.
+- **Worktree-first (MANDATORY).** Every feature or fix, tooling and docs included, runs in its own worktree created before the first edit:
+  `git fetch && git worktree add .worktrees/<slug> -b <branch> origin/main` (local `main` lags `origin/main`). Use `.worktrees/`, never `.claude/worktrees/` (so not the `EnterWorktree` tool). Never edit, build or test in the primary checkout. Remove the worktree after the PR merges.
+- **Branch per feature.** Off `main`, before the first edit; never commit feature work to `main`/`master`. Prefixes `feat/ fix/ chore/ migration/`. Conventional Commits with module scope (`feat(backstage): …`). `master` is always deployable. Check the branch before committing: the user may switch it underneath you.
+- **Codegen-drift gate.** Any artifact generated on one boundary and consumed on another (`@luminova/types` shared schemas, generated Firestore types) gets a CI check that regenerates and fails on diff.
+- **Performance budget.** Frontend changes hold the budgets and Core Web Vitals targets in `docs/performance.md`. After any dep or route change, dispatch `bundle-budget-watcher` and note the `index`-chunk gz delta; a budget breach must be a conscious, noted decision.
+- **Docs layout.** `docs/specs/` (designs), `docs/plans/` (impl plans), `docs/status/` (handoffs), `docs/tooling/skill-development-log.md` (skill history), `docs/roadmap.md` (the work queue and owner decisions).
+- **Recurring pitfalls (2026-07 audit): guardrails.** Detail, examples and the enforcing guard for each are in `docs/engineering-guardrails.md`.
+  1. **Extract, don't copy.** Same logic in 2+ places → parameterize or extract (rule of three), consolidate when touched.
+  2. **Rules mirror code.** Any repository write-invariant (a locked/gated field, soft delete) MUST also be enforced in `firestore.rules` with a rules test. Dispatch `firestore-security-reviewer`.
+  3. **Three query states.** Every data view handles loading / **error** / absent; never gate on `!data` alone. Use `ErrorState` / backstage `QueryErrorState`; permission-denied = no retry.
+  4. **No silent catch.** Never swallow a caught error: `console.error` or surface it; an intentional ignore needs a one-line justifying comment.
+  5. **Bound every query.** Server-side `where`/`.limit`; batch `getAll` fan-out with `chunk()` at 300 (`apps/beacon/src/chunk.ts`). Dispatch `firebase-functions-reviewer` for beacon.
+  6. **Claim == reality.** A guard named in CLAUDE.md or docs MUST exist and be wired (CI, hook, eslint); orphaned `firestore.rules` collections with no consumer get removed.
 
 ## Reference Docs
 
-- `docs/architecture.md` — system overview and data flow
-- `docs/data-models.md` — all Firestore schemas with constraints
-- `docs/features.md` — feature specs and UX flows
-- `docs/firebase-setup.md` — emulator and deploy instructions
-- `docs/domains.md` — custom domains vs Firebase defaults: where the hostname lives in code, console lists that must carry every hostname, fallback runbook
-- `docs/ci-cd.md` — CI + keyless CD pipeline: trust model, as-provisioned WIF/IAM inventory, deploy flow, validation, rollback
-- `docs/performance.md` — perf budgets, Core-Web-Vitals targets, optimization playbook + the Claude guardrails for keeping the frontends fast
-- `docs/engineering-guardrails.md` — the recurring audit mistake-classes, each with its rule + real example + enforcing guard (expands the "Recurring pitfalls" rules above)
-- `packages/ui/DESIGN.md` — design-system manifest (tokens + full component catalog) for **Claude Design** (claude.ai/design) ingest; link this repo there to sync the design system
-- `docs/reuse-first-ui.md` — reuse-first UI guide: color-token table (no raw hex), `@luminova/ui` component quick-index, compact type scale, pre-add checklist; backed by the eslint raw-element/raw-hex/sub-18px-type guards
+`docs/architecture.md` (system overview) · `docs/data-models.md` (Firestore schemas) · `docs/features.md` · `docs/firebase-setup.md` (emulators, deploy, owner ops) · `docs/domains.md` (custom domains and fallback) · `docs/ci-cd.md` (CI, keyless CD, rollback) · `docs/performance.md` · `docs/engineering-guardrails.md` · `docs/reuse-first-ui.md` (color tokens, component index, type scale; backed by eslint guards) · `packages/ui/DESIGN.md` (design-system manifest for Claude Design) · `docs/roadmap.md`.

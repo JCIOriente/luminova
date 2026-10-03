@@ -2,134 +2,57 @@
 
 ## Purpose
 
-The authorization vocabulary shared by both frontends and the functions backend:
-who a member is (`roles`), what they may do (`perms`), and the CASL ability that
-answers `can(action, subject)`. It owns **no data** — it reads claims minted
-elsewhere and turns them into decisions.
+Authorization vocabulary for both frontends and beacon: `roles`, `perms`, and the CASL ability (`can(action, subject)`). Owns **no data** — it reads claims minted elsewhere.
 
-`packages/auth/**` is on the review router's **hard-gated auth surface**
-(`.claude/review-routing.json`), so `gh pr create` is blocked until a fresh
-`Reviews:` trailer covers `security-review`. Verify rather than trust this
-sentence: `.claude/hooks/route.sh` prints the mandated set for your diff.
+`packages/auth/**` is on the review router's **hard-gated auth surface** (`.claude/review-routing.json`): `gh pr create` is blocked until a fresh `Reviews:` trailer covers `security-review`. Verify with `.claude/hooks/route.sh`.
 
 ## Entry points (no barrel — import the subpath)
 
 | Import | Exports |
 |---|---|
 | `@luminova/auth/roles` | `AuthClaims`, `Role`, `ROLES`, `isValidRole`, `hasRole`, `hasAnyRole` |
-| `@luminova/auth/ability` | `buildAbility`, `subject`, `AppAbility`, plus `Action`/`Subject` **re-exported** from `@luminova/types` |
+| `@luminova/auth/ability` | `buildAbility`, `subject`, `AppAbility`, plus `Action`/`Subject` re-exported from `@luminova/types` |
 | `@luminova/auth/perms` | `resolveEffectivePerms` |
-| `@luminova/auth/built-in-perms` | `resolveBuiltInPerms`, `BuiltInRoleDoc` — the ONE absent/live/inactive three-way over already-fetched role docs, shared by beacon's claims-sync and the backstage assignment preview |
-| `@luminova/auth/test-helpers` | `roleClaims` — mints `{roles, perms}` the production way; tests must not use a bare `{ roles: [...] }` fixture (see the `claims.perms` invariant below) |
+| `@luminova/auth/built-in-perms` | `resolveBuiltInPerms`, `BuiltInRoleDoc` — the ONE absent/live/inactive three-way over fetched role docs, shared by beacon claims-sync and the backstage assignment preview |
+| `@luminova/auth/test-helpers` | `roleClaims` — mints `{roles, perms}` the production way |
 
-`exports` maps types to `src/*.ts` but runtime to `dist/*.js`, so a **fresh
-worktree must build this package before an app's vitest run** — an unbuilt `dist`
-surfaces as a module-resolution failure in the consumer, not here.
-
-`Action`, `Subject` and `PermissionCode` are **defined in `@luminova/types`**, not
-here — to add or drop one, edit `packages/types/src/permission.ts`. This package
-only re-exports them. `@casl/ability` is a direct, exact-pinned dependency (it is
-security-critical); changing that pin goes through `secure-dep-vetting`.
+- Runtime exports resolve to `dist/*.js`: a **fresh worktree must build this package before an app's vitest run** (unbuilt `dist` fails as module resolution in the consumer).
+- `Action`, `Subject`, `PermissionCode` are defined in `packages/types/src/permission.ts`, not here — edit there.
+- `@casl/ability` is exact-pinned (security-critical); changing the pin goes through `secure-dep-vetting`.
 
 ## The two-layer model
 
-A member's authority comes from two independent claims, and conflating them is
-the mistake to avoid:
+Never conflate the two claims:
 
-1. **Coarse perms** (`claims.perms`, `"action:Subject"` codes) — data-driven,
-   editable in the admin UI, resolved by `resolveEffectivePerms` as
-   *union of role permissions + overrides.grant − overrides.revoke*. Revoke wins.
-2. **Conditional grants** (`applyConditional` in `ability.ts`) — hardcoded per
-   built-in role, not UI-editable. Two kinds live here, and the second is easy to
-   miss:
-   - genuinely object-scoped: `Member`'s `read/update` limited to its own `uid`;
-   - **unconditioned reads that look exactly like coarse perms but aren't**:
-     `Member` also gets `read` on `MemberPoints`, `Project` and `Position` from
-     `applyConditional`. That is now belt-and-braces rather than the only source:
-     `BUILT_IN_ROLE_PERMS.Member` carries `read:Member`, `read:MemberPoints`,
-     `read:Activity`, `read:Program` and `read:Project` as coarse perms, so a
-     backfilled token gets them either way. `read:Position` is the one that lives
-     ONLY here — it is what keeps `/positions` visible to a board member, since
-     every provisioned user also holds the `Member` role.
+1. **Coarse perms** (`claims.perms`, `"action:Subject"`) — data-driven, admin-UI-editable; `resolveEffectivePerms` = union of role permissions + `overrides.grant` − `overrides.revoke`. Revoke wins.
+2. **Conditional grants** (`applyConditional` in `ability.ts`) — hardcoded per built-in role, not UI-editable:
+   - object-scoped: `Member` `read/update` on its own `uid`;
+   - unconditioned reads that look like coarse perms: `Member` gets `read` on `MemberPoints`, `Project`, `Position`. `read:Position` lives ONLY here — it keeps `/positions` visible to board members (every provisioned user holds `Member`). Don't remove it assuming `BUILT_IN_ROLE_PERMS.Member` covers it.
 
-`buildAbility` applies perms first, then conditional grants, both derived from
-`claims`. Adding a conditional grant is a code change plus a rules change — never
-a data change.
+Adding a conditional grant is a code change plus a `firestore.rules` change — never a data change.
 
 ## Invariants
 
-- **`resolveEffectivePerms` returns the set UNCAPPED, and so does `resolveBuiltInPerms`
-  on top of it.** Enforcing `PERMISSION_CAP` (`@luminova/types`) is the caller's job.
-  Neither production consumer calls `resolveEffectivePerms` directly any more — both
-  reach it through `resolveBuiltInPerms`, so that is where the cap discipline now
-  attaches. The current call graph:
-  - `resolveBuiltInPerms` (`built-in-perms.ts`) — in-package, uncapped by design
-    because its two callers disagree on the *response*, not on the limit:
-    - beacon claims-sync → `resolveMemberPerms` → `sync.ts`, **fail-closed** to
-      `perms: []`; and `set-user-roles.ts`, which throws `internal` over the cap;
-    - backstage `previewEffectivePerms`
-      (`features/permissions/lib/effective-preview.ts`) → `member-roles-panel.tsx`,
-      which disables Save while `effective.length > PERMISSION_CAP`.
-  - `roleClaims` (`test-helpers.ts`) — test-only fixtures, no cap.
-  - `apps/beacon/scripts/seed-roles.ts` — enforces **nothing**, writing `perms`
-    straight to `setCustomUserClaims`. Emulator-only (`assertEmulator()`), which is
-    the only reason it is not a hole.
+- **`resolveEffectivePerms` and `resolveBuiltInPerms` return UNCAPPED sets.** Enforcing `PERMISSION_CAP` (`@luminova/types`) is the caller's job; any new caller of either must enforce it. Current callers:
+  - beacon `resolveMemberPerms` → `sync.ts` fails **closed** to `perms: []`; `set-user-roles.ts` throws `internal` over the cap;
+  - backstage `previewEffectivePerms` (`features/permissions/lib/effective-preview.ts`) → `member-roles-panel.tsx` disables Save while `effective.length > PERMISSION_CAP`;
+  - `roleClaims` — test-only, no cap;
+  - `apps/beacon/scripts/seed-roles.ts` — enforces nothing; safe only because it is emulator-only (`assertEmulator()`).
+  - `roleDefinitionSchema` (role editor) bounds one role doc's `permissions` array — a different thing, not this resolution.
+- Output is **deduped** (beacon's `sameList` compares length then Set membership; a duplicate forces a redundant claim write). Comparison is order-independent; `.sort()` is only for stable diffs.
+- **`claims.perms` absent ⇒ zero coarse abilities.** `buildAbility` reads `claims.perms ?? []` — no fallback to `BUILT_IN_ROLE_PERMS`. Tests must mint claims via `roleClaims(...)`; a bare `{ roles: [...] }` fixture is correct only when asserting absence of coarse access or exercising a role-name gate.
+- **A perm is not a rules grant.** `can(...)` gates the UI; `firestore.rules` gates the data — mirror per root guardrail #2.
 
-  (The backstage *role editor* caps a different thing: `roleDefinitionSchema` bounds
-  one role doc's own `permissions` array. That is not this resolution.) Any new
-  caller of either function must enforce the cap.
-- Output is **deduped**, which is what makes the write-skip check work: beacon's
-  `sameList` compares length then Set membership, so a duplicate would flip
-  lengths and force a redundant claim write. It is **not** order-sensitive — that
-  comparison is deliberately order-independent because Auth returns claims in
-  arbitrary order. The `.sort()` is for stable diffs and readability, not
-  idempotency.
-- **`claims.perms` is optional, and its absence grants zero coarse abilities.**
-  `buildAbility` reads `claims.perms ?? []` — there is **no** fallback to
-  `BUILT_IN_ROLE_PERMS` (removed in the capability-first migration's PR-B). A
-  roles-only claim yields only conditional grants. Tests therefore mint perms the
-  production way via `roleClaims(...)` from `@luminova/auth/test-helpers`; a bare
-  `{ roles: [...] }` fixture is correct only when asserting the absence of coarse
-  access or exercising a role-name gate.
-- **A perm is not a rules grant.** `can(...)` gates the *UI*; `firestore.rules`
-  gates the *data*. See root `CLAUDE.md` guardrail #2 for the mirror requirement.
+## Gotchas
 
-## Gotchas that have bitten before
-
-- **`read:Project` ≠ `read:Program`.** `Member` carries `Project`, never
-  `Program`. Gating a detail *fetch* on `can("read", kind)` silently breaks
-  Program-type directors. Fetch unconditionally (rules make reads signed-in) and
-  gate the **writes**.
-- **`BUILT_IN_ROLE_PERMS` is mirrored by the seed scripts.** `role-seed.mjs` and
-  `seed-production.mjs` must stay in sync with `packages/types/src/role-definition.ts`;
-  a mirror test in `packages/types` enforces it. Changing a built-in role's perms
-  means changing both, or CI fails on the mirror.
-- **Dropping a `Subject` is compiler-guided.** `SUBJECT_LABELS` is an exhaustive
-  `Record`, so removing a subject surfaces every consumer as a type error — follow
-  the errors rather than grepping.
-- A role that ends up with an empty perm set is a **degenerate role**: it still
-  passes `isValidRole` but grants nothing. Check the drop-safety of a role before
-  removing its last permission.
-- **`BoardSeat` and `MemberLogin` are exact-code gates, not `canDo` subjects.** The live codes
-  (`update:BoardSeat`, `create:MemberLogin`) are each checked with `hasPerm` — in
-  `firestore.rules`, in beacon's `requireAdminOrPerm`, and in backstage's `useCan` — never a
-  `canDo`-style expansion, so a `manage:all` holder does **not** satisfy either one. The other
-  four generated codes per subject (`manage:BoardSeat`, `read:MemberLogin`, …) are consequently
-  inert: valid `PermissionCode`s, assignable in `/permisos`, satisfying nothing anywhere. See
-  `docs/specs/board-seat-delegation.md`.
-
-## Consumers (why changes here are wide-blast)
-
-`apps/backstage` (nav gating in `nav-config.ts`, the command menu, the
-permissions UI's effective-preview, per-feature `useCan` checks),
-`apps/beacon` (claims-sync resolves and writes the `perms` custom claim), and the
-rules test suite, which builds claims through the **real** seed producer so a
-drift between seed and rules fails a test rather than production.
+- **`read:Project` ≠ `read:Program`.** `Member` has `Project`, never `Program`. Don't gate a detail _fetch_ on `can("read", kind)`; fetch unconditionally (reads are signed-in) and gate the **writes**.
+- **`BUILT_IN_ROLE_PERMS` is mirrored by the seed scripts.** `tools/scripts/lib/role-seed.mjs` and `tools/scripts/seed-production.mjs` must stay in sync with `packages/types/src/role-definition.ts`; a mirror test in `packages/types` fails CI otherwise. Change both.
+- **Dropping a `Subject`:** follow the type errors from the exhaustive `SUBJECT_LABELS` record rather than grepping.
+- A role with an empty perm set is **degenerate** (passes `isValidRole`, grants nothing). Check drop-safety before removing a role's last permission.
+- **`BoardSeat` / `MemberLogin` are exact-code gates.** `update:BoardSeat` and `create:MemberLogin` are checked with `hasPerm` in `firestore.rules`, beacon `requireAdminOrPerm`, and backstage `useCan` — never `canDo`-style expansion, so `manage:all` does **not** satisfy them. Their other generated codes are inert. See `docs/specs/board-seat-delegation.md`.
 
 ## Rules
 
-- Changing built-in role perms, adding a conditional grant, or touching the cap:
-  run the full authz suite (`@luminova/auth`, `packages/types`, backstage, beacon,
-  `tests/firestore-rules`) — they cross-check each other by design.
+- Consumers are wide-blast: backstage (`nav-config.ts`, command menu, effective-preview, `useCan`), beacon claims-sync, and `tests/firestore-rules` (builds claims through the real seed producer).
+- Changing built-in role perms, adding a conditional grant, or touching the cap: run the full authz suite (`@luminova/auth`, `packages/types`, backstage, beacon, `tests/firestore-rules`).
 - Never widen a grant to make a test pass. Narrow the test or fix the caller.
-- No barrel file; import the subpath. No `any`, no unjustified `as`.

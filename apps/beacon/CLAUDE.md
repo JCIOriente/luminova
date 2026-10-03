@@ -1,338 +1,103 @@
 # Beacon — Claude Code Guide
 
-## Purpose
+Firebase Cloud Functions backend. Owns the Recognition Engine compute (participation facts → engine-only `participations` ledger + `memberPoints` aggregate), claims sync, showcase projections, and the admin / invite callables.
 
-Firebase Cloud Functions backend. Owns the Recognition Engine compute: it turns
-participation **facts** into the engine-only `participations` ledger and the
-`memberPoints` aggregate. Also hosts the `setUserRoles` admin callable.
+## Rules
 
-## Functions
+- **Admin SDK only** — never import `firebase/firestore` (client SDK); use `firebase-admin`. The engine writes the client-read-only `participations` / `memberPoints` / `members.totalPoints`.
+- **NodeNext modules** — relative imports use explicit `.js` extensions. `@luminova/types` is consumed via the `/engine` pure subpath (raw-Node-ESM valid).
+- **Idempotent** — deterministic participation ids + full-recompute aggregate, safe under at-least-once redelivery.
+- **Layering:** pure helpers (`award-points/derive.ts`, `aggregate.ts`, `check-in.ts`, `participation-id.ts`) get unit tests; orchestration (`award-points/process.ts`) is written against the `EngineStore` port, unit-tested with an in-memory fake, no Firestore; glue (`award-points/firestore-store.ts`, `index.ts` trigger bindings) is exercised by emulator e2e, not units.
+- **CI gate:** `pnpm --filter beacon run ci` (eslint → typecheck → vitest → emulator tests), rolled into `pnpm pr-tests`. Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin.
+
+## Triggers
 
 ### `awardPoints` — `onDocumentWritten('checkIns/{id}')`
 
-The engine's entry point. A `checkIns/{id}` doc (`{ memberId, activityId, role,
-checkInAt }`) is written by an authorized client — any `checkIn:Attendance` holder
-(Admin/ProjectManager/ActivityManager, or a custom role); a Scanner among them is
-confined to `Attendee` rows by a rules conjunct, with no event scoping. On write:
+Check-ins are written by any `checkIn:Attendance` holder; a Scanner is confined to `Attendee` rows by a rules conjunct. `validateCheckIn` rejects malformed input **without throwing** (no retry storm); point values come from `pointRules/{termId}__{code}` (fallback `DEFAULT_POINT_VALUES`); writes `participations/{activityId__memberId__role}` (deterministic id), recomputes `memberPoints/{memberId}` and mirrors `members.totalPoints`; `syncActivityCheckInFlag` recomputes `hasCheckIns` transactionally with `count()` (unconditional write = conflict anchor; `firestore.rules` locks category/startAt/parentId/parentType on it). A delete removes the derived row, recomputes and re-mirrors. Runs `retry: true` (as do `onMemberCreated` and `onBoardMemberWritten`; each justifies it at the call site) — an unretried transient failure would strand the rules-side lock.
 
-1. `validateCheckIn` — reject malformed input (no throw → no retry storm).
-2. Read `activities/{activityId}` (category, parentType/parentId, startAt, termId)
-   and `pointRules/{termId}__{code}` (fallback `DEFAULT_POINT_VALUES`).
-3. `deriveParticipation` — resolve `pointRuleCode`, apply the punctuality factor,
-   evaluate the two gates → `state`, set `monthBucket`/`computedPoints`.
-4. Write `participations/{activityId__memberId__role}` (deterministic id →
-   idempotent) and recompute `memberPoints/{memberId}` + mirror `members.totalPoints`.
-5. `syncActivityCheckInFlag` — mirror `hasCheckIns` onto the activity (transactional
-   `count()` recompute, unconditional write = conflict anchor) so firestore.rules can
-   lock category/startAt/parentId/parentType once check-ins exist.
+### `onProgramWritten` / `onProjectWritten` — `initiativeTrigger(...)`
 
-On a `checkIns` **delete**, the derived row is removed and the aggregate recomputed
-(and the flag re-mirrored).
+When `finalReport` transitions null↔set, flip that initiative's participation rows provisional↔confirmed and recompute affected members' aggregates; also projects the showcase.
 
-The trigger runs with `retry: true` — one of three that do (`onMemberCreated` and
-`onBoardMemberWritten` are the others; each states its justification at the call
-site). The flag mirror
-only recomputes on checkIns writes, so an unretried transient failure would strand
-the rules-side lock; the handler is idempotent under redelivery and step 1's
-no-throw contract prevents malformed-input retry storms.
-
-### `confirmOnProgramReport` / `confirmOnProjectReport` — `onDocumentWritten('programs|projects/{id}')`
-
-When a program/project `finalReport` transitions null↔set, flip that initiative's
-participation rows provisional↔confirmed (`where parentId == id`) and recompute the
-affected members' aggregates.
+## Invite callables
 
 ### `issueMemberInvite` — `onCall` (replaces `provisionMemberLogin`)
 
-`create:MemberLogin`-guarded. Creates the Auth account if the member has none, links `uid`,
-sets the base `Member` claim, revokes any outstanding invite, mints a single-use token and
-projects `members/{id}.invite`. Returns `{ email, token, expiresAt, replacedPreviousLink }`.
+`create:MemberLogin`-guarded. Creates/links the Auth account, sets the base `Member` claim, revokes any outstanding invite, mints a single-use token, projects `members/{id}.invite`. Returns `{ email, token, expiresAt, replacedPreviousLink }`.
 
-**No Firebase email anywhere in the auth flow.** The operator shares the link by hand (the
-chapter coordinates over WhatsApp). The client assembles `https://<origin>/invitacion#<token>`
-— beacon returns the token, not a URL, because beacon has no configuration surface for a base
-URL and one would be wrong in the emulator and in previews.
-
-- **The link IS the credential.** Before this, the invite mail was an unprivileged client-side
-  `sendPasswordResetEmail`; now whoever holds the token sets that member's password. That is
-  what `create:MemberLogin` now means.
-- **Revoke + mint + project is ONE batch** (`commitInviteBatch` in `provision-deps.ts`). A
-  partial failure would leave a live `pending` token the operator already sent with the
-  projection pointing at the old hash — unrevocable, since there is no `where` query on
-  `memberInvites` and the only key into the collection no longer names it. Expressed as a
-  single `InviteDeps.commitInvite` port so the three writes are not separately expressible.
-- **Guards are an EXHAUSTIVE switch on `(user, linkedUid)`** — adoption and self-heal stay
-  Admin-only, recovery and initial are delegate-allowed. A two-way split would let the
-  self-heal quadrant fall through to `createUser` for a delegate.
-- **The privilege guards re-run in `redeemInvite`**, because the token outlives the
-  authorization decision by up to 48 h. `issuedByAdmin: true` exempts.
+- **No Firebase email anywhere in the auth flow.** Beacon returns the token, never a URL; the client assembles `https://<origin>/invitacion#<token>`.
+- **The link IS the credential** — holding the token sets that member's password.
+- **Revoke + mint + project is ONE batch** (`commitInviteBatch` in `provision-deps.ts`, the single `InviteDeps.commitInvite` port). Never split the three writes — a partial failure leaves an unrevocable live token.
+- **Guards are an EXHAUSTIVE switch on `(user, linkedUid)`** — adoption and self-heal Admin-only; recovery and initial delegate-allowed. Never collapse to a two-way split.
+- **The privilege guards re-run in `redeemInvite`** (token outlives the decision by up to 48 h); `issuedByAdmin: true` exempts.
 
 ### `describeInvite` / `redeemInvite` — `onCall`, UNAUTHENTICATED
 
-The project's first unauthenticated callables. `describeInvite` is a read-only lookup
-(`{ email, name, expiresAt }`); `redeemInvite` burns the token and sets the password through
-the Admin SDK. Both share one `loadValidInvite` so the validity rules cannot drift.
+Both share `loadValidInvite` so validity rules cannot drift.
 
-- **The token hash IS the document id** (`memberInvites/{sha256hex(token)}`), so there is no
-  secret comparison anywhere, the lookup is bounded by construction, and the collection cannot
-  be enumerated. A guess resolves to a nonexistent document.
-- **Rate-limited IN PROCESS, never in Firestore.** 5 calls/min per token **per callable** —
-  each has its own gate, so a link gets 5 `describeInvite` AND 5 `redeemInvite` a minute
-  (tight, and it can only ever refuse the token being hammered) — plus 600/min endpoint-wide
-  per callable (deliberately generous — the key that
-  actually bounds a flood, since every random token gets a fresh per-token bucket). Consulted
-  before ANY read, so a refusal costs an integer comparison. It writes nothing on purpose:
-  `describeInvite` is two keyed reads and zero writes, so a counter doc would make the limiter
-  more expensive than the endpoint it protects and hand an unauthenticated caller a guaranteed
-  billable write per request. `rate-limit.ts` bounds memory too (LRU, 2048 buckets) — a flood
-  of distinct tokens is exactly what would otherwise grow one bucket per token.
-  **The honest ceiling is per-INSTANCE**, times however many are warm, bounded by
-  `maxInstances: 10`; a cold start resets the buckets. Never quote it as a global figure — and
-  note that "times however many are warm" is headroom for LEGITIMATE traffic only. It does NOT
-  apply to the denial threshold: a refusal is in flight for microseconds, so a flood barely
-  moves Cloud Run's concurrency signal and the pool stays near one instance well past the point
-  where onboarding is already down. (CPU utilization is a separate autoscaling signal that a
-  big enough flood does trip — so treat one instance as a conservative floor, not a guarantee.)
-  The endpoint-wide bucket has SHARED FATE — exhausting it refuses everyone — so it is sized
-  to bound cost, not availability, which `maxInstances` already bounds: ~1,200 reads/min on one
-  instance (600 admitted calls x at most two keyed reads), ~12k across a saturated pool of ten.
-  It was 60/min and that was wrong: ONE sustained request per second from a single source
-  denied every invitee, far cheaper than saturating the pool it nominally protected. The
-  denial threshold is now ~10 req/s — `INVITE_GLOBAL_DENIAL_PER_SECOND`, derived, not typed.
-  CANONICAL for every figure here: the `globalPerMinute` docblock in
-  `packages/types/src/member-invite.ts`. A tripwire test in `redeem-invite.test.ts` pins the
-  derived values and lists every prose site that restates them, this bullet included — retune
-  the ceiling and it stops you with the list. The request-rate alert in
-  `docs/firebase-setup.md` is set just under the denial point.
-- **App Check IS enforced in production, and deliberately NOT under the emulator**
-  (`ENFORCE_APP_CHECK`, derived from `UNDER_EMULATOR` — one read of `FUNCTIONS_EMULATOR`, in
-  `token-verification-bypass.ts`). firebase-functions enforces
-  this ITSELF — a request with no `X-Firebase-AppCheck` header is rejected before the
-  debug-token escape — and local dev leaves `VITE_APPCHECK_SITE_KEY` blank, so the client sends
-  no header at all. Enforcing unconditionally would make `/invitacion` impossible to exercise
-  against the emulator. `FUNCTIONS_EMULATOR` is safe to key on: only the emulator sets it, and
-  why the deploy-time discovery run cannot affect the value is in the `ENFORCE_APP_CHECK`
-  docblock in `token-verification-bypass.ts`. A test pins BOTH branches — the two failure
-  directions are opposite and both silent.
-  App Check bounds WHO may call, not how often, which is why the limiter ships alongside it.
-  For a callable the `onCall` flag IS the enforcement. Attestation chain, setup, enforcement
-  state and failure diagnosis: docs/firebase-setup.md, owner op 3.
-- **`issueMemberInvite` enforces App Check too; the admin-only callables do not.** The enforced
-  list is `APP_CHECK_ENFORCED_CALLABLES`, pinned by `app-check-scope.test.ts`; why those and not
-  the rest: docs/firebase-setup.md, owner op 3.
-- **One debug flag defeats BOTH token verifications, and every callable refuses it.**
-  `FIREBASE_DEBUG_MODE=true` plus `FIREBASE_DEBUG_FEATURES` carrying `skipTokenVerification` makes
-  firebase-functions decode BOTH the App Check header and the **Auth ID token** without verifying
-  either, so a forged `roles: ["Admin"]` claim satisfies `callable-auth.ts`. It is worse on the
-  authenticated callables outside the invite pair than on the invite pair, and
-  `enforceAppCheck: true` does not help.
-  **Every callable is declared through `guardedOnCall`** (`src/guarded-on-call.ts`), whose handler
-  refuses before delegating; that file's header states what makes the coverage structural, and
-  `docs/specs/structural-oncall-guard.md` is the design. The refusal itself — predicate, emulator
-  gate, per-callable refusal shape, sampled log and the parity test against the installed
-  library — is documented on `assertTokenVerificationNotBypassed` in
-  `src/token-verification-bypass.ts`; the operator view is in `docs/firebase-setup.md`.
-  `FUNCTIONS_EMULATOR` cannot be guarded in-process, so `assert-deployed-env-clean.sh` stays its
-  only control; its service list is enumerated in `deploy.yml` and pinned by the deploy-list test
-  in `src/redeem-invite.test.ts`.
-- **`maxInstances` is both a control and a lever**: it caps billing but converts a cost problem
-  into an availability one. The rate gate is what makes that trade cheaper — a throttled
-  request never occupies an instance doing Firestore reads.
-- **The token claim precedes `auth.updateUser`.** A crash between burns the token (annoying,
-  one-click operator remedy) rather than leaving a replayable one.
-- Logs `{ fn, memberId, tokenPrefix, outcome }` and nothing else — never the token, never the
-  password, never `request.data`. A test asserts it.
+- **Token hash IS the doc id** (`memberInvites/{sha256hex(token)}`) — no secret comparison, bounded lookup, not enumerable.
+- **Rate-limited IN PROCESS, never in Firestore.** 5 calls/min per token **per callable** (a link gets 5 `describeInvite` AND 5 `redeemInvite` a minute) plus 600/min endpoint-wide per callable — the key that actually bounds a flood. Consulted before ANY read; writes nothing (a counter doc would be a guaranteed billable write per unauthenticated request). `rate-limit.ts` bounds memory (LRU, 2048 buckets). **The ceiling is per-INSTANCE** (`maxInstances: 10`; a cold start resets buckets) — never quote it as a global figure. "Times however many are warm" is headroom for legitimate traffic only, NOT the denial threshold: treat one instance as a conservative floor. The endpoint-wide bucket has SHARED FATE (exhausting it refuses everyone), so it is sized to bound cost: ~1,200 reads/min on one instance (600 calls × ≤2 keyed reads), ~12k across a saturated pool of ten. Denial threshold ~10 req/s — `INVITE_GLOBAL_DENIAL_PER_SECOND`, derived, not typed. CANONICAL for every figure: the `globalPerMinute` docblock in `packages/types/src/member-invite.ts`. A tripwire test in `redeem-invite.test.ts` pins the derived values and lists every prose site restating them, this bullet included. The request-rate alert in `docs/firebase-setup.md` stays just under the denial point.
+- **App Check IS enforced in production, and deliberately NOT under the emulator** (`ENFORCE_APP_CHECK`, derived from `UNDER_EMULATOR` in `token-verification-bypass.ts`). A test pins BOTH branches. App Check bounds WHO may call, not how often — the limiter ships alongside it. For a callable the `onCall` flag IS the enforcement. Setup/diagnosis:
+  `docs/firebase-setup.md`, owner op 3.
+- **`issueMemberInvite` enforces App Check too; the admin-only callables do not.** Enforced list = `APP_CHECK_ENFORCED_CALLABLES`, pinned by `app-check-scope.test.ts`; rationale in `docs/firebase-setup.md`, owner op 3.
+- **One debug flag defeats BOTH token verifications, and every callable refuses it.** `FIREBASE_DEBUG_MODE=true` + `FIREBASE_DEBUG_FEATURES` with `skipTokenVerification` makes firebase-functions accept unverified App Check AND Auth ID tokens (forged claims pass `callable-auth.ts`; `enforceAppCheck: true` does not help). **Every callable MUST be declared through `guardedOnCall`** (`src/guarded-on-call.ts`; design `docs/specs/structural-oncall-guard.md`; refusal on `assertTokenVerificationNotBypassed`). `FUNCTIONS_EMULATOR` cannot be guarded in-process: `.github/scripts/assert-deployed-env-clean.sh` is its only control; its service list is enumerated in `deploy.yml` and pinned by the deploy-list test in `src/redeem-invite.test.ts`.
+- **`maxInstances`** caps billing but converts cost into availability; the rate gate keeps a throttled request from occupying an instance.
+- **The token claim precedes `auth.updateUser`** — a crash burns the token, never leaves a replayable one.
+- Logs `{ fn, memberId, tokenPrefix, outcome }` only — never the token, the password, or `request.data`. A test asserts it.
 
-### `setUserRoles` — `onCall` (F1, unchanged)
+## Admin callables
+
+### `setUserRoles` — `onCall`
 
 Admin-guarded custom-claim assignment.
 
 ### `reseedBuiltInRolePerms` — `onCall`
 
-Admin-guarded. Moves the LIVE `roles/{id}` docs onto the current `BUILT_IN_ROLE_PERMS`
-snapshot. `seedRoles` uses `create()` and swallows `ALREADY_EXISTS` by design, so editing
-the snapshot alone never reaches production — this is the path that does.
+Admin-guarded. Moves LIVE `roles/{id}` docs onto the current `BUILT_IN_ROLE_PERMS` snapshot. `seedRoles` is create-only (swallows `ALREADY_EXISTS`), so editing the snapshot alone never reaches production — this is the path that does.
 
-**OPERATOR SEQUENCE — both callables, in this order.** This one is **update-only**: it
-never creates a missing doc. A newly added built-in role (`ActivityManager`, `Secretary`)
-has no `roles/{id}` doc in production, so a reseed alone will never bring it into
-existence — it comes back as `skipped` reason `missing` (and in `failed`), and the role
-stays a "sin sincronizar" row on `/permisos` forever. Run:
+**OPERATOR SEQUENCE — both callables, in this order.** The reseed is **update-only**: a newly added built-in role has no `roles/{id}` doc in production and comes back `skipped` reason `missing` (and in `failed`), staying "sin sincronizar" on `/permisos` forever.
 
-1. `seedRoles` — create-only; brings the new role docs into existence with their seed
-   perms, name and description. Leaves every existing doc untouched.
-2. `reseedBuiltInRolePerms` — update-only; moves the existing docs onto the new snapshot.
-3. `recomputeAllClaims` — the observable backstop (see BLAST RADIUS below).
+1. `seedRoles` — create-only; brings new role docs into existence.
+2. `reseedBuiltInRolePerms` — update-only; moves existing docs onto the new snapshot. **Run it as `{ dryRun: true }` first and read `coverageAnomalies`** — the only signal for built-in docs whose `builtIn` is not `true` or whose `builtInKey` is absent/mismatched (invisible to the claims-sync anomaly logs). An uncovered key is re-minted from the seed, so deactivating it is a silent no-op. An anomaly needs a console field edit, not `seedRoles`.
+3. `recomputeAllClaims` — the observable backstop (see BLAST RADIUS).
 
-Skipping step 1 is the failure mode to watch for; skipping step 2 leaves every incumbent
-role on its old perms.
+Skipping step 1 is the failure mode to watch for; skipping step 2 leaves incumbents on old perms.
 
-**`recomputeAllClaims` return contract.** `{ ok, synced, failed }` where **`ok` is
-`failed.length === 0`** — false whenever any member's sync threw. Nothing in this repo calls
-it, so a human reading the response is the only consumer; the contract is pinned by
-`recomputeClaimsResult` in `recompute-claims.ts` and its unit test rather than resting on that
-reading. `synced` counts provisioned members only (a member doc with no `uid` is skipped
-without counting), and `failed` holds member doc ids. A stale-role-snapshot warning is
-**logged, not folded into `ok`** — `ok` keeps one meaning (per-member failures), and re-running
-is the response to both.
-
-**Run step 2 as `{ dryRun: true }` first and read `coverageAnomalies`.** It is the only signal
-anywhere for built-in docs whose `builtIn` is not `true` or whose `builtInKey` is absent or
-mismatched. Those docs are invisible to all three of beacon's claims-sync anomaly logs, which
-only inspect docs the `where("builtInKey","in",keys)` query MATCHED — this callable reads all
-nine `roles/{key}` docs BY ID. An uncovered key is re-minted from the seed snapshot, so
-deactivating such a role is a silent no-op that `/permisos` reports as a revocation. Reported
-separately from `failed`, which stays the "run `seedRoles` first" shorthand for `missing` ids;
-an anomaly needs a console field edit instead.
-
-**OWNER-OP, after the reseed — the Secretario cargo, in this order.** The reseed strips the
-Ally trio (`read:Ally`, `create:Ally`, `update:Ally`) from `Membership`; `Secretary` is where
-those live now. But the code-side cargo mapping (`packages/types/src/cel-positions.ts`,
-`tools/scripts/lib/cel-seed.mjs`) reaches a **fresh project only** — `seedPresident` writes
-`CEL_SEED` just `if (snap.empty)`, and production `positions` is not empty. So in production
-this is a `/positions` edit someone types by hand (Admin-only; the reseed never touches
-`positions`):
+**OWNER-OP, after the reseed — the Secretario cargo, in this order.** The reseed strips the Ally trio (`read:Ally`, `create:Ally`, `update:Ally`) from `Membership`; `Secretary` holds them now. The code-side cargo mapping (`packages/types/src/cel-positions.ts`, `tools/scripts/lib/cel-seed.mjs`) reaches a fresh project only (`seedPresident` writes `CEL_SEED` only `if (snap.empty)`), so in production this is a hand edit on `/positions` (Admin-only):
 
 4. **ADD `Secretary` to the Secretario cargo's `grants`.**
 5. **THEN remove `Admin`** from that cargo.
 
-Doing 5 before 4, or skipping 4, leaves `create:Ally`/`update:Ally` and
-`manage:Lead`/`manage:Notification` with no holder but Admin — `/allies` and `/leads`
-disappear from the nav of everyone whose authority came through that cargo, silently.
+5 before 4, or skipping 4, leaves `create:Ally`/`update:Ally` and `manage:Lead`/`manage:Notification` held only by Admin — `/allies` and `/leads` silently vanish from that cargo's nav.
 
-- Writes **`permissions` only.** Never `name`, never `description`: the doc owns display
-  text, which is what lets a reseed coexist with role renaming. An operator re-running it
-  must not silently revert every rename.
-- Requires `confirm: "overwrite-builtin-roles"`. `requireAdmin` is the same gate the
-  read-only admin ops use; a destructive one should not be one click away.
-- `dryRun: true` writes nothing and returns per-doc `{id, current, proposed}`. `current` is
-  the **raw** on-disk array, junk included — not the sanitized one the claims pipeline would
-  read, which would describe a document state that does not exist.
-- A doc whose `permissions` carries a code `isValidPermissionCode` rejects is **applied**,
-  not reported `unchanged`, even when the sanitized set already matches. Otherwise the junk
-  is never normalized and that doc is indistinguishable from an up-to-date one.
-- A soft-deleted built-in (`active: false` / `deletedAt` set) is skipped `inactive`, never
-  revived.
-- Skips `locked === true`. The admin SDK bypasses the `locked` rule the client is held to,
-  so `roles/Admin` is excluded explicitly rather than by assumption.
-- One `WriteBatch` (≤ 9 docs, far under the 500 limit). The doc-by-doc loop would leave half
-  the role set on new perms and half on old, with fan-outs already fired for the first half
-  and no rollback.
-- Returns `{ok, dryRun, applied: [{id, changedFields}], skipped, failed}`. `skipped` reasons
-  are `locked` / `unchanged` / `not-built-in` / `missing` / `inactive`; `failed` is the operator
-  shorthand for exactly the `missing` ids — run `seedRoles` first. **`ok` is false whenever
-  `failed` is non-empty**, so the skipped-step-1 mistake does not read as success.
+Invariants:
 
-**BLAST RADIUS — cost.** `onRoleWritten` scans the **entire** members collection for any doc
-carrying a `builtInKey`, unbounded (no `.limit()`, no cursor). Every applied doc fires its
-own scan, and one `WriteBatch` lands them all at once — so the nine-role rollout is up to
-eight *concurrent* full scans, each doing a sequential `getUser` plus possible
-`setCustomUserClaims` per member, inside a 540 s budget with `retry: false`. A timeout
-strands the members that scan had not yet reached. **Operator instruction: run
-`recomputeAllClaims` afterwards as the observable backstop** — noting it is itself an
-unbounded scan, so on a large collection the backstop shares the failure mode. Re-running
-the reseed is free — `roleClaimsChanged` short-circuits a no-op write.
+- Writes **`permissions` only** — never `name`/`description` (the doc owns display text; a re-run must not revert renames).
+- Requires `confirm: "overwrite-builtin-roles"`.
+- `dryRun: true` writes nothing; returns per-doc `{id, current, proposed}` with `current` the **raw** on-disk array, junk included.
+- A doc whose `permissions` carries a code `isValidPermissionCode` rejects is **applied**, never reported `unchanged`.
+- A soft-deleted built-in (`active: false` / `deletedAt` set) is skipped `inactive`, never revived.
+- Skips `locked === true`; `roles/Admin` is excluded explicitly (the admin SDK bypasses the `locked` rule).
+- One `WriteBatch` (≤ 9 docs) — never a doc-by-doc loop (half-applied, no rollback).
+- Returns `{ok, dryRun, applied: [{id, changedFields}], skipped, failed}`; `skipped` reasons `locked` / `unchanged` / `not-built-in` / `missing` / `inactive`; `failed` = exactly the `missing` ids. **`ok` is false whenever `failed` is non-empty.**
 
-**BLAST RADIUS — the two log lines that make a stranded member visible.** A 540 s timeout used
-to log NOTHING (the aggregate line was `if (failed > 0)`), so it was indistinguishable from a
-clean run. `onRoleWritten` now emits a `console.info` START line (role id, `builtInKey`, member
-count) before the fan-out: **alert on a start with no matching completion.** Separately, the
-built-in role query is memoized per deps instance while `onRoleWritten` and
-`recomputeAllClaims` each hold one for up to 540 s — so a role write landing mid-fan-out means
-later members were computed from a pre-change snapshot, with `retry: false` and no later
-trigger to correct them. Both now re-read once after their loop and log `staleRoleKeys`.
-Operator response to either line: `recomputeAllClaims`. A TTL was rejected — it narrows the
-window while keeping the failure silent.
+**`recomputeAllClaims` return contract.** `{ ok, synced, failed }` where **`ok` is `failed.length === 0`**. Pinned by `recomputeClaimsResult` in `recompute-claims.ts` and its unit test. `synced` counts provisioned members only (no-`uid` docs skipped uncounted); `failed` holds member doc ids. A stale-role-snapshot warning is **logged, not folded into `ok`**; re-running is the response to both.
 
-**BLAST RADIUS — data exposure.** Reseeding `roles/Member` moves it from `[]` to five
-coarse reads including `read:Member`, and *every* provisioned user carries the `Member`
-role. The members read rule is `canDo('read','Member') || own uid`, so from that moment the
-whole member directory — email, phone, profession, birthdate, positions,
-permissionOverrides — is readable by any signed-in member. That is the larger irreversible
-consequence of this callable, deliberate per `docs/specs/builtin-role-set.md`, and it is not
-undone by re-running anything: reverting means editing `roles/Member` back down.
+**BLAST RADIUS — cost.** `onRoleWritten` scans the **entire** members collection for any doc with a `builtInKey`, unbounded. Each applied doc fires its own scan and one `WriteBatch` lands them all, so a rollout is up to eight _concurrent_ full scans (sequential `getUser` + possible `setCustomUserClaims` per member) inside a 540 s budget with `retry: false`. A timeout strands the members not yet reached. **Operator instruction: run `recomputeAllClaims` afterwards as the observable backstop** — itself an unbounded scan, sharing the failure mode on a large collection. Re-running the reseed is free (`roleClaimsChanged` short-circuits no-ops).
 
-## Architecture
+**BLAST RADIUS — the two log lines that make a stranded member visible.** `onRoleWritten` emits a `console.info` START line before the fan-out: **alert on a start with no matching completion.** Both `onRoleWritten` and `recomputeAllClaims` re-read the memoized built-in role set after their loop and log `staleRoleKeys` (a role write landed mid-fan-out). Operator response to either:
+`recomputeAllClaims`. Do not add a TTL — it keeps the failure silent.
 
-- **Pure helpers** (`award-points/derive.ts`, `aggregate.ts`, `check-in.ts`,
-  `participation-id.ts`) — framework-free, fully unit-tested; consume
-  `@luminova/types/engine` (`resolvePointRuleCode`, `computePunctualityFactor`,
-  `DEFAULT_POINT_VALUES`, types).
-- **Orchestration** (`award-points/process.ts`) — written against the `EngineStore`
-  port; unit-tested with an in-memory fake. No Firestore here.
-- **Glue** (`award-points/firestore-store.ts` admin-SDK `EngineStore` impl +
-  `index.ts` trigger bindings) — impure; exercised by the emulator e2e, not units.
+**BLAST RADIUS — data exposure.** Reseeding `roles/Member` grants `read:Member` to every provisioned user, so the whole member directory (email, phone, birthdate, positions, permissionOverrides…) becomes readable by any signed-in member. Deliberate per `docs/specs/builtin-role-set.md`; not undone by re-running anything — revert by editing `roles/Member` down.
 
-## Rules
+## Known gaps (deferred)
 
-- **Admin SDK only** — never import `firebase/firestore` (client SDK). Use
-  `firebase-admin`. The engine writes the client-read-only `participations` /
-  `memberPoints` / `members.totalPoints` via the admin SDK (rules bypassed).
-- **NodeNext modules** — relative imports use explicit `.js` extensions (e.g.
-  `import { processCheckIn } from "./award-points/process.js"`). `@luminova/types`
-  is consumed via the `/engine` pure subpath (raw-Node-ESM valid).
-- **Idempotent** — deterministic participation ids + full-recompute aggregate are
-  safe under at-least-once redelivery.
-- Functions runtime: **Node 24** (`firebase.json` → `functions.runtime: "nodejs24"`,
-  `engines.node: "24"`).
+- Not built: dues→points voiding (roadmap J4), roster auto-expansion of director/team rows, term-window cutoff in the aggregate.
+- Showcase projection gaps (board term rollover, stale team-credit names) and the boardShowcase ordering rule live in `.claude/rules/beacon-showcase.md`.
+- **boardShowcase stale publication under the fail-closed `active` guard:** `projectBoard` drops a member on `deletedAt != null || active !== true`, but cannot reach a row already published for a non-bool `active` (such docs are admin-SDK-only in `firestore.rules`, and `pnpm audit:soft-delete-shapes --repair` refuses to coerce a non-bool `active`). Remedies: (a) the script's report, then a console edit of `active`; or (b) an Admin `publicProfile: false` write (the takedown arm skips `softDeleteSafe()` on purpose; a rules test pins it). Repairing a missing `active` to `true` can **add** a public row — announced per doc (`WILL PUBLISH:`) and withheld behind `--allow-publish`.
+- **`pnpm audit:soft-delete-shapes` is a deploy precondition** for the well-formedness rules (owner-op 4 of `docs/specs/position-assignment-lane.md`); exits 1 on findings, 2 when the run did not complete.
 
-## Harness
+## Deploy trap
 
-- **CI gate.** `pnpm --filter beacon run ci` = eslint → tsc → vitest. Rolled into
-  `pnpm pr-tests`. Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin.
-- **Sensitive surface — server-side trust boundary. ALWAYS `/security-review` +
-  `firebase-functions-reviewer` before "done".** Untrusted check-in input, points
-  integrity, deletion handling.
-- **Deferred:** dues→points voiding (J4), roster auto-expansion of director/team
-  rows (role arrives on the check-in fact in v1), term-window cutoff in the
-  aggregate, prod composite indexes + functions bundling for deploy.
-- **Deferred (boardShowcase term rollover + cargo edits):** `onBoardMemberWritten`
-  derives the term from `currentTermKey()` at trigger time and resolves the cargo
-  title/category from `positions/{cargoId}` at member-write time, but only fires on
-  `members/{id}`. So (a) a board member whose doc gets no write after the UTC-year
-  rollover keeps their prior-term entry live, and (b) an edit to a cargo's
-  title/titleFemale/category in `positions/` does not re-project members holding it
-  until each member doc is re-written. Same class as the aggregate term-window gap,
-  but the stale data is public. Fix later with a scheduled re-projection at term
-  rollover and/or an `onDocumentWritten("positions/{id}")` re-projection.
-- **Deferred (showcase team-credit names go stale on a rename):** `showcasePerson`
-  denormalizes `members/{id}.name` into `showcase/{initiativeId}.team[]`, but
-  `projectShowcase` runs only from `initiativeTrigger` / `onActivityWritten` — never on a
-  `members/{id}` write. So a rename leaves the old name in past team credits until that
-  initiative is next edited, while `boardShowcase` (member-write-driven) updates
-  immediately — the two public surfaces disagree in the meantime. Self-service renaming
-  (`/me`) widened who can cause this; previously only admins renamed. Fix later with a
-  rename-gated fan-out in the members trigger: skip unless `before.name != after.name`,
-  then query programs+projects on `roster.directorId` / `roster.coDirectorIds` /
-  `roster.teamIds` (nested paths — the bare names match nothing), bounded with `.limit()`
-  and re-projected through `chunk()`.
-- **Deferred (boardShowcase stale publication under the fail-closed `active` guard):**
-  `projectBoard` now drops a member on `deletedAt != null || active !== true` — fail-closed,
-  matching `projectAlly`. That stops the NEXT publication of a member whose `active` is a
-  non-bool (the string `"false"`) or absent, but it cannot reach a row already published
-  under the old `active === false` test: `onBoardMemberWritten` fires only on a
-  `members/{id}` write, and `firestore.rules` now makes such a doc admin-SDK-only on every
-  lane but one. There is no automatic remedy — `pnpm audit:soft-delete-shapes --repair`
-  deliberately refuses to coerce a non-bool `active`, so it writes nothing and fires no
-  trigger for exactly the exposed shape. The only remedies are (a) that script's report,
-  which lists every exposed doc untruncated, then a Firebase console edit of `active`, or
-  (b) an Admin `publicProfile: false` write on the member — the takedown arm in
-  `firestore.rules` skips `softDeleteSafe()` on purpose so it stays open on these docs (a
-  rules test pins it), though backstage will not list the member because `memberDocSchema`
-  drops it. The script's repair moves the projection the OTHER way for a different shape: a
-  member missing `active` is repaired to `active: true`, which un-blocks this same fail-closed
-  gate and, if the rest of `projectBoard` passes, **adds** a public row. That is announced per
-  doc (`WILL PUBLISH:`) and withheld behind `--allow-publish`, so publication is never a
-  silent side effect of a shape fix. **`pnpm audit:soft-delete-shapes` is a deploy
-  precondition** for the
-  well-formedness rules (owner-op 4 of `docs/specs/position-assignment-lane.md`); it exits 1
-  on findings and 2 when the run itself did not complete. Fix later with a scheduled
-  re-projection, which would also close the term-rollover gap above.
-- **boardShowcase ordering (CLOSED):** `onBoardMemberWritten` used to project
-  `after.data()`, so a late-delivered invocation could re-publish a member from a stale
-  payload — silently undoing an opt-out or an Admin takedown until the next member write.
-  It now runs the whole projection inside a transaction that reads the LIVE member doc and
-  uses the event payload only for the doc id, so the last committed state wins and a
-  concurrent member write aborts and re-runs the projection. It also runs `retry: true`
-  and rethrows, because the delete branch is the takedown path.
-- **Heaviest skills.** `/security-review`, `secure-dep-vetting` (server deps).
+A deployed function cannot change trigger type in place (HTTPS ↔ background/Eventarc); a failed first 2nd-gen Eventarc deploy can leave Firestore-trigger functions behind as HTTPS services. Fix (owner op): `firebase functions:delete <names> --region us-central1 --force`, then redeploy.
