@@ -29,10 +29,9 @@ until an isolated branch is checked out.
 
 1. Confirm clean state on `main`: `git status --porcelain` empty, `git rev-parse --abbrev-ref HEAD` = `main`.
 2. Pick a scoped branch name: `feat/<slug>` (or `fix/`, `chore/`, `migration/`).
-3. Create + check out an isolated worktree — prefer a native tool, fall back to git:
-   - Native: `EnterWorktree` / `WorktreeCreate` / `/worktree` if available.
-   - Fallback (repo convention): `git worktree add -b feat/<slug> .worktrees/<slug> main`
-     (`.worktrees/` is gitignored; `node_modules` is symlinked via `.claude/settings.json`).
+3. Create + check out an isolated worktree with git (not `EnterWorktree`, which uses
+   `.claude/worktrees/`): `git fetch && git worktree add -b feat/<slug> .worktrees/<slug> origin/main`
+   (local `main` lags; `.worktrees/` is gitignored; `node_modules` is symlinked via `.claude/settings.json`).
 4. **Verify before touching code:** `git -C .worktrees/<slug> rev-parse --abbrev-ref HEAD` must equal your branch. All subsequent Write/Edit paths go inside `.worktrees/<slug>/`.
 
 ### Red flags — stop if you catch yourself thinking…
@@ -79,7 +78,8 @@ Default to the cheapest tier that fits; escalate deliberately, not reflexively.
 3. **Run every review it printed**, ENFORCED and REQUIRED alike. Ordering when
    several apply: `/simplify` (only once the feature is functionally done, not
    mid-iteration) → `/code-review` (it has caught CRITICALs the subagents missed;
-   never skip it) → `/security-review` + the read-only subagents the router named.
+   never skip it — it is user-invoked only, so ask the user to run it or run an
+   adversarial Opus review subagent, and say in the PR which you did) → `/security-review` + the read-only subagents the router named.
 4. **Stamp what you ran**, once, with the token set the router printed:
    ```
    git commit --allow-empty -m 'chore: reviews' -m "Reviews: $(git rev-parse HEAD) <tokens>"

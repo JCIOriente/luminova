@@ -13,11 +13,10 @@ Public marketing site for JCI Oriente. No authentication, no backend of its own.
 - **Real org data** — actual names, stats, content; no lorem ipsum.
 - **Responsive** — mobile-first, all screen sizes.
 - **Light-background route** → add it to `LIGHT_HERO_ROUTES` in `src/components/header.tsx`, or the header nav renders invisible.
-- **Use `clsx`, not `cn`** — `cn` pulls tailwind-merge into the public bundle.
 - **OG image**: WhatsApp caches it by exact URL with no re-scrape. A new image gets a new file name (`og-image-v3.png`) updated in every `index.html` reference — never a query-string bust. Per-route OG images do nothing (SPA rewrite + non-JS crawlers) without a crawler-serving function.
 - **Public jargon** — umbrella word "proyectos"; "programa" only for annual institutional programs; "iniciativa" banned (eslint `no-restricted-syntax`, spotlight-only). "programa" misuse isn't lintable — review by hand. See `docs/specs/2026-07-10-impacto-unification-design.md`.
 
 ## Harness
 
-- **CI.** `pnpm --filter spotlight run ci` (eslint → tsc → vitest; rolled into `pnpm pr-tests`). Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin. Bundle budgets are gated by `tools/scripts/check-bundle-budget.sh`.
+- **CI.** `pnpm --filter spotlight run ci` (eslint → tsc → vitest; rolled into `pnpm pr-tests`). Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin. Eager-JS and index-CSS budgets are gated by `tools/scripts/check-bundle-budget.sh` (CI `checks` job only, not `pr-tests`); the route-chunk budget is not gated — check it with `bundle-budget-watcher`.
 - **Performance** — load perf is the priority. Budgets (source of truth: `docs/performance.md`): eager JS ≤ 108 kB gz, index CSS ≤ 17 kB gz, any route chunk ≤ 40 kB gz. LCP is hero **text** (no raster hero); the sans woff2 is preloaded by `preloadJakartaLatin()` in `vite.config.ts` — don't duplicate. Keep fonts latin-only, below-fold reads on `useAsyncOnVisible`. Dispatch `bundle-budget-watcher` after dep/route changes.

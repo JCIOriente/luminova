@@ -43,10 +43,10 @@ features/<name>/
 
 1. **Schema** — `z.object({...})` in `types/<name>-schema.ts`; export
    `export type <Singular>Input = z.infer<typeof schema>`.
-2. **Repository** — class with `private collection = collection(db, '<name>')`;
+2. **Repository** — class with `private collection = collection(getDb(), '<name>')`;
    methods `getAll`, `getById`, `create`, `update`, and `softDelete` (sets
    `deletedAt: Timestamp` + `active: false`) **only if soft-deletable**. Import
-   `db` from `@luminova/firebase`.
+   `getDb` from `@luminova/firebase/db` (never the `@luminova/firebase` barrel).
 3. **Query keys** — `const <name>Keys = { all: ['<name>'] as const, ... }`.
 4. **Hooks** — `useQuery` for lists, `useMutation` + `queryClient.invalidateQueries`
    on success for writes. One hook per file.

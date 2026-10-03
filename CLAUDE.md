@@ -27,7 +27,7 @@ pnpm pr-tests                               # the full local gate
 firebase emulators:start
 ```
 
-Emulator ports: Auth 4030, Firestore 4010, Functions 4020, Hosting 4000, Storage 9199, UI 4100. Each frontend needs `.env.local` with `VITE_FIREBASE_{API_KEY,AUTH_DOMAIN,PROJECT_ID,STORAGE_BUCKET,MESSAGING_SENDER_ID,APP_ID,VAPID_KEY}` and `VITE_FIREBASE_EMULATOR_ENABLED` (`true` connects to the emulators). The flag is read at runtime, so a normal `pnpm build` served by the Hosting emulator (:4000) logs in against **prod** Auth; for local auth use `pnpm dev` or `pnpm build:local` / `preview:local`.
+Emulator ports: Auth 4030, Firestore 4010, Functions 4020, Hosting 4000, Storage 9199, UI 4100. Each frontend needs `.env.local` with `VITE_FIREBASE_{API_KEY,AUTH_DOMAIN,PROJECT_ID,STORAGE_BUCKET,MESSAGING_SENDER_ID,APP_ID,VAPID_KEY}` and `VITE_FIREBASE_EMULATOR_ENABLED` (`true` connects to the emulators). Full list, incl. `VITE_APPCHECK_SITE_KEY`: `apps/*/.env.local.example`. The flag is baked in at build time: `pnpm build` (production mode) loads `.env.production`, which sets it `false`, so a normal build served by the Hosting emulator (:4000) logs in against **prod** Auth. For local auth use `pnpm dev` or `pnpm build:local` / `preview:local`. Deploys go through CD (`docs/ci-cd.md`); manual deploy commands are in `docs/firebase-setup.md`.
 
 ## Conventions
 
@@ -48,12 +48,12 @@ The `feature-flow` skill drives this sequence end to end. Per feature, in order:
 3. **Design** (UI only): `frontend-design` first, then `ui-ux-pro-max` to validate palette, type, a11y and contrast. Never the reverse.
 4. **Isolate**: a worktree, before the first edit (see Worktree-first).
 5. **Dependencies**: `secure-dep-vetting`.
-6. **Implement**: TDD (`superpowers:test-driven-development`); `react-best-practices` on `.tsx`.
+6. **Implement**: TDD (`superpowers:test-driven-development`); `react-best-practices` on `.tsx`. A written plan runs via `superpowers:executing-plans` (separate session) or `superpowers:subagent-driven-development` (same session); 2+ independent jobs: `superpowers:dispatching-parallel-agents`.
 7. **Debug** when something breaks: `superpowers:systematic-debugging`.
 8. **Cleanup**: `/simplify` on the diff, only once the feature is functionally done.
 9. **Verify**: `superpowers:verification-before-completion`. Run commands, show the output.
 10. **Security**: `/security-review`, required for auth, Firestore rules and Cloud Functions.
-11. **Review**: the set the review router prints (see Review routing).
+11. **Review**: the set the review router prints (see Review routing). On feedback, `superpowers:receiving-code-review`: apply with rigor, not blind agreement.
 12. **Finish**: `superpowers:finishing-a-development-branch`; `/security-review` once more on the full branch before the PR.
 
 Rules:
@@ -61,7 +61,7 @@ Rules:
 - **Never decide the review set by judgment**: run the router and run what it lists.
 - **Never skip `secure-dep-vetting`** or **`/security-review`** where they apply.
 - When several tools apply: process skills (brainstorming, debugging) → domain skills → review subagents (`*-reviewer`, `*-watcher`) → cross-stack review (`/security-review`, `/code-review`).
-- `/code-review` is user-invoked only. When the router lists it, run an adversarial Opus review subagent instead and say so in the PR.
+- `/code-review` is user-invoked only. When the router lists it, either ask the user to run it, or run an adversarial review subagent (Opus) and say in the PR which you did. Never stamp the token when neither happened.
 - Heaviest skills per area: spotlight → `frontend-design`, `ui-ux-pro-max`; backstage → `react-best-practices`, `security-review`, `ui-ux-pro-max` (a11y of tables/forms); beacon → `security-review`, `secure-dep-vetting`; `packages/ui` → `react-best-practices`, `ui-ux-pro-max`.
 - **Subagent models**: choose `model` on every dispatch. Opus for React, rules, security and complex logic; Sonnet for mechanical work; Fable to review docs-heavy PRs.
 
@@ -118,10 +118,10 @@ Only the `hard` class is shell-enforced. A mandated review that was neither run 
   Review-Exception: <reason> — <correctness gate run + invariant asserted>
   ```
 - **Worktree-first (MANDATORY).** Every feature or fix, tooling and docs included, runs in its own worktree created before the first edit:
-  `git fetch && git worktree add .worktrees/<slug> -b <branch> origin/main` (local `main` lags `origin/main`). Use `.worktrees/`, never `.claude/worktrees/` (so not the `EnterWorktree` tool). Never edit, build or test in the primary checkout. Remove the worktree after the PR merges.
+  `git fetch && git worktree add .worktrees/<slug> -b <branch> origin/main` (local `main` lags `origin/main`). Use `.worktrees/`, never `.claude/worktrees/` (so not the `EnterWorktree` tool). Never edit, build or test in the primary checkout. `.worktrees/` is gitignored and excluded from prettier/knip. Remove it after the PR merges (`git worktree remove .worktrees/<slug>`).
 - **Branch per feature.** Off `main`, before the first edit; never commit feature work to `main`/`master`. Prefixes `feat/ fix/ chore/ migration/`. Conventional Commits with module scope (`feat(backstage): …`). `master` is always deployable. Check the branch before committing: the user may switch it underneath you.
 - **Codegen-drift gate.** Any artifact generated on one boundary and consumed on another (`@luminova/types` shared schemas, generated Firestore types) gets a CI check that regenerates and fails on diff.
-- **Performance budget.** Frontend changes hold the budgets and Core Web Vitals targets in `docs/performance.md`. After any dep or route change, dispatch `bundle-budget-watcher` and note the `index`-chunk gz delta; a budget breach must be a conscious, noted decision.
+- **Performance budget.** Frontend changes hold the budgets and Core Web Vitals targets in `docs/performance.md` and follow its Claude guardrails (section 5). After any dep or route change, dispatch `bundle-budget-watcher` and note the `index`-chunk gz delta; a budget breach must be a conscious, noted decision.
 - **Docs layout.** `docs/specs/` (designs), `docs/plans/` (impl plans), `docs/status/` (handoffs), `docs/tooling/skill-development-log.md` (skill history), `docs/roadmap.md` (the work queue and owner decisions).
 - **Recurring pitfalls (2026-07 audit): guardrails.** Detail, examples and the enforcing guard for each are in `docs/engineering-guardrails.md`.
   1. **Extract, don't copy.** Same logic in 2+ places → parameterize or extract (rule of three), consolidate when touched.
@@ -133,4 +133,4 @@ Only the `hard` class is shell-enforced. A mandated review that was neither run 
 
 ## Reference Docs
 
-`docs/architecture.md` (system overview) · `docs/data-models.md` (Firestore schemas) · `docs/features.md` · `docs/firebase-setup.md` (emulators, deploy, owner ops) · `docs/domains.md` (custom domains and fallback) · `docs/ci-cd.md` (CI, keyless CD, rollback) · `docs/performance.md` · `docs/engineering-guardrails.md` · `docs/reuse-first-ui.md` (color tokens, component index, type scale; backed by eslint guards) · `packages/ui/DESIGN.md` (design-system manifest for Claude Design) · `docs/roadmap.md`.
+`docs/architecture.md` (system overview) · `docs/data-models.md` (Firestore schemas) · `docs/features.md` · `docs/firebase-setup.md` (emulators, deploy, owner ops) · `docs/domains.md` (custom domains and fallback) · `docs/ci-cd.md` (CI, keyless CD, rollback) · `docs/performance.md` (budgets + the Claude guardrails) · `docs/engineering-guardrails.md` · `docs/reuse-first-ui.md` (color tokens, component index, type scale; backed by eslint guards) · `packages/ui/DESIGN.md` (design-system manifest for Claude Design) · `docs/roadmap.md`.
