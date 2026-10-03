@@ -9,7 +9,7 @@ Firebase Cloud Functions backend. Owns the Recognition Engine compute (participa
 - **NodeNext modules** — relative imports use explicit `.js` extensions. `@luminova/types` is consumed via the `/engine` pure subpath (raw-Node-ESM valid).
 - **Idempotent** — deterministic participation ids + full-recompute aggregate, safe under at-least-once redelivery.
 - **Layering:** pure helpers (`award-points/derive.ts`, `aggregate.ts`, `check-in.ts`, `participation-id.ts`) get unit tests; orchestration (`award-points/process.ts`) is written against the `EngineStore` port, unit-tested with an in-memory fake, no Firestore; glue (`award-points/firestore-store.ts`, `index.ts` trigger bindings) is exercised by emulator e2e, not units.
-- **CI gate:** `pnpm --filter beacon run ci` (eslint → typecheck → vitest → emulator tests), rolled into `pnpm pr-tests`. Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin.
+- **CI gate:** `pnpm --filter beacon run ci` (eslint → typecheck → vitest → emulator tests), rolled into `pnpm pr-tests`.
 
 ## Triggers
 

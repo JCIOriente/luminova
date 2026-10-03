@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Shared components for `apps/spotlight` and `apps/backstage`: bespoke, token-driven, **pure Tailwind v4 utilities** (no semantic CSS classes), consumed as **raw TypeScript source** (no build step).
+Shared components for `apps/spotlight` and `apps/backstage`: bespoke, token-driven, **pure Tailwind v4 utilities** (no semantic CSS classes; app-local ones like spotlight's `.area-card` stay in the app), consumed as **raw TypeScript source** (no build step).
 
 ## Components
 
@@ -24,7 +24,7 @@ Coded half of a **Claude Design** (claude.ai/design) system — process in [`doc
 
 - **`DESIGN.md`** is the ingest manifest. Update it whenever a component is added/removed.
 - **Ingesting a redesign:** brainstorm + scope first, reconcile tokens (`theme.css`) as the foundation batch, then migrate components **by category in batches**, delta-driven.
-- **Translate, don't copy.** Re-express the handoff's semantic `jci-*` CSS in pure Tailwind utilities. Never add the handoff's CSS system to the repo.
+- **Translate, don't copy.** Components mirror the handoff's visual spec (brand fidelity). Re-express the handoff's semantic `jci-*` CSS in pure Tailwind utilities. Never add the handoff's CSS system to the repo.
 - **Preserve public APIs** so usage sites absorb a redesign with no churn; new props optional.
 - **Brand tokens are locked** — flag off-brand proposals, don't apply silently.
 - **Component library ≠ Spotlight pages.** Migrate the library first; brainstorm page redesigns separately.
@@ -46,9 +46,6 @@ Then `pnpm --filter <app> add "@luminova/ui@workspace:*"`.
 
 - Merge/override classes with `cn()` (`src/lib/cn.ts`); append overrides last.
 - **React is a peerDependency** — never bundle React here.
-- No semantic CSS classes in shared components (those stay app-local, e.g. spotlight's `.area-card`).
 - `animate-spin` sets the `animation` shorthand, which overrides an arbitrary `[animation-duration:X]` on the same element; for a slow spin use the `animate-ripple-spin` token.
 - Animated components use `motion-reduce:*` variants; apps keep a global `@media (prefers-reduced-motion)` reset.
-- Don't reintroduce a build step.
 - Every new export goes in `src/index.ts` and must be consumed by an app or the smoke test `src/index.test.ts` (knip flags unused exports).
-- Keep brand fidelity: components mirror the Claude Design handoff's visual spec.

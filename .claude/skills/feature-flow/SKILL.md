@@ -31,7 +31,9 @@ until an isolated branch is checked out.
 2. Pick a scoped branch name: `feat/<slug>` (or `fix/`, `chore/`, `migration/`).
 3. Create + check out an isolated worktree with git (not `EnterWorktree`, which uses
    `.claude/worktrees/`): `git fetch && git worktree add -b feat/<slug> .worktrees/<slug> origin/main`
-   (local `main` lags; `.worktrees/` is gitignored; `node_modules` is symlinked via `.claude/settings.json`).
+   (local `main` lags; `.worktrees/` is gitignored). Then run `pnpm install` and
+   `pnpm turbo run build --filter="./packages/*"` in it — `symlinkDirectories` in `.claude/settings.json`
+   applies only to `EnterWorktree`, not to `git worktree add`.
 4. **Verify before touching code:** `git -C .worktrees/<slug> rev-parse --abbrev-ref HEAD` must equal your branch. All subsequent Write/Edit paths go inside `.worktrees/<slug>/`.
 
 ### Red flags — stop if you catch yourself thinking…
@@ -59,9 +61,9 @@ on every `Agent` call** — never leave it implicit:
 
 | Model | Use for |
 |---|---|
-| `fable` | Mechanical / format / rename passes, narrow lookups. |
-| `sonnet` | Routine implementation, search, scaffolding, straightforward tests. |
-| `opus` | Security, `firestore.rules`, Cloud Functions, cross-boundary contracts, ambiguous design, anything where a wrong call is expensive. |
+| `sonnet` | Mechanical / format / rename passes, scoped searches, scaffolding, straightforward tests. |
+| `opus` | React, security, `firestore.rules`, Cloud Functions, cross-boundary contracts, ambiguous design, anything where a wrong call is expensive. |
+| `fable` | Reviewing docs-heavy PRs. |
 
 Default to the cheapest tier that fits; escalate deliberately, not reflexively.
 

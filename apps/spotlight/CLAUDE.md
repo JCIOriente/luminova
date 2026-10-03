@@ -18,5 +18,5 @@ Public marketing site for JCI Oriente. No authentication, no backend of its own.
 
 ## Harness
 
-- **CI.** `pnpm --filter spotlight run ci` (eslint → tsc → vitest; rolled into `pnpm pr-tests`). Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin. Eager-JS and index-CSS budgets are gated by `tools/scripts/check-bundle-budget.sh` (CI `checks` job only, not `pr-tests`); the route-chunk budget is not gated — check it with `bundle-budget-watcher`.
+- **CI.** `pnpm --filter spotlight run ci` (eslint → tsc → vitest; rolled into `pnpm pr-tests`). Eager-JS and index-CSS budgets are gated by `tools/scripts/check-bundle-budget.sh` (CI `checks` job only, not `pr-tests`); the route-chunk budget (≤ 40 kB gz) is not gated — after `pnpm --filter spotlight build`, measure each `apps/spotlight/dist/assets/*.js` with `gzip -c <f> | wc -c` (`bundle-budget-watcher` does not measure chunk sizes yet).
 - **Performance** — load perf is the priority. Budgets (source of truth: `docs/performance.md`): eager JS ≤ 108 kB gz, index CSS ≤ 17 kB gz, any route chunk ≤ 40 kB gz. LCP is hero **text** (no raster hero); the sans woff2 is preloaded by `preloadJakartaLatin()` in `vite.config.ts` — don't duplicate. Keep fonts latin-only, below-fold reads on `useAsyncOnVisible`. Dispatch `bundle-budget-watcher` after dep/route changes.

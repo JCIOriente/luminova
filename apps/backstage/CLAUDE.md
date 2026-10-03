@@ -35,7 +35,7 @@ firestore/storage/functions must stay lazy inside feature route chunks — the l
 
 ## TanStack Query Conventions
 
-- Keys: `const memberKeys = { all: ['members'] as const, paginated: (cursor) => ['members', 'paginated', cursor] as const }`.
+- Keys: `const memberKeys = { all: ['members'] as const, detail: (id) => ['members', id] as const }`.
 - Lists: `useQuery({ queryKey, queryFn: () => new XRepository().getAll() })`.
 - Writes: `useMutation` + `queryClient.invalidateQueries({ queryKey: xKeys.all })` in `onSuccess`.
 
@@ -53,13 +53,12 @@ Gotchas:
 ## UI Patterns
 
 - Forms render in a **Sheet**, not a Dialog.
-- Members: soft delete only (never hard delete); cursor pagination / infinite scroll, 10/page.
+- Members: soft delete only (never hard delete); client-side table pagination (8/page, options 8/16/32); server-side pagination stays deferred (see `packages/ui/CLAUDE.md`).
 - Single member select (director) = Combobox; coDirectors/collaborators/participants = multi-select with search.
 - `parentId` shown only when event type = `Activity`.
 
 ## Harness
 
-- **CI gate.** `pnpm --filter backstage run ci` = eslint → tsc → vitest (rolled into `pnpm pr-tests`). Use `run ci` — bare `pnpm ci` is pnpm's reinstall builtin. Bundle budget enforced by `tools/scripts/check-bundle-budget.sh` (CI `checks` job).
-- **Invariants.** Auth guard via `beforeLoad`, not in component. No barrel files in features. Soft-delete only (never hard delete). One repository class per collection (exception above).
+- **CI gate.** `pnpm --filter backstage run ci` = eslint → tsc → vitest (rolled into `pnpm pr-tests`). Bundle budget enforced by `tools/scripts/check-bundle-budget.sh` (CI `checks` job).
 - **Sensitive surfaces → REQUIRE `/security-review` + `firestore-security-reviewer`.** Auth flow (`_auth.login`, `_app.tsx` guard), every `repositories/*` Firestore access, any change to `firestore.rules`.
 - **Performance.** Budget: eager JS (entry + modulepreloads) ≤ 162 kB gz, CSS ≤ 15 kB gz (current figures in `docs/performance.md`). Renders in `system-ui` on purpose — **do not add a webfont**. `index.html` preconnects the auth/Firestore/Storage origins. Follow `docs/performance.md`; dispatch `bundle-budget-watcher` after dep/route changes.

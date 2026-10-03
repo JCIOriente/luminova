@@ -24,6 +24,7 @@ pnpm --filter backstage dev                 # one app (also: build, lint, typech
 pnpm build | pnpm lint | pnpm typecheck
 pnpm turbo run build --filter="./packages/*"  # fresh worktree: build packages before app vitest/typecheck
 pnpm pr-tests                               # the full local gate
+pnpm --filter <app> run ci                  # one app's gate; bare `pnpm ci` is pnpm's reinstall builtin
 firebase emulators:start
 ```
 
@@ -59,7 +60,7 @@ The `feature-flow` skill drives this sequence end to end. Per feature, in order:
 Rules:
 
 - **Never decide the review set by judgment**: run the router and run what it lists.
-- **Never skip `secure-dep-vetting`** or **`/security-review`** where they apply.
+- **Never skip `secure-dep-vetting`** (it auto-triggers on dependency changes) or **`/security-review`** when touching auth, Firestore rules or Cloud Functions.
 - When several tools apply: process skills (brainstorming, debugging) → domain skills → review subagents (`*-reviewer`, `*-watcher`) → cross-stack review (`/security-review`, `/code-review`).
 - `/code-review` is user-invoked only. When the router lists it, either ask the user to run it, or run an adversarial review subagent (Opus) and say in the PR which you did. Never stamp the token when neither happened.
 - Heaviest skills per area: spotlight → `frontend-design`, `ui-ux-pro-max`; backstage → `react-best-practices`, `security-review`, `ui-ux-pro-max` (a11y of tables/forms); beacon → `security-review`, `secure-dep-vetting`; `packages/ui` → `react-best-practices`, `ui-ux-pro-max`.
@@ -119,7 +120,7 @@ Only the `hard` class is shell-enforced. A mandated review that was neither run 
   ```
 - **Worktree-first (MANDATORY).** Every feature or fix, tooling and docs included, runs in its own worktree created before the first edit:
   `git fetch && git worktree add .worktrees/<slug> -b <branch> origin/main` (local `main` lags `origin/main`). Use `.worktrees/`, never `.claude/worktrees/` (so not the `EnterWorktree` tool). Never edit, build or test in the primary checkout. `.worktrees/` is gitignored and excluded from prettier/knip. Remove it after the PR merges (`git worktree remove .worktrees/<slug>`).
-- **Branch per feature.** Off `main`, before the first edit; never commit feature work to `main`/`master`. Prefixes `feat/ fix/ chore/ migration/`. Conventional Commits with module scope (`feat(backstage): …`). `master` is always deployable. Check the branch before committing: the user may switch it underneath you.
+- **Branch per feature.** Off `origin/main`, created with the worktree; never commit feature work to `main`/`master`. Prefixes `feat/ fix/ chore/ migration/`. Conventional Commits with module scope (`feat(backstage): …`). `master` is always deployable. Check the branch before committing: the user may switch it underneath you.
 - **Codegen-drift gate.** Any artifact generated on one boundary and consumed on another (`@luminova/types` shared schemas, generated Firestore types) gets a CI check that regenerates and fails on diff.
 - **Performance budget.** Frontend changes hold the budgets and Core Web Vitals targets in `docs/performance.md` and follow its Claude guardrails (section 5). After any dep or route change, dispatch `bundle-budget-watcher` and note the `index`-chunk gz delta; a budget breach must be a conscious, noted decision.
 - **Docs layout.** `docs/specs/` (designs), `docs/plans/` (impl plans), `docs/status/` (handoffs), `docs/tooling/skill-development-log.md` (skill history), `docs/roadmap.md` (the work queue and owner decisions).
