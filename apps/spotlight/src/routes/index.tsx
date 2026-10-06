@@ -23,13 +23,13 @@ const AREAS = [
   {
     num: "01",
     title: "Desarrollo Individual",
-    desc: "Liderazgo, oratoria y habilidades de gestión. Cada miembro avanza con un plan personal y mentoría.",
+    desc: "Liderazgo, oratoria y habilidades de gestión que se aprenden haciendo, junto a otros miembros.",
     icon: <Icon.user />,
   },
   {
     num: "02",
-    title: "Acción Comunitaria",
-    desc: "Proyectos sostenidos que abordan problemas reales en el Oriente boliviano — desde educación hasta medio ambiente.",
+    title: "Desarrollo Comunitario",
+    desc: "Proyectos que abordan problemas reales del Oriente boliviano, de la educación al medio ambiente.",
     icon: <Icon.heart />,
   },
   {
@@ -40,8 +40,8 @@ const AREAS = [
   },
   {
     num: "04",
-    title: "Negocio y Emprendimiento",
-    desc: "Una comunidad de fundadores, ejecutivos y profesionales que construyen el futuro económico de la región.",
+    title: "Negocios y Emprendimiento",
+    desc: "Formación y contactos para emprendedores y profesionales que quieren hacer crecer sus negocios y carreras.",
     icon: <Icon.briefcase />,
   },
 ];
@@ -82,8 +82,7 @@ function HomeHero() {
             className="t-subtitle"
             style={{ marginTop: 24, maxWidth: 620, color: "var(--color-on-dark-2)" }}
           >
-            Capítulo Santa Cruz de la Cámara Junior Internacional. Desarrollando líderes con
-            propósito desde 1993.
+            Capítulo Santa Cruz de la Cámara Junior Internacional. Formamos líderes con propósito desde 1993.
           </p>
           <div style={{ marginTop: 36, display: "flex", gap: 14, flexWrap: "wrap" }}>
             <Button
@@ -151,15 +150,13 @@ function HomeAbout() {
                 en más de cien países. Aquí canalizamos esa red mundial hacia el impacto local.
               </p>
               <p className="t-body" style={{ color: "var(--ink-2)" }}>
-                Formamos líderes activos. Creamos proyectos que mejoran la comunidad. Conectamos a
-                personas de entre 18 y 40 años con oportunidades de crecimiento, internacionales y
-                profundamente humanas.
+                Formamos líderes activos. Creamos proyectos que mejoran la comunidad. Conectamos a personas de 18 a 40 años con oportunidades de crecimiento personal, profesional e internacional.
               </p>
               <figure className="pullquote" style={{ marginTop: 36, marginBottom: 0 }}>
                 <blockquote className="t-quote" style={{ margin: 0 }}>
-                  {`“Más de ${config.stats.membersWorldwide} miembros en ${config.stats.countries} países y 17 organizaciones en Bolivia. En Santa Cruz, JCI Oriente aporta a esa red desde 1993.”`}
+                  {`${config.stats.membersWorldwide} miembros en ${config.stats.countries} países y 17 organizaciones en Bolivia. En Santa Cruz, JCI Oriente aporta a esa red desde 1993.`}
                 </blockquote>
-                <cite>Red JCI · 2025</cite>
+                <cite>JCI en cifras</cite>
               </figure>
             </div>
           </Reveal>
@@ -176,7 +173,7 @@ function HomeAreas() {
         <SectionHeader
           eyebrow="Áreas de oportunidad"
           title="Cuatro maneras de crecer con JCI."
-          subtitle="Cada miembro elige el camino que le hace sentido. La mayoría toca los cuatro a lo largo del año."
+          subtitle="Cada miembro elige dónde participar según sus intereses y puede sumarse a más de un área."
         />
         <div className="grid-4" style={{ marginTop: 56 }}>
           {AREAS.map((it, i) => (
@@ -239,7 +236,7 @@ function HomeImpact() {
             className="t-title"
             style={{ color: "var(--jci-white)", marginTop: 20, marginBottom: 0 }}
           >
-            Más de tres décadas de impacto medible.
+            Más de tres décadas sirviendo al Oriente.
           </h2>
         </div>
         <div className="impact-grid" style={{ marginTop: 72 }}>
@@ -249,7 +246,7 @@ function HomeImpact() {
           />
           <ImpactStat
             value={config.stats.standoutOrg.year}
-            label={`${config.stats.standoutOrg.title} — JCI Bolivia`}
+            label={`${config.stats.standoutOrg.title} de JCI Bolivia`}
           />
           <ImpactStat
             value={`${config.stats.efficiencyPct}%`}
@@ -337,7 +334,7 @@ function HomeCTA() {
             marginRight: "auto",
           }}
         >
-          Postúlate, conócenos y mira el cambio que logramos — en nosotros y en nuestra comunidad.
+          Escríbenos, conoce al equipo y descubre cómo sumarte a nuestros proyectos.
         </p>
         <div
           style={{
@@ -367,7 +364,7 @@ function HomeCTA() {
               void navigate({ to: "/about" });
             }}
           >
-            Conoce a JCI Oriente
+            Conoce JCI Oriente
           </Button>
         </div>
       </div>
