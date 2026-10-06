@@ -99,30 +99,21 @@ const RAW_ABILITY_CALL_SELECTORS = [
 // TanStack Router's autoCodeSplitting splits a route file only when `Route` is its sole value
 // export; any other export silently keeps the whole route in the main chunk. Type-only exports
 // carry no runtime value, so they stay allowed (`export type * from` included).
-const ROUTE_EXPORT_MESSAGE =
-  "Route files export only `Route`: any other value export disables TanStack Router autoCodeSplitting for this route. Move it to a component/lib module.";
 const ROUTE_EXPORT_SELECTORS = [
   {
-    selector:
+    selector: [
       "ExportNamedDeclaration[exportKind='value'] > VariableDeclaration > VariableDeclarator[id.name!='Route']",
-    message: ROUTE_EXPORT_MESSAGE,
-  },
-  {
-    selector:
       "ExportNamedDeclaration[exportKind='value'][declaration][declaration.type!='VariableDeclaration']",
-    message: ROUTE_EXPORT_MESSAGE,
-  },
-  {
-    selector:
       "ExportNamedDeclaration[exportKind='value'] > ExportSpecifier[exportKind='value'][exported.name!='Route']",
-    message: ROUTE_EXPORT_MESSAGE,
+      "ExportDefaultDeclaration",
+      "ExportAllDeclaration[exportKind='value']",
+    ].join(", "),
+    message:
+      "Route files export only `Route`: any other value export disables TanStack Router autoCodeSplitting for this route. Move it to a component/lib module.",
   },
-  { selector: "ExportDefaultDeclaration", message: ROUTE_EXPORT_MESSAGE },
-  { selector: "ExportAllDeclaration[exportKind='value']", message: ROUTE_EXPORT_MESSAGE },
 ];
 
-// The selectors every non-test backstage file outside the authz module gets. A const because the
-// backstage route block re-spreads them (flat config replaces, never merges, rule options).
+// Every non-test backstage file outside the authz module; re-spread by the backstage route block.
 const BACKSTAGE_APP_SELECTORS = [
   ...RESTRICTED_SYNTAX_BASE,
   ...RAW_ABILITY_CALL_SELECTORS,
@@ -140,13 +131,14 @@ const BACKSTAGE_APP_SELECTORS = [
   },
 ];
 
-const SPOTLIGHT_JARGON_MESSAGE =
-  "Public jargon: 'iniciativa' is banned in spotlight copy — use 'proyecto'. See docs/specs/2026-07-10-impacto-unification-design.md.";
-// The selectors every non-test spotlight file gets; re-spread by the spotlight route block.
+// Every non-test spotlight file; re-spread by the spotlight route block.
 const SPOTLIGHT_APP_SELECTORS = [
   ...RESTRICTED_SYNTAX_BASE,
-  { selector: "JSXText[value=/iniciativa/i]", message: SPOTLIGHT_JARGON_MESSAGE },
-  { selector: "Literal[value=/iniciativa/i]", message: SPOTLIGHT_JARGON_MESSAGE },
+  {
+    selector: "JSXText[value=/iniciativa/i], Literal[value=/iniciativa/i]",
+    message:
+      "Public jargon: 'iniciativa' is banned in spotlight copy — use 'proyecto'. See docs/specs/2026-07-10-impacto-unification-design.md.",
+  },
 ];
 
 // THE CANONICAL LIST of what beacon may not import; the guard's code, docs and spec point here.
@@ -337,9 +329,7 @@ export default tseslint.config(
     },
   },
   {
-    // Route files: the app's own selectors plus ROUTE_EXPORT_SELECTORS. These blocks must stay
-    // AFTER the backstage authz and spotlight blocks above and re-spread their selectors:
-    // flat config replaces a rule's options for a file matched by a later block.
+    // Route files: must stay after the app blocks above, whose selectors they re-spread.
     files: ["apps/backstage/src/routes/**/*.{ts,tsx}"],
     ignores: ["**/*.test.ts", "**/*.test.tsx"],
     rules: {
