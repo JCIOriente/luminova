@@ -48,7 +48,7 @@ export function NotFound() {
             color: "rgba(255,255,255,0.74)",
           }}
         >
-          La ruta que buscas no existe o cambió de lugar. Volvamos a terreno conocido.
+          La página que buscas no existe o cambió de lugar. Volvamos a terreno conocido.
         </p>
 
         <div

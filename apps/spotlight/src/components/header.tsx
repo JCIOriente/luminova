@@ -74,7 +74,7 @@ export function Header() {
           <a
             href="/"
             onClick={(e) => go(e, "/")}
-            aria-label="Inicio — JCI Oriente"
+            aria-label="Ir al inicio"
             style={{ display: "flex", alignItems: "center" }}
           >
             <LogoLockup variant={logoVariant} size="sm" />
@@ -85,7 +85,7 @@ export function Header() {
               onClick={(e) => go(e, "/about")}
               className={clsx("nav-link", pathname === "/about" && "active")}
             >
-              Quiénes Somos
+              Quiénes somos
             </a>
             <a
               href="/impacto"
@@ -139,7 +139,7 @@ export function Header() {
               Inicio
             </a>
             <a href="/about" onClick={(e) => go(e, "/about")} className="mobile-nav-link">
-              Quiénes Somos
+              Quiénes somos
             </a>
             <a href="/impacto" onClick={(e) => go(e, "/impacto")} className="mobile-nav-link">
               Impacto

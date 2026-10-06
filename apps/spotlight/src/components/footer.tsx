@@ -42,8 +42,7 @@ export function Footer() {
                 maxWidth: 320,
               }}
             >
-              Capítulo Santa Cruz de la Cámara Junior Internacional. Desarrollando líderes desde
-              1993.
+              Capítulo Santa Cruz de la Cámara Junior Internacional. Formamos líderes desde 1993.
             </p>
             <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
               <SocialIconLinks style={SOCIAL_STYLE} />
@@ -59,7 +58,7 @@ export function Footer() {
               </li>
               <li>
                 <a href="/about" onClick={(e) => go(e, "/about")}>
-                  Quiénes Somos
+                  Quiénes somos
                 </a>
               </li>
               <li>
