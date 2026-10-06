@@ -2,87 +2,32 @@
 
 ## Purpose
 
-Shared component library for `apps/spotlight` and `apps/backstage`. Bespoke,
-token-driven components styled with **pure Tailwind v4 utility classes** (no
-semantic CSS classes). Consumed as **raw TypeScript source** (no build step).
+Shared components for `apps/spotlight` and `apps/backstage`: bespoke, token-driven, **pure Tailwind v4 utilities** (no semantic CSS classes; app-local ones like spotlight's `.area-card` stay in the app), consumed as **raw TypeScript source** (no build step).
 
-## What's here now (40 components)
+## Components
 
-Full inventory + source paths + design tokens live in **`DESIGN.md`** (the
-ingest manifest for Claude Design). Quick map:
-
-- **Form / inputs:** Button (polymorphic `a|button`, `variant`
-  primary/secondary/ghost, `onDark`/`onBlue`, `sm`), Input, SearchInput
-  (leading icon, sr-only `label`, `size` md/sm), Textarea, Select,
-  Field (label + error), Checkbox (label + branded box), Combobox (single-select
-  + search), MultiSelect (chips).
-- **Feedback / status:** Badge (tones), Skeleton, Toast (presentational),
-  Tooltip (Radix + tokens), EmptyState, ErrorState (EmptyState + optional `onRetry`).
-- **Overlays:** Dialog, Sheet, Popover (Radix; backs Combobox/MultiSelect),
-  CommandPalette (⌘K; cmdk dialog + groups + fuzzy filter).
-- **Data display:** Table (+ TableHeader/Body/Row/Head/Cell), DataTable
-  (client-side search / sort / filter-chips / skeleton + empty, composes Table),
-  KpiCard (tone + trend), LineChart, Sparkline.
-- **Structure / brand:** Card (the DS card shell: `as`, `padding` md/sm/row/none,
-  `interactive`; + `cardSurfaceClasses`/`cardInteractiveClasses` for button/Link
-  hosts), Icon set + ArrowRight, ArrowLink, SectionHeader,
-  ImgSlot, LogoLockup (PNG assets in `src/assets/`), Reveal
-  (IntersectionObserver), Ripple (RippleSVG/RippleBackground/RippleDivider).
-- **Domain widgets (deep-import):** QrCode (`@luminova/ui/qr-code`), QrScanner
-  (`@luminova/ui/qr-scanner`) — kept out of the barrel so `qrcode.react`/`@zxing`
-  stay in lazy chunks.
-
-`cn()` in `src/lib/cn.ts`. Everything except the QR pair is re-exported from
-`src/index.ts` (explicit named exports — no `export *`, to satisfy
-`verbatimModuleSyntax`/`isolatedModules`).
-
-## Deferred (not built yet)
-
-`DataTable` (E6 / FX1) and `CommandPalette` (E3 / FX3) are both shipped now;
-server-side table pagination stays deferred until a collection exceeds ~1–2k docs.
-No bespoke widgets are currently outstanding — add the next via shadcn/Radix
-(accessibility), styled to the JCI tokens, beside the bespoke set.
-
-Pattern for new Radix-backed widgets: wrap the primitive + our token utilities,
-not shadcn's separate theme-var system (as Tooltip/Popover/Dialog do).
+- Source of truth for what exists: the barrel `src/index.ts`; inventory, source paths and tokens in **`DESIGN.md`** (don't hard-code a component count here).
+- Barrel uses explicit named exports — no `export *` (`verbatimModuleSyntax`/`isolatedModules`).
+- Heavy-dep widgets stay out of the barrel as deep-import subpaths (`@luminova/ui/qr-code`, `@luminova/ui/qr-scanner`) so their deps stay in lazy chunks.
+- New complex widgets: shadcn/Radix (a11y), wrapping the primitive with our token utilities — not shadcn's separate theme-var system (as Tooltip/Popover/Dialog do).
+- Server-side table pagination stays deferred until a collection exceeds ~1–2k docs.
 
 ## Design tokens — `src/theme.css`
 
-Single source of truth. Tailwind v4 `@theme` block: brand colors + sanctioned
-tints (`jci-blue-75/50/25`, `jci-teal-50`, `jci-navy-50`) + ink/surface/line +
-on-dark inks (`on-dark-1/2/3`) (all `--color-*` → `text-ink-2`, `bg-surface`,
-`border-line`, `text-on-dark-2` utilities), fonts (`font-sans/serif/mono`), radii
-(`rounded-card/pill`), easing (`ease-expo`), and the `ripple-spin` / `toast-in`
-animations. Exported as `@luminova/ui/theme.css`.
+Single source of truth (Tailwind v4 `@theme`), exported as `@luminova/ui/theme.css`.
 
-**Two type scales.** Brand/fluid (`text-display/title/subtitle/quote`,
-`clamp()`) for marketing + hero. **Compact/fixed** for backstage density —
-`text-ui-2xs` 11px · `text-ui-xs` 12 · `text-ui-sm` 13 (workhorse) · `text-ui-md`
-14 · `text-ui-lg` 15, each with a bundled default line-height (`leading-*` still
-overrides). Named by size, not role — pick by size, carry intent with weight +
-color. Floor 11px. App code must not reintroduce arbitrary `text-[Npx]` for
-N<18 (an `eslint` `no-restricted-syntax` rule enforces it); sizes ≥18px are
-component-owned display literals. Full table + rationale in `DESIGN.md`.
+**Two type scales.** Brand/fluid (`text-display/title/subtitle/quote`) for marketing + hero; compact/fixed `text-ui-2xs|xs|sm|md|lg` (11–15px) for backstage density. Pick by size, carry intent with weight + color. Floor 11px. App code must not use arbitrary `text-[Npx]` for N<18 (eslint `no-restricted-syntax` in `eslint.config.js`); sizes ≥18px are component-owned display literals. Full table in `DESIGN.md`.
 
 ## Claude Design sync
 
-This library is the coded half of a **Claude Design** (claude.ai/design) design
-system. Keep them in sync — full process in
-[`docs/tooling/claude-design-handoff.md`](../../docs/tooling/claude-design-handoff.md).
+Coded half of a **Claude Design** (claude.ai/design) system — process in [`docs/tooling/claude-design-handoff.md`](../../docs/tooling/claude-design-handoff.md).
 
-- **`DESIGN.md`** is the ingest manifest Claude Design reads (tokens + component
-  inventory + source paths). Update it whenever a component is added/removed.
-- **Ingesting a redesign (handoff → code):** brainstorm + scope first, reconcile
-  tokens (`theme.css`) as the foundation batch, then migrate components **by
-  category in batches**, delta-driven.
-- **Translate, don't copy.** The handoff ships semantic `jci-*` CSS as the
-  *visual source of truth* — re-express it in **pure Tailwind utilities** here.
-  Never add the handoff's CSS system to the repo (one paradigm only).
-- **Preserve public APIs** so the 44 usage sites absorb the redesign with no
-  churn; add new props as optional.
+- **`DESIGN.md`** is the ingest manifest. Update it whenever a component is added/removed.
+- **Ingesting a redesign:** brainstorm + scope first, reconcile tokens (`theme.css`) as the foundation batch, then migrate components **by category in batches**, delta-driven.
+- **Translate, don't copy.** Components mirror the handoff's visual spec (brand fidelity). Re-express the handoff's semantic `jci-*` CSS in pure Tailwind utilities. Never add the handoff's CSS system to the repo.
+- **Preserve public APIs** so usage sites absorb a redesign with no churn; new props optional.
 - **Brand tokens are locked** — flag off-brand proposals, don't apply silently.
-- **Component library ≠ Spotlight pages.** A handoff often carries both; migrate
-  the library first, brainstorm the page redesign separately.
+- **Component library ≠ Spotlight pages.** Migrate the library first; brainstorm page redesigns separately.
 
 ## Consuming this package (apps)
 
@@ -90,30 +35,17 @@ system. Keep them in sync — full process in
 /* app's entry CSS, in order */
 @import "tailwindcss";
 @import "@luminova/ui/theme.css";
-@source "../../../packages/ui/src/**/*.{ts,tsx}";   /* REQUIRED */
+@source "../../../packages/ui/src/**/*.{ts,tsx}"; /* REQUIRED */
 ```
 
-The `@source` line is **mandatory** — without it Tailwind purges the utility
-classes used inside `@luminova/ui` components and they render unstyled. Path is
-relative to the app's CSS file (3 levels up to repo root → `packages/ui/src`).
+The `@source` line is **mandatory** — without it Tailwind purges the classes used inside `@luminova/ui` and components render unstyled. Path is relative to the app's CSS file.
 
-Then `pnpm --filter <app> add "@luminova/ui@workspace:*"` and
-`import { Button, Input, … } from "@luminova/ui"`.
-
-## Conventions
-
-- **Pure Tailwind utilities** in components; use `cn()` to merge/override
-  (tailwind-merge resolves conflicts — order matters: append overrides last).
-- **React is a peerDependency** (singleton) — never bundle React here.
-- **No semantic CSS classes** for shared components (those stay app-local for
-  marketing-specific styling, e.g. spotlight's `.area-card`, `.site-header`).
-- **Reduced motion**: animated components use `motion-reduce:*` variants. Apps
-  should also keep a global `@media (prefers-reduced-motion)` reset.
-- Add a dependency only via the `secure-dep-vetting` skill.
+Then `pnpm --filter <app> add "@luminova/ui@workspace:*"`.
 
 ## Rules
 
-- Don't reintroduce a build step — apps import the raw `.ts`/`.tsx` source.
-- Every new export must be added to `src/index.ts` and consumed by an app or the
-  smoke test (knip flags unused exports).
-- Keep brand fidelity: components mirror the Claude Design handoff's visual spec.
+- Merge/override classes with `cn()` (`src/lib/cn.ts`); append overrides last.
+- **React is a peerDependency** — never bundle React here.
+- `animate-spin` sets the `animation` shorthand, which overrides an arbitrary `[animation-duration:X]` on the same element; for a slow spin use the `animate-ripple-spin` token.
+- Animated components use `motion-reduce:*` variants; apps keep a global `@media (prefers-reduced-motion)` reset.
+- Every new export goes in `src/index.ts` and must be consumed by an app or the smoke test `src/index.test.ts` (knip flags unused exports).

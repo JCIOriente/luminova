@@ -358,8 +358,7 @@ which is keyed by CASL Subject and only *looks* role-keyed because `Member` is b
      no `export *`) — unless it pulls a heavy dep, then give it a deep-import
      subpath like the QR pair.
    - Add it to `DESIGN.md` (component table + bump the count in the
-     `Components (N — shipped)` heading) and the inventory in
-     `packages/ui/CLAUDE.md`. Keep the counts in sync — they have drifted
+     `Components (N — shipped)` heading). Keep that count in sync with the barrel — it has drifted
      before (section 7).
    - Make sure the export is **consumed** by an app or the smoke test — knip
      flags unused exports and the ui-package rule requires every export to have
@@ -422,9 +421,9 @@ listed here so a reader trusts **the barrel (`index.ts`) as the source of
 truth** over the manifest until reconciled. Fix the counts as part of the next
 change that touches the component set, not as an isolated churn commit.
 
-1. **Component counts disagree**: `DESIGN.md` heading says
-   "Components (37 — shipped)" and `packages/ui/CLAUDE.md` says "38 components",
-   while the barrel exposes more component families than either number.
+1. **Component count is stale**: `DESIGN.md` heading says
+   "Components (37 — shipped)", while the barrel exposes more component
+   families than that.
 2. **Three barrel components are missing from `DESIGN.md`'s tables**:
    `IconButton`, `SegmentedControl`, `ImageUploader` (all exported in
    `index.ts` and in use). `DESIGN.md` is the Claude Design ingest manifest, so
