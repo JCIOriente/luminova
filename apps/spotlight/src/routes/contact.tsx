@@ -277,7 +277,8 @@ function ContactHero() {
           Hablemos.
         </h1>
         <p className="t-subtitle" style={{ marginTop: 22, maxWidth: 620, color: "var(--ink-2)" }}>
-          Si quieres unirte como miembro, proponer una alianza, cubrir un proyecto como prensa o simplemente conocer cómo trabajamos, este es el lugar.
+          Si quieres unirte como miembro, proponer una alianza, cubrir un proyecto como prensa o
+          simplemente conocer cómo trabajamos, este es el lugar.
         </p>
       </div>
     </section>

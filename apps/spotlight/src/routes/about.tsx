@@ -59,10 +59,13 @@ function AboutStory() {
             </h2>
             <p className="t-body">
               En 1915, en San Luis, Missouri, un grupo de jóvenes profesionales fundó la Junior
-              Chamber con una convicción simple: la juventud es el momento de actuar, no de esperar. Esa idea se volvió un movimiento mundial.
+              Chamber con una convicción simple: la juventud es el momento de actuar, no de esperar.
+              Esa idea se volvió un movimiento mundial.
             </p>
             <p className="t-body">
-              En 1993 llegó a Santa Cruz. JCI Oriente nació para canalizar esa energía global hacia los desafíos del Oriente boliviano, y desde entonces ha formado a varias generaciones de líderes.
+              En 1993 llegó a Santa Cruz. JCI Oriente nació para canalizar esa energía global hacia
+              los desafíos del Oriente boliviano, y desde entonces ha formado a varias generaciones
+              de líderes.
             </p>
             <figure className="pullquote" style={{ margin: "48px 0" }}>
               <blockquote className="t-quote" style={{ margin: 0 }}>
@@ -71,7 +74,8 @@ function AboutStory() {
               <cite>Credo JCI · 1946</cite>
             </figure>
             <p className="t-body">
-              Hoy reunimos a personas de 18 a 40 años que combinan sus carreras profesionales con un compromiso real: dejar al Oriente mejor de lo que lo encontramos.
+              Hoy reunimos a personas de 18 a 40 años que combinan sus carreras profesionales con un
+              compromiso real: dejar al Oriente mejor de lo que lo encontramos.
             </p>
           </Reveal>
         </div>
@@ -177,7 +181,8 @@ function DirectivaHero({
             Las personas que dirigen la gestión.
           </h2>
           <p className="lede">
-            Un comité ejecutivo y un cuerpo de direcciones al servicio del Oriente boliviano durante {year}.
+            Un comité ejecutivo y un cuerpo de direcciones al servicio del Oriente boliviano durante{" "}
+            {year}.
           </p>
         </Reveal>
         {president && (
