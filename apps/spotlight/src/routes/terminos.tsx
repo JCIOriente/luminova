@@ -74,7 +74,7 @@ function Terminos() {
       heading: "7. Limitación de responsabilidad",
       body: (
         <p style={{ margin: 0 }}>
-          El sitio se ofrece «tal cual». En la medida que lo permita la ley, JCI Oriente no será
+          El sitio se ofrece «tal cual». En la medida en que lo permita la ley, JCI Oriente no será
           responsable por daños derivados del uso o de la imposibilidad de uso del sitio.
         </p>
       ),
