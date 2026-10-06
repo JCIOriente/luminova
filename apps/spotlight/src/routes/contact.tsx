@@ -219,7 +219,7 @@ function ContactForm({ onSuccess }: { onSuccess: () => void }) {
         >
           {config.contact.email}
         </a>{" "}
-        en un plazo máximo de 48 horas hábiles.
+        lo antes posible.
       </p>
     </form>
   );
@@ -277,8 +277,7 @@ function ContactHero() {
           Hablemos.
         </h1>
         <p className="t-subtitle" style={{ marginTop: 22, maxWidth: 620, color: "var(--ink-2)" }}>
-          Si quieres unirte como miembro, proponer una alianza, cubrir un proyecto como prensa — o
-          simplemente entender cómo trabajamos — este es el lugar.
+          Si quieres unirte como miembro, proponer una alianza, cubrir un proyecto como prensa o simplemente conocer cómo trabajamos, este es el lugar.
         </p>
       </div>
     </section>
@@ -319,7 +318,7 @@ function ContactBody({ onSuccess }: { onSuccess: () => void }) {
                       {config.contact.meetingSchedule}
                     </div>
                     <div className="text-ui-sm" style={{ color: "var(--ink-3)", marginTop: 2 }}>
-                      Bajo confirmación previa con el comité.
+                      Escríbenos antes para confirmar.
                     </div>
                   </div>
                 </div>
@@ -352,7 +351,7 @@ function ContactBody({ onSuccess }: { onSuccess: () => void }) {
                 >
                   <li>· Personas de 18 a 40 años que buscan unirse al capítulo.</li>
                   <li>· Empresas e instituciones interesadas en una alianza.</li>
-                  <li>· Medios de comunicación cubriendo nuestros proyectos.</li>
+                  <li>· Medios de comunicación que cubren nuestros proyectos.</li>
                 </ul>
               </div>
             </div>
@@ -500,7 +499,7 @@ function Contact() {
       <ContactHero />
       <ContactBody
         onSuccess={() => {
-          setToast("¡Mensaje enviado! Te contactaremos muy pronto.");
+          setToast("Recibimos tu mensaje. Te responderemos pronto.");
           setTimeout(() => setToast(null), 4000);
         }}
       />
