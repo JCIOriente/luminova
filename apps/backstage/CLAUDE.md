@@ -5,7 +5,7 @@ Admin dashboard (auth required everywhere except `/login` and `/invitacion`).
 ## Routing
 
 - File-based, `src/routes/`. `_app.*` = protected sidebar layout; `_auth.*` = public auth layout (pathless).
-- Route files export **only** `Route` — a stray extra export disables auto-code-splitting and drags the component's import graph (firestore, zod schemas) into first paint. Put components in `features/<name>/components/`.
+- Route files export only `Route`, enforced by `ROUTE_EXPORT_SELECTORS` (`no-restricted-syntax`) in `eslint.config.js`; components go in `features/<name>/components/`.
 
 ## Route Guard Pattern
 

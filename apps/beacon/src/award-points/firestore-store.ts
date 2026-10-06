@@ -1,4 +1,4 @@
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import {
   ACTIVITY_CATEGORIES,
   type PointRuleCode,
@@ -10,6 +10,7 @@ import type { ActivityRef } from "./derive.js";
 import { aggregateFromRows, type AggregateRow } from "./aggregate.js";
 import { isCleanId } from "./ids.js";
 import { hasToMillis } from "../firestore-util.js";
+import { chunk } from "../chunk.js";
 
 /**
  * Parse a programs/projects doc into the engine's InitiativeWrite, or null if
@@ -146,7 +147,10 @@ export function createFirestoreStore(db: Firestore): EngineStore {
     },
     async getMemberUids(memberIds) {
       if (memberIds.length === 0) return [];
-      const snaps = await db.getAll(...memberIds.map((id) => db.doc(`members/${id}`)));
+      const snaps: DocumentSnapshot[] = [];
+      for (const batch of chunk(memberIds, 300)) {
+        snaps.push(...(await db.getAll(...batch.map((id) => db.doc(`members/${id}`)))));
+      }
       return snaps
         .map((snap) => (snap.exists ? (snap.data() as { uid?: unknown; active?: unknown }) : null))
         .filter(

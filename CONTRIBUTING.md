@@ -84,7 +84,7 @@ so do not run them alongside `pnpm dev`.
 | Path | What |
 |------|------|
 | `apps/spotlight` | Public site. No auth, no full Firebase SDK — reads public collections through `firebase/firestore/lite`. |
-| `apps/backstage` | Admin dashboard. Auth required on every route except login and password reset. |
+| `apps/backstage` | Admin dashboard. Auth required on every route except `/login` and `/invitacion`. |
 | `apps/beacon` | Cloud Functions. Firestore triggers and callables, Admin SDK only. |
 | `packages/ui` | `@luminova/ui` — token-driven components shared by both apps. |
 | `packages/types` | `@luminova/types` — TypeScript types and Zod schemas for every Firestore document. Built package; the `/engine` subpath is framework-free and safe for the Admin SDK. |

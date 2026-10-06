@@ -10,6 +10,7 @@ import { createFirestoreStore, parseInitiativeWrite } from "./firestore-store.js
 class FakeFirestore {
   docs = new Map<string, Record<string, unknown>>();
   writes: { path: string; data: Record<string, unknown> }[] = [];
+  getAllSizes: number[] = [];
 
   doc(path: string) {
     return {
@@ -26,6 +27,7 @@ class FakeFirestore {
   }
 
   async getAll(...refs: ReturnType<FakeFirestore["doc"]>[]) {
+    this.getAllSizes.push(refs.length);
     return Promise.all(refs.map((ref) => ref.get()));
   }
 
@@ -176,5 +178,18 @@ describe("createFirestoreStore — directionUids mirror", () => {
     db.docs.set("members/m8", { uid: "u8", active: false });
     const store = createFirestoreStore(db.asFirestore());
     expect(await store.getMemberUids(["m1", "m8"])).toEqual(["u1"]);
+  });
+
+  it("getMemberUids batches getAll at 300 and keeps order and the active/uid filter", async () => {
+    const db = new FakeFirestore();
+    const ids = Array.from({ length: 301 }, (_, i) => `m${i}`);
+    for (const [i, id] of ids.entries()) {
+      db.docs.set(`members/${id}`, { uid: `u${i}`, active: i % 7 !== 0 });
+    }
+    const store = createFirestoreStore(db.asFirestore());
+    const uids = await store.getMemberUids(ids);
+    expect(db.getAllSizes).toEqual([300, 1]);
+    expect(uids).toEqual(ids.flatMap((_, i) => (i % 7 !== 0 ? [`u${i}`] : [])));
+    expect(uids).toContain("u300");
   });
 });

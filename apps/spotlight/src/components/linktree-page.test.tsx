@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { SiteLinktree } from "@luminova/types";
-import { LinktreePage } from "./linktree";
+import { LinktreePage } from "./linktree-page";
 
 const linktree: SiteLinktree = {
   handle: "@jci.oriente",
