@@ -96,6 +96,59 @@ const RAW_ABILITY_CALL_SELECTORS = [
   },
 ];
 
+// TanStack Router's autoCodeSplitting splits a route file only when `Route` is its sole value
+// export; any other export silently keeps the whole route in the main chunk. Type-only exports
+// carry no runtime value, so they stay allowed (`export type * from` included).
+const ROUTE_EXPORT_MESSAGE =
+  "Route files export only `Route`: any other value export disables TanStack Router autoCodeSplitting for this route. Move it to a component/lib module.";
+const ROUTE_EXPORT_SELECTORS = [
+  {
+    selector:
+      "ExportNamedDeclaration[exportKind='value'] > VariableDeclaration > VariableDeclarator[id.name!='Route']",
+    message: ROUTE_EXPORT_MESSAGE,
+  },
+  {
+    selector:
+      "ExportNamedDeclaration[exportKind='value'][declaration][declaration.type!='VariableDeclaration']",
+    message: ROUTE_EXPORT_MESSAGE,
+  },
+  {
+    selector:
+      "ExportNamedDeclaration[exportKind='value'] > ExportSpecifier[exportKind='value'][exported.name!='Route']",
+    message: ROUTE_EXPORT_MESSAGE,
+  },
+  { selector: "ExportDefaultDeclaration", message: ROUTE_EXPORT_MESSAGE },
+  { selector: "ExportAllDeclaration[exportKind='value']", message: ROUTE_EXPORT_MESSAGE },
+];
+
+// The selectors every non-test backstage file outside the authz module gets. A const because the
+// backstage route block re-spreads them (flat config replaces, never merges, rule options).
+const BACKSTAGE_APP_SELECTORS = [
+  ...RESTRICTED_SYNTAX_BASE,
+  ...RAW_ABILITY_CALL_SELECTORS,
+  // Spread here rather than declared in a block of their own: flat config REPLACES a
+  // rule's options when a later block matches the same file, so a separate backstage
+  // no-restricted-syntax block would silently drop everything above.
+  ...ROLE_LABEL_MAP_SELECTORS,
+  {
+    // Namespace form too: `import * as ctx` then `ctx.useAbility()` was a verified
+    // way around a specifier-only ban.
+    selector:
+      "ImportSpecifier[imported.name=/^(useAbility|buildAbility)$/], ImportNamespaceSpecifier",
+    message:
+      "Use useCan() (or <Can>) instead of a raw ability: those probe an empty subject instance, so a conditional own-doc grant can't answer a collection-level question. Namespace imports are banned here because they hide which binding is taken.",
+  },
+];
+
+const SPOTLIGHT_JARGON_MESSAGE =
+  "Public jargon: 'iniciativa' is banned in spotlight copy — use 'proyecto'. See docs/specs/2026-07-10-impacto-unification-design.md.";
+// The selectors every non-test spotlight file gets; re-spread by the spotlight route block.
+const SPOTLIGHT_APP_SELECTORS = [
+  ...RESTRICTED_SYNTAX_BASE,
+  { selector: "JSXText[value=/iniciativa/i]", message: SPOTLIGHT_JARGON_MESSAGE },
+  { selector: "Literal[value=/iniciativa/i]", message: SPOTLIGHT_JARGON_MESSAGE },
+];
+
 // THE CANONICAL LIST of what beacon may not import; the guard's code, docs and spec point here.
 // Every beacon callable is declared through guardedOnCall (apps/beacon/src/guarded-on-call.ts),
 // which refuses all traffic while token verification is bypassed. These are the package entries
@@ -208,23 +261,7 @@ export default tseslint.config(
       "**/*.test.tsx",
     ],
     rules: {
-      "no-restricted-syntax": [
-        "error",
-        ...RESTRICTED_SYNTAX_BASE,
-        ...RAW_ABILITY_CALL_SELECTORS,
-        // Spread here rather than declared in a block of their own: flat config REPLACES a
-        // rule's options when a later block matches the same file, so a separate backstage
-        // no-restricted-syntax block would silently drop everything above.
-        ...ROLE_LABEL_MAP_SELECTORS,
-        {
-          // Namespace form too: `import * as ctx` then `ctx.useAbility()` was a verified
-          // way around a specifier-only ban.
-          selector:
-            "ImportSpecifier[imported.name=/^(useAbility|buildAbility)$/], ImportNamespaceSpecifier",
-          message:
-            "Use useCan() (or <Can>) instead of a raw ability: those probe an empty subject instance, so a conditional own-doc grant can't answer a collection-level question. Namespace imports are banned here because they hide which binding is taken.",
-        },
-      ],
+      "no-restricted-syntax": ["error", ...BACKSTAGE_APP_SELECTORS],
     },
   },
   {
@@ -296,20 +333,24 @@ export default tseslint.config(
     files: ["apps/spotlight/src/**/*.{ts,tsx}"],
     ignores: ["**/*.test.tsx", "**/*.test.ts"],
     rules: {
-      "no-restricted-syntax": [
-        "error",
-        ...RESTRICTED_SYNTAX_BASE,
-        {
-          selector: "JSXText[value=/iniciativa/i]",
-          message:
-            "Public jargon: 'iniciativa' is banned in spotlight copy — use 'proyecto'. See docs/specs/2026-07-10-impacto-unification-design.md.",
-        },
-        {
-          selector: "Literal[value=/iniciativa/i]",
-          message:
-            "Public jargon: 'iniciativa' is banned in spotlight copy — use 'proyecto'. See docs/specs/2026-07-10-impacto-unification-design.md.",
-        },
-      ],
+      "no-restricted-syntax": ["error", ...SPOTLIGHT_APP_SELECTORS],
+    },
+  },
+  {
+    // Route files: the app's own selectors plus ROUTE_EXPORT_SELECTORS. These blocks must stay
+    // AFTER the backstage authz and spotlight blocks above and re-spread their selectors:
+    // flat config replaces a rule's options for a file matched by a later block.
+    files: ["apps/backstage/src/routes/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      "no-restricted-syntax": ["error", ...BACKSTAGE_APP_SELECTORS, ...ROUTE_EXPORT_SELECTORS],
+    },
+  },
+  {
+    files: ["apps/spotlight/src/routes/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      "no-restricted-syntax": ["error", ...SPOTLIGHT_APP_SELECTORS, ...ROUTE_EXPORT_SELECTORS],
     },
   },
   {
