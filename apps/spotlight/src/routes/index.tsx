@@ -82,7 +82,8 @@ function HomeHero() {
             className="t-subtitle"
             style={{ marginTop: 24, maxWidth: 620, color: "var(--color-on-dark-2)" }}
           >
-            Capítulo Santa Cruz de la Cámara Junior Internacional. Formamos líderes con propósito desde 1993.
+            Capítulo Santa Cruz de la Cámara Junior Internacional. Formamos líderes con propósito
+            desde 1993.
           </p>
           <div style={{ marginTop: 36, display: "flex", gap: 14, flexWrap: "wrap" }}>
             <Button
@@ -150,7 +151,9 @@ function HomeAbout() {
                 en más de cien países. Aquí canalizamos esa red mundial hacia el impacto local.
               </p>
               <p className="t-body" style={{ color: "var(--ink-2)" }}>
-                Formamos líderes activos. Creamos proyectos que mejoran la comunidad. Conectamos a personas de 18 a 40 años con oportunidades de crecimiento personal, profesional e internacional.
+                Formamos líderes activos. Creamos proyectos que mejoran la comunidad. Conectamos a
+                personas de 18 a 40 años con oportunidades de crecimiento personal, profesional e
+                internacional.
               </p>
               <figure className="pullquote" style={{ marginTop: 36, marginBottom: 0 }}>
                 <blockquote className="t-quote" style={{ margin: 0 }}>
