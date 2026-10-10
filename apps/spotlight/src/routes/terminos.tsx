@@ -62,10 +62,10 @@ function Terminos() {
       heading: "6. Formulario de contacto",
       body: (
         <p style={{ margin: 0 }}>
-          Al enviar el formulario de contacto, tu mensaje se registra en nuestra base de datos para que podamos responderte; no constituye una inscripción formal ni
-          garantiza la aceptación como miembro. Responderemos a las consultas según nuestra
-          disponibilidad. El tratamiento de tus datos se detalla en la{" "}
-          <a href="/privacidad">Política de privacidad</a>.
+          Al enviar el formulario de contacto, tu mensaje se registra en nuestra base de datos para
+          que podamos responderte; no constituye una inscripción formal ni garantiza la aceptación
+          como miembro. Responderemos a las consultas según nuestra disponibilidad. El tratamiento
+          de tus datos se detalla en la <a href="/privacidad">Política de privacidad</a>.
         </p>
       ),
     },
