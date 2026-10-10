@@ -151,7 +151,7 @@ haz un fork y cambia esto:
 3. **Marca.** Está en más lugares de los que parece, y omitir uno se ve en público:
    - Logos en `packages/ui/src/assets/`; tokens de diseño en `packages/ui`.
    - Favicons, iconos PWA e iconos de Apple en **ambos** `apps/spotlight/public/` y
-     `apps/backstage/public/`, más las imágenes para compartir `og-image-v2.png` y
+     `apps/backstage/public/`, más las imágenes para compartir `og-image-v3.png` y
      `og-linktree.png`.
    - El `name` / `short_name` de la PWA en `apps/spotlight/vite.config.ts` y
      `apps/backstage/vite.config.ts` — es el nombre con el que la app se instala en el

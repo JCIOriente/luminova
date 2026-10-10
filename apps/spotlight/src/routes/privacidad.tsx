@@ -29,7 +29,8 @@ function Privacidad() {
           nuestra base de datos (Cloud Firestore, de Google) para poder atender tu solicitud. Si
           activas las notificaciones, guardamos un identificador anónimo de tu navegador para
           enviarte avisos; no incluye tu nombre ni tu correo. No recopilamos ningún otro dato
-          personal de forma automática mientras navegas.
+          personal de forma automática mientras navegas, salvo las señales técnicas que analiza
+          reCAPTCHA (ver la sección 5).
         </p>
       ),
     },
@@ -51,8 +52,11 @@ function Privacidad() {
         <p style={{ margin: 0 }}>
           No usamos cookies de publicidad ni de seguimiento. El sitio guarda en el almacenamiento
           local de tu navegador una copia del contenido público (textos y enlaces) para cargar más
-          rápido en visitas posteriores, y recuerda si cerraste el aviso de notificaciones. Puedes
-          borrar estos datos en cualquier momento desde la configuración de tu navegador.
+          rápido en visitas posteriores, y recuerda si cerraste el aviso de notificaciones. Los
+          servicios de Google que usamos (Firebase y reCAPTCHA) pueden guardar datos técnicos de
+          seguridad, y los de notificaciones si las activas; reCAPTCHA puede usar una cookie
+          técnica. Puedes borrar estos datos en cualquier momento desde la configuración de tu
+          navegador.
         </p>
       ),
     },
