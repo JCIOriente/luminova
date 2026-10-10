@@ -15,9 +15,7 @@ export function ShowcaseGrid({ items }: { items: ShowcaseItem[] }) {
     <div>
       <AreaFilter value={area} onChange={setArea} />
       {filtered.length === 0 ? (
-        <p className="showcase-empty">
-          Aún no hay proyectos publicados en esta área.
-        </p>
+        <p className="showcase-empty">Aún no hay proyectos publicados en esta área.</p>
       ) : (
         <ShowcaseCardGrid items={filtered} />
       )}

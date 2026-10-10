@@ -24,7 +24,8 @@ function Privacidad() {
       heading: "2. Qué datos recolectamos",
       body: (
         <p style={{ margin: 0 }}>
-          Cuando completas el formulario de contacto, registramos los datos que nos envías (nombre, correo electrónico, motivo de contacto y tu mensaje) en nuestra base de datos (Cloud
+          Cuando completas el formulario de contacto, registramos los datos que nos envías (nombre,
+          correo electrónico, motivo de contacto y tu mensaje) en nuestra base de datos (Cloud
           Firestore, de Google) para poder atender tu solicitud. No recopilamos ningún otro dato
           personal de forma automática mientras navegas.
         </p>

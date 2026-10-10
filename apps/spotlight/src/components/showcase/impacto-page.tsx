@@ -34,7 +34,8 @@ function ImpactoHero({ count, personsImpacted }: { count: number; personsImpacte
             className="t-subtitle"
             style={{ marginTop: 22, maxWidth: 620, color: "var(--color-on-dark-2)" }}
           >
-            Los proyectos que JCI Oriente ha realizado, con su gente, sus cifras y su evidencia. Algunos son programas anuales que repetimos cada gestión.
+            Los proyectos que JCI Oriente ha realizado, con su gente, sus cifras y su evidencia.
+            Algunos son programas anuales que repetimos cada gestión.
           </p>
         </div>
 
