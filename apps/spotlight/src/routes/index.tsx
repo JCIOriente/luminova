@@ -7,6 +7,7 @@ import { ProgramsSkeleton } from "../components/programs-skeleton";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { currentYearsActive } from "../site-config/defaults";
 import { useAlliesOnVisible } from "../allies/use-allies";
+import { useFeaturedListOnVisible } from "../showcase/use-showcase";
 import { ALLY_CATEGORY_LABELS } from "@luminova/types/engine";
 
 const LazyHomePrograms = lazy(() => import("../components/home-programs"));
@@ -48,6 +49,7 @@ const AREAS = [
 
 function HomeHero() {
   const config = useSiteConfig();
+  const navigate = useNavigate();
   return (
     <section
       className="bg-dark"
@@ -102,7 +104,8 @@ function HomeHero() {
               iconRight={<Icon.arrowRight />}
               onClick={(e) => {
                 e.preventDefault();
-                scrollToId("proyectos");
+                if (document.getElementById("proyectos")) scrollToId("proyectos");
+                else void navigate({ to: "/impacto" });
               }}
             >
               Ver nuestros proyectos
@@ -192,8 +195,13 @@ function HomeAreas() {
 
 function HomePrograms() {
   const navigate = useNavigate();
+  const { ref, data: featured, loading, error } = useFeaturedListOnVisible();
+  const ready = !loading && !error && featured.length > 0;
+  // Until featured projects load (or when there are none) render a zero-height sentinel
+  // that still carries the on-visible ref, so the section never leaves an empty gap.
+  if (!ready) return <div ref={ref} aria-hidden style={{ height: 1 }} />;
   return (
-    <section id="proyectos" className="section">
+    <section ref={ref} id="proyectos" className="section">
       <div className="container">
         <div
           style={{
@@ -217,7 +225,7 @@ function HomePrograms() {
         </div>
         <div className="program-scroller" style={{ marginTop: 56 }}>
           <Suspense fallback={<ProgramsSkeleton />}>
-            <LazyHomePrograms />
+            <LazyHomePrograms items={featured} />
           </Suspense>
         </div>
       </div>
