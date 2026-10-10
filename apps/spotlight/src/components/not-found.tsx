@@ -93,7 +93,7 @@ export function NotFound() {
             color: "rgba(255,255,255,0.6)",
           }}
         >
-          {hero.submotto || SITE_CONFIG_DEFAULTS.hero.motto}
+          {hero.submotto.trim() || SITE_CONFIG_DEFAULTS.hero.motto}
         </p>
       </div>
     </section>

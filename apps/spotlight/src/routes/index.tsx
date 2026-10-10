@@ -1,8 +1,7 @@
-import { lazy, Suspense } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button, ArrowLink, RippleBackground, SectionHeader, Reveal, Icon } from "@luminova/ui";
 import { AreaCard, ImpactStat } from "../components/cards";
-import { ProgramsSkeleton } from "../components/programs-skeleton";
+import HomePrograms from "../components/home-programs";
 
 import { VisibilitySentinel } from "../components/visibility-sentinel";
 import { useSiteConfig } from "../site-config/use-site-config";
@@ -12,8 +11,6 @@ import { useFeaturedListOnVisible } from "../showcase/use-showcase";
 import { ALLY_CATEGORY_LABELS } from "@luminova/types/engine";
 
 const PROJECTS_SECTION_ID = "proyectos";
-
-const LazyHomePrograms = lazy(() => import("../components/home-programs"));
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -196,7 +193,7 @@ function HomeAreas() {
   );
 }
 
-function HomePrograms() {
+function HomeProjects() {
   const navigate = useNavigate();
   const { ref, data: featured, loading, error } = useFeaturedListOnVisible();
   const ready = !loading && !error && featured.length > 0;
@@ -225,9 +222,7 @@ function HomePrograms() {
           </ArrowLink>
         </div>
         <div className="program-scroller" style={{ marginTop: 56 }}>
-          <Suspense fallback={<ProgramsSkeleton />}>
-            <LazyHomePrograms items={featured} />
-          </Suspense>
+          <HomePrograms items={featured} />
         </div>
       </div>
     </section>
@@ -388,7 +383,7 @@ function Home() {
       <HomeHero />
       <HomeAbout />
       <HomeAreas />
-      <HomePrograms />
+      <HomeProjects />
       <HomeImpact />
       <HomeAllies />
       <HomeCTA />

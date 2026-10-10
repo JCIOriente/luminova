@@ -32,4 +32,10 @@ describe("404 tagline", () => {
     expect(await screen.findByText(SITE_CONFIG_DEFAULTS.hero.motto)).toBeInTheDocument();
     expect(screen.queryByText("Inspire")).not.toBeInTheDocument();
   });
+
+  it("treats a blank sub-motto as missing instead of rendering an empty line", async () => {
+    config.submotto = "   ";
+    renderWithRouter(<NotFound />, []);
+    expect(await screen.findByText(SITE_CONFIG_DEFAULTS.hero.motto)).toBeInTheDocument();
+  });
 });
