@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, screen } from "@testing-library/react";
 import type { ComponentType } from "react";
 import { makeShowcaseItem, renderWithRouter } from "../test/showcase";
 import { Route } from "./index";
@@ -34,6 +34,7 @@ const FEATURED_HEADING = "El trabajo que nos enorgullece.";
 
 describe("home featured projects, real on-visible flow", () => {
   beforeEach(() => {
+    localStorage.clear();
     fetchFeatured.mockReset();
     vi.stubGlobal(
       "IntersectionObserver",
@@ -51,6 +52,10 @@ describe("home featured projects, real on-visible flow", () => {
     );
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("swaps the sentinel for the section once the visible read returns projects", async () => {
     fetchFeatured.mockResolvedValue([
       makeShowcaseItem({ id: "a", title: "Proyecto Alfa", featured: true }),
@@ -66,6 +71,7 @@ describe("home featured projects, real on-visible flow", () => {
     renderWithRouter(<Home />, ["/impacto"]);
     await screen.findByRole("heading", { level: 1 });
     await vi.waitFor(() => expect(fetchFeatured).toHaveBeenCalledTimes(1));
+    await act(async () => {});
     expect(screen.queryByText(FEATURED_HEADING)).not.toBeInTheDocument();
   });
 });
