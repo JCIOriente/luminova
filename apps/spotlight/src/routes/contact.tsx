@@ -134,7 +134,7 @@ function ContactForm({ onSuccess }: { onSuccess: () => void }) {
         <Field
           label="WhatsApp (opcional)"
           htmlFor="ct-phone"
-          hint="Para contactarte más rápido por WhatsApp."
+          hint="Solo lo usamos para contactarte por WhatsApp."
           error={errors.phone}
         >
           <PhoneInput

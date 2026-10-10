@@ -160,7 +160,7 @@ function HomeAbout() {
               </p>
               <figure className="pullquote" style={{ marginTop: 36, marginBottom: 0 }}>
                 <blockquote className="t-quote" style={{ margin: 0 }}>
-                  {`${config.stats.membersWorldwide} miembros en ${config.stats.countries} países y 17 organizaciones en Bolivia. En Santa Cruz, JCI Oriente aporta a esa red desde 1993.`}
+                  {`${config.stats.membersWorldwide} miembros en ${config.stats.countries} países y 18 organizaciones en Bolivia. En Santa Cruz, JCI Oriente aporta a esa red desde 1993.`}
                 </blockquote>
                 <cite>JCI en cifras</cite>
               </figure>
@@ -333,7 +333,7 @@ function HomeCTA() {
             marginRight: "auto",
           }}
         >
-          Conviértete en el cambio que quieres ver en el mundo.
+          Crece como líder y sirve a tu comunidad.
         </h2>
         <p
           className="t-subtitle"

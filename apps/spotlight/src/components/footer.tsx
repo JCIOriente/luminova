@@ -78,7 +78,7 @@ export function Footer() {
               </li>
               <li>
                 <a href="/linktree" onClick={(e) => go(e, "/linktree")}>
-                  Linktree
+                  Enlaces
                 </a>
               </li>
             </ul>
