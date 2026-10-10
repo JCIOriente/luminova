@@ -28,9 +28,7 @@ function Privacidad() {
           correo electrónico, WhatsApp si decides compartirlo, motivo de contacto y tu mensaje) en
           nuestra base de datos (Cloud Firestore, de Google) para poder atender tu solicitud. Si
           activas las notificaciones, guardamos un identificador anónimo de tu navegador para
-          enviarte avisos; no incluye tu nombre ni tu correo. No recopilamos ningún otro dato
-          personal de forma automática mientras navegas, salvo las señales técnicas que analiza
-          reCAPTCHA (ver la sección 5).
+          enviarte avisos; no incluye tu nombre ni tu correo. No recopilamos ningún otro dato personal de forma automática mientras navegas. reCAPTCHA, de Google, analiza señales técnicas de tu navegador (ver la sección 5).
         </p>
       ),
     },
