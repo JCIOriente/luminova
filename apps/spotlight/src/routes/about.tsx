@@ -3,6 +3,7 @@ import { Button, RippleBackground, SectionHeader, Reveal, Icon, cn } from "@lumi
 import { CEL_POSITION_TITLES, currentTermKey } from "@luminova/types";
 import type { BoardShowcaseItem } from "@luminova/types/engine";
 import { TimelineItem } from "../components/cards";
+import { VisibilitySentinel } from "../components/visibility-sentinel";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { currentYearsActive } from "../site-config/defaults";
 import { useBoardOnVisible } from "../board/use-board";
@@ -290,9 +291,7 @@ function DirectivaDirecciones({ members, note }: { members: BoardShowcaseItem[];
 function AboutDirectiva() {
   const { ref, data: board, loading, error } = useBoardOnVisible();
   const ready = !loading && !error && board.length > 0;
-  // Until the board loads (or when nobody is published) render a zero-height sentinel
-  // that still carries the on-visible ref, so the page never leaves an empty gap.
-  if (!ready) return <div ref={ref} aria-hidden style={{ height: 1 }} />;
+  if (!ready) return <VisibilitySentinel ref={ref} />;
 
   const year = currentTermKey();
   const cel = board.filter((m) => m.group === "CEL");

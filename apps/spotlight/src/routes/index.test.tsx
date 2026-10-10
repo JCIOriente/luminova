@@ -25,6 +25,12 @@ vi.mock("../site-config/use-site-config", async () => {
 // Route files export only `Route` (autoCodeSplitting), so the page is reached through it.
 const Home = Route.options.component as ComponentType;
 
+const withFeatured = () => ({
+  data: [makeShowcaseItem({ id: "a", title: "Proyecto Alfa", featured: true })],
+  loading: false,
+  error: false,
+});
+
 const FEATURED_HEADING = "El trabajo que nos enorgullece.";
 
 // The router mounts asynchronously: wait for the hero before asserting anything is absent,
@@ -59,27 +65,18 @@ describe("home featured projects", () => {
   });
 
   it("shows the section with its projects when there are some", async () => {
-    featured.state = {
-      data: [makeShowcaseItem({ id: "a", title: "Proyecto Alfa", featured: true })],
-      loading: false,
-      error: false,
-    };
+    featured.state = withFeatured();
     await renderHome();
     expect(await screen.findByText(FEATURED_HEADING)).toBeInTheDocument();
     expect(await screen.findByText("Proyecto Alfa")).toBeInTheDocument();
   });
 
   it("hero button scrolls to the section when it exists", async () => {
-    featured.state = {
-      data: [makeShowcaseItem({ id: "a", title: "Proyecto Alfa", featured: true })],
-      loading: false,
-      error: false,
-    };
+    featured.state = withFeatured();
     await renderHome();
     await screen.findByText(FEATURED_HEADING);
     fireEvent.click(screen.getByText("Ver nuestros proyectos"));
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
-    expect(screen.getByText(FEATURED_HEADING)).toBeInTheDocument();
   });
 
   it("hero button goes to /impacto instead of scrolling to nothing when the section is hidden", async () => {

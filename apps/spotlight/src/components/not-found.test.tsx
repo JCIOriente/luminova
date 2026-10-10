@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { renderWithRouter } from "../test/showcase";
 import { SITE_CONFIG_DEFAULTS } from "../site-config/defaults";
 import { NotFound } from "./not-found";
-
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
 
 const config = vi.hoisted(() => ({ submotto: "" }));
 
@@ -22,15 +21,15 @@ describe("404 tagline", () => {
     config.submotto = "";
   });
 
-  it("shows the sub-motto loaded from the database when there is one", () => {
+  it("shows the sub-motto loaded from the database when there is one", async () => {
     config.submotto = "Un sublema de prueba.";
-    render(<NotFound />);
-    expect(screen.getByText("Un sublema de prueba.")).toBeInTheDocument();
+    renderWithRouter(<NotFound />, []);
+    expect(await screen.findByText("Un sublema de prueba.")).toBeInTheDocument();
   });
 
-  it("falls back to the default motto, never the database motto, when there is no sub-motto", () => {
-    render(<NotFound />);
-    expect(screen.getByText(SITE_CONFIG_DEFAULTS.hero.motto)).toBeInTheDocument();
+  it("falls back to the default motto, never the database motto, when there is no sub-motto", async () => {
+    renderWithRouter(<NotFound />, []);
+    expect(await screen.findByText(SITE_CONFIG_DEFAULTS.hero.motto)).toBeInTheDocument();
     expect(screen.queryByText("Inspire")).not.toBeInTheDocument();
   });
 });

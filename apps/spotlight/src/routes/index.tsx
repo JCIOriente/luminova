@@ -4,11 +4,14 @@ import { Button, ArrowLink, RippleBackground, SectionHeader, Reveal, Icon } from
 import { AreaCard, ImpactStat } from "../components/cards";
 import { ProgramsSkeleton } from "../components/programs-skeleton";
 
+import { VisibilitySentinel } from "../components/visibility-sentinel";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { currentYearsActive } from "../site-config/defaults";
 import { useAlliesOnVisible } from "../allies/use-allies";
 import { useFeaturedListOnVisible } from "../showcase/use-showcase";
 import { ALLY_CATEGORY_LABELS } from "@luminova/types/engine";
+
+const PROJECTS_SECTION_ID = "proyectos";
 
 const LazyHomePrograms = lazy(() => import("../components/home-programs"));
 
@@ -104,7 +107,7 @@ function HomeHero() {
               iconRight={<Icon.arrowRight />}
               onClick={(e) => {
                 e.preventDefault();
-                if (document.getElementById("proyectos")) scrollToId("proyectos");
+                if (document.getElementById(PROJECTS_SECTION_ID)) scrollToId(PROJECTS_SECTION_ID);
                 else void navigate({ to: "/impacto" });
               }}
             >
@@ -197,11 +200,9 @@ function HomePrograms() {
   const navigate = useNavigate();
   const { ref, data: featured, loading, error } = useFeaturedListOnVisible();
   const ready = !loading && !error && featured.length > 0;
-  // Until featured projects load (or when there are none) render a zero-height sentinel
-  // that still carries the on-visible ref, so the section never leaves an empty gap.
-  if (!ready) return <div ref={ref} aria-hidden style={{ height: 1 }} />;
+  if (!ready) return <VisibilitySentinel ref={ref} />;
   return (
-    <section ref={ref} id="proyectos" className="section">
+    <section ref={ref} id={PROJECTS_SECTION_ID} className="section">
       <div className="container">
         <div
           style={{
@@ -276,9 +277,7 @@ function HomeImpact() {
 function HomeAllies() {
   const { ref, data: allies, loading, error } = useAlliesOnVisible();
   const ready = !loading && !error && allies.length > 0;
-  // Until allies load (or when there are none) render a zero-height sentinel that
-  // still carries the on-visible ref, so the section never leaves an empty gap.
-  if (!ready) return <div ref={ref} aria-hidden style={{ height: 1 }} />;
+  if (!ready) return <VisibilitySentinel ref={ref} />;
   return (
     <section ref={ref} className="section">
       <div className="container">

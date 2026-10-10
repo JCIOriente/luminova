@@ -1,7 +1,8 @@
-// Single source of truth for the default siteConfig/current content used by both
-// the emulator seed and the production bootstrap. Mirrors SITE_CONFIG_DEFAULTS in
-// apps/spotlight/src/site-config/defaults.ts (the spotlight fallback). `version` and
-// `updatedAt` are stamped by each seed script (they own the admin Timestamp).
+// Default siteConfig/current content for the emulator seed and the production bootstrap.
+// It is a second copy of SITE_CONFIG_DEFAULTS in apps/spotlight/src/site-config/defaults.ts
+// (plain Node cannot import that TS module); apps/spotlight/src/site-config/defaults.test.ts
+// fails when the two drift. `version` and `updatedAt` are stamped by each seed script (they
+// own the admin Timestamp).
 // Allies are stored as string[] (the backstage mapper inflates them to {nombre} rows).
 export const SITE_CONFIG_CONTENT = {
   stats: {
