@@ -1,13 +1,7 @@
 // @vitest-environment node
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import {
-  SITE_URL_PLACEHOLDER,
-  normalizeSiteUrl,
-  renderIndexHtml,
-  renderRobots,
-  renderSitemap,
-} from "./seo-files";
+import { SITE_URL_PLACEHOLDER, renderIndexHtml, renderRobots, renderSitemap } from "./seo-files";
 
 const indexHtml = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 const ORIGIN = "https://example.org";
@@ -27,19 +21,6 @@ function staticRoutePaths(): string[] {
       return `/${segments.join("/")}`;
     });
 }
-
-describe("normalizeSiteUrl", () => {
-  it("strips a trailing slash", () => {
-    expect(normalizeSiteUrl("https://jcioriente.org/")).toBe("https://jcioriente.org");
-  });
-
-  it.each(["http://jcioriente.org", "https://jcioriente.org/es", "https://jcioriente.org/?a=1"])(
-    "rejects %s",
-    (bad) => {
-      expect(() => normalizeSiteUrl(bad)).toThrow(/bare https origin/);
-    },
-  );
-});
 
 describe("index.html", () => {
   it("carries no hardcoded public origin", () => {

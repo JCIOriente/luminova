@@ -1,4 +1,5 @@
 import type { Plugin } from "vite";
+import { normalizeSiteUrl } from "@luminova/brand";
 
 export const SITE_URL_PLACEHOLDER = "__SITE_URL__";
 
@@ -11,14 +12,6 @@ const SITEMAP_ROUTES: ReadonlyArray<{ path: string; priority: string }> = [
   { path: "/privacidad", priority: "0.3" },
   { path: "/terminos", priority: "0.3" },
 ];
-
-export function normalizeSiteUrl(siteUrl: string): string {
-  const url = new URL(siteUrl);
-  if (url.protocol !== "https:" || url.pathname !== "/" || url.search || url.hash) {
-    throw new Error(`SITE_URL must be a bare https origin, got "${siteUrl}"`);
-  }
-  return url.origin;
-}
 
 export function renderIndexHtml(html: string, origin: string): string {
   return html.replaceAll(SITE_URL_PLACEHOLDER, origin);
