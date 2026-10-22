@@ -8,6 +8,7 @@ declare module "virtual:luminova-brand" {
     readonly city: string;
     readonly cityFormal: string;
     readonly region: string;
+    readonly regionShort: string;
     readonly country: string;
   };
   export const foundedYear: number;

@@ -44,6 +44,10 @@
           "type": "string",
           "minLength": 1
         },
+        "regionShort": {
+          "type": "string",
+          "minLength": 1
+        },
         "country": {
           "type": "string",
           "minLength": 1
@@ -53,6 +57,7 @@
         "city",
         "cityFormal",
         "region",
+        "regionShort",
         "country"
       ],
       "additionalProperties": false

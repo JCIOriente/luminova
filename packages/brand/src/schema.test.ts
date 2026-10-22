@@ -25,6 +25,7 @@ function validBrand() {
       city: "Springfield",
       cityFormal: "Springfield City",
       region: "the Springfield valley",
+      regionShort: "the valley",
       country: "Fixtureland",
     },
     foundedYear: 2001,
@@ -155,6 +156,13 @@ describe("brandSchema", () => {
 
   it("rejects a malformed project id", () => {
     rejects((b) => (b.firebase.projectId = "Fixture_Project"), "firebase.projectId");
+  });
+
+  it("rejects a missing locality.regionShort", () => {
+    rejects(
+      (b) => delete (b.locality as Partial<Brand["locality"]>).regionShort,
+      "locality.regionShort",
+    );
   });
 
   it("rejects an empty name", () => {

@@ -10,6 +10,7 @@
     "city": "Springfield",
     "cityFormal": "Springfield City",
     "region": "the Springfield valley",
+    "regionShort": "the valley",
     "country": "Fixtureland"
   },
   "foundedYear": 2001,

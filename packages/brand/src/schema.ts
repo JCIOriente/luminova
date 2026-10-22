@@ -43,7 +43,14 @@ export const brandSchema = z.strictObject({
   legalName: text,
   movementName: text,
   description: text,
-  locality: z.strictObject({ city: text, cityFormal: text, region: text, country: text }),
+  locality: z.strictObject({
+    city: text,
+    cityFormal: text,
+    region: text,
+    // The bare-article short form some copy uses ("el Oriente" beside "el Oriente boliviano").
+    regionShort: text,
+    country: text,
+  }),
   foundedYear: z.int().min(1900).max(2100),
   stats: z.strictObject({ nationalOrganizations: z.int().positive() }),
   parentOrganization: z.strictObject({ name: text, url: httpsUrl }),
