@@ -1,0 +1,318 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "shortName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "legalName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "movementName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "locality": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cityFormal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "region": {
+          "type": "string",
+          "minLength": 1
+        },
+        "country": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["city", "cityFormal", "region", "country"],
+      "additionalProperties": false
+    },
+    "foundedYear": {
+      "type": "integer",
+      "minimum": 1900,
+      "maximum": 2100
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "nationalOrganizations": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["nationalOrganizations"],
+      "additionalProperties": false
+    },
+    "parentOrganization": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "required": ["name", "url"],
+      "additionalProperties": false
+    },
+    "broadcastChannelName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "locale": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$"
+    },
+    "ogLocale": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}_[A-Z]{2}$"
+    },
+    "urls": {
+      "type": "object",
+      "properties": {
+        "spotlight": {
+          "type": "string",
+          "minLength": 1
+        },
+        "backstage": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["spotlight", "backstage"],
+      "additionalProperties": false
+    },
+    "qrPrefix": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "themeColor": {
+      "type": "object",
+      "properties": {
+        "spotlight": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "backstage": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        }
+      },
+      "required": ["spotlight", "backstage"],
+      "additionalProperties": false
+    },
+    "seo": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ogTitle": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ogDescription": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ogImageAlt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "twitterDescription": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "ogTitle",
+        "ogDescription",
+        "ogImageAlt",
+        "twitterDescription"
+      ],
+      "additionalProperties": false
+    },
+    "backstage": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "emailPlaceholder": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["title", "emailPlaceholder"],
+      "additionalProperties": false
+    },
+    "og": {
+      "default": {
+        "legacyPaths": []
+      },
+      "type": "object",
+      "properties": {
+        "legacyPaths": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*\\.png$"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "firebase": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"
+        },
+        "storageBucket": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sites": {
+          "type": "object",
+          "properties": {
+            "spotlight": {
+              "type": "string",
+              "minLength": 1
+            },
+            "backstage": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["spotlight", "backstage"],
+          "additionalProperties": false
+        },
+        "web": {
+          "type": "object",
+          "properties": {
+            "authDomain": {
+              "type": "string",
+              "minLength": 1
+            },
+            "messagingSenderId": {
+              "type": "string",
+              "pattern": "^\\d+$"
+            },
+            "spotlight": {
+              "type": "object",
+              "properties": {
+                "apiKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "appId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "appCheckSiteKey": {
+                  "type": "string"
+                },
+                "vapidKey": {
+                  "type": "string"
+                }
+              },
+              "required": ["apiKey", "appId", "appCheckSiteKey", "vapidKey"],
+              "additionalProperties": false
+            },
+            "backstage": {
+              "type": "object",
+              "properties": {
+                "apiKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "appId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "appCheckSiteKey": {
+                  "type": "string"
+                },
+                "vapidKey": {
+                  "type": "string"
+                }
+              },
+              "required": ["apiKey", "appId", "appCheckSiteKey", "vapidKey"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["authDomain", "messagingSenderId", "spotlight", "backstage"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["projectId", "storageBucket", "sites", "web"],
+      "additionalProperties": false
+    },
+    "assetsBucket": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$"
+    }
+  },
+  "required": [
+    "slug",
+    "name",
+    "shortName",
+    "legalName",
+    "movementName",
+    "description",
+    "locality",
+    "foundedYear",
+    "stats",
+    "parentOrganization",
+    "broadcastChannelName",
+    "locale",
+    "ogLocale",
+    "urls",
+    "qrPrefix",
+    "themeColor",
+    "seo",
+    "backstage",
+    "firebase",
+    "assetsBucket"
+  ],
+  "additionalProperties": false
+}

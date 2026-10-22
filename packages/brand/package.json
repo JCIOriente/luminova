@@ -1,0 +1,24 @@
+{
+  "name": "@luminova/brand",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./vite": "./src/vite.ts",
+    "./virtual": "./src/virtual.d.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc --noEmit",
+    "ci": "eslint . && tsc --noEmit && vitest run"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5"
+  }
+}
