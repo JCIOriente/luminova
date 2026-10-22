@@ -75,6 +75,17 @@ machine-enforced yet — hold them by judgment + `bundle-budget-watcher`:
 | Any single route chunk | ≤ 40 kB gz | ≤ 40 kB gz |
 | New runtime dependency | justify if it adds > 10 kB gz to eager JS | same |
 
+**Firebase 13 lazy-chunk baseline (2026-10).** Moving 12.14.0 → 13.1.0 left eager JS unchanged but grew
+the lazy Firebase chunks (gz, `pnpm turbo run build --force`): backstage `db` 75.8 → 141.9 kB, spotlight async
+`site-data` 39.5 → 47.8 kB. `@firebase/firestore` 4.15 → 4.19 weaves Pipelines and BSON types into the SDK core
+(`isCorePipeline` checks in the target/watch code), and the package declares no `sideEffects`, so a bundler
+cannot drop them; 13.1.0 is the latest release, so no upstream fix exists yet. These chunks stay off first
+paint, so no budget moved. Measured option, not adopted: routing every backstage `firebase/firestore` import to
+`firebase/firestore/lite` cuts `db` to 37.0 kB gz (eager unchanged). It needs a product decision first: lite has
+no realtime listeners (none are used today), no offline cache or queued writes, and a different `Timestamp`
+class, so all 36 source files, `packages/types` and the two tests that `vi.mock("firebase/firestore")` must switch
+together (`getCountFromServer` becomes `getCount`).
+
 **Invite-link onboarding (2026-09).** Adding `/invitacion` and removing `/forgot-password` +
 `/reset` measured **159 kB gz** backstage eager (pre-19.3), against a 162 kB budget — verified twice,
 including an independent re-sum of the ten files `index.html` actually references.
