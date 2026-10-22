@@ -8,8 +8,10 @@ export interface PngSize {
 }
 
 // Signature (8) + IHDR length (4) + "IHDR" (4) + width (4) + height (4).
+export const PNG_HEADER_BYTES = 24;
+
 export function readPngSize(bytes: Buffer): PngSize | null {
-  if (bytes.length < 24 || !bytes.subarray(0, 8).equals(SIGNATURE)) return null;
+  if (bytes.length < PNG_HEADER_BYTES || !bytes.subarray(0, 8).equals(SIGNATURE)) return null;
   if (bytes.subarray(12, 16).toString("latin1") !== "IHDR") return null;
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
 }
@@ -24,11 +26,7 @@ function chunk(type: string, data: Buffer): Buffer {
 }
 
 /** A solid-colour 8-bit RGB PNG, for fixtures and tests. */
-export function encodePng(
-  width: number,
-  height: number,
-  rgb: readonly [number, number, number] | number[],
-): Buffer {
+export function encodePng(width: number, height: number, rgb: readonly number[]): Buffer {
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);

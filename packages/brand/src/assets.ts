@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import { join } from "node:path";
-import type { BrandApp } from "./ports.ts";
-import { readPngSize, type PngSize } from "./png.ts";
+import { BRAND_APPS } from "./ports.ts";
+import { PNG_HEADER_BYTES, readPngSize, type PngSize } from "./png.ts";
 
 export const LOGO_FILES = ["logo-main.png", "logo-on-dark.png", "logo-on-primary.png"] as const;
 
@@ -29,7 +29,7 @@ export interface AssetSpec {
 export const ASSET_CONTRACT: readonly AssetSpec[] = [
   ...LOGO_FILES.map((path) => ({ path })),
   { path: OG_IMAGE_FILE, width: 1200, height: 630 },
-  ...(["spotlight", "backstage"] satisfies BrandApp[]).flatMap((app) =>
+  ...BRAND_APPS.flatMap((app) =>
     ICON_FILES.map(({ name, size }) => ({ path: `${app}/${name}`, width: size, height: size })),
   ),
 ];
@@ -44,6 +44,18 @@ export interface AssetValidation {
 function expectation(spec: AssetSpec): string {
   return spec.width ? `${spec.width}×${spec.height}` : `PNG, height ≥ ${MIN_LOGO_HEIGHT}`;
 }
+
+function readHeader(file: string): Buffer {
+  const header = Buffer.alloc(PNG_HEADER_BYTES);
+  const fd = openSync(file, "r");
+  try {
+    return header.subarray(0, readSync(fd, header, 0, PNG_HEADER_BYTES, 0));
+  } finally {
+    closeSync(fd);
+  }
+}
+
+const sameSize = (a: PngSize, b: PngSize) => a.width === b.width && a.height === b.height;
 
 function checkPullManifest(dir: string, profile: string): string | null {
   const file = join(dir, PULL_MANIFEST_FILE);
@@ -77,8 +89,7 @@ export function validateAssets(
       errors.push(`${spec.path}: missing (expected ${expectation(spec)})`);
       continue;
     }
-    const bytes = readFileSync(file);
-    const size = readPngSize(bytes);
+    const size = readPngSize(readHeader(file));
     if (!size) {
       errors.push(`${spec.path}: not a PNG (expected ${expectation(spec)})`);
       continue;
@@ -93,25 +104,24 @@ export function validateAssets(
     } else if (size.width !== spec.width || size.height !== spec.height) {
       errors.push(`${spec.path}: ${actual}, expected ${expectation(spec)}`);
     }
-    if (spec.path === OG_IMAGE_FILE && bytes.length > OG_IMAGE_WARN_BYTES) {
+    const bytes = spec.path === OG_IMAGE_FILE ? statSync(file).size : 0;
+    if (bytes > OG_IMAGE_WARN_BYTES) {
       warnings.push(
-        `${spec.path}: ${Math.round(bytes.length / 1024)} KB is over 300 KB; WhatsApp may skip the preview`,
+        `${spec.path}: ${Math.round(bytes / 1024)} KB is over ${OG_IMAGE_WARN_BYTES / 1024} KB; WhatsApp may skip the preview`,
       );
     }
   }
 
-  const main = logoSizes.get("logo-main.png");
-  let logoSize: PngSize | null = main && logoSizes.size === LOGO_FILES.length ? main : null;
-  if (main) {
-    for (const [path, size] of logoSizes) {
-      if (size.width !== main.width || size.height !== main.height) {
-        errors.push(
-          `${path}: ${size.width}×${size.height} must be the same size as logo-main.png (${main.width}×${main.height})`,
-        );
-        logoSize = null;
-      }
-    }
+  const [mainFile] = LOGO_FILES;
+  const main = logoSizes.get(mainFile);
+  const mismatched = main ? [...logoSizes].filter(([, size]) => !sameSize(size, main)) : [];
+  for (const [path, size] of mismatched) {
+    errors.push(
+      `${path}: ${size.width}×${size.height} must be the same size as ${mainFile} (${main?.width}×${main?.height})`,
+    );
   }
+  const logoSize =
+    main && logoSizes.size === LOGO_FILES.length && mismatched.length === 0 ? main : null;
 
   if (profile) {
     const manifestError = checkPullManifest(dir, profile);

@@ -2,6 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { FIXTURE_LOGO_SIZE, writeAssetSet } from "./asset-set.ts";
 import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES, validateAssets } from "./assets.ts";
 import { REPO_ROOT } from "./load-profile.ts";
 import { encodePng } from "./png.ts";
@@ -18,7 +19,7 @@ describe("committed profile assets", () => {
   it("the fixture set meets the contract with 400×200 logos", () => {
     const result = validateAssets(join(REPO_ROOT, "brand/fixture/assets"));
     expect(result.errors).toEqual([]);
-    expect(result.logoSize).toEqual({ width: 400, height: 200 });
+    expect(result.logoSize).toEqual(FIXTURE_LOGO_SIZE);
   });
 });
 
@@ -27,13 +28,7 @@ function put(path: string, contents: Buffer) {
   writeFileSync(join(dir, path), contents);
 }
 
-function writeCompleteSet() {
-  for (const spec of ASSET_CONTRACT) {
-    const width = spec.width ?? 400;
-    const height = spec.height ?? 200;
-    put(spec.path, encodePng(width, height, [0x33, 0x66, 0x99]));
-  }
-}
+const writeCompleteSet = () => writeAssetSet(dir);
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "brand-assets-"));
