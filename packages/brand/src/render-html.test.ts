@@ -15,6 +15,12 @@ describe("renderHtml", () => {
     );
   });
 
+  it("inserts values literally, without $-replacement patterns", () => {
+    expect(renderHtml("<p>__A__</p><i>__B__</i>", { A: "US$& 10", B: "$` $' $$" })).toBe(
+      "<p>US$&amp; 10</p><i>$` $' $$</i>",
+    );
+  });
+
   it("fails naming every leftover token", () => {
     expect(() => renderHtml("__LANG__ __OG_IMAGE__ __SITE_URL__", { LANG: "es" })).toThrow(
       /__OG_IMAGE__.*__SITE_URL__/,

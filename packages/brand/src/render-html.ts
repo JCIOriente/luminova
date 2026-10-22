@@ -15,7 +15,8 @@ function escapeHtml(value: string): string {
 export function renderHtml(html: string, values: Readonly<Record<string, string>>): string {
   let rendered = html;
   for (const [key, value] of Object.entries(values)) {
-    rendered = rendered.replaceAll(`__${key}__`, escapeHtml(value));
+    const escaped = escapeHtml(value);
+    rendered = rendered.replaceAll(`__${key}__`, () => escaped);
   }
   const leftovers = [...new Set(rendered.match(TOKEN))];
   if (leftovers.length > 0) {

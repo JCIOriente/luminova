@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { imagetools } from "vite-imagetools";
 import { VitePWA } from "vite-plugin-pwa";
+import { DEV_PORTS, PREVIEW_PORTS } from "@luminova/brand";
 import {
   PWA_INCLUDE_ASSETS,
   brandPlugin,
@@ -93,6 +94,8 @@ export default defineConfig(({ command, mode }) => {
         devOptions: { enabled: false },
       }),
     ],
+    server: { port: DEV_PORTS.spotlight },
+    preview: { port: PREVIEW_PORTS.spotlight },
     build: {
       rollupOptions: {
         output: {

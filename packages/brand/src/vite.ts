@@ -4,7 +4,7 @@ import { loadEnv, type Plugin } from "vite";
 import { ICON_FILES, LOGO_FILES, validateAssets } from "./assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "./load-profile.ts";
 import type { PngSize } from "./png.ts";
-import { DEV_PORTS, PREVIEW_PORTS, type BrandApp } from "./ports.ts";
+import type { BrandApp } from "./ports.ts";
 import { renderHtml } from "./render-html.ts";
 import type { Brand } from "./schema.ts";
 import { stagePublic } from "./stage-public.ts";
@@ -215,11 +215,10 @@ export function brandPlugin({
       const envDir = config.envDir ? resolve(root, config.envDir) : root;
       const build =
         resolved ?? resolveBrandBuild({ app, profile, repoRoot, command, mode, envDir });
-      const ports = { server: { port: DEV_PORTS[app] }, preview: { port: PREVIEW_PORTS[app] } };
       // Tests only need the virtual module; staging would rewrite the public dir per run.
       if (mode === "test") {
         state = { build, ogImageFile: "" };
-        return ports;
+        return;
       }
       const publicDir = join(root, "node_modules", ".cache", "luminova-brand", app, "public");
       const { ogImageFile } = stagePublic({
@@ -234,7 +233,7 @@ export function brandPlugin({
         Object.assign(process.env, firebaseEnv(build.profile.brand, app));
       }
       state = { build, ogImageFile };
-      return { ...ports, publicDir };
+      return { publicDir };
     },
     resolveId(id) {
       return id === BRAND_VIRTUAL_MODULE ? RESOLVED_VIRTUAL_MODULE : null;

@@ -188,7 +188,7 @@ describe("logoInclude", () => {
 });
 
 describe("brandPlugin config hook", () => {
-  it("sets the app's ports and skips staging under vitest", () => {
+  it("leaves ports to the app config (so --port wins) and skips staging under vitest", () => {
     const plugin = brandPlugin({ app: "backstage", build: resolve({ app: "backstage" }) });
     const config = typeof plugin.config === "function" ? plugin.config : plugin.config?.handler;
     const result = config?.call(
@@ -197,10 +197,7 @@ describe("brandPlugin config hook", () => {
       { root: join(repoRoot, "app") },
       { command: "serve", mode: "test" },
     );
-    expect(result).toEqual({
-      server: { port: DEV_PORTS.backstage },
-      preview: { port: PREVIEW_PORTS.backstage },
-    });
+    expect(result).toBeUndefined();
     expect(existsSync(join(repoRoot, "app", "node_modules"))).toBe(false);
   });
 });
