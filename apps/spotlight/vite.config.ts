@@ -13,6 +13,7 @@ import {
   pwaManifest,
   resolveBrandBuild,
 } from "@luminova/brand/vite";
+import { manualChunks } from "./chunking";
 import { seoFiles } from "./seo-files";
 
 // Preload the above-the-fold latin Plus Jakarta Sans woff2 so the browser fetches
@@ -122,19 +123,7 @@ export default defineConfig(({ command, mode }) => {
           // own chunk makes rolldown relocate the SHARED firebase-app/installations
           // core into that chunk too, which `site-data` then imports back — an eager
           // reverse edge that loads messaging's chunk on every page anyway.
-          manualChunks(id) {
-            if (
-              id.includes("@firebase/messaging") ||
-              id.includes("firebase/messaging") ||
-              id.includes("firebase/src/messaging") ||
-              id.includes("firebase/dist/messaging")
-            ) {
-              return;
-            }
-            if (id.includes("firebase") || id.includes("site-config-firestore")) {
-              return "site-data";
-            }
-          },
+          manualChunks,
         },
       },
     },
