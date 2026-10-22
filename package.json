@@ -19,6 +19,7 @@
     "format:fix": "prettier --write .",
     "knip": "knip",
     "brand:schema": "node packages/brand/src/cli/schema.ts",
+    "brand:guard": "node packages/brand/src/cli/guard.ts",
     "audit": "pnpm audit --audit-level=high",
     "test:seed": "node --test 'tools/scripts/lib/**/*.test.mjs'",
     "test:harness": "node --test \".claude/hooks/**/*.test.mjs\"",
