@@ -122,7 +122,7 @@ See [`docs/roadmap.md`](docs/roadmap.md) for the full picture.
 
 ## Stack
 
-React 19 · TypeScript 6 (strict) · TanStack Router + TanStack Query · React Hook Form +
+React 19 · TypeScript 7 (strict) · TanStack Router + TanStack Query · React Hook Form +
 Zod · Tailwind CSS v4 · CASL · Firebase (Auth, Firestore, Storage, Functions, Hosting) ·
 Turborepo + pnpm workspaces · Node 24.
 
