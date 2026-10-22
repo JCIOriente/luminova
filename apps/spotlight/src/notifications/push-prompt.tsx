@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { name } from "virtual:luminova-brand";
 import { Button, Icon } from "@luminova/ui";
 
 const DISMISS_KEY = "jci.push.dismissed";
@@ -113,7 +114,7 @@ export function PushPrompt() {
         </span>
         <div style={{ flex: 1 }}>
           <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--ink-1)" }}>
-            Recibe avisos de JCI Oriente
+            Recibe avisos de {name}
           </p>
           <p style={{ margin: "6px 0 0", fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.5 }}>
             Entérate de nuestros próximos eventos y convocatorias directamente en tu dispositivo.

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { name, foundedYear } from "virtual:luminova-brand";
 import { Icon, LogoLockup, RippleBackground } from "@luminova/ui";
 import type { LinktreeIcon, LinktreeSocialPlatform } from "@luminova/types";
 import { useSiteConfig } from "../site-config/use-site-config";
@@ -255,7 +256,9 @@ export function LinktreePage() {
           }}
         >
           {config.contact.location ? <div>{config.contact.location}</div> : null}
-          <div>JCI Oriente · Desde 1993</div>
+          <div>
+            {name} · Desde {foundedYear}
+          </div>
         </footer>
       </div>
     </main>

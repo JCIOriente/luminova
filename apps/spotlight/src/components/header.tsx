@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import clsx from "clsx";
-import { urls } from "virtual:luminova-brand";
+import { urls, name } from "virtual:luminova-brand";
 import { LogoLockup, Button, Icon } from "@luminova/ui";
 
 // Enumerate the LIGHT-hero routes; everything else — including unknown paths,
@@ -112,7 +112,7 @@ export function Header() {
               onBlue={ctaOnBlue}
               onDark={ctaOnDark}
             >
-              Únete a JCI Oriente
+              Únete a {name}
             </Button>
           </nav>
           <button className="hamburger" aria-label="Abrir menú" onClick={() => setMobileOpen(true)}>
@@ -163,7 +163,7 @@ export function Header() {
               variant="primary"
               iconRight={<Icon.arrowRight />}
             >
-              Únete a JCI Oriente
+              Únete a {name}
             </Button>
           </div>
         </div>

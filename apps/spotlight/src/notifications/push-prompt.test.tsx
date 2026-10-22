@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { name } from "virtual:luminova-brand";
 import { PushPrompt } from "./push-prompt";
+
+const TITLE = `Recibe avisos de ${name}`;
 
 const DISMISS_KEY = "jci.push.dismissed";
 
@@ -42,14 +45,14 @@ describe("PushPrompt", () => {
   it("renders on non-iOS with permission default and not dismissed", () => {
     setup();
     render(<PushPrompt />);
-    expect(screen.getByText("Recibe avisos de JCI Oriente")).toBeInTheDocument();
+    expect(screen.getByText(TITLE)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Activar" })).toBeInTheDocument();
   });
 
   it("renders nothing when permission is already granted", () => {
     setup({ permission: "granted" });
     render(<PushPrompt />);
-    expect(screen.queryByText("Recibe avisos de JCI Oriente")).not.toBeInTheDocument();
+    expect(screen.queryByText(TITLE)).not.toBeInTheDocument();
   });
 
   it("renders nothing on iOS when not running standalone (dead-end)", () => {
@@ -58,7 +61,7 @@ describe("PushPrompt", () => {
       standalone: false,
     });
     render(<PushPrompt />);
-    expect(screen.queryByText("Recibe avisos de JCI Oriente")).not.toBeInTheDocument();
+    expect(screen.queryByText(TITLE)).not.toBeInTheDocument();
   });
 
   it("renders on iOS when installed as a standalone PWA", () => {
@@ -68,20 +71,20 @@ describe("PushPrompt", () => {
       displayModeStandalone: true,
     });
     render(<PushPrompt />);
-    expect(screen.getByText("Recibe avisos de JCI Oriente")).toBeInTheDocument();
+    expect(screen.getByText(TITLE)).toBeInTheDocument();
   });
 
   it("renders nothing when already dismissed", () => {
     setup({ dismissed: true });
     render(<PushPrompt />);
-    expect(screen.queryByText("Recibe avisos de JCI Oriente")).not.toBeInTheDocument();
+    expect(screen.queryByText(TITLE)).not.toBeInTheDocument();
   });
 
   it("'Ahora no' dismisses the prompt and persists the dismissal", () => {
     setup();
     render(<PushPrompt />);
     fireEvent.click(screen.getByRole("button", { name: "Ahora no" }));
-    expect(screen.queryByText("Recibe avisos de JCI Oriente")).not.toBeInTheDocument();
+    expect(screen.queryByText(TITLE)).not.toBeInTheDocument();
     expect(localStorage.getItem(DISMISS_KEY)).toBe("1");
   });
 });

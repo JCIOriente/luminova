@@ -1,11 +1,17 @@
 import { useNavigate } from "@tanstack/react-router";
-import { urls } from "virtual:luminova-brand";
+import {
+  urls,
+  name,
+  locality,
+  foundedYear,
+  movementName,
+  parentOrganization,
+} from "virtual:luminova-brand";
 import { LogoLockup, RippleBackground } from "@luminova/ui";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { safeHref } from "../site-config/safe-href";
 import { SocialIconLinks } from "./social-icon-links";
 
-const JCI_BOLIVIA_URL = "https://jcibolivia.org/";
 const CURRENT_YEAR = new Date().getFullYear();
 
 const SOCIAL_STYLE: React.CSSProperties = {
@@ -42,7 +48,7 @@ export function Footer() {
                 maxWidth: 320,
               }}
             >
-              Capítulo Santa Cruz de la Cámara Junior Internacional. Formamos líderes desde 1993.
+              {`Capítulo ${locality.city} de la ${movementName}. Formamos líderes desde ${foundedYear}.`}
             </p>
             <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
               <SocialIconLinks style={SOCIAL_STYLE} />
@@ -125,14 +131,14 @@ export function Footer() {
         </div>
         <div className="footer-strip">
           <div>
-            © {CURRENT_YEAR} JCI Oriente. Miembro de{" "}
+            © {CURRENT_YEAR} {name}. Miembro de{" "}
             <a
-              href={JCI_BOLIVIA_URL}
+              href={parentOrganization.url}
               target="_blank"
               rel="noopener noreferrer"
               style={{ textDecoration: "underline", textUnderlineOffset: 3 }}
             >
-              JCI Bolivia
+              {parentOrganization.name}
             </a>
             .
           </div>
