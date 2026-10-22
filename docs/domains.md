@@ -15,19 +15,24 @@ share cards link to, and the public site's "Ingresar" / "Portal de miembros" lin
 
 ## Where the domain lives in code
 
-One file: `apps/spotlight/src/config/external-links.ts`.
+One file: the brand profile, `brand/jci-oriente/brand.json`.
 
-```ts
-export const SITE_URL = "https://jcioriente.org";
-export const BACKSTAGE_URL = "https://admin.jcioriente.org";
+```json
+"urls": { "spotlight": "https://jcioriente.org", "backstage": "https://admin.jcioriente.org" }
 ```
 
-- `SITE_URL` is stamped into `apps/spotlight/index.html` (`rel=canonical`, `og:url`,
-  `og:image`, `twitter:image` — written as `__SITE_URL__` there) and into the generated
-  `sitemap.xml` and `robots.txt`, by the `seoFiles` Vite plugin
-  (`apps/spotlight/seo-files.ts`). `seo-files.test.ts` fails if a hardcoded origin comes
-  back into `index.html`, or if a static page route is missing from the sitemap.
-- `BACKSTAGE_URL` is the header and footer link from the public site into the admin.
+Production builds use these origins. Local builds resolve them to `localhost` instead
+(`pnpm dev` and `build:local` / `preview:local`), so a local "Ingresar" never opens the
+production admin.
+
+- `urls.spotlight` is stamped into `apps/spotlight/index.html` (`rel=canonical`, `og:url`,
+  `og:image`, `twitter:image` — written as `__SITE_URL__` there) by the brand Vite plugin
+  (`packages/brand/src/vite.ts`), and into the generated `sitemap.xml` and `robots.txt` by
+  the `seoFiles` plugin (`apps/spotlight/seo-files.ts`). `seo-files.test.ts` fails if a
+  chapter value comes back into `index.html`, or if a static page route is missing from
+  the sitemap; the build fails if any `__PLACEHOLDER__` is left unfilled.
+- `urls.backstage` is the header and footer link from the public site into the admin
+  (`brand.urls.backstage` from `virtual:luminova-brand`).
 
 Nothing else links to a hostname:
 
@@ -74,11 +79,10 @@ backstage fallback URL.
 **Then point the code at the fallback**, so search engines, share cards and the public
 site's admin link stop sending people to the dead hostname:
 
-1. In a worktree off `main`, edit `apps/spotlight/src/config/external-links.ts`:
+1. In a worktree off `main`, edit `urls` in `brand/jci-oriente/brand.json`:
 
-   ```ts
-   export const SITE_URL = "https://jcioriente.web.app";
-   export const BACKSTAGE_URL = "https://jcioriente-backstage.web.app";
+   ```json
+   "urls": { "spotlight": "https://jcioriente.web.app", "backstage": "https://jcioriente-backstage.web.app" }
    ```
 
 2. Update the two hand-maintained mentions listed under "Where the domain lives in code",

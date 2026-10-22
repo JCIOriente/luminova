@@ -8,7 +8,14 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],
-      "env": ["VITE_FIREBASE_EMULATOR_ENABLED"]
+      "env": [
+        "VITE_FIREBASE_EMULATOR_ENABLED",
+        "BRAND_PROFILE",
+        "BRAND_RELEASE",
+        "BRAND_ASSETS_DIR",
+        "GCP_PROJECT_ID"
+      ],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/brand/**"]
     },
     "preview": {
       "cache": false,
@@ -18,9 +25,12 @@
     "typecheck": {
       "dependsOn": ["^build"]
     },
-    "test": {},
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/brand/**"]
+    },
     "ci": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/brand/**"]
     }
   }
 }

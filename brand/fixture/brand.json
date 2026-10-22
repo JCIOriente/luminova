@@ -1,0 +1,62 @@
+{
+  "$schema": "../brand.schema.json",
+  "slug": "fixture",
+  "name": "Fixture Chapter",
+  "shortName": "Fixture",
+  "legalName": "Fixture Chapter Association",
+  "movementName": "Fixture Leadership Movement",
+  "description": "Fixture Chapter, a neutral test profile",
+  "locality": {
+    "city": "Springfield",
+    "cityFormal": "Springfield City",
+    "region": "the Springfield valley",
+    "country": "Fixtureland"
+  },
+  "foundedYear": 2001,
+  "stats": { "nationalOrganizations": 7 },
+  "parentOrganization": { "name": "Fixture National", "url": "https://national.example.org/" },
+  "broadcastChannelName": "Fixture Broadcast",
+  "locale": "es",
+  "ogLocale": "es_BO",
+  "urls": {
+    "spotlight": "https://fixture.example.org",
+    "backstage": "https://admin.fixture.example.org"
+  },
+  "qrPrefix": "fixture",
+  "themeColor": { "spotlight": "#336699", "backstage": "#222222" },
+  "seo": {
+    "title": "Fixture Chapter: a neutral test profile",
+    "description": "Fixture Chapter in Springfield, a neutral profile for tests.",
+    "ogTitle": "Fixture Chapter: a neutral test profile",
+    "ogDescription": "Fixture Chapter builds test leaders in the Springfield valley.",
+    "ogImageAlt": "Fixture Chapter share image.",
+    "twitterDescription": "Fixture Chapter builds test leaders."
+  },
+  "backstage": {
+    "title": "Fixture Chapter — Member portal",
+    "emailPlaceholder": "you@fixture.example.org"
+  },
+  "og": { "legacyPaths": ["og-image-legacy.png"] },
+  "firebase": {
+    "projectId": "demo-fixture",
+    "storageBucket": "demo-fixture.firebasestorage.app",
+    "sites": { "spotlight": "demo-fixture", "backstage": "demo-fixture-backstage" },
+    "web": {
+      "authDomain": "demo-fixture.firebaseapp.com",
+      "messagingSenderId": "100000000001",
+      "spotlight": {
+        "apiKey": "demo-fixture-spotlight-api-key",
+        "appId": "1:100000000001:web:demofixture01",
+        "appCheckSiteKey": "",
+        "vapidKey": ""
+      },
+      "backstage": {
+        "apiKey": "demo-fixture-backstage-api-key",
+        "appId": "1:100000000001:web:demofixture02",
+        "appCheckSiteKey": "",
+        "vapidKey": ""
+      }
+    }
+  },
+  "assetsBucket": "demo-fixture-brand-assets"
+}

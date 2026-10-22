@@ -48,8 +48,9 @@ directly for exact values. Summary of what's defined:
 tokens only** (surface/ink/line); brand colors stay locked. A few hardcoded
 `rgba(19,15,45,…)` shadows don't invert yet — accepted for v1.
 
-**Brand assets:** `src/assets/` — `logo-black.png`, `logo-color.png`,
-`logo-on-blue.png`, `logo-on-dark.png` (rendered via the `LogoLockup` component).
+**Brand assets:** the logos come from the selected brand profile, not from this package:
+`brand/<slug>/assets/` — `logo-main.png`, `logo-on-dark.png`, `logo-on-primary.png` —
+served through `virtual:luminova-brand` and rendered by the `LogoLockup` component.
 
 Styling model: **pure Tailwind v4 utility classes** driven by these tokens (no
 semantic CSS classes). Components are consumed as **raw TypeScript source** — no

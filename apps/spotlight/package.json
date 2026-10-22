@@ -26,6 +26,7 @@
     "yet-another-react-lightbox": "^3.32.2"
   },
   "devDependencies": {
+    "@luminova/brand": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/router-plugin": "^1.168.47",
     "@testing-library/jest-dom": "7.0.1",

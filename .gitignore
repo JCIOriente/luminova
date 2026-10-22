@@ -59,3 +59,9 @@ coverage/
 
 # Playwright MCP output
 .playwright-mcp/
+
+# Brand assets: deployment assets stay out of git; only the example and fixture profiles commit theirs
+brand-assets/
+brand/*/assets/
+!brand/jci-oriente/assets/
+!brand/fixture/assets/

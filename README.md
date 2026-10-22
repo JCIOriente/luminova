@@ -213,7 +213,7 @@ fork it and change these:
    `default` target, which `firebase.json` points at for `storage.rules`). Miss the storage
    target and `pnpm deploy:rules` either errors or keeps aiming at someone else's bucket,
    leaving yours with no rules. Then set the client config in `apps/*/.env.local.example`
-   and `apps/*/.env.production`.
+   (local development) and in your brand profile's `firebase.web` (production builds; see 3).
 2. **Chapter content.** The seeded site content — history, mission, vision, values,
    statistics, contact details — lives in
    `tools/scripts/lib/site-config-seed-data.mjs` and
@@ -221,18 +221,19 @@ fork it and change these:
    the admin `/config` screen once you are running.
 3. **Branding.** More places than you would expect, and missing one is visible to the
    public:
-   - Logos in `packages/ui/src/assets/`; design tokens in `packages/ui`.
-   - Favicons, PWA icons and Apple touch icons in **both** `apps/spotlight/public/` and
-     `apps/backstage/public/`, plus the share images `og-image-v3.png` and
-     `og-linktree.png`.
-   - PWA `name` / `short_name` in `apps/spotlight/vite.config.ts` and
-     `apps/backstage/vite.config.ts` — this is what the app installs as on a phone.
-   - The notification fallback title in both `public/firebase-messaging-sw.js`.
-   - `SITE_URL` and `BACKSTAGE_URL` in `apps/spotlight/src/config/external-links.ts`.
-     `SITE_URL` is stamped into `index.html` (`rel=canonical`, `og:url`, `og:image`,
-     `twitter:image`), `sitemap.xml` and `robots.txt` at build. Leave it and your site
-     tells search engines it is a copy of ours, and every WhatsApp share renders our
-     image. See `docs/domains.md`.
+   - **A brand profile**, `brand/<slug>/`: copy `brand/fixture/`, rename the folder and its
+     `slug`, and build with `BRAND_PROFILE=<slug>`. `brand.json` holds the name, PWA name
+     and short name, theme colours, page title, SEO and share text, both production origins,
+     the member-QR prefix and the Firebase web config. `assets/` holds the 16 images: three
+     logos, the share image and each app's favicons, PWA and Apple touch icons (the contract
+     is in `packages/brand/src/assets.ts`). A build stops and lists every missing or
+     wrong-sized file. The origins are stamped into `index.html` (`rel=canonical`,
+     `og:url`, `og:image`, `twitter:image`), `sitemap.xml` and `robots.txt`; leave ours and
+     your site tells search engines it is a copy of ours, and every WhatsApp share renders
+     our image. See `docs/domains.md`.
+   - Design tokens in `packages/ui`.
+   - Chapter facts in page copy (name, city, founding year) are still literals in
+     `apps/*/src`, and the default site content is in step 2.
 
    The JCI marks are **not** covered by this repository's license — see [NOTICE](NOTICE).
 4. **Points matrix.** Defaults follow JCI Oriente's "Mejor Miembro Individual" scoring
@@ -286,7 +287,7 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 [Apache License 2.0](LICENSE).
 
 The license covers the code. It does not grant rights to the JCI name and marks, the JCI
-Oriente logos in `packages/ui/src/assets/`, or the chapter's own content shipped as seed
+Oriente logos and icons in `brand/jci-oriente/assets/`, or the chapter's own content shipped as seed
 data. See [NOTICE](NOTICE) before you fork.
 
 ## Origin

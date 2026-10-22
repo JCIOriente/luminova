@@ -12,6 +12,7 @@
 | `packages/types` (`@luminova/types`) | Shared TypeScript types and zod schemas |
 | `packages/auth` (`@luminova/auth`) | CASL roles, permissions, ability builder |
 | `packages/utils` (`@luminova/utils`) | Intl-only helpers, no runtime deps (es-BO datetime with the Bolivia UTC pin) |
+| `packages/brand` (`@luminova/brand`) | Build-time brand profiles (`brand/<slug>/`): schema, loader, asset validator, Vite plugin (`virtual:luminova-brand`). `BRAND_PROFILE` selects one; unset means `jci-oriente` |
 
 Stack: React 19, TypeScript 7 strict, TanStack Router (file-based) + Query v5, React Hook Form + Zod, Tailwind v4, Lucide, Firebase, Turborepo + pnpm workspaces. Node 24 and pnpm are pinned (`.nvmrc`, `engines.node`, `packageManager`).
 
@@ -30,7 +31,7 @@ pnpm --filter <app> run ci                  # one app's gate; bare `pnpm ci` is 
 firebase emulators:start
 ```
 
-Emulator ports: Auth 4030, Firestore 4010, Functions 4020, Hosting 4000, Storage 9199, UI 4100. Each frontend needs `.env.local` with `VITE_FIREBASE_{API_KEY,AUTH_DOMAIN,PROJECT_ID,STORAGE_BUCKET,MESSAGING_SENDER_ID,APP_ID,VAPID_KEY}` and `VITE_FIREBASE_EMULATOR_ENABLED` (`true` connects to the emulators). Full list, incl. `VITE_APPCHECK_SITE_KEY`: `apps/*/.env.local.example`. The flag is baked in at build time: `pnpm build` (production mode) loads `.env.production`, which sets it `false`, so a normal build served by the Hosting emulator (:4000) logs in against **prod** Auth. For local auth use `pnpm dev` or `pnpm build:local` / `preview:local`. Deploys go through CD (`docs/ci-cd.md`); manual deploy commands are in `docs/firebase-setup.md`.
+Emulator ports: Auth 4030, Firestore 4010, Functions 4020, Hosting 4000, Storage 9199, UI 4100. Each frontend needs `.env.local` with `VITE_FIREBASE_{API_KEY,AUTH_DOMAIN,PROJECT_ID,STORAGE_BUCKET,MESSAGING_SENDER_ID,APP_ID,VAPID_KEY}` and `VITE_FIREBASE_EMULATOR_ENABLED` (`true` connects to the emulators). Full list, incl. `VITE_APPCHECK_SITE_KEY`: `apps/*/.env.local.example`. Production builds take the Firebase web config from the brand profile's `firebase.web` (`brand/<slug>/brand.json`), not from `.env` files. The flag is baked in at build time: `pnpm build` (production mode) loads `.env.production`, which sets it `false`, so a normal build served by the Hosting emulator (:4000) logs in against **prod** Auth. For local auth use `pnpm dev` or `pnpm build:local` / `preview:local`. Deploys go through CD (`docs/ci-cd.md`); manual deploy commands are in `docs/firebase-setup.md`.
 
 ## Conventions
 
