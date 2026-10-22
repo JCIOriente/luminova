@@ -277,6 +277,9 @@ importers:
 
   packages/brand:
     dependencies:
+      '@luminova/types':
+        specifier: workspace:*
+        version: link:../types
       zod:
         specifier: 4.6.7
         version: 4.6.7

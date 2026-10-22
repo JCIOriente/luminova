@@ -7,11 +7,16 @@ import type { PngSize } from "./png.ts";
 import type { BrandApp } from "./ports.ts";
 import { renderHtml } from "./render-html.ts";
 import type { Brand } from "./schema.ts";
+import { readSiteContent } from "./site-content.ts";
+import { parseSiteContent, type SiteContent } from "./site-content-schema.ts";
 import { stagePublic } from "./stage-public.ts";
 import { resolveUrls, type BrandUrls } from "./urls.ts";
 
 export const BRAND_VIRTUAL_MODULE = "virtual:luminova-brand";
 const RESOLVED_VIRTUAL_MODULE = `\0${BRAND_VIRTUAL_MODULE}`;
+// Its own module so only spotlight's fallback pulls the content into a bundle.
+export const SITE_CONTENT_VIRTUAL_MODULE = `${BRAND_VIRTUAL_MODULE}/site-content`;
+const RESOLVED_SITE_CONTENT_MODULE = `\0${SITE_CONTENT_VIRTUAL_MODULE}`;
 
 export interface BrandBuildOptions {
   app: BrandApp;
@@ -30,6 +35,7 @@ export interface BrandBuild {
   emulatorEnabled: boolean;
   assetsDir: string;
   logoSize: PngSize;
+  siteContent: SiteContent;
 }
 
 export interface ResolveBrandBuildOptions extends BrandBuildOptions {
@@ -70,6 +76,8 @@ export function resolveBrandBuild({
   const profile = loadProfile({ repoRoot, env, profile: profileName });
   for (const warning of profile.warnings) warnOnce(warning);
 
+  const siteContent = parseSiteContent(readSiteContent(profile.dir, profile.slug), profile.slug);
+
   const emulatorEnabled = loadEnv(mode, envDir, "VITE_").VITE_FIREBASE_EMULATOR_ENABLED === "true";
   const urls = resolveUrls(profile.brand.urls, { command, emulatorEnabled });
 
@@ -84,7 +92,14 @@ export function resolveBrandBuild({
     );
   }
 
-  return { profile, urls, emulatorEnabled, assetsDir, logoSize: validation.logoSize };
+  return {
+    profile,
+    urls,
+    emulatorEnabled,
+    assetsDir,
+    logoSize: validation.logoSize,
+    siteContent,
+  };
 }
 
 export const PWA_INCLUDE_ASSETS = ICON_FILES.filter(
@@ -236,10 +251,16 @@ export function brandPlugin({
       return { publicDir };
     },
     resolveId(id) {
-      return id === BRAND_VIRTUAL_MODULE ? RESOLVED_VIRTUAL_MODULE : null;
+      if (id === BRAND_VIRTUAL_MODULE) return RESOLVED_VIRTUAL_MODULE;
+      if (id === SITE_CONTENT_VIRTUAL_MODULE) return RESOLVED_SITE_CONTENT_MODULE;
+      return null;
     },
     load(id) {
-      return id === RESOLVED_VIRTUAL_MODULE ? virtualModuleSource(current().build) : null;
+      if (id === RESOLVED_VIRTUAL_MODULE) return virtualModuleSource(current().build);
+      if (id === RESOLVED_SITE_CONTENT_MODULE) {
+        return `export const siteContent = ${JSON.stringify(current().build.siteContent)};\n`;
+      }
+      return null;
     },
     transformIndexHtml: {
       order: "pre",
