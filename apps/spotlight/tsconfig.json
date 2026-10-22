@@ -7,5 +7,10 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "*.ts", "../../packages/brand/src/virtual.d.ts"]
+  "include": [
+    "src",
+    "*.ts",
+    "../../packages/brand/src/virtual.d.ts",
+    "../../packages/brand/src/virtual-site-content.d.ts"
+  ]
 }

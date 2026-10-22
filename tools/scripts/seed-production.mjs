@@ -9,14 +9,20 @@
 //   gcloud auth application-default login
 //   (or GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json)
 //
-// Run:  pnpm seed:production
+// Run:  pnpm seed:production --project <id>   (or GCLOUD_PROJECT=<id>)
+// It refuses unless <id> is the selected brand profile's firebase.projectId (BRAND_PROFILE).
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { createInterface } from "node:readline/promises";
 import { seedPresident } from "./lib/seed-president.mjs";
 import { seedBuiltInRoles, BUILT_IN_ROLE_PERMS } from "./lib/role-seed.mjs";
-import { SITE_CONFIG_CONTENT } from "./lib/site-config-seed-data.mjs";
+import {
+  SeedTargetError,
+  loadProfile,
+  resolveProductionTarget,
+  seededSiteContent,
+} from "./lib/seed-target.mjs";
 
 if (process.env.FIREBASE_AUTH_EMULATOR_HOST || process.env.FIRESTORE_EMULATOR_HOST) {
   console.error(
@@ -26,7 +32,17 @@ if (process.env.FIREBASE_AUTH_EMULATOR_HOST || process.env.FIRESTORE_EMULATOR_HO
   process.exit(1);
 }
 
-const projectId = process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GCLOUD_PROJECT ?? "jci-oriente";
+const profile = loadProfile();
+let projectId;
+try {
+  projectId = resolveProductionTarget({ profile });
+} catch (error) {
+  if (!(error instanceof SeedTargetError)) throw error;
+  console.error(error.message);
+  process.exit(1);
+}
+const SITE_CONTENT = seededSiteContent(profile);
+console.log(`Target: project ${projectId}, brand profile "${profile.slug}".`);
 // Mirror of currentTermKey() in packages/types/src/position.ts (UTC year).
 const TERM = String(new Date().getUTCFullYear());
 
@@ -118,7 +134,7 @@ async function main() {
     {
       version: 1,
       updatedAt: Timestamp.now(),
-      ...SITE_CONFIG_CONTENT,
+      ...SITE_CONTENT,
     },
     { merge: true },
   );

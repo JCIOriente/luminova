@@ -5,8 +5,9 @@
 // Run via:   pnpm seed:emulator
 // Manually:  FIRESTORE_EMULATOR_HOST=127.0.0.1:4010 node tools/scripts/seed-emulator.mjs
 //
-// The project id must match the emulator + your app (default: jci-oriente). Override
-// with GCLOUD_PROJECT if you run the emulator under a different project.
+// The project id must match the emulator + your app: the selected brand profile's
+// firebase.projectId (BRAND_PROFILE, default jci-oriente). Override with GCLOUD_PROJECT
+// if you run the emulator under a different project.
 //
 // NOTE: pointRules are NOT seeded here — initialize them from the backstage UI
 // ("Reglas de puntos" -> Inicializar, as an Admin), which also creates the term doc.
@@ -16,7 +17,7 @@ import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { seedPresident } from "./lib/seed-president.mjs";
 import { seedBuiltInRoles } from "./lib/role-seed.mjs";
-import { SITE_CONFIG_CONTENT } from "./lib/site-config-seed-data.mjs";
+import { loadProfile, resolveLocalProject, seededSiteContent } from "./lib/seed-target.mjs";
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error("Refusing to run: FIRESTORE_EMULATOR_HOST is not set.");
@@ -31,7 +32,8 @@ if (!process.env.FIREBASE_AUTH_EMULATOR_HOST) {
   process.exit(1);
 }
 
-const projectId = process.env.GCLOUD_PROJECT ?? "jci-oriente";
+const profile = loadProfile();
+const projectId = resolveLocalProject({ profile });
 initializeApp({ projectId });
 const db = getFirestore();
 
@@ -204,7 +206,7 @@ const participations = [
 ];
 
 // --- siteConfig/current (default org facts; content shared with seed-production) ---
-const siteConfig = { version: 1, updatedAt: Timestamp.now(), ...SITE_CONFIG_CONTENT };
+const siteConfig = { version: 1, updatedAt: Timestamp.now(), ...seededSiteContent(profile) };
 
 // --- MemberPoints aggregates (id = `${memberId}__${termId}`) ---
 const memberPoints = [
