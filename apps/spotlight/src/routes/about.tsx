@@ -3,6 +3,7 @@ import { Button, RippleBackground, SectionHeader, Reveal, Icon, cn } from "@lumi
 import { CEL_POSITION_TITLES, currentTermKey } from "@luminova/types";
 import type { BoardShowcaseItem } from "@luminova/types/engine";
 import { TimelineItem } from "../components/cards";
+import { VisibilitySentinel } from "../components/visibility-sentinel";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { currentYearsActive } from "../site-config/defaults";
 import { useBoardOnVisible } from "../board/use-board";
@@ -34,13 +35,13 @@ function AboutHero() {
       <RippleBackground variant="hero-corner-tl" color="var(--color-jci-white)" opacity={0.08} />
       <div className="container" style={{ position: "relative", zIndex: 1 }}>
         <div className="eyebrow no-rule" style={{ color: "var(--color-on-dark-2)" }}>
-          Quiénes Somos
+          Quiénes somos
         </div>
         <h1
           className="t-display"
           style={{ color: "var(--jci-white)", marginTop: 22, marginBottom: 0, maxWidth: 1000 }}
         >
-          Desarrollando líderes en el Oriente boliviano desde 1993.
+          Formamos líderes en el Oriente boliviano desde 1993.
         </h1>
       </div>
     </section>
@@ -59,24 +60,23 @@ function AboutStory() {
             </h2>
             <p className="t-body">
               En 1915, en San Luis, Missouri, un grupo de jóvenes profesionales fundó la Junior
-              Chamber con una convicción simple: la juventud no es un periodo de espera, es el
-              momento de actuar. Esa idea se volvió un movimiento mundial.
+              Chamber con una convicción simple: la juventud es el momento de actuar, no de esperar.
+              Esa idea se volvió un movimiento mundial.
             </p>
             <p className="t-body">
-              En 1993, llegó a Santa Cruz. JCI Oriente nació para canalizar esa energía global hacia
-              los desafíos del Oriente boliviano — y desde entonces ha formado a generaciones de
-              líderes que hoy están en empresas, gobierno y sociedad civil.
+              En 1993 llegó a Santa Cruz. JCI Oriente nació para canalizar esa energía global hacia
+              los desafíos del Oriente boliviano, y desde entonces ha formado a varias generaciones
+              de líderes.
             </p>
             <figure className="pullquote" style={{ margin: "48px 0" }}>
               <blockquote className="t-quote" style={{ margin: 0 }}>
-                “Creemos que el servicio a la humanidad es la mejor obra de una vida.”
+                “El servicio a la humanidad es la mejor obra de una vida.”
               </blockquote>
               <cite>Credo JCI · 1946</cite>
             </figure>
             <p className="t-body">
-              Hoy somos uno de los capítulos más activos de JCI Bolivia. Estamos formados por
-              personas de 18 a 40 años que combinan carreras profesionales con un compromiso real:
-              dejar al Oriente mejor de lo que lo encontramos.
+              Hoy reunimos a personas de 18 a 40 años que combinan sus carreras profesionales con un
+              compromiso real: dejar al Oriente mejor de lo que lo encontramos.
             </p>
           </Reveal>
         </div>
@@ -93,7 +93,7 @@ function AboutMVV() {
         <SectionHeader
           eyebrow="Lo que nos guía"
           title="Misión, visión y valores."
-          subtitle="Tres marcos que deciden qué proyectos tomamos y cómo trabajamos juntos."
+          subtitle="Tres ideas que orientan qué proyectos asumimos y cómo trabajamos juntos."
         />
         <div className="grid-3" style={{ marginTop: 56 }}>
           {MVV_PRESENTATION.map((it, i) => (
@@ -136,7 +136,7 @@ function AboutTimeline() {
   );
 }
 
-const CLOSING_NOTE = "Directiva completa — próximamente.";
+const CLOSING_NOTE = "Directiva completa: próximamente.";
 
 function Portrait({
   item,
@@ -152,7 +152,7 @@ function Portrait({
       <img
         className="pic"
         src={item.portraitUrl}
-        alt={`Retrato — ${item.name}`}
+        alt={`Retrato de ${item.name}`}
         loading="lazy"
         decoding="async"
       />
@@ -182,8 +182,8 @@ function DirectivaHero({
             Las personas que dirigen la gestión.
           </h2>
           <p className="lede">
-            Un comité ejecutivo y un cuerpo de direcciones elegidos para servir al Oriente boliviano
-            durante {year}.
+            Un comité ejecutivo y un cuerpo de direcciones al servicio del Oriente boliviano durante{" "}
+            {year}.
           </p>
         </Reveal>
         {president && (
@@ -291,9 +291,7 @@ function DirectivaDirecciones({ members, note }: { members: BoardShowcaseItem[];
 function AboutDirectiva() {
   const { ref, data: board, loading, error } = useBoardOnVisible();
   const ready = !loading && !error && board.length > 0;
-  // Until the board loads (or when nobody is published) render a zero-height sentinel
-  // that still carries the on-visible ref, so the page never leaves an empty gap.
-  if (!ready) return <div ref={ref} aria-hidden style={{ height: 1 }} />;
+  if (!ready) return <VisibilitySentinel ref={ref} />;
 
   const year = currentTermKey();
   const cel = board.filter((m) => m.group === "CEL");
@@ -333,8 +331,8 @@ function AboutWhyJoin() {
       <div className="container">
         <SectionHeader
           eyebrow="Por qué unirte"
-          title="Tres razones honestas."
-          subtitle="No te vamos a vender un sueño: te contamos exactamente lo que cambia cuando entras."
+          title="Tres razones concretas."
+          subtitle="Esto es lo que cambia cuando te unes a JCI Oriente."
         />
         <div className="grid-3" style={{ marginTop: 56 }}>
           {config.reasons.map((r, i) => (

@@ -18,7 +18,7 @@ export const SITE_CONFIG_DEFAULTS: Omit<SiteConfig, "version" | "updatedAt"> = {
       year: "1915",
       title: "Nace la Junior Chamber",
       description:
-        "St. Louis, Missouri. Henry Giessenbier funda lo que se convertirá en JCI Worldwide.",
+        "San Luis, Missouri. Henry Giessenbier funda lo que se convertirá en JCI Worldwide.",
     },
     {
       year: "1993",
@@ -42,18 +42,18 @@ export const SITE_CONFIG_DEFAULTS: Omit<SiteConfig, "version" | "updatedAt"> = {
     },
     {
       year: "2021",
-      title: "Organización Local más Sobresaliente",
+      title: "Organización Local Más Sobresaliente",
       description: "Reconocimiento nacional al desempeño del capítulo.",
     },
     {
       year: "Hoy",
       title: "Una nueva generación",
-      description: "Más de 11 reconocimientos acumulados y proyectos vigentes en cinco frentes.",
+      description: "Más de 11 reconocimientos acumulados y proyectos en marcha.",
     },
   ],
   mvv: {
     mision:
-      "Brindar oportunidades de desarrollo que empoderen a las personas jóvenes a crear cambios positivos en el Oriente boliviano.",
+      "Brindar oportunidades de desarrollo que empoderen a las personas jóvenes para crear cambios positivos en el Oriente boliviano.",
     vision:
       "Ser la organización referente de jóvenes líderes activos en Santa Cruz, reconocida por su impacto, ética y red global.",
     valores:
@@ -63,17 +63,17 @@ export const SITE_CONFIG_DEFAULTS: Omit<SiteConfig, "version" | "updatedAt"> = {
     {
       number: "01",
       title: "Una red que abre puertas",
-      body: "Acceso directo a 200.000+ miembros activos en 100+ países. Conferencias regionales, mundiales y oportunidades de movilidad real.",
+      body: "Formas parte de una red de 200.000+ miembros en 100+ países, con conferencias regionales y mundiales.",
     },
     {
       number: "02",
       title: "Proyectos con impacto medible",
-      body: "No reuniones que no van a ningún lado: proyectos estructurados con cohortes, indicadores y resultados publicados al cierre de año.",
+      body: "Trabajas en proyectos con objetivos e indicadores claros, y al cerrarlos medimos lo que logramos.",
     },
     {
       number: "03",
       title: "Liderazgo en práctica",
-      body: "Mentoría 1:1, posiciones de comité que se renuevan cada año, oratoria y formación financiada por la red JCI.",
+      body: "Cargos que se renuevan cada gestión y formación en oratoria y liderazgo.",
     },
   ],
   contact: {

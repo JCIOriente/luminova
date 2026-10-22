@@ -128,7 +128,7 @@ export function PushPrompt() {
                 fontWeight: 600,
               }}
             >
-              ¡Listo! Te avisaremos de las novedades.
+              Listo. Te avisaremos de las novedades.
             </p>
           ) : (
             <>

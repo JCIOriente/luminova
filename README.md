@@ -223,7 +223,7 @@ fork it and change these:
    public:
    - Logos in `packages/ui/src/assets/`; design tokens in `packages/ui`.
    - Favicons, PWA icons and Apple touch icons in **both** `apps/spotlight/public/` and
-     `apps/backstage/public/`, plus the share images `og-image-v2.png` and
+     `apps/backstage/public/`, plus the share images `og-image-v3.png` and
      `og-linktree.png`.
    - PWA `name` / `short_name` in `apps/spotlight/vite.config.ts` and
      `apps/backstage/vite.config.ts` — this is what the app installs as on a phone.

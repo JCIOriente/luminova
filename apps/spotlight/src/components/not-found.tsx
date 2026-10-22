@@ -1,8 +1,11 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Button, Icon, NotFoundBackdrop, Numeral404 } from "@luminova/ui";
+import { SITE_CONFIG_DEFAULTS } from "../site-config/defaults";
+import { useSiteConfig } from "../site-config/use-site-config";
 
 export function NotFound() {
   const navigate = useNavigate();
+  const { hero } = useSiteConfig();
   return (
     <section
       style={{
@@ -48,7 +51,7 @@ export function NotFound() {
             color: "rgba(255,255,255,0.74)",
           }}
         >
-          La ruta que buscas no existe o cambió de lugar. Volvamos a terreno conocido.
+          La página que buscas no existe o cambió de lugar. Volvamos a terreno conocido.
         </p>
 
         <div
@@ -90,7 +93,7 @@ export function NotFound() {
             color: "rgba(255,255,255,0.6)",
           }}
         >
-          A fire shared never dies.
+          {hero.submotto.trim() || SITE_CONFIG_DEFAULTS.hero.motto}
         </p>
       </div>
     </section>

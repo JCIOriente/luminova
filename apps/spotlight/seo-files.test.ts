@@ -51,7 +51,7 @@ describe("index.html", () => {
     const html = renderIndexHtml(indexHtml, ORIGIN);
     expect(html).not.toContain(SITE_URL_PLACEHOLDER);
     expect(html).toContain('<link rel="canonical" href="https://example.org/" />');
-    expect(html).toContain('content="https://example.org/og-image-v2.png"');
+    expect(html).toContain('content="https://example.org/og-image-v3.png"');
   });
 });
 

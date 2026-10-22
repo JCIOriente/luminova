@@ -1,8 +1,6 @@
 import { Reveal, ImgSlot } from "@luminova/ui";
 import { AREA_OF_OPPORTUNITY_LABELS, type AreaOfOpportunity } from "@luminova/types/engine";
 import type { ShowcaseItem } from "@luminova/types/engine";
-import { useFeaturedListOnVisible } from "../showcase/use-showcase";
-import { ProgramsSkeleton } from "./programs-skeleton";
 
 const AREA_TINT: Record<AreaOfOpportunity, "blue" | "teal" | "navy"> = {
   DesarrolloIndividual: "blue",
@@ -46,20 +44,12 @@ function ShowcaseProgramCard({ item, index }: { item: ShowcaseItem; index: numbe
   );
 }
 
-export default function HomePrograms() {
-  const { ref, data, loading, error } = useFeaturedListOnVisible();
-
+export default function HomePrograms({ items }: { items: ShowcaseItem[] }) {
   return (
-    <div ref={ref}>
-      {loading ? (
-        <ProgramsSkeleton />
-      ) : error || data.length === 0 ? null : (
-        <div className="program-grid">
-          {data.map((item, i) => (
-            <ShowcaseProgramCard key={item.id} item={item} index={i} />
-          ))}
-        </div>
-      )}
+    <div className="program-grid">
+      {items.map((item, i) => (
+        <ShowcaseProgramCard key={item.id} item={item} index={i} />
+      ))}
     </div>
   );
 }

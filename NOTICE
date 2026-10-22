@@ -30,7 +30,7 @@ the Apache License and are NOT redistributed under it:
     public/firebase-messaging-sw.js.
   * The logo files under packages/ui/src/assets/, and the branded image assets
     under apps/spotlight/public/ and apps/backstage/public/ — favicons, PWA and
-    Apple touch icons, og-image-v2.png and og-linktree.png.
+    Apple touch icons, og-image-v3.png and og-linktree.png.
   * Chapter-specific content shipped as seed data — the organisation history,
     mission, vision and values in tools/scripts/lib/site-config-seed-data.mjs
     and apps/spotlight/src/site-config/defaults.ts.
