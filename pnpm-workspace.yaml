@@ -90,11 +90,3 @@ allowBuilds:
   # postinstall. Unlisted build scripts make `pnpm install --frozen-lockfile`
   # hard-fail with ERR_PNPM_IGNORED_BUILDS in CI. Prebuilt binaries, safe to run.
   sharp: true
-minimumReleaseAgeExclude:
-  - "@firebase/app-compat@0.5.20"
-  - "@firebase/app@0.16.4"
-  - "@firebase/auth-compat@0.6.13"
-  - "@firebase/auth@1.13.8"
-  - "@firebase/firestore-compat@0.4.16"
-  - "@firebase/firestore@4.19.0"
-  - firebase@13.1.0
