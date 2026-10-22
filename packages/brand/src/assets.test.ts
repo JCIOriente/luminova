@@ -9,6 +9,12 @@ import { encodePng } from "./png.ts";
 let dir: string;
 
 describe("committed profile assets", () => {
+  it("the jci-oriente set meets the contract with its 674×326 logos", () => {
+    const result = validateAssets(join(REPO_ROOT, "brand/jci-oriente/assets"));
+    expect(result.errors).toEqual([]);
+    expect(result.logoSize).toEqual({ width: 674, height: 326 });
+  });
+
   it("the fixture set meets the contract with 400×200 logos", () => {
     const result = validateAssets(join(REPO_ROOT, "brand/fixture/assets"));
     expect(result.errors).toEqual([]);
