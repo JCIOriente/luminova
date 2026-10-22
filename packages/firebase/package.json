@@ -21,6 +21,6 @@
   },
   "dependencies": {
     "@luminova/types": "workspace:*",
-    "firebase": "13.0.0"
+    "firebase": "13.1.0"
   }
 }

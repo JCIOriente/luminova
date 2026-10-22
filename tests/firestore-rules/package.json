@@ -11,7 +11,7 @@
     "@firebase/rules-unit-testing": "^5.0.2",
     "@luminova/auth": "workspace:*",
     "@types/node": "^25.9.9",
-    "firebase": "13.0.0",
+    "firebase": "13.1.0",
     "vitest": "^5.0.5"
   }
 }
