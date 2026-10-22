@@ -16,7 +16,7 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title ?? "JCI Oriente";
+  const title = payload.notification?.title ?? "__BRAND_NAME__";
   self.registration.showNotification(title, {
     body: payload.notification?.body ?? "",
     icon: "/pwa-192x192.png",
