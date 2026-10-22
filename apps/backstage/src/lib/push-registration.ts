@@ -1,3 +1,4 @@
+import { name } from "virtual:luminova-brand";
 import {
   requestPushToken,
   revokePushToken,
@@ -65,6 +66,6 @@ export async function listenForeground(
   handler: (title: string, body: string) => void,
 ): Promise<() => void> {
   return onForegroundMessage((payload) => {
-    handler(payload.notification?.title ?? "JCI Oriente", payload.notification?.body ?? "");
+    handler(payload.notification?.title ?? name, payload.notification?.body ?? "");
   });
 }

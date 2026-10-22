@@ -1,4 +1,5 @@
-const PREFIX = "jcioriente:member:";
+import { qrPrefix } from "virtual:luminova-brand";
+const PREFIX = `${qrPrefix}:member:`;
 
 /** Encode a member doc id as a scannable, namespaced QR payload (no PII). */
 export function encodeMemberQr(memberId: string): string {
