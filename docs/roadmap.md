@@ -57,7 +57,7 @@ this file, in the same PR.
 | # | Operation | Where | Status |
 |---|-----------|-------|--------|
 | O1 | Expired-link manual test: the invite issued 2026-09-28T10:52:14Z expires ~2026-09-30T10:52Z; redeem it after that and confirm the refusal. | `docs/firebase-setup.md`, owner op 3 | ⬜ time-boxed |
-| O2 | Enable Web Push in production: Cloud Messaging API + VAPID key into both `.env.production` (`VITE_FIREBASE_VAPID_KEY` is not set in either today). | `docs/firebase-setup.md`, "Push Notifications" | ⬜ |
+| O2 | Enable Web Push in production: Cloud Messaging API + VAPID key into `firebase.web.{spotlight,backstage}.vapidKey` in `brand/jci-oriente/brand.json` (both are blank today). | `docs/firebase-setup.md`, "Push Notifications" | ⬜ |
 | O3 | Custom domains: all four hostnames in Auth → Authorized domains; stored URLs in backstage `/config` moved off `web.app`. reCAPTCHA keys are done. | `docs/domains.md` | ⬜ |
 | O4 | Google Search Console for `jcioriente.org`, submit `/sitemap.xml`. | `docs/domains.md` | ⬜ deferred |
 | O5 | Confirm the Password-reset action URL is back at the Firebase default. | `docs/firebase-setup.md`, owner op 1 | ⬜ unverified |
@@ -69,7 +69,7 @@ this file, in the same PR.
 
 - **Firestore App Check stays unenforced in prod.** Do not enable it or recommend enabling it.
   The enforced callables are `APP_CHECK_ENFORCED_CALLABLES`; Storage enforces App Check.
-- Firebase web API keys in `.env.production` / `.env.local.example` are public client
+- Firebase web API keys in `brand/<slug>/brand.json` / `.env.local.example` are public client
   identifiers, not secrets, so they stay as they are.
 - `/code-review` is user-invoked only. Sessions substitute an adversarial Opus pass and say so
   in the PR.

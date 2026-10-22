@@ -230,7 +230,7 @@ Full manifest with props/variants: `packages/ui/DESIGN.md`. Import
 | `Card` | THE card shell: `as`, `padding` md/sm/row/none, `interactive`; plus `cardSurfaceClasses`/`cardInteractiveClasses` strings for `button`/`Link` hosts | `rounded-card border border-line bg-surface …` by hand (the 40-site sweep already removed those) |
 | `SectionHeader` | Section title + standfirst block | Ad-hoc heading stacks |
 | `ArrowLink` | Text link with arrow affordance | Custom "see more →" links |
-| `LogoLockup` | JCI logo rendering (PNG assets in `packages/ui/src/assets/`) | Re-importing logo files per app |
+| `LogoLockup` | Logo rendering (the brand profile's logos, via `virtual:luminova-brand`) | Re-importing logo files per app |
 | `ImgSlot` | Image placeholder frame | Gray-box placeholders |
 | `Icon` + `ArrowRight` | The icon set (`Icon.bell({ s: 20 })` style) | Importing one-off icon libs for existing glyphs |
 | `Reveal` | Scroll-in animation (IntersectionObserver) | Per-page observer hooks |

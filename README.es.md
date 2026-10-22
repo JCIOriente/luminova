@@ -142,27 +142,29 @@ haz un fork y cambia esto:
    `storage` (el destino `default`, al que `firebase.json` apunta para `storage.rules`).
    Si te saltas el destino de storage, `pnpm deploy:rules` falla o sigue apuntando al
    bucket de otro capítulo, y el tuyo queda sin reglas. Después ajusta la configuración del
-   cliente en `apps/*/.env.local.example` y `apps/*/.env.production`.
+   cliente en `apps/*/.env.local.example` (desarrollo local) y en `firebase.web` de tu perfil
+   de marca (builds de producción; ver 3).
 2. **Contenido del capítulo.** El contenido inicial del sitio —historia, misión, visión,
    valores, estadísticas, datos de contacto— vive en
    `tools/scripts/lib/site-config-seed-data.mjs` y
    `apps/spotlight/src/site-config/defaults.ts`. Todo eso también se edita desde la pantalla
    `/config` una vez que esté funcionando.
 3. **Marca.** Está en más lugares de los que parece, y omitir uno se ve en público:
-   - Logos en `packages/ui/src/assets/`; tokens de diseño en `packages/ui`.
-   - Favicons, iconos PWA e iconos de Apple en **ambos** `apps/spotlight/public/` y
-     `apps/backstage/public/`, más las imágenes para compartir `og-image-v3.png` y
-     `og-linktree.png`.
-   - El `name` / `short_name` de la PWA en `apps/spotlight/vite.config.ts` y
-     `apps/backstage/vite.config.ts` — es el nombre con el que la app se instala en el
-     teléfono.
-   - El título por defecto de las notificaciones en ambos
-     `public/firebase-messaging-sw.js`.
-   - `SITE_URL` y `BACKSTAGE_URL` en `apps/spotlight/src/config/external-links.ts`.
-     `SITE_URL` se escribe en `index.html` (`rel=canonical`, `og:url`, `og:image`,
-     `twitter:image`), `sitemap.xml` y `robots.txt` al compilar. Si lo dejas, tu sitio le
-     declara a los buscadores que es una copia del nuestro, y cada vez que alguien comparta
-     el enlace por WhatsApp saldrá nuestra imagen. Ver `docs/domains.md`.
+   - **Un perfil de marca**, `brand/<slug>/`: copia `brand/fixture/`, renombra la carpeta y
+     su `slug`, y compila con `BRAND_PROFILE=<slug>`. `brand.json` guarda el nombre, el
+     nombre y nombre corto de la PWA, los colores de tema, el título, los textos de SEO y
+     para compartir, ambos orígenes de producción, el prefijo del QR de miembro y la
+     configuración web de Firebase. `assets/` guarda las 16 imágenes: tres logos, la imagen
+     para compartir y los favicons, iconos PWA e iconos de Apple de cada app (el contrato
+     está en `packages/brand/src/assets.ts`). El build se detiene y lista cada archivo que
+     falte o tenga otro tamaño. Los orígenes se escriben en `index.html` (`rel=canonical`,
+     `og:url`, `og:image`, `twitter:image`), `sitemap.xml` y `robots.txt`; si dejas los
+     nuestros, tu sitio le declara a los buscadores que es una copia del nuestro, y cada vez
+     que alguien comparta el enlace por WhatsApp saldrá nuestra imagen. Ver
+     `docs/domains.md`.
+   - Tokens de diseño en `packages/ui`.
+   - Los datos del capítulo en los textos de las páginas (nombre, ciudad, año de fundación)
+     siguen escritos en `apps/*/src`, y el contenido inicial del sitio está en el paso 2.
 
    Las marcas de JCI **no** están cubiertas por la licencia de este repositorio — ver
    [NOTICE](NOTICE).
@@ -200,7 +202,7 @@ Al participar aceptas el [Código de Conducta](CODE_OF_CONDUCT.md).
 [Apache License 2.0](LICENSE).
 
 La licencia cubre el código. No otorga derechos sobre el nombre ni las marcas de JCI, ni
-sobre los logos de JCI Oriente en `packages/ui/src/assets/`, ni sobre el contenido propio
+sobre los logos e iconos de JCI Oriente en `brand/jci-oriente/assets/`, ni sobre el contenido propio
 del capítulo que se distribuye como datos iniciales. Lee [NOTICE](NOTICE) antes de hacer un
 fork.
 
