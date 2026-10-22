@@ -15,7 +15,7 @@ import { resolveUrls, type BrandUrls } from "./urls.ts";
 export const BRAND_VIRTUAL_MODULE = "virtual:luminova-brand";
 const RESOLVED_VIRTUAL_MODULE = `\0${BRAND_VIRTUAL_MODULE}`;
 // Its own module so only spotlight's fallback pulls the content into a bundle.
-export const SITE_CONTENT_VIRTUAL_MODULE = `${BRAND_VIRTUAL_MODULE}/site-content`;
+const SITE_CONTENT_VIRTUAL_MODULE = `${BRAND_VIRTUAL_MODULE}/site-content`;
 const RESOLVED_SITE_CONTENT_MODULE = `\0${SITE_CONTENT_VIRTUAL_MODULE}`;
 
 export interface BrandBuildOptions {

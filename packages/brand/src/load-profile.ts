@@ -17,6 +17,29 @@ export class BrandConfigError extends Error {
   }
 }
 
+/** Parses a profile JSON file; `label` prefixes the error, e.g. `brand/acme/brand.json`. */
+export function readJsonFile(file: string, label: string): unknown {
+  try {
+    return JSON.parse(readFileSync(file, "utf8"));
+  } catch (error) {
+    throw new BrandConfigError([
+      `${label}: not valid JSON (${error instanceof Error ? error.message : String(error)})`,
+    ]);
+  }
+}
+
+/** One error line per schema issue, `<label> <path>: <message>`. */
+export function issuesToBrandError(
+  label: string,
+  issues: readonly { path: readonly PropertyKey[]; message: string }[],
+): BrandConfigError {
+  return new BrandConfigError(
+    issues.map(
+      (issue) => `${label} ${issue.path.map(String).join(".") || "(root)"}: ${issue.message}`,
+    ),
+  );
+}
+
 export interface LoadedProfile {
   slug: string;
   dir: string;
@@ -62,23 +85,9 @@ export function loadProfile({
     ]);
   }
 
-  let raw: unknown;
-  try {
-    raw = JSON.parse(readFileSync(file, "utf8"));
-  } catch (error) {
-    throw new BrandConfigError([
-      `brand/${slug}: brand.json is not valid JSON (${error instanceof Error ? error.message : String(error)})`,
-    ]);
-  }
-
-  const parsed = brandSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new BrandConfigError(
-      parsed.error.issues.map(
-        (issue) => `brand/${slug}/brand.json ${issue.path.join(".") || "(root)"}: ${issue.message}`,
-      ),
-    );
-  }
+  const label = `brand/${slug}/brand.json`;
+  const parsed = brandSchema.safeParse(readJsonFile(file, label));
+  if (!parsed.success) throw issuesToBrandError(label, parsed.error.issues);
   if (parsed.data.slug !== slug) {
     throw new BrandConfigError([
       `brand/${slug}/brand.json: slug "${parsed.data.slug}" must equal its folder "${slug}"`,

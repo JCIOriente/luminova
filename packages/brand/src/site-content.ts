@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { BrandConfigError } from "./load-profile.ts";
+import { BrandConfigError, readJsonFile } from "./load-profile.ts";
 
 export const SITE_CONTENT_FILE = "site-content.json";
 
@@ -16,14 +16,7 @@ export function readSiteContent(profileDir: string, slug: string): Record<string
   if (!existsSync(file)) {
     throw new BrandConfigError([`${label}: missing (copy it from brand/jci-oriente/ and edit it)`]);
   }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(readFileSync(file, "utf8"));
-  } catch (error) {
-    throw new BrandConfigError([
-      `${label}: not valid JSON (${error instanceof Error ? error.message : String(error)})`,
-    ]);
-  }
+  const raw = readJsonFile(file, label);
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new BrandConfigError([`${label}: must be a JSON object`]);
   }

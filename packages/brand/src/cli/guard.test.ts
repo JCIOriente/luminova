@@ -130,7 +130,6 @@ describe("scanDist", () => {
     put("a.js", "jci-Oriente");
     put("b.js", "in Santa Cruz");
     put("c.js", "Oriented but not oriente");
-    put("d.woff2", "JCI Oriente");
     put("e.bin", new Uint8Array([0, 74, 67, 73, 32, 79, 114, 105, 101, 110, 116, 101]));
     const rules = scan()
       .findings.filter(({ rule }) => rule.startsWith("regex"))

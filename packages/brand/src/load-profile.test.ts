@@ -94,7 +94,7 @@ describe("loadProfile", () => {
     const errors = errorsOf(() =>
       loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "garbled" } }),
     );
-    expect(errors).toEqual([expect.stringMatching(/garbled.*brand\.json is not valid JSON/)]);
+    expect(errors).toEqual([expect.stringMatching(/^brand\/garbled\/brand\.json: not valid JSON/)]);
   });
 
   it("aggregates the errors into the thrown message", () => {

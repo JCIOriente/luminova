@@ -1,14 +1,12 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { extname, join, relative } from "node:path";
+import { join, relative } from "node:path";
 import { z } from "zod";
 import { REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
 import type { Brand } from "../schema.ts";
 
-/** The chapter whose values must never reach another profile's build. */
-const CHAPTER_PROFILE = "jci-oriente";
 const NEUTRAL_PROFILE = "fixture";
 const MIN_NEEDLE_LENGTH = 6;
 const BUILD_COMMAND = "pnpm turbo run build --filter spotlight --filter backstage";
@@ -31,20 +29,6 @@ export const NEEDLE_EXCLUSIONS: readonly NeedleExclusion[] = [
 
 // Case-sensitive on purpose: a case-insensitive "oriente" matches "oriented" in third-party code.
 export const CHAPTER_REGEX = /[Jj][Cc][Ii][ -]?[Oo]riente|\bOriente\b|Santa Cruz/;
-
-const BINARY_EXTENSIONS = new Set([
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".webp",
-  ".avif",
-  ".gif",
-  ".ico",
-  ".woff",
-  ".woff2",
-  ".ttf",
-  ".otf",
-]);
 
 export interface Needle {
   value: string;
@@ -107,8 +91,9 @@ export function assetHashes(dir: string, labelPrefix = ""): Map<string, string> 
   );
 }
 
-function isText(file: string, bytes: Uint8Array): boolean {
-  return !BINARY_EXTENSIONS.has(extname(file).toLowerCase()) && !bytes.includes(0);
+// Every image and font format the builds emit carries NUL bytes in its header.
+function isText(bytes: Uint8Array): boolean {
+  return !bytes.includes(0);
 }
 
 export function scanDist(
@@ -127,7 +112,7 @@ export function scanDist(
     const bytes = readFileSync(file);
     const asset = hashes.get(sha256(bytes));
     if (asset) findings.push({ path, rule: `sha256 of ${asset}`, source: "asset" });
-    if (!isText(file, bytes)) continue;
+    if (!isText(bytes)) continue;
     const text = bytes.toString("utf8");
     for (const { value, keyPaths } of needles) {
       if (text.includes(value)) findings.push({ path, rule: value, source: keyPaths.join(", ") });
@@ -242,15 +227,26 @@ async function buildNeutral(app: BrandApp, outDir: string, envDir: string): Prom
 
 async function main(): Promise<number> {
   const started = performance.now();
-  const { brand } = loadProfile({ profile: CHAPTER_PROFILE });
+  // The selected profile (BRAND_PROFILE, default jci-oriente) is the one CI just built.
+  const chapter = loadProfile();
+  if (chapter.slug === NEUTRAL_PROFILE) {
+    console.error(
+      `brand:guard protects a chapter profile; BRAND_PROFILE=${NEUTRAL_PROFILE} has none.`,
+    );
+    return 1;
+  }
+  const { brand } = chapter;
 
   const inverseErrors = BRAND_APPS.flatMap((app) =>
     inverseChecks(join(REPO_ROOT, "apps", app, "dist"), brand, app),
   );
 
   const needles = collectNeedles(brand, NEEDLE_EXCLUSIONS);
-  const assetsDir = join(REPO_ROOT, "brand", CHAPTER_PROFILE, "assets");
-  const hashes = assetHashes(assetsDir, `${relative(REPO_ROOT, assetsDir)}/`);
+  // An adopter's marks live in the gitignored brand-assets/, not in the profile folder.
+  const assetsDir = join(chapter.dir, "assets");
+  const hashes = existsSync(assetsDir)
+    ? assetHashes(assetsDir, `${relative(REPO_ROOT, assetsDir)}/`)
+    : new Map<string, string>();
 
   const findings: string[] = [];
   let filesScanned = 0;
@@ -279,7 +275,7 @@ async function main(): Promise<number> {
     return 1;
   }
   console.log(
-    `brand:guard OK: ${CHAPTER_PROFILE} dist intact; ${NEUTRAL_PROFILE} build clean of ${needles.length} needles, ${hashes.size} asset hashes and the regex across ${filesScanned} files (${seconds}s).`,
+    `brand:guard OK: ${chapter.slug} dist intact; ${NEUTRAL_PROFILE} build clean of ${needles.length} needles, ${hashes.size} asset hashes and the regex across ${filesScanned} files (${seconds}s).`,
   );
   return 0;
 }
