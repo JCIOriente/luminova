@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import clsx from "clsx";
+import { brand } from "virtual:luminova-brand";
 import { LogoLockup, Button, Icon } from "@luminova/ui";
-import { BACKSTAGE_URL } from "../config/external-links";
 
 // Enumerate the LIGHT-hero routes; everything else — including unknown paths,
 // whose catch-all 404 renders on jci-black — defaults to light nav text. Add a
@@ -101,7 +101,12 @@ export function Header() {
             >
               Contacto
             </a>
-            <a href={BACKSTAGE_URL} target="_blank" rel="noopener noreferrer" className="nav-link">
+            <a
+              href={brand.urls.backstage}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="nav-link"
+            >
               Ingresar
             </a>
             <Button
@@ -148,7 +153,7 @@ export function Header() {
               Contacto
             </a>
             <a
-              href={BACKSTAGE_URL}
+              href={brand.urls.backstage}
               target="_blank"
               rel="noopener noreferrer"
               className="mobile-nav-link"

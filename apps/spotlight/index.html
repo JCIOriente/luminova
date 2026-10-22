@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="es">
+<html lang="__LANG__">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
-    <meta name="theme-color" content="#0097D7" />
+    <meta name="theme-color" content="__THEME_COLOR__" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
 
     <!-- Warm the Firestore origin: every page's first data read (site-config, showcase)
@@ -14,40 +14,28 @@
     <!-- Warm the Firebase Storage origin that serves showcase / ally images (below-fold, no CORS). -->
     <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
     <link rel="canonical" href="__SITE_URL__/" />
-    <meta
-      name="description"
-      content="JCI Oriente, capítulo Santa Cruz de la Cámara Junior Internacional. Formamos líderes con propósito desde 1993."
-    />
-    <title>JCI Oriente: Cámara Junior Internacional en Santa Cruz</title>
+    <meta name="description" content="__SEO_DESCRIPTION__" />
+    <title>__BRAND_TITLE__</title>
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="JCI Oriente" />
-    <meta property="og:locale" content="es_BO" />
-    <meta property="og:title" content="JCI Oriente: Cámara Junior Internacional en Santa Cruz" />
-    <meta
-      property="og:description"
-      content="Formamos líderes con propósito en el Oriente boliviano desde 1993. Conoce nuestros proyectos, nuestro impacto y cómo unirte."
-    />
+    <meta property="og:site_name" content="__BRAND_NAME__" />
+    <meta property="og:locale" content="__OG_LOCALE__" />
+    <meta property="og:title" content="__OG_TITLE__" />
+    <meta property="og:description" content="__OG_DESCRIPTION__" />
     <meta property="og:url" content="__SITE_URL__/" />
-    <meta property="og:image" content="__SITE_URL__/og-image-v3.png" />
-    <meta property="og:image:secure_url" content="__SITE_URL__/og-image-v3.png" />
+    <meta property="og:image" content="__SITE_URL__/__OG_IMAGE__" />
+    <meta property="og:image:secure_url" content="__SITE_URL__/__OG_IMAGE__" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta
-      property="og:image:alt"
-      content="JCI Oriente: Jóvenes que lideran con propósito en Santa Cruz."
-    />
+    <meta property="og:image:alt" content="__OG_IMAGE_ALT__" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="JCI Oriente: Cámara Junior Internacional en Santa Cruz" />
-    <meta
-      name="twitter:description"
-      content="Formamos líderes con propósito en el Oriente boliviano desde 1993."
-    />
-    <meta name="twitter:image" content="__SITE_URL__/og-image-v3.png" />
+    <meta name="twitter:title" content="__OG_TITLE__" />
+    <meta name="twitter:description" content="__TWITTER_DESCRIPTION__" />
+    <meta name="twitter:image" content="__SITE_URL__/__OG_IMAGE__" />
   </head>
   <body>
     <div id="root"></div>

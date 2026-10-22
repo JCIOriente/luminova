@@ -7,5 +7,5 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "*.ts"]
+  "include": ["src", "*.ts", "../../packages/brand/src/virtual.d.ts"]
 }
