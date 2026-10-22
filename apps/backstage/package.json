@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@casl/react": "7.0.1",
-    "@hookform/resolvers": "^5.9.2",
+    "@hookform/resolvers": "^6.0.0",
     "@luminova/auth": "workspace:*",
     "@luminova/firebase": "workspace:*",
     "@luminova/types": "workspace:*",
