@@ -13,7 +13,7 @@ import { ICON_FILES, OG_IMAGE_FILE } from "./assets.ts";
 import type { BrandApp } from "./ports.ts";
 import type { Brand } from "./schema.ts";
 
-export const SERVICE_WORKER_FILE = "firebase-messaging-sw.js";
+const SERVICE_WORKER_FILE = "firebase-messaging-sw.js";
 
 export interface StagePublicOptions {
   appPublicDir: string;

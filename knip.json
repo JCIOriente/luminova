@@ -15,7 +15,7 @@
       "project": ["src/**/*.{ts,tsx}"]
     },
     "packages/brand": {
-      "entry": ["src/cli/*.ts", "src/vite.ts"],
+      "entry": ["src/cli/*.ts", "scripts/*.ts"],
       "project": ["src/**/*.ts"]
     },
     "tests/*": {

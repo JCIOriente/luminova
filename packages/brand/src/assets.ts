@@ -4,11 +4,10 @@ import type { BrandApp } from "./ports.ts";
 import { readPngSize, type PngSize } from "./png.ts";
 
 export const LOGO_FILES = ["logo-main.png", "logo-on-dark.png", "logo-on-primary.png"] as const;
-export type LogoFile = (typeof LOGO_FILES)[number];
 
 export const OG_IMAGE_FILE = "og-image.png";
-export const PULL_MANIFEST_FILE = "pull-manifest.json";
-export const MIN_LOGO_HEIGHT = 184;
+const PULL_MANIFEST_FILE = "pull-manifest.json";
+const MIN_LOGO_HEIGHT = 184;
 export const OG_IMAGE_WARN_BYTES = 300 * 1024;
 
 export const ICON_FILES = [
