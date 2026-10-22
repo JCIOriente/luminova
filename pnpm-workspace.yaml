@@ -42,13 +42,6 @@ overrides:
   # the official v2-backport; 4.0.6 is the patched 4.x — so consumers' ranges still hold.
   "form-data@<2.5.6": "^2.5.6"
   "form-data@>=4.0.0 <4.0.6": "^4.0.6"
-  # Patch undici advisories (GHSA-vmh5-mc38-953g / -vxpw-j846-p89q / -hm92-r4w5-c3mj
-  # / -35p6-xmwp-9g52 / -g8m3-5g58-fq7m / the <7.29.0 follow-up). Transitive via jsdom
-  # (vitest/backstage/spotlight) — dev/test only, never shipped. Stay in major 7:
-  # jsdom@29 require()s undici-7 internals (jsdom-dispatcher) that v8 removed, so
-  # forcing v8 breaks the vitest jsdom env. 7.29.0 patches every advisory above and is
-  # the latest 7.x — the floor moves, the major does not.
-  "undici": "^7.29.0"
   # Patch uuid GHSA-w5hq-g745-h8pq (<11.1.1: missing buffer bounds check). Transitive
   # via firebase-admin>...>gaxios, which only uses v4() (random, no buf). Forced to the
   # latest major over the v8/v9 copies; v4 API is stable across these majors.
