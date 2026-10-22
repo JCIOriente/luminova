@@ -39,7 +39,7 @@
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "firebase-admin": "13.10.0",
+    "firebase-admin": "14.5.0",
     "knip": "^6.42.1",
     "prettier": "^3.9.10",
     "turbo": "^2.11.10",

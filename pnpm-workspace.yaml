@@ -64,25 +64,6 @@ overrides:
   # form-serializer maxDepth bypass + prototype-pollution + maxBodyLength bypass).
   # Transitive via wait-on (dev only). >=1.18.0 patches all; scoped to the vuln line.
   "axios@<1.18.0": ">=1.18.0"
-  # Patch body-parser GHSA-v422-hmwv-36x6 (<1.20.6: DoS when an invalid limit value
-  # silently disables size enforcement) AND, via body-parser's own bundled qs,
-  # GHSA-x5fp-wj9c-mxmx / GHSA-4mjr-xmp4-gh2g (qs array-limit bypass / isBuffer
-  # DoS, both patched at qs >=6.16.0). Widened from <1.20.6 to <1.20.8: 1.20.6
-  # cleared the first advisory but still bundles qs ~6.15.1 (below the qs floor);
-  # 1.20.8 bundles qs ~6.16.0. RUNTIME dep of apps/beacon (Cloud Functions) via
-  # firebase-functions>express@4 (express 4 requires body-parser ~1.20.x, so stay
-  # in the 1.x line — 1.20.8 is inside express@4.22.3's own ~1.20.5 range below).
-  "body-parser@<1.20.8": "^1.20.8"
-  # Patch qs GHSA-x5fp-wj9c-mxmx / GHSA-4mjr-xmp4-gh2g (see body-parser above) on
-  # express's OWN direct qs edge (separate from the one bundled inside
-  # body-parser). RUNTIME dep of apps/beacon via firebase-functions>express@4;
-  # express@4.22.3 is the newest 4.x, already inside firebase-functions@7.2.5's
-  # own express ^4.21.0, and its own qs range floors at ~6.16.0 — patched, no
-  # major bump needed. A lockfile refresh alone didn't converge to this version
-  # (confirmed: `pnpm --filter beacon update qs express body-parser` left it
-  # stuck on the old pinned snapshot), hence the override. Remove once the
-  # lockfile naturally resolves express >=4.22.3 unaided.
-  "express@<4.22.3": "^4.22.3"
   # Patch brace-expansion ReDoS, now flagged on BOTH copies in the tree, each with its
   # own vulnerable range, so each needs its own selector inside its own major:
   #   v5 line (minimatch@10 requires ^5.0.5, via eslint>@eslint/config-array) — the
