@@ -70,7 +70,7 @@ machine-enforced yet — hold them by judgment + `bundle-budget-watcher`:
 
 | Budget | spotlight | backstage |
 |--------|-----------|-----------|
-| Eager JS (entry + modulepreloads) | ≤ **108 kB gz** (now 104) | ≤ **162 kB gz** (now 159 — full Firebase SDK split so firestore/storage/functions load lazily; `/me` route de-eagered) |
+| Eager JS (entry + modulepreloads) | ≤ **116 kB gz** (now 113) | ≤ **166 kB gz** (now 163 — full Firebase SDK split so firestore/storage/functions load lazily; `/me` route de-eagered) |
 | Initial CSS (`index` chunk) | ≤ **17 kB gz** (now 16 — +1.1 kB for the /about "El Masthead" Directiva section: token-based hand-authored gradients/ledger/chip layout, a permanent leadership page section) | ≤ 15 kB gz (now 13) |
 | Any single route chunk | ≤ 40 kB gz | ≤ 40 kB gz |
 | New runtime dependency | justify if it adds > 10 kB gz to eager JS | same |
@@ -93,6 +93,12 @@ form — and the audience changed from "an admin who lost their password" to **e
 ever joins the chapter**. That is not a regression (`/reset` had exactly the same property)
 and it is not in scope, but it is the strongest remaining argument for a separate lightweight
 entry point.
+
+**React 19.3 re-baseline (2026-10).** `react-dom` 19.3.1 adds ~8 kB gz to the eager set on both
+apps (spotlight 105 → 113, backstage 154 → 163 kB gz); `react` alone adds nothing. The growth is
+react-dom's own client reconciler (ViewTransition, Fragment refs, new DOM events: the entry chunk
+grows 327 → 356 kB raw) and is compile-time, so it cannot be tree-shaken away. Budgets were raised
+108 → 116 and 162 → 166 kB, keeping the previous 3 kB headroom, as a deliberate decision.
 
 Breaching the eager-JS budget fails CI. A deliberate breach means raising the budget **both**
 here and in `tools/scripts/check-bundle-budget.sh` (the script hardcodes these numbers — keep the

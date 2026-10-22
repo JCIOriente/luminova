@@ -61,4 +61,4 @@ Gotchas:
 
 - **CI gate.** `pnpm --filter backstage run ci` = eslint → tsc → vitest (rolled into `pnpm pr-tests`). Bundle budget enforced by `tools/scripts/check-bundle-budget.sh` (CI `checks` job).
 - **Sensitive surfaces → REQUIRE `/security-review` + `firestore-security-reviewer`.** Auth flow (`_auth.login`, `_app.tsx` guard), every `repositories/*` Firestore access, any change to `firestore.rules`.
-- **Performance.** Budget: eager JS (entry + modulepreloads) ≤ 162 kB gz, CSS ≤ 15 kB gz (current figures in `docs/performance.md`). Renders in `system-ui` on purpose — **do not add a webfont**. `index.html` preconnects the auth/Firestore/Storage origins. Follow `docs/performance.md`; dispatch `bundle-budget-watcher` after dep/route changes.
+- **Performance.** Budget: eager JS (entry + modulepreloads) ≤ 166 kB gz, CSS ≤ 15 kB gz (current figures in `docs/performance.md`). Renders in `system-ui` on purpose — **do not add a webfont**. `index.html` preconnects the auth/Firestore/Storage origins. Follow `docs/performance.md`; dispatch `bundle-budget-watcher` after dep/route changes.
