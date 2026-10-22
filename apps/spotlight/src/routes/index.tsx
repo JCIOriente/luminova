@@ -1,4 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import {
+  name,
+  locality,
+  foundedYear,
+  movementName,
+  parentOrganization,
+  stats as brandStats,
+} from "virtual:luminova-brand";
 import { Button, ArrowLink, RippleBackground, SectionHeader, Reveal, Icon } from "@luminova/ui";
 import { AreaCard, ImpactStat } from "../components/cards";
 import HomePrograms from "../components/home-programs";
@@ -9,6 +17,7 @@ import { currentYearsActive } from "../site-config/defaults";
 import { useAlliesOnVisible } from "../allies/use-allies";
 import { useFeaturedListOnVisible } from "../showcase/use-showcase";
 import { ALLY_CATEGORY_LABELS } from "@luminova/types/engine";
+import { decadesPhrase, withPreposition, withoutArticle } from "../lib/place-phrase";
 
 const PROJECTS_SECTION_ID = "proyectos";
 
@@ -30,13 +39,13 @@ const AREAS = [
   {
     num: "02",
     title: "Desarrollo Comunitario",
-    desc: "Proyectos que abordan problemas reales del Oriente boliviano, de la educación al medio ambiente.",
+    desc: `Proyectos que abordan problemas reales ${withPreposition("de", locality.region)}, de la educación al medio ambiente.`,
     icon: <Icon.heart />,
   },
   {
     num: "03",
     title: "Cooperación Internacional",
-    desc: "Conferencias, intercambios y representación en JCI Bolivia, JCI Americas y JCI Worldwide.",
+    desc: `Conferencias, intercambios y representación en ${parentOrganization.name}, JCI Americas y JCI Worldwide.`,
     icon: <Icon.globe />,
   },
   {
@@ -84,8 +93,7 @@ function HomeHero() {
             className="t-subtitle"
             style={{ marginTop: 24, maxWidth: 620, color: "var(--color-on-dark-2)" }}
           >
-            Capítulo Santa Cruz de la Cámara Junior Internacional. Formamos líderes con propósito
-            desde 1993.
+            {`Capítulo ${locality.city} de la ${movementName}. Formamos líderes con propósito desde ${foundedYear}.`}
           </p>
           <div style={{ marginTop: 36, display: "flex", gap: 14, flexWrap: "wrap" }}>
             <Button
@@ -96,7 +104,7 @@ function HomeHero() {
                 scrollToId("about-jci");
               }}
             >
-              Conoce JCI Oriente
+              Conoce {name}
             </Button>
             <Button
               variant="secondary"
@@ -117,7 +125,7 @@ function HomeHero() {
           <div className="mini-stats">
             <div className="mini-stat">
               <div className="v t-num">+{currentYearsActive()}</div>
-              <div className="l">años desarrollando líderes en el Oriente</div>
+              <div className="l">{`años desarrollando líderes en ${locality.regionShort}`}</div>
             </div>
             <div className="mini-stat">
               <div className="v t-num">{config.stats.programCount}</div>
@@ -141,7 +149,7 @@ function HomeAbout() {
       <div className="container">
         <div className="grid-2" style={{ alignItems: "start" }}>
           <Reveal>
-            <div className="eyebrow">JCI Worldwide × Oriente</div>
+            <div className="eyebrow">{`JCI Worldwide × ${withoutArticle(locality.regionShort)}`}</div>
             <h2 className="t-title" style={{ marginTop: 20, marginBottom: 0 }}>
               Una red global con raíces locales.
             </h2>
@@ -149,9 +157,7 @@ function HomeAbout() {
           <Reveal delay={120}>
             <div className="prose">
               <p className="t-body" style={{ marginTop: 0 }}>
-                JCI Oriente es el capítulo de Santa Cruz de la Cámara Junior Internacional, una
-                organización fundada en 1915 que hoy reúne a jóvenes profesionales y emprendedores
-                en más de cien países. Aquí canalizamos esa red mundial hacia el impacto local.
+                {`${name} es el capítulo de ${locality.city} de la ${movementName}, una organización fundada en 1915 que hoy reúne a jóvenes profesionales y emprendedores en más de cien países. Aquí canalizamos esa red mundial hacia el impacto local.`}
               </p>
               <p className="t-body" style={{ color: "var(--ink-2)" }}>
                 Formamos líderes activos. Creamos proyectos que mejoran la comunidad. Conectamos a
@@ -160,7 +166,7 @@ function HomeAbout() {
               </p>
               <figure className="pullquote" style={{ marginTop: 36, marginBottom: 0 }}>
                 <blockquote className="t-quote" style={{ margin: 0 }}>
-                  {`${config.stats.membersWorldwide} miembros en ${config.stats.countries} países y 18 organizaciones en Bolivia. En Santa Cruz, JCI Oriente aporta a esa red desde 1993.`}
+                  {`${config.stats.membersWorldwide} miembros en ${config.stats.countries} países y ${brandStats.nationalOrganizations} organizaciones en ${locality.country}. En ${locality.city}, ${name} aporta a esa red desde ${foundedYear}.`}
                 </blockquote>
                 <cite>JCI en cifras</cite>
               </figure>
@@ -243,17 +249,17 @@ function HomeImpact() {
             className="t-title"
             style={{ color: "var(--jci-white)", marginTop: 20, marginBottom: 0 }}
           >
-            Más de tres décadas sirviendo al Oriente.
+            {`Más de ${decadesPhrase(currentYearsActive())} sirviendo ${withPreposition("a", locality.regionShort)}.`}
           </h2>
         </div>
         <div className="impact-grid" style={{ marginTop: 72 }}>
           <ImpactStat
             value={`+${currentYearsActive()}`}
-            label="años activos en Santa Cruz desde 1993"
+            label={`años activos en ${locality.city} desde ${foundedYear}`}
           />
           <ImpactStat
             value={config.stats.standoutOrg.year}
-            label={`${config.stats.standoutOrg.title} de JCI Bolivia`}
+            label={`${config.stats.standoutOrg.title} de ${parentOrganization.name}`}
           />
           <ImpactStat
             value={`${config.stats.efficiencyPct}%`}
@@ -369,7 +375,7 @@ function HomeCTA() {
               void navigate({ to: "/about" });
             }}
           >
-            Conoce JCI Oriente
+            Conoce {name}
           </Button>
         </div>
       </div>
