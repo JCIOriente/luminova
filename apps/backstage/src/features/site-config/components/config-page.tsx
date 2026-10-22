@@ -1,3 +1,4 @@
+import { name } from "virtual:luminova-brand";
 import { Skeleton, EmptyState, Icon, Toast } from "@luminova/ui";
 import { useDismissingToast } from "../../../lib/use-dismissing-toast";
 import { useSiteConfig } from "../hooks/use-site-config";
@@ -7,6 +8,8 @@ import { SiteConfigForm } from "./site-config-form";
 import { PageHeader } from "../../../components/page-header";
 import { useCan } from "../../../lib/authz/use-can";
 import type { SiteConfigInput } from "@luminova/types";
+
+const CHAPTER_EYEBROW = `Capítulo ${name}`;
 
 const BLANK_CONFIG: SiteConfigInput = {
   hero: { motto: "", submotto: "" },
@@ -55,7 +58,7 @@ export function ConfigPage() {
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
-          eyebrow="Capítulo JCI Oriente"
+          eyebrow={CHAPTER_EYEBROW}
           title="Configuración"
           subtitle="Edita los datos del sitio público."
         />
@@ -92,7 +95,7 @@ export function ConfigPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Capítulo JCI Oriente"
+        eyebrow={CHAPTER_EYEBROW}
         title="Configuración"
         subtitle="Edita los datos del sitio público."
       />

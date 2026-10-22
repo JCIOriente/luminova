@@ -1,9 +1,10 @@
+import { name, locality } from "virtual:luminova-brand";
 import type { ReactNode } from "react";
 import { Avatar, Badge, Card, Icon, ImageUploader } from "@luminova/ui";
 import { useMemberPhoto } from "../hooks/use-member-photo";
 
-const CHAPTER = "JCI Oriente";
-const CITY = "Santa Cruz de la Sierra, Bolivia";
+const CHAPTER = name;
+const CITY = `${locality.cityFormal}, ${locality.country}`;
 
 function Row({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (

@@ -1,3 +1,4 @@
+import { name } from "virtual:luminova-brand";
 import type { Member } from "@luminova/types";
 import { Card, Icon } from "@luminova/ui";
 import { daysUntilNextAnniversary, fullYearsBetween } from "@luminova/utils/datetime";
@@ -12,7 +13,7 @@ function birthdayLine(days: number): string {
 }
 
 function anniversaryLine(years: number): string {
-  if (years <= 0) return "Tu primer año en JCI Oriente";
+  if (years <= 0) return `Tu primer año en ${name}`;
   if (years === 1) return "1 año como miembro";
   return `${years} años como miembro`;
 }

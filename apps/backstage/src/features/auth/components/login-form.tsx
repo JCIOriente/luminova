@@ -1,3 +1,4 @@
+import { name, emailPlaceholder } from "virtual:luminova-brand";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,7 +42,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       </div>
 
       <div className="mb-4 font-mono text-ui-2xs uppercase tracking-[0.2em] text-jci-blue">
-        Portal de miembros · JCI Oriente
+        Portal de miembros · {name}
       </div>
       <h1 className="text-[31px] font-normal leading-[1.1] -tracking-[0.025em] text-ink-1">
         Bienvenida de nuevo
@@ -60,7 +61,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
               id="email"
               type="email"
               autoComplete="email"
-              placeholder="tu.nombre@jcioriente.bo"
+              placeholder={emailPlaceholder}
               className="pl-11"
               {...register("email")}
             />

@@ -1,3 +1,4 @@
+import { name, locality, foundedYear } from "virtual:luminova-brand";
 import type { ReactNode } from "react";
 import { LogoLockup, RippleBackground, cn } from "@luminova/ui";
 
@@ -8,7 +9,7 @@ interface BrandSideProps {
   lead?: string;
 }
 
-const META = ["JCI Oriente", "Santa Cruz · Bolivia", "Desde 1993"];
+const META = [name, `${locality.city} · ${locality.country}`, `Desde ${foundedYear}`];
 
 // The four brand hues, blue-weighted (per the JCI palette ratio) and cycled
 // per ring to build the multi-color ripple from the brand guidelines.
@@ -28,7 +29,7 @@ export function BrandSide({
       Inspira<b className="font-semibold">.</b>
     </>
   ),
-  lead = "El espacio de todos los miembros de JCI Oriente: tus eventos, proyectos y tu perfil, en un solo lugar.",
+  lead = `El espacio de todos los miembros de ${name}: tus eventos, proyectos y tu perfil, en un solo lugar.`,
 }: BrandSideProps) {
   const blue = tone === "blue";
   return (
