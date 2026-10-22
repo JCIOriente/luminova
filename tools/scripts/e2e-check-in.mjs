@@ -2,12 +2,13 @@
 // Run: FIRESTORE_EMULATOR_HOST=127.0.0.1:4010 node tools/scripts/e2e-check-in.mjs
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp, FieldValue } from "firebase-admin/firestore";
+import { resolveLocalProject } from "./lib/seed-target.mjs";
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error("Refusing to run: FIRESTORE_EMULATOR_HOST is not set.");
   process.exit(1);
 }
-const projectId = process.env.GCLOUD_PROJECT ?? "jci-oriente";
+const projectId = resolveLocalProject();
 initializeApp({ projectId });
 const db = getFirestore();
 

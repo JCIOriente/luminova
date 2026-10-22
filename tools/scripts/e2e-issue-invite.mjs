@@ -6,12 +6,13 @@
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { resolveLocalProject } from "./lib/seed-target.mjs";
 
 if (!process.env.FIRESTORE_EMULATOR_HOST || !process.env.FIREBASE_AUTH_EMULATOR_HOST) {
   console.error("Refusing to run: emulator host envs are not set.");
   process.exit(1);
 }
-const projectId = process.env.GCLOUD_PROJECT ?? "jci-oriente";
+const projectId = resolveLocalProject();
 const AUTH_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST;
 const FN_URL = `http://127.0.0.1:4020/${projectId}/us-central1/issueMemberInvite`;
 
