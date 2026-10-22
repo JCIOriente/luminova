@@ -75,8 +75,18 @@ describe("parseSiteContent", () => {
 describe("pickSeededSiteContent", () => {
   it("keeps only the keys the seeds own, so hero and linktree edits survive a re-seed", () => {
     const raw = readSiteContent(join(REPO_ROOT, "brand", "jci-oriente"), "jci-oriente");
-    expect(Object.keys(pickSeededSiteContent(raw)).sort()).toEqual(
+    expect(Object.keys(pickSeededSiteContent(raw, "jci-oriente")).sort()).toEqual(
       [...SEEDED_SITE_CONTENT_KEYS].sort(),
     );
+  });
+});
+
+describe("pickSeededSiteContent before any write", () => {
+  it("refuses a missing seed-owned key instead of writing undefined", () => {
+    const raw = readSiteContent(join(REPO_ROOT, "brand", "fixture"), "fixture");
+    const withoutContact = { ...raw, contact: undefined };
+    expect(errorsOf(() => pickSeededSiteContent(withoutContact, "fixture"))).toEqual([
+      expect.stringMatching(/^brand\/fixture\/site-content\.json contact: missing/),
+    ]);
   });
 });

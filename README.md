@@ -216,8 +216,8 @@ fork it and change these:
    (local development) and in your brand profile's `firebase.web` (production builds; see 3).
 2. **Chapter content.** The seeded site content — history, mission, vision, values,
    statistics, contact details — lives in
-   `tools/scripts/lib/site-config-seed-data.mjs` and
-   `apps/spotlight/src/site-config/defaults.ts`. Everything there is also editable from
+   your brand profile's `site-content.json` (copy `brand/jci-oriente/site-content.json`).
+   Everything there is also editable from
    the admin `/config` screen once you are running.
 3. **Branding.** More places than you would expect, and missing one is visible to the
    public:
@@ -240,8 +240,9 @@ fork it and change these:
    (`docs/reference/points-matrix.md`). The values are editable per term from
    `/point-rules`. The rule *codes* are an enum in `@luminova/types` — changing which
    activities count at all is a code change.
-5. **Bootstrap.** `pnpm seed:production` creates the first admin interactively and seeds
-   default site config. It refuses to run against emulators.
+5. **Bootstrap.** `pnpm seed:production --project <your-project-id>` creates the first admin
+   interactively and seeds default site config. It refuses to run against emulators, and
+   unless the project is the one your brand profile (`BRAND_PROFILE`) names.
 
 Deploy checklist and the Firebase console setup:
 [`docs/firebase-setup.md`](docs/firebase-setup.md).

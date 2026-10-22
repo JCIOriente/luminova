@@ -342,13 +342,14 @@ validating it would error, deny every delete, and orphan the blob). Tested by
 
 `pnpm seed:production` bootstraps prod **once**: the president Auth user + member doc
 (Admin via the Presidente cargo), the built-in role docs, and `siteConfig/current`.
-It requires Application Default Credentials and refuses to run if any emulator env var
-is set:
+It requires Application Default Credentials and an explicit project (`--project` or
+`GCLOUD_PROJECT`) equal to the selected brand profile's `firebase.projectId`; it prints
+the target before the first write, and refuses to run if any emulator env var is set:
 
 ```bash
 gcloud auth application-default login
 # or GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
-pnpm seed:production
+pnpm seed:production --project jci-oriente
 ```
 
 Re-runs are a no-op for the president (a `meta/bootstrap` doc guards it); `siteConfig`

@@ -16,11 +16,11 @@ export { loadProfile };
 /** Emulator and read-mostly scripts: the first env key set, else the profile's project. */
 export function resolveLocalProject({
   env = process.env,
-  profile = loadProfile({ env }),
+  profile,
   envKeys = ["GCLOUD_PROJECT"],
 } = {}) {
   const fromEnv = envKeys.map((key) => env[key]?.trim()).find(Boolean);
-  return fromEnv || profile.brand.firebase.projectId;
+  return fromEnv || (profile ?? loadProfile({ env })).brand.firebase.projectId;
 }
 
 export function parseProjectFlag(argv) {
@@ -70,5 +70,5 @@ export function resolveProductionTarget({
 
 /** The siteConfig/current fields the seeds own, from the profile's site-content.json. */
 export function seededSiteContent(profile) {
-  return pickSeededSiteContent(readSiteContent(profile.dir, profile.slug));
+  return pickSeededSiteContent(readSiteContent(profile.dir, profile.slug), profile.slug);
 }

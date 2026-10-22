@@ -14,6 +14,11 @@ test("local scripts default to the profile's project", () => {
   assert.equal(resolveLocalProject({ env: {}, profile }), "acme-prod");
 });
 
+test("local scripts do not load a profile when the env names the project", () => {
+  const broken = { BRAND_PROFILE: "no-such-profile", GCLOUD_PROJECT: "demo-x" };
+  assert.equal(resolveLocalProject({ env: broken }), "demo-x");
+});
+
 test("local scripts honour GCLOUD_PROJECT over the profile", () => {
   assert.equal(resolveLocalProject({ env: { GCLOUD_PROJECT: "demo-x" }, profile }), "demo-x");
 });

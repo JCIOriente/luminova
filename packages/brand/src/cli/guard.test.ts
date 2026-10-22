@@ -9,6 +9,7 @@ import {
   NEEDLE_EXCLUSIONS,
   assetHashes,
   collectNeedles,
+  emittedLogoHashes,
   formatFinding,
   inverseChecks,
   scanDist,
@@ -113,6 +114,13 @@ describe("scanDist", () => {
     expect(findings.map(formatFinding)).toContain(
       `assets/index-abc.js: ${sender} (firebase.web.messagingSenderId)`,
     );
+  });
+
+  it("hashes the chapter build's emitted logos, which imagetools re-encodes", () => {
+    put("assets/logo-main-a1b2.webp", "webp bytes");
+    put("assets/index-abc.js", "js");
+    const hashes = emittedLogoHashes(dist, "apps/spotlight/dist/");
+    expect([...hashes.values()]).toEqual(["apps/spotlight/dist/assets/logo-main-a1b2.webp"]);
   });
 
   it("finds an asset by hash, whatever its name", () => {

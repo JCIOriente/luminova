@@ -23,9 +23,17 @@ export function readSiteContent(profileDir: string, slug: string): Record<string
   return { ...raw };
 }
 
+/** Throws before any write: Firestore rejects an undefined field mid-seed. */
 export function pickSeededSiteContent(
   content: Record<string, unknown>,
+  slug: string,
 ): Record<SeededKey, unknown> {
+  const missing = SEEDED_SITE_CONTENT_KEYS.filter((key) => content[key] === undefined);
+  if (missing.length > 0) {
+    throw new BrandConfigError(
+      missing.map((key) => `brand/${slug}/${SITE_CONTENT_FILE} ${key}: missing`),
+    );
+  }
   const { stats, timeline, mvv, reasons, contact } = content;
   return { stats, timeline, mvv, reasons, contact };
 }

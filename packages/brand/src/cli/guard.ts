@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { basename, join, relative } from "node:path";
 import { z } from "zod";
 import { REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
@@ -88,6 +88,20 @@ export function assetHashes(dir: string, labelPrefix = ""): Map<string, string> 
       sha256(readFileSync(file)),
       `${labelPrefix}${relative(dir, file)}`,
     ]),
+  );
+}
+
+/**
+ * The chapter build's own logo outputs. Spotlight re-encodes the logos to webp, so the
+ * source PNG hashes alone would miss a leaked logo there.
+ */
+export function emittedLogoHashes(dist: string, labelPrefix = ""): Map<string, string> {
+  const assets = join(dist, "assets");
+  if (!existsSync(assets)) return new Map();
+  return new Map(
+    listFiles(assets)
+      .filter((file) => basename(file).startsWith("logo-"))
+      .map((file) => [sha256(readFileSync(file)), `${labelPrefix}${relative(dist, file)}`]),
   );
 }
 
@@ -247,6 +261,11 @@ async function main(): Promise<number> {
   const hashes = existsSync(assetsDir)
     ? assetHashes(assetsDir, `${relative(REPO_ROOT, assetsDir)}/`)
     : new Map<string, string>();
+  for (const app of BRAND_APPS) {
+    const dist = join(REPO_ROOT, "apps", app, "dist");
+    for (const [hash, label] of emittedLogoHashes(dist, `apps/${app}/dist/`))
+      hashes.set(hash, label);
+  }
 
   const findings: string[] = [];
   let filesScanned = 0;

@@ -146,8 +146,8 @@ haz un fork y cambia esto:
    de marca (builds de producción; ver 3).
 2. **Contenido del capítulo.** El contenido inicial del sitio —historia, misión, visión,
    valores, estadísticas, datos de contacto— vive en
-   `tools/scripts/lib/site-config-seed-data.mjs` y
-   `apps/spotlight/src/site-config/defaults.ts`. Todo eso también se edita desde la pantalla
+   el `site-content.json` de tu perfil de marca (copia `brand/jci-oriente/site-content.json`).
+   Todo eso también se edita desde la pantalla
    `/config` una vez que esté funcionando.
 3. **Marca.** Está en más lugares de los que parece, y omitir uno se ve en público:
    - **Un perfil de marca**, `brand/<slug>/`: copia `brand/fixture/`, renombra la carpeta y
@@ -172,8 +172,10 @@ haz un fork y cambia esto:
    Individual" de JCI Oriente (`docs/reference/points-matrix.md`). Los valores se editan por
    gestión desde `/point-rules`. Los *códigos* de las reglas son un enum en
    `@luminova/types`: cambiar qué actividades puntúan es un cambio de código.
-5. **Arranque.** `pnpm seed:production` crea el primer administrador de forma interactiva y
-   carga la configuración inicial del sitio. Se niega a correr contra los emuladores.
+5. **Arranque.** `pnpm seed:production --project <id-de-tu-proyecto>` crea el primer
+   administrador de forma interactiva y carga la configuración inicial del sitio. Se niega a
+   correr contra los emuladores, y si el proyecto no es el que nombra tu perfil de marca
+   (`BRAND_PROFILE`).
 
 Los pasos técnicos de instalación local están en el
 [README en inglés](README.md#quickstart) y en [CONTRIBUTING.md](CONTRIBUTING.md).
