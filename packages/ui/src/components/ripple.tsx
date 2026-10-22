@@ -81,13 +81,7 @@ export function RippleSVG({
 }
 
 type RippleVariant =
-  | "hero"
-  | "hero-corner-tl"
-  | "hero-center"
-  | "split-art"
-  | "footer"
-  | "cta"
-  | "subtle";
+  "hero" | "hero-corner-tl" | "hero-center" | "split-art" | "footer" | "cta" | "subtle";
 
 interface RippleBackgroundProps {
   variant?: RippleVariant;

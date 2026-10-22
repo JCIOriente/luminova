@@ -163,10 +163,4 @@ export interface MemberInviteProjection {
  *    already have accounts — and for a delegate, each such re-issue is the D3 impersonation
  *    primitive. One derived branch, zero writes, no migration. */
 export type InviteState =
-  | "never"
-  | "legacy"
-  | "pending"
-  | "used"
-  | "expired"
-  | "revoked"
-  | "failed";
+  "never" | "legacy" | "pending" | "used" | "expired" | "revoked" | "failed";
