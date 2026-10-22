@@ -44,7 +44,7 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "firebase": "13.1.0"
