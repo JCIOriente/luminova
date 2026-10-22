@@ -13,7 +13,9 @@
 | `packages/auth` (`@luminova/auth`) | CASL roles, permissions, ability builder |
 | `packages/utils` (`@luminova/utils`) | Intl-only helpers, no runtime deps (es-BO datetime with the Bolivia UTC pin) |
 
-Stack: React 19, TypeScript 6 strict, TanStack Router (file-based) + Query v5, React Hook Form + Zod, Tailwind v4, Lucide, Firebase, Turborepo + pnpm workspaces. Node 24 and pnpm are pinned (`.nvmrc`, `engines.node`, `packageManager`).
+Stack: React 19, TypeScript 7 strict, TanStack Router (file-based) + Query v5, React Hook Form + Zod, Tailwind v4, Lucide, Firebase, Turborepo + pnpm workspaces. Node 24 and pnpm are pinned (`.nvmrc`, `engines.node`, `packageManager`).
+
+TypeScript runs side by side (Microsoft's recommended setup): `tsc` is the native 7.x compiler (`@typescript/native` alias), while `typescript` is aliased to `@typescript/typescript6` so tools that import the JS API (typescript-eslint) keep working. TS 7 has no programmatic API until 7.1; when typescript-eslint supports 7.x, drop both aliases and depend on `typescript` directly.
 
 ## Commands
 
