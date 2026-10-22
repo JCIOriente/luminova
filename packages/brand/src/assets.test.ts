@@ -3,9 +3,18 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES, validateAssets } from "./assets.ts";
+import { REPO_ROOT } from "./load-profile.ts";
 import { encodePng } from "./png.ts";
 
 let dir: string;
+
+describe("committed profile assets", () => {
+  it("the fixture set meets the contract with 400×200 logos", () => {
+    const result = validateAssets(join(REPO_ROOT, "brand/fixture/assets"));
+    expect(result.errors).toEqual([]);
+    expect(result.logoSize).toEqual({ width: 400, height: 200 });
+  });
+});
 
 function put(path: string, contents: Buffer) {
   mkdirSync(dirname(join(dir, path)), { recursive: true });
