@@ -3,19 +3,6 @@ packages:
   - "packages/*"
   - "tests/*"
 overrides:
-  # Dedupe the Radix internals that hold cross-component React contexts to ONE
-  # version each. react-dialog (the Sheet) and react-popover (Combobox/MultiSelect)
-  # pin DIFFERENT patch versions, so two copies = two contexts, and a Popover
-  # portaled inside a modal Sheet breaks: dismissable-layer → dropdown rendered but
-  # UNCLICKABLE (modal pointer-events lock never exempts it); focus-scope → the
-  # modal's focus trap yanks focus from the cmdk search input (can't type to filter).
-  # One version each restores Radix's nested-layer/focus coordination.
-  "@radix-ui/react-dismissable-layer": "1.1.12"
-  "@radix-ui/react-focus-scope": "1.1.9"
-  # cmdk's own react-dialog edge floats to 1.3.x, which imports FocusScopeBranchProvider
-  # (absent from the focus-scope pinned above). Keep it on the same 1.1.15 as the Sheet.
-  # Remove together with the focus-scope/dismissable-layer pins once those are lifted.
-  "cmdk>@radix-ui/react-dialog": "1.1.15"
   # Patch browserslist GHSA-c83g-rgw3-j3cx (unbounded memory growth / cache
   # eviction OOM) and GHSA-73wf-gq98-2v4g (uncaught crash / prototype write via
   # browserslist-stats.json), both <=4.28.6, patched >=4.28.7 — and the
@@ -104,55 +91,6 @@ allowBuilds:
   # hard-fail with ERR_PNPM_IGNORED_BUILDS in CI. Prebuilt binaries, safe to run.
   sharp: true
 minimumReleaseAgeExclude:
-  - "@radix-ui/primitive@1.1.4"
-  - "@radix-ui/react-arrow@1.1.9"
-  - "@radix-ui/react-compose-refs@1.1.3"
-  - "@radix-ui/react-context@1.1.4"
-  - "@radix-ui/react-dismissable-layer@1.1.12"
-  - "@radix-ui/react-focus-guards@1.1.4"
-  - "@radix-ui/react-focus-scope@1.1.9"
-  - "@radix-ui/react-id@1.1.2"
-  - "@radix-ui/react-popover@1.1.16"
-  - "@radix-ui/react-popper@1.3.0"
-  - "@radix-ui/react-portal@1.1.11"
-  - "@radix-ui/react-presence@1.1.6"
-  - "@radix-ui/react-primitive@2.1.5"
-  - "@radix-ui/react-slot@1.2.5"
-  - "@radix-ui/react-use-callback-ref@1.1.2"
-  - "@radix-ui/react-use-controllable-state@1.2.3"
-  - "@radix-ui/react-use-effect-event@0.0.3"
-  - "@radix-ui/react-use-escape-keydown@1.1.2"
-  - "@radix-ui/react-use-layout-effect@1.1.2"
-  - "@radix-ui/react-use-rect@1.1.2"
-  - "@radix-ui/react-use-size@1.1.2"
-  - "@radix-ui/rect@1.1.2"
-  - "@esbuild/aix-ppc64@0.28.1"
-  - "@esbuild/android-arm64@0.28.1"
-  - "@esbuild/android-arm@0.28.1"
-  - "@esbuild/android-x64@0.28.1"
-  - "@esbuild/darwin-arm64@0.28.1"
-  - "@esbuild/darwin-x64@0.28.1"
-  - "@esbuild/freebsd-arm64@0.28.1"
-  - "@esbuild/freebsd-x64@0.28.1"
-  - "@esbuild/linux-arm64@0.28.1"
-  - "@esbuild/linux-arm@0.28.1"
-  - "@esbuild/linux-ia32@0.28.1"
-  - "@esbuild/linux-loong64@0.28.1"
-  - "@esbuild/linux-mips64el@0.28.1"
-  - "@esbuild/linux-ppc64@0.28.1"
-  - "@esbuild/linux-riscv64@0.28.1"
-  - "@esbuild/linux-s390x@0.28.1"
-  - "@esbuild/linux-x64@0.28.1"
-  - "@esbuild/netbsd-arm64@0.28.1"
-  - "@esbuild/netbsd-x64@0.28.1"
-  - "@esbuild/openbsd-arm64@0.28.1"
-  - "@esbuild/openbsd-x64@0.28.1"
-  - "@esbuild/openharmony-arm64@0.28.1"
-  - "@esbuild/sunos-x64@0.28.1"
-  - "@esbuild/win32-arm64@0.28.1"
-  - "@esbuild/win32-ia32@0.28.1"
-  - "@esbuild/win32-x64@0.28.1"
-  - esbuild@0.28.1
   - "@firebase/app-compat@0.5.20"
   - "@firebase/app@0.16.4"
   - "@firebase/auth-compat@0.6.13"
