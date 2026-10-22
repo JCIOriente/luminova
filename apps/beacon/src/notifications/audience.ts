@@ -1,7 +1,5 @@
 export type Audience =
-  | { type: "everyone" }
-  | { type: "members" }
-  | { type: "role"; roleId: string };
+  { type: "everyone" } | { type: "members" } | { type: "role"; roleId: string };
 
 export function parseAudience(raw: unknown): Audience | null {
   if (typeof raw !== "object" || raw === null) return null;

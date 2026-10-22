@@ -87,22 +87,20 @@ export function buildRoleOverview(
 
   const unsynced = builtInRoles(roles)
     .filter(({ doc }) => doc === null)
-    .map(
-      ({ key }): RoleOverviewRow => ({
-        role: null,
-        id: key,
-        builtInKey: key,
-        ...roleDisplay(key, roles),
-        permissions: BUILT_IN_ROLE_PERMS[key],
-        active: true,
-        grantingCargos: grantingCargos(key),
-        // Deliberate over-report: with no doc seeded, beacon's getRolesByIds resolves
-        // nothing for a `roleIds: [key]` holder, so only the cargo path actually mints
-        // these perms today. Listing both paths errs toward showing a power grant that
-        // isn't live rather than hiding one that is — and seeding the doc makes it live.
-        holders: holders(key, key),
-      }),
-    );
+    .map(({ key }): RoleOverviewRow => ({
+      role: null,
+      id: key,
+      builtInKey: key,
+      ...roleDisplay(key, roles),
+      permissions: BUILT_IN_ROLE_PERMS[key],
+      active: true,
+      grantingCargos: grantingCargos(key),
+      // Deliberate over-report: with no doc seeded, beacon's getRolesByIds resolves
+      // nothing for a `roleIds: [key]` holder, so only the cargo path actually mints
+      // these perms today. Listing both paths errs toward showing a power grant that
+      // isn't live rather than hiding one that is — and seeding the doc makes it live.
+      holders: holders(key, key),
+    }));
 
   return [...seeded, ...unsynced];
 }

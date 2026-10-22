@@ -62,10 +62,7 @@ const FORGED_ADMIN = {
 };
 
 type Outcome =
-  | { code: string; reason: string | null }
-  | { notAnHttpsError: string }
-  | "resolved"
-  | "timeout";
+  { code: string; reason: string | null } | { notAnHttpsError: string } | "resolved" | "timeout";
 
 /** Settles a `.run` within a short budget, so a mutated handler that reaches for Firestore
  *  fails fast instead of hanging the suite. */

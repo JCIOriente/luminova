@@ -9,38 +9,38 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as InvitacionRouteImport } from './routes/invitacion'
-import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as InvitacionRouteImport } from './routes/invitacion'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
-import { Route as AuthLoginRouteImport } from './routes/_auth.login'
-import { Route as AppPositionsRouteImport } from './routes/_app.positions'
-import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
-import { Route as AppPermisosRouteImport } from './routes/_app.permisos'
-import { Route as AppNotificacionesRouteImport } from './routes/_app.notificaciones'
-import { Route as AppMembersRouteImport } from './routes/_app.members'
-import { Route as AppMeRouteImport } from './routes/_app.me'
-import { Route as AppLeadsRouteImport } from './routes/_app.leads'
-import { Route as AppLeaderboardRouteImport } from './routes/_app.leaderboard'
-import { Route as AppInitiativesRouteImport } from './routes/_app.initiatives'
-import { Route as AppConfigRouteImport } from './routes/_app.config'
-import { Route as AppAlliesRouteImport } from './routes/_app.allies'
 import { Route as AppActivitiesRouteImport } from './routes/_app.activities'
-import { Route as AppMembersMemberIdRouteImport } from './routes/_app.members_.$memberId'
+import { Route as AppAlliesRouteImport } from './routes/_app.allies'
+import { Route as AppConfigRouteImport } from './routes/_app.config'
+import { Route as AppInitiativesRouteImport } from './routes/_app.initiatives'
+import { Route as AppLeaderboardRouteImport } from './routes/_app.leaderboard'
+import { Route as AppLeadsRouteImport } from './routes/_app.leads'
+import { Route as AppMeRouteImport } from './routes/_app.me'
+import { Route as AppMembersRouteImport } from './routes/_app.members'
+import { Route as AppNotificacionesRouteImport } from './routes/_app.notificaciones'
+import { Route as AppPermisosRouteImport } from './routes/_app.permisos'
+import { Route as AppPointRulesRouteImport } from './routes/_app.point-rules'
+import { Route as AppPositionsRouteImport } from './routes/_app.positions'
+import { Route as AuthLoginRouteImport } from './routes/_auth.login'
 import { Route as AppActivitiesIdRouteImport } from './routes/_app.activities_.$id'
+import { Route as AppMembersMemberIdRouteImport } from './routes/_app.members_.$memberId'
 import { Route as AppInitiativesTypeIdRouteImport } from './routes/_app.initiatives_.$type.$id'
 
-const InvitacionRoute = InvitacionRouteImport.update({
-  id: '/invitacion',
-  path: '/invitacion',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppRoute = AppRouteImport.update({
-  id: '/_app',
+const InvitacionRoute = InvitacionRouteImport.update({
+  id: '/invitacion',
+  path: '/invitacion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -48,59 +48,9 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AuthLoginRoute = AuthLoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AppPositionsRoute = AppPositionsRouteImport.update({
-  id: '/positions',
-  path: '/positions',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppPointRulesRoute = AppPointRulesRouteImport.update({
-  id: '/point-rules',
-  path: '/point-rules',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppPermisosRoute = AppPermisosRouteImport.update({
-  id: '/permisos',
-  path: '/permisos',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppNotificacionesRoute = AppNotificacionesRouteImport.update({
-  id: '/notificaciones',
-  path: '/notificaciones',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppMembersRoute = AppMembersRouteImport.update({
-  id: '/members',
-  path: '/members',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppMeRoute = AppMeRouteImport.update({
-  id: '/me',
-  path: '/me',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppLeadsRoute = AppLeadsRouteImport.update({
-  id: '/leads',
-  path: '/leads',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppLeaderboardRoute = AppLeaderboardRouteImport.update({
-  id: '/leaderboard',
-  path: '/leaderboard',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppInitiativesRoute = AppInitiativesRouteImport.update({
-  id: '/initiatives',
-  path: '/initiatives',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppConfigRoute = AppConfigRouteImport.update({
-  id: '/config',
-  path: '/config',
+const AppActivitiesRoute = AppActivitiesRouteImport.update({
+  id: '/activities',
+  path: '/activities',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAlliesRoute = AppAlliesRouteImport.update({
@@ -108,19 +58,69 @@ const AppAlliesRoute = AppAlliesRouteImport.update({
   path: '/allies',
   getParentRoute: () => AppRoute,
 } as any)
-const AppActivitiesRoute = AppActivitiesRouteImport.update({
-  id: '/activities',
-  path: '/activities',
+const AppConfigRoute = AppConfigRouteImport.update({
+  id: '/config',
+  path: '/config',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInitiativesRoute = AppInitiativesRouteImport.update({
+  id: '/initiatives',
+  path: '/initiatives',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLeaderboardRoute = AppLeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLeadsRoute = AppLeadsRouteImport.update({
+  id: '/leads',
+  path: '/leads',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMeRoute = AppMeRouteImport.update({
+  id: '/me',
+  path: '/me',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMembersRoute = AppMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNotificacionesRoute = AppNotificacionesRouteImport.update({
+  id: '/notificaciones',
+  path: '/notificaciones',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPermisosRoute = AppPermisosRouteImport.update({
+  id: '/permisos',
+  path: '/permisos',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPointRulesRoute = AppPointRulesRouteImport.update({
+  id: '/point-rules',
+  path: '/point-rules',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPositionsRoute = AppPositionsRouteImport.update({
+  id: '/positions',
+  path: '/positions',
+  getParentRoute: () => AppRoute,
+} as any)
+const AuthLoginRoute = AuthLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AppActivitiesIdRoute = AppActivitiesIdRouteImport.update({
+  id: '/activities_/$id',
+  path: '/activities/$id',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMembersMemberIdRoute = AppMembersMemberIdRouteImport.update({
   id: '/members_/$memberId',
   path: '/members/$memberId',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppActivitiesIdRoute = AppActivitiesIdRouteImport.update({
-  id: '/activities_/$id',
-  path: '/activities/$id',
   getParentRoute: () => AppRoute,
 } as any)
 const AppInitiativesTypeIdRoute = AppInitiativesTypeIdRouteImport.update({
@@ -265,11 +265,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/invitacion': {
-      id: '/invitacion'
-      path: '/invitacion'
-      fullPath: '/invitacion'
-      preLoaderRoute: typeof InvitacionRouteImport
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_auth': {
@@ -279,11 +279,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app': {
-      id: '/_app'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AppRouteImport
+    '/invitacion': {
+      id: '/invitacion'
+      path: '/invitacion'
+      fullPath: '/invitacion'
+      preLoaderRoute: typeof InvitacionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -293,81 +293,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_auth/login': {
-      id: '/_auth/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof AuthLoginRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_app/positions': {
-      id: '/_app/positions'
-      path: '/positions'
-      fullPath: '/positions'
-      preLoaderRoute: typeof AppPositionsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/point-rules': {
-      id: '/_app/point-rules'
-      path: '/point-rules'
-      fullPath: '/point-rules'
-      preLoaderRoute: typeof AppPointRulesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/permisos': {
-      id: '/_app/permisos'
-      path: '/permisos'
-      fullPath: '/permisos'
-      preLoaderRoute: typeof AppPermisosRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/notificaciones': {
-      id: '/_app/notificaciones'
-      path: '/notificaciones'
-      fullPath: '/notificaciones'
-      preLoaderRoute: typeof AppNotificacionesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/members': {
-      id: '/_app/members'
-      path: '/members'
-      fullPath: '/members'
-      preLoaderRoute: typeof AppMembersRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/me': {
-      id: '/_app/me'
-      path: '/me'
-      fullPath: '/me'
-      preLoaderRoute: typeof AppMeRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/leads': {
-      id: '/_app/leads'
-      path: '/leads'
-      fullPath: '/leads'
-      preLoaderRoute: typeof AppLeadsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/leaderboard': {
-      id: '/_app/leaderboard'
-      path: '/leaderboard'
-      fullPath: '/leaderboard'
-      preLoaderRoute: typeof AppLeaderboardRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/initiatives': {
-      id: '/_app/initiatives'
-      path: '/initiatives'
-      fullPath: '/initiatives'
-      preLoaderRoute: typeof AppInitiativesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/config': {
-      id: '/_app/config'
-      path: '/config'
-      fullPath: '/config'
-      preLoaderRoute: typeof AppConfigRouteImport
+    '/_app/activities': {
+      id: '/_app/activities'
+      path: '/activities'
+      fullPath: '/activities'
+      preLoaderRoute: typeof AppActivitiesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/allies': {
@@ -377,11 +307,88 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAlliesRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/activities': {
-      id: '/_app/activities'
-      path: '/activities'
-      fullPath: '/activities'
-      preLoaderRoute: typeof AppActivitiesRouteImport
+    '/_app/config': {
+      id: '/_app/config'
+      path: '/config'
+      fullPath: '/config'
+      preLoaderRoute: typeof AppConfigRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/initiatives': {
+      id: '/_app/initiatives'
+      path: '/initiatives'
+      fullPath: '/initiatives'
+      preLoaderRoute: typeof AppInitiativesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/leaderboard': {
+      id: '/_app/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof AppLeaderboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/leads': {
+      id: '/_app/leads'
+      path: '/leads'
+      fullPath: '/leads'
+      preLoaderRoute: typeof AppLeadsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/me': {
+      id: '/_app/me'
+      path: '/me'
+      fullPath: '/me'
+      preLoaderRoute: typeof AppMeRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/members': {
+      id: '/_app/members'
+      path: '/members'
+      fullPath: '/members'
+      preLoaderRoute: typeof AppMembersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/notificaciones': {
+      id: '/_app/notificaciones'
+      path: '/notificaciones'
+      fullPath: '/notificaciones'
+      preLoaderRoute: typeof AppNotificacionesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/permisos': {
+      id: '/_app/permisos'
+      path: '/permisos'
+      fullPath: '/permisos'
+      preLoaderRoute: typeof AppPermisosRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/point-rules': {
+      id: '/_app/point-rules'
+      path: '/point-rules'
+      fullPath: '/point-rules'
+      preLoaderRoute: typeof AppPointRulesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/positions': {
+      id: '/_app/positions'
+      path: '/positions'
+      fullPath: '/positions'
+      preLoaderRoute: typeof AppPositionsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_auth/login': {
+      id: '/_auth/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof AuthLoginRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_app/activities_/$id': {
+      id: '/_app/activities_/$id'
+      path: '/activities/$id'
+      fullPath: '/activities/$id'
+      preLoaderRoute: typeof AppActivitiesIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/members_/$memberId': {
@@ -389,13 +396,6 @@ declare module '@tanstack/react-router' {
       path: '/members/$memberId'
       fullPath: '/members/$memberId'
       preLoaderRoute: typeof AppMembersMemberIdRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/activities_/$id': {
-      id: '/_app/activities_/$id'
-      path: '/activities/$id'
-      fullPath: '/activities/$id'
-      preLoaderRoute: typeof AppActivitiesIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/initiatives_/$type/$id': {
