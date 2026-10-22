@@ -167,6 +167,7 @@ function runtimeBrand({ brand, urls }: { brand: Brand; urls: BrandUrls }) {
     qrPrefix: brand.qrPrefix,
     urls,
     emailPlaceholder: brand.backstage.emailPlaceholder,
+    contactEmail: brand.backstage.contactEmail,
   };
 }
 

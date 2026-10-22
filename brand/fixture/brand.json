@@ -35,7 +35,8 @@
   },
   "backstage": {
     "title": "Fixture Chapter — Member portal",
-    "emailPlaceholder": "you@fixture.example.org"
+    "emailPlaceholder": "you@fixture.example.org",
+    "contactEmail": "hello@fixture.example.org"
   },
   "og": { "legacyPaths": ["og-image-legacy.png"] },
   "firebase": {

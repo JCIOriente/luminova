@@ -68,7 +68,12 @@ export const brandSchema = z.strictObject({
     ogImageAlt: text,
     twitterDescription: text,
   }),
-  backstage: z.strictObject({ title: text, emailPlaceholder: text }),
+  backstage: z.strictObject({
+    title: text,
+    emailPlaceholder: text,
+    // Where a member without an account asks for access (login page mailto).
+    contactEmail: z.email({ message: "must be an email address" }),
+  }),
   og: z
     .strictObject({ legacyPaths: z.array(legacyOgPath).default([]) })
     .default({ legacyPaths: [] }),

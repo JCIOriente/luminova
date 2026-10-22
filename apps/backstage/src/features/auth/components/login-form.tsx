@@ -1,4 +1,4 @@
-import { name, emailPlaceholder } from "virtual:luminova-brand";
+import { name, emailPlaceholder, contactEmail } from "virtual:luminova-brand";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -127,7 +127,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       <p className="mt-2 text-ui-xs leading-[1.5] text-ink-3">
         ¿Aún no tienes cuenta? Te la creamos al unirte al capítulo.{" "}
         <a
-          href="mailto:jci.orienteolm@gmail.com"
+          href={`mailto:${contactEmail}`}
           className="font-semibold text-jci-blue hover:text-jci-blue-2"
         >
           Escríbenos

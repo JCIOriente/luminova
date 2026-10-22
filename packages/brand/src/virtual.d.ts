@@ -20,6 +20,7 @@ declare module "virtual:luminova-brand" {
   /** Resolved for this build: production origins, or localhost in dev and emulator builds. */
   export const urls: { readonly spotlight: string; readonly backstage: string };
   export const emailPlaceholder: string;
+  export const contactEmail: string;
 
   export const logos: {
     readonly main: string;
