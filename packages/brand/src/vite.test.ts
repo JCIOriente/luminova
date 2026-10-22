@@ -9,14 +9,14 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { build } from "vite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ASSET_CONTRACT, OG_IMAGE_FILE } from "./assets.ts";
+import { writeAssetSet } from "./asset-set.ts";
+import { OG_IMAGE_FILE } from "./assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile } from "./load-profile.ts";
-import { encodePng } from "./png.ts";
 import { DEV_PORTS, PREVIEW_PORTS } from "./ports.ts";
-import { brandPlugin, pwaManifestFields, resolveBrandBuild } from "./vite.ts";
+import { brandPlugin, logoInclude, pwaManifest, resolveBrandBuild } from "./vite.ts";
 
 const ENV_KEYS = [
   "VITE_FIREBASE_API_KEY",
@@ -33,14 +33,8 @@ let repoRoot: string;
 let envDir: string;
 let savedEnv: Record<string, string | undefined>;
 
-function writeAssetSet(dir: string) {
-  ASSET_CONTRACT.forEach((spec, index) => {
-    const file = join(dir, spec.path);
-    mkdirSync(dirname(file), { recursive: true });
-    // Distinct colours keep Vite from deduplicating identical logo bytes into one asset.
-    writeFileSync(file, encodePng(spec.width ?? 400, spec.height ?? 200, [index, 0x66, 0x99]));
-  });
-}
+// Distinct colours keep Vite from deduplicating identical logo bytes into one asset.
+const distinctColors = (_: unknown, index: number) => [index, 0x66, 0x99] as const;
 
 function resolve(overrides: Partial<Parameters<typeof resolveBrandBuild>[0]> = {}) {
   return resolveBrandBuild({
@@ -66,7 +60,7 @@ beforeEach(() => {
       join(REPO_ROOT, "brand", slug, "brand.json"),
       join(repoRoot, "brand", slug, "brand.json"),
     );
-    writeAssetSet(join(repoRoot, "brand", slug, "assets"));
+    writeAssetSet(join(repoRoot, "brand", slug, "assets"), distinctColors);
   }
 });
 
@@ -155,17 +149,59 @@ describe("resolveBrandBuild", () => {
   });
 });
 
-describe("pwaManifestFields", () => {
-  it("maps the profile to the app's manifest fields", () => {
+describe("pwaManifest", () => {
+  it("maps the profile to the app's manifest, icons included", () => {
     const { brand } = loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" });
-    expect(pwaManifestFields(brand, "backstage")).toEqual({
+    expect(pwaManifest(brand, "backstage")).toEqual({
       name: "Fixture Chapter",
       short_name: "Fixture",
       description: "Fixture Chapter, a neutral test profile",
       lang: "es",
       theme_color: "#222222",
       background_color: "#222222",
+      display: "standalone",
+      start_url: "/",
+      scope: "/",
+      icons: [
+        { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },
+        { src: "pwa-512x512.png", sizes: "512x512", type: "image/png" },
+        {
+          src: "maskable-icon-512x512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "maskable",
+        },
+      ],
     });
+  });
+});
+
+describe("logoInclude", () => {
+  it("matches the resolved logos and nothing else", () => {
+    writeAssetSet(join(repoRoot, "custom (assets)"));
+    const build = resolve({ env: { BRAND_ASSETS_DIR: "custom (assets)" } });
+    const include = logoInclude(build);
+    expect(include.test(join(build.assetsDir, "logo-main.png"))).toBe(true);
+    expect(include.test(join(build.assetsDir, "og-image.png"))).toBe(false);
+    expect(include.test(join(repoRoot, "brand/fixture/assets/logo-main.png"))).toBe(false);
+  });
+});
+
+describe("brandPlugin config hook", () => {
+  it("sets the app's ports and skips staging under vitest", () => {
+    const plugin = brandPlugin({ app: "backstage", build: resolve({ app: "backstage" }) });
+    const config = typeof plugin.config === "function" ? plugin.config : plugin.config?.handler;
+    const result = config?.call(
+      // The hook reads no plugin context.
+      {} as never,
+      { root: join(repoRoot, "app") },
+      { command: "serve", mode: "test" },
+    );
+    expect(result).toEqual({
+      server: { port: DEV_PORTS.backstage },
+      preview: { port: PREVIEW_PORTS.backstage },
+    });
+    expect(existsSync(join(repoRoot, "app", "node_modules"))).toBe(false);
   });
 });
 
@@ -198,8 +234,8 @@ ${SPOTLIGHT_PLACEHOLDERS.map((key) => `<meta name="${key}" content="__${key}__">
     );
     writeFileSync(
       join(root, "src", "main.js"),
-      `import { brand, logos } from "virtual:luminova-brand";
-console.log(brand.name, brand.urls.spotlight, logos.main, logos.onDark, logos.onPrimary, logos.width);
+      `import { name, urls, logos } from "virtual:luminova-brand";
+console.log(name, urls.spotlight, logos.main, logos.onDark, logos.onPrimary, logos.width);
 console.log(import.meta.env.VITE_FIREBASE_PROJECT_ID);
 `,
     );
@@ -231,6 +267,8 @@ console.log(import.meta.env.VITE_FIREBASE_PROJECT_ID);
     expect(js).toContain("demo-fixture");
     expect(js).toContain("Fixture Chapter");
     expect(js).toContain("https://fixture.example.org");
+    // legalName is exported but unused here, so tree-shaking must drop it.
+    expect(js).not.toContain("Fixture Chapter Association");
     for (const logo of ["logo-main", "logo-on-dark", "logo-on-primary"]) {
       expect(assets).toContainEqual(expect.stringMatching(new RegExp(`^${logo}-.*\\.png$`)));
     }

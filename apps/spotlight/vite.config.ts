@@ -5,8 +5,13 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { imagetools } from "vite-imagetools";
 import { VitePWA } from "vite-plugin-pwa";
-import { DEV_PORTS, PREVIEW_PORTS } from "@luminova/brand";
-import { brandPlugin, pwaManifestFields, resolveBrandBuild } from "@luminova/brand/vite";
+import {
+  PWA_INCLUDE_ASSETS,
+  brandPlugin,
+  logoInclude,
+  pwaManifest,
+  resolveBrandBuild,
+} from "@luminova/brand/vite";
 import { seoFiles } from "./seo-files";
 
 // Preload the above-the-fold latin Plus Jakarta Sans woff2 so the browser fetches
@@ -49,7 +54,7 @@ function preloadJakartaLatin(): Plugin {
 }
 
 export default defineConfig(({ command, mode }) => {
-  const { profile, urls } = resolveBrandBuild({
+  const build = resolveBrandBuild({
     app: "spotlight",
     command,
     mode,
@@ -57,7 +62,7 @@ export default defineConfig(({ command, mode }) => {
   });
   return {
     plugins: [
-      brandPlugin({ app: "spotlight" }),
+      brandPlugin({ app: "spotlight", build }),
       tanstackRouter({
         target: "react",
         autoCodeSplitting: true,
@@ -66,31 +71,16 @@ export default defineConfig(({ command, mode }) => {
       react(),
       tailwindcss(),
       imagetools({
-        include: /(brand\/[^/]+\/assets|brand-assets)\/logo-[^/]+\.png$/,
+        include: logoInclude(build),
         defaultDirectives: new URLSearchParams({ format: "webp" }),
         namedExports: false,
       }),
       preloadJakartaLatin(),
-      seoFiles(urls.spotlight),
+      seoFiles(build.urls.spotlight),
       VitePWA({
         registerType: "prompt",
-        includeAssets: ["favicon-16.png", "favicon-32.png", "apple-touch-icon-180x180.png"],
-        manifest: {
-          ...pwaManifestFields(profile.brand, "spotlight"),
-          display: "standalone",
-          start_url: "/",
-          scope: "/",
-          icons: [
-            { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },
-            { src: "pwa-512x512.png", sizes: "512x512", type: "image/png" },
-            {
-              src: "maskable-icon-512x512.png",
-              sizes: "512x512",
-              type: "image/png",
-              purpose: "maskable",
-            },
-          ],
-        },
+        includeAssets: PWA_INCLUDE_ASSETS,
+        manifest: pwaManifest(build.profile.brand, "spotlight"),
         // App-shell precache ONLY. No runtimeCaching for firestore/googleapis by
         // design — the lite reads must stay live. png excluded from globPatterns
         // so the crawler-only OG share images (og-image.<hash>.png and its legacy
@@ -103,8 +93,6 @@ export default defineConfig(({ command, mode }) => {
         devOptions: { enabled: false },
       }),
     ],
-    server: { port: DEV_PORTS.spotlight },
-    preview: { port: PREVIEW_PORTS.spotlight },
     build: {
       rollupOptions: {
         output: {

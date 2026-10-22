@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { brand } from "virtual:luminova-brand";
+import { urls } from "virtual:luminova-brand";
 import { LogoLockup, RippleBackground } from "@luminova/ui";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { safeHref } from "../site-config/safe-href";
@@ -72,7 +72,7 @@ export function Footer() {
                 </a>
               </li>
               <li>
-                <a href={brand.urls.backstage} target="_blank" rel="noopener noreferrer">
+                <a href={urls.backstage} target="_blank" rel="noopener noreferrer">
                   Portal de miembros
                 </a>
               </li>

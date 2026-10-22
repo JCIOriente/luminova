@@ -4,11 +4,15 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { VitePWA } from "vite-plugin-pwa";
-import { DEV_PORTS, PREVIEW_PORTS } from "@luminova/brand";
-import { brandPlugin, pwaManifestFields, resolveBrandBuild } from "@luminova/brand/vite";
+import {
+  PWA_INCLUDE_ASSETS,
+  brandPlugin,
+  pwaManifest,
+  resolveBrandBuild,
+} from "@luminova/brand/vite";
 
 export default defineConfig(({ command, mode }) => {
-  const { profile } = resolveBrandBuild({
+  const build = resolveBrandBuild({
     app: "backstage",
     command,
     mode,
@@ -16,7 +20,7 @@ export default defineConfig(({ command, mode }) => {
   });
   return {
     plugins: [
-      brandPlugin({ app: "backstage" }),
+      brandPlugin({ app: "backstage", build }),
       tanstackRouter({
         target: "react",
         autoCodeSplitting: true,
@@ -26,23 +30,8 @@ export default defineConfig(({ command, mode }) => {
       tailwindcss(),
       VitePWA({
         registerType: "prompt",
-        includeAssets: ["favicon-16.png", "favicon-32.png", "apple-touch-icon-180x180.png"],
-        manifest: {
-          ...pwaManifestFields(profile.brand, "backstage"),
-          display: "standalone",
-          start_url: "/",
-          scope: "/",
-          icons: [
-            { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },
-            { src: "pwa-512x512.png", sizes: "512x512", type: "image/png" },
-            {
-              src: "maskable-icon-512x512.png",
-              sizes: "512x512",
-              type: "image/png",
-              purpose: "maskable",
-            },
-          ],
-        },
+        includeAssets: PWA_INCLUDE_ASSETS,
+        manifest: pwaManifest(build.profile.brand, "backstage"),
         // App-shell precache ONLY. No runtimeCaching by design: this is an authed
         // admin app — caching Firestore/Auth/Storage responses would leak data.
         workbox: {
@@ -54,7 +43,5 @@ export default defineConfig(({ command, mode }) => {
         devOptions: { enabled: false },
       }),
     ],
-    server: { port: DEV_PORTS.backstage },
-    preview: { port: PREVIEW_PORTS.backstage },
   };
 });

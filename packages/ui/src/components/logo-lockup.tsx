@@ -1,5 +1,5 @@
 import { cn } from "../lib/cn";
-import { brand, logos } from "virtual:luminova-brand";
+import { logos, name as brandName } from "virtual:luminova-brand";
 
 type LogoVariant = "default" | "inverted" | "on-blue";
 type LogoSize = "sm" | "md" | "lg";
@@ -22,7 +22,7 @@ export function LogoLockup({
   return (
     <img
       src={SRC[variant]}
-      alt={brand.name}
+      alt={brandName}
       width={logos.width}
       height={logos.height}
       loading={loading}

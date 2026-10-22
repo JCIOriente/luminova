@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import clsx from "clsx";
-import { brand } from "virtual:luminova-brand";
+import { urls } from "virtual:luminova-brand";
 import { LogoLockup, Button, Icon } from "@luminova/ui";
 
 // Enumerate the LIGHT-hero routes; everything else — including unknown paths,
@@ -101,12 +101,7 @@ export function Header() {
             >
               Contacto
             </a>
-            <a
-              href={brand.urls.backstage}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="nav-link"
-            >
+            <a href={urls.backstage} target="_blank" rel="noopener noreferrer" className="nav-link">
               Ingresar
             </a>
             <Button
@@ -153,7 +148,7 @@ export function Header() {
               Contacto
             </a>
             <a
-              href={brand.urls.backstage}
+              href={urls.backstage}
               target="_blank"
               rel="noopener noreferrer"
               className="mobile-nav-link"

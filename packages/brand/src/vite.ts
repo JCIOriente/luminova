@@ -1,10 +1,10 @@
 import { existsSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { loadEnv, type Plugin } from "vite";
-import { LOGO_FILES, validateAssets } from "./assets.ts";
+import { ICON_FILES, LOGO_FILES, validateAssets } from "./assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "./load-profile.ts";
 import type { PngSize } from "./png.ts";
-import type { BrandApp } from "./ports.ts";
+import { DEV_PORTS, PREVIEW_PORTS, type BrandApp } from "./ports.ts";
 import { renderHtml } from "./render-html.ts";
 import type { Brand } from "./schema.ts";
 import { stagePublic } from "./stage-public.ts";
@@ -17,6 +17,11 @@ export interface BrandBuildOptions {
   app: BrandApp;
   profile?: string;
   repoRoot?: string;
+}
+
+export interface BrandPluginOptions extends BrandBuildOptions {
+  /** The build the Vite config already resolved; resolved here when absent (vitest). */
+  build?: BrandBuild;
 }
 
 export interface BrandBuild {
@@ -82,7 +87,15 @@ export function resolveBrandBuild({
   return { profile, urls, emulatorEnabled, assetsDir, logoSize: validation.logoSize };
 }
 
-export function pwaManifestFields(brand: Brand, app: BrandApp) {
+export const PWA_INCLUDE_ASSETS = ICON_FILES.filter(
+  ({ name }) => name.startsWith("favicon-") || name.startsWith("apple-touch-icon-"),
+).map(({ name }) => name);
+
+export function pwaManifest(brand: Brand, app: BrandApp) {
+  const icon = (name: string) => {
+    const size = ICON_FILES.find((file) => file.name === name)?.size;
+    return { src: name, sizes: `${size}x${size}`, type: "image/png" };
+  };
   return {
     name: brand.name,
     short_name: brand.shortName,
@@ -90,7 +103,21 @@ export function pwaManifestFields(brand: Brand, app: BrandApp) {
     lang: brand.locale,
     theme_color: brand.themeColor[app],
     background_color: brand.themeColor[app],
+    display: "standalone" as const,
+    start_url: "/",
+    scope: "/",
+    icons: [
+      icon("pwa-192x192.png"),
+      icon("pwa-512x512.png"),
+      { ...icon("maskable-icon-512x512.png"), purpose: "maskable" },
+    ],
   };
+}
+
+/** Matches the resolved logos, so `vite-imagetools` applies wherever the assets live. */
+export function logoInclude(build: BrandBuild): RegExp {
+  const dir = build.assetsDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${dir}/logo-[^/]+\\.png$`);
 }
 
 function firebaseEnv(brand: Brand, app: BrandApp): Record<string, string> {
@@ -133,11 +160,13 @@ function virtualModuleSource(build: BrandBuild): string {
     JSON.stringify(join(build.assetsDir, file)),
   );
   const { width, height } = build.logoSize;
+  // One export per field: the bundler drops the fields no module imports.
+  const fields = Object.entries(runtimeBrand({ brand: build.profile.brand, urls: build.urls }));
   return [
     `import main from ${main};`,
     `import onDark from ${onDark};`,
     `import onPrimary from ${onPrimary};`,
-    `export const brand = ${JSON.stringify(runtimeBrand({ brand: build.profile.brand, urls: build.urls }))};`,
+    ...fields.map(([key, value]) => `export const ${key} = ${JSON.stringify(value)};`),
     `export const logos = { main, onDark, onPrimary, width: ${width}, height: ${height} };`,
     "",
   ].join("\n");
@@ -165,7 +194,12 @@ function htmlValues(build: BrandBuild, app: BrandApp, ogImageFile: string): Reco
   };
 }
 
-export function brandPlugin({ app, profile, repoRoot }: BrandBuildOptions): Plugin {
+export function brandPlugin({
+  app,
+  profile,
+  repoRoot,
+  build: resolved,
+}: BrandPluginOptions): Plugin {
   let state: { build: BrandBuild; ogImageFile: string } | undefined;
 
   function current() {
@@ -179,7 +213,14 @@ export function brandPlugin({ app, profile, repoRoot }: BrandBuildOptions): Plug
     config(config, { command, mode }) {
       const root = resolve(config.root ?? process.cwd());
       const envDir = config.envDir ? resolve(root, config.envDir) : root;
-      const build = resolveBrandBuild({ app, profile, repoRoot, command, mode, envDir });
+      const build =
+        resolved ?? resolveBrandBuild({ app, profile, repoRoot, command, mode, envDir });
+      const ports = { server: { port: DEV_PORTS[app] }, preview: { port: PREVIEW_PORTS[app] } };
+      // Tests only need the virtual module; staging would rewrite the public dir per run.
+      if (mode === "test") {
+        state = { build, ogImageFile: "" };
+        return ports;
+      }
       const publicDir = join(root, "node_modules", ".cache", "luminova-brand", app, "public");
       const { ogImageFile } = stagePublic({
         appPublicDir: join(root, "public"),
@@ -193,7 +234,7 @@ export function brandPlugin({ app, profile, repoRoot }: BrandBuildOptions): Plug
         Object.assign(process.env, firebaseEnv(build.profile.brand, app));
       }
       state = { build, ogImageFile };
-      return { publicDir };
+      return { ...ports, publicDir };
     },
     resolveId(id) {
       return id === BRAND_VIRTUAL_MODULE ? RESOLVED_VIRTUAL_MODULE : null;
