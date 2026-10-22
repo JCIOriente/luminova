@@ -15,7 +15,7 @@
         "BRAND_ASSETS_DIR",
         "GCP_PROJECT_ID"
       ],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/brand/**"]
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/brand/**", "$TURBO_ROOT$/brand-assets/**"]
     },
     "preview": {
       "cache": false,
