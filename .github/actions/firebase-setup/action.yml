@@ -9,6 +9,11 @@ inputs:
   service_account:
     description: Deploy service account email
     required: true
+  brand_profile:
+    description: >-
+      The brand profile this project ships (the production variable BRAND_PROFILE). Used
+      only to write .firebaserc; the hosting build reads the variable itself.
+    required: true
 runs:
   using: composite
   steps:
@@ -20,6 +25,22 @@ runs:
         cache: pnpm
     - run: pnpm install --frozen-lockfile
       shell: bash
+      env:
+        BRAND_PROFILE: ${{ inputs.brand_profile }}
+    # .firebaserc (project, hosting sites, storage bucket) is generated from the profile.
+    # `prepare` writes it on install, but pnpm skips `prepare` on an up-to-date install,
+    # so it is written explicitly: no deploy depends on that lifecycle detail.
+    - name: Write .firebaserc from the brand profile
+      shell: bash
+      env:
+        BRAND_PROFILE: ${{ inputs.brand_profile }}
+      run: |
+        set -euo pipefail
+        if [ -z "${BRAND_PROFILE:-}" ]; then
+          echo "::error::The production variable BRAND_PROFILE is unset (gh variable set BRAND_PROFILE --env production --body <slug>)."
+          exit 1
+        fi
+        pnpm -s brand:apply
     # Pinned global firebase-tools under a user-owned prefix (no sudo), cached across
     # runs; only re-downloads when the version key changes. Matches the CI workflow.
     - run: |

@@ -107,10 +107,12 @@ jobs:
               # Root dep/build files feed every app+functions bundle — a CVE override
               # in pnpm-lock/pnpm-workspace (or a root package.json/turbo.json change)
               # must redeploy the bundles that embed it, or prod keeps serving the old
-              # vulnerable build. packages/** does too; firebase.json touches all.
+              # vulnerable build. packages/** does too; firebase.json touches all;
+              # brand/** (profiles) feeds both frontends. A bucket asset change is not
+              # in git, so it needs a manual `surface=hosting` dispatch.
               root='^pnpm-lock\.yaml$|^pnpm-workspace\.yaml$|^package\.json$|^turbo\.json$'
-              q "^apps/spotlight/|^packages/|^firebase\.json$|$root" && sp=true || true
-              q "^apps/backstage/|^packages/|^firebase\.json$|$root" && bs=true || true
+              q "^apps/spotlight/|^packages/|^brand/|^firebase\.json$|$root" && sp=true || true
+              q "^apps/backstage/|^packages/|^brand/|^firebase\.json$|$root" && bs=true || true
               q "^apps/beacon/|^packages/|^firebase\.json$|$root"    && fn=true || true
               q '^firestore\.rules$|^storage\.rules$|^firestore\.indexes\.json$|^firebase\.json$' && rl=true || true
             fi
@@ -146,6 +148,7 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+          brand_profile: ${{ vars.BRAND_PROFILE }}
       - name: Deploy rules + storage
         env:
           SHA: ${{ needs.filter.outputs.sha }}
@@ -195,6 +198,7 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+          brand_profile: ${{ vars.BRAND_PROFILE }}
       # gcloud is NOT installed by firebase-setup. `google-github-actions/auth` writes ADC and
       # exports the credential override, but installs no CLI. ubuntu-24.04 does ship the Cloud
       # SDK today — the runner-images readme lists Google Cloud CLI 583.0.0 — so the assert
@@ -263,13 +267,14 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://jcioriente.org
+      url: ${{ steps.brand.outputs.spotlight_url }}
     timeout-minutes: 15
     permissions:
       id-token: write
       contents: read
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      BRAND_PROFILE: ${{ vars.BRAND_PROFILE }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -278,12 +283,45 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
-      # Build only the changed target(s). VITE_FIREBASE_EMULATOR_ENABLED=false guards
-      # against a dev bundle ever reaching prod (also forced in .env.production).
+          brand_profile: ${{ vars.BRAND_PROFILE }}
+      # brand:pull runs `gcloud storage`; same pin and reasoning as deploy-functions.
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      # The brand assets live out of git, in the profile's private bucket (read-only to
+      # this SA). An unreadable bucket or a missing file fails here, before any build;
+      # live hosting is untouched. The summary records which generation of each file
+      # shipped (they are not pinned in git, spec 5.7).
+      - name: Pull brand assets
+        id: brand
+        run: |
+          set -euo pipefail
+          pnpm -s brand:pull
+          profile="brand/${BRAND_PROFILE}/brand.json"
+          {
+            echo "spotlight_url=$(jq -r '.urls.spotlight' "$profile")"
+            echo "spotlight_site=$(jq -r '.firebase.sites.spotlight' "$profile")"
+            echo "backstage_site=$(jq -r '.firebase.sites.backstage' "$profile")"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Brand assets (profile \`${BRAND_PROFILE}\`)"
+            echo "| File | Generation |"
+            echo "|---|---|"
+            jq -r '.objects[] | "| \(.name) | \(.generation) |"' brand-assets/pull-manifest.json
+          } >> "$GITHUB_STEP_SUMMARY"
+      # Release builds of the changed target(s). BRAND_RELEASE=1 is the validation: the
+      # build fails on any asset or config problem, on a profile/project mismatch with
+      # GCP_PROJECT_ID, and writes dist/.brand-release.json. --force so turbo never
+      # replays a cached dist. VITE_FIREBASE_EMULATOR_ENABLED=false guards against a dev
+      # bundle ever reaching prod (also forced in .env.production).
       - if: needs.filter.outputs.spotlight == 'true'
-        run: VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter spotlight
+        run: BRAND_RELEASE=1 VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter spotlight --force
       - if: needs.filter.outputs.backstage == 'true'
-        run: VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter backstage
+        run: BRAND_RELEASE=1 VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter backstage --force
+      # The hosting predeploy runs the same check; this step keeps the gate even if a
+      # future firebase-tools stops running hooks for channel deploys.
+      - if: needs.filter.outputs.spotlight == 'true'
+        run: pnpm -s brand:assert-dist spotlight
+      - if: needs.filter.outputs.backstage == 'true'
+        run: pnpm -s brand:assert-dist backstage
       # Preview -> smoke -> promote. Each changed target deploys to a short-lived
       # preview channel; we smoke the channel URL (root HTML loads AND its hashed entry
       # bundle loads) and promote to `live` ONLY on success. Live never serves a build
@@ -293,6 +331,8 @@ jobs:
           SPOTLIGHT: ${{ needs.filter.outputs.spotlight }}
           BACKSTAGE: ${{ needs.filter.outputs.backstage }}
           SHA: ${{ needs.filter.outputs.sha }}
+          SPOTLIGHT_SITE: ${{ steps.brand.outputs.spotlight_site }}
+          BACKSTAGE_SITE: ${{ steps.brand.outputs.backstage_site }}
         run: |
           set -euo pipefail
           chan="ci-${SHA:0:7}"
@@ -329,8 +369,9 @@ jobs:
               || { echo "ERROR: promote (hosting:clone) failed for $site"; return 1; }
           }
           rc=0
-          if [ "$SPOTLIGHT" = "true" ]; then promote jcioriente jcioriente || rc=1; fi
-          if [ "$BACKSTAGE" = "true" ]; then promote jcioriente-backstage jcioriente-backstage || rc=1; fi
+          # Targets are chapter-neutral (firebase.json); site ids come from the profile.
+          if [ "$SPOTLIGHT" = "true" ]; then promote spotlight "$SPOTLIGHT_SITE" || rc=1; fi
+          if [ "$BACKSTAGE" = "true" ]; then promote backstage "$BACKSTAGE_SITE" || rc=1; fi
           if [ "$rc" != "0" ]; then
             echo "one or more targets failed -> those targets' live was left untouched"
           fi
