@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { makeShowcaseItem, renderWithRouter } from "../../test/showcase";
+import { name } from "virtual:luminova-brand";
 import { ImpactoPage } from "./impacto-page";
 
 const listState = vi.hoisted(() => ({
@@ -19,6 +20,14 @@ describe("ImpactoPage", () => {
     listState.data = [];
     listState.loading = false;
     listState.error = null;
+  });
+
+  it("introduces the chapter's projects in two spaced sentences", async () => {
+    renderWithRouter(<ImpactoPage />);
+    const intro = await screen.findByText(/^Los proyectos que/);
+    expect(intro.textContent).toBe(
+      `Los proyectos que ${name} ha realizado, con su gente, sus cifras y su evidencia. Algunos son programas anuales que repetimos cada gestión.`,
+    );
   });
 
   it("labels the count stat proyectos completados", async () => {

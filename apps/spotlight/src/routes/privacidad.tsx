@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { name, locality, movementName } from "virtual:luminova-brand";
 import { LegalPage, type LegalSection } from "../components/legal-page";
 import { useSiteConfig } from "../site-config/use-site-config";
 
@@ -13,9 +14,7 @@ function Privacidad() {
       heading: "1. Quiénes somos",
       body: (
         <p style={{ margin: 0 }}>
-          Este sitio pertenece a JCI Oriente, capítulo de Santa Cruz de la Cámara Junior
-          Internacional (Junior Chamber International), con sede en {config.contact.location}.
-          Puedes escribirnos en cualquier momento a{" "}
+          {`Este sitio pertenece a ${name}, capítulo de ${locality.city} de la ${movementName} (Junior Chamber International), con sede en ${config.contact.location}. Puedes escribirnos en cualquier momento a `}
           <a href={`mailto:${config.contact.email}`}>{config.contact.email}</a>.
         </p>
       ),
@@ -41,7 +40,7 @@ function Privacidad() {
           Usamos los datos que nos envías por el formulario únicamente para responder tu consulta,
           evaluar solicitudes de membresía o coordinar alianzas y prensa. Usamos tu número de
           WhatsApp, si lo compartes, solo para contactarte, y el identificador de notificaciones
-          solo para enviarte avisos de JCI Oriente. No vendemos ni compartimos tu información con
+          solo para enviarte avisos de {name}. No vendemos ni compartimos tu información con
           terceros con fines comerciales.
         </p>
       ),
@@ -109,7 +108,7 @@ function Privacidad() {
     <LegalPage
       eyebrow="Privacidad"
       title="Política de privacidad"
-      intro="Cómo tratamos la información cuando visitas el sitio de JCI Oriente o te pones en contacto con nosotros."
+      intro={`Cómo tratamos la información cuando visitas el sitio de ${name} o te pones en contacto con nosotros.`}
       updatedLabel="Actualizada en octubre de 2026. Documento de referencia; no sustituye asesoría legal."
       sections={sections}
     />

@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { name, locality, foundedYear } from "virtual:luminova-brand";
 import { Button, RippleBackground, SectionHeader, Reveal, Icon, cn } from "@luminova/ui";
 import { CEL_POSITION_TITLES, currentTermKey } from "@luminova/types";
 import type { BoardShowcaseItem } from "@luminova/types/engine";
@@ -7,6 +8,7 @@ import { VisibilitySentinel } from "../components/visibility-sentinel";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { currentYearsActive } from "../site-config/defaults";
 import { useBoardOnVisible } from "../board/use-board";
+import { withPreposition } from "../lib/place-phrase";
 
 export const Route = createFileRoute("/about")({
   component: About,
@@ -41,7 +43,7 @@ function AboutHero() {
           className="t-display"
           style={{ color: "var(--jci-white)", marginTop: 22, marginBottom: 0, maxWidth: 1000 }}
         >
-          Formamos líderes en el Oriente boliviano desde 1993.
+          {`Formamos líderes en ${locality.region} desde ${foundedYear}.`}
         </h1>
       </div>
     </section>
@@ -64,9 +66,7 @@ function AboutStory() {
               Esa idea se volvió un movimiento mundial.
             </p>
             <p className="t-body">
-              En 1993 llegó a Santa Cruz. JCI Oriente nació para canalizar esa energía global hacia
-              los desafíos del Oriente boliviano, y desde entonces ha formado a varias generaciones
-              de líderes.
+              {`En ${foundedYear} llegó a ${locality.city}. ${name} nació para canalizar esa energía global hacia los desafíos ${withPreposition("de", locality.region)}, y desde entonces ha formado a varias generaciones de líderes.`}
             </p>
             <figure className="pullquote" style={{ margin: "48px 0" }}>
               <blockquote className="t-quote" style={{ margin: 0 }}>
@@ -75,8 +75,7 @@ function AboutStory() {
               <cite>Credo JCI · 1946</cite>
             </figure>
             <p className="t-body">
-              Hoy reunimos a personas de 18 a 40 años que combinan sus carreras profesionales con un
-              compromiso real: dejar al Oriente mejor de lo que lo encontramos.
+              {`Hoy reunimos a personas de 18 a 40 años que combinan sus carreras profesionales con un compromiso real: dejar ${withPreposition("a", locality.regionShort)} mejor de lo que lo encontramos.`}
             </p>
           </Reveal>
         </div>
@@ -182,8 +181,7 @@ function DirectivaHero({
             Las personas que dirigen la gestión.
           </h2>
           <p className="lede">
-            Un comité ejecutivo y un cuerpo de direcciones al servicio del Oriente boliviano durante{" "}
-            {year}.
+            {`Un comité ejecutivo y un cuerpo de direcciones al servicio ${withPreposition("de", locality.region)} durante ${year}.`}
           </p>
         </Reveal>
         {president && (
@@ -332,7 +330,7 @@ function AboutWhyJoin() {
         <SectionHeader
           eyebrow="Por qué unirte"
           title="Tres razones concretas."
-          subtitle="Esto es lo que cambia cuando te unes a JCI Oriente."
+          subtitle={`Esto es lo que cambia cuando te unes a ${name}.`}
         />
         <div className="grid-3" style={{ marginTop: 56 }}>
           {config.reasons.map((r, i) => (
@@ -361,7 +359,7 @@ function AboutWhyJoin() {
               void navigate({ to: "/contact" });
             }}
           >
-            Únete a JCI Oriente
+            Únete a {name}
           </Button>
         </div>
       </div>

@@ -16,6 +16,7 @@
     "ci": "eslint . && tsc --noEmit && vitest run"
   },
   "dependencies": {
+    "@luminova/types": "workspace:*",
     "zod": "4.6.7"
   },
   "peerDependencies": {

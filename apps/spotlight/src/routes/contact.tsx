@@ -21,6 +21,7 @@ import {
   sanitizeBoliviaPhoneInput,
   type LeadIntent,
 } from "@luminova/types";
+import { broadcastChannelName } from "virtual:luminova-brand";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { safeHref } from "../site-config/safe-href";
 import { submitLead } from "../leads/submit-lead";
@@ -253,7 +254,7 @@ function ChannelCTAs() {
           variant="secondary"
           iconLeft={<Icon.megaphone />}
         >
-          Únete a Difusión Oriente
+          Únete a {broadcastChannelName}
         </Button>
       ) : null}
     </div>

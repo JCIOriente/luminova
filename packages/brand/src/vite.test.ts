@@ -56,10 +56,9 @@ beforeEach(() => {
   mkdirSync(envDir);
   for (const slug of ["fixture", "jci-oriente"]) {
     mkdirSync(join(repoRoot, "brand", slug), { recursive: true });
-    cpSync(
-      join(REPO_ROOT, "brand", slug, "brand.json"),
-      join(repoRoot, "brand", slug, "brand.json"),
-    );
+    for (const file of ["brand.json", "site-content.json"]) {
+      cpSync(join(REPO_ROOT, "brand", slug, file), join(repoRoot, "brand", slug, file));
+    }
     writeAssetSet(join(repoRoot, "brand", slug, "assets"), distinctColors);
   }
 });
@@ -119,6 +118,28 @@ describe("resolveBrandBuild", () => {
       expect.stringMatching(/^brand\/fixture\/assets\/og-image\.png: missing/),
       expect.stringMatching(/^brand\/fixture\/assets\/backstage\/favicon-16\.png: missing/),
     ]);
+  });
+
+  it("validates site-content.json and lists every problem", () => {
+    const file = join(repoRoot, "brand", "fixture", "site-content.json");
+    const content = JSON.parse(readFileSync(file, "utf8"));
+    writeFileSync(file, JSON.stringify({ ...content, stats: undefined, mvv: { mision: 1 } }));
+    let caught: unknown;
+    try {
+      resolve();
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught instanceof BrandConfigError ? caught.errors : []).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^brand\/fixture\/site-content\.json stats:/),
+        expect.stringMatching(/^brand\/fixture\/site-content\.json mvv\.mision:/),
+      ]),
+    );
+  });
+
+  it("carries the parsed site content", () => {
+    expect(resolve().siteContent.stats.standoutOrg.title).toBe("Fixture Standout Award");
   });
 
   it("resolves dev-server urls for serve", () => {
@@ -232,7 +253,9 @@ ${SPOTLIGHT_PLACEHOLDERS.map((key) => `<meta name="${key}" content="__${key}__">
     writeFileSync(
       join(root, "src", "main.js"),
       `import { name, urls, logos } from "virtual:luminova-brand";
+import { siteContent } from "virtual:luminova-brand/site-content";
 console.log(name, urls.spotlight, logos.main, logos.onDark, logos.onPrimary, logos.width);
+console.log(siteContent.hero.motto);
 console.log(import.meta.env.VITE_FIREBASE_PROJECT_ID);
 `,
     );
@@ -264,6 +287,7 @@ console.log(import.meta.env.VITE_FIREBASE_PROJECT_ID);
     expect(js).toContain("demo-fixture");
     expect(js).toContain("Fixture Chapter");
     expect(js).toContain("https://fixture.example.org");
+    expect(js).toContain("Fixture motto for tests.");
     // legalName is exported but unused here, so tree-shaking must drop it.
     expect(js).not.toContain("Fixture Chapter Association");
     for (const logo of ["logo-main", "logo-on-dark", "logo-on-primary"]) {

@@ -1,3 +1,4 @@
+import { urls } from "virtual:luminova-brand";
 import { useMemo } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,6 +14,8 @@ import {
 } from "@luminova/types";
 import { dateInputValue } from "../repositories/member-mapper";
 import { useUpdateSelfProfile } from "../hooks/use-update-self-profile";
+
+const SPOTLIGHT_HOST = new URL(urls.spotlight).host;
 
 /** The fields a member owns about themselves. Deliberately NOT MemberForm: that form
  *  carries email, status and cargo, which the rules' self lane rejects — offering them here
@@ -105,7 +108,7 @@ export function SelfProfileForm({ member }: { member: Member }) {
         />
         <p className="text-ui-xs text-ink-3">
           Con la casilla marcada y un cargo de directiva este año, tu foto y nombre aparecen en la
-          sección Directiva de jcioriente.org. Puedes cambiarlo cuando quieras.
+          sección Directiva de {SPOTLIGHT_HOST}. Puedes cambiarlo cuando quieras.
         </p>
         {missingPhoto && (
           <p role="status" className="text-ui-xs font-medium text-warn">

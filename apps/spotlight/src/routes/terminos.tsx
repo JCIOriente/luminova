@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { name, locality, movementName, parentOrganization } from "virtual:luminova-brand";
 import { LegalPage, type LegalSection } from "../components/legal-page";
 import { useSiteConfig } from "../site-config/use-site-config";
 
@@ -13,9 +14,7 @@ function Terminos() {
       heading: "1. Aceptación",
       body: (
         <p style={{ margin: 0 }}>
-          Al usar este sitio aceptas estos términos. Si no estás de acuerdo, te pedimos no continuar
-          navegando. El sitio es operado por JCI Oriente, capítulo de Santa Cruz de la Cámara Junior
-          Internacional.
+          {`Al usar este sitio aceptas estos términos. Si no estás de acuerdo, te pedimos no continuar navegando. El sitio es operado por ${name}, capítulo de ${locality.city} de la ${movementName}.`}
         </p>
       ),
     },
@@ -34,8 +33,8 @@ function Terminos() {
       body: (
         <p style={{ margin: 0 }}>
           La marca JCI y los signos de Junior Chamber International pertenecen a sus titulares. Los
-          textos, imágenes y materiales de JCI Oriente publicados aquí son de su autoría o cuentan
-          con autorización de uso. No los reproduzcas con fines comerciales sin permiso previo.
+          textos, imágenes y materiales de {name} publicados aquí son de su autoría o cuentan con
+          autorización de uso. No los reproduzcas con fines comerciales sin permiso previo.
         </p>
       ),
     },
@@ -53,8 +52,7 @@ function Terminos() {
       heading: "5. Enlaces externos",
       body: (
         <p style={{ margin: 0 }}>
-          El sitio puede enlazar a páginas de terceros (redes sociales, JCI Bolivia, JCI Worldwide,
-          mapas). No somos responsables del contenido ni de las prácticas de esos sitios externos.
+          {`El sitio puede enlazar a páginas de terceros (redes sociales, ${parentOrganization.name}, JCI Worldwide, mapas). No somos responsables del contenido ni de las prácticas de esos sitios externos.`}
         </p>
       ),
     },
@@ -73,7 +71,7 @@ function Terminos() {
       heading: "7. Limitación de responsabilidad",
       body: (
         <p style={{ margin: 0 }}>
-          El sitio se ofrece «tal cual». En la medida en que lo permita la ley, JCI Oriente no será
+          El sitio se ofrece «tal cual». En la medida en que lo permita la ley, {name} no será
           responsable por daños derivados del uso o de la imposibilidad de uso del sitio.
         </p>
       ),
@@ -82,9 +80,8 @@ function Terminos() {
       heading: "8. Cambios y contacto",
       body: (
         <p style={{ margin: 0 }}>
-          Podemos modificar estos términos en cualquier momento; la versión vigente estará siempre
-          en esta página. Estos términos se rigen por las leyes de Bolivia. Ante cualquier duda,
-          escríbenos a <a href={`mailto:${config.contact.email}`}>{config.contact.email}</a>.
+          {`Podemos modificar estos términos en cualquier momento; la versión vigente estará siempre en esta página. Estos términos se rigen por las leyes de ${locality.country}. Ante cualquier duda, escríbenos a `}
+          <a href={`mailto:${config.contact.email}`}>{config.contact.email}</a>.
         </p>
       ),
     },
@@ -94,7 +91,7 @@ function Terminos() {
     <LegalPage
       eyebrow="Términos"
       title="Términos de uso"
-      intro="Las condiciones bajo las que ponemos a tu disposición el sitio de JCI Oriente."
+      intro={`Las condiciones bajo las que ponemos a tu disposición el sitio de ${name}.`}
       updatedLabel="Actualizada en octubre de 2026. Documento de referencia; no sustituye asesoría legal."
       sections={sections}
     />

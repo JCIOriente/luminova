@@ -79,6 +79,12 @@ function stubbedCopyOfTheScript() {
   );
   writeFileSync(join(pkg, "app.mjs"), STUB_APP);
   writeFileSync(join(pkg, "firestore.mjs"), STUB_FIRESTORE);
+  // The real resolver reaches packages/brand by a relative path the temp copy cannot follow.
+  mkdirSync(join(dir, "lib"));
+  writeFileSync(
+    join(dir, "lib", "seed-target.mjs"),
+    'export const resolveLocalProject = () => "demo-audit";\n',
+  );
   // A copy, so the stub resolves — but a byte-for-byte copy of the real script, so a
   // process.exit() reintroduced there fails this test.
   const script = join(dir, "audit-soft-delete-shapes.mjs");

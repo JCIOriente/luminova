@@ -43,7 +43,14 @@ export const brandSchema = z.strictObject({
   legalName: text,
   movementName: text,
   description: text,
-  locality: z.strictObject({ city: text, cityFormal: text, region: text, country: text }),
+  locality: z.strictObject({
+    city: text,
+    cityFormal: text,
+    region: text,
+    // The bare-article short form some copy uses ("el Oriente" beside "el Oriente boliviano").
+    regionShort: text,
+    country: text,
+  }),
   foundedYear: z.int().min(1900).max(2100),
   stats: z.strictObject({ nationalOrganizations: z.int().positive() }),
   parentOrganization: z.strictObject({ name: text, url: httpsUrl }),
@@ -61,7 +68,12 @@ export const brandSchema = z.strictObject({
     ogImageAlt: text,
     twitterDescription: text,
   }),
-  backstage: z.strictObject({ title: text, emailPlaceholder: text }),
+  backstage: z.strictObject({
+    title: text,
+    emailPlaceholder: text,
+    // Where a member without an account asks for access (login page mailto).
+    contactEmail: z.email({ message: "must be an email address" }),
+  }),
   og: z
     .strictObject({ legacyPaths: z.array(legacyOgPath).default([]) })
     .default({ legacyPaths: [] }),

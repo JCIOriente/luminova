@@ -25,6 +25,7 @@ function validBrand() {
       city: "Springfield",
       cityFormal: "Springfield City",
       region: "the Springfield valley",
+      regionShort: "the valley",
       country: "Fixtureland",
     },
     foundedYear: 2001,
@@ -47,7 +48,11 @@ function validBrand() {
       ogImageAlt: "Fixture OG alt",
       twitterDescription: "Fixture Twitter description",
     },
-    backstage: { title: "Fixture portal", emailPlaceholder: "you@fixture.example.org" },
+    backstage: {
+      title: "Fixture portal",
+      emailPlaceholder: "you@fixture.example.org",
+      contactEmail: "hello@fixture.example.org",
+    },
     og: { legacyPaths: ["og-old.png"] },
     firebase: {
       projectId: "demo-fixture",
@@ -155,6 +160,17 @@ describe("brandSchema", () => {
 
   it("rejects a malformed project id", () => {
     rejects((b) => (b.firebase.projectId = "Fixture_Project"), "firebase.projectId");
+  });
+
+  it("rejects a missing locality.regionShort", () => {
+    rejects(
+      (b) => delete (b.locality as Partial<Brand["locality"]>).regionShort,
+      "locality.regionShort",
+    );
+  });
+
+  it.each(["", "not-an-email"])("rejects the backstage.contactEmail %j", (email) => {
+    rejects((b) => (b.backstage.contactEmail = email), "backstage.contactEmail");
   });
 
   it("rejects an empty name", () => {

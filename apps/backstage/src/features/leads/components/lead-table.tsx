@@ -1,3 +1,4 @@
+import { name } from "virtual:luminova-brand";
 import { useMemo } from "react";
 import {
   DataTable,
@@ -163,7 +164,7 @@ export function LeadTable({
         // not gated by canUpdate; delete is.
         const waUrl = boliviaWhatsAppUrl(
           lead.phone,
-          `Hola ${lead.name}, te escribimos de JCI Oriente sobre tu mensaje.`,
+          `Hola ${lead.name}, te escribimos de ${name} sobre tu mensaje.`,
         );
         if (!waUrl && !canUpdate) return null;
         return (

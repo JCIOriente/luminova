@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { name } from "virtual:luminova-brand";
 import { RippleBackground } from "@luminova/ui";
 import { useShowcaseList } from "../../showcase/use-showcase";
 import { ShowcaseGrid } from "./showcase-grid";
@@ -34,7 +35,7 @@ function ImpactoHero({ count, personsImpacted }: { count: number; personsImpacte
             className="t-subtitle"
             style={{ marginTop: 22, maxWidth: 620, color: "var(--color-on-dark-2)" }}
           >
-            Los proyectos que JCI Oriente ha realizado, con su gente, sus cifras y su evidencia.
+            {`Los proyectos que ${name} ha realizado, con su gente, sus cifras y su evidencia. `}
             Algunos son programas anuales que repetimos cada gestión.
           </p>
         </div>

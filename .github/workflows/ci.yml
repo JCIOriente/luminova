@@ -117,6 +117,13 @@ jobs:
       # apps/*/dist is present; fails the gate on a breach.
       - if: steps.code.outputs.run == 'true'
         run: bash tools/scripts/check-bundle-budget.sh
+      # Brand neutrality (spec 2026-10-22-brand-config section 7): the committed JSON
+      # schema matches the zod source, the jci-oriente dist above still carries its own
+      # values, and a fixture-profile build carries none of them.
+      - if: steps.code.outputs.run == 'true'
+        run: pnpm brand:schema --check
+      - if: steps.code.outputs.run == 'true'
+        run: pnpm brand:guard
       # Unit suites only — exclude tests/* (those boot the Firestore emulator, see
       # the `emulator` job). beacon's own `test` task is unit-only; its emulator
       # suite is a separate `test:emulator` script.

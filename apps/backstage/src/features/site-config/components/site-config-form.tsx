@@ -1,3 +1,4 @@
+import { broadcastChannelName } from "virtual:luminova-brand";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -411,7 +412,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
             <Input id="contactWhatsapp" inputMode="url" {...register("contact.whatsapp")} />
           </Field>
           <Field
-            label="Canal Difusión Oriente"
+            label={`Canal ${broadcastChannelName}`}
             htmlFor="contactBroadcast"
             hint="Enlace de invitación al canal de difusión de WhatsApp. Vacío = se oculta."
             error={err(errors.contact?.broadcastChannel?.message)}

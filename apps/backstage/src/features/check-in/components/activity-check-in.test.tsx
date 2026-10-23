@@ -1,3 +1,4 @@
+import { qrPrefix } from "virtual:luminova-brand";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import type { Member } from "@luminova/types";
@@ -75,7 +76,7 @@ describe("ActivityCheckIn", () => {
     mutate = (_input, opts) => opts.onSuccess?.();
     renderCheckIn(<ActivityCheckIn activityId="a1" members={members} />);
     const scan = await openScanner();
-    act(() => scan("jcioriente:member:m-1"));
+    act(() => scan(`${qrPrefix}:member:m-1`));
     const overlay = await screen.findByRole("button", { name: /continuar escaneando/i });
     expect(within(overlay).getByText("Asistencia registrada")).toBeInTheDocument();
     expect(within(overlay).getByText("Ana Rivas")).toBeInTheDocument();
@@ -92,8 +93,8 @@ describe("ActivityCheckIn", () => {
     renderCheckIn(<ActivityCheckIn activityId="a1" members={members} />);
     await openScanner();
     // Call the latest handler each time, as the real scanner does via its ref.
-    act(() => scanHandler!("jcioriente:member:m-1"));
-    act(() => scanHandler!("jcioriente:member:m-1"));
+    act(() => scanHandler!(`${qrPrefix}:member:m-1`));
+    act(() => scanHandler!(`${qrPrefix}:member:m-1`));
     expect(calls).toHaveLength(1);
   });
 

@@ -82,6 +82,7 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore, FieldPath } from "firebase-admin/firestore";
 import { createInterface } from "node:readline/promises";
+import { resolveLocalProject } from "./lib/seed-target.mjs";
 
 const COLLECTIONS = ["members", "positions", "allies"];
 // Page size and the getAll fan-out both mirror the beacon chunk() bound (guardrail #5).
@@ -122,7 +123,7 @@ const publishOutcome = !REPAIR
     ? `${ALLOW_PUBLISH_FLAG} was passed — repairing it.`
     : `Withheld: re-run with ${ALLOW_PUBLISH_FLAG} to repair these too, or set publicProfile: false on the member first (the opt-out this member never exercised).`;
 const emulator = process.env.FIRESTORE_EMULATOR_HOST;
-const projectId = process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GCLOUD_PROJECT ?? "jci-oriente";
+const projectId = resolveLocalProject({ envKeys: ["GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT"] });
 
 console.log(
   `Auditing soft-delete shapes in ${emulator ? `EMULATOR (${emulator})` : "PRODUCTION"} ` +

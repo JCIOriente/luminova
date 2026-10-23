@@ -10,6 +10,7 @@
     "city": "Santa Cruz",
     "cityFormal": "Santa Cruz de la Sierra",
     "region": "el Oriente boliviano",
+    "regionShort": "el Oriente",
     "country": "Bolivia"
   },
   "foundedYear": 1993,
@@ -31,7 +32,8 @@
   },
   "backstage": {
     "title": "JCI Oriente — Portal de miembros",
-    "emailPlaceholder": "tu.nombre@jcioriente.bo"
+    "emailPlaceholder": "tu.nombre@jcioriente.bo",
+    "contactEmail": "jci.orienteolm@gmail.com"
   },
   "og": { "legacyPaths": ["og-image-v3.png"] },
   "firebase": {

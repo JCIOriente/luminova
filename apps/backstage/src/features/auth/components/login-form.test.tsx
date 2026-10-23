@@ -15,6 +15,7 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
+import { contactEmail } from "virtual:luminova-brand";
 import { LoginForm } from "./login-form";
 
 // Anchored: the show/hide toggle is labelled "Mostrar contraseña", and the required marker
@@ -96,7 +97,7 @@ describe("LoginForm", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /escríbenos/i })).toHaveAttribute(
       "href",
-      "mailto:jci.orienteolm@gmail.com",
+      `mailto:${contactEmail}`,
     );
   });
 
