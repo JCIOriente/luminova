@@ -312,16 +312,22 @@ jobs:
       # GCP_PROJECT_ID, and writes dist/.brand-release.json. --force so turbo never
       # replays a cached dist. VITE_FIREBASE_EMULATOR_ENABLED=false guards against a dev
       # bundle ever reaching prod (also forced in .env.production).
-      - if: needs.filter.outputs.spotlight == 'true'
-        run: BRAND_RELEASE=1 VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter spotlight --force
-      - if: needs.filter.outputs.backstage == 'true'
-        run: BRAND_RELEASE=1 VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter backstage --force
-      # The hosting predeploy runs the same check; this step keeps the gate even if a
-      # future firebase-tools stops running hooks for channel deploys.
-      - if: needs.filter.outputs.spotlight == 'true'
-        run: pnpm -s brand:assert-dist spotlight
-      - if: needs.filter.outputs.backstage == 'true'
-        run: pnpm -s brand:assert-dist backstage
+      # One turbo run, so the shared packages build once and the two apps in parallel.
+      # The assert repeats the hosting predeploy so the gate holds even if a future
+      # firebase-tools stops running hooks for channel deploys.
+      - name: Release build
+        env:
+          SPOTLIGHT: ${{ needs.filter.outputs.spotlight }}
+          BACKSTAGE: ${{ needs.filter.outputs.backstage }}
+        run: |
+          set -euo pipefail
+          apps=()
+          if [ "$SPOTLIGHT" = "true" ]; then apps+=(spotlight); fi
+          if [ "$BACKSTAGE" = "true" ]; then apps+=(backstage); fi
+          filters=()
+          for app in "${apps[@]}"; do filters+=(--filter "$app"); done
+          BRAND_RELEASE=1 VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build "${filters[@]}" --force
+          for app in "${apps[@]}"; do pnpm -s brand:assert-dist "$app"; done
       # Preview -> smoke -> promote. Each changed target deploys to a short-lived
       # preview channel; we smoke the channel URL (root HTML loads AND its hashed entry
       # bundle loads) and promote to `live` ONLY on success. Live never serves a build
