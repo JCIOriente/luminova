@@ -45,9 +45,18 @@ export function contractByFolder(): Map<string, string[]> {
   return groups;
 }
 
+export interface AssetFile {
+  path: string;
+  expected: string;
+  /** `W×H`, `missing` or `not a PNG`. */
+  found: string;
+}
+
 export interface AssetValidation {
   errors: string[];
   warnings: string[];
+  /** What was read for each contract file, in contract order. */
+  files: AssetFile[];
   /** The shared size of the three logos, when they all read. */
   logoSize: PngSize | null;
 }
@@ -92,20 +101,25 @@ export function validateAssets(
 ): AssetValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const files: AssetFile[] = [];
   const logoSizes = new Map<string, PngSize>();
 
   for (const spec of ASSET_CONTRACT) {
     const file = join(dir, spec.path);
+    const record = { path: spec.path, expected: expectation(spec) };
     if (!existsSync(file)) {
+      files.push({ ...record, found: "missing" });
       errors.push(`${spec.path}: missing (expected ${expectation(spec)})`);
       continue;
     }
     const size = readPngSize(readHeader(file));
     if (!size) {
+      files.push({ ...record, found: "not a PNG" });
       errors.push(`${spec.path}: not a PNG (expected ${expectation(spec)})`);
       continue;
     }
     const actual = `${size.width}×${size.height}`;
+    files.push({ ...record, found: actual });
     if (spec.width === undefined) {
       if (size.height < MIN_LOGO_HEIGHT) {
         errors.push(`${spec.path}: ${actual} is too small (expected height ≥ ${MIN_LOGO_HEIGHT})`);
@@ -139,5 +153,5 @@ export function validateAssets(
     if (manifestError) errors.push(manifestError);
   }
 
-  return { errors, warnings, logoSize };
+  return { errors, warnings, files, logoSize };
 }

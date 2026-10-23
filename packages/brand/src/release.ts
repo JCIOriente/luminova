@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { z } from "zod";
 import { PULL_MANIFEST_FILE } from "./assets.ts";
 import { sha256 } from "./hash.ts";
@@ -55,6 +55,24 @@ export function undeployableProfileErrors(profile: LoadedProfile): string[] {
     );
   }
   return errors;
+}
+
+/**
+ * Where a build reads the asset set: release always reads the pulled `brand-assets/`;
+ * otherwise `BRAND_ASSETS_DIR`, then `brand-assets/` if present, then the profile's own.
+ */
+export function selectAssetsDir(
+  repoRoot: string,
+  profile: LoadedProfile,
+  env: Env,
+  release: boolean,
+): string {
+  const pulled = join(repoRoot, PULLED_ASSETS_DIR);
+  if (release) return pulled;
+  const fromEnv = env.BRAND_ASSETS_DIR?.trim();
+  if (fromEnv) return resolve(repoRoot, fromEnv);
+  if (existsSync(pulled)) return pulled;
+  return join(profile.dir, "assets");
 }
 
 /** Every release-only rule that fails, so one build lists them all. */

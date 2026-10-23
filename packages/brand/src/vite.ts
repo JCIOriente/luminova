@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { loadEnv, type Plugin } from "vite";
 import { ICON_FILES, LOGO_FILES, validateAssets } from "./assets.ts";
@@ -6,11 +6,11 @@ import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "./
 import type { PngSize } from "./png.ts";
 import type { BrandApp } from "./ports.ts";
 import {
-  PULLED_ASSETS_DIR,
   RELEASE_MARKER_FILE,
   isRelease,
   releaseErrors,
   releaseIdentity,
+  selectAssetsDir,
   type ReleaseIdentity,
   type ReleaseMarker,
 } from "./release.ts";
@@ -63,20 +63,6 @@ function warnOnce(message: string) {
   if (printedWarnings.has(message)) return;
   printedWarnings.add(message);
   console.warn(`[luminova-brand] ${message}`);
-}
-
-function selectAssetsDir(
-  repoRoot: string,
-  profile: LoadedProfile,
-  env: Readonly<Record<string, string | undefined>>,
-  release: boolean,
-): string {
-  const pulled = join(repoRoot, PULLED_ASSETS_DIR);
-  if (release) return pulled;
-  const fromEnv = env.BRAND_ASSETS_DIR?.trim();
-  if (fromEnv) return resolve(repoRoot, fromEnv);
-  if (existsSync(pulled)) return pulled;
-  return join(profile.dir, "assets");
 }
 
 export function resolveBrandBuild({

@@ -120,3 +120,25 @@ describe("validateAssets", () => {
     expect(validateAssets(dir, { profile: "fixture" }).errors).toEqual([]);
   });
 });
+
+describe("validateAssets files", () => {
+  it("reports what it read for every contract file, in contract order", () => {
+    writeCompleteSet();
+    rmSync(join(dir, "og-image.png"));
+    put("spotlight/favicon-16.png", Buffer.from("not a png"));
+    const { files } = validateAssets(dir);
+    expect(files.map(({ path }) => path)).toEqual(ASSET_CONTRACT.map(({ path }) => path));
+    const byPath = new Map(files.map((file) => [file.path, file]));
+    expect(byPath.get("logo-main.png")).toEqual({
+      path: "logo-main.png",
+      expected: "PNG, height ≥ 184",
+      found: "400×200",
+    });
+    expect(byPath.get("og-image.png")?.found).toBe("missing");
+    expect(byPath.get("spotlight/favicon-16.png")).toEqual({
+      path: "spotlight/favicon-16.png",
+      expected: "16×16",
+      found: "not a PNG",
+    });
+  });
+});
