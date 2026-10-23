@@ -14,6 +14,10 @@ if [ -d /opt/homebrew/opt/openjdk/bin ]; then
   export JAVA_HOME="/opt/homebrew/opt/openjdk"
 fi
 
+# .firebaserc is generated, and pnpm skips `prepare` on an up-to-date install, so a
+# checkout that just pulled can be without one; the emulators then boot a demo project.
+pnpm -s brand:apply
+
 # Fresh functions dist so the emulator never loads stale triggers.
 pnpm --filter beacon build
 

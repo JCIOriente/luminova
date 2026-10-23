@@ -20,8 +20,9 @@
   ],
   "hosting": [
     {
-      "target": "jcioriente",
+      "target": "spotlight",
       "public": "apps/spotlight/dist",
+      "predeploy": ["pnpm -s brand:assert-dist spotlight"],
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
       "redirects": [{ "source": "/programas", "destination": "/impacto", "type": 301 }],
       "rewrites": [{ "source": "**", "destination": "/index.html" }],
@@ -42,8 +43,9 @@
       ]
     },
     {
-      "target": "jcioriente-backstage",
+      "target": "backstage",
       "public": "apps/backstage/dist",
+      "predeploy": ["pnpm -s brand:assert-dist backstage"],
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
       "rewrites": [{ "source": "**", "destination": "/index.html" }],
       "headers": [
