@@ -8,7 +8,7 @@ deploy to Firebase). This is the living reference; dated provisioning records li
 - **CI workflow:** `.github/workflows/ci.yml`
 - **CD workflow:** `.github/workflows/deploy.yml`
 - **Shared deploy setup:** `.github/actions/firebase-setup/action.yml`
-- **Firebase project:** `jci-oriente` (Blaze) · **GitHub repo:** `JCIOriente/luminova` (public)
+- **Firebase project:** the brand profile's `firebase.projectId` (`PROJECT_ID`; JCI Oriente: `jci-oriente`, Blaze) · **GitHub repo:** `GH_REPO` (JCI Oriente: `JCIOriente/luminova`, public). Values below are JCI Oriente's; `pnpm brand:provision` prints section 6 with yours.
 
 ---
 
@@ -103,7 +103,7 @@ concurrency: { group: deploy-production, cancel-in-progress: false }  # never in
 | `filter` | green-CI-on-main **or** manual dispatch | — | Checks out the deployed SHA (`fetch-depth: 0`) and diffs it against the **last successfully-deployed commit** (`gh run list --workflow Deploy --status success`, needs `actions: read`); falls back to the first parent, then to deploy-all. Emits `spotlight/backstage/functions/rules` booleans + the SHA. Untrusted-ish inputs (`surface`, SHAs) flow through `env:`, never inline `${{ }}` in `run:`. |
 | `deploy-rules` | `rules == true` | `production` | Two steps: `firebase deploy --only firestore:rules,storage --force`, then `--only firestore:indexes` **without `--force`** (see §9 — index deletes fail loud instead of silently reaping). Both `--message <sha>`. |
 | `deploy-functions` | `functions == true` and rules didn't fail | `production` | `firebase deploy --only functions --force --message <sha>` (predeploy builds beacon), then `functions:list` as a sanity check. gen2 = Cloud Run; no auto-rollback. |
-| `deploy-hosting` | `spotlight` or `backstage` true, and **neither rules nor functions failed** | `production` | Build changed target(s) with `VITE_FIREBASE_EMULATOR_ENABLED=false`, then **preview → smoke → promote** (below). `needs` both prior deploy jobs so a failed rules deploy can't ship a UI against a data contract that never landed. |
+| `deploy-hosting` | `spotlight` or `backstage` true, and **neither rules nor functions failed** | `production` | `brand:pull` the profile's assets from its private bucket (generations to the job summary), **release-build** the changed target(s) (`BRAND_RELEASE=1 --force`, emulator flag off), `brand:assert-dist` each, then **preview → smoke → promote** (below) to the profile's site ids. `needs` both prior deploy jobs so a failed rules deploy can't ship a UI against a data contract that never landed. |
 | `notify` | always | — | No-op unless `DEPLOY_WEBHOOK_URL` repo secret is set. Posts a Slack/Discord-compatible message with per-surface results + run URL. |
 
 **Surface → path mapping** (conservative; `packages/**` and the root dep/build files
@@ -111,8 +111,8 @@ feed every bundle, `firebase.json` touches everything):
 
 | Surface | Deploys when the diff touches |
 |---------|-------------------------------|
-| `spotlight` (`hosting:jcioriente` ← `apps/spotlight/dist`) | `apps/spotlight/`, `packages/`, root deps†, `firebase.json` |
-| `backstage` (`hosting:jcioriente-backstage` ← `apps/backstage/dist`) | `apps/backstage/`, `packages/`, root deps†, `firebase.json` |
+| `spotlight` (`hosting:spotlight` ← `apps/spotlight/dist`) | `apps/spotlight/`, `packages/`, `brand/`, root deps†, `firebase.json` |
+| `backstage` (`hosting:backstage` ← `apps/backstage/dist`) | `apps/backstage/`, `packages/`, `brand/`, root deps†, `firebase.json` |
 | `functions` (`beacon`, nodejs24) | `apps/beacon/`, `packages/`, root deps†, `firebase.json` |
 | `rules` | `firestore.rules`, `storage.rules`, `firestore.indexes.json`, `firebase.json` |
 
@@ -121,6 +121,9 @@ feed every bundle, `firebase.json` touches everything):
 undici/form-data) actually redeploys the bundles that embed the vulnerable dep, instead
 of merging green while prod keeps serving the old build. Rules don't embed node_modules,
 so they're deliberately excluded from the root-dep trigger.
+
+**Brand assets are not in git**, so a `brand:push` to the bucket changes nothing the
+`filter` diff can see: dispatch `surface=hosting` after it (`brand:push` prints the command).
 
 **Ordering rationale — rules → functions → hosting:** the data contract goes live
 before the backend that relies on it (no fail-open window), the backend goes live
@@ -191,6 +194,8 @@ project owner via `gcloud`. All identifiers below are non-secret.
 | Runtime SA (gen2 actAs) | `953870918238-compute@developer.gserviceaccount.com` ← `roles/iam.serviceAccountUser` |
 | App Engine default SA (CLI preflight actAs) | `jci-oriente@appspot.gserviceaccount.com` ← `roles/iam.serviceAccountUser` (added 2026-07-03) |
 | Billing account binding | `billingAccounts/016148-904C31-A656A9` ← `roles/billing.viewer` for the deploy SA (added 2026-07-03) |
+| Brand assets bucket | `gs://jci-oriente-brand-assets` (`brand.json` `assetsBucket`): `us-central1`, Standard, uniform bucket-level access, public access prevention enforced, versioning on, lifecycle keeps 3 noncurrent generations (`brand/bucket-lifecycle.json`). Owner step O10 |
+| Bucket grant (not a project role) | `roles/storage.objectViewer` **on the bucket only** for the deploy SA: `storage.objects.get` + `storage.objects.list`, what `brand:pull` needs. CD never writes; the owner uploads with `brand:push` |
 
 > **Functions-deploy preflight gotcha.** firebase-tools hardcodes an
 > `iam.serviceAccounts.actAs` check on `<project>@appspot.gserviceaccount.com`
@@ -226,7 +231,9 @@ project owner via `gcloud`. All identifiers below are non-secret.
 > only. Do not revert `storage` to the object form.
 
 **GitHub `production` environment:** required reviewer `arkgast`; deployments restricted
-to `main`; variables `WIF_PROVIDER`, `WIF_SERVICE_ACCOUNT`, `GCP_PROJECT_ID`.
+to `main`; variables `WIF_PROVIDER`, `WIF_SERVICE_ACCOUNT`, `GCP_PROJECT_ID`, `BRAND_PROFILE`
+(the profile this project ships; every deploy job writes `.firebaserc` from it and fails if
+it is unset).
 Optional repo secret `DEPLOY_WEBHOOK_URL` (unset → `notify` is a no-op).
 
 **Enabled APIs:** `iamcredentials`, `sts`, `firebasehosting`, `firebaserules`,
@@ -240,6 +247,9 @@ billing probe).
 
 The exact steps executed. Idempotent to re-run. Requires an operator with project
 IAM admin + repo admin. `gh` covers the GitHub side; no console clicks required.
+`pnpm brand:provision` prints this block with `PROJECT_ID`, `PROJECT_NUMBER`, `GH_REPO` and
+`REVIEWER_ID` filled in for the selected profile, after the brand-assets bucket steps
+(which `pnpm brand:provision --apply` runs) and the `BRAND_PROFILE` variable.
 
 ```bash
 # --- shell context ---
@@ -390,6 +400,8 @@ Effectively **$0**.
 - **GitHub Actions:** free — `JCIOriente/luminova` is a public repo (unlimited minutes).
 - **WIF / STS / service account:** always free on GCP.
 - **Hosting preview channels:** negligible; each `ci-<sha>` auto-expires in 1 day.
+- **Brand assets bucket:** about 1 MB (under 4 MB with 3 noncurrent versions) and ~20
+  reads per deploy, far inside the Cloud Storage always-free tier: US$0.00 expected.
 - **Only recurring cost:** gen2 function deploys push container images to Artifact
   Registry + a Cloud Build (free tier 120 build-min/day; a beacon build is ~1–2 min).
   Images accumulate — predates CD (manual `firebase deploy` does the same). Optional

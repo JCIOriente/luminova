@@ -17,17 +17,23 @@ Two web app registrations share one Firebase project and one Firestore database:
 
 | App | appId | Hosting target | URL |
 |-----|-------|----------------|-----|
-| spotlight | `1:953870918238:web:63d0034740735d618b4acf` | `jcioriente` | https://jcioriente.org |
-| backstage | `1:953870918238:web:acbd53d377846bd88b4acf` | `jcioriente-backstage` | https://admin.jcioriente.org |
+| spotlight | `1:953870918238:web:63d0034740735d618b4acf` | `spotlight` | https://jcioriente.org |
+| backstage | `1:953870918238:web:acbd53d377846bd88b4acf` | `backstage` | https://admin.jcioriente.org |
 
 Each app reads its Firebase config from its own `apps/<app>/.env.local` (template at `apps/<app>/.env.local.example`). The two apps share the same project and database but use separate app registrations and separate App Check site keys.
 
 ## Hosting Targets
 
-| Target | App | URL | Firebase default (fallback) |
-|--------|-----|-----|-----------------------------|
-| `jcioriente` | spotlight | https://jcioriente.org | https://jcioriente.web.app |
-| `jcioriente-backstage` | backstage | https://admin.jcioriente.org | https://jcioriente-backstage.web.app |
+| Target (`firebase.json`) | Site id (`brand.json` `firebase.sites`) | App | URL | Firebase default (fallback) |
+|--------|---------|-----|-----|-----------------------------|
+| `spotlight` | `jcioriente` | spotlight | https://jcioriente.org | https://jcioriente.web.app |
+| `backstage` | `jcioriente-backstage` | backstage | https://admin.jcioriente.org | https://jcioriente-backstage.web.app |
+
+Target names are chapter-neutral; the site ids, the project and the storage bucket live in
+the brand profile. `.firebaserc` maps one to the other and is **generated, never edited or
+committed**: `pnpm install` writes it (the root `prepare`), the emulator script and the CD
+setup action rewrite it, and `pnpm brand:apply` does so on demand (run it after changing
+`BRAND_PROFILE`; pnpm skips `prepare` when an install is already up to date).
 
 Both hostnames serve the same deploy. Which one the code announces, the console settings
 that must list every hostname, and how to fall back: `docs/domains.md`.
@@ -41,12 +47,9 @@ npm install -g firebase-tools@15.22.1
 # Login
 firebase login
 
-# Set project
-firebase use jci-oriente
-
-# Apply hosting targets
-firebase target:apply hosting jcioriente jcioriente
-firebase target:apply hosting jcioriente-backstage jcioriente-backstage
+# Project and hosting targets come from the brand profile (no `firebase use` /
+# `target:apply`): this writes .firebaserc for BRAND_PROFILE (default jci-oriente)
+pnpm brand:apply
 ```
 
 ## Environment Variables
@@ -139,7 +142,7 @@ emulator on its own:
 pnpm seed:emulator
 ```
 
-This seeds (project `jci-oriente`, matching `.firebaserc` + `VITE_FIREBASE_PROJECT_ID`):
+This seeds (project `jci-oriente`, the profile's `firebase.projectId`, matching `VITE_FIREBASE_PROJECT_ID`):
 
 - **Firestore** — sample members + a Recognition Engine slice (term, activities,
   participations, memberPoints) so the Members, member-profile, and Leaderboard pages
@@ -214,16 +217,37 @@ prefer the pipeline. For rollback, see `docs/ci-cd.md` section 9 (note: there is
 pnpm deploy:rules       # firestore (rules + indexes) + storage rules
 pnpm deploy:indexes     # firestore composite indexes only
 pnpm deploy:functions   # beacon (predeploy rebuilds apps/beacon/dist)
-pnpm deploy:hosting     # builds spotlight + backstage (emulator flag off), deploys both targets
+pnpm deploy:hosting     # release build of spotlight + backstage, deploys both targets
 pnpm deploy:all         # rules → functions → hosting
 ```
 
-### Deploy Specific Hosting Target
+### Hosting deploys need a release build
+
+A hosting deploy ships only a **release build** (`BRAND_RELEASE=1`): it needs
+`BRAND_PROFILE` set, the profile's assets pulled from its private bucket into
+`brand-assets/` (`pnpm brand:pull`), and, when `GCP_PROJECT_ID` is set, that it names the
+profile's project. The build writes `dist/.brand-release.json`, and each hosting target's
+`predeploy` (`pnpm -s brand:assert-dist <app>`) refuses a dist without that marker or built
+for another project. So a plain `pnpm build` output can never be deployed by hand.
 
 ```bash
-firebase deploy --only hosting:jcioriente
-firebase deploy --only hosting:jcioriente-backstage
+export BRAND_PROFILE=jci-oriente
+pnpm brand:pull && pnpm deploy:hosting
+# one target only, after the release build:
+firebase deploy --only hosting:spotlight
+firebase deploy --only hosting:backstage
 ```
+
+### Brand assets bucket (owner only)
+
+Deployment images live in `brand.json` `assetsBucket` (`jci-oriente-brand-assets`), a
+private, versioned bucket the CD service account can only read (`docs/ci-cd.md` section 5).
+`pnpm brand:provision` prints the setup with the profile's values; `--apply` creates and
+configures the bucket. `BRAND_PROFILE=<slug> pnpm brand:push --from <dir>` validates and
+uploads a new set, then prints the hosting dispatch: an asset change is not in git, so CD
+does not see it until someone runs `gh workflow run deploy.yml -f surface=hosting`. A bad
+upload rolls back with `gcloud storage cp gs://<bucket>/<file>#<generation> gs://<bucket>/<file>`.
+Claude never runs `brand:push`, `brand:provision --apply` or the dispatch.
 
 ## Firestore Rules Deploy
 

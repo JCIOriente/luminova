@@ -137,13 +137,13 @@ El panorama completo está en [`docs/roadmap.md`](docs/roadmap.md) (en inglés).
 Luminova no es multi-inquilino. Un despliegue sirve a un capítulo. Para usarlo en el tuyo,
 haz un fork y cambia esto:
 
-1. **Proyecto de Firebase.** Crea el tuyo, y luego en `.firebaserc` ajusta el id del
-   proyecto por defecto y **los tres grupos de destinos**: `hosting` (ambos sitios) y
-   `storage` (el destino `default`, al que `firebase.json` apunta para `storage.rules`).
-   Si te saltas el destino de storage, `pnpm deploy:rules` falla o sigue apuntando al
-   bucket de otro capítulo, y el tuyo queda sin reglas. Después ajusta la configuración del
-   cliente en `apps/*/.env.local.example` (desarrollo local) y en `firebase.web` de tu perfil
-   de marca (builds de producción; ver 3).
+1. **Proyecto de Firebase.** Crea el tuyo y pon su id de proyecto, los ids de ambos sitios
+   de hosting y el bucket de storage en el bloque `firebase` de tu perfil de marca (ver 3).
+   `.firebaserc` se genera a partir de él (`pnpm install` lo escribe; `pnpm brand:apply`
+   después de cambiar `BRAND_PROFILE`), así que no puede seguir apuntando al proyecto de
+   otro capítulo. Después ajusta la configuración del cliente en
+   `apps/*/.env.local.example` (desarrollo local) y en `firebase.web` del perfil (builds de
+   producción).
 2. **Contenido del capítulo.** El contenido inicial del sitio —historia, misión, visión,
    valores, estadísticas, datos de contacto— vive en
    el `site-content.json` de tu perfil de marca (copia `brand/jci-oriente/site-content.json`).
@@ -157,14 +157,16 @@ haz un fork y cambia esto:
      configuración web de Firebase. `assets/` guarda las 16 imágenes: tres logos, la imagen
      para compartir y los favicons, iconos PWA e iconos de Apple de cada app (el contrato
      está en `packages/brand/src/assets.ts`). El build se detiene y lista cada archivo que
-     falte o tenga otro tamaño. Los orígenes se escriben en `index.html` (`rel=canonical`,
+     falte o tenga otro tamaño. Tus imágenes reales no entran a git: los despliegues las
+     leen de un bucket privado de tu proyecto (`pnpm brand:provision`, luego `brand:push`;
+     el CD ejecuta `brand:pull`), y un build de despliegue rechaza cualquier otra fuente. Los orígenes se escriben en `index.html` (`rel=canonical`,
      `og:url`, `og:image`, `twitter:image`), `sitemap.xml` y `robots.txt`; si dejas los
      nuestros, tu sitio le declara a los buscadores que es una copia del nuestro, y cada vez
      que alguien comparta el enlace por WhatsApp saldrá nuestra imagen. Ver
      `docs/domains.md`.
    - Tokens de diseño en `packages/ui`.
    - Los datos del capítulo en los textos de las páginas (nombre, ciudad, año de fundación)
-     siguen escritos en `apps/*/src`, y el contenido inicial del sitio está en el paso 2.
+     salen de los tokens del perfil, y el contenido inicial del sitio está en el paso 2.
 
    Las marcas de JCI **no** están cubiertas por la licencia de este repositorio — ver
    [NOTICE](NOTICE).

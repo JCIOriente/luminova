@@ -208,12 +208,12 @@ Full developer guide, including the quality gate and the repository layout:
 Luminova is not multi-tenant. One deployment serves one chapter. To run it for yours,
 fork it and change these:
 
-1. **Firebase project.** Create your own, then in `.firebaserc` set the default project id
-   and **all three target groups** — `hosting` (both sites) and `storage` (the
-   `default` target, which `firebase.json` points at for `storage.rules`). Miss the storage
-   target and `pnpm deploy:rules` either errors or keeps aiming at someone else's bucket,
-   leaving yours with no rules. Then set the client config in `apps/*/.env.local.example`
-   (local development) and in your brand profile's `firebase.web` (production builds; see 3).
+1. **Firebase project.** Create your own and put its project id, both hosting site ids and
+   the storage bucket in your brand profile's `firebase` block (see 3). `.firebaserc` is
+   generated from it (`pnpm install` writes it; `pnpm brand:apply` after switching
+   `BRAND_PROFILE`), so it cannot keep aiming at someone else's project. Then set the client
+   config in `apps/*/.env.local.example` (local development) and in the profile's
+   `firebase.web` (production builds).
 2. **Chapter content.** The seeded site content — history, mission, vision, values,
    statistics, contact details — lives in
    your brand profile's `site-content.json` (copy `brand/jci-oriente/site-content.json`).
@@ -227,13 +227,15 @@ fork it and change these:
      the member-QR prefix and the Firebase web config. `assets/` holds the 16 images: three
      logos, the share image and each app's favicons, PWA and Apple touch icons (the contract
      is in `packages/brand/src/assets.ts`). A build stops and lists every missing or
-     wrong-sized file. The origins are stamped into `index.html` (`rel=canonical`,
+     wrong-sized file. Your real images stay out of git: deploys read them from a private
+     bucket in your project (`pnpm brand:provision`, then `brand:push`; CD runs
+     `brand:pull`), and a deploy build refuses any other source. The origins are stamped into `index.html` (`rel=canonical`,
      `og:url`, `og:image`, `twitter:image`), `sitemap.xml` and `robots.txt`; leave ours and
      your site tells search engines it is a copy of ours, and every WhatsApp share renders
      our image. See `docs/domains.md`.
    - Design tokens in `packages/ui`.
-   - Chapter facts in page copy (name, city, founding year) are still literals in
-     `apps/*/src`, and the default site content is in step 2.
+   - Chapter facts in page copy (name, city, founding year) come from the profile's
+     tokens, and the default site content is in step 2.
 
    The JCI marks are **not** covered by this repository's license — see [NOTICE](NOTICE).
 4. **Points matrix.** Defaults follow JCI Oriente's "Mejor Miembro Individual" scoring
@@ -266,7 +268,7 @@ Manual deploys are available as a fallback:
 pnpm deploy:rules       # firestore + storage rules
 pnpm deploy:indexes     # firestore indexes
 pnpm deploy:functions   # beacon
-pnpm deploy:hosting     # builds both apps, then deploys
+pnpm deploy:hosting     # release build (BRAND_PROFILE set, brand:pull first), then deploys
 pnpm deploy:all
 ```
 

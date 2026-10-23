@@ -61,7 +61,7 @@ within the same project and share one Firestore database and one Storage bucket
 ## Apps
 
 ### spotlight (Public Site)
-- React SPA deployed to Firebase Hosting target `jcioriente`
+- React SPA deployed to Firebase Hosting target `spotlight` (site id from the brand profile; `jcioriente` for JCI Oriente)
 - Ships **no full Firebase client** — public data (`siteConfig`, `showcase`,
   `allyShowcase`) is read through the lightweight `firebase/firestore/lite` subpath via
   `@luminova/firebase/lite` (no Auth, no realtime)
@@ -72,7 +72,7 @@ within the same project and share one Firestore database and one Storage bucket
 - Firebase web app registration: `1:953870918238:web:63d0034740735d618b4acf`
 
 ### backstage (Admin Dashboard)
-- React SPA with Firebase Auth + Firestore, deployed to Firebase Hosting target `jcioriente-backstage`
+- React SPA with Firebase Auth + Firestore, deployed to Firebase Hosting target `backstage` (site id from the brand profile; `jcioriente-backstage` for JCI Oriente)
 - Imports `@luminova/firebase` at boot (always included in the bundle)
 - All routes except `/login` and `/invitacion` require authentication
 - CRUD/admin surfaces: members, positions, initiatives (programs/projects), activities

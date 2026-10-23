@@ -4,15 +4,15 @@
 
 | Path | Purpose |
 | --- | --- |
-| `apps/spotlight` | Public marketing site, no auth. Hosting target `jcioriente` |
-| `apps/backstage` | Admin dashboard, auth required. Hosting target `jcioriente-backstage` |
+| `apps/spotlight` | Public marketing site, no auth. Hosting target `spotlight` (site id in the brand profile) |
+| `apps/backstage` | Admin dashboard, auth required. Hosting target `backstage` (site id in the brand profile) |
 | `apps/beacon` | Firebase Cloud Functions backend |
 | `packages/ui` (`@luminova/ui`) | Bespoke token-driven components (Tailwind utilities); shadcn/Radix only for complex widgets |
 | `packages/firebase` (`@luminova/firebase`) | Firebase client singleton (auth, firestore, storage) |
 | `packages/types` (`@luminova/types`) | Shared TypeScript types and zod schemas |
 | `packages/auth` (`@luminova/auth`) | CASL roles, permissions, ability builder |
 | `packages/utils` (`@luminova/utils`) | Intl-only helpers, no runtime deps (es-BO datetime with the Bolivia UTC pin) |
-| `packages/brand` (`@luminova/brand`) | Build-time brand profiles (`brand/<slug>/`): schema, loader, asset validator, Vite plugin (`virtual:luminova-brand`). `BRAND_PROFILE` selects one; unset means `jci-oriente` |
+| `packages/brand` (`@luminova/brand`) | Build-time brand profiles (`brand/<slug>/`): schema, loader, asset validator, Vite plugin (`virtual:luminova-brand`). `BRAND_PROFILE` selects one; unset means `jci-oriente`. `.firebaserc` is generated from it (`pnpm brand:apply`); deploys need a release build (`BRAND_RELEASE=1`, assets from the profile's bucket via `brand:pull`) |
 
 Stack: React 19, TypeScript 7 strict, TanStack Router (file-based) + Query v5, React Hook Form + Zod, Tailwind v4, Lucide, Firebase, Turborepo + pnpm workspaces. Node 24 and pnpm are pinned (`.nvmrc`, `engines.node`, `packageManager`).
 
