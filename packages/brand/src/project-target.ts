@@ -15,11 +15,12 @@ export class ProjectTargetError extends Error {
   override name = "ProjectTargetError";
 }
 
+/** The given env keys that are set, in order; each caller names the keys it trusts. */
 export function envProjectSources(
   env: Readonly<Record<string, string | undefined>>,
-  extraKeys: readonly string[] = [],
+  keys: readonly string[] = PROJECT_ENV_KEYS,
 ): ProjectSource[] {
-  return [...PROJECT_ENV_KEYS, ...extraKeys].flatMap((key) => {
+  return keys.flatMap((key) => {
     const value = env[key]?.trim();
     return value ? [[key, value] as const] : [];
   });

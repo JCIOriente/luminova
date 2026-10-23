@@ -23,16 +23,28 @@ test("local scripts honour GCLOUD_PROJECT over the profile", () => {
   assert.equal(resolveLocalProject({ env: { GCLOUD_PROJECT: "demo-x" }, profile }), "demo-x");
 });
 
-test("local scripts honour either project env name", () => {
-  assert.equal(resolveLocalProject({ env: { GOOGLE_CLOUD_PROJECT: "other" }, profile }), "other");
+test("local scripts ignore a shell GOOGLE_CLOUD_PROJECT unless asked to read it", () => {
+  assert.equal(
+    resolveLocalProject({ env: { GOOGLE_CLOUD_PROJECT: "other" }, profile }),
+    "acme-prod",
+  );
+  assert.equal(
+    resolveLocalProject({
+      env: { GOOGLE_CLOUD_PROJECT: "other" },
+      profile,
+      envKeys: ["GCLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT"],
+    }),
+    "other",
+  );
 });
 
-test("local scripts refuse project env names that disagree", () => {
+test("local scripts refuse the keys they read when those disagree", () => {
   assert.throws(
     () =>
       resolveLocalProject({
         env: { GCLOUD_PROJECT: "demo-x", GOOGLE_CLOUD_PROJECT: "other" },
         profile,
+        envKeys: ["GCLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT"],
       }),
     (error) => error instanceof ProjectTargetError && /disagree/.test(error.message),
   );

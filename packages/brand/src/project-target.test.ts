@@ -7,15 +7,19 @@ import {
 } from "./project-target.ts";
 
 describe("envProjectSources", () => {
-  it("reads both names Google tooling exports, plus any extra key, skipping blanks", () => {
+  it("reads both names Google tooling exports by default, skipping blanks", () => {
+    expect(envProjectSources({ GCLOUD_PROJECT: "a", GOOGLE_CLOUD_PROJECT: " " })).toEqual([
+      ["GCLOUD_PROJECT", "a"],
+    ]);
+  });
+
+  it("reads only the keys a caller names", () => {
     expect(
-      envProjectSources({ GCLOUD_PROJECT: "a", GOOGLE_CLOUD_PROJECT: " ", GCP_PROJECT_ID: "a" }, [
+      envProjectSources({ GOOGLE_CLOUD_PROJECT: "b", GCP_PROJECT_ID: "a" }, [
+        "GCLOUD_PROJECT",
         "GCP_PROJECT_ID",
       ]),
-    ).toEqual([
-      ["GCLOUD_PROJECT", "a"],
-      ["GCP_PROJECT_ID", "a"],
-    ]);
+    ).toEqual([["GCP_PROJECT_ID", "a"]]);
   });
 });
 

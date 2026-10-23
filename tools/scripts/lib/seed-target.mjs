@@ -15,10 +15,18 @@ import {
 
 export { ProjectTargetError, loadProfile, parseProjectFlag };
 
-/** Emulator and read-mostly scripts: the project the env names, else the profile's. */
-export function resolveLocalProject({ env = process.env, profile } = {}) {
+/**
+ * Emulator and read-mostly scripts: the project the given env keys name, else the
+ * profile's. GCLOUD_PROJECT only by default (what `firebase emulators:exec` sets), so a
+ * GOOGLE_CLOUD_PROJECT exported in a developer's shell never redirects a seed.
+ */
+export function resolveLocalProject({
+  env = process.env,
+  profile,
+  envKeys = ["GCLOUD_PROJECT"],
+} = {}) {
   return (
-    agreedProject(envProjectSources(env)) ??
+    agreedProject(envProjectSources(env, envKeys)) ??
     (profile ?? loadProfile({ env })).brand.firebase.projectId
   );
 }
