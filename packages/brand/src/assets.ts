@@ -61,7 +61,7 @@ export interface AssetValidation {
   logoSize: PngSize | null;
 }
 
-function expectation(spec: AssetSpec): string {
+export function describeSpec(spec: AssetSpec): string {
   return spec.width ? `${spec.width}×${spec.height}` : `PNG, height ≥ ${MIN_LOGO_HEIGHT}`;
 }
 
@@ -106,16 +106,16 @@ export function validateAssets(
 
   for (const spec of ASSET_CONTRACT) {
     const file = join(dir, spec.path);
-    const record = { path: spec.path, expected: expectation(spec) };
+    const record = { path: spec.path, expected: describeSpec(spec) };
     if (!existsSync(file)) {
       files.push({ ...record, found: "missing" });
-      errors.push(`${spec.path}: missing (expected ${expectation(spec)})`);
+      errors.push(`${spec.path}: missing (expected ${describeSpec(spec)})`);
       continue;
     }
     const size = readPngSize(readHeader(file));
     if (!size) {
       files.push({ ...record, found: "not a PNG" });
-      errors.push(`${spec.path}: not a PNG (expected ${expectation(spec)})`);
+      errors.push(`${spec.path}: not a PNG (expected ${describeSpec(spec)})`);
       continue;
     }
     const actual = `${size.width}×${size.height}`;
@@ -127,7 +127,7 @@ export function validateAssets(
         logoSizes.set(spec.path, size);
       }
     } else if (size.width !== spec.width || size.height !== spec.height) {
-      errors.push(`${spec.path}: ${actual}, expected ${expectation(spec)}`);
+      errors.push(`${spec.path}: ${actual}, expected ${describeSpec(spec)}`);
     }
     const bytes = spec.path === OG_IMAGE_FILE ? statSync(file).size : 0;
     if (bytes > OG_IMAGE_WARN_BYTES) {
