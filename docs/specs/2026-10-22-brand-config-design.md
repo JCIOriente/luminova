@@ -297,7 +297,7 @@ script set it; nothing else does.
 | `brand-assets/pull-manifest.json` | If present, its profile must match | Required (written by `brand:pull`); profile must match |
 | Profile restrictions | none | `fixture` and any `demo-*` project id rejected |
 | Target project | — | `GCP_PROJECT_ID`, when set, must equal `firebase.projectId` (CD always sets it) |
-| Output marker | none | `dist/.brand-release.json` `{ profile, projectId, assets: <pull-manifest sha256> }` |
+| Output marker | none | `dist/.brand-release.json` `{ profile, projectId, assets: <pull-manifest sha256>, indexHtml: <index.html sha256> }`. `indexHtml` ties the marker to its build: turbo restores a cached `dist` on top of `dist/` without deleting the old marker, so `brand:assert-dist` recomputes the digest (PR 2a review) |
 
 The marker closes the manual path. `firebase.json` gains a hosting `predeploy` that runs
 `brand:assert-dist <app>`, comparing the marker with `$GCLOUD_PROJECT` (set by firebase-tools
