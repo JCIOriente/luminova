@@ -1,8 +1,8 @@
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { PULL_MANIFEST_FILE } from "./assets.ts";
+import { sha256 } from "./hash.ts";
 import { issuesToBrandError, readJsonFile, type LoadedProfile } from "./load-profile.ts";
 
 /** Release mode (spec section 5.6): the deploy build. CD and `deploy:hosting` set it. */
@@ -26,9 +26,6 @@ const releaseMarkerSchema = z.strictObject({
 export type ReleaseMarker = z.infer<typeof releaseMarkerSchema>;
 /** What the build knows before it emits: the marker minus the index.html digest. */
 export type ReleaseIdentity = Omit<ReleaseMarker, "indexHtml">;
-
-export const sha256 = (data: string | Uint8Array) =>
-  createHash("sha256").update(data).digest("hex");
 
 export function isRelease(env: Env): boolean {
   const value = env[RELEASE_ENV]?.trim();
@@ -101,7 +98,7 @@ export function releaseErrors({
   return errors;
 }
 
-export function releaseMarker(profile: LoadedProfile, assetsDir: string): ReleaseIdentity {
+export function releaseIdentity(profile: LoadedProfile, assetsDir: string): ReleaseIdentity {
   return {
     profile: profile.slug,
     projectId: profile.brand.firebase.projectId,

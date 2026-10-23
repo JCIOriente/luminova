@@ -16,7 +16,8 @@ import { writeAssetSet } from "./asset-set.ts";
 import { OG_IMAGE_FILE } from "./assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile } from "./load-profile.ts";
 import { DEV_PORTS, PREVIEW_PORTS } from "./ports.ts";
-import { RELEASE_MARKER_FILE, readReleaseMarker, sha256 } from "./release.ts";
+import { sha256 } from "./hash.ts";
+import { RELEASE_MARKER_FILE, readReleaseMarker } from "./release.ts";
 import { brandPlugin, logoInclude, pwaManifest, resolveBrandBuild } from "./vite.ts";
 
 const ENV_KEYS = [

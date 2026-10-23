@@ -10,8 +10,7 @@ import {
   RELEASE_MARKER_FILE,
   isRelease,
   releaseErrors,
-  releaseMarker,
-  sha256,
+  releaseIdentity,
   type ReleaseIdentity,
   type ReleaseMarker,
 } from "./release.ts";
@@ -21,6 +20,7 @@ import { readSiteContent } from "./site-content.ts";
 import { parseSiteContent, type SiteContent } from "./site-content-schema.ts";
 import { stagePublic } from "./stage-public.ts";
 import { resolveUrls, type BrandUrls } from "./urls.ts";
+import { sha256 } from "./hash.ts";
 
 export const BRAND_VIRTUAL_MODULE = "virtual:luminova-brand";
 const RESOLVED_VIRTUAL_MODULE = `\0${BRAND_VIRTUAL_MODULE}`;
@@ -117,7 +117,7 @@ export function resolveBrandBuild({
     assetsDir,
     logoSize: validation.logoSize,
     siteContent,
-    release: release ? releaseMarker(profile, assetsDir) : null,
+    release: release ? releaseIdentity(profile, assetsDir) : null,
   };
 }
 

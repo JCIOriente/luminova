@@ -10,7 +10,7 @@ import {
   isRelease,
   readReleaseMarker,
   releaseErrors,
-  releaseMarker,
+  releaseIdentity,
 } from "./release.ts";
 
 const BUILD = { command: "build", emulatorEnabled: false } as const;
@@ -141,7 +141,7 @@ describe("releaseErrors on the build itself", () => {
 describe("release marker", () => {
   it("records the profile, its project and the pull manifest's sha256", () => {
     const digest = writeManifest();
-    expect(releaseMarker(jci(), assetsDir)).toEqual({
+    expect(releaseIdentity(jci(), assetsDir)).toEqual({
       profile: "jci-oriente",
       projectId: "jci-oriente",
       assets: digest,

@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { BrandConfigError, REPO_ROOT } from "../load-profile.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
 import { ProjectTargetError, agreedProject, envProjectSources } from "../project-target.ts";
-import { readReleaseMarker, sha256, type ReleaseMarker } from "../release.ts";
+import { readReleaseMarker, type ReleaseMarker } from "../release.ts";
+import { sha256 } from "../hash.ts";
 
 /** Errors, or the marker of a dist that may ship. */
 export type DistCheck =
@@ -29,8 +30,7 @@ export function assertDist({
   let project: string | undefined;
   try {
     marker = readReleaseMarker(distDir);
-    // GCLOUD_PROJECT is what firebase-tools sets for hooks; a shell GOOGLE_CLOUD_PROJECT
-    // would only cause false refusals.
+    // firebase-tools sets GCLOUD_PROJECT for hooks; a shell GOOGLE_CLOUD_PROJECT is ignored.
     project = agreedProject(envProjectSources(env, ["GCLOUD_PROJECT", "GCP_PROJECT_ID"]));
   } catch (error) {
     if (error instanceof BrandConfigError)

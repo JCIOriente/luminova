@@ -15,11 +15,8 @@ import {
 
 export { ProjectTargetError, loadProfile, parseProjectFlag };
 
-/**
- * Emulator and read-mostly scripts: the project the given env keys name, else the
- * profile's. GCLOUD_PROJECT only by default (what `firebase emulators:exec` sets), so a
- * GOOGLE_CLOUD_PROJECT exported in a developer's shell never redirects a seed.
- */
+/** Emulator and read-mostly scripts: the project `envKeys` name, else the profile's. GCLOUD_PROJECT
+ * only by default (what `emulators:exec` sets): a shell GOOGLE_CLOUD_PROJECT must not redirect a seed. */
 export function resolveLocalProject({
   env = process.env,
   profile,
