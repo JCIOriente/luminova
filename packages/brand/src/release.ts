@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { z } from "zod";
 import { PULL_MANIFEST_FILE } from "./assets.ts";
 import { sha256 } from "./hash.ts";
-import { issuesToBrandError, readJsonFile, type LoadedProfile } from "./load-profile.ts";
+import { issuesToBrandError, readJsonFile, type Env, type LoadedProfile } from "./load-profile.ts";
 
 /** Release mode (spec section 5.6): the deploy build. CD and `deploy:hosting` set it. */
 const RELEASE_ENV = "BRAND_RELEASE";
@@ -11,8 +11,6 @@ export const RELEASE_MARKER_FILE = ".brand-release.json";
 export const PULLED_ASSETS_DIR = "brand-assets";
 const NEUTRAL_PROFILE = "fixture";
 const DEMO_PROJECT_PREFIX = "demo-";
-
-type Env = Readonly<Record<string, string | undefined>>;
 
 const releaseMarkerSchema = z.strictObject({
   profile: z.string().min(1),

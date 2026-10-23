@@ -6,6 +6,7 @@ import {
   BrandConfigError,
   REPO_ROOT,
   issuesToBrandError,
+  parseJsonText,
   type LoadedProfile,
 } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR, undeployableProfileErrors } from "../release.ts";
@@ -52,13 +53,7 @@ export async function pull({
     bucketUrl(bucket, "**"),
     "--format=json",
   ]);
-  let json: unknown;
-  try {
-    json = JSON.parse(raw);
-  } catch (error) {
-    throw new BrandConfigError([`${label}: not JSON (${String(error)})`]);
-  }
-  const listing = listingSchema.safeParse(json);
+  const listing = listingSchema.safeParse(parseJsonText(raw, label));
   if (!listing.success) throw issuesToBrandError(label, listing.error.issues);
   const byName = new Map(listing.data.map((object) => [object.name, object]));
 

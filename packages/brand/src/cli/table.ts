@@ -13,3 +13,5 @@ export function formatTable(rows: readonly (readonly string[])[]): string {
     )
     .join("\n");
 }
+
+export const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;

@@ -1,5 +1,6 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { errorMessage } from "./load-profile.ts";
 import { BRAND_APPS } from "./ports.ts";
 import { PNG_HEADER_BYTES, readPngSize, type PngSize } from "./png.ts";
 
@@ -45,18 +46,22 @@ export function contractByFolder(): Map<string, string[]> {
   return groups;
 }
 
-interface AssetFile {
+export interface AssetFile {
   path: string;
   expected: string;
   /** `W×H`, `missing` or `not a PNG`. */
   found: string;
+  errors: string[];
+  warnings: string[];
 }
 
 export interface AssetValidation {
   errors: string[];
   warnings: string[];
-  /** What was read for each contract file, in contract order. */
+  /** Each contract file with its own problems, in contract order. */
   files: AssetFile[];
+  /** Why `pull-manifest.json` does not fit the profile, without the file prefix. */
+  manifestError: string | null;
   /** The shared size of the three logos, when they all read. */
   logoSize: PngSize | null;
 }
@@ -88,10 +93,42 @@ function checkPullManifest(dir: string, profile: string): string | null {
         : undefined;
     return pulled === profile
       ? null
-      : `${PULL_MANIFEST_FILE}: pulled for profile "${String(pulled)}", but "${profile}" is selected; re-run brand:pull`;
+      : `pulled for profile "${String(pulled)}", but "${profile}" is selected; re-run brand:pull`;
   } catch (error) {
-    return `${PULL_MANIFEST_FILE}: not valid JSON (${error instanceof Error ? error.message : String(error)})`;
+    return `not valid JSON (${errorMessage(error)})`;
   }
+}
+
+function readFile(dir: string, spec: AssetSpec): { file: AssetFile; size: PngSize | null } {
+  const path = join(dir, spec.path);
+  const expected = describeSpec(spec);
+  const file: AssetFile = { path: spec.path, expected, found: "", errors: [], warnings: [] };
+  if (!existsSync(path)) {
+    file.found = "missing";
+    file.errors.push(`missing (expected ${expected})`);
+    return { file, size: null };
+  }
+  const size = readPngSize(readHeader(path));
+  if (!size) {
+    file.found = "not a PNG";
+    file.errors.push(`not a PNG (expected ${expected})`);
+    return { file, size: null };
+  }
+  file.found = `${size.width}×${size.height}`;
+  if (spec.width === undefined) {
+    if (size.height < MIN_LOGO_HEIGHT) {
+      file.errors.push(`${file.found} is too small (expected height ≥ ${MIN_LOGO_HEIGHT})`);
+    }
+  } else if (size.width !== spec.width || size.height !== spec.height) {
+    file.errors.push(`${file.found}, expected ${expected}`);
+  }
+  const bytes = spec.path === OG_IMAGE_FILE ? statSync(path).size : 0;
+  if (bytes > OG_IMAGE_WARN_BYTES) {
+    file.warnings.push(
+      `${Math.round(bytes / 1024)} KB is over ${OG_IMAGE_WARN_BYTES / 1024} KB; WhatsApp may skip the preview`,
+    );
+  }
+  return { file, size };
 }
 
 /** Checks a directory against the asset contract and returns every problem at once. */
@@ -99,59 +136,40 @@ export function validateAssets(
   dir: string,
   { profile }: { profile?: string } = {},
 ): AssetValidation {
-  const errors: string[] = [];
-  const warnings: string[] = [];
   const files: AssetFile[] = [];
-  const logoSizes = new Map<string, PngSize>();
-
+  const logos = new Map<string, { file: AssetFile; size: PngSize }>();
   for (const spec of ASSET_CONTRACT) {
-    const file = join(dir, spec.path);
-    const record = { path: spec.path, expected: describeSpec(spec) };
-    if (!existsSync(file)) {
-      files.push({ ...record, found: "missing" });
-      errors.push(`${spec.path}: missing (expected ${describeSpec(spec)})`);
-      continue;
-    }
-    const size = readPngSize(readHeader(file));
-    if (!size) {
-      files.push({ ...record, found: "not a PNG" });
-      errors.push(`${spec.path}: not a PNG (expected ${describeSpec(spec)})`);
-      continue;
-    }
-    const actual = `${size.width}×${size.height}`;
-    files.push({ ...record, found: actual });
-    if (spec.width === undefined) {
-      if (size.height < MIN_LOGO_HEIGHT) {
-        errors.push(`${spec.path}: ${actual} is too small (expected height ≥ ${MIN_LOGO_HEIGHT})`);
-      } else {
-        logoSizes.set(spec.path, size);
-      }
-    } else if (size.width !== spec.width || size.height !== spec.height) {
-      errors.push(`${spec.path}: ${actual}, expected ${describeSpec(spec)}`);
-    }
-    const bytes = spec.path === OG_IMAGE_FILE ? statSync(file).size : 0;
-    if (bytes > OG_IMAGE_WARN_BYTES) {
-      warnings.push(
-        `${spec.path}: ${Math.round(bytes / 1024)} KB is over ${OG_IMAGE_WARN_BYTES / 1024} KB; WhatsApp may skip the preview`,
-      );
+    const { file, size } = readFile(dir, spec);
+    files.push(file);
+    if (spec.width === undefined && size && file.errors.length === 0) {
+      logos.set(spec.path, { file, size });
     }
   }
 
   const [mainFile] = LOGO_FILES;
-  const main = logoSizes.get(mainFile);
-  const mismatched = main ? [...logoSizes].filter(([, size]) => !sameSize(size, main)) : [];
-  for (const [path, size] of mismatched) {
-    errors.push(
-      `${path}: ${size.width}×${size.height} must be the same size as ${mainFile} (${main?.width}×${main?.height})`,
-    );
+  const main = logos.get(mainFile)?.size;
+  let mismatched = 0;
+  for (const { file, size } of logos.values()) {
+    if (main && !sameSize(size, main)) {
+      mismatched += 1;
+      file.errors.push(
+        `${size.width}×${size.height} must be the same size as ${mainFile} (${main.width}×${main.height})`,
+      );
+    }
   }
-  const logoSize =
-    main && logoSizes.size === LOGO_FILES.length && mismatched.length === 0 ? main : null;
+  const logoSize = main && logos.size === LOGO_FILES.length && mismatched === 0 ? main : null;
+  const manifestError = profile ? checkPullManifest(dir, profile) : null;
 
-  if (profile) {
-    const manifestError = checkPullManifest(dir, profile);
-    if (manifestError) errors.push(manifestError);
-  }
-
-  return { errors, warnings, files, logoSize };
+  const prefixed = (pick: (file: AssetFile) => string[]) =>
+    files.flatMap((file) => pick(file).map((message) => `${file.path}: ${message}`));
+  return {
+    errors: [
+      ...prefixed((file) => file.errors),
+      ...(manifestError ? [`${PULL_MANIFEST_FILE}: ${manifestError}`] : []),
+    ],
+    warnings: prefixed((file) => file.warnings),
+    files,
+    manifestError,
+    logoSize,
+  };
 }

@@ -17,15 +17,30 @@ export class BrandConfigError extends Error {
   }
 }
 
-/** Parses a profile JSON file; `label` prefixes the error, e.g. `brand/acme/brand.json`. */
-export function readJsonFile(file: string, label: string): unknown {
-  try {
-    return JSON.parse(readFileSync(file, "utf8"));
-  } catch (error) {
-    throw new BrandConfigError([
-      `${label}: not valid JSON (${error instanceof Error ? error.message : String(error)})`,
-    ]);
+/** A profile that cannot be located: a malformed slug or no `brand/<slug>/brand.json`. */
+export class ProfileNotFoundError extends BrandConfigError {
+  constructor(errors: string[]) {
+    super(errors);
+    this.name = "ProfileNotFoundError";
   }
+}
+
+export type Env = Readonly<Record<string, string | undefined>>;
+
+export const errorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
+/** Parses JSON text; `label` prefixes the error, e.g. `brand/acme/brand.json`. */
+export function parseJsonText(text: string, label: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new BrandConfigError([`${label}: not valid JSON (${errorMessage(error)})`]);
+  }
+}
+
+export function readJsonFile(file: string, label: string): unknown {
+  return parseJsonText(readFileSync(file, "utf8"), label);
 }
 
 /** One error line per schema issue, `<label> <path>: <message>`. */
@@ -50,8 +65,21 @@ export interface LoadedProfile {
 
 export interface LoadProfileOptions {
   repoRoot?: string;
-  env?: Readonly<Record<string, string | undefined>>;
+  env?: Env;
   profile?: string;
+}
+
+/** Which profile a command means: an explicit one, else BRAND_PROFILE, else the example. */
+export function selectedProfile({
+  env = process.env,
+  profile,
+}: Pick<LoadProfileOptions, "env" | "profile"> = {}): {
+  slug: string;
+  source: LoadedProfile["source"];
+} {
+  const fromEnv = env.BRAND_PROFILE?.trim();
+  if (profile) return { slug: profile, source: "argument" };
+  return fromEnv ? { slug: fromEnv, source: "env" } : { slug: DEFAULT_PROFILE, source: "default" };
 }
 
 function availableProfiles(brandDir: string): string[] {
@@ -67,9 +95,7 @@ export function loadProfile({
   env = process.env,
   profile,
 }: LoadProfileOptions = {}): LoadedProfile {
-  const fromEnv = env.BRAND_PROFILE?.trim();
-  const slug = profile ?? (fromEnv || DEFAULT_PROFILE);
-  const source = profile ? "argument" : fromEnv ? "env" : "default";
+  const { slug, source } = selectedProfile({ env, profile });
   const warnings =
     source === "default"
       ? [`BRAND_PROFILE is unset; using the "${DEFAULT_PROFILE}" example profile.`]
@@ -77,14 +103,14 @@ export function loadProfile({
 
   // Checked before the path join, so a slug like "../x" can never leave brand/.
   if (!SLUG_PATTERN.test(slug)) {
-    throw new BrandConfigError([`profile "${slug}" ${SLUG_MESSAGE} (e.g. jci-oriente)`]);
+    throw new ProfileNotFoundError([`profile "${slug}" ${SLUG_MESSAGE} (e.g. jci-oriente)`]);
   }
   const brandDir = join(repoRoot, "brand");
   const dir = join(brandDir, slug);
   const file = join(dir, "brand.json");
   if (!existsSync(file)) {
     const available = availableProfiles(brandDir).join(", ") || "none";
-    throw new BrandConfigError([
+    throw new ProfileNotFoundError([
       `profile "${slug}" not found at brand/${slug}/brand.json (available: ${available})`,
     ]);
   }

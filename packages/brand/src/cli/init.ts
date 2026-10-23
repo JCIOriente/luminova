@@ -9,6 +9,7 @@ import {
   REPO_ROOT,
   issuesToBrandError,
   loadProfile,
+  parseJsonText,
   readJsonFile,
 } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
@@ -66,7 +67,7 @@ const fromProject = (suffix: string) => (answers: Answers) => {
 };
 
 /** In brand.json order; a fallback may read any field asked before it. */
-const FIELDS: readonly Field[] = [
+const PROFILE_FIELDS: readonly Field[] = [
   { path: "slug", label: "Profile slug, lowercase kebab-case (e.g. jci-valle)" },
   { path: "name", label: "Chapter name" },
   { path: "shortName", label: "Short name", fallback: from("name") },
@@ -137,6 +138,10 @@ const FIELDS: readonly Field[] = [
   },
   { path: "firebase.web.spotlight.appId", label: "Public site web app id (1:…:web:…)" },
   { path: "firebase.web.backstage.appId", label: "Admin site web app id (1:…:web:…)" },
+];
+
+/** Asked after the optional sdkconfig read, which can fill them. */
+const WEB_KEY_FIELDS: readonly Field[] = [
   {
     path: "firebase.web.authDomain",
     label: "Auth domain",
@@ -177,8 +182,6 @@ const FIELDS: readonly Field[] = [
   },
 ];
 
-const FILL_WEB_AFTER = "firebase.web.backstage.appId";
-
 const sdkconfigSchema = z.object({
   result: z.object({
     sdkConfig: z.object({
@@ -189,6 +192,10 @@ const sdkconfigSchema = z.object({
     }),
   }),
 });
+
+function fillIfBlank(answers: Answers, path: string, value: string): void {
+  if (!text(answers, path)) set(answers, path, value);
+}
 
 /** Reads each web app's config with `firebase apps:sdkconfig` (read-only) and fills the gaps. */
 async function fillWebConfig(answers: Answers, run: CommandRunner): Promise<void> {
@@ -208,13 +215,7 @@ async function fillWebConfig(answers: Answers, run: CommandRunner): Promise<void
       "--json",
     ]);
     const label = `firebase apps:sdkconfig WEB ${appId}`;
-    let json: unknown;
-    try {
-      json = JSON.parse(output);
-    } catch (error) {
-      throw new BrandConfigError([`${label}: not JSON (${String(error)})`]);
-    }
-    const parsed = sdkconfigSchema.safeParse(json);
+    const parsed = sdkconfigSchema.safeParse(parseJsonText(output, label));
     if (!parsed.success) throw issuesToBrandError(label, parsed.error.issues);
     const config = parsed.data.result.sdkConfig;
     if (config.projectId !== projectId) {
@@ -222,12 +223,9 @@ async function fillWebConfig(answers: Answers, run: CommandRunner): Promise<void
         `${label}: app belongs to project "${config.projectId}", not "${projectId}"`,
       ]);
     }
-    const fill = (path: string, value: string) => {
-      if (!text(answers, path)) set(answers, path, value);
-    };
-    fill(`firebase.web.${app}.apiKey`, config.apiKey);
-    fill("firebase.web.authDomain", config.authDomain);
-    fill("firebase.web.messagingSenderId", config.messagingSenderId);
+    fillIfBlank(answers, `firebase.web.${app}.apiKey`, config.apiKey);
+    fillIfBlank(answers, "firebase.web.authDomain", config.authDomain);
+    fillIfBlank(answers, "firebase.web.messagingSenderId", config.messagingSenderId);
   }
 }
 
@@ -241,13 +239,13 @@ function orderLike(template: unknown, value: unknown): unknown {
   );
 }
 
-export function assetReadme(): string {
+function assetReadme(): string {
   const rows = ASSET_CONTRACT.map((spec) => `  ${spec.path.padEnd(40)}${describeSpec(spec)}`);
   return [
     "Brand assets for the selected profile (BRAND_PROFILE). Never commit this folder:",
     "it is gitignored, and deployments read the profile's private bucket instead.",
     "",
-    "Put these 16 PNG files here, then run pnpm brand:check:",
+    `Put these ${ASSET_CONTRACT.length} PNG files here, then run pnpm brand:check:`,
     "",
     ...rows,
     "",
@@ -279,8 +277,9 @@ export async function init({
   const exampleAnswers = isRecord(exampleJson) ? exampleJson : {};
   const answers: Answers = structuredClone(initial);
 
-  for (const field of FIELDS) {
-    if (get(answers, field.path) === undefined) {
+  const askAll = async (fields: readonly Field[]) => {
+    for (const field of fields) {
+      if (get(answers, field.path) !== undefined) continue;
       const fallback = field.fallback?.(answers, exampleAnswers);
       const reply =
         (await prompter?.ask({ key: field.path, label: field.label, fallback })) || fallback || "";
@@ -289,19 +288,20 @@ export async function init({
         set(answers, field.path, value);
       }
     }
-    if (field.path === FILL_WEB_AFTER) {
-      const wanted =
-        fillWeb ||
-        (prompter !== undefined &&
-          /^y/i.test(
-            await prompter.ask({
-              key: "fillWeb",
-              label: "Read the API keys with firebase apps:sdkconfig? Needs firebase login (y/N)",
-            }),
-          ));
-      if (wanted) await fillWebConfig(answers, run);
-    }
-  }
+  };
+
+  await askAll(PROFILE_FIELDS);
+  const wanted =
+    fillWeb ||
+    (prompter !== undefined &&
+      /^y/i.test(
+        await prompter.ask({
+          key: "fillWeb",
+          label: "Read the API keys with firebase apps:sdkconfig? Needs firebase login (y/N)",
+        }),
+      ));
+  if (wanted) await fillWebConfig(answers, run);
+  await askAll(WEB_KEY_FIELDS);
 
   const slug = String(answers.slug ?? "");
   const brand = orderLike(exampleAnswers, { $schema: "../brand.schema.json", ...answers });
@@ -351,7 +351,7 @@ if (import.meta.main) {
           "  pnpm brand:apply",
           "      writes .firebaserc for the new project",
           `  edit brand/${slug}/${SITE_CONTENT_FILE}`,
-          `  put the 16 files in ${PULLED_ASSETS_DIR}/ (its README.txt lists them), then pnpm brand:check`,
+          `  put the ${ASSET_CONTRACT.length} files in ${PULLED_ASSETS_DIR}/ (its README.txt lists them), then pnpm brand:check`,
           "  pnpm brand:doctor",
           "",
           `Commit brand/${slug}/ in your fork; never commit ${PULLED_ASSETS_DIR}/. Guide: docs/adopting.md`,

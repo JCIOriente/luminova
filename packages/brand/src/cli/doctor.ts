@@ -1,21 +1,23 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import { ASSET_CONTRACT } from "../assets.ts";
 import {
   BrandConfigError,
-  DEFAULT_PROFILE,
+  ProfileNotFoundError,
   REPO_ROOT,
+  errorMessage,
   loadProfile,
+  readJsonFile,
+  selectedProfile,
+  type Env,
   type LoadedProfile,
 } from "../load-profile.ts";
-import { SLUG_PATTERN } from "../schema.ts";
 import { FIREBASERC, firebasercContent } from "./apply.ts";
 import { checkBrand } from "./check.ts";
 import { bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
 import { exitOnFailure } from "./main.ts";
-import { formatTable } from "./table.ts";
-
-type Env = Readonly<Record<string, string | undefined>>;
+import { formatTable, plural } from "./table.ts";
 
 export interface DoctorRow {
   check: string;
@@ -23,60 +25,46 @@ export interface DoctorRow {
   detail: string;
 }
 
-const ok = (check: string, detail: string): DoctorRow => ({ check, status: "ok", detail });
-const fail = (check: string, detail: string): DoctorRow => ({ check, status: "fail", detail });
-const NEEDS_PROFILE = "needs a valid profile";
-
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const row =
+  (status: DoctorRow["status"]) =>
+  (check: string, detail: string): DoctorRow => ({ check, status, detail });
+const ok = row("ok");
+const warn = row("warn");
+const fail = row("fail");
+const skip = (check: string) => row("skip")(check, "needs a valid profile");
 
 async function attempt(check: string, body: () => Promise<DoctorRow>): Promise<DoctorRow> {
   try {
     return await body();
   } catch (error) {
-    return fail(check, message(error));
+    return fail(check, errorMessage(error));
   }
 }
 
 function profileRows(repoRoot: string, env: Env): { rows: DoctorRow[]; profile?: LoadedProfile } {
-  const fromEnv = env.BRAND_PROFILE?.trim();
-  const slug = fromEnv || DEFAULT_PROFILE;
-  const found = ok("profile", `${slug} (${fromEnv ? "from BRAND_PROFILE" : "default"})`);
+  const { slug, source } = selectedProfile({ env });
+  const found = ok("profile", `${slug} (${source === "env" ? "from BRAND_PROFILE" : "default"})`);
   try {
     const profile = loadProfile({ repoRoot, env });
     return { rows: [found, ok("schema", `brand/${slug}/brand.json valid`)], profile };
   } catch (error) {
     if (!(error instanceof BrandConfigError)) throw error;
     const detail = error.errors.join("; ");
-    // A bad slug or a missing folder fails the profile itself; anything else is the schema.
-    const located =
-      SLUG_PATTERN.test(slug) && existsSync(join(repoRoot, "brand", slug, "brand.json"));
-    return located
-      ? { rows: [found, fail("schema", detail)] }
-      : {
-          rows: [
-            fail("profile", detail),
-            { check: "schema", status: "skip", detail: NEEDS_PROFILE },
-          ],
-        };
+    return error instanceof ProfileNotFoundError
+      ? { rows: [fail("profile", detail), skip("schema")] }
+      : { rows: [found, fail("schema", detail)] };
   }
 }
 
 async function brandRows(profile: LoadedProfile, repoRoot: string, env: Env): Promise<DoctorRow[]> {
-  const { rows } = await checkBrand({ profile, repoRoot, env });
-  const content = rows.filter(({ item }) => item === "site-content.json");
-  const assets = rows.filter(({ item }) => item !== "site-content.json");
-  const contentFailed = content.filter(({ failed }) => failed);
+  const { assets, content } = await checkBrand({ profile, repoRoot, env });
   const assetsFailed = assets.filter(({ failed }) => failed).length;
+  const total = ASSET_CONTRACT.length;
   return [
-    contentFailed.length > 0
-      ? fail("site content", contentFailed.map(({ verdict }) => verdict).join("; "))
-      : ok("site content", "schema valid"),
+    content.failed ? fail("site content", content.verdict) : ok("site content", "schema valid"),
     assetsFailed > 0
-      ? fail(
-          "assets",
-          `${assetsFailed} problem${assetsFailed === 1 ? "" : "s"}; run pnpm brand:check for the table`,
-        )
-      : ok("assets", `${ASSET_CONTRACT.length}/${ASSET_CONTRACT.length} files valid`),
+      ? fail("assets", `${plural(assetsFailed, "problem")}; run pnpm brand:check for the table`)
+      : ok("assets", `${total}/${total} files valid`),
   ];
 }
 
@@ -124,12 +112,40 @@ function meetsMinimum(version: string, range: string): boolean | null {
   return true;
 }
 
-function readRootManifest(repoRoot: string): {
-  engines?: { node?: string };
-  packageManager?: string;
-} {
-  const manifest: unknown = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
-  return typeof manifest === "object" && manifest !== null ? manifest : {};
+const rootManifestSchema = z.looseObject({
+  engines: z.looseObject({ node: z.string().optional() }).optional(),
+  packageManager: z.string().optional(),
+});
+
+function readRootManifest(repoRoot: string): z.infer<typeof rootManifestSchema> {
+  const parsed = rootManifestSchema.safeParse(
+    readJsonFile(join(repoRoot, "package.json"), "package.json"),
+  );
+  return parsed.success ? parsed.data : {};
+}
+
+async function nodeRow(repoRoot: string, nodeVersion: string): Promise<DoctorRow> {
+  const engines = readRootManifest(repoRoot).engines?.node;
+  const meets = engines ? meetsMinimum(nodeVersion, engines) : true;
+  if (meets === null) return warn("node", `${nodeVersion} (cannot read engines "${engines}")`);
+  return meets ? ok("node", nodeVersion) : fail("node", `${nodeVersion} (needs ${engines})`);
+}
+
+async function pnpmRow(repoRoot: string, run: CommandRunner): Promise<DoctorRow> {
+  const version = (await run("pnpm", ["--version"])).trim();
+  const pinned = readRootManifest(repoRoot).packageManager?.replace(/^pnpm@/, "");
+  return !pinned || version === pinned
+    ? ok("pnpm", version)
+    : warn("pnpm", `${version} (packageManager pins ${pinned})`);
+}
+
+async function gcloudAccountRow(run: CommandRunner): Promise<DoctorRow> {
+  const account = (
+    await run("gcloud", ["auth", "list", "--filter=status:ACTIVE", "--format=value(account)"])
+  ).trim();
+  return account
+    ? ok("gcloud account", account.split("\n")[0] ?? account)
+    : fail("gcloud account", "nobody signed in; run gcloud auth login");
 }
 
 /**
@@ -149,60 +165,31 @@ export async function doctor({
   nodeVersion?: string;
 } = {}): Promise<DoctorRow[]> {
   const { rows, profile } = profileRows(repoRoot, env);
-  const skip = (check: string): DoctorRow => ({ check, status: "skip", detail: NEEDS_PROFILE });
+  // The external commands are independent; start them together, report in order.
+  const [account, bucket, pnpm] = await Promise.all([
+    attempt("gcloud account", () => gcloudAccountRow(run)),
+    profile ? attempt("bucket", () => bucketRow(profile, run)) : skip("bucket"),
+    attempt("pnpm", () => pnpmRow(repoRoot, run)),
+  ]);
 
   rows.push(
     ...(profile
       ? await brandRows(profile, repoRoot, env).catch((error: unknown) => [
-          fail("site content", message(error)),
-          fail("assets", message(error)),
+          fail("site content", errorMessage(error)),
+          fail("assets", errorMessage(error)),
         ])
       : [skip("site content"), skip("assets")]),
+    profile ? firebasercRow(profile, repoRoot) : skip(FIREBASERC),
+    account,
+    bucket,
   );
-  rows.push(profile ? firebasercRow(profile, repoRoot) : skip(FIREBASERC));
-
-  rows.push(
-    await attempt("gcloud account", async () => {
-      const account = (
-        await run("gcloud", ["auth", "list", "--filter=status:ACTIVE", "--format=value(account)"])
-      ).trim();
-      return account
-        ? ok("gcloud account", account.split("\n")[0] ?? account)
-        : fail("gcloud account", "nobody signed in; run gcloud auth login");
-    }),
-  );
-  rows.push(profile ? await attempt("bucket", () => bucketRow(profile, run)) : skip("bucket"));
-
   const selected = env.BRAND_PROFILE?.trim();
   rows.push(
     selected
       ? ok("BRAND_PROFILE", selected)
       : fail("BRAND_PROFILE", "unset; add export BRAND_PROFILE=<slug> to your shell profile"),
-  );
-
-  const manifest = readRootManifest(repoRoot);
-  const engines = manifest.engines?.node;
-  const meets = engines ? meetsMinimum(nodeVersion, engines) : true;
-  rows.push(
-    meets === null
-      ? {
-          check: "node",
-          status: "warn",
-          detail: `${nodeVersion} (cannot read engines "${engines}")`,
-        }
-      : meets
-        ? ok("node", nodeVersion)
-        : fail("node", `${nodeVersion} (needs ${engines})`),
-  );
-
-  const pinned = manifest.packageManager?.replace(/^pnpm@/, "");
-  rows.push(
-    await attempt("pnpm", async () => {
-      const version = (await run("pnpm", ["--version"])).trim();
-      return !pinned || version === pinned
-        ? ok("pnpm", version)
-        : { check: "pnpm", status: "warn", detail: `${version} (packageManager pins ${pinned})` };
-    }),
+    await attempt("node", () => nodeRow(repoRoot, nodeVersion)),
+    pnpm,
   );
   return rows;
 }
@@ -218,7 +205,7 @@ if (import.meta.main) {
     );
     const failed = rows.filter(({ status }) => status === "fail").length;
     if (failed > 0) {
-      console.error(`brand:doctor: ${failed} check${failed === 1 ? "" : "s"} failed.`);
+      console.error(`brand:doctor: ${plural(failed, "check")} failed.`);
       process.exit(1);
     }
     console.log("brand:doctor: every check passed.");
