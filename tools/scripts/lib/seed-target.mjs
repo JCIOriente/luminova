@@ -3,36 +3,24 @@
 // The brand package is imported as TypeScript through Node 24 type stripping.
 import { loadProfile } from "../../../packages/brand/src/load-profile.ts";
 import {
+  ProjectTargetError,
+  agreedProject,
+  envProjectSources,
+  parseProjectFlag,
+} from "../../../packages/brand/src/project-target.ts";
+import {
   pickSeededSiteContent,
   readSiteContent,
 } from "../../../packages/brand/src/site-content.ts";
 
-export class SeedTargetError extends Error {
-  name = "SeedTargetError";
-}
+export { ProjectTargetError, loadProfile, parseProjectFlag };
 
-export { loadProfile };
-
-/** Emulator and read-mostly scripts: the first env key set, else the profile's project. */
-export function resolveLocalProject({
-  env = process.env,
-  profile,
-  envKeys = ["GCLOUD_PROJECT"],
-} = {}) {
-  const fromEnv = envKeys.map((key) => env[key]?.trim()).find(Boolean);
-  return fromEnv || (profile ?? loadProfile({ env })).brand.firebase.projectId;
-}
-
-export function parseProjectFlag(argv) {
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith("--project=")) return argv[i].slice("--project=".length);
-    if (argv[i] === "--project") {
-      const value = argv[i + 1];
-      if (!value || value.startsWith("--")) throw new SeedTargetError("--project needs an id.");
-      return value;
-    }
-  }
-  return undefined;
+/** Emulator and read-mostly scripts: the project the env names, else the profile's. */
+export function resolveLocalProject({ env = process.env, profile } = {}) {
+  return (
+    agreedProject(envProjectSources(env)) ??
+    (profile ?? loadProfile({ env })).brand.firebase.projectId
+  );
 }
 
 /** seed-production: an explicit project that every source agrees on and the profile names. */
@@ -41,26 +29,19 @@ export function resolveProductionTarget({
   env = process.env,
   profile = loadProfile({ env }),
 } = {}) {
-  const sources = [
-    ["--project", parseProjectFlag(argv)],
-    ["GCLOUD_PROJECT", env.GCLOUD_PROJECT?.trim()],
-    ["GOOGLE_CLOUD_PROJECT", env.GOOGLE_CLOUD_PROJECT?.trim()],
-  ].filter(([, value]) => value);
-  if (sources.length === 0) {
-    throw new SeedTargetError(
+  const flag = parseProjectFlag(argv);
+  const project = agreedProject([
+    ...(flag ? [["--project", flag]] : []),
+    ...envProjectSources(env),
+  ]);
+  if (!project) {
+    throw new ProjectTargetError(
       "Refusing to run: name the production project with --project <id> or GCLOUD_PROJECT.",
     );
   }
-  const projects = new Set(sources.map(([, value]) => value));
-  if (projects.size > 1) {
-    throw new SeedTargetError(
-      `Refusing to run: the project sources disagree (${sources.map(([key, value]) => `${key}=${value}`).join(", ")}).`,
-    );
-  }
-  const [project] = projects;
   const expected = profile.brand.firebase.projectId;
   if (project !== expected) {
-    throw new SeedTargetError(
+    throw new ProjectTargetError(
       `Refusing to run: project "${project}" is not the one profile "${profile.slug}" (${expected}) ` +
         "deploys to. Select the matching profile with BRAND_PROFILE.",
     );

@@ -123,7 +123,7 @@ const publishOutcome = !REPAIR
     ? `${ALLOW_PUBLISH_FLAG} was passed — repairing it.`
     : `Withheld: re-run with ${ALLOW_PUBLISH_FLAG} to repair these too, or set publicProfile: false on the member first (the opt-out this member never exercised).`;
 const emulator = process.env.FIRESTORE_EMULATOR_HOST;
-const projectId = resolveLocalProject({ envKeys: ["GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT"] });
+const projectId = resolveLocalProject();
 
 console.log(
   `Auditing soft-delete shapes in ${emulator ? `EMULATOR (${emulator})` : "PRODUCTION"} ` +

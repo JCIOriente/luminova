@@ -6,7 +6,7 @@ import { PULL_MANIFEST_FILE } from "./assets.ts";
 import { issuesToBrandError, readJsonFile, type LoadedProfile } from "./load-profile.ts";
 
 /** Release mode (spec section 5.6): the deploy build. CD and `deploy:hosting` set it. */
-export const RELEASE_ENV = "BRAND_RELEASE";
+const RELEASE_ENV = "BRAND_RELEASE";
 export const RELEASE_MARKER_FILE = ".brand-release.json";
 export const PULLED_ASSETS_DIR = "brand-assets";
 const NEUTRAL_PROFILE = "fixture";
