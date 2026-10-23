@@ -1,11 +1,14 @@
 import { execFile } from "node:child_process";
 
 /**
- * The one seam to external CLIs (`gcloud`, `gh`). Argument arrays only, never a shell
+ * The one seam to external CLIs (`gcloud`, `gh`, `firebase`, `pnpm`). Argument arrays only, never a shell
  * string, so no value from a profile or the bucket can be interpreted by a shell. Tests
  * inject a fake that records argv.
  */
-export type CommandRunner = (command: "gcloud" | "gh", args: readonly string[]) => Promise<string>;
+export type CommandRunner = (
+  command: "gcloud" | "gh" | "firebase" | "pnpm",
+  args: readonly string[],
+) => Promise<string>;
 
 export class CommandError extends Error {
   override name = "CommandError";

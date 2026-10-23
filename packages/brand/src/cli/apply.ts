@@ -5,7 +5,7 @@ import { isRelease, undeployableProfileErrors } from "../release.ts";
 import type { Brand } from "../schema.ts";
 import { runCli } from "./main.ts";
 
-const FIREBASERC = ".firebaserc";
+export const FIREBASERC = ".firebaserc";
 
 /** `.firebaserc` is generated, never committed: its project, sites and bucket are brand values. */
 export function renderFirebaserc({ firebase }: Brand) {
@@ -24,6 +24,9 @@ export function renderFirebaserc({ firebase }: Brand) {
   };
 }
 
+export const firebasercContent = (brand: Brand) =>
+  `${JSON.stringify(renderFirebaserc(brand), null, 2)}\n`;
+
 /** Writes `.firebaserc`; under BRAND_RELEASE=1 (CD) only for a profile that may ship. */
 export function applyProfile({
   profile,
@@ -39,7 +42,7 @@ export function applyProfile({
     if (refused.length > 0) throw new BrandConfigError(refused);
   }
   const file = join(repoRoot, FIREBASERC);
-  const content = `${JSON.stringify(renderFirebaserc(profile.brand), null, 2)}\n`;
+  const content = firebasercContent(profile.brand);
   // Rewriting an identical file would bump its mtime on every install for nothing.
   const written = !existsSync(file) || readFileSync(file, "utf8") !== content;
   if (written) writeFileSync(file, content);
