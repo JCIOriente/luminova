@@ -37,7 +37,7 @@ half-replaced, and a build that cannot find a value or file must stop.
 | D7 | Deployment asset storage | One private Cloud Storage bucket per Firebase project, `<projectId>-brand-assets`, read-only to the CD service account (section 5.7) | Owner decision. About 1 MB of files; cost is effectively zero (section 5.7) |
 | D8 | No asset inheritance | A selected asset source is used complete or not at all; there is no per-file fallback between sources or profiles | A fallback is exactly how a chapter that forgot one logo would ship ours, silently |
 | D9 | Hosting target names | Rename `jcioriente` / `jcioriente-backstage` to `spotlight` / `backstage`; site ids live in `brand.json` | `firebase.json` cannot read the brand config, so its target names must be chapter-neutral |
-| D10 | `.firebaserc` | Generated (gitignored) from `brand.json` by the root `prepare` script, which pnpm runs after every `pnpm install`; `pnpm brand:apply` regenerates it on demand | Its project id, site ids and storage bucket are brand values. Generated, it cannot point a fork at someone else's project. `prepare` puts it in place everywhere an install happens (local, CI, every deploy job) without a call per entry point |
+| D10 | `.firebaserc` | Generated (gitignored) from `brand.json` by `pnpm brand:apply`: the root `prepare` script on every install that links packages, plus explicit calls where a stale or missing file breaks something (the emulator script and the CD setup action; spike in section 5.9) | Its project id, site ids and storage bucket are brand values. Generated, it cannot point a fork at someone else's project. pnpm skips `prepare` on an "Already up to date" install, so `prepare` alone cannot be the only call site |
 | D11 | Firebase web config | Moves from `apps/*/.env.production` into `brand.json` (`firebase.web`); the Vite plugin feeds it to Vite's env for production builds. `.env.production` keeps only `VITE_FIREBASE_EMULATOR_ENABLED=false` | The leak with the worst effect in section 1. The keys are public client identifiers (standing decision in `docs/roadmap.md`), so committing them in the profile changes nothing about secrecy |
 | D12 | OG image URL | Content-hashed: `og-image.<sha256-8>.png`. A profile may list `og.legacyPaths`; `jci-oriente` lists `og-image-v3.png`, so the URL scrapers already cached keeps resolving | A new image gets a new URL automatically, which is the rule `apps/spotlight/CLAUDE.md` asks humans to follow by hand today. No query-string bust |
 | D13 | Icon generation from one master | **In scope as an authoring helper** (`pnpm brand:icons`), not a build step | `@vite-pwa/assets-generator` and `sharp` are already in both apps' devDependencies and in `allowBuilds` (`pnpm-workspace.yaml:128-131`), so the native-build gate is already paid. Keeping it out of the build keeps CD free of image processing; the build still requires the explicit files of section 5.4 |
@@ -272,7 +272,7 @@ that hardcodes our name fails).
 | `index.html` | Placeholders (`__BRAND_TITLE__`, `__OG_IMAGE__`, `__THEME_COLOR__`, `__LANG__`, …) beside the existing `__SITE_URL__`. After `transformIndexHtml` the plugin fails the build if any `__[A-Z_]+__` token remains |
 | PWA manifest | Built from the profile in each `vite.config.ts` |
 | Firebase web config | In a production build (`vite build`, emulator flag off) the `config` hook sets `process.env.VITE_FIREBASE_*` / `VITE_APPCHECK_SITE_KEY` from `firebase.web` before Vite loads env (Vite's `runConfigHook` runs before `loadEnv`, and process env wins over `.env.production`). `vite serve` and `build:local` keep reading `.env.local` |
-| Turbo cache | `turbo.json` `build.env` gains `BRAND_PROFILE`, `BRAND_RELEASE`, `BRAND_ASSETS_DIR`, `GCP_PROJECT_ID`; `build.inputs` gains `$TURBO_ROOT$/brand/**`. Whether turbo hashes the gitignored `brand-assets/` is settled by a spike in the plan; release builds run with `--force` either way |
+| Turbo cache | `turbo.json` `build.env` gains `BRAND_PROFILE`, `BRAND_RELEASE`, `BRAND_ASSETS_DIR`, `GCP_PROJECT_ID`; `build.inputs` gains `$TURBO_ROOT$/brand/**` and `$TURBO_ROOT$/brand-assets/**`. Spike (PR 1b): without the second glob, `spotlight#build`'s hash did not move on a `brand-assets/` byte change; with it, the hash moves on every byte change and returns to the baseline when the folder is removed. Release builds run with `--force` anyway |
 
 URL resolution reuses the existing emulator flag; no new Vite mode:
 
@@ -363,7 +363,7 @@ apps to the root.
 
 | Script | Does | Touches prod? |
 |---|---|---|
-| `prepare` (pnpm lifecycle) | Runs `brand:apply` after every `pnpm install` | No |
+| `prepare` (pnpm lifecycle) | Runs `brand:apply` on every install that links packages (not on "Already up to date") | No |
 | `brand:apply` | Writes `.firebaserc` from the selected profile | No |
 | `brand:init` | Prompts for every `brand.json` value (or reads `--answers <file>`), writes `brand/<slug>/brand.json`, copies `site-content.json` from the example for editing, creates `brand-assets/` with a `README.txt` of the contract, and prints the `export BRAND_PROFILE=<slug>` line. Offers to fill `firebase.web` from `firebase apps:sdkconfig WEB <appId>` (read-only) | No |
 | `brand:check [--release]` | Runs the same validator as the build and prints one row per asset (found, dimensions, verdict) | No |
@@ -378,6 +378,18 @@ apps to the root.
 
 Claude never runs `brand:push`, `brand:provision --apply`, or the Deploy dispatch; the
 docs and the scripts' own output say so.
+
+**`prepare` spike (PR 2a, pnpm 11.5.1, firebase-tools 15.19.1).** On a fresh clone with
+`.firebaserc` untracked, `pnpm install --frozen-lockfile` ran `prepare` and wrote it. A
+second install that printed "Already up to date" did **not** run `prepare`, even with a
+different `BRAND_PROFILE`, so an existing checkout that pulls the untracking commit (git
+deletes the file) is left without one. The emulator suites do not need the file: the
+firestore-rules (594), storage-rules (41) and `beacon test:emulator` (51) tests pass without
+it, since each passes a `demo-*` `--project`. `pnpm dev` does: without the file the
+emulators fall back to `demo-no-project` and exit while starting hosting; with the
+generated file and the renamed targets they boot on `jci-oriente`. Hence D10's two explicit
+`brand:apply` call sites: `tools/scripts/emulators.sh` (dev and `preview:local`) and the
+`firebase-setup` action after install (CD does not depend on a lifecycle detail).
 
 ### 5.10 Seeds and tools scripts
 
