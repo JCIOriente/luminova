@@ -6,7 +6,7 @@ import { PNG_HEADER_BYTES, readPngSize, type PngSize } from "./png.ts";
 export const LOGO_FILES = ["logo-main.png", "logo-on-dark.png", "logo-on-primary.png"] as const;
 
 export const OG_IMAGE_FILE = "og-image.png";
-const PULL_MANIFEST_FILE = "pull-manifest.json";
+export const PULL_MANIFEST_FILE = "pull-manifest.json";
 const MIN_LOGO_HEIGHT = 184;
 export const OG_IMAGE_WARN_BYTES = 300 * 1024;
 

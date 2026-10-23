@@ -16,6 +16,7 @@ import { writeAssetSet } from "./asset-set.ts";
 import { OG_IMAGE_FILE } from "./assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile } from "./load-profile.ts";
 import { DEV_PORTS, PREVIEW_PORTS } from "./ports.ts";
+import { RELEASE_MARKER_FILE, readReleaseMarker } from "./release.ts";
 import { brandPlugin, logoInclude, pwaManifest, resolveBrandBuild } from "./vite.ts";
 
 const ENV_KEYS = [
@@ -159,6 +160,10 @@ describe("resolveBrandBuild", () => {
     });
   });
 
+  it("builds no release marker outside release mode", () => {
+    expect(resolve().release).toBeNull();
+  });
+
   it("reads the emulator flag from the env files and resolves preview urls", () => {
     writeFileSync(join(envDir, ".env.local"), "VITE_FIREBASE_EMULATOR_ENABLED=true\n");
     const result = resolve();
@@ -167,6 +172,71 @@ describe("resolveBrandBuild", () => {
       spotlight: `http://localhost:${PREVIEW_PORTS.spotlight}`,
       backstage: `http://localhost:${PREVIEW_PORTS.backstage}`,
     });
+  });
+});
+
+const RELEASE_ENV = {
+  BRAND_RELEASE: "1",
+  BRAND_PROFILE: "jci-oriente",
+  GCP_PROJECT_ID: "jci-oriente",
+};
+
+function writePulledAssets(profile = "jci-oriente") {
+  const dir = join(repoRoot, "brand-assets");
+  writeAssetSet(dir, distinctColors);
+  writeFileSync(join(dir, "pull-manifest.json"), JSON.stringify({ profile, objects: [] }));
+}
+
+function errorsOf(run: () => unknown): string[] {
+  try {
+    run();
+  } catch (error) {
+    if (error instanceof BrandConfigError) return error.errors;
+    throw error;
+  }
+  throw new Error("expected a BrandConfigError");
+}
+
+describe("resolveBrandBuild in release mode", () => {
+  it("reads brand-assets/ and carries the marker for the selected profile", () => {
+    writePulledAssets();
+    const result = resolve({ profile: undefined, env: RELEASE_ENV });
+    expect(result.assetsDir).toBe(join(repoRoot, "brand-assets"));
+    expect(result.release).toEqual({
+      profile: "jci-oriente",
+      projectId: "jci-oriente",
+      assets: expect.stringMatching(/^[0-9a-f]{64}$/),
+    });
+  });
+
+  it("never falls back to the profile's committed assets", () => {
+    const errors = errorsOf(() => resolve({ profile: undefined, env: RELEASE_ENV }));
+    expect(errors).toContainEqual(expect.stringMatching(/^brand-assets\/pull-manifest\.json/));
+    expect(errors).toContainEqual(expect.stringMatching(/^brand-assets\/logo-main\.png: missing/));
+  });
+
+  it("fails a fixture release, naming fixture", () => {
+    writePulledAssets("fixture");
+    const errors = errorsOf(() =>
+      resolve({ profile: undefined, env: { BRAND_RELEASE: "1", BRAND_PROFILE: "fixture" } }),
+    );
+    expect(errors).toContainEqual(expect.stringMatching(/"fixture" is the neutral test profile/));
+  });
+
+  it("fails on a project mismatch and still lists the asset problems", () => {
+    const errors = errorsOf(() =>
+      resolve({ profile: undefined, env: { ...RELEASE_ENV, GCP_PROJECT_ID: "someone-else" } }),
+    );
+    expect(errors).toContainEqual(expect.stringMatching(/^GCP_PROJECT_ID "someone-else"/));
+    expect(errors).toContainEqual(expect.stringMatching(/logo-main\.png: missing/));
+  });
+
+  it("refuses an emulator build", () => {
+    writePulledAssets();
+    writeFileSync(join(envDir, ".env.local"), "VITE_FIREBASE_EMULATOR_ENABLED=true\n");
+    expect(errorsOf(() => resolve({ profile: undefined, env: RELEASE_ENV }))).toEqual([
+      expect.stringMatching(/release mode needs a production `vite build`/),
+    ]);
   });
 });
 
@@ -238,37 +308,48 @@ const SPOTLIGHT_PLACEHOLDERS = [
   "TWITTER_DESCRIPTION",
 ];
 
-describe("brandPlugin", () => {
-  it("builds a real Vite app with the brand applied", { timeout: 60_000 }, async () => {
-    const root = join(repoRoot, "app");
-    mkdirSync(join(root, "src"), { recursive: true });
-    mkdirSync(join(root, "public"));
-    writeFileSync(join(root, "public", "robots.txt"), "User-agent: *\n");
-    writeFileSync(
-      join(root, "index.html"),
-      `<!doctype html><html lang="__LANG__"><head><title>__BRAND_TITLE__</title>
+function writeApp(): string {
+  const root = join(repoRoot, "app");
+  mkdirSync(join(root, "src"), { recursive: true });
+  mkdirSync(join(root, "public"));
+  writeFileSync(join(root, "public", "robots.txt"), "User-agent: *\n");
+  writeFileSync(
+    join(root, "index.html"),
+    `<!doctype html><html lang="__LANG__"><head><title>__BRAND_TITLE__</title>
 ${SPOTLIGHT_PLACEHOLDERS.map((key) => `<meta name="${key}" content="__${key}__">`).join("\n")}
 <script type="module" src="/src/main.js"></script></head><body></body></html>`,
-    );
-    writeFileSync(
-      join(root, "src", "main.js"),
-      `import { name, urls, logos } from "virtual:luminova-brand";
+  );
+  writeFileSync(
+    join(root, "src", "main.js"),
+    `import { name, urls, logos } from "virtual:luminova-brand";
 import { siteContent } from "virtual:luminova-brand/site-content";
 console.log(name, urls.spotlight, logos.main, logos.onDark, logos.onPrimary, logos.width);
 console.log(siteContent.hero.motto);
 console.log(import.meta.env.VITE_FIREBASE_PROJECT_ID);
 `,
-    );
+  );
+  return root;
+}
 
-    await build({
+async function buildApp(root: string, plugin: ReturnType<typeof brandPlugin>) {
+  await build({
+    root,
+    configFile: false,
+    logLevel: "silent",
+    build: { assetsInlineLimit: 0 },
+    plugins: [plugin],
+  });
+  return join(root, "dist");
+}
+
+describe("brandPlugin", () => {
+  it("builds a real Vite app with the brand applied", { timeout: 60_000 }, async () => {
+    const root = writeApp();
+    const dist = await buildApp(
       root,
-      configFile: false,
-      logLevel: "silent",
-      build: { assetsInlineLimit: 0 },
-      plugins: [brandPlugin({ app: "spotlight", repoRoot, profile: "fixture" })],
-    });
-
-    const dist = join(root, "dist");
+      brandPlugin({ app: "spotlight", repoRoot, profile: "fixture" }),
+    );
+    expect(existsSync(join(dist, RELEASE_MARKER_FILE))).toBe(false);
     const html = readFileSync(join(dist, "index.html"), "utf8");
     expect(html).not.toMatch(/__[A-Z][A-Z0-9_]*__/);
     expect(html).toContain('<html lang="es">');
@@ -293,5 +374,12 @@ console.log(import.meta.env.VITE_FIREBASE_PROJECT_ID);
     for (const logo of ["logo-main", "logo-on-dark", "logo-on-primary"]) {
       expect(assets).toContainEqual(expect.stringMatching(new RegExp(`^${logo}-.*\\.png$`)));
     }
+  });
+
+  it("writes the release marker into a release build's dist", { timeout: 60_000 }, async () => {
+    writePulledAssets();
+    const resolved = resolve({ profile: undefined, env: RELEASE_ENV });
+    const dist = await buildApp(writeApp(), brandPlugin({ app: "spotlight", build: resolved }));
+    expect(readReleaseMarker(dist)).toEqual(resolved.release);
   });
 });

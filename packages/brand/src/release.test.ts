@@ -1,0 +1,134 @@
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { REPO_ROOT, loadProfile, type LoadedProfile } from "./load-profile.ts";
+import {
+  PULLED_ASSETS_DIR,
+  RELEASE_MARKER_FILE,
+  isRelease,
+  readReleaseMarker,
+  releaseErrors,
+  releaseMarker,
+} from "./release.ts";
+
+let root: string;
+let assetsDir: string;
+
+const jci = (source: LoadedProfile["source"] = "env"): LoadedProfile => ({
+  ...loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" }),
+  source,
+});
+const fixture = () => loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" });
+
+function writeManifest(profile = "jci-oriente") {
+  mkdirSync(assetsDir, { recursive: true });
+  const body = JSON.stringify({ profile, objects: [] });
+  writeFileSync(join(assetsDir, "pull-manifest.json"), body);
+  return createHash("sha256").update(body).digest("hex");
+}
+
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), "brand-release-"));
+  assetsDir = join(root, PULLED_ASSETS_DIR);
+});
+
+afterEach(() => {
+  rmSync(root, { recursive: true, force: true });
+});
+
+describe("isRelease", () => {
+  it("is on only for BRAND_RELEASE=1", () => {
+    expect(isRelease({ BRAND_RELEASE: "1" })).toBe(true);
+    expect(isRelease({})).toBe(false);
+    expect(isRelease({ BRAND_RELEASE: "0" })).toBe(false);
+  });
+
+  it("refuses an ambiguous value instead of silently building a non-release dist", () => {
+    expect(() => isRelease({ BRAND_RELEASE: "true" })).toThrow(/BRAND_RELEASE must be "1"/);
+  });
+});
+
+describe("releaseErrors", () => {
+  it("passes the JCI Oriente deploy: explicit profile, matching project, pulled assets", () => {
+    writeManifest();
+    expect(
+      releaseErrors({ profile: jci(), env: { GCP_PROJECT_ID: "jci-oriente" }, assetsDir }),
+    ).toEqual([]);
+  });
+
+  it("requires BRAND_PROFILE", () => {
+    writeManifest();
+    expect(releaseErrors({ profile: jci("default"), env: {}, assetsDir })).toEqual([
+      expect.stringMatching(/BRAND_PROFILE is required in release mode/),
+    ]);
+  });
+
+  it("rejects the fixture profile and its demo- project, naming both", () => {
+    writeManifest("fixture");
+    const errors = releaseErrors({ profile: fixture(), env: {}, assetsDir });
+    expect(errors).toEqual([
+      expect.stringMatching(/"fixture" is the neutral test profile/),
+      expect.stringMatching(/"demo-fixture" is an emulator-only demo project/),
+    ]);
+  });
+
+  it("rejects BRAND_ASSETS_DIR", () => {
+    writeManifest();
+    expect(
+      releaseErrors({ profile: jci(), env: { BRAND_ASSETS_DIR: "elsewhere" }, assetsDir }),
+    ).toEqual([expect.stringMatching(/^BRAND_ASSETS_DIR is not allowed in release mode/)]);
+  });
+
+  it("rejects a GCP_PROJECT_ID that is not the profile's project", () => {
+    writeManifest();
+    expect(
+      releaseErrors({ profile: jci(), env: { GCP_PROJECT_ID: "someone-else" }, assetsDir }),
+    ).toEqual([
+      expect.stringMatching(/^GCP_PROJECT_ID "someone-else" is not profile "jci-oriente"/),
+    ]);
+  });
+
+  it("requires the pull manifest, so release assets come only from brand:pull", () => {
+    expect(releaseErrors({ profile: jci(), env: {}, assetsDir })).toEqual([
+      expect.stringMatching(/^brand-assets\/pull-manifest\.json: missing/),
+    ]);
+  });
+
+  it("lists every problem at once", () => {
+    const errors = releaseErrors({
+      profile: { ...fixture(), source: "default" },
+      env: { BRAND_ASSETS_DIR: "x", GCP_PROJECT_ID: "someone-else" },
+      assetsDir,
+    });
+    expect(errors).toHaveLength(6);
+  });
+});
+
+describe("release marker", () => {
+  it("records the profile, its project and the pull manifest's sha256", () => {
+    const digest = writeManifest();
+    expect(releaseMarker(jci(), assetsDir)).toEqual({
+      profile: "jci-oriente",
+      projectId: "jci-oriente",
+      assets: digest,
+    });
+  });
+
+  it("reads back a written marker and returns null when there is none", () => {
+    const dist = join(root, "dist");
+    mkdirSync(dist);
+    expect(readReleaseMarker(dist)).toBeNull();
+    const marker = { profile: "jci-oriente", projectId: "jci-oriente", assets: "a".repeat(64) };
+    writeFileSync(join(dist, RELEASE_MARKER_FILE), JSON.stringify(marker));
+    expect(readReleaseMarker(dist)).toEqual(marker);
+  });
+
+  it("rejects a malformed marker", () => {
+    const dist = join(root, "dist");
+    mkdirSync(dist);
+    writeFileSync(join(dist, RELEASE_MARKER_FILE), JSON.stringify({ profile: "x" }));
+    expect(() => readReleaseMarker(dist)).toThrow(/\.brand-release\.json projectId/);
+  });
+});
