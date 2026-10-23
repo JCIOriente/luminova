@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  SeedTargetError,
+  ProjectTargetError,
   parseProjectFlag,
   resolveLocalProject,
   resolveProductionTarget,
@@ -23,7 +23,7 @@ test("local scripts honour GCLOUD_PROJECT over the profile", () => {
   assert.equal(resolveLocalProject({ env: { GCLOUD_PROJECT: "demo-x" }, profile }), "demo-x");
 });
 
-test("local scripts ignore env keys they were not given", () => {
+test("local scripts ignore a shell GOOGLE_CLOUD_PROJECT unless asked to read it", () => {
   assert.equal(
     resolveLocalProject({ env: { GOOGLE_CLOUD_PROJECT: "other" }, profile }),
     "acme-prod",
@@ -32,9 +32,21 @@ test("local scripts ignore env keys they were not given", () => {
     resolveLocalProject({
       env: { GOOGLE_CLOUD_PROJECT: "other" },
       profile,
-      envKeys: ["GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT"],
+      envKeys: ["GCLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT"],
     }),
     "other",
+  );
+});
+
+test("local scripts refuse the keys they read when those disagree", () => {
+  assert.throws(
+    () =>
+      resolveLocalProject({
+        env: { GCLOUD_PROJECT: "demo-x", GOOGLE_CLOUD_PROJECT: "other" },
+        profile,
+        envKeys: ["GCLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT"],
+      }),
+    (error) => error instanceof ProjectTargetError && /disagree/.test(error.message),
   );
 });
 
@@ -42,14 +54,14 @@ test("parseProjectFlag reads --project <id> and --project=<id>", () => {
   assert.equal(parseProjectFlag(["--project", "a"]), "a");
   assert.equal(parseProjectFlag(["--project=b"]), "b");
   assert.equal(parseProjectFlag([]), undefined);
-  assert.throws(() => parseProjectFlag(["--project"]), SeedTargetError);
+  assert.throws(() => parseProjectFlag(["--project"]), ProjectTargetError);
 });
 
 test("production refuses without an explicit project", () => {
   assert.throws(
     () => resolveProductionTarget({ argv: [], env: {}, profile }),
     (error) =>
-      error instanceof SeedTargetError && /--project <id> or GCLOUD_PROJECT/.test(error.message),
+      error instanceof ProjectTargetError && /--project <id> or GCLOUD_PROJECT/.test(error.message),
   );
 });
 
@@ -57,7 +69,7 @@ test("production refuses a project that is not the profile's", () => {
   assert.throws(
     () => resolveProductionTarget({ argv: [], env: { GCLOUD_PROJECT: "someone-else" }, profile }),
     (error) =>
-      error instanceof SeedTargetError &&
+      error instanceof ProjectTargetError &&
       error.message.includes('"someone-else"') &&
       error.message.includes('"acme" (acme-prod)'),
   );
@@ -71,7 +83,7 @@ test("production refuses when the project sources disagree", () => {
         env: { GOOGLE_CLOUD_PROJECT: "someone-else" },
         profile,
       }),
-    (error) => error instanceof SeedTargetError && /disagree/.test(error.message),
+    (error) => error instanceof ProjectTargetError && /disagree/.test(error.message),
   );
 });
 

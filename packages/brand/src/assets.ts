@@ -6,7 +6,7 @@ import { PNG_HEADER_BYTES, readPngSize, type PngSize } from "./png.ts";
 export const LOGO_FILES = ["logo-main.png", "logo-on-dark.png", "logo-on-primary.png"] as const;
 
 export const OG_IMAGE_FILE = "og-image.png";
-const PULL_MANIFEST_FILE = "pull-manifest.json";
+export const PULL_MANIFEST_FILE = "pull-manifest.json";
 const MIN_LOGO_HEIGHT = 184;
 export const OG_IMAGE_WARN_BYTES = 300 * 1024;
 
@@ -33,6 +33,17 @@ export const ASSET_CONTRACT: readonly AssetSpec[] = [
     ICON_FILES.map(({ name, size }) => ({ path: `${app}/${name}`, width: size, height: size })),
   ),
 ];
+
+/** Contract paths grouped by folder (`""` for the root, else `"<app>/"`), root first. */
+export function contractByFolder(): Map<string, string[]> {
+  const groups = new Map<string, string[]>();
+  for (const { path } of ASSET_CONTRACT) {
+    const slash = path.lastIndexOf("/");
+    const folder = slash === -1 ? "" : path.slice(0, slash + 1);
+    groups.set(folder, [...(groups.get(folder) ?? []), path]);
+  }
+  return groups;
+}
 
 export interface AssetValidation {
   errors: string[];

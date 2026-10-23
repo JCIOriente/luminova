@@ -1,16 +1,26 @@
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { loadEnv, type Plugin } from "vite";
 import { ICON_FILES, LOGO_FILES, validateAssets } from "./assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "./load-profile.ts";
 import type { PngSize } from "./png.ts";
 import type { BrandApp } from "./ports.ts";
+import {
+  PULLED_ASSETS_DIR,
+  RELEASE_MARKER_FILE,
+  isRelease,
+  releaseErrors,
+  releaseIdentity,
+  type ReleaseIdentity,
+  type ReleaseMarker,
+} from "./release.ts";
 import { renderHtml } from "./render-html.ts";
 import type { Brand } from "./schema.ts";
 import { readSiteContent } from "./site-content.ts";
 import { parseSiteContent, type SiteContent } from "./site-content-schema.ts";
 import { stagePublic } from "./stage-public.ts";
 import { resolveUrls, type BrandUrls } from "./urls.ts";
+import { sha256 } from "./hash.ts";
 
 export const BRAND_VIRTUAL_MODULE = "virtual:luminova-brand";
 const RESOLVED_VIRTUAL_MODULE = `\0${BRAND_VIRTUAL_MODULE}`;
@@ -36,6 +46,8 @@ export interface BrandBuild {
   assetsDir: string;
   logoSize: PngSize;
   siteContent: SiteContent;
+  /** Written to `dist/.brand-release.json`; null outside release mode. */
+  release: ReleaseIdentity | null;
 }
 
 export interface ResolveBrandBuildOptions extends BrandBuildOptions {
@@ -57,10 +69,12 @@ function selectAssetsDir(
   repoRoot: string,
   profile: LoadedProfile,
   env: Readonly<Record<string, string | undefined>>,
+  release: boolean,
 ): string {
+  const pulled = join(repoRoot, PULLED_ASSETS_DIR);
+  if (release) return pulled;
   const fromEnv = env.BRAND_ASSETS_DIR?.trim();
   if (fromEnv) return resolve(repoRoot, fromEnv);
-  const pulled = join(repoRoot, "brand-assets");
   if (existsSync(pulled)) return pulled;
   return join(profile.dir, "assets");
 }
@@ -73,23 +87,27 @@ export function resolveBrandBuild({
   envDir,
   env = process.env,
 }: ResolveBrandBuildOptions): BrandBuild {
+  const release = isRelease(env);
   const profile = loadProfile({ repoRoot, env, profile: profileName });
-  for (const warning of profile.warnings) warnOnce(warning);
+  // In release an unset profile is an error, so the "using the example" warning would mislead.
+  if (!release) for (const warning of profile.warnings) warnOnce(warning);
 
   const siteContent = parseSiteContent(readSiteContent(profile.dir, profile.slug), profile.slug);
 
   const emulatorEnabled = loadEnv(mode, envDir, "VITE_").VITE_FIREBASE_EMULATOR_ENABLED === "true";
   const urls = resolveUrls(profile.brand.urls, { command, emulatorEnabled });
 
-  const assetsDir = selectAssetsDir(repoRoot, profile, env);
+  const assetsDir = selectAssetsDir(repoRoot, profile, env, release);
+  const errors = release
+    ? releaseErrors({ profile, env, assetsDir, command, emulatorEnabled })
+    : [];
   const validation = validateAssets(assetsDir, { profile: profile.slug });
   for (const warning of validation.warnings) warnOnce(warning);
   const prefix = relative(repoRoot, assetsDir) || ".";
-  if (validation.errors.length > 0 || !validation.logoSize) {
-    const errors = validation.errors.map((error) => `${prefix}/${error}`);
-    throw new BrandConfigError(
-      errors.length > 0 ? errors : [`${prefix}: the three logos could not be read`],
-    );
+  errors.push(...validation.errors.map((error) => `${prefix}/${error}`));
+  if (errors.length > 0) throw new BrandConfigError(errors);
+  if (!validation.logoSize) {
+    throw new BrandConfigError([`${prefix}: the three logos could not be read`]);
   }
 
   return {
@@ -99,6 +117,7 @@ export function resolveBrandBuild({
     assetsDir,
     logoSize: validation.logoSize,
     siteContent,
+    release: release ? releaseIdentity(profile, assetsDir) : null,
   };
 }
 
@@ -262,6 +281,24 @@ export function brandPlugin({
         return `export const siteContent = ${JSON.stringify(current().build.siteContent)};\n`;
       }
       return null;
+    },
+    // After every other plugin's writeBundle, so index.html is final on disk.
+    writeBundle: {
+      order: "post",
+      handler(options, bundle) {
+        const { release } = current().build;
+        if (!release) return;
+        const html = bundle["index.html"];
+        if (html?.type !== "asset" || !options.dir) {
+          throw new BrandConfigError(["release build emitted no index.html to mark"]);
+        }
+        const marker: ReleaseMarker = { ...release, indexHtml: sha256(html.source) };
+        // A dotfile, so the hosting `ignore` (`**/.*`) keeps it off the CDN.
+        writeFileSync(
+          join(options.dir, RELEASE_MARKER_FILE),
+          `${JSON.stringify(marker, null, 2)}\n`,
+        );
+      },
     },
     transformIndexHtml: {
       order: "pre",

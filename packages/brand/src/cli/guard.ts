@@ -1,8 +1,8 @@
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
 import { z } from "zod";
+import { sha256 } from "../hash.ts";
 import { REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
 import type { Brand } from "../schema.ts";
@@ -78,8 +78,6 @@ function listFiles(dir: string): string[] {
     .map((entry) => join(entry.parentPath, entry.name))
     .sort();
 }
-
-const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
 /** sha256 → `${labelPrefix}<path relative to dir>` for every file under `dir`. */
 export function assetHashes(dir: string, labelPrefix = ""): Map<string, string> {

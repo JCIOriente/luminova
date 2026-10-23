@@ -7,8 +7,8 @@ redeploy for a hostname to start or keep working.
 
 | App | Canonical (published) | Firebase default (fallback, always live) | Hosting target |
 |-----|-----------------------|------------------------------------------|----------------|
-| spotlight | https://jcioriente.org | https://jcioriente.web.app | `jcioriente` |
-| backstage | https://admin.jcioriente.org | https://jcioriente-backstage.web.app | `jcioriente-backstage` |
+| spotlight | https://jcioriente.org | https://jcioriente.web.app | `spotlight` → site `jcioriente` |
+| backstage | https://admin.jcioriente.org | https://jcioriente-backstage.web.app | `backstage` → site `jcioriente-backstage` |
 
 "Canonical" means the hostname the code announces: the one search engines index, WhatsApp
 share cards link to, and the public site's "Ingresar" / "Portal de miembros" links open.

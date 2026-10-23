@@ -18,7 +18,7 @@ import { createInterface } from "node:readline/promises";
 import { seedPresident } from "./lib/seed-president.mjs";
 import { seedBuiltInRoles, BUILT_IN_ROLE_PERMS } from "./lib/role-seed.mjs";
 import {
-  SeedTargetError,
+  ProjectTargetError,
   loadProfile,
   resolveProductionTarget,
   seededSiteContent,
@@ -37,7 +37,7 @@ let projectId;
 try {
   projectId = resolveProductionTarget({ profile });
 } catch (error) {
-  if (!(error instanceof SeedTargetError)) throw error;
+  if (!(error instanceof ProjectTargetError)) throw error;
   console.error(error.message);
   process.exit(1);
 }

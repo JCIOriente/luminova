@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
   copyFileSync,
   cpSync,
@@ -10,6 +9,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { ICON_FILES, OG_IMAGE_FILE } from "./assets.ts";
+import { sha256 } from "./hash.ts";
 import type { BrandApp } from "./ports.ts";
 import type { Brand } from "./schema.ts";
 
@@ -38,7 +38,7 @@ export function stagePublic({ appPublicDir, assetsDir, app, brand, outDir }: Sta
   let ogImageFile = "";
   if (app === "spotlight") {
     const bytes = readFileSync(join(assetsDir, OG_IMAGE_FILE));
-    const hash = createHash("sha256").update(bytes).digest("hex").slice(0, 8);
+    const hash = sha256(bytes).slice(0, 8);
     ogImageFile = `og-image.${hash}.png`;
     for (const name of [ogImageFile, ...brand.og.legacyPaths]) {
       writeFileSync(join(outDir, name), bytes);
