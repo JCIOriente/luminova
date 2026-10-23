@@ -73,6 +73,8 @@ machine-enforced yet — hold them by judgment + `bundle-budget-watcher`:
 | Eager JS (entry + modulepreloads) | ≤ **116 kB gz** (now 113) | ≤ **166 kB gz** (now 163 — full Firebase SDK split so firestore/storage/functions load lazily; `/me` route de-eagered) |
 | Initial CSS (`index` chunk) | ≤ **17 kB gz** (now 16 — +1.1 kB for the /about "El Masthead" Directiva section: token-based hand-authored gradients/ledger/chip layout, a permanent leadership page section) | ≤ 15 kB gz (now 13) |
 | Any single route chunk | ≤ 40 kB gz | ≤ 40 kB gz |
+
+The route-chunk line is enforced by `check-bundle-budget.sh` over every lazy chunk. Known over-budget chunks carry their own ceiling in `ROUTE_CHUNK_EXCEPTIONS` (`tools/scripts/bundle-budgets.env`): spotlight `site-data` (Firebase lite + App Check, 47.8 kB, ceiling 50), backstage `db` (full Firestore SDK, 141.9 kB, ceiling 145) and backstage `qr-scanner` (123 kB, ceiling 125). A stale exception fails the gate.
 | New runtime dependency | justify if it adds > 10 kB gz to eager JS | same |
 
 **Firebase 13 lazy-chunk baseline (2026-10).** Moving 12.14.0 → 13.1.0 left eager JS unchanged but grew
