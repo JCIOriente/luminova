@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 import { siteConfigDocSchema, type SiteConfig, type SiteConfigInput } from "@luminova/types";
 import { toSiteConfigDoc } from "./site-config-mapper";

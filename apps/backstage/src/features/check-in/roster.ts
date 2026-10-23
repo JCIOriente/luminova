@@ -1,6 +1,6 @@
 import type { Member } from "@luminova/types";
 import type { ParticipationRole } from "@luminova/types/engine";
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "firebase/firestore/lite";
 
 export interface CheckInRecord {
   memberId: string;

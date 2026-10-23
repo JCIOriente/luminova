@@ -7,9 +7,9 @@ import {
   updateDoc,
   query,
   where,
-  getCountFromServer,
+  getCount,
   arrayUnion,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 import { activityDocSchema, type Activity, type ActivityInput, type Photo } from "@luminova/types";
 import { toActivityCreateDoc, toActivityUpdateDoc } from "./activity-mapper";
@@ -41,7 +41,7 @@ export class ActivityRepository {
   /** Number of check-ins referencing this activity (engine-safety guard input). */
   async countCheckIns(activityId: string): Promise<number> {
     const checkIns = collection(this.db, "checkIns");
-    const snap = await getCountFromServer(query(checkIns, where("activityId", "==", activityId)));
+    const snap = await getCount(query(checkIns, where("activityId", "==", activityId)));
     return snap.data().count;
   }
 

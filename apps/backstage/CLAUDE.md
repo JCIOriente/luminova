@@ -33,6 +33,8 @@ import { getDb } from "@luminova/firebase/db"; // also /storage, /functions
 
 firestore/storage/functions must stay lazy inside feature route chunks — the login path loads only Firebase auth + App Check.
 
+`getDb()` is the **lite** Firestore SDK (`firebase/firestore/lite`; eslint bans the full entry): no `onSnapshot`/realtime listeners, no offline cache or queued writes (an offline write rejects instead of hanging), and `getCount` instead of `getCountFromServer`. Reads are one-shot through TanStack Query.
+
 ## TanStack Query Conventions
 
 - Keys: `const memberKeys = { all: ['members'] as const, detail: (id) => ['members', id] as const }`.

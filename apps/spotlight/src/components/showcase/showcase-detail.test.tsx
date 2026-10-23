@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { screen } from "@testing-library/react";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import type { ShowcaseItem } from "@luminova/types/engine";
 import { makeShowcaseItem, renderWithRouter } from "../../test/showcase";
 import { DetailContent } from "./showcase-detail";

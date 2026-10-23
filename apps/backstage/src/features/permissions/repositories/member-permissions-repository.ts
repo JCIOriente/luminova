@@ -1,5 +1,5 @@
 import { getDb } from "@luminova/firebase/db";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc } from "firebase/firestore/lite";
 import type { PermissionOverrides } from "@luminova/types";
 
 /** Writes only the permission-assignment fields on a member doc. Admin-only at the

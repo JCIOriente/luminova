@@ -1,4 +1,12 @@
-import { collection, doc, getDocs, limit, orderBy, query, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  updateDoc,
+} from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 import { inboxDocSchema, type InboxDoc } from "@luminova/types";
 import { parseDocs } from "../../../lib/firestore-read";

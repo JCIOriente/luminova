@@ -1,4 +1,4 @@
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 import { participationDocSchema, type Participation } from "@luminova/types/engine";
 import { parseDocs } from "../../../lib/firestore-read";

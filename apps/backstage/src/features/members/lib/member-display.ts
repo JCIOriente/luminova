@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "firebase/firestore/lite";
 import { positionTitle, type Member, type MemberGender } from "@luminova/types";
 
 // Deliberate raw hex: avatar identity needs ~10 distinct hues and the token

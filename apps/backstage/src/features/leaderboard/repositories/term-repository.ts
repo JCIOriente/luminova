@@ -1,4 +1,4 @@
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 import { termDocSchema, type Term } from "@luminova/types";
 import { parseDocOrNull } from "../../../lib/firestore-read";

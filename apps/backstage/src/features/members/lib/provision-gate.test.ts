@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import { currentTermKey, type Member, type Position } from "@luminova/types";
 import { draftProvisionBlocked, memberProvisionBlocked, type CargoLookup } from "./provision-gate";
 

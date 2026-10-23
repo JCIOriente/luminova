@@ -1,5 +1,12 @@
 import { getDb } from "@luminova/firebase/db";
-import { addDoc, collection, doc, getDocs, serverTimestamp, updateDoc } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore/lite";
 import {
   roleDefinitionDocSchema,
   type RoleDefinition,

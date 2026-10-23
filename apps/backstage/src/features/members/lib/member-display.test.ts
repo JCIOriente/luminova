@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import { avatarColor, joinYear, actionMessage, memberPositionLabel } from "./member-display";
 
 const positions = new Map([["pos-pres", { title: "Presidente", titleFemale: "Presidenta" }]]);

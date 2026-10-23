@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import type { Member } from "@luminova/types";
 import { UPCOMING_BIRTHDAY_LIMIT, inDaysEs, upcomingBirthdays } from "./milestones";
 

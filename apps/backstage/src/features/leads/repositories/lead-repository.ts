@@ -8,7 +8,7 @@ import {
   orderBy,
   limit,
   serverTimestamp,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 import { leadDocSchema, type Lead, type LeadStatus } from "@luminova/types";
 import { parseDocs } from "../../../lib/firestore-read";

@@ -164,6 +164,12 @@ const GUARDED_ON_CALL_MESSAGE =
   "Declare callables with guardedOnCall (apps/beacon/src/guarded-on-call.ts), " +
   "which refuses all traffic while token verification is bypassed.";
 
+const FULL_FIRESTORE_BANNED = {
+  name: "firebase/firestore",
+  message:
+    "The client SDK is the lite build everywhere (no listeners, no offline cache; a third of the bundle). Import from 'firebase/firestore/lite'. getCountFromServer is getCount there.",
+};
+
 // The beacon no-restricted-imports options, minus at most one `{ name, importName }`. Flat config
 // replaces a rule's options when a later block matches the same file, so both beacon blocks
 // build from here and any further beacon import ban belongs in this function.
@@ -298,6 +304,7 @@ export default tseslint.config(
         "error",
         {
           paths: [
+            FULL_FIRESTORE_BANNED,
             {
               name: "@luminova/types",
               importNames: ["ROLE_LABELS", "ROLE_DESCRIPTIONS"],
@@ -390,6 +397,7 @@ export default tseslint.config(
         "error",
         {
           paths: [
+            FULL_FIRESTORE_BANNED,
             {
               name: "@luminova/firebase",
               message: "Spotlight is public/lite-only. Import from '@luminova/firebase/lite'.",
@@ -398,5 +406,9 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  {
+    files: ["packages/**/*.{ts,tsx}"],
+    rules: { "no-restricted-imports": ["error", { paths: [FULL_FIRESTORE_BANNED] }] },
   },
 );
