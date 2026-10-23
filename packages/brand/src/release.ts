@@ -57,14 +57,23 @@ export function releaseErrors({
   profile,
   env,
   assetsDir,
+  command,
+  emulatorEnabled,
 }: {
   profile: LoadedProfile;
   env: Env;
   assetsDir: string;
+  command: "serve" | "build";
+  emulatorEnabled: boolean;
 }): string[] {
   const errors = undeployableProfileErrors(profile);
   const { slug } = profile;
   const { projectId } = profile.brand.firebase;
+  if (command !== "build" || emulatorEnabled) {
+    errors.push(
+      "release mode needs a production `vite build` with VITE_FIREBASE_EMULATOR_ENABLED unset or false.",
+    );
+  }
   if (env.BRAND_ASSETS_DIR?.trim()) {
     errors.push(
       `BRAND_ASSETS_DIR is not allowed in release mode; release assets come only from ${PULLED_ASSETS_DIR}/ (run brand:pull).`,

@@ -26,11 +26,7 @@ describe("assertDist", () => {
     writeMarker();
     expect(
       assertDist({ distDir, label: "apps/spotlight/dist", env: { GCLOUD_PROJECT: "jci-oriente" } }),
-    ).toEqual({
-      errors: [],
-      marker: MARKER,
-      project: "jci-oriente",
-    });
+    ).toEqual({ errors: [], marker: MARKER });
   });
 
   it("accepts CD's own check through GCP_PROJECT_ID", () => {

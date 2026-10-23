@@ -4,11 +4,11 @@ import { BRAND_APPS, type BrandApp } from "../ports.ts";
 import { ProjectTargetError, agreedProject, envProjectSources } from "../project-target.ts";
 import { readReleaseMarker, type ReleaseMarker } from "../release.ts";
 
-export interface DistCheck {
-  errors: string[];
-  marker: ReleaseMarker | null;
-  project: string | undefined;
-}
+/** Errors, or the marker of a dist that may ship. */
+export type DistCheck =
+  { errors: string[]; marker?: undefined } | { errors: []; marker: ReleaseMarker };
+
+const refuse = (...errors: string[]): DistCheck => ({ errors });
 
 /**
  * The hosting `predeploy` gate (spec section 5.6): only a release build made for the
@@ -30,41 +30,27 @@ export function assertDist({
     marker = readReleaseMarker(distDir);
     project = agreedProject(envProjectSources(env, ["GCP_PROJECT_ID"]));
   } catch (error) {
-    if (error instanceof BrandConfigError) {
-      return { errors: error.errors.map((e) => `${label}/${e}`), marker: null, project };
-    }
-    if (error instanceof ProjectTargetError)
-      return { errors: [error.message], marker: null, project };
+    if (error instanceof BrandConfigError)
+      return refuse(...error.errors.map((e) => `${label}/${e}`));
+    if (error instanceof ProjectTargetError) return refuse(error.message);
     throw error;
   }
   if (!marker) {
-    return {
-      errors: [
-        `${label} has no release marker: it was not built with BRAND_RELEASE=1, so it cannot be deployed. Use \`pnpm deploy:hosting\` (or CD).`,
-      ],
-      marker,
-      project,
-    };
+    return refuse(
+      `${label} has no release marker: it was not built with BRAND_RELEASE=1, so it cannot be deployed. Use \`pnpm deploy:hosting\` (or CD).`,
+    );
   }
   if (!project) {
-    return {
-      errors: [
-        "brand:assert-dist cannot tell which project this deploy targets: set GCLOUD_PROJECT (firebase-tools does for hooks) or GCP_PROJECT_ID.",
-      ],
-      marker,
-      project,
-    };
+    return refuse(
+      "brand:assert-dist cannot tell which project this deploy targets: set GCLOUD_PROJECT (firebase-tools does for hooks) or GCP_PROJECT_ID.",
+    );
   }
   if (marker.projectId !== project) {
-    return {
-      errors: [
-        `${label} was built for "${marker.projectId}" (profile "${marker.profile}") but this deploy targets "${project}".`,
-      ],
-      marker,
-      project,
-    };
+    return refuse(
+      `${label} was built for "${marker.projectId}" (profile "${marker.profile}") but this deploy targets "${project}".`,
+    );
   }
-  return { errors: [], marker, project };
+  return { errors: [], marker };
 }
 
 function isBrandApp(value: string | undefined): value is BrandApp {
@@ -83,11 +69,11 @@ if (import.meta.main) {
     label,
     env: process.env,
   });
-  if (errors.length > 0) {
+  if (!marker) {
     for (const error of errors) console.error(`brand:assert-dist: ${error}`);
     process.exit(1);
   }
   console.log(
-    `brand:assert-dist: ${label} is a release build of "${marker?.profile}" for "${marker?.projectId}".`,
+    `brand:assert-dist: ${label} is a release build of "${marker.profile}" for "${marker.projectId}".`,
   );
 }

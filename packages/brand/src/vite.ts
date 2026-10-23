@@ -96,12 +96,9 @@ export function resolveBrandBuild({
   const urls = resolveUrls(profile.brand.urls, { command, emulatorEnabled });
 
   const assetsDir = selectAssetsDir(repoRoot, profile, env, release);
-  const errors = release ? releaseErrors({ profile, env, assetsDir }) : [];
-  if (release && (command !== "build" || emulatorEnabled)) {
-    errors.push(
-      "release mode needs a production `vite build` with VITE_FIREBASE_EMULATOR_ENABLED unset or false.",
-    );
-  }
+  const errors = release
+    ? releaseErrors({ profile, env, assetsDir, command, emulatorEnabled })
+    : [];
   const validation = validateAssets(assetsDir, { profile: profile.slug });
   for (const warning of validation.warnings) warnOnce(warning);
   const prefix = relative(repoRoot, assetsDir) || ".";

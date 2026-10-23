@@ -13,6 +13,8 @@ import {
   releaseMarker,
 } from "./release.ts";
 
+const BUILD = { command: "build", emulatorEnabled: false } as const;
+
 let root: string;
 let assetsDir: string;
 
@@ -54,20 +56,25 @@ describe("releaseErrors", () => {
   it("passes the JCI Oriente deploy: explicit profile, matching project, pulled assets", () => {
     writeManifest();
     expect(
-      releaseErrors({ profile: jci(), env: { GCP_PROJECT_ID: "jci-oriente" }, assetsDir }),
+      releaseErrors({
+        profile: jci(),
+        env: { GCP_PROJECT_ID: "jci-oriente" },
+        assetsDir,
+        ...BUILD,
+      }),
     ).toEqual([]);
   });
 
   it("requires BRAND_PROFILE", () => {
     writeManifest();
-    expect(releaseErrors({ profile: jci("default"), env: {}, assetsDir })).toEqual([
+    expect(releaseErrors({ profile: jci("default"), env: {}, assetsDir, ...BUILD })).toEqual([
       expect.stringMatching(/BRAND_PROFILE is required/),
     ]);
   });
 
   it("rejects the fixture profile and its demo- project, naming both", () => {
     writeManifest("fixture");
-    const errors = releaseErrors({ profile: fixture(), env: {}, assetsDir });
+    const errors = releaseErrors({ profile: fixture(), env: {}, assetsDir, ...BUILD });
     expect(errors).toEqual([
       expect.stringMatching(/"fixture" is the neutral test profile/),
       expect.stringMatching(/"demo-fixture" is an emulator-only demo project/),
@@ -77,21 +84,31 @@ describe("releaseErrors", () => {
   it("rejects BRAND_ASSETS_DIR", () => {
     writeManifest();
     expect(
-      releaseErrors({ profile: jci(), env: { BRAND_ASSETS_DIR: "elsewhere" }, assetsDir }),
+      releaseErrors({
+        profile: jci(),
+        env: { BRAND_ASSETS_DIR: "elsewhere" },
+        assetsDir,
+        ...BUILD,
+      }),
     ).toEqual([expect.stringMatching(/^BRAND_ASSETS_DIR is not allowed in release mode/)]);
   });
 
   it("rejects a GCP_PROJECT_ID that is not the profile's project", () => {
     writeManifest();
     expect(
-      releaseErrors({ profile: jci(), env: { GCP_PROJECT_ID: "someone-else" }, assetsDir }),
+      releaseErrors({
+        profile: jci(),
+        env: { GCP_PROJECT_ID: "someone-else" },
+        assetsDir,
+        ...BUILD,
+      }),
     ).toEqual([
       expect.stringMatching(/^GCP_PROJECT_ID "someone-else" is not profile "jci-oriente"/),
     ]);
   });
 
   it("requires the pull manifest, so release assets come only from brand:pull", () => {
-    expect(releaseErrors({ profile: jci(), env: {}, assetsDir })).toEqual([
+    expect(releaseErrors({ profile: jci(), env: {}, assetsDir, ...BUILD })).toEqual([
       expect.stringMatching(/^brand-assets\/pull-manifest\.json: missing/),
     ]);
   });
@@ -101,8 +118,23 @@ describe("releaseErrors", () => {
       profile: { ...fixture(), source: "default" },
       env: { BRAND_ASSETS_DIR: "x", GCP_PROJECT_ID: "someone-else" },
       assetsDir,
+      ...BUILD,
     });
     expect(errors).toHaveLength(6);
+  });
+});
+
+describe("releaseErrors on the build itself", () => {
+  it("refuses the dev server and an emulator build", () => {
+    writeManifest();
+    const env = { GCP_PROJECT_ID: "jci-oriente" };
+    const needsBuild = /release mode needs a production `vite build`/;
+    expect(
+      releaseErrors({ profile: jci(), env, assetsDir, command: "serve", emulatorEnabled: false }),
+    ).toEqual([expect.stringMatching(needsBuild)]);
+    expect(
+      releaseErrors({ profile: jci(), env, assetsDir, command: "build", emulatorEnabled: true }),
+    ).toEqual([expect.stringMatching(needsBuild)]);
   });
 });
 

@@ -1,7 +1,9 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { BrandConfigError, REPO_ROOT, loadProfile } from "../load-profile.ts";
+import { BrandConfigError, REPO_ROOT, type LoadedProfile } from "../load-profile.ts";
+import { isRelease, undeployableProfileErrors } from "../release.ts";
 import type { Brand } from "../schema.ts";
+import { runCli } from "./main.ts";
 
 const FIREBASERC = ".firebaserc";
 
@@ -22,37 +24,33 @@ export function renderFirebaserc({ firebase }: Brand) {
   };
 }
 
+/** Writes `.firebaserc`; under BRAND_RELEASE=1 (CD) only for a profile that may ship. */
 export function applyProfile({
+  profile,
   repoRoot = REPO_ROOT,
   env = process.env,
 }: {
+  profile: LoadedProfile;
   repoRoot?: string;
   env?: Readonly<Record<string, string | undefined>>;
-} = {}) {
-  const profile = loadProfile({ repoRoot, env });
+}) {
+  if (isRelease(env)) {
+    const refused = undeployableProfileErrors(profile);
+    if (refused.length > 0) throw new BrandConfigError(refused);
+  }
   const file = join(repoRoot, FIREBASERC);
   const content = `${JSON.stringify(renderFirebaserc(profile.brand), null, 2)}\n`;
   // Rewriting an identical file would bump its mtime on every install for nothing.
   const written = !existsSync(file) || readFileSync(file, "utf8") !== content;
   if (written) writeFileSync(file, content);
-  return {
-    slug: profile.slug,
-    projectId: profile.brand.firebase.projectId,
-    warnings: profile.warnings,
-    written,
-  };
+  return { slug: profile.slug, projectId: profile.brand.firebase.projectId, written };
 }
 
 if (import.meta.main) {
-  try {
-    const result = applyProfile();
-    for (const warning of result.warnings) console.warn(`brand:apply: ${warning}`);
+  await runCli("brand:apply", (profile) => {
+    const result = applyProfile({ profile });
     console.log(
       `brand:apply: ${FIREBASERC} ${result.written ? "written" : "up to date"} for profile "${result.slug}" (project ${result.projectId}).`,
     );
-  } catch (error) {
-    if (!(error instanceof BrandConfigError)) throw error;
-    console.error(error.message);
-    process.exit(1);
-  }
+  });
 }
