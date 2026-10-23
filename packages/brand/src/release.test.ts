@@ -152,7 +152,12 @@ describe("release marker", () => {
     const dist = join(root, "dist");
     mkdirSync(dist);
     expect(readReleaseMarker(dist)).toBeNull();
-    const marker = { profile: "jci-oriente", projectId: "jci-oriente", assets: "a".repeat(64) };
+    const marker = {
+      profile: "jci-oriente",
+      projectId: "jci-oriente",
+      assets: "a".repeat(64),
+      indexHtml: "b".repeat(64),
+    };
     writeFileSync(join(dist, RELEASE_MARKER_FILE), JSON.stringify(marker));
     expect(readReleaseMarker(dist)).toEqual(marker);
   });

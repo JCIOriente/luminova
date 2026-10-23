@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { loadEnv, type Plugin } from "vite";
 import { ICON_FILES, LOGO_FILES, validateAssets } from "./assets.ts";
@@ -11,6 +11,8 @@ import {
   isRelease,
   releaseErrors,
   releaseMarker,
+  sha256,
+  type ReleaseIdentity,
   type ReleaseMarker,
 } from "./release.ts";
 import { renderHtml } from "./render-html.ts";
@@ -45,7 +47,7 @@ export interface BrandBuild {
   logoSize: PngSize;
   siteContent: SiteContent;
   /** Written to `dist/.brand-release.json`; null outside release mode. */
-  release: ReleaseMarker | null;
+  release: ReleaseIdentity | null;
 }
 
 export interface ResolveBrandBuildOptions extends BrandBuildOptions {
@@ -280,15 +282,23 @@ export function brandPlugin({
       }
       return null;
     },
-    generateBundle() {
-      const { release } = current().build;
-      if (!release) return;
-      // A dotfile, so the hosting `ignore` (`**/.*`) keeps it off the CDN.
-      this.emitFile({
-        type: "asset",
-        fileName: RELEASE_MARKER_FILE,
-        source: `${JSON.stringify(release, null, 2)}\n`,
-      });
+    // After every other plugin's writeBundle, so index.html is final on disk.
+    writeBundle: {
+      order: "post",
+      handler(options, bundle) {
+        const { release } = current().build;
+        if (!release) return;
+        const html = bundle["index.html"];
+        if (html?.type !== "asset" || !options.dir) {
+          throw new BrandConfigError(["release build emitted no index.html to mark"]);
+        }
+        const marker: ReleaseMarker = { ...release, indexHtml: sha256(html.source) };
+        // A dotfile, so the hosting `ignore` (`**/.*`) keeps it off the CDN.
+        writeFileSync(
+          join(options.dir, RELEASE_MARKER_FILE),
+          `${JSON.stringify(marker, null, 2)}\n`,
+        );
+      },
     },
     transformIndexHtml: {
       order: "pre",

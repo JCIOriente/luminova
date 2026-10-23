@@ -1,8 +1,9 @@
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { BrandConfigError, REPO_ROOT } from "../load-profile.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
 import { ProjectTargetError, agreedProject, envProjectSources } from "../project-target.ts";
-import { readReleaseMarker, type ReleaseMarker } from "../release.ts";
+import { readReleaseMarker, sha256, type ReleaseMarker } from "../release.ts";
 
 /** Errors, or the marker of a dist that may ship. */
 export type DistCheck =
@@ -28,7 +29,9 @@ export function assertDist({
   let project: string | undefined;
   try {
     marker = readReleaseMarker(distDir);
-    project = agreedProject(envProjectSources(env, ["GCP_PROJECT_ID"]));
+    // GCLOUD_PROJECT is what firebase-tools sets for hooks; a shell GOOGLE_CLOUD_PROJECT
+    // would only cause false refusals.
+    project = agreedProject(envProjectSources(env, ["GCLOUD_PROJECT", "GCP_PROJECT_ID"]));
   } catch (error) {
     if (error instanceof BrandConfigError)
       return refuse(...error.errors.map((e) => `${label}/${e}`));
@@ -48,6 +51,12 @@ export function assertDist({
   if (marker.projectId !== project) {
     return refuse(
       `${label} was built for "${marker.projectId}" (profile "${marker.profile}") but this deploy targets "${project}".`,
+    );
+  }
+  const indexHtml = join(distDir, "index.html");
+  if (!existsSync(indexHtml) || sha256(readFileSync(indexHtml)) !== marker.indexHtml) {
+    return refuse(
+      `${label}/index.html is not the one this marker was written for: the dist was rebuilt (or restored from turbo's cache) without BRAND_RELEASE=1. Rebuild with \`pnpm deploy:hosting\`.`,
     );
   }
   return { errors: [], marker };

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,9 +8,16 @@ import { assertDist } from "./assert-dist.ts";
 
 let distDir: string;
 
-const MARKER = { profile: "jci-oriente", projectId: "jci-oriente", assets: "a".repeat(64) };
+const INDEX_HTML = "<!doctype html><script src=/assets/index-abc.js></script>";
+const MARKER = {
+  profile: "jci-oriente",
+  projectId: "jci-oriente",
+  assets: "a".repeat(64),
+  indexHtml: createHash("sha256").update(INDEX_HTML).digest("hex"),
+};
 
 function writeMarker(marker: object = MARKER) {
+  writeFileSync(join(distDir, "index.html"), INDEX_HTML);
   writeFileSync(join(distDir, RELEASE_MARKER_FILE), JSON.stringify(marker));
 }
 
@@ -66,6 +74,25 @@ describe("assertDist", () => {
     expect(assertDist({ distDir, label: "d", env: {} }).errors).toEqual([
       expect.stringMatching(/cannot tell which project/),
     ]);
+  });
+
+  it("rejects a stale marker left beside a different build (a turbo cache replay)", () => {
+    writeMarker();
+    writeFileSync(join(distDir, "index.html"), "<!doctype html><script src=/assets/index-zzz.js>");
+    expect(
+      assertDist({ distDir, label: "d", env: { GCLOUD_PROJECT: "jci-oriente" } }).errors,
+    ).toEqual([expect.stringMatching(/index\.html is not the one this marker was written for/)]);
+  });
+
+  it("ignores a shell GOOGLE_CLOUD_PROJECT: firebase-tools' GCLOUD_PROJECT names the target", () => {
+    writeMarker();
+    expect(
+      assertDist({
+        distDir,
+        label: "d",
+        env: { GCLOUD_PROJECT: "jci-oriente", GOOGLE_CLOUD_PROJECT: "personal-sandbox" },
+      }).errors,
+    ).toEqual([]);
   });
 
   it("refuses project sources that disagree", () => {

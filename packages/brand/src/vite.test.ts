@@ -16,7 +16,7 @@ import { writeAssetSet } from "./asset-set.ts";
 import { OG_IMAGE_FILE } from "./assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile } from "./load-profile.ts";
 import { DEV_PORTS, PREVIEW_PORTS } from "./ports.ts";
-import { RELEASE_MARKER_FILE, readReleaseMarker } from "./release.ts";
+import { RELEASE_MARKER_FILE, readReleaseMarker, sha256 } from "./release.ts";
 import { brandPlugin, logoInclude, pwaManifest, resolveBrandBuild } from "./vite.ts";
 
 const ENV_KEYS = [
@@ -380,6 +380,9 @@ describe("brandPlugin", () => {
     writePulledAssets();
     const resolved = resolve({ profile: undefined, env: RELEASE_ENV });
     const dist = await buildApp(writeApp(), brandPlugin({ app: "spotlight", build: resolved }));
-    expect(readReleaseMarker(dist)).toEqual(resolved.release);
+    expect(readReleaseMarker(dist)).toEqual({
+      ...resolved.release,
+      indexHtml: sha256(readFileSync(join(dist, "index.html"))),
+    });
   });
 });

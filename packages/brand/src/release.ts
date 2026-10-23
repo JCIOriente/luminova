@@ -18,9 +18,17 @@ const releaseMarkerSchema = z.strictObject({
   profile: z.string().min(1),
   projectId: z.string().min(1),
   assets: z.string().regex(/^[0-9a-f]{64}$/, "expected the pull manifest's sha256"),
+  // Ties the marker to the build it was written with: a turbo cache replay restores a
+  // different dist on top of it without deleting it.
+  indexHtml: z.string().regex(/^[0-9a-f]{64}$/, "expected the sha256 of index.html"),
 });
 
 export type ReleaseMarker = z.infer<typeof releaseMarkerSchema>;
+/** What the build knows before it emits: the marker minus the index.html digest. */
+export type ReleaseIdentity = Omit<ReleaseMarker, "indexHtml">;
+
+export const sha256 = (data: string | Uint8Array) =>
+  createHash("sha256").update(data).digest("hex");
 
 export function isRelease(env: Env): boolean {
   const value = env[RELEASE_ENV]?.trim();
@@ -93,12 +101,11 @@ export function releaseErrors({
   return errors;
 }
 
-export function releaseMarker(profile: LoadedProfile, assetsDir: string): ReleaseMarker {
-  const manifest = readFileSync(join(assetsDir, PULL_MANIFEST_FILE));
+export function releaseMarker(profile: LoadedProfile, assetsDir: string): ReleaseIdentity {
   return {
     profile: profile.slug,
     projectId: profile.brand.firebase.projectId,
-    assets: createHash("sha256").update(manifest).digest("hex"),
+    assets: sha256(readFileSync(join(assetsDir, PULL_MANIFEST_FILE))),
   };
 }
 
