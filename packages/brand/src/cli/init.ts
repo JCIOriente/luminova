@@ -315,9 +315,10 @@ export async function init({
     }
   };
 
+  let wanted = fillWeb;
   try {
     await askAll(PROFILE_FIELDS);
-    const wanted =
+    wanted =
       fillWeb ||
       (prompter !== undefined &&
         /^y/i.test(
@@ -339,7 +340,7 @@ export async function init({
     const reasons = error instanceof BrandConfigError ? error.errors : [error.message];
     throw new BrandConfigError([
       ...reasons,
-      `your answers are in ${saved}; fix them and re-run pnpm brand:init --answers ${saved}`,
+      `your answers are in ${saved}; fix them and re-run pnpm brand:init --answers ${saved}${wanted ? " --sdkconfig" : ""}`,
     ]);
   }
 }

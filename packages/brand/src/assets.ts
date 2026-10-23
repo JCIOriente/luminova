@@ -46,7 +46,7 @@ export function contractByFolder(): Map<string, string[]> {
   return groups;
 }
 
-export interface AssetFile {
+interface AssetFile {
   path: string;
   expected: string;
   /** `W×H`, `missing` or `not a PNG`. */

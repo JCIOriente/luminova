@@ -308,7 +308,9 @@ describe("init interactively", () => {
       run: failing,
     }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(BrandConfigError);
-    expect(String(error)).toMatch(/not logged in[\s\S]*--answers \/.*\/brand-init-answers\.json/);
+    expect(String(error)).toMatch(
+      /not logged in[\s\S]*--answers \/.*\/brand-init-answers\.json --sdkconfig$/,
+    );
     const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
     expect(saved).toMatchObject({ slug: "jci-valle", name: "JCI Valle" });
     expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);

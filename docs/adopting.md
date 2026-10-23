@@ -70,7 +70,7 @@ leave the API keys out: `pnpm brand:init --answers answers.json --sdkconfig`.
 `brand:init` writes `brand/<slug>/brand.json`, copies the example's `site-content.json`
 next to it and creates `brand-assets/README.txt`. It validates everything before writing
 anything and never overwrites an existing profile. When asking, it re-asks a malformed
-or taken slug and a year that is not a number on the spot; if a later step fails, your
+or taken slug and a year or count that is not a whole number on the spot; if a later step fails, your
 answers are saved to `brand-init-answers.json` (gitignored) for `--answers`. An answers
 file is a partial
 `brand.json`; anything missing is either derived (storage bucket, site ids, auth domain,
