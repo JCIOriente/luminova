@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { brandSchema, type Brand } from "./schema.ts";
+import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema, type Brand } from "./schema.ts";
 
 export const DEFAULT_PROFILE = "jci-oriente";
 
@@ -75,6 +75,10 @@ export function loadProfile({
       ? [`BRAND_PROFILE is unset; using the "${DEFAULT_PROFILE}" example profile.`]
       : [];
 
+  // Checked before the path join, so a slug like "../x" can never leave brand/.
+  if (!SLUG_PATTERN.test(slug)) {
+    throw new BrandConfigError([`profile "${slug}" ${SLUG_MESSAGE} (e.g. jci-oriente)`]);
+  }
   const brandDir = join(repoRoot, "brand");
   const dir = join(brandDir, slug);
   const file = join(dir, "brand.json");

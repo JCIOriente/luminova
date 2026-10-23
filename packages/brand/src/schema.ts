@@ -17,6 +17,9 @@ const httpsOrigin = text.refine(
 
 const httpsUrl = z.url({ protocol: /^https$/, message: "must be an https URL" });
 
+export const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+export const SLUG_MESSAGE = "must be lowercase kebab-case";
+
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/, "must be a #RRGGBB hex color");
 
 const webApp = z.strictObject({
@@ -37,20 +40,26 @@ const legacyOgPath = z
 
 export const brandSchema = z.strictObject({
   $schema: z.string().optional(),
-  slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "must be lowercase kebab-case"),
+  slug: z.string().regex(SLUG_PATTERN, SLUG_MESSAGE),
   name: text,
   shortName: text,
   legalName: text,
   movementName: text,
   description: text,
-  locality: z.strictObject({
-    city: text,
-    cityFormal: text,
-    region: text,
-    // The bare-article short form some copy uses ("el Oriente" beside "el Oriente boliviano").
-    regionShort: text,
-    country: text,
-  }),
+  locality: z
+    .strictObject({
+      city: text,
+      cityFormal: text,
+      region: text,
+      // The bare-article short form some copy uses ("el Oriente" beside "el Oriente boliviano");
+      // a region without one reads fine in full.
+      regionShort: text.optional(),
+      country: text,
+    })
+    .transform(({ regionShort, ...locality }) => ({
+      ...locality,
+      regionShort: regionShort ?? locality.region,
+    })),
   foundedYear: z.int().min(1900).max(2100),
   stats: z.strictObject({ nationalOrganizations: z.int().positive() }),
   parentOrganization: z.strictObject({ name: text, url: httpsUrl }),

@@ -70,6 +70,14 @@ describe("loadProfile", () => {
     ]);
   });
 
+  it.each(["../other", "Other", "a/b", "-x"])(
+    "rejects the malformed slug %j before touching the filesystem",
+    (slug) => {
+      const errors = errorsOf(() => loadProfile({ repoRoot: root, env: { BRAND_PROFILE: slug } }));
+      expect(errors).toEqual([expect.stringMatching(/must be lowercase kebab-case/)]);
+    },
+  );
+
   it("lists the available profiles when the folder is missing", () => {
     const errors = errorsOf(() => loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "nope" } }));
     expect(errors).toEqual([expect.stringMatching(/"nope".*available: jci-oriente, other/)]);

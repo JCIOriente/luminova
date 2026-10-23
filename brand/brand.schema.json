@@ -57,7 +57,6 @@
         "city",
         "cityFormal",
         "region",
-        "regionShort",
         "country"
       ],
       "additionalProperties": false
