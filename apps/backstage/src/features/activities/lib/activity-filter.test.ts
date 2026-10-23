@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import type { Activity } from "@luminova/types";
 import { filterActivities, upcomingActivities } from "./activity-filter";
 

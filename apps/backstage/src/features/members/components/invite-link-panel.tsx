@@ -1,4 +1,4 @@
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import { Button } from "@luminova/ui";
 import { formatInstant } from "@luminova/utils/datetime";
 import { useCopyToClipboard } from "../../../lib/use-copy-to-clipboard";

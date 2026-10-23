@@ -1,4 +1,4 @@
-import { doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 
 /** A member's registered push tokens at `members/{uid}/fcmTokens/{token}`. `uid` is

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "firebase/firestore/lite";
 
 export const audienceSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("everyone") }),

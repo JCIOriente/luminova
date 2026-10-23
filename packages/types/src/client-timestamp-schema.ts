@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "firebase/firestore/lite";
 import { isTimestampLike } from "./engine/timestamp-schema.js";
 
 /** Client-SDK-typed variant for the non-engine entities (Member, Ally, …) whose

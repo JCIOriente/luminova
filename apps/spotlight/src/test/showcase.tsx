@@ -8,7 +8,7 @@ import {
   Outlet,
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import type { ShowcaseItem } from "@luminova/types/engine";
 
 export function renderWithRouter(ui: ReactNode, extraPaths: string[] = ["/impacto/$id"]) {

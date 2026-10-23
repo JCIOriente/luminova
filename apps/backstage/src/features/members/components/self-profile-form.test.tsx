@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import { PROFESSION_MAX_LENGTH, type Member } from "@luminova/types";
 
 const mutateAsync = vi.fn().mockResolvedValue(undefined);

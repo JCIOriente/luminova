@@ -1,13 +1,13 @@
-import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
+import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore/lite";
 import { ensureApp, emulatorEnabled, EMULATOR_HOST } from "./app-core.js";
 import { FIRESTORE_EMULATOR_PORT } from "./firebase-config.js";
 
 let db: Firestore | null = null;
 
 /**
- * Full Firestore SDK (realtime listeners + writes) for the authenticated admin.
- * Lives on its own subpath so the ~85 kB firestore module stays out of the
- * login-path eager graph and only loads inside the lazy feature route chunks.
+ * Lite Firestore SDK (one-shot reads + writes, no realtime listeners, no offline
+ * cache) for the authenticated admin. Lives on its own subpath so it stays out of
+ * the login-path eager graph and only loads inside the lazy feature route chunks.
  */
 export function getDb(): Firestore {
   if (db) return db;

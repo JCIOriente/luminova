@@ -13,7 +13,7 @@ const initializeAppCheck = vi.fn();
 const ReCaptchaV3Provider = vi.fn();
 
 vi.mock("firebase/app", () => ({ initializeApp, getApps, getApp }));
-vi.mock("firebase/firestore", () => ({ getFirestore, connectFirestoreEmulator }));
+vi.mock("firebase/firestore/lite", () => ({ getFirestore, connectFirestoreEmulator }));
 vi.mock("firebase/storage", () => ({ getStorage, connectStorageEmulator }));
 vi.mock("firebase/functions", () => ({ getFunctions, connectFunctionsEmulator }));
 vi.mock("firebase/app-check", () => ({ initializeAppCheck, ReCaptchaV3Provider }));

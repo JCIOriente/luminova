@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import type { InitiativeKind, Participation } from "@luminova/types/engine";
 import { ParticipationLedger } from "./participation-ledger";
 import { summarizeParticipations } from "../lib/participation-summary";

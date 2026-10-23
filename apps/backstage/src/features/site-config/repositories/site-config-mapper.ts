@@ -1,4 +1,4 @@
-import { serverTimestamp } from "firebase/firestore";
+import { serverTimestamp } from "firebase/firestore/lite";
 import {
   LINKTREE_SOCIAL_PLATFORMS,
   type SiteConfig,

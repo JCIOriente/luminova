@@ -8,7 +8,7 @@ import {
   query,
   where,
   arrayUnion,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 import {
   initiativeDocSchema,

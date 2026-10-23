@@ -7,7 +7,7 @@ import {
   query,
   where,
   serverTimestamp,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 import { checkInSchema, type CheckInInput } from "@luminova/types";
 import type { ParticipationRole } from "@luminova/types/engine";

@@ -18,7 +18,7 @@ const sdk = vi.hoisted(() => ({
 const { getDocs, updateDoc, query, where } = sdk;
 
 vi.mock("@luminova/firebase/db", () => ({ getDb: () => ({ mock: "db" }) }));
-vi.mock("firebase/firestore", () => sdk);
+vi.mock("firebase/firestore/lite", () => sdk);
 
 import { RoleRepository } from "./role-repository";
 
