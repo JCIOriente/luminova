@@ -60,13 +60,19 @@ In the [Firebase console](https://console.firebase.google.com), for your project
 ```bash
 pnpm brand:init                         # asks each question, with a suggested default
 pnpm brand:init --answers answers.json  # or from a file, without prompts
-pnpm brand:init --sdkconfig             # prompts too, but reads the API keys with
-                                        # firebase apps:sdkconfig (needs firebase login)
+```
+
+Either form takes `--sdkconfig` to read both API keys, the auth domain and the sender id
+with `firebase apps:sdkconfig` (read-only; needs `firebase login`), so an answers file can
+leave the API keys out: `pnpm brand:init --answers answers.json --sdkconfig`.
 ```
 
 `brand:init` writes `brand/<slug>/brand.json`, copies the example's `site-content.json`
 next to it and creates `brand-assets/README.txt`. It validates everything before writing
-anything and never overwrites an existing profile. An answers file is a partial
+anything and never overwrites an existing profile. When asking, it re-asks a malformed
+or taken slug and a year that is not a number on the spot; if a later step fails, your
+answers are saved to `brand-init-answers.json` (gitignored) for `--answers`. An answers
+file is a partial
 `brand.json`; anything missing is either derived (storage bucket, site ids, auth domain,
 sender id, assets bucket, SEO text) or reported, all at once. The JSON Schema in
 `brand/brand.schema.json` describes every field.
@@ -85,8 +91,8 @@ sender id, assets bucket, SEO text) or reported, all at once. The JSON Schema in
   "firebase": {
     "projectId": "jci-valle",
     "web": {
-      "spotlight": { "appId": "1:123:web:abc" },
-      "backstage": { "appId": "1:123:web:def" }
+      "spotlight": { "appId": "1:123:web:abc", "apiKey": "AIza…" },
+      "backstage": { "appId": "1:123:web:def", "apiKey": "AIza…" }
     }
   }
 }
@@ -124,8 +130,9 @@ pnpm brand:check            # one row per file: expected, found, verdict
 ```
 
 `brand:check` runs the same validator as the build and also schema-checks your
-`site-content.json`. A local build reads `brand-assets/` when it exists, so
-`pnpm dev` now shows your images.
+`site-content.json`. A local build reads `brand-assets/` once it holds any of the 16
+files (the README alone does not count), so `pnpm dev` now shows your images. Before
+that, a new profile has no images of its own and the build lists every missing file.
 
 ### 5. Doctor
 
@@ -135,8 +142,9 @@ pnpm brand:doctor
 
 One table: profile and where it came from, schema, site content, images, `.firebaserc`,
 your `gcloud` account, the bucket, `BRAND_PROFILE`, Node and pnpm. It only reads, and every
-row reports even when an earlier one fails. Before step 9 the **bucket** row fails; every
-other row should pass.
+row reports even when an earlier one fails. Before step 9 the **bucket** row fails, and
+the **gcloud account** row too until you run `gcloud auth login` (step 8); every other row
+should pass.
 
 ### 6. Commit the profile
 
@@ -200,6 +208,7 @@ Custom domains and the console settings that must list every hostname:
 ### 12. First admin
 
 ```bash
+gcloud auth application-default login   # the script uses Application Default Credentials
 pnpm seed:production --project <your-project-id>
 ```
 
