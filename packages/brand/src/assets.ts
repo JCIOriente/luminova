@@ -34,6 +34,17 @@ export const ASSET_CONTRACT: readonly AssetSpec[] = [
   ),
 ];
 
+/** Contract paths grouped by folder (`""` for the root, else `"<app>/"`), root first. */
+export function contractByFolder(): Map<string, string[]> {
+  const groups = new Map<string, string[]>();
+  for (const { path } of ASSET_CONTRACT) {
+    const slash = path.lastIndexOf("/");
+    const folder = slash === -1 ? "" : path.slice(0, slash + 1);
+    groups.set(folder, [...(groups.get(folder) ?? []), path]);
+  }
+  return groups;
+}
+
 export interface AssetValidation {
   errors: string[];
   warnings: string[];

@@ -77,9 +77,8 @@ describe("push", () => {
     expect(calls).toEqual([]);
   });
 
-  it("returns the deploy dispatch for the owner to run, without running it", async () => {
-    const result = await push({ profile, from, run });
-    expect(result.dispatch).toBe(DEPLOY_DISPATCH);
+  it("leaves the deploy dispatch to the owner, without running it", async () => {
+    await push({ profile, from, run });
     expect(DEPLOY_DISPATCH).toBe("gh workflow run deploy.yml -f surface=hosting");
     expect(calls.some(([command]) => command === "gh")).toBe(false);
   });

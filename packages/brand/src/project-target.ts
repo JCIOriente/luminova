@@ -1,3 +1,5 @@
+import { flagValue } from "./argv.ts";
+
 /**
  * Which Google Cloud project a script targets. One rule for every script: each explicit
  * source that is set must name the same project, so no precedence order can quietly pick
@@ -34,13 +36,5 @@ export function agreedProject(sources: readonly ProjectSource[]): string | undef
 }
 
 export function parseProjectFlag(argv: readonly string[]): string | undefined {
-  for (const [index, arg] of argv.entries()) {
-    if (arg.startsWith("--project=")) return arg.slice("--project=".length);
-    if (arg === "--project") {
-      const value = argv[index + 1];
-      if (!value || value.startsWith("--")) throw new ProjectTargetError("--project needs an id.");
-      return value;
-    }
-  }
-  return undefined;
+  return flagValue(argv, "--project", (message) => new ProjectTargetError(message));
 }

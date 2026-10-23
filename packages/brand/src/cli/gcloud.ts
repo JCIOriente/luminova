@@ -31,6 +31,7 @@ export function shellQuote(arg: string): string {
   return /^[\w@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", `'\\''`)}'`;
 }
 
-export function bucketUrl(bucket: string, path = ""): string {
-  return `gs://${bucket}/${path}`;
+/** `gs://<bucket>` alone, or `gs://<bucket>/<path>` (a trailing `/` path names a folder). */
+export function bucketUrl(bucket: string, path?: string): string {
+  return path === undefined ? `gs://${bucket}` : `gs://${bucket}/${path}`;
 }

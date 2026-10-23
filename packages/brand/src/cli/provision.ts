@@ -1,26 +1,39 @@
 import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { join, relative } from "node:path";
+import { z } from "zod";
+import { flagValue } from "../argv.ts";
 import {
   BrandConfigError,
   REPO_ROOT,
-  loadProfile,
+  issuesToBrandError,
   readJsonFile,
   type LoadedProfile,
 } from "../load-profile.ts";
 import { undeployableProfileErrors } from "../release.ts";
 import { CommandError, bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
+import { runCli } from "./main.ts";
 
 const LIFECYCLE_FILE = "brand/bucket-lifecycle.json";
 const CI_CD_DOC = "docs/ci-cd.md";
 const VIEWER_ROLE = "roles/storage.objectViewer";
 
-interface BucketState {
-  uniform_bucket_level_access?: boolean;
-  public_access_prevention?: string;
-  versioning_enabled?: boolean;
-  lifecycle_config?: unknown;
-}
+// gcloud's standardized output omits a setting that is off.
+const bucketStateSchema = z.looseObject({
+  uniform_bucket_level_access: z.boolean().optional(),
+  public_access_prevention: z.string().optional(),
+  versioning_enabled: z.boolean().optional(),
+  lifecycle_config: z.unknown().optional(),
+});
+type BucketState = z.infer<typeof bucketStateSchema>;
+
+const iamPolicySchema = z.looseObject({
+  bindings: z
+    .array(z.looseObject({ role: z.string(), members: z.array(z.string()).default([]) }))
+    .default([]),
+});
+
+const lifecycleFileSchema = z.looseObject({ lifecycle: z.unknown() });
 
 interface BucketStep {
   label: string;
@@ -35,16 +48,16 @@ export const deploySaEmail = (projectId: string) =>
 function bucketSteps(
   profile: LoadedProfile,
   repoRoot: string,
-  lifecycleFile: string,
+  lifecyclePath: string,
 ): BucketStep[] {
   const { projectId } = profile.brand.firebase;
-  const bucket = bucketUrl(profile.brand.assetsBucket).replace(/\/$/, "");
+  const bucket = bucketUrl(profile.brand.assetsBucket);
   const member = `serviceAccount:${deploySaEmail(projectId)}`;
-  const lifecycle: unknown = readJsonFile(join(repoRoot, LIFECYCLE_FILE), LIFECYCLE_FILE);
-  const rule =
-    typeof lifecycle === "object" && lifecycle !== null && "lifecycle" in lifecycle
-      ? lifecycle.lifecycle
-      : undefined;
+  const lifecycleFile = lifecycleFileSchema.safeParse(
+    readJsonFile(join(repoRoot, LIFECYCLE_FILE), LIFECYCLE_FILE),
+  );
+  if (!lifecycleFile.success) throw issuesToBrandError(LIFECYCLE_FILE, lifecycleFile.error.issues);
+  const rule = lifecycleFile.data.lifecycle;
   return [
     {
       label: "create the bucket",
@@ -82,7 +95,7 @@ function bucketSteps(
     },
     {
       label: "lifecycle (3 noncurrent generations)",
-      args: ["storage", "buckets", "update", bucket, `--lifecycle-file=${lifecycleFile}`],
+      args: ["storage", "buckets", "update", bucket, `--lifecycle-file=${lifecyclePath}`],
       isDone: (state) => isDeepStrictEqual(state.lifecycle_config, rule),
     },
     {
@@ -101,39 +114,26 @@ function bucketSteps(
 }
 
 async function describeBucket(run: CommandRunner, bucket: string): Promise<BucketState | null> {
+  let raw: string;
   try {
-    const parsed: unknown = JSON.parse(
-      await run("gcloud", ["storage", "buckets", "describe", bucket, "--format=json"]),
-    );
-    return typeof parsed === "object" && parsed !== null ? parsed : {};
+    raw = await run("gcloud", ["storage", "buckets", "describe", bucket, "--format=json"]);
   } catch (error) {
     // A missing bucket and a denied describe look alike; create then fails with the real cause.
     if (error instanceof CommandError) return null;
     throw error;
   }
+  return bucketStateSchema.parse(JSON.parse(raw));
 }
 
 async function viewerMembers(run: CommandRunner, bucket: string): Promise<string[]> {
-  const policy: unknown = JSON.parse(
-    await run("gcloud", ["storage", "buckets", "get-iam-policy", bucket, "--format=json"]),
+  const policy = iamPolicySchema.parse(
+    JSON.parse(
+      await run("gcloud", ["storage", "buckets", "get-iam-policy", bucket, "--format=json"]),
+    ),
   );
-  const bindings =
-    typeof policy === "object" &&
-    policy !== null &&
-    "bindings" in policy &&
-    Array.isArray(policy.bindings)
-      ? policy.bindings
-      : [];
-  return bindings.flatMap((binding: unknown) =>
-    typeof binding === "object" &&
-    binding !== null &&
-    "role" in binding &&
-    binding.role === VIEWER_ROLE &&
-    "members" in binding &&
-    Array.isArray(binding.members)
-      ? binding.members.filter((member: unknown) => typeof member === "string")
-      : [],
-  );
+  return policy.bindings
+    .filter(({ role }) => role === VIEWER_ROLE)
+    .flatMap(({ members }) => members);
 }
 
 /** `--apply`: runs each bucket step whose state shows it undone; never touches GitHub. */
@@ -149,7 +149,7 @@ export async function applyBucket({
   const refused = undeployableProfileErrors(profile);
   if (refused.length > 0) throw new BrandConfigError(refused);
   const steps = bucketSteps(profile, repoRoot, join(repoRoot, LIFECYCLE_FILE));
-  const bucket = bucketUrl(profile.brand.assetsBucket).replace(/\/$/, "");
+  const bucket = bucketUrl(profile.brand.assetsBucket);
   const [create, ...rest] = steps;
   if (!create) throw new Error("unreachable: no bucket steps");
 
@@ -204,7 +204,7 @@ export async function printProvisioning({
 }): Promise<string> {
   const { projectId } = profile.brand.firebase;
   const { slug } = profile;
-  const bucket = bucketUrl(profile.brand.assetsBucket).replace(/\/$/, "");
+  const bucket = bucketUrl(profile.brand.assetsBucket);
   const [create, access, versioning, lifecycle, grant] = bucketSteps(
     profile,
     repoRoot,
@@ -270,10 +270,8 @@ export async function printProvisioning({
 }
 
 if (import.meta.main) {
-  const argv = process.argv.slice(2);
-  try {
-    const profile = loadProfile();
-    for (const warning of profile.warnings) console.warn(`brand:provision: ${warning}`);
+  await runCli("brand:provision", async (profile) => {
+    const argv = process.argv.slice(2);
     if (argv.includes("--apply")) {
       for (const { label, done } of await applyBucket({ profile })) {
         console.log(`brand:provision: ${label}: ${done ? "already done" : "applied"}`);
@@ -282,13 +280,8 @@ if (import.meta.main) {
         `brand:provision: bucket ready. Remaining owner steps: B4 (BRAND_PROFILE=${profile.slug} pnpm brand:push) and B5; run without --apply to print them.`,
       );
     } else {
-      const repoIndex = argv.indexOf("--repo");
-      const repo = repoIndex === -1 ? undefined : argv[repoIndex + 1];
+      const repo = flagValue(argv, "--repo", (message) => new BrandConfigError([message]));
       console.log(await printProvisioning({ profile, repo }));
     }
-  } catch (error) {
-    if (!(error instanceof BrandConfigError || error instanceof CommandError)) throw error;
-    console.error(error.message);
-    process.exit(1);
-  }
+  });
 }
