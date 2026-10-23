@@ -205,55 +205,15 @@ Full developer guide, including the quality gate and the repository layout:
 
 ## Adopting it for your chapter
 
-Luminova is not multi-tenant. One deployment serves one chapter. To run it for yours,
-fork it and change these:
+Luminova is not multi-tenant: one deployment serves one chapter. To run it for yours, fork
+it, create a brand profile with `pnpm brand:init` (names, places, origins, your Firebase
+project), check your images with `pnpm brand:check` and your setup with
+`pnpm brand:doctor`, then put the images in a private bucket in your own project that CD
+reads from. The JCI marks are **not** covered by this repository's license — see
+[NOTICE](NOTICE).
 
-1. **Firebase project.** Create your own and put its project id, both hosting site ids and
-   the storage bucket in your brand profile's `firebase` block (see 3). `.firebaserc` is
-   generated from it (`pnpm install` writes it; `pnpm brand:apply` after switching
-   `BRAND_PROFILE`), so it cannot keep aiming at someone else's project. Then set the client
-   config in `apps/*/.env.local.example` (local development) and in the profile's
-   `firebase.web` (production builds).
-2. **Chapter content.** The seeded site content — history, mission, vision, values,
-   statistics, contact details — lives in
-   your brand profile's `site-content.json` (copy `brand/jci-oriente/site-content.json`).
-   Everything there is also editable from
-   the admin `/config` screen once you are running.
-3. **Branding.** More places than you would expect, and missing one is visible to the
-   public:
-   - **A brand profile**, `brand/<slug>/`: copy `brand/fixture/`, rename the folder and its
-     `slug`, and build with `BRAND_PROFILE=<slug>`. `brand.json` holds the name, PWA name
-     and short name, theme colours, page title, SEO and share text, both production origins,
-     the member-QR prefix and the Firebase web config. `assets/` holds the 16 images: three
-     logos, the share image and each app's favicons, PWA and Apple touch icons (the contract
-     is in `packages/brand/src/assets.ts`). A build stops and lists every missing or
-     wrong-sized file. Your real images stay out of git: deploys read them from a private
-     bucket in your project (`pnpm brand:provision`, then `brand:push`; CD runs
-     `brand:pull`), and a deploy build refuses any other source. The origins are stamped into `index.html` (`rel=canonical`,
-     `og:url`, `og:image`, `twitter:image`), `sitemap.xml` and `robots.txt`; leave ours and
-     your site tells search engines it is a copy of ours, and every WhatsApp share renders
-     our image. See `docs/domains.md`.
-   - Design tokens in `packages/ui`.
-   - Chapter facts in page copy (name, city, founding year) come from the profile's
-     tokens, and the default site content is in step 2.
-
-   The JCI marks are **not** covered by this repository's license — see [NOTICE](NOTICE).
-4. **Points matrix.** Defaults follow JCI Oriente's "Mejor Miembro Individual" scoring
-   (`docs/reference/points-matrix.md`). The values are editable per term from
-   `/point-rules`. The rule *codes* are an enum in `@luminova/types` — changing which
-   activities count at all is a code change.
-5. **Bootstrap.** `pnpm seed:production --project <your-project-id>` creates the first admin
-   interactively and seeds default site config. It refuses to run against emulators, and
-   unless the project is the one your brand profile (`BRAND_PROFILE`) names.
-
-Deploy checklist and the Firebase console setup:
-[`docs/firebase-setup.md`](docs/firebase-setup.md).
-
-**A note on language.** The interface is Spanish, because the chapter is. Code
-identifiers are English throughout, and user-facing strings are not yet extracted for
-translation — a chapter needing another language would need to do that work. If you are
-considering it, [open an adoption issue](https://github.com/JCIOriente/luminova/issues/new?template=chapter_adoption.yml)
-and say so; it helps us prioritise.
+The whole path, each step with its command: [`docs/adopting.md`](docs/adopting.md).
+Considering it? [Open an adoption issue](https://github.com/JCIOriente/luminova/issues/new?template=chapter_adoption.yml).
 
 ## Deployment
 

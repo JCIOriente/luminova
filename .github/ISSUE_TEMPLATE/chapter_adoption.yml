@@ -10,10 +10,10 @@ body:
         will point you at the right part of the setup — or find out that the part you
         need does not exist yet, which is just as useful for us to know.
 
-        The technical steps are in the "Adopting it for your chapter" section of the
-        [README](https://github.com/JCIOriente/luminova/blob/main/README.md#adopting-it-for-your-chapter),
-        or in Spanish in the
-        [README.es.md](https://github.com/JCIOriente/luminova/blob/main/README.es.md#adoptarlo-para-tu-cap%C3%ADtulo).
+        The technical steps, each with its command, are in the
+        [adoption guide](https://github.com/JCIOriente/luminova/blob/main/docs/adopting.md)
+        (summary in Spanish in the
+        [README.es.md](https://github.com/JCIOriente/luminova/blob/main/README.es.md#adoptarlo-para-tu-cap%C3%ADtulo)).
 
   - type: input
     id: chapter
