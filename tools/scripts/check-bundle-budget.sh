@@ -17,6 +17,9 @@
 # bundle-budget-watcher subagent until a per-route check is wired.
 set -eu
 
+# shellcheck source=tools/scripts/bundle-budgets.env
+. "$(dirname "$0")/bundle-budgets.env"
+
 fail=0
 
 # gzip byte size of a file (gzip -c level, matches CI's `gzip`).
@@ -91,13 +94,13 @@ check_css() {
   fi
 }
 
-# Budgets: docs/performance.md section 2 (gzip). Eager JS = entry + modulepreloads.
+# Budgets: tools/scripts/bundle-budgets.env (gzip; rationale in docs/performance.md section 2). Eager JS = entry + modulepreloads.
 # 116 (was 108): react-dom 19.3 re-baseline, see docs/performance.md (measured 113 kB).
-check_eager_js "spotlight eager JS" "apps/spotlight/dist" 116
+check_eager_js "spotlight eager JS" "apps/spotlight/dist" "$SPOTLIGHT_EAGER_JS_KB"
 # Bumped 15→17 for the /about "El Masthead" Directiva section (real permanent
 # leadership page section, token-based hand-authored gradients/clip layout; +1.1 kB
 # gz). Conscious budget decision per docs/performance.md; still leaves ~1 kB headroom.
-check_css      "spotlight index CSS" "apps/spotlight/dist/assets/index-*.css" 17
+check_css      "spotlight index CSS" "apps/spotlight/dist/assets/index-*.css" "$SPOTLIGHT_INDEX_CSS_KB"
 # Backstage eager budget re-baselined by PR2: the full Firebase SDK was split so
 # firestore/storage/functions leave the login-path graph (they now load only in
 # lazy feature route chunks), and the `/me` route's stray non-Route export — which
@@ -105,8 +108,8 @@ check_css      "spotlight index CSS" "apps/spotlight/dist/assets/index-*.css" 17
 # (→ firestore) + zod doc-schemas eager — was extracted. Honest eager total fell
 # from ~279 kB to ~157 kB; budget was 162 kB (small headroom).
 # 166: react-dom 19.3 re-baseline, see docs/performance.md (measured 163 kB).
-check_eager_js "backstage eager JS" "apps/backstage/dist" 166
-check_css      "backstage index CSS" "apps/backstage/dist/assets/index-*.css" 15
+check_eager_js "backstage eager JS" "apps/backstage/dist" "$BACKSTAGE_EAGER_JS_KB"
+check_css      "backstage index CSS" "apps/backstage/dist/assets/index-*.css" "$BACKSTAGE_INDEX_CSS_KB"
 
 if [ "$fail" -ne 0 ]; then
   echo ""
