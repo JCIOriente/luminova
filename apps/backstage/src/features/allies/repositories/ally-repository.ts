@@ -8,7 +8,7 @@ import {
   query,
   where,
   serverTimestamp,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 import { allyDocSchema, type Ally, type AllyInput } from "@luminova/types";
 import { parseDocOrNull, parseDocs } from "../../../lib/firestore-read";

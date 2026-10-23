@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import type { Photo } from "@luminova/types";
 import { useCurrentMember } from "../features/members/hooks/use-current-member";
 

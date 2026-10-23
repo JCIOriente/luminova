@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import type { ReactElement } from "react";
 import { MemberTable } from "./member-table";
 import { roleClaims } from "@luminova/auth/test-helpers";

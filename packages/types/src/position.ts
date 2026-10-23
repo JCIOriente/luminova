@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "firebase/firestore/lite";
 import type { Role } from "./permission-role.js";
 import type { MemberGender } from "./member.js";
 import { femaleTitle, genderedTitle } from "./engine/title.js";

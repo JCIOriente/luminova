@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import type { Member, MemberInviteProjection } from "@luminova/types";
 import { inviteActionLabel, memberInviteState } from "./invite-state";
 

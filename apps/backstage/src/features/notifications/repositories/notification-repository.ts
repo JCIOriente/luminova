@@ -6,7 +6,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 import {
   notificationDocSchema,

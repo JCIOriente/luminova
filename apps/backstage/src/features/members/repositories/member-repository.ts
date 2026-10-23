@@ -9,7 +9,7 @@ import {
   where,
   limit,
   serverTimestamp,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 import { getFirebase } from "@luminova/firebase";
 import { getDb } from "@luminova/firebase/db";
 import {

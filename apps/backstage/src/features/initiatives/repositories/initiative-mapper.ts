@@ -1,4 +1,4 @@
-import { Timestamp, serverTimestamp } from "firebase/firestore";
+import { Timestamp, serverTimestamp } from "firebase/firestore/lite";
 import type { InitiativeCore, InitiativeInput, InitiativeImpactInput } from "@luminova/types";
 
 /** `date` input ("YYYY-MM-DD") → Timestamp at midnight UTC (round-trips TZ-stable). */

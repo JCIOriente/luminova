@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import type { Activity } from "@luminova/types";
 import { ActivityCardGrid } from "./activity-card-grid";
 

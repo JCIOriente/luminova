@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "firebase/firestore/lite";
 import { alreadyCheckedIn, buildRosterEntries } from "./roster";
 import type { Member } from "@luminova/types";
 

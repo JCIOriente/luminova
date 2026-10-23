@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "firebase/firestore/lite";
 
 /** Why the visitor reached out — user-facing Spanish values (mirrors the contact form's subjects). */
 export const LEAD_INTENTS = ["Membresía", "Alianza", "Prensa", "Otro"] as const;

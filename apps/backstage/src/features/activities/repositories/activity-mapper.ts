@@ -1,4 +1,4 @@
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import type { ActivityInput } from "@luminova/types";
 
 /** `datetime-local` value ("YYYY-MM-DDTHH:mm") → Timestamp at that wall-clock in

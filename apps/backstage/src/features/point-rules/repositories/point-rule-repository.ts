@@ -1,4 +1,12 @@
-import { collection, doc, getDocs, query, where, writeBatch, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  where,
+  writeBatch,
+  updateDoc,
+} from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 import { pointRuleSchema, pointRuleDocSchema } from "@luminova/types";
 import type { PointRule } from "@luminova/types";

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import type { Activity, Ally, Member, MemberPoints } from "@luminova/types";
 import type { InitiativeListItem } from "../../features/initiatives/lib/initiative-list-item";
 import { buildDashboardModel, deriveActivityFeed, pointsByMonthSeries } from "./dashboard-model";

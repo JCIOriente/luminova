@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "firebase/firestore/lite";
 import type { TermPositions } from "./position.js";
 import type { PermissionOverrides } from "./permission-overrides.js";
 import type { MemberInviteProjection } from "./member-invite.js";

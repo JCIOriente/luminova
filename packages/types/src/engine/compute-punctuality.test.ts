@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import { computePunctualityFactor } from "./compute-punctuality";
 
 const start = Timestamp.fromDate(new Date("2026-06-06T18:00:00Z"));

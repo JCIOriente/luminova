@@ -8,7 +8,7 @@ import {
   serverTimestamp,
   writeBatch,
   limit,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 import { getDb } from "@luminova/firebase/db";
 import { positionDocSchema, type Position, type PositionInput } from "@luminova/types";
 import { parseDocs } from "../../../lib/firestore-read";

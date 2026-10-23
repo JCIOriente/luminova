@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+import type { Timestamp } from "firebase/firestore/lite";
 import type { AllyCategory } from "./engine/ally-public.js";
 
 /** Persisted ally document (Firestore shape). Form input is `AllyInput`. */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import { isCheckInOpen } from "./check-in-window";
 
 // 2026-06-13 10:00 Bolivia (= 14:00Z). "now" on the same Bolivia day.

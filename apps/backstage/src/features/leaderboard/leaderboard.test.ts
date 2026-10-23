@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore/lite";
 import type { Member, MemberPoints, Term } from "@luminova/types";
 import { rankAnnual, rankMonthly, monthsPresent } from "./leaderboard";
 
