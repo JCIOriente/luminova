@@ -72,6 +72,13 @@ VITE_FIREBASE_EMULATOR_ENABLED=false
 
 For local development with emulators, set `VITE_FIREBASE_EMULATOR_ENABLED=true`.
 
+Production builds do not read these keys from any `.env` file: the brand Vite plugin
+(`packages/brand/src/vite.ts`) takes them from the selected profile's `firebase` block in
+`brand/<slug>/brand.json` (`firebase.web.<app>` holds each app's `apiKey`, `appId`,
+`appCheckSiteKey` and `vapidKey`). `apps/*/.env.production` holds only
+`VITE_FIREBASE_EMULATOR_ENABLED=false`. Emulator builds (`pnpm dev`, `build:local`) keep
+reading `.env.local`.
+
 ### Beacon (apps/beacon)
 
 Cloud Functions use Application Default Credentials — no env file needed.
@@ -81,7 +88,7 @@ For local emulator, the Firebase CLI handles credentials automatically.
 
 App Check uses **reCAPTCHA v3** to protect the Firebase backend from abuse.
 
-- Setting `VITE_APPCHECK_SITE_KEY` enables App Check for that app; leaving it blank disables it. Prod builds carry the real site keys (`.env.production`); local `.env.local` leaves the key blank, so App Check is off in local dev and you develop against the emulators without a token.
+- Setting `VITE_APPCHECK_SITE_KEY` enables App Check for that app; leaving it blank disables it. Prod builds carry the real site keys (`firebase.web.<app>.appCheckSiteKey` in `brand/<slug>/brand.json`); local `.env.local` leaves the key blank, so App Check is off in local dev and you develop against the emulators without a token.
 - Every deployed client initializes App Check and attests — that is why the lite read path (`getFirestoreLite`) also initializes App Check, not just the full SDK. What is enforced and where, registering a web app, verification and failure diagnosis: owner op 3 under "Enlaces de acceso" below.
 
 The `@luminova/firebase` package initializes App Check automatically when `VITE_APPCHECK_SITE_KEY` is set (shared `initAppCheck` helper, used by both `getFirebase` and `getFirestoreLite`).
@@ -274,7 +281,7 @@ first (or run the tests with a transiently bumped `emulators.firestore.port`).
 
 1. Authentication → Sign-in method → enable **Email/Password**. No other providers.
 2. App Check — register each web app (spotlight, backstage) with a reCAPTCHA v3 provider and put
-   its site key in that app's `.env.production` as `VITE_APPCHECK_SITE_KEY`; leave `.env.local`
+   its site key in the brand profile as `firebase.web.<app>.appCheckSiteKey`; leave `.env.local`
    blank. Steps and the current enforcement state: owner op 3 under "Enlaces de acceso".
 3. Initial admin user — do **not** create it in the console (the console cannot set the
    `roles`/`perms` custom claims the rules gate on); run `pnpm seed:production` instead
@@ -525,7 +532,7 @@ it in a copy dialog with its expiry.
 
    The unauthenticated `/invitacion` page does attest: it is a top-level route outside the
    `_auth` layout, the production build carries `VITE_APPCHECK_SITE_KEY` from
-   `apps/backstage/.env.production`, and the client's `ensureApp()`
+   `firebase.web.backstage.appCheckSiteKey` in `brand/jci-oriente/brand.json`, and the client's `ensureApp()`
    (`packages/firebase/src/app-core.ts`) wires `initAppCheck` on first app acquisition, which
    `getFunctionsService()` goes through.
 
@@ -543,7 +550,7 @@ it in a copy dialog with its expiry.
       (https://console.firebase.google.com/project/jci-oriente/appcheck/) → **Apps** tab → the
       web app → **reCAPTCHA v3** → paste the secret key → Save. The same dialog
       holds the **token TTL** (30 min to 7 days, default 1 day; backstage uses 72 h).
-   4. Put the site key in that app's `.env.production` as `VITE_APPCHECK_SITE_KEY`, rebuild and
+   4. Put the site key in `brand/jci-oriente/brand.json` as `firebase.web.<app>.appCheckSiteKey`, rebuild and
       redeploy hosting. Leave `.env.local` blank: local dev runs against the
       emulators, which need no token.
 
@@ -1014,7 +1021,10 @@ web apps (backstage + spotlight).
 
 ### 3. Wire the key
 
-Set the same value in **both** apps' `.env.local` (gitignored):
+For production, set it in the brand profile for **both** apps:
+`firebase.web.spotlight.vapidKey` and `firebase.web.backstage.vapidKey` in
+`brand/<slug>/brand.json`. For local development, set the same value in **both** apps'
+`.env.local` (gitignored):
 
 ```bash
 # apps/backstage/.env.local  AND  apps/spotlight/.env.local

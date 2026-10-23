@@ -1,13 +1,7 @@
 // @vitest-environment node
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import {
-  SITE_URL_PLACEHOLDER,
-  normalizeSiteUrl,
-  renderIndexHtml,
-  renderRobots,
-  renderSitemap,
-} from "./seo-files";
+import { renderRobots, renderSitemap } from "./seo-files";
 
 const indexHtml = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 const ORIGIN = "https://example.org";
@@ -28,30 +22,37 @@ function staticRoutePaths(): string[] {
     });
 }
 
-describe("normalizeSiteUrl", () => {
-  it("strips a trailing slash", () => {
-    expect(normalizeSiteUrl("https://jcioriente.org/")).toBe("https://jcioriente.org");
-  });
-
-  it.each(["http://jcioriente.org", "https://jcioriente.org/es", "https://jcioriente.org/?a=1"])(
-    "rejects %s",
-    (bad) => {
-      expect(() => normalizeSiteUrl(bad)).toThrow(/bare https origin/);
-    },
-  );
-});
-
 describe("index.html", () => {
-  it("carries no hardcoded public origin", () => {
-    expect(indexHtml).not.toMatch(/https:\/\/[^"]*jcioriente/);
-    expect(indexHtml).toContain(`${SITE_URL_PLACEHOLDER}/`);
+  it("carries no chapter value: every brand field is a placeholder", () => {
+    expect(indexHtml).not.toMatch(
+      /jcioriente|JCI Oriente|Santa Cruz|Cámara Junior|og-image-v3|#0097D7/,
+    );
+    for (const token of [
+      "__LANG__",
+      "__THEME_COLOR__",
+      "__SEO_DESCRIPTION__",
+      "__BRAND_TITLE__",
+      "__BRAND_NAME__",
+      "__OG_LOCALE__",
+      "__OG_TITLE__",
+      "__OG_DESCRIPTION__",
+      "__OG_IMAGE_ALT__",
+      "__TWITTER_DESCRIPTION__",
+      '"__SITE_URL__/"',
+    ]) {
+      expect(indexHtml).toContain(token);
+    }
   });
 
-  it("stamps every placeholder with the site origin", () => {
-    const html = renderIndexHtml(indexHtml, ORIGIN);
-    expect(html).not.toContain(SITE_URL_PLACEHOLDER);
-    expect(html).toContain('<link rel="canonical" href="https://example.org/" />');
-    expect(html).toContain('content="https://example.org/og-image-v3.png"');
+  it("points every share-image tag at the hashed OG image", () => {
+    const shareImages = indexHtml.match(
+      /(og:image|og:image:secure_url|twitter:image)"\s+content="[^"]*"/g,
+    );
+    expect(shareImages).toEqual([
+      'og:image" content="__SITE_URL__/__OG_IMAGE__"',
+      'og:image:secure_url" content="__SITE_URL__/__OG_IMAGE__"',
+      'twitter:image" content="__SITE_URL__/__OG_IMAGE__"',
+    ]);
   });
 });
 

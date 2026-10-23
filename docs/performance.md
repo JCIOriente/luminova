@@ -70,13 +70,24 @@ machine-enforced yet — hold them by judgment + `bundle-budget-watcher`:
 
 | Budget | spotlight | backstage |
 |--------|-----------|-----------|
-| Eager JS (entry + modulepreloads) | ≤ **108 kB gz** (now 104) | ≤ **162 kB gz** (now 159 — full Firebase SDK split so firestore/storage/functions load lazily; `/me` route de-eagered) |
+| Eager JS (entry + modulepreloads) | ≤ **116 kB gz** (now 113) | ≤ **166 kB gz** (now 163 — full Firebase SDK split so firestore/storage/functions load lazily; `/me` route de-eagered) |
 | Initial CSS (`index` chunk) | ≤ **17 kB gz** (now 16 — +1.1 kB for the /about "El Masthead" Directiva section: token-based hand-authored gradients/ledger/chip layout, a permanent leadership page section) | ≤ 15 kB gz (now 13) |
 | Any single route chunk | ≤ 40 kB gz | ≤ 40 kB gz |
 | New runtime dependency | justify if it adds > 10 kB gz to eager JS | same |
 
+**Firebase 13 lazy-chunk baseline (2026-10).** Moving 12.14.0 → 13.1.0 left eager JS unchanged but grew
+the lazy Firebase chunks (gz, `pnpm turbo run build --force`): backstage `db` 75.8 → 141.9 kB, spotlight async
+`site-data` 39.5 → 47.8 kB. `@firebase/firestore` 4.15 → 4.19 weaves Pipelines and BSON types into the SDK core
+(`isCorePipeline` checks in the target/watch code), and the package declares no `sideEffects`, so a bundler
+cannot drop them; 13.1.0 is the latest release, so no upstream fix exists yet. These chunks stay off first
+paint, so no budget moved. Measured option, not adopted: routing every backstage `firebase/firestore` import to
+`firebase/firestore/lite` cuts `db` to 37.0 kB gz (eager unchanged). It needs a product decision first: lite has
+no realtime listeners (none are used today), no offline cache or queued writes, and a different `Timestamp`
+class, so all 36 source files, `packages/types` and the two tests that `vi.mock("firebase/firestore")` must switch
+together (`getCountFromServer` becomes `getCount`).
+
 **Invite-link onboarding (2026-09).** Adding `/invitacion` and removing `/forgot-password` +
-`/reset` measures **159 kB gz** backstage eager, against a 162 kB budget — verified twice,
+`/reset` measured **159 kB gz** backstage eager (pre-19.3), against a 162 kB budget — verified twice,
 including an independent re-sum of the ten files `index.html` actually references.
 
 Be precise about the BASELINE, because the table above was not: its previous note said 157,
@@ -88,11 +99,16 @@ deletion should move the eager set much; in particular the deletion does not "pa
 addition.
 
 Worth recording for whoever tunes this next: setting a password now pulls the whole backstage
-eager shell (~159 kB gz) plus the route chunk, over a Bolivian mobile link, for a one-field
+eager shell (~159 kB gz, pre-19.3) plus the route chunk, over a Bolivian mobile link, for a one-field
 form — and the audience changed from "an admin who lost their password" to **every person who
 ever joins the chapter**. That is not a regression (`/reset` had exactly the same property)
 and it is not in scope, but it is the strongest remaining argument for a separate lightweight
 entry point.
+
+**React 19.3 re-baseline (2026-10).** `react-dom` 19.3.1 adds ~8–9 kB gz of client reconciler to
+the eager set (spotlight → 113, backstage → 163 kB gz); `react` alone adds nothing. It is
+compile-time and cannot be tree-shaken. Budgets raised 108 → 116 and 162 → 166 kB (~3 kB
+headroom). Caret ranges are back, so re-measure before raising again after a react-dom minor.
 
 Breaching the eager-JS budget fails CI. A deliberate breach means raising the budget **both**
 here and in `tools/scripts/check-bundle-budget.sh` (the script hardcodes these numbers — keep the

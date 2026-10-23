@@ -92,7 +92,8 @@ check_css() {
 }
 
 # Budgets: docs/performance.md section 2 (gzip). Eager JS = entry + modulepreloads.
-check_eager_js "spotlight eager JS" "apps/spotlight/dist" 108
+# 116 (was 108): react-dom 19.3 re-baseline, see docs/performance.md (measured 113 kB).
+check_eager_js "spotlight eager JS" "apps/spotlight/dist" 116
 # Bumped 15→17 for the /about "El Masthead" Directiva section (real permanent
 # leadership page section, token-based hand-authored gradients/clip layout; +1.1 kB
 # gz). Conscious budget decision per docs/performance.md; still leaves ~1 kB headroom.
@@ -102,14 +103,15 @@ check_css      "spotlight index CSS" "apps/spotlight/dist/assets/index-*.css" 17
 # lazy feature route chunks), and the `/me` route's stray non-Route export — which
 # had disabled its auto-code-splitting and dragged all member/initiative hooks
 # (→ firestore) + zod doc-schemas eager — was extracted. Honest eager total fell
-# from ~279 kB to ~157 kB; budget set at 162 kB (small headroom).
-check_eager_js "backstage eager JS" "apps/backstage/dist" 162
+# from ~279 kB to ~157 kB; budget was 162 kB (small headroom).
+# 166: react-dom 19.3 re-baseline, see docs/performance.md (measured 163 kB).
+check_eager_js "backstage eager JS" "apps/backstage/dist" 166
 check_css      "backstage index CSS" "apps/backstage/dist/assets/index-*.css" 15
 
 if [ "$fail" -ne 0 ]; then
   echo ""
   echo "Bundle budget breached. Either trim the eager set or, if deliberate, raise"
   echo "the budget in docs/performance.md section 2 and note it in the PR (see the"
-  echo "perf guardrails)."
+  echo "perf guardrails). After a react-dom bump, see the React 19.3 re-baseline note."
 fi
 exit $fail

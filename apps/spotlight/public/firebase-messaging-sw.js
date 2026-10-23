@@ -13,7 +13,7 @@ firebase.initializeApp({
 });
 const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
-  self.registration.showNotification(payload.notification?.title ?? "JCI Oriente", {
+  self.registration.showNotification(payload.notification?.title ?? "__BRAND_NAME__", {
     body: payload.notification?.body ?? "",
     icon: "/pwa-192x192.png",
     data: { url: payload.data?.url ?? "/" },

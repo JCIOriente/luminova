@@ -3,19 +3,6 @@ packages:
   - "packages/*"
   - "tests/*"
 overrides:
-  # Dedupe the Radix internals that hold cross-component React contexts to ONE
-  # version each. react-dialog (the Sheet) and react-popover (Combobox/MultiSelect)
-  # pin DIFFERENT patch versions, so two copies = two contexts, and a Popover
-  # portaled inside a modal Sheet breaks: dismissable-layer → dropdown rendered but
-  # UNCLICKABLE (modal pointer-events lock never exempts it); focus-scope → the
-  # modal's focus trap yanks focus from the cmdk search input (can't type to filter).
-  # One version each restores Radix's nested-layer/focus coordination.
-  "@radix-ui/react-dismissable-layer": "1.1.12"
-  "@radix-ui/react-focus-scope": "1.1.9"
-  # cmdk's own react-dialog edge floats to 1.3.x, which imports FocusScopeBranchProvider
-  # (absent from the focus-scope pinned above). Keep it on the same 1.1.15 as the Sheet.
-  # Remove together with the focus-scope/dismissable-layer pins once those are lifted.
-  "cmdk>@radix-ui/react-dialog": "1.1.15"
   # Patch browserslist GHSA-c83g-rgw3-j3cx (unbounded memory growth / cache
   # eviction OOM) and GHSA-73wf-gq98-2v4g (uncaught crash / prototype write via
   # browserslist-stats.json), both <=4.28.6, patched >=4.28.7 — and the
@@ -42,13 +29,6 @@ overrides:
   # the official v2-backport; 4.0.6 is the patched 4.x — so consumers' ranges still hold.
   "form-data@<2.5.6": "^2.5.6"
   "form-data@>=4.0.0 <4.0.6": "^4.0.6"
-  # Patch undici advisories (GHSA-vmh5-mc38-953g / -vxpw-j846-p89q / -hm92-r4w5-c3mj
-  # / -35p6-xmwp-9g52 / -g8m3-5g58-fq7m / the <7.29.0 follow-up). Transitive via jsdom
-  # (vitest/backstage/spotlight) — dev/test only, never shipped. Stay in major 7:
-  # jsdom@29 require()s undici-7 internals (jsdom-dispatcher) that v8 removed, so
-  # forcing v8 breaks the vitest jsdom env. 7.29.0 patches every advisory above and is
-  # the latest 7.x — the floor moves, the major does not.
-  "undici": "^7.29.0"
   # Patch uuid GHSA-w5hq-g745-h8pq (<11.1.1: missing buffer bounds check). Transitive
   # via firebase-admin>...>gaxios, which only uses v4() (random, no buf). Forced to the
   # latest major over the v8/v9 copies; v4 API is stable across these majors.
@@ -71,25 +51,6 @@ overrides:
   # form-serializer maxDepth bypass + prototype-pollution + maxBodyLength bypass).
   # Transitive via wait-on (dev only). >=1.18.0 patches all; scoped to the vuln line.
   "axios@<1.18.0": ">=1.18.0"
-  # Patch body-parser GHSA-v422-hmwv-36x6 (<1.20.6: DoS when an invalid limit value
-  # silently disables size enforcement) AND, via body-parser's own bundled qs,
-  # GHSA-x5fp-wj9c-mxmx / GHSA-4mjr-xmp4-gh2g (qs array-limit bypass / isBuffer
-  # DoS, both patched at qs >=6.16.0). Widened from <1.20.6 to <1.20.8: 1.20.6
-  # cleared the first advisory but still bundles qs ~6.15.1 (below the qs floor);
-  # 1.20.8 bundles qs ~6.16.0. RUNTIME dep of apps/beacon (Cloud Functions) via
-  # firebase-functions>express@4 (express 4 requires body-parser ~1.20.x, so stay
-  # in the 1.x line — 1.20.8 is inside express@4.22.3's own ~1.20.5 range below).
-  "body-parser@<1.20.8": "^1.20.8"
-  # Patch qs GHSA-x5fp-wj9c-mxmx / GHSA-4mjr-xmp4-gh2g (see body-parser above) on
-  # express's OWN direct qs edge (separate from the one bundled inside
-  # body-parser). RUNTIME dep of apps/beacon via firebase-functions>express@4;
-  # express@4.22.3 is the newest 4.x, already inside firebase-functions@7.2.5's
-  # own express ^4.21.0, and its own qs range floors at ~6.16.0 — patched, no
-  # major bump needed. A lockfile refresh alone didn't converge to this version
-  # (confirmed: `pnpm --filter beacon update qs express body-parser` left it
-  # stuck on the old pinned snapshot), hence the override. Remove once the
-  # lockfile naturally resolves express >=4.22.3 unaided.
-  "express@<4.22.3": "^4.22.3"
   # Patch brace-expansion ReDoS, now flagged on BOTH copies in the tree, each with its
   # own vulnerable range, so each needs its own selector inside its own major:
   #   v5 line (minimatch@10 requires ^5.0.5, via eslint>@eslint/config-array) — the
@@ -129,53 +90,3 @@ allowBuilds:
   # postinstall. Unlisted build scripts make `pnpm install --frozen-lockfile`
   # hard-fail with ERR_PNPM_IGNORED_BUILDS in CI. Prebuilt binaries, safe to run.
   sharp: true
-minimumReleaseAgeExclude:
-  - "@radix-ui/primitive@1.1.4"
-  - "@radix-ui/react-arrow@1.1.9"
-  - "@radix-ui/react-compose-refs@1.1.3"
-  - "@radix-ui/react-context@1.1.4"
-  - "@radix-ui/react-dismissable-layer@1.1.12"
-  - "@radix-ui/react-focus-guards@1.1.4"
-  - "@radix-ui/react-focus-scope@1.1.9"
-  - "@radix-ui/react-id@1.1.2"
-  - "@radix-ui/react-popover@1.1.16"
-  - "@radix-ui/react-popper@1.3.0"
-  - "@radix-ui/react-portal@1.1.11"
-  - "@radix-ui/react-presence@1.1.6"
-  - "@radix-ui/react-primitive@2.1.5"
-  - "@radix-ui/react-slot@1.2.5"
-  - "@radix-ui/react-use-callback-ref@1.1.2"
-  - "@radix-ui/react-use-controllable-state@1.2.3"
-  - "@radix-ui/react-use-effect-event@0.0.3"
-  - "@radix-ui/react-use-escape-keydown@1.1.2"
-  - "@radix-ui/react-use-layout-effect@1.1.2"
-  - "@radix-ui/react-use-rect@1.1.2"
-  - "@radix-ui/react-use-size@1.1.2"
-  - "@radix-ui/rect@1.1.2"
-  - "@esbuild/aix-ppc64@0.28.1"
-  - "@esbuild/android-arm64@0.28.1"
-  - "@esbuild/android-arm@0.28.1"
-  - "@esbuild/android-x64@0.28.1"
-  - "@esbuild/darwin-arm64@0.28.1"
-  - "@esbuild/darwin-x64@0.28.1"
-  - "@esbuild/freebsd-arm64@0.28.1"
-  - "@esbuild/freebsd-x64@0.28.1"
-  - "@esbuild/linux-arm64@0.28.1"
-  - "@esbuild/linux-arm@0.28.1"
-  - "@esbuild/linux-ia32@0.28.1"
-  - "@esbuild/linux-loong64@0.28.1"
-  - "@esbuild/linux-mips64el@0.28.1"
-  - "@esbuild/linux-ppc64@0.28.1"
-  - "@esbuild/linux-riscv64@0.28.1"
-  - "@esbuild/linux-s390x@0.28.1"
-  - "@esbuild/linux-x64@0.28.1"
-  - "@esbuild/netbsd-arm64@0.28.1"
-  - "@esbuild/netbsd-x64@0.28.1"
-  - "@esbuild/openbsd-arm64@0.28.1"
-  - "@esbuild/openbsd-x64@0.28.1"
-  - "@esbuild/openharmony-arm64@0.28.1"
-  - "@esbuild/sunos-x64@0.28.1"
-  - "@esbuild/win32-arm64@0.28.1"
-  - "@esbuild/win32-ia32@0.28.1"
-  - "@esbuild/win32-x64@0.28.1"
-  - esbuild@0.28.1
