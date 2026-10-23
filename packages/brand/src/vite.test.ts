@@ -97,6 +97,17 @@ describe("resolveBrandBuild", () => {
     expect(resolve().assetsDir).toBe(join(repoRoot, "brand-assets"));
   });
 
+  it("ignores a brand-assets/ that holds no contract file, such as brand:init's README", () => {
+    mkdirSync(join(repoRoot, "brand-assets"));
+    writeFileSync(join(repoRoot, "brand-assets", "README.txt"), "put the files here");
+    expect(resolve().assetsDir).toBe(join(repoRoot, "brand", "fixture", "assets"));
+  });
+
+  it("reads brand-assets/ when the profile has no assets of its own, naming it in the errors", () => {
+    rmSync(join(repoRoot, "brand", "fixture", "assets"), { recursive: true });
+    expect(() => resolve()).toThrow(/brand-assets\/logo-main\.png: missing/);
+  });
+
   it("prefers BRAND_ASSETS_DIR, resolved against the repo root, over everything", () => {
     writeAssetSet(join(repoRoot, "brand-assets"));
     writeAssetSet(join(repoRoot, "elsewhere"));

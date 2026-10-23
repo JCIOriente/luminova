@@ -40,7 +40,13 @@ export function parseJsonText(text: string, label: string): unknown {
 }
 
 export function readJsonFile(file: string, label: string): unknown {
-  return parseJsonText(readFileSync(file, "utf8"), label);
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch (error) {
+    throw new BrandConfigError([`${label}: cannot read (${errorMessage(error)})`]);
+  }
+  return parseJsonText(text, label);
 }
 
 /** One error line per schema issue, `<label> <path>: <message>`. */

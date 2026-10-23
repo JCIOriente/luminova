@@ -105,6 +105,12 @@ describe("loadProfile", () => {
     expect(errors).toEqual([expect.stringMatching(/^brand\/garbled\/brand\.json: not valid JSON/)]);
   });
 
+  it("reports an unreadable brand.json as a profile error, not a crash", () => {
+    mkdirSync(join(root, "brand", "dir", "brand.json"), { recursive: true });
+    const errors = errorsOf(() => loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "dir" } }));
+    expect(errors).toEqual([expect.stringMatching(/^brand\/dir\/brand\.json: cannot read/)]);
+  });
+
   it("aggregates the errors into the thrown message", () => {
     expect(() => loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "nope" } })).toThrow(
       /Brand profile error[\s\S]*available/,

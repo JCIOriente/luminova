@@ -179,7 +179,9 @@ export async function doctor({
           fail("assets", errorMessage(error)),
         ])
       : [skip("site content"), skip("assets")]),
-    profile ? firebasercRow(profile, repoRoot) : skip(FIREBASERC),
+    profile
+      ? await attempt(FIREBASERC, async () => firebasercRow(profile, repoRoot))
+      : skip(FIREBASERC),
     account,
     bucket,
   );

@@ -5,6 +5,8 @@ export interface Question {
   key: string;
   label: string;
   fallback?: string;
+  /** Why the previous reply was refused. */
+  error?: string;
 }
 
 export interface Prompter {
@@ -18,7 +20,8 @@ export function terminalPrompter(
 ): Prompter & { close(): void } {
   const readline = createInterface({ input, output });
   return {
-    async ask({ label, fallback }) {
+    async ask({ label, fallback, error }) {
+      if (error) output.write(`  ${error}\n`);
       return (await readline.question(fallback ? `${label} [${fallback}]: ` : `${label}: `)).trim();
     },
     close: () => readline.close(),

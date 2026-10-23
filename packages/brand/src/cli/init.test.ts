@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ASSET_CONTRACT } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
-import type { CommandRunner } from "./gcloud.ts";
+import { CommandError, type CommandRunner } from "./gcloud.ts";
 import { init } from "./init.ts";
 import type { Prompter } from "./prompts.ts";
 
@@ -259,5 +259,65 @@ describe("init interactively", () => {
     expect(asked).not.toContain("name");
     expect(asked).not.toContain("firebase.projectId");
     expect(asked).toContain("firebase.storageBucket");
+  });
+
+  function scripted(
+    replies: Record<string, string[]>,
+    seen: { key: string; error?: string }[] = [],
+  ) {
+    const prompter: Prompter = {
+      async ask({ key, fallback, error }) {
+        seen.push({ key, error });
+        return replies[key]?.shift() ?? fallback ?? "";
+      },
+    };
+    return prompter;
+  }
+
+  it("re-asks a slug that is malformed or taken, and a year that is not a number", async () => {
+    const seen: { key: string; error?: string }[] = [];
+    const answers = minimalAnswers();
+    delete answers.slug;
+    delete answers.foundedYear;
+    const prompter = scripted(
+      { slug: ["Bad Slug", "jci-oriente", "jci-valle"], foundedYear: ["1,990", "1990"] },
+      seen,
+    );
+    await init({ repoRoot: root, answers, prompter, run: noCommands });
+    const errors = (key: string) => seen.filter((entry) => entry.key === key).map((e) => e.error);
+    expect(errors("slug")).toEqual([
+      undefined,
+      expect.stringMatching(/kebab-case/),
+      expect.stringMatching(/brand\/jci-oriente already exists/),
+    ]);
+    expect(errors("foundedYear")).toEqual([undefined, expect.stringMatching(/whole number/)]);
+    expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.foundedYear).toBe(1990);
+  });
+
+  it("saves the answers for --answers when a later step fails", async () => {
+    const answers = minimalAnswers();
+    delete answers.name;
+    const failing: CommandRunner = async () => {
+      throw new CommandError("firebase apps:sdkconfig failed: not logged in");
+    };
+    const error = await init({
+      repoRoot: root,
+      answers,
+      prompter: scripted({ name: ["JCI Valle"] }),
+      fillWeb: true,
+      run: failing,
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(BrandConfigError);
+    expect(String(error)).toMatch(/not logged in[\s\S]*--answers \/.*\/brand-init-answers\.json/);
+    const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
+    expect(saved).toMatchObject({ slug: "jci-valle", name: "JCI Valle" });
+    expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
+  });
+
+  it("saves nothing in --answers mode, where the file already holds the answers", async () => {
+    const answers = minimalAnswers();
+    delete answers.name;
+    await expect(init({ repoRoot: root, answers, run: noCommands })).rejects.toThrow(/name/);
+    expect(existsSync(join(root, "brand-init-answers.json"))).toBe(false);
   });
 });

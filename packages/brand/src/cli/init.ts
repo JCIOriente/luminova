@@ -13,9 +13,9 @@ import {
   readJsonFile,
 } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
-import { brandSchema } from "../schema.ts";
+import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema } from "../schema.ts";
 import { SITE_CONTENT_FILE } from "../site-content.ts";
-import { runCommand, type CommandRunner } from "./gcloud.ts";
+import { CommandError, runCommand, type CommandRunner } from "./gcloud.ts";
 import { exitOnFailure } from "./main.ts";
 import { terminalPrompter, type Prompter } from "./prompts.ts";
 
@@ -57,6 +57,8 @@ interface Field {
   fallback?: (answers: Answers, example: Answers) => string | undefined;
   /** `int` parses a number; `optional` omits a blank reply; `blank` keeps "" (feature off). */
   kind?: "int" | "optional" | "blank";
+  /** Re-asked at once while this returns a reason (interactive only; a file is checked whole). */
+  check?: (reply: string, repoRoot: string) => string | undefined;
 }
 
 const from = (path: string) => (answers: Answers) => text(answers, path);
@@ -68,7 +70,16 @@ const fromProject = (suffix: string) => (answers: Answers) => {
 
 /** In brand.json order; a fallback may read any field asked before it. */
 const PROFILE_FIELDS: readonly Field[] = [
-  { path: "slug", label: "Profile slug, lowercase kebab-case (e.g. jci-valle)" },
+  {
+    path: "slug",
+    label: "Profile slug, lowercase kebab-case (e.g. jci-valle)",
+    check: (reply, repoRoot) =>
+      !SLUG_PATTERN.test(reply)
+        ? `"${reply}" ${SLUG_MESSAGE}`
+        : existsSync(join(repoRoot, "brand", reply))
+          ? `brand/${reply} already exists; pick another slug`
+          : undefined,
+  },
   { path: "name", label: "Chapter name" },
   { path: "shortName", label: "Short name", fallback: from("name") },
   { path: "legalName", label: "Legal name", fallback: from("name") },
@@ -229,6 +240,13 @@ async function fillWebConfig(answers: Answers, run: CommandRunner): Promise<void
   }
 }
 
+export const ANSWERS_FILE = "brand-init-answers.json";
+
+function checkReply(field: Field, reply: string, repoRoot: string): string | undefined {
+  if (field.kind === "int" && !/^\d+$/.test(reply)) return `"${reply}" must be a whole number`;
+  return field.check?.(reply, repoRoot);
+}
+
 /** Keys in the template's order (brand.json's), then any others. */
 function orderLike(template: unknown, value: unknown): unknown {
   if (!isRecord(value)) return value;
@@ -281,8 +299,15 @@ export async function init({
     for (const field of fields) {
       if (get(answers, field.path) !== undefined) continue;
       const fallback = field.fallback?.(answers, exampleAnswers);
-      const reply =
-        (await prompter?.ask({ key: field.path, label: field.label, fallback })) || fallback || "";
+      let reply: string;
+      let error: string | undefined;
+      do {
+        reply =
+          (await prompter?.ask({ key: field.path, label: field.label, fallback, error })) ||
+          fallback ||
+          "";
+        error = prompter && reply !== "" ? checkReply(field, reply, repoRoot) : undefined;
+      } while (error);
       if (reply !== "" || field.kind === "blank") {
         const value = field.kind === "int" && /^\d+$/.test(reply) ? Number(reply) : reply;
         set(answers, field.path, value);
@@ -290,19 +315,46 @@ export async function init({
     }
   };
 
-  await askAll(PROFILE_FIELDS);
-  const wanted =
-    fillWeb ||
-    (prompter !== undefined &&
-      /^y/i.test(
-        await prompter.ask({
-          key: "fillWeb",
-          label: "Read the API keys with firebase apps:sdkconfig? Needs firebase login (y/N)",
-        }),
-      ));
-  if (wanted) await fillWebConfig(answers, run);
-  await askAll(WEB_KEY_FIELDS);
+  try {
+    await askAll(PROFILE_FIELDS);
+    const wanted =
+      fillWeb ||
+      (prompter !== undefined &&
+        /^y/i.test(
+          await prompter.ask({
+            key: "fillWeb",
+            label: "Read the API keys with firebase apps:sdkconfig? Needs firebase login (y/N)",
+          }),
+        ));
+    if (wanted) await fillWebConfig(answers, run);
+    await askAll(WEB_KEY_FIELDS);
+    return writeProfile({ repoRoot, answers, exampleAnswers, exampleDir: example.dir });
+  } catch (error) {
+    if (!prompter || !(error instanceof BrandConfigError || error instanceof CommandError)) {
+      throw error;
+    }
+    // Typed answers are not lost to a late failure: they become an --answers file.
+    const saved = join(repoRoot, ANSWERS_FILE);
+    writeFileSync(saved, `${JSON.stringify(answers, null, 2)}\n`);
+    const reasons = error instanceof BrandConfigError ? error.errors : [error.message];
+    throw new BrandConfigError([
+      ...reasons,
+      `your answers are in ${saved}; fix them and re-run pnpm brand:init --answers ${saved}`,
+    ]);
+  }
+}
 
+function writeProfile({
+  repoRoot,
+  answers,
+  exampleAnswers,
+  exampleDir,
+}: {
+  repoRoot: string;
+  answers: Answers;
+  exampleAnswers: Answers;
+  exampleDir: string;
+}): { slug: string; files: string[] } {
   const slug = String(answers.slug ?? "");
   const brand = orderLike(exampleAnswers, { $schema: "../brand.schema.json", ...answers });
   const label = `brand/${slug || "<slug>"}/brand.json`;
@@ -316,7 +368,7 @@ export async function init({
   mkdirSync(dir);
   const files = [`brand/${slug}/brand.json`, `brand/${slug}/${SITE_CONTENT_FILE}`];
   writeFileSync(join(dir, "brand.json"), `${JSON.stringify(brand, null, 2)}\n`);
-  copyFileSync(join(example.dir, SITE_CONTENT_FILE), join(dir, SITE_CONTENT_FILE));
+  copyFileSync(join(exampleDir, SITE_CONTENT_FILE), join(dir, SITE_CONTENT_FILE));
 
   const assetsDir = join(repoRoot, PULLED_ASSETS_DIR);
   const readme = join(assetsDir, "README.txt");
@@ -332,7 +384,9 @@ if (import.meta.main) {
   await exitOnFailure(async () => {
     const argv = process.argv.slice(2);
     const answersFile = flagValue(argv, "--answers", (message) => new BrandConfigError([message]));
-    const answers = answersFile ? readJsonFile(resolve(answersFile), answersFile) : {};
+    // pnpm runs root scripts from the workspace root; INIT_CWD is where the user typed.
+    const cwd = process.env.INIT_CWD ?? process.cwd();
+    const answers = answersFile ? readJsonFile(resolve(cwd, answersFile), answersFile) : {};
     if (!isRecord(answers)) throw new BrandConfigError([`${answersFile}: must be a JSON object`]);
     const prompter = answersFile ? undefined : terminalPrompter();
     try {

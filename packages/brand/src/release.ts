@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { PULL_MANIFEST_FILE } from "./assets.ts";
+import { ASSET_CONTRACT, PULL_MANIFEST_FILE } from "./assets.ts";
 import { sha256 } from "./hash.ts";
 import { issuesToBrandError, readJsonFile, type Env, type LoadedProfile } from "./load-profile.ts";
 
@@ -57,7 +57,9 @@ export function undeployableProfileErrors(profile: LoadedProfile): string[] {
 
 /**
  * Where a build reads the asset set: release always reads the pulled `brand-assets/`;
- * otherwise `BRAND_ASSETS_DIR`, then `brand-assets/` if present, then the profile's own.
+ * otherwise `BRAND_ASSETS_DIR`, then `brand-assets/` once it holds any contract file
+ * (brand:init leaves only a README there), then the profile's own `assets/`. A profile
+ * without its own assets reads `brand-assets/`, so its errors name the folder to fill.
  */
 export function selectAssetsDir(
   repoRoot: string,
@@ -69,8 +71,9 @@ export function selectAssetsDir(
   if (release) return pulled;
   const fromEnv = env.BRAND_ASSETS_DIR?.trim();
   if (fromEnv) return resolve(repoRoot, fromEnv);
-  if (existsSync(pulled)) return pulled;
-  return join(profile.dir, "assets");
+  const own = join(profile.dir, "assets");
+  const pulledHasAssets = ASSET_CONTRACT.some(({ path }) => existsSync(join(pulled, path)));
+  return pulledHasAssets || !existsSync(own) ? pulled : own;
 }
 
 /** Every release-only rule that fails, so one build lists them all. */

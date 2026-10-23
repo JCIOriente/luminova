@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -159,6 +159,27 @@ describe("doctor", () => {
       BRAND_PROFILE: "ok",
     });
     expect(calls.some((call) => call.includes("objects"))).toBe(false);
+  });
+
+  it("reports unreadable files as failing rows instead of throwing", async () => {
+    rmSync(join(root, "brand/jci-oriente/brand.json"));
+    mkdirSync(join(root, "brand/jci-oriente/brand.json"));
+    rmSync(join(root, ".firebaserc"));
+    mkdirSync(join(root, ".firebaserc"));
+    const rows = await diagnose();
+    expect(statusOf(rows)).toMatchObject({ profile: "ok", schema: "fail", ".firebaserc": "skip" });
+    expect(rowFor(rows, "schema").detail).toMatch(/cannot read/);
+  });
+
+  it("fails an unreadable .firebaserc as its own row", async () => {
+    rmSync(join(root, ".firebaserc"));
+    mkdirSync(join(root, ".firebaserc"));
+    const rows = await diagnose();
+    expect(rowFor(rows, ".firebaserc")).toMatchObject({
+      status: "fail",
+      detail: expect.stringMatching(/EISDIR/),
+    });
+    expect(rows).toHaveLength(10);
   });
 
   it("fails the schema row with the schema errors", async () => {
