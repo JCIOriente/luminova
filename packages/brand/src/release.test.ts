@@ -61,7 +61,7 @@ describe("releaseErrors", () => {
   it("requires BRAND_PROFILE", () => {
     writeManifest();
     expect(releaseErrors({ profile: jci("default"), env: {}, assetsDir })).toEqual([
-      expect.stringMatching(/BRAND_PROFILE is required in release mode/),
+      expect.stringMatching(/BRAND_PROFILE is required/),
     ]);
   });
 

@@ -246,6 +246,7 @@ IAM admin + repo admin. `gh` covers the GitHub side; no console clicks required.
 export PROJECT_ID=jci-oriente
 export PROJECT_NUMBER=953870918238
 export GH_REPO=JCIOriente/luminova
+export REVIEWER_ID=5279327  # the required reviewer: gh api user -q .id
 export POOL_ID=github-actions
 export PROVIDER_ID=github-oidc
 export DEPLOY_SA=firebase-deployer
@@ -306,7 +307,7 @@ gcloud billing accounts add-iam-policy-binding "$BILLING_ACCOUNT" \
 # --- 6. GitHub production environment (via gh; owner id from `gh api user`) ---
 gh api -X PUT "repos/${GH_REPO}/environments/production" --input - <<JSON
 { "wait_timer": 0,
-  "reviewers": [{"type": "User", "id": 5279327}],
+  "reviewers": [{"type": "User", "id": ${REVIEWER_ID}}],
   "deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true} }
 JSON
 gh api -X POST "repos/${GH_REPO}/environments/production/deployment-branch-policies" \

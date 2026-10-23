@@ -30,6 +30,28 @@ export function isRelease(env: Env): boolean {
   throw new Error(`${RELEASE_ENV} must be "1" (release) or unset; got "${value}".`);
 }
 
+/**
+ * A profile that may reach production: named on purpose, not the fixture, not an
+ * emulator-only project. Release builds, brand:push and brand:provision --apply share it.
+ */
+export function undeployableProfileErrors(profile: LoadedProfile): string[] {
+  const errors: string[] = [];
+  const { slug } = profile;
+  const { projectId } = profile.brand.firebase;
+  if (profile.source === "default") {
+    errors.push("BRAND_PROFILE is required here; set it to the profile you mean to ship.");
+  }
+  if (slug === NEUTRAL_PROFILE) {
+    errors.push(`profile "${slug}" is the neutral test profile and can never be released.`);
+  }
+  if (projectId.startsWith(DEMO_PROJECT_PREFIX)) {
+    errors.push(
+      `profile "${slug}": project "${projectId}" is an emulator-only demo project and cannot be released.`,
+    );
+  }
+  return errors;
+}
+
 /** Every release-only rule that fails, so one build lists them all. */
 export function releaseErrors({
   profile,
@@ -40,22 +62,9 @@ export function releaseErrors({
   env: Env;
   assetsDir: string;
 }): string[] {
-  const errors: string[] = [];
+  const errors = undeployableProfileErrors(profile);
   const { slug } = profile;
   const { projectId } = profile.brand.firebase;
-  if (profile.source === "default") {
-    errors.push(
-      "BRAND_PROFILE is required in release mode; set it to the profile this deploy ships.",
-    );
-  }
-  if (slug === NEUTRAL_PROFILE) {
-    errors.push(`profile "${slug}" is the neutral test profile and can never be released.`);
-  }
-  if (projectId.startsWith(DEMO_PROJECT_PREFIX)) {
-    errors.push(
-      `profile "${slug}": project "${projectId}" is an emulator-only demo project and cannot be released.`,
-    );
-  }
   if (env.BRAND_ASSETS_DIR?.trim()) {
     errors.push(
       `BRAND_ASSETS_DIR is not allowed in release mode; release assets come only from ${PULLED_ASSETS_DIR}/ (run brand:pull).`,
