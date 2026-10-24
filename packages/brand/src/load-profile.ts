@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema, type Brand } from "./schema.ts";
 
@@ -88,6 +88,28 @@ export function selectedProfile({
   return fromEnv ? { slug: fromEnv, source: "env" } : { slug: DEFAULT_PROFILE, source: "default" };
 }
 
+/**
+ * The command that keeps BRAND_PROFILE set in every new terminal, for the user's shell. The
+ * selection is an environment variable on purpose (spec D18), so it lives in the shell's
+ * startup file (or a direnv `.envrc`), never in a repo file.
+ */
+export function keepProfileCommand(slug: string, env: Env = process.env): string {
+  const shell = basename(env.SHELL ?? "");
+  if (shell === "fish") return `set -Ux BRAND_PROFILE ${slug}`;
+  const startupFile = { zsh: "~/.zshrc", bash: "~/.bashrc" }[shell];
+  return startupFile
+    ? `echo 'export BRAND_PROFILE=${slug}' >> ${startupFile}`
+    : `add export BRAND_PROFILE=${slug} to your shell's startup file`;
+}
+
+export const cdProfileCommand = (slug: string) =>
+  `gh variable set BRAND_PROFILE --env production --body ${slug}`;
+
+/** Profiles a person would select: every one with a brand.json except the neutral fixture. */
+export function selectableProfiles(repoRoot: string = REPO_ROOT): string[] {
+  return availableProfiles(join(repoRoot, "brand")).filter((slug) => slug !== "fixture");
+}
+
 function availableProfiles(brandDir: string): string[] {
   if (!existsSync(brandDir)) return [];
   return readdirSync(brandDir, { withFileTypes: true })
@@ -104,7 +126,9 @@ export function loadProfile({
   const { slug, source } = selectedProfile({ env, profile });
   const warnings =
     source === "default"
-      ? [`BRAND_PROFILE is unset; using the "${DEFAULT_PROFILE}" example profile.`]
+      ? [
+          `BRAND_PROFILE is unset; using the "${DEFAULT_PROFILE}" example profile. To keep yours: ${keepProfileCommand("<slug>", env)}`,
+        ]
       : [];
 
   // Checked before the path join, so a slug like "../x" can never leave brand/.

@@ -145,6 +145,12 @@ describe("doctor", () => {
     const rows = await diagnose({ env: {} });
     expect(statusOf(rows)).toMatchObject({ BRAND_PROFILE: "fail", profile: "ok", schema: "ok" });
     expect(rowFor(rows, "profile").detail).toBe("jci-oriente (default)");
+    const { detail } = rowFor(await diagnose({ env: { SHELL: "/bin/zsh" } }), "BRAND_PROFILE");
+    expect(detail).toContain("echo 'export BRAND_PROFILE=jci-oriente' >> ~/.zshrc");
+    expect(detail).toContain("profiles: jci-oriente");
+    expect(detail).not.toContain("fixture");
+    expect(detail).toMatch(/\.envrc/);
+    expect(detail).toContain("gh variable set BRAND_PROFILE --env production --body jci-oriente");
   });
 
   it("skips the profile-dependent rows when the profile is missing, without throwing", async () => {

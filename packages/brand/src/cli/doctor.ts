@@ -4,11 +4,14 @@ import { z } from "zod";
 import { ASSET_CONTRACT } from "../assets.ts";
 import {
   BrandConfigError,
+  cdProfileCommand,
   ProfileNotFoundError,
   REPO_ROOT,
   errorMessage,
+  keepProfileCommand,
   loadProfile,
   readJsonFile,
+  selectableProfiles,
   selectedProfile,
   type Env,
   type LoadedProfile,
@@ -186,10 +189,16 @@ export async function doctor({
     bucket,
   );
   const selected = env.BRAND_PROFILE?.trim();
+  const profiles = selectableProfiles(repoRoot);
+  // With one candidate the commands are ready to paste; otherwise the user picks.
+  const slug = profiles.length === 1 ? (profiles[0] ?? "<slug>") : "<slug>";
   rows.push(
     selected
       ? ok("BRAND_PROFILE", selected)
-      : fail("BRAND_PROFILE", "unset; add export BRAND_PROFILE=<slug> to your shell profile"),
+      : fail(
+          "BRAND_PROFILE",
+          `unset; to keep it in every terminal: ${keepProfileCommand(slug, env)} (or a direnv .envrc in the repo); profiles: ${profiles.join(", ") || "none"}. CD reads its own: ${cdProfileCommand(slug)}`,
+        ),
     await attempt("node", () => nodeRow(repoRoot, nodeVersion)),
     pnpm,
   );

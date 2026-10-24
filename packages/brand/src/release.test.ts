@@ -68,7 +68,9 @@ describe("releaseErrors", () => {
   it("requires BRAND_PROFILE", () => {
     writeManifest();
     expect(releaseErrors({ profile: jci("default"), env: {}, assetsDir, ...BUILD })).toEqual([
-      expect.stringMatching(/BRAND_PROFILE is required/),
+      expect.stringMatching(
+        /BRAND_PROFILE is required[\s\S]*gh variable set BRAND_PROFILE --env production --body <slug>/,
+      ),
     ]);
   });
 

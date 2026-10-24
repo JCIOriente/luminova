@@ -2,7 +2,13 @@ import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BrandConfigError, DEFAULT_PROFILE, REPO_ROOT, loadProfile } from "./load-profile.ts";
+import {
+  BrandConfigError,
+  DEFAULT_PROFILE,
+  REPO_ROOT,
+  keepProfileCommand,
+  loadProfile,
+} from "./load-profile.ts";
 
 let root: string;
 
@@ -40,6 +46,8 @@ describe("loadProfile", () => {
     expect(profile.slug).toBe("jci-oriente");
     expect(profile.source).toBe("default");
     expect(profile.warnings).toEqual([expect.stringMatching(/BRAND_PROFILE is unset/)]);
+    const zsh = loadProfile({ repoRoot: root, env: { SHELL: "/bin/zsh" } });
+    expect(zsh.warnings[0]).toContain("echo 'export BRAND_PROFILE=<slug>' >> ~/.zshrc");
   });
 
   it("prefers BRAND_PROFILE over the default", () => {
@@ -115,6 +123,17 @@ describe("loadProfile", () => {
     expect(() => loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "nope" } })).toThrow(
       /Brand profile error[\s\S]*available/,
     );
+  });
+});
+
+describe("keepProfileCommand", () => {
+  it.each([
+    ["/bin/zsh", "echo 'export BRAND_PROFILE=acme' >> ~/.zshrc"],
+    ["/opt/homebrew/bin/bash", "echo 'export BRAND_PROFILE=acme' >> ~/.bashrc"],
+    ["/usr/bin/fish", "set -Ux BRAND_PROFILE acme"],
+    [undefined, "add export BRAND_PROFILE=acme to your shell's startup file"],
+  ])("for SHELL=%s says %s", (shell, expected) => {
+    expect(keepProfileCommand("acme", { SHELL: shell })).toBe(expected);
   });
 });
 

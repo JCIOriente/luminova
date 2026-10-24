@@ -3,7 +3,14 @@ import { join, resolve } from "node:path";
 import { z } from "zod";
 import { ASSET_CONTRACT, PULL_MANIFEST_FILE } from "./assets.ts";
 import { sha256 } from "./hash.ts";
-import { issuesToBrandError, readJsonFile, type Env, type LoadedProfile } from "./load-profile.ts";
+import {
+  cdProfileCommand,
+  issuesToBrandError,
+  keepProfileCommand,
+  readJsonFile,
+  type Env,
+  type LoadedProfile,
+} from "./load-profile.ts";
 
 /** Release mode (spec section 5.6): the deploy build. CD and `deploy:hosting` set it. */
 const RELEASE_ENV = "BRAND_RELEASE";
@@ -42,7 +49,9 @@ export function undeployableProfileErrors(profile: LoadedProfile): string[] {
   const { slug } = profile;
   const { projectId } = profile.brand.firebase;
   if (profile.source === "default") {
-    errors.push("BRAND_PROFILE is required here; set it to the profile you mean to ship.");
+    errors.push(
+      `BRAND_PROFILE is required here; set it to the profile you mean to ship (locally: ${keepProfileCommand("<slug>")}; CD: ${cdProfileCommand("<slug>")}).`,
+    );
   }
   if (slug === NEUTRAL_PROFILE) {
     errors.push(`profile "${slug}" is the neutral test profile and can never be released.`);
