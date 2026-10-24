@@ -120,3 +120,44 @@ describe("validateAssets", () => {
     expect(validateAssets(dir, { profile: "fixture" }).errors).toEqual([]);
   });
 });
+
+describe("validateAssets files", () => {
+  it("puts a logo size mismatch on the mismatched logo's own record", () => {
+    writeCompleteSet();
+    put(
+      "logo-on-dark.png",
+      encodePng(FIXTURE_LOGO_SIZE.width + 2, FIXTURE_LOGO_SIZE.height, [0, 0, 0]),
+    );
+    const { files, errors } = validateAssets(dir);
+    const dark = files.find(({ path }) => path === "logo-on-dark.png");
+    expect(dark?.errors).toEqual([
+      expect.stringMatching(/must be the same size as logo-main\.png/),
+    ]);
+    expect(errors).toEqual([expect.stringMatching(/^logo-on-dark\.png: .*same size/)]);
+  });
+
+  it("reports what it read for every contract file, in contract order", () => {
+    writeCompleteSet();
+    rmSync(join(dir, "og-image.png"));
+    put("spotlight/favicon-16.png", Buffer.from("not a png"));
+    const { files } = validateAssets(dir);
+    expect(files.map(({ path }) => path)).toEqual(ASSET_CONTRACT.map(({ path }) => path));
+    const byPath = new Map(files.map((file) => [file.path, file]));
+    expect(byPath.get("logo-main.png")).toEqual({
+      path: "logo-main.png",
+      expected: "PNG, height ≥ 184",
+      found: "400×200",
+      errors: [],
+      warnings: [],
+    });
+    expect(byPath.get("og-image.png")).toMatchObject({
+      found: "missing",
+      errors: ["missing (expected 1200×630)"],
+    });
+    expect(byPath.get("spotlight/favicon-16.png")).toMatchObject({
+      expected: "16×16",
+      found: "not a PNG",
+      errors: ["not a PNG (expected 16×16)"],
+    });
+  });
+});

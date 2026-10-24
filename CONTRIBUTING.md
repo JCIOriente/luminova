@@ -4,8 +4,7 @@ Thanks for taking the time. This is the developer guide: how to get the stack
 running, what the quality gate is, and how a change gets merged.
 
 If you are here to adapt Luminova for your own chapter rather than to contribute
-upstream, start with the "Adopting it for your chapter" section of the
-[README](README.md).
+upstream, start with the adoption guide, [`docs/adopting.md`](docs/adopting.md).
 
 ## Prerequisites
 

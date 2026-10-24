@@ -134,60 +134,15 @@ El panorama completo está en [`docs/roadmap.md`](docs/roadmap.md) (en inglés).
 
 ## Adoptarlo para tu capítulo
 
-Luminova no es multi-inquilino. Un despliegue sirve a un capítulo. Para usarlo en el tuyo,
-haz un fork y cambia esto:
+Luminova no es multi-inquilino: un despliegue sirve a un capítulo. Para usarlo en el tuyo,
+haz un fork, crea un perfil de marca con `pnpm brand:init` (nombres, lugares, orígenes, tu
+proyecto de Firebase), revisa tus imágenes con `pnpm brand:check` y tu configuración con
+`pnpm brand:doctor`, y sube las imágenes a un bucket privado de tu propio proyecto, de donde
+las lee el CD. Las marcas de JCI **no** están cubiertas por la licencia de este repositorio
+— ver [NOTICE](NOTICE).
 
-1. **Proyecto de Firebase.** Crea el tuyo y pon su id de proyecto, los ids de ambos sitios
-   de hosting y el bucket de storage en el bloque `firebase` de tu perfil de marca (ver 3).
-   `.firebaserc` se genera a partir de él (`pnpm install` lo escribe; `pnpm brand:apply`
-   después de cambiar `BRAND_PROFILE`), así que no puede seguir apuntando al proyecto de
-   otro capítulo. Después ajusta la configuración del cliente en
-   `apps/*/.env.local.example` (desarrollo local) y en `firebase.web` del perfil (builds de
-   producción).
-2. **Contenido del capítulo.** El contenido inicial del sitio —historia, misión, visión,
-   valores, estadísticas, datos de contacto— vive en
-   el `site-content.json` de tu perfil de marca (copia `brand/jci-oriente/site-content.json`).
-   Todo eso también se edita desde la pantalla
-   `/config` una vez que esté funcionando.
-3. **Marca.** Está en más lugares de los que parece, y omitir uno se ve en público:
-   - **Un perfil de marca**, `brand/<slug>/`: copia `brand/fixture/`, renombra la carpeta y
-     su `slug`, y compila con `BRAND_PROFILE=<slug>`. `brand.json` guarda el nombre, el
-     nombre y nombre corto de la PWA, los colores de tema, el título, los textos de SEO y
-     para compartir, ambos orígenes de producción, el prefijo del QR de miembro y la
-     configuración web de Firebase. `assets/` guarda las 16 imágenes: tres logos, la imagen
-     para compartir y los favicons, iconos PWA e iconos de Apple de cada app (el contrato
-     está en `packages/brand/src/assets.ts`). El build se detiene y lista cada archivo que
-     falte o tenga otro tamaño. Tus imágenes reales no entran a git: los despliegues las
-     leen de un bucket privado de tu proyecto (`pnpm brand:provision`, luego `brand:push`;
-     el CD ejecuta `brand:pull`), y un build de despliegue rechaza cualquier otra fuente. Los orígenes se escriben en `index.html` (`rel=canonical`,
-     `og:url`, `og:image`, `twitter:image`), `sitemap.xml` y `robots.txt`; si dejas los
-     nuestros, tu sitio le declara a los buscadores que es una copia del nuestro, y cada vez
-     que alguien comparta el enlace por WhatsApp saldrá nuestra imagen. Ver
-     `docs/domains.md`.
-   - Tokens de diseño en `packages/ui`.
-   - Los datos del capítulo en los textos de las páginas (nombre, ciudad, año de fundación)
-     salen de los tokens del perfil, y el contenido inicial del sitio está en el paso 2.
-
-   Las marcas de JCI **no** están cubiertas por la licencia de este repositorio — ver
-   [NOTICE](NOTICE).
-4. **Matriz de puntos.** Los valores por defecto siguen la evaluación "Mejor Miembro
-   Individual" de JCI Oriente (`docs/reference/points-matrix.md`). Los valores se editan por
-   gestión desde `/point-rules`. Los *códigos* de las reglas son un enum en
-   `@luminova/types`: cambiar qué actividades puntúan es un cambio de código.
-5. **Arranque.** `pnpm seed:production --project <id-de-tu-proyecto>` crea el primer
-   administrador de forma interactiva y carga la configuración inicial del sitio. Se niega a
-   correr contra los emuladores, y si el proyecto no es el que nombra tu perfil de marca
-   (`BRAND_PROFILE`).
-
-Los pasos técnicos de instalación local están en el
-[README en inglés](README.md#quickstart) y en [CONTRIBUTING.md](CONTRIBUTING.md).
-
-**Sobre el idioma.** La interfaz está en español, porque el capítulo lo está. Los
-identificadores del código son en inglés, y los textos visibles todavía no están extraídos
-para traducción: un capítulo que necesite otro idioma tendría que hacer ese trabajo. Si lo
-estás evaluando,
-[abre un issue de adopción](https://github.com/JCIOriente/luminova/issues/new?template=chapter_adoption.yml)
-y cuéntanos; nos ayuda a priorizar.
+El camino completo, cada paso con su comando (en inglés): [`docs/adopting.md`](docs/adopting.md).
+¿Lo estás evaluando? [Abre un issue de adopción](https://github.com/JCIOriente/luminova/issues/new?template=chapter_adoption.yml).
 
 ## Contribuir
 

@@ -62,6 +62,7 @@ coverage/
 
 # Brand assets: deployment assets stay out of git; only the example and fixture profiles commit theirs
 brand-assets/
+brand-init-answers.json
 # Generated from the selected profile by `pnpm brand:apply` (prepare runs it on install)
 .firebaserc
 brand/*/assets/

@@ -225,7 +225,7 @@ rules contract).
 | — | Hooks correctness (item 11) | `react-hooks/rules-of-hooks` + `exhaustive-deps`, both `"error"` | `eslint.config.js:32-33` via CI `checks` |
 | — | firebase-lite discipline | `no-restricted-imports` (spotlight must use `firebase/firestore/lite`) | `eslint.config.js:101` |
 | — | Bundle regressions | `bundle-budget-watcher` agent + budget script | `.claude/agents/bundle-budget-watcher.md`; `tools/scripts/check-bundle-budget.sh` in CI `checks` |
-| — | Brand leak (chapter values in another profile's build) | `pnpm brand:guard`: needles from `brand/jci-oriente/brand.json` + asset hashes + regex over a fixture-profile build; inverse check on the `jci-oriente` dist | `packages/brand/src/cli/guard.ts` in CI `checks` |
+| — | Brand leak (chapter values in another profile's build) | `pnpm brand:guard`: needles from `brand/jci-oriente/brand.json` + asset hashes + regex over a fixture-profile build; inverse check on the `jci-oriente` dist. `pnpm brand:schema --check`: the committed `brand/brand.schema.json` equals the zod source | `packages/brand/src/cli/guard.ts`, `schema.ts`; both steps in CI `checks` (`.github/workflows/ci.yml`) |
 | — | Commit/PR hygiene | `branch-guard.sh`, `pre-commit.sh`, `review-router.sh`, `stop.sh` | `.claude/hooks/` |
 | — | Review selection by judgment | deterministic review router: path/line rubric → mandated review set; hard-gated for the security class; fixture-tested in CI | `.claude/review-routing.json`; `.claude/hooks/review-route.mjs` + `review-gate.sh`; `pnpm test:harness` in CI `checks` |
 

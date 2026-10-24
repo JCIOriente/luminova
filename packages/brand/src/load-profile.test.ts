@@ -70,6 +70,14 @@ describe("loadProfile", () => {
     ]);
   });
 
+  it.each(["../other", "Other", "a/b", "-x"])(
+    "rejects the malformed slug %j before touching the filesystem",
+    (slug) => {
+      const errors = errorsOf(() => loadProfile({ repoRoot: root, env: { BRAND_PROFILE: slug } }));
+      expect(errors).toEqual([expect.stringMatching(/must be lowercase kebab-case/)]);
+    },
+  );
+
   it("lists the available profiles when the folder is missing", () => {
     const errors = errorsOf(() => loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "nope" } }));
     expect(errors).toEqual([expect.stringMatching(/"nope".*available: jci-oriente, other/)]);
@@ -95,6 +103,12 @@ describe("loadProfile", () => {
       loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "garbled" } }),
     );
     expect(errors).toEqual([expect.stringMatching(/^brand\/garbled\/brand\.json: not valid JSON/)]);
+  });
+
+  it("reports an unreadable brand.json as a profile error, not a crash", () => {
+    mkdirSync(join(root, "brand", "dir", "brand.json"), { recursive: true });
+    const errors = errorsOf(() => loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "dir" } }));
+    expect(errors).toEqual([expect.stringMatching(/^brand\/dir\/brand\.json: cannot read/)]);
   });
 
   it("aggregates the errors into the thrown message", () => {

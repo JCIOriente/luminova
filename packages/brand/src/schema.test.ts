@@ -162,11 +162,14 @@ describe("brandSchema", () => {
     rejects((b) => (b.firebase.projectId = "Fixture_Project"), "firebase.projectId");
   });
 
-  it("rejects a missing locality.regionShort", () => {
-    rejects(
-      (b) => delete (b.locality as Partial<Brand["locality"]>).regionShort,
-      "locality.regionShort",
-    );
+  it("defaults a missing locality.regionShort to locality.region", () => {
+    const brand = validBrand();
+    delete (brand.locality as Partial<Brand["locality"]>).regionShort;
+    expect(brandSchema.parse(brand).locality.regionShort).toBe("the Springfield valley");
+  });
+
+  it("rejects an empty locality.regionShort", () => {
+    rejects((b) => (b.locality.regionShort = " "), "locality.regionShort");
   });
 
   it.each(["", "not-an-email"])("rejects the backstage.contactEmail %j", (email) => {
