@@ -12,7 +12,7 @@ describe("formatRemedies", () => {
       [
         "To fix:",
         "  - add the missing files to brand-assets/",
-        "      pnpm brand:check   # in the repo",
+        "      pnpm brand:check   # in the repo root",
         "  - gcloud auth login   # in your shell",
       ].join("\n"),
     );
@@ -38,7 +38,7 @@ describe("formatRemedies", () => {
 describe("formatNext", () => {
   it("prints one step as a command to paste", () => {
     expect(formatNext([{ change: "check the whole setup", run: "pnpm brand:doctor" }])).toBe(
-      ["Next:", "  check the whole setup", "    pnpm brand:doctor   # in the repo"].join("\n"),
+      ["Next:", "  check the whole setup", "    pnpm brand:doctor   # in the repo root"].join("\n"),
     );
   });
 

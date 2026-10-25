@@ -151,7 +151,7 @@ describe("loadProfile remedies", () => {
       { change: "or create brand/nope/", run: "pnpm brand:init" },
     ]);
     expect(message).toContain("To fix:");
-    expect(message).toContain("pnpm brand:init   # in the repo");
+    expect(message).toContain("pnpm brand:init   # in the repo root");
   });
 
   it("points a schema error at the file, the schema and brand:check", () => {
@@ -190,12 +190,13 @@ describe("loadProfile remedies", () => {
 
 describe("keepProfileCommand", () => {
   it.each([
-    ["/bin/zsh", "echo 'export BRAND_PROFILE=acme' >> ~/.zshrc"],
-    ["/opt/homebrew/bin/bash", "echo 'export BRAND_PROFILE=acme' >> ~/.bashrc"],
-    ["/usr/bin/fish", "set -Ux BRAND_PROFILE acme"],
-    [undefined, "add export BRAND_PROFILE=acme to your shell's startup file"],
-  ])("for SHELL=%s says %s", (shell, expected) => {
-    expect(keepProfileCommand("acme", { SHELL: shell })).toBe(expected);
+    ["/bin/zsh", "darwin", "echo 'export BRAND_PROFILE=acme' >> ~/.zshrc"],
+    ["/bin/bash", "linux", "echo 'export BRAND_PROFILE=acme' >> ~/.bashrc"],
+    ["/opt/homebrew/bin/bash", "darwin", "echo 'export BRAND_PROFILE=acme' >> ~/.bash_profile"],
+    ["/usr/bin/fish", "linux", "set -Ux BRAND_PROFILE acme"],
+    [undefined, "linux", "add export BRAND_PROFILE=acme to your shell's startup file"],
+  ] as const)("for SHELL=%s on %s says %s", (shell, platform, expected) => {
+    expect(keepProfileCommand("acme", { SHELL: shell }, platform)).toBe(expected);
   });
 });
 

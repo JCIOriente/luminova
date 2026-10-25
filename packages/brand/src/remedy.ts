@@ -17,7 +17,7 @@ export interface Problem {
   remedies?: readonly Remedy[];
 }
 
-const PLACES = { repo: "the repo", shell: "your shell" } as const;
+const PLACES = { repo: "the repo root", shell: "your shell" } as const;
 
 function place({ where, console, run }: Remedy): string {
   if (console) return `   # in the ${console}`;

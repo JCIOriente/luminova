@@ -7,7 +7,7 @@ import { ASSET_CONTRACT } from "../assets.ts";
 import { REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { applyProfile } from "./apply.ts";
-import { DOCTOR_NEXT, doctor, doctorRemedies, type DoctorRow } from "./doctor.ts";
+import { doctor, doctorNext, doctorRemedies, type DoctorRow } from "./doctor.ts";
 import { CommandError, commandFailure, type CommandRunner } from "./gcloud.ts";
 
 const BUCKET = "jci-oriente-brand-assets";
@@ -223,10 +223,10 @@ describe("doctor", () => {
       expect(runsOf(rowFor(rows, "gcloud account"))).toEqual(["gcloud auth login"]);
       expect(runsOf(rowFor(rows, "bucket"))).toEqual(["pnpm brand:push"]);
       expect(runsOf(rowFor(rows, "node"))).toEqual(["nvm install && nvm use"]);
+      // The only profile is the example, which is never pre-filled for the user.
       expect(runsOf(rowFor(rows, "BRAND_PROFILE"))).toEqual([
-        "echo 'export BRAND_PROFILE=jci-oriente' >> ~/.zshrc",
-        "export BRAND_PROFILE=jci-oriente",
-        "gh variable set BRAND_PROFILE --env production --body jci-oriente",
+        "echo 'export BRAND_PROFILE=<slug>' >> ~/.zshrc",
+        "export BRAND_PROFILE=<slug>",
       ]);
     });
 
@@ -265,18 +265,28 @@ describe("doctor", () => {
       );
       expect(runs).toEqual([
         "corepack enable && corepack install",
-        "echo 'export BRAND_PROFILE=jci-oriente' >> ~/.zshrc",
-        "export BRAND_PROFILE=jci-oriente",
-        "gh variable set BRAND_PROFILE --env production --body jci-oriente",
+        "echo 'export BRAND_PROFILE=<slug>' >> ~/.zshrc",
+        "export BRAND_PROFILE=<slug>",
         "pnpm brand:provision",
         "pnpm brand:provision --apply",
       ]);
     });
 
-    it("points a passing setup at the full deploy", () => {
-      expect(DOCTOR_NEXT.map(({ run }) => run)).toEqual([
+    it("after a passing run, names the merge, the CD variable and the first deploy", () => {
+      expect(doctorNext("jci-valle").map(({ change, run }) => run ?? change)).toEqual([
+        expect.stringMatching(/^commit brand\/jci-valle\/ and merge it to main/),
+        "gh variable set BRAND_PROFILE --env production --body jci-valle",
         "gh workflow run deploy.yml -f surface=all",
       ]);
+    });
+
+    it("pre-fills a lone adopter profile", async () => {
+      cpSync(join(root, "brand/jci-oriente"), join(root, "brand/jci-valle"), { recursive: true });
+      rmSync(join(root, "brand/jci-oriente"), { recursive: true });
+      const rows = await diagnose({ env: { SHELL: "/bin/zsh" } });
+      expect(rowFor(rows, "BRAND_PROFILE").remedies?.[1]?.run).toBe(
+        "export BRAND_PROFILE=jci-valle",
+      );
     });
 
     it("orders the rows as the fixes must happen", async () => {

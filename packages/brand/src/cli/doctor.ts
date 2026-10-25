@@ -4,6 +4,8 @@ import { z } from "zod";
 import { ASSET_CONTRACT } from "../assets.ts";
 import {
   BrandConfigError,
+  DEFAULT_PROFILE,
+  cdProfileCommand,
   ProfileNotFoundError,
   REPO_ROOT,
   errorMessage,
@@ -238,11 +240,13 @@ function profileSelectionRow(repoRoot: string, env: Env): DoctorRow {
   const selected = env.BRAND_PROFILE?.trim();
   if (selected) return ok("BRAND_PROFILE", selected);
   const profiles = selectableProfiles(repoRoot);
-  const slug = profiles.length === 1 ? (profiles[0] ?? "<slug>") : "<slug>";
+  // A lone adopter profile is ready to paste; the example is never chosen for the user.
+  const [only] = profiles;
+  const slug = profiles.length === 1 && only && only !== DEFAULT_PROFILE ? only : "<slug>";
   return fail(
     "BRAND_PROFILE",
     `unset (profiles: ${profiles.join(", ") || "none"})`,
-    profileSetupRemedies(slug, { env }),
+    profileSetupRemedies(slug, { env, cd: false }),
   );
 }
 
@@ -254,15 +258,22 @@ export const doctorRemedies = (rows: readonly DoctorRow[]): Remedy[] =>
       .flatMap(({ remedies }) => remedies ?? []),
   );
 
-/** With every row passing, the local setup is done and the next step is a deploy. */
-export const DOCTOR_NEXT: readonly Remedy[] = [
-  {
-    change:
-      "deploy through CD (project owner; approve the run in GitHub, then check docs/adopting.md step 11)",
-    run: deployDispatch("all"),
-    where: "shell",
-  },
-];
+/** With every row passing, the local setup is done; what remains reaches CD (steps 6, 10, 11). */
+export function doctorNext(slug: string): Remedy[] {
+  return [
+    { change: `commit brand/${slug}/ and merge it to main in your fork (docs/adopting.md step 6)` },
+    {
+      change: "select the profile in CD, once the production environment exists (step 10)",
+      run: cdProfileCommand(slug),
+      where: "shell",
+    },
+    {
+      change: "first deploy (project owner; approve the run in GitHub, then check step 11)",
+      run: deployDispatch("all"),
+      where: "shell",
+    },
+  ];
+}
 
 if (import.meta.main) {
   await exitOnFailure(async () => {
@@ -280,6 +291,7 @@ if (import.meta.main) {
       console.error(`brand:doctor: ${plural(failed, "check")} failed.`);
       process.exit(1);
     }
-    console.log(`brand:doctor: every check passed.\n\n${formatNext(DOCTOR_NEXT)}`);
+    const next = doctorNext(selectedProfile().slug);
+    console.log(`brand:doctor: every check passed.\n\n${formatNext(next)}`);
   });
 }

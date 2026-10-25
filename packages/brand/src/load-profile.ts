@@ -119,10 +119,16 @@ export function selectedProfile({
  * selection is an environment variable on purpose (spec D18), so it lives in the shell's
  * startup file (or a direnv `.envrc`), never in a repo file.
  */
-export function keepProfileCommand(slug: string, env: Env = process.env): string {
+export function keepProfileCommand(
+  slug: string,
+  env: Env = process.env,
+  platform: NodeJS.Platform = process.platform,
+): string {
   const shell = basename(env.SHELL ?? "");
   if (shell === "fish") return `set -Ux BRAND_PROFILE ${slug}`;
-  const startupFile = { zsh: "~/.zshrc", bash: "~/.bashrc" }[shell];
+  // macOS terminals open login shells, which read ~/.bash_profile and not ~/.bashrc.
+  const bashFile = platform === "darwin" ? "~/.bash_profile" : "~/.bashrc";
+  const startupFile = { zsh: "~/.zshrc", bash: bashFile }[shell];
   return startupFile
     ? `echo 'export BRAND_PROFILE=${slug}' >> ${startupFile}`
     : `add export BRAND_PROFILE=${slug} to your shell's startup file`;
@@ -156,8 +162,14 @@ export function profileSetupRemedies(
     },
     { change: "and in this one", run: `export BRAND_PROFILE=${slug}`, where: "shell" },
   ];
-  if (cd)
-    steps.push({ change: "CD reads its own copy", run: cdProfileCommand(slug), where: "shell" });
+  if (cd) {
+    steps.push({
+      change:
+        "CD reads its own copy, from the GitHub production environment (docs/adopting.md steps 7 and 10)",
+      run: cdProfileCommand(slug),
+      where: "shell",
+    });
+  }
   return steps;
 }
 

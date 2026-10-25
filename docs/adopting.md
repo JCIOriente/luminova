@@ -42,14 +42,14 @@ the file or folder to change, the command, and where to run it. A success ends w
 **Next:**, the following step of this guide. The `#` comment after each command says
 where it goes:
 
-- `# in the repo` means any terminal inside your clone;
+- `# in the repo root` means a terminal at the top of your clone (where `package.json` is); `pnpm brand:*` does not work from a package folder;
 - `# in your shell` means a terminal setting, such as an `export` or your shell's startup file;
 - a console name, such as `# in the Firebase console → Project settings`, means that web page.
 
 ```text
 To fix:
   - put the files marked above in brand-assets/ at the sizes shown (all 16: docs/adopting.md step 4)
-      pnpm brand:check   # in the repo
+      pnpm brand:check   # in the repo root
 ```
 
 ### 1. Run the example

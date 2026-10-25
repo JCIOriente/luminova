@@ -217,7 +217,12 @@ async function fillWebConfig(answers: Answers, run: CommandRunner): Promise<void
   if (!projectId) {
     throw new BrandConfigError(
       ["firebase.projectId is needed to read the web config"],
-      [{ change: "add firebase.projectId", console: FIREBASE_SETTINGS }],
+      [
+        {
+          change: "copy the Project ID into firebase.projectId of your answers",
+          console: FIREBASE_SETTINGS,
+        },
+      ],
     );
   }
   for (const app of ["spotlight", "backstage"] as const) {
@@ -225,7 +230,12 @@ async function fillWebConfig(answers: Answers, run: CommandRunner): Promise<void
     if (!appId) {
       throw new BrandConfigError(
         [`firebase.web.${app}.appId is needed to read its config`],
-        [{ change: `add firebase.web.${app}.appId`, console: YOUR_APPS }],
+        [
+          {
+            change: `copy the ${app} web app id into firebase.web.${app}.appId of your answers`,
+            console: YOUR_APPS,
+          },
+        ],
       );
     }
     const output = await run("firebase", [

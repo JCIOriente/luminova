@@ -119,7 +119,7 @@ describe("resolveBrandBuild", () => {
   it("tells the developer what to do, in the error Vite prints", () => {
     rmSync(join(repoRoot, "brand", "fixture", "assets", OG_IMAGE_FILE));
     expect(() => resolve()).toThrow(
-      /To fix:\n {2}- put the files marked above in brand\/fixture\/assets\/[\s\S]*pnpm brand:check {3}# in the repo/,
+      /To fix:\n {2}- put the files marked above in brand\/fixture\/assets\/[\s\S]*pnpm brand:check {3}# in the repo root/,
     );
   });
 
