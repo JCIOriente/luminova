@@ -30,15 +30,16 @@ read_file() {
 
 # Folder names under brand/, from the working tree or from $ref, one per line, sorted
 # like the TypeScript twin. Like Node's Dirent.isDirectory(), a symlink is no folder, and
-# dot-folders count. A ref is read NUL-separated, so git never quotes a name.
+# dot-folders count. A ref is read NUL-separated, so git never quotes a name. A name with a
+# newline splits in two and is dropped; no slug can hold one, and the build stops on it.
 folders() {
   if [ -n "$ref" ]; then
     git -C "$root" ls-tree -z "$ref" brand/ 2>/dev/null |
       while IFS= read -r -d '' entry; do
-        case "$entry" in *" tree "*) path=${entry#*$'\t'} && printf '%s\n' "${path#brand/}" ;; esac
+        case "$entry" in 040000" tree "*) path=${entry#*$'\t'} && printf '%s\n' "${path#brand/}" ;; esac
       done
   elif [ -d "$root/brand" ]; then
-    for dir in "$root"/brand/* "$root"/brand/.[!.]*; do
+    for dir in "$root"/brand/* "$root"/brand/.[!.]* "$root"/brand/..?*; do
       if [ -d "$dir" ] && [ ! -L "$dir" ]; then printf '%s\n' "${dir##*/}"; fi
     done
   fi | LC_ALL=C sort

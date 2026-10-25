@@ -98,13 +98,15 @@ test("counts folders as Node does: no symlinks, dot-folders included", () => {
   writeFileSync(join(elsewhere, "brand.json"), JSON.stringify(READY));
   symlinkSync(elsewhere, join(linked, "brand", "jci-valle"));
   assert.equal(check(linked).stdout, "project=acme\nready=true\n");
-  const hidden = check(fork(READY, { ".valle": READY }));
+  const hidden = check(fork(READY, { ".valle": READY, "..urku": READY }));
   assert.equal(hidden.status, 1);
-  assert.match(hidden.stderr, /2 chapter profiles \(\.valle, acme\)/);
+  assert.match(hidden.stderr, /3 chapter profiles \(\.\.urku, \.valle, acme\)/);
 });
 
 test("reads a ref's folder names unquoted", () => {
   const root = fork(READY, { 'jci-va"lle': READY });
+  // A file whose name looks like an ls-tree type is no folder.
+  writeFileSync(join(root, "brand", "x tree y"), "{}");
   const git = (...args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
   git("init", "-q");
   git("add", "-A");
