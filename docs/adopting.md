@@ -192,8 +192,10 @@ pnpm brand:init --connect --sdkconfig   # and read the API keys for you (needs f
 It asks the project id, the hosting site ids and both web app ids, replaces the `demo-`
 project in `brand/<slug>/brand.json` and rewrites `.firebaserc`. Your chapter's answers
 from step 2 stay as they are. `--sdkconfig` reads both API keys, the auth domain and the
-sender id with `firebase apps:sdkconfig` (read-only). Merging this to `main` still deploys
-nothing: CD waits for the `deploy` section of step 9.
+sender id with `firebase apps:sdkconfig` (read-only). Run it again any time: for the same
+project it offers the current values as defaults, so Enter keeps them; to turn App Check
+or web push off, blank that key in `brand.json` instead. Merging this to `main` still
+deploys nothing: CD waits for the `deploy` section of step 9.
 
 ### 8. Doctor
 
