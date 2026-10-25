@@ -274,7 +274,7 @@ function overrideWarning(slug: string, discovered: string | null | undefined): s
  * Choose an existing profile where the bad one came from: the `--profile` flag or the
  * override. `choices` lists the ones that exist.
  */
-export function selectProfileRemedy(choices: readonly string[], source: ExplicitSource): Remedy {
+function selectProfileRemedy(choices: readonly string[], source: ExplicitSource): Remedy {
   const list = choices.join(", ") || "(none yet: run pnpm brand:init)";
   return source === "flag"
     ? { change: `pass --profile one of: ${list}` }
