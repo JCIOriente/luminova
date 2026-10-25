@@ -354,9 +354,9 @@ export async function printProvisioning({
     },
     {
       title: "first deploy",
-      why: "Builds both sites with your profile and publishes them.",
-      where: `your shell, after brand/${slug}/ and ${CONFIG_FILE} are merged to main; approve the run in GitHub`,
-      lines: [deployDispatch("all")],
+      why: "Builds rules, functions and both sites with your profile and publishes them.",
+      where: `GitHub: merge the branch with brand/${slug}/ and ${CONFIG_FILE} to main. The merge starts the Deploy run (a ${CONFIG_FILE} change deploys everything); approve it`,
+      lines: ["# later, to deploy everything again without a merge:", deployDispatch("all")],
       check: "open both sites and follow docs/adopting.md step 10",
     },
   ];
