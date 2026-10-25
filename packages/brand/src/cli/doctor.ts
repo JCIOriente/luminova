@@ -13,7 +13,9 @@ import {
   errorMessage,
   loadProfile,
   discoverProfile,
+  isExplicitSource,
   readJsonFile,
+  type DiscoveredSource,
   type Env,
   type LoadedProfile,
 } from "../load-profile.ts";
@@ -88,7 +90,7 @@ function profileRows(
       // The selection row already says why brand/ chose it; only an explicit choice is noted.
       ok(
         "profile",
-        `brand/${slug}/${source === "flag" || source === "override" ? ` (${SOURCE_LABEL[source]})` : ""}`,
+        `brand/${slug}/${isExplicitSource(source) ? ` (${SOURCE_LABEL[source]})` : ""}`,
       ),
       ok("brand.json", "valid"),
     ],
@@ -286,7 +288,7 @@ const LEGACY_CONFIG_FILE = "luminova.json";
  */
 function selectionRow(repoRoot: string, env: Env): DoctorRow {
   let slug: string;
-  let source: "chapter" | "example";
+  let source: DiscoveredSource;
   try {
     ({ slug, source } = discoverProfile(repoRoot));
   } catch (error) {

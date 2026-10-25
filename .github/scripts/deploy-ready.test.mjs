@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -112,6 +112,17 @@ test("judges a past commit with a git ref", () => {
   writeFileSync(join(root, "brand", "untracked.json"), "{}");
   assert.equal(at("HEAD"), "project=jci-oriente\nready=true\n");
   assert.equal(at("HEAD~1"), "project=acme\nready=true\n");
+});
+
+test("names the example and the fixture as the TypeScript twin does", () => {
+  const loader = readFileSync(
+    join(dirname(SCRIPT), "..", "..", "packages", "brand", "src", "load-profile.ts"),
+    "utf8",
+  );
+  const script = readFileSync(SCRIPT, "utf8");
+  const constant = (name) => loader.match(new RegExp(`export const ${name} = "([^"]+)"`))?.[1];
+  assert.equal(script.match(/^example=(\S+)$/m)?.[1], constant("EXAMPLE_PROFILE"));
+  assert.match(script, new RegExp(`case "\\$name" in "" \\| ${constant("NEUTRAL_PROFILE")} \\|`));
 });
 
 test("the committed profile is ready to deploy", () => {

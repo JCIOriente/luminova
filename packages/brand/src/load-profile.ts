@@ -113,7 +113,14 @@ export function issuesToBrandError(
  * Where a command's profile came from: `--profile`, the tooling override, or brand/
  * itself (its one chapter profile, else the example; spec P1).
  */
-export type ProfileSource = "flag" | "override" | "chapter" | "example";
+export type ProfileSource = ExplicitSource | DiscoveredSource;
+/** Chosen by hand, for one command. */
+export type ExplicitSource = "flag" | "override";
+/** Chosen by what brand/ holds. */
+export type DiscoveredSource = "chapter" | "example";
+
+export const isExplicitSource = (source: ProfileSource): source is ExplicitSource =>
+  source === "flag" || source === "override";
 
 export interface LoadedProfile {
   slug: string;
@@ -167,17 +174,30 @@ export const REMOVE_OVERRIDE: Remedy = {
   where: "shell",
 };
 
-/** brand/ has no single profile to select: none at all, or two chapter profiles. */
-export class ProfileSelectionError extends ProfileNotFoundError {
+/** brand/ has no single profile to select: none, two chapter profiles, or a misnamed folder. */
+export class ProfileSelectionError extends BrandConfigError {
   override name = "ProfileSelectionError";
 }
 
-/** Every profile folder (one with a brand.json) except the example and the neutral fixture. */
-export function chapterProfiles(repoRoot: string = REPO_ROOT): string[] {
-  return availableProfiles(join(repoRoot, "brand")).filter(
-    (slug) => slug !== NEUTRAL_PROFILE && slug !== EXAMPLE_PROFILE,
-  );
+/** Profile folders (each with a brand.json), sorted. */
+function availableProfiles(repoRoot: string): string[] {
+  const brandDir = join(repoRoot, "brand");
+  if (!existsSync(brandDir)) return [];
+  return readdirSync(brandDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && existsSync(join(brandDir, entry.name, "brand.json")))
+    .map((entry) => entry.name)
+    .sort();
 }
+
+/** Profiles a person would select: every one except the neutral fixture. */
+const selectableProfiles = (repoRoot: string) =>
+  availableProfiles(repoRoot).filter((slug) => slug !== NEUTRAL_PROFILE);
+
+const notExample = (slug: string) => slug !== EXAMPLE_PROFILE;
+
+/** Every profile folder except the example and the neutral fixture. */
+export const chapterProfiles = (repoRoot: string = REPO_ROOT) =>
+  selectableProfiles(repoRoot).filter(notExample);
 
 /**
  * What brand/ selects (spec P1): its one chapter profile, else the example. Twin:
@@ -185,9 +205,10 @@ export function chapterProfiles(repoRoot: string = REPO_ROOT): string[] {
  */
 export function discoverProfile(repoRoot: string = REPO_ROOT): {
   slug: string;
-  source: "chapter" | "example";
+  source: DiscoveredSource;
 } {
-  const chapters = chapterProfiles(repoRoot);
+  const profiles = selectableProfiles(repoRoot);
+  const chapters = profiles.filter(notExample);
   const [only] = chapters;
   if (chapters.length > 1) {
     throw new ProfileSelectionError(
@@ -202,10 +223,18 @@ export function discoverProfile(repoRoot: string = REPO_ROOT): {
       ],
     );
   }
-  if (only) return { slug: only, source: "chapter" };
-  if (existsSync(join(repoRoot, "brand", EXAMPLE_PROFILE, "brand.json"))) {
-    return { slug: EXAMPLE_PROFILE, source: "example" };
+  if (only !== undefined && !SLUG_PATTERN.test(only)) {
+    throw new ProfileSelectionError(
+      [`brand/${only}/: a profile folder name ${SLUG_MESSAGE} (e.g. jci-valle)`],
+      [
+        {
+          change: `rename brand/${only}/ to lowercase letters, digits and hyphens, and set "slug" in its brand.json to match`,
+        },
+      ],
+    );
   }
+  if (only !== undefined) return { slug: only, source: "chapter" };
+  if (profiles.includes(EXAMPLE_PROFILE)) return { slug: EXAMPLE_PROFILE, source: "example" };
   throw new ProfileSelectionError(
     ["brand/ holds no profile: each one is a folder with a brand.json."],
     [{ change: "create your chapter's profile", run: "pnpm brand:init" }],
@@ -245,29 +274,13 @@ function overrideWarning(slug: string, discovered: string | null | undefined): s
  * Choose an existing profile where the bad one came from: the `--profile` flag or the
  * override. `choices` lists the ones that exist.
  */
-export function selectProfileRemedy(
-  choices: readonly string[],
-  source: "flag" | "override",
-): Remedy {
+export function selectProfileRemedy(choices: readonly string[], source: ExplicitSource): Remedy {
   const list = choices.join(", ") || "(none yet: run pnpm brand:init)";
   return source === "flag"
     ? { change: `pass --profile one of: ${list}` }
     : {
         change: `set ${PROFILE_OVERRIDE_ENV} to one of: ${list}, or unset it to use the profile found in brand/`,
       };
-}
-
-/** Profiles a person would select: every one with a brand.json except the neutral fixture. */
-function selectableProfiles(repoRoot: string = REPO_ROOT): string[] {
-  return availableProfiles(join(repoRoot, "brand")).filter((slug) => slug !== NEUTRAL_PROFILE);
-}
-
-function availableProfiles(brandDir: string): string[] {
-  if (!existsSync(brandDir)) return [];
-  return readdirSync(brandDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && existsSync(join(brandDir, entry.name, "brand.json")))
-    .map((entry) => entry.name)
-    .sort();
 }
 
 export function loadProfile({
@@ -279,20 +292,15 @@ export function loadProfile({
   const warnings = source === "override" ? [overrideWarning(slug, discovered)] : [];
 
   const brandDir = join(repoRoot, "brand");
-  // Only the error paths need the list, so a build never pays for the directory scan.
   const choices = () => selectableProfiles(repoRoot);
-  // A discovered profile exists by construction; only its folder name can be wrong.
-  const select = (): Remedy =>
-    source === "flag" || source === "override"
-      ? selectProfileRemedy(choices(), source)
-      : {
-          change: `rename brand/${slug}/ to lowercase letters, digits and hyphens, and set "slug" in its brand.json to match`,
-        };
+  // Discovery checks its own folder names, so only an explicit choice can fail below.
+  const select = (): Remedy[] =>
+    isExplicitSource(source) ? [selectProfileRemedy(choices(), source)] : [];
   // Checked before the path join, so a slug like "../x" can never leave brand/.
   if (!SLUG_PATTERN.test(slug)) {
     throw new ProfileNotFoundError(
       [`profile "${slug}" ${SLUG_MESSAGE} (e.g. jci-oriente)`],
-      [select()],
+      select(),
     );
   }
   const dir = join(brandDir, slug);
@@ -302,7 +310,7 @@ export function loadProfile({
       [
         `profile "${slug}" not found at brand/${slug}/brand.json (available: ${choices().join(", ") || "none"})`,
       ],
-      [select(), { change: `or create brand/${slug}/`, run: "pnpm brand:init" }],
+      [...select(), { change: `or create brand/${slug}/`, run: "pnpm brand:init" }],
     );
   }
 
