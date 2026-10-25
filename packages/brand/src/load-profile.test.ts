@@ -126,6 +126,68 @@ describe("loadProfile", () => {
   });
 });
 
+function remediesOf(run: () => unknown) {
+  try {
+    run();
+  } catch (error) {
+    if (error instanceof BrandConfigError)
+      return { remedies: error.remedies, message: error.message };
+    throw error;
+  }
+  throw new Error("expected a BrandConfigError");
+}
+
+describe("loadProfile remedies", () => {
+  it("offers the available profiles and brand:init for a missing profile", () => {
+    const { remedies, message } = remediesOf(() =>
+      loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "nope", SHELL: "/bin/zsh" } }),
+    );
+    expect(remedies).toEqual([
+      {
+        change: "select an existing profile (jci-oriente, other)",
+        run: "export BRAND_PROFILE=<slug>",
+        where: "shell",
+      },
+      { change: "or create brand/nope/", run: "pnpm brand:init" },
+    ]);
+    expect(message).toContain("To fix:");
+    expect(message).toContain("pnpm brand:init   # in the repo");
+  });
+
+  it("points a schema error at the file, the schema and brand:check", () => {
+    writeProfile("broken", (brand) => (brand.qrPrefix = "bad:prefix"));
+    const { remedies } = remediesOf(() =>
+      loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "broken" } }),
+    );
+    expect(remedies).toEqual([
+      {
+        change:
+          "edit the fields above in brand/broken/brand.json (brand/brand.schema.json describes each)",
+        run: "pnpm brand:check",
+      },
+    ]);
+  });
+
+  it("names the field to change when the slug differs from its folder", () => {
+    writeProfile("renamed", (brand) => (brand.slug = "original"));
+    const { remedies } = remediesOf(() =>
+      loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "renamed" } }),
+    );
+    expect(remedies).toEqual([
+      { change: 'set "slug" to "renamed" in brand/renamed/brand.json, or rename the folder' },
+    ]);
+  });
+
+  it("asks to fix the JSON syntax of an unparsable file", () => {
+    mkdirSync(join(root, "brand", "garbled"));
+    writeFileSync(join(root, "brand", "garbled", "brand.json"), "{ nope");
+    const { remedies } = remediesOf(() =>
+      loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "garbled" } }),
+    );
+    expect(remedies).toEqual([{ change: "fix the JSON syntax in brand/garbled/brand.json" }]);
+  });
+});
+
 describe("keepProfileCommand", () => {
   it.each([
     ["/bin/zsh", "echo 'export BRAND_PROFILE=acme' >> ~/.zshrc"],
