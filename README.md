@@ -175,7 +175,7 @@ pnpm dev
 ```
 
 No `.env` file is needed: `pnpm dev` reads the Firebase config from the brand profile
-`luminova.json` selects and always talks to the local emulators, so nothing you do locally
+`brand/` selects and always talks to the local emulators, so nothing you do locally
 touches a real project.
 
 `pnpm dev` boots the Firebase emulator suite, rebuilds the functions so triggers are not
@@ -224,7 +224,7 @@ Manual deploys are available as a fallback:
 pnpm deploy:rules       # firestore + storage rules
 pnpm deploy:indexes     # firestore indexes
 pnpm deploy:functions   # beacon
-pnpm deploy:hosting     # release build of the profile luminova.json selects (brand:pull first), then deploys
+pnpm deploy:hosting     # release build of the profile brand/ selects (brand:pull first), then deploys
 pnpm deploy:all
 ```
 

@@ -32,8 +32,8 @@ Each app reads its Firebase config from the brand profile (`firebase.web.<app>` 
 Target names are chapter-neutral; the site ids, the project and the storage bucket live in
 the brand profile. `.firebaserc` maps one to the other and is **generated, never edited or
 committed**: `pnpm install` writes it (the root `prepare`), the emulator script and the CD
-setup action rewrite it, and `pnpm brand:apply` does so on demand (run it after changing
-`profile` in `luminova.json`; pnpm skips `prepare` when an install is already up to date).
+setup action rewrite it, and `pnpm brand:apply` does so on demand (run it after adding or
+removing a profile folder under `brand/`; pnpm skips `prepare` when an install is already up to date).
 
 Both hostnames serve the same deploy. Which one the code announces, the console settings
 that must list every hostname, and how to fall back: `docs/domains.md`.
@@ -48,7 +48,7 @@ npm install -g firebase-tools@15.22.1
 firebase login
 
 # Project and hosting targets come from the brand profile (no `firebase use` /
-# `target:apply`): this writes .firebaserc for the profile luminova.json selects
+# `target:apply`): this writes .firebaserc for the profile brand/ selects
 pnpm brand:apply
 ```
 
@@ -58,7 +58,7 @@ pnpm brand:apply
 
 No `.env` file is needed. The brand Vite plugin (`packages/brand/src/vite.ts`) gives every
 mode (`pnpm dev`, `build:local`, release builds) the Firebase config of the profile
-`luminova.json` selects: `firebase.web.<app>` in `brand/<slug>/brand.json` holds each app's
+`brand/` selects: `firebase.web.<app>` in `brand/<slug>/brand.json` holds each app's
 `apiKey`, `appId`, `appCheckSiteKey` and `vapidKey`. It sets them as process env, which
 wins over any `.env` file, so dev, the emulators (`.firebaserc`) and the seeds always name
 the same project.
@@ -214,7 +214,8 @@ pnpm deploy:all         # rules → functions → hosting
 ### Hosting deploys need a release build
 
 A hosting deploy ships only a **release build** (`pnpm build:release`): it needs the
-profile `luminova.json` selects (never a `BRAND_PROFILE` override that differs from it),
+profile `brand/` selects, or one passed with `--profile` (never a `BRAND_PROFILE`
+override that differs from it),
 that profile's assets pulled from its private bucket into `brand-assets/`
 (`pnpm brand:pull`), and, when `GCP_PROJECT_ID` is set, that it names the profile's
 project. The build writes `dist/.brand-release.json`, and each hosting target's

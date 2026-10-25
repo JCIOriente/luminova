@@ -17,19 +17,27 @@ your shell's startup file, and CD needs no GitHub variables.
 
 | What | File | In git? | Who reads it |
 |---|---|---|---|
-| Which chapter this repository builds | `luminova.json`, field `profile` | yes | every `pnpm brand:*` command, `pnpm dev`, the builds, the seed scripts, CD |
+| Which chapter this repository builds | the folder `brand/<slug>/` itself: your chapter's is the only one besides the example `jci-oriente` and the test `fixture` | yes | every `pnpm brand:*` command, `pnpm dev`, the builds, the seed scripts, CD |
 | The chapter: names, texts, site addresses, Firebase project and web apps, CD's sign-in | `brand/<slug>/brand.json` | yes; every value is public | the builds, CD |
 | The site's texts, seeded into the database once | `brand/<slug>/site-content.json` | yes | `pnpm seed:production`, `pnpm dev` |
 | Your images | `brand-assets/` | **no**, gitignored | `pnpm dev`, `brand:check`, `brand:push` |
 | The images deploys use | your private bucket, `<project>-brand-assets` | no | CD (`brand:pull`) |
 | Firebase CLI's project file | `.firebaserc` | no, generated | the `firebase` CLI |
 
-`profile` is a folder name under `brand/`: lowercase letters, digits and hyphens, such as
-`jci-valle`. `brand:init` writes it for you. To run one command against another profile
-without editing the file, add `--profile <slug>`.
+There is no file to edit to choose the chapter. Every command looks in `brand/`: your
+chapter's folder (named with lowercase letters, digits and hyphens, such as `jci-valle`) is
+selected when it is the only chapter profile there; with none, the example `jci-oriente`
+is. Your fork only adds that folder and never edits a shared file, so pulling upstream
+updates never conflicts with your configuration. A repository builds one chapter:
+`brand:init` refuses to create a second, and with two every command stops and names them.
+To run one command against another profile, add `--profile <slug>`.
 
-Your editor explains every field of `luminova.json` and `brand.json` on hover: both files
-point at a JSON Schema (`brand/luminova.schema.json`, `brand/brand.schema.json`).
+Your editor explains every field of `brand.json` on hover: it points at a JSON Schema
+(`brand/brand.schema.json`).
+
+Upgrading a fork from a version with a root `luminova.json`: the pull that removes it
+conflicts once if you had edited it. Resolve it by deleting the file
+(`git rm luminova.json`); `brand:doctor` warns while a copy is left.
 
 What stays out of the repository: your `gcloud`, `gh` and `firebase` sign-ins (each tool
 keeps its own), and the optional `DEPLOY_WEBHOOK_URL` GitHub secret that posts deploy
@@ -51,7 +59,7 @@ with a note until the profile has a real project and CD's sign-in (step 9).
 | 2 | Create your profile | `pnpm brand:init` (answer **n**: no Firebase project yet) |
 | 3 | Add the 16 images and check them | `pnpm brand:check` |
 | 4 | Write the site texts and look at your sites | edit `site-content.json`, `pnpm dev` |
-| 5 | Commit the profile | `git add brand/<slug>/ luminova.json` |
+| 5 | Commit the profile | `git add brand/<slug>/` |
 | | **Part 2: go live, when you are ready** | |
 | 6 | Firebase project, two web apps, second hosting site | Firebase console (below) |
 | 7 | Connect the project | `pnpm brand:init --connect` |
@@ -88,7 +96,8 @@ runtime (the emulators need both). Nothing else.
 ### 1. Run the example
 
 Follow the README Quickstart. `pnpm dev` starts the local emulators, fills them with test
-data and opens both sites with the example profile (`luminova.json` selects `jci-oriente`).
+data and opens both sites with the example profile (`brand/` holds no chapter profile yet,
+so `jci-oriente` is selected).
 Dev talks to the emulators, never to a real project.
 
 ### 2. Create your profile
@@ -105,8 +114,8 @@ project `demo-<slug>`, and you connect a real one at step 7. Answering **y** ask
 Firebase questions now instead (see step 7).
 
 `brand:init` writes `brand/<slug>/brand.json`, copies the example's `site-content.json`
-next to it, creates `brand-assets/README.txt`, points `luminova.json` at the new profile
-and writes `.firebaserc`. It validates everything before writing anything and never
+next to it, creates `brand-assets/README.txt` and writes `.firebaserc`. Being the only chapter
+profile in `brand/`, the new one is selected from then on. It validates everything before writing anything and never
 overwrites an existing profile. It re-asks a malformed or taken slug, or a year that is
 not a whole number, on the spot; if a later step fails, your answers are saved to
 `brand-init-answers.json` (gitignored) for `--answers`. An answers file is a partial
@@ -160,7 +169,7 @@ where they change. Then `pnpm dev` shows both sites with your name, images and t
 
 ### 5. Commit the profile
 
-Commit `brand/<slug>/` and `luminova.json`. Never commit `brand-assets/`: it is
+Commit `brand/<slug>/`. Never commit `brand-assets/`: it is
 gitignored, and a deploy build refuses any asset source other than a pull from your
 bucket. Merging to `main` deploys nothing yet: Deploy skips a local-only profile and says
 so in the run's summary.
@@ -203,15 +212,16 @@ deploys nothing: CD waits for the `deploy` section of step 9.
 pnpm brand:doctor
 ```
 
-One table, in the order fixes must happen: Node, pnpm, `luminova.json`, the profile,
+One table, in the order fixes must happen: Node, pnpm, the selection (which profile
+`brand/` selects, and why), the profile,
 `brand.json`, site content, images, `.firebaserc`, CD identity, your `gcloud` account and
 the bucket. It only reads, and every row reports even when an earlier one fails. For a
 local-only profile it skips the cloud rows. Until step 11 the **bucket** row fails, and
 **CD identity** warns until step 9.
 
-If you exported `BRAND_PROFILE` in an earlier version of this guide, the `luminova.json`
-row warns while it differs from the file: remove the `export` line from your shell's
-startup file. Tools set that variable for single test builds; you never need it.
+If you exported `BRAND_PROFILE` in an earlier version of this guide, the selection row
+warns while it differs from what `brand/` selects: remove the `export` line from your
+shell's startup file. Tools set that variable for single test builds; you never need it.
 
 ### 9. Keyless CD
 

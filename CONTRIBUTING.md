@@ -30,7 +30,7 @@ pnpm install
 ```
 
 No `.env` file is needed. Each app reads its Firebase config from the brand profile
-`luminova.json` selects (`brand/<slug>/brand.json`), and `pnpm dev` always talks to the
+`brand/` selects (`brand/<slug>/brand.json`), and `pnpm dev` always talks to the
 local emulators, so nothing you do locally touches production. `apps/<app>/.env.local.example`
 lists the few optional overrides.
 
