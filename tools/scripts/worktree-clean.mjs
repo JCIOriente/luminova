@@ -14,7 +14,7 @@ import {
 } from "./lib/worktree-clean.mjs";
 
 const MERGED_PR_LIMIT = 1000;
-// main's full patch log runs to tens of MB; the 1 MiB default would throw ENOBUFS.
+// ls-files and log output can pass the 1 MiB default, which would throw ENOBUFS.
 const MAX_BUFFER = 1024 ** 3;
 const USAGE = "Usage: pnpm wt:clean [--apply] [--branches]";
 const args = new Set(process.argv.slice(2));
@@ -84,48 +84,33 @@ const branches = parseBranches(
     "refs/heads",
   ),
 );
-const mainTree = git("rev-parse", "origin/main^{tree}").trim();
+// The full ref: a local branch named "origin/main" would shadow the remote one.
+const MAIN = "refs/remotes/origin/main";
 
-// Exact patch-ids (whitespace counts, unlike `git cherry`) of every commit on main.
-const patchIds = (log) =>
-  execFileSync("git", ["-C", primary, "patch-id", "--verbatim"], {
-    input: log,
-    encoding: "utf8",
-    maxBuffer: MAX_BUFFER,
-  })
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => line.split(" ")[0]);
-let mainPatchIds;
-
-// Squash merges: merging the tip into main is a no-op.
-function mergeIsNoop(tip) {
+// Landed by content: every path any branch commit touched (merges included, both sides of a
+// rename) is identical at the tip and on main now. Then main holds the branch's final state of
+// everything it changed, however it was merged. Comparing commit patches instead is fooled by a
+// follow-up commit that undoes part of a squash, or by a change main later reverted.
+function inMain(name) {
+  const { tip } = branches.get(name);
+  const base = git("merge-base", MAIN, tip).trim();
+  const touched = [
+    ...new Set(
+      git("log", "--format=", "--name-only", "--no-renames", "-m", `${base}..${tip}`)
+        .split("\n")
+        .filter(Boolean),
+    ),
+  ];
+  if (!touched.length) return true;
   try {
-    return git("merge-tree", "--write-tree", "origin/main", tip).split("\n")[0] === mainTree;
+    git("--literal-pathspecs", "diff", "--quiet", "--no-ext-diff", MAIN, tip, "--", ...touched);
+    return true;
   } catch (error) {
-    // Exit status 1 is a conflict: the branch and main disagree, so it has not landed.
+    // Exit status 1 means the paths differ: main lacks some of the branch's content.
     if (error.status === 1) return false;
     throw error;
   }
 }
-
-// Rebase merges: every commit's exact patch is on main. An empty commit has no patch and
-// nothing to lose; a merge commit may hold a resolution, so any merge keeps the branch.
-function patchesOnMain(tip) {
-  const base = git("merge-base", "origin/main", tip).trim();
-  if (git("rev-list", "--merges", `${base}..${tip}`).trim()) return false;
-  mainPatchIds ??= new Set(
-    patchIds(git("log", "-p", "--no-merges", "--format=commit %H", "origin/main")),
-  );
-  return patchIds(git("log", "-p", "--format=commit %H", `${base}..${tip}`)).every((id) =>
-    mainPatchIds.has(id),
-  );
-}
-
-const inMain = (name) => {
-  const { tip } = branches.get(name);
-  return mergeIsNoop(tip) || patchesOnMain(tip);
-};
 
 function inspect(path) {
   if (!existsSync(path)) return { exists: false, dirty: false, ignored: [] };
@@ -139,7 +124,13 @@ function inspect(path) {
     "--ignored=matching",
     "--ignore-submodules=none",
   ]);
-  return { exists: true, ...parseStatus(status) };
+  // `ls-files -v` tags assume-unchanged (lowercase) and skip-worktree (S) files, whose local
+  // edits neither `status` nor `worktree remove` would notice.
+  const hidden = run("git", ["-C", path, "ls-files", "-v"])
+    .split("\n")
+    .some((line) => /^[a-zS] /.test(line));
+  const state = parseStatus(status);
+  return { exists: true, ...state, dirty: state.dirty || hidden };
 }
 
 const rows = plan({
@@ -170,15 +161,27 @@ if (!apply) {
   process.exit(0);
 }
 
-git("worktree", "prune");
 let failures = 0;
 for (const row of doomed) {
   try {
     // A concurrent session may have committed since the verdict; never drop a moved branch.
     if (git("rev-parse", `refs/heads/${row.branch}`).trim() !== branches.get(row.branch).tip)
       throw new Error("branch moved since it was judged; rerun");
-    if (row.kind === "worktree" && existsSync(row.path))
+    if (row.kind === "worktree") {
+      // Re-check right before deleting: files or a switched HEAD may have appeared since.
+      const now = inspect(row.path);
+      if (now.exists && (now.dirty || now.ignored.length))
+        throw new Error("worktree changed since it was judged; rerun");
+      if (
+        now.exists &&
+        run("git", ["-C", row.path, "symbolic-ref", "-q", "HEAD"]).trim() !==
+          `refs/heads/${row.branch}`
+      )
+        throw new Error("worktree switched branch since it was judged; rerun");
+      // Never a blanket `worktree prune`: it would drop kept worktrees' HEADs too. `remove`
+      // also clears the metadata of a worktree whose directory is already gone.
       git("-c", "status.showUntrackedFiles=all", "worktree", "remove", row.path);
+    }
     // -D: a squash- or rebase-merged branch is not an ancestor of main; the verdict proved it landed.
     git("branch", "-D", row.branch);
   } catch (error) {

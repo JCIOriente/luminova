@@ -69,7 +69,7 @@ export function parseStatus(output) {
 }
 
 /** Whether a branch's commits are safe to drop. `inMain()`: origin/main already has the
- *  branch's content (the CLI checks a no-op merge, or every commit's exact patch). That also
+ *  branch's final state of every path it touched (see the CLI). That also
  *  holds for a branch freshly cut from main, hence the deleted-remote requirement. */
 export function branchVerdict({ tip, upstreamGone, inMain }, heads) {
   if (heads?.has(tip)) return { remove: true, reason: "merged PR head" };
