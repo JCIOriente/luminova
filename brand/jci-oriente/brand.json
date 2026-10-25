@@ -57,5 +57,9 @@
       }
     }
   },
-  "assetsBucket": "jci-oriente-brand-assets"
+  "assetsBucket": "jci-oriente-brand-assets",
+  "deploy": {
+    "workloadIdentityProvider": "projects/953870918238/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
+    "serviceAccount": "firebase-deployer@jci-oriente.iam.gserviceaccount.com"
+  }
 }
