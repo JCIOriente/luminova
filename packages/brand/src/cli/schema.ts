@@ -1,12 +1,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { renderConfigJsonSchema } from "../config.ts";
 import { renderBrandJsonSchema } from "../schema.ts";
 
-const SCHEMAS = [
-  ["brand/brand.schema.json", renderBrandJsonSchema()],
-  ["brand/luminova.schema.json", renderConfigJsonSchema()],
-] as const;
+const SCHEMAS = [["brand/brand.schema.json", renderBrandJsonSchema()]] as const;
 
 const target = (path: string) => fileURLToPath(new URL(`../../../../${path}`, import.meta.url));
 
@@ -25,7 +21,7 @@ if (process.argv.includes("--check")) {
     console.error(`${path} is stale: run \`pnpm brand:schema\` and commit it.`);
   }
   if (stale.length > 0) process.exit(1);
-  console.log(`${SCHEMAS.map(([path]) => path).join(" and ")} are up to date.`);
+  console.log(`Up to date: ${SCHEMAS.map(([path]) => path).join(", ")}.`);
 } else {
   for (const [path, expected] of SCHEMAS) {
     writeFileSync(target(path), expected);

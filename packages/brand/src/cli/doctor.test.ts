@@ -45,7 +45,6 @@ beforeEach(() => {
     join(root, "package.json"),
     JSON.stringify({ engines: { node: ">=24.15.0" }, packageManager: "pnpm@11.5.1" }),
   );
-  writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: "jci-oriente" }));
   writeAssetSet(join(root, PULLED_ASSETS_DIR));
   applyProfile({
     profile: loadProfile({ repoRoot: root, profile: "jci-oriente" }),
@@ -80,12 +79,14 @@ describe("doctor", () => {
       ".firebaserc": "ok",
       "gcloud account": "ok",
       bucket: "ok",
-      "luminova.json": "ok",
+      selection: "ok",
       "CD identity": "ok",
       node: "ok",
       pnpm: "ok",
     });
-    expect(rowFor(rows, "luminova.json").detail).toBe('selects "jci-oriente"');
+    expect(rowFor(rows, "selection").detail).toBe(
+      'brand/ selects "jci-oriente" (the example: no chapter profile in brand/ yet)',
+    );
     expect(rowFor(rows, "profile").detail).toBe("brand/jci-oriente/");
     expect(rowFor(rows, "CD identity").detail).toBe(
       "firebase-deployer@jci-oriente.iam.gserviceaccount.com",
@@ -150,25 +151,36 @@ describe("doctor", () => {
     });
   });
 
-  it("fails a missing luminova.json once, with how to create it, and skips the profile", async () => {
-    rmSync(join(root, "luminova.json"));
+  it("fails two chapter profiles once, with both ways out, and skips the profile", async () => {
+    for (const slug of ["jci-andina", "jci-valle"]) {
+      cpSync(join(root, "brand/fixture"), join(root, "brand", slug), { recursive: true });
+    }
     const rows = await diagnose();
-    expect(statusOf(rows)).toMatchObject({
-      "luminova.json": "fail",
-      profile: "skip",
-      bucket: "skip",
-    });
-    expect(rowFor(rows, "luminova.json").remedies?.[0]?.run).toBe("pnpm brand:init");
+    expect(statusOf(rows)).toMatchObject({ selection: "fail", profile: "skip", bucket: "skip" });
+    expect(rowFor(rows, "selection").detail).toMatch(/brand\/ holds 2 chapter profiles/);
+    expect(rowFor(rows, "selection").remedies?.[0]?.change).toMatch(/^delete the folder/);
   });
 
-  it("warns when a BRAND_PROFILE override in the shell differs from luminova.json", async () => {
+  it("warns when a BRAND_PROFILE override in the shell differs from brand/", async () => {
     const rows = await diagnose({ env: { BRAND_PROFILE: "fixture" } });
-    expect(rowFor(rows, "luminova.json")).toMatchObject({
+    expect(rowFor(rows, "selection")).toMatchObject({
       status: "warn",
-      detail: 'selects "jci-oriente", but BRAND_PROFILE=fixture overrides it',
+      detail:
+        'brand/ selects "jci-oriente" (the example: no chapter profile in brand/ yet), but BRAND_PROFILE=fixture overrides it',
       remedies: [expect.objectContaining({ run: "unset BRAND_PROFILE" })],
     });
     expect(rowFor(rows, "profile").detail).toBe("brand/fixture/ (from BRAND_PROFILE)");
+  });
+
+  it("warns that a leftover luminova.json is no longer read", async () => {
+    writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: "fixture" }));
+    const rows = await diagnose();
+    expect(rowFor(rows, "selection")).toMatchObject({
+      status: "warn",
+      detail: expect.stringMatching(/, but luminova\.json is no longer read$/),
+      remedies: [expect.objectContaining({ run: "git rm luminova.json" })],
+    });
+    expect(rowFor(rows, "profile").detail).toBe("brand/jci-oriente/");
   });
 
   it("warns, without failing, when the profile has no CD identity", async () => {
@@ -304,7 +316,7 @@ describe("doctor", () => {
       const connected = loadProfile({ repoRoot: root, profile: "jci-oriente" });
       expect(doctorNext(connected).map(({ change, run }) => run ?? change)).toEqual([
         expect.stringMatching(
-          /^when you are ready to go live: merge brand\/jci-oriente\/ and luminova\.json/,
+          /^when you are ready to go live: merge brand\/jci-oriente\/ to main in your fork/,
         ),
         "gh workflow run deploy.yml -f surface=all",
       ]);
@@ -316,8 +328,15 @@ describe("doctor", () => {
     });
 
     it("skips the cloud rows of a local-only profile without calling gcloud", async () => {
-      writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: "fixture" }));
+      // A chapter fresh from brand:init --local: a demo- project, found in brand/.
+      cpSync(join(root, "brand/fixture"), join(root, "brand/jci-valle"), { recursive: true });
+      const file = join(root, "brand/jci-valle/brand.json");
+      writeFileSync(
+        file,
+        JSON.stringify({ ...JSON.parse(readFileSync(file, "utf8")), slug: "jci-valle" }),
+      );
       const rows = await diagnose();
+      expect(rowFor(rows, "profile").detail).toBe("brand/jci-valle/");
       expect(statusOf(rows)).toMatchObject({
         "CD identity": "skip",
         "gcloud account": "skip",
@@ -331,7 +350,7 @@ describe("doctor", () => {
       expect((await diagnose()).map(({ check }) => check)).toEqual([
         "node",
         "pnpm",
-        "luminova.json",
+        "selection",
         "profile",
         "brand.json",
         "site content",

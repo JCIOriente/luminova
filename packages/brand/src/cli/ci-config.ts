@@ -4,7 +4,7 @@ import { runCli } from "./main.ts";
 
 /**
  * What CD needs before it can sign in, read from the repo (spec C4): the profile
- * luminova.json selects, its project and its `deploy` names. The release rules apply, so
+ * brand/ selects, its project and its `deploy` names. The release rules apply, so
  * CD stops here, before minting any credential, on a profile that cannot ship.
  */
 export function ciConfig(profile: LoadedProfile): Record<string, string> {

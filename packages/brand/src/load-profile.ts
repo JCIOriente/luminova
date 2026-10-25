@@ -1,7 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CONFIG_FILE, luminovaConfigSchema, type LuminovaConfig } from "./config.ts";
 import { formatRemedies, uniqueRemedies, type Problem, type Remedy } from "./remedy.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema, type Brand } from "./schema.ts";
 
@@ -110,47 +109,11 @@ export function issuesToBrandError(
   );
 }
 
-/** luminova.json is missing or invalid: it names the profile, so nothing else can load. */
-export class ConfigFileError extends BrandConfigError {
-  override name = "ConfigFileError";
-}
-
-/** `luminova.json`, validated; every failure names the file and how to fix it. */
-export function readLuminovaConfig(repoRoot: string): LuminovaConfig {
-  const file = join(repoRoot, CONFIG_FILE);
-  if (!existsSync(file)) {
-    throw new ConfigFileError(
-      [`${CONFIG_FILE} is missing: it names the chapter (brand/<slug>/) this repository builds.`],
-      [
-        {
-          change: `create your chapter's profile with brand:init (it writes ${CONFIG_FILE} too)`,
-          run: "pnpm brand:init",
-        },
-        {
-          change: `or create ${CONFIG_FILE} at the repo root for an existing profile: { "profile": "<slug>" }`,
-        },
-      ],
-    );
-  }
-  const fix: Remedy = {
-    change: `fix ${CONFIG_FILE}: it holds one field, "profile", a folder name under brand/ (e.g. "jci-valle")`,
-  };
-  let json: unknown;
-  try {
-    json = readJsonFile(file, CONFIG_FILE);
-  } catch (error) {
-    if (!(error instanceof BrandConfigError)) throw error;
-    throw new ConfigFileError(error.errors, error.remedies);
-  }
-  const parsed = luminovaConfigSchema.safeParse(json);
-  if (!parsed.success) {
-    const { errors, remedies } = issuesToBrandError(CONFIG_FILE, parsed.error.issues, [fix]);
-    throw new ConfigFileError(errors, remedies);
-  }
-  return parsed.data;
-}
-
-export type ProfileSource = "flag" | "override" | "file";
+/**
+ * Where a command's profile came from: `--profile`, the tooling override, or brand/
+ * itself (its one chapter profile, else the example; spec P1).
+ */
+export type ProfileSource = "flag" | "override" | "chapter" | "example";
 
 export interface LoadedProfile {
   slug: string;
@@ -177,8 +140,8 @@ export const demoProjectId = (slug: string) =>
 interface Selection {
   slug: string;
   source: ProfileSource;
-  /** What luminova.json names, read at most once; null when an override met a missing or broken file. */
-  configured?: string | null;
+  /** What brand/ selects, when an override needed it for its warning; null when it has no single choice. */
+  discovered?: string | null;
 }
 
 export interface LoadProfileOptions {
@@ -194,7 +157,8 @@ export const PROFILE_OVERRIDE_ENV = "BRAND_PROFILE";
 export const SOURCE_LABEL: Readonly<Record<ProfileSource, string>> = {
   flag: "from --profile",
   override: `from ${PROFILE_OVERRIDE_ENV}`,
-  file: `from ${CONFIG_FILE}`,
+  chapter: "the chapter profile in brand/",
+  example: "the example: no chapter profile in brand/ yet",
 };
 
 export const REMOVE_OVERRIDE: Remedy = {
@@ -203,10 +167,52 @@ export const REMOVE_OVERRIDE: Remedy = {
   where: "shell",
 };
 
+/** brand/ has no single profile to select: none at all, or two chapter profiles. */
+export class ProfileSelectionError extends ProfileNotFoundError {
+  override name = "ProfileSelectionError";
+}
+
+/** Every profile folder (one with a brand.json) except the example and the neutral fixture. */
+export function chapterProfiles(repoRoot: string = REPO_ROOT): string[] {
+  return availableProfiles(join(repoRoot, "brand")).filter(
+    (slug) => slug !== NEUTRAL_PROFILE && slug !== EXAMPLE_PROFILE,
+  );
+}
+
 /**
- * Which profile a command means: `--profile`, else the tooling override, else
- * `luminova.json` (spec C1, C5).
+ * What brand/ selects (spec P1): its one chapter profile, else the example. Twin:
+ * .github/scripts/deploy-ready.sh applies the same rule before Deploy installs anything.
  */
+export function discoverProfile(repoRoot: string = REPO_ROOT): {
+  slug: string;
+  source: "chapter" | "example";
+} {
+  const chapters = chapterProfiles(repoRoot);
+  const [only] = chapters;
+  if (chapters.length > 1) {
+    throw new ProfileSelectionError(
+      [
+        `brand/ holds ${chapters.length} chapter profiles (${chapters.join(", ")}); a repository builds one.`,
+      ],
+      [
+        {
+          change: "delete the folder under brand/ you do not build, so one chapter profile remains",
+        },
+        { change: `or pass --profile one of: ${chapters.join(", ")}, for one command` },
+      ],
+    );
+  }
+  if (only) return { slug: only, source: "chapter" };
+  if (existsSync(join(repoRoot, "brand", EXAMPLE_PROFILE, "brand.json"))) {
+    return { slug: EXAMPLE_PROFILE, source: "example" };
+  }
+  throw new ProfileSelectionError(
+    ["brand/ holds no profile: each one is a folder with a brand.json."],
+    [{ change: "create your chapter's profile", run: "pnpm brand:init" }],
+  );
+}
+
+/** Which profile a command means: `--profile`, else the tooling override, else brand/ (spec P1, P4). */
 function selectedProfile({
   repoRoot = REPO_ROOT,
   env = process.env,
@@ -214,44 +220,41 @@ function selectedProfile({
 }: LoadProfileOptions = {}): Selection {
   if (profile) return { slug: profile, source: "flag" };
   const override = env[PROFILE_OVERRIDE_ENV]?.trim();
-  if (!override) {
-    const configured = readLuminovaConfig(repoRoot).profile;
-    return { slug: configured, source: "file", configured };
-  }
-  const configured = configuredProfile(repoRoot);
-  // An override that repeats the file changes nothing, so it is not one.
-  return { slug: override, source: configured === override ? "file" : "override", configured };
+  if (!override) return discoverProfile(repoRoot);
+  const discovered = discoveredProfile(repoRoot);
+  // An override that repeats the discovery changes nothing, so it is not one.
+  if (discovered?.slug === override) return discovered;
+  return { slug: override, source: "override", discovered: discovered?.slug ?? null };
 }
 
-/** The file's profile, or null when it is missing or broken (the override then explains itself). */
-function configuredProfile(repoRoot: string): string | null {
+/** brand/'s choice, or null when it has none (the override then explains itself). */
+function discoveredProfile(repoRoot: string): ReturnType<typeof discoverProfile> | null {
   try {
-    return readLuminovaConfig(repoRoot).profile;
+    return discoverProfile(repoRoot);
   } catch (error) {
-    if (error instanceof BrandConfigError) return null;
+    if (error instanceof ProfileSelectionError) return null;
     throw error;
   }
 }
 
-function overrideWarning(slug: string, configured: string | null | undefined): string {
-  return `${PROFILE_OVERRIDE_ENV}=${slug} in your environment overrides ${CONFIG_FILE}${configured ? ` ("${configured}")` : ""}. If you did not mean that: unset ${PROFILE_OVERRIDE_ENV}   # in your shell`;
+function overrideWarning(slug: string, discovered: string | null | undefined): string {
+  return `${PROFILE_OVERRIDE_ENV}=${slug} in your environment overrides the profile found in brand/${discovered ? ` ("${discovered}")` : ""}. If you did not mean that: unset ${PROFILE_OVERRIDE_ENV}   # in your shell`;
 }
 
 /**
- * Choose an existing profile where the bad one came from: the `--profile` flag, or
- * luminova.json. `choices` lists the ones that exist.
+ * Choose an existing profile where the bad one came from: the `--profile` flag or the
+ * override. `choices` lists the ones that exist.
  */
 export function selectProfileRemedy(
-  choices?: readonly string[],
-  source: ProfileSource = "file",
+  choices: readonly string[],
+  source: "flag" | "override",
 ): Remedy {
-  const list = choices && (choices.join(", ") || "(none yet: run pnpm brand:init)");
-  if (source === "flag") return { change: `pass --profile one of: ${list ?? "your profiles"}` };
-  return {
-    change: list
-      ? `set "profile" in ${CONFIG_FILE} to one of: ${list}`
-      : `set "profile" in ${CONFIG_FILE} to your chapter's folder under brand/`,
-  };
+  const list = choices.join(", ") || "(none yet: run pnpm brand:init)";
+  return source === "flag"
+    ? { change: `pass --profile one of: ${list}` }
+    : {
+        change: `set ${PROFILE_OVERRIDE_ENV} to one of: ${list}, or unset it to use the profile found in brand/`,
+      };
 }
 
 /** Profiles a person would select: every one with a brand.json except the neutral fixture. */
@@ -272,13 +275,19 @@ export function loadProfile({
   env = process.env,
   profile,
 }: LoadProfileOptions = {}): LoadedProfile {
-  const { slug, source, configured } = selectedProfile({ repoRoot, env, profile });
-  const warnings = source === "override" ? [overrideWarning(slug, configured)] : [];
+  const { slug, source, discovered } = selectedProfile({ repoRoot, env, profile });
+  const warnings = source === "override" ? [overrideWarning(slug, discovered)] : [];
 
   const brandDir = join(repoRoot, "brand");
   // Only the error paths need the list, so a build never pays for the directory scan.
   const choices = () => selectableProfiles(repoRoot);
-  const select = () => selectProfileRemedy(choices(), source);
+  // A discovered profile exists by construction; only its folder name can be wrong.
+  const select = (): Remedy =>
+    source === "flag" || source === "override"
+      ? selectProfileRemedy(choices(), source)
+      : {
+          change: `rename brand/${slug}/ to lowercase letters, digits and hyphens, and set "slug" in its brand.json to match`,
+        };
   // Checked before the path join, so a slug like "../x" can never leave brand/.
   if (!SLUG_PATTERN.test(slug)) {
     throw new ProfileNotFoundError(

@@ -2,10 +2,10 @@ import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 import { ASSET_CONTRACT, describeSpec } from "../assets.ts";
-import { CONFIG_FILE, configTemplate } from "../config.ts";
 import {
   BrandConfigError,
   EXAMPLE_PROFILE,
+  chapterProfiles,
   REPO_ROOT,
   issuesToBrandError,
   demoProjectId,
@@ -338,7 +338,7 @@ export function initNext(slug: string, { local = false }: { local?: boolean } = 
     },
     {
       change: `commit the profile (never ${PULLED_ASSETS_DIR}/: it is gitignored on purpose)`,
-      run: `git add brand/${slug}/ ${CONFIG_FILE}`,
+      run: `git add brand/${slug}/`,
     },
     local ? CONNECT_PROJECT : { change: "check the whole setup", run: "pnpm brand:doctor" },
   ];
@@ -371,7 +371,7 @@ function orderLike(template: unknown, value: unknown): unknown {
 function assetReadme(): string {
   const rows = ASSET_CONTRACT.map((spec) => `  ${spec.path.padEnd(40)}${describeSpec(spec)}`);
   return [
-    `Your chapter's images, for the profile ${CONFIG_FILE} selects. Never commit this folder:`,
+    "Your chapter's images, for its profile in brand/. Never commit this folder:",
     "it is gitignored, and deployments read the profile's private bucket instead.",
     "",
     `Put these ${ASSET_CONTRACT.length} PNG files here, then run pnpm brand:check:`,
@@ -442,6 +442,25 @@ async function askWebKeys(
   await ask(WEB_KEY_FIELDS);
 }
 
+/**
+ * One chapter per repository (spec P8): a second would leave brand/ without a selection.
+ * Checked before the first question, so nobody answers them for nothing.
+ */
+function refuseSecondChapter(repoRoot: string): void {
+  const [existing] = chapterProfiles(repoRoot);
+  if (!existing) return;
+  throw new BrandConfigError(
+    [`brand/${existing}/ already is this repository's chapter, and a repository builds one.`],
+    [
+      {
+        change: `edit brand/${existing}/brand.json to change its values, or connect it to a Firebase project`,
+        run: "pnpm brand:init --connect",
+      },
+      { change: `or delete brand/${existing}/ to start over` },
+    ],
+  );
+}
+
 /** The example profile's brand.json, the source of style defaults and the key order. */
 function exampleProfile(repoRoot: string): { dir: string; answers: Answers } {
   const example = loadProfile({ repoRoot, profile: EXAMPLE_PROFILE });
@@ -489,6 +508,7 @@ export async function init({
   local?: boolean;
   run?: CommandRunner;
 }): Promise<{ slug: string; files: string[]; local: boolean }> {
+  refuseSecondChapter(repoRoot);
   const example = exampleProfile(repoRoot);
   const answers: Answers = structuredClone(initial);
   const ask = asker(answers, example.answers, repoRoot, prompter);
@@ -608,14 +628,12 @@ function writeProfile({
     files.push(`${PULLED_ASSETS_DIR}/README.txt`);
   }
 
-  // The new chapter becomes the one this checkout builds.
-  writeFileSync(join(repoRoot, CONFIG_FILE), configTemplate(slug));
-  files.push(CONFIG_FILE);
+  // brand/ now holds this one chapter profile, so every command selects it (spec P1).
   const profile: LoadedProfile = {
     slug,
     dir,
     brand: data,
-    source: "file",
+    source: "chapter",
     warnings: [],
     localOnly: isDemoProject(data.firebase.projectId),
   };
@@ -626,7 +644,7 @@ function writeProfile({
 
 /**
  * `brand:init --connect` (spec L2): asks only the Firebase questions for the profile
- * luminova.json selects, then rewrites brand.json and `.firebaserc`. It replaces a
+ * brand/ selects, then rewrites brand.json and `.firebaserc`. It replaces a
  * local-only profile's demo project, or re-connects a connected one; CD's `deploy` names
  * survive only when the project stays the same.
  */
@@ -719,7 +737,7 @@ if (import.meta.main) {
         ? " It runs on this computer only, until you connect a Firebase project."
         : "";
       console.log(
-        `brand:init: wrote ${files.join(", ")}. ${CONFIG_FILE} now selects "${slug}".${where}\n\n${formatNext(initNext(slug, { local }))}`,
+        `brand:init: wrote ${files.join(", ")}. brand/ now selects "${slug}".${where}\n\n${formatNext(initNext(slug, { local }))}`,
       );
     } finally {
       prompter?.close();

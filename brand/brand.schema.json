@@ -8,7 +8,7 @@
     "slug": {
       "type": "string",
       "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-      "description": "This profile's folder name under brand/; luminova.json selects it."
+      "description": "This profile's folder name under brand/. A repository holds one chapter profile, and every command selects it."
     },
     "name": {
       "type": "string",

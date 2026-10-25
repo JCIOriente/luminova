@@ -11,7 +11,7 @@ import { DEPLOY_DISPATCH, pushNext, push } from "./push.ts";
 const BUCKET = "jci-oriente-brand-assets";
 const profile: LoadedProfile = {
   ...loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" }),
-  source: "file",
+  source: "example",
 };
 
 let from: string;
@@ -89,7 +89,7 @@ describe("push", () => {
   it("refuses the fixture profile, which can never reach production", async () => {
     const fixture: LoadedProfile = {
       ...loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" }),
-      source: "file",
+      source: "example",
     };
     await expect(push({ profile: fixture, from, run })).rejects.toThrow(/neutral test profile/);
     expect(calls).toEqual([]);

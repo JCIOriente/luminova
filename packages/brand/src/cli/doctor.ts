@@ -2,19 +2,18 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { ASSET_CONTRACT } from "../assets.ts";
-import { CONFIG_FILE } from "../config.ts";
 import {
   BrandConfigError,
-  ConfigFileError,
   PROFILE_OVERRIDE_ENV,
   ProfileNotFoundError,
+  ProfileSelectionError,
   REMOVE_OVERRIDE,
   REPO_ROOT,
   SOURCE_LABEL,
   errorMessage,
   loadProfile,
+  discoverProfile,
   readJsonFile,
-  readLuminovaConfig,
   type Env,
   type LoadedProfile,
 } from "../load-profile.ts";
@@ -74,9 +73,9 @@ function profileRows(
   } catch (error) {
     if (!(error instanceof BrandConfigError)) throw error;
     const detail = error.errors.join("; ");
-    // A missing or broken luminova.json is its own row; it says how to fix it.
-    if (error instanceof ConfigFileError) {
-      return { rows: [skip("profile", `needs ${CONFIG_FILE}`), skip("brand.json")] };
+    // brand/ without a single choice is the selection row's failure; it says how to fix it.
+    if (error instanceof ProfileSelectionError) {
+      return { rows: [skip("profile", `needs a ${SELECTION}`), skip("brand.json")] };
     }
     if (error instanceof ProfileNotFoundError) {
       return { rows: [fail("profile", detail, error.remedies), skip("brand.json")] };
@@ -86,7 +85,11 @@ function profileRows(
   const { slug, source } = profile;
   return {
     rows: [
-      ok("profile", `brand/${slug}/${source === "file" ? "" : ` (${SOURCE_LABEL[source]})`}`),
+      // The selection row already says why brand/ chose it; only an explicit choice is noted.
+      ok(
+        "profile",
+        `brand/${slug}/${source === "flag" || source === "override" ? ` (${SOURCE_LABEL[source]})` : ""}`,
+      ),
       ok("brand.json", "valid"),
     ],
     profile,
@@ -226,7 +229,7 @@ export async function doctor({
   env?: Env;
   run?: CommandRunner;
   nodeVersion?: string;
-  /** `--profile <slug>`: diagnose another profile than luminova.json's. */
+  /** `--profile <slug>`: diagnose another profile than the one brand/ selects. */
   profile?: string;
 } = {}): Promise<{ rows: DoctorRow[]; profile?: LoadedProfile }> {
   const { rows: profileChecks, profile } = profileRows(repoRoot, env, flag);
@@ -250,7 +253,7 @@ export async function doctor({
   const rows = [
     await attempt("node", () => nodeRow(repoRoot, nodeVersion)),
     pnpm,
-    configRow(repoRoot, env),
+    selectionRow(repoRoot, env),
     ...profileChecks,
     ...(profile
       ? await brandRows(profile, repoRoot, env).catch((error: unknown) => [
@@ -272,22 +275,41 @@ export async function doctor({
   return { rows, profile };
 }
 
-/** luminova.json selects the chapter; a leftover shell override is flagged, not obeyed silently. */
-function configRow(repoRoot: string, env: Env): DoctorRow {
-  let profile: string;
+const SELECTION = "selection";
+
+/** Spec P3: the file C1 introduced; a fork that pulled its removal may still have a copy. */
+const LEGACY_CONFIG_FILE = "luminova.json";
+
+/**
+ * brand/ selects the chapter (spec P1); a leftover shell override or luminova.json is
+ * flagged, never obeyed silently.
+ */
+function selectionRow(repoRoot: string, env: Env): DoctorRow {
+  let slug: string;
+  let source: "chapter" | "example";
   try {
-    profile = readLuminovaConfig(repoRoot).profile;
+    ({ slug, source } = discoverProfile(repoRoot));
   } catch (error) {
-    return failed(CONFIG_FILE, error);
+    return failed(SELECTION, error);
   }
+  const selects = `brand/ selects "${slug}" (${SOURCE_LABEL[source]})`;
+  const notes: string[] = [];
+  const remedies: Remedy[] = [];
   const override = env[PROFILE_OVERRIDE_ENV]?.trim();
-  return override && override !== profile
-    ? warn(
-        CONFIG_FILE,
-        `selects "${profile}", but ${PROFILE_OVERRIDE_ENV}=${override} overrides it`,
-        [REMOVE_OVERRIDE],
-      )
-    : ok(CONFIG_FILE, `selects "${profile}"`);
+  if (override && override !== slug) {
+    notes.push(`${PROFILE_OVERRIDE_ENV}=${override} overrides it`);
+    remedies.push(REMOVE_OVERRIDE);
+  }
+  if (existsSync(join(repoRoot, LEGACY_CONFIG_FILE))) {
+    notes.push(`${LEGACY_CONFIG_FILE} is no longer read`);
+    remedies.push({
+      change: `delete ${LEGACY_CONFIG_FILE}: brand/ selects the profile now`,
+      run: `git rm ${LEGACY_CONFIG_FILE}`,
+    });
+  }
+  return notes.length > 0
+    ? warn(SELECTION, `${selects}, but ${notes.join("; ")}`, remedies)
+    : ok(SELECTION, selects);
 }
 
 function cdIdentityRow(profile: LoadedProfile): DoctorRow {
@@ -320,7 +342,7 @@ export function doctorNext(profile: LoadedProfile): Remedy[] {
   }
   return [
     {
-      change: `when you are ready to go live: merge brand/${slug}/ and ${CONFIG_FILE} to main in your fork. The merge starts the first deploy; approve it in GitHub (${guideStep("goLive")})`,
+      change: `when you are ready to go live: merge brand/${slug}/ to main in your fork. The merge starts the first deploy; approve it in GitHub (${guideStep("goLive")})`,
     },
     {
       change: "later, to deploy everything again without a merge (project owner)",

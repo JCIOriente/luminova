@@ -26,7 +26,7 @@ export const cliFlag = (name: string, argv: readonly string[] = process.argv.sli
   flagValue(argv, name, (message) => new BrandConfigError([message]));
 
 /**
- * Runs a brand CLI against the profile luminova.json selects, or `--profile <slug>`.
+ * Runs a brand CLI against the profile brand/ selects, or `--profile <slug>`.
  * A CLI that tooling runs (a firebase.json hook, a CD step) keeps stdout for data a caller
  * parses (`brand:ci-config`'s outputs) and writes status to stderr: firebase-tools copies
  * hook stdout into its `--json` output.
