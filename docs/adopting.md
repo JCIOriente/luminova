@@ -12,6 +12,32 @@ owner access to the Firebase project and admin access to the fork. No step needs
 Luminova maintainer. If you get stuck,
 [open an adoption issue](https://github.com/JCIOriente/luminova/issues/new?template=chapter_adoption.yml).
 
+## Where configuration lives
+
+Everything is in the repository's files. You never export an environment variable or edit
+your shell's startup file, and CD needs no GitHub variables.
+
+| What | File | In git? | Who reads it |
+|---|---|---|---|
+| Which chapter this repository builds | `luminova.json`, field `profile` | yes | every `pnpm brand:*` command, `pnpm dev`, the builds, the seed scripts, CD |
+| The chapter: names, texts, site addresses, Firebase project and web apps, CD's sign-in | `brand/<slug>/brand.json` | yes; every value is public | the builds, CD |
+| The site's texts, seeded into the database once | `brand/<slug>/site-content.json` | yes | `pnpm seed:production`, `pnpm dev` |
+| Your images | `brand-assets/` | **no**, gitignored | `pnpm dev`, `brand:check`, `brand:push` |
+| The images deploys use | your private bucket, `<project>-brand-assets` | no | CD (`brand:pull`) |
+| Firebase CLI's project file | `.firebaserc` | no, generated | the `firebase` CLI |
+
+`profile` is a folder name under `brand/`: lowercase letters, digits and hyphens, such as
+`jci-valle`. `brand:init` writes it for you. To run one command against another profile
+without editing the file, add `--profile <slug>`.
+
+Your editor explains every field of `luminova.json` and `brand.json` on hover: both files
+point at a JSON Schema (`brand/luminova.schema.json`, `brand/brand.schema.json`).
+
+What stays out of the repository: your `gcloud`, `gh` and `firebase` sign-ins (each tool
+keeps its own), and the optional `DEPLOY_WEBHOOK_URL` GitHub secret that posts deploy
+results to Slack or Discord. Local development still reads `apps/*/.env.local` for the
+emulator settings; a follow-up moves that into the profile too.
+
 ## Before you start
 
 - Node 24 (`.nvmrc`), pnpm through `corepack enable`, the Firebase CLI, a Java runtime (for
@@ -29,13 +55,12 @@ Luminova maintainer. If you get stuck,
 | 3 | Create your profile | `pnpm brand:init` | You |
 | 4 | Add the 16 images and check them | `pnpm brand:check` | You |
 | 5 | Check the whole setup | `pnpm brand:doctor` | You |
-| 6 | Commit the profile | `git add brand/<slug>/` | You |
-| 7 | Keyless CD identity | `docs/ci-cd.md` section 6 | You |
-| 8 | Create the assets bucket | `pnpm brand:provision`, then `--apply` | You |
+| 6 | Commit the profile | `git add brand/<slug>/ luminova.json` | You |
+| 7 | Keyless CD identity | `pnpm brand:provision`, steps 1 and 2 | You |
+| 8 | Create the assets bucket | `pnpm brand:provision --apply` | You |
 | 9 | Upload the images | `pnpm brand:push` | You |
-| 10 | Select the profile in CD | `gh variable set BRAND_PROFILE …` | You |
-| 11 | First deploy, then verify | merge to `main` or `gh workflow run deploy.yml` | You |
-| 12 | First admin | `pnpm seed:production --project <id>` | You |
+| 10 | First deploy, then verify | merge to `main` or `gh workflow run deploy.yml` | You |
+| 11 | First admin | `pnpm seed:production --project <id>` | You |
 
 Every brand command tells you what to do next. A failure ends with a **To fix:** block:
 the file or folder to change, the command, and where to run it. A success ends with
@@ -43,7 +68,7 @@ the file or folder to change, the command, and where to run it. A success ends w
 where it goes:
 
 - `# in the repo root` means a terminal at the top of your clone (where `package.json` is); `pnpm brand:*` does not work from a package folder;
-- `# in your shell` means a terminal setting, such as an `export` or your shell's startup file;
+- `# in your shell` means any terminal: a sign-in (`gcloud auth login`) or a GitHub command;
 - a console name, such as `# in the Firebase console → Project settings`, means that web page.
 
 ```text
@@ -55,8 +80,7 @@ To fix:
 ### 1. Run the example
 
 Follow the README Quickstart. `pnpm dev` runs both apps against the emulators with the
-example profile, so nothing touches a real project. Unset `BRAND_PROFILE` means
-`jci-oriente`, and every brand command says so on its first line.
+example profile (`luminova.json` selects `jci-oriente`), so nothing touches a real project.
 
 ### 2. Firebase project
 
@@ -83,13 +107,15 @@ leave the API keys out: `pnpm brand:init --answers answers.json --sdkconfig`.
 ```
 
 `brand:init` writes `brand/<slug>/brand.json`, copies the example's `site-content.json`
-next to it and creates `brand-assets/README.txt`. It validates everything before writing
+next to it, creates `brand-assets/README.txt`, points `luminova.json` at the new profile and
+writes `.firebaserc` for your project. It also fills `deploy`, CD's sign-in names, with the
+ones step 7 creates. It validates everything before writing
 anything and never overwrites an existing profile. When asking, it re-asks a malformed
 or taken slug and a year or count that is not a whole number on the spot; if a later step fails, your
 answers are saved to `brand-init-answers.json` (gitignored) for `--answers`. An answers
 file is a partial
 `brand.json`; anything missing is either derived (storage bucket, site ids, auth domain,
-sender id, assets bucket, SEO text) or reported, all at once. The JSON Schema in
+sender id, assets bucket, SEO text, `deploy`) or reported, all at once. The JSON Schema in
 `brand/brand.schema.json` describes every field.
 
 ```json
@@ -112,20 +138,6 @@ sender id, assets bucket, SEO text) or reported, all at once. The JSON Schema in
   }
 }
 ```
-
-Then select the profile. It is an environment variable only, never a repo file, so it is
-visible in every command and part of every build's cache key. A plain `export` lasts one
-terminal; keep it in your shell's startup file (or a direnv `.envrc` at the repo root):
-
-```bash
-echo 'export BRAND_PROFILE=jci-valle' >> ~/.zshrc   # bash: ~/.bashrc; fish: set -Ux BRAND_PROFILE jci-valle
-export BRAND_PROFILE=jci-valle                      # this terminal, right now
-pnpm brand:apply                                    # writes .firebaserc for your project
-```
-
-CD does not read your shell: it takes `BRAND_PROFILE` from the GitHub `production`
-environment (step 10). When the variable is unset, every brand command and
-`pnpm brand:doctor` print the line for your shell.
 
 Edit `brand/<slug>/site-content.json`: history, mission, vision, values, statistics and
 contacts. It seeds the site once; after that, the admin `/config` screen is where it
@@ -161,36 +173,47 @@ that, a new profile has no images of its own and the build lists every missing f
 pnpm brand:doctor
 ```
 
-One table: profile and where it came from, schema, site content, images, `.firebaserc`,
-your `gcloud` account, the bucket, `BRAND_PROFILE`, Node and pnpm. It only reads, and every
-row reports even when an earlier one fails. Before step 9 the **bucket** row fails, and
-the **gcloud account** row too until you run `gcloud auth login` (step 8); every other row
-should pass.
+One table, in the order fixes must happen: Node, pnpm, `luminova.json`, the profile and
+its schema, site content, images, `.firebaserc`, CD identity, your `gcloud` account and the
+bucket. It only reads, and every row reports even when an earlier one fails. Before step 9
+the **bucket** row fails, and the **gcloud account** row too until you run
+`gcloud auth login` (step 7); every other row should pass.
+
+If you exported `BRAND_PROFILE` in an earlier version of this guide, the `luminova.json`
+row warns while it differs from the file: remove the `export` line from your shell's
+startup file. Tools set that variable for single test builds; you never need it.
 
 ### 6. Commit the profile
 
-Commit `brand/<slug>/` in your fork. Never commit `brand-assets/`: it is gitignored, and a
-deploy build refuses any asset source other than a pull from your bucket.
+Commit `brand/<slug>/` and `luminova.json` in your fork. Never commit `brand-assets/`: it
+is gitignored, and a deploy build refuses any asset source other than a pull from your
+bucket.
 
 ### 7. Keyless CD
 
-CD signs in to Google Cloud through Workload Identity Federation, with no stored key.
-Follow [`docs/ci-cd.md` section 6](ci-cd.md#6-one-time-provisioning-reproducible) with your
-own `PROJECT_ID`, `PROJECT_NUMBER`, `GH_REPO` (your fork) and `REVIEWER_ID`, or run
-`pnpm brand:provision` (step 8), which prints that block with your values filled in. The
-deploy service account must be created **in your Firebase project**: the bucket grant and
-the CD variables assume `firebase-deployer@<project>.iam.gserviceaccount.com`.
+```bash
+gcloud auth login              # an owner of your Firebase project
+gh auth login                  # an admin of your fork
+pnpm brand:provision           # prints every step with your values; changes nothing
+```
+
+`brand:provision` prints the whole Google Cloud setup as numbered steps. Each step says
+why, where to run it, the exact commands and how to check that it worked. Run its step 1
+yourself: it creates CD's deploy account and its keyless sign-in (Workload Identity
+Federation: GitHub proves the run comes from your fork's `main`, no key is stored). Its
+step 2 is the `deploy` section of `brand/<slug>/brand.json`: `brand:init` already wrote it,
+so check that the values match and commit any change. The full block, with the reasoning
+behind each permission, is [`docs/ci-cd.md` section 6](ci-cd.md#6-one-time-provisioning-reproducible).
 
 ### 8. Assets bucket
 
 ```bash
-gcloud auth login
-pnpm brand:provision           # prints every command with your values; changes nothing
 pnpm brand:provision --apply   # creates and configures the bucket, skipping what is done
 ```
 
 The bucket is private and versioned, keeps the last three versions of each file, and the
-deploy service account gets read-only access to it alone.
+deploy account from step 7 gets read-only access to it alone. Step 7 must come first:
+the grant fails for an account that does not exist yet.
 
 ### 9. Upload the images
 
@@ -203,15 +226,7 @@ pnpm brand:doctor              # every row passes now
 prints the deploy command to run afterwards: an image change is not in git, so CD does not
 see it on its own.
 
-### 10. Select the profile in CD
-
-```bash
-gh variable set BRAND_PROFILE --env production --body <slug>
-```
-
-The three WIF variables come from step 7.
-
-### 11. Deploy and verify
+### 10. Deploy and verify
 
 Merge to `main`, or run `gh workflow run deploy.yml -f surface=all`, and approve the run.
 Hosting deploys to a preview channel, is smoke-tested, then promoted. Then check:
@@ -226,7 +241,7 @@ Hosting deploys to a preview channel, is smoke-tested, then promoted. Then check
 Custom domains and the console settings that must list every hostname:
 [`docs/domains.md`](domains.md).
 
-### 12. First admin
+### 11. First admin
 
 ```bash
 gcloud auth application-default login   # the script uses Application Default Credentials

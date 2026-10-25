@@ -169,7 +169,7 @@ notification webhook.
 | A feature/fork branch tries to deploy | attribute-condition pins `assertion.ref == 'refs/heads/main'`; `production` environment is main-only; `filter` guard rejects `event != push` / `head_branch != main` |
 | A PR edits `deploy.yml` to exfiltrate the token | `workflow_run` executes `deploy.yml` from the **default branch** only |
 | Unattended prod change | `production` environment **required reviewer** blocks every deploy job until approved |
-| Leaked env var (`WIF_PROVIDER`, SA email) | Inert without a GitHub-minted OIDC token satisfying the attribute-condition |
+| Leaked provider name or SA email (both committed in `brand.json` `deploy`) | Inert without a GitHub-minted OIDC token satisfying the attribute-condition |
 | Script injection via dispatch input | Inputs/SHAs pass through `env:`, never inline in shell |
 
 Fork PRs are **triple-gated** (filter guard + STS condition + main-only environment)
@@ -231,9 +231,12 @@ project owner via `gcloud`. All identifiers below are non-secret.
 > only. Do not revert `storage` to the object form.
 
 **GitHub `production` environment:** required reviewer `arkgast`; deployments restricted
-to `main`; variables `WIF_PROVIDER`, `WIF_SERVICE_ACCOUNT`, `GCP_PROJECT_ID`, `BRAND_PROFILE`
-(the profile this project ships; every deploy job writes `.firebaserc` from it and fails if
-it is unset).
+to `main`; **no variables**. Every deploy job reads its target from the repo: the
+`firebase-setup` action runs `pnpm brand:ci-config`, which loads the profile `luminova.json`
+selects under the release rules and outputs its `firebase.projectId` and its `deploy`
+section (Workload Identity provider and service account). A profile without `deploy`
+stops the job before any credential is minted. Changing where CD deploys is therefore a
+reviewed change to `luminova.json` or `brand.json` on `main`.
 Optional repo secret `DEPLOY_WEBHOOK_URL` (unset → `notify` is a no-op).
 
 **Enabled APIs:** `iamcredentials`, `sts`, `firebasehosting`, `firebaserules`,
@@ -247,9 +250,10 @@ billing probe).
 
 The exact steps executed. Idempotent to re-run. Requires an operator with project
 IAM admin + repo admin. `gh` covers the GitHub side; no console clicks required.
-`pnpm brand:provision` prints this block with `PROJECT_ID`, `PROJECT_NUMBER`, `GH_REPO` and
-`REVIEWER_ID` filled in for the selected profile, after the brand-assets bucket steps
-(which `pnpm brand:provision --apply` runs) and the `BRAND_PROFILE` variable.
+`pnpm brand:provision` prints this block as its step 1, with `PROJECT_ID`, `PROJECT_NUMBER`,
+`GH_REPO` and `REVIEWER_ID` filled in for the profile `luminova.json` selects; its step 2 is
+the profile's `deploy` section, and the brand-assets bucket follows (which
+`pnpm brand:provision --apply` runs).
 The deploy service account must be created **in the Firebase project itself**
 (`firebase-deployer@${PROJECT_ID}.iam.gserviceaccount.com`): `brand:provision` grants
 that address read access on the brand-assets bucket, so an account living in another
@@ -326,13 +330,10 @@ gh api -X PUT "repos/${GH_REPO}/environments/production" --input - <<JSON
 JSON
 gh api -X POST "repos/${GH_REPO}/environments/production/deployment-branch-policies" \
   --input - <<< '{"name":"main","type":"branch"}'
-for kv in \
-  "WIF_PROVIDER=projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/providers/${PROVIDER_ID}" \
-  "WIF_SERVICE_ACCOUNT=${DEPLOY_SA_EMAIL}" \
-  "GCP_PROJECT_ID=${PROJECT_ID}" ; do
-  gh api -X POST "repos/${GH_REPO}/environments/production/variables" \
-    -f "name=${kv%%=*}" -f "value=${kv#*=}"
-done
+# CD reads the provider and service account from the profile's brand.json "deploy"
+# section; no GitHub variables. These two lines print the values to put there:
+echo "workloadIdentityProvider: projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/providers/${PROVIDER_ID}"
+echo "serviceAccount: ${DEPLOY_SA_EMAIL}"
 ```
 
 > **First gen2 deploy bootstrap:** on a project that never deployed gen2 functions, the
@@ -419,7 +420,8 @@ Effectively **$0**.
 
 | Symptom | Cause / fix |
 |---------|-------------|
-| Deploy job fails at `google-github-actions/auth` | Env var wrong, or STS condition mismatch. Verify `WIF_PROVIDER` matches the provider resource name exactly and the run is on `main`. |
+| Deploy job fails at `google-github-actions/auth` | `deploy` values wrong, or STS condition mismatch. Verify `deploy.workloadIdentityProvider` in the profile's `brand.json` matches the provider resource name exactly and the run is on `main`. |
+| Deploy job fails at "Read the deploy target from the repo" | `brand:ci-config` printed the reason and the fix: usually a missing `deploy` section (`pnpm brand:provision` prints it) or a fixture/demo profile selected in `luminova.json`. |
 | `PERMISSION_DENIED` mid-deploy | Missing IAM role on the deploy SA — grant it (see role list), or temporarily grant `roles/firebase.admin` then narrow back. |
 | `workflow_dispatch` deploy fails auth | Dispatched from a non-`main` branch — the STS `ref` condition only honors `refs/heads/main`. Re-dispatch from `main`. |
 | Deploy never triggers after merge | The CI workflow's `name:` must equal `"CI"` (the `workflow_run.workflows` value). Also confirm CI concluded `success`. |

@@ -33,7 +33,7 @@ Target names are chapter-neutral; the site ids, the project and the storage buck
 the brand profile. `.firebaserc` maps one to the other and is **generated, never edited or
 committed**: `pnpm install` writes it (the root `prepare`), the emulator script and the CD
 setup action rewrite it, and `pnpm brand:apply` does so on demand (run it after changing
-`BRAND_PROFILE`; pnpm skips `prepare` when an install is already up to date).
+`profile` in `luminova.json`; pnpm skips `prepare` when an install is already up to date).
 
 Both hostnames serve the same deploy. Which one the code announces, the console settings
 that must list every hostname, and how to fall back: `docs/domains.md`.
@@ -48,7 +48,7 @@ npm install -g firebase-tools@15.22.1
 firebase login
 
 # Project and hosting targets come from the brand profile (no `firebase use` /
-# `target:apply`): this writes .firebaserc for BRAND_PROFILE (default jci-oriente)
+# `target:apply`): this writes .firebaserc for the profile luminova.json selects
 pnpm brand:apply
 ```
 
@@ -223,15 +223,15 @@ pnpm deploy:all         # rules → functions → hosting
 
 ### Hosting deploys need a release build
 
-A hosting deploy ships only a **release build** (`BRAND_RELEASE=1`): it needs
-`BRAND_PROFILE` set, the profile's assets pulled from its private bucket into
-`brand-assets/` (`pnpm brand:pull`), and, when `GCP_PROJECT_ID` is set, that it names the
-profile's project. The build writes `dist/.brand-release.json`, and each hosting target's
+A hosting deploy ships only a **release build** (`pnpm build:release`): it needs the
+profile `luminova.json` selects (never a `BRAND_PROFILE` override that differs from it),
+that profile's assets pulled from its private bucket into `brand-assets/`
+(`pnpm brand:pull`), and, when `GCP_PROJECT_ID` is set, that it names the profile's
+project. The build writes `dist/.brand-release.json`, and each hosting target's
 `predeploy` (`pnpm -s brand:assert-dist <app>`) refuses a dist without that marker or built
 for another project. So a plain `pnpm build` output can never be deployed by hand.
 
 ```bash
-export BRAND_PROFILE=jci-oriente
 pnpm brand:pull && pnpm deploy:hosting
 # one target only, after the release build:
 firebase deploy --only hosting:spotlight
@@ -243,7 +243,7 @@ firebase deploy --only hosting:backstage
 Deployment images live in `brand.json` `assetsBucket` (`jci-oriente-brand-assets`), a
 private, versioned bucket the CD service account can only read (`docs/ci-cd.md` section 5).
 `pnpm brand:provision` prints the setup with the profile's values; `--apply` creates and
-configures the bucket. `BRAND_PROFILE=<slug> pnpm brand:push --from <dir>` validates and
+configures the bucket. `pnpm brand:push --from <dir>` validates and
 uploads a new set, then prints the hosting dispatch: an asset change is not in git, so CD
 does not see it until someone runs `gh workflow run deploy.yml -f surface=hosting`. A bad
 upload rolls back with `gcloud storage cp gs://<bucket>/<file>#<generation> gs://<bucket>/<file>`.

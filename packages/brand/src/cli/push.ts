@@ -15,7 +15,7 @@ export const DEPLOY_DISPATCH = deployDispatch("hosting");
 
 export const PUSH_NEXT: readonly Remedy[] = [
   {
-    change: "first deploy of this project: every surface (docs/adopting.md step 11, after step 10)",
+    change: `first deploy of this project, every surface, once brand/<slug>/ and luminova.json are on main (docs/adopting.md step 10)`,
     run: deployDispatch("all"),
     where: "shell",
   },
