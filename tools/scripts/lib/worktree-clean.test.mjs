@@ -228,7 +228,8 @@ function scenario(overrides = {}) {
 const verdicts = (rows) => rows.map((r) => [r.kind, r.branch, r.remove, r.reason]);
 
 test("plan removes only clean, landed worktrees under .worktrees/", () => {
-  assert.deepEqual(verdicts(plan(scenario())), [
+  const rows = plan(scenario()).filter((r) => r.kind === "worktree");
+  assert.deepEqual(verdicts(rows), [
     ["worktree", "feat/done", true, "in origin/main"],
     ["worktree", "feat/done2", false, "uncommitted changes"],
     ["worktree", "feat/done3", false, "ignored files: apps/web/.env.local"],
@@ -243,8 +244,8 @@ test("plan removes only clean, landed worktrees under .worktrees/", () => {
   ]);
 });
 
-test("--branches adds branches no worktree has checked out", () => {
-  const rows = plan(scenario({ includeBranches: true })).filter((r) => r.kind === "branch");
+test("branches no worktree has checked out get their own rows", () => {
+  const rows = plan(scenario()).filter((r) => r.kind === "branch");
   assert.deepEqual(verdicts(rows), [
     ["branch", "chore/local", false, "no merged PR"],
     ["branch", "feat/old", true, "in origin/main"],
@@ -252,14 +253,14 @@ test("--branches adds branches no worktree has checked out", () => {
 });
 
 test("main is protected even when no worktree has it checked out", () => {
-  const s = scenario({ includeBranches: true });
+  const s = scenario();
   s.worktrees[0] = wt(ROOT, "feat/other");
   const main = plan(s).find((r) => r.branch === "main");
   assert.deepEqual([main.remove, main.reason], [false, "protected branch"]);
 });
 
-test("without --branches, branch-only rows are never probed", () => {
+test("a kept worktree's branch is never judged on its own", () => {
   const probed = [];
   plan(scenario({ inMain: (name) => (probed.push(name), true) }));
-  assert.deepEqual(probed, ["feat/done", "feat/missing"]);
+  assert.deepEqual(probed, ["feat/done", "feat/missing", "feat/old"]);
 });

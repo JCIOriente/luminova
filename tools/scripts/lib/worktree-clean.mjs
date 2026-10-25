@@ -111,8 +111,8 @@ export function branchVerdict({ tip, upstreamGone, inMain }, heads) {
   return { remove: false, reason: "no merged PR" };
 }
 
-/** Decide every linked worktree and, with `includeBranches`, every branch no worktree has
- *  checked out. `inMain(branch)` and `inspect(path)` → parseWorktreeState() or MISSING_WORKTREE are
+/** Decide every linked worktree, then every branch no worktree has checked out (a branch
+ *  whose worktree is kept is never deleted on its own). `inMain(branch)` and `inspect(path)` → parseWorktreeState() or MISSING_WORKTREE are
  *  called only for rows that need them. Rows: { kind, path?, branch, remove, reason }. */
 export function plan({
   worktrees,
@@ -122,7 +122,6 @@ export function plan({
   inspect,
   worktreesDir,
   currentPath,
-  includeBranches = false,
 }) {
   const decide = (name) => {
     if (PROTECTED_BRANCHES.has(name)) return { remove: false, reason: "protected branch" };
@@ -147,11 +146,9 @@ export function plan({
     return { kind: "worktree", path: wt.path, branch: wt.branch, ...verdict };
   });
 
-  if (includeBranches) {
-    const checkedOut = new Set(worktrees.map((wt) => wt.branch));
-    for (const name of branches.keys()) {
-      if (!checkedOut.has(name)) rows.push({ kind: "branch", branch: name, ...decide(name) });
-    }
+  const checkedOut = new Set(worktrees.map((wt) => wt.branch));
+  for (const name of branches.keys()) {
+    if (!checkedOut.has(name)) rows.push({ kind: "branch", branch: name, ...decide(name) });
   }
   return rows;
 }

@@ -1,6 +1,7 @@
-// pnpm wt:clean [--apply] [--branches]
-// Removes .worktrees/<slug> worktrees and local branches whose work has landed in origin/main.
-// Previews by default (it only refreshes remote refs); --apply deletes. Rules: lib/worktree-clean.mjs.
+// pnpm wt:clean [--dry-run]
+// Removes .worktrees/<slug> worktrees and local branches whose work has landed in origin/main,
+// and keeps the rest with the reason. --dry-run only prints (it still refreshes remote refs).
+// Rules: lib/worktree-clean.mjs.
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -19,16 +20,15 @@ import {
 const MERGED_PR_LIMIT = 1000;
 // ls-files and log output can pass the 1 MiB default, which would throw ENOBUFS.
 const MAX_BUFFER = 1024 ** 3;
-const USAGE = "Usage: pnpm wt:clean [--apply] [--branches]";
+const USAGE = "Usage: pnpm wt:clean [--dry-run]";
 const args = new Set(process.argv.slice(2));
 for (const arg of args) {
-  if (!["--apply", "--branches"].includes(arg)) {
+  if (arg !== "--dry-run") {
     console.error(`Unknown option ${arg}. ${USAGE}`);
     process.exit(2);
   }
 }
-const apply = args.has("--apply");
-const includeBranches = args.has("--branches");
+const dryRun = args.has("--dry-run");
 
 const run = (cmd, argv, cwd) =>
   execFileSync(cmd, argv, {
@@ -143,11 +143,10 @@ const rows = plan({
   inspect,
   worktreesDir: join(primary, ".worktrees"),
   currentPath,
-  includeBranches,
 });
 
 const cells = rows.map((row) => [
-  row.remove ? (apply ? "remove" : "would remove") : "keep",
+  row.remove ? (dryRun ? "would remove" : "remove") : "keep",
   row.kind === "worktree" ? row.path.slice(primary.length + 1) : "(branch only)",
   row.branch ?? "-",
   row.reason,
@@ -163,9 +162,8 @@ for (const c of cells)
 
 const doomed = rows.filter((r) => r.remove);
 console.log(`\n${doomed.length} to remove, ${rows.length - doomed.length} kept.`);
-if (!apply) {
-  console.log("Preview only: rerun with --apply to delete.");
-  if (!includeBranches) console.log("Add --branches for branches without a worktree.");
+if (dryRun) {
+  console.log("Dry run: nothing deleted. Run without --dry-run to remove them.");
   process.exit(0);
 }
 
