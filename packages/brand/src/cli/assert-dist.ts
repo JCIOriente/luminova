@@ -66,14 +66,10 @@ function isBrandApp(value: string | undefined): value is BrandApp {
   return BRAND_APPS.some((app) => app === value);
 }
 
-/**
- * Runs as a firebase.json `predeploy` hook, and firebase-tools copies a hook's stdout into
- * its own, so under `--json` (CD's preview deploy) any stdout line corrupts the JSON CD
- * parses. Every line goes to stderr.
- */
+/** stderr only: firebase-tools merges a hook's stdout into its `--json` output. */
 export function main(
   app: string | undefined,
-  { root = REPO_ROOT, env = process.env }: { root?: string; env?: typeof process.env } = {},
+  { root = REPO_ROOT, env = process.env }: { root?: string; env?: NodeJS.ProcessEnv } = {},
 ): number {
   if (!isBrandApp(app)) {
     console.error(`usage: brand:assert-dist <${BRAND_APPS.join("|")}>`);
