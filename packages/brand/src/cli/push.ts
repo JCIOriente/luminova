@@ -1,11 +1,10 @@
 import { join, resolve } from "node:path";
-import { flagValue } from "../argv.ts";
 import { assetRemedies, contractByFolder, validateAssets } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, type LoadedProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR, displayDir, undeployableProfileErrors } from "../release.ts";
 import { formatNext, type Remedy } from "../remedy.ts";
 import { bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
-import { runCli } from "./main.ts";
+import { cliFlag, runCli } from "./main.ts";
 
 export const deployDispatch = (surface: "hosting" | "all") =>
   `gh workflow run deploy.yml -f surface=${surface}`;
@@ -48,11 +47,9 @@ export async function push({
   if (validation.errors.length > 0) {
     throw new BrandConfigError(
       validation.errors.map((error) => `${from}/${error}`),
-      assetRemedies(
-        validation,
-        displayDir(REPO_ROOT, from),
-        `pnpm brand:check --assets ${shellQuote(displayDir(REPO_ROOT, from))}`,
-      ),
+      assetRemedies(validation, displayDir(REPO_ROOT, from), {
+        checkCommand: `pnpm brand:check --assets ${shellQuote(displayDir(REPO_ROOT, from))}`,
+      }),
     );
   }
   for (const warning of validation.warnings) console.warn(`brand:push: ${warning}`);
@@ -72,10 +69,7 @@ export async function push({
 
 if (import.meta.main) {
   await runCli("brand:push", async (profile) => {
-    const from = resolve(
-      flagValue(process.argv.slice(2), "--from", (message) => new BrandConfigError([message])) ??
-        PULLED_ASSETS_DIR,
-    );
+    const from = resolve(cliFlag("--from") ?? PULLED_ASSETS_DIR);
     const bucket = bucketUrl(profile.brand.assetsBucket);
     await push({ profile, from });
     console.log(

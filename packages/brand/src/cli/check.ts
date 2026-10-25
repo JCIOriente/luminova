@@ -1,5 +1,4 @@
-import { flagValue } from "../argv.ts";
-import { PULL_ASSETS, PULL_MANIFEST_FILE, assetRemedies, validateAssets } from "../assets.ts";
+import { PULL_MANIFEST_FILE, assetRemedies, validateAssets } from "../assets.ts";
 import {
   BrandConfigError,
   REPO_ROOT,
@@ -10,7 +9,7 @@ import {
 import { displayDir, releaseErrors, selectAssetsDir } from "../release.ts";
 import { formatNext, formatRemedies, type Problem, type Remedy } from "../remedy.ts";
 import { SITE_CONTENT_FILE, readSiteContent } from "../site-content.ts";
-import { runCli } from "./main.ts";
+import { cliFlag, runCli } from "./main.ts";
 import { formatTable, plural } from "./table.ts";
 
 export interface CheckRow {
@@ -79,10 +78,6 @@ export const checkRemedies = (check: BrandCheck): Remedy[] => [
   ...check.release.flatMap((row) => row.remedies ?? []),
 ];
 
-/** The table already has an EXPECTED column, so a verdict need not repeat it. */
-const tableVerdict = (error: string) =>
-  error.replace(/ \(expected [^)]*\)$/, "").replace(/^\d+×\d+, expected .*$/, "wrong size");
-
 export const CHECK_NEXT: readonly Remedy[] = [
   { change: "check the whole setup", run: "pnpm brand:doctor" },
 ];
@@ -106,13 +101,11 @@ export async function checkBrand({
   const validation = validateAssets(assetsDir, { profile: profile.slug });
 
   const assets: CheckRow[] = validation.files.map(
-    ({ path, expected, found, errors, warnings }) => ({
+    ({ path, expected, found, errors, verdicts, warnings }) => ({
       item: path,
       expected,
       found,
-      verdict:
-        errors.map(tableVerdict).join("; ") ||
-        (warnings.length > 0 ? `warn: ${warnings.join("; ")}` : "ok"),
+      verdict: verdicts.join("; ") || (warnings.length > 0 ? `warn: ${warnings.join("; ")}` : "ok"),
       failed: errors.length > 0,
     }),
   );
@@ -131,12 +124,7 @@ export async function checkBrand({
   return {
     assetsDir,
     assets,
-    // A deploy only uses images downloaded with brand:pull, so that is the one fix there.
-    assetRemedies: release
-      ? validation.errors.length > 0
-        ? [PULL_ASSETS]
-        : []
-      : assetRemedies(validation, displayDir(repoRoot, assetsDir)),
+    assetRemedies: assetRemedies(validation, displayDir(repoRoot, assetsDir), { release }),
     content,
     release: rules.map((problem) => failure("deploy", problem)),
   };
@@ -146,7 +134,7 @@ if (import.meta.main) {
   const argv = process.argv.slice(2);
   const release = argv.includes("--release");
   await runCli("brand:check", async (profile) => {
-    const assets = flagValue(argv, "--assets", (message) => new BrandConfigError([message]));
+    const assets = cliFlag("--assets");
     if (release && assets) {
       throw new BrandConfigError(
         ["--assets and --release cannot be combined: release builds read only brand-assets/."],

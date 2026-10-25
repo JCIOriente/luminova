@@ -148,6 +148,7 @@ describe("validateAssets files", () => {
       expected: "PNG, height ≥ 184",
       found: "400×200",
       errors: [],
+      verdicts: [],
       warnings: [],
     });
     expect(byPath.get("og-image.png")).toMatchObject({

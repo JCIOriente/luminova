@@ -92,7 +92,7 @@ export function resolveBrandBuild({
   for (const warning of validation.warnings) warnOnce(warning);
   const prefix = displayDir(repoRoot, assetsDir);
   const problems = [...errors, ...validation.errors.map((error) => `${prefix}/${error}`)];
-  const remedies = assetRemedies(validation, prefix);
+  const remedies = assetRemedies(validation, prefix, { release });
   if (problems.length > 0) throw new BrandConfigError(problems, remedies);
   if (!validation.logoSize) {
     throw new BrandConfigError([`${prefix}: the three logos could not be read`], remedies);
