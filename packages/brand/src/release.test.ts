@@ -101,7 +101,9 @@ describe("releaseErrors", () => {
     const errors = messages(releaseErrors({ profile: fixture(), env: {}, assetsDir, ...BUILD }));
     expect(errors).toEqual([
       expect.stringMatching(/"fixture" is the neutral test profile/),
-      expect.stringMatching(/"demo-fixture" is an emulator-only demo project/),
+      expect.stringMatching(
+        /"fixture" is local-only \(project "demo-fixture" exists only in the emulators\)/,
+      ),
     ]);
   });
 

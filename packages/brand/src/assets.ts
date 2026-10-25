@@ -221,7 +221,7 @@ export function assetRemedies(
   const remedies: Remedy[] = [];
   if (validation.kinds.files) {
     remedies.push({
-      change: `put the files marked above in ${dirLabel}/ at the sizes shown (all ${ASSET_CONTRACT.length}: docs/adopting.md step 4)`,
+      change: `put the files marked above in ${dirLabel}/ at the sizes shown (all ${ASSET_CONTRACT.length}: docs/adopting.md step 3)`,
       run: checkCommand,
     });
   }

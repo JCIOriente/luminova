@@ -173,7 +173,7 @@ describe("assetRemedies", () => {
     expect(runs(dir)).toEqual([
       {
         change:
-          "put the files marked above in brand-assets/ at the sizes shown (all 16: docs/adopting.md step 4)",
+          "put the files marked above in brand-assets/ at the sizes shown (all 16: docs/adopting.md step 3)",
         run: "pnpm brand:check",
       },
     ]);

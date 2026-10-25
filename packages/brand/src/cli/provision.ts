@@ -12,8 +12,10 @@ import {
   type LoadedProfile,
 } from "../load-profile.ts";
 import {
+  CONNECT_PROJECT,
   PULLED_ASSETS_DIR,
   displayDir,
+  isDemoProject,
   selectAssetsDir,
   undeployableProfileErrors,
 } from "../release.ts";
@@ -276,6 +278,14 @@ export async function printProvisioning({
 }): Promise<string> {
   const { projectId } = profile.brand.firebase;
   const { slug } = profile;
+  if (isDemoProject(projectId)) {
+    throw new BrandConfigError(
+      [
+        `profile "${slug}" is local-only (project "${projectId}"): there is no Google Cloud to set up yet.`,
+      ],
+      [CONNECT_PROJECT],
+    );
+  }
   const brandFile = `brand/${slug}/brand.json`;
   const bucket = bucketUrl(profile.brand.assetsBucket);
   const [create, access, versioning, lifecycle, grant] = bucketSteps(
@@ -330,10 +340,10 @@ export async function printProvisioning({
       title: profile.brand.deploy
         ? `tell CD which account to use (done: ${brandFile} has it)`
         : "tell CD which account to use",
-      why: "CD reads these two names from the profile; they are not secrets.",
+      why: "CD signs in with these two names (not secrets), and deploys only a profile that has them: adding them is the switch that turns deploys on.",
       where: profile.brand.deploy
         ? `${brandFile} already has it: check the values match step 1`
-        : `your editor: add this to ${brandFile}, then commit it`,
+        : `your editor, once step 1 is done: add this to ${brandFile}; it ships with your go-live merge (docs/adopting.md step 12)`,
       lines: [deploySnippet],
       check: 'pnpm brand:doctor   (row "CD identity")',
     },
@@ -357,7 +367,7 @@ export async function printProvisioning({
       why: "Builds rules, functions and both sites with your profile and publishes them.",
       where: `GitHub: merge the branch with brand/${slug}/ and ${CONFIG_FILE} to main. The merge starts the Deploy run (a ${CONFIG_FILE} change deploys everything); approve it`,
       lines: ["# later, to deploy everything again without a merge:", deployDispatch("all")],
-      check: "open both sites and follow docs/adopting.md step 10",
+      check: "open both sites and follow docs/adopting.md step 12",
     },
   ];
 
