@@ -12,7 +12,7 @@ export interface Remedy {
 
 export interface Problem {
   message: string;
-  remedy?: Remedy;
+  remedies?: readonly Remedy[];
 }
 
 const PLACES: Readonly<Record<string, string>> = { repo: "the repo", shell: "your shell" };

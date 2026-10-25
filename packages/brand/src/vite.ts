@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { loadEnv, type Plugin } from "vite";
-import { ICON_FILES, LOGO_FILES, validateAssets } from "./assets.ts";
+import { ICON_FILES, LOGO_FILES, assetRemedies, validateAssets } from "./assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "./load-profile.ts";
 import type { PngSize } from "./png.ts";
 import type { BrandApp } from "./ports.ts";
@@ -9,6 +9,7 @@ import {
   RELEASE_MARKER_FILE,
   isRelease,
   releaseErrors,
+  displayDir,
   releaseIdentity,
   selectAssetsDir,
   type ReleaseIdentity,
@@ -89,11 +90,12 @@ export function resolveBrandBuild({
     : [];
   const validation = validateAssets(assetsDir, { profile: profile.slug });
   for (const warning of validation.warnings) warnOnce(warning);
-  const prefix = relative(repoRoot, assetsDir) || ".";
-  errors.push(...validation.errors.map((error) => `${prefix}/${error}`));
-  if (errors.length > 0) throw new BrandConfigError(errors);
+  const prefix = displayDir(repoRoot, assetsDir);
+  const problems = [...errors, ...validation.errors.map((error) => `${prefix}/${error}`)];
+  const remedies = assetRemedies(validation, prefix);
+  if (problems.length > 0) throw new BrandConfigError(problems, remedies);
   if (!validation.logoSize) {
-    throw new BrandConfigError([`${prefix}: the three logos could not be read`]);
+    throw new BrandConfigError([`${prefix}: the three logos could not be read`], remedies);
   }
 
   return {

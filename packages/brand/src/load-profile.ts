@@ -21,7 +21,9 @@ export class BrandConfigError extends Error {
       typeof problem === "string" ? problem : problem.message,
     );
     const all = uniqueRemedies([
-      ...problems.map((problem) => (typeof problem === "string" ? undefined : problem.remedy)),
+      ...problems.flatMap((problem) =>
+        typeof problem === "string" ? [] : (problem.remedies ?? []),
+      ),
       ...remedies,
     ]);
     const fix = formatRemedies(all);

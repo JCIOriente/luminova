@@ -1,6 +1,7 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { errorMessage } from "./load-profile.ts";
+import type { Remedy } from "./remedy.ts";
 import { BRAND_APPS } from "./ports.ts";
 import { PNG_HEADER_BYTES, readPngSize, type PngSize } from "./png.ts";
 
@@ -62,6 +63,8 @@ export interface AssetValidation {
   files: AssetFile[];
   /** Why `pull-manifest.json` does not fit the profile, without the file prefix. */
   manifestError: string | null;
+  /** Which kinds of problem were found, so callers can say what to do about each. */
+  kinds: { files: boolean; logoSize: boolean; heavyOg: boolean };
   /** The shared size of the three logos, when they all read. */
   logoSize: PngSize | null;
 }
@@ -158,6 +161,7 @@ export function validateAssets(
     }
   }
   const logoSize = main && logos.size === LOGO_FILES.length && mismatched === 0 ? main : null;
+  const errorCount = files.reduce((total, file) => total + file.errors.length, 0);
   const manifestError = profile ? checkPullManifest(dir, profile) : null;
 
   const prefixed = (pick: (file: AssetFile) => string[]) =>
@@ -170,6 +174,40 @@ export function validateAssets(
     warnings: prefixed((file) => file.warnings),
     files,
     manifestError,
+    kinds: {
+      files: errorCount > mismatched,
+      logoSize: mismatched > 0,
+      heavyOg: files.some((file) => file.warnings.length > 0),
+    },
     logoSize,
   };
+}
+
+export const PULL_ASSETS: Remedy = {
+  change: "download the release assets from the profile's bucket (needs gcloud auth login)",
+  run: "pnpm brand:pull",
+};
+
+/** What to do about a validation of `dirLabel` (as the user sees it), one remedy per kind. */
+export function assetRemedies(validation: AssetValidation, dirLabel: string): Remedy[] {
+  const remedies: Remedy[] = [];
+  if (validation.kinds.files) {
+    remedies.push({
+      change: `put the files marked above in ${dirLabel}/ at the sizes shown (all ${ASSET_CONTRACT.length}: docs/adopting.md step 4)`,
+      run: "pnpm brand:check",
+    });
+  }
+  if (validation.kinds.logoSize) {
+    remedies.push({
+      change: `export ${LOGO_FILES.join(", ")} at one size, then replace them in ${dirLabel}/`,
+      run: "pnpm brand:check",
+    });
+  }
+  if (validation.kinds.heavyOg) {
+    remedies.push({
+      change: `compress ${dirLabel}/${OG_IMAGE_FILE} below ${OG_IMAGE_WARN_BYTES / 1024} KB (still 1200×630)`,
+    });
+  }
+  if (validation.manifestError) remedies.push(PULL_ASSETS);
+  return remedies;
 }
