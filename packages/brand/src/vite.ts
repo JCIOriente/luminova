@@ -58,6 +58,18 @@ export interface ResolveBrandBuildOptions extends BrandBuildOptions {
   env?: Readonly<Record<string, string | undefined>>;
 }
 
+/**
+ * Whether the app talks to the emulators: what an env file or the environment says, else
+ * yes for the dev server (a fresh clone must never reach a real project) and no for a build.
+ */
+export function emulatorSetting(
+  command: "serve" | "build",
+  env: Readonly<Record<string, string | undefined>>,
+): boolean {
+  const value = env.VITE_FIREBASE_EMULATOR_ENABLED?.trim();
+  return value ? value === "true" : command === "serve";
+}
+
 const printedWarnings = new Set<string>();
 
 function warnOnce(message: string) {
@@ -81,7 +93,7 @@ export function resolveBrandBuild({
 
   const siteContent = parseSiteContent(readSiteContent(profile.dir, profile.slug), profile.slug);
 
-  const emulatorEnabled = loadEnv(mode, envDir, "VITE_").VITE_FIREBASE_EMULATOR_ENABLED === "true";
+  const emulatorEnabled = emulatorSetting(command, loadEnv(mode, envDir, "VITE_"));
   const urls = resolveUrls(profile.brand.urls, { command, emulatorEnabled });
 
   const assetsDir = selectAssetsDir(repoRoot, profile, env, release);
@@ -142,9 +154,21 @@ export function logoInclude(build: BrandBuild): RegExp {
   return new RegExp(`^${dir}/logo-[^/]+\\.png$`);
 }
 
-function firebaseEnv(brand: Brand, app: BrandApp): Record<string, string> {
+/**
+ * The Firebase web config Vite inlines. Against the emulators, App Check and web push stay
+ * off unless an env file opts in: the profile's real reCAPTCHA and VAPID keys do not work
+ * on localhost.
+ */
+function firebaseEnv(brand: Brand, app: BrandApp, emulator: boolean): Record<string, string> {
   const { firebase } = brand;
   const web = firebase.web[app];
+  const live = emulator
+    ? {}
+    : {
+        VITE_APPCHECK_SITE_KEY: web.appCheckSiteKey,
+        // Today's bundles carry no VAPID key; an empty string would change the output.
+        ...(web.vapidKey ? { VITE_FIREBASE_VAPID_KEY: web.vapidKey } : {}),
+      };
   return {
     VITE_FIREBASE_API_KEY: web.apiKey,
     VITE_FIREBASE_AUTH_DOMAIN: firebase.web.authDomain,
@@ -152,9 +176,8 @@ function firebaseEnv(brand: Brand, app: BrandApp): Record<string, string> {
     VITE_FIREBASE_STORAGE_BUCKET: firebase.storageBucket,
     VITE_FIREBASE_MESSAGING_SENDER_ID: firebase.web.messagingSenderId,
     VITE_FIREBASE_APP_ID: web.appId,
-    VITE_APPCHECK_SITE_KEY: web.appCheckSiteKey,
-    // Today's bundles carry no VAPID key; an empty string would change the output.
-    ...(web.vapidKey ? { VITE_FIREBASE_VAPID_KEY: web.vapidKey } : {}),
+    VITE_FIREBASE_EMULATOR_ENABLED: String(emulator),
+    ...live,
   };
 }
 
@@ -251,10 +274,10 @@ export function brandPlugin({
         brand: build.profile.brand,
         outDir: publicDir,
       });
-      if (command === "build" && !build.emulatorEnabled) {
-        // Vite loads env files after this hook, and process env wins over .env.production.
-        Object.assign(process.env, firebaseEnv(build.profile.brand, app));
-      }
+      // Every mode reads the profile's Firebase config, so dev, the emulators (.firebaserc)
+      // and the seeds name one project. Vite loads env files after this hook, and process
+      // env wins over them, so a stale apps/*/.env.local cannot point dev elsewhere.
+      Object.assign(process.env, firebaseEnv(build.profile.brand, app, build.emulatorEnabled));
       state = { build, ogImageFile };
       return { publicDir };
     },
