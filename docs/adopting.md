@@ -7,9 +7,7 @@ colours and share text. JCI Oriente's profile, `brand/jci-oriente/`, is the comm
 Your images never enter git. Deployments read them from a private bucket in your own Google
 Cloud project.
 
-Every step below names its command and who runs it. "You" means a chapter member with
-owner access to the Firebase project and admin access to the fork. No step needs a
-Luminova maintainer. If you get stuck,
+Every step below names its command. No step needs a Luminova maintainer. If you get stuck,
 [open an adoption issue](https://github.com/JCIOriente/luminova/issues/new?template=chapter_adoption.yml).
 
 ## Where configuration lives
@@ -35,32 +33,37 @@ point at a JSON Schema (`brand/luminova.schema.json`, `brand/brand.schema.json`)
 
 What stays out of the repository: your `gcloud`, `gh` and `firebase` sign-ins (each tool
 keeps its own), and the optional `DEPLOY_WEBHOOK_URL` GitHub secret that posts deploy
-results to Slack or Discord. Local development still reads `apps/*/.env.local` for the
-emulator settings; a follow-up moves that into the profile too.
+results to Slack or Discord. No `.env` file is needed: `apps/*/.env.local.example` lists
+the few optional overrides.
 
-## Before you start
+## Two parts: try it, then go live
 
-- Node 24 (`.nvmrc`), pnpm through `corepack enable`, the Firebase CLI, a Java runtime (for
-  the emulators), the `gcloud` CLI and the GitHub CLI `gh`.
-- A Firebase project on the **Blaze** plan (Cloud Functions need it).
-- Your chapter's 16 images (step 4) and the facts that go into the profile: name, city,
-  region, founding year, national federation, both site origins and a contact email.
+Part 1 runs entirely on your computer. You need no Google account and no Firebase
+project, and nothing is deployed: your profile starts **local-only**, on an emulator
+project named `demo-<slug>`. Part 2 connects a real Firebase project and goes live, when
+your chapter decides to. Merging to your fork's `main` is safe at any time: Deploy skips
+with a note until the profile has a real project and CD's sign-in (step 9).
 
-## Steps
+| # | Step | Command |
+|---|---|---|
+| | **Part 1: try it on your computer** | |
+| 1 | Fork, clone, run the example | `pnpm install`, then `pnpm dev` |
+| 2 | Create your profile | `pnpm brand:init` (answer **n**: no Firebase project yet) |
+| 3 | Add the 16 images and check them | `pnpm brand:check` |
+| 4 | Write the site texts and look at your sites | edit `site-content.json`, `pnpm dev` |
+| 5 | Commit the profile | `git add brand/<slug>/ luminova.json` |
+| | **Part 2: go live, when you are ready** | |
+| 6 | Firebase project, two web apps, second hosting site | Firebase console (below) |
+| 7 | Connect the project | `pnpm brand:init --connect` |
+| 8 | Check the setup | `pnpm brand:doctor` |
+| 9 | Keyless CD | `pnpm brand:provision`, steps 1 and 2 |
+| 10 | Create the assets bucket | `pnpm brand:provision --apply` |
+| 11 | Upload the images | `pnpm brand:push` |
+| 12 | Go live | merge to `main` |
+| 13 | First admin | `pnpm seed:production --project <id>` |
 
-| # | Step | Command | Who |
-|---|---|---|---|
-| 1 | Fork, clone, run the example locally | Quickstart in the [README](../README.md#quickstart) | You |
-| 2 | Firebase project, two web apps, second hosting site | Console (below) | You |
-| 3 | Create your profile | `pnpm brand:init` | You |
-| 4 | Add the 16 images and check them | `pnpm brand:check` | You |
-| 5 | Check the whole setup | `pnpm brand:doctor` | You |
-| 6 | Commit the profile on a branch | `git add brand/<slug>/ luminova.json` | You |
-| 7 | Keyless CD identity | `pnpm brand:provision`, steps 1 and 2 | You |
-| 8 | Create the assets bucket | `pnpm brand:provision --apply` | You |
-| 9 | Upload the images | `pnpm brand:push` | You |
-| 10 | First deploy, then verify | merge the branch to `main` | You |
-| 11 | First admin | `pnpm seed:production --project <id>` | You |
+"You" means a chapter member. Part 2 needs owner access to the Firebase project and admin
+access to the fork.
 
 Every brand command tells you what to do next. A failure ends with a **To fix:** block:
 the file or folder to change, the command, and where to run it. A success ends with
@@ -73,49 +76,43 @@ where it goes:
 
 ```text
 To fix:
-  - put the files marked above in brand-assets/ at the sizes shown (all 16: docs/adopting.md step 4)
+  - put the files marked above in brand-assets/ at the sizes shown (all 16: docs/adopting.md step 3)
       pnpm brand:check   # in the repo root
 ```
 
+## Part 1: try it on your computer
+
+You need Node 24 (`.nvmrc`), pnpm through `corepack enable`, the Firebase CLI and a Java
+runtime (the emulators need both). Nothing else.
+
 ### 1. Run the example
 
-Follow the README Quickstart. `pnpm dev` runs both apps against the emulators with the
-example profile (`luminova.json` selects `jci-oriente`), so nothing touches a real project.
+Follow the README Quickstart. `pnpm dev` starts the local emulators, fills them with test
+data and opens both sites with the example profile (`luminova.json` selects `jci-oriente`).
+Dev talks to the emulators, never to a real project.
 
-### 2. Firebase project
-
-In the [Firebase console](https://console.firebase.google.com), for your project:
-
-1. Register **two web apps**, one for the public site and one for the admin site. Note
-   each app id (`1:<number>:web:<hash>`).
-2. Add a **second hosting site** for the admin site. The first site's id is usually the
-   project id; `brand:init` suggests `<project>-backstage` for the second.
-3. Enable **Authentication → Email/Password**, and the rest of the console checklist in
-   [`docs/firebase-setup.md`](firebase-setup.md#console-checklist-manual-one-time). App Check
-   is optional: a blank `appCheckSiteKey` turns it off.
-
-### 3. Create your profile
+### 2. Create your profile
 
 ```bash
-pnpm brand:init                         # asks each question, with a suggested default
-pnpm brand:init --answers answers.json  # or from a file, without prompts
+pnpm brand:init                                 # asks each question, with a suggested default
+pnpm brand:init --local --answers answers.json  # or from a file, without prompts
 ```
 
-Either form takes `--sdkconfig` to read both API keys, the auth domain and the sender id
-with `firebase apps:sdkconfig` (read-only; needs `firebase login`), so an answers file can
-leave the API keys out: `pnpm brand:init --answers answers.json --sdkconfig`.
+It asks about your chapter: name, city, region, founding year, national federation, the
+two site addresses and a contact email. Then it asks whether you already have a Firebase
+project. Answer **n** (the default) to start local-only: the profile gets the emulator
+project `demo-<slug>`, and you connect a real one at step 7. Answering **y** asks the
+Firebase questions now instead (see step 7).
 
 `brand:init` writes `brand/<slug>/brand.json`, copies the example's `site-content.json`
-next to it, creates `brand-assets/README.txt`, points `luminova.json` at the new profile and
-writes `.firebaserc` for your project. It also fills `deploy`, CD's sign-in names, with the
-ones step 7 creates. It validates everything before writing
-anything and never overwrites an existing profile. When asking, it re-asks a malformed
-or taken slug and a year or count that is not a whole number on the spot; if a later step fails, your
-answers are saved to `brand-init-answers.json` (gitignored) for `--answers`. An answers
-file is a partial
-`brand.json`; anything missing is either derived (storage bucket, site ids, auth domain,
-sender id, assets bucket, SEO text, `deploy`) or reported, all at once. The JSON Schema in
-`brand/brand.schema.json` describes every field.
+next to it, creates `brand-assets/README.txt`, points `luminova.json` at the new profile
+and writes `.firebaserc`. It validates everything before writing anything and never
+overwrites an existing profile. It re-asks a malformed or taken slug, or a year that is
+not a whole number, on the spot; if a later step fails, your answers are saved to
+`brand-init-answers.json` (gitignored) for `--answers`. An answers file is a partial
+`brand.json`; anything missing is either derived (site addresses, SEO text and, for a real
+project, the storage bucket, site ids, auth domain, sender id and assets bucket) or
+reported, all at once:
 
 ```json
 {
@@ -127,22 +124,11 @@ sender id, assets bucket, SEO text, `deploy`) or reported, all at once. The JSON
   "parentOrganization": { "name": "JCI Bolivia", "url": "https://jcibolivia.org/" },
   "broadcastChannelName": "Difusión Valle",
   "urls": { "spotlight": "https://jcivalle.org", "backstage": "https://admin.jcivalle.org" },
-  "backstage": { "emailPlaceholder": "tu.nombre@jcivalle.org", "contactEmail": "hola@jcivalle.org" },
-  "firebase": {
-    "projectId": "jci-valle",
-    "web": {
-      "spotlight": { "appId": "1:123:web:abc", "apiKey": "AIza…" },
-      "backstage": { "appId": "1:123:web:def", "apiKey": "AIza…" }
-    }
-  }
+  "backstage": { "emailPlaceholder": "tu.nombre@jcivalle.org", "contactEmail": "hola@jcivalle.org" }
 }
 ```
 
-Edit `brand/<slug>/site-content.json`: history, mission, vision, values, statistics and
-contacts. It seeds the site once; after that, the admin `/config` screen is where it
-changes.
-
-### 4. Images
+### 3. Images
 
 Put these 16 PNG files in `brand-assets/` (its `README.txt` lists them too):
 
@@ -163,33 +149,71 @@ pnpm brand:check            # one row per file: expected, found, verdict
 
 `brand:check` runs the same validator as the build and also schema-checks your
 `site-content.json`. A local build reads `brand-assets/` once it holds any of the 16
-files (the README alone does not count), so `pnpm dev` now shows your images. Before
-that, a new profile has no images of its own and the build lists every missing file.
+files (the README alone does not count). Before that, a new profile has no images of its
+own and the build lists every missing file.
 
-### 5. Doctor
+### 4. Site texts, and a look
+
+Edit `brand/<slug>/site-content.json`: history, mission, vision, values, statistics and
+contacts. These texts fill the site once; after going live, the admin `/config` screen is
+where they change. Then `pnpm dev` shows both sites with your name, images and texts.
+
+### 5. Commit the profile
+
+Commit `brand/<slug>/` and `luminova.json`. Never commit `brand-assets/`: it is
+gitignored, and a deploy build refuses any asset source other than a pull from your
+bucket. Merging to `main` deploys nothing yet: Deploy skips a local-only profile and says
+so in the run's summary.
+
+## Part 2: go live
+
+You now also need the `gcloud` CLI and the GitHub CLI `gh`, and a Firebase project on the
+**Blaze** plan (Cloud Functions need it).
+
+### 6. Firebase project
+
+In the [Firebase console](https://console.firebase.google.com), create the project, then:
+
+1. Register **two web apps**, one for the public site and one for the admin site. Note
+   each app id (`1:<number>:web:<hash>`).
+2. Add a **second hosting site** for the admin site. The first site's id is usually the
+   project id; `brand:init` suggests `<project>-backstage` for the second.
+3. Enable **Authentication → Email/Password**, and the rest of the console checklist in
+   [`docs/firebase-setup.md`](firebase-setup.md#console-checklist-manual-one-time). App Check
+   is optional: a blank `appCheckSiteKey` turns it off.
+
+### 7. Connect the project
+
+```bash
+pnpm brand:init --connect               # only the Firebase questions
+pnpm brand:init --connect --sdkconfig   # and read the API keys for you (needs firebase login)
+```
+
+It asks the project id, the hosting site ids and both web app ids, replaces the `demo-`
+project in `brand/<slug>/brand.json` and rewrites `.firebaserc`. Your chapter's answers
+from step 2 stay as they are. `--sdkconfig` reads both API keys, the auth domain and the
+sender id with `firebase apps:sdkconfig` (read-only). Run it again any time: for the same
+project it offers the current values as defaults, so Enter keeps them; to turn App Check
+or web push off, blank that key in `brand.json` instead. Merging this to `main` still
+deploys nothing: CD waits for the `deploy` section of step 9.
+
+### 8. Doctor
 
 ```bash
 pnpm brand:doctor
 ```
 
-One table, in the order fixes must happen: Node, pnpm, `luminova.json`, the profile and
-its schema, site content, images, `.firebaserc`, CD identity, your `gcloud` account and the
-bucket. It only reads, and every row reports even when an earlier one fails. Before step 9
-the **bucket** row fails, and the **gcloud account** row too until you run
-`gcloud auth login` (step 7); every other row should pass.
+One table, in the order fixes must happen: Node, pnpm, `luminova.json`, the profile,
+`brand.json`, site content, images, `.firebaserc`, CD identity, your `gcloud` account and
+the bucket. It only reads, and every row reports even when an earlier one fails. For a
+local-only profile it skips the cloud rows. Until step 11 the **bucket** row fails, and
+**CD identity** warns until step 9.
 
 If you exported `BRAND_PROFILE` in an earlier version of this guide, the `luminova.json`
 row warns while it differs from the file: remove the `export` line from your shell's
 startup file. Tools set that variable for single test builds; you never need it.
 
-### 6. Commit the profile
-
-Commit `brand/<slug>/` and `luminova.json` on a branch of your fork, and merge it to
-`main` only at step 10: a merge to `main` starts a deploy, which needs steps 7 to 9 first. Never commit `brand-assets/`: it
-is gitignored, and a deploy build refuses any asset source other than a pull from your
-bucket.
-
-### 7. Keyless CD
+### 9. Keyless CD
 
 ```bash
 gcloud auth login              # an owner of your Firebase project
@@ -201,36 +225,36 @@ pnpm brand:provision           # prints every step with your values; changes not
 why, where to run it, the exact commands and how to check that it worked. Run its step 1
 yourself: it creates CD's deploy account and its keyless sign-in (Workload Identity
 Federation: GitHub proves the run comes from your fork's `main`, no key is stored). Its
-step 2 is the `deploy` section of `brand/<slug>/brand.json`: `brand:init` already wrote it,
-so check that the values match and commit any change. The full block, with the reasoning
-behind each permission, is [`docs/ci-cd.md` section 6](ci-cd.md#6-one-time-provisioning-reproducible).
+step 2 is the `deploy` section to add to `brand/<slug>/brand.json`. That section is the
+switch: CD deploys only a profile that has it. The full block, with the reasoning behind
+each permission, is [`docs/ci-cd.md` section 6](ci-cd.md#6-one-time-provisioning-reproducible).
 
-### 8. Assets bucket
+### 10. Assets bucket
 
 ```bash
 pnpm brand:provision --apply   # creates and configures the bucket, skipping what is done
 ```
 
 The bucket is private and versioned, keeps the last three versions of each file, and the
-deploy account from step 7 gets read-only access to it alone. Step 7 must come first:
+deploy account from step 9 gets read-only access to it alone. Step 9 must come first:
 the grant fails for an account that does not exist yet.
 
-### 9. Upload the images
+### 11. Upload the images
 
 ```bash
 pnpm brand:push                # validates brand-assets/ first, then uploads
 pnpm brand:doctor              # every row passes now
 ```
 
-`brand:push` never deletes, and versioning keeps every overwritten file for rollback. It
-prints the deploy command to run afterwards: an image change is not in git, so CD does not
-see it on its own.
+`brand:push` never deletes, and versioning keeps every overwritten file for rollback. An
+image change is not in git, so after going live CD does not see it on its own:
+`brand:push` prints the hosting deploy command for that.
 
-### 10. Deploy and verify
+### 12. Go live
 
-Merge your branch to `main` and approve the Deploy run it starts. Because `luminova.json`
-changed, CD deploys everything: rules, functions and both sites. To deploy everything again
-later without a merge: `gh workflow run deploy.yml -f surface=all`.
+Commit the `deploy` section from step 9 and merge to `main`, then approve the Deploy run it
+starts. The first deploy after setup ships everything: rules, functions and both sites.
+To deploy everything again later without a merge: `gh workflow run deploy.yml -f surface=all`.
 Hosting deploys to a preview channel, is smoke-tested, then promoted. Then check:
 
 - view source on both sites: title, description, `rel=canonical` and `og:image` carry your
@@ -243,14 +267,14 @@ Hosting deploys to a preview channel, is smoke-tested, then promoted. Then check
 Custom domains and the console settings that must list every hostname:
 [`docs/domains.md`](domains.md).
 
-### 11. First admin
+### 13. First admin
 
 ```bash
 gcloud auth application-default login   # the script uses Application Default Credentials
 pnpm seed:production --project <your-project-id>
 ```
 
-Creates the first admin interactively and seeds the site content from step 3. It refuses
+Creates the first admin interactively and seeds the site content from step 4. It refuses
 the emulators and any project other than the one your profile names.
 
 ## Changing things later

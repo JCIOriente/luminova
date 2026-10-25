@@ -67,12 +67,14 @@ describe("push", () => {
     ]);
   });
 
-  it("names the deploy dispatch and doctor as the next steps", () => {
-    expect(pushNext("jci-oriente").map(({ run }) => run)).toEqual([
+  it("checks first, then offers going live as a choice", () => {
+    const next = pushNext("jci-oriente");
+    expect(next.map(({ run }) => run)).toEqual([
+      "pnpm brand:doctor",
       "gh workflow run deploy.yml -f surface=all",
       DEPLOY_DISPATCH,
-      "pnpm brand:doctor",
     ]);
+    expect(next[1]?.change).toMatch(/^when you are ready to go live/);
   });
 
   it("refuses the default profile: the bucket must be named on purpose", async () => {

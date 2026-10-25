@@ -20,11 +20,11 @@ import {
 } from "../load-profile.ts";
 import { FIREBASERC, firebasercContent } from "./apply.ts";
 import { checkBrand } from "./check.ts";
-import { formatNext, formatRemedies, uniqueRemedies, type Remedy } from "../remedy.ts";
+import { formatNext, formatRemedies, uniqueRemedies, type Remedy, guideStep } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
 import { cliFlag, exitOnFailure } from "./main.ts";
 import { deployDispatch } from "./push.ts";
-import { PRINT_GCP_SETUP, missingDeployProblem } from "../release.ts";
+import { CONNECT_PROJECT, PRINT_GCP_SETUP, missingDeployProblem } from "../release.ts";
 import { formatTable, plural } from "./table.ts";
 
 export interface DoctorRow {
@@ -230,10 +230,18 @@ export async function doctor({
   profile?: string;
 } = {}): Promise<{ rows: DoctorRow[]; profile?: LoadedProfile }> {
   const { rows: profileChecks, profile } = profileRows(repoRoot, env, flag);
+  // A local-only profile has no cloud yet: those rows wait for going live, and doctor
+  // never calls gcloud for them.
+  const local = profile?.localOnly === true;
+  // A cloud row needs a connected profile; the gcloud sign-in only needs a non-local one.
+  const cloud = (check: string, body: (profile: LoadedProfile) => Promise<DoctorRow>) =>
+    local ? skip(check, LOCAL_ONLY) : profile ? attempt(check, () => body(profile)) : skip(check);
   // The external commands are independent; start them together, report in order.
   const [account, bucket, pnpm] = await Promise.all([
-    attempt("gcloud account", () => gcloudAccountRow(run)),
-    profile ? attempt("bucket", () => bucketRow(profile, run)) : skip("bucket"),
+    local
+      ? skip("gcloud account", LOCAL_ONLY)
+      : attempt("gcloud account", () => gcloudAccountRow(run)),
+    cloud("bucket", (loaded) => bucketRow(loaded, run)),
     attempt("pnpm", () => pnpmRow(repoRoot, run)),
   ]);
 
@@ -253,7 +261,11 @@ export async function doctor({
     profile
       ? await attempt(FIREBASERC, async () => firebasercRow(profile, repoRoot))
       : skip(FIREBASERC),
-    profile ? cdIdentityRow(profile) : skip("CD identity"),
+    local
+      ? skip("CD identity", LOCAL_ONLY)
+      : profile
+        ? cdIdentityRow(profile)
+        : skip("CD identity"),
     account,
     bucket,
   ];
@@ -292,11 +304,23 @@ export const doctorRemedies = (rows: readonly DoctorRow[]): Remedy[] =>
       .flatMap(({ remedies }) => remedies ?? []),
   );
 
-/** With every row passing, the local setup is done; what remains reaches CD (steps 6, 10). */
-export function doctorNext(slug: string): Remedy[] {
+const LOCAL_ONLY = "local-only profile; comes with going live (pnpm brand:init --connect)";
+
+/**
+ * With every row passing, what remains is a choice (spec L5): a local-only profile can go
+ * live by connecting a project; a connected one goes live by merging to main.
+ */
+export function doctorNext(profile: LoadedProfile): Remedy[] {
+  const { slug } = profile;
+  if (profile.localOnly) {
+    return [
+      { change: "see your chapter's sites on this computer", run: "pnpm dev" },
+      CONNECT_PROJECT,
+    ];
+  }
   return [
     {
-      change: `commit brand/${slug}/ and ${CONFIG_FILE}, and merge them to main in your fork: the merge starts the first deploy; approve it in GitHub (docs/adopting.md step 10)`,
+      change: `when you are ready to go live: merge brand/${slug}/ and ${CONFIG_FILE} to main in your fork. The merge starts the first deploy; approve it in GitHub (${guideStep("goLive")})`,
     },
     {
       change: "later, to deploy everything again without a merge (project owner)",
@@ -322,8 +346,9 @@ if (import.meta.main) {
       console.error(`brand:doctor: ${plural(failed, "check")} failed.`);
       process.exit(1);
     }
-    // Every row passed, so the profile loaded.
-    const next = doctorNext(profile?.slug ?? "<slug>");
+    // A failing profile row exits above; the guard only narrows the type.
+    if (!profile) return;
+    const next = doctorNext(profile);
     console.log(`brand:doctor: every check passed.\n\n${formatNext(next)}`);
   });
 }

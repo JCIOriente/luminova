@@ -131,6 +131,20 @@ describe("printProvisioning", () => {
   });
 });
 
+describe("printProvisioning of a local-only profile", () => {
+  it("refuses, pointing at --connect, without looking anything up", async () => {
+    const fixture = loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" });
+    const error = await printProvisioning({ profile: fixture, run: fakeRunner() }).catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(BrandConfigError);
+    expect((error as BrandConfigError).remedies.map(({ run }) => run)).toEqual([
+      "pnpm brand:init --connect",
+    ]);
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("provisioningSection", () => {
   it("names the same deploy account, pool and provider brand:init writes into deploy", () => {
     const block = provisioningSection(readFileSync(join(REPO_ROOT, "docs/ci-cd.md"), "utf8"));

@@ -2,7 +2,7 @@ import { join, resolve } from "node:path";
 import { assetRemedies, contractByFolder, validateAssets } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, type LoadedProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR, displayDir, undeployableProfileErrors } from "../release.ts";
-import { formatNext, type Remedy } from "../remedy.ts";
+import { formatNext, type Remedy, guideStep } from "../remedy.ts";
 import { bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
 import { cliFlag, runCli } from "./main.ts";
 
@@ -13,8 +13,9 @@ export const deployDispatch = (surface: "hosting" | "all") =>
 export const DEPLOY_DISPATCH = deployDispatch("hosting");
 
 export const pushNext = (slug: string): Remedy[] => [
+  { change: "confirm the bucket row passes", run: "pnpm brand:doctor" },
   {
-    change: `first deploy: merge brand/${slug}/ and luminova.json to main, which deploys everything (docs/adopting.md step 10); or, if they are already there:`,
+    change: `when you are ready to go live: merge brand/${slug}/ and luminova.json to main, which deploys everything (${guideStep("goLive")}). Already on main? Deploy by hand:`,
     run: deployDispatch("all"),
     where: "shell",
   },
@@ -24,7 +25,6 @@ export const pushNext = (slug: string): Remedy[] => [
     run: DEPLOY_DISPATCH,
     where: "shell",
   },
-  { change: "confirm the bucket row passes", run: "pnpm brand:doctor" },
 ];
 
 /**

@@ -55,6 +55,20 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      # A fork that has not set up CD yet (local-only profile, or no "deploy" section)
+      # skips every deploy job: no credential minted, no approval requested.
+      - name: Is this repository set up to deploy?
+        id: ready
+        run: |
+          set -euo pipefail
+          bash .github/scripts/deploy-ready.sh | tee -a "$GITHUB_OUTPUT"
+      - name: Explain a skipped deploy
+        if: steps.ready.outputs.ready != 'true'
+        env:
+          REASON: ${{ steps.ready.outputs.reason }}
+        run: |
+          echo "::notice title=Deploy skipped::$REASON"
+          { echo "### Deploy skipped"; echo; echo "$REASON"; } >> "$GITHUB_STEP_SUMMARY"
       - name: Detect changed surfaces
         id: f
         # Untrusted-ish inputs flow through env, never inline ${{ }} in the script,
@@ -66,12 +80,16 @@ jobs:
           EVENT_HEAD: ${{ github.event.workflow_run.head_sha }}
           FALLBACK_SHA: ${{ github.sha }}
           GH_TOKEN: ${{ github.token }}
+          READY: ${{ steps.ready.outputs.ready }}
+          PROJECT: ${{ steps.ready.outputs.project }}
         run: |
           set -euo pipefail
           sp=false; bs=false; fn=false; rl=false
           head="${EVENT_HEAD:-$FALLBACK_SHA}"
           echo "sha=$head" >> "$GITHUB_OUTPUT"
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+          if [ "$READY" != "true" ]; then
+            echo "not set up to deploy -> every surface off"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             # Manual run: deploy the requested surface(s), no diff.
             case "$SURFACE" in
               all)       sp=true; bs=true; fn=true; rl=true ;;
@@ -99,6 +117,18 @@ jobs:
               base=""
               sp=true; bs=true; fn=true; rl=true
               echo "no base commit available -> deploying all surfaces (fail-safe)"
+            fi
+            # The first deploy to a project ships every surface, whatever the diff says:
+            # the last deploy ran before this repo was set up (it skipped), or it went to
+            # another project. A base the script cannot read (before luminova.json existed)
+            # counts as not set up; its message stays in the log.
+            if [ -n "$base" ]; then
+              at_base=$(bash .github/scripts/deploy-ready.sh . "$base" || true)
+              if ! grep -qx 'ready=true' <<<"$at_base" || ! grep -Fqx "project=$PROJECT" <<<"$at_base"; then
+                sp=true; bs=true; fn=true; rl=true
+                echo "base $base was not set up to deploy to $PROJECT -> first deploy: all surfaces"
+                base=""
+              fi
             fi
             if [ -n "$base" ]; then
               diff=$(git diff --name-only "$base...$head")
@@ -299,7 +329,7 @@ jobs:
       # GCP_PROJECT_ID (set by firebase-setup from the same luminova.json), and writes
       # dist/.brand-release.json. --force so turbo never
       # replays a cached dist. VITE_FIREBASE_EMULATOR_ENABLED=false guards against a dev
-      # bundle ever reaching prod (also forced in .env.production).
+      # bundle ever reaching prod (a build without the flag is already off).
       # One turbo run, so the shared packages build once and the two apps in parallel.
       # The assert repeats the hosting predeploy so the gate holds even if a future
       # firebase-tools stops running hooks for channel deploys.

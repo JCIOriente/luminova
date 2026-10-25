@@ -18,7 +18,13 @@ import { BrandConfigError, REPO_ROOT, loadProfile } from "./load-profile.ts";
 import { DEV_PORTS, PREVIEW_PORTS } from "./ports.ts";
 import { sha256 } from "./hash.ts";
 import { RELEASE_MARKER_FILE, readReleaseMarker } from "./release.ts";
-import { brandPlugin, logoInclude, pwaManifest, resolveBrandBuild } from "./vite.ts";
+import {
+  brandPlugin,
+  emulatorSetting,
+  logoInclude,
+  pwaManifest,
+  resolveBrandBuild,
+} from "./vite.ts";
 
 const ENV_KEYS = [
   "VITE_FIREBASE_API_KEY",
@@ -29,6 +35,7 @@ const ENV_KEYS = [
   "VITE_FIREBASE_APP_ID",
   "VITE_FIREBASE_VAPID_KEY",
   "VITE_APPCHECK_SITE_KEY",
+  "VITE_FIREBASE_EMULATOR_ENABLED",
 ] as const;
 
 let repoRoot: string;
@@ -166,6 +173,12 @@ describe("resolveBrandBuild", () => {
 
   it("carries the parsed site content", () => {
     expect(resolve().siteContent.stats.standoutOrg.title).toBe("Fixture Standout Award");
+  });
+
+  it("connects the dev server to the emulators unless an env file says otherwise", () => {
+    expect(resolve({ command: "serve", mode: "development" }).emulatorEnabled).toBe(true);
+    writeFileSync(join(envDir, ".env.local"), "VITE_FIREBASE_EMULATOR_ENABLED=false\n");
+    expect(resolve({ command: "serve", mode: "development" }).emulatorEnabled).toBe(false);
   });
 
   it("resolves dev-server urls for serve", () => {
@@ -330,6 +343,16 @@ const SPOTLIGHT_PLACEHOLDERS = [
   "TWITTER_DESCRIPTION",
 ];
 
+const APP_CHECK_KEY = "fixture-recaptcha-site-key";
+
+/** The fixture profile with a real-looking App Check key, as a live chapter has. */
+function giveFixtureAppCheck() {
+  const file = join(repoRoot, "brand", "fixture", "brand.json");
+  const brand = JSON.parse(readFileSync(file, "utf8"));
+  brand.firebase.web.spotlight.appCheckSiteKey = APP_CHECK_KEY;
+  writeFileSync(file, JSON.stringify(brand));
+}
+
 function writeApp(): string {
   const root = join(repoRoot, "app");
   mkdirSync(join(root, "src"), { recursive: true });
@@ -347,7 +370,7 @@ ${SPOTLIGHT_PLACEHOLDERS.map((key) => `<meta name="${key}" content="__${key}__">
 import { siteContent } from "virtual:luminova-brand/site-content";
 console.log(name, urls.spotlight, logos.main, logos.onDark, logos.onPrimary, logos.width);
 console.log(siteContent.hero.motto);
-console.log(import.meta.env.VITE_FIREBASE_PROJECT_ID);
+console.log(import.meta.env.VITE_FIREBASE_PROJECT_ID, import.meta.env.VITE_APPCHECK_SITE_KEY);
 `,
   );
   return root;
@@ -364,8 +387,22 @@ async function buildApp(root: string, plugin: ReturnType<typeof brandPlugin>) {
   return join(root, "dist");
 }
 
+describe("emulatorSetting", () => {
+  it.each([
+    ["serve", undefined, true],
+    ["serve", "", true],
+    ["serve", "false", false],
+    ["build", undefined, false],
+    ["build", "true", true],
+    ["build", " false ", false],
+  ] as const)("%s with %j connects to the emulators: %s", (command, value, expected) => {
+    expect(emulatorSetting(command, { VITE_FIREBASE_EMULATOR_ENABLED: value })).toBe(expected);
+  });
+});
+
 describe("brandPlugin", () => {
   it("builds a real Vite app with the brand applied", { timeout: 60_000 }, async () => {
+    giveFixtureAppCheck();
     const root = writeApp();
     const dist = await buildApp(
       root,
@@ -388,6 +425,7 @@ describe("brandPlugin", () => {
       .map((file) => readFileSync(join(dist, "assets", file), "utf8"))
       .join("\n");
     expect(js).toContain("demo-fixture");
+    expect(js).toContain(APP_CHECK_KEY);
     expect(js).toContain("Fixture Chapter");
     expect(js).toContain("https://fixture.example.org");
     expect(js).toContain("Fixture motto for tests.");
@@ -397,6 +435,31 @@ describe("brandPlugin", () => {
       expect(assets).toContainEqual(expect.stringMatching(new RegExp(`^${logo}-.*\\.png$`)));
     }
   });
+
+  it(
+    "bakes the profile's project into an emulator build, whatever a stale .env.local names",
+    { timeout: 60_000 },
+    async () => {
+      giveFixtureAppCheck();
+      const root = writeApp();
+      writeFileSync(
+        join(root, ".env.local"),
+        "VITE_FIREBASE_EMULATOR_ENABLED=true\nVITE_FIREBASE_PROJECT_ID=someone-else\n",
+      );
+      const dist = await buildApp(
+        root,
+        brandPlugin({ app: "spotlight", repoRoot, profile: "fixture" }),
+      );
+      const js = readdirSync(join(dist, "assets"))
+        .filter((file) => file.endsWith(".js"))
+        .map((file) => readFileSync(join(dist, "assets", file), "utf8"))
+        .join("\n");
+      expect(js).toContain("demo-fixture");
+      expect(js).not.toContain("someone-else");
+      // The profile's real App Check key would fail on localhost against the emulators.
+      expect(js).not.toContain(APP_CHECK_KEY);
+    },
+  );
 
   it("writes the release marker into a release build's dist", { timeout: 60_000 }, async () => {
     writePulledAssets();

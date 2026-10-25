@@ -14,7 +14,7 @@ import { ASSET_CONTRACT } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
-import { init, initNext } from "./init.ts";
+import { connect, init, initNext } from "./init.ts";
 import type { Prompter } from "./prompts.ts";
 
 const SPOTLIGHT_APP = "1:111222333:web:aaa";
@@ -110,7 +110,7 @@ describe("init from an answers file", () => {
     expect(readme).toMatch(/never commit/i);
   });
 
-  it("selects the new profile in luminova.json, writes .firebaserc and CD's sign-in names", async () => {
+  it("selects the new profile in luminova.json and writes .firebaserc, but not CD's switch", async () => {
     writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: "jci-oriente" }));
     const { files } = await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
     expect(files).toEqual(expect.arrayContaining(["luminova.json", ".firebaserc"]));
@@ -121,11 +121,8 @@ describe("init from an answers file", () => {
     expect(JSON.parse(readFileSync(join(root, ".firebaserc"), "utf8")).projects.default).toBe(
       "jci-valle",
     );
-    expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.deploy).toEqual({
-      workloadIdentityProvider:
-        "projects/111222333/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
-      serviceAccount: "firebase-deployer@jci-valle.iam.gserviceaccount.com",
-    });
+    // "deploy" switches CD on; it comes at brand:provision step 2, never from init.
+    expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.deploy).toBeUndefined();
   });
 
   it("keeps an existing brand-assets/README.txt", async () => {
@@ -138,12 +135,12 @@ describe("init from an answers file", () => {
   it("lists every missing required value at once and writes nothing", async () => {
     const answers = minimalAnswers();
     delete answers.name;
-    delete answers.urls;
+    delete answers.backstage;
     const error = await init({ repoRoot: root, answers, run: noCommands }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(BrandConfigError);
     const message = String(error);
     expect(message).toMatch(/name/);
-    expect(message).toMatch(/urls/);
+    expect(message).toMatch(/backstage/);
     expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
     expect(existsSync(join(root, PULLED_ASSETS_DIR))).toBe(false);
   });
@@ -244,6 +241,7 @@ describe("init interactively", () => {
       "firebase.projectId": "jci-valle",
       "firebase.web.spotlight.appId": SPOTLIGHT_APP,
       "firebase.web.backstage.appId": BACKSTAGE_APP,
+      hasProject: "y",
       fillWeb: "n",
       "firebase.web.spotlight.apiKey": "key-spotlight",
       "firebase.web.backstage.apiKey": "key-backstage",
@@ -321,8 +319,8 @@ describe("init interactively", () => {
     const error = await init({
       repoRoot: root,
       answers,
-      prompter: scripted({ name: ["JCI Valle"] }),
-      fillWeb: true,
+      // "y" to the sdkconfig question, not the flag: the re-run must still carry it.
+      prompter: scripted({ name: ["JCI Valle"], fillWeb: ["y"] }),
       run: failing,
     }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(BrandConfigError);
@@ -342,15 +340,250 @@ describe("init interactively", () => {
   });
 });
 
+function localAnswers(): Record<string, unknown> {
+  const chapter = minimalAnswers();
+  delete chapter.firebase;
+  return chapter;
+}
+
+describe("init --local", () => {
+  it("writes a profile that runs only in the emulators, with no cloud question", async () => {
+    const { local, files } = await init({
+      repoRoot: root,
+      answers: localAnswers(),
+      local: true,
+      run: noCommands,
+    });
+    expect(local).toBe(true);
+    expect(files).toContain("luminova.json");
+    const { brand } = loadProfile({ repoRoot: root, env: {} });
+    expect(brand.firebase.projectId).toBe("demo-jci-valle");
+    expect(brand.firebase.sites).toEqual({
+      spotlight: "demo-jci-valle",
+      backstage: "demo-jci-valle-backstage",
+    });
+    expect(brand.firebase.web.spotlight.appCheckSiteKey).toBe("");
+    expect(brand.deploy).toBeUndefined();
+    expect(calls).toEqual([]);
+  });
+
+  it("asks whether a project exists, and a blank answer means local", async () => {
+    const asked: string[] = [];
+    const prompter: Prompter = {
+      async ask({ key }) {
+        asked.push(key);
+        return "";
+      },
+    };
+    const { local } = await init({
+      repoRoot: root,
+      answers: localAnswers(),
+      prompter,
+      run: noCommands,
+    });
+    expect(local).toBe(true);
+    expect(asked).toContain("hasProject");
+    expect(asked.filter((key) => key.startsWith("firebase."))).toEqual([]);
+  });
+
+  it("refuses --local with a firebase block it would otherwise throw away", async () => {
+    await expect(
+      init({ repoRoot: root, answers: minimalAnswers(), local: true, run: noCommands }),
+    ).rejects.toThrow(/"firebase" block/);
+  });
+
+  it("saves a failed local run so the printed --local re-run accepts the file", async () => {
+    mkdirSync(join(root, "brand/jci-valle"), { recursive: true });
+    const prompter: Prompter = {
+      async ask({ key, fallback }) {
+        return (localAnswers() as Record<string, unknown>)[key] === undefined
+          ? (fallback ?? "")
+          : "";
+      },
+    };
+    const error = await init({
+      repoRoot: root,
+      answers: localAnswers(),
+      prompter,
+      local: true,
+      run: noCommands,
+    }).catch((caught: unknown) => caught);
+    expect(String(error)).toMatch(
+      /already exists[\s\S]*--answers .*brand-init-answers\.json --local/,
+    );
+    const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
+    expect(saved.firebase).toBeUndefined();
+    rmSync(join(root, "brand/jci-valle"), { recursive: true });
+    const rerun = await init({ repoRoot: root, answers: saved, local: true, run: noCommands });
+    expect(rerun.local).toBe(true);
+  });
+
+  it("keeps a long slug's demo project within Firebase's 30 characters", async () => {
+    const answers = { ...localAnswers(), slug: "jci-a-very-long-chapter-name-indeed" };
+    await init({ repoRoot: root, answers, local: true, run: noCommands });
+    const { projectId } = loadProfile({ repoRoot: root, env: {} }).brand.firebase;
+    expect(projectId.length).toBeLessThanOrEqual(30);
+    expect(projectId).toMatch(/^demo-[a-z0-9-]*[a-z0-9]$/);
+  });
+});
+
+describe("init --connect", () => {
+  it("replaces a local profile's demo project with the real one", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
+    const result = await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
+    expect(result).toEqual({ slug: "jci-valle", projectId: "jci-valle" });
+    const { brand } = loadProfile({ repoRoot: root, env: {} });
+    expect(brand.name).toBe("JCI Valle");
+    expect(brand.firebase.sites.backstage).toBe("jci-valle-backstage");
+    expect(brand.assetsBucket).toBe("jci-valle-brand-assets");
+    expect(brand.deploy).toBeUndefined();
+    expect(JSON.parse(readFileSync(join(root, ".firebaserc"), "utf8")).projects.default).toBe(
+      "jci-valle",
+    );
+  });
+
+  it("re-connects a connected profile, keeping deploy only for the same project", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
+    await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
+    const file = join(root, "brand/jci-valle/brand.json");
+    const withDeploy = JSON.parse(readFileSync(file, "utf8"));
+    withDeploy.deploy = {
+      workloadIdentityProvider:
+        "projects/111222333/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
+      serviceAccount: "firebase-deployer@jci-valle.iam.gserviceaccount.com",
+    };
+    writeFileSync(file, JSON.stringify(withDeploy));
+
+    await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
+    expect(loadProfile({ repoRoot: root, env: {} }).brand.deploy).toEqual(withDeploy.deploy);
+
+    const other = structuredClone(firebase);
+    other.projectId = "jci-valle-2";
+    await connect({ repoRoot: root, answers: { firebase: other }, run: noCommands });
+    const moved = loadProfile({ repoRoot: root, env: {} }).brand;
+    expect(moved.firebase.projectId).toBe("jci-valle-2");
+    expect(moved.deploy).toBeUndefined();
+  });
+
+  it("re-connecting the same project keeps App Check keys a blank answer would erase", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
+    await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
+    const file = join(root, "brand/jci-valle/brand.json");
+    const live = JSON.parse(readFileSync(file, "utf8"));
+    live.firebase.web.spotlight.appCheckSiteKey = "site-key";
+    writeFileSync(file, JSON.stringify(live));
+    // Only the project id is answered; every other question falls back.
+    const prompter: Prompter = {
+      async ask({ key }) {
+        return key === "firebase.projectId" ? "jci-valle" : "";
+      },
+    };
+    await connect({ repoRoot: root, prompter, run: noCommands });
+    const { web } = loadProfile({ repoRoot: root, env: {} }).brand.firebase;
+    expect(web.spotlight.appCheckSiteKey).toBe("site-key");
+    expect(web.spotlight.apiKey).toBe("key-spotlight");
+  });
+
+  it("re-connecting the same project offers its values as defaults a reply can replace", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
+    await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
+    const offered: Record<string, string | undefined> = {};
+    const prompter: Prompter = {
+      async ask({ key, fallback }) {
+        offered[key] = fallback;
+        if (key === "firebase.projectId") return "jci-valle";
+        return key === "firebase.web.spotlight.apiKey" ? "new-key" : "";
+      },
+    };
+    await connect({ repoRoot: root, prompter, run: noCommands });
+    expect(offered["firebase.web.backstage.apiKey"]).toBe("key-backstage");
+    const { web } = loadProfile({ repoRoot: root, env: {} }).brand.firebase;
+    expect(web.spotlight.apiKey).toBe("new-key");
+    expect(web.backstage.apiKey).toBe("key-backstage");
+  });
+
+  it("merges a partial answers file into the profile instead of replacing a section", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
+    await connect({
+      repoRoot: root,
+      answers: { firebase, locality: { city: "Quillacollo" } },
+      run: noCommands,
+    });
+    const { locality } = loadProfile({ repoRoot: root, env: {} }).brand;
+    expect(locality).toMatchObject({ city: "Quillacollo", country: "Bolivia" });
+  });
+
+  it("saves typed project answers when a later step fails", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    const failing: CommandRunner = async () => {
+      throw new CommandError("firebase apps:sdkconfig failed: not logged in");
+    };
+    const replies: Record<string, string> = {
+      "firebase.projectId": "jci-valle",
+      "firebase.web.spotlight.appId": SPOTLIGHT_APP,
+      "firebase.web.backstage.appId": BACKSTAGE_APP,
+      fillWeb: "y",
+    };
+    const prompter: Prompter = {
+      async ask({ key, fallback }) {
+        return replies[key] ?? fallback ?? "";
+      },
+    };
+    const error = await connect({
+      repoRoot: root,
+      prompter,
+      run: failing,
+    }).catch((caught: unknown) => caught);
+    expect(String(error)).toMatch(
+      /pnpm brand:init --answers \/.*brand-init-answers\.json --connect --sdkconfig/,
+    );
+    const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
+    expect(saved.firebase.projectId).toBe("jci-valle");
+  });
+
+  it("asks only the Firebase questions", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    const asked: string[] = [];
+    const replies: Record<string, string> = {
+      "firebase.projectId": "jci-valle",
+      "firebase.web.spotlight.appId": SPOTLIGHT_APP,
+      "firebase.web.backstage.appId": BACKSTAGE_APP,
+      "firebase.web.spotlight.apiKey": "k1",
+      "firebase.web.backstage.apiKey": "k2",
+    };
+    const prompter: Prompter = {
+      async ask({ key }) {
+        asked.push(key);
+        return replies[key] ?? "";
+      },
+    };
+    await connect({ repoRoot: root, prompter, run: noCommands });
+    expect(asked.filter((key) => !key.startsWith("firebase.") && key !== "assetsBucket")).toEqual([
+      "fillWeb",
+    ]);
+  });
+});
+
 describe("init guidance", () => {
   it("lists the next steps with their commands", () => {
     const runs = initNext("jci-valle").map(({ change, run }) => run ?? change);
     expect(runs).toEqual([
-      expect.stringMatching(/^edit brand\/jci-valle\/site-content\.json/),
       "pnpm brand:check",
-      "pnpm brand:doctor",
+      expect.stringMatching(/^edit brand\/jci-valle\/site-content\.json/),
+      "pnpm dev",
       "git add brand/jci-valle/ luminova.json",
+      "pnpm brand:doctor",
     ]);
+    // A local-only profile ends with going live, as a choice, not a deploy.
+    const local = initNext("jci-valle", { local: true });
+    expect(local.at(-1)).toMatchObject({ run: "pnpm brand:init --connect" });
+    expect(local.at(-1)?.change).toMatch(/^when you are ready to go live/);
+    expect(JSON.stringify(local)).not.toMatch(/deploy/);
   });
 
   it("says where to find an app id that belongs to another project", async () => {

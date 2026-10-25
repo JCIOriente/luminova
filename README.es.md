@@ -135,10 +135,11 @@ El panorama completo está en [`docs/roadmap.md`](docs/roadmap.md) (en inglés).
 ## Adoptarlo para tu capítulo
 
 Luminova no es multi-inquilino: un despliegue sirve a un capítulo. Para usarlo en el tuyo,
-haz un fork, crea un perfil de marca con `pnpm brand:init` (nombres, lugares, orígenes, tu
-proyecto de Firebase), revisa tus imágenes con `pnpm brand:check` y tu configuración con
-`pnpm brand:doctor`, y sube las imágenes a un bucket privado de tu propio proyecto, de donde
-las lee el CD. Las marcas de JCI **no** están cubiertas por la licencia de este repositorio
+haz un fork y crea un perfil de marca con `pnpm brand:init` (nombres, lugares, direcciones
+de los sitios). Pruébalo primero en tu computadora: el perfil empieza solo en local, sin
+proyecto de Firebase y sin desplegar nada. Cuando tu capítulo esté listo para publicar,
+`pnpm brand:init --connect` conecta tu proyecto de Firebase y `pnpm brand:provision` guía la
+configuración de Google Cloud. Las marcas de JCI **no** están cubiertas por la licencia de este repositorio
 — ver [NOTICE](NOTICE).
 
 El camino completo, cada paso con su comando (en inglés): [`docs/adopting.md`](docs/adopting.md).
