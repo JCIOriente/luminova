@@ -55,11 +55,11 @@ emulator settings; a follow-up moves that into the profile too.
 | 3 | Create your profile | `pnpm brand:init` | You |
 | 4 | Add the 16 images and check them | `pnpm brand:check` | You |
 | 5 | Check the whole setup | `pnpm brand:doctor` | You |
-| 6 | Commit the profile | `git add brand/<slug>/ luminova.json` | You |
+| 6 | Commit the profile on a branch | `git add brand/<slug>/ luminova.json` | You |
 | 7 | Keyless CD identity | `pnpm brand:provision`, steps 1 and 2 | You |
 | 8 | Create the assets bucket | `pnpm brand:provision --apply` | You |
 | 9 | Upload the images | `pnpm brand:push` | You |
-| 10 | First deploy, then verify | merge to `main` or `gh workflow run deploy.yml` | You |
+| 10 | First deploy, then verify | merge the branch to `main` | You |
 | 11 | First admin | `pnpm seed:production --project <id>` | You |
 
 Every brand command tells you what to do next. A failure ends with a **To fix:** block:
@@ -104,7 +104,6 @@ pnpm brand:init --answers answers.json  # or from a file, without prompts
 Either form takes `--sdkconfig` to read both API keys, the auth domain and the sender id
 with `firebase apps:sdkconfig` (read-only; needs `firebase login`), so an answers file can
 leave the API keys out: `pnpm brand:init --answers answers.json --sdkconfig`.
-```
 
 `brand:init` writes `brand/<slug>/brand.json`, copies the example's `site-content.json`
 next to it, creates `brand-assets/README.txt`, points `luminova.json` at the new profile and
@@ -185,7 +184,8 @@ startup file. Tools set that variable for single test builds; you never need it.
 
 ### 6. Commit the profile
 
-Commit `brand/<slug>/` and `luminova.json` in your fork. Never commit `brand-assets/`: it
+Commit `brand/<slug>/` and `luminova.json` on a branch of your fork, and merge it to
+`main` only at step 10: a merge to `main` starts a deploy, which needs steps 7 to 9 first. Never commit `brand-assets/`: it
 is gitignored, and a deploy build refuses any asset source other than a pull from your
 bucket.
 
@@ -228,7 +228,9 @@ see it on its own.
 
 ### 10. Deploy and verify
 
-Merge to `main`, or run `gh workflow run deploy.yml -f surface=all`, and approve the run.
+Merge your branch to `main` and approve the Deploy run it starts. Because `luminova.json`
+changed, CD deploys everything: rules, functions and both sites. To deploy everything again
+later without a merge: `gh workflow run deploy.yml -f surface=all`.
 Hosting deploys to a preview channel, is smoke-tested, then promoted. Then check:
 
 - view source on both sites: title, description, `rel=canonical` and `og:image` carry your

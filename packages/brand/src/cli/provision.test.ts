@@ -95,7 +95,13 @@ describe("printProvisioning", () => {
     };
     const text = await printProvisioning({ profile, run: failing, repo: "me/fork" });
     expect(text).toContain("export GH_REPO=me/fork\n");
-    expect(text).toMatch(/export REVIEWER_ID=<.*gh api user -q \.id.*>\n/);
+    expect(text).toContain("export REVIEWER_ID=   # FILL IN before pasting: gh api user -q .id\n");
+    expect(text).toContain(
+      "export PROJECT_NUMBER=   # FILL IN before pasting: gcloud projects describe jci-oriente",
+    );
+    expect(text).toMatch(/# PROJECT_NUMBER, REVIEWER_ID could not be looked up\. Sign in/);
+    // Nothing a shell would read as a redirection.
+    expect(text).not.toMatch(/^\s*export \w+=</m);
   });
 
   it("orders the steps so CD's account exists before the bucket grants it read access", async () => {
@@ -142,6 +148,29 @@ describe("provisioningSection", () => {
 });
 
 describe("applyBucket", () => {
+  it("grants read access to the account the profile's deploy section names", async () => {
+    const custom = "deployer@jci-oriente.iam.gserviceaccount.com";
+    const brand = structuredClone(profile.brand);
+    brand.deploy = {
+      workloadIdentityProvider: brand.deploy?.workloadIdentityProvider ?? "",
+      serviceAccount: custom,
+    };
+    await applyBucket({
+      profile: { ...profile, brand },
+      repoRoot: REPO_ROOT,
+      run: fakeRunner({ policy: { bindings: [] } }),
+    });
+    expect(mutations()).toContainEqual([
+      "gcloud",
+      "storage",
+      "buckets",
+      "add-iam-policy-binding",
+      BUCKET,
+      `--member=serviceAccount:${custom}`,
+      "--role=roles/storage.objectViewer",
+    ]);
+  });
+
   it("creates and configures a missing bucket, then grants the deploy SA read", async () => {
     const created = {
       name: "jci-oriente-brand-assets",

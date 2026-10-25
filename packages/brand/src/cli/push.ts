@@ -14,7 +14,7 @@ export const DEPLOY_DISPATCH = deployDispatch("hosting");
 
 export const pushNext = (slug: string): Remedy[] => [
   {
-    change: `first deploy of everything (rules, functions, both sites), once brand/${slug}/ and luminova.json are on main (docs/adopting.md step 10)`,
+    change: `first deploy: merge brand/${slug}/ and luminova.json to main, which deploys everything (docs/adopting.md step 10); or, if they are already there:`,
     run: deployDispatch("all"),
     where: "shell",
   },

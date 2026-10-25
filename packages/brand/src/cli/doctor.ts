@@ -296,11 +296,10 @@ export const doctorRemedies = (rows: readonly DoctorRow[]): Remedy[] =>
 export function doctorNext(slug: string): Remedy[] {
   return [
     {
-      change: `commit brand/${slug}/ and ${CONFIG_FILE}, and merge them to main in your fork (docs/adopting.md step 6)`,
+      change: `commit brand/${slug}/ and ${CONFIG_FILE}, and merge them to main in your fork: the merge starts the first deploy; approve it in GitHub (docs/adopting.md step 10)`,
     },
     {
-      change:
-        "first deploy (project owner; approve the run in GitHub, then check docs/adopting.md step 10)",
+      change: "later, to deploy everything again without a merge (project owner)",
       run: deployDispatch("all"),
       where: "shell",
     },

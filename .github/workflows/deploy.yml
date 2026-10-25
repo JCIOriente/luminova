@@ -108,13 +108,15 @@ jobs:
               # in pnpm-lock/pnpm-workspace (or a root package.json/turbo.json change)
               # must redeploy the bundles that embed it, or prod keeps serving the old
               # vulnerable build. packages/** does too; firebase.json touches all;
-              # brand/** (profiles) feeds both frontends. A bucket asset change is not
-              # in git, so it needs a manual `surface=hosting` dispatch.
-              root='^pnpm-lock\.yaml$|^pnpm-workspace\.yaml$|^package\.json$|^turbo\.json$'
+              # brand/** (profiles) feeds both frontends. luminova.json picks the profile,
+              # so the project itself: a change redeploys every surface, rules included.
+              # A bucket asset change is not in git, so it needs a manual
+              # `surface=hosting` dispatch.
+              root='^pnpm-lock\.yaml$|^pnpm-workspace\.yaml$|^package\.json$|^turbo\.json$|^luminova\.json$'
               q "^apps/spotlight/|^packages/|^brand/|^firebase\.json$|$root" && sp=true || true
               q "^apps/backstage/|^packages/|^brand/|^firebase\.json$|$root" && bs=true || true
               q "^apps/beacon/|^packages/|^firebase\.json$|$root"    && fn=true || true
-              q '^firestore\.rules$|^storage\.rules$|^firestore\.indexes\.json$|^firebase\.json$' && rl=true || true
+              q '^firestore\.rules$|^storage\.rules$|^firestore\.indexes\.json$|^firebase\.json$|^luminova\.json$' && rl=true || true
             fi
           fi
           {

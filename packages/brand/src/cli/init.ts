@@ -281,7 +281,7 @@ export function initNext(slug: string): Remedy[] {
     },
     { change: "check the whole setup", run: "pnpm brand:doctor" },
     {
-      change: `commit brand/${slug}/ and ${CONFIG_FILE} in your fork (never ${PULLED_ASSETS_DIR}/: it is gitignored on purpose)`,
+      change: `commit brand/${slug}/ and ${CONFIG_FILE} on a branch; merge it at docs/adopting.md step 10, since a merge to main deploys (never commit ${PULLED_ASSETS_DIR}/)`,
       run: `git add brand/${slug}/ ${CONFIG_FILE}`,
     },
   ];

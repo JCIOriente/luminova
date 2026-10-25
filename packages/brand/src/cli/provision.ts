@@ -49,6 +49,10 @@ interface BucketStep {
   isDone: (state: BucketState, members: readonly string[]) => boolean;
 }
 
+/** The account CD signs in as: the profile's `deploy` value, else the one section 6 creates. */
+const deployAccount = ({ brand }: LoadedProfile) =>
+  brand.deploy?.serviceAccount ?? deploySaEmail(brand.firebase.projectId);
+
 /** Part B steps B1–B3 (spec section 5.7), the one list both modes use. */
 function bucketSteps(
   profile: LoadedProfile,
@@ -57,7 +61,7 @@ function bucketSteps(
 ): BucketStep[] {
   const { projectId } = profile.brand.firebase;
   const bucket = bucketUrl(profile.brand.assetsBucket);
-  const member = `serviceAccount:${deploySaEmail(projectId)}`;
+  const member = `serviceAccount:${deployAccount(profile)}`;
   const lifecycleFile = lifecycleFileSchema.safeParse(
     readJsonFile(join(repoRoot, LIFECYCLE_FILE), LIFECYCLE_FILE),
   );
@@ -202,14 +206,25 @@ export function provisioningSection(doc: string): string {
   return block;
 }
 
-async function lookup(run: CommandRunner, command: "gcloud" | "gh", args: string[], hint: string) {
+/** A value read with a read-only command, or null when it could not be (not signed in). */
+async function lookup(
+  run: CommandRunner,
+  command: "gcloud" | "gh",
+  args: string[],
+): Promise<string | null> {
   try {
-    return (await run(command, args)).trim() || `<${hint}>`;
+    return (await run(command, args)).trim() || null;
   } catch (error) {
     if (!(error instanceof CommandError)) throw error;
-    return `<${hint}>`;
+    return null;
   }
 }
+
+const LOOKUP_HINTS: Record<string, string> = {
+  PROJECT_NUMBER: "gcloud projects describe <PROJECT_ID> --format='value(projectNumber)'",
+  GH_REPO: "gh repo view --json nameWithOwner -q .nameWithOwner",
+  REVIEWER_ID: "gh api user -q .id",
+};
 
 const command = (args: readonly string[]) => args.map(shellQuote).join(" ");
 
@@ -273,32 +288,34 @@ export async function printProvisioning({
 
   // Independent read-only lookups: one wait, not three.
   const [projectNumber, ghRepo, reviewerId] = await Promise.all([
-    lookup(
-      run,
-      "gcloud",
-      ["projects", "describe", projectId, "--format=value(projectNumber)"],
-      `project number: gcloud projects describe ${projectId} --format='value(projectNumber)'`,
-    ),
-    repo ??
-      lookup(
-        run,
-        "gh",
-        ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
-        "owner/repo: gh repo view --json nameWithOwner -q .nameWithOwner",
-      ),
-    lookup(run, "gh", ["api", "user", "-q", ".id"], "your GitHub user id: gh api user -q .id"),
+    lookup(run, "gcloud", ["projects", "describe", projectId, "--format=value(projectNumber)"]),
+    repo ?? lookup(run, "gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]),
+    lookup(run, "gh", ["api", "user", "-q", ".id"]),
   ]);
-  const values: Record<string, string> = {
+  const values: Record<string, string | null> = {
     PROJECT_ID: projectId,
     PROJECT_NUMBER: projectNumber,
     GH_REPO: ghRepo,
     REVIEWER_ID: reviewerId,
   };
+  const unknown = Object.keys(values).filter((key) => values[key] === null);
+  // An unknown value prints as an empty export the reader must fill: a <placeholder> would
+  // break the pasted shell, and the rest of the block would run without it.
   const section = provisioningSection(readFileSync(join(repoRoot, CI_CD_DOC), "utf8")).replace(
     /^export (PROJECT_ID|PROJECT_NUMBER|GH_REPO|REVIEWER_ID)=.*$/gm,
-    (_, key: string) => `export ${key}=${values[key] ?? ""}`,
+    (_, key: string) =>
+      values[key] === null
+        ? `export ${key}=   # FILL IN before pasting: ${LOOKUP_HINTS[key]?.replace("<PROJECT_ID>", projectId) ?? ""}`
+        : `export ${key}=${values[key] ?? ""}`,
   );
-  const deploy = profile.brand.deploy ?? defaultDeploy({ projectId, projectNumber });
+  const unknownNote = unknown.length
+    ? [
+        `# ${unknown.join(", ")} could not be looked up. Sign in (gcloud auth login, gh auth login) and run pnpm brand:provision again, or fill in the lines marked FILL IN first.`,
+      ]
+    : [];
+  const deploy =
+    profile.brand.deploy ??
+    defaultDeploy({ projectId, projectNumber: projectNumber ?? "<project number>" });
   const deploySnippet = JSON.stringify({ deploy }, null, 2).slice(2, -2);
 
   const steps: GuideStep[] = [
@@ -306,8 +323,8 @@ export async function printProvisioning({
       title: "create CD's deploy account and its keyless sign-in (once per project)",
       why: "GitHub Actions deploys as this account. No key is stored anywhere: GitHub proves it is your repo's main branch.",
       where: `your shell, signed in to gcloud as an owner of ${projectId} (gcloud auth login) and to gh as a repo admin (gh auth login). Re-running is harmless: a line that says "already exists" means that part is done.`,
-      lines: [section.trimEnd()],
-      check: `gcloud iam service-accounts describe ${deploySaEmail(projectId)}`,
+      lines: [...unknownNote, section.trimEnd()],
+      check: `gcloud iam service-accounts describe ${deployAccount(profile)}`,
     },
     {
       title: profile.brand.deploy
