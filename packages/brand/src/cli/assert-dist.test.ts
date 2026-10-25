@@ -118,6 +118,9 @@ describe("brand:assert-dist as a predeploy hook", () => {
     writeFileSync(join(dist, "index.html"), INDEX_HTML);
     if (withMarker) writeFileSync(join(dist, RELEASE_MARKER_FILE), JSON.stringify(MARKER));
     const module = new URL("./assert-dist.ts", import.meta.url).href;
+    // A developer's own GCP_PROJECT_ID would disagree with GCLOUD_PROJECT and fail the pass case.
+    const env: NodeJS.ProcessEnv = { ...process.env, GCLOUD_PROJECT: "jci-oriente" };
+    delete env.GCP_PROJECT_ID;
     return spawnSync(
       process.execPath,
       [
@@ -126,7 +129,7 @@ describe("brand:assert-dist as a predeploy hook", () => {
         `const { main } = await import(${JSON.stringify(module)});
          process.exitCode = main("spotlight", { root: ${JSON.stringify(root)} });`,
       ],
-      { encoding: "utf8", env: { ...process.env, GCLOUD_PROJECT: "jci-oriente" } },
+      { encoding: "utf8", env },
     );
   }
 

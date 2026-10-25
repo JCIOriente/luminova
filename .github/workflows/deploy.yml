@@ -371,8 +371,9 @@ jobs:
               || { echo "::endgroup::"; echo "ERROR: preview deploy failed for $site"; return 1; }
             printf '%s\n' "$out"
             echo "::endgroup::"
-            # firebase-tools prints predeploy hook output ahead of its --json document;
-            # parse from the document's first line so a chatty hook can't hide the URL.
+            # firebase-tools passes predeploy hook stdout through ahead of its --json
+            # document; skip to the document's first line. Hooks keep stdout clean
+            # (runCli in packages/brand/src/cli/main.ts); this only absorbs a stray line.
             url=$(printf '%s\n' "$out" | sed -n '/^{/,$p' | jq -r 'first(.result[].url)') || url=""
             if [ -z "$url" ] || [ "$url" = "null" ]; then
               echo "ERROR: no preview URL returned for $site"; return 1
