@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import type { Remedy } from "../remedy.ts";
 
 /**
  * The one seam to external CLIs (`gcloud`, `gh`, `firebase`, `pnpm`). Argument arrays only, never a shell
@@ -10,19 +11,73 @@ export type CommandRunner = (
   args: readonly string[],
 ) => Promise<string>;
 
+type Command = Parameters<CommandRunner>[0];
+
 export class CommandError extends Error {
   override name = "CommandError";
+  readonly remedies: readonly Remedy[];
+
+  constructor(message: string, remedies: readonly Remedy[] = []) {
+    super(message);
+    this.remedies = remedies;
+  }
+}
+
+const INSTALL: Readonly<Record<Command, Remedy>> = {
+  gcloud: { change: "install the Google Cloud CLI: https://cloud.google.com/sdk/docs/install" },
+  gh: { change: "install the GitHub CLI: https://cli.github.com" },
+  firebase: {
+    change: "install the Firebase CLI (CI pins 15.22.1)",
+    run: "npm install -g firebase-tools@15.22.1",
+    where: "shell",
+  },
+  pnpm: { change: "enable pnpm", run: "corepack enable", where: "shell" },
+};
+
+const SIGN_IN: Readonly<Partial<Record<Command, { pattern: RegExp; remedy: Remedy }>>> = {
+  gcloud: {
+    pattern: /auth login|no credentialed accounts|reauthenticat|active account/i,
+    remedy: { run: "gcloud auth login", where: "shell" },
+  },
+  gh: { pattern: /gh auth login|not logged in/i, remedy: { run: "gh auth login", where: "shell" } },
+  firebase: {
+    pattern: /firebase login|not logged in|failed to authenticate/i,
+    remedy: { run: "firebase login", where: "shell" },
+  },
+};
+
+/** A failed external command, with what to do when the cause is recognisable. */
+export function commandFailure(
+  command: Command,
+  args: readonly string[],
+  {
+    code,
+    stderr,
+    message = "",
+  }: { code?: string | number | null; stderr: string; message?: string },
+): CommandError {
+  const text = `${command} ${args.join(" ")} failed: ${stderr.trim() || message}`;
+  if (code === "ENOENT")
+    return new CommandError(`${text} (${command} is not installed)`, [INSTALL[command]]);
+  const signIn = SIGN_IN[command];
+  if (signIn?.pattern.test(stderr)) return new CommandError(text, [signIn.remedy]);
+  if (command === "gcloud" && /\b403\b|AccessDenied|does not have .*permission/i.test(stderr)) {
+    return new CommandError(text, [
+      {
+        change: "sign in with an account that has access to the project (its owner)",
+        run: "gcloud auth login",
+        where: "shell",
+      },
+    ]);
+  }
+  return new CommandError(text);
 }
 
 export const runCommand: CommandRunner = (command, args) =>
   new Promise((resolve, reject) => {
     execFile(command, [...args], { maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) {
-        reject(
-          new CommandError(
-            `${command} ${args.join(" ")} failed: ${stderr.trim() || error.message}`,
-          ),
-        );
+        reject(commandFailure(command, args, { code: error.code, stderr, message: error.message }));
       } else {
         resolve(stdout);
       }
