@@ -45,7 +45,7 @@ half-replaced, and a build that cannot find a value or file must stop.
 | D15 | `qrPrefix` for JCI Oriente | Stays `jcioriente` | Member credentials already issued must keep scanning |
 | D16 | Design tokens | Unchanged (`--color-jci-*` in `packages/ui/src/theme.css`) | The JCI palette is shared by JCI chapters, the primary adopters. Only `themeColor` (meta, manifest) is per profile |
 | D17 | Chapter prose | Configuration, not i18n: every sentence that states a chapter fact is a template over profile tokens (`name`, `locality`, `foundedYear`, `movementName`, `stats.nationalOrganizations`) | An adopter's site must be correct on day one; waiting for i18n would ship our facts under their name |
-| D18 | Selecting a profile locally | `BRAND_PROFILE` environment variable only, else the `jci-oriente` default. No selection file; `brand:init` prints the `export` line to add to the shell profile or `.envrc` | A gitignored selection file would change every build invisibly, and turbo does not hash it, so a cached build for another profile could be replayed. An env var is visible in the command and is part of turbo's task hash |
+| D18 | Selecting a profile locally | **Superseded 2026-10-25** by `docs/specs/2026-10-25-repo-contained-config.md` C1: a committed `luminova.json` selects the profile, and `BRAND_PROFILE` is a tooling-only override. Original: `BRAND_PROFILE` environment variable only, else the `jci-oriente` default. No selection file; `brand:init` prints the `export` line to add to the shell profile or `.envrc` | A gitignored selection file would change every build invisibly, and turbo does not hash it, so a cached build for another profile could be replayed. An env var is visible in the command and is part of turbo's task hash |
 
 ## 3. Non-goals
 

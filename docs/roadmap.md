@@ -47,6 +47,7 @@ this file, in the same PR.
 | R20 ⬜ | **Adopter guide: `docs/ci-cd.md` parameterized** | The rest of plan PR 3 after R19 shipped `docs/adopting.md`: `docs/ci-cd.md` line 11 and section 6 parameterized (`PROJECT_ID`, `GH_REPO`, `REVIEWER_ID`, JCI Oriente's values as the example). | Agent | Lighter review (docs only): `Review-Exception` + correctness gate | After R19 |
 | R21 ⬜ | **`brand:icons`** | Generate both apps' 12 icons from `brand-assets/icon-master.png` and `themeColor` (opaque background for maskable/apple). Moves `@vite-pwa/assets-generator` from both apps to the root devDependencies (`secure-dep-vetting`; `sharp` already allowed). Its presets do not emit `favicon-16`/`favicon-32`, so check that first. Test: the generated set passes `validateAssets`. Optional: adopters can export the PNGs by hand (`docs/adopting.md` step 4). | Agent | secure-dep-vetting, code-review, simplify, bundle-budget-watcher (lockfile) | Any time |
 | R22 ✅ | **Brand CLI guidance** | `feat/brand-cli-guidance`, stacked on R19: every brand command ends a failure with a "To fix:" block (the file to change, the command, where to run it) and a success with the next step of `docs/adopting.md`; `brand:doctor` orders its fixes by dependency; external CLI failures say how to install or sign in; `BRAND_PROFILE` hints name the shell's startup file, a direnv `.envrc` and the CD variable. | Agent | router set | After R19 |
+| R23 ⬜ | **Repo-contained configuration** | `feat/brand-repo-config`: committed `luminova.json` selects the profile (replaces the `BRAND_PROFILE` shell variable, spec D18); `brand.json` `deploy` holds CD's Workload Identity provider and service account, so `deploy.yml` reads no GitHub variables; `brand:ci-config`; `--profile` / `--assets` flags; schema descriptions on every field; `brand:provision` prints numbered steps with why, where and a check. Follow-up: dev reads `firebase.web` from the profile, retiring `apps/*/.env.local`. | Agent | router set | After R22 |
 
 ## 2. Owner decisions and operations
 
@@ -72,7 +73,7 @@ this file, in the same PR.
 | O7 | Confirm prod `siteConfig/current` has `contact.mapUrl` and `socials` (seed backfill, #155). | backstage `/config` | ⬜ unverified |
 | O8 | Storage wipe of rewrite-era objects. | Firebase console | ⬜ |
 | O9 | Brand profiles post-merge check (plan part B, B0): after R16 deploys, confirm both sites' source, manifest, `/og-image-v3.png`, backstage sign-in and a WhatsApp preview are unchanged. | `docs/plans/2026-10-22-brand-config.md`, part B | ⬜ |
-| O10 | Brand assets bucket for `jci-oriente`: create it private and versioned, grant the deploy SA `roles/storage.objectViewer` on it (check the role's permissions), upload the 16 assets, set the `BRAND_PROFILE` production variable (B1–B5, before R18 merges); dispatch Deploy and verify (B6, after). | `docs/plans/2026-10-22-brand-config.md`, part B | ⬜ |
+| O10 | Brand assets bucket for `jci-oriente`: create it private and versioned, grant the deploy SA `roles/storage.objectViewer` on it (check the role's permissions), upload the 16 assets (B1–B4); after R23 merges, delete the four unread production variables (B5); dispatch Deploy and verify (B6). | `docs/plans/2026-10-22-brand-config.md`, part B | ⬜ |
 
 ### Standing decisions
 

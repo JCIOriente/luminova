@@ -48,7 +48,7 @@ export function resolveProductionTarget({
   if (project !== expected) {
     throw new ProjectTargetError(
       `Refusing to run: project "${project}" is not the one profile "${profile.slug}" (${expected}) ` +
-        "deploys to. Select the matching profile with BRAND_PROFILE.",
+        'deploys to. Set "profile" in luminova.json to the matching profile.',
     );
   }
   return project;

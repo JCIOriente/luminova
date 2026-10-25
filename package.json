@@ -10,6 +10,7 @@
     "prepare": "node packages/brand/src/cli/apply.ts",
     "dev": "concurrently -k -n emu,web -c blue,green \"bash tools/scripts/emulators.sh\" \"wait-on tcp:127.0.0.1:4010 tcp:127.0.0.1:4030 && pnpm seed:emulator && turbo run dev\"",
     "build": "turbo run build",
+    "build:release": "BRAND_RELEASE=1 VITE_FIREBASE_EMULATOR_ENABLED=false turbo run build --filter spotlight --filter backstage --force",
     "build:local": "VITE_FIREBASE_EMULATOR_ENABLED=true turbo run build --filter spotlight --filter backstage",
     "preview:local": "pnpm build:local && concurrently -k -n emu,app -c blue,green \"bash tools/scripts/emulators.sh\" \"wait-on tcp:127.0.0.1:4010 tcp:127.0.0.1:4030 && pnpm seed:emulator && turbo run preview --filter spotlight --filter backstage\"",
     "lint": "turbo run lint",
@@ -21,6 +22,7 @@
     "knip": "knip",
     "brand:schema": "node packages/brand/src/cli/schema.ts",
     "brand:guard": "node packages/brand/src/cli/guard.ts",
+    "brand:ci-config": "node packages/brand/src/cli/ci-config.ts",
     "brand:apply": "node packages/brand/src/cli/apply.ts",
     "brand:assert-dist": "node packages/brand/src/cli/assert-dist.ts",
     "brand:pull": "node packages/brand/src/cli/pull.ts",
@@ -42,7 +44,7 @@
     "deploy:rules": "BRAND_RELEASE=1 pnpm -s brand:apply && firebase deploy --only firestore,storage",
     "deploy:indexes": "BRAND_RELEASE=1 pnpm -s brand:apply && firebase deploy --only firestore:indexes",
     "deploy:functions": "BRAND_RELEASE=1 pnpm -s brand:apply && firebase deploy --only functions",
-    "deploy:hosting": "BRAND_RELEASE=1 pnpm -s brand:apply && BRAND_RELEASE=1 VITE_FIREBASE_EMULATOR_ENABLED=false turbo run build --filter spotlight --filter backstage --force && firebase deploy --only hosting",
+    "deploy:hosting": "BRAND_RELEASE=1 pnpm -s brand:apply && pnpm build:release && firebase deploy --only hosting",
     "deploy:all": "pnpm deploy:rules && pnpm deploy:functions && pnpm deploy:hosting"
   },
   "devDependencies": {

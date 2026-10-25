@@ -76,7 +76,7 @@ export function resolveBrandBuild({
 }: ResolveBrandBuildOptions): BrandBuild {
   const release = isRelease(env);
   const profile = loadProfile({ repoRoot, env, profile: profileName });
-  // In release an unset profile is an error, so the "using the example" warning would mislead.
+  // In release an override is an error that says the same thing, so the warning would repeat it.
   if (!release) for (const warning of profile.warnings) warnOnce(warning);
 
   const siteContent = parseSiteContent(readSiteContent(profile.dir, profile.slug), profile.slug);
@@ -92,7 +92,7 @@ export function resolveBrandBuild({
   for (const warning of validation.warnings) warnOnce(warning);
   const prefix = displayDir(repoRoot, assetsDir);
   const problems = [...errors, ...validation.errors.map((error) => `${prefix}/${error}`)];
-  const remedies = assetRemedies(validation, prefix);
+  const remedies = assetRemedies(validation, prefix, { release });
   if (problems.length > 0) throw new BrandConfigError(problems, remedies);
   if (!validation.logoSize) {
     throw new BrandConfigError([`${prefix}: the three logos could not be read`], remedies);

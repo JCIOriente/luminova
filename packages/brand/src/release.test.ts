@@ -18,7 +18,7 @@ const BUILD = { command: "build", emulatorEnabled: false } as const;
 let root: string;
 let assetsDir: string;
 
-const jci = (source: LoadedProfile["source"] = "env"): LoadedProfile => ({
+const jci = (source: LoadedProfile["source"] = "file"): LoadedProfile => ({
   ...loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" }),
   source,
 });
@@ -58,12 +58,11 @@ const messages = (problems: readonly { message: string }[]) =>
   problems.map(({ message }) => message);
 
 describe("release remedies", () => {
-  it("says where to set BRAND_PROFILE, locally and for CD", () => {
-    const [problem] = releaseErrors({ profile: jci("default"), env: {}, assetsDir, ...BUILD });
-    expect(problem?.remedies?.map(({ run }) => run)).toEqual([
-      expect.stringMatching(/BRAND_PROFILE=<slug>/),
-      "export BRAND_PROFILE=<slug>",
-      "gh variable set BRAND_PROFILE --env production --body <slug>",
+  it("asks to drop a BRAND_PROFILE override and choose in luminova.json", () => {
+    const [problem] = releaseErrors({ profile: jci("override"), env: {}, assetsDir, ...BUILD });
+    expect(problem?.remedies).toEqual([
+      expect.objectContaining({ run: "unset BRAND_PROFILE", where: "shell" }),
+      { change: 'set "profile" in luminova.json to your chapter\'s folder under brand/' },
     ]);
   });
 
@@ -90,11 +89,11 @@ describe("releaseErrors", () => {
     ).toEqual([]);
   });
 
-  it("requires BRAND_PROFILE", () => {
+  it("refuses a profile chosen by an environment override", () => {
     writeManifest();
     expect(
-      messages(releaseErrors({ profile: jci("default"), env: {}, assetsDir, ...BUILD })),
-    ).toEqual([expect.stringMatching(/BRAND_PROFILE is required/)]);
+      messages(releaseErrors({ profile: jci("override"), env: {}, assetsDir, ...BUILD })),
+    ).toEqual([expect.stringMatching(/BRAND_PROFILE=jci-oriente is set in your environment/)]);
   });
 
   it("rejects the fixture profile and its demo- project, naming both", () => {
@@ -138,14 +137,16 @@ describe("releaseErrors", () => {
 
   it("requires the pull manifest, so release assets come only from brand:pull", () => {
     expect(messages(releaseErrors({ profile: jci(), env: {}, assetsDir, ...BUILD }))).toEqual([
-      expect.stringMatching(/^brand-assets\/pull-manifest\.json: missing/),
+      expect.stringMatching(
+        /^no pull-manifest\.json in brand-assets\/: a deploy only uses images downloaded with brand:pull/,
+      ),
     ]);
   });
 
   it("lists every problem at once", () => {
     const errors = messages(
       releaseErrors({
-        profile: { ...fixture(), source: "default" },
+        profile: { ...fixture(), source: "override" },
         env: { BRAND_ASSETS_DIR: "x", GCP_PROJECT_ID: "someone-else" },
         assetsDir,
         ...BUILD,

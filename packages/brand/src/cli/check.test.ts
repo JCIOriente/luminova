@@ -22,7 +22,7 @@ function rowFor(rows: CheckRow[], item: string): CheckRow {
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "brand-check-"));
   cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
-  profile = { ...loadProfile({ repoRoot: root, profile: "jci-oriente" }), source: "env" };
+  profile = { ...loadProfile({ repoRoot: root, profile: "jci-oriente" }), source: "file" };
   writeAssetSet(join(root, PULLED_ASSETS_DIR));
 });
 
@@ -59,8 +59,8 @@ describe("checkBrand", () => {
       "og-image.png",
       "spotlight/favicon-32.png",
     ]);
-    expect(rowFor(rows, "og-image.png").found).toBe("missing");
-    expect(rowFor(rows, "spotlight/favicon-32.png").verdict).toMatch(/16×16, expected 32×32/);
+    expect(rowFor(rows, "og-image.png")).toMatchObject({ found: "missing", verdict: "missing" });
+    expect(rowFor(rows, "spotlight/favicon-32.png").verdict).toBe("wrong size");
   });
 
   it("warns on a heavy OG image without failing", async () => {
@@ -74,15 +74,17 @@ describe("checkBrand", () => {
     expect(row.verdict).toMatch(/^warn: .*WhatsApp/);
   });
 
-  it("checks the asset directory the build would use", async () => {
+  it.each([
+    ["--assets", (dir: string) => ({ env: {}, assets: dir })],
+    [
+      "the BRAND_ASSETS_DIR tooling override",
+      (dir: string) => ({ env: { BRAND_ASSETS_DIR: dir } }),
+    ],
+  ])("checks the folder %s names", async (_, options) => {
     const other = mkdtempSync(join(tmpdir(), "brand-check-other-"));
     try {
       const { assetsDir, rows } = withRows(
-        await checkBrand({
-          profile,
-          repoRoot: root,
-          env: { BRAND_ASSETS_DIR: other },
-        }),
+        await checkBrand({ profile, repoRoot: root, ...options(other) }),
       );
       expect(assetsDir).toBe(other);
       expect(rows.filter(({ failed }) => failed)).toHaveLength(ASSET_CONTRACT.length);
@@ -116,18 +118,18 @@ describe("checkBrand", () => {
     it("adds a failing row per release rule the profile breaks", async () => {
       const { rows } = withRows(
         await checkBrand({
-          profile: { ...profile, source: "default" },
+          profile: { ...profile, source: "override" },
           repoRoot: root,
           env: { BRAND_ASSETS_DIR: "elsewhere" },
           release: true,
         }),
       );
-      const release = rows.filter(({ item }) => item === "release");
+      const release = rows.filter(({ item }) => item === "deploy");
       expect(release.every(({ failed }) => failed)).toBe(true);
       const verdicts = release.map(({ verdict }) => verdict).join("\n");
-      expect(verdicts).toMatch(/BRAND_PROFILE is required/);
+      expect(verdicts).toMatch(/is set in your environment/);
       expect(verdicts).toMatch(/BRAND_ASSETS_DIR is not allowed/);
-      expect(verdicts).toMatch(/pull-manifest\.json: missing/);
+      expect(verdicts).toMatch(/no pull-manifest\.json in brand-assets\//);
     });
 
     it("reads brand-assets/ even when BRAND_ASSETS_DIR is set", async () => {
@@ -175,19 +177,20 @@ describe("checkBrand", () => {
         JSON.stringify({ stats: "nope" }),
       );
       const check = await checkBrand({
-        profile: { ...profile, source: "default" },
+        profile: { ...profile, source: "override" },
         repoRoot: root,
         env: {},
         release: true,
       });
       const changes = checkRemedies(check).map(({ change, run }) => change ?? run);
-      expect(changes[0]).toMatch(/^put the files marked above in brand-assets\//);
+      // A deploy only uses pulled images: placing files by hand is never offered here.
+      expect(changes[0]).toBe(
+        "download the images a deploy uses from the profile's bucket (needs gcloud auth login)",
+      );
       expect(changes[1]).toMatch(
         /^edit the fields above in brand\/jci-oriente\/site-content\.json/,
       );
-      expect(changes).toContain(
-        "download the release assets from the profile's bucket (needs gcloud auth login)",
-      );
+      expect(changes.join("\n")).not.toMatch(/put the files marked above/);
     });
 
     it("has none for a passing check", async () => {

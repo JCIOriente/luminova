@@ -3,7 +3,7 @@ export { normalizeSiteUrl, resolveUrls, type BrandUrls } from "./urls.ts";
 export { BRAND_APPS, DEV_PORTS, PREVIEW_PORTS, type BrandApp } from "./ports.ts";
 export {
   BrandConfigError,
-  DEFAULT_PROFILE,
+  EXAMPLE_PROFILE,
   REPO_ROOT,
   loadProfile,
   type LoadedProfile,

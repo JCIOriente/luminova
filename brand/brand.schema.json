@@ -7,50 +7,62 @@
     },
     "slug": {
       "type": "string",
-      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "This profile's folder name under brand/; luminova.json selects it."
     },
     "name": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "The chapter's name as people say it, e.g. JCI Oriente."
     },
     "shortName": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "A short form for tight places (app name on a phone's home screen)."
     },
     "legalName": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "The registered legal name, for the footer and legal pages."
     },
     "movementName": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "The movement's name in your language, e.g. Cámara Junior Internacional."
     },
     "description": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "One line about the chapter, used in the web app manifest."
     },
     "locality": {
+      "description": "Where the chapter is; the site's copy uses these words.",
       "type": "object",
       "properties": {
         "city": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "City as used in a sentence, e.g. Santa Cruz."
         },
         "cityFormal": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "The city's formal name, e.g. Santa Cruz de la Sierra."
         },
         "region": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Region as used in a sentence, e.g. el Oriente boliviano."
         },
         "regionShort": {
+          "description": "Optional short region, e.g. el Oriente. Blank means the same as region.",
           "type": "string",
           "minLength": 1
         },
         "country": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Country, e.g. Bolivia."
         }
       },
       "required": [
@@ -64,7 +76,8 @@
     "foundedYear": {
       "type": "integer",
       "minimum": 1900,
-      "maximum": 2100
+      "maximum": 2100,
+      "description": "Year the chapter was founded."
     },
     "stats": {
       "type": "object",
@@ -78,7 +91,8 @@
       "required": [
         "nationalOrganizations"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Numbers the home page states. nationalOrganizations: local organizations in the national federation."
     },
     "parentOrganization": {
       "type": "object",
@@ -96,19 +110,23 @@
         "name",
         "url"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "The national federation the site links to."
     },
     "broadcastChannelName": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Name of the chapter's WhatsApp broadcast channel."
     },
     "locale": {
       "type": "string",
-      "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$"
+      "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+      "description": "The site's language tag, e.g. es."
     },
     "ogLocale": {
       "type": "string",
-      "pattern": "^[a-z]{2,3}_[A-Z]{2}$"
+      "pattern": "^[a-z]{2,3}_[A-Z]{2}$",
+      "description": "Language and country for link previews, e.g. es_BO."
     },
     "urls": {
       "type": "object",
@@ -126,11 +144,13 @@
         "spotlight",
         "backstage"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Public addresses: spotlight is the public site, backstage the admin site. Bare https origins, no path."
     },
     "qrPrefix": {
       "type": "string",
-      "pattern": "^[a-z0-9-]+$"
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Prefix inside member QR credentials. Never change it once credentials are issued: old QR codes would stop scanning."
     },
     "themeColor": {
       "type": "object",
@@ -148,7 +168,8 @@
         "spotlight",
         "backstage"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Browser and home-screen color of each site, #RRGGBB."
     },
     "seo": {
       "type": "object",
@@ -186,7 +207,8 @@
         "ogImageAlt",
         "twitterDescription"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "What search engines and link previews (WhatsApp, Facebook, X) show for the public site."
     },
     "backstage": {
       "type": "object",
@@ -210,12 +232,14 @@
         "emailPlaceholder",
         "contactEmail"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Admin site texts. contactEmail is where a member without an account asks for access."
     },
     "og": {
       "default": {
         "legacyPaths": []
       },
+      "description": "Old share-image file names that must keep working because apps cached them.",
       "type": "object",
       "properties": {
         "legacyPaths": {
@@ -234,11 +258,13 @@
       "properties": {
         "projectId": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"
+          "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
+          "description": "Your Firebase project id (Firebase console → Project settings). Builds and deploys target it."
         },
         "storageBucket": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "The project's Cloud Storage bucket, usually <projectId>.firebasestorage.app."
         },
         "sites": {
           "type": "object",
@@ -256,7 +282,8 @@
             "spotlight",
             "backstage"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "Firebase Hosting site ids for the public and the admin site."
         },
         "web": {
           "type": "object",
@@ -328,7 +355,8 @@
             "spotlight",
             "backstage"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "Each web app's config from Firebase console → Project settings → Your apps. Public identifiers, not secrets. A blank appCheckSiteKey or vapidKey turns that feature off."
         }
       },
       "required": [
@@ -337,11 +365,35 @@
         "sites",
         "web"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "The Firebase project this chapter runs on."
     },
     "assetsBucket": {
       "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$"
+      "pattern": "^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$",
+      "description": "Private bucket holding the chapter's logos and icons for deploys, usually <projectId>-brand-assets. pnpm brand:provision creates it."
+    },
+    "deploy": {
+      "type": "object",
+      "properties": {
+        "workloadIdentityProvider": {
+          "type": "string",
+          "pattern": "^projects\\/\\d+\\/locations\\/global\\/workloadIdentityPools\\/[a-z0-9-]+\\/providers\\/[a-z0-9-]+$",
+          "description": "The Workload Identity provider CD signs in through, without a stored key. docs/ci-cd.md section 6 creates it; pnpm brand:provision prints the value."
+        },
+        "serviceAccount": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+          "description": "The service account CD deploys as, e.g. firebase-deployer@<projectId>.iam.gserviceaccount.com."
+        }
+      },
+      "required": [
+        "workloadIdentityProvider",
+        "serviceAccount"
+      ],
+      "additionalProperties": false,
+      "description": "How CD (GitHub Actions) signs in to Google Cloud. Names, not secrets: safe to commit. Needed only to deploy."
     }
   },
   "required": [
@@ -366,5 +418,6 @@
     "firebase",
     "assetsBucket"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "description": "A chapter's brand profile: names, texts, addresses and the Firebase project. Every value here is public."
 }

@@ -228,7 +228,7 @@ Manual deploys are available as a fallback:
 pnpm deploy:rules       # firestore + storage rules
 pnpm deploy:indexes     # firestore indexes
 pnpm deploy:functions   # beacon
-pnpm deploy:hosting     # release build (BRAND_PROFILE set, brand:pull first), then deploys
+pnpm deploy:hosting     # release build of the profile luminova.json selects (brand:pull first), then deploys
 pnpm deploy:all
 ```
 

@@ -53,7 +53,14 @@ interface AssetFile {
   /** `W×H`, `missing` or `not a PNG`. */
   found: string;
   errors: string[];
+  /** Each error in a few words, for a table that already shows EXPECTED and FOUND. */
+  verdicts: string[];
   warnings: string[];
+}
+
+function reject(file: AssetFile, verdict: string, error: string): void {
+  file.verdicts.push(verdict);
+  file.errors.push(error);
 }
 
 export interface AssetValidation {
@@ -105,25 +112,36 @@ function checkPullManifest(dir: string, profile: string): string | null {
 function readFile(dir: string, spec: AssetSpec): { file: AssetFile; size: PngSize | null } {
   const path = join(dir, spec.path);
   const expected = describeSpec(spec);
-  const file: AssetFile = { path: spec.path, expected, found: "", errors: [], warnings: [] };
+  const file: AssetFile = {
+    path: spec.path,
+    expected,
+    found: "",
+    errors: [],
+    verdicts: [],
+    warnings: [],
+  };
   if (!existsSync(path)) {
     file.found = "missing";
-    file.errors.push(`missing (expected ${expected})`);
+    reject(file, "missing", `missing (expected ${expected})`);
     return { file, size: null };
   }
   const size = readPngSize(readHeader(path));
   if (!size) {
     file.found = "not a PNG";
-    file.errors.push(`not a PNG (expected ${expected})`);
+    reject(file, "not a PNG", `not a PNG (expected ${expected})`);
     return { file, size: null };
   }
   file.found = `${size.width}×${size.height}`;
   if (spec.width === undefined) {
     if (size.height < MIN_LOGO_HEIGHT) {
-      file.errors.push(`${file.found} is too small (expected height ≥ ${MIN_LOGO_HEIGHT})`);
+      reject(
+        file,
+        "too small",
+        `${file.found} is too small (expected height ≥ ${MIN_LOGO_HEIGHT})`,
+      );
     }
   } else if (size.width !== spec.width || size.height !== spec.height) {
-    file.errors.push(`${file.found}, expected ${expected}`);
+    reject(file, "wrong size", `${file.found}, expected ${expected}`);
   }
   const bytes = spec.path === OG_IMAGE_FILE ? statSync(path).size : 0;
   if (bytes > OG_IMAGE_WARN_BYTES) {
@@ -155,7 +173,9 @@ export function validateAssets(
   for (const { file, size } of logos.values()) {
     if (main && !sameSize(size, main)) {
       mismatched += 1;
-      file.errors.push(
+      reject(
+        file,
+        `not the size of ${mainFile} (${main.width}×${main.height})`,
         `${size.width}×${size.height} must be the same size as ${mainFile} (${main.width}×${main.height})`,
       );
     }
@@ -184,16 +204,20 @@ export function validateAssets(
 }
 
 export const PULL_ASSETS: Remedy = {
-  change: "download the release assets from the profile's bucket (needs gcloud auth login)",
+  change: "download the images a deploy uses from the profile's bucket (needs gcloud auth login)",
   run: "pnpm brand:pull",
 };
 
-/** What to do about a validation of `dirLabel` (as the user sees it), one remedy per kind. */
+/**
+ * What to do about a validation of `dirLabel` (as the user sees it), one remedy per kind.
+ * A release (deploy) build uses only images downloaded with brand:pull, so that is its one fix.
+ */
 export function assetRemedies(
   validation: AssetValidation,
   dirLabel: string,
-  checkCommand = "pnpm brand:check",
+  { checkCommand = "pnpm brand:check", release = false } = {},
 ): Remedy[] {
+  if (release) return validation.errors.length > 0 ? [PULL_ASSETS] : [];
   const remedies: Remedy[] = [];
   if (validation.kinds.files) {
     remedies.push({
