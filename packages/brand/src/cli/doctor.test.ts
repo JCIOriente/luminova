@@ -65,7 +65,9 @@ afterEach(() => {
 });
 
 const diagnose = (options: { env?: Record<string, string>; nodeVersion?: string } = {}) =>
-  doctor({ repoRoot: root, env: ENV, run, nodeVersion: "24.15.0", ...options });
+  doctor({ repoRoot: root, env: ENV, run, nodeVersion: "24.15.0", ...options }).then(
+    ({ rows }) => rows,
+  );
 
 describe("doctor", () => {
   it("reports every row, all passing, on a ready checkout", async () => {

@@ -3,11 +3,10 @@ import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
 import { z } from "zod";
 import { sha256 } from "../hash.ts";
-import { REPO_ROOT, loadProfile } from "../load-profile.ts";
+import { NEUTRAL_PROFILE, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
 import type { Brand } from "../schema.ts";
 
-const NEUTRAL_PROFILE = "fixture";
 const MIN_NEEDLE_LENGTH = 6;
 const BUILD_COMMAND = "pnpm turbo run build --filter spotlight --filter backstage";
 

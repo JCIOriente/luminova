@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { flagValue } from "../argv.ts";
 import { ASSET_CONTRACT } from "../assets.ts";
 import { CONFIG_FILE } from "../config.ts";
 import {
   BrandConfigError,
+  ConfigFileError,
   PROFILE_OVERRIDE_ENV,
   ProfileNotFoundError,
   REMOVE_OVERRIDE,
@@ -22,8 +22,9 @@ import { FIREBASERC, firebasercContent } from "./apply.ts";
 import { checkBrand } from "./check.ts";
 import { formatNext, formatRemedies, uniqueRemedies, type Remedy } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
-import { exitOnFailure } from "./main.ts";
+import { cliFlag, exitOnFailure } from "./main.ts";
 import { deployDispatch } from "./push.ts";
+import { PRINT_GCP_SETUP, missingDeployProblem } from "../release.ts";
 import { formatTable, plural } from "./table.ts";
 
 export interface DoctorRow {
@@ -74,12 +75,13 @@ function profileRows(
     if (!(error instanceof BrandConfigError)) throw error;
     const detail = error.errors.join("; ");
     // A missing or broken luminova.json is its own row; it says how to fix it.
-    if (!(error instanceof ProfileNotFoundError)) {
-      return error.errors.some((line) => line.startsWith(CONFIG_FILE))
-        ? { rows: [skip("profile", `needs ${CONFIG_FILE}`), skip("brand.json")] }
-        : { rows: [ok("profile", "found"), fail("brand.json", detail, error.remedies)] };
+    if (error instanceof ConfigFileError) {
+      return { rows: [skip("profile", `needs ${CONFIG_FILE}`), skip("brand.json")] };
     }
-    return { rows: [fail("profile", detail, error.remedies), skip("brand.json")] };
+    if (error instanceof ProfileNotFoundError) {
+      return { rows: [fail("profile", detail, error.remedies), skip("brand.json")] };
+    }
+    return { rows: [ok("profile", "found"), fail("brand.json", detail, error.remedies)] };
   }
   const { slug, source } = profile;
   return {
@@ -133,7 +135,7 @@ async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<Do
   } catch (error) {
     if (!(error instanceof CommandError) || error.kind !== "notFound") throw error;
     return fail("bucket", `${bucketUrl(bucket)} does not exist yet`, [
-      PRINT_SETUP,
+      PRINT_GCP_SETUP,
       {
         change:
           "then create the bucket, step 3 of that printout (after step 1: the grant needs CD's deploy account)",
@@ -226,7 +228,7 @@ export async function doctor({
   nodeVersion?: string;
   /** `--profile <slug>`: diagnose another profile than luminova.json's. */
   profile?: string;
-} = {}): Promise<DoctorRow[]> {
+} = {}): Promise<{ rows: DoctorRow[]; profile?: LoadedProfile }> {
   const { rows: profileChecks, profile } = profileRows(repoRoot, env, flag);
   // The external commands are independent; start them together, report in order.
   const [account, bucket, pnpm] = await Promise.all([
@@ -237,7 +239,7 @@ export async function doctor({
 
   // Rows run in the order fixes must happen: the tools, the selection, the profile, then
   // the cloud.
-  return [
+  const rows = [
     await attempt("node", () => nodeRow(repoRoot, nodeVersion)),
     pnpm,
     configRow(repoRoot, env),
@@ -255,6 +257,7 @@ export async function doctor({
     account,
     bucket,
   ];
+  return { rows, profile };
 }
 
 /** luminova.json selects the chapter; a leftover shell override is flagged, not obeyed silently. */
@@ -275,20 +278,10 @@ function configRow(repoRoot: string, env: Env): DoctorRow {
     : ok(CONFIG_FILE, `selects "${profile}"`);
 }
 
-const PRINT_SETUP: Remedy = {
-  change:
-    "print this profile's Google Cloud setup, step by step, with your values (changes nothing)",
-  run: "pnpm brand:provision",
-};
-
-/** CD signs in with the profile's `deploy` names; without them the first deploy cannot start. */
-function cdIdentityRow({ slug, brand }: LoadedProfile): DoctorRow {
-  if (brand.deploy) return ok("CD identity", brand.deploy.serviceAccount);
-  return warn(
-    "CD identity",
-    `brand/${slug}/brand.json has no "deploy" section (CD's sign-in; needed to deploy)`,
-    [PRINT_SETUP],
-  );
+function cdIdentityRow(profile: LoadedProfile): DoctorRow {
+  const missing = missingDeployProblem(profile);
+  if (missing) return warn("CD identity", missing.message, missing.remedies);
+  return ok("CD identity", profile.brand.deploy?.serviceAccount ?? "");
 }
 
 /** The remedies of failing and warning rows, each once, in row (fix) order. */
@@ -316,12 +309,7 @@ export function doctorNext(slug: string): Remedy[] {
 
 if (import.meta.main) {
   await exitOnFailure(async () => {
-    const flag = flagValue(
-      process.argv.slice(2),
-      "--profile",
-      (message) => new BrandConfigError([message]),
-    );
-    const rows = await doctor({ profile: flag });
+    const { rows, profile } = await doctor({ profile: cliFlag("--profile") });
     console.log(
       formatTable([
         ["CHECK", "STATUS", "DETAIL"],
@@ -335,7 +323,8 @@ if (import.meta.main) {
       console.error(`brand:doctor: ${plural(failed, "check")} failed.`);
       process.exit(1);
     }
-    const next = doctorNext(loadProfile({ profile: flag }).slug);
+    // Every row passed, so the profile loaded.
+    const next = doctorNext(profile?.slug ?? "<slug>");
     console.log(`brand:doctor: every check passed.\n\n${formatNext(next)}`);
   });
 }

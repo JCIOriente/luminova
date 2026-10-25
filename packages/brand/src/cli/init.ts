@@ -1,7 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { flagValue } from "../argv.ts";
 import { ASSET_CONTRACT, describeSpec } from "../assets.ts";
 import { CONFIG_FILE, configTemplate } from "../config.ts";
 import { defaultDeploy } from "../deploy-identity.ts";
@@ -20,7 +19,7 @@ import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema } from "../schema.ts";
 import { SITE_CONTENT_FILE } from "../site-content.ts";
 import { FIREBASERC, applyProfile } from "./apply.ts";
 import { CommandError, INSTALL_FIREBASE_CLI, runCommand, type CommandRunner } from "./gcloud.ts";
-import { exitOnFailure } from "./main.ts";
+import { cliFlag, exitOnFailure } from "./main.ts";
 import { terminalPrompter, type Prompter } from "./prompts.ts";
 
 type Answers = Record<string, unknown>;
@@ -455,7 +454,9 @@ function writeProfile({
   // The new chapter becomes the one this checkout builds.
   writeFileSync(join(repoRoot, CONFIG_FILE), configTemplate(slug));
   files.push(CONFIG_FILE);
-  applyProfile({ profile: loadProfile({ repoRoot, profile: slug }), repoRoot, env: {} });
+  // The brand just validated above; no need to read it back.
+  const profile = { slug, dir, brand: parsed.data, source: "file" as const, warnings: [] };
+  applyProfile({ profile, repoRoot, env: {} });
   files.push(FIREBASERC);
   return { slug, files };
 }
@@ -463,7 +464,7 @@ function writeProfile({
 if (import.meta.main) {
   await exitOnFailure(async () => {
     const argv = process.argv.slice(2);
-    const answersFile = flagValue(argv, "--answers", (message) => new BrandConfigError([message]));
+    const answersFile = cliFlag("--answers", argv);
     // pnpm runs root scripts from the workspace root; INIT_CWD is where the user typed.
     const cwd = process.env.INIT_CWD ?? process.cwd();
     const answers = answersFile ? readJsonFile(resolve(cwd, answersFile), answersFile) : {};

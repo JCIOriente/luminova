@@ -1,5 +1,5 @@
 import { BrandConfigError, type LoadedProfile } from "../load-profile.ts";
-import { undeployableProfileErrors } from "../release.ts";
+import { missingDeployProblem, undeployableProfileErrors } from "../release.ts";
 import { runCli } from "./main.ts";
 
 /**
@@ -8,19 +8,9 @@ import { runCli } from "./main.ts";
  * CD stops here, before minting any credential, on a profile that cannot ship.
  */
 export function ciConfig(profile: LoadedProfile): Record<string, string> {
-  const problems = undeployableProfileErrors(profile);
+  const missing = missingDeployProblem(profile);
+  const problems = [...undeployableProfileErrors(profile), ...(missing ? [missing] : [])];
   const { deploy, firebase } = profile.brand;
-  if (!deploy) {
-    problems.push({
-      message: `brand/${profile.slug}/brand.json has no "deploy" section: CD cannot sign in to Google Cloud.`,
-      remedies: [
-        {
-          change: `add "deploy" to brand/${profile.slug}/brand.json (step 2 of its printout shows it with your values), commit and merge it`,
-          run: "pnpm brand:provision",
-        },
-      ],
-    });
-  }
   if (problems.length > 0 || !deploy) throw new BrandConfigError(problems);
   return {
     profile: profile.slug,

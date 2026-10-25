@@ -3,10 +3,11 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { ASSET_CONTRACT, PULL_ASSETS, PULL_MANIFEST_FILE } from "./assets.ts";
 import { sha256 } from "./hash.ts";
-import type { Problem } from "./remedy.ts";
+import type { Problem, Remedy } from "./remedy.ts";
 import { CONFIG_FILE } from "./config.ts";
 import {
   BrandConfigError,
+  NEUTRAL_PROFILE,
   PROFILE_OVERRIDE_ENV,
   REMOVE_OVERRIDE,
   issuesToBrandError,
@@ -20,7 +21,6 @@ import {
 const RELEASE_ENV = "BRAND_RELEASE";
 export const RELEASE_MARKER_FILE = ".brand-release.json";
 export const PULLED_ASSETS_DIR = "brand-assets";
-const NEUTRAL_PROFILE = "fixture";
 const DEMO_PROJECT_PREFIX = "demo-";
 
 const releaseMarkerSchema = z.strictObject({
@@ -60,6 +60,21 @@ const RELEASE_BUILD_COMMAND = "pnpm build:release";
  * stray environment override), not the fixture, not an emulator-only project. Release
  * builds, brand:push and brand:provision --apply share it.
  */
+export const PRINT_GCP_SETUP: Remedy = {
+  change:
+    "print this profile's Google Cloud setup, step by step, with your values (changes nothing)",
+  run: "pnpm brand:provision",
+};
+
+/** CD signs in with the profile's `deploy` names; without them no deploy can start. */
+export function missingDeployProblem({ slug, brand }: LoadedProfile): Problem | null {
+  if (brand.deploy) return null;
+  return {
+    message: `brand/${slug}/brand.json has no "deploy" section (CD's sign-in, needed to deploy): copy it from step 2 of pnpm brand:provision.`,
+    remedies: [PRINT_GCP_SETUP],
+  };
+}
+
 export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
   const errors: Problem[] = [];
   const { slug } = profile;

@@ -5,6 +5,9 @@ import { CONFIG_FILE, luminovaConfigSchema, type LuminovaConfig } from "./config
 import { formatRemedies, uniqueRemedies, type Problem, type Remedy } from "./remedy.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema, type Brand } from "./schema.ts";
 
+/** The chapter-neutral test profile `brand:guard` builds; it can never ship. */
+export const NEUTRAL_PROFILE = "fixture";
+
 /** The committed example chapter; `brand:init` copies its site content. */
 export const EXAMPLE_PROFILE = "jci-oriente";
 
@@ -107,11 +110,16 @@ export function issuesToBrandError(
   );
 }
 
+/** luminova.json is missing or invalid: it names the profile, so nothing else can load. */
+export class ConfigFileError extends BrandConfigError {
+  override name = "ConfigFileError";
+}
+
 /** `luminova.json`, validated; every failure names the file and how to fix it. */
 export function readLuminovaConfig(repoRoot: string): LuminovaConfig {
   const file = join(repoRoot, CONFIG_FILE);
   if (!existsSync(file)) {
-    throw new BrandConfigError(
+    throw new ConfigFileError(
       [`${CONFIG_FILE} is missing: it names the chapter (brand/<slug>/) this repository builds.`],
       [
         {
@@ -124,13 +132,20 @@ export function readLuminovaConfig(repoRoot: string): LuminovaConfig {
       ],
     );
   }
-  const parsed = luminovaConfigSchema.safeParse(readJsonFile(file, CONFIG_FILE));
+  const fix: Remedy = {
+    change: `fix ${CONFIG_FILE}: it holds one field, "profile", a folder name under brand/ (e.g. "jci-valle")`,
+  };
+  let json: unknown;
+  try {
+    json = readJsonFile(file, CONFIG_FILE);
+  } catch (error) {
+    if (!(error instanceof BrandConfigError)) throw error;
+    throw new ConfigFileError(error.errors, error.remedies);
+  }
+  const parsed = luminovaConfigSchema.safeParse(json);
   if (!parsed.success) {
-    throw issuesToBrandError(CONFIG_FILE, parsed.error.issues, [
-      {
-        change: `fix ${CONFIG_FILE}: it holds one field, "profile", a folder name under brand/ (e.g. "jci-valle")`,
-      },
-    ]);
+    const { errors, remedies } = issuesToBrandError(CONFIG_FILE, parsed.error.issues, [fix]);
+    throw new ConfigFileError(errors, remedies);
   }
   return parsed.data;
 }
@@ -143,6 +158,13 @@ export interface LoadedProfile {
   brand: Brand;
   source: ProfileSource;
   warnings: string[];
+}
+
+interface Selection {
+  slug: string;
+  source: ProfileSource;
+  /** What luminova.json names, read at most once; null when an override met a missing or broken file. */
+  configured?: string | null;
 }
 
 export interface LoadProfileOptions {
@@ -171,19 +193,20 @@ export const REMOVE_OVERRIDE: Remedy = {
  * Which profile a command means: `--profile`, else the tooling override, else
  * `luminova.json` (spec C1, C5).
  */
-export function selectedProfile({
+function selectedProfile({
   repoRoot = REPO_ROOT,
   env = process.env,
   profile,
-}: LoadProfileOptions = {}): { slug: string; source: ProfileSource } {
+}: LoadProfileOptions = {}): Selection {
   if (profile) return { slug: profile, source: "flag" };
   const override = env[PROFILE_OVERRIDE_ENV]?.trim();
-  if (!override) return { slug: readLuminovaConfig(repoRoot).profile, source: "file" };
+  if (!override) {
+    const configured = readLuminovaConfig(repoRoot).profile;
+    return { slug: configured, source: "file", configured };
+  }
+  const configured = configuredProfile(repoRoot);
   // An override that repeats the file changes nothing, so it is not one.
-  return {
-    slug: override,
-    source: configuredProfile(repoRoot) === override ? "file" : "override",
-  };
+  return { slug: override, source: configured === override ? "file" : "override", configured };
 }
 
 /** The file's profile, or null when it is missing or broken (the override then explains itself). */
@@ -196,8 +219,7 @@ function configuredProfile(repoRoot: string): string | null {
   }
 }
 
-function overrideWarning(slug: string, repoRoot: string): string {
-  const configured = configuredProfile(repoRoot);
+function overrideWarning(slug: string, configured: string | null | undefined): string {
   return `${PROFILE_OVERRIDE_ENV}=${slug} in your environment overrides ${CONFIG_FILE}${configured ? ` ("${configured}")` : ""}. If you did not mean that: unset ${PROFILE_OVERRIDE_ENV}   # in your shell`;
 }
 
@@ -219,8 +241,8 @@ export function selectProfileRemedy(
 }
 
 /** Profiles a person would select: every one with a brand.json except the neutral fixture. */
-export function selectableProfiles(repoRoot: string = REPO_ROOT): string[] {
-  return availableProfiles(join(repoRoot, "brand")).filter((slug) => slug !== "fixture");
+function selectableProfiles(repoRoot: string = REPO_ROOT): string[] {
+  return availableProfiles(join(repoRoot, "brand")).filter((slug) => slug !== NEUTRAL_PROFILE);
 }
 
 function availableProfiles(brandDir: string): string[] {
@@ -236,12 +258,13 @@ export function loadProfile({
   env = process.env,
   profile,
 }: LoadProfileOptions = {}): LoadedProfile {
-  const { slug, source } = selectedProfile({ repoRoot, env, profile });
-  const warnings = source === "override" ? [overrideWarning(slug, repoRoot)] : [];
+  const { slug, source, configured } = selectedProfile({ repoRoot, env, profile });
+  const warnings = source === "override" ? [overrideWarning(slug, configured)] : [];
 
   const brandDir = join(repoRoot, "brand");
-  const choices = selectableProfiles(repoRoot);
-  const select = () => selectProfileRemedy(choices, source);
+  // Only the error paths need the list, so a build never pays for the directory scan.
+  const choices = () => selectableProfiles(repoRoot);
+  const select = () => selectProfileRemedy(choices(), source);
   // Checked before the path join, so a slug like "../x" can never leave brand/.
   if (!SLUG_PATTERN.test(slug)) {
     throw new ProfileNotFoundError(
@@ -254,7 +277,7 @@ export function loadProfile({
   if (!existsSync(file)) {
     throw new ProfileNotFoundError(
       [
-        `profile "${slug}" not found at brand/${slug}/brand.json (available: ${choices.join(", ") || "none"})`,
+        `profile "${slug}" not found at brand/${slug}/brand.json (available: ${choices().join(", ") || "none"})`,
       ],
       [select(), { change: `or create brand/${slug}/`, run: "pnpm brand:init" }],
     );
