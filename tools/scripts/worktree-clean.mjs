@@ -6,12 +6,14 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import {
+  MISSING_WORKTREE,
   mergedHeadsByBranch,
   parseBranches,
-  parseStatus,
-  touchedPathDiffers,
+  parseWorktreeState,
   parseWorktrees,
   plan,
+  touchedPathDiffers,
+  worktreeBlocker,
 } from "./lib/worktree-clean.mjs";
 
 const MERGED_PR_LIMIT = 1000;
@@ -40,11 +42,14 @@ const currentPath = run("git", ["rev-parse", "--show-toplevel"]).trim();
 const primary = dirname(
   run("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"]).trim(),
 );
-const git = (...argv) => run("git", ["-C", primary, ...argv]);
+const gitIn = (dir, ...argv) => run("git", ["-C", dir, ...argv]);
+const git = (...argv) => gitIn(primary, ...argv);
+const execFileAsync = promisify(execFile);
+const errorText = (error) => (error.stderr || error.message).trim();
 
 async function loadMergedHeads() {
   try {
-    const { stdout } = await promisify(execFile)(
+    const { stdout } = await execFileAsync(
       "gh",
       [
         "pr",
@@ -55,7 +60,9 @@ async function loadMergedHeads() {
         "main",
         "--limit",
         String(MERGED_PR_LIMIT),
-      ].concat(["--json", "headRefName,headRefOid"]),
+        "--json",
+        "headRefName,headRefOid",
+      ],
       { cwd: primary },
     );
     const prs = JSON.parse(stdout);
@@ -66,7 +73,7 @@ async function loadMergedHeads() {
     return mergedHeadsByBranch(prs);
   } catch (error) {
     console.warn(
-      `Warning: gh pr list failed; branches are judged by content only.\n  ${(error.stderr || error.message).trim()}`,
+      `Warning: gh pr list failed; branches are judged by content only.\n  ${errorText(error)}`,
     );
     return new Map();
   }
@@ -74,7 +81,7 @@ async function loadMergedHeads() {
 
 const [mergedHeads] = await Promise.all([
   loadMergedHeads(),
-  promisify(execFile)("git", ["-C", primary, "fetch", "--prune", "--quiet", "origin"]),
+  execFileAsync("git", ["-C", primary, "fetch", "--prune", "--quiet", "origin"]),
 ]);
 
 const worktrees = parseWorktrees(git("worktree", "list", "--porcelain", "-z"));
@@ -106,43 +113,26 @@ function inMain(name) {
     return !touchedPathDiffers(new Set(paths(log)), paths(differing));
   } catch (error) {
     // One unjudgeable branch (unrelated history, say) must not stop the rest; keep it.
-    console.warn(
-      `Warning: could not judge ${name}, keeping it: ${(error.stderr || error.message).trim()}`,
-    );
+    console.warn(`Warning: could not judge ${name}, keeping it: ${errorText(error)}`);
     return false;
   }
 }
 
 function inspect(path) {
-  if (!existsSync(path)) return { exists: false, dirty: false, ignored: [], localRefs: [] };
-  const status = run("git", [
-    "-C",
-    path,
-    "status",
-    "--porcelain",
-    "-z",
-    "--untracked-files=normal",
-    "--ignored=matching",
-    "--ignore-submodules=none",
-  ]);
-  // `ls-files -v` tags assume-unchanged (lowercase) and skip-worktree (S) files, whose local
-  // edits neither `status` nor `worktree remove` would notice.
-  const hidden = run("git", ["-C", path, "ls-files", "-v"])
-    .split("\n")
-    .some((line) => /^[a-zS] /.test(line));
-  const state = parseStatus(status);
-  // Refs private to the worktree die with it.
-  const localRefs = run("git", [
-    "-C",
-    path,
-    "for-each-ref",
-    "--format=%(refname)",
-    "refs/worktree",
-    "refs/bisect",
-  ])
-    .split("\n")
-    .filter(Boolean);
-  return { exists: true, ...state, dirty: state.dirty || hidden, localRefs };
+  if (!existsSync(path)) return MISSING_WORKTREE;
+  return parseWorktreeState({
+    status: gitIn(
+      path,
+      "status",
+      "--porcelain",
+      "-z",
+      "--untracked-files=normal",
+      "--ignored=matching",
+      "--ignore-submodules=none",
+    ),
+    lsFiles: gitIn(path, "ls-files", "-v"),
+    refs: gitIn(path, "for-each-ref", "--format=%(refname)", "refs/worktree", "refs/bisect"),
+  });
 }
 
 const rows = plan({
@@ -163,7 +153,13 @@ const cells = rows.map((row) => [
   row.reason,
 ]);
 const widths = [0, 1, 2].map((i) => Math.max(0, ...cells.map((c) => c[i].length)));
-for (const c of cells) console.log(c.map((cell, i) => cell.padEnd(widths[i] ?? 0)).join("  "));
+for (const c of cells)
+  console.log(
+    c
+      .map((cell, i) => cell.padEnd(widths[i] ?? 0))
+      .join("  ")
+      .trimEnd(),
+  );
 
 const doomed = rows.filter((r) => r.remove);
 console.log(`\n${doomed.length} to remove, ${rows.length - doomed.length} kept.`);
@@ -182,14 +178,12 @@ for (const row of doomed) {
     if (row.kind === "worktree") {
       // Re-check right before deleting: files or a switched HEAD may have appeared since.
       const now = inspect(row.path);
-      if (now.exists && (now.dirty || now.ignored.length || now.localRefs.length))
-        throw new Error("worktree changed since it was judged; rerun");
-      if (
-        now.exists &&
-        run("git", ["-C", row.path, "symbolic-ref", "-q", "HEAD"]).trim() !==
-          `refs/heads/${row.branch}`
-      )
-        throw new Error("worktree switched branch since it was judged; rerun");
+      if (now.exists) {
+        const blocker = worktreeBlocker(now);
+        if (blocker) throw new Error(`${blocker} appeared since it was judged; rerun`);
+        if (gitIn(row.path, "symbolic-ref", "-q", "HEAD").trim() !== `refs/heads/${row.branch}`)
+          throw new Error("worktree switched branch since it was judged; rerun");
+      }
       // Never a blanket `worktree prune`: it would drop kept worktrees' HEADs too. `remove`
       // also clears the metadata of a worktree whose directory is already gone.
       git("-c", "status.showUntrackedFiles=all", "worktree", "remove", row.path);
@@ -198,7 +192,7 @@ for (const row of doomed) {
     git("branch", "-D", row.branch);
   } catch (error) {
     failures++;
-    console.error(`Failed on ${row.branch}: ${(error.stderr || error.message).trim()}`);
+    console.error(`Failed on ${row.branch}: ${errorText(error)}`);
   }
 }
 console.log(failures ? `${failures} removal(s) failed.` : "Done.");

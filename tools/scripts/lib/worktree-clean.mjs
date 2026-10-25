@@ -57,15 +57,38 @@ const isArtifact = (path) => {
   );
 };
 
-/** `git status --porcelain -z --ignored=matching` → { dirty, ignored }: `ignored` lists only
- *  the files a rebuild would not bring back. */
-export function parseStatus(output) {
-  const entries = output.split("\0").filter(Boolean);
-  const ignored = entries.filter((e) => e.startsWith("!! ")).map((e) => e.slice(3));
+const nonEmpty = (output, separator) => output.split(separator).filter(Boolean);
+
+/** A worktree's local state from `git status --porcelain -z --ignored=matching`,
+ *  `git ls-files -v` and `git for-each-ref --format=%(refname) refs/worktree refs/bisect`.
+ *  `ignored` lists only files a rebuild would not bring back. `ls-files -v` tags
+ *  assume-unchanged (lowercase) and skip-worktree (S) files: their edits are invisible to
+ *  `status` and to `worktree remove`, so they count as dirty. */
+export function parseWorktreeState({ status, lsFiles = "", refs = "" }) {
+  const entries = nonEmpty(status, "\0");
+  const isIgnored = (entry) => entry.startsWith("!! ");
   return {
-    dirty: entries.some((e) => !e.startsWith("!! ")),
-    ignored: ignored.filter((path) => !isArtifact(path)),
+    exists: true,
+    dirty:
+      entries.some((entry) => !isIgnored(entry)) ||
+      nonEmpty(lsFiles, "\n").some((line) => /^[a-zS] /.test(line)),
+    ignored: entries
+      .filter(isIgnored)
+      .map((entry) => entry.slice(3))
+      .filter((path) => !isArtifact(path)),
+    localRefs: nonEmpty(refs, "\n"),
   };
+}
+
+export const MISSING_WORKTREE = { exists: false, dirty: false, ignored: [], localRefs: [] };
+
+/** Why a worktree's local state forbids removing it, or null. `worktree remove` would delete
+ *  ignored files and worktree-local refs along with the directory. */
+export function worktreeBlocker(state) {
+  if (state.dirty) return "uncommitted changes";
+  if (state.ignored.length) return `ignored files: ${state.ignored.join(", ")}`;
+  if (state.localRefs.length) return `worktree-local refs: ${state.localRefs.join(", ")}`;
+  return null;
 }
 
 /** Whether a path that differs between main and the tip is one the branch touched, or lies
@@ -77,9 +100,9 @@ export function touchedPathDiffers(touched, differing) {
   });
 }
 
-/** Whether a branch's commits are safe to drop. `inMain()`: origin/main already has the
- *  branch's final state of every path it touched (see the CLI). That also
- *  holds for a branch freshly cut from main, hence the deleted-remote requirement. */
+/** Whether a branch's commits are safe to drop. `inMain()` is true when origin/main already
+ *  holds the branch's final state of every path the branch touched. A branch freshly cut from
+ *  main passes that too, so content alone counts only once the remote branch was deleted. */
 export function branchVerdict({ tip, upstreamGone, inMain }, heads) {
   if (heads?.has(tip)) return { remove: true, reason: "merged PR head" };
   if (upstreamGone && inMain()) return { remove: true, reason: "in origin/main" };
@@ -89,7 +112,7 @@ export function branchVerdict({ tip, upstreamGone, inMain }, heads) {
 }
 
 /** Decide every linked worktree and, with `includeBranches`, every branch no worktree has
- *  checked out. `inMain(branch)` and `inspect(path)` → { exists, dirty, ignored, localRefs } are
+ *  checked out. `inMain(branch)` and `inspect(path)` → parseWorktreeState() or MISSING_WORKTREE are
  *  called only for rows that need them. Rows: { kind, path?, branch, remove, reason }. */
 export function plan({
   worktrees,
@@ -115,10 +138,7 @@ export function plan({
     if (!wt.branch) return "detached HEAD";
     const state = inspect(wt.path);
     if (wt.prunable) return state.exists ? "stale directory, inspect by hand" : null;
-    if (state.dirty) return "uncommitted changes";
-    if (state.ignored.length) return `ignored files: ${state.ignored.join(", ")}`;
-    if (state.localRefs.length) return `worktree-local refs: ${state.localRefs.join(", ")}`;
-    return null;
+    return worktreeBlocker(state);
   };
 
   const rows = worktrees.slice(1).map((wt) => {

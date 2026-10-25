@@ -4,7 +4,9 @@ import {
   branchVerdict,
   mergedHeadsByBranch,
   parseBranches,
-  parseStatus,
+  MISSING_WORKTREE,
+  parseWorktreeState,
+  worktreeBlocker,
   parseWorktrees,
   plan,
   touchedPathDiffers,
@@ -51,16 +53,47 @@ test("a reused branch name keeps every merged head", () => {
   assert.deepEqual([...heads.get("feat/x")], ["a", "b"]);
 });
 
-test("status: build output is not precious, .env.local and untracked files are", () => {
+test("state: build output is not precious; .env.local, untracked files and refs are", () => {
   const clean =
     "!! node_modules/\0!! apps/web/dist/\0!! apps/web/.turbo/\0!! x-debug.log\0!! .firebaserc\0";
-  assert.deepEqual(parseStatus(clean), { dirty: false, ignored: [] });
-  assert.deepEqual(parseStatus("!! apps/web/.env.local\0!! node_modules/\0"), {
+  assert.deepEqual(parseWorktreeState({ status: clean }), {
+    exists: true,
     dirty: false,
-    ignored: ["apps/web/.env.local"],
+    ignored: [],
+    localRefs: [],
   });
-  assert.equal(parseStatus("?? notes.txt\0").dirty, true);
-  assert.equal(parseStatus(" M a.ts\0").dirty, true);
+  assert.deepEqual(
+    parseWorktreeState({ status: "!! apps/web/.env.local\0!! node_modules/\0" }).ignored,
+    ["apps/web/.env.local"],
+  );
+  assert.equal(parseWorktreeState({ status: "?? notes.txt\0" }).dirty, true);
+  assert.equal(parseWorktreeState({ status: " M a.ts\0" }).dirty, true);
+  assert.deepEqual(parseWorktreeState({ status: "", refs: "refs/worktree/keep\n" }).localRefs, [
+    "refs/worktree/keep",
+  ]);
+});
+
+test("state: assume-unchanged and skip-worktree files count as dirty", () => {
+  const dirtyFor = (lsFiles) => parseWorktreeState({ status: "", lsFiles }).dirty;
+  assert.equal(dirtyFor("H a.ts\nH b.ts\n"), false);
+  assert.equal(dirtyFor("H a.ts\nh b.ts\n"), true);
+  assert.equal(dirtyFor("S sparse.ts\n"), true);
+});
+
+test("blocker names the first reason a worktree must stay", () => {
+  assert.equal(worktreeBlocker(MISSING_WORKTREE), null);
+  assert.equal(
+    worktreeBlocker({ ...MISSING_WORKTREE, dirty: true, ignored: ["x"] }),
+    "uncommitted changes",
+  );
+  assert.equal(
+    worktreeBlocker({ ...MISSING_WORKTREE, ignored: [".env.local"] }),
+    "ignored files: .env.local",
+  );
+  assert.equal(
+    worktreeBlocker({ ...MISSING_WORKTREE, localRefs: ["refs/bisect/bad"] }),
+    "worktree-local refs: refs/bisect/bad",
+  );
 });
 
 test("only differences in paths the branch touched count", () => {
@@ -76,43 +109,43 @@ const heads = new Set(["s1"]);
 const verdictCases = [
   [
     "a merged PR head lands even when main has moved on",
-    { tip: "s1", upstreamGone: true, clean: false },
+    { tip: "s1", upstreamGone: true, landed: false },
     heads,
     true,
     "merged PR head",
   ],
   [
     "a deleted remote whose merge changes nothing has landed",
-    { tip: "r", upstreamGone: true, clean: true },
+    { tip: "r", upstreamGone: true, landed: true },
     undefined,
     true,
     "in origin/main",
   ],
   [
     "a deleted remote with content main lacks is kept",
-    { tip: "r", upstreamGone: true, clean: false },
+    { tip: "r", upstreamGone: true, landed: false },
     undefined,
     false,
     "remote deleted, has changes main lacks",
   ],
   [
     "a fresh branch off main is kept although its merge changes nothing",
-    { tip: "m", upstreamGone: false, clean: true },
+    { tip: "m", upstreamGone: false, landed: true },
     undefined,
     false,
     "no merged PR",
   ],
   [
     "a reused name with no new commits is kept while its remote exists",
-    { tip: "m", upstreamGone: false, clean: true },
+    { tip: "m", upstreamGone: false, landed: true },
     heads,
     false,
     "not at a merged PR head",
   ],
 ];
-for (const [name, { tip, upstreamGone, clean }, prHeads, remove, reason] of verdictCases) {
+for (const [name, { tip, upstreamGone, landed }, prHeads, remove, reason] of verdictCases) {
   test(name, () => {
-    assert.deepEqual(branchVerdict({ tip, upstreamGone, inMain: () => clean }, prHeads), {
+    assert.deepEqual(branchVerdict({ tip, upstreamGone, inMain: () => landed }, prHeads), {
       remove,
       reason,
     });
@@ -133,12 +166,14 @@ const wt = (slug, branch, extra = {}) => ({
   ...extra,
 });
 
+const present = { ...MISSING_WORKTREE, exists: true };
+
 function scenario(overrides = {}) {
   const states = {
-    [`${WT}/dirty`]: { exists: true, dirty: true, ignored: [] },
-    [`${WT}/env`]: { exists: true, dirty: false, ignored: ["apps/web/.env.local"] },
-    [`${WT}/stale`]: { exists: true, dirty: false, ignored: [] },
-    [`${WT}/refs`]: { exists: true, dirty: false, ignored: [], localRefs: ["refs/worktree/keep"] },
+    [`${WT}/dirty`]: { ...present, dirty: true },
+    [`${WT}/env`]: { ...present, ignored: ["apps/web/.env.local"] },
+    [`${WT}/stale`]: present,
+    [`${WT}/refs`]: { ...present, localRefs: ["refs/worktree/keep"] },
   };
   return {
     worktrees: [
