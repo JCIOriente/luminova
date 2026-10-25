@@ -132,8 +132,12 @@ export function selectedProfile({
 }: LoadProfileOptions = {}): { slug: string; source: ProfileSource } {
   if (profile) return { slug: profile, source: "flag" };
   const override = env[PROFILE_OVERRIDE_ENV]?.trim();
-  if (override) return { slug: override, source: "override" };
-  return { slug: readLuminovaConfig(repoRoot).profile, source: "file" };
+  if (!override) return { slug: readLuminovaConfig(repoRoot).profile, source: "file" };
+  // An override that repeats the file changes nothing, so it is not one.
+  return {
+    slug: override,
+    source: configuredProfile(repoRoot) === override ? "file" : "override",
+  };
 }
 
 /** The file's profile, or null when it is missing or broken (the override then explains itself). */
@@ -146,9 +150,8 @@ function configuredProfile(repoRoot: string): string | null {
   }
 }
 
-function overrideWarning(slug: string, repoRoot: string): string | null {
+function overrideWarning(slug: string, repoRoot: string): string {
   const configured = configuredProfile(repoRoot);
-  if (configured === slug) return null;
   return `${PROFILE_OVERRIDE_ENV}=${slug} in your environment overrides ${CONFIG_FILE}${configured ? ` ("${configured}")` : ""}. If you did not mean that: unset ${PROFILE_OVERRIDE_ENV}`;
 }
 
@@ -178,8 +181,7 @@ export function loadProfile({
   profile,
 }: LoadProfileOptions = {}): LoadedProfile {
   const { slug, source } = selectedProfile({ repoRoot, env, profile });
-  const warning = source === "override" ? overrideWarning(slug, repoRoot) : null;
-  const warnings = warning ? [warning] : [];
+  const warnings = source === "override" ? [overrideWarning(slug, repoRoot)] : [];
 
   const brandDir = join(repoRoot, "brand");
   const select = () => selectProfileRemedy(selectableProfiles(repoRoot));

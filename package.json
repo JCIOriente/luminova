@@ -22,6 +22,7 @@
     "knip": "knip",
     "brand:schema": "node packages/brand/src/cli/schema.ts",
     "brand:guard": "node packages/brand/src/cli/guard.ts",
+    "brand:ci-config": "node packages/brand/src/cli/ci-config.ts",
     "brand:apply": "node packages/brand/src/cli/apply.ts",
     "brand:assert-dist": "node packages/brand/src/cli/assert-dist.ts",
     "brand:pull": "node packages/brand/src/cli/pull.ts",

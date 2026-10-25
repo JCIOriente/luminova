@@ -64,7 +64,7 @@ describe("applyProfile", () => {
 
   it("in release mode refuses a profile that cannot ship, without writing", () => {
     const release = { BRAND_RELEASE: "1" };
-    expect(() => apply("jci-oriente", { ...release, BRAND_PROFILE: "jci-oriente" })).toThrow(
+    expect(() => apply("jci-oriente", { ...release, BRAND_PROFILE: "fixture" })).toThrow(
       /set in your environment/,
     );
     expect(() => apply("fixture", release)).toThrow(/neutral test profile/);

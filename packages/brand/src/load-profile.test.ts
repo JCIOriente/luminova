@@ -64,7 +64,11 @@ describe("loadProfile", () => {
     expect(profile.warnings).toEqual([
       'BRAND_PROFILE=jci-oriente in your environment overrides luminova.json ("other"). If you did not mean that: unset BRAND_PROFILE',
     ]);
-    expect(loadProfile({ repoRoot: root, profile: "other" }).warnings).toEqual([]);
+    // Repeating the file's choice is no override: no warning, and release builds accept it.
+    expect(loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "other" } })).toMatchObject({
+      source: "file",
+      warnings: [],
+    });
   });
 
   it("prefers --profile over the override and the file", () => {
