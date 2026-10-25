@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  landedReason,
+  branchVerdict,
   mergedHeadsByBranch,
   parseBranches,
+  parseStatus,
   parseWorktrees,
   plan,
 } from "./worktree-clean.mjs";
@@ -11,18 +12,21 @@ import {
 const ROOT = "/repo";
 const WT = `${ROOT}/.worktrees`;
 
-test("parses porcelain worktrees, primary first", () => {
-  const porcelain = [
-    `worktree ${ROOT}\nHEAD aaa\nbranch refs/heads/main`,
-    `worktree ${WT}/one\nHEAD bbb\nbranch refs/heads/feat/one`,
-    `worktree ${WT}/two\nHEAD ccc\ndetached`,
-    `worktree ${WT}/gone\nHEAD ddd\nbranch refs/heads/fix/gone\nprunable gitdir file points to non-existent location`,
-  ].join("\n\n");
-  assert.deepEqual(parseWorktrees(`${porcelain}\n`), [
-    { path: ROOT, head: "aaa", branch: "main", detached: false, prunable: false },
-    { path: `${WT}/one`, head: "bbb", branch: "feat/one", detached: false, prunable: false },
-    { path: `${WT}/two`, head: "ccc", branch: null, detached: true, prunable: false },
-    { path: `${WT}/gone`, head: "ddd", branch: "fix/gone", detached: false, prunable: true },
+test("parses -z porcelain worktrees, primary first", () => {
+  const nul = (...lines) => lines.join("\0");
+  const output = [
+    nul(`worktree ${ROOT}`, "HEAD a", "branch refs/heads/main"),
+    nul(`worktree ${WT}/with space`, "HEAD b", "branch refs/heads/feat/one"),
+    nul(`worktree ${WT}/loose`, "HEAD c", "detached"),
+    nul(`worktree ${WT}/gone`, "HEAD d", "branch refs/heads/fix/gone", "prunable gitdir missing"),
+    nul(`worktree ${WT}/held`, "HEAD e", "branch refs/heads/fix/held", "locked"),
+  ].join("\0\0");
+  assert.deepEqual(parseWorktrees(`${output}\0\0`), [
+    { path: ROOT, branch: "main", prunable: false, locked: false },
+    { path: `${WT}/with space`, branch: "feat/one", prunable: false, locked: false },
+    { path: `${WT}/loose`, branch: null, prunable: false, locked: false },
+    { path: `${WT}/gone`, branch: "fix/gone", prunable: true, locked: false },
+    { path: `${WT}/held`, branch: "fix/held", prunable: false, locked: true },
   ]);
 });
 
@@ -46,100 +50,122 @@ test("a reused branch name keeps every merged head", () => {
   assert.deepEqual([...heads.get("feat/x")], ["a", "b"]);
 });
 
-const merged = mergedHeadsByBranch([{ headRefName: "feat/squashed", headRefOid: "s1" }]);
-
-test("a squash-merged branch lands by its PR head even though it is not in main", () => {
-  const facts = { branch: "feat/squashed", tip: "s1", upstreamGone: true, inMain: false };
-  assert.equal(landedReason(facts, merged), "merged PR head");
+test("status: build output is not precious, .env.local and untracked files are", () => {
+  const clean =
+    "!! node_modules/\0!! apps/web/dist/\0!! apps/web/.turbo/\0!! x-debug.log\0!! .firebaserc\0";
+  assert.deepEqual(parseStatus(clean), { dirty: false, ignored: [] });
+  assert.deepEqual(parseStatus("!! apps/web/.env.local\0!! node_modules/\0"), {
+    dirty: false,
+    ignored: ["apps/web/.env.local"],
+  });
+  assert.equal(parseStatus("?? notes.txt\0").dirty, true);
+  assert.equal(parseStatus(" M a.ts\0").dirty, true);
 });
 
-test("commits after the merged PR keep the branch", () => {
-  const facts = { branch: "feat/squashed", tip: "s2", upstreamGone: true, inMain: false };
-  assert.equal(landedReason(facts, merged), null);
+const heads = new Set(["s1"]);
+const verdictCases = [
+  [
+    "a merged PR head lands even when main has moved on",
+    { tip: "s1", upstreamGone: true, clean: false },
+    heads,
+    true,
+    "merged PR head",
+  ],
+  [
+    "a deleted remote whose merge changes nothing has landed",
+    { tip: "r", upstreamGone: true, clean: true },
+    undefined,
+    true,
+    "in origin/main",
+  ],
+  [
+    "a deleted remote with content main lacks is kept",
+    { tip: "r", upstreamGone: true, clean: false },
+    undefined,
+    false,
+    "remote deleted, has changes main lacks",
+  ],
+  [
+    "a fresh branch off main is kept although its merge changes nothing",
+    { tip: "m", upstreamGone: false, clean: true },
+    undefined,
+    false,
+    "no merged PR",
+  ],
+  [
+    "a reused name with no new commits is kept while its remote exists",
+    { tip: "m", upstreamGone: false, clean: true },
+    heads,
+    false,
+    "not at a merged PR head",
+  ],
+];
+for (const [name, { tip, upstreamGone, clean }, prHeads, remove, reason] of verdictCases) {
+  test(name, () => {
+    assert.deepEqual(branchVerdict({ tip, upstreamGone, inMain: () => clean }, prHeads), {
+      remove,
+      reason,
+    });
+  });
+}
+
+test("the content check is skipped when the PR head already decides", () => {
+  const inMain = () => assert.fail("merge-tree should not run");
+  branchVerdict({ tip: "s1", upstreamGone: true, inMain }, heads);
+  branchVerdict({ tip: "x", upstreamGone: false, inMain }, undefined);
 });
 
-test("a branch fresh off origin/main is in main but has not landed", () => {
-  const facts = { branch: "feat/new", tip: "m", upstreamGone: false, inMain: true };
-  assert.equal(landedReason(facts, merged), null);
-});
-
-test("a tip in main lands once its remote was deleted", () => {
-  const facts = { branch: "feat/merged", tip: "m", upstreamGone: true, inMain: true };
-  assert.equal(landedReason(facts, merged), "in origin/main");
-});
-
-test("a tip in main lands when the branch had a merged PR", () => {
-  const facts = { branch: "feat/squashed", tip: "older", upstreamGone: false, inMain: true };
-  assert.equal(landedReason(facts, merged), "in origin/main");
-});
-
-test("a rebase-merged branch lands when every patch is in main", () => {
-  const facts = {
-    branch: "feat/rebased",
-    tip: "r",
-    upstreamGone: true,
-    inMain: false,
-    patchesInMain: true,
-  };
-  assert.equal(landedReason(facts, merged), "rebased into origin/main");
-});
-
-test("patches in main do not land a branch that was never pushed or merged", () => {
-  const facts = {
-    branch: "chore/local",
-    tip: "l",
-    upstreamGone: false,
-    inMain: false,
-    patchesInMain: true,
-  };
-  assert.equal(landedReason(facts, merged), null);
-});
-
-test("an unpushed branch with no PR is kept", () => {
-  const facts = { branch: "chore/local", tip: "l", upstreamGone: false, inMain: false };
-  assert.equal(landedReason(facts, merged), null);
+const wt = (slug, branch, extra = {}) => ({
+  path: slug.startsWith("/") ? slug : `${WT}/${slug}`,
+  branch,
+  prunable: false,
+  locked: false,
+  ...extra,
 });
 
 function scenario(overrides = {}) {
-  const worktrees = [
-    { path: ROOT, head: "m", branch: "main", detached: false, prunable: false },
-    { path: `${WT}/done`, head: "s1", branch: "feat/squashed", detached: false, prunable: false },
-    { path: `${WT}/dirty`, head: "s1", branch: "feat/dirty", detached: false, prunable: false },
-    { path: `${WT}/here`, head: "h", branch: "feat/here", detached: false, prunable: false },
-    { path: `${WT}/loose`, head: "d", branch: null, detached: true, prunable: false },
-    {
-      path: `${ROOT}/.claude/worktrees/x`,
-      head: "x",
-      branch: "feat/x",
-      detached: false,
-      prunable: false,
-    },
-    { path: `${WT}/missing`, head: "p", branch: "feat/missing", detached: false, prunable: true },
-  ];
-  const branches = parseBranches(
-    [
-      "main\0m\0",
-      "feat/squashed\0s1\0[gone]",
-      "feat/dirty\0s1\0[gone]",
-      "feat/here\0h\0[gone]",
-      "feat/x\0x\0[gone]",
-      "feat/missing\0p\0[gone]",
-      "chore/local\0l\0",
-      "feat/old\0o\0[gone]",
-    ].join("\n"),
-  );
+  const states = {
+    [`${WT}/dirty`]: { exists: true, dirty: true, ignored: [] },
+    [`${WT}/env`]: { exists: true, dirty: false, ignored: ["apps/web/.env.local"] },
+    [`${WT}/stale`]: { exists: true, dirty: false, ignored: [] },
+  };
   return {
-    worktrees,
-    branches,
-    mergedHeads: mergedHeadsByBranch([
-      { headRefName: "feat/squashed", headRefOid: "s1" },
-      { headRefName: "feat/dirty", headRefOid: "s1" },
-      { headRefName: "feat/here", headRefOid: "h" },
-      { headRefName: "feat/x", headRefOid: "x" },
-      { headRefName: "feat/missing", headRefOid: "p" },
-    ]),
-    inMain: new Set(["main", "feat/old"]),
-    dirty: new Set([`${WT}/dirty`, `${WT}/missing`]),
+    worktrees: [
+      wt(ROOT, "main"),
+      wt("done", "feat/done"),
+      wt("dirty", "feat/done2"),
+      wt("env", "feat/done3"),
+      wt("here", "feat/here"),
+      wt("loose", null),
+      wt("held", "feat/held", { locked: true }),
+      wt(`${ROOT}/.claude/worktrees/x`, "feat/x"),
+      wt(`${WT}-old/y`, "feat/y"),
+      wt("missing", "feat/missing", { prunable: true }),
+      wt("stale", "feat/stale", { prunable: true }),
+    ],
+    branches: new Map(
+      [
+        "main",
+        "feat/done",
+        "feat/done2",
+        "feat/done3",
+        "feat/here",
+        "feat/held",
+        "feat/x",
+        "feat/y",
+        "feat/missing",
+        "feat/stale",
+        "chore/local",
+        "feat/old",
+      ].map((name) => [
+        name,
+        { tip: name, upstreamGone: name !== "chore/local" && name !== "main" },
+      ]),
+    ),
+    mergedHeads: new Map(),
+    inMain: (name) => name !== "feat/y",
+    inspect: (path) =>
+      states[path] ?? { exists: !path.endsWith("missing"), dirty: false, ignored: [] },
     worktreesDir: WT,
     currentPath: `${WT}/here`,
     ...overrides,
@@ -150,34 +176,20 @@ const verdicts = (rows) => rows.map((r) => [r.kind, r.branch, r.remove, r.reason
 
 test("plan removes only clean, landed worktrees under .worktrees/", () => {
   assert.deepEqual(verdicts(plan(scenario())), [
-    ["worktree", "feat/squashed", true, "merged PR head"],
-    ["worktree", "feat/dirty", false, "uncommitted changes"],
+    ["worktree", "feat/done", true, "in origin/main"],
+    ["worktree", "feat/done2", false, "uncommitted changes"],
+    ["worktree", "feat/done3", false, "ignored files: apps/web/.env.local"],
     ["worktree", "feat/here", false, "current worktree"],
     ["worktree", null, false, "detached HEAD"],
+    ["worktree", "feat/held", false, "locked"],
     ["worktree", "feat/x", false, "outside .worktrees/"],
-    ["worktree", "feat/missing", true, "merged PR head"],
+    ["worktree", "feat/y", false, "outside .worktrees/"],
+    ["worktree", "feat/missing", true, "in origin/main"],
+    ["worktree", "feat/stale", false, "stale directory, inspect by hand"],
   ]);
 });
 
-test("a sibling directory sharing the prefix is not inside .worktrees/", () => {
-  const rows = plan(
-    scenario({
-      worktrees: [
-        { path: ROOT, head: "m", branch: "main", detached: false, prunable: false },
-        {
-          path: `${WT}-old/a`,
-          head: "s1",
-          branch: "feat/squashed",
-          detached: false,
-          prunable: false,
-        },
-      ],
-    }),
-  );
-  assert.deepEqual(verdicts(rows), [["worktree", "feat/squashed", false, "outside .worktrees/"]]);
-});
-
-test("--branches adds branches no worktree has checked out, never main", () => {
+test("--branches adds branches no worktree has checked out", () => {
   const rows = plan(scenario({ includeBranches: true })).filter((r) => r.kind === "branch");
   assert.deepEqual(verdicts(rows), [
     ["branch", "chore/local", false, "no merged PR"],
@@ -185,32 +197,15 @@ test("--branches adds branches no worktree has checked out, never main", () => {
   ]);
 });
 
-test("main is protected even when it is not the primary checkout's branch", () => {
+test("main is protected even when no worktree has it checked out", () => {
   const s = scenario({ includeBranches: true });
-  s.worktrees[0] = { ...s.worktrees[0], branch: "feat/other" };
+  s.worktrees[0] = wt(ROOT, "feat/other");
   const main = plan(s).find((r) => r.branch === "main");
   assert.deepEqual([main.remove, main.reason], [false, "protected branch"]);
 });
 
-test("keep reasons say why a branch stays", () => {
-  const rows = plan(
-    scenario({
-      worktrees: [{ path: ROOT, head: "m", branch: "main", detached: false, prunable: false }],
-      branches: parseBranches(
-        ["feat/squashed\0s9\0[gone]", "feat/abandoned\0a\0[gone]", "feat/new\0m\0"].join("\n"),
-      ),
-      inMain: new Set(["feat/new"]),
-      includeBranches: true,
-    }),
-  );
-  assert.deepEqual(verdicts(rows), [
-    ["branch", "feat/squashed", false, "commits after its merged PR"],
-    [
-      "branch",
-      "feat/abandoned",
-      false,
-      "remote deleted, commits not in origin/main or a merged PR",
-    ],
-    ["branch", "feat/new", false, "no commits yet"],
-  ]);
+test("without --branches, branch-only rows are never probed", () => {
+  const probed = [];
+  plan(scenario({ inMain: (name) => (probed.push(name), true) }));
+  assert.deepEqual(probed, ["feat/done", "feat/missing"]);
 });

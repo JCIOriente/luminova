@@ -1,33 +1,32 @@
 // Which worktrees and local branches `pnpm wt:clean` may delete. Pure: the CLI gathers git and
 // gh state, this decides. A branch is deletable only when nothing on it would be lost.
-// Squash merges are allowed, so "tip is in origin/main" alone misses most merged branches.
-// The merged PR's head commit is the other proof.
 
 const PROTECTED_BRANCHES = new Set(["main", "master"]);
+// Gitignored output a fresh install or build recreates. Any other ignored file (.env.local,
+// local notes) keeps its worktree, since `git worktree remove` deletes ignored files too.
+const ARTIFACT_SEGMENTS = new Set(["node_modules", ".turbo", "dist", "dev-dist", "coverage"]);
+const ARTIFACT_FILES = [/-debug\.log$/, /\.tsbuildinfo$/, /^\.firebaserc$/];
 
-/** `git worktree list --porcelain` → [{ path, head, branch, detached, prunable }]. The first
- *  entry is the primary checkout. */
-export function parseWorktrees(porcelain) {
-  return porcelain
-    .split("\n\n")
-    .map((block) => block.trim())
+/** `git worktree list --porcelain -z` → [{ path, branch, prunable, locked }]; branch is null
+ *  when detached. The first entry is the primary checkout. */
+export function parseWorktrees(output) {
+  return output
+    .split("\0\0")
     .filter(Boolean)
     .map((block) => {
-      const entry = { path: "", head: "", branch: null, detached: false, prunable: false };
-      for (const line of block.split("\n")) {
+      const entry = { path: "", branch: null, prunable: false, locked: false };
+      for (const line of block.split("\0")) {
         const [key, ...rest] = line.split(" ");
-        const value = rest.join(" ");
-        if (key === "worktree") entry.path = value;
-        else if (key === "HEAD") entry.head = value;
-        else if (key === "branch") entry.branch = value.replace(/^refs\/heads\//, "");
-        else if (key === "detached") entry.detached = true;
+        if (key === "worktree") entry.path = rest.join(" ");
+        else if (key === "branch") entry.branch = rest.join(" ").replace(/^refs\/heads\//, "");
         else if (key === "prunable") entry.prunable = true;
+        else if (key === "locked") entry.locked = true;
       }
       return entry;
     });
 }
 
-/** `git for-each-ref --format='%(refname:short)%00%(objectname)%00%(upstream:track)' refs/heads`
+/** `git for-each-ref --format='%(refname:lstrip=2)%00%(objectname)%00%(upstream:track)' refs/heads`
  *  → Map<branch, { tip, upstreamGone }>. */
 export function parseBranches(output) {
   const branches = new Map();
@@ -39,8 +38,8 @@ export function parseBranches(output) {
   return branches;
 }
 
-/** `gh pr list --state merged --json headRefName,headRefOid` → Map<branch, Set<oid>>. A name
- *  can be reused, so one branch may have several merged heads. */
+/** `gh pr list --state merged --base main --json headRefName,headRefOid` → Map<branch, Set<oid>>.
+ *  A name can be reused, so one branch may have several merged heads. */
 export function mergedHeadsByBranch(prs) {
   const heads = new Map();
   for (const { headRefName, headRefOid } of prs) {
@@ -50,84 +49,78 @@ export function mergedHeadsByBranch(prs) {
   return heads;
 }
 
-/** Why a branch's commits are safe to drop, or null when they are not.
- *  `inMain`: the tip is an ancestor of origin/main. That alone is not enough: a branch freshly
- *  cut from origin/main is "in main" before its first commit.
- *  `patchesInMain`: `git cherry` finds every commit's patch in origin/main (rebase merges and
- *  rebased PRs give the same changes new SHAs). Same guard as `inMain`. */
-export function landedReason(
-  { branch, tip, upstreamGone, inMain, patchesInMain = false },
-  mergedHeads,
-) {
-  const heads = mergedHeads.get(branch);
-  if (heads?.has(tip)) return "merged PR head";
-  if (!heads && !upstreamGone) return null;
-  if (inMain) return "in origin/main";
-  if (patchesInMain) return "rebased into origin/main";
-  return null;
+const isArtifact = (path) => {
+  const trimmed = path.replace(/\/$/, "");
+  return (
+    trimmed.split("/").some((segment) => ARTIFACT_SEGMENTS.has(segment)) ||
+    ARTIFACT_FILES.some((pattern) => pattern.test(trimmed))
+  );
+};
+
+/** `git status --porcelain -z --ignored=matching` → { dirty, ignored }: `ignored` lists only
+ *  the files a rebuild would not bring back. */
+export function parseStatus(output) {
+  const entries = output.split("\0").filter(Boolean);
+  const ignored = entries.filter((e) => e.startsWith("!! ")).map((e) => e.slice(3));
+  return {
+    dirty: entries.some((e) => !e.startsWith("!! ")),
+    ignored: ignored.filter((path) => !isArtifact(path)),
+  };
 }
 
-function keepReason({ inMain, upstreamGone }, mergedHeads, branch) {
-  if (mergedHeads.has(branch)) return "commits after its merged PR";
-  if (upstreamGone) return "remote deleted, commits not in origin/main or a merged PR";
-  if (inMain) return "no commits yet";
-  return "no merged PR";
+/** Whether a branch's commits are safe to drop. `inMain()`: origin/main already has the
+ *  branch's content (the CLI checks a no-op merge, or every commit's exact patch). That also
+ *  holds for a branch freshly cut from main, hence the deleted-remote requirement. */
+export function branchVerdict({ tip, upstreamGone, inMain }, heads) {
+  if (heads?.has(tip)) return { remove: true, reason: "merged PR head" };
+  if (upstreamGone && inMain()) return { remove: true, reason: "in origin/main" };
+  if (upstreamGone) return { remove: false, reason: "remote deleted, has changes main lacks" };
+  if (heads) return { remove: false, reason: "not at a merged PR head" };
+  return { remove: false, reason: "no merged PR" };
 }
 
-/** Decide every worktree under `worktreesDir` and, with `includeBranches`, every other local
- *  branch. `worktrees[0]` is the primary checkout. Returns rows in input order:
- *  { kind: "worktree" | "branch", path?, branch, remove, reason }. */
+/** Decide every linked worktree and, with `includeBranches`, every branch no worktree has
+ *  checked out. `inMain(branch)` and `inspect(path)` → { exists, dirty, ignored } are
+ *  called only for rows that need them. Rows: { kind, path?, branch, remove, reason }. */
 export function plan({
   worktrees,
   branches,
   mergedHeads,
   inMain,
-  patchesInMain = new Set(),
-  dirty,
+  inspect,
   worktreesDir,
   currentPath,
   includeBranches = false,
 }) {
-  const rows = [];
-  const checkedOut = new Set();
-  const [primary, ...linked] = worktrees;
-  if (primary?.branch) checkedOut.add(primary.branch);
-
-  const branchVerdict = (name) => {
+  const decide = (name) => {
     if (PROTECTED_BRANCHES.has(name)) return { remove: false, reason: "protected branch" };
     const info = branches.get(name);
     if (!info) return { remove: false, reason: "branch not found" };
-    const facts = {
-      branch: name,
-      ...info,
-      inMain: inMain.has(name),
-      patchesInMain: patchesInMain.has(name),
-    };
-    const landed = landedReason(facts, mergedHeads);
-    return landed
-      ? { remove: true, reason: landed }
-      : { remove: false, reason: keepReason(facts, mergedHeads, name) };
+    return branchVerdict({ ...info, inMain: () => inMain(name) }, mergedHeads.get(name));
   };
 
-  for (const wt of linked) {
-    if (wt.branch) checkedOut.add(wt.branch);
-    const row = { kind: "worktree", path: wt.path, branch: wt.branch };
-    const inside = wt.path.startsWith(
-      worktreesDir.endsWith("/") ? worktreesDir : `${worktreesDir}/`,
-    );
-    if (!inside) rows.push({ ...row, remove: false, reason: "outside .worktrees/" });
-    else if (wt.path === currentPath)
-      rows.push({ ...row, remove: false, reason: "current worktree" });
-    else if (!wt.branch) rows.push({ ...row, remove: false, reason: "detached HEAD" });
-    else if (!wt.prunable && dirty.has(wt.path))
-      rows.push({ ...row, remove: false, reason: "uncommitted changes" });
-    else rows.push({ ...row, ...branchVerdict(wt.branch) });
-  }
+  const worktreeSkip = (wt) => {
+    if (!wt.path.startsWith(`${worktreesDir}/`)) return "outside .worktrees/";
+    if (wt.path === currentPath) return "current worktree";
+    if (wt.locked) return "locked";
+    if (!wt.branch) return "detached HEAD";
+    const state = inspect(wt.path);
+    if (wt.prunable) return state.exists ? "stale directory, inspect by hand" : null;
+    if (state.dirty) return "uncommitted changes";
+    if (state.ignored.length) return `ignored files: ${state.ignored.join(", ")}`;
+    return null;
+  };
+
+  const rows = worktrees.slice(1).map((wt) => {
+    const skip = worktreeSkip(wt);
+    const verdict = skip ? { remove: false, reason: skip } : decide(wt.branch);
+    return { kind: "worktree", path: wt.path, branch: wt.branch, ...verdict };
+  });
 
   if (includeBranches) {
+    const checkedOut = new Set(worktrees.map((wt) => wt.branch));
     for (const name of branches.keys()) {
-      if (checkedOut.has(name)) continue;
-      rows.push({ kind: "branch", branch: name, ...branchVerdict(name) });
+      if (!checkedOut.has(name)) rows.push({ kind: "branch", branch: name, ...decide(name) });
     }
   }
   return rows;
