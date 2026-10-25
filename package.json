@@ -37,6 +37,7 @@
     "pr-tests": "pnpm format && turbo run ci && pnpm knip && pnpm test:seed && pnpm test:harness && pnpm test:ci-scripts && pnpm guard:beacon-dotenv && pnpm audit --audit-level=high",
     "seed:emulator": "FIRESTORE_EMULATOR_HOST=127.0.0.1:4010 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:4030 node tools/scripts/seed-emulator.mjs",
     "seed:production": "node tools/scripts/seed-production.mjs",
+    "wt:clean": "node tools/scripts/worktree-clean.mjs",
     "audit:soft-delete-shapes": "node tools/scripts/audit-soft-delete-shapes.mjs",
     "deploy:rules": "BRAND_RELEASE=1 pnpm -s brand:apply && firebase deploy --only firestore,storage",
     "deploy:indexes": "BRAND_RELEASE=1 pnpm -s brand:apply && firebase deploy --only firestore:indexes",
