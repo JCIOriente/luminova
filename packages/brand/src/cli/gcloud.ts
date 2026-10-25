@@ -13,24 +13,35 @@ export type CommandRunner = (
 
 type Command = Parameters<CommandRunner>[0];
 
+/** What a failure was, when stderr says so; callers branch on it instead of re-reading text. */
+export type CommandFailureKind = "notInstalled" | "signIn" | "denied" | "notFound" | "other";
+
 export class CommandError extends Error {
   override name = "CommandError";
   readonly remedies: readonly Remedy[];
+  readonly kind: CommandFailureKind;
 
-  constructor(message: string, remedies: readonly Remedy[] = []) {
+  constructor(
+    message: string,
+    remedies: readonly Remedy[] = [],
+    kind: CommandFailureKind = "other",
+  ) {
     super(message);
     this.remedies = remedies;
+    this.kind = kind;
   }
 }
+
+export const INSTALL_FIREBASE_CLI: Remedy = {
+  change: "install or update the Firebase CLI (CI pins 15.22.1)",
+  run: "npm install -g firebase-tools@15.22.1",
+  where: "shell",
+};
 
 const INSTALL: Readonly<Record<Command, Remedy>> = {
   gcloud: { change: "install the Google Cloud CLI: https://cloud.google.com/sdk/docs/install" },
   gh: { change: "install the GitHub CLI: https://cli.github.com" },
-  firebase: {
-    change: "install the Firebase CLI (CI pins 15.22.1)",
-    run: "npm install -g firebase-tools@15.22.1",
-    where: "shell",
-  },
+  firebase: INSTALL_FIREBASE_CLI,
   pnpm: { change: "enable pnpm", run: "corepack enable", where: "shell" },
 };
 
@@ -57,19 +68,30 @@ export function commandFailure(
   }: { code?: string | number | null; stderr: string; message?: string },
 ): CommandError {
   const text = `${command} ${args.join(" ")} failed: ${stderr.trim() || message}`;
-  if (code === "ENOENT")
-    return new CommandError(`${text} (${command} is not installed)`, [INSTALL[command]]);
-  const signIn = SIGN_IN[command];
-  if (signIn?.pattern.test(stderr)) return new CommandError(text, [signIn.remedy]);
-  if (command === "gcloud" && /\b403\b|AccessDenied|does not have .*permission/i.test(stderr)) {
-    return new CommandError(text, [
-      {
-        change: "sign in with an account that has access to the project (its owner)",
-        run: "gcloud auth login",
-        where: "shell",
-      },
-    ]);
+  if (code === "ENOENT") {
+    return new CommandError(
+      `${text} (${command} is not installed)`,
+      [INSTALL[command]],
+      "notInstalled",
+    );
   }
+  const signIn = SIGN_IN[command];
+  if (signIn?.pattern.test(stderr)) return new CommandError(text, [signIn.remedy], "signIn");
+  if (command !== "gcloud") return new CommandError(text);
+  if (/\b403\b|AccessDenied|does not have .*permission/i.test(stderr)) {
+    return new CommandError(
+      text,
+      [
+        {
+          change: "sign in with an account that has access to the project (its owner)",
+          run: "gcloud auth login",
+          where: "shell",
+        },
+      ],
+      "denied",
+    );
+  }
+  if (/\b404\b|not found/i.test(stderr)) return new CommandError(text, [], "notFound");
   return new CommandError(text);
 }
 

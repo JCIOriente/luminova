@@ -7,10 +7,13 @@ import { formatNext, type Remedy } from "../remedy.ts";
 import { bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
 import { runCli } from "./main.ts";
 
-/** An asset change does not trigger CD, which diffs git; the owner dispatches it. */
-export const DEPLOY_DISPATCH = "gh workflow run deploy.yml -f surface=hosting";
+export const deployDispatch = (surface: "hosting" | "all") =>
+  `gh workflow run deploy.yml -f surface=${surface}`;
 
-export const pushNext = (): Remedy[] => [
+/** An asset change does not trigger CD, which diffs git; the owner dispatches it. */
+export const DEPLOY_DISPATCH = deployDispatch("hosting");
+
+export const PUSH_NEXT: readonly Remedy[] = [
   {
     change:
       "an asset change is not in git, so CD does not see it: dispatch the hosting deploy (project owner)",
@@ -71,7 +74,7 @@ if (import.meta.main) {
     const bucket = bucketUrl(profile.brand.assetsBucket);
     await push({ profile, from });
     console.log(
-      `brand:push: uploaded ${from} to ${bucket} (profile "${profile.slug}", project ${profile.brand.firebase.projectId}).\n\n${formatNext(pushNext())}`,
+      `brand:push: uploaded ${from} to ${bucket} (profile "${profile.slug}", project ${profile.brand.firebase.projectId}).\n\n${formatNext(PUSH_NEXT)}`,
     );
   });
 }

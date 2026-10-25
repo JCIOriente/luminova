@@ -7,7 +7,7 @@ import { ASSET_CONTRACT } from "../assets.ts";
 import { REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { applyProfile } from "./apply.ts";
-import { doctor, doctorNext, doctorRemedies, type DoctorRow } from "./doctor.ts";
+import { DOCTOR_NEXT, doctor, doctorRemedies, type DoctorRow } from "./doctor.ts";
 import { CommandError, commandFailure, type CommandRunner } from "./gcloud.ts";
 
 const BUCKET = "jci-oriente-brand-assets";
@@ -228,13 +228,14 @@ describe("doctor", () => {
         "export BRAND_PROFILE=jci-oriente",
         "gh variable set BRAND_PROFILE --env production --body jci-oriente",
       ]);
-      expect(doctorNext(rows)).toBeNull();
     });
 
     it("sends a bucket that does not exist to brand:provision", async () => {
       responses.set(
         "gcloud storage objects list",
-        new CommandError("gcloud storage objects list failed: gs://x not found: 404."),
+        commandFailure("gcloud", ["storage", "objects", "list"], {
+          stderr: "gs://x not found: 404.",
+        }),
       );
       expect(runsOf(rowFor(await diagnose(), "bucket"))).toEqual([
         "pnpm brand:provision",
@@ -254,7 +255,9 @@ describe("doctor", () => {
     it("lists the fixes once, BRAND_PROFILE before the cloud steps that need it", async () => {
       responses.set(
         "gcloud storage objects list",
-        new CommandError("gcloud storage objects list failed: gs://x not found: 404."),
+        commandFailure("gcloud", ["storage", "objects", "list"], {
+          stderr: "gs://x not found: 404.",
+        }),
       );
       responses.set("pnpm --version", "11.4.0\n");
       const runs = doctorRemedies(await diagnose({ env: { SHELL: "/bin/zsh" } })).map(
@@ -270,10 +273,25 @@ describe("doctor", () => {
       ]);
     });
 
-    it("points a passing setup at the deploy", async () => {
-      expect(doctorNext(await diagnose())).toMatchObject({
-        run: "gh workflow run deploy.yml -f surface=all",
-      });
+    it("points a passing setup at the full deploy", () => {
+      expect(DOCTOR_NEXT.map(({ run }) => run)).toEqual([
+        "gh workflow run deploy.yml -f surface=all",
+      ]);
+    });
+
+    it("orders the rows as the fixes must happen", async () => {
+      expect((await diagnose()).map(({ check }) => check)).toEqual([
+        "node",
+        "pnpm",
+        "BRAND_PROFILE",
+        "profile",
+        "schema",
+        "site content",
+        "assets",
+        ".firebaserc",
+        "gcloud account",
+        "bucket",
+      ]);
     });
   });
 });

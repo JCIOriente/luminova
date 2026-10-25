@@ -358,7 +358,7 @@ describe("init guidance", () => {
       (e: unknown) => e,
     );
     expect(error instanceof BrandConfigError ? error.remedies : []).toEqual([
-      expect.objectContaining({ where: "Firebase console → Project settings → Your apps" }),
+      expect.objectContaining({ console: "Firebase console → Project settings → Your apps" }),
     ]);
   });
 

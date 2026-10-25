@@ -28,10 +28,9 @@ export interface PullManifest {
   objects: { name: string; generation: string; md5: string | undefined }[];
 }
 
-export const PULL_NEXT: Remedy = {
-  change: "check the pulled set with the release rules",
-  run: "pnpm brand:check --release",
-};
+export const PULL_NEXT: readonly Remedy[] = [
+  { change: "check the pulled set with the release rules", run: "pnpm brand:check --release" },
+];
 
 /**
  * Downloads the selected profile's contract files from its bucket into `brand-assets/`

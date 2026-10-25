@@ -116,10 +116,9 @@ describe("pull", () => {
   });
 
   it("names the next step: check the pulled set with the release rules", () => {
-    expect(PULL_NEXT).toEqual({
-      change: "check the pulled set with the release rules",
-      run: "pnpm brand:check --release",
-    });
+    expect(PULL_NEXT).toEqual([
+      { change: "check the pulled set with the release rules", run: "pnpm brand:check --release" },
+    ]);
   });
 
   it("keeps the previous brand-assets/ when the downloaded set is invalid", async () => {

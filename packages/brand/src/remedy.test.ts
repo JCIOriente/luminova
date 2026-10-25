@@ -21,7 +21,7 @@ describe("formatRemedies", () => {
   it("names a console as the place, without a command", () => {
     expect(
       formatRemedies([
-        { change: "copy the web app id", where: "Firebase console → Project settings" },
+        { change: "copy the web app id", console: "Firebase console → Project settings" },
       ]),
     ).toBe(
       ["To fix:", "  - copy the web app id   # in the Firebase console → Project settings"].join(
@@ -31,20 +31,18 @@ describe("formatRemedies", () => {
   });
 
   it("prints nothing when there is nothing to fix", () => {
-    expect(formatRemedies([undefined, undefined])).toBe("");
+    expect(formatRemedies([])).toBe("");
   });
 });
 
 describe("formatNext", () => {
-  it("prints the next step as a command to paste", () => {
-    expect(formatNext({ change: "check the whole setup", run: "pnpm brand:doctor" })).toBe(
-      ["Next: check the whole setup", "  pnpm brand:doctor   # in the repo"].join("\n"),
+  it("prints one step as a command to paste", () => {
+    expect(formatNext([{ change: "check the whole setup", run: "pnpm brand:doctor" }])).toBe(
+      ["Next:", "  check the whole setup", "    pnpm brand:doctor   # in the repo"].join("\n"),
     );
   });
-});
 
-describe("formatNext with several steps", () => {
-  it("numbers them, each with its command", () => {
+  it("numbers several steps, each with its command", () => {
     expect(
       formatNext([
         { change: "select the profile", run: "export BRAND_PROFILE=acme", where: "shell" },
@@ -64,6 +62,6 @@ describe("formatNext with several steps", () => {
 describe("uniqueRemedies", () => {
   it("keeps the first of equal remedies, in order", () => {
     const a = { run: "a" };
-    expect(uniqueRemedies([a, undefined, { run: "b" }, { run: "a" }])).toEqual([a, { run: "b" }]);
+    expect(uniqueRemedies([a, { run: "b" }, { run: "a" }])).toEqual([a, { run: "b" }]);
   });
 });

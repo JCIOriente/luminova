@@ -38,10 +38,7 @@ export class BrandConfigError extends Error {
 
 /** A profile that cannot be located: a malformed slug or no `brand/<slug>/brand.json`. */
 export class ProfileNotFoundError extends BrandConfigError {
-  constructor(problems: readonly (string | Problem)[], remedies: readonly Remedy[] = []) {
-    super(problems, remedies);
-    this.name = "ProfileNotFoundError";
-  }
+  override name = "ProfileNotFoundError";
 }
 
 export type Env = Readonly<Record<string, string | undefined>>;
@@ -134,6 +131,36 @@ export function keepProfileCommand(slug: string, env: Env = process.env): string
 export const cdProfileCommand = (slug: string) =>
   `gh variable set BRAND_PROFILE --env production --body ${slug}`;
 
+/** Select a profile in this terminal; `choices` lists the ones that exist. */
+export const selectProfileRemedy = (choices?: readonly string[]): Remedy => ({
+  change: choices
+    ? `select an existing profile (${choices.join(", ") || "none yet"})`
+    : "select your own profile",
+  run: "export BRAND_PROFILE=<slug>",
+  where: "shell",
+});
+
+/**
+ * The steps that select `slug` for good: every new terminal, this one, and (with `cd`) the
+ * GitHub production variable CD reads.
+ */
+export function profileSetupRemedies(
+  slug: string,
+  { env = process.env, cd = true }: { env?: Env; cd?: boolean } = {},
+): Remedy[] {
+  const steps: Remedy[] = [
+    {
+      change: "select it in every new terminal (or put the export in a direnv .envrc in the repo)",
+      run: keepProfileCommand(slug, env),
+      where: "shell",
+    },
+    { change: "and in this one", run: `export BRAND_PROFILE=${slug}`, where: "shell" },
+  ];
+  if (cd)
+    steps.push({ change: "CD reads its own copy", run: cdProfileCommand(slug), where: "shell" });
+  return steps;
+}
+
 /** Profiles a person would select: every one with a brand.json except the neutral fixture. */
 export function selectableProfiles(repoRoot: string = REPO_ROOT): string[] {
   return availableProfiles(join(repoRoot, "brand")).filter((slug) => slug !== "fixture");
@@ -160,14 +187,8 @@ export function loadProfile({
         ]
       : [];
 
-  // Checked before the path join, so a slug like "../x" can never leave brand/.
   const brandDir = join(repoRoot, "brand");
-  const available = () => availableProfiles(brandDir).filter((name) => name !== "fixture");
-  const select = (): Remedy => ({
-    change: `select an existing profile (${available().join(", ") || "none yet"})`,
-    run: "export BRAND_PROFILE=<slug>",
-    where: "shell",
-  });
+  const select = () => selectProfileRemedy(selectableProfiles(repoRoot));
   // Checked before the path join, so a slug like "../x" can never leave brand/.
   if (!SLUG_PATTERN.test(slug)) {
     throw new ProfileNotFoundError(

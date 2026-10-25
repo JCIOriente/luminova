@@ -3,13 +3,13 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { ASSET_CONTRACT, PULL_ASSETS, PULL_MANIFEST_FILE } from "./assets.ts";
 import { sha256 } from "./hash.ts";
-import type { Problem, Remedy } from "./remedy.ts";
+import type { Problem } from "./remedy.ts";
 import {
   BrandConfigError,
-  cdProfileCommand,
   issuesToBrandError,
-  keepProfileCommand,
+  profileSetupRemedies,
   readJsonFile,
+  selectProfileRemedy,
   type Env,
   type LoadedProfile,
 } from "./load-profile.ts";
@@ -48,12 +48,6 @@ export function isRelease(env: Env): boolean {
 const RELEASE_BUILD_COMMAND =
   "BRAND_RELEASE=1 VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter spotlight --filter backstage --force";
 
-const SELECT_PROFILE: Remedy = {
-  change: "select your own profile",
-  run: "export BRAND_PROFILE=<slug>",
-  where: "shell",
-};
-
 /**
  * A profile that may reach production: named on purpose, not the fixture, not an
  * emulator-only project. Release builds, brand:push and brand:provision --apply share it.
@@ -65,20 +59,13 @@ export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
   if (profile.source === "default") {
     errors.push({
       message: "BRAND_PROFILE is required here; set it to the profile you mean to ship.",
-      remedies: [
-        {
-          change: "select it in every terminal (then open a new one, or also export it now)",
-          run: keepProfileCommand("<slug>"),
-          where: "shell",
-        },
-        { change: "CD reads its own copy", run: cdProfileCommand("<slug>"), where: "shell" },
-      ],
+      remedies: profileSetupRemedies("<slug>"),
     });
   }
   if (slug === NEUTRAL_PROFILE) {
     errors.push({
       message: `profile "${slug}" is the neutral test profile and can never be released.`,
-      remedies: [SELECT_PROFILE],
+      remedies: [selectProfileRemedy()],
     });
   }
   if (projectId.startsWith(DEMO_PROJECT_PREFIX)) {
@@ -159,9 +146,8 @@ export function releaseErrors({
       message: `GCP_PROJECT_ID "${target}" is not profile "${slug}"'s project "${projectId}".`,
       remedies: [
         {
+          ...selectProfileRemedy(),
           change: `select the profile whose firebase.projectId is "${target}", or unset GCP_PROJECT_ID`,
-          run: "export BRAND_PROFILE=<slug>",
-          where: "shell",
         },
       ],
     });

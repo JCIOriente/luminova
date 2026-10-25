@@ -62,6 +62,7 @@ describe("release remedies", () => {
     const [problem] = releaseErrors({ profile: jci("default"), env: {}, assetsDir, ...BUILD });
     expect(problem?.remedies?.map(({ run }) => run)).toEqual([
       expect.stringMatching(/BRAND_PROFILE=<slug>/),
+      "export BRAND_PROFILE=<slug>",
       "gh variable set BRAND_PROFILE --env production --body <slug>",
     ]);
   });

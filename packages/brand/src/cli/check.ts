@@ -72,7 +72,9 @@ export const checkRemedies = (check: BrandCheck): Remedy[] => [
   ...check.release.flatMap((row) => row.remedies ?? []),
 ];
 
-export const CHECK_NEXT: Remedy = { change: "check the whole setup", run: "pnpm brand:doctor" };
+export const CHECK_NEXT: readonly Remedy[] = [
+  { change: "check the whole setup", run: "pnpm brand:doctor" },
+];
 
 /** The build's own checks, one row per contract file (spec section 5.9). */
 export async function checkBrand({

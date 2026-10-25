@@ -6,7 +6,7 @@ import { writeAssetSet } from "../asset-set.ts";
 import { ASSET_CONTRACT } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import type { CommandRunner } from "./gcloud.ts";
-import { DEPLOY_DISPATCH, push, pushNext } from "./push.ts";
+import { DEPLOY_DISPATCH, PUSH_NEXT, push } from "./push.ts";
 
 const BUCKET = "jci-oriente-brand-assets";
 const profile: LoadedProfile = {
@@ -68,7 +68,7 @@ describe("push", () => {
   });
 
   it("names the deploy dispatch and doctor as the next steps", () => {
-    expect(pushNext().map(({ run }) => run)).toEqual([DEPLOY_DISPATCH, "pnpm brand:doctor"]);
+    expect(PUSH_NEXT.map(({ run }) => run)).toEqual([DEPLOY_DISPATCH, "pnpm brand:doctor"]);
   });
 
   it("refuses the default profile: the bucket must be named on purpose", async () => {

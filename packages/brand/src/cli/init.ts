@@ -8,7 +8,7 @@ import {
   DEFAULT_PROFILE,
   REPO_ROOT,
   issuesToBrandError,
-  keepProfileCommand,
+  profileSetupRemedies,
   loadProfile,
   parseJsonText,
   readJsonFile,
@@ -18,7 +18,7 @@ import { PULLED_ASSETS_DIR } from "../release.ts";
 import { formatNext, type Remedy } from "../remedy.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema } from "../schema.ts";
 import { SITE_CONTENT_FILE } from "../site-content.ts";
-import { CommandError, runCommand, type CommandRunner } from "./gcloud.ts";
+import { CommandError, INSTALL_FIREBASE_CLI, runCommand, type CommandRunner } from "./gcloud.ts";
 import { exitOnFailure } from "./main.ts";
 import { terminalPrompter, type Prompter } from "./prompts.ts";
 
@@ -217,7 +217,7 @@ async function fillWebConfig(answers: Answers, run: CommandRunner): Promise<void
   if (!projectId) {
     throw new BrandConfigError(
       ["firebase.projectId is needed to read the web config"],
-      [{ change: "add firebase.projectId", where: FIREBASE_SETTINGS }],
+      [{ change: "add firebase.projectId", console: FIREBASE_SETTINGS }],
     );
   }
   for (const app of ["spotlight", "backstage"] as const) {
@@ -225,7 +225,7 @@ async function fillWebConfig(answers: Answers, run: CommandRunner): Promise<void
     if (!appId) {
       throw new BrandConfigError(
         [`firebase.web.${app}.appId is needed to read its config`],
-        [{ change: `add firebase.web.${app}.appId`, where: YOUR_APPS }],
+        [{ change: `add firebase.web.${app}.appId`, console: YOUR_APPS }],
       );
     }
     const output = await run("firebase", [
@@ -239,19 +239,13 @@ async function fillWebConfig(answers: Answers, run: CommandRunner): Promise<void
     const label = `firebase apps:sdkconfig WEB ${appId}`;
     const parsed = sdkconfigSchema.safeParse(parseJsonText(output, label));
     if (!parsed.success) {
-      throw issuesToBrandError(label, parsed.error.issues, [
-        {
-          change: "update the Firebase CLI (CI pins 15.22.1)",
-          run: "npm install -g firebase-tools@15.22.1",
-          where: "shell",
-        },
-      ]);
+      throw issuesToBrandError(label, parsed.error.issues, [INSTALL_FIREBASE_CLI]);
     }
     const config = parsed.data.result.sdkConfig;
     if (config.projectId !== projectId) {
       throw new BrandConfigError(
         [`${label}: app belongs to project "${config.projectId}", not "${projectId}"`],
-        [{ change: `use the ${app} web app id of project "${projectId}"`, where: YOUR_APPS }],
+        [{ change: `use the ${app} web app id of project "${projectId}"`, console: YOUR_APPS }],
       );
     }
     fillIfBlank(answers, `firebase.web.${app}.apiKey`, config.apiKey);
@@ -268,12 +262,7 @@ const YOUR_APPS = `${FIREBASE_SETTINGS} → Your apps`;
 /** What a new profile needs before it builds, in order (docs/adopting.md steps 3–6). */
 export function initNext(slug: string, env: Env = process.env): Remedy[] {
   return [
-    {
-      change: "select the profile in every new terminal (or put the export in a direnv .envrc)",
-      run: keepProfileCommand(slug, env),
-      where: "shell",
-    },
-    { change: "and in this one", run: `export BRAND_PROFILE=${slug}`, where: "shell" },
+    ...profileSetupRemedies(slug, { env, cd: false }),
     { change: "write .firebaserc for the new project", run: "pnpm brand:apply" },
     {
       change: `edit brand/${slug}/${SITE_CONTENT_FILE}: history, mission, contacts (it seeds the site once)`,

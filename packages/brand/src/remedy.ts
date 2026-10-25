@@ -6,8 +6,10 @@
 export interface Remedy {
   change?: string;
   run?: string;
-  /** `repo` (the default for a command), `shell`, or a console such as `GitHub`. */
-  where?: string;
+  /** Where `run` goes; a command defaults to the repo. */
+  where?: "repo" | "shell";
+  /** A web page to do `change` on, e.g. `Firebase console → Project settings`. */
+  console?: string;
 }
 
 export interface Problem {
@@ -15,49 +17,45 @@ export interface Problem {
   remedies?: readonly Remedy[];
 }
 
-const PLACES: Readonly<Record<string, string>> = { repo: "the repo", shell: "your shell" };
+const PLACES = { repo: "the repo", shell: "your shell" } as const;
 
-function place(remedy: Remedy): string {
-  const where = remedy.where ?? (remedy.run ? "repo" : undefined);
-  return where ? `   # in ${PLACES[where] ?? `the ${where}`}` : "";
+function place({ where, console, run }: Remedy): string {
+  if (console) return `   # in the ${console}`;
+  const at = where ?? (run ? "repo" : undefined);
+  return at ? `   # in ${PLACES[at]}` : "";
 }
 
-const key = ({ change, run, where }: Remedy) => JSON.stringify([change, run, where]);
+const key = ({ change, run, where, console }: Remedy) =>
+  JSON.stringify([change, run, where, console]);
 
-export function uniqueRemedies(remedies: readonly (Remedy | undefined)[]): Remedy[] {
+export function uniqueRemedies(remedies: readonly Remedy[]): Remedy[] {
   const seen = new Set<string>();
-  return remedies.filter((remedy): remedy is Remedy => {
-    if (!remedy || seen.has(key(remedy))) return false;
+  return remedies.filter((remedy) => {
+    if (seen.has(key(remedy))) return false;
     seen.add(key(remedy));
     return true;
   });
 }
 
-function remedyLines(remedy: Remedy, indent: string): string[] {
-  if (!remedy.change) return [`${indent}${remedy.run ?? ""}${place(remedy)}`];
-  if (!remedy.run) return [`${indent}${remedy.change}${place(remedy)}`];
-  const under = " ".repeat(indent.length + 2);
-  return [`${indent}${remedy.change}`, `${under}${remedy.run}${place(remedy)}`];
+/** The change, then the command indented under it; the place goes on the last line. */
+function remedyLines(remedy: Remedy, marker: string): string[] {
+  const text = [remedy.change, remedy.run].filter((line): line is string => Boolean(line));
+  const under = " ".repeat(marker.length + 2);
+  return text.map(
+    (line, index) =>
+      `${index === 0 ? marker : under}${line}${index === text.length - 1 ? place(remedy) : ""}`,
+  );
 }
 
 /** A "To fix:" block, each remedy once in first-seen order; "" when there are none. */
-export function formatRemedies(remedies: readonly (Remedy | undefined)[]): string {
+export function formatRemedies(remedies: readonly Remedy[]): string {
   const unique = uniqueRemedies(remedies);
   if (unique.length === 0) return "";
   return ["To fix:", ...unique.flatMap((remedy) => remedyLines(remedy, "  - "))].join("\n");
 }
 
-/** The next step, or numbered steps, as commands to paste. */
-export function formatNext(next: Remedy | readonly Remedy[]): string {
-  if (isList(next)) {
-    return ["Next:", ...next.flatMap((step, index) => remedyLines(step, `  ${index + 1}. `))].join(
-      "\n",
-    );
-  }
-  const [first = "", ...rest] = next.change
-    ? [next.change, `${next.run ?? ""}${place(next)}`]
-    : [`${next.run ?? ""}${place(next)}`];
-  return [`Next: ${first}`, ...rest.filter(Boolean).map((line) => `  ${line}`)].join("\n");
+/** The next step as commands to paste; several steps are numbered. */
+export function formatNext(steps: readonly Remedy[]): string {
+  const marker = (index: number) => (steps.length === 1 ? "  " : `  ${index + 1}. `);
+  return ["Next:", ...steps.flatMap((step, index) => remedyLines(step, marker(index)))].join("\n");
 }
-
-const isList = (next: Remedy | readonly Remedy[]): next is readonly Remedy[] => Array.isArray(next);

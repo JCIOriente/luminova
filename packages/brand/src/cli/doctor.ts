@@ -4,12 +4,11 @@ import { z } from "zod";
 import { ASSET_CONTRACT } from "../assets.ts";
 import {
   BrandConfigError,
-  cdProfileCommand,
   ProfileNotFoundError,
   REPO_ROOT,
   errorMessage,
-  keepProfileCommand,
   loadProfile,
+  profileSetupRemedies,
   readJsonFile,
   selectableProfiles,
   selectedProfile,
@@ -21,6 +20,7 @@ import { checkBrand } from "./check.ts";
 import { formatNext, formatRemedies, uniqueRemedies, type Remedy } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
 import { exitOnFailure } from "./main.ts";
+import { deployDispatch } from "./push.ts";
 import { formatTable, plural } from "./table.ts";
 
 export interface DoctorRow {
@@ -43,13 +43,19 @@ const warn = row("warn");
 const fail = row("fail");
 const skip = (check: string) => row("skip")(check, "needs a valid profile");
 
+/** A caught error as a row: its message in the cell (never a "To fix:" block), its remedies. */
+function failed(check: string, error: unknown): DoctorRow {
+  if (error instanceof BrandConfigError)
+    return fail(check, error.errors.join("; "), error.remedies);
+  if (error instanceof CommandError) return fail(check, error.message, error.remedies);
+  return fail(check, errorMessage(error));
+}
+
 async function attempt(check: string, body: () => Promise<DoctorRow>): Promise<DoctorRow> {
   try {
     return await body();
   } catch (error) {
-    const remedies =
-      error instanceof BrandConfigError || error instanceof CommandError ? error.remedies : [];
-    return fail(check, errorMessage(error), remedies);
+    return failed(check, error);
   }
 }
 
@@ -107,7 +113,7 @@ async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<Do
       "--format=value(name)",
     ]);
   } catch (error) {
-    if (!(error instanceof CommandError) || !/\b404\b|not found/i.test(error.message)) throw error;
+    if (!(error instanceof CommandError) || error.kind !== "notFound") throw error;
     return fail("bucket", `${bucketUrl(bucket)} does not exist yet`, [
       {
         change: "print the bucket setup for this profile (changes nothing)",
@@ -199,7 +205,7 @@ export async function doctor({
   run?: CommandRunner;
   nodeVersion?: string;
 } = {}): Promise<DoctorRow[]> {
-  const { rows, profile } = profileRows(repoRoot, env);
+  const { rows: profileChecks, profile } = profileRows(repoRoot, env);
   // The external commands are independent; start them together, report in order.
   const [account, bucket, pnpm] = await Promise.all([
     attempt("gcloud account", () => gcloudAccountRow(run)),
@@ -207,11 +213,17 @@ export async function doctor({
     attempt("pnpm", () => pnpmRow(repoRoot, run)),
   ]);
 
-  rows.push(
+  // Rows run in the order fixes must happen: the tools and BRAND_PROFILE first
+  // (brand:provision and brand:push refuse without it), then the profile, then the cloud.
+  return [
+    await attempt("node", () => nodeRow(repoRoot, nodeVersion)),
+    pnpm,
+    profileSelectionRow(repoRoot, env),
+    ...profileChecks,
     ...(profile
       ? await brandRows(profile, repoRoot, env).catch((error: unknown) => [
-          fail("site content", errorMessage(error)),
-          fail("assets", errorMessage(error)),
+          failed("site content", error),
+          failed("assets", error),
         ])
       : [skip("site content"), skip("assets")]),
     profile
@@ -219,64 +231,38 @@ export async function doctor({
       : skip(FIREBASERC),
     account,
     bucket,
-  );
-  const selected = env.BRAND_PROFILE?.trim();
-  const profiles = selectableProfiles(repoRoot);
-  // With one candidate the commands are ready to paste; otherwise the user picks.
-  const slug = profiles.length === 1 ? (profiles[0] ?? "<slug>") : "<slug>";
-  rows.push(
-    selected
-      ? ok("BRAND_PROFILE", selected)
-      : fail("BRAND_PROFILE", `unset (profiles: ${profiles.join(", ") || "none"})`, [
-          {
-            change:
-              "select it in every new terminal (or put the export in a direnv .envrc in the repo)",
-            run: keepProfileCommand(slug, env),
-            where: "shell",
-          },
-          { change: "and in this one", run: `export BRAND_PROFILE=${slug}`, where: "shell" },
-          { change: "CD reads its own copy", run: cdProfileCommand(slug), where: "shell" },
-        ]),
-    await attempt("node", () => nodeRow(repoRoot, nodeVersion)),
-    pnpm,
-  );
-  return rows;
+  ];
 }
 
-// The order fixes must happen in: the tools and BRAND_PROFILE first (brand:provision and
-// brand:push refuse without it), then the profile and its files, then the cloud.
-const FIX_ORDER = [
-  "node",
-  "pnpm",
-  "BRAND_PROFILE",
-  "profile",
-  "schema",
-  "site content",
-  "assets",
-  FIREBASERC,
-  "gcloud account",
-  "bucket",
-];
+function profileSelectionRow(repoRoot: string, env: Env): DoctorRow {
+  const selected = env.BRAND_PROFILE?.trim();
+  if (selected) return ok("BRAND_PROFILE", selected);
+  const profiles = selectableProfiles(repoRoot);
+  const slug = profiles.length === 1 ? (profiles[0] ?? "<slug>") : "<slug>";
+  return fail(
+    "BRAND_PROFILE",
+    `unset (profiles: ${profiles.join(", ") || "none"})`,
+    profileSetupRemedies(slug, { env }),
+  );
+}
 
-/** The remedies of failing and warning rows, each once, in the order to apply them. */
+/** The remedies of failing and warning rows, each once, in row (fix) order. */
 export const doctorRemedies = (rows: readonly DoctorRow[]): Remedy[] =>
   uniqueRemedies(
     rows
       .filter(({ status }) => status === "fail" || status === "warn")
-      .toSorted((a, b) => FIX_ORDER.indexOf(a.check) - FIX_ORDER.indexOf(b.check))
       .flatMap(({ remedies }) => remedies ?? []),
   );
 
 /** With every row passing, the local setup is done and the next step is a deploy. */
-export function doctorNext(rows: readonly DoctorRow[]): Remedy | null {
-  if (rows.some(({ status }) => status === "fail")) return null;
-  return {
+export const DOCTOR_NEXT: readonly Remedy[] = [
+  {
     change:
       "deploy through CD (project owner; approve the run in GitHub, then check docs/adopting.md step 11)",
-    run: "gh workflow run deploy.yml -f surface=all",
+    run: deployDispatch("all"),
     where: "shell",
-  };
-}
+  },
+];
 
 if (import.meta.main) {
   await exitOnFailure(async () => {
@@ -294,7 +280,6 @@ if (import.meta.main) {
       console.error(`brand:doctor: ${plural(failed, "check")} failed.`);
       process.exit(1);
     }
-    const next = doctorNext(rows);
-    console.log(`brand:doctor: every check passed.${next ? `\n\n${formatNext(next)}` : ""}`);
+    console.log(`brand:doctor: every check passed.\n\n${formatNext(DOCTOR_NEXT)}`);
   });
 }

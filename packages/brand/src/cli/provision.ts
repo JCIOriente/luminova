@@ -15,6 +15,7 @@ import { undeployableProfileErrors } from "../release.ts";
 import { formatNext, type Remedy } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
 import { runCli } from "./main.ts";
+import { deployDispatch } from "./push.ts";
 
 const LIFECYCLE_FILE = "brand/bucket-lifecycle.json";
 const CI_CD_DOC = "docs/ci-cd.md";
@@ -283,7 +284,7 @@ export async function printProvisioning({
     "# B5: the CD variable",
     `gh variable set BRAND_PROFILE --env production --body ${slug}`,
     "# B6, after the release PR merges: deploy and verify",
-    "gh workflow run deploy.yml -f surface=all",
+    deployDispatch("all"),
     "",
     `# First-time CD setup for this project (${CI_CD_DOC} section 6, values filled in):`,
     section,
