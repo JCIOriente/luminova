@@ -158,7 +158,21 @@ export interface LoadedProfile {
   brand: Brand;
   source: ProfileSource;
   warnings: string[];
+  /**
+   * The profile runs only in the emulators: a `demo-` project, from `brand:init --local`,
+   * until `brand:init --connect` attaches a real one.
+   */
+  localOnly: boolean;
 }
+
+const DEMO_PROJECT_PREFIX = "demo-";
+
+/** A `demo-` project exists only in the Firebase emulators. */
+export const isDemoProject = (projectId: string) => projectId.startsWith(DEMO_PROJECT_PREFIX);
+
+/** The emulator-only project a local profile runs on, kept within Firebase's 30 characters. */
+export const demoProjectId = (slug: string) =>
+  `${DEMO_PROJECT_PREFIX}${slug}`.slice(0, 30).replace(/-+$/, "");
 
 interface Selection {
   slug: string;
@@ -300,5 +314,6 @@ export function loadProfile({
     );
   }
 
-  return { slug, dir, brand: parsed.data, source, warnings };
+  const localOnly = isDemoProject(parsed.data.firebase.projectId);
+  return { slug, dir, brand: parsed.data, source, warnings, localOnly };
 }

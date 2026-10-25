@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { formatNext, formatRemedies, uniqueRemedies } from "./remedy.ts";
+import { REPO_ROOT } from "./load-profile.ts";
+import { GUIDE_STEPS, formatNext, formatRemedies, uniqueRemedies } from "./remedy.ts";
 
 describe("formatRemedies", () => {
   it("prints each remedy once, with the command and where to run it", () => {
@@ -63,5 +66,22 @@ describe("uniqueRemedies", () => {
   it("keeps the first of equal remedies, in order", () => {
     const a = { run: "a" };
     expect(uniqueRemedies([a, { run: "b" }, { run: "a" }])).toEqual([a, { run: "b" }]);
+  });
+});
+
+describe("GUIDE_STEPS", () => {
+  it("points every CLI step reference at the matching docs/adopting.md heading", () => {
+    const guide = readFileSync(join(REPO_ROOT, "docs/adopting.md"), "utf8");
+    const titles: Record<keyof typeof GUIDE_STEPS, string> = {
+      profile: "Create your profile",
+      images: "Images",
+      firebaseProject: "Firebase project",
+      doctor: "Doctor",
+      provision: "Keyless CD",
+      goLive: "Go live",
+    };
+    for (const [step, number] of Object.entries(GUIDE_STEPS)) {
+      expect(guide).toContain(`### ${number}. ${titles[step as keyof typeof GUIDE_STEPS]}`);
+    }
   });
 });

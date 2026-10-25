@@ -12,6 +12,19 @@ export interface Remedy {
   console?: string;
 }
 
+/** The docs/adopting.md steps the CLI points at; a test checks each heading still matches. */
+export const GUIDE_STEPS = {
+  profile: 2,
+  images: 3,
+  firebaseProject: 6,
+  doctor: 8,
+  provision: 9,
+  goLive: 12,
+} as const;
+
+export const guideStep = (step: keyof typeof GUIDE_STEPS) =>
+  `docs/adopting.md step ${GUIDE_STEPS[step]}`;
+
 export interface Problem {
   message: string;
   remedies?: readonly Remedy[];

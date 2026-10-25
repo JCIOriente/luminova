@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { guideStep } from "./remedy.ts";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { ASSET_CONTRACT, PULL_ASSETS, PULL_MANIFEST_FILE } from "./assets.ts";
@@ -21,24 +22,12 @@ import {
 const RELEASE_ENV = "BRAND_RELEASE";
 export const RELEASE_MARKER_FILE = ".brand-release.json";
 export const PULLED_ASSETS_DIR = "brand-assets";
-const DEMO_PROJECT_PREFIX = "demo-";
-
-/**
- * A `demo-` project lives only in the Firebase emulators: a local-only profile (brand:init
- * --local) uses one until the chapter connects a real project.
- */
-export const isDemoProject = (projectId: string) => projectId.startsWith(DEMO_PROJECT_PREFIX);
 
 /** How a local-only profile goes live: a real project, then `--connect`. */
 export const CONNECT_PROJECT: Remedy = {
-  change:
-    "when you are ready to go live: create a Firebase project (docs/adopting.md step 6), then connect it",
+  change: `when you are ready to go live: create a Firebase project (${guideStep("firebaseProject")}), then connect it`,
   run: "pnpm brand:init --connect",
 };
-
-/** The emulator-only project a local profile runs on, kept within Firebase's 30 characters. */
-export const demoProjectId = (slug: string) =>
-  `${DEMO_PROJECT_PREFIX}${slug}`.slice(0, 30).replace(/-+$/, "");
 
 const releaseMarkerSchema = z.strictObject({
   profile: z.string().min(1),
@@ -83,7 +72,10 @@ export const PRINT_GCP_SETUP: Remedy = {
   run: "pnpm brand:provision",
 };
 
-/** CD signs in with the profile's `deploy` names; without them no deploy can start. */
+/**
+ * CD signs in with the profile's `deploy` names; without them no deploy can start.
+ * Twin: .github/scripts/deploy-ready.sh makes Deploy skip on the same rule.
+ */
 export function missingDeployProblem({ slug, brand }: LoadedProfile): Problem | null {
   if (brand.deploy) return null;
   return {
@@ -108,7 +100,7 @@ export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
       remedies: [selectProfileRemedy()],
     });
   }
-  if (isDemoProject(projectId)) {
+  if (profile.localOnly) {
     errors.push({
       message: `profile "${slug}" is local-only (project "${projectId}" exists only in the emulators), so it cannot be released.`,
       remedies: [CONNECT_PROJECT],

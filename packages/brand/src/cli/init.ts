@@ -8,12 +8,15 @@ import {
   EXAMPLE_PROFILE,
   REPO_ROOT,
   issuesToBrandError,
+  demoProjectId,
+  isDemoProject,
   loadProfile,
   parseJsonText,
   readJsonFile,
+  type LoadedProfile,
 } from "../load-profile.ts";
-import { CONNECT_PROJECT, PULLED_ASSETS_DIR, demoProjectId, isDemoProject } from "../release.ts";
-import { formatNext, type Remedy } from "../remedy.ts";
+import { CONNECT_PROJECT, PULLED_ASSETS_DIR } from "../release.ts";
+import { formatNext, type Remedy, guideStep } from "../remedy.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema } from "../schema.ts";
 import { SITE_CONTENT_FILE } from "../site-content.ts";
 import { FIREBASERC, applyProfile } from "./apply.ts";
@@ -283,6 +286,9 @@ export const ANSWERS_FILE = "brand-init-answers.json";
  * A profile that runs only in the emulators (spec L1): a `demo-` project and placeholder
  * web apps, which the emulators accept and every release path refuses.
  */
+/** Everything a project decides: what local mode fills in and --connect asks again. */
+const PROJECT_KEYS = ["firebase", "assetsBucket", "deploy"] as const;
+
 function localFirebase(answers: Answers): void {
   const projectId = demoProjectId(text(answers, "slug") ?? "chapter");
   const webApp = (app: string) => ({
@@ -318,7 +324,7 @@ const YOUR_APPS = `${FIREBASE_SETTINGS} → Your apps`;
 export function initNext(slug: string, { local = false }: { local?: boolean } = {}): Remedy[] {
   return [
     {
-      change: `put the ${ASSET_CONTRACT.length} images in ${PULLED_ASSETS_DIR}/ (its README.txt lists them), then check them (docs/adopting.md step 3)`,
+      change: `put the ${ASSET_CONTRACT.length} images in ${PULLED_ASSETS_DIR}/ (its README.txt lists them), then check them (${guideStep("images")})`,
       run: "pnpm brand:check",
     },
     {
@@ -340,10 +346,9 @@ export function initNext(slug: string, { local = false }: { local?: boolean } = 
 
 /** After --connect: confirm the project, then the Google Cloud setup (steps 8 to 11). */
 export const CONNECT_NEXT: readonly Remedy[] = [
-  { change: "check the whole setup (docs/adopting.md step 8)", run: "pnpm brand:doctor" },
+  { change: `check the whole setup (${guideStep("doctor")})`, run: "pnpm brand:doctor" },
   {
-    change:
-      "print the Google Cloud setup, step by step, with your values (step 9; changes nothing)",
+    change: `print the Google Cloud setup, step by step, with your values (${guideStep("provision")}; changes nothing)`,
     run: "pnpm brand:provision",
   },
 ];
@@ -407,14 +412,13 @@ function asker(
   };
 }
 
-/** The Firebase project questions, the optional sdkconfig read, then the keys it leaves. */
+/** The Firebase project questions; resolves whether to read the keys with sdkconfig. */
 async function askProject(
   ask: (fields: readonly Field[]) => Promise<void>,
-  answers: Answers,
-  { prompter, fillWeb, run }: { prompter?: Prompter; fillWeb: boolean; run: CommandRunner },
-): Promise<void> {
+  { prompter, fillWeb }: { prompter?: Prompter; fillWeb: boolean },
+): Promise<boolean> {
   await ask(PROJECT_FIELDS);
-  const wanted =
+  return (
     fillWeb ||
     (prompter !== undefined &&
       /^y/i.test(
@@ -422,7 +426,16 @@ async function askProject(
           key: "fillWeb",
           label: "Read the API keys with firebase apps:sdkconfig? Needs firebase login (y/N)",
         }),
-      ));
+      ))
+  );
+}
+
+/** The optional sdkconfig read, then the web keys it leaves unanswered. */
+async function askWebKeys(
+  ask: (fields: readonly Field[]) => Promise<void>,
+  answers: Answers,
+  { wanted, run }: { wanted: boolean; run: CommandRunner },
+): Promise<void> {
   if (wanted) await fillWebConfig(answers, run);
   await ask(WEB_KEY_FIELDS);
 }
@@ -479,6 +492,8 @@ export async function init({
   const ask = asker(answers, example.answers, repoRoot, prompter);
 
   let local = wantLocal;
+  // The sdkconfig answer, so a saved-answers re-run repeats it.
+  let wanted = fillWeb;
   try {
     await ask(CHAPTER_FIELDS);
     local ||=
@@ -486,7 +501,10 @@ export async function init({
       get(answers, "firebase.projectId") === undefined &&
       !/^y/i.test(await prompter.ask(HAS_PROJECT));
     if (local) localFirebase(answers);
-    else await askProject(ask, answers, { prompter, fillWeb, run });
+    else {
+      wanted = await askProject(ask, { prompter, fillWeb });
+      await askWebKeys(ask, answers, { wanted, run });
+    }
     return { ...writeProfile({ repoRoot, answers, example }), local };
   } catch (error) {
     if (!prompter || !(error instanceof BrandConfigError || error instanceof CommandError)) {
@@ -496,7 +514,7 @@ export async function init({
     const saved = join(repoRoot, ANSWERS_FILE);
     writeFileSync(saved, `${JSON.stringify(answers, null, 2)}\n`);
     const reasons = error instanceof BrandConfigError ? error.errors : [error.message];
-    const flags = `${local ? " --local" : ""}${fillWeb ? " --sdkconfig" : ""}`;
+    const flags = `${local ? " --local" : ""}${wanted ? " --sdkconfig" : ""}`;
     throw new BrandConfigError(
       [...reasons, `your answers are saved in ${saved}`],
       [
@@ -548,19 +566,24 @@ function writeProfile({
   // The new chapter becomes the one this checkout builds.
   writeFileSync(join(repoRoot, CONFIG_FILE), configTemplate(slug));
   files.push(CONFIG_FILE);
-  applyProfile({
-    profile: { slug, dir, brand: data, source: "file", warnings: [] },
-    repoRoot,
-    env: {},
-  });
+  const profile: LoadedProfile = {
+    slug,
+    dir,
+    brand: data,
+    source: "file",
+    warnings: [],
+    localOnly: isDemoProject(data.firebase.projectId),
+  };
+  applyProfile({ profile, repoRoot, env: {} });
   files.push(FIREBASERC);
   return { slug, files };
 }
 
 /**
  * `brand:init --connect` (spec L2): asks only the Firebase questions for the profile
- * luminova.json selects, replacing a local-only profile's demo project, then rewrites
- * brand.json (with CD's sign-in names) and `.firebaserc`.
+ * luminova.json selects, then rewrites brand.json and `.firebaserc`. It replaces a
+ * local-only profile's demo project, or re-connects a connected one; CD's `deploy` names
+ * survive only when the project stays the same.
  */
 export async function connect({
   repoRoot = REPO_ROOT,
@@ -579,19 +602,17 @@ export async function connect({
   const label = `brand/${profile.slug}/brand.json`;
   const current = readJsonFile(join(profile.dir, "brand.json"), label);
   const answers: Answers = isRecord(current) ? structuredClone(current) : {};
-  // A demo project's placeholders are replaced, never offered as answers.
-  if (isDemoProject(profile.brand.firebase.projectId)) {
-    delete answers.firebase;
-    delete answers.assetsBucket;
-    delete answers.deploy;
-  }
+  // Every project question is asked again; a demo project's placeholders never are answers.
+  for (const key of PROJECT_KEYS) delete answers[key];
   Object.assign(answers, structuredClone(initial));
   const example = exampleProfile(repoRoot);
-  await askProject(asker(answers, example.answers, repoRoot, prompter), answers, {
-    prompter,
-    fillWeb,
-    run,
-  });
+  const ask = asker(answers, example.answers, repoRoot, prompter);
+  const wanted = await askProject(ask, { prompter, fillWeb });
+  await askWebKeys(ask, answers, { wanted, run });
+  const sameProject = text(answers, "firebase.projectId") === profile.brand.firebase.projectId;
+  if (sameProject && profile.brand.deploy && get(answers, "deploy") === undefined) {
+    set(answers, "deploy", profile.brand.deploy);
+  }
   const { slug, brand, data } = validBrand(answers, example.answers);
   if (slug !== profile.slug) {
     throw new BrandConfigError(
@@ -600,7 +621,8 @@ export async function connect({
     );
   }
   writeFileSync(join(profile.dir, "brand.json"), `${JSON.stringify(brand, null, 2)}\n`);
-  applyProfile({ profile: { ...profile, brand: data }, repoRoot, env: {} });
+  const localOnly = isDemoProject(data.firebase.projectId);
+  applyProfile({ profile: { ...profile, brand: data, localOnly }, repoRoot, env: {} });
   return { slug, projectId: data.firebase.projectId };
 }
 
@@ -616,7 +638,7 @@ if (import.meta.main) {
         [`${answersFile}: must be a JSON object`],
         [
           {
-            change: `make ${answersFile} a JSON object like the example in docs/adopting.md step 2`,
+            change: `make ${answersFile} a JSON object like the example in ${guideStep("profile")}`,
           },
         ],
       );

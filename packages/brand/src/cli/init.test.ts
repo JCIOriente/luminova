@@ -319,8 +319,8 @@ describe("init interactively", () => {
     const error = await init({
       repoRoot: root,
       answers,
-      prompter: scripted({ name: ["JCI Valle"] }),
-      fillWeb: true,
+      // "y" to the sdkconfig question, not the flag: the re-run must still carry it.
+      prompter: scripted({ name: ["JCI Valle"], fillWeb: ["y"] }),
       run: failing,
     }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(BrandConfigError);
@@ -409,6 +409,30 @@ describe("init --connect", () => {
     expect(JSON.parse(readFileSync(join(root, ".firebaserc"), "utf8")).projects.default).toBe(
       "jci-valle",
     );
+  });
+
+  it("re-connects a connected profile, keeping deploy only for the same project", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
+    await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
+    const file = join(root, "brand/jci-valle/brand.json");
+    const withDeploy = JSON.parse(readFileSync(file, "utf8"));
+    withDeploy.deploy = {
+      workloadIdentityProvider:
+        "projects/111222333/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
+      serviceAccount: "firebase-deployer@jci-valle.iam.gserviceaccount.com",
+    };
+    writeFileSync(file, JSON.stringify(withDeploy));
+
+    await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
+    expect(loadProfile({ repoRoot: root, env: {} }).brand.deploy).toEqual(withDeploy.deploy);
+
+    const other = structuredClone(firebase);
+    other.projectId = "jci-valle-2";
+    await connect({ repoRoot: root, answers: { firebase: other }, run: noCommands });
+    const moved = loadProfile({ repoRoot: root, env: {} }).brand;
+    expect(moved.firebase.projectId).toBe("jci-valle-2");
+    expect(moved.deploy).toBeUndefined();
   });
 
   it("asks only the Firebase questions", async () => {

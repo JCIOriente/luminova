@@ -1,4 +1,5 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
+import { guideStep } from "./remedy.ts";
 import { join } from "node:path";
 import { errorMessage } from "./load-profile.ts";
 import type { Remedy } from "./remedy.ts";
@@ -221,7 +222,7 @@ export function assetRemedies(
   const remedies: Remedy[] = [];
   if (validation.kinds.files) {
     remedies.push({
-      change: `put the files marked above in ${dirLabel}/ at the sizes shown (all ${ASSET_CONTRACT.length}: docs/adopting.md step 3)`,
+      change: `put the files marked above in ${dirLabel}/ at the sizes shown (all ${ASSET_CONTRACT.length}: ${guideStep("images")})`,
       run: checkCommand,
     });
   }
