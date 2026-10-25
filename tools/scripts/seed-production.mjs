@@ -10,7 +10,7 @@
 //   (or GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json)
 //
 // Run:  pnpm seed:production --project <id>   (or GCLOUD_PROJECT=<id>)
-// It refuses unless <id> is the firebase.projectId of the profile luminova.json selects.
+// It refuses unless <id> is the firebase.projectId of the profile brand/ selects.
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
