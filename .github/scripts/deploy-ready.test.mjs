@@ -78,7 +78,10 @@ test("a real project without a deploy section skips, pointing at brand:provision
 
 test("a broken selection fails loudly instead of skipping", () => {
   for (const [root, error] of [
-    [fork(READY, { "jci-andina": READY }), /brand\/ holds 2 chapter profiles \(acme jci-andina\)/],
+    [
+      fork(READY, { "jci-andina": READY }),
+      /brand\/ holds 2 chapter profiles \(acme, jci-andina\); a repository builds one$/m,
+    ],
     [repo({ fixture: FIXTURE }), /brand\/ holds no profile/],
     [repo({ Acme_Chapter: READY }), /brand\/Acme_Chapter\/ must be named with lowercase/],
   ]) {

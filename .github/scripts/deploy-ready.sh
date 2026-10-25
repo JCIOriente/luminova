@@ -48,7 +48,8 @@ while IFS= read -r name; do
   if read_file "brand/$name/brand.json" >/dev/null; then chapters+=("$name"); fi
 done < <(folders)
 if [ "${#chapters[@]}" -gt 1 ]; then
-  echo "deploy-ready: brand/ holds ${#chapters[@]} chapter profiles (${chapters[*]}); a repository builds one" >&2
+  list=$(printf ', %s' "${chapters[@]}")
+  echo "deploy-ready: brand/ holds ${#chapters[@]} chapter profiles (${list:2}); a repository builds one" >&2
   exit 1
 elif [ "${#chapters[@]}" -eq 1 ]; then
   profile=${chapters[0]}
