@@ -119,7 +119,9 @@ jobs:
             fi
             # The last deploy ran before this repo was set up (it skipped), so this
             # is the first real deploy: every surface, whatever the diff says.
-            if [ -n "$base" ] && ! bash .github/scripts/deploy-ready.sh . "$base" 2>/dev/null | grep -qx 'ready=true'; then
+            # A base the script cannot read (before luminova.json existed) counts as not set
+            # up; its message stays in the log.
+            if [ -n "$base" ] && ! bash .github/scripts/deploy-ready.sh . "$base" | grep -qx 'ready=true'; then
               sp=true; bs=true; fn=true; rl=true
               echo "base $base was not set up to deploy -> first deploy: all surfaces"
               base=""

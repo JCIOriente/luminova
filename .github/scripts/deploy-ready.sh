@@ -5,6 +5,10 @@
 # (docs/specs/2026-10-25-local-first-adoption.md, L4). A broken luminova.json or missing
 # profile is not "not set up": it fails loudly.
 #
+# Twin of the TypeScript rules in packages/brand/src (LoadedProfile.localOnly and
+# missingDeployProblem in release.ts), kept in jq because Deploy's filter job runs before
+# any pnpm install. Change both together.
+#
 # Prints `ready=true|false` and, when false, `reason=<one line>`, for $GITHUB_OUTPUT.
 # With a git ref, judges the files as they were at that commit: Deploy uses it to tell a
 # first deploy (the last one ran before setup, so it skipped) from a later one.
