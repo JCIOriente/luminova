@@ -5,6 +5,7 @@ import { ASSET_CONTRACT, PULL_ASSETS, PULL_MANIFEST_FILE } from "./assets.ts";
 import { sha256 } from "./hash.ts";
 import type { Problem, Remedy } from "./remedy.ts";
 import {
+  BrandConfigError,
   cdProfileCommand,
   issuesToBrandError,
   keepProfileCommand,
@@ -38,7 +39,10 @@ export function isRelease(env: Env): boolean {
   if (!value || value === "0") return false;
   if (value === "1") return true;
   // A typo must not quietly produce a dist without the marker that predeploy requires.
-  throw new Error(`${RELEASE_ENV} must be "1" (release) or unset; got "${value}".`);
+  throw new BrandConfigError(
+    [`${RELEASE_ENV} must be "1" (release) or unset; got "${value}".`],
+    [{ change: "only deploy builds set it", run: `unset ${RELEASE_ENV}`, where: "shell" }],
+  );
 }
 
 const RELEASE_BUILD_COMMAND =

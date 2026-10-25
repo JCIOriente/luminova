@@ -48,7 +48,9 @@ describe("isRelease", () => {
   });
 
   it("refuses an ambiguous value instead of silently building a non-release dist", () => {
-    expect(() => isRelease({ BRAND_RELEASE: "true" })).toThrow(/BRAND_RELEASE must be "1"/);
+    expect(() => isRelease({ BRAND_RELEASE: "true" })).toThrow(
+      /BRAND_RELEASE must be "1"[\s\S]*unset BRAND_RELEASE/,
+    );
   });
 });
 

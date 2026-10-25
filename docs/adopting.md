@@ -37,6 +37,21 @@ Luminova maintainer. If you get stuck,
 | 11 | First deploy, then verify | merge to `main` or `gh workflow run deploy.yml` | You |
 | 12 | First admin | `pnpm seed:production --project <id>` | You |
 
+Every brand command tells you what to do next. A failure ends with a **To fix:** block:
+the file or folder to change, the command, and where to run it. A success ends with
+**Next:**, the following step of this guide. The `#` comment after each command says
+where it goes:
+
+- `# in the repo` means any terminal inside your clone;
+- `# in your shell` means a terminal setting, such as an `export` or your shell's startup file;
+- a console name, such as `# in the Firebase console → Project settings`, means that web page.
+
+```text
+To fix:
+  - put the files marked above in brand-assets/ at the sizes shown (all 16: docs/adopting.md step 4)
+      pnpm brand:check   # in the repo
+```
+
 ### 1. Run the example
 
 Follow the README Quickstart. `pnpm dev` runs both apps against the emulators with the
