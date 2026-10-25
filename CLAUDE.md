@@ -12,7 +12,7 @@
 | `packages/types` (`@luminova/types`) | Shared TypeScript types and zod schemas |
 | `packages/auth` (`@luminova/auth`) | CASL roles, permissions, ability builder |
 | `packages/utils` (`@luminova/utils`) | Intl-only helpers, no runtime deps (es-BO datetime with the Bolivia UTC pin) |
-| `packages/brand` (`@luminova/brand`) | Build-time brand profiles (`brand/<slug>/`): schema, loader, asset validator, Vite plugin (`virtual:luminova-brand`). `luminova.json` (committed, repo root) selects one; `--profile <slug>` for a single command; `BRAND_PROFILE` is a tooling-only override that release builds refuse when it differs. `.firebaserc` is generated from it (`pnpm brand:apply`); deploys need a release build (`BRAND_RELEASE=1`, assets from the profile's bucket via `brand:pull`) |
+| `packages/brand` (`@luminova/brand`) | Build-time brand profiles (`brand/<slug>/`): schema, loader, asset validator, Vite plugin (`virtual:luminova-brand`). The profile is discovered from `brand/`: its one chapter profile, else the example `jci-oriente` (two chapter profiles stop every command); `--profile <slug>` for a single command; `BRAND_PROFILE` is a tooling-only override that release builds refuse when it differs. `.firebaserc` is generated from it (`pnpm brand:apply`); deploys need a release build (`BRAND_RELEASE=1`, assets from the profile's bucket via `brand:pull`) |
 
 Stack: React 19, TypeScript 7 strict, TanStack Router (file-based) + Query v5, React Hook Form + Zod, Tailwind v4, Lucide, Firebase, Turborepo + pnpm workspaces. Node 24 and pnpm are pinned (`.nvmrc`, `engines.node`, `packageManager`).
 

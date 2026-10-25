@@ -232,11 +232,12 @@ project owner via `gcloud`. All identifiers below are non-secret.
 
 **GitHub `production` environment:** required reviewer `arkgast`; deployments restricted
 to `main`; **no variables**. Every deploy job reads its target from the repo: the
-`firebase-setup` action runs `pnpm brand:ci-config`, which loads the profile `luminova.json`
+`firebase-setup` action runs `pnpm brand:ci-config`, which loads the profile `brand/`
 selects under the release rules and outputs its `firebase.projectId` and its `deploy`
 section (Workload Identity provider and service account). A profile without `deploy`
 stops the job before any credential is minted. Changing where CD deploys is therefore a
-reviewed change to `luminova.json` or `brand.json` on `main`.
+reviewed change under `brand/` on `main`: the chapter's `brand.json`, or which profile
+folder `brand/` holds.
 Optional repo secret `DEPLOY_WEBHOOK_URL` (unset → `notify` is a no-op).
 
 **Enabled APIs:** `iamcredentials`, `sts`, `firebasehosting`, `firebaserules`,
@@ -251,7 +252,7 @@ billing probe).
 The exact steps executed. Idempotent to re-run. Requires an operator with project
 IAM admin + repo admin. `gh` covers the GitHub side; no console clicks required.
 `pnpm brand:provision` prints this block as its step 1, with `PROJECT_ID`, `PROJECT_NUMBER`,
-`GH_REPO` and `REVIEWER_ID` filled in for the profile `luminova.json` selects; its step 2 is
+`GH_REPO` and `REVIEWER_ID` filled in for the profile `brand/` selects; its step 2 is
 the profile's `deploy` section, and the brand-assets bucket follows (which
 `pnpm brand:provision --apply` runs).
 The deploy service account must be created **in the Firebase project itself**
@@ -416,7 +417,7 @@ Effectively **$0**.
 | Symptom | Cause / fix |
 |---------|-------------|
 | Deploy job fails at `google-github-actions/auth` | `deploy` values wrong, or STS condition mismatch. Verify `deploy.workloadIdentityProvider` in the profile's `brand.json` matches the provider resource name exactly and the run is on `main`. |
-| Deploy job fails at "Read the deploy target from the repo" | `brand:ci-config` printed the reason and the fix: usually a missing `deploy` section (`pnpm brand:provision` prints it) or a fixture/demo profile selected in `luminova.json`. |
+| Deploy job fails at "Read the deploy target from the repo" | `brand:ci-config` printed the reason and the fix: usually a missing `deploy` section (`pnpm brand:provision` prints it) or a profile that cannot ship (the fixture, or a chapter still on its `demo-` project). |
 | `PERMISSION_DENIED` mid-deploy | Missing IAM role on the deploy SA — grant it (see role list), or temporarily grant `roles/firebase.admin` then narrow back. |
 | `workflow_dispatch` deploy fails auth | Dispatched from a non-`main` branch — the STS `ref` condition only honors `refs/heads/main`. Re-dispatch from `main`. |
 | Deploy never triggers after merge | The CI workflow's `name:` must equal `"CI"` (the `workflow_run.workflows` value). Also confirm CI concluded `success`. |

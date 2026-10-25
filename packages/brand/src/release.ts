@@ -5,7 +5,6 @@ import { z } from "zod";
 import { ASSET_CONTRACT, PULL_ASSETS, PULL_MANIFEST_FILE } from "./assets.ts";
 import { sha256 } from "./hash.ts";
 import type { Problem, Remedy } from "./remedy.ts";
-import { CONFIG_FILE } from "./config.ts";
 import {
   BrandConfigError,
   NEUTRAL_PROFILE,
@@ -13,7 +12,6 @@ import {
   REMOVE_OVERRIDE,
   issuesToBrandError,
   readJsonFile,
-  selectProfileRemedy,
   type Env,
   type LoadedProfile,
 } from "./load-profile.ts";
@@ -61,9 +59,15 @@ export function isRelease(env: Env): boolean {
 
 const RELEASE_BUILD_COMMAND = "pnpm build:release";
 
+/** What ships when nothing is passed: the profile brand/ selects (spec P1). */
+const SHIP_CHAPTER: Remedy = {
+  change:
+    "drop --profile and BRAND_PROFILE so the profile found in brand/ ships, or pass --profile with your chapter",
+};
+
 /**
- * A profile that may reach production: chosen in luminova.json or with --profile (never a
- * stray environment override), not the fixture, not an emulator-only project. Release
+ * A profile that may reach production: found in brand/ or chosen with --profile (never a
+ * stray environment override; spec P5), not the fixture, not an emulator-only project. Release
  * builds, brand:push and brand:provision --apply share it.
  */
 export const PRINT_GCP_SETUP: Remedy = {
@@ -90,14 +94,14 @@ export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
   const { projectId } = profile.brand.firebase;
   if (profile.source === "override") {
     errors.push({
-      message: `${PROFILE_OVERRIDE_ENV}=${slug} is set in your environment; what ships is chosen in ${CONFIG_FILE} only.`,
-      remedies: [REMOVE_OVERRIDE, selectProfileRemedy()],
+      message: `${PROFILE_OVERRIDE_ENV}=${slug} is set in your environment; what ships is the profile found in brand/, or --profile.`,
+      remedies: [REMOVE_OVERRIDE],
     });
   }
   if (slug === NEUTRAL_PROFILE) {
     errors.push({
       message: `profile "${slug}" is the neutral test profile and can never be released.`,
-      remedies: [selectProfileRemedy()],
+      remedies: [SHIP_CHAPTER],
     });
   }
   if (profile.localOnly) {
@@ -182,7 +186,7 @@ export function releaseErrors({
       message: `GCP_PROJECT_ID "${target}" is not profile "${slug}"'s project "${projectId}".`,
       remedies: [
         {
-          change: `set "profile" in ${CONFIG_FILE} to the profile whose firebase.projectId is "${target}"`,
+          change: `set GCP_PROJECT_ID to "${projectId}", or pass --profile with the profile whose firebase.projectId is "${target}"`,
         },
       ],
     });

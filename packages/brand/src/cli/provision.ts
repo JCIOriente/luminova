@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { join } from "node:path";
 import { z } from "zod";
-import { CONFIG_FILE } from "../config.ts";
 import { defaultDeploy, deploySaEmail } from "../deploy-identity.ts";
 import {
   BrandConfigError,
@@ -364,7 +363,7 @@ export async function printProvisioning({
     {
       title: "first deploy",
       why: "Builds rules, functions and both sites with your profile and publishes them.",
-      where: `GitHub: merge the branch with brand/${slug}/ and ${CONFIG_FILE} to main. The merge starts the Deploy run (a ${CONFIG_FILE} change deploys everything); approve it`,
+      where: `GitHub: merge the branch with brand/${slug}/ to main. The merge starts the Deploy run (the first deploy to a project ships everything); approve it`,
       lines: ["# later, to deploy everything again without a merge:", deployDispatch("all")],
       check: `open both sites and follow ${guideStep("goLive")}`,
     },

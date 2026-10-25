@@ -22,7 +22,7 @@ function rowFor(rows: CheckRow[], item: string): CheckRow {
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "brand-check-"));
   cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
-  profile = { ...loadProfile({ repoRoot: root, profile: "jci-oriente" }), source: "file" };
+  profile = { ...loadProfile({ repoRoot: root, profile: "jci-oriente" }), source: "example" };
   writeAssetSet(join(root, PULLED_ASSETS_DIR));
 });
 

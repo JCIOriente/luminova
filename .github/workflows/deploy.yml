@@ -120,8 +120,9 @@ jobs:
             fi
             # The first deploy to a project ships every surface, whatever the diff says:
             # the last deploy ran before this repo was set up (it skipped), or it went to
-            # another project. A base the script cannot read (before luminova.json existed)
-            # counts as not set up; its message stays in the log.
+            # another project (a chapter folder added under brand/ changes the project). A
+            # base the script cannot read (before brand/ existed) counts as not set up; its
+            # message stays in the log.
             if [ -n "$base" ]; then
               at_base=$(bash .github/scripts/deploy-ready.sh . "$base" || true)
               if ! grep -qx 'ready=true' <<<"$at_base" || ! grep -Fqx "project=$PROJECT" <<<"$at_base"; then
@@ -138,15 +139,16 @@ jobs:
               # in pnpm-lock/pnpm-workspace (or a root package.json/turbo.json change)
               # must redeploy the bundles that embed it, or prod keeps serving the old
               # vulnerable build. packages/** does too; firebase.json touches all;
-              # brand/** (profiles) feeds both frontends. luminova.json picks the profile,
-              # so the project itself: a change redeploys every surface, rules included.
+              # brand/** (profiles) feeds both frontends. A change of the profile brand/
+              # selects is a change of project, which the first-deploy check above already
+              # turned into every surface.
               # A bucket asset change is not in git, so it needs a manual
               # `surface=hosting` dispatch.
-              root='^pnpm-lock\.yaml$|^pnpm-workspace\.yaml$|^package\.json$|^turbo\.json$|^luminova\.json$'
+              root='^pnpm-lock\.yaml$|^pnpm-workspace\.yaml$|^package\.json$|^turbo\.json$'
               q "^apps/spotlight/|^packages/|^brand/|^firebase\.json$|$root" && sp=true || true
               q "^apps/backstage/|^packages/|^brand/|^firebase\.json$|$root" && bs=true || true
               q "^apps/beacon/|^packages/|^firebase\.json$|$root"    && fn=true || true
-              q '^firestore\.rules$|^storage\.rules$|^firestore\.indexes\.json$|^firebase\.json$|^luminova\.json$' && rl=true || true
+              q '^firestore\.rules$|^storage\.rules$|^firestore\.indexes\.json$|^firebase\.json$' && rl=true || true
             fi
           fi
           {
@@ -174,7 +176,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ needs.filter.outputs.sha }}
-      # Sets GCP_PROJECT_ID from the profile luminova.json selects.
+      # Sets GCP_PROJECT_ID from the profile brand/ selects.
       - uses: ./.github/actions/firebase-setup
       - name: Deploy rules + storage
         env:
@@ -326,7 +328,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       # Release builds of the changed target(s). BRAND_RELEASE=1 is the validation: the
       # build fails on any asset or config problem, on a profile/project mismatch with
-      # GCP_PROJECT_ID (set by firebase-setup from the same luminova.json), and writes
+      # GCP_PROJECT_ID (set by firebase-setup from the same profile), and writes
       # dist/.brand-release.json. --force so turbo never
       # replays a cached dist. VITE_FIREBASE_EMULATOR_ENABLED=false guards against a dev
       # bundle ever reaching prod (a build without the flag is already off).

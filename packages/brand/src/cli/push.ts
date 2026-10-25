@@ -15,7 +15,7 @@ export const DEPLOY_DISPATCH = deployDispatch("hosting");
 export const pushNext = (slug: string): Remedy[] => [
   { change: "confirm the bucket row passes", run: "pnpm brand:doctor" },
   {
-    change: `when you are ready to go live: merge brand/${slug}/ and luminova.json to main, which deploys everything (${guideStep("goLive")}). Already on main? Deploy by hand:`,
+    change: `when you are ready to go live: merge brand/${slug}/ to main; the first deploy ships everything (${guideStep("goLive")}). Already on main? Deploy by hand:`,
     run: deployDispatch("all"),
     where: "shell",
   },

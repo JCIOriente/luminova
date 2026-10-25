@@ -2,7 +2,14 @@ import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BrandConfigError, EXAMPLE_PROFILE, REPO_ROOT, loadProfile } from "./load-profile.ts";
+import {
+  BrandConfigError,
+  EXAMPLE_PROFILE,
+  NEUTRAL_PROFILE,
+  REPO_ROOT,
+  chapterProfiles,
+  loadProfile,
+} from "./load-profile.ts";
 
 let root: string;
 
@@ -24,13 +31,10 @@ function errorsOf(run: () => unknown): string[] {
   throw new Error("expected a BrandConfigError");
 }
 
-const writeConfig = (text: string) => writeFileSync(join(root, "luminova.json"), text);
-
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "brand-load-"));
   writeProfile(EXAMPLE_PROFILE);
   writeProfile("other");
-  writeConfig(JSON.stringify({ profile: "other" }));
 });
 
 afterEach(() => {
@@ -49,29 +53,93 @@ function remediesOf(run: () => unknown) {
 }
 
 describe("loadProfile", () => {
-  it("reads the profile luminova.json names, with no warning", () => {
+  it("selects the one chapter profile in brand/, with no warning", () => {
     const profile = loadProfile({ repoRoot: root, env: {} });
     expect(profile.slug).toBe("other");
-    expect(profile.source).toBe("file");
+    expect(profile.source).toBe("chapter");
     expect(profile.warnings).toEqual([]);
     expect(profile.dir).toBe(join(root, "brand", "other"));
   });
 
-  it("lets the BRAND_PROFILE override win, and says so when it differs from the file", () => {
+  it("selects the example when brand/ holds no chapter profile", () => {
+    rmSync(join(root, "brand", "other"), { recursive: true });
+    writeProfile(NEUTRAL_PROFILE);
+    expect(loadProfile({ repoRoot: root, env: {} })).toMatchObject({
+      slug: EXAMPLE_PROFILE,
+      source: "example",
+    });
+  });
+
+  it("does not count a folder without brand.json as a profile", () => {
+    mkdirSync(join(root, "brand", "notes"));
+    expect(loadProfile({ repoRoot: root, env: {} }).slug).toBe("other");
+  });
+
+  it("finds a chapter profile with no example beside it", () => {
+    rmSync(join(root, "brand", EXAMPLE_PROFILE), { recursive: true });
+    expect(loadProfile({ repoRoot: root, env: {} }).slug).toBe("other");
+  });
+
+  it("never reads a leftover luminova.json", () => {
+    writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: EXAMPLE_PROFILE }));
+    expect(loadProfile({ repoRoot: root, env: {} }).slug).toBe("other");
+  });
+
+  it("stops on two chapter profiles, naming both and both ways out", () => {
+    writeProfile("jci-andina");
+    const { remedies, message } = remediesOf(() => loadProfile({ repoRoot: root, env: {} }));
+    expect(message).toContain(
+      "brand/ holds 2 chapter profiles (jci-andina, other); a repository builds one.",
+    );
+    expect(remedies).toEqual([
+      { change: "delete the folder under brand/ you do not build, so one chapter profile remains" },
+      { change: "or pass --profile one of: jci-andina, other, for one command" },
+    ]);
+  });
+
+  it("stops with brand:init when brand/ holds no profile at all", () => {
+    rmSync(join(root, "brand"), { recursive: true });
+    const { remedies, message } = remediesOf(() => loadProfile({ repoRoot: root, env: {} }));
+    expect(message).toContain("brand/ holds no profile");
+    expect(remedies).toEqual([{ change: "create your chapter's profile", run: "pnpm brand:init" }]);
+  });
+
+  it("asks to rename a discovered folder whose name is no slug", () => {
+    writeProfile("Other_Name");
+    rmSync(join(root, "brand", "other"), { recursive: true });
+    const { remedies } = remediesOf(() => loadProfile({ repoRoot: root, env: {} }));
+    expect(remedies).toEqual([
+      {
+        change:
+          'rename brand/Other_Name/ to lowercase letters, digits and hyphens, and set "slug" in its brand.json to match',
+      },
+    ]);
+  });
+
+  it("lets the BRAND_PROFILE override win, and says so when it differs from brand/", () => {
     const profile = loadProfile({ repoRoot: root, env: { BRAND_PROFILE: EXAMPLE_PROFILE } });
     expect(profile.slug).toBe(EXAMPLE_PROFILE);
     expect(profile.source).toBe("override");
     expect(profile.warnings).toEqual([
-      'BRAND_PROFILE=jci-oriente in your environment overrides luminova.json ("other"). If you did not mean that: unset BRAND_PROFILE   # in your shell',
+      'BRAND_PROFILE=jci-oriente in your environment overrides the profile found in brand/ ("other"). If you did not mean that: unset BRAND_PROFILE   # in your shell',
     ]);
-    // Repeating the file's choice is no override: no warning, and release builds accept it.
+    // Repeating the discovered choice is no override: no warning, and release builds accept it.
     expect(loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "other" } })).toMatchObject({
-      source: "file",
+      source: "chapter",
       warnings: [],
     });
   });
 
-  it("prefers --profile over the override and the file", () => {
+  it("still obeys the override when brand/ has no single choice", () => {
+    writeProfile("jci-andina");
+    const profile = loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "other" } });
+    expect(profile).toMatchObject({ slug: "other", source: "override" });
+    expect(profile.warnings).toEqual([
+      "BRAND_PROFILE=other in your environment overrides the profile found in brand/. If you did not mean that: unset BRAND_PROFILE   # in your shell",
+    ]);
+  });
+
+  it("prefers --profile over the override and brand/", () => {
     const profile = loadProfile({
       repoRoot: root,
       env: { BRAND_PROFILE: "other" },
@@ -81,24 +149,9 @@ describe("loadProfile", () => {
     expect(profile.source).toBe("flag");
   });
 
-  it("stops with both ways out when luminova.json is missing", () => {
-    rmSync(join(root, "luminova.json"));
-    const { remedies, message } = remediesOf(() => loadProfile({ repoRoot: root, env: {} }));
-    expect(message).toMatch(/luminova\.json is missing/);
-    expect(remedies.map(({ run, change }) => run ?? change)).toEqual([
-      "pnpm brand:init",
-      'or create luminova.json at the repo root for an existing profile: { "profile": "<slug>" }',
-    ]);
-  });
-
-  it.each([
-    ["{ nope", /luminova\.json: not valid JSON/],
-    ['{ "profiel": "other" }', /luminova\.json \(root\): unknown field "profiel" \(a typo\?\)/],
-    ["{}", /^luminova\.json profile: missing$/],
-    ['{ "profile": "Other" }', /luminova\.json profile: must be lowercase kebab-case/],
-  ])("rejects the luminova.json %s", (text, expected) => {
-    writeConfig(text);
-    expect(errorsOf(() => loadProfile({ repoRoot: root, env: {} })).join("\n")).toMatch(expected);
+  it("lists the chapter profiles for brand:init's one-per-repository rule", () => {
+    writeProfile(NEUTRAL_PROFILE);
+    expect(chapterProfiles(root)).toEqual(["other"]);
   });
 
   it("fails when the slug differs from the folder name", () => {
@@ -164,10 +217,12 @@ describe("loadProfile remedies", () => {
     ]);
     expect(message).toContain("To fix:");
     expect(message).toContain("pnpm brand:init   # in the repo root");
-    // Chosen in luminova.json, the fix is there.
-    writeConfig(JSON.stringify({ profile: "nope" }));
-    expect(remediesOf(() => loadProfile({ repoRoot: root, env: {} })).remedies[0]).toEqual({
-      change: 'set "profile" in luminova.json to one of: jci-oriente, other',
+    // Chosen with the override, the fix is there.
+    expect(
+      remediesOf(() => loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "nope" } })).remedies[0],
+    ).toEqual({
+      change:
+        "set BRAND_PROFILE to one of: jci-oriente, other, or unset it to use the profile found in brand/",
     });
   });
 
@@ -206,8 +261,11 @@ describe("committed profiles", () => {
   });
 
   it("can load from a copy of the repo brand folder", () => {
+    rmSync(join(root, "brand"), { recursive: true });
     cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
-    cpSync(join(REPO_ROOT, "luminova.json"), join(root, "luminova.json"));
-    expect(loadProfile({ repoRoot: root, env: {} }).brand.name).toBe("JCI Oriente");
+    expect(loadProfile({ repoRoot: root, env: {} })).toMatchObject({
+      source: "example",
+      brand: { name: "JCI Oriente" },
+    });
   });
 });

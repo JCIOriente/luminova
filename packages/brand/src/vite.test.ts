@@ -70,12 +70,7 @@ beforeEach(() => {
     }
     writeAssetSet(join(repoRoot, "brand", slug, "assets"), distinctColors);
   }
-  selectInFile("jci-oriente");
 });
-
-function selectInFile(profile: string) {
-  writeFileSync(join(repoRoot, "luminova.json"), JSON.stringify({ profile }));
-}
 
 afterEach(() => {
   for (const key of ENV_KEYS) {
@@ -93,7 +88,7 @@ describe("resolveBrandBuild", () => {
     resolve({ profile: undefined, env });
     resolve({ profile: undefined, env });
     const overrideWarnings = warn.mock.calls.filter(([message]) =>
-      String(message).includes("overrides luminova.json"),
+      String(message).includes("overrides the profile found in brand/"),
     );
     expect(overrideWarnings).toHaveLength(1);
   });
@@ -253,8 +248,7 @@ describe("resolveBrandBuild in release mode", () => {
 
   it("fails a fixture release, naming fixture", () => {
     writePulledAssets("fixture");
-    selectInFile("fixture");
-    const errors = errorsOf(() => resolve({ profile: undefined, env: { BRAND_RELEASE: "1" } }));
+    const errors = errorsOf(() => resolve({ profile: "fixture", env: { BRAND_RELEASE: "1" } }));
     expect(errors).toContainEqual(expect.stringMatching(/"fixture" is the neutral test profile/));
   });
 

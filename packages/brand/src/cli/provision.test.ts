@@ -11,7 +11,7 @@ const SA = "firebase-deployer@jci-oriente.iam.gserviceaccount.com";
 const LIFECYCLE = JSON.parse(readFileSync(join(REPO_ROOT, "brand/bucket-lifecycle.json"), "utf8"));
 const profile: LoadedProfile = {
   ...loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" }),
-  source: "file",
+  source: "example",
 };
 
 const DONE = {
@@ -242,7 +242,7 @@ describe("applyBucket", () => {
   it("refuses the fixture profile", async () => {
     const fixture: LoadedProfile = {
       ...loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" }),
-      source: "file",
+      source: "example",
     };
     await expect(
       applyBucket({ profile: fixture, repoRoot: REPO_ROOT, run: fakeRunner() }),

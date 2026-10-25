@@ -66,7 +66,9 @@ export const brandSchema = z
     slug: z
       .string()
       .regex(SLUG_PATTERN, SLUG_MESSAGE)
-      .describe("This profile's folder name under brand/; luminova.json selects it."),
+      .describe(
+        "This profile's folder name under brand/. A repository holds one chapter profile, and every command selects it.",
+      ),
     name: text.describe("The chapter's name as people say it, e.g. JCI Oriente."),
     shortName: text.describe("A short form for tight places (app name on a phone's home screen)."),
     legalName: text.describe("The registered legal name, for the footer and legal pages."),

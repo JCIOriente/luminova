@@ -18,7 +18,7 @@ const BUILD = { command: "build", emulatorEnabled: false } as const;
 let root: string;
 let assetsDir: string;
 
-const jci = (source: LoadedProfile["source"] = "file"): LoadedProfile => ({
+const jci = (source: LoadedProfile["source"] = "example"): LoadedProfile => ({
   ...loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" }),
   source,
 });
@@ -58,11 +58,11 @@ const messages = (problems: readonly { message: string }[]) =>
   problems.map(({ message }) => message);
 
 describe("release remedies", () => {
-  it("asks to drop a BRAND_PROFILE override and choose in luminova.json", () => {
+  it("asks to drop a BRAND_PROFILE override, so the profile in brand/ ships", () => {
     const [problem] = releaseErrors({ profile: jci("override"), env: {}, assetsDir, ...BUILD });
+    expect(problem?.message).toMatch(/what ships is the profile found in brand\/, or --profile/);
     expect(problem?.remedies).toEqual([
       expect.objectContaining({ run: "unset BRAND_PROFILE", where: "shell" }),
-      { change: 'set "profile" in luminova.json to your chapter\'s folder under brand/' },
     ]);
   });
 

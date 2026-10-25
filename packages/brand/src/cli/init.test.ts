@@ -110,13 +110,14 @@ describe("init from an answers file", () => {
     expect(readme).toMatch(/never commit/i);
   });
 
-  it("selects the new profile in luminova.json and writes .firebaserc, but not CD's switch", async () => {
-    writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: "jci-oriente" }));
+  it("becomes the profile brand/ selects and writes .firebaserc, but not CD's switch", async () => {
     const { files } = await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
-    expect(files).toEqual(expect.arrayContaining(["luminova.json", ".firebaserc"]));
+    expect(files).toContain(".firebaserc");
+    expect(files).not.toContain("luminova.json");
+    expect(existsSync(join(root, "luminova.json"))).toBe(false);
     expect(loadProfile({ repoRoot: root, env: {} })).toMatchObject({
       slug: "jci-valle",
-      source: "file",
+      source: "chapter",
     });
     expect(JSON.parse(readFileSync(join(root, ".firebaserc"), "utf8")).projects.default).toBe(
       "jci-valle",
@@ -150,6 +151,22 @@ describe("init from an answers file", () => {
     await expect(init({ repoRoot: root, answers, run: noCommands })).rejects.toThrow(
       /brand\/jci-oriente already exists/,
     );
+  });
+
+  it("refuses a second chapter profile before asking anything", async () => {
+    await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
+    const seen: string[] = [];
+    const prompter: Prompter = {
+      async ask({ key }) {
+        seen.push(key);
+        return "";
+      },
+    };
+    const second = init({ repoRoot: root, answers: {}, prompter, run: noCommands });
+    await expect(second).rejects.toThrow(
+      /brand\/jci-valle\/ already is this repository's chapter[\s\S]*pnpm brand:init --connect/,
+    );
+    expect(seen).toEqual([]);
   });
 
   it("refuses a malformed slug before writing", async () => {
@@ -355,7 +372,7 @@ describe("init --local", () => {
       run: noCommands,
     });
     expect(local).toBe(true);
-    expect(files).toContain("luminova.json");
+    expect(files).toContain(".firebaserc");
     const { brand } = loadProfile({ repoRoot: root, env: {} });
     expect(brand.firebase.projectId).toBe("demo-jci-valle");
     expect(brand.firebase.sites).toEqual({
@@ -576,7 +593,7 @@ describe("init guidance", () => {
       "pnpm brand:check",
       expect.stringMatching(/^edit brand\/jci-valle\/site-content\.json/),
       "pnpm dev",
-      "git add brand/jci-valle/ luminova.json",
+      "git add brand/jci-valle/",
       "pnpm brand:doctor",
     ]);
     // A local-only profile ends with going live, as a choice, not a deploy.
