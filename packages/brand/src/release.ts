@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { guideStep } from "./remedy.ts";
+import { GUIDE_STEPS, guideStep } from "./remedy.ts";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { ASSET_CONTRACT, PULL_ASSETS, PULL_MANIFEST_FILE } from "./assets.ts";
@@ -25,7 +25,7 @@ export const PULLED_ASSETS_DIR = "brand-assets";
 
 /** How a local-only profile goes live: a real project, then `--connect`. */
 export const CONNECT_PROJECT: Remedy = {
-  change: `when you are ready to go live: create a Firebase project (${guideStep("firebaseProject")}), then connect it`,
+  change: `when you are ready to go live: create a Firebase project (${guideStep("firebaseProject")}), then connect it (step ${GUIDE_STEPS.connect})`,
   run: "pnpm brand:init --connect",
 };
 

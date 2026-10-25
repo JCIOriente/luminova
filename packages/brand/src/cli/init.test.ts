@@ -386,6 +386,12 @@ describe("init --local", () => {
     expect(asked.filter((key) => key.startsWith("firebase."))).toEqual([]);
   });
 
+  it("refuses --local with a firebase block it would otherwise throw away", async () => {
+    await expect(
+      init({ repoRoot: root, answers: minimalAnswers(), local: true, run: noCommands }),
+    ).rejects.toThrow(/"firebase" block/);
+  });
+
   it("keeps a long slug's demo project within Firebase's 30 characters", async () => {
     const answers = { ...localAnswers(), slug: "jci-a-very-long-chapter-name-indeed" };
     await init({ repoRoot: root, answers, local: true, run: noCommands });
@@ -433,6 +439,66 @@ describe("init --connect", () => {
     const moved = loadProfile({ repoRoot: root, env: {} }).brand;
     expect(moved.firebase.projectId).toBe("jci-valle-2");
     expect(moved.deploy).toBeUndefined();
+  });
+
+  it("re-connecting the same project keeps App Check keys a blank answer would erase", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
+    await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
+    const file = join(root, "brand/jci-valle/brand.json");
+    const live = JSON.parse(readFileSync(file, "utf8"));
+    live.firebase.web.spotlight.appCheckSiteKey = "site-key";
+    writeFileSync(file, JSON.stringify(live));
+    // Only the project id is answered; every other question falls back.
+    const prompter: Prompter = {
+      async ask({ key }) {
+        return key === "firebase.projectId" ? "jci-valle" : "";
+      },
+    };
+    await connect({ repoRoot: root, prompter, run: noCommands });
+    const { web } = loadProfile({ repoRoot: root, env: {} }).brand.firebase;
+    expect(web.spotlight.appCheckSiteKey).toBe("site-key");
+    expect(web.spotlight.apiKey).toBe("key-spotlight");
+  });
+
+  it("merges a partial answers file into the profile instead of replacing a section", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
+    await connect({
+      repoRoot: root,
+      answers: { firebase, locality: { city: "Quillacollo" } },
+      run: noCommands,
+    });
+    const { locality } = loadProfile({ repoRoot: root, env: {} }).brand;
+    expect(locality).toMatchObject({ city: "Quillacollo", country: "Bolivia" });
+  });
+
+  it("saves typed project answers when a later step fails", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    const failing: CommandRunner = async () => {
+      throw new CommandError("firebase apps:sdkconfig failed: not logged in");
+    };
+    const replies: Record<string, string> = {
+      "firebase.projectId": "jci-valle",
+      "firebase.web.spotlight.appId": SPOTLIGHT_APP,
+      "firebase.web.backstage.appId": BACKSTAGE_APP,
+      fillWeb: "y",
+    };
+    const prompter: Prompter = {
+      async ask({ key, fallback }) {
+        return replies[key] ?? fallback ?? "";
+      },
+    };
+    const error = await connect({
+      repoRoot: root,
+      prompter,
+      run: failing,
+    }).catch((caught: unknown) => caught);
+    expect(String(error)).toMatch(
+      /pnpm brand:init --answers \/.*brand-init-answers\.json --connect --sdkconfig/,
+    );
+    const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
+    expect(saved.firebase.projectId).toBe("jci-valle");
   });
 
   it("asks only the Firebase questions", async () => {

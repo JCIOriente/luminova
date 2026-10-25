@@ -76,6 +76,7 @@ describe("GUIDE_STEPS", () => {
       profile: "Create your profile",
       images: "Images",
       firebaseProject: "Firebase project",
+      connect: "Connect the project",
       doctor: "Doctor",
       provision: "Keyless CD",
       goLive: "Go live",

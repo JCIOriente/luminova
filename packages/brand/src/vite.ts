@@ -277,6 +277,8 @@ export function brandPlugin({
       // Every mode reads the profile's Firebase config, so dev, the emulators (.firebaserc)
       // and the seeds name one project. Vite loads env files after this hook, and process
       // env wins over them, so a stale apps/*/.env.local cannot point dev elsewhere.
+      // It stays for the life of the process, so changing the emulator flag in .env.local
+      // takes a dev-server restart (the .env.local example says so).
       Object.assign(process.env, firebaseEnv(build.profile.brand, app, build.emulatorEnabled));
       state = { build, ogImageFile };
       return { publicDir };

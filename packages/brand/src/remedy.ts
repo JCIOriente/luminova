@@ -17,6 +17,7 @@ export const GUIDE_STEPS = {
   profile: 2,
   images: 3,
   firebaseProject: 6,
+  connect: 7,
   doctor: 8,
   provision: 9,
   goLive: 12,

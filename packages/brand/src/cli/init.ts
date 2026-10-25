@@ -344,7 +344,7 @@ export function initNext(slug: string, { local = false }: { local?: boolean } = 
   ];
 }
 
-/** After --connect: confirm the project, then the Google Cloud setup (steps 8 to 11). */
+/** After --connect: confirm the project, then the Google Cloud setup. */
 export const CONNECT_NEXT: readonly Remedy[] = [
   { change: `check the whole setup (${guideStep("doctor")})`, run: "pnpm brand:doctor" },
   {
@@ -500,6 +500,12 @@ export async function init({
       prompter !== undefined &&
       get(answers, "firebase.projectId") === undefined &&
       !/^y/i.test(await prompter.ask(HAS_PROJECT));
+    if (local && answers.firebase !== undefined) {
+      throw new BrandConfigError(
+        ['your answers have a "firebase" block, but a local-only profile runs on demo-<slug>'],
+        [{ change: 'remove the "firebase" block, or drop --local to use that project' }],
+      );
+    }
     if (local) localFirebase(answers);
     else {
       wanted = await askProject(ask, { prompter, fillWeb });
@@ -507,25 +513,57 @@ export async function init({
     }
     return { ...writeProfile({ repoRoot, answers, example }), local };
   } catch (error) {
-    if (!prompter || !(error instanceof BrandConfigError || error instanceof CommandError)) {
-      throw error;
-    }
-    // Typed answers are not lost to a late failure: they become an --answers file.
-    const saved = join(repoRoot, ANSWERS_FILE);
-    writeFileSync(saved, `${JSON.stringify(answers, null, 2)}\n`);
-    const reasons = error instanceof BrandConfigError ? error.errors : [error.message];
     const flags = `${local ? " --local" : ""}${wanted ? " --sdkconfig" : ""}`;
-    throw new BrandConfigError(
-      [...reasons, `your answers are saved in ${saved}`],
-      [
-        ...error.remedies,
-        {
-          change: `fix them in ${saved}, then re-run from that file`,
-          run: `pnpm brand:init --answers ${saved}${flags}`,
-        },
-      ],
-    );
+    throw savedAnswers(error, { repoRoot, answers, prompter, flags });
   }
+}
+
+/**
+ * Typed answers are not lost to a late failure: they become an --answers file, and the
+ * error names the re-run. Anything else (a bug) is rethrown untouched.
+ */
+function savedAnswers(
+  error: unknown,
+  {
+    repoRoot,
+    answers,
+    prompter,
+    flags,
+  }: { repoRoot: string; answers: Answers; prompter?: Prompter; flags: string },
+): unknown {
+  if (!prompter || !(error instanceof BrandConfigError || error instanceof CommandError)) {
+    return error;
+  }
+  const saved = join(repoRoot, ANSWERS_FILE);
+  writeFileSync(saved, `${JSON.stringify(answers, null, 2)}\n`);
+  const reasons = error instanceof BrandConfigError ? error.errors : [error.message];
+  return new BrandConfigError(
+    [...reasons, `your answers are saved in ${saved}`],
+    [
+      ...error.remedies,
+      {
+        change: `fix them in ${saved}, then re-run from that file`,
+        run: `pnpm brand:init --answers ${saved}${flags}`,
+      },
+    ],
+  );
+}
+
+/** `base` with `over` merged in key by key, so a partial nested answer adds to, not replaces. */
+function merged(base: Answers, over: Answers): Answers {
+  const out: Answers = structuredClone(base);
+  for (const [key, value] of Object.entries(over)) {
+    const inner = out[key];
+    out[key] = isRecord(value) && isRecord(inner) ? merged(inner, value) : structuredClone(value);
+  }
+  return out;
+}
+
+/** The project keys of a brand.json, or of answers. */
+function projectPart(source: Answers): Answers {
+  return Object.fromEntries(
+    PROJECT_KEYS.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]),
+  );
 }
 
 function writeProfile({
@@ -600,30 +638,43 @@ export async function connect({
 }): Promise<{ slug: string; projectId: string }> {
   const profile = loadProfile({ repoRoot });
   const label = `brand/${profile.slug}/brand.json`;
-  const current = readJsonFile(join(profile.dir, "brand.json"), label);
-  const answers: Answers = isRecord(current) ? structuredClone(current) : {};
+  const json = readJsonFile(join(profile.dir, "brand.json"), label);
+  const current: Answers = isRecord(json) ? json : {};
   // Every project question is asked again; a demo project's placeholders never are answers.
-  for (const key of PROJECT_KEYS) delete answers[key];
-  Object.assign(answers, structuredClone(initial));
+  const chapter = Object.fromEntries(
+    Object.entries(current).filter(([key]) => !(PROJECT_KEYS as readonly string[]).includes(key)),
+  );
+  const answers = merged(chapter, initial);
   const example = exampleProfile(repoRoot);
   const ask = asker(answers, example.answers, repoRoot, prompter);
-  const wanted = await askProject(ask, { prompter, fillWeb });
-  await askWebKeys(ask, answers, { wanted, run });
-  const sameProject = text(answers, "firebase.projectId") === profile.brand.firebase.projectId;
-  if (sameProject && profile.brand.deploy && get(answers, "deploy") === undefined) {
-    set(answers, "deploy", profile.brand.deploy);
+  let wanted = fillWeb;
+  try {
+    await ask(PROJECT_FIELDS.filter(({ path }) => path === "firebase.projectId"));
+    // The same project again keeps every current value (App Check keys, CD's deploy names)
+    // as its answer; only what the answers file changes is new.
+    if (
+      !profile.localOnly &&
+      text(answers, "firebase.projectId") === profile.brand.firebase.projectId
+    ) {
+      Object.assign(answers, merged(projectPart(current), projectPart(answers)));
+    }
+    wanted = await askProject(ask, { prompter, fillWeb });
+    await askWebKeys(ask, answers, { wanted, run });
+    const { slug, brand, data } = validBrand(answers, example.answers);
+    if (slug !== profile.slug) {
+      throw new BrandConfigError(
+        [`${label}: slug "${slug}" must stay "${profile.slug}"`],
+        [{ change: `remove "slug" from your answers, or set it to "${profile.slug}"` }],
+      );
+    }
+    writeFileSync(join(profile.dir, "brand.json"), `${JSON.stringify(brand, null, 2)}\n`);
+    const localOnly = isDemoProject(data.firebase.projectId);
+    applyProfile({ profile: { ...profile, brand: data, localOnly }, repoRoot, env: {} });
+    return { slug, projectId: data.firebase.projectId };
+  } catch (error) {
+    const flags = ` --connect${wanted ? " --sdkconfig" : ""}`;
+    throw savedAnswers(error, { repoRoot, answers, prompter, flags });
   }
-  const { slug, brand, data } = validBrand(answers, example.answers);
-  if (slug !== profile.slug) {
-    throw new BrandConfigError(
-      [`${label}: slug "${slug}" must stay "${profile.slug}"`],
-      [{ change: `remove "slug" from your answers, or set it to "${profile.slug}"` }],
-    );
-  }
-  writeFileSync(join(profile.dir, "brand.json"), `${JSON.stringify(brand, null, 2)}\n`);
-  const localOnly = isDemoProject(data.firebase.projectId);
-  applyProfile({ profile: { ...profile, brand: data, localOnly }, repoRoot, env: {} });
-  return { slug, projectId: data.firebase.projectId };
 }
 
 if (import.meta.main) {
