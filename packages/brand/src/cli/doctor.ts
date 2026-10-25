@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { flagValue } from "../argv.ts";
 import { ASSET_CONTRACT } from "../assets.ts";
-import { CONFIG_FILE, readLuminovaConfig } from "../config.ts";
+import { CONFIG_FILE } from "../config.ts";
 import {
   BrandConfigError,
   PROFILE_OVERRIDE_ENV,
@@ -14,6 +14,7 @@ import {
   errorMessage,
   loadProfile,
   readJsonFile,
+  readLuminovaConfig,
   type Env,
   type LoadedProfile,
 } from "../load-profile.ts";

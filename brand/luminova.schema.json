@@ -11,7 +11,9 @@
       "description": "The chapter this repository builds and deploys: a folder name under brand/ (lowercase letters, digits and hyphens, e.g. jci-valle). Every pnpm brand:* command, pnpm dev, the builds, the seed scripts and CD read it."
     }
   },
-  "required": ["profile"],
+  "required": [
+    "profile"
+  ],
   "additionalProperties": false,
   "description": "Luminova's project configuration. Commit it: every machine and CD must build the same chapter."
 }

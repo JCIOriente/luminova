@@ -1,7 +1,4 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { z } from "zod";
-import { BrandConfigError, issuesToBrandError, readJsonFile } from "./load-profile.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN } from "./schema.ts";
 
 /** The one file that says which chapter this checkout builds (spec C1). */
@@ -25,31 +22,6 @@ export type LuminovaConfig = z.infer<typeof luminovaConfigSchema>;
 
 export const configTemplate = (profile: string) =>
   `${JSON.stringify({ $schema: "./brand/luminova.schema.json", profile }, null, 2)}\n`;
-
-/** `luminova.json`, validated; every failure names the file and how to fix it. */
-export function readLuminovaConfig(repoRoot: string): LuminovaConfig {
-  const file = join(repoRoot, CONFIG_FILE);
-  if (!existsSync(file)) {
-    throw new BrandConfigError(
-      [`${CONFIG_FILE} is missing: it names the chapter (brand/<slug>/) this repository builds.`],
-      [
-        { change: "create your chapter's profile; it writes the file too", run: "pnpm brand:init" },
-        {
-          change: `or create ${CONFIG_FILE} at the repo root for an existing profile: { "profile": "<slug>" }`,
-        },
-      ],
-    );
-  }
-  const parsed = luminovaConfigSchema.safeParse(readJsonFile(file, CONFIG_FILE));
-  if (!parsed.success) {
-    throw issuesToBrandError(CONFIG_FILE, parsed.error.issues, [
-      {
-        change: `fix ${CONFIG_FILE}: it holds one field, "profile", a folder name under brand/ (e.g. "jci-valle")`,
-      },
-    ]);
-  }
-  return parsed.data;
-}
 
 export function renderConfigJsonSchema(): string {
   return `${JSON.stringify(z.toJSONSchema(luminovaConfigSchema, { io: "input" }), null, 2)}\n`;

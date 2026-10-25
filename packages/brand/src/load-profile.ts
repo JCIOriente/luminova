@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CONFIG_FILE, readLuminovaConfig } from "./config.ts";
+import { CONFIG_FILE, luminovaConfigSchema, type LuminovaConfig } from "./config.ts";
 import { formatRemedies, uniqueRemedies, type Problem, type Remedy } from "./remedy.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema, type Brand } from "./schema.ts";
 
@@ -87,6 +87,31 @@ export function issuesToBrandError(
     ),
     remedies,
   );
+}
+
+/** `luminova.json`, validated; every failure names the file and how to fix it. */
+export function readLuminovaConfig(repoRoot: string): LuminovaConfig {
+  const file = join(repoRoot, CONFIG_FILE);
+  if (!existsSync(file)) {
+    throw new BrandConfigError(
+      [`${CONFIG_FILE} is missing: it names the chapter (brand/<slug>/) this repository builds.`],
+      [
+        { change: "create your chapter's profile; it writes the file too", run: "pnpm brand:init" },
+        {
+          change: `or create ${CONFIG_FILE} at the repo root for an existing profile: { "profile": "<slug>" }`,
+        },
+      ],
+    );
+  }
+  const parsed = luminovaConfigSchema.safeParse(readJsonFile(file, CONFIG_FILE));
+  if (!parsed.success) {
+    throw issuesToBrandError(CONFIG_FILE, parsed.error.issues, [
+      {
+        change: `fix ${CONFIG_FILE}: it holds one field, "profile", a folder name under brand/ (e.g. "jci-valle")`,
+      },
+    ]);
+  }
+  return parsed.data;
 }
 
 export type ProfileSource = "flag" | "override" | "file";
