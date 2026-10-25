@@ -161,6 +161,20 @@ describe("doctor", () => {
     expect(rowFor(rows, "selection").remedies?.[0]?.change).toMatch(/^delete the folder/);
   });
 
+  it("only warns about two chapter profiles under --profile, which names one", async () => {
+    for (const slug of ["jci-andina", "jci-valle"]) {
+      cpSync(join(root, "brand/fixture"), join(root, "brand", slug), { recursive: true });
+    }
+    const { rows } = await doctor({
+      repoRoot: root,
+      env: ENV,
+      run,
+      nodeVersion: "24.15.0",
+      profile: "jci-oriente",
+    });
+    expect(statusOf(rows)).toMatchObject({ selection: "warn", profile: "ok" });
+  });
+
   it("warns when a BRAND_PROFILE override in the shell differs from brand/", async () => {
     const rows = await diagnose({ env: { BRAND_PROFILE: "fixture" } });
     expect(rowFor(rows, "selection")).toMatchObject({

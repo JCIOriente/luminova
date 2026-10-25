@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -90,6 +90,28 @@ test("a broken selection fails loudly instead of skipping", () => {
     assert.equal(r.stdout, "");
     assert.match(r.stderr, error);
   }
+});
+
+test("counts folders as Node does: no symlinks, dot-folders included", () => {
+  const linked = fork(READY);
+  const elsewhere = mkdtempSync(join(tmpdir(), "deploy-ready-elsewhere-"));
+  writeFileSync(join(elsewhere, "brand.json"), JSON.stringify(READY));
+  symlinkSync(elsewhere, join(linked, "brand", "jci-valle"));
+  assert.equal(check(linked).stdout, "project=acme\nready=true\n");
+  const hidden = check(fork(READY, { ".valle": READY }));
+  assert.equal(hidden.status, 1);
+  assert.match(hidden.stderr, /2 chapter profiles \(\.valle, acme\)/);
+});
+
+test("reads a ref's folder names unquoted", () => {
+  const root = fork(READY, { 'jci-va"lle': READY });
+  const git = (...args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+  git("init", "-q");
+  git("add", "-A");
+  git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "c");
+  const at = spawnSync("bash", [SCRIPT, root, "HEAD"], { encoding: "utf8" });
+  assert.equal(at.status, 1);
+  assert.match(at.stderr, /2 chapter profiles \(acme, jci-va"lle\)/);
 });
 
 test("judges a past commit with a git ref", () => {

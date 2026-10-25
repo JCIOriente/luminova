@@ -124,6 +124,20 @@ jobs:
         run: pnpm brand:schema --check
       - if: steps.code.outputs.run == 'true'
         run: pnpm brand:guard
+      # Upstream builds the example: a chapter folder merged from a fork's main would make
+      # brand/ select it and re-target upstream's Deploy (spec 2026-10-25-profile-discovery P9).
+      # Forks run CI under their own name, so the step skips there.
+      - if: steps.code.outputs.run == 'true' && github.repository == 'JCIOriente/luminova'
+        name: Guard — upstream holds no chapter profile
+        run: |
+          node --input-type=module -e '
+            const { chapterProfiles } = await import("./packages/brand/src/load-profile.ts");
+            const chapters = chapterProfiles(process.cwd());
+            if (chapters.length > 0) {
+              console.error(`brand/ holds chapter profiles (${chapters.join(", ")}); upstream builds the example only. Open the PR from a branch of upstream main, without your chapter folder.`);
+              process.exit(1);
+            }
+          '
       # Unit suites only — exclude tests/* (those boot the Firestore emulator, see
       # the `emulator` job). beacon's own `test` task is unit-only; its emulator
       # suite is a separate `test:emulator` script.

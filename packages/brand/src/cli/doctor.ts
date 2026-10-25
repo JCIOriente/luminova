@@ -255,7 +255,7 @@ export async function doctor({
   const rows = [
     await attempt("node", () => nodeRow(repoRoot, nodeVersion)),
     pnpm,
-    selectionRow(repoRoot, env),
+    selectionRow(repoRoot, env, flag),
     ...profileChecks,
     ...(profile
       ? await brandRows(profile, repoRoot, env).catch((error: unknown) => [
@@ -286,12 +286,16 @@ const LEGACY_CONFIG_FILE = "luminova.json";
  * brand/ selects the chapter (spec P1); a leftover shell override or luminova.json is
  * flagged, never obeyed silently.
  */
-function selectionRow(repoRoot: string, env: Env): DoctorRow {
+function selectionRow(repoRoot: string, env: Env, flag?: string): DoctorRow {
   let slug: string;
   let source: DiscoveredSource;
   try {
     ({ slug, source } = discoverProfile(repoRoot));
   } catch (error) {
+    // With --profile the command still knows what to diagnose; plain commands do not.
+    if (flag && error instanceof ProfileSelectionError) {
+      return warn(SELECTION, error.errors.join("; "), error.remedies);
+    }
     return failed(SELECTION, error);
   }
   const selects = `brand/ selects "${slug}" (${SOURCE_LABEL[source]})`;

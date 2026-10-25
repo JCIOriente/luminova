@@ -37,7 +37,10 @@ Your editor explains every field of `brand.json` on hover: it points at a JSON S
 
 Upgrading a fork from a version with a root `luminova.json`: the pull that removes it
 conflicts once if you had edited it. Resolve it by deleting the file
-(`git rm luminova.json`); `brand:doctor` warns while a copy is left.
+(`git rm luminova.json`); `brand:doctor` warns while a copy is left. If `brand/` holds
+more than one chapter folder (an older `brand:init` allowed it), every command and Deploy
+stop until you delete all but the one you build. Send pull requests upstream from a branch
+of upstream's `main`, never from your fork's `main`: upstream's CI refuses a chapter folder.
 
 What stays out of the repository: your `gcloud`, `gh` and `firebase` sign-ins (each tool
 keeps its own), and the optional `DEPLOY_WEBHOOK_URL` GitHub secret that posts deploy

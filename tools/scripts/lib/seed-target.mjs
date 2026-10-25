@@ -48,7 +48,7 @@ export function resolveProductionTarget({
   if (project !== expected) {
     throw new ProjectTargetError(
       `Refusing to run: project "${project}" is not the one profile "${profile.slug}" (${expected}) ` +
-        `deploys to. Seeds target the profile brand/ selects: pass --project ${expected}.`,
+        `deploys to. Seeds target the selected profile: pass --project ${expected}.`,
     );
   }
   return project;

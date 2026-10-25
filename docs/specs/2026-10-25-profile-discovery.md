@@ -28,6 +28,7 @@ selection itself has to come from what is in `brand/`.
 | P6 | Turbo (replaces C7) | `brand/**` already is a build, test and ci input, and adding or removing a profile folder changes it | A switch of profiles still rebuilds, never replays another profile's cache |
 | P7 | CD | `.github/scripts/deploy-ready.sh` applies P1 in bash, from the working tree or a git ref (`git ls-tree`). Deploy's surface filter drops `luminova.json`: a change of profile is a change of project, which the first-deploy check already turns into a deploy of every surface | Twin rules, as before; Deploy's filter runs before any install |
 | P8 | One chapter per repository | `brand:init` refuses to create a second chapter profile and names the existing one | Two would leave every command without a selection; Luminova is one deployment per chapter |
+| P9 | Upstream holds no chapter profile | CI fails in `JCIOriente/luminova` when `brand/` holds a chapter profile (`chapterProfiles()` not empty). Forks run CI under their own name, so the step skips there | A fork's chapter folder that rides along in a PR from the fork's `main` would otherwise become upstream's selection: Deploy would skip (a `demo-` project) or retarget |
 
 ## 3. Messages
 
@@ -41,4 +42,6 @@ Every command names the profile and why it was chosen:
 
 A fork that already edited `luminova.json` gets a modify/delete conflict once, on the
 pull that removes the file: resolve it by deleting the file (`git rm luminova.json`).
-Its chapter folder is then discovered. A leftover file is never read.
+Its chapter folder is then discovered. A leftover file is never read. A fork that holds
+more than one chapter folder (the old `brand:init` allowed it) stops on that pull: delete
+every chapter folder but the one it builds.
