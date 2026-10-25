@@ -64,7 +64,9 @@ wins over any `.env` file, so dev, the emulators (`.firebaserc`) and the seeds a
 the same project.
 
 `VITE_FIREBASE_EMULATOR_ENABLED` decides where the app talks: the dev server defaults to
-the emulators, a build to the real project (`pnpm build:local` sets it `true`). Against the
+the emulators, a build to the real project (`pnpm build:local` sets it `true`). The
+committed `apps/*/.env.production` pins `false` for builds, because Vite reads a
+mode-specific file before `.env.local`, which may turn the emulators on for dev. Against the
 emulators, App Check and web push stay off, because the profile's production keys do not
 work on localhost. The optional `apps/<app>/.env.local` (template:
 `apps/<app>/.env.local.example`) can point dev at the real project
