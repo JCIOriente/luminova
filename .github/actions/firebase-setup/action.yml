@@ -32,12 +32,10 @@ runs:
         BRAND_RELEASE: "1"
       run: |
         set -euo pipefail
-        pnpm -s brand:ci-config >> "$GITHUB_OUTPUT"
-    - name: Export GCP_PROJECT_ID for the deploy steps
-      shell: bash
-      env:
-        PROJECT_ID: ${{ steps.config.outputs.project_id }}
-      run: echo "GCP_PROJECT_ID=${PROJECT_ID}" >> "$GITHUB_ENV"
+        pnpm -s brand:ci-config > "$RUNNER_TEMP/brand-ci-config"
+        cat "$RUNNER_TEMP/brand-ci-config" >> "$GITHUB_OUTPUT"
+        # Later steps of the job deploy with --project "$GCP_PROJECT_ID".
+        sed -n 's/^project_id=/GCP_PROJECT_ID=/p' "$RUNNER_TEMP/brand-ci-config" >> "$GITHUB_ENV"
     # .firebaserc (project, hosting sites, storage bucket) is generated from the profile.
     # `prepare` writes it on install, but pnpm skips `prepare` on an up-to-date install,
     # so it is written explicitly: no deploy depends on that lifecycle detail.

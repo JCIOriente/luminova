@@ -9,7 +9,7 @@ export const PROVIDER_ID = "github-oidc";
 export const deploySaEmail = (projectId: string) =>
   `${DEPLOY_SA}@${projectId}.iam.gserviceaccount.com`;
 
-export const workloadIdentityProvider = (projectNumber: string) =>
+const workloadIdentityProvider = (projectNumber: string) =>
   `projects/${projectNumber}/locations/global/workloadIdentityPools/${POOL_ID}/providers/${PROVIDER_ID}`;
 
 /** A Firebase project's messagingSenderId is its project number. */

@@ -260,7 +260,7 @@ that address read access on the brand-assets bucket, so an account living in ano
 project gets no grant and CD's `brand:pull` fails.
 
 ```bash
-# --- shell context ---
+# your values (pnpm brand:provision fills them in)
 export PROJECT_ID=jci-oriente
 export PROJECT_NUMBER=953870918238
 export GH_REPO=JCIOriente/luminova
@@ -270,7 +270,7 @@ export PROVIDER_ID=github-oidc
 export DEPLOY_SA=firebase-deployer
 export DEPLOY_SA_EMAIL="${DEPLOY_SA}@${PROJECT_ID}.iam.gserviceaccount.com"
 
-# --- 1. enable APIs ---
+# part 1: enable APIs
 gcloud config set project "$PROJECT_ID"
 gcloud services enable \
   iamcredentials.googleapis.com sts.googleapis.com \
@@ -280,11 +280,11 @@ gcloud services enable \
   firestore.googleapis.com storage.googleapis.com serviceusage.googleapis.com \
   cloudbilling.googleapis.com
 
-# --- 2. deploy service account ---
+# part 2: deploy service account
 gcloud iam service-accounts create "$DEPLOY_SA" \
   --display-name="GitHub Actions deployer (keyless)"
 
-# --- 3. WIF pool + provider (pinned to repo AND main) ---
+# part 3: WIF pool + provider (pinned to repo AND main)
 gcloud iam workload-identity-pools create "$POOL_ID" \
   --location="global" --display-name="GitHub Actions pool"
 export POOL_NAME=$(gcloud iam workload-identity-pools describe "$POOL_ID" \
@@ -296,12 +296,12 @@ gcloud iam workload-identity-pools providers create-oidc "$PROVIDER_ID" \
   --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref" \
   --attribute-condition="assertion.repository == '${GH_REPO}' && assertion.ref == 'refs/heads/main'"
 
-# --- 4. bind pool -> SA ---
+# part 4: bind pool -> SA
 gcloud iam service-accounts add-iam-policy-binding "$DEPLOY_SA_EMAIL" \
   --role="roles/iam.workloadIdentityUser" \
   --member="principalSet://iam.googleapis.com/${POOL_NAME}/attribute.repository/${GH_REPO}"
 
-# --- 5. least-privilege IAM ---
+# part 5: least-privilege IAM
 for ROLE in \
   roles/firebasehosting.admin roles/firebaserules.admin roles/datastore.indexAdmin \
   roles/cloudfunctions.admin roles/run.admin roles/artifactregistry.admin \
@@ -322,7 +322,7 @@ export BILLING_ACCOUNT=$(gcloud billing projects describe "$PROJECT_ID" \
 gcloud billing accounts add-iam-policy-binding "$BILLING_ACCOUNT" \
   --member="serviceAccount:${DEPLOY_SA_EMAIL}" --role="roles/billing.viewer"
 
-# --- 6. GitHub production environment (via gh; owner id from `gh api user`) ---
+# part 6: GitHub production environment (via gh; owner id from `gh api user`)
 gh api -X PUT "repos/${GH_REPO}/environments/production" --input - <<< \
   "{\"wait_timer\":0,\"reviewers\":[{\"type\":\"User\",\"id\":${REVIEWER_ID}}],\"deployment_branch_policy\":{\"protected_branches\":false,\"custom_branch_policies\":true}}"
 gh api -X POST "repos/${GH_REPO}/environments/production/deployment-branch-policies" \

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
+import { DEPLOY_SA, POOL_ID, PROVIDER_ID } from "../deploy-identity.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
 import { applyBucket, printProvisioning, provisionNext, provisioningSection } from "./provision.ts";
@@ -125,6 +126,13 @@ describe("printProvisioning", () => {
 });
 
 describe("provisioningSection", () => {
+  it("names the same deploy account, pool and provider brand:init writes into deploy", () => {
+    const block = provisioningSection(readFileSync(join(REPO_ROOT, "docs/ci-cd.md"), "utf8"));
+    for (const [key, value] of Object.entries({ DEPLOY_SA, POOL_ID, PROVIDER_ID })) {
+      expect(block).toMatch(new RegExp(`^export ${key}=${value}$`, "m"));
+    }
+  });
+
   it("finds the section 6 block in the real docs/ci-cd.md and its four exports", () => {
     const block = provisioningSection(readFileSync(join(REPO_ROOT, "docs/ci-cd.md"), "utf8"));
     for (const key of ["PROJECT_ID", "PROJECT_NUMBER", "GH_REPO", "REVIEWER_ID"]) {
@@ -219,9 +227,8 @@ describe("provisionNext", () => {
   });
 
   it("after applying, points at the upload and doctor", () => {
-    expect(provisionNext({ applied: true }).map(({ run }) => run)).toEqual([
-      "pnpm brand:push",
-      "pnpm brand:doctor",
-    ]);
+    expect(
+      provisionNext({ applied: true, pushCommand: "pnpm brand:push" }).map(({ run }) => run),
+    ).toEqual(["pnpm brand:push", "pnpm brand:doctor"]);
   });
 });

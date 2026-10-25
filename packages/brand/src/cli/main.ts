@@ -21,19 +21,17 @@ export async function exitOnFailure(body: () => Promise<void> | void): Promise<v
   }
 }
 
+/** A `--name <value>` flag of this command; a flag without a value is a config error. */
+export const cliFlag = (name: string, argv: readonly string[] = process.argv.slice(2)) =>
+  flagValue(argv, name, (message) => new BrandConfigError([message]));
+
 /** Runs a brand CLI against the profile luminova.json selects, or `--profile <slug>`. */
 export async function runCli(
   name: string,
   body: (profile: LoadedProfile) => Promise<void> | void,
 ): Promise<void> {
   await exitOnFailure(async () => {
-    const profile = loadProfile({
-      profile: flagValue(
-        process.argv.slice(2),
-        "--profile",
-        (message) => new BrandConfigError([message]),
-      ),
-    });
+    const profile = loadProfile({ profile: cliFlag("--profile") });
     for (const warning of profile.warnings) console.warn(`${name}: ${warning}`);
     await body(profile);
   });

@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { join } from "node:path";
 import { z } from "zod";
-import { flagValue } from "../argv.ts";
 import { CONFIG_FILE } from "../config.ts";
 import { defaultDeploy, deploySaEmail } from "../deploy-identity.ts";
 import {
@@ -20,7 +19,7 @@ import {
 } from "../release.ts";
 import { formatNext, type Remedy } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
-import { runCli } from "./main.ts";
+import { cliFlag, runCli } from "./main.ts";
 import { deployDispatch } from "./push.ts";
 
 const LIFECYCLE_FILE = "brand/bucket-lifecycle.json";
@@ -142,14 +141,11 @@ async function viewerMembers(run: CommandRunner, bucket: string): Promise<string
     .flatMap(({ members }) => members);
 }
 
-export function provisionNext({
-  applied,
-  pushCommand = "pnpm brand:push",
-}: {
-  applied: boolean;
-  pushCommand?: string;
-}): Remedy[] {
-  if (!applied) {
+/** What follows: after the printout, `--apply`; after `--apply`, `pushCommand` (step 4). */
+export function provisionNext(
+  next: { applied: false } | { applied: true; pushCommand: string },
+): Remedy[] {
+  if (!next.applied) {
     return [
       {
         change: "do steps 1 and 2 above, then let this command do step 3 (project owner)",
@@ -158,7 +154,7 @@ export function provisionNext({
     ];
   }
   return [
-    { change: "step 4: upload your images to the bucket", run: pushCommand },
+    { change: "step 4: upload your images to the bucket", run: next.pushCommand },
     { change: "confirm every row passes", run: "pnpm brand:doctor" },
   ];
 }
@@ -230,10 +226,10 @@ const indent = (lines: readonly string[], by: string) =>
 
 /** `brand:push`, with `--from` when the images are not in brand-assets/ (the example profile). */
 function pushCommandFor(profile: LoadedProfile, repoRoot: string): string {
-  const assetsDir = displayDir(repoRoot, selectAssetsDir(repoRoot, profile, {}, false));
-  return assetsDir === PULLED_ASSETS_DIR
+  const assetsDir = selectAssetsDir(repoRoot, profile, {}, false);
+  return assetsDir === join(repoRoot, PULLED_ASSETS_DIR)
     ? "pnpm brand:push"
-    : `pnpm brand:push --from ${shellQuote(assetsDir)}`;
+    : `pnpm brand:push --from ${shellQuote(displayDir(repoRoot, assetsDir))}`;
 }
 
 /** Numbered steps: what, why, where, the exact lines, and how to see that it worked. */
@@ -275,38 +271,33 @@ export async function printProvisioning({
   const gcloud = (step: BucketStep | undefined) => (step ? `gcloud ${command(step.args)}` : "");
   const pushCommand = pushCommandFor(profile, repoRoot);
 
-  const projectNumber = await lookup(
-    run,
-    "gcloud",
-    ["projects", "describe", projectId, "--format=value(projectNumber)"],
-    `project number: gcloud projects describe ${projectId} --format='value(projectNumber)'`,
-  );
-  const values: Record<string, string> = {
-    PROJECT_ID: projectId,
-    PROJECT_NUMBER: projectNumber,
-    GH_REPO:
-      repo ??
-      (await lookup(
+  // Independent read-only lookups: one wait, not three.
+  const [projectNumber, ghRepo, reviewerId] = await Promise.all([
+    lookup(
+      run,
+      "gcloud",
+      ["projects", "describe", projectId, "--format=value(projectNumber)"],
+      `project number: gcloud projects describe ${projectId} --format='value(projectNumber)'`,
+    ),
+    repo ??
+      lookup(
         run,
         "gh",
         ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
         "owner/repo: gh repo view --json nameWithOwner -q .nameWithOwner",
-      )),
-    REVIEWER_ID: await lookup(
-      run,
-      "gh",
-      ["api", "user", "-q", ".id"],
-      "your GitHub user id: gh api user -q .id",
-    ),
+      ),
+    lookup(run, "gh", ["api", "user", "-q", ".id"], "your GitHub user id: gh api user -q .id"),
+  ]);
+  const values: Record<string, string> = {
+    PROJECT_ID: projectId,
+    PROJECT_NUMBER: projectNumber,
+    GH_REPO: ghRepo,
+    REVIEWER_ID: reviewerId,
   };
-  const section = provisioningSection(readFileSync(join(repoRoot, CI_CD_DOC), "utf8"))
-    .replace(
-      /^export (PROJECT_ID|PROJECT_NUMBER|GH_REPO|REVIEWER_ID)=.*$/gm,
-      (_, key: string) => `export ${key}=${values[key] ?? ""}`,
-    )
-    // The doc's numbered parts would read as sub-steps of "Step 1 of 5".
-    .replace(/^# --- shell context ---$/m, "# your values (filled in)")
-    .replace(/^# --- (\d+)\. (.*) ---$/gm, "# part $1: $2");
+  const section = provisioningSection(readFileSync(join(repoRoot, CI_CD_DOC), "utf8")).replace(
+    /^export (PROJECT_ID|PROJECT_NUMBER|GH_REPO|REVIEWER_ID)=.*$/gm,
+    (_, key: string) => `export ${key}=${values[key] ?? ""}`,
+  );
   const deploy = profile.brand.deploy ?? defaultDeploy({ projectId, projectNumber });
   const deploySnippet = JSON.stringify({ deploy }, null, 2).slice(2, -2);
 
@@ -371,7 +362,7 @@ if (import.meta.main) {
         `brand:provision: bucket ready.\n\n${formatNext(provisionNext({ applied: true, pushCommand: pushCommandFor(profile, REPO_ROOT) }))}`,
       );
     } else {
-      const repo = flagValue(argv, "--repo", (message) => new BrandConfigError([message]));
+      const repo = cliFlag("--repo", argv);
       console.log(await printProvisioning({ profile, repo }));
       console.log(`\n${formatNext(provisionNext({ applied: false }))}`);
     }
