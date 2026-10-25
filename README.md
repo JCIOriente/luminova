@@ -171,16 +171,12 @@ cd luminova
 nvm use                       # Node 24, pinned in .nvmrc
 corepack enable
 pnpm install
-
-cp apps/spotlight/.env.local.example apps/spotlight/.env.local
-cp apps/backstage/.env.local.example apps/backstage/.env.local
-
 pnpm dev
 ```
 
-The example env files ship filled in and default to the emulators, so nothing you do
-locally touches a real project. The Firebase web API keys in them are public client
-identifiers, not secrets — see [SECURITY.md](SECURITY.md).
+No `.env` file is needed: `pnpm dev` reads the Firebase config from the brand profile
+`luminova.json` selects and always talks to the local emulators, so nothing you do locally
+touches a real project.
 
 `pnpm dev` boots the Firebase emulator suite, rebuilds the functions so triggers are not
 stale, seeds Firestore and Auth, and starts both dev servers.
@@ -206,10 +202,10 @@ Full developer guide, including the quality gate and the repository layout:
 ## Adopting it for your chapter
 
 Luminova is not multi-tenant: one deployment serves one chapter. To run it for yours, fork
-it, create a brand profile with `pnpm brand:init` (names, places, origins, your Firebase
-project), check your images with `pnpm brand:check` and your setup with
-`pnpm brand:doctor`, then put the images in a private bucket in your own project that CD
-reads from. The JCI marks are **not** covered by this repository's license — see
+it and create a brand profile with `pnpm brand:init` (names, places, site addresses). Try it
+on your computer first: the profile starts local-only, with no Firebase project and nothing
+deployed. When your chapter is ready to go live, `pnpm brand:init --connect` attaches your
+Firebase project and `pnpm brand:provision` walks through the Google Cloud setup. The JCI marks are **not** covered by this repository's license — see
 [NOTICE](NOTICE).
 
 The whole path, each step with its command: [`docs/adopting.md`](docs/adopting.md).

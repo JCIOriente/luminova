@@ -20,7 +20,7 @@ Two web app registrations share one Firebase project and one Firestore database:
 | spotlight | `1:953870918238:web:63d0034740735d618b4acf` | `spotlight` | https://jcioriente.org |
 | backstage | `1:953870918238:web:acbd53d377846bd88b4acf` | `backstage` | https://admin.jcioriente.org |
 
-Each app reads its Firebase config from its own `apps/<app>/.env.local` (template at `apps/<app>/.env.local.example`). The two apps share the same project and database but use separate app registrations and separate App Check site keys.
+Each app reads its Firebase config from the brand profile (`firebase.web.<app>` in `brand/<slug>/brand.json`). The two apps share the same project and database but use separate app registrations and separate App Check site keys.
 
 ## Hosting Targets
 
@@ -56,31 +56,19 @@ pnpm brand:apply
 
 ### Frontend Apps (apps/spotlight, apps/backstage)
 
-Each app has its own `.env.local` (never commit these). Use the template at `apps/<app>/.env.local.example`:
+No `.env` file is needed. The brand Vite plugin (`packages/brand/src/vite.ts`) gives every
+mode (`pnpm dev`, `build:local`, release builds) the Firebase config of the profile
+`luminova.json` selects: `firebase.web.<app>` in `brand/<slug>/brand.json` holds each app's
+`apiKey`, `appId`, `appCheckSiteKey` and `vapidKey`. It sets them as process env, which
+wins over any `.env` file, so dev, the emulators (`.firebaserc`) and the seeds always name
+the same project.
 
-```bash
-VITE_FIREBASE_API_KEY=your-api-key
-VITE_FIREBASE_AUTH_DOMAIN=jci-oriente.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=jci-oriente
-VITE_FIREBASE_STORAGE_BUCKET=jci-oriente.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=953870918238
-VITE_FIREBASE_APP_ID=<per-app appId from Web Apps table above>
-# Web Push (FCM) public VAPID key — project-level, same value for both apps.
-# See "Push Notifications (FCM Web Push)" below. Public; ships in the client bundle.
-VITE_FIREBASE_VAPID_KEY=<Web Push certificate public key>
-# App Check (reCAPTCHA v3) — paste the real site key once created; blank (as here for local dev) disables App Check
-VITE_APPCHECK_SITE_KEY=
-VITE_FIREBASE_EMULATOR_ENABLED=false
-```
-
-For local development with emulators, set `VITE_FIREBASE_EMULATOR_ENABLED=true`.
-
-Production builds do not read these keys from any `.env` file: the brand Vite plugin
-(`packages/brand/src/vite.ts`) takes them from the selected profile's `firebase` block in
-`brand/<slug>/brand.json` (`firebase.web.<app>` holds each app's `apiKey`, `appId`,
-`appCheckSiteKey` and `vapidKey`). `apps/*/.env.production` holds only
-`VITE_FIREBASE_EMULATOR_ENABLED=false`. Emulator builds (`pnpm dev`, `build:local`) keep
-reading `.env.local`.
+`VITE_FIREBASE_EMULATOR_ENABLED` decides where the app talks: the dev server defaults to
+the emulators, a build to the real project (`pnpm build:local` sets it `true`). Against the
+emulators, App Check and web push stay off, because the profile's production keys do not
+work on localhost. The optional `apps/<app>/.env.local` (template:
+`apps/<app>/.env.local.example`) can point dev at the real project
+(`VITE_FIREBASE_EMULATOR_ENABLED=false`) or set a debug App Check or VAPID key.
 
 ### Beacon (apps/beacon)
 
@@ -91,7 +79,7 @@ For local emulator, the Firebase CLI handles credentials automatically.
 
 App Check uses **reCAPTCHA v3** to protect the Firebase backend from abuse.
 
-- Setting `VITE_APPCHECK_SITE_KEY` enables App Check for that app; leaving it blank disables it. Prod builds carry the real site keys (`firebase.web.<app>.appCheckSiteKey` in `brand/<slug>/brand.json`); local `.env.local` leaves the key blank, so App Check is off in local dev and you develop against the emulators without a token.
+- Setting `VITE_APPCHECK_SITE_KEY` enables App Check for that app; leaving it blank disables it. Prod builds carry the real site keys (`firebase.web.<app>.appCheckSiteKey` in `brand/<slug>/brand.json`); against the emulators the plugin leaves the key out, so App Check is off in local dev and you develop without a token.
 - Every deployed client initializes App Check and attests — that is why the lite read path (`getFirestoreLite`) also initializes App Check, not just the full SDK. What is enforced and where, registering a web app, verification and failure diagnosis: owner op 3 under "Enlaces de acceso" below.
 
 The `@luminova/firebase` package initializes App Check automatically when `VITE_APPCHECK_SITE_KEY` is set (shared `initAppCheck` helper, used by both `getFirebase` and `getFirestoreLite`).

@@ -29,8 +29,8 @@ These come up on every public Firebase repository. Please read before reporting.
 
 ### The Firebase API keys in this repository are not secrets
 
-`apps/*/.env.local.example` and `apps/*/.env.production` contain values such as
-`VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_APP_ID` and `VITE_FIREBASE_PROJECT_ID`.
+`brand/<slug>/brand.json` contains values such as the web apps' `apiKey`, `appId` and the
+Firebase `projectId`, which the builds ship as `VITE_FIREBASE_API_KEY` and friends.
 
 These are **public client identifiers**, not credentials. Firebase requires them to
 be shipped in the browser bundle, so they are visible to anyone who opens DevTools on

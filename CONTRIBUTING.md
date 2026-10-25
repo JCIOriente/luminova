@@ -27,15 +27,12 @@ not need them.
 
 ```bash
 pnpm install
-cp apps/spotlight/.env.local.example apps/spotlight/.env.local
-cp apps/backstage/.env.local.example apps/backstage/.env.local
 ```
 
-Each app reads its Firebase config from `apps/<app>/.env.local`. The example files
-ship with working values already filled in — the web API keys are public client
-identifiers, not secrets (see [SECURITY.md](SECURITY.md)). They default to
-`VITE_FIREBASE_EMULATOR_ENABLED=true`, so nothing you do locally touches
-production.
+No `.env` file is needed. Each app reads its Firebase config from the brand profile
+`luminova.json` selects (`brand/<slug>/brand.json`), and `pnpm dev` always talks to the
+local emulators, so nothing you do locally touches production. `apps/<app>/.env.local.example`
+lists the few optional overrides.
 
 ## Run the stack
 
