@@ -3,8 +3,8 @@
 // and keeps the rest with the reason. --dry-run only prints (it still refreshes remote refs).
 // Rules: lib/worktree-clean.mjs.
 import { execFile, execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { promisify } from "node:util";
 import {
   MISSING_WORKTREE,
@@ -84,7 +84,24 @@ const [mergedHeads] = await Promise.all([
   execFileAsync("git", ["-C", primary, "fetch", "--prune", "--quiet", "origin"]),
 ]);
 
-const worktrees = parseWorktrees(git("worktree", "list", "--porcelain", "-z"));
+// The branch a rebase or bisect in progress is working on; git records it in these files.
+function busyBranches(path) {
+  if (!existsSync(path)) return [];
+  return ["rebase-merge/head-name", "rebase-apply/head-name", "BISECT_START"].flatMap((file) => {
+    const statePath = gitIn(path, "rev-parse", "--path-format=absolute", "--git-path", file).trim();
+    if (!existsSync(statePath)) return [];
+    return [
+      readFileSync(statePath, "utf8")
+        .trim()
+        .replace(/^refs\/heads\//, ""),
+    ];
+  });
+}
+
+const worktrees = parseWorktrees(git("worktree", "list", "--porcelain", "-z")).map((wt) => ({
+  ...wt,
+  busyBranches: busyBranches(wt.path),
+}));
 const branches = parseBranches(
   git(
     "for-each-ref",
@@ -147,7 +164,7 @@ const rows = plan({
 
 const cells = rows.map((row) => [
   row.remove ? (dryRun ? "would remove" : "remove") : "keep",
-  row.kind === "worktree" ? row.path.slice(primary.length + 1) : "(branch only)",
+  row.kind === "worktree" ? relative(primary, row.path) : "(branch only)",
   row.branch ?? "-",
   row.reason,
 ]);

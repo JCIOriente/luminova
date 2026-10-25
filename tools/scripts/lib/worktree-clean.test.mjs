@@ -252,6 +252,12 @@ test("branches no worktree has checked out get their own rows", () => {
   ]);
 });
 
+test("a branch under rebase or bisect in a detached worktree gets no branch row", () => {
+  const s = scenario();
+  s.worktrees.push(wt("rebasing", null, { busyBranches: ["feat/old"] }));
+  assert.ok(!plan(s).some((r) => r.kind === "branch" && r.branch === "feat/old"));
+});
+
 test("main is protected even when no worktree has it checked out", () => {
   const s = scenario();
   s.worktrees[0] = wt(ROOT, "feat/other");
@@ -261,6 +267,20 @@ test("main is protected even when no worktree has it checked out", () => {
 
 test("a kept worktree's branch is never judged on its own", () => {
   const probed = [];
-  plan(scenario({ inMain: (name) => (probed.push(name), true) }));
+  const rows = plan(scenario({ inMain: (name) => (probed.push(name), true) }));
+  const kept = [
+    "feat/done2",
+    "feat/done3",
+    "feat/here",
+    "feat/held",
+    "feat/x",
+    "feat/y",
+    "feat/stale",
+    "feat/refs",
+  ];
+  for (const name of kept) {
+    assert.ok(!probed.includes(name), `${name} was judged`);
+    assert.ok(!rows.some((r) => r.branch === name && r.remove), `${name} would be removed`);
+  }
   assert.deepEqual(probed, ["feat/done", "feat/missing", "feat/old"]);
 });

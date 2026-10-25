@@ -112,8 +112,9 @@ export function branchVerdict({ tip, upstreamGone, inMain }, heads) {
 }
 
 /** Decide every linked worktree, then every branch no worktree has checked out (a branch
- *  whose worktree is kept is never deleted on its own). `inMain(branch)` and `inspect(path)` → parseWorktreeState() or MISSING_WORKTREE are
- *  called only for rows that need them. Rows: { kind, path?, branch, remove, reason }. */
+ *  whose worktree is kept is never deleted on its own). `inMain(branch)` and
+ *  `inspect(path)` (→ parseWorktreeState() or MISSING_WORKTREE) are called only for rows that
+ *  need them. Rows: { kind, path?, branch, remove, reason }. */
 export function plan({
   worktrees,
   branches,
@@ -146,7 +147,8 @@ export function plan({
     return { kind: "worktree", path: wt.path, branch: wt.branch, ...verdict };
   });
 
-  const checkedOut = new Set(worktrees.map((wt) => wt.branch));
+  // A rebase or bisect detaches HEAD, so the branch it works on is listed in `busyBranches`.
+  const checkedOut = new Set(worktrees.flatMap((wt) => [wt.branch, ...(wt.busyBranches ?? [])]));
   for (const name of branches.keys()) {
     if (!checkedOut.has(name)) rows.push({ kind: "branch", branch: name, ...decide(name) });
   }
