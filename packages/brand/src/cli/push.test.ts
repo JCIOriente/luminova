@@ -6,7 +6,7 @@ import { writeAssetSet } from "../asset-set.ts";
 import { ASSET_CONTRACT } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import type { CommandRunner } from "./gcloud.ts";
-import { DEPLOY_DISPATCH, push } from "./push.ts";
+import { DEPLOY_DISPATCH, push, pushNext } from "./push.ts";
 
 const BUCKET = "jci-oriente-brand-assets";
 const profile: LoadedProfile = {
@@ -57,6 +57,18 @@ describe("push", () => {
     rmSync(join(from, "og-image.png"));
     await expect(push({ profile, from, run })).rejects.toThrow(/og-image\.png: missing/);
     expect(calls).toEqual([]);
+  });
+
+  it("says which folder to fix when the set is invalid", async () => {
+    rmSync(join(from, "og-image.png"));
+    const error = await push({ profile, from, run }).catch((caught: unknown) => caught);
+    expect(error instanceof BrandConfigError ? error.remedies : []).toEqual([
+      expect.objectContaining({ run: `BRAND_ASSETS_DIR=${from} pnpm brand:check` }),
+    ]);
+  });
+
+  it("names the deploy dispatch and doctor as the next steps", () => {
+    expect(pushNext().map(({ run }) => run)).toEqual([DEPLOY_DISPATCH, "pnpm brand:doctor"]);
   });
 
   it("refuses the default profile: the bucket must be named on purpose", async () => {

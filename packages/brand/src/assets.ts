@@ -189,18 +189,22 @@ export const PULL_ASSETS: Remedy = {
 };
 
 /** What to do about a validation of `dirLabel` (as the user sees it), one remedy per kind. */
-export function assetRemedies(validation: AssetValidation, dirLabel: string): Remedy[] {
+export function assetRemedies(
+  validation: AssetValidation,
+  dirLabel: string,
+  checkCommand = "pnpm brand:check",
+): Remedy[] {
   const remedies: Remedy[] = [];
   if (validation.kinds.files) {
     remedies.push({
       change: `put the files marked above in ${dirLabel}/ at the sizes shown (all ${ASSET_CONTRACT.length}: docs/adopting.md step 4)`,
-      run: "pnpm brand:check",
+      run: checkCommand,
     });
   }
   if (validation.kinds.logoSize) {
     remedies.push({
       change: `export ${LOGO_FILES.join(", ")} at one size, then replace them in ${dirLabel}/`,
-      run: "pnpm brand:check",
+      run: checkCommand,
     });
   }
   if (validation.kinds.heavyOg) {

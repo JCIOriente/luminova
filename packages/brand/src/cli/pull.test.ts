@@ -14,7 +14,7 @@ import { ASSET_CONTRACT } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { encodePng } from "../png.ts";
 import type { CommandRunner } from "./gcloud.ts";
-import { pull } from "./pull.ts";
+import { PULL_NEXT, pull } from "./pull.ts";
 
 const BUCKET = "jci-oriente-brand-assets";
 const profile = loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" });
@@ -108,8 +108,18 @@ describe("pull", () => {
       `gs://${BUCKET}/og-image.png: missing from the bucket (upload it with brand:push)`,
       `gs://${BUCKET}/backstage/pwa-192x192.png: missing from the bucket (upload it with brand:push)`,
     ]);
+    expect(error instanceof BrandConfigError ? error.remedies : []).toEqual([
+      { change: "upload the full set to the bucket (project owner)", run: "pnpm brand:push" },
+    ]);
     expect(calls).toHaveLength(1);
     expect(existsSync(join(root, "brand-assets"))).toBe(false);
+  });
+
+  it("names the next step: check the pulled set with the release rules", () => {
+    expect(PULL_NEXT).toEqual({
+      change: "check the pulled set with the release rules",
+      run: "pnpm brand:check --release",
+    });
   });
 
   it("keeps the previous brand-assets/ when the downloaded set is invalid", async () => {
