@@ -66,23 +66,27 @@ function isBrandApp(value: string | undefined): value is BrandApp {
   return BRAND_APPS.some((app) => app === value);
 }
 
-if (import.meta.main) {
-  const app = process.argv[2];
+/** stderr only: firebase-tools merges a hook's stdout into its `--json` output. */
+export function main(
+  app: string | undefined,
+  { root = REPO_ROOT, env = process.env }: { root?: string; env?: NodeJS.ProcessEnv } = {},
+): number {
   if (!isBrandApp(app)) {
     console.error(`usage: brand:assert-dist <${BRAND_APPS.join("|")}>`);
-    process.exit(2);
+    return 2;
   }
   const label = `apps/${app}/dist`;
-  const { errors, marker } = assertDist({
-    distDir: join(REPO_ROOT, label),
-    label,
-    env: process.env,
-  });
+  const { errors, marker } = assertDist({ distDir: join(root, label), label, env });
   if (!marker) {
     for (const error of errors) console.error(`brand:assert-dist: ${error}`);
-    process.exit(1);
+    return 1;
   }
-  console.log(
+  console.error(
     `brand:assert-dist: ${label} is a release build of "${marker.profile}" for "${marker.projectId}".`,
   );
+  return 0;
+}
+
+if (import.meta.main) {
+  process.exit(main(process.argv[2]));
 }

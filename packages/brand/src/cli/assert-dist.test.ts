@@ -1,5 +1,6 @@
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -16,9 +17,9 @@ const MARKER = {
   indexHtml: createHash("sha256").update(INDEX_HTML).digest("hex"),
 };
 
-function writeMarker(marker: object = MARKER) {
-  writeFileSync(join(distDir, "index.html"), INDEX_HTML);
-  writeFileSync(join(distDir, RELEASE_MARKER_FILE), JSON.stringify(marker));
+function writeMarker(marker: object = MARKER, dir = distDir) {
+  writeFileSync(join(dir, "index.html"), INDEX_HTML);
+  writeFileSync(join(dir, RELEASE_MARKER_FILE), JSON.stringify(marker));
 }
 
 beforeEach(() => {
@@ -104,5 +105,43 @@ describe("assertDist", () => {
         env: { GCLOUD_PROJECT: "jci-oriente", GCP_PROJECT_ID: "someone-else" },
       }).errors,
     ).toEqual([expect.stringMatching(/disagree/)]);
+  });
+});
+
+describe("brand:assert-dist as a predeploy hook", () => {
+  // Regression: Deploy run 40214843839.
+  function run(withMarker: boolean) {
+    const dist = join(distDir, "apps/spotlight/dist");
+    mkdirSync(dist, { recursive: true });
+    if (withMarker) writeMarker(MARKER, dist);
+    else writeFileSync(join(dist, "index.html"), INDEX_HTML);
+    const module = new URL("./assert-dist.ts", import.meta.url).href;
+    // A developer's own GCP_PROJECT_ID would disagree with GCLOUD_PROJECT and fail the pass case.
+    const env: NodeJS.ProcessEnv = { ...process.env, GCLOUD_PROJECT: "jci-oriente" };
+    delete env.GCP_PROJECT_ID;
+    return spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `const { main } = await import(${JSON.stringify(module)});
+         process.exitCode = main("spotlight", { root: ${JSON.stringify(distDir)} });`,
+      ],
+      { encoding: "utf8", env },
+    );
+  }
+
+  it("passes with nothing on stdout and its verdict on stderr", () => {
+    const { status, stdout, stderr } = run(true);
+    expect(status).toBe(0);
+    expect(stdout).toBe("");
+    expect(stderr).toMatch(/apps\/spotlight\/dist is a release build of "jci-oriente"/);
+  });
+
+  it("fails with nothing on stdout and its reason on stderr", () => {
+    const { status, stdout, stderr } = run(false);
+    expect(status).toBe(1);
+    expect(stdout).toBe("");
+    expect(stderr).toMatch(/has no release marker/);
   });
 });

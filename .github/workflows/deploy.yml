@@ -371,7 +371,12 @@ jobs:
               || { echo "::endgroup::"; echo "ERROR: preview deploy failed for $site"; return 1; }
             printf '%s\n' "$out"
             echo "::endgroup::"
-            url=$(printf '%s' "$out" | jq -r 'first(.result[].url)')
+            # firebase-tools prepends hook stdout to its --json document; skip to it, loudly.
+            json=$(printf '%s\n' "$out" | sed -n '/^{/,$p')
+            if [ "$json" != "$out" ]; then
+              echo "::warning::$site: a predeploy hook wrote to stdout ahead of firebase's JSON"
+            fi
+            url=$(printf '%s' "$json" | jq -r 'first(.result[].url)') || url=""
             if [ -z "$url" ] || [ "$url" = "null" ]; then
               echo "ERROR: no preview URL returned for $site"; return 1
             fi
