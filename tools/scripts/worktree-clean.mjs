@@ -9,6 +9,7 @@ import {
   mergedHeadsByBranch,
   parseBranches,
   parseStatus,
+  touchedPathDiffers,
   parseWorktrees,
   plan,
 } from "./lib/worktree-clean.mjs";
@@ -91,29 +92,29 @@ const MAIN = "refs/remotes/origin/main";
 // rename) is identical at the tip and on main now. Then main holds the branch's final state of
 // everything it changed, however it was merged. Comparing commit patches instead is fooled by a
 // follow-up commit that undoes part of a squash, or by a change main later reverted.
+// -z: without it git quotes unusual names ("caf\303\251.txt"), which then match nothing.
+// Explicit merge and submodule flags so user config cannot hide paths.
+const PATH_FLAGS = ["-z", "--name-only", "--no-renames", "--ignore-submodules=none"];
+const paths = (output) => output.split("\0").filter(Boolean);
+
 function inMain(name) {
   const { tip } = branches.get(name);
-  const base = git("merge-base", MAIN, tip).trim();
-  const touched = [
-    ...new Set(
-      git("log", "--format=", "--name-only", "--no-renames", "-m", `${base}..${tip}`)
-        .split("\n")
-        .filter(Boolean),
-    ),
-  ];
-  if (!touched.length) return true;
   try {
-    git("--literal-pathspecs", "diff", "--quiet", "--no-ext-diff", MAIN, tip, "--", ...touched);
-    return true;
+    const base = git("merge-base", MAIN, tip).trim();
+    const log = git("log", ...PATH_FLAGS, "--format=", "--diff-merges=separate", `${base}..${tip}`);
+    const differing = git("diff", ...PATH_FLAGS, "--no-ext-diff", MAIN, tip);
+    return !touchedPathDiffers(new Set(paths(log)), paths(differing));
   } catch (error) {
-    // Exit status 1 means the paths differ: main lacks some of the branch's content.
-    if (error.status === 1) return false;
-    throw error;
+    // One unjudgeable branch (unrelated history, say) must not stop the rest; keep it.
+    console.warn(
+      `Warning: could not judge ${name}, keeping it: ${(error.stderr || error.message).trim()}`,
+    );
+    return false;
   }
 }
 
 function inspect(path) {
-  if (!existsSync(path)) return { exists: false, dirty: false, ignored: [] };
+  if (!existsSync(path)) return { exists: false, dirty: false, ignored: [], localRefs: [] };
   const status = run("git", [
     "-C",
     path,
@@ -130,7 +131,18 @@ function inspect(path) {
     .split("\n")
     .some((line) => /^[a-zS] /.test(line));
   const state = parseStatus(status);
-  return { exists: true, ...state, dirty: state.dirty || hidden };
+  // Refs private to the worktree die with it.
+  const localRefs = run("git", [
+    "-C",
+    path,
+    "for-each-ref",
+    "--format=%(refname)",
+    "refs/worktree",
+    "refs/bisect",
+  ])
+    .split("\n")
+    .filter(Boolean);
+  return { exists: true, ...state, dirty: state.dirty || hidden, localRefs };
 }
 
 const rows = plan({
@@ -170,7 +182,7 @@ for (const row of doomed) {
     if (row.kind === "worktree") {
       // Re-check right before deleting: files or a switched HEAD may have appeared since.
       const now = inspect(row.path);
-      if (now.exists && (now.dirty || now.ignored.length))
+      if (now.exists && (now.dirty || now.ignored.length || now.localRefs.length))
         throw new Error("worktree changed since it was judged; rerun");
       if (
         now.exists &&

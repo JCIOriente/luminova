@@ -7,6 +7,7 @@ import {
   parseStatus,
   parseWorktrees,
   plan,
+  touchedPathDiffers,
 } from "./worktree-clean.mjs";
 
 const ROOT = "/repo";
@@ -60,6 +61,15 @@ test("status: build output is not precious, .env.local and untracked files are",
   });
   assert.equal(parseStatus("?? notes.txt\0").dirty, true);
   assert.equal(parseStatus(" M a.ts\0").dirty, true);
+});
+
+test("only differences in paths the branch touched count", () => {
+  const touched = new Set(["a.txt", "lib/f"]);
+  assert.equal(touchedPathDiffers(touched, ["other.txt", "lib/g"]), false);
+  assert.equal(touchedPathDiffers(touched, ["a.txt"]), true);
+  assert.equal(touchedPathDiffers(touched, ["lib/f/now-a-dir.txt"]), true);
+  assert.equal(touchedPathDiffers(touched, ["lib/fx"]), false);
+  assert.equal(touchedPathDiffers(new Set(), ["a.txt"]), false);
 });
 
 const heads = new Set(["s1"]);
@@ -128,6 +138,7 @@ function scenario(overrides = {}) {
     [`${WT}/dirty`]: { exists: true, dirty: true, ignored: [] },
     [`${WT}/env`]: { exists: true, dirty: false, ignored: ["apps/web/.env.local"] },
     [`${WT}/stale`]: { exists: true, dirty: false, ignored: [] },
+    [`${WT}/refs`]: { exists: true, dirty: false, ignored: [], localRefs: ["refs/worktree/keep"] },
   };
   return {
     worktrees: [
@@ -142,6 +153,7 @@ function scenario(overrides = {}) {
       wt(`${WT}-old/y`, "feat/y"),
       wt("missing", "feat/missing", { prunable: true }),
       wt("stale", "feat/stale", { prunable: true }),
+      wt("refs", "feat/refs"),
     ],
     branches: new Map(
       [
@@ -155,6 +167,7 @@ function scenario(overrides = {}) {
         "feat/y",
         "feat/missing",
         "feat/stale",
+        "feat/refs",
         "chore/local",
         "feat/old",
       ].map((name) => [
@@ -165,7 +178,12 @@ function scenario(overrides = {}) {
     mergedHeads: new Map(),
     inMain: (name) => name !== "feat/y",
     inspect: (path) =>
-      states[path] ?? { exists: !path.endsWith("missing"), dirty: false, ignored: [] },
+      states[path] ?? {
+        exists: !path.endsWith("missing"),
+        dirty: false,
+        ignored: [],
+        localRefs: [],
+      },
     worktreesDir: WT,
     currentPath: `${WT}/here`,
     ...overrides,
@@ -186,6 +204,7 @@ test("plan removes only clean, landed worktrees under .worktrees/", () => {
     ["worktree", "feat/y", false, "outside .worktrees/"],
     ["worktree", "feat/missing", true, "in origin/main"],
     ["worktree", "feat/stale", false, "stale directory, inspect by hand"],
+    ["worktree", "feat/refs", false, "worktree-local refs: refs/worktree/keep"],
   ]);
 });
 

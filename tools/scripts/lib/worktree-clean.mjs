@@ -68,6 +68,15 @@ export function parseStatus(output) {
   };
 }
 
+/** Whether a path that differs between main and the tip is one the branch touched, or lies
+ *  under one (a touched file that became a directory). */
+export function touchedPathDiffers(touched, differing) {
+  return differing.some((path) => {
+    const parts = path.split("/");
+    return parts.some((_, i) => touched.has(parts.slice(0, i + 1).join("/")));
+  });
+}
+
 /** Whether a branch's commits are safe to drop. `inMain()`: origin/main already has the
  *  branch's final state of every path it touched (see the CLI). That also
  *  holds for a branch freshly cut from main, hence the deleted-remote requirement. */
@@ -80,7 +89,7 @@ export function branchVerdict({ tip, upstreamGone, inMain }, heads) {
 }
 
 /** Decide every linked worktree and, with `includeBranches`, every branch no worktree has
- *  checked out. `inMain(branch)` and `inspect(path)` → { exists, dirty, ignored } are
+ *  checked out. `inMain(branch)` and `inspect(path)` → { exists, dirty, ignored, localRefs } are
  *  called only for rows that need them. Rows: { kind, path?, branch, remove, reason }. */
 export function plan({
   worktrees,
@@ -108,6 +117,7 @@ export function plan({
     if (wt.prunable) return state.exists ? "stale directory, inspect by hand" : null;
     if (state.dirty) return "uncommitted changes";
     if (state.ignored.length) return `ignored files: ${state.ignored.join(", ")}`;
+    if (state.localRefs.length) return `worktree-local refs: ${state.localRefs.join(", ")}`;
     return null;
   };
 
