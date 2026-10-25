@@ -81,6 +81,7 @@ jobs:
           FALLBACK_SHA: ${{ github.sha }}
           GH_TOKEN: ${{ github.token }}
           READY: ${{ steps.ready.outputs.ready }}
+          PROJECT: ${{ steps.ready.outputs.project }}
         run: |
           set -euo pipefail
           sp=false; bs=false; fn=false; rl=false
@@ -117,14 +118,17 @@ jobs:
               sp=true; bs=true; fn=true; rl=true
               echo "no base commit available -> deploying all surfaces (fail-safe)"
             fi
-            # The last deploy ran before this repo was set up (it skipped), so this
-            # is the first real deploy: every surface, whatever the diff says.
-            # A base the script cannot read (before luminova.json existed) counts as not set
-            # up; its message stays in the log.
-            if [ -n "$base" ] && ! bash .github/scripts/deploy-ready.sh . "$base" | grep -qx 'ready=true'; then
-              sp=true; bs=true; fn=true; rl=true
-              echo "base $base was not set up to deploy -> first deploy: all surfaces"
-              base=""
+            # The first deploy to a project ships every surface, whatever the diff says:
+            # the last deploy ran before this repo was set up (it skipped), or it went to
+            # another project. A base the script cannot read (before luminova.json existed)
+            # counts as not set up; its message stays in the log.
+            if [ -n "$base" ]; then
+              at_base=$(bash .github/scripts/deploy-ready.sh . "$base" || true)
+              if ! grep -qx 'ready=true' <<<"$at_base" || ! grep -Fqx "project=$PROJECT" <<<"$at_base"; then
+                sp=true; bs=true; fn=true; rl=true
+                echo "base $base was not set up to deploy to $PROJECT -> first deploy: all surfaces"
+                base=""
+              fi
             fi
             if [ -n "$base" ]; then
               diff=$(git diff --name-only "$base...$head")

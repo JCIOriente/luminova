@@ -9,7 +9,8 @@
 # missingDeployProblem in release.ts), kept in jq because Deploy's filter job runs before
 # any pnpm install. Change both together.
 #
-# Prints `ready=true|false` and, when false, `reason=<one line>`, for $GITHUB_OUTPUT.
+# Prints `project=<id>`, `ready=true|false` and, when false, `reason=<one line>`, for
+# $GITHUB_OUTPUT.
 # With a git ref, judges the files as they were at that commit: Deploy uses it to tell a
 # first deploy (the last one ran before setup, so it skipped) from a later one.
 # Usage: deploy-ready.sh [repo-root] [git-ref]
@@ -42,9 +43,10 @@ if ! brand=$(read_file "brand/$profile/brand.json"); then
 fi
 
 project=$(jq -r '.firebase.projectId // empty' <<<"$brand")
+echo "project=$project"
 if [[ "$project" == demo-* ]]; then
   echo "ready=false"
-  echo "reason=profile \"$profile\" is local-only (project $project). To go live: pnpm brand:init --connect, then pnpm brand:provision (docs/adopting.md steps 6 to 12)."
+  echo "reason=profile \"$profile\" is local-only (project $project). To go live: create a Firebase project, pnpm brand:init --connect, then pnpm brand:provision (docs/adopting.md steps 6 to 12)."
 elif ! jq -e '(.deploy.workloadIdentityProvider // "") != "" and (.deploy.serviceAccount // "") != ""' <<<"$brand" >/dev/null; then
   echo "ready=false"
   echo "reason=brand/$profile/brand.json has no \"deploy\" section, so CD cannot sign in yet. pnpm brand:provision shows it (step 2)."

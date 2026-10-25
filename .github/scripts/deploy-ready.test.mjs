@@ -33,13 +33,16 @@ const check = (root) => spawnSync("bash", [SCRIPT, root], { encoding: "utf8" });
 test("a profile on a real project with a deploy section is ready", () => {
   const r = check(repo({ brand: { firebase: { projectId: "acme" }, deploy: DEPLOY } }));
   assert.equal(r.status, 0);
-  assert.equal(r.stdout, "ready=true\n");
+  assert.equal(r.stdout, "project=acme\nready=true\n");
 });
 
 test("a local-only profile skips, naming the way to go live", () => {
   const r = check(repo({ brand: { firebase: { projectId: "demo-acme" } } }));
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /^ready=false\nreason=profile "acme" is local-only \(project demo-acme\)/);
+  assert.match(
+    r.stdout,
+    /^project=demo-acme\nready=false\nreason=profile "acme" is local-only \(project demo-acme\)/,
+  );
   assert.match(r.stdout, /pnpm brand:init --connect/);
 });
 
@@ -47,7 +50,10 @@ test("a real project without a deploy section skips, pointing at brand:provision
   for (const deploy of [undefined, { serviceAccount: DEPLOY.serviceAccount }]) {
     const r = check(repo({ brand: { firebase: { projectId: "acme" }, deploy } }));
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /^ready=false\nreason=.*no "deploy" section.*pnpm brand:provision/);
+    assert.match(
+      r.stdout,
+      /^project=acme\nready=false\nreason=.*no "deploy" section.*pnpm brand:provision/,
+    );
   }
 });
 
@@ -73,12 +79,12 @@ test("judges a past commit with a git ref", () => {
     join(root, "brand", "acme", "brand.json"),
     JSON.stringify({ firebase: { projectId: "acme" }, deploy: DEPLOY }),
   );
-  assert.equal(check(root).stdout, "ready=true\n");
+  assert.equal(check(root).stdout, "project=acme\nready=true\n");
   const past = spawnSync("bash", [SCRIPT, root, "HEAD"], { encoding: "utf8" });
-  assert.match(past.stdout, /^ready=false\n/);
+  assert.match(past.stdout, /^project=demo-acme\nready=false\n/);
 });
 
 test("the committed profile is ready to deploy", () => {
   const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-  assert.equal(check(root).stdout, "ready=true\n");
+  assert.match(check(root).stdout, /^project=jci-oriente\nready=true\n$/);
 });
