@@ -68,7 +68,11 @@ describe("push", () => {
   });
 
   it("names the deploy dispatch and doctor as the next steps", () => {
-    expect(PUSH_NEXT.map(({ run }) => run)).toEqual([DEPLOY_DISPATCH, "pnpm brand:doctor"]);
+    expect(PUSH_NEXT.map(({ run }) => run)).toEqual([
+      "gh workflow run deploy.yml -f surface=all",
+      DEPLOY_DISPATCH,
+      "pnpm brand:doctor",
+    ]);
   });
 
   it("refuses the default profile: the bucket must be named on purpose", async () => {

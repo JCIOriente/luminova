@@ -4,7 +4,7 @@ import { assetRemedies, contractByFolder, validateAssets } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, type LoadedProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR, displayDir, undeployableProfileErrors } from "../release.ts";
 import { formatNext, type Remedy } from "../remedy.ts";
-import { bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
+import { bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
 import { runCli } from "./main.ts";
 
 export const deployDispatch = (surface: "hosting" | "all") =>
@@ -15,8 +15,13 @@ export const DEPLOY_DISPATCH = deployDispatch("hosting");
 
 export const PUSH_NEXT: readonly Remedy[] = [
   {
+    change: "first deploy of this project: every surface (docs/adopting.md step 11, after step 10)",
+    run: deployDispatch("all"),
+    where: "shell",
+  },
+  {
     change:
-      "an asset change is not in git, so CD does not see it: dispatch the hosting deploy (project owner)",
+      "or, for a later asset change, hosting only: CD does not see assets, they are not in git",
     run: DEPLOY_DISPATCH,
     where: "shell",
   },
@@ -46,7 +51,7 @@ export async function push({
       assetRemedies(
         validation,
         displayDir(REPO_ROOT, from),
-        `BRAND_ASSETS_DIR=${from} pnpm brand:check`,
+        `BRAND_ASSETS_DIR=${shellQuote(from)} pnpm brand:check`,
       ),
     );
   }
