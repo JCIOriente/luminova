@@ -76,16 +76,16 @@ function profileRows(
     // A missing or broken luminova.json is its own row; it says how to fix it.
     if (!(error instanceof ProfileNotFoundError)) {
       return error.errors.some((line) => line.startsWith(CONFIG_FILE))
-        ? { rows: [skip("profile", `needs ${CONFIG_FILE}`), skip("schema")] }
-        : { rows: [ok("profile", "found"), fail("schema", detail, error.remedies)] };
+        ? { rows: [skip("profile", `needs ${CONFIG_FILE}`), skip("brand.json")] }
+        : { rows: [ok("profile", "found"), fail("brand.json", detail, error.remedies)] };
     }
-    return { rows: [fail("profile", detail, error.remedies), skip("schema")] };
+    return { rows: [fail("profile", detail, error.remedies), skip("brand.json")] };
   }
   const { slug, source } = profile;
   return {
     rows: [
-      ok("profile", `${slug} (${SOURCE_LABEL[source]})`),
-      ok("schema", `brand/${slug}/brand.json valid`),
+      ok("profile", `brand/${slug}/${source === "file" ? "" : ` (${SOURCE_LABEL[source]})`}`),
+      ok("brand.json", "valid"),
     ],
     profile,
   };
@@ -95,15 +95,16 @@ async function brandRows(profile: LoadedProfile, repoRoot: string, env: Env): Pr
   const { assets, content } = await checkBrand({ profile, repoRoot, env });
   const assetsFailed = assets.filter(({ failed }) => failed).length;
   const total = ASSET_CONTRACT.length;
+  const contentFile = `brand/${profile.slug}/site-content.json`;
   return [
     content.failed
       ? fail("site content", content.verdict, content.remedies)
-      : ok("site content", "schema valid"),
+      : ok("site content", `${contentFile} valid`),
     assetsFailed > 0
-      ? fail("assets", plural(assetsFailed, "problem"), [
+      ? fail("images", plural(assetsFailed, "problem"), [
           { change: "see which files and what to do", run: "pnpm brand:check" },
         ])
-      : ok("assets", `${total}/${total} files valid`),
+      : ok("images", `all ${total} valid`),
   ];
 }
 
@@ -133,16 +134,20 @@ async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<Do
     if (!(error instanceof CommandError) || error.kind !== "notFound") throw error;
     return fail("bucket", `${bucketUrl(bucket)} does not exist yet`, [
       PRINT_SETUP,
-      { change: "then create it (project owner)", run: "pnpm brand:provision --apply" },
+      {
+        change:
+          "then create the bucket, step 3 of that printout (after step 1: the grant needs CD's deploy account)",
+        run: "pnpm brand:provision --apply",
+      },
     ]);
   }
   const names = new Set(listing.split("\n").map((line) => line.trim()));
   const missing = ASSET_CONTRACT.filter(({ path }) => !names.has(path)).length;
   const total = ASSET_CONTRACT.length;
   return missing === 0
-    ? ok("bucket", `${total}/${total} contract files in ${bucketUrl(bucket)}`)
-    : fail("bucket", `${missing} of ${total} contract files missing from ${bucketUrl(bucket)}`, [
-        { change: "upload the checked set (project owner)", run: "pnpm brand:push" },
+    ? ok("bucket", `all ${total} images in ${bucketUrl(bucket)}`)
+    : fail("bucket", `${missing} of ${total} images missing from ${bucketUrl(bucket)}`, [
+        { change: "upload the images (project owner)", run: "pnpm brand:push" },
       ]);
 }
 
@@ -240,9 +245,9 @@ export async function doctor({
     ...(profile
       ? await brandRows(profile, repoRoot, env).catch((error: unknown) => [
           failed("site content", error),
-          failed("assets", error),
+          failed("images", error),
         ])
-      : [skip("site content"), skip("assets")]),
+      : [skip("site content"), skip("images")]),
     profile
       ? await attempt(FIREBASERC, async () => firebasercRow(profile, repoRoot))
       : skip(FIREBASERC),
@@ -281,7 +286,7 @@ function cdIdentityRow({ slug, brand }: LoadedProfile): DoctorRow {
   if (brand.deploy) return ok("CD identity", brand.deploy.serviceAccount);
   return warn(
     "CD identity",
-    `brand/${slug}/brand.json has no "deploy" section (needed to deploy)`,
+    `brand/${slug}/brand.json has no "deploy" section (CD's sign-in; needed to deploy)`,
     [PRINT_SETUP],
   );
 }
@@ -301,7 +306,8 @@ export function doctorNext(slug: string): Remedy[] {
       change: `commit brand/${slug}/ and ${CONFIG_FILE}, and merge them to main in your fork (docs/adopting.md step 6)`,
     },
     {
-      change: "first deploy (project owner; approve the run in GitHub, then check step 10)",
+      change:
+        "first deploy (project owner; approve the run in GitHub, then check docs/adopting.md step 10)",
       run: deployDispatch("all"),
       where: "shell",
     },

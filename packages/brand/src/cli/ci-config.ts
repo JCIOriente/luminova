@@ -15,7 +15,7 @@ export function ciConfig(profile: LoadedProfile): Record<string, string> {
       message: `brand/${profile.slug}/brand.json has no "deploy" section: CD cannot sign in to Google Cloud.`,
       remedies: [
         {
-          change: `add "deploy" to brand/${profile.slug}/brand.json (step 2 of this prints it with your values), commit and merge it`,
+          change: `add "deploy" to brand/${profile.slug}/brand.json (step 2 of its printout shows it with your values), commit and merge it`,
           run: "pnpm brand:provision",
         },
       ],

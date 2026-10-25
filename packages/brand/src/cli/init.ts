@@ -274,7 +274,7 @@ const YOUR_APPS = `${FIREBASE_SETTINGS} → Your apps`;
 export function initNext(slug: string): Remedy[] {
   return [
     {
-      change: `edit brand/${slug}/${SITE_CONTENT_FILE}: history, mission, contacts (it seeds the site once)`,
+      change: `edit brand/${slug}/${SITE_CONTENT_FILE}: history, mission, contacts (these texts fill the site once; later you edit them in the admin /config screen)`,
     },
     {
       change: `put the ${ASSET_CONTRACT.length} images in ${PULLED_ASSETS_DIR}/ (its README.txt lists them), then check them`,
@@ -282,7 +282,7 @@ export function initNext(slug: string): Remedy[] {
     },
     { change: "check the whole setup", run: "pnpm brand:doctor" },
     {
-      change: `commit the profile and the selection in your fork (never ${PULLED_ASSETS_DIR}/: it is gitignored on purpose)`,
+      change: `commit brand/${slug}/ and ${CONFIG_FILE} in your fork (never ${PULLED_ASSETS_DIR}/: it is gitignored on purpose)`,
       run: `git add brand/${slug}/ ${CONFIG_FILE}`,
     },
   ];

@@ -75,15 +75,33 @@ export function readJsonFile(file: string, label: string): unknown {
   return parseJsonText(text, label, [{ change: `fix the JSON syntax in ${label}` }]);
 }
 
+interface SchemaIssue {
+  path: readonly PropertyKey[];
+  message: string;
+  code?: string;
+  keys?: readonly string[];
+  input?: unknown;
+}
+
+/** zod's wording for the two issues a hand-edited file hits most, in plain words. */
+function describeIssue({ code, keys, input, message }: SchemaIssue): string {
+  if (code === "unrecognized_keys" && keys) {
+    return `unknown field ${keys.map((key) => `"${key}"`).join(", ")} (a typo?)`;
+  }
+  if (code === "invalid_type" && input === undefined) return "missing";
+  return message;
+}
+
 /** One error line per schema issue, `<label> <path>: <message>`. */
 export function issuesToBrandError(
   label: string,
-  issues: readonly { path: readonly PropertyKey[]; message: string }[],
+  issues: readonly SchemaIssue[],
   remedies: readonly Remedy[] = [],
 ): BrandConfigError {
   return new BrandConfigError(
     issues.map(
-      (issue) => `${label} ${issue.path.map(String).join(".") || "(root)"}: ${issue.message}`,
+      (issue) =>
+        `${label} ${issue.path.map(String).join(".") || "(root)"}: ${describeIssue(issue)}`,
     ),
     remedies,
   );
@@ -96,7 +114,10 @@ export function readLuminovaConfig(repoRoot: string): LuminovaConfig {
     throw new BrandConfigError(
       [`${CONFIG_FILE} is missing: it names the chapter (brand/<slug>/) this repository builds.`],
       [
-        { change: "create your chapter's profile; it writes the file too", run: "pnpm brand:init" },
+        {
+          change: `create your chapter's profile with brand:init (it writes ${CONFIG_FILE} too)`,
+          run: "pnpm brand:init",
+        },
         {
           change: `or create ${CONFIG_FILE} at the repo root for an existing profile: { "profile": "<slug>" }`,
         },
@@ -177,15 +198,25 @@ function configuredProfile(repoRoot: string): string | null {
 
 function overrideWarning(slug: string, repoRoot: string): string {
   const configured = configuredProfile(repoRoot);
-  return `${PROFILE_OVERRIDE_ENV}=${slug} in your environment overrides ${CONFIG_FILE}${configured ? ` ("${configured}")` : ""}. If you did not mean that: unset ${PROFILE_OVERRIDE_ENV}`;
+  return `${PROFILE_OVERRIDE_ENV}=${slug} in your environment overrides ${CONFIG_FILE}${configured ? ` ("${configured}")` : ""}. If you did not mean that: unset ${PROFILE_OVERRIDE_ENV}   # in your shell`;
 }
 
-/** Point luminova.json at a profile; `choices` lists the ones that exist. */
-export const selectProfileRemedy = (choices?: readonly string[]): Remedy => ({
-  change: choices
-    ? `set "profile" in ${CONFIG_FILE} to one of: ${choices.join(", ") || "(none yet: run pnpm brand:init)"}`
-    : `set "profile" in ${CONFIG_FILE} to your chapter's folder under brand/`,
-});
+/**
+ * Choose an existing profile where the bad one came from: the `--profile` flag, or
+ * luminova.json. `choices` lists the ones that exist.
+ */
+export function selectProfileRemedy(
+  choices?: readonly string[],
+  source: ProfileSource = "file",
+): Remedy {
+  const list = choices && (choices.join(", ") || "(none yet: run pnpm brand:init)");
+  if (source === "flag") return { change: `pass --profile one of: ${list ?? "your profiles"}` };
+  return {
+    change: list
+      ? `set "profile" in ${CONFIG_FILE} to one of: ${list}`
+      : `set "profile" in ${CONFIG_FILE} to your chapter's folder under brand/`,
+  };
+}
 
 /** Profiles a person would select: every one with a brand.json except the neutral fixture. */
 export function selectableProfiles(repoRoot: string = REPO_ROOT): string[] {
@@ -209,7 +240,8 @@ export function loadProfile({
   const warnings = source === "override" ? [overrideWarning(slug, repoRoot)] : [];
 
   const brandDir = join(repoRoot, "brand");
-  const select = () => selectProfileRemedy(selectableProfiles(repoRoot));
+  const choices = selectableProfiles(repoRoot);
+  const select = () => selectProfileRemedy(choices, source);
   // Checked before the path join, so a slug like "../x" can never leave brand/.
   if (!SLUG_PATTERN.test(slug)) {
     throw new ProfileNotFoundError(
@@ -222,7 +254,7 @@ export function loadProfile({
   if (!existsSync(file)) {
     throw new ProfileNotFoundError(
       [
-        `profile "${slug}" not found at brand/${slug}/brand.json (available: ${availableProfiles(brandDir).join(", ") || "none"})`,
+        `profile "${slug}" not found at brand/${slug}/brand.json (available: ${choices.join(", ") || "none"})`,
       ],
       [select(), { change: `or create brand/${slug}/`, run: "pnpm brand:init" }],
     );

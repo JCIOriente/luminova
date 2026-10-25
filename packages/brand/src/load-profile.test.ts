@@ -62,7 +62,7 @@ describe("loadProfile", () => {
     expect(profile.slug).toBe(EXAMPLE_PROFILE);
     expect(profile.source).toBe("override");
     expect(profile.warnings).toEqual([
-      'BRAND_PROFILE=jci-oriente in your environment overrides luminova.json ("other"). If you did not mean that: unset BRAND_PROFILE',
+      'BRAND_PROFILE=jci-oriente in your environment overrides luminova.json ("other"). If you did not mean that: unset BRAND_PROFILE   # in your shell',
     ]);
     // Repeating the file's choice is no override: no warning, and release builds accept it.
     expect(loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "other" } })).toMatchObject({
@@ -93,7 +93,8 @@ describe("loadProfile", () => {
 
   it.each([
     ["{ nope", /luminova\.json: not valid JSON/],
-    ['{ "profiel": "other" }', /luminova\.json \(root\): Unrecognized key/],
+    ['{ "profiel": "other" }', /luminova\.json \(root\): unknown field "profiel" \(a typo\?\)/],
+    ["{}", /^luminova\.json profile: missing$/],
     ['{ "profile": "Other" }', /luminova\.json profile: must be lowercase kebab-case/],
   ])("rejects the luminova.json %s", (text, expected) => {
     writeConfig(text);
@@ -158,11 +159,16 @@ describe("loadProfile remedies", () => {
       loadProfile({ repoRoot: root, profile: "nope" }),
     );
     expect(remedies).toEqual([
-      { change: 'set "profile" in luminova.json to one of: jci-oriente, other' },
+      { change: "pass --profile one of: jci-oriente, other" },
       { change: "or create brand/nope/", run: "pnpm brand:init" },
     ]);
     expect(message).toContain("To fix:");
     expect(message).toContain("pnpm brand:init   # in the repo root");
+    // Chosen in luminova.json, the fix is there.
+    writeConfig(JSON.stringify({ profile: "nope" }));
+    expect(remediesOf(() => loadProfile({ repoRoot: root, env: {} })).remedies[0]).toEqual({
+      change: 'set "profile" in luminova.json to one of: jci-oriente, other',
+    });
   });
 
   it("points a schema error at the file, the schema and brand:check", () => {

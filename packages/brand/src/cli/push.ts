@@ -13,19 +13,19 @@ export const deployDispatch = (surface: "hosting" | "all") =>
 /** An asset change does not trigger CD, which diffs git; the owner dispatches it. */
 export const DEPLOY_DISPATCH = deployDispatch("hosting");
 
-export const PUSH_NEXT: readonly Remedy[] = [
+export const pushNext = (slug: string): Remedy[] => [
   {
-    change: `first deploy of this project, every surface, once brand/<slug>/ and luminova.json are on main (docs/adopting.md step 10)`,
+    change: `first deploy of everything (rules, functions, both sites), once brand/${slug}/ and luminova.json are on main (docs/adopting.md step 10)`,
     run: deployDispatch("all"),
     where: "shell",
   },
   {
     change:
-      "or, for a later asset change, hosting only: CD does not see assets, they are not in git",
+      "later image changes: redeploy the sites only (CD does not notice images, they are not in git)",
     run: DEPLOY_DISPATCH,
     where: "shell",
   },
-  { change: "confirm the bucket row", run: "pnpm brand:doctor" },
+  { change: "confirm the bucket row passes", run: "pnpm brand:doctor" },
 ];
 
 /**
@@ -79,7 +79,7 @@ if (import.meta.main) {
     const bucket = bucketUrl(profile.brand.assetsBucket);
     await push({ profile, from });
     console.log(
-      `brand:push: uploaded ${from} to ${bucket} (profile "${profile.slug}", project ${profile.brand.firebase.projectId}).\n\n${formatNext(PUSH_NEXT)}`,
+      `brand:push: uploaded ${from} to ${bucket} (profile "${profile.slug}", project ${profile.brand.firebase.projectId}).\n\n${formatNext(pushNext(profile.slug))}`,
     );
   });
 }

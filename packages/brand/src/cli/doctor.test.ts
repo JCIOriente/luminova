@@ -72,9 +72,9 @@ describe("doctor", () => {
     const rows = await diagnose();
     expect(statusOf(rows)).toEqual({
       profile: "ok",
-      schema: "ok",
+      "brand.json": "ok",
       "site content": "ok",
-      assets: "ok",
+      images: "ok",
       ".firebaserc": "ok",
       "gcloud account": "ok",
       bucket: "ok",
@@ -84,12 +84,12 @@ describe("doctor", () => {
       pnpm: "ok",
     });
     expect(rowFor(rows, "luminova.json").detail).toBe('selects "jci-oriente"');
-    expect(rowFor(rows, "profile").detail).toBe("jci-oriente (from luminova.json)");
+    expect(rowFor(rows, "profile").detail).toBe("brand/jci-oriente/");
     expect(rowFor(rows, "CD identity").detail).toBe(
       "firebase-deployer@jci-oriente.iam.gserviceaccount.com",
     );
     expect(rowFor(rows, "gcloud account").detail).toBe("owner@example.org");
-    expect(rowFor(rows, "bucket").detail).toMatch(`16/16 contract files in gs://${BUCKET}`);
+    expect(rowFor(rows, "bucket").detail).toMatch(`all 16 images in gs://${BUCKET}`);
   });
 
   it("only ever reads: the exact external commands it runs", async () => {
@@ -124,11 +124,11 @@ describe("doctor", () => {
     });
   });
 
-  it("names the contract files missing from the bucket", async () => {
+  it("names the images missing from the bucket", async () => {
     responses.set("gcloud storage objects list", "logo-main.png\n");
     const row = rowFor(await diagnose(), "bucket");
     expect(row.status).toBe("fail");
-    expect(row.detail).toMatch(/15 of 16 contract files missing/);
+    expect(row.detail).toMatch(/15 of 16 images missing/);
   });
 
   it("fails a stale .firebaserc with the command that fixes it", async () => {
@@ -141,7 +141,7 @@ describe("doctor", () => {
 
   it("fails asset problems with a pointer to brand:check", async () => {
     rmSync(join(root, PULLED_ASSETS_DIR, "og-image.png"));
-    expect(rowFor(await diagnose(), "assets")).toMatchObject({
+    expect(rowFor(await diagnose(), "images")).toMatchObject({
       status: "fail",
       detail: "1 problem",
       remedies: [{ change: "see which files and what to do", run: "pnpm brand:check" }],
@@ -166,7 +166,7 @@ describe("doctor", () => {
       detail: 'selects "jci-oriente", but BRAND_PROFILE=fixture overrides it',
       remedies: [expect.objectContaining({ run: "unset BRAND_PROFILE" })],
     });
-    expect(rowFor(rows, "profile").detail).toBe("fixture (from BRAND_PROFILE)");
+    expect(rowFor(rows, "profile").detail).toBe("brand/fixture/ (from BRAND_PROFILE)");
   });
 
   it("warns, without failing, when the profile has no CD identity", async () => {
@@ -184,8 +184,8 @@ describe("doctor", () => {
     const rows = await diagnose({ env: { BRAND_PROFILE: "nope" } });
     expect(statusOf(rows)).toMatchObject({
       profile: "fail",
-      schema: "skip",
-      assets: "skip",
+      "brand.json": "skip",
+      images: "skip",
       ".firebaserc": "skip",
       bucket: "skip",
       "gcloud account": "ok",
@@ -200,8 +200,12 @@ describe("doctor", () => {
     rmSync(join(root, ".firebaserc"));
     mkdirSync(join(root, ".firebaserc"));
     const rows = await diagnose();
-    expect(statusOf(rows)).toMatchObject({ profile: "ok", schema: "fail", ".firebaserc": "skip" });
-    expect(rowFor(rows, "schema").detail).toMatch(/cannot read/);
+    expect(statusOf(rows)).toMatchObject({
+      profile: "ok",
+      "brand.json": "fail",
+      ".firebaserc": "skip",
+    });
+    expect(rowFor(rows, "brand.json").detail).toMatch(/cannot read/);
   });
 
   it("fails an unreadable .firebaserc as its own row", async () => {
@@ -221,8 +225,8 @@ describe("doctor", () => {
       JSON.stringify({ slug: "jci-oriente" }),
     );
     const rows = await diagnose();
-    expect(statusOf(rows)).toMatchObject({ profile: "ok", schema: "fail", assets: "skip" });
-    expect(rowFor(rows, "schema").detail).toMatch(/name/);
+    expect(statusOf(rows)).toMatchObject({ profile: "ok", "brand.json": "fail", images: "skip" });
+    expect(rowFor(rows, "brand.json").detail).toMatch(/name/);
   });
 
   it("fails a Node older than engines.node", async () => {
@@ -309,9 +313,9 @@ describe("doctor", () => {
         "pnpm",
         "luminova.json",
         "profile",
-        "schema",
+        "brand.json",
         "site content",
-        "assets",
+        "images",
         ".firebaserc",
         "CD identity",
         "gcloud account",
