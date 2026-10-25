@@ -282,7 +282,7 @@ gcloud services enable \
 
 # --- 2. deploy service account ---
 gcloud iam service-accounts create "$DEPLOY_SA" \
-  --display-name="GitHub Actions Firebase deployer (WIF, keyless)"
+  --display-name="GitHub Actions deployer (keyless)"
 
 # --- 3. WIF pool + provider (pinned to repo AND main) ---
 gcloud iam workload-identity-pools create "$POOL_ID" \
@@ -313,27 +313,22 @@ done
 export RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
   --member="serviceAccount:${DEPLOY_SA_EMAIL}" --role="roles/iam.serviceAccountUser" --quiet
-# appspot SA: satisfies the firebase-tools functions-deploy preflight (see gotcha above)
+# the Firebase CLI checks this account before every functions deploy (why: "functions-deploy preflight" in docs/ci-cd.md)
 gcloud iam service-accounts add-iam-policy-binding "${PROJECT_ID}@appspot.gserviceaccount.com" \
   --member="serviceAccount:${DEPLOY_SA_EMAIL}" --role="roles/iam.serviceAccountUser" --quiet
-# billing account (NOT project — see billing-probe gotcha above): functions-deploy billing read
+# granted on the billing account, not the project: the Firebase CLI reads billing before a functions deploy (why: "billing probe" in docs/ci-cd.md)
 export BILLING_ACCOUNT=$(gcloud billing projects describe "$PROJECT_ID" \
   --format="value(billingAccountName)" | cut -d/ -f2)
 gcloud billing accounts add-iam-policy-binding "$BILLING_ACCOUNT" \
   --member="serviceAccount:${DEPLOY_SA_EMAIL}" --role="roles/billing.viewer"
 
 # --- 6. GitHub production environment (via gh; owner id from `gh api user`) ---
-gh api -X PUT "repos/${GH_REPO}/environments/production" --input - <<JSON
-{ "wait_timer": 0,
-  "reviewers": [{"type": "User", "id": ${REVIEWER_ID}}],
-  "deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true} }
-JSON
+gh api -X PUT "repos/${GH_REPO}/environments/production" --input - <<< \
+  "{\"wait_timer\":0,\"reviewers\":[{\"type\":\"User\",\"id\":${REVIEWER_ID}}],\"deployment_branch_policy\":{\"protected_branches\":false,\"custom_branch_policies\":true}}"
 gh api -X POST "repos/${GH_REPO}/environments/production/deployment-branch-policies" \
   --input - <<< '{"name":"main","type":"branch"}'
 # CD reads the provider and service account from the profile's brand.json "deploy"
-# section; no GitHub variables. These two lines print the values to put there:
-echo "workloadIdentityProvider: projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/providers/${PROVIDER_ID}"
-echo "serviceAccount: ${DEPLOY_SA_EMAIL}"
+# section, not from GitHub variables: pnpm brand:provision step 2 shows both values.
 ```
 
 > **First gen2 deploy bootstrap:** on a project that never deployed gen2 functions, the

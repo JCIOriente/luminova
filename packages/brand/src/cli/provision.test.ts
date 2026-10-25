@@ -147,10 +147,10 @@ describe("applyBucket", () => {
     });
     expect(steps.map(({ label, done }) => [label, done])).toEqual([
       ["create the bucket", false],
-      ["uniform access, public access prevention", true],
-      ["versioning", false],
-      ["lifecycle (3 noncurrent generations)", false],
-      ["read-only grant to the deploy service account", false],
+      ["private (no public access)", true],
+      ["keep old versions (for rollback)", false],
+      ["keep the last 3 old versions of each file", false],
+      ["let the deploy account read it", false],
     ]);
     expect(mutations().map((call) => call.slice(1, 4).join(" "))).toEqual([
       "storage buckets create",

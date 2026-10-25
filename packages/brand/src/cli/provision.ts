@@ -82,7 +82,7 @@ function bucketSteps(
       isDone: () => true,
     },
     {
-      label: "uniform access, public access prevention",
+      label: "private (no public access)",
       args: [
         "storage",
         "buckets",
@@ -95,17 +95,17 @@ function bucketSteps(
         state.uniform_bucket_level_access === true && state.public_access_prevention === "enforced",
     },
     {
-      label: "versioning",
+      label: "keep old versions (for rollback)",
       args: ["storage", "buckets", "update", bucket, "--versioning"],
       isDone: (state) => state.versioning_enabled === true,
     },
     {
-      label: "lifecycle (3 noncurrent generations)",
+      label: "keep the last 3 old versions of each file",
       args: ["storage", "buckets", "update", bucket, `--lifecycle-file=${lifecyclePath}`],
       isDone: (state) => isDeepStrictEqual(state.lifecycle_config, rule),
     },
     {
-      label: "read-only grant to the deploy service account",
+      label: "let the deploy account read it",
       args: [
         "storage",
         "buckets",
@@ -142,7 +142,13 @@ async function viewerMembers(run: CommandRunner, bucket: string): Promise<string
     .flatMap(({ members }) => members);
 }
 
-export function provisionNext({ applied }: { applied: boolean }): Remedy[] {
+export function provisionNext({
+  applied,
+  pushCommand = "pnpm brand:push",
+}: {
+  applied: boolean;
+  pushCommand?: string;
+}): Remedy[] {
   if (!applied) {
     return [
       {
@@ -152,7 +158,7 @@ export function provisionNext({ applied }: { applied: boolean }): Remedy[] {
     ];
   }
   return [
-    { change: "step 4: upload your images to the bucket", run: "pnpm brand:push" },
+    { change: "step 4: upload your images to the bucket", run: pushCommand },
     { change: "confirm every row passes", run: "pnpm brand:doctor" },
   ];
 }
@@ -222,6 +228,14 @@ interface GuideStep {
 const indent = (lines: readonly string[], by: string) =>
   lines.flatMap((line) => line.split("\n")).map((line) => (line ? `${by}${line}` : ""));
 
+/** `brand:push`, with `--from` when the images are not in brand-assets/ (the example profile). */
+function pushCommandFor(profile: LoadedProfile, repoRoot: string): string {
+  const assetsDir = displayDir(repoRoot, selectAssetsDir(repoRoot, profile, {}, false));
+  return assetsDir === PULLED_ASSETS_DIR
+    ? "pnpm brand:push"
+    : `pnpm brand:push --from ${shellQuote(assetsDir)}`;
+}
+
 /** Numbered steps: what, why, where, the exact lines, and how to see that it worked. */
 export function formatGuide(steps: readonly GuideStep[]): string {
   return steps
@@ -259,9 +273,7 @@ export async function printProvisioning({
     LIFECYCLE_FILE,
   );
   const gcloud = (step: BucketStep | undefined) => (step ? `gcloud ${command(step.args)}` : "");
-  const assetsDir = displayDir(repoRoot, selectAssetsDir(repoRoot, profile, {}, false));
-  const pushCommand =
-    assetsDir === PULLED_ASSETS_DIR ? "pnpm brand:push" : `pnpm brand:push --from ${assetsDir}`;
+  const pushCommand = pushCommandFor(profile, repoRoot);
 
   const projectNumber = await lookup(
     run,
@@ -287,10 +299,14 @@ export async function printProvisioning({
       "your GitHub user id: gh api user -q .id",
     ),
   };
-  const section = provisioningSection(readFileSync(join(repoRoot, CI_CD_DOC), "utf8")).replace(
-    /^export (PROJECT_ID|PROJECT_NUMBER|GH_REPO|REVIEWER_ID)=.*$/gm,
-    (_, key: string) => `export ${key}=${values[key] ?? ""}`,
-  );
+  const section = provisioningSection(readFileSync(join(repoRoot, CI_CD_DOC), "utf8"))
+    .replace(
+      /^export (PROJECT_ID|PROJECT_NUMBER|GH_REPO|REVIEWER_ID)=.*$/gm,
+      (_, key: string) => `export ${key}=${values[key] ?? ""}`,
+    )
+    // The doc's numbered parts would read as sub-steps of "Step 1 of 5".
+    .replace(/^# --- shell context ---$/m, "# your values (filled in)")
+    .replace(/^# --- (\d+)\. (.*) ---$/gm, "# part $1: $2");
   const deploy = profile.brand.deploy ?? defaultDeploy({ projectId, projectNumber });
   const deploySnippet = JSON.stringify({ deploy }, null, 2).slice(2, -2);
 
@@ -298,7 +314,7 @@ export async function printProvisioning({
     {
       title: "create CD's deploy account and its keyless sign-in (once per project)",
       why: "GitHub Actions deploys as this account. No key is stored anywhere: GitHub proves it is your repo's main branch.",
-      where: `your shell, signed in to gcloud as an owner of ${projectId} (gcloud auth login) and to gh as a repo admin (gh auth login). Safe to re-run.`,
+      where: `your shell, signed in to gcloud as an owner of ${projectId} (gcloud auth login) and to gh as a repo admin (gh auth login). Re-running is harmless: a line that says "already exists" means that part is done.`,
       lines: [section.trimEnd()],
       check: `gcloud iam service-accounts describe ${deploySaEmail(projectId)}`,
     },
@@ -307,7 +323,9 @@ export async function printProvisioning({
         ? `tell CD which account to use (done: ${brandFile} has it)`
         : "tell CD which account to use",
       why: "CD reads these two names from the profile; they are not secrets.",
-      where: `your editor: add this to ${brandFile}, then commit it`,
+      where: profile.brand.deploy
+        ? `${brandFile} already has it: check the values match step 1`
+        : `your editor: add this to ${brandFile}, then commit it`,
       lines: [deploySnippet],
       check: 'pnpm brand:doctor   (row "CD identity")',
     },
@@ -336,7 +354,7 @@ export async function printProvisioning({
   ];
 
   return [
-    `Google Cloud setup for profile "${slug}" (project ${projectId}). This printed it and changed nothing.`,
+    `Google Cloud setup for profile "${slug}" (project ${projectId}). A printout only: nothing was changed. Do the steps in order.`,
     "",
     formatGuide(steps),
   ].join("\n");
@@ -350,7 +368,7 @@ if (import.meta.main) {
         console.log(`brand:provision: ${label}: ${done ? "already done" : "applied"}`);
       }
       console.log(
-        `brand:provision: bucket ready.\n\n${formatNext(provisionNext({ applied: true }))}`,
+        `brand:provision: bucket ready.\n\n${formatNext(provisionNext({ applied: true, pushCommand: pushCommandFor(profile, REPO_ROOT) }))}`,
       );
     } else {
       const repo = flagValue(argv, "--repo", (message) => new BrandConfigError([message]));
