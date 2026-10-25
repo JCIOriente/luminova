@@ -6,13 +6,16 @@ import { flagValue } from "../argv.ts";
 import {
   BrandConfigError,
   REPO_ROOT,
+  cdProfileCommand,
   issuesToBrandError,
   readJsonFile,
   type LoadedProfile,
 } from "../load-profile.ts";
 import { undeployableProfileErrors } from "../release.ts";
+import { formatNext, type Remedy } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
 import { runCli } from "./main.ts";
+import { deployDispatch } from "./push.ts";
 
 const LIFECYCLE_FILE = "brand/bucket-lifecycle.json";
 const CI_CD_DOC = "docs/ci-cd.md";
@@ -134,6 +137,25 @@ async function viewerMembers(run: CommandRunner, bucket: string): Promise<string
   return policy.bindings
     .filter(({ role }) => role === VIEWER_ROLE)
     .flatMap(({ members }) => members);
+}
+
+export function provisionNext({ applied, slug }: { applied: boolean; slug: string }): Remedy[] {
+  if (!applied) {
+    return [
+      {
+        change: "review the commands above, then create the bucket (project owner)",
+        run: "pnpm brand:provision --apply",
+      },
+    ];
+  }
+  return [
+    {
+      change: "upload the asset set from brand-assets/ (add --from <folder> for another one)",
+      run: "pnpm brand:push",
+    },
+    { change: "select the profile in CD", run: cdProfileCommand(slug), where: "shell" },
+    { change: "confirm every row passes", run: "pnpm brand:doctor" },
+  ];
 }
 
 /** `--apply`: runs each bucket step whose state shows it undone; never touches GitHub. */
@@ -262,7 +284,7 @@ export async function printProvisioning({
     "# B5: the CD variable",
     `gh variable set BRAND_PROFILE --env production --body ${slug}`,
     "# B6, after the release PR merges: deploy and verify",
-    "gh workflow run deploy.yml -f surface=all",
+    deployDispatch("all"),
     "",
     `# First-time CD setup for this project (${CI_CD_DOC} section 6, values filled in):`,
     section,
@@ -277,11 +299,12 @@ if (import.meta.main) {
         console.log(`brand:provision: ${label}: ${done ? "already done" : "applied"}`);
       }
       console.log(
-        `brand:provision: bucket ready. Remaining owner steps: B4 (BRAND_PROFILE=${profile.slug} pnpm brand:push) and B5; run without --apply to print them.`,
+        `brand:provision: bucket ready.\n\n${formatNext(provisionNext({ applied: true, slug: profile.slug }))}`,
       );
     } else {
       const repo = flagValue(argv, "--repo", (message) => new BrandConfigError([message]));
       console.log(await printProvisioning({ profile, repo }));
+      console.log(`\n${formatNext(provisionNext({ applied: false, slug: profile.slug }))}`);
     }
   });
 }

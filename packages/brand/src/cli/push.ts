@@ -1,13 +1,32 @@
 import { join, resolve } from "node:path";
 import { flagValue } from "../argv.ts";
-import { contractByFolder, validateAssets } from "../assets.ts";
-import { BrandConfigError, type LoadedProfile } from "../load-profile.ts";
-import { PULLED_ASSETS_DIR, undeployableProfileErrors } from "../release.ts";
-import { bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
+import { assetRemedies, contractByFolder, validateAssets } from "../assets.ts";
+import { BrandConfigError, REPO_ROOT, type LoadedProfile } from "../load-profile.ts";
+import { PULLED_ASSETS_DIR, displayDir, undeployableProfileErrors } from "../release.ts";
+import { formatNext, type Remedy } from "../remedy.ts";
+import { bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
 import { runCli } from "./main.ts";
 
+export const deployDispatch = (surface: "hosting" | "all") =>
+  `gh workflow run deploy.yml -f surface=${surface}`;
+
 /** An asset change does not trigger CD, which diffs git; the owner dispatches it. */
-export const DEPLOY_DISPATCH = "gh workflow run deploy.yml -f surface=hosting";
+export const DEPLOY_DISPATCH = deployDispatch("hosting");
+
+export const PUSH_NEXT: readonly Remedy[] = [
+  {
+    change: "first deploy of this project: every surface (docs/adopting.md step 11, after step 10)",
+    run: deployDispatch("all"),
+    where: "shell",
+  },
+  {
+    change:
+      "or, for a later asset change, hosting only: CD does not see assets, they are not in git",
+    run: DEPLOY_DISPATCH,
+    where: "shell",
+  },
+  { change: "confirm the bucket row", run: "pnpm brand:doctor" },
+];
 
 /**
  * Uploads a validated asset set to the selected profile's bucket (owner/adopter only).
@@ -27,7 +46,14 @@ export async function push({
   if (refused.length > 0) throw new BrandConfigError(refused);
   const validation = validateAssets(from, { profile: profile.slug });
   if (validation.errors.length > 0) {
-    throw new BrandConfigError(validation.errors.map((error) => `${from}/${error}`));
+    throw new BrandConfigError(
+      validation.errors.map((error) => `${from}/${error}`),
+      assetRemedies(
+        validation,
+        displayDir(REPO_ROOT, from),
+        `BRAND_ASSETS_DIR=${shellQuote(from)} pnpm brand:check`,
+      ),
+    );
   }
   for (const warning of validation.warnings) console.warn(`brand:push: ${warning}`);
 
@@ -51,13 +77,9 @@ if (import.meta.main) {
         PULLED_ASSETS_DIR,
     );
     const bucket = bucketUrl(profile.brand.assetsBucket);
-    console.log(
-      `brand:push: uploading ${from} to ${bucket} (profile "${profile.slug}", project ${profile.brand.firebase.projectId}).`,
-    );
     await push({ profile, from });
-    console.log(`brand:push: done.`);
     console.log(
-      `Owner step: an asset change does not trigger CD. Dispatch the hosting deploy yourself:\n  ${DEPLOY_DISPATCH}`,
+      `brand:push: uploaded ${from} to ${bucket} (profile "${profile.slug}", project ${profile.brand.firebase.projectId}).\n\n${formatNext(PUSH_NEXT)}`,
     );
   });
 }

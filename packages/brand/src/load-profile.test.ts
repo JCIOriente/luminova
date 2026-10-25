@@ -2,7 +2,13 @@ import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BrandConfigError, DEFAULT_PROFILE, REPO_ROOT, loadProfile } from "./load-profile.ts";
+import {
+  BrandConfigError,
+  DEFAULT_PROFILE,
+  REPO_ROOT,
+  keepProfileCommand,
+  loadProfile,
+} from "./load-profile.ts";
 
 let root: string;
 
@@ -40,6 +46,8 @@ describe("loadProfile", () => {
     expect(profile.slug).toBe("jci-oriente");
     expect(profile.source).toBe("default");
     expect(profile.warnings).toEqual([expect.stringMatching(/BRAND_PROFILE is unset/)]);
+    const zsh = loadProfile({ repoRoot: root, env: { SHELL: "/bin/zsh" } });
+    expect(zsh.warnings[0]).toContain("echo 'export BRAND_PROFILE=<slug>' >> ~/.zshrc");
   });
 
   it("prefers BRAND_PROFILE over the default", () => {
@@ -115,6 +123,80 @@ describe("loadProfile", () => {
     expect(() => loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "nope" } })).toThrow(
       /Brand profile error[\s\S]*available/,
     );
+  });
+});
+
+function remediesOf(run: () => unknown) {
+  try {
+    run();
+  } catch (error) {
+    if (error instanceof BrandConfigError)
+      return { remedies: error.remedies, message: error.message };
+    throw error;
+  }
+  throw new Error("expected a BrandConfigError");
+}
+
+describe("loadProfile remedies", () => {
+  it("offers the available profiles and brand:init for a missing profile", () => {
+    const { remedies, message } = remediesOf(() =>
+      loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "nope", SHELL: "/bin/zsh" } }),
+    );
+    expect(remedies).toEqual([
+      {
+        change: "select an existing profile (jci-oriente, other)",
+        run: "export BRAND_PROFILE=<slug>",
+        where: "shell",
+      },
+      { change: "or create brand/nope/", run: "pnpm brand:init" },
+    ]);
+    expect(message).toContain("To fix:");
+    expect(message).toContain("pnpm brand:init   # in the repo root");
+  });
+
+  it("points a schema error at the file, the schema and brand:check", () => {
+    writeProfile("broken", (brand) => (brand.qrPrefix = "bad:prefix"));
+    const { remedies } = remediesOf(() =>
+      loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "broken" } }),
+    );
+    expect(remedies).toEqual([
+      {
+        change:
+          "edit the fields above in brand/broken/brand.json (brand/brand.schema.json describes each)",
+        run: "pnpm brand:check",
+      },
+    ]);
+  });
+
+  it("names the field to change when the slug differs from its folder", () => {
+    writeProfile("renamed", (brand) => (brand.slug = "original"));
+    const { remedies } = remediesOf(() =>
+      loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "renamed" } }),
+    );
+    expect(remedies).toEqual([
+      { change: 'set "slug" to "renamed" in brand/renamed/brand.json, or rename the folder' },
+    ]);
+  });
+
+  it("asks to fix the JSON syntax of an unparsable file", () => {
+    mkdirSync(join(root, "brand", "garbled"));
+    writeFileSync(join(root, "brand", "garbled", "brand.json"), "{ nope");
+    const { remedies } = remediesOf(() =>
+      loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "garbled" } }),
+    );
+    expect(remedies).toEqual([{ change: "fix the JSON syntax in brand/garbled/brand.json" }]);
+  });
+});
+
+describe("keepProfileCommand", () => {
+  it.each([
+    ["/bin/zsh", "darwin", "echo 'export BRAND_PROFILE=acme' >> ~/.zshrc"],
+    ["/bin/bash", "linux", "echo 'export BRAND_PROFILE=acme' >> ~/.bashrc"],
+    ["/opt/homebrew/bin/bash", "darwin", "echo 'export BRAND_PROFILE=acme' >> ~/.bash_profile"],
+    ["/usr/bin/fish", "linux", "set -Ux BRAND_PROFILE acme"],
+    [undefined, "linux", "add export BRAND_PROFILE=acme to your shell's startup file"],
+  ] as const)("for SHELL=%s on %s says %s", (shell, platform, expected) => {
+    expect(keepProfileCommand("acme", { SHELL: shell }, platform)).toBe(expected);
   });
 });
 

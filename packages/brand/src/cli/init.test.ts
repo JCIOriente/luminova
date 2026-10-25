@@ -14,7 +14,7 @@ import { ASSET_CONTRACT } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
-import { init } from "./init.ts";
+import { init, initNext } from "./init.ts";
 import type { Prompter } from "./prompts.ts";
 
 const SPOTLIGHT_APP = "1:111222333:web:aaa";
@@ -309,7 +309,7 @@ describe("init interactively", () => {
     }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(BrandConfigError);
     expect(String(error)).toMatch(
-      /not logged in[\s\S]*--answers \/.*\/brand-init-answers\.json --sdkconfig$/,
+      /not logged in[\s\S]*pnpm brand:init --answers \/.*\/brand-init-answers\.json --sdkconfig {3}# in the repo root/,
     );
     const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
     expect(saved).toMatchObject({ slug: "jci-valle", name: "JCI Valle" });
@@ -321,5 +321,53 @@ describe("init interactively", () => {
     delete answers.name;
     await expect(init({ repoRoot: root, answers, run: noCommands })).rejects.toThrow(/name/);
     expect(existsSync(join(root, "brand-init-answers.json"))).toBe(false);
+  });
+});
+
+describe("init guidance", () => {
+  it("lists the next steps with their commands", () => {
+    const runs = initNext("jci-valle", { SHELL: "/bin/zsh" }).map(
+      ({ change, run }) => run ?? change,
+    );
+    expect(runs).toEqual([
+      "echo 'export BRAND_PROFILE=jci-valle' >> ~/.zshrc",
+      "export BRAND_PROFILE=jci-valle",
+      "pnpm brand:apply",
+      expect.stringMatching(/^edit brand\/jci-valle\/site-content\.json/),
+      "pnpm brand:check",
+      "pnpm brand:doctor",
+      "git add brand/jci-valle/",
+    ]);
+  });
+
+  it("says where to find an app id that belongs to another project", async () => {
+    const answers = minimalAnswers();
+    const other: CommandRunner = async (_command, args) =>
+      JSON.stringify({
+        result: {
+          sdkConfig: {
+            projectId: "someone-else",
+            appId: args[2],
+            apiKey: "k",
+            authDomain: "d",
+            messagingSenderId: "1",
+          },
+        },
+      });
+    const error = await init({ repoRoot: root, answers, fillWeb: true, run: other }).catch(
+      (e: unknown) => e,
+    );
+    expect(error instanceof BrandConfigError ? error.remedies : []).toEqual([
+      expect.objectContaining({ console: "Firebase console → Project settings → Your apps" }),
+    ]);
+  });
+
+  it("points an incomplete answers file at the schema", async () => {
+    const answers = minimalAnswers();
+    delete answers.name;
+    const error = await init({ repoRoot: root, answers, run: noCommands }).catch((e: unknown) => e);
+    expect(error instanceof BrandConfigError ? error.remedies[0]?.change : "").toMatch(
+      /brand\/brand\.schema\.json/,
+    );
   });
 });

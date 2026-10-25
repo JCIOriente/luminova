@@ -1,9 +1,9 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FIXTURE_LOGO_SIZE, writeAssetSet } from "./asset-set.ts";
-import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES, validateAssets } from "./assets.ts";
+import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES, assetRemedies, validateAssets } from "./assets.ts";
 import { REPO_ROOT } from "./load-profile.ts";
 import { encodePng } from "./png.ts";
 
@@ -159,5 +159,55 @@ describe("validateAssets files", () => {
       found: "not a PNG",
       errors: ["not a PNG (expected 16×16)"],
     });
+  });
+});
+
+describe("assetRemedies", () => {
+  const runs = (dir: string) =>
+    assetRemedies(validateAssets(dir, { profile: "jci-oriente" }), "brand-assets");
+
+  it("asks for the missing or wrong files, then brand:check", () => {
+    writeCompleteSet();
+    rmSync(join(dir, "og-image.png"));
+    expect(runs(dir)).toEqual([
+      {
+        change:
+          "put the files marked above in brand-assets/ at the sizes shown (all 16: docs/adopting.md step 4)",
+        run: "pnpm brand:check",
+      },
+    ]);
+  });
+
+  it("asks for one logo size when that is the only problem", () => {
+    writeCompleteSet();
+    put(
+      "logo-on-dark.png",
+      encodePng(FIXTURE_LOGO_SIZE.width + 2, FIXTURE_LOGO_SIZE.height, [0, 0, 0]),
+    );
+    expect(runs(dir).map(({ change }) => change)).toEqual([
+      expect.stringMatching(
+        /^export logo-main\.png, logo-on-dark\.png, logo-on-primary\.png at one size/,
+      ),
+    ]);
+  });
+
+  it("asks to compress a heavy OG image", () => {
+    writeCompleteSet();
+    const og = join(dir, "og-image.png");
+    writeFileSync(og, Buffer.concat([readFileSync(og), Buffer.alloc(OG_IMAGE_WARN_BYTES + 1)]));
+    expect(runs(dir)).toEqual([
+      { change: "compress brand-assets/og-image.png below 300 KB (still 1200×630)" },
+    ]);
+  });
+
+  it("asks to pull again when the manifest names another profile", () => {
+    writeCompleteSet();
+    writeFileSync(join(dir, "pull-manifest.json"), JSON.stringify({ profile: "fixture" }));
+    expect(runs(dir).map(({ run }) => run)).toEqual(["pnpm brand:pull"]);
+  });
+
+  it("has nothing to say about a valid set", () => {
+    writeCompleteSet();
+    expect(runs(dir)).toEqual([]);
   });
 });

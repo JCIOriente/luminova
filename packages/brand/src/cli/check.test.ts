@@ -6,7 +6,7 @@ import { writeAssetSet } from "../asset-set.ts";
 import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES } from "../assets.ts";
 import { REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
-import { checkBrand, checkRows, type BrandCheck, type CheckRow } from "./check.ts";
+import { checkBrand, checkRemedies, checkRows, type BrandCheck, type CheckRow } from "./check.ts";
 
 const withRows = (check: BrandCheck) => ({ ...check, rows: checkRows(check) });
 
@@ -164,6 +164,34 @@ describe("checkBrand", () => {
       const row = rowFor(rows, "pull-manifest.json");
       expect(row.failed).toBe(true);
       expect(row.verdict).toMatch(/re-run brand:pull/);
+    });
+  });
+
+  describe("remedies", () => {
+    it("says what to do about each failing group, in table order", async () => {
+      rmSync(join(root, PULLED_ASSETS_DIR, "og-image.png"));
+      writeFileSync(
+        join(root, "brand/jci-oriente/site-content.json"),
+        JSON.stringify({ stats: "nope" }),
+      );
+      const check = await checkBrand({
+        profile: { ...profile, source: "default" },
+        repoRoot: root,
+        env: {},
+        release: true,
+      });
+      const changes = checkRemedies(check).map(({ change, run }) => change ?? run);
+      expect(changes[0]).toMatch(/^put the files marked above in brand-assets\//);
+      expect(changes[1]).toMatch(
+        /^edit the fields above in brand\/jci-oriente\/site-content\.json/,
+      );
+      expect(changes).toContain(
+        "download the release assets from the profile's bucket (needs gcloud auth login)",
+      );
+    });
+
+    it("has none for a passing check", async () => {
+      expect(checkRemedies(await checkBrand({ profile, repoRoot: root, env: {} }))).toEqual([]);
     });
   });
 });

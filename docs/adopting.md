@@ -37,6 +37,21 @@ Luminova maintainer. If you get stuck,
 | 11 | First deploy, then verify | merge to `main` or `gh workflow run deploy.yml` | You |
 | 12 | First admin | `pnpm seed:production --project <id>` | You |
 
+Every brand command tells you what to do next. A failure ends with a **To fix:** block:
+the file or folder to change, the command, and where to run it. A success ends with
+**Next:**, the following step of this guide. The `#` comment after each command says
+where it goes:
+
+- `# in the repo root` means a terminal at the top of your clone (where `package.json` is); `pnpm brand:*` does not work from a package folder;
+- `# in your shell` means a terminal setting, such as an `export` or your shell's startup file;
+- a console name, such as `# in the Firebase console → Project settings`, means that web page.
+
+```text
+To fix:
+  - put the files marked above in brand-assets/ at the sizes shown (all 16: docs/adopting.md step 4)
+      pnpm brand:check   # in the repo root
+```
+
 ### 1. Run the example
 
 Follow the README Quickstart. `pnpm dev` runs both apps against the emulators with the
@@ -98,13 +113,19 @@ sender id, assets bucket, SEO text) or reported, all at once. The JSON Schema in
 }
 ```
 
-Then select the profile. It is an environment variable only, so it is visible in every
-command and part of every build's cache key:
+Then select the profile. It is an environment variable only, never a repo file, so it is
+visible in every command and part of every build's cache key. A plain `export` lasts one
+terminal; keep it in your shell's startup file (or a direnv `.envrc` at the repo root):
 
 ```bash
-export BRAND_PROFILE=jci-valle   # add this line to your shell profile or .envrc
-pnpm brand:apply                 # writes .firebaserc for your project
+echo 'export BRAND_PROFILE=jci-valle' >> ~/.zshrc   # bash: ~/.bashrc; fish: set -Ux BRAND_PROFILE jci-valle
+export BRAND_PROFILE=jci-valle                      # this terminal, right now
+pnpm brand:apply                                    # writes .firebaserc for your project
 ```
+
+CD does not read your shell: it takes `BRAND_PROFILE` from the GitHub `production`
+environment (step 10). When the variable is unset, every brand command and
+`pnpm brand:doctor` print the line for your shell.
 
 Edit `brand/<slug>/site-content.json`: history, mission, vision, values, statistics and
 contacts. It seeds the site once; after that, the admin `/config` screen is where it

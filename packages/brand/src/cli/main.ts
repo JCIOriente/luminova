@@ -1,4 +1,5 @@
 import { BrandConfigError, loadProfile, type LoadedProfile } from "../load-profile.ts";
+import { formatRemedies } from "../remedy.ts";
 import { CommandError } from "./gcloud.ts";
 
 /**
@@ -11,6 +12,10 @@ export async function exitOnFailure(body: () => Promise<void> | void): Promise<v
   } catch (error) {
     if (!(error instanceof BrandConfigError || error instanceof CommandError)) throw error;
     console.error(error.message);
+    // A BrandConfigError's message already ends with its "To fix:" block.
+    if (error instanceof CommandError && error.remedies.length > 0) {
+      console.error(formatRemedies(error.remedies));
+    }
     process.exit(1);
   }
 }

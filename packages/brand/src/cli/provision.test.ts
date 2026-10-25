@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
-import { applyBucket, printProvisioning, provisioningSection } from "./provision.ts";
+import { applyBucket, printProvisioning, provisionNext, provisioningSection } from "./provision.ts";
 
 const BUCKET = "gs://jci-oriente-brand-assets";
 const SA = "firebase-deployer@jci-oriente.iam.gserviceaccount.com";
@@ -184,5 +184,21 @@ describe("applyBucket", () => {
       }),
     ).rejects.toThrow(BrandConfigError);
     expect(calls).toEqual([]);
+  });
+});
+
+describe("provisionNext", () => {
+  it("after printing, points at --apply", () => {
+    expect(provisionNext({ applied: false, slug: "jci-oriente" }).map(({ run }) => run)).toEqual([
+      "pnpm brand:provision --apply",
+    ]);
+  });
+
+  it("after applying, points at the upload, the CD variable and doctor", () => {
+    expect(provisionNext({ applied: true, slug: "jci-oriente" }).map(({ run }) => run)).toEqual([
+      "pnpm brand:push",
+      "gh variable set BRAND_PROFILE --env production --body jci-oriente",
+      "pnpm brand:doctor",
+    ]);
   });
 });

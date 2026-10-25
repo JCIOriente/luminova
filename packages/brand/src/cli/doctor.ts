@@ -4,40 +4,60 @@ import { z } from "zod";
 import { ASSET_CONTRACT } from "../assets.ts";
 import {
   BrandConfigError,
+  DEFAULT_PROFILE,
+  cdProfileCommand,
   ProfileNotFoundError,
   REPO_ROOT,
   errorMessage,
   loadProfile,
+  profileSetupRemedies,
   readJsonFile,
+  selectableProfiles,
   selectedProfile,
   type Env,
   type LoadedProfile,
 } from "../load-profile.ts";
 import { FIREBASERC, firebasercContent } from "./apply.ts";
 import { checkBrand } from "./check.ts";
-import { bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
+import { formatNext, formatRemedies, uniqueRemedies, type Remedy } from "../remedy.ts";
+import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
 import { exitOnFailure } from "./main.ts";
+import { deployDispatch } from "./push.ts";
 import { formatTable, plural } from "./table.ts";
 
 export interface DoctorRow {
   check: string;
   status: "ok" | "warn" | "fail" | "skip";
   detail: string;
+  remedies?: readonly Remedy[];
 }
 
 const row =
   (status: DoctorRow["status"]) =>
-  (check: string, detail: string): DoctorRow => ({ check, status, detail });
+  (check: string, detail: string, remedies?: readonly Remedy[]): DoctorRow => ({
+    check,
+    status,
+    detail,
+    remedies,
+  });
 const ok = row("ok");
 const warn = row("warn");
 const fail = row("fail");
 const skip = (check: string) => row("skip")(check, "needs a valid profile");
 
+/** A caught error as a row: its message in the cell (never a "To fix:" block), its remedies. */
+function failed(check: string, error: unknown): DoctorRow {
+  if (error instanceof BrandConfigError)
+    return fail(check, error.errors.join("; "), error.remedies);
+  if (error instanceof CommandError) return fail(check, error.message, error.remedies);
+  return fail(check, errorMessage(error));
+}
+
 async function attempt(check: string, body: () => Promise<DoctorRow>): Promise<DoctorRow> {
   try {
     return await body();
   } catch (error) {
-    return fail(check, errorMessage(error));
+    return failed(check, error);
   }
 }
 
@@ -51,8 +71,8 @@ function profileRows(repoRoot: string, env: Env): { rows: DoctorRow[]; profile?:
     if (!(error instanceof BrandConfigError)) throw error;
     const detail = error.errors.join("; ");
     return error instanceof ProfileNotFoundError
-      ? { rows: [fail("profile", detail), skip("schema")] }
-      : { rows: [found, fail("schema", detail)] };
+      ? { rows: [fail("profile", detail, error.remedies), skip("schema")] }
+      : { rows: [found, fail("schema", detail, error.remedies)] };
   }
 }
 
@@ -61,9 +81,13 @@ async function brandRows(profile: LoadedProfile, repoRoot: string, env: Env): Pr
   const assetsFailed = assets.filter(({ failed }) => failed).length;
   const total = ASSET_CONTRACT.length;
   return [
-    content.failed ? fail("site content", content.verdict) : ok("site content", "schema valid"),
+    content.failed
+      ? fail("site content", content.verdict, content.remedies)
+      : ok("site content", "schema valid"),
     assetsFailed > 0
-      ? fail("assets", `${plural(assetsFailed, "problem")}; run pnpm brand:check for the table`)
+      ? fail("assets", plural(assetsFailed, "problem"), [
+          { change: "see which files and what to do", run: "pnpm brand:check" },
+        ])
       : ok("assets", `${total}/${total} files valid`),
   ];
 }
@@ -74,30 +98,40 @@ function firebasercRow(profile: LoadedProfile, repoRoot: string): DoctorRow {
   if (current === firebasercContent(profile.brand)) {
     return ok(FIREBASERC, `in sync (project ${profile.brand.firebase.projectId})`);
   }
-  return fail(
-    FIREBASERC,
-    `${current === null ? "missing" : `not generated from "${profile.slug}"`}; run pnpm brand:apply`,
-  );
+  return fail(FIREBASERC, current === null ? "missing" : `not generated from "${profile.slug}"`, [
+    { run: "pnpm brand:apply" },
+  ]);
 }
 
 async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<DoctorRow> {
   const bucket = profile.brand.assetsBucket;
-  const listing = await run("gcloud", [
-    "storage",
-    "objects",
-    "list",
-    bucketUrl(bucket, "**"),
-    "--format=value(name)",
-  ]);
+  let listing: string;
+  try {
+    listing = await run("gcloud", [
+      "storage",
+      "objects",
+      "list",
+      bucketUrl(bucket, "**"),
+      "--format=value(name)",
+    ]);
+  } catch (error) {
+    if (!(error instanceof CommandError) || error.kind !== "notFound") throw error;
+    return fail("bucket", `${bucketUrl(bucket)} does not exist yet`, [
+      {
+        change: "print the bucket setup for this profile (changes nothing)",
+        run: "pnpm brand:provision",
+      },
+      { change: "then create it (project owner)", run: "pnpm brand:provision --apply" },
+    ]);
+  }
   const names = new Set(listing.split("\n").map((line) => line.trim()));
   const missing = ASSET_CONTRACT.filter(({ path }) => !names.has(path)).length;
   const total = ASSET_CONTRACT.length;
   return missing === 0
     ? ok("bucket", `${total}/${total} contract files in ${bucketUrl(bucket)}`)
-    : fail(
-        "bucket",
-        `${missing} of ${total} contract files missing from ${bucketUrl(bucket)}; upload them with pnpm brand:push`,
-      );
+    : fail("bucket", `${missing} of ${total} contract files missing from ${bucketUrl(bucket)}`, [
+        { change: "upload the checked set (project owner)", run: "pnpm brand:push" },
+      ]);
 }
 
 /** `>=X.Y.Z` only, the form `engines.node` uses here. */
@@ -128,7 +162,11 @@ async function nodeRow(repoRoot: string, nodeVersion: string): Promise<DoctorRow
   const engines = readRootManifest(repoRoot).engines?.node;
   const meets = engines ? meetsMinimum(nodeVersion, engines) : true;
   if (meets === null) return warn("node", `${nodeVersion} (cannot read engines "${engines}")`);
-  return meets ? ok("node", nodeVersion) : fail("node", `${nodeVersion} (needs ${engines})`);
+  return meets
+    ? ok("node", nodeVersion)
+    : fail("node", `${nodeVersion} (needs ${engines})`, [
+        { change: "switch to the version in .nvmrc", run: "nvm install && nvm use" },
+      ]);
 }
 
 async function pnpmRow(repoRoot: string, run: CommandRunner): Promise<DoctorRow> {
@@ -136,7 +174,12 @@ async function pnpmRow(repoRoot: string, run: CommandRunner): Promise<DoctorRow>
   const pinned = readRootManifest(repoRoot).packageManager?.replace(/^pnpm@/, "");
   return !pinned || version === pinned
     ? ok("pnpm", version)
-    : warn("pnpm", `${version} (packageManager pins ${pinned})`);
+    : warn("pnpm", `${version} (packageManager pins ${pinned})`, [
+        {
+          change: "use the pnpm that package.json's packageManager pins",
+          run: "corepack enable && corepack install",
+        },
+      ]);
 }
 
 async function gcloudAccountRow(run: CommandRunner): Promise<DoctorRow> {
@@ -145,7 +188,7 @@ async function gcloudAccountRow(run: CommandRunner): Promise<DoctorRow> {
   ).trim();
   return account
     ? ok("gcloud account", account.split("\n")[0] ?? account)
-    : fail("gcloud account", "nobody signed in; run gcloud auth login");
+    : fail("gcloud account", "nobody signed in", [{ run: "gcloud auth login", where: "shell" }]);
 }
 
 /**
@@ -164,7 +207,7 @@ export async function doctor({
   run?: CommandRunner;
   nodeVersion?: string;
 } = {}): Promise<DoctorRow[]> {
-  const { rows, profile } = profileRows(repoRoot, env);
+  const { rows: profileChecks, profile } = profileRows(repoRoot, env);
   // The external commands are independent; start them together, report in order.
   const [account, bucket, pnpm] = await Promise.all([
     attempt("gcloud account", () => gcloudAccountRow(run)),
@@ -172,11 +215,17 @@ export async function doctor({
     attempt("pnpm", () => pnpmRow(repoRoot, run)),
   ]);
 
-  rows.push(
+  // Rows run in the order fixes must happen: the tools and BRAND_PROFILE first
+  // (brand:provision and brand:push refuse without it), then the profile, then the cloud.
+  return [
+    await attempt("node", () => nodeRow(repoRoot, nodeVersion)),
+    pnpm,
+    profileSelectionRow(repoRoot, env),
+    ...profileChecks,
     ...(profile
       ? await brandRows(profile, repoRoot, env).catch((error: unknown) => [
-          fail("site content", errorMessage(error)),
-          fail("assets", errorMessage(error)),
+          failed("site content", error),
+          failed("assets", error),
         ])
       : [skip("site content"), skip("assets")]),
     profile
@@ -184,16 +233,46 @@ export async function doctor({
       : skip(FIREBASERC),
     account,
     bucket,
-  );
+  ];
+}
+
+function profileSelectionRow(repoRoot: string, env: Env): DoctorRow {
   const selected = env.BRAND_PROFILE?.trim();
-  rows.push(
-    selected
-      ? ok("BRAND_PROFILE", selected)
-      : fail("BRAND_PROFILE", "unset; add export BRAND_PROFILE=<slug> to your shell profile"),
-    await attempt("node", () => nodeRow(repoRoot, nodeVersion)),
-    pnpm,
+  if (selected) return ok("BRAND_PROFILE", selected);
+  const profiles = selectableProfiles(repoRoot);
+  // A lone adopter profile is ready to paste; the example is never chosen for the user.
+  const [only] = profiles;
+  const slug = profiles.length === 1 && only && only !== DEFAULT_PROFILE ? only : "<slug>";
+  return fail(
+    "BRAND_PROFILE",
+    `unset (profiles: ${profiles.join(", ") || "none"})`,
+    profileSetupRemedies(slug, { env, cd: false }),
   );
-  return rows;
+}
+
+/** The remedies of failing and warning rows, each once, in row (fix) order. */
+export const doctorRemedies = (rows: readonly DoctorRow[]): Remedy[] =>
+  uniqueRemedies(
+    rows
+      .filter(({ status }) => status === "fail" || status === "warn")
+      .flatMap(({ remedies }) => remedies ?? []),
+  );
+
+/** With every row passing, the local setup is done; what remains reaches CD (steps 6, 10, 11). */
+export function doctorNext(slug: string): Remedy[] {
+  return [
+    { change: `commit brand/${slug}/ and merge it to main in your fork (docs/adopting.md step 6)` },
+    {
+      change: "select the profile in CD, once the production environment exists (step 10)",
+      run: cdProfileCommand(slug),
+      where: "shell",
+    },
+    {
+      change: "first deploy (project owner; approve the run in GitHub, then check step 11)",
+      run: deployDispatch("all"),
+      where: "shell",
+    },
+  ];
 }
 
 if (import.meta.main) {
@@ -205,11 +284,14 @@ if (import.meta.main) {
         ...rows.map(({ check, status, detail }) => [check, status, detail]),
       ]),
     );
+    const fix = formatRemedies(doctorRemedies(rows));
+    if (fix) console.log(`\n${fix}`);
     const failed = rows.filter(({ status }) => status === "fail").length;
     if (failed > 0) {
       console.error(`brand:doctor: ${plural(failed, "check")} failed.`);
       process.exit(1);
     }
-    console.log("brand:doctor: every check passed.");
+    const next = doctorNext(selectedProfile().slug);
+    console.log(`brand:doctor: every check passed.\n\n${formatNext(next)}`);
   });
 }

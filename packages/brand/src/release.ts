@@ -1,9 +1,18 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
-import { ASSET_CONTRACT, PULL_MANIFEST_FILE } from "./assets.ts";
+import { ASSET_CONTRACT, PULL_ASSETS, PULL_MANIFEST_FILE } from "./assets.ts";
 import { sha256 } from "./hash.ts";
-import { issuesToBrandError, readJsonFile, type Env, type LoadedProfile } from "./load-profile.ts";
+import type { Problem } from "./remedy.ts";
+import {
+  BrandConfigError,
+  issuesToBrandError,
+  profileSetupRemedies,
+  readJsonFile,
+  selectProfileRemedy,
+  type Env,
+  type LoadedProfile,
+} from "./load-profile.ts";
 
 /** Release mode (spec section 5.6): the deploy build. CD and `deploy:hosting` set it. */
 const RELEASE_ENV = "BRAND_RELEASE";
@@ -30,27 +39,44 @@ export function isRelease(env: Env): boolean {
   if (!value || value === "0") return false;
   if (value === "1") return true;
   // A typo must not quietly produce a dist without the marker that predeploy requires.
-  throw new Error(`${RELEASE_ENV} must be "1" (release) or unset; got "${value}".`);
+  throw new BrandConfigError(
+    [`${RELEASE_ENV} must be "1" (release) or unset; got "${value}".`],
+    [{ change: "only deploy builds set it", run: `unset ${RELEASE_ENV}`, where: "shell" }],
+  );
 }
+
+const RELEASE_BUILD_COMMAND =
+  "BRAND_RELEASE=1 VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter spotlight --filter backstage --force";
 
 /**
  * A profile that may reach production: named on purpose, not the fixture, not an
  * emulator-only project. Release builds, brand:push and brand:provision --apply share it.
  */
-export function undeployableProfileErrors(profile: LoadedProfile): string[] {
-  const errors: string[] = [];
+export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
+  const errors: Problem[] = [];
   const { slug } = profile;
   const { projectId } = profile.brand.firebase;
   if (profile.source === "default") {
-    errors.push("BRAND_PROFILE is required here; set it to the profile you mean to ship.");
+    errors.push({
+      message: "BRAND_PROFILE is required here; set it to the profile you mean to ship.",
+      remedies: profileSetupRemedies("<slug>"),
+    });
   }
   if (slug === NEUTRAL_PROFILE) {
-    errors.push(`profile "${slug}" is the neutral test profile and can never be released.`);
+    errors.push({
+      message: `profile "${slug}" is the neutral test profile and can never be released.`,
+      remedies: [selectProfileRemedy()],
+    });
   }
   if (projectId.startsWith(DEMO_PROJECT_PREFIX)) {
-    errors.push(
-      `profile "${slug}": project "${projectId}" is an emulator-only demo project and cannot be released.`,
-    );
+    errors.push({
+      message: `profile "${slug}": project "${projectId}" is an emulator-only demo project and cannot be released.`,
+      remedies: [
+        {
+          change: `set firebase.projectId in brand/${slug}/brand.json to your real Firebase project`,
+        },
+      ],
+    });
   }
   return errors;
 }
@@ -76,6 +102,12 @@ export function selectAssetsDir(
   return pulledHasAssets || !existsSync(own) ? pulled : own;
 }
 
+/** A directory as the user should read it: relative inside the repo, absolute outside it. */
+export function displayDir(repoRoot: string, dir: string): string {
+  const path = relative(repoRoot, dir);
+  return path.startsWith("..") || isAbsolute(path) ? dir : path || ".";
+}
+
 /** Every release-only rule that fails, so one build lists them all. */
 export function releaseErrors({
   profile,
@@ -89,30 +121,42 @@ export function releaseErrors({
   assetsDir: string;
   command: "serve" | "build";
   emulatorEnabled: boolean;
-}): string[] {
+}): Problem[] {
   const errors = undeployableProfileErrors(profile);
   const { slug } = profile;
   const { projectId } = profile.brand.firebase;
   if (command !== "build" || emulatorEnabled) {
-    errors.push(
-      "release mode needs a production `vite build` with VITE_FIREBASE_EMULATOR_ENABLED unset or false.",
-    );
+    errors.push({
+      message:
+        "release mode needs a production `vite build` with VITE_FIREBASE_EMULATOR_ENABLED unset or false.",
+      remedies: [
+        { change: "build for release with the emulator flag off", run: RELEASE_BUILD_COMMAND },
+      ],
+    });
   }
   if (env.BRAND_ASSETS_DIR?.trim()) {
-    errors.push(
-      `BRAND_ASSETS_DIR is not allowed in release mode; release assets come only from ${PULLED_ASSETS_DIR}/ (run brand:pull).`,
-    );
+    errors.push({
+      message: `BRAND_ASSETS_DIR is not allowed in release mode; release assets come only from ${PULLED_ASSETS_DIR}/.`,
+      remedies: [{ run: "unset BRAND_ASSETS_DIR", where: "shell" }],
+    });
   }
   const target = env.GCP_PROJECT_ID?.trim();
   if (target && target !== projectId) {
-    errors.push(
-      `GCP_PROJECT_ID "${target}" is not profile "${slug}"'s project "${projectId}"; select the matching BRAND_PROFILE.`,
-    );
+    errors.push({
+      message: `GCP_PROJECT_ID "${target}" is not profile "${slug}"'s project "${projectId}".`,
+      remedies: [
+        {
+          ...selectProfileRemedy(),
+          change: `select the profile whose firebase.projectId is "${target}", or unset GCP_PROJECT_ID`,
+        },
+      ],
+    });
   }
   if (!existsSync(join(assetsDir, PULL_MANIFEST_FILE))) {
-    errors.push(
-      `${PULLED_ASSETS_DIR}/${PULL_MANIFEST_FILE}: missing; release assets must come from brand:pull.`,
-    );
+    errors.push({
+      message: `${PULLED_ASSETS_DIR}/${PULL_MANIFEST_FILE}: missing; release assets must come from brand:pull.`,
+      remedies: [PULL_ASSETS],
+    });
   }
   return errors;
 }
