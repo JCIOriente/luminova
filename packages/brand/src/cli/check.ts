@@ -1,5 +1,12 @@
+import { flagValue } from "../argv.ts";
 import { PULL_MANIFEST_FILE, assetRemedies, validateAssets } from "../assets.ts";
-import { BrandConfigError, REPO_ROOT, type Env, type LoadedProfile } from "../load-profile.ts";
+import {
+  BrandConfigError,
+  REPO_ROOT,
+  SOURCE_LABEL,
+  type Env,
+  type LoadedProfile,
+} from "../load-profile.ts";
 import { displayDir, releaseErrors, selectAssetsDir } from "../release.ts";
 import { formatNext, formatRemedies, type Problem, type Remedy } from "../remedy.ts";
 import { SITE_CONTENT_FILE, readSiteContent } from "../site-content.ts";
@@ -82,13 +89,16 @@ export async function checkBrand({
   repoRoot = REPO_ROOT,
   env = process.env,
   release = false,
+  assets: chosenAssets,
 }: {
   profile: LoadedProfile;
   repoRoot?: string;
   env?: Env;
   release?: boolean;
+  /** `--assets <dir>`: check another folder, e.g. the one `brand:push --from` reads. */
+  assets?: string;
 }): Promise<BrandCheck> {
-  const assetsDir = selectAssetsDir(repoRoot, profile, env, release);
+  const assetsDir = selectAssetsDir(repoRoot, profile, env, release, chosenAssets);
   const validation = validateAssets(assetsDir, { profile: profile.slug });
 
   const assets: CheckRow[] = validation.files.map(
@@ -122,13 +132,26 @@ export async function checkBrand({
 }
 
 if (import.meta.main) {
-  const release = process.argv.slice(2).includes("--release");
+  const argv = process.argv.slice(2);
+  const release = argv.includes("--release");
   await runCli("brand:check", async (profile) => {
-    const result = await checkBrand({ profile, release });
+    const assets = flagValue(argv, "--assets", (message) => new BrandConfigError([message]));
+    if (release && assets) {
+      throw new BrandConfigError(
+        ["--assets and --release cannot be combined: release builds read only brand-assets/."],
+        [
+          {
+            change: "drop --assets to check what a deploy would ship",
+            run: "pnpm brand:check --release",
+          },
+        ],
+      );
+    }
+    const result = await checkBrand({ profile, release, assets });
     const { assetsDir } = result;
     const rows = checkRows(result);
     console.log(
-      `brand:check: profile "${profile.slug}" (${profile.source}), assets in ${displayDir(REPO_ROOT, assetsDir)}/${release ? ", release rules" : ""}`,
+      `brand:check: profile "${profile.slug}" (${SOURCE_LABEL[profile.source]}), assets in ${displayDir(REPO_ROOT, assetsDir)}/${release ? ", release rules" : ""}`,
     );
     console.log(
       formatTable([

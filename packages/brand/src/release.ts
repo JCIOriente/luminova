@@ -4,17 +4,19 @@ import { z } from "zod";
 import { ASSET_CONTRACT, PULL_ASSETS, PULL_MANIFEST_FILE } from "./assets.ts";
 import { sha256 } from "./hash.ts";
 import type { Problem } from "./remedy.ts";
+import { CONFIG_FILE } from "./config.ts";
 import {
   BrandConfigError,
+  PROFILE_OVERRIDE_ENV,
+  REMOVE_OVERRIDE,
   issuesToBrandError,
-  profileSetupRemedies,
   readJsonFile,
   selectProfileRemedy,
   type Env,
   type LoadedProfile,
 } from "./load-profile.ts";
 
-/** Release mode (spec section 5.6): the deploy build. CD and `deploy:hosting` set it. */
+/** Release mode (spec section 5.6): the deploy build. Only `build:release`, `deploy:*` and CD set it. */
 const RELEASE_ENV = "BRAND_RELEASE";
 export const RELEASE_MARKER_FILE = ".brand-release.json";
 export const PULLED_ASSETS_DIR = "brand-assets";
@@ -41,25 +43,31 @@ export function isRelease(env: Env): boolean {
   // A typo must not quietly produce a dist without the marker that predeploy requires.
   throw new BrandConfigError(
     [`${RELEASE_ENV} must be "1" (release) or unset; got "${value}".`],
-    [{ change: "only deploy builds set it", run: `unset ${RELEASE_ENV}`, where: "shell" }],
+    [
+      {
+        change: `remove it from your environment: only pnpm build:release, pnpm deploy:* and CD set it`,
+        run: `unset ${RELEASE_ENV}`,
+        where: "shell",
+      },
+    ],
   );
 }
 
-const RELEASE_BUILD_COMMAND =
-  "BRAND_RELEASE=1 VITE_FIREBASE_EMULATOR_ENABLED=false pnpm turbo run build --filter spotlight --filter backstage --force";
+const RELEASE_BUILD_COMMAND = "pnpm build:release";
 
 /**
- * A profile that may reach production: named on purpose, not the fixture, not an
- * emulator-only project. Release builds, brand:push and brand:provision --apply share it.
+ * A profile that may reach production: chosen in luminova.json or with --profile (never a
+ * stray environment override), not the fixture, not an emulator-only project. Release
+ * builds, brand:push and brand:provision --apply share it.
  */
 export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
   const errors: Problem[] = [];
   const { slug } = profile;
   const { projectId } = profile.brand.firebase;
-  if (profile.source === "default") {
+  if (profile.source === "override") {
     errors.push({
-      message: "BRAND_PROFILE is required here; set it to the profile you mean to ship.",
-      remedies: profileSetupRemedies("<slug>"),
+      message: `${PROFILE_OVERRIDE_ENV}=${slug} is set in your environment; what ships is chosen in ${CONFIG_FILE} only.`,
+      remedies: [REMOVE_OVERRIDE, selectProfileRemedy()],
     });
   }
   if (slug === NEUTRAL_PROFILE) {
@@ -83,7 +91,8 @@ export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
 
 /**
  * Where a build reads the asset set: release always reads the pulled `brand-assets/`;
- * otherwise `BRAND_ASSETS_DIR`, then `brand-assets/` once it holds any contract file
+ * otherwise a folder named on the command line (`brand:check --assets`), then the
+ * `BRAND_ASSETS_DIR` tooling override, then `brand-assets/` once it holds any contract file
  * (brand:init leaves only a README there), then the profile's own `assets/`. A profile
  * without its own assets reads `brand-assets/`, so its errors name the folder to fill.
  */
@@ -92,10 +101,11 @@ export function selectAssetsDir(
   profile: LoadedProfile,
   env: Env,
   release: boolean,
+  chosen?: string,
 ): string {
   const pulled = join(repoRoot, PULLED_ASSETS_DIR);
   if (release) return pulled;
-  const fromEnv = env.BRAND_ASSETS_DIR?.trim();
+  const fromEnv = chosen?.trim() || env.BRAND_ASSETS_DIR?.trim();
   if (fromEnv) return resolve(repoRoot, fromEnv);
   const own = join(profile.dir, "assets");
   const pulledHasAssets = ASSET_CONTRACT.some(({ path }) => existsSync(join(pulled, path)));
@@ -130,14 +140,20 @@ export function releaseErrors({
       message:
         "release mode needs a production `vite build` with VITE_FIREBASE_EMULATOR_ENABLED unset or false.",
       remedies: [
-        { change: "build for release with the emulator flag off", run: RELEASE_BUILD_COMMAND },
+        { change: "build for release with the script made for it", run: RELEASE_BUILD_COMMAND },
       ],
     });
   }
   if (env.BRAND_ASSETS_DIR?.trim()) {
     errors.push({
       message: `BRAND_ASSETS_DIR is not allowed in release mode; release assets come only from ${PULLED_ASSETS_DIR}/.`,
-      remedies: [{ run: "unset BRAND_ASSETS_DIR", where: "shell" }],
+      remedies: [
+        {
+          change: "remove it from your environment (tools set it for test builds only)",
+          run: "unset BRAND_ASSETS_DIR",
+          where: "shell",
+        },
+      ],
     });
   }
   const target = env.GCP_PROJECT_ID?.trim();
@@ -146,8 +162,7 @@ export function releaseErrors({
       message: `GCP_PROJECT_ID "${target}" is not profile "${slug}"'s project "${projectId}".`,
       remedies: [
         {
-          ...selectProfileRemedy(),
-          change: `select the profile whose firebase.projectId is "${target}", or unset GCP_PROJECT_ID`,
+          change: `set "profile" in ${CONFIG_FILE} to the profile whose firebase.projectId is "${target}"`,
         },
       ],
     });

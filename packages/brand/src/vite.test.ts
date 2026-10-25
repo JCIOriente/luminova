@@ -63,7 +63,12 @@ beforeEach(() => {
     }
     writeAssetSet(join(repoRoot, "brand", slug, "assets"), distinctColors);
   }
+  selectInFile("jci-oriente");
 });
+
+function selectInFile(profile: string) {
+  writeFileSync(join(repoRoot, "luminova.json"), JSON.stringify({ profile }));
+}
 
 afterEach(() => {
   for (const key of ENV_KEYS) {
@@ -77,12 +82,13 @@ afterEach(() => {
 describe("resolveBrandBuild", () => {
   it("prints each profile warning once per process", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    resolve({ profile: undefined });
-    resolve({ profile: undefined });
-    const unsetWarnings = warn.mock.calls.filter(([message]) =>
-      String(message).includes("BRAND_PROFILE is unset"),
+    const env = { BRAND_PROFILE: "fixture" };
+    resolve({ profile: undefined, env });
+    resolve({ profile: undefined, env });
+    const overrideWarnings = warn.mock.calls.filter(([message]) =>
+      String(message).includes("overrides luminova.json"),
     );
-    expect(unsetWarnings).toHaveLength(1);
+    expect(overrideWarnings).toHaveLength(1);
   });
 
   it("uses the profile's committed assets when nothing else is present", () => {
@@ -194,11 +200,7 @@ describe("resolveBrandBuild", () => {
   });
 });
 
-const RELEASE_ENV = {
-  BRAND_RELEASE: "1",
-  BRAND_PROFILE: "jci-oriente",
-  GCP_PROJECT_ID: "jci-oriente",
-};
+const RELEASE_ENV = { BRAND_RELEASE: "1", GCP_PROJECT_ID: "jci-oriente" };
 
 function writePulledAssets(profile = "jci-oriente") {
   const dir = join(repoRoot, "brand-assets");
@@ -236,9 +238,8 @@ describe("resolveBrandBuild in release mode", () => {
 
   it("fails a fixture release, naming fixture", () => {
     writePulledAssets("fixture");
-    const errors = errorsOf(() =>
-      resolve({ profile: undefined, env: { BRAND_RELEASE: "1", BRAND_PROFILE: "fixture" } }),
-    );
+    selectInFile("fixture");
+    const errors = errorsOf(() => resolve({ profile: undefined, env: { BRAND_RELEASE: "1" } }));
     expect(errors).toContainEqual(expect.stringMatching(/"fixture" is the neutral test profile/));
   });
 

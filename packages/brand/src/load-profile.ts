@@ -1,10 +1,12 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CONFIG_FILE, readLuminovaConfig } from "./config.ts";
 import { formatRemedies, uniqueRemedies, type Problem, type Remedy } from "./remedy.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema, type Brand } from "./schema.ts";
 
-export const DEFAULT_PROFILE = "jci-oriente";
+/** The committed example chapter; `brand:init` copies its site content. */
+export const EXAMPLE_PROFILE = "jci-oriente";
 
 export const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -87,11 +89,13 @@ export function issuesToBrandError(
   );
 }
 
+export type ProfileSource = "flag" | "override" | "file";
+
 export interface LoadedProfile {
   slug: string;
   dir: string;
   brand: Brand;
-  source: "argument" | "env" | "default";
+  source: ProfileSource;
   warnings: string[];
 }
 
@@ -101,77 +105,59 @@ export interface LoadProfileOptions {
   profile?: string;
 }
 
-/** Which profile a command means: an explicit one, else BRAND_PROFILE, else the example. */
+/** Tools set it for a single build (brand:guard's neutral build); a person never needs to. */
+export const PROFILE_OVERRIDE_ENV = "BRAND_PROFILE";
+
+/** How a command tells the user where its profile came from. */
+export const SOURCE_LABEL: Readonly<Record<ProfileSource, string>> = {
+  flag: "from --profile",
+  override: `from ${PROFILE_OVERRIDE_ENV}`,
+  file: `from ${CONFIG_FILE}`,
+};
+
+export const REMOVE_OVERRIDE: Remedy = {
+  change: `remove ${PROFILE_OVERRIDE_ENV} from your environment, and its export line from your shell startup file if you added one`,
+  run: `unset ${PROFILE_OVERRIDE_ENV}`,
+  where: "shell",
+};
+
+/**
+ * Which profile a command means: `--profile`, else the tooling override, else
+ * `luminova.json` (spec C1, C5).
+ */
 export function selectedProfile({
+  repoRoot = REPO_ROOT,
   env = process.env,
   profile,
-}: Pick<LoadProfileOptions, "env" | "profile"> = {}): {
-  slug: string;
-  source: LoadedProfile["source"];
-} {
-  const fromEnv = env.BRAND_PROFILE?.trim();
-  if (profile) return { slug: profile, source: "argument" };
-  return fromEnv ? { slug: fromEnv, source: "env" } : { slug: DEFAULT_PROFILE, source: "default" };
+}: LoadProfileOptions = {}): { slug: string; source: ProfileSource } {
+  if (profile) return { slug: profile, source: "flag" };
+  const override = env[PROFILE_OVERRIDE_ENV]?.trim();
+  if (override) return { slug: override, source: "override" };
+  return { slug: readLuminovaConfig(repoRoot).profile, source: "file" };
 }
 
-/**
- * The command that keeps BRAND_PROFILE set in every new terminal, for the user's shell. The
- * selection is an environment variable on purpose (spec D18), so it lives in the shell's
- * startup file (or a direnv `.envrc`), never in a repo file.
- */
-export function keepProfileCommand(
-  slug: string,
-  env: Env = process.env,
-  platform: NodeJS.Platform = process.platform,
-): string {
-  const shell = basename(env.SHELL ?? "");
-  if (shell === "fish") return `set -Ux BRAND_PROFILE ${slug}`;
-  // macOS terminals open login shells, which read ~/.bash_profile and not ~/.bashrc.
-  const bashFile = platform === "darwin" ? "~/.bash_profile" : "~/.bashrc";
-  const startupFile = { zsh: "~/.zshrc", bash: bashFile }[shell];
-  return startupFile
-    ? `echo 'export BRAND_PROFILE=${slug}' >> ${startupFile}`
-    : `add export BRAND_PROFILE=${slug} to your shell's startup file`;
+/** The file's profile, or null when it is missing or broken (the override then explains itself). */
+function configuredProfile(repoRoot: string): string | null {
+  try {
+    return readLuminovaConfig(repoRoot).profile;
+  } catch (error) {
+    if (error instanceof BrandConfigError) return null;
+    throw error;
+  }
 }
 
-export const cdProfileCommand = (slug: string) =>
-  `gh variable set BRAND_PROFILE --env production --body ${slug}`;
+function overrideWarning(slug: string, repoRoot: string): string | null {
+  const configured = configuredProfile(repoRoot);
+  if (configured === slug) return null;
+  return `${PROFILE_OVERRIDE_ENV}=${slug} in your environment overrides ${CONFIG_FILE}${configured ? ` ("${configured}")` : ""}. If you did not mean that: unset ${PROFILE_OVERRIDE_ENV}`;
+}
 
-/** Select a profile in this terminal; `choices` lists the ones that exist. */
+/** Point luminova.json at a profile; `choices` lists the ones that exist. */
 export const selectProfileRemedy = (choices?: readonly string[]): Remedy => ({
   change: choices
-    ? `select an existing profile (${choices.join(", ") || "none yet"})`
-    : "select your own profile",
-  run: "export BRAND_PROFILE=<slug>",
-  where: "shell",
+    ? `set "profile" in ${CONFIG_FILE} to one of: ${choices.join(", ") || "(none yet: run pnpm brand:init)"}`
+    : `set "profile" in ${CONFIG_FILE} to your chapter's folder under brand/`,
 });
-
-/**
- * The steps that select `slug` for good: every new terminal, this one, and (with `cd`) the
- * GitHub production variable CD reads.
- */
-export function profileSetupRemedies(
-  slug: string,
-  { env = process.env, cd = true }: { env?: Env; cd?: boolean } = {},
-): Remedy[] {
-  const steps: Remedy[] = [
-    {
-      change: "select it in every new terminal (or put the export in a direnv .envrc in the repo)",
-      run: keepProfileCommand(slug, env),
-      where: "shell",
-    },
-    { change: "and in this one", run: `export BRAND_PROFILE=${slug}`, where: "shell" },
-  ];
-  if (cd) {
-    steps.push({
-      change:
-        "CD reads its own copy, from the GitHub production environment (docs/adopting.md steps 7 and 10)",
-      run: cdProfileCommand(slug),
-      where: "shell",
-    });
-  }
-  return steps;
-}
 
 /** Profiles a person would select: every one with a brand.json except the neutral fixture. */
 export function selectableProfiles(repoRoot: string = REPO_ROOT): string[] {
@@ -191,13 +177,9 @@ export function loadProfile({
   env = process.env,
   profile,
 }: LoadProfileOptions = {}): LoadedProfile {
-  const { slug, source } = selectedProfile({ env, profile });
-  const warnings =
-    source === "default"
-      ? [
-          `BRAND_PROFILE is unset; using the "${DEFAULT_PROFILE}" example profile. To keep yours: ${keepProfileCommand("<slug>", env)}`,
-        ]
-      : [];
+  const { slug, source } = selectedProfile({ repoRoot, env, profile });
+  const warning = source === "override" ? overrideWarning(slug, repoRoot) : null;
+  const warnings = warning ? [warning] : [];
 
   const brandDir = join(repoRoot, "brand");
   const select = () => selectProfileRemedy(selectableProfiles(repoRoot));

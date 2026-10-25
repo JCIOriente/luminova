@@ -3,21 +3,22 @@ import { join, resolve } from "node:path";
 import { z } from "zod";
 import { flagValue } from "../argv.ts";
 import { ASSET_CONTRACT, describeSpec } from "../assets.ts";
+import { CONFIG_FILE, configTemplate } from "../config.ts";
+import { defaultDeploy } from "../deploy-identity.ts";
 import {
   BrandConfigError,
-  DEFAULT_PROFILE,
+  EXAMPLE_PROFILE,
   REPO_ROOT,
   issuesToBrandError,
-  profileSetupRemedies,
   loadProfile,
   parseJsonText,
   readJsonFile,
-  type Env,
 } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { formatNext, type Remedy } from "../remedy.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema } from "../schema.ts";
 import { SITE_CONTENT_FILE } from "../site-content.ts";
+import { FIREBASERC, applyProfile } from "./apply.ts";
 import { CommandError, INSTALL_FIREBASE_CLI, runCommand, type CommandRunner } from "./gcloud.ts";
 import { exitOnFailure } from "./main.ts";
 import { terminalPrompter, type Prompter } from "./prompts.ts";
@@ -270,10 +271,8 @@ const FIREBASE_SETTINGS = "Firebase console → Project settings";
 const YOUR_APPS = `${FIREBASE_SETTINGS} → Your apps`;
 
 /** What a new profile needs before it builds, in order (docs/adopting.md steps 3–6). */
-export function initNext(slug: string, env: Env = process.env): Remedy[] {
+export function initNext(slug: string): Remedy[] {
   return [
-    ...profileSetupRemedies(slug, { env, cd: false }),
-    { change: "write .firebaserc for the new project", run: "pnpm brand:apply" },
     {
       change: `edit brand/${slug}/${SITE_CONTENT_FILE}: history, mission, contacts (it seeds the site once)`,
     },
@@ -283,8 +282,8 @@ export function initNext(slug: string, env: Env = process.env): Remedy[] {
     },
     { change: "check the whole setup", run: "pnpm brand:doctor" },
     {
-      change: `commit the profile in your fork (never ${PULLED_ASSETS_DIR}/)`,
-      run: `git add brand/${slug}/`,
+      change: `commit the profile and the selection in your fork (never ${PULLED_ASSETS_DIR}/: it is gitignored on purpose)`,
+      run: `git add brand/${slug}/ ${CONFIG_FILE}`,
     },
   ];
 }
@@ -307,7 +306,7 @@ function orderLike(template: unknown, value: unknown): unknown {
 function assetReadme(): string {
   const rows = ASSET_CONTRACT.map((spec) => `  ${spec.path.padEnd(40)}${describeSpec(spec)}`);
   return [
-    "Brand assets for the selected profile (BRAND_PROFILE). Never commit this folder:",
+    `Your chapter's images, for the profile ${CONFIG_FILE} selects. Never commit this folder:`,
     "it is gitignored, and deployments read the profile's private bucket instead.",
     "",
     `Put these ${ASSET_CONTRACT.length} PNG files here, then run pnpm brand:check:`,
@@ -337,7 +336,7 @@ export async function init({
   fillWeb?: boolean;
   run?: CommandRunner;
 }): Promise<{ slug: string; files: string[] }> {
-  const example = loadProfile({ repoRoot, profile: DEFAULT_PROFILE });
+  const example = loadProfile({ repoRoot, profile: EXAMPLE_PROFILE });
   const exampleJson = readJsonFile(join(example.dir, "brand.json"), "example profile");
   const exampleAnswers = isRecord(exampleJson) ? exampleJson : {};
   const answers: Answers = structuredClone(initial);
@@ -410,6 +409,12 @@ function writeProfile({
   exampleDir: string;
 }): { slug: string; files: string[] } {
   const slug = String(answers.slug ?? "");
+  const projectId = text(answers, "firebase.projectId");
+  const projectNumber = text(answers, "firebase.web.messagingSenderId");
+  // CD's sign-in names follow docs/ci-cd.md section 6; the sender id is the project number.
+  if (get(answers, "deploy") === undefined && projectId && projectNumber) {
+    set(answers, "deploy", defaultDeploy({ projectId, projectNumber }));
+  }
   const brand = orderLike(exampleAnswers, { $schema: "../brand.schema.json", ...answers });
   const label = `brand/${slug || "<slug>"}/brand.json`;
   const parsed = brandSchema.safeParse(brand);
@@ -446,6 +451,12 @@ function writeProfile({
     writeFileSync(readme, assetReadme());
     files.push(`${PULLED_ASSETS_DIR}/README.txt`);
   }
+
+  // The new chapter becomes the one this checkout builds.
+  writeFileSync(join(repoRoot, CONFIG_FILE), configTemplate(slug));
+  files.push(CONFIG_FILE);
+  applyProfile({ profile: loadProfile({ repoRoot, profile: slug }), repoRoot, env: {} });
+  files.push(FIREBASERC);
   return { slug, files };
 }
 
@@ -473,7 +484,9 @@ if (import.meta.main) {
         prompter,
         fillWeb: argv.includes("--sdkconfig"),
       });
-      console.log(`brand:init: created ${files.join(", ")}.\n\n${formatNext(initNext(slug))}`);
+      console.log(
+        `brand:init: wrote ${files.join(", ")}. ${CONFIG_FILE} now selects "${slug}".\n\n${formatNext(initNext(slug))}`,
+      );
     } finally {
       prompter?.close();
     }

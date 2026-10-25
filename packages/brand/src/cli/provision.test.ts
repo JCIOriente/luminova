@@ -10,7 +10,7 @@ const SA = "firebase-deployer@jci-oriente.iam.gserviceaccount.com";
 const LIFECYCLE = JSON.parse(readFileSync(join(REPO_ROOT, "brand/bucket-lifecycle.json"), "utf8"));
 const profile: LoadedProfile = {
   ...loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" }),
-  source: "env",
+  source: "file",
 };
 
 const DONE = {
@@ -72,11 +72,9 @@ describe("printProvisioning", () => {
     expect(text).toContain(
       `gcloud storage buckets add-iam-policy-binding ${BUCKET} --member=serviceAccount:${SA} --role=roles/storage.objectViewer`,
     );
-    expect(text).toContain(
-      "BRAND_PROFILE=jci-oriente pnpm brand:push --from brand/jci-oriente/assets",
-    );
-    expect(text).toContain("gh variable set BRAND_PROFILE --env production --body jci-oriente");
+    expect(text).toContain("pnpm brand:push --from brand/jci-oriente/assets");
     expect(text).toContain("gh workflow run deploy.yml -f surface=all");
+    expect(text).not.toMatch(/BRAND_PROFILE|gh variable/);
     expect(mutations()).toEqual([]);
   });
 
@@ -97,6 +95,32 @@ describe("printProvisioning", () => {
     const text = await printProvisioning({ profile, run: failing, repo: "me/fork" });
     expect(text).toContain("export GH_REPO=me/fork\n");
     expect(text).toMatch(/export REVIEWER_ID=<.*gh api user -q \.id.*>\n/);
+  });
+
+  it("orders the steps so CD's account exists before the bucket grants it read access", async () => {
+    const text = await printProvisioning({ profile, run: fakeRunner() });
+    const titles = [...text.matchAll(/^Step (\d) of 5: (.*)$/gm)].map(([, , title]) => title);
+    expect(titles).toEqual([
+      "create CD's deploy account and its keyless sign-in (once per project)",
+      "tell CD which account to use (done: brand/jci-oriente/brand.json has it)",
+      "create the private bucket for your logos and icons",
+      "upload your images",
+      "first deploy",
+    ]);
+    expect(text.indexOf("iam service-accounts create")).toBeLessThan(
+      text.indexOf("add-iam-policy-binding gs://"),
+    );
+  });
+
+  it("prints the deploy section to paste, from the project number, when the profile lacks it", async () => {
+    const brand = structuredClone(profile.brand);
+    delete brand.deploy;
+    const text = await printProvisioning({ profile: { ...profile, brand }, run: fakeRunner() });
+    expect(text).toContain(
+      '"workloadIdentityProvider": "projects/42/locations/global/workloadIdentityPools/github-actions/providers/github-oidc"',
+    );
+    expect(text).toContain(`"serviceAccount": "${SA}"`);
+    expect(text).toMatch(/^Step 2 of 5: tell CD which account to use$/m);
   });
 });
 
@@ -167,7 +191,7 @@ describe("applyBucket", () => {
   it("refuses the fixture profile", async () => {
     const fixture: LoadedProfile = {
       ...loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" }),
-      source: "env",
+      source: "file",
     };
     await expect(
       applyBucket({ profile: fixture, repoRoot: REPO_ROOT, run: fakeRunner() }),
@@ -175,10 +199,10 @@ describe("applyBucket", () => {
     expect(calls).toEqual([]);
   });
 
-  it("refuses the default profile", async () => {
+  it("refuses a profile chosen by an environment override", async () => {
     await expect(
       applyBucket({
-        profile: { ...profile, source: "default" },
+        profile: { ...profile, source: "override" },
         repoRoot: REPO_ROOT,
         run: fakeRunner(),
       }),
@@ -189,15 +213,14 @@ describe("applyBucket", () => {
 
 describe("provisionNext", () => {
   it("after printing, points at --apply", () => {
-    expect(provisionNext({ applied: false, slug: "jci-oriente" }).map(({ run }) => run)).toEqual([
+    expect(provisionNext({ applied: false }).map(({ run }) => run)).toEqual([
       "pnpm brand:provision --apply",
     ]);
   });
 
-  it("after applying, points at the upload, the CD variable and doctor", () => {
-    expect(provisionNext({ applied: true, slug: "jci-oriente" }).map(({ run }) => run)).toEqual([
+  it("after applying, points at the upload and doctor", () => {
+    expect(provisionNext({ applied: true }).map(({ run }) => run)).toEqual([
       "pnpm brand:push",
-      "gh variable set BRAND_PROFILE --env production --body jci-oriente",
       "pnpm brand:doctor",
     ]);
   });

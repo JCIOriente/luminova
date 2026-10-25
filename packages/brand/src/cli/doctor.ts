@@ -1,19 +1,19 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import { flagValue } from "../argv.ts";
 import { ASSET_CONTRACT } from "../assets.ts";
+import { CONFIG_FILE, readLuminovaConfig } from "../config.ts";
 import {
   BrandConfigError,
-  DEFAULT_PROFILE,
-  cdProfileCommand,
+  PROFILE_OVERRIDE_ENV,
   ProfileNotFoundError,
+  REMOVE_OVERRIDE,
   REPO_ROOT,
+  SOURCE_LABEL,
   errorMessage,
   loadProfile,
-  profileSetupRemedies,
   readJsonFile,
-  selectableProfiles,
-  selectedProfile,
   type Env,
   type LoadedProfile,
 } from "../load-profile.ts";
@@ -43,7 +43,7 @@ const row =
 const ok = row("ok");
 const warn = row("warn");
 const fail = row("fail");
-const skip = (check: string) => row("skip")(check, "needs a valid profile");
+const skip = (check: string, detail = "needs a valid profile") => row("skip")(check, detail);
 
 /** A caught error as a row: its message in the cell (never a "To fix:" block), its remedies. */
 function failed(check: string, error: unknown): DoctorRow {
@@ -61,19 +61,33 @@ async function attempt(check: string, body: () => Promise<DoctorRow>): Promise<D
   }
 }
 
-function profileRows(repoRoot: string, env: Env): { rows: DoctorRow[]; profile?: LoadedProfile } {
-  const { slug, source } = selectedProfile({ env });
-  const found = ok("profile", `${slug} (${source === "env" ? "from BRAND_PROFILE" : "default"})`);
+function profileRows(
+  repoRoot: string,
+  env: Env,
+  flag?: string,
+): { rows: DoctorRow[]; profile?: LoadedProfile } {
+  let profile: LoadedProfile;
   try {
-    const profile = loadProfile({ repoRoot, env });
-    return { rows: [found, ok("schema", `brand/${slug}/brand.json valid`)], profile };
+    profile = loadProfile({ repoRoot, env, profile: flag });
   } catch (error) {
     if (!(error instanceof BrandConfigError)) throw error;
     const detail = error.errors.join("; ");
-    return error instanceof ProfileNotFoundError
-      ? { rows: [fail("profile", detail, error.remedies), skip("schema")] }
-      : { rows: [found, fail("schema", detail, error.remedies)] };
+    // A missing or broken luminova.json is its own row; it says how to fix it.
+    if (!(error instanceof ProfileNotFoundError)) {
+      return error.errors.some((line) => line.startsWith(CONFIG_FILE))
+        ? { rows: [skip("profile", `needs ${CONFIG_FILE}`), skip("schema")] }
+        : { rows: [ok("profile", "found"), fail("schema", detail, error.remedies)] };
+    }
+    return { rows: [fail("profile", detail, error.remedies), skip("schema")] };
   }
+  const { slug, source } = profile;
+  return {
+    rows: [
+      ok("profile", `${slug} (${SOURCE_LABEL[source]})`),
+      ok("schema", `brand/${slug}/brand.json valid`),
+    ],
+    profile,
+  };
 }
 
 async function brandRows(profile: LoadedProfile, repoRoot: string, env: Env): Promise<DoctorRow[]> {
@@ -117,10 +131,7 @@ async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<Do
   } catch (error) {
     if (!(error instanceof CommandError) || error.kind !== "notFound") throw error;
     return fail("bucket", `${bucketUrl(bucket)} does not exist yet`, [
-      {
-        change: "print the bucket setup for this profile (changes nothing)",
-        run: "pnpm brand:provision",
-      },
+      PRINT_SETUP,
       { change: "then create it (project owner)", run: "pnpm brand:provision --apply" },
     ]);
   }
@@ -201,13 +212,16 @@ export async function doctor({
   env = process.env,
   run = runCommand,
   nodeVersion = process.versions.node,
+  profile: flag,
 }: {
   repoRoot?: string;
   env?: Env;
   run?: CommandRunner;
   nodeVersion?: string;
+  /** `--profile <slug>`: diagnose another profile than luminova.json's. */
+  profile?: string;
 } = {}): Promise<DoctorRow[]> {
-  const { rows: profileChecks, profile } = profileRows(repoRoot, env);
+  const { rows: profileChecks, profile } = profileRows(repoRoot, env, flag);
   // The external commands are independent; start them together, report in order.
   const [account, bucket, pnpm] = await Promise.all([
     attempt("gcloud account", () => gcloudAccountRow(run)),
@@ -215,12 +229,12 @@ export async function doctor({
     attempt("pnpm", () => pnpmRow(repoRoot, run)),
   ]);
 
-  // Rows run in the order fixes must happen: the tools and BRAND_PROFILE first
-  // (brand:provision and brand:push refuse without it), then the profile, then the cloud.
+  // Rows run in the order fixes must happen: the tools, the selection, the profile, then
+  // the cloud.
   return [
     await attempt("node", () => nodeRow(repoRoot, nodeVersion)),
     pnpm,
-    profileSelectionRow(repoRoot, env),
+    configRow(repoRoot, env),
     ...profileChecks,
     ...(profile
       ? await brandRows(profile, repoRoot, env).catch((error: unknown) => [
@@ -231,22 +245,43 @@ export async function doctor({
     profile
       ? await attempt(FIREBASERC, async () => firebasercRow(profile, repoRoot))
       : skip(FIREBASERC),
+    profile ? cdIdentityRow(profile) : skip("CD identity"),
     account,
     bucket,
   ];
 }
 
-function profileSelectionRow(repoRoot: string, env: Env): DoctorRow {
-  const selected = env.BRAND_PROFILE?.trim();
-  if (selected) return ok("BRAND_PROFILE", selected);
-  const profiles = selectableProfiles(repoRoot);
-  // A lone adopter profile is ready to paste; the example is never chosen for the user.
-  const [only] = profiles;
-  const slug = profiles.length === 1 && only && only !== DEFAULT_PROFILE ? only : "<slug>";
-  return fail(
-    "BRAND_PROFILE",
-    `unset (profiles: ${profiles.join(", ") || "none"})`,
-    profileSetupRemedies(slug, { env, cd: false }),
+/** luminova.json selects the chapter; a leftover shell override is flagged, not obeyed silently. */
+function configRow(repoRoot: string, env: Env): DoctorRow {
+  let profile: string;
+  try {
+    profile = readLuminovaConfig(repoRoot).profile;
+  } catch (error) {
+    return failed(CONFIG_FILE, error);
+  }
+  const override = env[PROFILE_OVERRIDE_ENV]?.trim();
+  return override && override !== profile
+    ? warn(
+        CONFIG_FILE,
+        `selects "${profile}", but ${PROFILE_OVERRIDE_ENV}=${override} overrides it`,
+        [REMOVE_OVERRIDE],
+      )
+    : ok(CONFIG_FILE, `selects "${profile}"`);
+}
+
+const PRINT_SETUP: Remedy = {
+  change:
+    "print this profile's Google Cloud setup, step by step, with your values (changes nothing)",
+  run: "pnpm brand:provision",
+};
+
+/** CD signs in with the profile's `deploy` names; without them the first deploy cannot start. */
+function cdIdentityRow({ slug, brand }: LoadedProfile): DoctorRow {
+  if (brand.deploy) return ok("CD identity", brand.deploy.serviceAccount);
+  return warn(
+    "CD identity",
+    `brand/${slug}/brand.json has no "deploy" section (needed to deploy)`,
+    [PRINT_SETUP],
   );
 }
 
@@ -258,17 +293,14 @@ export const doctorRemedies = (rows: readonly DoctorRow[]): Remedy[] =>
       .flatMap(({ remedies }) => remedies ?? []),
   );
 
-/** With every row passing, the local setup is done; what remains reaches CD (steps 6, 10, 11). */
+/** With every row passing, the local setup is done; what remains reaches CD (steps 6, 10). */
 export function doctorNext(slug: string): Remedy[] {
   return [
-    { change: `commit brand/${slug}/ and merge it to main in your fork (docs/adopting.md step 6)` },
     {
-      change: "select the profile in CD, once the production environment exists (step 10)",
-      run: cdProfileCommand(slug),
-      where: "shell",
+      change: `commit brand/${slug}/ and ${CONFIG_FILE}, and merge them to main in your fork (docs/adopting.md step 6)`,
     },
     {
-      change: "first deploy (project owner; approve the run in GitHub, then check step 11)",
+      change: "first deploy (project owner; approve the run in GitHub, then check step 10)",
       run: deployDispatch("all"),
       where: "shell",
     },
@@ -277,7 +309,12 @@ export function doctorNext(slug: string): Remedy[] {
 
 if (import.meta.main) {
   await exitOnFailure(async () => {
-    const rows = await doctor();
+    const flag = flagValue(
+      process.argv.slice(2),
+      "--profile",
+      (message) => new BrandConfigError([message]),
+    );
+    const rows = await doctor({ profile: flag });
     console.log(
       formatTable([
         ["CHECK", "STATUS", "DETAIL"],
@@ -291,7 +328,7 @@ if (import.meta.main) {
       console.error(`brand:doctor: ${plural(failed, "check")} failed.`);
       process.exit(1);
     }
-    const next = doctorNext(selectedProfile().slug);
+    const next = doctorNext(loadProfile({ profile: flag }).slug);
     console.log(`brand:doctor: every check passed.\n\n${formatNext(next)}`);
   });
 }

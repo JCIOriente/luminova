@@ -22,7 +22,7 @@ function rowFor(rows: CheckRow[], item: string): CheckRow {
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "brand-check-"));
   cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
-  profile = { ...loadProfile({ repoRoot: root, profile: "jci-oriente" }), source: "env" };
+  profile = { ...loadProfile({ repoRoot: root, profile: "jci-oriente" }), source: "file" };
   writeAssetSet(join(root, PULLED_ASSETS_DIR));
 });
 
@@ -74,15 +74,17 @@ describe("checkBrand", () => {
     expect(row.verdict).toMatch(/^warn: .*WhatsApp/);
   });
 
-  it("checks the asset directory the build would use", async () => {
+  it.each([
+    ["--assets", (dir: string) => ({ env: {}, assets: dir })],
+    [
+      "the BRAND_ASSETS_DIR tooling override",
+      (dir: string) => ({ env: { BRAND_ASSETS_DIR: dir } }),
+    ],
+  ])("checks the folder %s names", async (_, options) => {
     const other = mkdtempSync(join(tmpdir(), "brand-check-other-"));
     try {
       const { assetsDir, rows } = withRows(
-        await checkBrand({
-          profile,
-          repoRoot: root,
-          env: { BRAND_ASSETS_DIR: other },
-        }),
+        await checkBrand({ profile, repoRoot: root, ...options(other) }),
       );
       expect(assetsDir).toBe(other);
       expect(rows.filter(({ failed }) => failed)).toHaveLength(ASSET_CONTRACT.length);
@@ -116,7 +118,7 @@ describe("checkBrand", () => {
     it("adds a failing row per release rule the profile breaks", async () => {
       const { rows } = withRows(
         await checkBrand({
-          profile: { ...profile, source: "default" },
+          profile: { ...profile, source: "override" },
           repoRoot: root,
           env: { BRAND_ASSETS_DIR: "elsewhere" },
           release: true,
@@ -125,7 +127,7 @@ describe("checkBrand", () => {
       const release = rows.filter(({ item }) => item === "release");
       expect(release.every(({ failed }) => failed)).toBe(true);
       const verdicts = release.map(({ verdict }) => verdict).join("\n");
-      expect(verdicts).toMatch(/BRAND_PROFILE is required/);
+      expect(verdicts).toMatch(/is set in your environment/);
       expect(verdicts).toMatch(/BRAND_ASSETS_DIR is not allowed/);
       expect(verdicts).toMatch(/pull-manifest\.json: missing/);
     });
@@ -175,7 +177,7 @@ describe("checkBrand", () => {
         JSON.stringify({ stats: "nope" }),
       );
       const check = await checkBrand({
-        profile: { ...profile, source: "default" },
+        profile: { ...profile, source: "override" },
         repoRoot: root,
         env: {},
         release: true,

@@ -1,17 +1,23 @@
 import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { z } from "zod";
 import { flagValue } from "../argv.ts";
+import { CONFIG_FILE } from "../config.ts";
+import { defaultDeploy, deploySaEmail } from "../deploy-identity.ts";
 import {
   BrandConfigError,
   REPO_ROOT,
-  cdProfileCommand,
   issuesToBrandError,
   readJsonFile,
   type LoadedProfile,
 } from "../load-profile.ts";
-import { undeployableProfileErrors } from "../release.ts";
+import {
+  PULLED_ASSETS_DIR,
+  displayDir,
+  selectAssetsDir,
+  undeployableProfileErrors,
+} from "../release.ts";
 import { formatNext, type Remedy } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
 import { runCli } from "./main.ts";
@@ -43,9 +49,6 @@ interface BucketStep {
   args: string[];
   isDone: (state: BucketState, members: readonly string[]) => boolean;
 }
-
-export const deploySaEmail = (projectId: string) =>
-  `firebase-deployer@${projectId}.iam.gserviceaccount.com`;
 
 /** Part B steps B1–B3 (spec section 5.7), the one list both modes use. */
 function bucketSteps(
@@ -139,21 +142,17 @@ async function viewerMembers(run: CommandRunner, bucket: string): Promise<string
     .flatMap(({ members }) => members);
 }
 
-export function provisionNext({ applied, slug }: { applied: boolean; slug: string }): Remedy[] {
+export function provisionNext({ applied }: { applied: boolean }): Remedy[] {
   if (!applied) {
     return [
       {
-        change: "review the commands above, then create the bucket (project owner)",
+        change: "do steps 1 and 2 above, then let this command do step 3 (project owner)",
         run: "pnpm brand:provision --apply",
       },
     ];
   }
   return [
-    {
-      change: "upload the asset set from brand-assets/ (add --from <folder> for another one)",
-      run: "pnpm brand:push",
-    },
-    { change: "select the profile in CD", run: cdProfileCommand(slug), where: "shell" },
+    { change: "step 4: upload your images to the bucket", run: "pnpm brand:push" },
     { change: "confirm every row passes", run: "pnpm brand:doctor" },
   ];
 }
@@ -212,7 +211,33 @@ async function lookup(run: CommandRunner, command: "gcloud" | "gh", args: string
 
 const command = (args: readonly string[]) => args.map(shellQuote).join(" ");
 
-/** Default mode: prints part B and the section 6 block with the profile's values. Read-only. */
+interface GuideStep {
+  title: string;
+  why: string;
+  where: string;
+  lines: readonly string[];
+  check?: string;
+}
+
+const indent = (lines: readonly string[], by: string) =>
+  lines.flatMap((line) => line.split("\n")).map((line) => (line ? `${by}${line}` : ""));
+
+/** Numbered steps: what, why, where, the exact lines, and how to see that it worked. */
+export function formatGuide(steps: readonly GuideStep[]): string {
+  return steps
+    .map(({ title, why, where, lines, check }, index) =>
+      [
+        `Step ${index + 1} of ${steps.length}: ${title}`,
+        `  Why:   ${why}`,
+        `  Where: ${where}`,
+        ...indent(lines, "    "),
+        ...(check ? [`  Check: ${check}`] : []),
+      ].join("\n"),
+    )
+    .join("\n\n");
+}
+
+/** Default mode: the whole Google Cloud setup with this profile's values. Read-only. */
 export async function printProvisioning({
   profile,
   repoRoot = REPO_ROOT,
@@ -226,6 +251,7 @@ export async function printProvisioning({
 }): Promise<string> {
   const { projectId } = profile.brand.firebase;
   const { slug } = profile;
+  const brandFile = `brand/${slug}/brand.json`;
   const bucket = bucketUrl(profile.brand.assetsBucket);
   const [create, access, versioning, lifecycle, grant] = bucketSteps(
     profile,
@@ -233,16 +259,19 @@ export async function printProvisioning({
     LIFECYCLE_FILE,
   );
   const gcloud = (step: BucketStep | undefined) => (step ? `gcloud ${command(step.args)}` : "");
-  const profileAssets = relative(repoRoot, join(profile.dir, "assets"));
+  const assetsDir = displayDir(repoRoot, selectAssetsDir(repoRoot, profile, {}, false));
+  const pushCommand =
+    assetsDir === PULLED_ASSETS_DIR ? "pnpm brand:push" : `pnpm brand:push --from ${assetsDir}`;
 
+  const projectNumber = await lookup(
+    run,
+    "gcloud",
+    ["projects", "describe", projectId, "--format=value(projectNumber)"],
+    `project number: gcloud projects describe ${projectId} --format='value(projectNumber)'`,
+  );
   const values: Record<string, string> = {
     PROJECT_ID: projectId,
-    PROJECT_NUMBER: await lookup(
-      run,
-      "gcloud",
-      ["projects", "describe", projectId, "--format=value(projectNumber)"],
-      `project number: gcloud projects describe ${projectId} --format='value(projectNumber)'`,
-    ),
+    PROJECT_NUMBER: projectNumber,
     GH_REPO:
       repo ??
       (await lookup(
@@ -262,32 +291,54 @@ export async function printProvisioning({
     /^export (PROJECT_ID|PROJECT_NUMBER|GH_REPO|REVIEWER_ID)=.*$/gm,
     (_, key: string) => `export ${key}=${values[key] ?? ""}`,
   );
+  const deploy = profile.brand.deploy ?? defaultDeploy({ projectId, projectNumber });
+  const deploySnippet = JSON.stringify({ deploy }, null, 2).slice(2, -2);
+
+  const steps: GuideStep[] = [
+    {
+      title: "create CD's deploy account and its keyless sign-in (once per project)",
+      why: "GitHub Actions deploys as this account. No key is stored anywhere: GitHub proves it is your repo's main branch.",
+      where: `your shell, signed in to gcloud as an owner of ${projectId} (gcloud auth login) and to gh as a repo admin (gh auth login). Safe to re-run.`,
+      lines: [section.trimEnd()],
+      check: `gcloud iam service-accounts describe ${deploySaEmail(projectId)}`,
+    },
+    {
+      title: profile.brand.deploy
+        ? `tell CD which account to use (done: ${brandFile} has it)`
+        : "tell CD which account to use",
+      why: "CD reads these two names from the profile; they are not secrets.",
+      where: `your editor: add this to ${brandFile}, then commit it`,
+      lines: [deploySnippet],
+      check: 'pnpm brand:doctor   (row "CD identity")',
+    },
+    {
+      title: "create the private bucket for your logos and icons",
+      why: "Deploys download your images from it, so they never enter git. Old versions are kept for rollback.",
+      where:
+        "your shell, as a project owner; or run pnpm brand:provision --apply, which does all of this step",
+      lines: [gcloud(create), gcloud(access), gcloud(versioning), gcloud(lifecycle), gcloud(grant)],
+      check: `gcloud storage buckets describe ${bucket} --format="yaml(public_access_prevention,uniform_bucket_level_access,versioning_enabled)"`,
+    },
+    {
+      title: "upload your images",
+      why: "The first deploy needs them in the bucket.",
+      where: "the repo root",
+      lines: [pushCommand],
+      check: `gcloud storage ls "${bucket}/**"`,
+    },
+    {
+      title: "first deploy",
+      why: "Builds both sites with your profile and publishes them.",
+      where: `your shell, after brand/${slug}/ and ${CONFIG_FILE} are merged to main; approve the run in GitHub`,
+      lines: [deployDispatch("all")],
+      check: "open both sites and follow docs/adopting.md step 10",
+    },
+  ];
 
   return [
-    `# Brand asset bucket for profile "${slug}" (project ${projectId}). Owner-only: Claude never runs these.`,
-    "# B1-B3 equal `pnpm brand:provision --apply`; either path is fine.",
+    `Google Cloud setup for profile "${slug}" (project ${projectId}). This printed it and changed nothing.`,
     "",
-    "# B1: create the bucket",
-    gcloud(create),
-    "# B2: versioning and lifecycle (also enforces access on a bucket created elsewhere)",
-    gcloud(access),
-    gcloud(versioning),
-    gcloud(lifecycle),
-    "# B3: read-only grant for CD, then check it",
-    gcloud(grant),
-    `gcloud iam roles describe ${VIEWER_ROLE} --format="value(includedPermissions)"`,
-    `gcloud storage buckets describe ${bucket} --format="yaml(public_access_prevention,uniform_bucket_level_access,versioning_enabled,lifecycle_config)"`,
-    `gcloud storage buckets get-iam-policy ${bucket}`,
-    "# B4: upload the assets",
-    `BRAND_PROFILE=${slug} pnpm brand:push --from ${profileAssets}`,
-    `gcloud storage ls -a "${bucket}/**"`,
-    "# B5: the CD variable",
-    `gh variable set BRAND_PROFILE --env production --body ${slug}`,
-    "# B6, after the release PR merges: deploy and verify",
-    deployDispatch("all"),
-    "",
-    `# First-time CD setup for this project (${CI_CD_DOC} section 6, values filled in):`,
-    section,
+    formatGuide(steps),
   ].join("\n");
 }
 
@@ -299,12 +350,12 @@ if (import.meta.main) {
         console.log(`brand:provision: ${label}: ${done ? "already done" : "applied"}`);
       }
       console.log(
-        `brand:provision: bucket ready.\n\n${formatNext(provisionNext({ applied: true, slug: profile.slug }))}`,
+        `brand:provision: bucket ready.\n\n${formatNext(provisionNext({ applied: true }))}`,
       );
     } else {
       const repo = flagValue(argv, "--repo", (message) => new BrandConfigError([message]));
       console.log(await printProvisioning({ profile, repo }));
-      console.log(`\n${formatNext(provisionNext({ applied: false, slug: profile.slug }))}`);
+      console.log(`\n${formatNext(provisionNext({ applied: false }))}`);
     }
   });
 }

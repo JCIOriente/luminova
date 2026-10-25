@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BrandConfigError, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { applyProfile, renderFirebaserc } from "./apply.ts";
 
-function apply(env: Record<string, string>) {
+function apply(profile: string, env: Record<string, string> = {}) {
+  writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile }));
   return applyProfile({ profile: loadProfile({ repoRoot: root, env }), repoRoot: root, env });
 }
 
@@ -41,37 +42,38 @@ describe("renderFirebaserc", () => {
 
 describe("applyProfile", () => {
   it("writes .firebaserc for the selected profile", () => {
-    const result = apply({ BRAND_PROFILE: "fixture" });
+    const result = apply("fixture");
     expect(result).toMatchObject({ slug: "fixture", projectId: "demo-fixture", written: true });
     const written = JSON.parse(readFileSync(join(root, ".firebaserc"), "utf8"));
     expect(written.projects.default).toBe("demo-fixture");
   });
 
   it("leaves an up-to-date file untouched", () => {
-    apply({ BRAND_PROFILE: "fixture" });
+    apply("fixture");
     const file = join(root, ".firebaserc");
     const before = statSync(file).mtimeMs;
-    expect(apply({ BRAND_PROFILE: "fixture" }).written).toBe(false);
+    expect(apply("fixture").written).toBe(false);
     expect(statSync(file).mtimeMs).toBe(before);
   });
 
   it("replaces a stale file from another profile", () => {
     writeFileSync(join(root, ".firebaserc"), '{"projects":{"default":"someone-else"}}');
-    apply({ BRAND_PROFILE: "jci-oriente" });
+    apply("jci-oriente");
     expect(readFileSync(join(root, ".firebaserc"), "utf8")).toContain('"default": "jci-oriente"');
   });
 
   it("in release mode refuses a profile that cannot ship, without writing", () => {
-    expect(() => apply({ BRAND_RELEASE: "1" })).toThrow(/BRAND_PROFILE is required/);
-    expect(() => apply({ BRAND_RELEASE: "1", BRAND_PROFILE: "fixture" })).toThrow(
-      /neutral test profile/,
+    const release = { BRAND_RELEASE: "1" };
+    expect(() => apply("jci-oriente", { ...release, BRAND_PROFILE: "jci-oriente" })).toThrow(
+      /set in your environment/,
     );
+    expect(() => apply("fixture", release)).toThrow(/neutral test profile/);
     expect(() => statSync(join(root, ".firebaserc"))).toThrow();
-    expect(apply({ BRAND_RELEASE: "1", BRAND_PROFILE: "jci-oriente" }).written).toBe(true);
+    expect(apply("jci-oriente", release).written).toBe(true);
   });
 
   it("refuses an unknown profile without writing", () => {
-    expect(() => apply({ BRAND_PROFILE: "nope" })).toThrow(BrandConfigError);
+    expect(() => apply("nope")).toThrow(BrandConfigError);
     expect(() => statSync(join(root, ".firebaserc"))).toThrow();
   });
 });

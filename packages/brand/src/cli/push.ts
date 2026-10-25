@@ -51,7 +51,7 @@ export async function push({
       assetRemedies(
         validation,
         displayDir(REPO_ROOT, from),
-        `BRAND_ASSETS_DIR=${shellQuote(from)} pnpm brand:check`,
+        `pnpm brand:check --assets ${shellQuote(displayDir(REPO_ROOT, from))}`,
       ),
     );
   }
