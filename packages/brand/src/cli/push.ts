@@ -1,11 +1,10 @@
 import { join, resolve } from "node:path";
-import { flagValue } from "../argv.ts";
 import { assetRemedies, contractByFolder, validateAssets } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, type LoadedProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR, displayDir, undeployableProfileErrors } from "../release.ts";
 import { formatNext, type Remedy } from "../remedy.ts";
 import { bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
-import { runCli } from "./main.ts";
+import { cliFlag, runCli } from "./main.ts";
 
 export const deployDispatch = (surface: "hosting" | "all") =>
   `gh workflow run deploy.yml -f surface=${surface}`;
@@ -13,19 +12,19 @@ export const deployDispatch = (surface: "hosting" | "all") =>
 /** An asset change does not trigger CD, which diffs git; the owner dispatches it. */
 export const DEPLOY_DISPATCH = deployDispatch("hosting");
 
-export const PUSH_NEXT: readonly Remedy[] = [
+export const pushNext = (slug: string): Remedy[] => [
   {
-    change: "first deploy of this project: every surface (docs/adopting.md step 11, after step 10)",
+    change: `first deploy: merge brand/${slug}/ and luminova.json to main, which deploys everything (docs/adopting.md step 10); or, if they are already there:`,
     run: deployDispatch("all"),
     where: "shell",
   },
   {
     change:
-      "or, for a later asset change, hosting only: CD does not see assets, they are not in git",
+      "later image changes: redeploy the sites only (CD does not notice images, they are not in git)",
     run: DEPLOY_DISPATCH,
     where: "shell",
   },
-  { change: "confirm the bucket row", run: "pnpm brand:doctor" },
+  { change: "confirm the bucket row passes", run: "pnpm brand:doctor" },
 ];
 
 /**
@@ -48,11 +47,9 @@ export async function push({
   if (validation.errors.length > 0) {
     throw new BrandConfigError(
       validation.errors.map((error) => `${from}/${error}`),
-      assetRemedies(
-        validation,
-        displayDir(REPO_ROOT, from),
-        `BRAND_ASSETS_DIR=${shellQuote(from)} pnpm brand:check`,
-      ),
+      assetRemedies(validation, displayDir(REPO_ROOT, from), {
+        checkCommand: `pnpm brand:check --assets ${shellQuote(displayDir(REPO_ROOT, from))}`,
+      }),
     );
   }
   for (const warning of validation.warnings) console.warn(`brand:push: ${warning}`);
@@ -72,14 +69,11 @@ export async function push({
 
 if (import.meta.main) {
   await runCli("brand:push", async (profile) => {
-    const from = resolve(
-      flagValue(process.argv.slice(2), "--from", (message) => new BrandConfigError([message])) ??
-        PULLED_ASSETS_DIR,
-    );
+    const from = resolve(cliFlag("--from") ?? PULLED_ASSETS_DIR);
     const bucket = bucketUrl(profile.brand.assetsBucket);
     await push({ profile, from });
     console.log(
-      `brand:push: uploaded ${from} to ${bucket} (profile "${profile.slug}", project ${profile.brand.firebase.projectId}).\n\n${formatNext(PUSH_NEXT)}`,
+      `brand:push: uploaded ${from} to ${bucket} (profile "${profile.slug}", project ${profile.brand.firebase.projectId}).\n\n${formatNext(pushNext(profile.slug))}`,
     );
   });
 }

@@ -110,6 +110,24 @@ describe("init from an answers file", () => {
     expect(readme).toMatch(/never commit/i);
   });
 
+  it("selects the new profile in luminova.json, writes .firebaserc and CD's sign-in names", async () => {
+    writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: "jci-oriente" }));
+    const { files } = await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
+    expect(files).toEqual(expect.arrayContaining(["luminova.json", ".firebaserc"]));
+    expect(loadProfile({ repoRoot: root, env: {} })).toMatchObject({
+      slug: "jci-valle",
+      source: "file",
+    });
+    expect(JSON.parse(readFileSync(join(root, ".firebaserc"), "utf8")).projects.default).toBe(
+      "jci-valle",
+    );
+    expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.deploy).toEqual({
+      workloadIdentityProvider:
+        "projects/111222333/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
+      serviceAccount: "firebase-deployer@jci-valle.iam.gserviceaccount.com",
+    });
+  });
+
   it("keeps an existing brand-assets/README.txt", async () => {
     mkdirSync(join(root, PULLED_ASSETS_DIR));
     writeFileSync(join(root, PULLED_ASSETS_DIR, "README.txt"), "mine");
@@ -326,17 +344,12 @@ describe("init interactively", () => {
 
 describe("init guidance", () => {
   it("lists the next steps with their commands", () => {
-    const runs = initNext("jci-valle", { SHELL: "/bin/zsh" }).map(
-      ({ change, run }) => run ?? change,
-    );
+    const runs = initNext("jci-valle").map(({ change, run }) => run ?? change);
     expect(runs).toEqual([
-      "echo 'export BRAND_PROFILE=jci-valle' >> ~/.zshrc",
-      "export BRAND_PROFILE=jci-valle",
-      "pnpm brand:apply",
       expect.stringMatching(/^edit brand\/jci-valle\/site-content\.json/),
       "pnpm brand:check",
       "pnpm brand:doctor",
-      "git add brand/jci-valle/",
+      "git add brand/jci-valle/ luminova.json",
     ]);
   });
 

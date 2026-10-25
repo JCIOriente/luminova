@@ -3,11 +3,10 @@ import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
 import { z } from "zod";
 import { sha256 } from "../hash.ts";
-import { REPO_ROOT, loadProfile } from "../load-profile.ts";
+import { NEUTRAL_PROFILE, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
 import type { Brand } from "../schema.ts";
 
-const NEUTRAL_PROFILE = "fixture";
 const MIN_NEEDLE_LENGTH = 6;
 const BUILD_COMMAND = "pnpm turbo run build --filter spotlight --filter backstage";
 
@@ -239,11 +238,11 @@ async function buildNeutral(app: BrandApp, outDir: string, envDir: string): Prom
 
 async function main(): Promise<number> {
   const started = performance.now();
-  // The selected profile (BRAND_PROFILE, default jci-oriente) is the one CI just built.
+  // The profile luminova.json selects is the one CI just built.
   const chapter = loadProfile();
   if (chapter.slug === NEUTRAL_PROFILE) {
     console.error(
-      `brand:guard protects a chapter profile; BRAND_PROFILE=${NEUTRAL_PROFILE} has none.`,
+      `brand:guard protects a chapter profile; "${NEUTRAL_PROFILE}" is the neutral one. Select a chapter in luminova.json.`,
     );
     return 1;
   }

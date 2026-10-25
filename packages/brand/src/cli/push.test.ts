@@ -6,12 +6,12 @@ import { writeAssetSet } from "../asset-set.ts";
 import { ASSET_CONTRACT } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import type { CommandRunner } from "./gcloud.ts";
-import { DEPLOY_DISPATCH, PUSH_NEXT, push } from "./push.ts";
+import { DEPLOY_DISPATCH, pushNext, push } from "./push.ts";
 
 const BUCKET = "jci-oriente-brand-assets";
 const profile: LoadedProfile = {
   ...loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" }),
-  source: "env",
+  source: "file",
 };
 
 let from: string;
@@ -63,12 +63,12 @@ describe("push", () => {
     rmSync(join(from, "og-image.png"));
     const error = await push({ profile, from, run }).catch((caught: unknown) => caught);
     expect(error instanceof BrandConfigError ? error.remedies : []).toEqual([
-      expect.objectContaining({ run: `BRAND_ASSETS_DIR=${from} pnpm brand:check` }),
+      expect.objectContaining({ run: `pnpm brand:check --assets ${from}` }),
     ]);
   });
 
   it("names the deploy dispatch and doctor as the next steps", () => {
-    expect(PUSH_NEXT.map(({ run }) => run)).toEqual([
+    expect(pushNext("jci-oriente").map(({ run }) => run)).toEqual([
       "gh workflow run deploy.yml -f surface=all",
       DEPLOY_DISPATCH,
       "pnpm brand:doctor",
@@ -76,7 +76,7 @@ describe("push", () => {
   });
 
   it("refuses the default profile: the bucket must be named on purpose", async () => {
-    const error = await push({ profile: { ...profile, source: "default" }, from, run }).catch(
+    const error = await push({ profile: { ...profile, source: "override" }, from, run }).catch(
       (caught: unknown) => caught,
     );
     expect(error).toBeInstanceOf(BrandConfigError);
@@ -87,7 +87,7 @@ describe("push", () => {
   it("refuses the fixture profile, which can never reach production", async () => {
     const fixture: LoadedProfile = {
       ...loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" }),
-      source: "env",
+      source: "file",
     };
     await expect(push({ profile: fixture, from, run })).rejects.toThrow(/neutral test profile/);
     expect(calls).toEqual([]);

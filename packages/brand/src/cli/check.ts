@@ -1,9 +1,15 @@
 import { PULL_MANIFEST_FILE, assetRemedies, validateAssets } from "../assets.ts";
-import { BrandConfigError, REPO_ROOT, type Env, type LoadedProfile } from "../load-profile.ts";
+import {
+  BrandConfigError,
+  REPO_ROOT,
+  SOURCE_LABEL,
+  type Env,
+  type LoadedProfile,
+} from "../load-profile.ts";
 import { displayDir, releaseErrors, selectAssetsDir } from "../release.ts";
 import { formatNext, formatRemedies, type Problem, type Remedy } from "../remedy.ts";
 import { SITE_CONTENT_FILE, readSiteContent } from "../site-content.ts";
-import { runCli } from "./main.ts";
+import { cliFlag, runCli } from "./main.ts";
 import { formatTable, plural } from "./table.ts";
 
 export interface CheckRow {
@@ -82,21 +88,24 @@ export async function checkBrand({
   repoRoot = REPO_ROOT,
   env = process.env,
   release = false,
+  assets: chosenAssets,
 }: {
   profile: LoadedProfile;
   repoRoot?: string;
   env?: Env;
   release?: boolean;
+  /** `--assets <dir>`: check another folder, e.g. the one `brand:push --from` reads. */
+  assets?: string;
 }): Promise<BrandCheck> {
-  const assetsDir = selectAssetsDir(repoRoot, profile, env, release);
+  const assetsDir = selectAssetsDir(repoRoot, profile, env, release, chosenAssets);
   const validation = validateAssets(assetsDir, { profile: profile.slug });
 
   const assets: CheckRow[] = validation.files.map(
-    ({ path, expected, found, errors, warnings }) => ({
+    ({ path, expected, found, errors, verdicts, warnings }) => ({
       item: path,
       expected,
       found,
-      verdict: errors.join("; ") || (warnings.length > 0 ? `warn: ${warnings.join("; ")}` : "ok"),
+      verdict: verdicts.join("; ") || (warnings.length > 0 ? `warn: ${warnings.join("; ")}` : "ok"),
       failed: errors.length > 0,
     }),
   );
@@ -115,20 +124,33 @@ export async function checkBrand({
   return {
     assetsDir,
     assets,
-    assetRemedies: assetRemedies(validation, displayDir(repoRoot, assetsDir)),
+    assetRemedies: assetRemedies(validation, displayDir(repoRoot, assetsDir), { release }),
     content,
-    release: rules.map((problem) => failure("release", problem)),
+    release: rules.map((problem) => failure("deploy", problem)),
   };
 }
 
 if (import.meta.main) {
-  const release = process.argv.slice(2).includes("--release");
+  const argv = process.argv.slice(2);
+  const release = argv.includes("--release");
   await runCli("brand:check", async (profile) => {
-    const result = await checkBrand({ profile, release });
+    const assets = cliFlag("--assets");
+    if (release && assets) {
+      throw new BrandConfigError(
+        ["--assets and --release cannot be combined: release builds read only brand-assets/."],
+        [
+          {
+            change: "drop --assets to check what a deploy would ship",
+            run: "pnpm brand:check --release",
+          },
+        ],
+      );
+    }
+    const result = await checkBrand({ profile, release, assets });
     const { assetsDir } = result;
     const rows = checkRows(result);
     console.log(
-      `brand:check: profile "${profile.slug}" (${profile.source}), assets in ${displayDir(REPO_ROOT, assetsDir)}/${release ? ", release rules" : ""}`,
+      `brand:check: profile "${profile.slug}" (${SOURCE_LABEL[profile.source]}), assets in ${displayDir(REPO_ROOT, assetsDir)}/${release ? ", as a deploy would see it (--release)" : ""}`,
     );
     console.log(
       formatTable([

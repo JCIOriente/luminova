@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
+import { DEPLOY_SA, POOL_ID, PROVIDER_ID } from "../deploy-identity.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
 import { applyBucket, printProvisioning, provisionNext, provisioningSection } from "./provision.ts";
@@ -10,7 +11,7 @@ const SA = "firebase-deployer@jci-oriente.iam.gserviceaccount.com";
 const LIFECYCLE = JSON.parse(readFileSync(join(REPO_ROOT, "brand/bucket-lifecycle.json"), "utf8"));
 const profile: LoadedProfile = {
   ...loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" }),
-  source: "env",
+  source: "file",
 };
 
 const DONE = {
@@ -72,11 +73,9 @@ describe("printProvisioning", () => {
     expect(text).toContain(
       `gcloud storage buckets add-iam-policy-binding ${BUCKET} --member=serviceAccount:${SA} --role=roles/storage.objectViewer`,
     );
-    expect(text).toContain(
-      "BRAND_PROFILE=jci-oriente pnpm brand:push --from brand/jci-oriente/assets",
-    );
-    expect(text).toContain("gh variable set BRAND_PROFILE --env production --body jci-oriente");
+    expect(text).toContain("pnpm brand:push --from brand/jci-oriente/assets");
     expect(text).toContain("gh workflow run deploy.yml -f surface=all");
+    expect(text).not.toMatch(/BRAND_PROFILE|gh variable/);
     expect(mutations()).toEqual([]);
   });
 
@@ -96,11 +95,50 @@ describe("printProvisioning", () => {
     };
     const text = await printProvisioning({ profile, run: failing, repo: "me/fork" });
     expect(text).toContain("export GH_REPO=me/fork\n");
-    expect(text).toMatch(/export REVIEWER_ID=<.*gh api user -q \.id.*>\n/);
+    expect(text).toContain("export REVIEWER_ID=   # FILL IN before pasting: gh api user -q .id\n");
+    expect(text).toContain(
+      "export PROJECT_NUMBER=   # FILL IN before pasting: gcloud projects describe jci-oriente",
+    );
+    expect(text).toMatch(/# PROJECT_NUMBER, REVIEWER_ID could not be looked up\. Sign in/);
+    // Nothing a shell would read as a redirection.
+    expect(text).not.toMatch(/^\s*export \w+=</m);
+  });
+
+  it("orders the steps so CD's account exists before the bucket grants it read access", async () => {
+    const text = await printProvisioning({ profile, run: fakeRunner() });
+    const titles = [...text.matchAll(/^Step (\d) of 5: (.*)$/gm)].map(([, , title]) => title);
+    expect(titles).toEqual([
+      "create CD's deploy account and its keyless sign-in (once per project)",
+      "tell CD which account to use (done: brand/jci-oriente/brand.json has it)",
+      "create the private bucket for your logos and icons",
+      "upload your images",
+      "first deploy",
+    ]);
+    expect(text.indexOf("iam service-accounts create")).toBeLessThan(
+      text.indexOf("add-iam-policy-binding gs://"),
+    );
+  });
+
+  it("prints the deploy section to paste, from the project number, when the profile lacks it", async () => {
+    const brand = structuredClone(profile.brand);
+    delete brand.deploy;
+    const text = await printProvisioning({ profile: { ...profile, brand }, run: fakeRunner() });
+    expect(text).toContain(
+      '"workloadIdentityProvider": "projects/42/locations/global/workloadIdentityPools/github-actions/providers/github-oidc"',
+    );
+    expect(text).toContain(`"serviceAccount": "${SA}"`);
+    expect(text).toMatch(/^Step 2 of 5: tell CD which account to use$/m);
   });
 });
 
 describe("provisioningSection", () => {
+  it("names the same deploy account, pool and provider brand:init writes into deploy", () => {
+    const block = provisioningSection(readFileSync(join(REPO_ROOT, "docs/ci-cd.md"), "utf8"));
+    for (const [key, value] of Object.entries({ DEPLOY_SA, POOL_ID, PROVIDER_ID })) {
+      expect(block).toMatch(new RegExp(`^export ${key}=${value}$`, "m"));
+    }
+  });
+
   it("finds the section 6 block in the real docs/ci-cd.md and its four exports", () => {
     const block = provisioningSection(readFileSync(join(REPO_ROOT, "docs/ci-cd.md"), "utf8"));
     for (const key of ["PROJECT_ID", "PROJECT_NUMBER", "GH_REPO", "REVIEWER_ID"]) {
@@ -110,6 +148,29 @@ describe("provisioningSection", () => {
 });
 
 describe("applyBucket", () => {
+  it("grants read access to the account the profile's deploy section names", async () => {
+    const custom = "deployer@jci-oriente.iam.gserviceaccount.com";
+    const brand = structuredClone(profile.brand);
+    brand.deploy = {
+      workloadIdentityProvider: brand.deploy?.workloadIdentityProvider ?? "",
+      serviceAccount: custom,
+    };
+    await applyBucket({
+      profile: { ...profile, brand },
+      repoRoot: REPO_ROOT,
+      run: fakeRunner({ policy: { bindings: [] } }),
+    });
+    expect(mutations()).toContainEqual([
+      "gcloud",
+      "storage",
+      "buckets",
+      "add-iam-policy-binding",
+      BUCKET,
+      `--member=serviceAccount:${custom}`,
+      "--role=roles/storage.objectViewer",
+    ]);
+  });
+
   it("creates and configures a missing bucket, then grants the deploy SA read", async () => {
     const created = {
       name: "jci-oriente-brand-assets",
@@ -123,10 +184,10 @@ describe("applyBucket", () => {
     });
     expect(steps.map(({ label, done }) => [label, done])).toEqual([
       ["create the bucket", false],
-      ["uniform access, public access prevention", true],
-      ["versioning", false],
-      ["lifecycle (3 noncurrent generations)", false],
-      ["read-only grant to the deploy service account", false],
+      ["private (no public access)", true],
+      ["keep old versions (for rollback)", false],
+      ["keep the last 3 old versions of each file", false],
+      ["let the deploy account read it", false],
     ]);
     expect(mutations().map((call) => call.slice(1, 4).join(" "))).toEqual([
       "storage buckets create",
@@ -167,7 +228,7 @@ describe("applyBucket", () => {
   it("refuses the fixture profile", async () => {
     const fixture: LoadedProfile = {
       ...loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" }),
-      source: "env",
+      source: "file",
     };
     await expect(
       applyBucket({ profile: fixture, repoRoot: REPO_ROOT, run: fakeRunner() }),
@@ -175,10 +236,10 @@ describe("applyBucket", () => {
     expect(calls).toEqual([]);
   });
 
-  it("refuses the default profile", async () => {
+  it("refuses a profile chosen by an environment override", async () => {
     await expect(
       applyBucket({
-        profile: { ...profile, source: "default" },
+        profile: { ...profile, source: "override" },
         repoRoot: REPO_ROOT,
         run: fakeRunner(),
       }),
@@ -189,16 +250,14 @@ describe("applyBucket", () => {
 
 describe("provisionNext", () => {
   it("after printing, points at --apply", () => {
-    expect(provisionNext({ applied: false, slug: "jci-oriente" }).map(({ run }) => run)).toEqual([
+    expect(provisionNext({ applied: false }).map(({ run }) => run)).toEqual([
       "pnpm brand:provision --apply",
     ]);
   });
 
-  it("after applying, points at the upload, the CD variable and doctor", () => {
-    expect(provisionNext({ applied: true, slug: "jci-oriente" }).map(({ run }) => run)).toEqual([
-      "pnpm brand:push",
-      "gh variable set BRAND_PROFILE --env production --body jci-oriente",
-      "pnpm brand:doctor",
-    ]);
+  it("after applying, points at the upload and doctor", () => {
+    expect(
+      provisionNext({ applied: true, pushCommand: "pnpm brand:push" }).map(({ run }) => run),
+    ).toEqual(["pnpm brand:push", "pnpm brand:doctor"]);
   });
 });

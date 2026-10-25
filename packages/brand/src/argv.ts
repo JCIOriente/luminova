@@ -8,7 +8,11 @@ export function flagValue(
   error: (message: string) => Error,
 ): string | undefined {
   for (const [index, arg] of argv.entries()) {
-    if (arg.startsWith(`${name}=`)) return arg.slice(name.length + 1);
+    if (arg.startsWith(`${name}=`)) {
+      const value = arg.slice(name.length + 1);
+      if (!value) throw error(`${name} needs a value.`);
+      return value;
+    }
     if (arg === name) {
       const value = argv[index + 1];
       if (!value || value.startsWith("--")) throw error(`${name} needs a value.`);

@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -11,7 +11,7 @@ import { doctor, doctorNext, doctorRemedies, type DoctorRow } from "./doctor.ts"
 import { CommandError, commandFailure, type CommandRunner } from "./gcloud.ts";
 
 const BUCKET = "jci-oriente-brand-assets";
-const ENV = { BRAND_PROFILE: "jci-oriente" };
+const ENV = {};
 
 let root: string;
 let calls: string[][];
@@ -45,6 +45,7 @@ beforeEach(() => {
     join(root, "package.json"),
     JSON.stringify({ engines: { node: ">=24.15.0" }, packageManager: "pnpm@11.5.1" }),
   );
+  writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: "jci-oriente" }));
   writeAssetSet(join(root, PULLED_ASSETS_DIR));
   applyProfile({
     profile: loadProfile({ repoRoot: root, profile: "jci-oriente" }),
@@ -64,26 +65,33 @@ afterEach(() => {
 });
 
 const diagnose = (options: { env?: Record<string, string>; nodeVersion?: string } = {}) =>
-  doctor({ repoRoot: root, env: ENV, run, nodeVersion: "24.15.0", ...options });
+  doctor({ repoRoot: root, env: ENV, run, nodeVersion: "24.15.0", ...options }).then(
+    ({ rows }) => rows,
+  );
 
 describe("doctor", () => {
   it("reports every row, all passing, on a ready checkout", async () => {
     const rows = await diagnose();
     expect(statusOf(rows)).toEqual({
       profile: "ok",
-      schema: "ok",
+      "brand.json": "ok",
       "site content": "ok",
-      assets: "ok",
+      images: "ok",
       ".firebaserc": "ok",
       "gcloud account": "ok",
       bucket: "ok",
-      BRAND_PROFILE: "ok",
+      "luminova.json": "ok",
+      "CD identity": "ok",
       node: "ok",
       pnpm: "ok",
     });
-    expect(rowFor(rows, "profile").detail).toBe("jci-oriente (from BRAND_PROFILE)");
+    expect(rowFor(rows, "luminova.json").detail).toBe('selects "jci-oriente"');
+    expect(rowFor(rows, "profile").detail).toBe("brand/jci-oriente/");
+    expect(rowFor(rows, "CD identity").detail).toBe(
+      "firebase-deployer@jci-oriente.iam.gserviceaccount.com",
+    );
     expect(rowFor(rows, "gcloud account").detail).toBe("owner@example.org");
-    expect(rowFor(rows, "bucket").detail).toMatch(`16/16 contract files in gs://${BUCKET}`);
+    expect(rowFor(rows, "bucket").detail).toMatch(`all 16 images in gs://${BUCKET}`);
   });
 
   it("only ever reads: the exact external commands it runs", async () => {
@@ -105,7 +113,7 @@ describe("doctor", () => {
       new CommandError("gcloud storage objects list failed: spawn gcloud ENOENT"),
     );
     const rows = await diagnose();
-    expect(rows).toHaveLength(10);
+    expect(rows).toHaveLength(11);
     expect(statusOf(rows)).toMatchObject({ "gcloud account": "fail", bucket: "fail", pnpm: "ok" });
     expect(rowFor(rows, "gcloud account").detail).toMatch(/ENOENT/);
   });
@@ -118,11 +126,11 @@ describe("doctor", () => {
     });
   });
 
-  it("names the contract files missing from the bucket", async () => {
+  it("names the images missing from the bucket", async () => {
     responses.set("gcloud storage objects list", "logo-main.png\n");
     const row = rowFor(await diagnose(), "bucket");
     expect(row.status).toBe("fail");
-    expect(row.detail).toMatch(/15 of 16 contract files missing/);
+    expect(row.detail).toMatch(/15 of 16 images missing/);
   });
 
   it("fails a stale .firebaserc with the command that fixes it", async () => {
@@ -135,32 +143,55 @@ describe("doctor", () => {
 
   it("fails asset problems with a pointer to brand:check", async () => {
     rmSync(join(root, PULLED_ASSETS_DIR, "og-image.png"));
-    expect(rowFor(await diagnose(), "assets")).toMatchObject({
+    expect(rowFor(await diagnose(), "images")).toMatchObject({
       status: "fail",
       detail: "1 problem",
       remedies: [{ change: "see which files and what to do", run: "pnpm brand:check" }],
     });
   });
 
-  it("fails BRAND_PROFILE when unset, while the default profile still reports", async () => {
-    const rows = await diagnose({ env: {} });
-    expect(statusOf(rows)).toMatchObject({ BRAND_PROFILE: "fail", profile: "ok", schema: "ok" });
-    expect(rowFor(rows, "profile").detail).toBe("jci-oriente (default)");
-    const unset = rowFor(await diagnose({ env: { SHELL: "/bin/zsh" } }), "BRAND_PROFILE");
-    expect(unset.detail).toBe("unset (profiles: jci-oriente)");
-    expect(unset.remedies?.[0]?.change).toMatch(/\.envrc/);
+  it("fails a missing luminova.json once, with how to create it, and skips the profile", async () => {
+    rmSync(join(root, "luminova.json"));
+    const rows = await diagnose();
+    expect(statusOf(rows)).toMatchObject({
+      "luminova.json": "fail",
+      profile: "skip",
+      bucket: "skip",
+    });
+    expect(rowFor(rows, "luminova.json").remedies?.[0]?.run).toBe("pnpm brand:init");
+  });
+
+  it("warns when a BRAND_PROFILE override in the shell differs from luminova.json", async () => {
+    const rows = await diagnose({ env: { BRAND_PROFILE: "fixture" } });
+    expect(rowFor(rows, "luminova.json")).toMatchObject({
+      status: "warn",
+      detail: 'selects "jci-oriente", but BRAND_PROFILE=fixture overrides it',
+      remedies: [expect.objectContaining({ run: "unset BRAND_PROFILE" })],
+    });
+    expect(rowFor(rows, "profile").detail).toBe("brand/fixture/ (from BRAND_PROFILE)");
+  });
+
+  it("warns, without failing, when the profile has no CD identity", async () => {
+    const file = join(root, "brand/jci-oriente/brand.json");
+    const brand = JSON.parse(readFileSync(file, "utf8"));
+    delete brand.deploy;
+    writeFileSync(file, JSON.stringify(brand));
+    expect(rowFor(await diagnose(), "CD identity")).toMatchObject({
+      status: "warn",
+      remedies: [expect.objectContaining({ run: "pnpm brand:provision" })],
+    });
   });
 
   it("skips the profile-dependent rows when the profile is missing, without throwing", async () => {
     const rows = await diagnose({ env: { BRAND_PROFILE: "nope" } });
     expect(statusOf(rows)).toMatchObject({
       profile: "fail",
-      schema: "skip",
-      assets: "skip",
+      "brand.json": "skip",
+      images: "skip",
       ".firebaserc": "skip",
       bucket: "skip",
       "gcloud account": "ok",
-      BRAND_PROFILE: "ok",
+      "CD identity": "skip",
     });
     expect(calls.some((call) => call.includes("objects"))).toBe(false);
   });
@@ -171,8 +202,12 @@ describe("doctor", () => {
     rmSync(join(root, ".firebaserc"));
     mkdirSync(join(root, ".firebaserc"));
     const rows = await diagnose();
-    expect(statusOf(rows)).toMatchObject({ profile: "ok", schema: "fail", ".firebaserc": "skip" });
-    expect(rowFor(rows, "schema").detail).toMatch(/cannot read/);
+    expect(statusOf(rows)).toMatchObject({
+      profile: "ok",
+      "brand.json": "fail",
+      ".firebaserc": "skip",
+    });
+    expect(rowFor(rows, "brand.json").detail).toMatch(/cannot read/);
   });
 
   it("fails an unreadable .firebaserc as its own row", async () => {
@@ -183,7 +218,7 @@ describe("doctor", () => {
       status: "fail",
       detail: expect.stringMatching(/EISDIR/),
     });
-    expect(rows).toHaveLength(10);
+    expect(rows).toHaveLength(11);
   });
 
   it("fails the schema row with the schema errors", async () => {
@@ -192,8 +227,8 @@ describe("doctor", () => {
       JSON.stringify({ slug: "jci-oriente" }),
     );
     const rows = await diagnose();
-    expect(statusOf(rows)).toMatchObject({ profile: "ok", schema: "fail", assets: "skip" });
-    expect(rowFor(rows, "schema").detail).toMatch(/name/);
+    expect(statusOf(rows)).toMatchObject({ profile: "ok", "brand.json": "fail", images: "skip" });
+    expect(rowFor(rows, "brand.json").detail).toMatch(/name/);
   });
 
   it("fails a Node older than engines.node", async () => {
@@ -218,16 +253,11 @@ describe("doctor", () => {
       writeFileSync(join(root, ".firebaserc"), "{}");
       responses.set("gcloud auth list", "");
       responses.set("gcloud storage objects list", "logo-main.png\n");
-      const rows = await diagnose({ env: { SHELL: "/bin/zsh" }, nodeVersion: "24.10.0" });
+      const rows = await diagnose({ nodeVersion: "24.10.0" });
       expect(runsOf(rowFor(rows, ".firebaserc"))).toEqual(["pnpm brand:apply"]);
       expect(runsOf(rowFor(rows, "gcloud account"))).toEqual(["gcloud auth login"]);
       expect(runsOf(rowFor(rows, "bucket"))).toEqual(["pnpm brand:push"]);
       expect(runsOf(rowFor(rows, "node"))).toEqual(["nvm install && nvm use"]);
-      // The only profile is the example, which is never pre-filled for the user.
-      expect(runsOf(rowFor(rows, "BRAND_PROFILE"))).toEqual([
-        "echo 'export BRAND_PROFILE=<slug>' >> ~/.zshrc",
-        "export BRAND_PROFILE=<slug>",
-      ]);
     });
 
     it("sends a bucket that does not exist to brand:provision", async () => {
@@ -252,7 +282,7 @@ describe("doctor", () => {
       expect(row.remedies?.[0]?.change).toMatch(/install the Google Cloud CLI/);
     });
 
-    it("lists the fixes once, BRAND_PROFILE before the cloud steps that need it", async () => {
+    it("lists the fixes once, in row order", async () => {
       responses.set(
         "gcloud storage objects list",
         commandFailure("gcloud", ["storage", "objects", "list"], {
@@ -260,45 +290,36 @@ describe("doctor", () => {
         }),
       );
       responses.set("pnpm --version", "11.4.0\n");
-      const runs = doctorRemedies(await diagnose({ env: { SHELL: "/bin/zsh" } })).map(
+      const runs = doctorRemedies(await diagnose({ env: { BRAND_PROFILE: "fixture" } })).map(
         ({ run }) => run,
       );
       expect(runs).toEqual([
         "corepack enable && corepack install",
-        "echo 'export BRAND_PROFILE=<slug>' >> ~/.zshrc",
-        "export BRAND_PROFILE=<slug>",
+        "unset BRAND_PROFILE",
+        "pnpm brand:apply",
         "pnpm brand:provision",
         "pnpm brand:provision --apply",
       ]);
     });
 
-    it("after a passing run, names the merge, the CD variable and the first deploy", () => {
+    it("after a passing run, names the merge and the first deploy", () => {
       expect(doctorNext("jci-valle").map(({ change, run }) => run ?? change)).toEqual([
-        expect.stringMatching(/^commit brand\/jci-valle\/ and merge it to main/),
-        "gh variable set BRAND_PROFILE --env production --body jci-valle",
+        expect.stringMatching(/^commit brand\/jci-valle\/ and luminova\.json, and merge them/),
         "gh workflow run deploy.yml -f surface=all",
       ]);
-    });
-
-    it("pre-fills a lone adopter profile", async () => {
-      cpSync(join(root, "brand/jci-oriente"), join(root, "brand/jci-valle"), { recursive: true });
-      rmSync(join(root, "brand/jci-oriente"), { recursive: true });
-      const rows = await diagnose({ env: { SHELL: "/bin/zsh" } });
-      expect(rowFor(rows, "BRAND_PROFILE").remedies?.[1]?.run).toBe(
-        "export BRAND_PROFILE=jci-valle",
-      );
     });
 
     it("orders the rows as the fixes must happen", async () => {
       expect((await diagnose()).map(({ check }) => check)).toEqual([
         "node",
         "pnpm",
-        "BRAND_PROFILE",
+        "luminova.json",
         "profile",
-        "schema",
+        "brand.json",
         "site content",
-        "assets",
+        "images",
         ".firebaserc",
+        "CD identity",
         "gcloud account",
         "bucket",
       ]);
