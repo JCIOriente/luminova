@@ -6,7 +6,7 @@
 // Manually:  FIRESTORE_EMULATOR_HOST=127.0.0.1:4010 node tools/scripts/seed-emulator.mjs
 //
 // The project id must match the emulator + your app: the selected brand profile's
-// firebase.projectId (BRAND_PROFILE, default jci-oriente). Override with GCLOUD_PROJECT
+// firebase.projectId (the profile luminova.json selects). Override with GCLOUD_PROJECT
 // if you run the emulator under a different project.
 //
 // NOTE: pointRules are NOT seeded here — initialize them from the backstage UI

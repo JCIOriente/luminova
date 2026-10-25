@@ -76,7 +76,7 @@ export function resolveBrandBuild({
 }: ResolveBrandBuildOptions): BrandBuild {
   const release = isRelease(env);
   const profile = loadProfile({ repoRoot, env, profile: profileName });
-  // In release an unset profile is an error, so the "using the example" warning would mislead.
+  // In release an override is an error that says the same thing, so the warning would repeat it.
   if (!release) for (const warning of profile.warnings) warnOnce(warning);
 
   const siteContent = parseSiteContent(readSiteContent(profile.dir, profile.slug), profile.slug);

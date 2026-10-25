@@ -239,11 +239,11 @@ async function buildNeutral(app: BrandApp, outDir: string, envDir: string): Prom
 
 async function main(): Promise<number> {
   const started = performance.now();
-  // The selected profile (BRAND_PROFILE, default jci-oriente) is the one CI just built.
+  // The profile luminova.json selects is the one CI just built.
   const chapter = loadProfile();
   if (chapter.slug === NEUTRAL_PROFILE) {
     console.error(
-      `brand:guard protects a chapter profile; BRAND_PROFILE=${NEUTRAL_PROFILE} has none.`,
+      `brand:guard protects a chapter profile; "${NEUTRAL_PROFILE}" is the neutral one. Select a chapter in luminova.json.`,
     );
     return 1;
   }
