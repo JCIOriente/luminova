@@ -297,16 +297,34 @@ describe("doctor", () => {
         "corepack enable && corepack install",
         "unset BRAND_PROFILE",
         "pnpm brand:apply",
-        "pnpm brand:provision",
-        "pnpm brand:provision --apply",
       ]);
     });
 
-    it("after a passing run, names the merge and the first deploy", () => {
-      expect(doctorNext("jci-valle").map(({ change, run }) => run ?? change)).toEqual([
-        expect.stringMatching(/^commit brand\/jci-valle\/ and luminova\.json, and merge them/),
+    it("after a passing run, offers going live as a choice", () => {
+      const connected = loadProfile({ repoRoot: root, profile: "jci-oriente" });
+      expect(doctorNext(connected).map(({ change, run }) => run ?? change)).toEqual([
+        expect.stringMatching(
+          /^when you are ready to go live: merge brand\/jci-oriente\/ and luminova\.json/,
+        ),
         "gh workflow run deploy.yml -f surface=all",
       ]);
+      const local = loadProfile({ repoRoot: root, profile: "fixture" });
+      expect(doctorNext(local).map(({ run }) => run)).toEqual([
+        "pnpm dev",
+        "pnpm brand:init --connect",
+      ]);
+    });
+
+    it("skips the cloud rows of a local-only profile without calling gcloud", async () => {
+      writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: "fixture" }));
+      const rows = await diagnose();
+      expect(statusOf(rows)).toMatchObject({
+        "CD identity": "skip",
+        "gcloud account": "skip",
+        bucket: "skip",
+      });
+      expect(rowFor(rows, "bucket").detail).toMatch(/local-only profile.*brand:init --connect/);
+      expect(calls.filter(([command]) => command === "gcloud")).toEqual([]);
     });
 
     it("orders the rows as the fixes must happen", async () => {

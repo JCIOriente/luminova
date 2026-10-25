@@ -13,8 +13,9 @@ export const deployDispatch = (surface: "hosting" | "all") =>
 export const DEPLOY_DISPATCH = deployDispatch("hosting");
 
 export const pushNext = (slug: string): Remedy[] => [
+  { change: "confirm the bucket row passes", run: "pnpm brand:doctor" },
   {
-    change: `first deploy: merge brand/${slug}/ and luminova.json to main, which deploys everything (docs/adopting.md step 10); or, if they are already there:`,
+    change: `when you are ready to go live: merge brand/${slug}/ and luminova.json to main, which deploys everything (docs/adopting.md step 12). Already on main? Deploy by hand:`,
     run: deployDispatch("all"),
     where: "shell",
   },
@@ -24,7 +25,6 @@ export const pushNext = (slug: string): Remedy[] => [
     run: DEPLOY_DISPATCH,
     where: "shell",
   },
-  { change: "confirm the bucket row passes", run: "pnpm brand:doctor" },
 ];
 
 /**
