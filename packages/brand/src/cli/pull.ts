@@ -29,7 +29,7 @@ export interface PullManifest {
 }
 
 export const PULL_NEXT: readonly Remedy[] = [
-  { change: "check the pulled set with the release rules", run: "pnpm brand:check --release" },
+  { change: "check the downloaded images as a deploy would", run: "pnpm brand:check --release" },
 ];
 
 /**

@@ -59,8 +59,8 @@ describe("checkBrand", () => {
       "og-image.png",
       "spotlight/favicon-32.png",
     ]);
-    expect(rowFor(rows, "og-image.png").found).toBe("missing");
-    expect(rowFor(rows, "spotlight/favicon-32.png").verdict).toMatch(/16×16, expected 32×32/);
+    expect(rowFor(rows, "og-image.png")).toMatchObject({ found: "missing", verdict: "missing" });
+    expect(rowFor(rows, "spotlight/favicon-32.png").verdict).toBe("wrong size");
   });
 
   it("warns on a heavy OG image without failing", async () => {
@@ -124,12 +124,12 @@ describe("checkBrand", () => {
           release: true,
         }),
       );
-      const release = rows.filter(({ item }) => item === "release");
+      const release = rows.filter(({ item }) => item === "deploy");
       expect(release.every(({ failed }) => failed)).toBe(true);
       const verdicts = release.map(({ verdict }) => verdict).join("\n");
       expect(verdicts).toMatch(/is set in your environment/);
       expect(verdicts).toMatch(/BRAND_ASSETS_DIR is not allowed/);
-      expect(verdicts).toMatch(/pull-manifest\.json: missing/);
+      expect(verdicts).toMatch(/no pull-manifest\.json in brand-assets\//);
     });
 
     it("reads brand-assets/ even when BRAND_ASSETS_DIR is set", async () => {
@@ -183,13 +183,14 @@ describe("checkBrand", () => {
         release: true,
       });
       const changes = checkRemedies(check).map(({ change, run }) => change ?? run);
-      expect(changes[0]).toMatch(/^put the files marked above in brand-assets\//);
+      // A deploy only uses pulled images: placing files by hand is never offered here.
+      expect(changes[0]).toBe(
+        "download the images a deploy uses from the profile's bucket (needs gcloud auth login)",
+      );
       expect(changes[1]).toMatch(
         /^edit the fields above in brand\/jci-oriente\/site-content\.json/,
       );
-      expect(changes).toContain(
-        "download the release assets from the profile's bucket (needs gcloud auth login)",
-      );
+      expect(changes.join("\n")).not.toMatch(/put the files marked above/);
     });
 
     it("has none for a passing check", async () => {

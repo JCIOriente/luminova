@@ -1,5 +1,5 @@
 import { flagValue } from "../argv.ts";
-import { PULL_MANIFEST_FILE, assetRemedies, validateAssets } from "../assets.ts";
+import { PULL_ASSETS, PULL_MANIFEST_FILE, assetRemedies, validateAssets } from "../assets.ts";
 import {
   BrandConfigError,
   REPO_ROOT,
@@ -79,6 +79,10 @@ export const checkRemedies = (check: BrandCheck): Remedy[] => [
   ...check.release.flatMap((row) => row.remedies ?? []),
 ];
 
+/** The table already has an EXPECTED column, so a verdict need not repeat it. */
+const tableVerdict = (error: string) =>
+  error.replace(/ \(expected [^)]*\)$/, "").replace(/^\d+×\d+, expected .*$/, "wrong size");
+
 export const CHECK_NEXT: readonly Remedy[] = [
   { change: "check the whole setup", run: "pnpm brand:doctor" },
 ];
@@ -106,7 +110,9 @@ export async function checkBrand({
       item: path,
       expected,
       found,
-      verdict: errors.join("; ") || (warnings.length > 0 ? `warn: ${warnings.join("; ")}` : "ok"),
+      verdict:
+        errors.map(tableVerdict).join("; ") ||
+        (warnings.length > 0 ? `warn: ${warnings.join("; ")}` : "ok"),
       failed: errors.length > 0,
     }),
   );
@@ -125,9 +131,14 @@ export async function checkBrand({
   return {
     assetsDir,
     assets,
-    assetRemedies: assetRemedies(validation, displayDir(repoRoot, assetsDir)),
+    // A deploy only uses images downloaded with brand:pull, so that is the one fix there.
+    assetRemedies: release
+      ? validation.errors.length > 0
+        ? [PULL_ASSETS]
+        : []
+      : assetRemedies(validation, displayDir(repoRoot, assetsDir)),
     content,
-    release: rules.map((problem) => failure("release", problem)),
+    release: rules.map((problem) => failure("deploy", problem)),
   };
 }
 
@@ -151,7 +162,7 @@ if (import.meta.main) {
     const { assetsDir } = result;
     const rows = checkRows(result);
     console.log(
-      `brand:check: profile "${profile.slug}" (${SOURCE_LABEL[profile.source]}), assets in ${displayDir(REPO_ROOT, assetsDir)}/${release ? ", release rules" : ""}`,
+      `brand:check: profile "${profile.slug}" (${SOURCE_LABEL[profile.source]}), assets in ${displayDir(REPO_ROOT, assetsDir)}/${release ? ", as a deploy would see it (--release)" : ""}`,
     );
     console.log(
       formatTable([

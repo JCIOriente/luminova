@@ -137,7 +137,9 @@ describe("releaseErrors", () => {
 
   it("requires the pull manifest, so release assets come only from brand:pull", () => {
     expect(messages(releaseErrors({ profile: jci(), env: {}, assetsDir, ...BUILD }))).toEqual([
-      expect.stringMatching(/^brand-assets\/pull-manifest\.json: missing/),
+      expect.stringMatching(
+        /^no pull-manifest\.json in brand-assets\/: a deploy only uses images downloaded with brand:pull/,
+      ),
     ]);
   });
 

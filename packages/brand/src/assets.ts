@@ -184,7 +184,7 @@ export function validateAssets(
 }
 
 export const PULL_ASSETS: Remedy = {
-  change: "download the release assets from the profile's bucket (needs gcloud auth login)",
+  change: "download the images a deploy uses from the profile's bucket (needs gcloud auth login)",
   run: "pnpm brand:pull",
 };
 

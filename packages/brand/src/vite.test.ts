@@ -232,7 +232,9 @@ describe("resolveBrandBuild in release mode", () => {
 
   it("never falls back to the profile's committed assets", () => {
     const errors = errorsOf(() => resolve({ profile: undefined, env: RELEASE_ENV }));
-    expect(errors).toContainEqual(expect.stringMatching(/^brand-assets\/pull-manifest\.json/));
+    expect(errors).toContainEqual(
+      expect.stringMatching(/^no pull-manifest\.json in brand-assets\//),
+    );
     expect(errors).toContainEqual(expect.stringMatching(/^brand-assets\/logo-main\.png: missing/));
   });
 

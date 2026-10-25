@@ -169,7 +169,7 @@ export function releaseErrors({
   }
   if (!existsSync(join(assetsDir, PULL_MANIFEST_FILE))) {
     errors.push({
-      message: `${PULLED_ASSETS_DIR}/${PULL_MANIFEST_FILE}: missing; release assets must come from brand:pull.`,
+      message: `no ${PULL_MANIFEST_FILE} in ${PULLED_ASSETS_DIR}/: a deploy only uses images downloaded with brand:pull.`,
       remedies: [PULL_ASSETS],
     });
   }
