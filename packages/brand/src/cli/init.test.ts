@@ -392,6 +392,32 @@ describe("init --local", () => {
     ).rejects.toThrow(/"firebase" block/);
   });
 
+  it("saves a failed local run so the printed --local re-run accepts the file", async () => {
+    mkdirSync(join(root, "brand/jci-valle"), { recursive: true });
+    const prompter: Prompter = {
+      async ask({ key, fallback }) {
+        return (localAnswers() as Record<string, unknown>)[key] === undefined
+          ? (fallback ?? "")
+          : "";
+      },
+    };
+    const error = await init({
+      repoRoot: root,
+      answers: localAnswers(),
+      prompter,
+      local: true,
+      run: noCommands,
+    }).catch((caught: unknown) => caught);
+    expect(String(error)).toMatch(
+      /already exists[\s\S]*--answers .*brand-init-answers\.json --local/,
+    );
+    const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
+    expect(saved.firebase).toBeUndefined();
+    rmSync(join(root, "brand/jci-valle"), { recursive: true });
+    const rerun = await init({ repoRoot: root, answers: saved, local: true, run: noCommands });
+    expect(rerun.local).toBe(true);
+  });
+
   it("keeps a long slug's demo project within Firebase's 30 characters", async () => {
     const answers = { ...localAnswers(), slug: "jci-a-very-long-chapter-name-indeed" };
     await init({ repoRoot: root, answers, local: true, run: noCommands });
@@ -459,6 +485,25 @@ describe("init --connect", () => {
     const { web } = loadProfile({ repoRoot: root, env: {} }).brand.firebase;
     expect(web.spotlight.appCheckSiteKey).toBe("site-key");
     expect(web.spotlight.apiKey).toBe("key-spotlight");
+  });
+
+  it("re-connecting the same project offers its values as defaults a reply can replace", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
+    await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
+    const offered: Record<string, string | undefined> = {};
+    const prompter: Prompter = {
+      async ask({ key, fallback }) {
+        offered[key] = fallback;
+        if (key === "firebase.projectId") return "jci-valle";
+        return key === "firebase.web.spotlight.apiKey" ? "new-key" : "";
+      },
+    };
+    await connect({ repoRoot: root, prompter, run: noCommands });
+    expect(offered["firebase.web.backstage.apiKey"]).toBe("key-backstage");
+    const { web } = loadProfile({ repoRoot: root, env: {} }).brand.firebase;
+    expect(web.spotlight.apiKey).toBe("new-key");
+    expect(web.backstage.apiKey).toBe("key-backstage");
   });
 
   it("merges a partial answers file into the profile instead of replacing a section", async () => {

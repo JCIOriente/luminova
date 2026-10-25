@@ -390,11 +390,13 @@ function asker(
   exampleAnswers: Answers,
   repoRoot: string,
   prompter: Prompter | undefined,
+  /** Values offered first as the default, e.g. a project's current ones on re-connect. */
+  defaults: Answers = {},
 ) {
   return async (fields: readonly Field[]) => {
     for (const field of fields) {
       if (get(answers, field.path) !== undefined) continue;
-      const fallback = field.fallback?.(answers, exampleAnswers);
+      const fallback = text(defaults, field.path) ?? field.fallback?.(answers, exampleAnswers);
       let reply: string;
       let error: string | undefined;
       do {
@@ -514,7 +516,10 @@ export async function init({
     return { ...writeProfile({ repoRoot, answers, example }), local };
   } catch (error) {
     const flags = `${local ? " --local" : ""}${wanted ? " --sdkconfig" : ""}`;
-    throw savedAnswers(error, { repoRoot, answers, prompter, flags });
+    // A local profile's demo values are re-made by --local; saving them would make the
+    // printed re-run refuse its own file.
+    const keep = local ? projectPart(answers, { without: true }) : answers;
+    throw savedAnswers(error, { repoRoot, answers: keep, prompter, flags });
   }
 }
 
@@ -559,10 +564,12 @@ function merged(base: Answers, over: Answers): Answers {
   return out;
 }
 
-/** The project keys of a brand.json, or of answers. */
-function projectPart(source: Answers): Answers {
+const isProjectKey = (key: string) => (PROJECT_KEYS as readonly string[]).includes(key);
+
+/** The project keys of a brand.json or of answers, or everything else. */
+function projectPart(source: Answers, { without = false } = {}): Answers {
   return Object.fromEntries(
-    PROJECT_KEYS.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]),
+    Object.entries(source).filter(([key]) => isProjectKey(key) !== without),
   );
 }
 
@@ -641,22 +648,20 @@ export async function connect({
   const json = readJsonFile(join(profile.dir, "brand.json"), label);
   const current: Answers = isRecord(json) ? json : {};
   // Every project question is asked again; a demo project's placeholders never are answers.
-  const chapter = Object.fromEntries(
-    Object.entries(current).filter(([key]) => !(PROJECT_KEYS as readonly string[]).includes(key)),
-  );
-  const answers = merged(chapter, initial);
+  const answers = merged(projectPart(current, { without: true }), initial);
   const example = exampleProfile(repoRoot);
-  const ask = asker(answers, example.answers, repoRoot, prompter);
+  // Re-connecting offers the current project's values as defaults (Enter keeps one, a
+  // reply replaces it); a demo project's placeholders are never offered.
+  const defaults = profile.localOnly ? {} : projectPart(current);
+  const ask = asker(answers, example.answers, repoRoot, prompter, defaults);
   let wanted = fillWeb;
   try {
     await ask(PROJECT_FIELDS.filter(({ path }) => path === "firebase.projectId"));
-    // The same project again keeps every current value (App Check keys, CD's deploy names)
-    // as its answer; only what the answers file changes is new.
-    if (
-      !profile.localOnly &&
-      text(answers, "firebase.projectId") === profile.brand.firebase.projectId
-    ) {
-      Object.assign(answers, merged(projectPart(current), projectPart(answers)));
+    const sameProject = text(answers, "firebase.projectId") === profile.brand.firebase.projectId;
+    // Only the same project's values stay defaults, and its deploy names stay valid.
+    if (!sameProject) for (const key of Object.keys(defaults)) delete defaults[key];
+    else if (profile.brand.deploy && answers.deploy === undefined) {
+      answers.deploy = structuredClone(profile.brand.deploy);
     }
     wanted = await askProject(ask, { prompter, fillWeb });
     await askWebKeys(ask, answers, { wanted, run });
