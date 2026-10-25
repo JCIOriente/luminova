@@ -43,6 +43,24 @@ describe("formatNext", () => {
   });
 });
 
+describe("formatNext with several steps", () => {
+  it("numbers them, each with its command", () => {
+    expect(
+      formatNext([
+        { change: "select the profile", run: "export BRAND_PROFILE=acme", where: "shell" },
+        { change: "edit brand/acme/site-content.json" },
+      ]),
+    ).toBe(
+      [
+        "Next:",
+        "  1. select the profile",
+        "       export BRAND_PROFILE=acme   # in your shell",
+        "  2. edit brand/acme/site-content.json",
+      ].join("\n"),
+    );
+  });
+});
+
 describe("uniqueRemedies", () => {
   it("keeps the first of equal remedies, in order", () => {
     const a = { run: "a" };

@@ -12,8 +12,10 @@ import {
   loadProfile,
   parseJsonText,
   readJsonFile,
+  type Env,
 } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
+import { formatNext, type Remedy } from "../remedy.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema } from "../schema.ts";
 import { SITE_CONTENT_FILE } from "../site-content.ts";
 import { CommandError, runCommand, type CommandRunner } from "./gcloud.ts";
@@ -212,12 +214,20 @@ function fillIfBlank(answers: Answers, path: string, value: string): void {
 /** Reads each web app's config with `firebase apps:sdkconfig` (read-only) and fills the gaps. */
 async function fillWebConfig(answers: Answers, run: CommandRunner): Promise<void> {
   const projectId = text(answers, "firebase.projectId");
-  if (!projectId)
-    throw new BrandConfigError(["firebase.projectId is needed to read the web config"]);
+  if (!projectId) {
+    throw new BrandConfigError(
+      ["firebase.projectId is needed to read the web config"],
+      [{ change: "add firebase.projectId", where: FIREBASE_SETTINGS }],
+    );
+  }
   for (const app of ["spotlight", "backstage"] as const) {
     const appId = text(answers, `firebase.web.${app}.appId`);
-    if (!appId)
-      throw new BrandConfigError([`firebase.web.${app}.appId is needed to read its config`]);
+    if (!appId) {
+      throw new BrandConfigError(
+        [`firebase.web.${app}.appId is needed to read its config`],
+        [{ change: `add firebase.web.${app}.appId`, where: YOUR_APPS }],
+      );
+    }
     const output = await run("firebase", [
       "apps:sdkconfig",
       "WEB",
@@ -228,12 +238,21 @@ async function fillWebConfig(answers: Answers, run: CommandRunner): Promise<void
     ]);
     const label = `firebase apps:sdkconfig WEB ${appId}`;
     const parsed = sdkconfigSchema.safeParse(parseJsonText(output, label));
-    if (!parsed.success) throw issuesToBrandError(label, parsed.error.issues);
+    if (!parsed.success) {
+      throw issuesToBrandError(label, parsed.error.issues, [
+        {
+          change: "update the Firebase CLI (CI pins 15.22.1)",
+          run: "npm install -g firebase-tools@15.22.1",
+          where: "shell",
+        },
+      ]);
+    }
     const config = parsed.data.result.sdkConfig;
     if (config.projectId !== projectId) {
-      throw new BrandConfigError([
-        `${label}: app belongs to project "${config.projectId}", not "${projectId}"`,
-      ]);
+      throw new BrandConfigError(
+        [`${label}: app belongs to project "${config.projectId}", not "${projectId}"`],
+        [{ change: `use the ${app} web app id of project "${projectId}"`, where: YOUR_APPS }],
+      );
     }
     fillIfBlank(answers, `firebase.web.${app}.apiKey`, config.apiKey);
     fillIfBlank(answers, "firebase.web.authDomain", config.authDomain);
@@ -242,6 +261,34 @@ async function fillWebConfig(answers: Answers, run: CommandRunner): Promise<void
 }
 
 export const ANSWERS_FILE = "brand-init-answers.json";
+
+const FIREBASE_SETTINGS = "Firebase console → Project settings";
+const YOUR_APPS = `${FIREBASE_SETTINGS} → Your apps`;
+
+/** What a new profile needs before it builds, in order (docs/adopting.md steps 3–6). */
+export function initNext(slug: string, env: Env = process.env): Remedy[] {
+  return [
+    {
+      change: "select the profile in every new terminal (or put the export in a direnv .envrc)",
+      run: keepProfileCommand(slug, env),
+      where: "shell",
+    },
+    { change: "and in this one", run: `export BRAND_PROFILE=${slug}`, where: "shell" },
+    { change: "write .firebaserc for the new project", run: "pnpm brand:apply" },
+    {
+      change: `edit brand/${slug}/${SITE_CONTENT_FILE}: history, mission, contacts (it seeds the site once)`,
+    },
+    {
+      change: `put the ${ASSET_CONTRACT.length} images in ${PULLED_ASSETS_DIR}/ (its README.txt lists them), then check them`,
+      run: "pnpm brand:check",
+    },
+    { change: "check the whole setup", run: "pnpm brand:doctor" },
+    {
+      change: `commit the profile in your fork (never ${PULLED_ASSETS_DIR}/)`,
+      run: `git add brand/${slug}/`,
+    },
+  ];
+}
 
 function checkReply(field: Field, reply: string, repoRoot: string): string | undefined {
   if (field.kind === "int" && !/^\d+$/.test(reply)) return `"${reply}" must be a whole number`;
@@ -339,10 +386,16 @@ export async function init({
     const saved = join(repoRoot, ANSWERS_FILE);
     writeFileSync(saved, `${JSON.stringify(answers, null, 2)}\n`);
     const reasons = error instanceof BrandConfigError ? error.errors : [error.message];
-    throw new BrandConfigError([
-      ...reasons,
-      `your answers are in ${saved}; fix them and re-run pnpm brand:init --answers ${saved}${wanted ? " --sdkconfig" : ""}`,
-    ]);
+    throw new BrandConfigError(
+      [...reasons, `your answers are saved in ${saved}`],
+      [
+        ...error.remedies,
+        {
+          change: `fix them in ${saved}, then re-run from that file`,
+          run: `pnpm brand:init --answers ${saved}${wanted ? " --sdkconfig" : ""}`,
+        },
+      ],
+    );
   }
 }
 
@@ -361,11 +414,26 @@ function writeProfile({
   const brand = orderLike(exampleAnswers, { $schema: "../brand.schema.json", ...answers });
   const label = `brand/${slug || "<slug>"}/brand.json`;
   const parsed = brandSchema.safeParse(brand);
-  if (!parsed.success) throw issuesToBrandError(label, parsed.error.issues);
+  if (!parsed.success) {
+    throw issuesToBrandError(label, parsed.error.issues, [
+      {
+        change:
+          "add or fix the fields above in your answers (brand/brand.schema.json describes each)",
+      },
+    ]);
+  }
 
   const dir = join(repoRoot, "brand", slug);
   if (existsSync(dir)) {
-    throw new BrandConfigError([`brand/${slug} already exists; pick another slug or edit it`]);
+    throw new BrandConfigError(
+      [`brand/${slug} already exists`],
+      [
+        {
+          change: `pick another slug, or edit brand/${slug}/brand.json directly`,
+          run: "pnpm brand:check",
+        },
+      ],
+    );
   }
   mkdirSync(dir);
   const files = [`brand/${slug}/brand.json`, `brand/${slug}/${SITE_CONTENT_FILE}`];
@@ -389,7 +457,16 @@ if (import.meta.main) {
     // pnpm runs root scripts from the workspace root; INIT_CWD is where the user typed.
     const cwd = process.env.INIT_CWD ?? process.cwd();
     const answers = answersFile ? readJsonFile(resolve(cwd, answersFile), answersFile) : {};
-    if (!isRecord(answers)) throw new BrandConfigError([`${answersFile}: must be a JSON object`]);
+    if (!isRecord(answers)) {
+      throw new BrandConfigError(
+        [`${answersFile}: must be a JSON object`],
+        [
+          {
+            change: `make ${answersFile} a JSON object like the example in docs/adopting.md step 3`,
+          },
+        ],
+      );
+    }
     const prompter = answersFile ? undefined : terminalPrompter();
     try {
       const { slug, files } = await init({
@@ -397,23 +474,7 @@ if (import.meta.main) {
         prompter,
         fillWeb: argv.includes("--sdkconfig"),
       });
-      console.log(`brand:init: created ${files.join(", ")}.`);
-      console.log(
-        [
-          "",
-          "Next:",
-          `  export BRAND_PROFILE=${slug}`,
-          `      this terminal only; for every new one: ${keepProfileCommand(slug)}`,
-          "      (or the export line in a direnv .envrc); CD gets its own in docs/adopting.md step 10",
-          "  pnpm brand:apply",
-          "      writes .firebaserc for the new project",
-          `  edit brand/${slug}/${SITE_CONTENT_FILE}`,
-          `  put the ${ASSET_CONTRACT.length} files in ${PULLED_ASSETS_DIR}/ (its README.txt lists them), then pnpm brand:check`,
-          "  pnpm brand:doctor",
-          "",
-          `Commit brand/${slug}/ in your fork; never commit ${PULLED_ASSETS_DIR}/. Guide: docs/adopting.md`,
-        ].join("\n"),
-      );
+      console.log(`brand:init: created ${files.join(", ")}.\n\n${formatNext(initNext(slug))}`);
     } finally {
       prompter?.close();
     }

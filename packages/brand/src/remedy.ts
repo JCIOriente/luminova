@@ -47,9 +47,17 @@ export function formatRemedies(remedies: readonly (Remedy | undefined)[]): strin
   return ["To fix:", ...unique.flatMap((remedy) => remedyLines(remedy, "  - "))].join("\n");
 }
 
-export function formatNext(next: Remedy): string {
+/** The next step, or numbered steps, as commands to paste. */
+export function formatNext(next: Remedy | readonly Remedy[]): string {
+  if (isList(next)) {
+    return ["Next:", ...next.flatMap((step, index) => remedyLines(step, `  ${index + 1}. `))].join(
+      "\n",
+    );
+  }
   const [first = "", ...rest] = next.change
     ? [next.change, `${next.run ?? ""}${place(next)}`]
     : [`${next.run ?? ""}${place(next)}`];
   return [`Next: ${first}`, ...rest.filter(Boolean).map((line) => `  ${line}`)].join("\n");
 }
+
+const isList = (next: Remedy | readonly Remedy[]): next is readonly Remedy[] => Array.isArray(next);
