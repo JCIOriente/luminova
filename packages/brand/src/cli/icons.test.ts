@@ -99,6 +99,20 @@ describe("generateIcons", () => {
     }
   });
 
+  it("shrinks the master into the maskable safe zone and the apple padding", async () => {
+    await writeMaster();
+    await generateIcons({ profile, repoRoot: root });
+    const theme = rgba(profile.brand.themeColor.spotlight);
+    const red = [255, 0, 0, 255];
+    // The disc spans a third of the master each side of centre; at full fill it reaches x = 85.
+    const maskable = join(assetsDir, "spotlight", "maskable-icon-512x512.png");
+    expect(await pixel(maskable, 100, 256)).toEqual(theme);
+    expect(await pixel(maskable, 256, 256)).toEqual(red);
+    const apple = join(assetsDir, "spotlight", "apple-touch-icon-180x180.png");
+    expect(await pixel(apple, 35, 90)).toEqual(theme);
+    expect(await pixel(apple, 90, 90)).toEqual(red);
+  });
+
   it("refuses without a master, pointing at the guide step", async () => {
     const error = await refusal(generateIcons({ profile, repoRoot: root }));
     expect(error.errors.join()).toContain(`${PULLED_ASSETS_DIR}/${ICON_MASTER_FILE}: missing`);
@@ -110,12 +124,24 @@ describe("generateIcons", () => {
     ["too small", () => encodePng(256, 256, [0, 0, 0]), "256×256 is too small"],
     ["not square", () => encodePng(1024, 512, [0, 0, 0]), "1024×512 is not square"],
     ["not a PNG", () => Buffer.from("<svg/>"), "not a PNG"],
+    [
+      "truncated after a valid header",
+      () => encodePng(512, 512, [0, 0, 0]).subarray(0, 60),
+      "not a readable PNG",
+    ],
   ])("refuses a master that is %s", async (_case, bytes, message) => {
     mkdirSync(assetsDir, { recursive: true });
     writeFileSync(join(assetsDir, ICON_MASTER_FILE), bytes());
     const error = await refusal(generateIcons({ profile, repoRoot: root }));
     expect(error.errors.join()).toContain(message);
     expect(error.remedies.length).toBeGreaterThan(0);
+    expect(existsSync(join(assetsDir, "spotlight"))).toBe(false);
+  });
+
+  it("refuses a master that is a folder", async () => {
+    mkdirSync(join(assetsDir, ICON_MASTER_FILE), { recursive: true });
+    const error = await refusal(generateIcons({ profile, repoRoot: root }));
+    expect(error.errors.join()).toContain(`${ICON_MASTER_FILE}: not a file`);
   });
 
   it("never overwrites an existing icon without --force, and writes nothing then", async () => {

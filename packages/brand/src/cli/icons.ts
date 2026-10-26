@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import sharp from "sharp";
 import {
@@ -8,7 +8,7 @@ import {
   MIN_ICON_MASTER_SIZE,
   OG_IMAGE_FILE,
 } from "../assets.ts";
-import { BrandConfigError, REPO_ROOT, type LoadedProfile } from "../load-profile.ts";
+import { BrandConfigError, REPO_ROOT, errorMessage, type LoadedProfile } from "../load-profile.ts";
 import { readPngSize } from "../png.ts";
 import { BRAND_APPS } from "../ports.ts";
 import { PULLED_ASSETS_DIR, displayDir } from "../release.ts";
@@ -18,9 +18,16 @@ import { runCli } from "./main.ts";
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
 const MIN = `${MIN_ICON_MASTER_SIZE}×${MIN_ICON_MASTER_SIZE}`;
 
-/** Why the master cannot be used, or null; `bytes` is null when the file is missing. */
-function masterReason(bytes: Buffer | null): string | null {
-  if (!bytes) return "missing";
+/** The master's bytes, or why it cannot be used. Its pixels are only decoded when rendering. */
+function readMaster(file: string): { bytes: Buffer } | { reason: string } {
+  if (!existsSync(file)) return { reason: "missing" };
+  if (!statSync(file).isFile()) return { reason: "not a file" };
+  const bytes = readFileSync(file);
+  const reason = masterReason(bytes);
+  return reason ? { reason } : { bytes };
+}
+
+function masterReason(bytes: Buffer): string | null {
   const size = readPngSize(bytes);
   if (!size) return "not a PNG";
   const found = `${size.width}×${size.height}`;
@@ -46,8 +53,8 @@ async function renderIcon(
 }
 
 /**
- * Renders both apps' icon sets from `brand-assets/icon-master.png`. Checks everything before
- * writing anything, and never replaces an existing icon unless `force` is set.
+ * Renders both apps' icon sets from `brand-assets/icon-master.png`. Checks the master and the
+ * targets and renders every icon before writing any; never replaces an icon unless `force`.
  * Returns the written paths as the user sees them.
  */
 export async function generateIcons({
@@ -66,20 +73,20 @@ export async function generateIcons({
     ICON_FILES.map((icon) => ({ app, icon, path: `${app}/${icon.name}` })),
   );
 
+  const masterLabel = `${label}/${ICON_MASTER_FILE}`;
+  const masterProblem = (reason: string): Problem => ({
+    message: `${masterLabel}: ${reason}`,
+    remedies: [
+      {
+        change: `export your logo mark as ${masterLabel}: a square PNG of at least ${MIN}, best on a transparent background (${guideStep("images")})`,
+        run: "pnpm brand:icons",
+      },
+    ],
+  });
+
   const problems: Problem[] = [];
-  const master = existsSync(masterFile) ? readFileSync(masterFile) : null;
-  const reason = masterReason(master);
-  if (reason) {
-    problems.push({
-      message: `${label}/${ICON_MASTER_FILE}: ${reason}`,
-      remedies: [
-        {
-          change: `export your logo mark as ${label}/${ICON_MASTER_FILE}: a square PNG of at least ${MIN}, best on a transparent background (${guideStep("images")})`,
-          run: "pnpm brand:icons",
-        },
-      ],
-    });
-  }
+  const master = readMaster(masterFile);
+  if ("reason" in master) problems.push(masterProblem(master.reason));
   const existing = force ? [] : targets.filter(({ path }) => existsSync(join(assetsDir, path)));
   if (existing.length > 0) {
     problems.push({
@@ -89,14 +96,20 @@ export async function generateIcons({
       ],
     });
   }
-  if (!master || problems.length > 0) throw new BrandConfigError(problems);
+  if (!("bytes" in master) || problems.length > 0) throw new BrandConfigError(problems);
 
-  const rendered = await Promise.all(
-    targets.map(async ({ app, icon, path }) => ({
-      path,
-      png: await renderIcon(master, icon, profile.brand.themeColor[app]),
-    })),
-  );
+  let rendered: { path: string; png: Buffer }[];
+  try {
+    rendered = await Promise.all(
+      targets.map(async ({ app, icon, path }) => ({
+        path,
+        png: await renderIcon(master.bytes, icon, profile.brand.themeColor[app]),
+      })),
+    );
+  } catch (error) {
+    // The header check passed, so sharp is the first to read the pixels.
+    throw new BrandConfigError([masterProblem(`not a readable PNG (${errorMessage(error)})`)]);
+  }
   for (const { path, png } of rendered) {
     const file = join(assetsDir, path);
     mkdirSync(dirname(file), { recursive: true });
