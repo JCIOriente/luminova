@@ -1,6 +1,6 @@
 # 2026-10-25 — Tool setup for adopters (R26)
 
-Branch `feat/brand-setup`. Spec `docs/specs/2026-10-25-brand-setup.md` (S1–S9), plan
+Branch `feat/brand-setup`, PR #272. Spec `docs/specs/2026-10-25-brand-setup.md` (S1–S9), plan
 `docs/plans/2026-10-25-brand-setup.md`.
 
 ## Shipped
