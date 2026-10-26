@@ -184,6 +184,13 @@ describe("generateIcons from an SVG master", () => {
     expect((await pixel(icon, 256 - 158, 256))[3]).toBe(0);
   });
 
+  it("renders an SVG whose declared size is past sharp's default pixel limit", async () => {
+    writeSvg(svg(20_000, 20_000));
+    await generateIcons({ profile, repoRoot: root });
+    const icon = join(assetsDir, "spotlight", "pwa-512x512.png");
+    expect(await pixel(icon, 256, 256)).toEqual([255, 0, 0, 255]);
+  });
+
   it.each([
     ["not square", svg(300, 200), "300×200 is not square"],
     ["not an SVG", "<svg", "not a readable SVG"],

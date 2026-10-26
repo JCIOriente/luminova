@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import sharp from "sharp";
+import sharp, { type SharpOptions } from "sharp";
 import {
   ICON_FILES,
   ICON_MASTER_FILE,
@@ -52,10 +52,15 @@ function masterReason(bytes: Buffer): string | null {
   return null;
 }
 
-/** Any size will do: sharp renders an SVG at the size each icon resizes it to. */
+/**
+ * sharp renders an SVG at the size each icon resizes it to, so any size will do, and its
+ * pixel limit, meant for decoded rasters, would only refuse a large declared size.
+ */
+const SVG_INPUT = { limitInputPixels: false } as const;
+
 async function svgReason(bytes: Buffer): Promise<string | null> {
   try {
-    const { format, width, height } = await sharp(bytes).metadata();
+    const { format, width, height } = await sharp(bytes, SVG_INPUT).metadata();
     if (format !== "svg" || !width || !height) return "not a readable SVG";
     return width === height ? null : `${width}×${height} is not square`;
   } catch (error) {
@@ -67,13 +72,14 @@ async function renderIcon(
   master: Buffer,
   { size, fill, opaque }: (typeof ICON_FILES)[number],
   color: string,
+  input: SharpOptions,
 ): Promise<Buffer> {
   const inner = Math.round(size * fill);
   const before = Math.floor((size - inner) / 2);
   const after = size - inner - before;
   const background = opaque ? color : TRANSPARENT;
   // sharp flattens before it extends, so the padding needs the colour too.
-  const icon = sharp(master)
+  const icon = sharp(master, input)
     .resize(inner, inner, { fit: "contain", background: TRANSPARENT })
     .extend({ top: before, bottom: after, left: before, right: after, background });
   return (opaque ? icon.flatten({ background: color }) : icon).png().toBuffer();
@@ -82,7 +88,7 @@ async function renderIcon(
 const tempOf = (file: string) => join(dirname(file), `.${basename(file)}.tmp`);
 
 const removeTemps = (files: readonly string[]) => {
-  for (const file of files) rmSync(tempOf(file), { force: true });
+  for (const temp of files.map(tempOf)) if (existsSync(temp)) rmSync(temp);
 };
 
 /**
@@ -97,7 +103,8 @@ function writeIcons(icons: readonly { file: string; png: Buffer }[], label: stri
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(tempOf(file), png);
     } catch (error) {
-      removeTemps(files.slice(0, index));
+      // The failing icon's own temporary file may exist half-written.
+      removeTemps(files.slice(0, index + 1));
       throw new BrandConfigError([
         {
           message: `could not write the icons, so no icon changed: ${errorMessage(error)}`,
@@ -183,13 +190,14 @@ export async function generateIcons({
   }
   if (!master || !("bytes" in master) || problems.length > 0) throw new BrandConfigError(problems);
   const { bytes } = master;
+  const input = only?.kind === "SVG" ? SVG_INPUT : {};
 
   let icons: { file: string; png: Buffer }[];
   try {
     icons = await Promise.all(
       targets.map(async ({ app, icon, path }) => ({
         file: join(assetsDir, path),
-        png: await renderIcon(bytes, icon, profile.brand.themeColor[app]),
+        png: await renderIcon(bytes, icon, profile.brand.themeColor[app], input),
       })),
     );
   } catch (error) {
