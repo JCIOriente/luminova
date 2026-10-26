@@ -1,9 +1,18 @@
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname, join } from "node:path";
 import sharp from "sharp";
 import {
   ICON_FILES,
   ICON_MASTER_FILE,
+  ICON_MASTER_SVG_FILE,
   LOGO_FILES,
   MIN_ICON_MASTER_SIZE,
   OG_IMAGE_FILE,
@@ -18,12 +27,13 @@ import { runCli } from "./main.ts";
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
 const MIN = `${MIN_ICON_MASTER_SIZE}×${MIN_ICON_MASTER_SIZE}`;
 
-/** The master's bytes, or why it cannot be used. Its pixels are only decoded when rendering. */
-function readMaster(file: string): { bytes: Buffer } | { reason: string } {
-  if (!existsSync(file)) return { reason: "missing" };
+type Master = { bytes: Buffer } | { reason: string };
+
+/** The master's bytes, or why it cannot be used. A PNG's pixels are only decoded when rendering. */
+async function readMaster(file: string): Promise<Master> {
   if (!statSync(file).isFile()) return { reason: "not a file" };
   const bytes = readFileSync(file);
-  const reason = masterReason(bytes);
+  const reason = file.endsWith(ICON_MASTER_SVG_FILE) ? await svgReason(bytes) : masterReason(bytes);
   return reason ? { reason } : { bytes };
 }
 
@@ -34,6 +44,17 @@ function masterReason(bytes: Buffer): string | null {
   if (size.width !== size.height) return `${found} is not square`;
   if (size.width < MIN_ICON_MASTER_SIZE) return `${found} is too small (expected at least ${MIN})`;
   return null;
+}
+
+/** Any size will do: sharp renders an SVG at the size each icon resizes it to. */
+async function svgReason(bytes: Buffer): Promise<string | null> {
+  try {
+    const { format, width, height } = await sharp(bytes).metadata();
+    if (format !== "svg" || !width || !height) return "not a readable SVG";
+    return width === height ? null : `${width}×${height} is not square`;
+  } catch (error) {
+    return `not a readable SVG (${errorMessage(error)})`;
+  }
 }
 
 async function renderIcon(
@@ -52,10 +73,64 @@ async function renderIcon(
   return (opaque ? icon.flatten({ background: color }) : icon).png().toBuffer();
 }
 
+interface Staged {
+  file: string;
+  temp: string;
+  png: Buffer;
+}
+
+const removeTemps = (staged: readonly Staged[]) => {
+  for (const { temp } of staged) rmSync(temp, { force: true });
+};
+
 /**
- * Renders both apps' icon sets from `brand-assets/icon-master.png`. Checks the master and the
- * targets and renders every icon before writing any; never replaces an icon unless `force`.
- * Returns the written paths as the user sees them.
+ * Writes every icon to a hidden file beside its target, then renames them all into place, so
+ * a failed write changes no icon. Only a failed rename, after every write worked, can leave
+ * part of the set replaced; the error says how much.
+ */
+function writeIcons(icons: readonly { file: string; png: Buffer }[], label: string): void {
+  const written: Staged[] = [];
+  try {
+    for (const { file, png } of icons) {
+      const temp = join(dirname(file), `.${basename(file)}.tmp`);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(temp, png);
+      written.push({ file, temp, png });
+    }
+  } catch (error) {
+    removeTemps(written);
+    throw new BrandConfigError([
+      {
+        message: `could not write the icons, so no icon changed: ${errorMessage(error)}`,
+        remedies: [
+          { change: `make sure ${label}/ and its folders can be written`, run: "pnpm brand:icons" },
+        ],
+      },
+    ]);
+  }
+  let replaced = 0;
+  try {
+    for (const { temp, file } of written) {
+      renameSync(temp, file);
+      replaced += 1;
+    }
+  } catch (error) {
+    removeTemps(written.slice(replaced));
+    throw new BrandConfigError([
+      {
+        message: `${replaced} of ${written.length} icons replaced, then: ${errorMessage(error)}`,
+        remedies: [
+          { change: "fix what stopped it, then finish the set", run: "pnpm brand:icons --force" },
+        ],
+      },
+    ]);
+  }
+}
+
+/**
+ * Renders both apps' icon sets from `brand-assets/icon-master.png` or `icon-master.svg`.
+ * Checks the master and the targets and renders every icon before writing any; never
+ * replaces an icon unless `force`. Returns the written paths as the user sees them.
  */
 export async function generateIcons({
   profile,
@@ -68,25 +143,36 @@ export async function generateIcons({
 }): Promise<string[]> {
   const assetsDir = join(repoRoot, PULLED_ASSETS_DIR);
   const label = displayDir(repoRoot, assetsDir);
-  const masterFile = join(assetsDir, ICON_MASTER_FILE);
   const targets = BRAND_APPS.flatMap((app) =>
     ICON_FILES.map((icon) => ({ app, icon, path: `${app}/${icon.name}` })),
   );
 
-  const masterLabel = `${label}/${ICON_MASTER_FILE}`;
+  const masters = [ICON_MASTER_FILE, ICON_MASTER_SVG_FILE].filter((name) =>
+    existsSync(join(assetsDir, name)),
+  );
+  const masterLabel = `${label}/${masters.length === 1 ? masters[0] : `${ICON_MASTER_FILE} or ${ICON_MASTER_SVG_FILE}`}`;
   const masterProblem = (reason: string): Problem => ({
     message: `${masterLabel}: ${reason}`,
     remedies: [
       {
-        change: `export your logo mark as ${masterLabel}: a square PNG of at least ${MIN}, best on a transparent background (${guideStep("images")})`,
+        change: `export your logo mark as ${label}/${ICON_MASTER_SVG_FILE} (square) or ${ICON_MASTER_FILE} (a square PNG of at least ${MIN}), best on a transparent background (${guideStep("images")})`,
         run: "pnpm brand:icons",
       },
     ],
   });
 
   const problems: Problem[] = [];
-  const master = readMaster(masterFile);
-  if ("reason" in master) problems.push(masterProblem(master.reason));
+  let master: Master = { reason: "missing" };
+  if (masters.length > 1) {
+    master = { reason: "both are there" };
+    problems.push({
+      message: `${label}/${ICON_MASTER_FILE} and ${label}/${ICON_MASTER_SVG_FILE} are both there`,
+      remedies: [{ change: "keep one master and delete the other", run: "pnpm brand:icons" }],
+    });
+  } else {
+    if (masters[0]) master = await readMaster(join(assetsDir, masters[0]));
+    if ("reason" in master) problems.push(masterProblem(master.reason));
+  }
   const existing = force ? [] : targets.filter(({ path }) => existsSync(join(assetsDir, path)));
   if (existing.length > 0) {
     problems.push({
@@ -108,13 +194,13 @@ export async function generateIcons({
     );
   } catch (error) {
     // The header check passed, so sharp is the first to read the pixels.
-    throw new BrandConfigError([masterProblem(`not a readable PNG (${errorMessage(error)})`)]);
+    const kind = masters[0] === ICON_MASTER_SVG_FILE ? "SVG" : "PNG";
+    throw new BrandConfigError([masterProblem(`not a readable ${kind} (${errorMessage(error)})`)]);
   }
-  for (const { path, png } of rendered) {
-    const file = join(assetsDir, path);
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, png);
-  }
+  writeIcons(
+    rendered.map(({ path, png }) => ({ file: join(assetsDir, path), png })),
+    label,
+  );
   return rendered.map(({ path }) => `${label}/${path}`);
 }
 

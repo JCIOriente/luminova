@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -11,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ICON_FILES, ICON_MASTER_FILE, validateAssets } from "../assets.ts";
+import { ICON_FILES, ICON_MASTER_FILE, ICON_MASTER_SVG_FILE, validateAssets } from "../assets.ts";
 import { writeAssetSet } from "../asset-set.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { encodePng } from "../png.ts";
@@ -115,7 +116,9 @@ describe("generateIcons", () => {
 
   it("refuses without a master, pointing at the guide step", async () => {
     const error = await refusal(generateIcons({ profile, repoRoot: root }));
-    expect(error.errors.join()).toContain(`${PULLED_ASSETS_DIR}/${ICON_MASTER_FILE}: missing`);
+    expect(error.errors.join()).toContain(
+      `${PULLED_ASSETS_DIR}/${ICON_MASTER_FILE} or ${ICON_MASTER_SVG_FILE}: missing`,
+    );
     expect(error.message).toContain("docs/adopting.md step 3");
     expect(existsSync(join(assetsDir, "spotlight"))).toBe(false);
   });
@@ -158,5 +161,74 @@ describe("generateIcons", () => {
 
     await generateIcons({ profile, repoRoot: root, force: true });
     expect(readFileSync(kept).subarray(1, 4).toString("latin1")).toBe("PNG");
+  });
+});
+
+describe("generateIcons from an SVG master", () => {
+  const svg = (width: number, height: number) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><circle cx="${width / 2}" cy="${height / 2}" r="${Math.min(width, height) / 3}" fill="#ff0000"/></svg>`;
+
+  function writeSvg(text: string): void {
+    mkdirSync(assetsDir, { recursive: true });
+    writeFileSync(join(assetsDir, ICON_MASTER_SVG_FILE), text);
+  }
+
+  it("renders a small square SVG sharp at every size, and the set passes the validator", async () => {
+    writeSvg(svg(24, 24));
+    const written = await generateIcons({ profile, repoRoot: root });
+    expect(written).toHaveLength(ICON_FILES.length * BRAND_APPS.length);
+    const icon = join(assetsDir, "spotlight", "pwa-512x512.png");
+    expect(await pixel(icon, 256, 256)).toEqual([255, 0, 0, 255]);
+    // The disc's edge stays crisp: a 24 px raster scaled up 20 times would blur it.
+    expect((await pixel(icon, 256 - 150, 256))[3]).toBe(255);
+    expect((await pixel(icon, 256 - 158, 256))[3]).toBe(0);
+  });
+
+  it.each([
+    ["not square", svg(300, 200), "300×200 is not square"],
+    ["not an SVG", "<svg", "not a readable SVG"],
+  ])("refuses an SVG master that is %s", async (_case, text, message) => {
+    writeSvg(text);
+    const error = await refusal(generateIcons({ profile, repoRoot: root }));
+    expect(error.errors.join()).toContain(`${ICON_MASTER_SVG_FILE}: ${message}`);
+    expect(existsSync(join(assetsDir, "spotlight"))).toBe(false);
+  });
+
+  it("refuses when both masters are there, naming both", async () => {
+    await writeMaster();
+    writeSvg(svg(512, 512));
+    const error = await refusal(generateIcons({ profile, repoRoot: root }));
+    expect(error.errors.join()).toContain(ICON_MASTER_FILE);
+    expect(error.errors.join()).toContain(ICON_MASTER_SVG_FILE);
+    expect(error.remedies[0]?.change).toMatch(/keep one/);
+  });
+});
+
+describe("generateIcons when the disk fails", () => {
+  const files = (dir: string) => (existsSync(dir) ? readdirSync(dir) : []);
+
+  it("changes no icon when a write fails partway, and leaves no temporary file", async () => {
+    await writeMaster();
+    // backstage is written after spotlight; a file where its folder goes fails that write.
+    writeFileSync(join(assetsDir, "backstage"), "not a folder");
+    const error = await refusal(generateIcons({ profile, repoRoot: root }));
+    expect(error.errors.join()).toContain("no icon changed");
+    expect(files(join(assetsDir, "spotlight"))).toEqual([]);
+  });
+
+  it("names what was replaced when a rename fails after every write", async () => {
+    await writeMaster();
+    await generateIcons({ profile, repoRoot: root });
+    // A non-empty folder where the last icon goes: its write succeeds, its rename cannot.
+    const last = join(assetsDir, "backstage", "maskable-icon-512x512.png");
+    rmSync(last);
+    mkdirSync(join(last, "inside"), { recursive: true });
+
+    const error = await refusal(generateIcons({ profile, repoRoot: root, force: true }));
+    expect(error.errors.join()).toContain("11 of 12 icons replaced");
+    expect(error.remedies.map(({ run }) => run)).toContain("pnpm brand:icons --force");
+    for (const app of BRAND_APPS) {
+      expect(files(join(assetsDir, app)).filter((name) => name.startsWith("."))).toEqual([]);
+    }
   });
 });
