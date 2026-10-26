@@ -74,13 +74,12 @@ describe("generateIcons", () => {
       ),
     );
 
-    const handMade = mkdtempSync(join(tmpdir(), "brand-icons-set-"));
+    const handMade = join(root, "hand-made");
     writeAssetSet(handMade);
     for (const app of BRAND_APPS) {
       cpSync(join(assetsDir, app), join(handMade, app), { recursive: true });
     }
     expect(validateAssets(handMade).errors).toEqual([]);
-    rmSync(handMade, { recursive: true, force: true });
   });
 
   it("puts the maskable and apple icons on an opaque themeColor background, and keeps the rest transparent", async () => {
@@ -94,8 +93,7 @@ describe("generateIcons", () => {
       for (const name of ["pwa-512x512.png", "favicon-32.png"]) {
         expect((await pixel(join(assetsDir, app, name), 0, 0))[3]).toBe(0);
       }
-      const size = 512;
-      expect(await pixel(join(assetsDir, app, "pwa-512x512.png"), size / 2, size / 2)).toEqual([
+      expect(await pixel(join(assetsDir, app, "pwa-512x512.png"), 256, 256)).toEqual([
         255, 0, 0, 255,
       ]);
     }

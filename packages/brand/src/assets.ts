@@ -15,13 +15,20 @@ export const PULL_MANIFEST_FILE = "pull-manifest.json";
 const MIN_LOGO_HEIGHT = 184;
 export const OG_IMAGE_WARN_BYTES = 300 * 1024;
 
+export const MIN_ICON_MASTER_SIZE = 512;
+
+/**
+ * `fill` is how much of the icon `brand:icons` gives the master; `opaque` icons get the
+ * app's themeColor behind it. A maskable icon may be cropped to a circle of 80% of its
+ * width, and a square fits that circle at 0.8 / √2 ≈ 0.56. iOS only rounds the corners.
+ */
 export const ICON_FILES = [
-  { name: "favicon-16.png", size: 16 },
-  { name: "favicon-32.png", size: 32 },
-  { name: "apple-touch-icon-180x180.png", size: 180 },
-  { name: "pwa-192x192.png", size: 192 },
-  { name: "pwa-512x512.png", size: 512 },
-  { name: "maskable-icon-512x512.png", size: 512 },
+  { name: "favicon-16.png", size: 16, fill: 0.9, opaque: false },
+  { name: "favicon-32.png", size: 32, fill: 0.9, opaque: false },
+  { name: "apple-touch-icon-180x180.png", size: 180, fill: 0.8, opaque: true },
+  { name: "pwa-192x192.png", size: 192, fill: 0.9, opaque: false },
+  { name: "pwa-512x512.png", size: 512, fill: 0.9, opaque: false },
+  { name: "maskable-icon-512x512.png", size: 512, fill: 0.56, opaque: true },
 ] as const;
 
 export interface AssetSpec {

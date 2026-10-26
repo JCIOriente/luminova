@@ -1,7 +1,14 @@
 import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { ASSET_CONTRACT, ICON_MASTER_FILE, describeSpec } from "../assets.ts";
+import {
+  ASSET_CONTRACT,
+  ICON_FILES,
+  ICON_MASTER_FILE,
+  MIN_ICON_MASTER_SIZE,
+  describeSpec,
+} from "../assets.ts";
+import { BRAND_APPS } from "../ports.ts";
 import {
   BrandConfigError,
   EXAMPLE_PROFILE,
@@ -380,8 +387,8 @@ function assetReadme(): string {
     "",
     "The three logos must share one size. Keep og-image.png under 300 KB so WhatsApp shows it.",
     "",
-    `The 12 icons can be generated: put your logo mark here as ${ICON_MASTER_FILE} (a square`,
-    "PNG of at least 512×512, best on a transparent background), then run pnpm brand:icons.",
+    `The ${ICON_FILES.length * BRAND_APPS.length} icons can be generated: put your logo mark here as ${ICON_MASTER_FILE} (a square`,
+    `PNG of at least ${MIN_ICON_MASTER_SIZE}×${MIN_ICON_MASTER_SIZE}, best on a transparent background), then run pnpm brand:icons.`,
     "",
     "When the set passes, upload it with pnpm brand:push (see docs/adopting.md).",
     "",
