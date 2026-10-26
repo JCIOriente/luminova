@@ -240,7 +240,7 @@ describe("toolRows", () => {
       responses.set("firebase login:list", '⚠  No authorized accounts, run "firebase login"\n');
       expect(rowFor(await check(), "firebase account")).toMatchObject({
         status: "warn",
-        detail: "nobody signed in",
+        detail: "not signed in",
         remedies: [expect.objectContaining({ run: "firebase login" })],
       });
     });
@@ -265,7 +265,7 @@ describe("toolRows", () => {
       responses.set("gcloud auth list", "");
       expect(rowFor(await check(), "gcloud account")).toMatchObject({
         status: "fail",
-        detail: "nobody signed in",
+        detail: "not signed in",
         remedies: [{ run: "gcloud auth login", where: "shell" }],
       });
     });

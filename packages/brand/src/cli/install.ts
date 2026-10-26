@@ -23,7 +23,8 @@ export const INSTALL_FIREBASE_CLI: Remedy = {
 
 /** No nvm yet: its install script, then `nvm install` reads .nvmrc. */
 export const INSTALL_NVM: Remedy = {
-  change: "no nvm yet? install it, then open a new terminal (https://github.com/nvm-sh/nvm)",
+  change:
+    "install nvm if you do not have it, then open a new terminal (https://github.com/nvm-sh/nvm)",
   run: "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | bash",
   where: SHELL,
 };
@@ -35,7 +36,7 @@ const both = (remedy: Remedy): Record<InstallPlatform, Remedy> => ({
 
 const INSTALL: Readonly<Record<Tool, Record<InstallPlatform, Remedy>>> = {
   pnpm: both({
-    change: "enable pnpm (it ships with Node 24)",
+    change: "enable pnpm (it comes with Node 24)",
     run: "corepack enable",
     where: SHELL,
   }),
@@ -52,7 +53,7 @@ const INSTALL: Readonly<Record<Tool, Record<InstallPlatform, Remedy>>> = {
     darwin: { change: "install the GitHub CLI", run: "brew install gh", where: SHELL },
     linux: {
       change:
-        "install the GitHub CLI: https://github.com/cli/cli/blob/trunk/docs/install_linux.md (Debian, Ubuntu)",
+        "install the GitHub CLI, following https://github.com/cli/cli/blob/trunk/docs/install_linux.md (Debian and Ubuntu)",
     },
   },
   gcloud: {
@@ -63,7 +64,7 @@ const INSTALL: Readonly<Record<Tool, Record<InstallPlatform, Remedy>>> = {
     },
     linux: {
       change:
-        "install the Google Cloud CLI: https://cloud.google.com/sdk/docs/install (Debian/Ubuntu)",
+        "install the Google Cloud CLI, following https://cloud.google.com/sdk/docs/install (Debian and Ubuntu)",
     },
   },
 };

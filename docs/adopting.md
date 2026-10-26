@@ -57,6 +57,7 @@ with a note until the profile has a real project and CD's sign-in (step 9).
 
 | # | Step | Command |
 |---|---|---|
+| | **Before you start: the tools** | `pnpm brand:setup` |
 | | **Part 1: try it on your computer** | |
 | 1 | Fork, clone, run the example | `pnpm install`, then `pnpm dev` |
 | 2 | Create your profile | `pnpm brand:init` (answer **n**: no Firebase project yet) |
@@ -91,10 +92,73 @@ To fix:
       pnpm brand:check   # in the repo root
 ```
 
+## Before you start
+
+Each part needs a few tools on your computer. Install Node and pnpm first (the first two
+rows of the Part 1 table below), clone your fork, then let the repository check the rest:
+
+```bash
+pnpm brand:setup               # in the repo root; add --part try or --part live for one part
+```
+
+It prints one table per part. Each row shows the tool and the version or account it found.
+Missing tools end in a **To fix:** block with the install command for your computer. It
+only reads: it never installs anything and never signs you in. In a fresh clone, pnpm
+installs the repository's packages before the check runs. To check even before that, run
+`node packages/brand/src/cli/setup.ts` instead; it needs only Node.
+
+**Windows:** use WSL 2. Open PowerShell as administrator, run `wsl --install`, restart,
+open Ubuntu, and follow the Linux commands below inside it. Clone into your Ubuntu home
+folder (`~`), not under `/mnt/c`. Install every tool inside Ubuntu too: the repository's
+scripts need bash, and its commands cannot start the Windows versions of `gcloud`,
+`firebase` and `pnpm`.
+
+**macOS:** the commands below use Homebrew. Install it from [brew.sh](https://brew.sh) first.
+
+### Part 1 tools: try it
+
+| Tool | macOS | Linux and WSL (Ubuntu) | Check |
+|---|---|---|---|
+| Node 24 | install nvm (commands below), then `nvm install` in your clone | same as macOS | `node --version` |
+| pnpm | `corepack enable` (pnpm comes with Node 24) | same as macOS | `pnpm --version` |
+| Java 21 or later (the emulators run on it) | `brew install --cask temurin@21` | `sudo apt install -y openjdk-21-jre-headless` | `java --version` |
+| Firebase CLI | `npm install -g firebase-tools@15.22.1` | same as macOS | `firebase --version` |
+
+nvm installs the Node version that `.nvmrc` pins:
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | bash
+# open a new terminal, then in your clone:
+nvm install
+```
+
+CI uses Firebase CLI 15.22.1. Another version works for Part 1; `brand:setup` only notes
+the difference. If you already have Java from Homebrew's `openjdk` formula, it also works:
+it is not on `PATH`, but `pnpm dev` adds it.
+
+### Part 2 tools: go live
+
+| Tool | macOS | Linux and WSL (Ubuntu) | Check |
+|---|---|---|---|
+| GitHub CLI `gh` | `brew install gh` | [GitHub's instructions for Debian and Ubuntu](https://github.com/cli/cli/blob/trunk/docs/install_linux.md) | `gh --version` |
+| Google Cloud CLI `gcloud` | `brew install --cask gcloud-cli` | [Google's instructions for Debian and Ubuntu](https://cloud.google.com/sdk/docs/install) | `gcloud --version` |
+
+Then sign in. Each tool keeps its own sign-in on your computer, outside the repository:
+
+| Sign-in | Command | Needed at | Check |
+|---|---|---|---|
+| `gh`, as an admin of your fork | `gh auth login` | step 9 | `gh auth status` |
+| `gcloud`, as an owner of your Firebase project | `gcloud auth login` | steps 9 to 11 | `gcloud auth list` |
+| `gcloud` Application Default Credentials (the sign-in scripts use) | `gcloud auth application-default login` | step 13 | the `gcloud ADC` row of `brand:setup` |
+| Firebase CLI | `firebase login` | step 7, only with `--sdkconfig` | `firebase login:list` |
+
+`brand:setup --part live` fails until `gh` and `gcloud` are installed and signed in. The
+last two rows only warn: you can do them when you reach their step.
+
 ## Part 1: try it on your computer
 
-You need Node 24 (`.nvmrc`), pnpm through `corepack enable`, the Firebase CLI and a Java
-runtime (the emulators need both). Nothing else.
+You need the [Part 1 tools](#part-1-tools-try-it): Node 24, pnpm, Java and the Firebase CLI.
+Nothing else.
 
 ### 1. Run the example
 
@@ -179,10 +243,13 @@ so in the run's summary.
 
 ## Part 2: go live
 
-You now also need the `gcloud` CLI and the GitHub CLI `gh`, and a Firebase project on the
-**Blaze** plan (Cloud Functions need it).
+You now also need the [Part 2 tools](#part-2-tools-go-live), `gh` and `gcloud`, and a
+Firebase project on the **Blaze** plan (Cloud Functions need it). Each step below starts
+with a **Needs:** line: the tools and sign-ins that step uses.
 
 ### 6. Firebase project
+
+Needs: a browser.
 
 In the [Firebase console](https://console.firebase.google.com), create the project, then:
 
@@ -195,6 +262,9 @@ In the [Firebase console](https://console.firebase.google.com), create the proje
    is optional: a blank `appCheckSiteKey` turns it off.
 
 ### 7. Connect the project
+
+Needs: nothing new. Only `--sdkconfig` also needs the Firebase CLI
+[signed in](#part-2-tools-go-live) (`firebase login`).
 
 ```bash
 pnpm brand:init --connect               # only the Firebase questions
@@ -211,22 +281,26 @@ deploys nothing: CD waits for the `deploy` section of step 9.
 
 ### 8. Doctor
 
+Needs: the [Part 1 tools](#part-1-tools-try-it), plus `gh` and `gcloud` for the cloud rows.
+
 ```bash
 pnpm brand:doctor
 ```
 
-One table, in the order fixes must happen: Node, pnpm, the selection (which profile
-`brand/` selects, and why), the profile,
-`brand.json`, site content, images, `.firebaserc`, CD identity, your `gcloud` account and
-the bucket. It only reads, and every row reports even when an earlier one fails. For a
-local-only profile it skips the cloud rows. Until step 11 the **bucket** row fails, and
-**CD identity** warns until step 9.
+One table, in the order fixes must happen: the Part 1 tools (Node, pnpm, Java, the
+Firebase CLI), the selection (which profile `brand/` selects, and why), the profile,
+`brand.json`, site content, images, `.firebaserc`, CD identity, `gh` and `gcloud` with
+their sign-ins, and the bucket. It only reads, and every row reports even when an earlier
+one fails. For a local-only profile it skips the cloud rows. Until step 11 the **bucket**
+row fails, and **CD identity** warns until step 9.
 
 If you exported `BRAND_PROFILE` in an earlier version of this guide, the selection row
 warns while it differs from what `brand/` selects: remove the `export` line from your
 shell's startup file. Tools set that variable for single test builds; you never need it.
 
 ### 9. Keyless CD
+
+Needs: [`gcloud` and `gh`](#part-2-tools-go-live), both signed in.
 
 ```bash
 gcloud auth login              # an owner of your Firebase project
@@ -244,6 +318,8 @@ each permission, is [`docs/ci-cd.md` section 6](ci-cd.md#6-one-time-provisioning
 
 ### 10. Assets bucket
 
+Needs: [`gcloud`](#part-2-tools-go-live), signed in as a project owner.
+
 ```bash
 pnpm brand:provision --apply   # creates and configures the bucket, skipping what is done
 ```
@@ -253,6 +329,8 @@ deploy account from step 9 gets read-only access to it alone. Step 9 must come f
 the grant fails for an account that does not exist yet.
 
 ### 11. Upload the images
+
+Needs: [`gcloud`](#part-2-tools-go-live), signed in as a project owner.
 
 ```bash
 pnpm brand:push                # validates brand-assets/ first, then uploads
@@ -264,6 +342,8 @@ image change is not in git, so after going live CD does not see it on its own:
 `brand:push` prints the hosting deploy command for that.
 
 ### 12. Go live
+
+Needs: git, and a browser to approve the run. `gh` only to deploy again later.
 
 Commit the `deploy` section from step 9 and merge to `main`, then approve the Deploy run it
 starts. The first deploy after setup ships everything: rules, functions and both sites.
@@ -281,6 +361,8 @@ Custom domains and the console settings that must list every hostname:
 [`docs/domains.md`](domains.md).
 
 ### 13. First admin
+
+Needs: `gcloud` [Application Default Credentials](#part-2-tools-go-live).
 
 ```bash
 gcloud auth application-default login   # the script uses Application Default Credentials

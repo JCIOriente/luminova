@@ -139,7 +139,7 @@ describe("doctor", () => {
     responses.set("gcloud auth list", "");
     expect(rowFor(await diagnose(), "gcloud account")).toMatchObject({
       status: "fail",
-      detail: "nobody signed in",
+      detail: "not signed in",
     });
   });
 

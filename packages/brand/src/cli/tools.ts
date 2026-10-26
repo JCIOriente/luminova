@@ -206,7 +206,7 @@ const CHECKS: readonly ToolCheck[] = [
     );
     return account
       ? ok("gcloud account", account)
-      : fail("gcloud account", "nobody signed in", [SIGN_IN_GCLOUD]);
+      : fail("gcloud account", "not signed in", [SIGN_IN_GCLOUD]);
   }),
   {
     check: "gcloud ADC",
@@ -221,7 +221,7 @@ const CHECKS: readonly ToolCheck[] = [
         ? ok("gcloud ADC", file.startsWith(home) ? `~${file.slice(home.length)}` : file)
         : warn("gcloud ADC", "none yet (step 13 needs it)", [
             {
-              change: "sign in for scripts, before step 13",
+              change: "sign in for scripts (Application Default Credentials), before step 13",
               run: "gcloud auth application-default login",
               where: "shell",
             },
@@ -236,7 +236,7 @@ const CHECKS: readonly ToolCheck[] = [
       const account = /Logged in as (\S+)/.exec(await run("firebase", ["login:list"]))?.[1];
       return account
         ? ok("firebase account", account)
-        : warn("firebase account", "nobody signed in", [
+        : warn("firebase account", "not signed in", [
             {
               change: "only brand:init --connect --sdkconfig needs it (step 7)",
               run: "firebase login",
@@ -251,7 +251,7 @@ const CHECKS: readonly ToolCheck[] = [
 const WINDOWS: CheckRow = fail("windows", "native Windows cannot run the guide's commands", [
   {
     change:
-      "install WSL 2 (PowerShell as administrator), restart, then clone and follow the Linux commands inside Ubuntu",
+      "install WSL 2 from PowerShell as administrator, restart, then clone and follow the Linux commands inside Ubuntu",
     run: "wsl --install",
     where: "shell",
   },
