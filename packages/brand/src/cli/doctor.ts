@@ -26,21 +26,19 @@ import { deployDispatch } from "./push.ts";
 import { CONNECT_PROJECT, PRINT_GCP_SETUP, missingDeployProblem } from "../release.ts";
 import { fail, ok, rowRemedies, skip as skipRow, warn, type CheckRow } from "./rows.ts";
 import { formatTable, plural } from "./table.ts";
-import { toolChecks, toolRows, type Part } from "./tools.ts";
-
-export type DoctorRow = CheckRow;
+import { nativeWindows, toolChecks, toolRows, type Part } from "./tools.ts";
 
 const skip = (check: string, detail = "needs a valid profile") => skipRow(check, detail);
 
 /** A caught error as a row: its message in the cell (never a "To fix:" block), its remedies. */
-function failed(check: string, error: unknown): DoctorRow {
+function failed(check: string, error: unknown): CheckRow {
   if (error instanceof BrandConfigError)
     return fail(check, error.errors.join("; "), error.remedies);
   if (error instanceof CommandError) return fail(check, error.message, error.remedies);
   return fail(check, errorMessage(error));
 }
 
-async function attempt(check: string, body: () => Promise<DoctorRow>): Promise<DoctorRow> {
+async function attempt(check: string, body: () => Promise<CheckRow>): Promise<CheckRow> {
   try {
     return await body();
   } catch (error) {
@@ -52,7 +50,7 @@ function profileRows(
   repoRoot: string,
   env: Env,
   flag?: string,
-): { rows: DoctorRow[]; profile?: LoadedProfile } {
+): { rows: CheckRow[]; profile?: LoadedProfile } {
   let profile: LoadedProfile;
   try {
     profile = loadProfile({ repoRoot, env, profile: flag });
@@ -82,7 +80,7 @@ function profileRows(
   };
 }
 
-async function brandRows(profile: LoadedProfile, repoRoot: string, env: Env): Promise<DoctorRow[]> {
+async function brandRows(profile: LoadedProfile, repoRoot: string, env: Env): Promise<CheckRow[]> {
   const { assets, content } = await checkBrand({ profile, repoRoot, env });
   const assetsFailed = assets.filter(({ failed }) => failed).length;
   const total = ASSET_CONTRACT.length;
@@ -99,7 +97,7 @@ async function brandRows(profile: LoadedProfile, repoRoot: string, env: Env): Pr
   ];
 }
 
-function firebasercRow(profile: LoadedProfile, repoRoot: string): DoctorRow {
+function firebasercRow(profile: LoadedProfile, repoRoot: string): CheckRow {
   const file = join(repoRoot, FIREBASERC);
   const current = existsSync(file) ? readFileSync(file, "utf8") : null;
   if (current === firebasercContent(profile.brand)) {
@@ -110,7 +108,7 @@ function firebasercRow(profile: LoadedProfile, repoRoot: string): DoctorRow {
   ]);
 }
 
-async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<DoctorRow> {
+async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<CheckRow> {
   const bucket = profile.brand.assetsBucket;
   let listing: string;
   try {
@@ -163,12 +161,12 @@ export async function doctor({
   home?: string;
   /** `--profile <slug>`: diagnose another profile than the one brand/ selects. */
   profile?: string;
-} = {}): Promise<{ rows: DoctorRow[]; profile?: LoadedProfile }> {
+} = {}): Promise<{ rows: CheckRow[]; profile?: LoadedProfile }> {
   const { rows: profileChecks, profile } = profileRows(repoRoot, env, flag);
   // A local-only profile has no cloud yet: those rows wait for going live, and doctor
   // never calls gcloud for them.
   const local = profile?.localOnly === true;
-  const cloud = (check: string, body: (profile: LoadedProfile) => Promise<DoctorRow>) =>
+  const cloud = (check: string, body: (profile: LoadedProfile) => Promise<CheckRow>) =>
     local ? skip(check, LOCAL_ONLY) : profile ? attempt(check, () => body(profile)) : skip(check);
   const tools = (part: Part) =>
     toolRows({ parts: [part], repoRoot, run, env, nodeVersion, platform, home, required: true });
@@ -184,7 +182,9 @@ export async function doctor({
 
   // Rows run in the order fixes must happen: the tools, the selection, the profile, then
   // the cloud.
+  const windows = nativeWindows(platform);
   const rows = [
+    ...(windows ? [windows] : []),
     ...trying,
     selectionRow(repoRoot, env, flag),
     ...profileChecks,
@@ -217,7 +217,7 @@ const LEGACY_CONFIG_FILE = "luminova.json";
  * brand/ selects the chapter (spec P1); a leftover shell override or luminova.json is
  * flagged, never obeyed silently.
  */
-function selectionRow(repoRoot: string, env: Env, flag?: string): DoctorRow {
+function selectionRow(repoRoot: string, env: Env, flag?: string): CheckRow {
   let slug: string;
   let source: DiscoveredSource;
   try {
@@ -249,13 +249,11 @@ function selectionRow(repoRoot: string, env: Env, flag?: string): DoctorRow {
     : ok(SELECTION, selects);
 }
 
-function cdIdentityRow(profile: LoadedProfile): DoctorRow {
+function cdIdentityRow(profile: LoadedProfile): CheckRow {
   const missing = missingDeployProblem(profile);
   if (missing) return warn("CD identity", missing.message, missing.remedies);
   return ok("CD identity", profile.brand.deploy?.serviceAccount ?? "");
 }
-
-export const doctorRemedies = rowRemedies;
 
 const LOCAL_ONLY = "local-only profile; comes with going live (pnpm brand:init --connect)";
 
@@ -292,7 +290,7 @@ if (import.meta.main) {
         ...rows.map(({ check, status, detail }) => [check, status, detail]),
       ]),
     );
-    const fix = formatRemedies(doctorRemedies(rows));
+    const fix = formatRemedies(rowRemedies(rows));
     if (fix) console.log(`\n${fix}`);
     const failed = rows.filter(({ status }) => status === "fail").length;
     if (failed > 0) {

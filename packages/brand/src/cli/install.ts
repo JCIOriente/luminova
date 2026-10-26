@@ -15,9 +15,12 @@ const installPlatform = (platform: NodeJS.Platform): InstallPlatform =>
 
 const SHELL = "shell" as const;
 
+/** The Firebase CLI version CI installs (.github/actions/firebase-setup). */
+export const CI_FIREBASE_CLI = "15.22.1";
+
 export const INSTALL_FIREBASE_CLI: Remedy = {
-  change: "install or update the Firebase CLI (CI pins 15.22.1)",
-  run: "npm install -g firebase-tools@15.22.1",
+  change: `install or update the Firebase CLI (CI pins ${CI_FIREBASE_CLI})`,
+  run: `npm install -g firebase-tools@${CI_FIREBASE_CLI}`,
   where: SHELL,
 };
 

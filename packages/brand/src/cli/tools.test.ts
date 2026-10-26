@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CommandError, commandFailure, type CommandRunner } from "./gcloud.ts";
 import { installRemedy } from "./install.ts";
 import type { CheckRow } from "./rows.ts";
-import { toolChecks, toolRows, type Part } from "./tools.ts";
+import { nativeWindows, toolChecks, toolRows, type Part } from "./tools.ts";
 
 let root: string;
 let calls: string[][];
@@ -144,16 +144,14 @@ describe("toolRows", () => {
   });
 
   describe("on native Windows", () => {
-    it("fails one row that points at WSL 2, and runs nothing", async () => {
-      const rows = await check({ platform: "win32" });
-      expect(rows).toEqual([
-        expect.objectContaining({
-          check: "windows",
-          status: "fail",
-          remedies: [expect.objectContaining({ run: "wsl --install" })],
-        }),
-      ]);
-      expect(calls).toEqual([]);
+    it("is one failing row that points at WSL 2; elsewhere there is none", () => {
+      expect(nativeWindows("win32")).toMatchObject({
+        check: "windows",
+        status: "fail",
+        remedies: [expect.objectContaining({ run: "wsl --install" })],
+      });
+      expect(nativeWindows("linux")).toBeUndefined();
+      expect(nativeWindows("darwin")).toBeUndefined();
     });
   });
 

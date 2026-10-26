@@ -33,16 +33,27 @@ export class CommandError extends Error {
   }
 }
 
+export const SIGN_IN_REMEDY = {
+  gcloud: { run: "gcloud auth login", where: "shell" },
+  gh: { run: "gh auth login", where: "shell" },
+  firebase: { run: "firebase login", where: "shell" },
+} as const satisfies Readonly<Partial<Record<Command, Remedy>>>;
+
 const SIGN_IN: Readonly<Partial<Record<Command, { pattern: RegExp; remedy: Remedy }>>> = {
   gcloud: {
     pattern: /auth login|no credentialed accounts|reauthenticat|active account/i,
-    remedy: { run: "gcloud auth login", where: "shell" },
+    remedy: SIGN_IN_REMEDY.gcloud,
   },
-  gh: { pattern: /gh auth login|not logged in/i, remedy: { run: "gh auth login", where: "shell" } },
+  gh: { pattern: /gh auth login|not logged in/i, remedy: SIGN_IN_REMEDY.gh },
   firebase: {
     pattern: /firebase login|not logged in|failed to authenticate/i,
-    remedy: { run: "firebase login", where: "shell" },
+    remedy: SIGN_IN_REMEDY.firebase,
   },
+};
+
+/** A CLI that is on PATH but says it is missing: macOS's /usr/bin/java stub. */
+const NOT_INSTALLED: Readonly<Partial<Record<Command, RegExp>>> = {
+  java: /Unable to locate a Java Runtime/,
 };
 
 /** A failed external command, with what to do when the cause is recognisable. */
@@ -56,8 +67,7 @@ export function commandFailure(
   }: { code?: string | number | null; stderr: string; message?: string },
 ): CommandError {
   const text = `${command} ${args.join(" ")} failed: ${stderr.trim() || message}`;
-  // macOS ships a /usr/bin/java stub that only says no Java is installed.
-  if (code === "ENOENT" || (command === "java" && /Unable to locate a Java Runtime/.test(stderr))) {
+  if (code === "ENOENT" || NOT_INSTALLED[command]?.test(stderr)) {
     return new CommandError(
       `${text} (${command} is not installed)`,
       [installRemedy(command)],
@@ -73,8 +83,7 @@ export function commandFailure(
       [
         {
           change: "sign in with an account that has access to the project (its owner)",
-          run: "gcloud auth login",
-          where: "shell",
+          ...SIGN_IN_REMEDY.gcloud,
         },
       ],
       "denied",

@@ -7,7 +7,8 @@ import { ASSET_CONTRACT } from "../assets.ts";
 import { REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { applyProfile } from "./apply.ts";
-import { doctor, doctorNext, doctorRemedies, type DoctorRow } from "./doctor.ts";
+import { doctor, doctorNext } from "./doctor.ts";
+import { rowRemedies, type CheckRow } from "./rows.ts";
 import { CommandError, commandFailure, type CommandRunner } from "./gcloud.ts";
 
 const BUCKET = "jci-oriente-brand-assets";
@@ -29,11 +30,11 @@ const run: CommandRunner = async (command, args) => {
   throw new CommandError(`${key} failed: unexpected in test`);
 };
 
-function statusOf(rows: DoctorRow[]): Record<string, DoctorRow["status"]> {
+function statusOf(rows: CheckRow[]): Record<string, CheckRow["status"]> {
   return Object.fromEntries(rows.map(({ check, status }) => [check, status]));
 }
 
-function rowFor(rows: DoctorRow[], check: string): DoctorRow {
+function rowFor(rows: CheckRow[], check: string): CheckRow {
   const row = rows.find((candidate) => candidate.check === check);
   if (!row) throw new Error(`no row ${check}`);
   return row;
@@ -69,8 +70,9 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-const diagnose = (options: { env?: Record<string, string>; nodeVersion?: string } = {}) =>
-  doctor({ ...TOOLS, repoRoot: root, env: ENV, run, ...options }).then(({ rows }) => rows);
+const diagnose = (
+  options: { env?: Record<string, string>; nodeVersion?: string; platform?: NodeJS.Platform } = {},
+) => doctor({ ...TOOLS, repoRoot: root, env: ENV, run, ...options }).then(({ rows }) => rows);
 
 describe("doctor", () => {
   it("reports every row, all passing, on a ready checkout", async () => {
@@ -273,6 +275,11 @@ describe("doctor", () => {
     expect(rowFor(rows, "brand.json").detail).toMatch(/name/);
   });
 
+  it("opens with the WSL 2 row on native Windows", async () => {
+    const [first] = await diagnose({ platform: "win32" });
+    expect(first).toMatchObject({ check: "windows", status: "fail" });
+  });
+
   it("fails a Node older than engines.node", async () => {
     expect(rowFor(await diagnose({ nodeVersion: "24.10.0" }), "node")).toMatchObject({
       status: "fail",
@@ -289,7 +296,7 @@ describe("doctor", () => {
   });
 
   describe("remedies", () => {
-    const runsOf = (row: DoctorRow) => (row.remedies ?? []).map(({ run }) => run);
+    const runsOf = (row: CheckRow) => (row.remedies ?? []).map(({ run }) => run);
 
     it("says how to fix each failing row", async () => {
       writeFileSync(join(root, ".firebaserc"), "{}");
@@ -343,7 +350,7 @@ describe("doctor", () => {
         }),
       );
       responses.set("pnpm --version", "11.4.0\n");
-      const runs = doctorRemedies(await diagnose({ env: { BRAND_PROFILE: "fixture" } })).map(
+      const runs = rowRemedies(await diagnose({ env: { BRAND_PROFILE: "fixture" } })).map(
         ({ run }) => run,
       );
       expect(runs).toEqual([

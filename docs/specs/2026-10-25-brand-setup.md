@@ -37,8 +37,8 @@ account, but only once a profile exists, and its install hints are a URL or noth
   Java 21 is firebase-tools' minimum (`MIN_SUPPORTED_JAVA_MAJOR_VERSION`).
 - **S7. Windows means WSL 2.** `pnpm dev` runs a bash script, and Node's `execFile` cannot
   start the `.cmd` shims `gcloud`, `firebase` and `pnpm` install on Windows. On native
-  Windows, `brand:setup` prints one failing row: install WSL 2 (`wsl --install`) and
-  follow the Linux commands inside it. Owner ruling, 2026-10-25.
+  Windows, `brand:setup` stops before any check, and `brand:doctor` opens with a failing
+  `windows` row: install WSL 2 (`wsl --install`) and follow the Linux commands inside it. Owner ruling, 2026-10-25.
 - **S8. Homebrew's keg-only OpenJDK counts.** `tools/scripts/emulators.sh` adds
   `/opt/homebrew/opt/openjdk/bin` to `PATH`, so `java` found only there is `ok` for
   `pnpm dev`, with a note. macOS's `/usr/bin/java` stub ("Unable to locate a Java

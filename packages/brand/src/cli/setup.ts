@@ -4,7 +4,7 @@ import { BEFORE_YOU_START, formatNext, formatRemedies, guideStep, type Remedy } 
 import { runCommand } from "./gcloud.ts";
 import { rowRemedies } from "./rows.ts";
 import { formatTable, plural } from "./table.ts";
-import { PART_TITLES, toolRows, type Part, type ToolRow } from "./tools.ts";
+import { PART_TITLES, nativeWindows, toolRows, type Part, type ToolRow } from "./tools.ts";
 
 /**
  * `pnpm brand:setup [--part try|live]`: the tools each part of docs/adopting.md needs, and
@@ -59,6 +59,11 @@ if (import.meta.main) {
     parts = parseParts(process.argv.slice(2));
   } catch (error) {
     console.error(`brand:setup: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+  const windows = nativeWindows();
+  if (windows) {
+    console.error(`brand:setup: ${windows.detail}.\n\n${formatRemedies(windows.remedies ?? [])}`);
     process.exit(1);
   }
   const rows = await toolRows({ parts, repoRoot: REPO_ROOT, run: runCommand });
