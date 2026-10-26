@@ -9,7 +9,7 @@ import {
 import { displayDir, releaseErrors, selectAssetsDir } from "../release.ts";
 import { formatNext, formatRemedies, type Problem, type Remedy } from "../remedy.ts";
 import { SITE_CONTENT_FILE, readSiteContent } from "../site-content.ts";
-import { cliFlag, runCli } from "./main.ts";
+import { runCli } from "./main.ts";
 import { formatTable, plural } from "./table.ts";
 
 export interface CheckRow {
@@ -131,13 +131,12 @@ export async function checkBrand({
 }
 
 if (import.meta.main) {
-  const argv = process.argv.slice(2);
-  const release = argv.includes("--release");
   await runCli(
     "brand:check",
     { switches: ["--release"], values: { "--assets": "folder" } },
-    async (profile) => {
-      const assets = cliFlag("--assets");
+    async (profile, args) => {
+      const release = args.has("--release");
+      const assets = args.value("--assets");
       if (release && assets) {
         throw new BrandConfigError(
           ["--assets and --release cannot be combined: release builds read only brand-assets/."],

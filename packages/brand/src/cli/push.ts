@@ -4,7 +4,7 @@ import { BrandConfigError, REPO_ROOT, type LoadedProfile } from "../load-profile
 import { PULLED_ASSETS_DIR, displayDir, undeployableProfileErrors } from "../release.ts";
 import { formatNext, type Remedy, guideStep } from "../remedy.ts";
 import { bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
-import { cliFlag, runCli } from "./main.ts";
+import { runCli } from "./main.ts";
 
 export const deployDispatch = (surface: "hosting" | "all") =>
   `gh workflow run deploy.yml -f surface=${surface}`;
@@ -68,8 +68,8 @@ export async function push({
 }
 
 if (import.meta.main) {
-  await runCli("brand:push", { values: { "--from": "folder" } }, async (profile) => {
-    const from = resolve(cliFlag("--from") ?? PULLED_ASSETS_DIR);
+  await runCli("brand:push", { values: { "--from": "folder" } }, async (profile, args) => {
+    const from = resolve(args.value("--from") ?? PULLED_ASSETS_DIR);
     const bucket = bucketUrl(profile.brand.assetsBucket);
     await push({ profile, from });
     console.log(

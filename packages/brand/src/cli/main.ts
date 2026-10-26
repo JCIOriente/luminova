@@ -1,4 +1,4 @@
-import { flagValue, parseArgs, type Args, type Flags } from "../argv.ts";
+import { parseArgs, type Args, type Flags } from "../argv.ts";
 import { BrandConfigError, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { formatRemedies } from "../remedy.ts";
 import { CommandError } from "./gcloud.ts";
@@ -20,10 +20,6 @@ export async function exitOnFailure(body: () => Promise<void> | void): Promise<v
     process.exit(1);
   }
 }
-
-/** A `--name <value>` flag of this command; a flag without a value is a config error. */
-export const cliFlag = (name: string, argv: readonly string[] = process.argv.slice(2)) =>
-  flagValue(argv, name, (message) => new BrandConfigError([message]));
 
 /**
  * Runs a brand command once its arguments are all ones it takes (`flags`); anything else

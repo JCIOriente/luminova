@@ -29,11 +29,17 @@ const MIN = `${MIN_ICON_MASTER_SIZE}×${MIN_ICON_MASTER_SIZE}`;
 
 type Master = { bytes: Buffer } | { reason: string };
 
+const MASTERS = [
+  { file: ICON_MASTER_FILE, kind: "PNG" },
+  { file: ICON_MASTER_SVG_FILE, kind: "SVG" },
+] as const;
+type MasterKind = (typeof MASTERS)[number]["kind"];
+
 /** The master's bytes, or why it cannot be used. A PNG's pixels are only decoded when rendering. */
-async function readMaster(file: string): Promise<Master> {
-  if (!statSync(file).isFile()) return { reason: "not a file" };
-  const bytes = readFileSync(file);
-  const reason = file.endsWith(ICON_MASTER_SVG_FILE) ? await svgReason(bytes) : masterReason(bytes);
+async function readMaster(path: string, kind: MasterKind): Promise<Master> {
+  if (!statSync(path).isFile()) return { reason: "not a file" };
+  const bytes = readFileSync(path);
+  const reason = kind === "SVG" ? await svgReason(bytes) : masterReason(bytes);
   return reason ? { reason } : { bytes };
 }
 
@@ -73,14 +79,10 @@ async function renderIcon(
   return (opaque ? icon.flatten({ background: color }) : icon).png().toBuffer();
 }
 
-interface Staged {
-  file: string;
-  temp: string;
-  png: Buffer;
-}
+const tempOf = (file: string) => join(dirname(file), `.${basename(file)}.tmp`);
 
-const removeTemps = (staged: readonly Staged[]) => {
-  for (const { temp } of staged) rmSync(temp, { force: true });
+const removeTemps = (files: readonly string[]) => {
+  for (const file of files) rmSync(tempOf(file), { force: true });
 };
 
 /**
@@ -89,41 +91,40 @@ const removeTemps = (staged: readonly Staged[]) => {
  * part of the set replaced; the error says how much.
  */
 function writeIcons(icons: readonly { file: string; png: Buffer }[], label: string): void {
-  const written: Staged[] = [];
-  try {
-    for (const { file, png } of icons) {
-      const temp = join(dirname(file), `.${basename(file)}.tmp`);
+  const files = icons.map(({ file }) => file);
+  for (const [index, { file, png }] of icons.entries()) {
+    try {
       mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(temp, png);
-      written.push({ file, temp, png });
+      writeFileSync(tempOf(file), png);
+    } catch (error) {
+      removeTemps(files.slice(0, index));
+      throw new BrandConfigError([
+        {
+          message: `could not write the icons, so no icon changed: ${errorMessage(error)}`,
+          remedies: [
+            {
+              change: `make sure ${label}/ and its folders can be written`,
+              run: "pnpm brand:icons",
+            },
+          ],
+        },
+      ]);
     }
-  } catch (error) {
-    removeTemps(written);
-    throw new BrandConfigError([
-      {
-        message: `could not write the icons, so no icon changed: ${errorMessage(error)}`,
-        remedies: [
-          { change: `make sure ${label}/ and its folders can be written`, run: "pnpm brand:icons" },
-        ],
-      },
-    ]);
   }
-  let replaced = 0;
-  try {
-    for (const { temp, file } of written) {
-      renameSync(temp, file);
-      replaced += 1;
+  for (const [index, file] of files.entries()) {
+    try {
+      renameSync(tempOf(file), file);
+    } catch (error) {
+      removeTemps(files.slice(index));
+      throw new BrandConfigError([
+        {
+          message: `${index} of ${files.length} icons replaced, then: ${errorMessage(error)}`,
+          remedies: [
+            { change: "fix what stopped it, then finish the set", run: "pnpm brand:icons --force" },
+          ],
+        },
+      ]);
     }
-  } catch (error) {
-    removeTemps(written.slice(replaced));
-    throw new BrandConfigError([
-      {
-        message: `${replaced} of ${written.length} icons replaced, then: ${errorMessage(error)}`,
-        remedies: [
-          { change: "fix what stopped it, then finish the set", run: "pnpm brand:icons --force" },
-        ],
-      },
-    ]);
   }
 }
 
@@ -147,10 +148,9 @@ export async function generateIcons({
     ICON_FILES.map((icon) => ({ app, icon, path: `${app}/${icon.name}` })),
   );
 
-  const masters = [ICON_MASTER_FILE, ICON_MASTER_SVG_FILE].filter((name) =>
-    existsSync(join(assetsDir, name)),
-  );
-  const masterLabel = `${label}/${masters.length === 1 ? masters[0] : `${ICON_MASTER_FILE} or ${ICON_MASTER_SVG_FILE}`}`;
+  const found = MASTERS.filter(({ file }) => existsSync(join(assetsDir, file)));
+  const only = found.length === 1 ? found[0] : undefined;
+  const masterLabel = `${label}/${only?.file ?? `${ICON_MASTER_FILE} or ${ICON_MASTER_SVG_FILE}`}`;
   const masterProblem = (reason: string): Problem => ({
     message: `${masterLabel}: ${reason}`,
     remedies: [
@@ -162,15 +162,14 @@ export async function generateIcons({
   });
 
   const problems: Problem[] = [];
-  let master: Master = { reason: "missing" };
-  if (masters.length > 1) {
-    master = { reason: "both are there" };
+  let master: Master | undefined;
+  if (found.length > 1) {
     problems.push({
       message: `${label}/${ICON_MASTER_FILE} and ${label}/${ICON_MASTER_SVG_FILE} are both there`,
       remedies: [{ change: "keep one master and delete the other", run: "pnpm brand:icons" }],
     });
   } else {
-    if (masters[0]) master = await readMaster(join(assetsDir, masters[0]));
+    master = only ? await readMaster(join(assetsDir, only.file), only.kind) : { reason: "missing" };
     if ("reason" in master) problems.push(masterProblem(master.reason));
   }
   const existing = force ? [] : targets.filter(({ path }) => existsSync(join(assetsDir, path)));
@@ -182,26 +181,25 @@ export async function generateIcons({
       ],
     });
   }
-  if (!("bytes" in master) || problems.length > 0) throw new BrandConfigError(problems);
+  if (!master || !("bytes" in master) || problems.length > 0) throw new BrandConfigError(problems);
+  const { bytes } = master;
 
-  let rendered: { path: string; png: Buffer }[];
+  let icons: { file: string; png: Buffer }[];
   try {
-    rendered = await Promise.all(
+    icons = await Promise.all(
       targets.map(async ({ app, icon, path }) => ({
-        path,
-        png: await renderIcon(master.bytes, icon, profile.brand.themeColor[app]),
+        file: join(assetsDir, path),
+        png: await renderIcon(bytes, icon, profile.brand.themeColor[app]),
       })),
     );
   } catch (error) {
     // The header check passed, so sharp is the first to read the pixels.
-    const kind = masters[0] === ICON_MASTER_SVG_FILE ? "SVG" : "PNG";
-    throw new BrandConfigError([masterProblem(`not a readable ${kind} (${errorMessage(error)})`)]);
+    throw new BrandConfigError([
+      masterProblem(`not a readable ${only?.kind ?? "PNG"} (${errorMessage(error)})`),
+    ]);
   }
-  writeIcons(
-    rendered.map(({ path, png }) => ({ file: join(assetsDir, path), png })),
-    label,
-  );
-  return rendered.map(({ path }) => `${label}/${path}`);
+  writeIcons(icons, label);
+  return targets.map(({ path }) => `${label}/${path}`);
 }
 
 const NEXT: readonly Remedy[] = [
@@ -212,11 +210,10 @@ const NEXT: readonly Remedy[] = [
 ];
 
 if (import.meta.main) {
-  const force = process.argv.slice(2).includes("--force");
-  await runCli("brand:icons", { switches: ["--force"] }, async (profile) => {
-    const written = await generateIcons({ profile, force });
+  await runCli("brand:icons", { switches: ["--force"] }, async (profile, args) => {
+    const written = await generateIcons({ profile, force: args.has("--force") });
     console.log(
-      `brand:icons: ${written.length} icons for profile "${profile.slug}" from ${PULLED_ASSETS_DIR}/${ICON_MASTER_FILE}:`,
+      `brand:icons: ${written.length} icons for profile "${profile.slug}" from the master in ${PULLED_ASSETS_DIR}/:`,
     );
     for (const path of written) console.log(`  ${path}`);
     console.log(`\n${formatNext(NEXT)}`);

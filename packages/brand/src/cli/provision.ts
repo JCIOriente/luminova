@@ -19,7 +19,7 @@ import {
 } from "../release.ts";
 import { formatNext, type Remedy, guideStep } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
-import { cliFlag, runCli } from "./main.ts";
+import { runCli } from "./main.ts";
 import { deployDispatch } from "./push.ts";
 
 const LIFECYCLE_FILE = "brand/bucket-lifecycle.json";
@@ -380,9 +380,8 @@ if (import.meta.main) {
   await runCli(
     "brand:provision",
     { switches: ["--apply"], values: { "--repo": "owner/name" } },
-    async (profile) => {
-      const argv = process.argv.slice(2);
-      if (argv.includes("--apply")) {
+    async (profile, args) => {
+      if (args.has("--apply")) {
         for (const { label, done } of await applyBucket({ profile })) {
           console.log(`brand:provision: ${label}: ${done ? "already done" : "applied"}`);
         }
@@ -390,7 +389,7 @@ if (import.meta.main) {
           `brand:provision: bucket ready.\n\n${formatNext(provisionNext({ applied: true, pushCommand: pushCommandFor(profile, REPO_ROOT) }))}`,
         );
       } else {
-        const repo = cliFlag("--repo", argv);
+        const repo = args.value("--repo");
         console.log(await printProvisioning({ profile, repo }));
         console.log(`\n${formatNext(provisionNext({ applied: false }))}`);
       }
