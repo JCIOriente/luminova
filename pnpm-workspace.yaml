@@ -86,7 +86,7 @@ allowBuilds:
   "@firebase/util": true
   esbuild: true
   protobufjs: true
-  # @vite-pwa/assets-generator (icon regen) pulls sharp, which ships a native
+  # @luminova/brand (pnpm brand:icons) uses sharp, which ships a native
   # postinstall. Unlisted build scripts make `pnpm install --frozen-lockfile`
   # hard-fail with ERR_PNPM_IGNORED_BUILDS in CI. Prebuilt binaries, safe to run.
   sharp: true
