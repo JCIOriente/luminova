@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BrandConfigError } from "../load-profile.ts";
 import { CommandError } from "./gcloud.ts";
-import { exitOnFailure } from "./main.ts";
+import { checkFlags, exitOnFailure, withProfile } from "./main.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -48,5 +48,37 @@ describe("exitOnFailure", () => {
         throw new TypeError("bug");
       }),
     ).rejects.toThrow(TypeError);
+  });
+});
+
+describe("checkFlags", () => {
+  const refusal = (run: () => void): BrandConfigError => {
+    try {
+      run();
+    } catch (error) {
+      if (error instanceof BrandConfigError) return error;
+      throw error;
+    }
+    throw new Error("expected a BrandConfigError");
+  };
+
+  it("passes what the command takes, --profile included", () => {
+    const flags = withProfile({ switches: ["--force"] });
+    expect(() => checkFlags("brand:icons", flags, ["--force", "--profile", "acme"])).not.toThrow();
+  });
+
+  it("refuses a typo, listing every flag the command takes", () => {
+    const error = refusal(() =>
+      checkFlags("brand:icons", withProfile({ switches: ["--force"] }), ["--forse"]),
+    );
+    expect(error.errors).toEqual(["unknown option --forse"]);
+    expect(error.remedies).toEqual([
+      { change: "use only what brand:icons takes: --force, --profile <slug>" },
+    ]);
+  });
+
+  it("says when a command takes no options", () => {
+    const error = refusal(() => checkFlags("brand:guard", {}, ["--profile", "acme"]));
+    expect(error.remedies).toEqual([{ change: "brand:guard takes no options" }]);
   });
 });

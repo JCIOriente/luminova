@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { renderBrandJsonSchema } from "../schema.ts";
+import { checkFlags, exitOnFailure } from "./main.ts";
 
 const SCHEMAS = [["brand/brand.schema.json", renderBrandJsonSchema()]] as const;
 
@@ -14,6 +15,8 @@ function committed(path: string): string {
     return "";
   }
 }
+
+await exitOnFailure(() => checkFlags("brand:schema", { switches: ["--check"] }));
 
 if (process.argv.includes("--check")) {
   const stale = SCHEMAS.filter(([path, expected]) => committed(path) !== expected);

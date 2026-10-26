@@ -6,6 +6,7 @@ import { sha256 } from "../hash.ts";
 import { NEUTRAL_PROFILE, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
 import type { Brand } from "../schema.ts";
+import { checkFlags, exitOnFailure } from "./main.ts";
 
 const MIN_NEEDLE_LENGTH = 6;
 const BUILD_COMMAND = "pnpm turbo run build --filter spotlight --filter backstage";
@@ -297,5 +298,6 @@ async function main(): Promise<number> {
 }
 
 if (import.meta.main) {
+  await exitOnFailure(() => checkFlags("brand:guard", {}));
   process.exit(await main());
 }
