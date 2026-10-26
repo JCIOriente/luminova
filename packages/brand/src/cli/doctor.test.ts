@@ -11,6 +11,7 @@ import { doctor, doctorNext, doctorRemedies, type DoctorRow } from "./doctor.ts"
 import { CommandError, commandFailure, type CommandRunner } from "./gcloud.ts";
 
 const BUCKET = "jci-oriente-brand-assets";
+const TOOLS = { nodeVersion: "24.15.0", platform: "linux" } as const;
 const ENV = {};
 
 let root: string;
@@ -56,6 +57,11 @@ beforeEach(() => {
     ["gcloud auth list", "owner@example.org\n"],
     ["gcloud storage objects list", `${ASSET_CONTRACT.map(({ path }) => path).join("\n")}\n`],
     ["pnpm --version", "11.5.1\n"],
+    ["java --version", "openjdk 21.0.5 2024-10-15 LTS\n"],
+    ["firebase --version", "15.22.1\n"],
+    ["gh --version", "gh version 2.103.0 (2026-10-21)\n"],
+    ["gh auth status", "  ✓ Logged in to github.com account octo (keyring)\n"],
+    ["gcloud --version", "Google Cloud SDK 586.0.0\n"],
   ]);
 });
 
@@ -64,9 +70,7 @@ afterEach(() => {
 });
 
 const diagnose = (options: { env?: Record<string, string>; nodeVersion?: string } = {}) =>
-  doctor({ repoRoot: root, env: ENV, run, nodeVersion: "24.15.0", ...options }).then(
-    ({ rows }) => rows,
-  );
+  doctor({ ...TOOLS, repoRoot: root, env: ENV, run, ...options }).then(({ rows }) => rows);
 
 describe("doctor", () => {
   it("reports every row, all passing, on a ready checkout", async () => {
@@ -83,6 +87,11 @@ describe("doctor", () => {
       "CD identity": "ok",
       node: "ok",
       pnpm: "ok",
+      java: "ok",
+      firebase: "ok",
+      gh: "ok",
+      "gh account": "ok",
+      gcloud: "ok",
     });
     expect(rowFor(rows, "selection").detail).toBe(
       'brand/ selects "jci-oriente" (the example: no chapter profile in brand/ yet)',
@@ -97,11 +106,18 @@ describe("doctor", () => {
 
   it("only ever reads: the exact external commands it runs", async () => {
     await diagnose();
-    expect(calls).toEqual([
-      ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"],
-      ["gcloud", "storage", "objects", "list", `gs://${BUCKET}/**`, "--format=value(name)"],
-      ["pnpm", "--version"],
-    ]);
+    expect(calls.map((call) => call.join(" ")).sort()).toEqual(
+      [
+        "firebase --version",
+        "gcloud --version",
+        "gcloud auth list --filter=status:ACTIVE --format=value(account)",
+        `gcloud storage objects list gs://${BUCKET}/** --format=value(name)`,
+        "gh --version",
+        "gh auth status --active",
+        "java --version",
+        "pnpm --version",
+      ].sort(),
+    );
   });
 
   it("keeps going after a failure: gcloud missing fails two rows, the rest still report", async () => {
@@ -114,7 +130,7 @@ describe("doctor", () => {
       new CommandError("gcloud storage objects list failed: spawn gcloud ENOENT"),
     );
     const rows = await diagnose();
-    expect(rows).toHaveLength(11);
+    expect(rows).toHaveLength(16);
     expect(statusOf(rows)).toMatchObject({ "gcloud account": "fail", bucket: "fail", pnpm: "ok" });
     expect(rowFor(rows, "gcloud account").detail).toMatch(/ENOENT/);
   });
@@ -169,7 +185,7 @@ describe("doctor", () => {
       repoRoot: root,
       env: ENV,
       run,
-      nodeVersion: "24.15.0",
+      ...TOOLS,
       profile: "jci-oriente",
     });
     expect(statusOf(rows)).toMatchObject({ selection: "warn", profile: "ok" });
@@ -244,7 +260,7 @@ describe("doctor", () => {
       status: "fail",
       detail: expect.stringMatching(/EISDIR/),
     });
-    expect(rows).toHaveLength(11);
+    expect(rows).toHaveLength(16);
   });
 
   it("fails the schema row with the schema errors", async () => {
@@ -283,7 +299,10 @@ describe("doctor", () => {
       expect(runsOf(rowFor(rows, ".firebaserc"))).toEqual(["pnpm brand:apply"]);
       expect(runsOf(rowFor(rows, "gcloud account"))).toEqual(["gcloud auth login"]);
       expect(runsOf(rowFor(rows, "bucket"))).toEqual(["pnpm brand:push"]);
-      expect(runsOf(rowFor(rows, "node"))).toEqual(["nvm install && nvm use"]);
+      expect(runsOf(rowFor(rows, "node"))).toEqual([
+        expect.stringMatching(/install\.sh \| bash$/),
+        "nvm install && nvm use",
+      ]);
     });
 
     it("sends a bucket that does not exist to brand:provision", async () => {
@@ -299,13 +318,21 @@ describe("doctor", () => {
       ]);
     });
 
-    it("says how to install a missing CLI", async () => {
+    it("says how to install a missing CLI, and skips its sign-in", async () => {
       responses.set(
         "gcloud auth list",
         commandFailure("gcloud", ["auth", "list"], { code: "ENOENT", stderr: "" }),
       );
-      const row = rowFor(await diagnose(), "gcloud account");
-      expect(row.remedies?.[0]?.change).toMatch(/install the Google Cloud CLI/);
+      responses.set(
+        "gcloud --version",
+        commandFailure("gcloud", ["--version"], { code: "ENOENT", stderr: "" }),
+      );
+      const rows = await diagnose();
+      expect(rowFor(rows, "gcloud").remedies?.[0]?.change).toMatch(/install the Google Cloud CLI/);
+      expect(rowFor(rows, "gcloud account")).toMatchObject({
+        status: "skip",
+        detail: "needs gcloud",
+      });
     });
 
     it("lists the fixes once, in row order", async () => {
@@ -353,17 +380,22 @@ describe("doctor", () => {
       expect(rowFor(rows, "profile").detail).toBe("brand/jci-valle/");
       expect(statusOf(rows)).toMatchObject({
         "CD identity": "skip",
+        gh: "skip",
+        "gh account": "skip",
+        gcloud: "skip",
         "gcloud account": "skip",
         bucket: "skip",
       });
       expect(rowFor(rows, "bucket").detail).toMatch(/local-only profile.*brand:init --connect/);
-      expect(calls.filter(([command]) => command === "gcloud")).toEqual([]);
+      expect(calls.filter(([command]) => command === "gcloud" || command === "gh")).toEqual([]);
     });
 
     it("orders the rows as the fixes must happen", async () => {
       expect((await diagnose()).map(({ check }) => check)).toEqual([
         "node",
         "pnpm",
+        "java",
+        "firebase",
         "selection",
         "profile",
         "brand.json",
@@ -371,6 +403,9 @@ describe("doctor", () => {
         "images",
         ".firebaserc",
         "CD identity",
+        "gh",
+        "gh account",
+        "gcloud",
         "gcloud account",
         "bucket",
       ]);

@@ -20,7 +20,8 @@ import { formatNext, type Remedy, guideStep } from "../remedy.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema } from "../schema.ts";
 import { SITE_CONTENT_FILE } from "../site-content.ts";
 import { FIREBASERC, applyProfile } from "./apply.ts";
-import { CommandError, INSTALL_FIREBASE_CLI, runCommand, type CommandRunner } from "./gcloud.ts";
+import { CommandError, runCommand, type CommandRunner } from "./gcloud.ts";
+import { INSTALL_FIREBASE_CLI } from "./install.ts";
 import { cliFlag, exitOnFailure } from "./main.ts";
 import { terminalPrompter, type Prompter } from "./prompts.ts";
 

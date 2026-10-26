@@ -1,13 +1,14 @@
 import { execFile } from "node:child_process";
 import type { Remedy } from "../remedy.ts";
+import { installRemedy } from "./install.ts";
 
 /**
- * The one seam to external CLIs (`gcloud`, `gh`, `firebase`, `pnpm`). Argument arrays only, never a shell
+ * The one seam to external CLIs (`gcloud`, `gh`, `firebase`, `pnpm`, `java`). Argument arrays only, never a shell
  * string, so no value from a profile or the bucket can be interpreted by a shell. Tests
  * inject a fake that records argv.
  */
 export type CommandRunner = (
-  command: "gcloud" | "gh" | "firebase" | "pnpm",
+  command: "gcloud" | "gh" | "firebase" | "pnpm" | "java",
   args: readonly string[],
 ) => Promise<string>;
 
@@ -32,19 +33,6 @@ export class CommandError extends Error {
   }
 }
 
-export const INSTALL_FIREBASE_CLI: Remedy = {
-  change: "install or update the Firebase CLI (CI pins 15.22.1)",
-  run: "npm install -g firebase-tools@15.22.1",
-  where: "shell",
-};
-
-const INSTALL: Readonly<Record<Command, Remedy>> = {
-  gcloud: { change: "install the Google Cloud CLI: https://cloud.google.com/sdk/docs/install" },
-  gh: { change: "install the GitHub CLI: https://cli.github.com" },
-  firebase: INSTALL_FIREBASE_CLI,
-  pnpm: { change: "enable pnpm", run: "corepack enable", where: "shell" },
-};
-
 const SIGN_IN: Readonly<Partial<Record<Command, { pattern: RegExp; remedy: Remedy }>>> = {
   gcloud: {
     pattern: /auth login|no credentialed accounts|reauthenticat|active account/i,
@@ -68,10 +56,11 @@ export function commandFailure(
   }: { code?: string | number | null; stderr: string; message?: string },
 ): CommandError {
   const text = `${command} ${args.join(" ")} failed: ${stderr.trim() || message}`;
-  if (code === "ENOENT") {
+  // macOS ships a /usr/bin/java stub that only says no Java is installed.
+  if (code === "ENOENT" || (command === "java" && /Unable to locate a Java Runtime/.test(stderr))) {
     return new CommandError(
       `${text} (${command} is not installed)`,
-      [INSTALL[command]],
+      [installRemedy(command)],
       "notInstalled",
     );
   }
