@@ -45,8 +45,9 @@ account, but only once a profile exists, and its install hints are a URL or noth
   `pnpm dev`. macOS's `/usr/bin/java` stub ("Unable to locate a Java Runtime") counts as
   not installed.
 - **S9. Sign-in checks are local and read-only.** `gcloud auth list`, `gh auth status`,
-  `firebase login:list` (`gh auth status` without `--active`, which gh before 2.40 rejects;
-  an invalid `GH_TOKEN` is told to be unset, since `gh auth login` cannot replace it);
+  `firebase login:list` (`gh auth status --active`, so another account's dead token does
+  not fail the row; without the flag on gh before 2.40, which rejects it. An invalid
+  `GH_TOKEN` is told to be unset, since `gh auth login` cannot replace it);
   Application Default Credentials (ADC) by file:
   `GOOGLE_APPLICATION_CREDENTIALS`, else `application_default_credentials.json` in the
   gcloud config folder (`CLOUDSDK_CONFIG` or `~/.config/gcloud`). A

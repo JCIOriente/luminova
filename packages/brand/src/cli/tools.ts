@@ -163,8 +163,13 @@ const CHECKS: readonly ToolCheck[] = [
     part: "live",
     tool: "gh",
     probe: async ({ run }) => {
-      // Without --active, which gh before 2.40 rejects: the active account, else the one.
-      const status = await run("gh", ["auth", "status"]);
+      // --active ignores other accounts' dead tokens; gh before 2.40 does not know it.
+      const status = await run("gh", ["auth", "status", "--active"]).catch((error: unknown) => {
+        if (error instanceof CommandError && /unknown flag: --active/.test(error.message)) {
+          return run("gh", ["auth", "status"]);
+        }
+        throw error;
+      });
       const account =
         /(?:account|as) (\S+)[^\n]*\n\s*- Active account: true/.exec(status)?.[1] ??
         /Logged in to \S+ (?:account|as) (\S+)/.exec(status)?.[1];

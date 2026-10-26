@@ -114,7 +114,7 @@ describe("toolRows", () => {
         "gcloud --version",
         "gcloud auth list --filter=status:ACTIVE --format=value(account)",
         "gh --version",
-        "gh auth status",
+        "gh auth status --active",
         "java --version",
         "pnpm --version",
       ].sort(),
@@ -270,15 +270,30 @@ describe("toolRows", () => {
 
     it("reads the active account among several, and gh's older wording", async () => {
       responses.set(
-        "gh auth status",
+        "gh auth status --active",
         "github.com\n  ✓ Logged in to github.com account old (keyring)\n  - Active account: false\n  ✓ Logged in to github.com account octo (keyring)\n  - Active account: true\n",
       );
       expect(rowFor(await check(), "gh account").detail).toBe("octo");
+    });
+
+    it("asks only about the active account, retrying without --active for gh before 2.40", async () => {
+      responses.delete("gh auth status");
+      responses.set(
+        "gh auth status --active",
+        commandFailure("gh", ["auth", "status", "--active"], {
+          stderr: "unknown flag: --active\n\nUsage:  gh auth status [flags]\n",
+        }),
+      );
       responses.set(
         "gh auth status",
         "github.com\n  ✓ Logged in to github.com as octo (oauth_token)\n",
       );
       expect(rowFor(await check(), "gh account").detail).toBe("octo");
+      expect(calls.filter(([command]) => command === "gh").map((call) => call.join(" "))).toEqual([
+        "gh --version",
+        "gh auth status --active",
+        "gh auth status",
+      ]);
     });
 
     it("says to unset an invalid GH_TOKEN, which gh auth login cannot replace", async () => {

@@ -115,7 +115,7 @@ describe("doctor", () => {
         "gcloud auth list --filter=status:ACTIVE --format=value(account)",
         `gcloud storage objects list gs://${BUCKET}/** --format=value(name)`,
         "gh --version",
-        "gh auth status",
+        "gh auth status --active",
         "java --version",
         "pnpm --version",
       ].sort(),

@@ -35,5 +35,5 @@ Branch `fix/brand-profile-discovery`, PR #270. Spec `docs/specs/2026-10-25-profi
 ## Deferred
 
 - R26 `brand:setup` (tool install and sign-in checks, "Before you start" in the adopting
-  guide): next session, stacked on this branch or off `main` after #270 merges (it reuses
-  `doctor.ts`, which this PR changed).
+  guide): done on `feat/brand-setup` off `main` after #270 merged; see
+  `docs/status/2026-10-25-brand-setup.md`.
