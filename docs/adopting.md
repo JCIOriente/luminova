@@ -216,12 +216,19 @@ Put these 16 PNG files in `brand-assets/` (its `README.txt` lists them too):
 | `<app>/apple-touch-icon-180x180.png` | 180×180 |
 | `<app>/pwa-192x192.png`, `<app>/pwa-512x512.png`, `<app>/maskable-icon-512x512.png` | 192×192, 512×512, 512×512 |
 
-`<app>` is `spotlight` and `backstage`, so 6 icons each. There is no icon generator in
-the repository yet (`docs/roadmap.md`); any tool that exports exact PNG sizes works.
+`<app>` is `spotlight` and `backstage`, so 6 icons each. You only have to make 4 of the 16
+by hand: the three logos and `og-image.png`. For the 12 icons, put your logo mark in
+`brand-assets/icon-master.png` (a square PNG of at least 512×512, best on a transparent
+background) and generate them:
 
 ```bash
+pnpm brand:icons            # the 12 icons from icon-master.png; --force replaces existing ones
 pnpm brand:check            # one row per file: expected, found, verdict
 ```
+
+The maskable and Apple icons get an opaque background in your `themeColor`; the others
+stay transparent. `brand:icons` never overwrites an icon without `--force`. You can also
+export the 12 icons yourself with any tool that writes exact PNG sizes.
 
 `brand:check` runs the same validator as the build and also schema-checks your
 `site-content.json`. A local build reads `brand-assets/` once it holds any of the 16

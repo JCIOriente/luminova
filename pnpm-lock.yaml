@@ -137,9 +137,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
-      '@vite-pwa/assets-generator':
-        specifier: ^2.0.0
-        version: 2.0.0(@types/node@26.6.5)
       '@vitejs/plugin-react':
         specifier: ^6.1.2
         version: 6.1.2(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
@@ -241,9 +238,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
-      '@vite-pwa/assets-generator':
-        specifier: ^2.0.0
-        version: 2.0.0(@types/node@26.6.5)
       '@vitejs/plugin-react':
         specifier: ^6.1.2
         version: 6.1.2(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
@@ -287,6 +281,9 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      sharp:
+        specifier: ^0.35.5
+        version: 0.35.5(@types/node@26.6.5)
       vite:
         specifier: ^8.3.5
         version: 8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1)
@@ -6542,7 +6539,8 @@ snapshots:
       hashery: 1.5.1
       keyv: 5.6.0
 
-  '@canvas/image-data@1.1.0': {}
+  '@canvas/image-data@1.1.0':
+    optional: true
 
   '@casl/ability@7.0.2':
     dependencies:
@@ -7464,6 +7462,7 @@ snapshots:
   '@quansync/fs@1.1.0':
     dependencies:
       quansync: 1.0.0
+    optional: true
 
   '@radix-ui/primitive@1.2.0': {}
 
@@ -8438,6 +8437,7 @@ snapshots:
       unconfig: 7.5.0
     transitivePeerDependencies:
       - '@types/node'
+    optional: true
 
   '@vitejs/plugin-react@6.1.2(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))':
     dependencies:
@@ -8670,7 +8670,8 @@ snapshots:
 
   bytes@3.1.2: {}
 
-  cac@7.1.0: {}
+  cac@7.1.0:
+    optional: true
 
   cacheable@2.5.0:
     dependencies:
@@ -8756,7 +8757,8 @@ snapshots:
       tree-kill: 1.2.2
       yargs: 18.0.0
 
-  consola@3.4.2: {}
+  consola@3.4.2:
+    optional: true
 
   content-disposition@2.0.1: {}
 
@@ -8835,12 +8837,14 @@ snapshots:
     dependencies:
       '@canvas/image-data': 1.1.0
       to-data-view: 1.1.0
+    optional: true
 
   decode-ico@0.4.1:
     dependencies:
       '@canvas/image-data': 1.1.0
       decode-bmp: 0.2.1
       to-data-view: 1.1.0
+    optional: true
 
   deep-is@0.1.4: {}
 
@@ -8858,7 +8862,8 @@ snapshots:
       has-property-descriptors: 1.0.2
       object-keys: 1.1.1
 
-  defu@6.1.7: {}
+  defu@6.1.7:
+    optional: true
 
   delayed-stream@1.0.0: {}
 
@@ -9629,7 +9634,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  ico-endec@0.1.6: {}
+  ico-endec@0.1.6:
+    optional: true
 
   iconv-lite@0.7.3:
     dependencies:
@@ -10339,7 +10345,8 @@ snapshots:
       es-define-property: 1.0.1
       side-channel: 1.1.1
 
-  quansync@1.0.0: {}
+  quansync@1.0.0:
+    optional: true
 
   range-parser@1.2.1: {}
 
@@ -10661,6 +10668,7 @@ snapshots:
       sharp: 0.35.5(@types/node@26.6.5)
     transitivePeerDependencies:
       - '@types/node'
+    optional: true
 
   sharp@0.35.5(@types/node@26.6.5):
     dependencies:
@@ -10920,7 +10928,8 @@ snapshots:
     dependencies:
       tldts-core: 7.4.19
 
-  to-data-view@1.1.0: {}
+  to-data-view@1.1.0:
+    optional: true
 
   toidentifier@1.0.1: {}
 
@@ -11044,6 +11053,7 @@ snapshots:
     dependencies:
       '@quansync/fs': 1.1.0
       quansync: 1.0.0
+    optional: true
 
   unconfig@7.5.0:
     dependencies:
@@ -11052,6 +11062,7 @@ snapshots:
       jiti: 2.7.0
       quansync: 1.0.0
       unconfig-core: 7.5.0
+    optional: true
 
   undici-types@8.9.0: {}
 
