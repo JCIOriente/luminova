@@ -83,7 +83,7 @@ Hooks (`.claude/hooks/`, wired in `.claude/settings.json`), all judging the tree
 
 Hook traps:
 
-- Until roadmap R1 merges, the hooks match raw command text. Keep the literal words for committing and for opening a PR out of every command's text, heredocs included, except in the command that performs them. Pass PR bodies with `--body-file`.
+- The hooks match raw command text. Keep the literal words for committing and for opening a PR out of every command's text, heredocs included, except in the command that performs them. Pass PR bodies with `--body-file`.
 - Hooks read the Bash tool's persistent cwd, not an inline `cd`. Before committing in a worktree, run a standalone `cd .worktrees/<slug>` call first.
 - Hooks run from the primary checkout's working tree: a merged hook or rubric change is inactive until the primary checkout is pulled, and a PR that adds a gate is not gated by it.
 - Subagents cannot commit in a worktree (their cwd resets to the primary checkout, so the guard blocks them, and `git -C` skips every hook). Brief them to edit and stop; the orchestrator commits, stamps and opens the PR.
