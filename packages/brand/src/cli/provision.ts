@@ -377,19 +377,23 @@ export async function printProvisioning({
 }
 
 if (import.meta.main) {
-  await runCli("brand:provision", async (profile) => {
-    const argv = process.argv.slice(2);
-    if (argv.includes("--apply")) {
-      for (const { label, done } of await applyBucket({ profile })) {
-        console.log(`brand:provision: ${label}: ${done ? "already done" : "applied"}`);
+  await runCli(
+    "brand:provision",
+    { switches: ["--apply"], values: { "--repo": "owner/name" } },
+    async (profile) => {
+      const argv = process.argv.slice(2);
+      if (argv.includes("--apply")) {
+        for (const { label, done } of await applyBucket({ profile })) {
+          console.log(`brand:provision: ${label}: ${done ? "already done" : "applied"}`);
+        }
+        console.log(
+          `brand:provision: bucket ready.\n\n${formatNext(provisionNext({ applied: true, pushCommand: pushCommandFor(profile, REPO_ROOT) }))}`,
+        );
+      } else {
+        const repo = cliFlag("--repo", argv);
+        console.log(await printProvisioning({ profile, repo }));
+        console.log(`\n${formatNext(provisionNext({ applied: false }))}`);
       }
-      console.log(
-        `brand:provision: bucket ready.\n\n${formatNext(provisionNext({ applied: true, pushCommand: pushCommandFor(profile, REPO_ROOT) }))}`,
-      );
-    } else {
-      const repo = cliFlag("--repo", argv);
-      console.log(await printProvisioning({ profile, repo }));
-      console.log(`\n${formatNext(provisionNext({ applied: false }))}`);
-    }
-  });
+    },
+  );
 }

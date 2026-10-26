@@ -68,7 +68,7 @@ export async function push({
 }
 
 if (import.meta.main) {
-  await runCli("brand:push", async (profile) => {
+  await runCli("brand:push", { values: { "--from": "folder" } }, async (profile) => {
     const from = resolve(cliFlag("--from") ?? PULLED_ASSETS_DIR);
     const bucket = bucketUrl(profile.brand.assetsBucket);
     await push({ profile, from });

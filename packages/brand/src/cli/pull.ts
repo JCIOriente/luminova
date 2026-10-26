@@ -118,7 +118,7 @@ export async function pull({
 }
 
 if (import.meta.main) {
-  await runCli("brand:pull", async (profile) => {
+  await runCli("brand:pull", {}, async (profile) => {
     const manifest = await pull({ profile });
     console.error(
       `brand:pull: ${manifest.objects.length} files from ${bucketUrl(manifest.bucket)} into ${PULLED_ASSETS_DIR}/ for profile "${manifest.profile}".`,

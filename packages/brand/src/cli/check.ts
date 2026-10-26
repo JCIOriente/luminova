@@ -133,38 +133,42 @@ export async function checkBrand({
 if (import.meta.main) {
   const argv = process.argv.slice(2);
   const release = argv.includes("--release");
-  await runCli("brand:check", async (profile) => {
-    const assets = cliFlag("--assets");
-    if (release && assets) {
-      throw new BrandConfigError(
-        ["--assets and --release cannot be combined: release builds read only brand-assets/."],
-        [
-          {
-            change: "drop --assets to check what a deploy would ship",
-            run: "pnpm brand:check --release",
-          },
-        ],
+  await runCli(
+    "brand:check",
+    { switches: ["--release"], values: { "--assets": "folder" } },
+    async (profile) => {
+      const assets = cliFlag("--assets");
+      if (release && assets) {
+        throw new BrandConfigError(
+          ["--assets and --release cannot be combined: release builds read only brand-assets/."],
+          [
+            {
+              change: "drop --assets to check what a deploy would ship",
+              run: "pnpm brand:check --release",
+            },
+          ],
+        );
+      }
+      const result = await checkBrand({ profile, release, assets });
+      const { assetsDir } = result;
+      const rows = checkRows(result);
+      console.log(
+        `brand:check: profile "${profile.slug}" (${SOURCE_LABEL[profile.source]}), assets in ${displayDir(REPO_ROOT, assetsDir)}/${release ? ", as a deploy would see it (--release)" : ""}`,
       );
-    }
-    const result = await checkBrand({ profile, release, assets });
-    const { assetsDir } = result;
-    const rows = checkRows(result);
-    console.log(
-      `brand:check: profile "${profile.slug}" (${SOURCE_LABEL[profile.source]}), assets in ${displayDir(REPO_ROOT, assetsDir)}/${release ? ", as a deploy would see it (--release)" : ""}`,
-    );
-    console.log(
-      formatTable([
-        ["FILE", "EXPECTED", "FOUND", "VERDICT"],
-        ...rows.map(({ item, expected, found, verdict }) => [item, expected, found, verdict]),
-      ]),
-    );
-    const fix = formatRemedies(checkRemedies(result));
-    if (fix) console.log(`\n${fix}`);
-    const failed = rows.filter((row) => row.failed).length;
-    if (failed > 0) {
-      console.error(`brand:check: ${plural(failed, "problem")}.`);
-      process.exit(1);
-    }
-    console.log(`brand:check: ok.\n\n${formatNext(CHECK_NEXT)}`);
-  });
+      console.log(
+        formatTable([
+          ["FILE", "EXPECTED", "FOUND", "VERDICT"],
+          ...rows.map(({ item, expected, found, verdict }) => [item, expected, found, verdict]),
+        ]),
+      );
+      const fix = formatRemedies(checkRemedies(result));
+      if (fix) console.log(`\n${fix}`);
+      const failed = rows.filter((row) => row.failed).length;
+      if (failed > 0) {
+        console.error(`brand:check: ${plural(failed, "problem")}.`);
+        process.exit(1);
+      }
+      console.log(`brand:check: ok.\n\n${formatNext(CHECK_NEXT)}`);
+    },
+  );
 }

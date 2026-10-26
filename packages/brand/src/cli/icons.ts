@@ -213,7 +213,7 @@ const NEXT: readonly Remedy[] = [
 
 if (import.meta.main) {
   const force = process.argv.slice(2).includes("--force");
-  await runCli("brand:icons", async (profile) => {
+  await runCli("brand:icons", { switches: ["--force"] }, async (profile) => {
     const written = await generateIcons({ profile, force });
     console.log(
       `brand:icons: ${written.length} icons for profile "${profile.slug}" from ${PULLED_ASSETS_DIR}/${ICON_MASTER_FILE}:`,
