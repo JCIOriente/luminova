@@ -31,6 +31,7 @@
     "brand:check": "node packages/brand/src/cli/check.ts",
     "brand:doctor": "node packages/brand/src/cli/doctor.ts",
     "brand:init": "node packages/brand/src/cli/init.ts",
+    "brand:icons": "node packages/brand/src/cli/icons.ts",
     "audit": "pnpm audit --audit-level=high",
     "test:seed": "node --test 'tools/scripts/lib/**/*.test.mjs'",
     "test:harness": "node --test \".claude/hooks/**/*.test.mjs\"",
