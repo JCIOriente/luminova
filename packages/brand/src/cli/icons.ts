@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import sharp from "sharp";
-import { ICON_FILES, LOGO_FILES, OG_IMAGE_FILE } from "../assets.ts";
+import { ICON_FILES, ICON_MASTER_FILE, LOGO_FILES, OG_IMAGE_FILE } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, type LoadedProfile } from "../load-profile.ts";
 import { readPngSize } from "../png.ts";
 import { BRAND_APPS } from "../ports.ts";
@@ -9,7 +9,6 @@ import { PULLED_ASSETS_DIR } from "../release.ts";
 import { formatNext, guideStep, type Problem, type Remedy } from "../remedy.ts";
 import { runCli } from "./main.ts";
 
-export const ICON_MASTER_FILE = "icon-master.png";
 const MIN_MASTER_SIZE = 512;
 
 /**

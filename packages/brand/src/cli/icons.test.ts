@@ -11,13 +11,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ICON_FILES, validateAssets } from "../assets.ts";
+import { ICON_FILES, ICON_MASTER_FILE, validateAssets } from "../assets.ts";
 import { writeAssetSet } from "../asset-set.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { encodePng } from "../png.ts";
 import { BRAND_APPS } from "../ports.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
-import { ICON_MASTER_FILE, generateIcons } from "./icons.ts";
+import { generateIcons } from "./icons.ts";
 
 let root: string;
 let assetsDir: string;

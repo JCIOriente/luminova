@@ -40,7 +40,7 @@ half-replaced, and a build that cannot find a value or file must stop.
 | D10 | `.firebaserc` | Generated (gitignored) from `brand.json` by `pnpm brand:apply`: the root `prepare` script on every install that links packages, plus explicit calls where a stale or missing file breaks something (the emulator script and the CD setup action; spike in section 5.9) | Its project id, site ids and storage bucket are brand values. Generated, it cannot point a fork at someone else's project. pnpm skips `prepare` on an "Already up to date" install, so `prepare` alone cannot be the only call site |
 | D11 | Firebase web config | Moves from `apps/*/.env.production` into `brand.json` (`firebase.web`); the Vite plugin feeds it to Vite's env for production builds. `.env.production` keeps only `VITE_FIREBASE_EMULATOR_ENABLED=false` | The leak with the worst effect in section 1. The keys are public client identifiers (standing decision in `docs/roadmap.md`), so committing them in the profile changes nothing about secrecy |
 | D12 | OG image URL | Content-hashed: `og-image.<sha256-8>.png`. A profile may list `og.legacyPaths`; `jci-oriente` lists `og-image-v3.png`, so the URL scrapers already cached keeps resolving | A new image gets a new URL automatically, which is the rule `apps/spotlight/CLAUDE.md` asks humans to follow by hand today. No query-string bust |
-| D13 | Icon generation from one master | **In scope as an authoring helper** (`pnpm brand:icons`), not a build step | `@vite-pwa/assets-generator` and `sharp` are already in both apps' devDependencies and in `allowBuilds` (`pnpm-workspace.yaml:128-131`), so the native-build gate is already paid. Keeping it out of the build keeps CD free of image processing; the build still requires the explicit files of section 5.4 |
+| D13 | Icon generation from one master | **In scope as an authoring helper** (`pnpm brand:icons`), not a build step | `sharp`, a devDependency of `@luminova/brand`, is already in `allowBuilds` (`pnpm-workspace.yaml`), so the native-build gate is already paid. It is called directly: the `@vite-pwa/assets-generator` presets emit neither `favicon-16` nor `favicon-32` (R21). Keeping it out of the build keeps CD free of image processing; the build still requires the explicit files of section 5.4 |
 | D14 | Sitemap routes | Stay in `apps/spotlight/seo-files.ts` | Routes are app structure, not chapter identity. Only the origin comes from the profile |
 | D15 | `qrPrefix` for JCI Oriente | Stays `jcioriente` | Member credentials already issued must keep scanning |
 | D16 | Design tokens | Unchanged (`--color-jci-*` in `packages/ui/src/theme.css`) | The JCI palette is shared by JCI chapters, the primary adopters. Only `themeColor` (meta, manifest) is per profile |
@@ -250,7 +250,7 @@ the committed `brand/<slug>/assets/`.
 | `spotlight/pwa-192x192.png`, `backstage/…` | 192×192 | PWA icon |
 | `spotlight/pwa-512x512.png`, `backstage/…` | 512×512 | PWA icon |
 | `spotlight/maskable-icon-512x512.png`, `backstage/…` | 512×512, full-bleed | Android adaptive icon |
-| `icon-master.png` or `.svg` | optional; never read by the build | Input to `brand:icons` |
+| `icon-master.png` | optional; square PNG, at least 512×512; never read by the build | Input to `brand:icons` |
 | `pull-manifest.json` | written by `brand:pull`; never uploaded | Profile name + object generations |
 
 Each app gets its own icon set so the two installed PWAs are distinguishable. Icon file
@@ -358,8 +358,7 @@ run it.
 Root `package.json` scripts, implemented in `packages/brand/src/cli/` as TypeScript run by
 Node 24's type stripping (precedent: `apps/beacon` `seed:roles`). External commands run
 through `execFile` with argument arrays, never a shell string. No new dependencies beyond
-`zod` (already pinned at 4.4.3 in the repo); `@vite-pwa/assets-generator` moves from both
-apps to the root.
+`zod` (already pinned at 4.4.3 in the repo) and, for `brand:icons`, `sharp` (R21).
 
 | Script | Does | Touches prod? |
 |---|---|---|
@@ -371,7 +370,7 @@ apps to the root.
 | `brand:pull` | Lists the bucket, downloads those generations into `brand-assets/`, writes `pull-manifest.json` | Reads only |
 | `brand:push [--from <dir>]` | Validates first, then uploads to the bucket; prints the Deploy dispatch command | **Yes — owner/adopter runs it** |
 | `brand:provision [--apply]` | Prints (default) or runs the idempotent bucket setup: create, versioning, lifecycle, IAM grant to the deploy SA. Also prints the `docs/ci-cd.md` section 6 block with the profile's project, repo and reviewer id filled in | **Yes — owner/adopter runs it** |
-| `brand:icons` | Generates both apps' icon sets from `brand-assets/icon-master.*` and `themeColor` | No |
+| `brand:icons` | Generates both apps' icon sets from `brand-assets/icon-master.png` and `themeColor` | No |
 | `brand:assert-dist <app>` | Checks the release marker against `$GCLOUD_PROJECT` / `GCP_PROJECT_ID` | No |
 | `brand:schema [--check]` | Regenerates `brand/brand.schema.json`; `--check` fails on drift (CI) | No |
 | `brand:guard` | The neutrality and inverse guards (section 7) | No |

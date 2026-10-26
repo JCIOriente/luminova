@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ASSET_CONTRACT } from "../assets.ts";
+import { ASSET_CONTRACT, ICON_MASTER_FILE } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
@@ -108,6 +108,8 @@ describe("init from an answers file", () => {
     for (const { path } of ASSET_CONTRACT) expect(readme).toContain(path);
     expect(readme).toContain("1200×630");
     expect(readme).toMatch(/never commit/i);
+    expect(readme).toContain(ICON_MASTER_FILE);
+    expect(readme).toContain("pnpm brand:icons");
   });
 
   it("becomes the profile brand/ selects and writes .firebaserc, but not CD's switch", async () => {
