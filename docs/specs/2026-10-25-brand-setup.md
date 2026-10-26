@@ -21,7 +21,7 @@ account, but only once a profile exists, and its install hints are a URL or noth
 - **S3. Severity follows the step that needs it.** A missing tool fails. A missing sign-in
   fails for `gh` and `gcloud` (step 9 needs both). `firebase account` and `gcloud ADC`
   warn: only `brand:init --connect --sdkconfig` (step 7, optional) and
-  `seed:production` (step 13) need them.
+  `seed:production` (step 13) need them; even an error in their check only warns.
 - **S4. Runs before `pnpm install`.** `setup.ts` imports no npm package, so a fresh clone
   can check its tools before installing anything: `node packages/brand/src/cli/setup.ts`
   needs Node alone. A test pins this. (`pnpm brand:setup` in a clone without
@@ -41,12 +41,17 @@ account, but only once a profile exists, and its install hints are a URL or noth
   `windows` row: install WSL 2 (`wsl --install`) and follow the Linux commands inside it. Owner ruling, 2026-10-25.
 - **S8. Homebrew's keg-only OpenJDK counts.** `tools/scripts/emulators.sh` adds
   `/opt/homebrew/opt/openjdk/bin` to `PATH`, so `java` found only there is `ok` for
-  `pnpm dev`, with a note. macOS's `/usr/bin/java` stub ("Unable to locate a Java
-  Runtime") counts as not installed.
+  `pnpm dev`, with a note; it wins over another Java on `PATH`, as it does in
+  `pnpm dev`. macOS's `/usr/bin/java` stub ("Unable to locate a Java Runtime") counts as
+  not installed.
 - **S9. Sign-in checks are local and read-only.** `gcloud auth list`, `gh auth status`,
-  `firebase login:list`; Application Default Credentials (ADC) by file:
+  `firebase login:list` (`gh auth status` without `--active`, which gh before 2.40 rejects;
+  an invalid `GH_TOKEN` is told to be unset, since `gh auth login` cannot replace it);
+  Application Default Credentials (ADC) by file:
   `GOOGLE_APPLICATION_CREDENTIALS`, else `application_default_credentials.json` in the
-  gcloud config folder (`CLOUDSDK_CONFIG` or `~/.config/gcloud`). No token is minted.
+  gcloud config folder (`CLOUDSDK_CONFIG` or `~/.config/gcloud`). A
+  `GOOGLE_APPLICATION_CREDENTIALS` naming a missing file is reported as such. No token is
+  minted.
 
 ## Docs
 

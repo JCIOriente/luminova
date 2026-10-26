@@ -115,7 +115,7 @@ describe("doctor", () => {
         "gcloud auth list --filter=status:ACTIVE --format=value(account)",
         `gcloud storage objects list gs://${BUCKET}/** --format=value(name)`,
         "gh --version",
-        "gh auth status --active",
+        "gh auth status",
         "java --version",
         "pnpm --version",
       ].sort(),
@@ -275,9 +275,10 @@ describe("doctor", () => {
     expect(rowFor(rows, "brand.json").detail).toMatch(/name/);
   });
 
-  it("opens with the WSL 2 row on native Windows", async () => {
-    const [first] = await diagnose({ platform: "win32" });
-    expect(first).toMatchObject({ check: "windows", status: "fail" });
+  it("stops at the WSL 2 row on native Windows", async () => {
+    const rows = await diagnose({ platform: "win32" });
+    expect(rows).toEqual([expect.objectContaining({ check: "windows", status: "fail" })]);
+    expect(calls).toEqual([]);
   });
 
   it("fails a Node older than engines.node", async () => {

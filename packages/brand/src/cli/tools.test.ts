@@ -114,7 +114,7 @@ describe("toolRows", () => {
         "gcloud --version",
         "gcloud auth list --filter=status:ACTIVE --format=value(account)",
         "gh --version",
-        "gh auth status --active",
+        "gh auth status",
         "java --version",
         "pnpm --version",
       ].sort(),
@@ -186,6 +186,15 @@ describe("toolRows", () => {
       ]);
     });
 
+    it("prefers Homebrew's OpenJDK, as pnpm dev does, over an older Java on PATH", async () => {
+      responses.set("java --version", "openjdk 17.0.2 2022-01-18\n");
+      const rows = await check({
+        platform: "darwin",
+        exists: (path) => path === "/opt/homebrew/opt/openjdk/bin/java",
+      });
+      expect(rowFor(rows, "java").status).toBe("ok");
+    });
+
     it("accepts Homebrew's keg-only OpenJDK, which pnpm dev puts on PATH", async () => {
       responses.set(
         "java --version",
@@ -200,7 +209,7 @@ describe("toolRows", () => {
       });
       expect(rowFor(rows, "java")).toMatchObject({
         status: "ok",
-        detail: "Homebrew OpenJDK, not on PATH (pnpm dev adds it)",
+        detail: "Homebrew OpenJDK (pnpm dev uses it)",
       });
     });
 
@@ -259,6 +268,35 @@ describe("toolRows", () => {
       });
     });
 
+    it("reads the active account among several, and gh's older wording", async () => {
+      responses.set(
+        "gh auth status",
+        "github.com\n  ✓ Logged in to github.com account old (keyring)\n  - Active account: false\n  ✓ Logged in to github.com account octo (keyring)\n  - Active account: true\n",
+      );
+      expect(rowFor(await check(), "gh account").detail).toBe("octo");
+      responses.set(
+        "gh auth status",
+        "github.com\n  ✓ Logged in to github.com as octo (oauth_token)\n",
+      );
+      expect(rowFor(await check(), "gh account").detail).toBe("octo");
+    });
+
+    it("says to unset an invalid GH_TOKEN, which gh auth login cannot replace", async () => {
+      responses.set(
+        "gh auth status",
+        commandFailure("gh", ["auth", "status"], {
+          stderr:
+            "github.com\n  X Failed to log in to github.com using token (GH_TOKEN)\n  - Active account: true\n  - The token in GH_TOKEN is invalid.\n",
+        }),
+      );
+      const row = rowFor(await check(), "gh account");
+      expect(row.status).toBe("fail");
+      expect(row.remedies?.map(({ run: command }) => command)).toEqual([
+        "unset GH_TOKEN",
+        "gh auth login",
+      ]);
+    });
+
     it("fails gcloud when nobody is signed in", async () => {
       responses.set("gcloud auth list", "");
       expect(rowFor(await check(), "gcloud account")).toMatchObject({
@@ -293,6 +331,41 @@ describe("toolRows", () => {
       writeFileSync(key, "{}");
       const rows = await check({ env: { GOOGLE_APPLICATION_CREDENTIALS: key } });
       expect(rowFor(rows, "gcloud ADC")).toMatchObject({ status: "ok", detail: key });
+    });
+
+    it("says when GOOGLE_APPLICATION_CREDENTIALS names a missing file", async () => {
+      const key = join(root, "gone.json");
+      const row = rowFor(
+        await check({ env: { GOOGLE_APPLICATION_CREDENTIALS: key } }),
+        "gcloud ADC",
+      );
+      expect(row).toMatchObject({
+        status: "warn",
+        detail: `${key} (GOOGLE_APPLICATION_CREDENTIALS) not found`,
+      });
+      expect(row.remedies?.[0]?.run).toBe("unset GOOGLE_APPLICATION_CREDENTIALS");
+    });
+
+    it("shortens only paths inside the home folder to ~", async () => {
+      const rows = await check({
+        env: { CLOUDSDK_CONFIG: join(root, "homeb") },
+        exists: () => true,
+      });
+      expect(rowFor(rows, "gcloud ADC").detail).toBe(
+        join(root, "homeb", "application_default_credentials.json"),
+      );
+      const inside = await check({ env: {}, exists: () => true });
+      expect(rowFor(inside, "gcloud ADC").detail).toBe(
+        join("~", ".config", "gcloud", "application_default_credentials.json"),
+      );
+    });
+
+    it("only warns when an optional sign-in check itself fails", async () => {
+      responses.set(
+        "firebase login:list",
+        commandFailure("firebase", ["login:list"], { stderr: "Error: unexpected" }),
+      );
+      expect(rowFor(await check(), "firebase account").status).toBe("warn");
     });
 
     it("looks in ~/.config/gcloud without CLOUDSDK_CONFIG", async () => {

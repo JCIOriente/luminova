@@ -162,6 +162,9 @@ export async function doctor({
   /** `--profile <slug>`: diagnose another profile than the one brand/ selects. */
   profile?: string;
 } = {}): Promise<{ rows: CheckRow[]; profile?: LoadedProfile }> {
+  // Nothing else runs on native Windows (brand-setup spec S7).
+  const windows = nativeWindows(platform);
+  if (windows) return { rows: [windows] };
   const { rows: profileChecks, profile } = profileRows(repoRoot, env, flag);
   // A local-only profile has no cloud yet: those rows wait for going live, and doctor
   // never calls gcloud for them.
@@ -182,9 +185,7 @@ export async function doctor({
 
   // Rows run in the order fixes must happen: the tools, the selection, the profile, then
   // the cloud.
-  const windows = nativeWindows(platform);
   const rows = [
-    ...(windows ? [windows] : []),
     ...trying,
     selectionRow(repoRoot, env, flag),
     ...profileChecks,

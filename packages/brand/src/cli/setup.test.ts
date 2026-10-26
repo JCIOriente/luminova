@@ -81,9 +81,10 @@ describe("setup.ts", () => {
       if (seen.has(file)) return;
       seen.add(file);
       const source = readFileSync(file, "utf8");
-      for (const [, specifier] of source.matchAll(
-        /^(?:import|export)\s+(?!type\b)(?:[^"';]*?\sfrom\s+)?"([^"]+)"/gm,
+      for (const [, fromClause, dynamic] of source.matchAll(
+        /^(?:import|export)\s+(?!type\b)(?:[^"';]*?\sfrom\s+)?["']([^"']+)["']|\bimport\(\s*["']([^"']+)["']/gm,
       )) {
+        const specifier = fromClause ?? dynamic;
         if (!specifier) continue;
         if (specifier.startsWith(".")) visit(resolve(dirname(file), specifier));
         else expect(specifier, `${file} imports ${specifier}`).toMatch(/^node:/);

@@ -74,6 +74,25 @@ export function commandFailure(
       "notInstalled",
     );
   }
+  // gh auth login cannot replace a token the shell exports; it has to go first.
+  const badToken =
+    command === "gh"
+      ? /The token in (GH_TOKEN|GITHUB_TOKEN) is invalid/.exec(stderr)?.[1]
+      : undefined;
+  if (badToken) {
+    return new CommandError(
+      text,
+      [
+        {
+          change: `${badToken} holds an invalid token: unset it`,
+          run: `unset ${badToken}`,
+          where: "shell",
+        },
+        SIGN_IN_REMEDY.gh,
+      ],
+      "signIn",
+    );
+  }
   const signIn = SIGN_IN[command];
   if (signIn?.pattern.test(stderr)) return new CommandError(text, [signIn.remedy], "signIn");
   if (command !== "gcloud") return new CommandError(text);

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { CommandError, SIGN_IN_REMEDY, type CommandRunner } from "./gcloud.ts";
 import { CI_FIREBASE_CLI, INSTALL_NVM, installRemedy, type Tool } from "./install.ts";
 import { fail, ok, skip, warn, type CheckRow } from "./rows.ts";
@@ -131,17 +131,19 @@ const CHECKS: readonly ToolCheck[] = [
     part: "try",
     tool: "java",
     probe: async ({ run, platform, exists }) => {
+      // emulators.sh puts it first on PATH, so it is the Java pnpm dev runs.
+      if (platform === "darwin" && exists(HOMEBREW_JAVA)) {
+        return ok("java", "Homebrew OpenJDK (pnpm dev uses it)");
+      }
       const install = [installRemedy("java", platform)];
       let output: string;
       try {
         output = await run("java", ["--version"]);
       } catch (error) {
-        if (!(error instanceof CommandError)) throw error;
-        if (error.kind === "notInstalled" && platform === "darwin" && exists(HOMEBREW_JAVA)) {
-          return ok("java", "Homebrew OpenJDK, not on PATH (pnpm dev adds it)");
-        }
         // A Java too old to know --version fails here too; either way, install 21.
-        if (error.kind !== "notInstalled") return fail("java", firstLine(error.message), install);
+        if (error instanceof CommandError && error.kind === "other") {
+          return fail("java", firstLine(error.message), install);
+        }
         throw error;
       }
       const version = /^\S+\s+(\d+(?:\.\d+)*)/.exec(firstLine(output))?.[1];
@@ -161,8 +163,12 @@ const CHECKS: readonly ToolCheck[] = [
     part: "live",
     tool: "gh",
     probe: async ({ run }) => {
-      const status = await run("gh", ["auth", "status", "--active"]);
-      return ok("gh account", /account (\S+)/.exec(status)?.[1] ?? "signed in");
+      // Without --active, which gh before 2.40 rejects: the active account, else the one.
+      const status = await run("gh", ["auth", "status"]);
+      const account =
+        /(?:account|as) (\S+)[^\n]*\n\s*- Active account: true/.exec(status)?.[1] ??
+        /Logged in to \S+ (?:account|as) (\S+)/.exec(status)?.[1];
+      return ok("gh account", account ?? "signed in");
     },
   },
   versionCheck(
@@ -189,11 +195,23 @@ const CHECKS: readonly ToolCheck[] = [
     optional: true,
     // By file, so no token is minted (S9).
     probe: async ({ env, home, exists }) => {
-      const file =
-        env.GOOGLE_APPLICATION_CREDENTIALS ||
-        join(env.CLOUDSDK_CONFIG || join(home, ".config", "gcloud"), ADC_FILE);
+      const key = env.GOOGLE_APPLICATION_CREDENTIALS;
+      // The variable wins over a new sign-in, so signing in again would not help.
+      if (key && !exists(key)) {
+        return warn("gcloud ADC", `${key} (GOOGLE_APPLICATION_CREDENTIALS) not found`, [
+          {
+            change: "fix the path, or unset it to use your gcloud sign-in",
+            run: "unset GOOGLE_APPLICATION_CREDENTIALS",
+            where: "shell",
+          },
+        ]);
+      }
+      const file = key || join(env.CLOUDSDK_CONFIG || join(home, ".config", "gcloud"), ADC_FILE);
       return exists(file)
-        ? ok("gcloud ADC", file.startsWith(home) ? `~${file.slice(home.length)}` : file)
+        ? ok(
+            "gcloud ADC",
+            file.startsWith(home + sep) ? join("~", file.slice(home.length + 1)) : file,
+          )
         : warn("gcloud ADC", "none yet (step 13 needs it)", [
             {
               change: "sign in for scripts (Application Default Credentials), before step 13",
@@ -247,8 +265,13 @@ const selectChecks = (parts: readonly Part[], required: boolean) =>
 export const toolChecks = (part: Part, { required = false } = {}): string[] =>
   selectChecks([part], required).map(({ check }) => check);
 
-/** A probe's failure as its row. */
-function failedRow(
+/** A probe's failure as its row; an optional check only warns (S3). */
+function failedRow(toolCheck: ToolCheck, platform: NodeJS.Platform, error: unknown): CheckRow {
+  const row = probeFailure(toolCheck, platform, error);
+  return toolCheck.optional && row.status === "fail" ? { ...row, status: "warn" } : row;
+}
+
+function probeFailure(
   { check, tool }: ToolCheck,
   platform: NodeJS.Platform,
   error: unknown,
