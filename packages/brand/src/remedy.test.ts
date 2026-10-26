@@ -2,7 +2,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO_ROOT } from "./load-profile.ts";
-import { GUIDE_STEPS, formatNext, formatRemedies, uniqueRemedies } from "./remedy.ts";
+import {
+  BEFORE_YOU_START,
+  GUIDE_STEPS,
+  formatNext,
+  formatRemedies,
+  uniqueRemedies,
+} from "./remedy.ts";
 
 describe("formatRemedies", () => {
   it("prints each remedy once, with the command and where to run it", () => {
@@ -73,6 +79,7 @@ describe("GUIDE_STEPS", () => {
   it("points every CLI step reference at the matching docs/adopting.md heading", () => {
     const guide = readFileSync(join(REPO_ROOT, "docs/adopting.md"), "utf8");
     const titles: Record<keyof typeof GUIDE_STEPS, string> = {
+      example: "Run the example",
       profile: "Create your profile",
       images: "Images",
       firebaseProject: "Firebase project",
@@ -84,5 +91,7 @@ describe("GUIDE_STEPS", () => {
     for (const [step, number] of Object.entries(GUIDE_STEPS)) {
       expect(guide).toContain(`### ${number}. ${titles[step as keyof typeof GUIDE_STEPS]}`);
     }
+    expect(BEFORE_YOU_START).toMatch(/^docs\/adopting\.md, "Before you start"$/);
+    expect(guide).toContain("\n## Before you start\n");
   });
 });

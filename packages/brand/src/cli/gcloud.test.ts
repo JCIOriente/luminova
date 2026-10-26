@@ -1,12 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { commandFailure } from "./gcloud.ts";
+import { installRemedy } from "./install.ts";
 
 describe("commandFailure", () => {
   it("says how to install a CLI that is not on PATH", () => {
     const error = commandFailure("gh", ["api", "user"], { code: "ENOENT", stderr: "" });
     expect(error.kind).toBe("notInstalled");
     expect(error.message).toMatch(/gh is not installed/);
-    expect(error.remedies[0]?.change).toMatch(/cli\.github\.com/);
+    expect(error.remedies).toEqual([installRemedy("gh")]);
+  });
+
+  it("reads macOS's java stub as Java not installed", () => {
+    const error = commandFailure("java", ["--version"], {
+      code: 1,
+      stderr:
+        "The operation couldn’t be completed. Unable to locate a Java Runtime.\nPlease visit http://www.java.com for information on installing Java.\n",
+    });
+    expect(error.kind).toBe("notInstalled");
+    expect(error.remedies).toEqual([installRemedy("java")]);
   });
 
   it.each([

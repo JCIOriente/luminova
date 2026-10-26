@@ -1,13 +1,14 @@
 import { execFile } from "node:child_process";
 import type { Remedy } from "../remedy.ts";
+import { installRemedy } from "./install.ts";
 
 /**
- * The one seam to external CLIs (`gcloud`, `gh`, `firebase`, `pnpm`). Argument arrays only, never a shell
+ * The one seam to external CLIs (`gcloud`, `gh`, `firebase`, `pnpm`, `java`). Argument arrays only, never a shell
  * string, so no value from a profile or the bucket can be interpreted by a shell. Tests
  * inject a fake that records argv.
  */
 export type CommandRunner = (
-  command: "gcloud" | "gh" | "firebase" | "pnpm",
+  command: "gcloud" | "gh" | "firebase" | "pnpm" | "java",
   args: readonly string[],
 ) => Promise<string>;
 
@@ -32,29 +33,27 @@ export class CommandError extends Error {
   }
 }
 
-export const INSTALL_FIREBASE_CLI: Remedy = {
-  change: "install or update the Firebase CLI (CI pins 15.22.1)",
-  run: "npm install -g firebase-tools@15.22.1",
-  where: "shell",
-};
-
-const INSTALL: Readonly<Record<Command, Remedy>> = {
-  gcloud: { change: "install the Google Cloud CLI: https://cloud.google.com/sdk/docs/install" },
-  gh: { change: "install the GitHub CLI: https://cli.github.com" },
-  firebase: INSTALL_FIREBASE_CLI,
-  pnpm: { change: "enable pnpm", run: "corepack enable", where: "shell" },
-};
+export const SIGN_IN_REMEDY = {
+  gcloud: { run: "gcloud auth login", where: "shell" },
+  gh: { run: "gh auth login", where: "shell" },
+  firebase: { run: "firebase login", where: "shell" },
+} as const satisfies Readonly<Partial<Record<Command, Remedy>>>;
 
 const SIGN_IN: Readonly<Partial<Record<Command, { pattern: RegExp; remedy: Remedy }>>> = {
   gcloud: {
     pattern: /auth login|no credentialed accounts|reauthenticat|active account/i,
-    remedy: { run: "gcloud auth login", where: "shell" },
+    remedy: SIGN_IN_REMEDY.gcloud,
   },
-  gh: { pattern: /gh auth login|not logged in/i, remedy: { run: "gh auth login", where: "shell" } },
+  gh: { pattern: /gh auth login|not logged in/i, remedy: SIGN_IN_REMEDY.gh },
   firebase: {
     pattern: /firebase login|not logged in|failed to authenticate/i,
-    remedy: { run: "firebase login", where: "shell" },
+    remedy: SIGN_IN_REMEDY.firebase,
   },
+};
+
+/** A CLI that is on PATH but says it is missing: macOS's /usr/bin/java stub. */
+const NOT_INSTALLED: Readonly<Partial<Record<Command, RegExp>>> = {
+  java: /Unable to locate a Java Runtime/,
 };
 
 /** A failed external command, with what to do when the cause is recognisable. */
@@ -68,11 +67,30 @@ export function commandFailure(
   }: { code?: string | number | null; stderr: string; message?: string },
 ): CommandError {
   const text = `${command} ${args.join(" ")} failed: ${stderr.trim() || message}`;
-  if (code === "ENOENT") {
+  if (code === "ENOENT" || NOT_INSTALLED[command]?.test(stderr)) {
     return new CommandError(
       `${text} (${command} is not installed)`,
-      [INSTALL[command]],
+      [installRemedy(command)],
       "notInstalled",
+    );
+  }
+  // gh auth login cannot replace a token the shell exports; it has to go first.
+  const badToken =
+    command === "gh"
+      ? /The token in (GH_TOKEN|GITHUB_TOKEN) is invalid/.exec(stderr)?.[1]
+      : undefined;
+  if (badToken) {
+    return new CommandError(
+      text,
+      [
+        {
+          change: `${badToken} holds an invalid token: unset it`,
+          run: `unset ${badToken}`,
+          where: "shell",
+        },
+        SIGN_IN_REMEDY.gh,
+      ],
+      "signIn",
     );
   }
   const signIn = SIGN_IN[command];
@@ -84,8 +102,7 @@ export function commandFailure(
       [
         {
           change: "sign in with an account that has access to the project (its owner)",
-          run: "gcloud auth login",
-          where: "shell",
+          ...SIGN_IN_REMEDY.gcloud,
         },
       ],
       "denied",

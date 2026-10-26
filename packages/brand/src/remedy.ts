@@ -14,6 +14,7 @@ export interface Remedy {
 
 /** The docs/adopting.md steps the CLI points at; a test checks each heading still matches. */
 export const GUIDE_STEPS = {
+  example: 1,
   profile: 2,
   images: 3,
   firebaseProject: 6,
@@ -22,6 +23,9 @@ export const GUIDE_STEPS = {
   provision: 9,
   goLive: 12,
 } as const;
+
+/** Install commands per OS for every tool (`brand:setup`); a test checks the heading. */
+export const BEFORE_YOU_START = 'docs/adopting.md, "Before you start"';
 
 export const guideStep = (step: keyof typeof GUIDE_STEPS) =>
   `docs/adopting.md step ${GUIDE_STEPS[step]}`;

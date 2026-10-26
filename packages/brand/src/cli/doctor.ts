@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { z } from "zod";
 import { ASSET_CONTRACT } from "../assets.ts";
 import {
   BrandConfigError,
@@ -14,49 +13,32 @@ import {
   loadProfile,
   discoverProfile,
   isExplicitSource,
-  readJsonFile,
   type DiscoveredSource,
   type Env,
   type LoadedProfile,
 } from "../load-profile.ts";
 import { FIREBASERC, firebasercContent } from "./apply.ts";
 import { checkBrand } from "./check.ts";
-import { formatNext, formatRemedies, uniqueRemedies, type Remedy, guideStep } from "../remedy.ts";
+import { formatNext, formatRemedies, type Remedy, guideStep } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
 import { cliFlag, exitOnFailure } from "./main.ts";
 import { deployDispatch } from "./push.ts";
 import { CONNECT_PROJECT, PRINT_GCP_SETUP, missingDeployProblem } from "../release.ts";
+import { fail, ok, rowRemedies, skip as skipRow, warn, type CheckRow } from "./rows.ts";
 import { formatTable, plural } from "./table.ts";
+import { nativeWindows, toolChecks, toolRows, type Part } from "./tools.ts";
 
-export interface DoctorRow {
-  check: string;
-  status: "ok" | "warn" | "fail" | "skip";
-  detail: string;
-  remedies?: readonly Remedy[];
-}
-
-const row =
-  (status: DoctorRow["status"]) =>
-  (check: string, detail: string, remedies?: readonly Remedy[]): DoctorRow => ({
-    check,
-    status,
-    detail,
-    remedies,
-  });
-const ok = row("ok");
-const warn = row("warn");
-const fail = row("fail");
-const skip = (check: string, detail = "needs a valid profile") => row("skip")(check, detail);
+const skip = (check: string, detail = "needs a valid profile") => skipRow(check, detail);
 
 /** A caught error as a row: its message in the cell (never a "To fix:" block), its remedies. */
-function failed(check: string, error: unknown): DoctorRow {
+function failed(check: string, error: unknown): CheckRow {
   if (error instanceof BrandConfigError)
     return fail(check, error.errors.join("; "), error.remedies);
   if (error instanceof CommandError) return fail(check, error.message, error.remedies);
   return fail(check, errorMessage(error));
 }
 
-async function attempt(check: string, body: () => Promise<DoctorRow>): Promise<DoctorRow> {
+async function attempt(check: string, body: () => Promise<CheckRow>): Promise<CheckRow> {
   try {
     return await body();
   } catch (error) {
@@ -68,7 +50,7 @@ function profileRows(
   repoRoot: string,
   env: Env,
   flag?: string,
-): { rows: DoctorRow[]; profile?: LoadedProfile } {
+): { rows: CheckRow[]; profile?: LoadedProfile } {
   let profile: LoadedProfile;
   try {
     profile = loadProfile({ repoRoot, env, profile: flag });
@@ -98,7 +80,7 @@ function profileRows(
   };
 }
 
-async function brandRows(profile: LoadedProfile, repoRoot: string, env: Env): Promise<DoctorRow[]> {
+async function brandRows(profile: LoadedProfile, repoRoot: string, env: Env): Promise<CheckRow[]> {
   const { assets, content } = await checkBrand({ profile, repoRoot, env });
   const assetsFailed = assets.filter(({ failed }) => failed).length;
   const total = ASSET_CONTRACT.length;
@@ -115,7 +97,7 @@ async function brandRows(profile: LoadedProfile, repoRoot: string, env: Env): Pr
   ];
 }
 
-function firebasercRow(profile: LoadedProfile, repoRoot: string): DoctorRow {
+function firebasercRow(profile: LoadedProfile, repoRoot: string): CheckRow {
   const file = join(repoRoot, FIREBASERC);
   const current = existsSync(file) ? readFileSync(file, "utf8") : null;
   if (current === firebasercContent(profile.brand)) {
@@ -126,7 +108,7 @@ function firebasercRow(profile: LoadedProfile, repoRoot: string): DoctorRow {
   ]);
 }
 
-async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<DoctorRow> {
+async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<CheckRow> {
   const bucket = profile.brand.assetsBucket;
   let listing: string;
   try {
@@ -158,103 +140,53 @@ async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<Do
       ]);
 }
 
-/** `>=X.Y.Z` only, the form `engines.node` uses here. */
-function meetsMinimum(version: string, range: string): boolean | null {
-  const minimum = /^>=\s*(\d+)\.(\d+)\.(\d+)$/.exec(range.trim());
-  const actual = /^v?(\d+)\.(\d+)\.(\d+)/.exec(version.trim());
-  if (!minimum || !actual) return null;
-  for (let part = 1; part <= 3; part += 1) {
-    const difference = Number(actual[part]) - Number(minimum[part]);
-    if (difference !== 0) return difference > 0;
-  }
-  return true;
-}
-
-const rootManifestSchema = z.looseObject({
-  engines: z.looseObject({ node: z.string().optional() }).optional(),
-  packageManager: z.string().optional(),
-});
-
-function readRootManifest(repoRoot: string): z.infer<typeof rootManifestSchema> {
-  const parsed = rootManifestSchema.safeParse(
-    readJsonFile(join(repoRoot, "package.json"), "package.json"),
-  );
-  return parsed.success ? parsed.data : {};
-}
-
-async function nodeRow(repoRoot: string, nodeVersion: string): Promise<DoctorRow> {
-  const engines = readRootManifest(repoRoot).engines?.node;
-  const meets = engines ? meetsMinimum(nodeVersion, engines) : true;
-  if (meets === null) return warn("node", `${nodeVersion} (cannot read engines "${engines}")`);
-  return meets
-    ? ok("node", nodeVersion)
-    : fail("node", `${nodeVersion} (needs ${engines})`, [
-        { change: "switch to the version in .nvmrc", run: "nvm install && nvm use" },
-      ]);
-}
-
-async function pnpmRow(repoRoot: string, run: CommandRunner): Promise<DoctorRow> {
-  const version = (await run("pnpm", ["--version"])).trim();
-  const pinned = readRootManifest(repoRoot).packageManager?.replace(/^pnpm@/, "");
-  return !pinned || version === pinned
-    ? ok("pnpm", version)
-    : warn("pnpm", `${version} (packageManager pins ${pinned})`, [
-        {
-          change: "use the pnpm that package.json's packageManager pins",
-          run: "corepack enable && corepack install",
-        },
-      ]);
-}
-
-async function gcloudAccountRow(run: CommandRunner): Promise<DoctorRow> {
-  const account = (
-    await run("gcloud", ["auth", "list", "--filter=status:ACTIVE", "--format=value(account)"])
-  ).trim();
-  return account
-    ? ok("gcloud account", account.split("\n")[0] ?? account)
-    : fail("gcloud account", "nobody signed in", [{ run: "gcloud auth login", where: "shell" }]);
-}
-
 /**
  * One row per check (spec section 5.9), every row always reported. Reads only: the
- * external commands are `gcloud auth list`, `gcloud storage objects list` and
- * `pnpm --version`.
+ * external commands are the tool checks of cli/tools.ts and `gcloud storage objects list`.
  */
 export async function doctor({
   repoRoot = REPO_ROOT,
   env = process.env,
   run = runCommand,
   nodeVersion = process.versions.node,
+  platform = process.platform,
+  home,
   profile: flag,
 }: {
   repoRoot?: string;
   env?: Env;
   run?: CommandRunner;
   nodeVersion?: string;
+  platform?: NodeJS.Platform;
+  home?: string;
   /** `--profile <slug>`: diagnose another profile than the one brand/ selects. */
   profile?: string;
-} = {}): Promise<{ rows: DoctorRow[]; profile?: LoadedProfile }> {
+} = {}): Promise<{ rows: CheckRow[]; profile?: LoadedProfile }> {
+  // Nothing else runs on native Windows (brand-setup spec S7).
+  const windows = nativeWindows(platform);
+  if (windows) return { rows: [windows] };
   const { rows: profileChecks, profile } = profileRows(repoRoot, env, flag);
   // A local-only profile has no cloud yet: those rows wait for going live, and doctor
   // never calls gcloud for them.
   const local = profile?.localOnly === true;
-  // A cloud row needs a connected profile; the gcloud sign-in only needs a non-local one.
-  const cloud = (check: string, body: (profile: LoadedProfile) => Promise<DoctorRow>) =>
+  const cloud = (check: string, body: (profile: LoadedProfile) => Promise<CheckRow>) =>
     local ? skip(check, LOCAL_ONLY) : profile ? attempt(check, () => body(profile)) : skip(check);
-  // The external commands are independent; start them together, report in order.
-  const [account, bucket, pnpm] = await Promise.all([
+  const tools = (part: Part) =>
+    toolRows({ parts: [part], repoRoot, run, env, nodeVersion, platform, home, required: true });
+  // The external commands are independent; start them together, report in order. Going
+  // live's tools wait with the cloud rows, but only need a non-local profile (spec S5).
+  const [trying, live, bucket] = await Promise.all([
+    tools("try"),
     local
-      ? skip("gcloud account", LOCAL_ONLY)
-      : attempt("gcloud account", () => gcloudAccountRow(run)),
+      ? toolChecks("live", { required: true }).map((check) => skip(check, LOCAL_ONLY))
+      : tools("live"),
     cloud("bucket", (loaded) => bucketRow(loaded, run)),
-    attempt("pnpm", () => pnpmRow(repoRoot, run)),
   ]);
 
   // Rows run in the order fixes must happen: the tools, the selection, the profile, then
   // the cloud.
   const rows = [
-    await attempt("node", () => nodeRow(repoRoot, nodeVersion)),
-    pnpm,
+    ...trying,
     selectionRow(repoRoot, env, flag),
     ...profileChecks,
     ...(profile
@@ -271,7 +203,7 @@ export async function doctor({
       : profile
         ? cdIdentityRow(profile)
         : skip("CD identity"),
-    account,
+    ...live,
     bucket,
   ];
   return { rows, profile };
@@ -286,7 +218,7 @@ const LEGACY_CONFIG_FILE = "luminova.json";
  * brand/ selects the chapter (spec P1); a leftover shell override or luminova.json is
  * flagged, never obeyed silently.
  */
-function selectionRow(repoRoot: string, env: Env, flag?: string): DoctorRow {
+function selectionRow(repoRoot: string, env: Env, flag?: string): CheckRow {
   let slug: string;
   let source: DiscoveredSource;
   try {
@@ -318,19 +250,11 @@ function selectionRow(repoRoot: string, env: Env, flag?: string): DoctorRow {
     : ok(SELECTION, selects);
 }
 
-function cdIdentityRow(profile: LoadedProfile): DoctorRow {
+function cdIdentityRow(profile: LoadedProfile): CheckRow {
   const missing = missingDeployProblem(profile);
   if (missing) return warn("CD identity", missing.message, missing.remedies);
   return ok("CD identity", profile.brand.deploy?.serviceAccount ?? "");
 }
-
-/** The remedies of failing and warning rows, each once, in row (fix) order. */
-export const doctorRemedies = (rows: readonly DoctorRow[]): Remedy[] =>
-  uniqueRemedies(
-    rows
-      .filter(({ status }) => status === "fail" || status === "warn")
-      .flatMap(({ remedies }) => remedies ?? []),
-  );
 
 const LOCAL_ONLY = "local-only profile; comes with going live (pnpm brand:init --connect)";
 
@@ -367,7 +291,7 @@ if (import.meta.main) {
         ...rows.map(({ check, status, detail }) => [check, status, detail]),
       ]),
     );
-    const fix = formatRemedies(doctorRemedies(rows));
+    const fix = formatRemedies(rowRemedies(rows));
     if (fix) console.log(`\n${fix}`);
     const failed = rows.filter(({ status }) => status === "fail").length;
     if (failed > 0) {

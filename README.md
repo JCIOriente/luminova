@@ -162,8 +162,10 @@ More: [`docs/architecture.md`](docs/architecture.md) ·
 
 ## Quickstart
 
-You need **Node 24**, **pnpm** (via `corepack enable`), the **Firebase CLI**, and a
-**Java runtime** — the Firestore emulator runs on the JVM.
+You need **Node 24**, **pnpm** (via `corepack enable`), the **Firebase CLI**, and
+**Java 21 or later** (the Firestore emulator runs on the JVM). `pnpm brand:setup` checks
+all four and prints the install command for your computer. The commands for macOS, Linux
+and Windows (WSL 2) are in [Before you start](docs/adopting.md#before-you-start).
 
 ```bash
 git clone https://github.com/JCIOriente/luminova.git
@@ -171,6 +173,7 @@ cd luminova
 nvm use                       # Node 24, pinned in .nvmrc
 corepack enable
 pnpm install
+pnpm brand:setup --part try   # Node, pnpm, Java, Firebase CLI: what it found, or how to install
 pnpm dev
 ```
 
