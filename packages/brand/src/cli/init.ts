@@ -30,7 +30,7 @@ import { SITE_CONTENT_FILE } from "../site-content.ts";
 import { FIREBASERC, applyProfile } from "./apply.ts";
 import { CommandError, runCommand, type CommandRunner } from "./gcloud.ts";
 import { INSTALL_FIREBASE_CLI } from "./install.ts";
-import { checkFlags, cliFlag, exitOnFailure } from "./main.ts";
+import { runBrandCommand } from "./main.ts";
 import { terminalPrompter, type Prompter } from "./prompts.ts";
 
 type Answers = Record<string, unknown>;
@@ -715,14 +715,12 @@ export async function connect({
 }
 
 if (import.meta.main) {
-  await exitOnFailure(async () => {
-    const argv = process.argv.slice(2);
-    checkFlags(
-      "brand:init",
-      { switches: ["--local", "--connect", "--sdkconfig"], values: { "--answers": "file" } },
-      argv,
-    );
-    const answersFile = cliFlag("--answers", argv);
+  const flags = {
+    switches: ["--local", "--connect", "--sdkconfig"],
+    values: { "--answers": "file" },
+  };
+  await runBrandCommand("brand:init", flags, async (args) => {
+    const answersFile = args.value("--answers");
     // pnpm runs root scripts from the workspace root; INIT_CWD is where the user typed.
     const cwd = process.env.INIT_CWD ?? process.cwd();
     const answers = answersFile ? readJsonFile(resolve(cwd, answersFile), answersFile) : {};
@@ -737,9 +735,9 @@ if (import.meta.main) {
       );
     }
     const prompter = answersFile ? undefined : terminalPrompter();
-    const fillWeb = argv.includes("--sdkconfig");
+    const fillWeb = args.has("--sdkconfig");
     try {
-      if (argv.includes("--connect")) {
+      if (args.has("--connect")) {
         const { slug, projectId } = await connect({ answers, prompter, fillWeb });
         console.log(
           `brand:init: brand/${slug}/brand.json now uses Firebase project ${projectId}; ${FIREBASERC} rewritten.\n\n${formatNext(CONNECT_NEXT)}`,
@@ -750,7 +748,7 @@ if (import.meta.main) {
         answers,
         prompter,
         fillWeb,
-        local: argv.includes("--local"),
+        local: args.has("--local"),
       });
       const where = local
         ? " It runs on this computer only, until you connect a Firebase project."

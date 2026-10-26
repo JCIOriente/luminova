@@ -21,7 +21,7 @@ import { FIREBASERC, firebasercContent } from "./apply.ts";
 import { checkBrand } from "./check.ts";
 import { formatNext, formatRemedies, type Remedy, guideStep } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
-import { checkFlags, cliFlag, exitOnFailure, withProfile } from "./main.ts";
+import { runBrandCommand } from "./main.ts";
 import { deployDispatch } from "./push.ts";
 import { CONNECT_PROJECT, PRINT_GCP_SETUP, missingDeployProblem } from "../release.ts";
 import { fail, ok, rowRemedies, skip as skipRow, warn, type CheckRow } from "./rows.ts";
@@ -283,9 +283,8 @@ export function doctorNext(profile: LoadedProfile): Remedy[] {
 }
 
 if (import.meta.main) {
-  await exitOnFailure(async () => {
-    checkFlags("brand:doctor", withProfile({}));
-    const { rows, profile } = await doctor({ profile: cliFlag("--profile") });
+  await runBrandCommand("brand:doctor", { values: { "--profile": "slug" } }, async (args) => {
+    const { rows, profile } = await doctor({ profile: args.value("--profile") });
     console.log(
       formatTable([
         ["CHECK", "STATUS", "DETAIL"],
