@@ -1,11 +1,30 @@
 import { uniqueRemedies, type Remedy } from "../remedy.ts";
+import { formatTable } from "./table.ts";
 
-/** One line of a `brand:setup` or `brand:doctor` table. */
+/** One line of a `brand:check` section. */
 export interface CheckRow {
   check: string;
   status: "ok" | "warn" | "fail" | "skip";
   detail: string;
   remedies?: readonly Remedy[];
+}
+
+export interface Section {
+  title: string;
+  rows: CheckRow[];
+}
+
+/** Each title over its rows; the columns line up across every section. */
+export function formatSections(sections: readonly Section[]): string {
+  const lines = formatTable(
+    sections.flatMap(({ rows }) =>
+      rows.map(({ check, status, detail }) => [check, status, detail]),
+    ),
+  ).split("\n");
+  let next = 0;
+  return sections
+    .map(({ title, rows }) => [title, ...rows.map(() => `  ${lines[next++] ?? ""}`)].join("\n"))
+    .join("\n\n");
 }
 
 const row =
