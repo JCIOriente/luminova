@@ -301,7 +301,7 @@ export function checkNext(profile: LoadedProfile): Remedy[] {
 }
 
 if (import.meta.main) {
-  await runBrandCommand("brand:check", {}, async () => {
+  await runBrandCommand("brand:check", async () => {
     const { sections, profile } = await check();
     console.log(formatSections(sections));
     const rows = sections.flatMap((section) => section.rows);

@@ -771,7 +771,7 @@ export async function runInit({
 }
 
 if (import.meta.main) {
-  await runBrandCommand("brand:init", {}, async () => {
+  await runBrandCommand("brand:init", async () => {
     const prompter = process.stdin.isTTY ? terminalPrompter() : undefined;
     try {
       console.log(await runInit({ prompter }));
