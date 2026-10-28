@@ -20,6 +20,12 @@ describe("parseParts", () => {
     expect(() => parseParts(["--part", "deploy"])).toThrow(/--part is "try" or "live"/);
     expect(() => parseParts(["--part"])).toThrow(/--part needs a value/);
   });
+
+  it("refuses an unknown flag, listing the one it takes", () => {
+    expect(() => parseParts(["--prat", "try"])).toThrow(
+      'unknown option --prat; unexpected argument "try". brand:setup takes --part <try|live>.',
+    );
+  });
 });
 
 describe("setupReport", () => {

@@ -27,7 +27,7 @@ export const formatOutputs = (outputs: Record<string, string>) =>
     .join("\n");
 
 if (import.meta.main) {
-  await runCli("brand:ci-config", (profile) => {
+  await runCli("brand:ci-config", {}, (profile) => {
     console.log(formatOutputs(ciConfig(profile)));
   });
 }

@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { flagValue } from "../argv.ts";
+import { parseArgs } from "../argv.ts";
 import { BEFORE_YOU_START, formatNext, formatRemedies, guideStep, type Remedy } from "../remedy.ts";
 import { runCommand } from "./gcloud.ts";
 import { rowRemedies } from "./rows.ts";
@@ -18,7 +18,12 @@ const PARTS: readonly Part[] = ["try", "live"];
 const isPart = (value: string): value is Part => PARTS.some((part) => part === value);
 
 export function parseParts(argv: readonly string[]): Part[] {
-  const value = flagValue(argv, "--part", (message) => new Error(message));
+  const args = parseArgs(
+    argv,
+    { values: { "--part": PARTS.join("|") } },
+    (problems, usage) => new Error(`${problems.join("; ")}. brand:setup takes ${usage}.`),
+  );
+  const value = args.value("--part");
   if (value === undefined) return [...PARTS];
   if (!isPart(value)) throw new Error(`--part is "try" or "live", not "${value}".`);
   return [value];

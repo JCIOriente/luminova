@@ -250,7 +250,7 @@ the committed `brand/<slug>/assets/`.
 | `spotlight/pwa-192x192.png`, `backstage/…` | 192×192 | PWA icon |
 | `spotlight/pwa-512x512.png`, `backstage/…` | 512×512 | PWA icon |
 | `spotlight/maskable-icon-512x512.png`, `backstage/…` | 512×512, full-bleed | Android adaptive icon |
-| `icon-master.png` | optional; square PNG, at least 512×512; never read by the build | Input to `brand:icons` |
+| `icon-master.png` or `icon-master.svg` | optional, one of them; a square PNG of at least 512×512 or a square SVG; never read by the build | Input to `brand:icons` |
 | `pull-manifest.json` | written by `brand:pull`; never uploaded | Profile name + object generations |
 
 Each app gets its own icon set so the two installed PWAs are distinguishable. Icon file
@@ -370,7 +370,7 @@ through `execFile` with argument arrays, never a shell string. No new dependenci
 | `brand:pull` | Lists the bucket, downloads those generations into `brand-assets/`, writes `pull-manifest.json` | Reads only |
 | `brand:push [--from <dir>]` | Validates first, then uploads to the bucket; prints the Deploy dispatch command | **Yes — owner/adopter runs it** |
 | `brand:provision [--apply]` | Prints (default) or runs the idempotent bucket setup: create, versioning, lifecycle, IAM grant to the deploy SA. Also prints the `docs/ci-cd.md` section 6 block with the profile's project, repo and reviewer id filled in | **Yes — owner/adopter runs it** |
-| `brand:icons` | Generates both apps' icon sets from `brand-assets/icon-master.png` and `themeColor` | No |
+| `brand:icons` | Generates both apps' icon sets from `brand-assets/icon-master.png` (or `.svg`) and `themeColor` | No |
 | `brand:assert-dist <app>` | Checks the release marker against `$GCLOUD_PROJECT` / `GCP_PROJECT_ID` | No |
 | `brand:schema [--check]` | Regenerates `brand/brand.schema.json`; `--check` fails on drift (CI) | No |
 | `brand:guard` | The neutrality and inverse guards (section 7) | No |

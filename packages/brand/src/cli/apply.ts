@@ -50,7 +50,7 @@ export function applyProfile({
 }
 
 if (import.meta.main) {
-  await runCli("brand:apply", (profile) => {
+  await runCli("brand:apply", {}, (profile) => {
     const result = applyProfile({ profile });
     console.log(
       `brand:apply: ${FIREBASERC} ${result.written ? "written" : "up to date"} for profile "${result.slug}" (project ${result.projectId}).`,

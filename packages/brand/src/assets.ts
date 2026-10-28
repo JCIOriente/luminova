@@ -9,8 +9,9 @@ import { PNG_HEADER_BYTES, readPngSize, type PngSize } from "./png.ts";
 export const LOGO_FILES = ["logo-main.png", "logo-on-dark.png", "logo-on-primary.png"] as const;
 
 export const OG_IMAGE_FILE = "og-image.png";
-/** Input to `brand:icons`; never read by the build. */
+/** Input to `brand:icons`, one or the other; never read by the build. */
 export const ICON_MASTER_FILE = "icon-master.png";
+export const ICON_MASTER_SVG_FILE = "icon-master.svg";
 export const PULL_MANIFEST_FILE = "pull-manifest.json";
 const MIN_LOGO_HEIGHT = 184;
 export const OG_IMAGE_WARN_BYTES = 300 * 1024;

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BrandConfigError } from "../load-profile.ts";
 import { CommandError } from "./gcloud.ts";
-import { exitOnFailure } from "./main.ts";
+import { exitOnFailure, runBrandCommand } from "./main.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -48,5 +48,45 @@ describe("exitOnFailure", () => {
         throw new TypeError("bug");
       }),
     ).rejects.toThrow(TypeError);
+  });
+});
+
+describe("runBrandCommand", () => {
+  it("runs the body with the flags it declared", async () => {
+    capture();
+    const seen: unknown[] = [];
+    await runBrandCommand(
+      "brand:icons",
+      { switches: ["--force"], values: { "--profile": "slug" } },
+      (args) => {
+        seen.push(args.has("--force"), args.value("--profile"));
+      },
+      ["--force", "--profile", "acme"],
+    );
+    expect(seen).toEqual([true, "acme"]);
+  });
+
+  it("refuses a typo before the body runs, listing every flag the command takes", async () => {
+    const { exit, printed } = capture();
+    let ran = false;
+    await runBrandCommand(
+      "brand:icons",
+      { switches: ["--force"], values: { "--profile": "slug" } },
+      () => {
+        ran = true;
+      },
+      ["--forse"],
+    );
+    expect(ran).toBe(false);
+    expect(printed.join("\n")).toMatch(
+      /unknown option --forse\nTo fix:\n {2}- brand:icons takes --force, --profile <slug>$/,
+    );
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it("says when a command takes no options", async () => {
+    const { printed } = capture();
+    await runBrandCommand("brand:guard", {}, () => undefined, ["--profile", "acme"]);
+    expect(printed.join("\n")).toContain("brand:guard takes no options");
   });
 });
