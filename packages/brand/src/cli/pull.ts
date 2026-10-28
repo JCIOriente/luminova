@@ -29,7 +29,7 @@ export interface PullManifest {
 }
 
 export const PULL_NEXT: readonly Remedy[] = [
-  { change: "check the downloaded images as a deploy would", run: "pnpm brand:check --release" },
+  { change: "deploy the sites with these images (project owner)", run: "pnpm deploy:hosting" },
 ];
 
 /**
@@ -101,8 +101,8 @@ export async function pull({
         validation.errors.map((error) => bucketUrl(bucket, error)),
         [
           {
-            change: "replace the bad files: brand:push checks a set before uploading it",
-            run: "pnpm brand:push --from <folder with the fixed set>",
+            change: `fix the files in ${PULLED_ASSETS_DIR}/ (pnpm brand:check names them), then upload them: brand:push checks a set before uploading it`,
+            run: "pnpm brand:push",
           },
         ],
       );
