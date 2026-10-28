@@ -18,7 +18,7 @@ import {
   type LoadedProfile,
 } from "../load-profile.ts";
 import { FIREBASERC, firebasercContent } from "./apply.ts";
-import { formatNext, formatRemedies, type Problem, type Remedy, guideStep } from "../remedy.ts";
+import { formatNext, type Problem, type Remedy, guideStep } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
 import { checkImages } from "./images.ts";
 import { runBrandCommand } from "./main.ts";
@@ -27,9 +27,8 @@ import { CONNECT_PROJECT, missingDeployProblem } from "../release.ts";
 import { SITE_CONTENT_FILE, readSiteContent } from "../site-content.ts";
 import {
   fail,
-  formatSections,
+  formatReport,
   ok,
-  rowRemedies,
   skip as skipRow,
   warn,
   type CheckRow,
@@ -248,16 +247,17 @@ export async function check({
   const tools = (part: Part) =>
     toolRows({ parts: [part], repoRoot, run, env, nodeVersion, platform, home });
   // The external commands are independent; start them together, report in order.
-  const [trying, live, bucket] = await Promise.all([
+  const [trying, live, bucket, content] = await Promise.all([
     tools("try"),
     local ? [] : tools("live"),
     profile && !local ? attempt("bucket", () => bucketRow(profile, run)) : skip("bucket"),
+    profile ? attempt("site content", () => siteContentRow(profile)) : skip("site content"),
   ]);
 
   const chapter = [
     selectionRow(repoRoot, env),
     ...profileChecks,
-    profile ? await attempt("site content", () => siteContentRow(profile)) : skip("site content"),
+    content,
     profile
       ? await attempt(FIREBASERC, async () => firebasercRow(profile, repoRoot))
       : skip(FIREBASERC),
@@ -303,11 +303,8 @@ export function checkNext(profile: LoadedProfile): Remedy[] {
 if (import.meta.main) {
   await runBrandCommand("brand:check", async () => {
     const { sections, profile } = await check();
-    console.log(formatSections(sections));
-    const rows = sections.flatMap((section) => section.rows);
-    const fix = formatRemedies(rowRemedies(rows));
-    if (fix) console.log(`\n${fix}`);
-    const failures = rows.filter(({ status }) => status === "fail").length;
+    const { text, failures } = formatReport(sections);
+    console.log(text);
     if (failures > 0) {
       console.error(`\nbrand:check: ${plural(failures, "problem")}.`);
       process.exit(1);

@@ -14,6 +14,9 @@ export interface Prompter {
   ask(question: Question): Promise<string>;
 }
 
+/** A yes/no reply: only y or yes (any case) is yes; anything else, blank included, is no. */
+export const isYes = (reply: string) => /^y(es)?$/i.test(reply.trim());
+
 /** A yes/no question whose default is no. */
 export type Confirm = (question: string) => Promise<boolean>;
 
@@ -29,7 +32,7 @@ export function terminalConfirm(
   return async (question) => {
     const readline = createInterface({ input, output });
     try {
-      return /^y(es)?$/i.test((await readline.question(`${question} (y/N) `)).trim());
+      return isYes(await readline.question(`${question} (y/N) `));
     } finally {
       readline.close();
     }

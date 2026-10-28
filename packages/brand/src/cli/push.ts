@@ -2,11 +2,11 @@ import { join } from "node:path";
 import { contractByFolder } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, type Env, type LoadedProfile } from "../load-profile.ts";
 import { displayDir, undeployableProfileErrors } from "../release.ts";
-import { formatNext, formatRemedies, type Remedy, guideStep } from "../remedy.ts";
+import { formatNext, type Remedy, guideStep } from "../remedy.ts";
 import { bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
 import { checkImages, type Images } from "./images.ts";
 import { runCli } from "./main.ts";
-import { formatSections, rowRemedies } from "./rows.ts";
+import { formatReport, formatSections } from "./rows.ts";
 import { plural } from "./table.ts";
 
 export const deployDispatch = (surface: "hosting" | "all") =>
@@ -83,11 +83,8 @@ if (import.meta.main) {
       images = await push({ profile });
     } catch (error) {
       if (!(error instanceof ImagesNotReadyError)) throw error;
-      const { rows } = error.images;
-      const problems = rows.filter(({ status }) => status === "fail").length;
-      console.error(
-        `${formatSections([error.images])}\n\n${formatRemedies(rowRemedies(rows))}\n\nbrand:push: nothing uploaded, ${plural(problems, "problem")}.`,
-      );
+      const { text, failures } = formatReport([error.images]);
+      console.error(`${text}\n\nbrand:push: nothing uploaded, ${plural(failures, "problem")}.`);
       process.exit(1);
     }
     console.log(

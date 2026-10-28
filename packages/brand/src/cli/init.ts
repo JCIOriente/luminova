@@ -31,7 +31,7 @@ import { FIREBASERC, applyProfile } from "./apply.ts";
 import { CommandError, runCommand, type CommandRunner } from "./gcloud.ts";
 import { INSTALL_FIREBASE_CLI } from "./install.ts";
 import { runBrandCommand } from "./main.ts";
-import { terminalPrompter, type Prompter } from "./prompts.ts";
+import { isYes, terminalPrompter, type Prompter } from "./prompts.ts";
 
 type Answers = Record<string, unknown>;
 
@@ -437,7 +437,7 @@ async function askProject(
   return (
     fillWeb ||
     (prompter !== undefined &&
-      /^y/i.test(
+      isYes(
         await prompter.ask({
           key: "fillWeb",
           label: "Read the API keys with firebase apps:sdkconfig? Needs firebase login (y/N)",
@@ -533,7 +533,7 @@ export async function init({
     local ||=
       prompter !== undefined &&
       get(answers, "firebase.projectId") === undefined &&
-      !/^y/i.test(await prompter.ask(HAS_PROJECT));
+      !isYes(await prompter.ask(HAS_PROJECT));
     if (local && answers.firebase !== undefined) {
       throw new BrandConfigError(
         ['your answers have a "firebase" block, but a local-only profile runs on demo-<slug>'],
@@ -705,7 +705,7 @@ export async function connect({
 }
 
 const yes = async (prompter: Prompter, key: string, label: string) =>
-  /^y(es)?$/i.test(await prompter.ask({ key, label: `${label} (y/N)` }));
+  isYes(await prompter.ask({ key, label: `${label} (y/N)` }));
 
 function readSavedAnswers(file: string): Answers {
   const answers = readJsonFile(file, ANSWERS_FILE);
