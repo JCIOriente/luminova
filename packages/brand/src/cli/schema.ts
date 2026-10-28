@@ -16,18 +16,20 @@ function committed(path: string): string {
   }
 }
 
-await runBrandCommand("brand:schema", { switches: ["--check"] }, (args) => {
-  if (args.has("--check")) {
-    const stale = SCHEMAS.filter(([path, expected]) => committed(path) !== expected);
-    for (const [path] of stale) {
-      console.error(`${path} is stale: run \`pnpm brand:schema\` and commit it.`);
+if (import.meta.main) {
+  await runBrandCommand("brand:schema", { switches: ["--check"] }, (args) => {
+    if (args.has("--check")) {
+      const stale = SCHEMAS.filter(([path, expected]) => committed(path) !== expected);
+      for (const [path] of stale) {
+        console.error(`${path} is stale: run \`pnpm brand:schema\` and commit it.`);
+      }
+      if (stale.length > 0) process.exit(1);
+      console.log(`Up to date: ${SCHEMAS.map(([path]) => path).join(", ")}.`);
+    } else {
+      for (const [path, expected] of SCHEMAS) {
+        writeFileSync(target(path), expected);
+        console.log(`Wrote ${path}.`);
+      }
     }
-    if (stale.length > 0) process.exit(1);
-    console.log(`Up to date: ${SCHEMAS.map(([path]) => path).join(", ")}.`);
-  } else {
-    for (const [path, expected] of SCHEMAS) {
-      writeFileSync(target(path), expected);
-      console.log(`Wrote ${path}.`);
-    }
-  }
-});
+  });
+}
