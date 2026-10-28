@@ -10,6 +10,7 @@ import { checkImages } from "./images.ts";
 
 let root: string;
 let profile: LoadedProfile;
+let ownAssets: string;
 const TOTAL = ASSET_CONTRACT.length;
 
 const images = (env: Record<string, string> = {}) => checkImages({ profile, repoRoot: root, env });
@@ -20,6 +21,10 @@ beforeEach(() => {
   cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
   profile = loadProfile({ repoRoot: root, profile: "jci-oriente" });
   writeAssetSet(brandAssets());
+  // A chapter profile has no images of its own; the example's would add the other-folder note.
+  ownAssets = join(root, "brand/jci-oriente/assets");
+  cpSync(ownAssets, join(root, "example-assets"), { recursive: true });
+  rmSync(ownAssets, { recursive: true });
 });
 
 afterEach(() => {
@@ -88,7 +93,20 @@ describe("checkImages", () => {
     });
   });
 
+  it("notes the profile's own images when brand-assets/ wins over them", () => {
+    cpSync(join(root, "example-assets"), ownAssets, { recursive: true });
+    const { dir, rows } = images();
+    expect(dir).toBe(brandAssets());
+    expect(rows.at(-1)).toMatchObject({
+      check: "other folder",
+      status: "warn",
+      detail:
+        "brand/jci-oriente/assets/ also holds images; they are not used while brand-assets/ holds any",
+    });
+  });
+
   it("reads the profile's own images while brand-assets/ holds none, and says so", () => {
+    cpSync(join(root, "example-assets"), ownAssets, { recursive: true });
     rmSync(brandAssets(), { recursive: true });
     const { title, dir, rows } = images();
     expect(dir).toBe(join(root, "brand/jci-oriente/assets"));

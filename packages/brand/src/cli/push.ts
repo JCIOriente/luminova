@@ -57,6 +57,19 @@ export async function push({
   run?: CommandRunner;
 }): Promise<Images> {
   const refused = undeployableProfileErrors(profile);
+  if (env.BRAND_ASSETS_DIR?.trim()) {
+    refused.push({
+      message:
+        "BRAND_ASSETS_DIR is set in your environment; brand:push uploads only the images brand:check reads without it.",
+      remedies: [
+        {
+          change: "remove it from your environment (tools set it for test builds only)",
+          run: "unset BRAND_ASSETS_DIR",
+          where: "shell",
+        },
+      ],
+    });
+  }
   if (refused.length > 0) throw new BrandConfigError(refused);
   const images = checkImages({ profile, repoRoot, env });
   if (images.validation.errors.length > 0) throw new ImagesNotReadyError(images);

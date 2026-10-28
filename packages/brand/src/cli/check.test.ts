@@ -50,6 +50,8 @@ beforeEach(() => {
     JSON.stringify({ engines: { node: ">=24.15.0" }, packageManager: "pnpm@11.5.1" }),
   );
   writeAssetSet(join(root, PULLED_ASSETS_DIR));
+  // Images live in brand-assets/ here; the example's own would add the other-folder note.
+  rmSync(join(root, "brand/jci-oriente/assets"), { recursive: true });
   applyProfile({
     profile: loadProfile({ repoRoot: root, profile: "jci-oriente" }),
     repoRoot: root,
@@ -348,13 +350,23 @@ describe("check", () => {
         }),
       );
       responses.set("pnpm --version", "11.4.0\n");
-      const runs = rowRemedies(await diagnose({ env: { BRAND_PROFILE: "fixture" } })).map(
-        ({ run }) => run,
+      const fixes = rowRemedies(await diagnose({ env: { BRAND_PROFILE: "fixture" } })).map(
+        ({ change, run }) => run ?? change,
       );
-      expect(runs).toEqual([
+      expect(fixes).toEqual([
         "corepack enable && corepack install",
         "unset BRAND_PROFILE",
         "pnpm brand:apply",
+        // The fixture keeps its own images, which brand-assets/ outranks here.
+        "keep the images you edit in brand-assets/, or empty brand-assets/ to use brand/fixture/assets/ again",
+      ]);
+    });
+
+    it("sends a connected profile without CD's sign-in to brand:provision, not to a merge", () => {
+      const connected = loadProfile({ repoRoot: root, profile: "jci-oriente" });
+      const brand = { ...connected.brand, deploy: undefined };
+      expect(checkNext({ ...connected, brand }).map(({ run }) => run)).toEqual([
+        "pnpm brand:provision",
       ]);
     });
 

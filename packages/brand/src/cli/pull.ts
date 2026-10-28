@@ -101,7 +101,8 @@ export async function pull({
         validation.errors.map((error) => bucketUrl(bucket, error)),
         [
           {
-            change: `fix the files in ${PULLED_ASSETS_DIR}/ (pnpm brand:check names them), then upload them: brand:push checks a set before uploading it`,
+            change:
+              "the bucket holds the invalid files listed above: fix your images (pnpm brand:check names any problem), then upload them again",
             run: "pnpm brand:push",
           },
         ],
