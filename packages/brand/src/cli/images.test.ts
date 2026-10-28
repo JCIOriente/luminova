@@ -1,0 +1,109 @@
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { writeAssetSet } from "../asset-set.ts";
+import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES } from "../assets.ts";
+import { REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
+import { PULLED_ASSETS_DIR } from "../release.ts";
+import { checkImages } from "./images.ts";
+
+let root: string;
+let profile: LoadedProfile;
+const TOTAL = ASSET_CONTRACT.length;
+
+const images = (env: Record<string, string> = {}) => checkImages({ profile, repoRoot: root, env });
+const brandAssets = () => join(root, PULLED_ASSETS_DIR);
+
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), "brand-images-"));
+  cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
+  profile = loadProfile({ repoRoot: root, profile: "jci-oriente" });
+  writeAssetSet(brandAssets());
+});
+
+afterEach(() => {
+  rmSync(root, { recursive: true, force: true });
+});
+
+describe("checkImages", () => {
+  it("is one passing row when every image is right, under a title naming the folder", () => {
+    const { title, rows, dir } = images();
+    expect(dir).toBe(brandAssets());
+    expect(title).toBe("Images in brand-assets/");
+    expect(rows).toEqual([{ check: "images", status: "ok", detail: `all ${TOTAL} valid` }]);
+  });
+
+  it("lists only the images with a problem, then counts the rest", () => {
+    rmSync(join(brandAssets(), "og-image.png"));
+    cpSync(
+      join(brandAssets(), "spotlight/favicon-16.png"),
+      join(brandAssets(), "spotlight/favicon-32.png"),
+    );
+    const { rows } = images();
+    expect(rows.map(({ check, status, detail }) => [check, status, detail])).toEqual([
+      ["og-image.png", "fail", "missing (expected 1200×630)"],
+      ["spotlight/favicon-32.png", "fail", "16×16, expected 32×32"],
+      ["images", "ok", `${TOTAL - 2} more valid`],
+    ]);
+  });
+
+  it("drops the summary row when no image is right", () => {
+    rmSync(brandAssets(), { recursive: true });
+    mkdirSync(brandAssets());
+    writeFileSync(join(brandAssets(), "og-image.png"), "not a png");
+    const { rows } = images();
+    expect(rows).toHaveLength(TOTAL);
+    expect(rows.every(({ status }) => status === "fail")).toBe(true);
+  });
+
+  it("puts the fix for each kind of problem on the failing rows", () => {
+    rmSync(join(brandAssets(), "og-image.png"));
+    const [missing] = images().rows;
+    expect(missing?.remedies).toEqual([
+      expect.objectContaining({
+        change: expect.stringMatching(/^put the files marked above in brand-assets\//),
+        run: "pnpm brand:check",
+      }),
+    ]);
+  });
+
+  it("warns on a heavy OG image without failing", () => {
+    const og = join(brandAssets(), "og-image.png");
+    writeFileSync(og, Buffer.concat([readFileSync(og), Buffer.alloc(OG_IMAGE_WARN_BYTES + 1)]));
+    const [heavy] = images().rows;
+    expect(heavy).toMatchObject({ check: "og-image.png", status: "warn" });
+    expect(heavy?.detail).toMatch(/WhatsApp/);
+  });
+
+  it("fails a set pulled for another profile", () => {
+    writeFileSync(
+      join(brandAssets(), "pull-manifest.json"),
+      JSON.stringify({ profile: "fixture" }),
+    );
+    expect(images().rows[0]).toMatchObject({
+      check: "pull-manifest.json",
+      status: "fail",
+      detail: expect.stringMatching(/re-run brand:pull/),
+    });
+  });
+
+  it("reads the profile's own images while brand-assets/ holds none, and says so", () => {
+    rmSync(brandAssets(), { recursive: true });
+    const { title, dir, rows } = images();
+    expect(dir).toBe(join(root, "brand/jci-oriente/assets"));
+    expect(title).toBe("Images in brand/jci-oriente/assets/");
+    expect(rows).toEqual([expect.objectContaining({ status: "ok" })]);
+  });
+
+  it("reads the folder the BRAND_ASSETS_DIR tooling override names", () => {
+    const other = mkdtempSync(join(tmpdir(), "brand-images-other-"));
+    try {
+      const { dir, rows } = images({ BRAND_ASSETS_DIR: other });
+      expect(dir).toBe(other);
+      expect(rows.filter(({ status }) => status === "fail")).toHaveLength(TOTAL);
+    } finally {
+      rmSync(other, { recursive: true, force: true });
+    }
+  });
+});
