@@ -694,10 +694,12 @@ describe("runInit, the command", () => {
       expect(readFileSync(join(root, "brand/jci-valle/brand.json"), "utf8")).toBe(before);
     });
 
-    it("connects it on a yes", async () => {
+    it("connects it on a yes, and drops declined saved answers once that succeeds", async () => {
+      saveAnswers({ firebase: { projectId: "someone-else" } });
       const text = await runInit({
         repoRoot: root,
         prompter: answering({
+          useSaved: "n",
           connect: "y",
           "firebase.projectId": "jci-valle",
           "firebase.web.spotlight.appId": SPOTLIGHT_APP,
@@ -709,6 +711,7 @@ describe("runInit, the command", () => {
       });
       expect(text).toMatch(/now uses Firebase project jci-valle/);
       expect(loadProfile({ repoRoot: root, env: {} }).localOnly).toBe(false);
+      expect(existsSync(join(root, ANSWERS_FILE))).toBe(false);
     });
   });
 });

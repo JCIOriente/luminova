@@ -719,7 +719,7 @@ function readSavedAnswers(file: string): Answers {
 /**
  * `pnpm brand:init`: creates the chapter's profile or, once brand/ has one, offers to
  * connect it to a Firebase project (spec R27 C4). The answers a failed try saved are offered
- * first. Returns what to print.
+ * first, and removed once a run succeeds. Returns what to print.
  */
 export async function runInit({
   repoRoot = REPO_ROOT,
@@ -766,7 +766,9 @@ export async function runInit({
       : "";
     text = `brand:init: wrote ${files.join(", ")}. brand/ now selects "${slug}".${where}\n\n${formatNext(initNext(slug, { local }))}`;
   }
-  if (useSaved) rmSync(savedFile);
+  // Used or declined, saved answers are stale once a run succeeds: offered again, they would
+  // answer the next run's questions (a connect skips the project id it finds there).
+  rmSync(savedFile, { force: true });
   return text;
 }
 

@@ -300,6 +300,23 @@ describe("offerBucket", () => {
     expect(calls).toEqual([]);
   });
 
+  it("refuses a profile that cannot ship before asking", async () => {
+    let asked = false;
+    await expect(
+      offerBucket({
+        profile: { ...profile, source: "override" },
+        repoRoot: REPO_ROOT,
+        run: fakeRunner(),
+        confirm: async () => {
+          asked = true;
+          return true;
+        },
+      }),
+    ).rejects.toThrow(BrandConfigError);
+    expect(asked).toBe(false);
+    expect(calls).toEqual([]);
+  });
+
   it("never asks or changes anything without a terminal", async () => {
     expect(await offerBucket({ profile, repoRoot: REPO_ROOT, run: fakeRunner() })).toBeNull();
     expect(calls).toEqual([]);
