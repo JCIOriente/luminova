@@ -69,7 +69,7 @@ const SHIP_CHAPTER: Remedy = {
  * stray environment override; spec P5), not the fixture, not an emulator-only project. Release
  * builds, brand:push and brand:provision's bucket step share it.
  */
-export const PRINT_GCP_SETUP: Remedy = {
+const PRINT_GCP_SETUP: Remedy = {
   change:
     "print this profile's Google Cloud setup, step by step, with your values (changes nothing)",
   run: "pnpm brand:provision",
