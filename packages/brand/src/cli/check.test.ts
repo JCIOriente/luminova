@@ -1,200 +1,425 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { writeAssetSet } from "../asset-set.ts";
-import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES } from "../assets.ts";
-import { REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
+import { ASSET_CONTRACT } from "../assets.ts";
+import { REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
-import { checkBrand, checkRemedies, checkRows, type BrandCheck, type CheckRow } from "./check.ts";
+import { applyProfile } from "./apply.ts";
+import { SECTION_TITLES, check, checkNext } from "./check.ts";
+import { rowRemedies, type CheckRow } from "./rows.ts";
+import { CommandError, commandFailure, type CommandRunner } from "./gcloud.ts";
 
-const withRows = (check: BrandCheck) => ({ ...check, rows: checkRows(check) });
+const BUCKET = "jci-oriente-brand-assets";
+const TOOLS = { nodeVersion: "24.15.0", platform: "linux" } as const;
+const ENV = { CLOUDSDK_CONFIG: "" };
 
 let root: string;
-let profile: LoadedProfile;
+let calls: string[][];
+let responses: Map<string, string | Error>;
 
-function rowFor(rows: CheckRow[], item: string): CheckRow {
-  const row = rows.find((candidate) => candidate.item === item);
-  if (!row) throw new Error(`no row for ${item}`);
+const run: CommandRunner = async (command, args) => {
+  calls.push([command, ...args]);
+  const key = [command, ...args].join(" ");
+  for (const [prefix, response] of responses) {
+    if (!key.startsWith(prefix)) continue;
+    if (response instanceof Error) throw response;
+    return response;
+  }
+  throw new CommandError(`${key} failed: unexpected in test`);
+};
+
+function statusOf(rows: CheckRow[]): Record<string, CheckRow["status"]> {
+  return Object.fromEntries(rows.map(({ check, status }) => [check, status]));
+}
+
+function rowFor(rows: CheckRow[], check: string): CheckRow {
+  const row = rows.find((candidate) => candidate.check === check);
+  if (!row) throw new Error(`no row ${check}`);
   return row;
 }
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "brand-check-"));
+  ENV.CLOUDSDK_CONFIG = root;
+  writeFileSync(join(root, "application_default_credentials.json"), "{}");
   cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
-  profile = { ...loadProfile({ repoRoot: root, profile: "jci-oriente" }), source: "example" };
+  writeFileSync(
+    join(root, "package.json"),
+    JSON.stringify({ engines: { node: ">=24.15.0" }, packageManager: "pnpm@11.5.1" }),
+  );
   writeAssetSet(join(root, PULLED_ASSETS_DIR));
+  applyProfile({
+    profile: loadProfile({ repoRoot: root, profile: "jci-oriente" }),
+    repoRoot: root,
+    env: {},
+  });
+  calls = [];
+  responses = new Map<string, string | Error>([
+    ["gcloud auth list", "owner@example.org\n"],
+    ["gcloud storage objects list", `${ASSET_CONTRACT.map(({ path }) => path).join("\n")}\n`],
+    ["pnpm --version", "11.5.1\n"],
+    ["java --version", "openjdk 21.0.5 2024-10-15 LTS\n"],
+    ["firebase --version", "15.22.1\n"],
+    ["gh --version", "gh version 2.103.0 (2026-10-21)\n"],
+    ["gh auth status", "  ✓ Logged in to github.com account octo (keyring)\n"],
+    ["gcloud --version", "Google Cloud SDK 586.0.0\n"],
+    ["firebase login:list", "Logged in as owner@example.org\n"],
+  ]);
 });
 
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe("checkBrand", () => {
-  it("prints one passing row per contract file, plus site content", async () => {
-    const { rows, assetsDir } = withRows(await checkBrand({ profile, repoRoot: root, env: {} }));
-    expect(assetsDir).toBe(join(root, PULLED_ASSETS_DIR));
-    expect(rows.map(({ item }) => item)).toEqual([
-      ...ASSET_CONTRACT.map(({ path }) => path),
-      "site-content.json",
-    ]);
-    expect(rows.filter(({ failed }) => failed)).toEqual([]);
-    expect(rowFor(rows, "og-image.png")).toEqual({
-      item: "og-image.png",
-      expected: "1200×630",
-      found: "1200×630",
-      verdict: "ok",
-      failed: false,
+const sectionsOf = (
+  options: { env?: Record<string, string>; nodeVersion?: string; platform?: NodeJS.Platform } = {},
+) =>
+  check({ ...TOOLS, repoRoot: root, run, ...options, env: { ...ENV, ...options.env } }).then(
+    ({ sections }) => sections,
+  );
+
+const diagnose = (options: Parameters<typeof sectionsOf>[0] = {}) =>
+  sectionsOf(options).then((sections) => sections.flatMap(({ rows }) => rows));
+
+describe("check", () => {
+  it("reports every row, all passing, on a ready checkout", async () => {
+    const rows = await diagnose();
+    expect(statusOf(rows)).toEqual({
+      profile: "ok",
+      "brand.json": "ok",
+      "site content": "ok",
+      images: "ok",
+      "gcloud ADC": "ok",
+      "firebase account": "ok",
+      ".firebaserc": "ok",
+      "gcloud account": "ok",
+      bucket: "ok",
+      selection: "ok",
+      "CD identity": "ok",
+      node: "ok",
+      pnpm: "ok",
+      java: "ok",
+      firebase: "ok",
+      gh: "ok",
+      "gh account": "ok",
+      gcloud: "ok",
+    });
+    expect(rowFor(rows, "selection").detail).toBe(
+      'brand/ selects "jci-oriente" (the example: no chapter profile in brand/ yet)',
+    );
+    expect(rowFor(rows, "profile").detail).toBe("brand/jci-oriente/");
+    expect(rowFor(rows, "CD identity").detail).toBe(
+      "firebase-deployer@jci-oriente.iam.gserviceaccount.com",
+    );
+    expect(rowFor(rows, "gcloud account").detail).toBe("owner@example.org");
+    expect(rowFor(rows, "bucket").detail).toMatch(`all 16 images in gs://${BUCKET}`);
+    expect(rowFor(rows, "images").detail).toBe("all 16 valid");
+  });
+
+  it("only ever reads: the exact external commands it runs", async () => {
+    await diagnose();
+    expect(calls.map((call) => call.join(" ")).sort()).toEqual(
+      [
+        "firebase --version",
+        "firebase login:list",
+        "gcloud --version",
+        "gcloud auth list --filter=status:ACTIVE --format=value(account)",
+        `gcloud storage objects list gs://${BUCKET}/** --format=value(name)`,
+        "gh --version",
+        "gh auth status --active",
+        "java --version",
+        "pnpm --version",
+      ].sort(),
+    );
+  });
+
+  it("keeps going after a failure: gcloud missing fails two rows, the rest still report", async () => {
+    responses.set(
+      "gcloud auth list",
+      new CommandError("gcloud auth list failed: spawn gcloud ENOENT"),
+    );
+    responses.set(
+      "gcloud storage objects list",
+      new CommandError("gcloud storage objects list failed: spawn gcloud ENOENT"),
+    );
+    const rows = await diagnose();
+    expect(rows).toHaveLength(18);
+    expect(statusOf(rows)).toMatchObject({ "gcloud account": "fail", bucket: "fail", pnpm: "ok" });
+    expect(rowFor(rows, "gcloud account").detail).toMatch(/ENOENT/);
+  });
+
+  it("fails the account row when nobody is signed in", async () => {
+    responses.set("gcloud auth list", "");
+    expect(rowFor(await diagnose(), "gcloud account")).toMatchObject({
+      status: "fail",
+      detail: "not signed in",
     });
   });
 
-  it("fails the rows of a missing and a mis-sized file, and only those", async () => {
+  it("names the images missing from the bucket", async () => {
+    responses.set("gcloud storage objects list", "logo-main.png\n");
+    const row = rowFor(await diagnose(), "bucket");
+    expect(row.status).toBe("fail");
+    expect(row.detail).toMatch(/15 of 16 images missing/);
+  });
+
+  it("fails a stale .firebaserc with the command that fixes it", async () => {
+    writeFileSync(join(root, ".firebaserc"), "{}");
+    expect(rowFor(await diagnose(), ".firebaserc")).toMatchObject({
+      status: "fail",
+      detail: 'not generated from "jci-oriente"',
+    });
+  });
+
+  it("names each image with a problem in the images section, and the folder in its title", async () => {
     rmSync(join(root, PULLED_ASSETS_DIR, "og-image.png"));
-    cpSync(
-      join(root, PULLED_ASSETS_DIR, "spotlight/favicon-16.png"),
-      join(root, PULLED_ASSETS_DIR, "spotlight/favicon-32.png"),
-    );
-    const { rows } = withRows(await checkBrand({ profile, repoRoot: root, env: {} }));
-    expect(rows.filter(({ failed }) => failed).map(({ item }) => item)).toEqual([
-      "og-image.png",
-      "spotlight/favicon-32.png",
+    const images = (await sectionsOf())[2];
+    expect(images?.title).toBe("Images in brand-assets/");
+    expect(images?.rows.map(({ check: name, status }) => `${name} ${status}`)).toEqual([
+      "og-image.png fail",
+      "images ok",
     ]);
-    expect(rowFor(rows, "og-image.png")).toMatchObject({ found: "missing", verdict: "missing" });
-    expect(rowFor(rows, "spotlight/favicon-32.png").verdict).toBe("wrong size");
   });
 
-  it("warns on a heavy OG image without failing", async () => {
-    const og = join(root, PULLED_ASSETS_DIR, "og-image.png");
-    writeFileSync(og, Buffer.concat([readFileSync(og), Buffer.alloc(OG_IMAGE_WARN_BYTES + 1)]));
-    const row = rowFor(
-      withRows(await checkBrand({ profile, repoRoot: root, env: {} })).rows,
-      "og-image.png",
-    );
-    expect(row.failed).toBe(false);
-    expect(row.verdict).toMatch(/^warn: .*WhatsApp/);
-  });
-
-  it.each([
-    ["--assets", (dir: string) => ({ env: {}, assets: dir })],
-    [
-      "the BRAND_ASSETS_DIR tooling override",
-      (dir: string) => ({ env: { BRAND_ASSETS_DIR: dir } }),
-    ],
-  ])("checks the folder %s names", async (_, options) => {
-    const other = mkdtempSync(join(tmpdir(), "brand-check-other-"));
-    try {
-      const { assetsDir, rows } = withRows(
-        await checkBrand({ profile, repoRoot: root, ...options(other) }),
-      );
-      expect(assetsDir).toBe(other);
-      expect(rows.filter(({ failed }) => failed)).toHaveLength(ASSET_CONTRACT.length);
-    } finally {
-      rmSync(other, { recursive: true, force: true });
+  it("fails two chapter profiles once, with both ways out, and skips the profile", async () => {
+    for (const slug of ["jci-andina", "jci-valle"]) {
+      cpSync(join(root, "brand/fixture"), join(root, "brand", slug), { recursive: true });
     }
+    const rows = await diagnose();
+    expect(statusOf(rows)).toMatchObject({ selection: "fail", profile: "skip", bucket: "skip" });
+    expect(rowFor(rows, "selection").detail).toMatch(/brand\/ holds 2 chapter profiles/);
+    expect(rowFor(rows, "selection").remedies?.[0]?.change).toMatch(/^delete the folder/);
   });
 
-  it("schema-validates the profile's site content", async () => {
-    const file = join(root, "brand/jci-oriente/site-content.json");
-    writeFileSync(file, JSON.stringify({ stats: "nope" }));
-    const row = rowFor(
-      withRows(await checkBrand({ profile, repoRoot: root, env: {} })).rows,
-      "site-content.json",
+  it("warns when a BRAND_PROFILE override in the shell differs from brand/", async () => {
+    const rows = await diagnose({ env: { BRAND_PROFILE: "fixture" } });
+    expect(rowFor(rows, "selection")).toMatchObject({
+      status: "warn",
+      detail:
+        'brand/ selects "jci-oriente" (the example: no chapter profile in brand/ yet), but BRAND_PROFILE=fixture overrides it',
+      remedies: [expect.objectContaining({ run: "unset BRAND_PROFILE" })],
+    });
+    expect(rowFor(rows, "profile").detail).toBe("brand/fixture/ (from BRAND_PROFILE)");
+  });
+
+  it("warns that a leftover luminova.json is no longer read", async () => {
+    writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: "fixture" }));
+    const rows = await diagnose();
+    expect(rowFor(rows, "selection")).toMatchObject({
+      status: "warn",
+      detail: expect.stringMatching(/, but luminova\.json is no longer read$/),
+      remedies: [expect.objectContaining({ run: "git rm luminova.json" })],
+    });
+    expect(rowFor(rows, "profile").detail).toBe("brand/jci-oriente/");
+  });
+
+  it("warns, without failing, when the profile has no CD identity", async () => {
+    const file = join(root, "brand/jci-oriente/brand.json");
+    const brand = JSON.parse(readFileSync(file, "utf8"));
+    delete brand.deploy;
+    writeFileSync(file, JSON.stringify(brand));
+    expect(rowFor(await diagnose(), "CD identity")).toMatchObject({
+      status: "warn",
+      remedies: [expect.objectContaining({ run: "pnpm brand:provision" })],
+    });
+  });
+
+  it("skips the profile-dependent rows when the profile is missing, without throwing", async () => {
+    const rows = await diagnose({ env: { BRAND_PROFILE: "nope" } });
+    expect(statusOf(rows)).toMatchObject({
+      profile: "fail",
+      "brand.json": "skip",
+      images: "skip",
+      ".firebaserc": "skip",
+      bucket: "skip",
+      "gcloud account": "ok",
+      "CD identity": "skip",
+    });
+    expect(calls.some((call) => call.includes("objects"))).toBe(false);
+  });
+
+  it("reports unreadable files as failing rows instead of throwing", async () => {
+    rmSync(join(root, "brand/jci-oriente/brand.json"));
+    mkdirSync(join(root, "brand/jci-oriente/brand.json"));
+    rmSync(join(root, ".firebaserc"));
+    mkdirSync(join(root, ".firebaserc"));
+    const rows = await diagnose();
+    expect(statusOf(rows)).toMatchObject({
+      profile: "ok",
+      "brand.json": "fail",
+      ".firebaserc": "skip",
+    });
+    expect(rowFor(rows, "brand.json").detail).toMatch(/cannot read/);
+  });
+
+  it("fails an unreadable .firebaserc as its own row", async () => {
+    rmSync(join(root, ".firebaserc"));
+    mkdirSync(join(root, ".firebaserc"));
+    const rows = await diagnose();
+    expect(rowFor(rows, ".firebaserc")).toMatchObject({
+      status: "fail",
+      detail: expect.stringMatching(/EISDIR/),
+    });
+    expect(rows).toHaveLength(18);
+  });
+
+  it("fails the schema row with the schema errors", async () => {
+    writeFileSync(
+      join(root, "brand/jci-oriente/brand.json"),
+      JSON.stringify({ slug: "jci-oriente" }),
     );
-    expect(row.failed).toBe(true);
-    expect(row.verdict).toMatch(/stats/);
+    const rows = await diagnose();
+    expect(statusOf(rows)).toMatchObject({ profile: "ok", "brand.json": "fail", images: "skip" });
+    expect(rowFor(rows, "brand.json").detail).toMatch(/name/);
   });
 
-  it("fails a missing site-content.json with the copy hint", async () => {
-    rmSync(join(root, "brand/jci-oriente/site-content.json"));
-    const row = rowFor(
-      withRows(await checkBrand({ profile, repoRoot: root, env: {} })).rows,
-      "site-content.json",
-    );
-    expect(row.failed).toBe(true);
-    expect(row.verdict).toMatch(/copy it from brand\/jci-oriente/);
+  it("stops at the WSL 2 row on native Windows", async () => {
+    const rows = await diagnose({ platform: "win32" });
+    expect(rows).toEqual([expect.objectContaining({ check: "windows", status: "fail" })]);
+    expect(calls).toEqual([]);
   });
 
-  describe("--release", () => {
-    it("adds a failing row per release rule the profile breaks", async () => {
-      const { rows } = withRows(
-        await checkBrand({
-          profile: { ...profile, source: "override" },
-          repoRoot: root,
-          env: { BRAND_ASSETS_DIR: "elsewhere" },
-          release: true,
-        }),
-      );
-      const release = rows.filter(({ item }) => item === "deploy");
-      expect(release.every(({ failed }) => failed)).toBe(true);
-      const verdicts = release.map(({ verdict }) => verdict).join("\n");
-      expect(verdicts).toMatch(/is set in your environment/);
-      expect(verdicts).toMatch(/BRAND_ASSETS_DIR is not allowed/);
-      expect(verdicts).toMatch(/no pull-manifest\.json in brand-assets\//);
+  it("fails a Node older than engines.node", async () => {
+    expect(rowFor(await diagnose({ nodeVersion: "24.10.0" }), "node")).toMatchObject({
+      status: "fail",
+      detail: "24.10.0 (needs >=24.15.0)",
     });
+  });
 
-    it("reads brand-assets/ even when BRAND_ASSETS_DIR is set", async () => {
-      const { assetsDir } = withRows(
-        await checkBrand({
-          profile,
-          repoRoot: root,
-          env: { BRAND_ASSETS_DIR: "elsewhere" },
-          release: true,
-        }),
-      );
-      expect(assetsDir).toBe(join(root, PULLED_ASSETS_DIR));
-    });
-
-    it("passes a pulled set for the selected profile", async () => {
-      writeFileSync(
-        join(root, PULLED_ASSETS_DIR, "pull-manifest.json"),
-        JSON.stringify({ profile: "jci-oriente" }),
-      );
-      const { rows } = withRows(
-        await checkBrand({ profile, repoRoot: root, env: {}, release: true }),
-      );
-      expect(rows.filter(({ failed }) => failed)).toEqual([]);
-    });
-
-    it("fails a set pulled for another profile", async () => {
-      writeFileSync(
-        join(root, PULLED_ASSETS_DIR, "pull-manifest.json"),
-        JSON.stringify({ profile: "fixture" }),
-      );
-      const { rows } = withRows(
-        await checkBrand({ profile, repoRoot: root, env: {}, release: true }),
-      );
-      const row = rowFor(rows, "pull-manifest.json");
-      expect(row.failed).toBe(true);
-      expect(row.verdict).toMatch(/re-run brand:pull/);
+  it("warns, without failing, on a pnpm other than packageManager", async () => {
+    responses.set("pnpm --version", "11.4.0\n");
+    expect(rowFor(await diagnose(), "pnpm")).toMatchObject({
+      status: "warn",
+      detail: "11.4.0 (packageManager pins 11.5.1)",
     });
   });
 
   describe("remedies", () => {
-    it("says what to do about each failing group, in table order", async () => {
-      rmSync(join(root, PULLED_ASSETS_DIR, "og-image.png"));
-      writeFileSync(
-        join(root, "brand/jci-oriente/site-content.json"),
-        JSON.stringify({ stats: "nope" }),
-      );
-      const check = await checkBrand({
-        profile: { ...profile, source: "override" },
-        repoRoot: root,
-        env: {},
-        release: true,
-      });
-      const changes = checkRemedies(check).map(({ change, run }) => change ?? run);
-      // A deploy only uses pulled images: placing files by hand is never offered here.
-      expect(changes[0]).toBe(
-        "download the images a deploy uses from the profile's bucket (needs gcloud auth login)",
-      );
-      expect(changes[1]).toMatch(
-        /^edit the fields above in brand\/jci-oriente\/site-content\.json/,
-      );
-      expect(changes.join("\n")).not.toMatch(/put the files marked above/);
+    const runsOf = (row: CheckRow) => (row.remedies ?? []).map(({ run }) => run);
+
+    it("says how to fix each failing row", async () => {
+      writeFileSync(join(root, ".firebaserc"), "{}");
+      responses.set("gcloud auth list", "");
+      responses.set("gcloud storage objects list", "logo-main.png\n");
+      const rows = await diagnose({ nodeVersion: "24.10.0" });
+      expect(runsOf(rowFor(rows, ".firebaserc"))).toEqual(["pnpm brand:apply"]);
+      expect(runsOf(rowFor(rows, "gcloud account"))).toEqual(["gcloud auth login"]);
+      expect(runsOf(rowFor(rows, "bucket"))).toEqual(["pnpm brand:push"]);
+      expect(runsOf(rowFor(rows, "node"))).toEqual([
+        expect.stringMatching(/install\.sh \| bash$/),
+        "nvm install && nvm use",
+      ]);
     });
 
-    it("has none for a passing check", async () => {
-      expect(checkRemedies(await checkBrand({ profile, repoRoot: root, env: {} }))).toEqual([]);
+    it("sends a bucket that does not exist to brand:provision", async () => {
+      responses.set(
+        "gcloud storage objects list",
+        commandFailure("gcloud", ["storage", "objects", "list"], {
+          stderr: "gs://x not found: 404.",
+        }),
+      );
+      expect(runsOf(rowFor(await diagnose(), "bucket"))).toEqual([
+        "pnpm brand:provision",
+        "pnpm brand:provision --apply",
+      ]);
+    });
+
+    it("says how to install a missing CLI, and skips its sign-in", async () => {
+      responses.set(
+        "gcloud auth list",
+        commandFailure("gcloud", ["auth", "list"], { code: "ENOENT", stderr: "" }),
+      );
+      responses.set(
+        "gcloud --version",
+        commandFailure("gcloud", ["--version"], { code: "ENOENT", stderr: "" }),
+      );
+      const rows = await diagnose();
+      expect(rowFor(rows, "gcloud").remedies?.[0]?.change).toMatch(/install the Google Cloud CLI/);
+      expect(rowFor(rows, "gcloud account")).toMatchObject({
+        status: "skip",
+        detail: "needs gcloud",
+      });
+    });
+
+    it("lists the fixes once, in row order", async () => {
+      responses.set(
+        "gcloud storage objects list",
+        commandFailure("gcloud", ["storage", "objects", "list"], {
+          stderr: "gs://x not found: 404.",
+        }),
+      );
+      responses.set("pnpm --version", "11.4.0\n");
+      const runs = rowRemedies(await diagnose({ env: { BRAND_PROFILE: "fixture" } })).map(
+        ({ run }) => run,
+      );
+      expect(runs).toEqual([
+        "corepack enable && corepack install",
+        "unset BRAND_PROFILE",
+        "pnpm brand:apply",
+      ]);
+    });
+
+    it("after a passing run, offers going live as a choice", () => {
+      const connected = loadProfile({ repoRoot: root, profile: "jci-oriente" });
+      expect(checkNext(connected).map(({ change, run }) => run ?? change)).toEqual([
+        expect.stringMatching(
+          /^when you are ready to go live: merge brand\/jci-oriente\/ to main in your fork/,
+        ),
+        "gh workflow run deploy.yml -f surface=all",
+      ]);
+      const local = loadProfile({ repoRoot: root, profile: "fixture" });
+      expect(checkNext(local).map(({ run }) => run)).toEqual([
+        "pnpm dev",
+        "pnpm brand:init --connect",
+      ]);
+    });
+
+    it("shows going live as one row for a local-only profile, without calling gcloud", async () => {
+      // A chapter fresh from brand:init --local: a demo- project, found in brand/.
+      cpSync(join(root, "brand/fixture"), join(root, "brand/jci-valle"), { recursive: true });
+      const file = join(root, "brand/jci-valle/brand.json");
+      writeFileSync(
+        file,
+        JSON.stringify({ ...JSON.parse(readFileSync(file, "utf8")), slug: "jci-valle" }),
+      );
+      const rows = await diagnose();
+      expect(rowFor(rows, "profile").detail).toBe("brand/jci-valle/");
+      expect(rows.at(-1)).toMatchObject({
+        check: "going live",
+        status: "skip",
+        detail: expect.stringMatching(/local-only profile.*brand:init/),
+      });
+      expect(rows.map(({ check: name }) => name)).not.toContain("bucket");
+      expect(calls.filter(([command]) => command === "gcloud" || command === "gh")).toEqual([]);
+    });
+
+    it("orders the sections and rows as the fixes must happen", async () => {
+      const sections = await sectionsOf();
+      expect(
+        sections.map(({ title, rows }) => [title, rows.map(({ check: name }) => name)]),
+      ).toEqual([
+        [SECTION_TITLES.tools, ["node", "pnpm", "java", "firebase"]],
+        [
+          SECTION_TITLES.chapter,
+          ["selection", "profile", "brand.json", "site content", ".firebaserc"],
+        ],
+        ["Images in brand-assets/", ["images"]],
+        [
+          SECTION_TITLES.live,
+          [
+            "CD identity",
+            "gh",
+            "gh account",
+            "gcloud",
+            "gcloud account",
+            "gcloud ADC",
+            "firebase account",
+            "bucket",
+          ],
+        ],
+      ]);
     });
   });
 });
