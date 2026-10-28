@@ -355,7 +355,7 @@ export function initNext(slug: string, { local = false }: { local?: boolean } = 
 
 /** After connecting: confirm the project, then the Google Cloud setup. */
 export const CONNECT_NEXT: readonly Remedy[] = [
-  { change: `check the whole setup (${guideStep("doctor")})`, run: "pnpm brand:check" },
+  { change: `check the whole setup (${guideStep("check")})`, run: "pnpm brand:check" },
   {
     change: `print the Google Cloud setup, step by step, with your values (${guideStep("provision")}; changes nothing)`,
     run: "pnpm brand:provision",
