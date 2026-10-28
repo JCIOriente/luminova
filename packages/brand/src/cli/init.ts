@@ -1,5 +1,5 @@
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod";
 import {
   ASSET_CONTRACT,
@@ -31,7 +31,7 @@ import { FIREBASERC, applyProfile } from "./apply.ts";
 import { CommandError, runCommand, type CommandRunner } from "./gcloud.ts";
 import { INSTALL_FIREBASE_CLI } from "./install.ts";
 import { runBrandCommand } from "./main.ts";
-import { terminalPrompter, type Prompter } from "./prompts.ts";
+import { isYes, terminalPrompter, type Prompter } from "./prompts.ts";
 
 type Answers = Record<string, unknown>;
 
@@ -176,7 +176,7 @@ const PROFILE_FIELDS: readonly Field[] = [
 const isProjectField = ({ path }: Field) => path.startsWith("firebase.");
 /** The chapter itself: everything a local-only profile needs. */
 const CHAPTER_FIELDS = PROFILE_FIELDS.filter((field) => !isProjectField(field));
-/** The Firebase project, asked when there is one (or by --connect). */
+/** The Firebase project, asked when there is one, or when connecting one later. */
 const PROJECT_FIELDS = PROFILE_FIELDS.filter(isProjectField);
 
 /** Asked after the optional sdkconfig read, which can fill them. */
@@ -295,7 +295,7 @@ export const ANSWERS_FILE = "brand-init-answers.json";
  * A profile that runs only in the emulators (spec L1): a `demo-` project and placeholder
  * web apps, which the emulators accept and every release path refuses.
  */
-/** Everything a project decides: what local mode fills in and --connect asks again. */
+/** Everything a project decides: what local mode fills in and connecting asks again. */
 const PROJECT_KEYS = ["firebase", "assetsBucket", "deploy"] as const;
 
 function localFirebase(answers: Answers): void {
@@ -349,13 +349,13 @@ export function initNext(slug: string, { local = false }: { local?: boolean } = 
       change: `commit the profile (never ${PULLED_ASSETS_DIR}/: it is gitignored on purpose)`,
       run: `git add brand/${slug}/`,
     },
-    local ? CONNECT_PROJECT : { change: "check the whole setup", run: "pnpm brand:doctor" },
+    local ? CONNECT_PROJECT : { change: "check the whole setup", run: "pnpm brand:check" },
   ];
 }
 
-/** After --connect: confirm the project, then the Google Cloud setup. */
+/** After connecting: confirm the project, then the Google Cloud setup. */
 export const CONNECT_NEXT: readonly Remedy[] = [
-  { change: `check the whole setup (${guideStep("doctor")})`, run: "pnpm brand:doctor" },
+  { change: `check the whole setup (${guideStep("check")})`, run: "pnpm brand:check" },
   {
     change: `print the Google Cloud setup, step by step, with your values (${guideStep("provision")}; changes nothing)`,
     run: "pnpm brand:provision",
@@ -437,7 +437,7 @@ async function askProject(
   return (
     fillWeb ||
     (prompter !== undefined &&
-      /^y/i.test(
+      isYes(
         await prompter.ask({
           key: "fillWeb",
           label: "Read the API keys with firebase apps:sdkconfig? Needs firebase login (y/N)",
@@ -467,8 +467,8 @@ function refuseSecondChapter(repoRoot: string): void {
     [`brand/${existing}/ already is this repository's chapter, and a repository builds one.`],
     [
       {
-        change: `edit brand/${existing}/brand.json to change its values, or connect it to a Firebase project`,
-        run: "pnpm brand:init --connect",
+        change: `edit brand/${existing}/brand.json to change its values, or run this again and answer y to connect it to a Firebase project`,
+        run: "pnpm brand:init",
       },
       { change: `or delete brand/${existing}/ to start over` },
     ],
@@ -505,7 +505,7 @@ function validBrand(answers: Answers, exampleAnswers: Answers) {
  * Creates `brand/<slug>/` from answers (a file, prompts, or both), the example's site
  * content, and `brand-assets/README.txt`. Validates everything before writing anything.
  * `local` (or answering "no" to the project question) writes a local-only profile on a
- * `demo-` project; `brand:init --connect` attaches the real one later.
+ * `demo-` project; running brand:init again connects the real one later.
  */
 export async function init({
   repoRoot = REPO_ROOT,
@@ -528,47 +528,39 @@ export async function init({
   const ask = asker(answers, example.answers, repoRoot, prompter);
 
   let local = wantLocal;
-  // The sdkconfig answer, so a saved-answers re-run repeats it.
-  let wanted = fillWeb;
   try {
     await ask(CHAPTER_FIELDS);
     local ||=
       prompter !== undefined &&
       get(answers, "firebase.projectId") === undefined &&
-      !/^y/i.test(await prompter.ask(HAS_PROJECT));
+      !isYes(await prompter.ask(HAS_PROJECT));
     if (local && answers.firebase !== undefined) {
       throw new BrandConfigError(
         ['your answers have a "firebase" block, but a local-only profile runs on demo-<slug>'],
-        [{ change: 'remove the "firebase" block, or drop --local to use that project' }],
+        [{ change: 'remove the "firebase" block: a local-only profile makes its own' }],
       );
     }
     if (local) localFirebase(answers);
     else {
-      wanted = await askProject(ask, { prompter, fillWeb });
+      const wanted = await askProject(ask, { prompter, fillWeb });
       await askWebKeys(ask, answers, { wanted, run });
     }
     return { ...writeProfile({ repoRoot, answers, example }), local };
   } catch (error) {
-    const flags = `${local ? " --local" : ""}${wanted ? " --sdkconfig" : ""}`;
-    // A local profile's demo values are re-made by --local; saving them would make the
-    // printed re-run refuse its own file.
+    // A local profile's demo values are made again on the next try; saving them would make
+    // that try refuse its own file.
     const keep = local ? projectPart(answers, { without: true }) : answers;
-    throw savedAnswers(error, { repoRoot, answers: keep, prompter, flags });
+    throw savedAnswers(error, { repoRoot, answers: keep, prompter });
   }
 }
 
 /**
- * Typed answers are not lost to a late failure: they become an --answers file, and the
- * error names the re-run. Anything else (a bug) is rethrown untouched.
+ * Typed answers are not lost to a late failure: they are saved, and the next brand:init
+ * offers them. Anything else (a bug) is rethrown untouched.
  */
 function savedAnswers(
   error: unknown,
-  {
-    repoRoot,
-    answers,
-    prompter,
-    flags,
-  }: { repoRoot: string; answers: Answers; prompter?: Prompter; flags: string },
+  { repoRoot, answers, prompter }: { repoRoot: string; answers: Answers; prompter?: Prompter },
 ): unknown {
   if (!prompter || !(error instanceof BrandConfigError || error instanceof CommandError)) {
     return error;
@@ -581,8 +573,8 @@ function savedAnswers(
     [
       ...error.remedies,
       {
-        change: `fix them in ${saved}, then re-run from that file`,
-        run: `pnpm brand:init --answers ${saved}${flags}`,
+        change: `fix them in ${saved} if needed, then run it again and answer y to use them`,
+        run: "pnpm brand:init",
       },
     ],
   );
@@ -657,7 +649,7 @@ function writeProfile({
 }
 
 /**
- * `brand:init --connect` (spec L2): asks only the Firebase questions for the profile
+ * Connecting (spec L2): asks only the Firebase questions for the profile
  * brand/ selects, then rewrites brand.json and `.firebaserc`. It replaces a
  * local-only profile's demo project, or re-connects a connected one; CD's `deploy` names
  * survive only when the project stays the same.
@@ -686,7 +678,6 @@ export async function connect({
   // reply replaces it); a demo project's placeholders are never offered.
   const defaults = profile.localOnly ? {} : projectPart(current);
   const ask = asker(answers, example.answers, repoRoot, prompter, defaults);
-  let wanted = fillWeb;
   try {
     await ask(PROJECT_FIELDS.filter(({ path }) => path === "firebase.projectId"));
     const sameProject = text(answers, "firebase.projectId") === profile.brand.firebase.projectId;
@@ -695,7 +686,7 @@ export async function connect({
     else if (profile.brand.deploy && answers.deploy === undefined) {
       answers.deploy = structuredClone(profile.brand.deploy);
     }
-    wanted = await askProject(ask, { prompter, fillWeb });
+    const wanted = await askProject(ask, { prompter, fillWeb });
     await askWebKeys(ask, answers, { wanted, run });
     const { slug, brand, data } = validBrand(answers, example.answers);
     if (slug !== profile.slug) {
@@ -709,53 +700,83 @@ export async function connect({
     applyProfile({ profile: { ...profile, brand: data, localOnly }, repoRoot, env: {} });
     return { slug, projectId: data.firebase.projectId };
   } catch (error) {
-    const flags = ` --connect${wanted ? " --sdkconfig" : ""}`;
-    throw savedAnswers(error, { repoRoot, answers, prompter, flags });
+    throw savedAnswers(error, { repoRoot, answers, prompter });
   }
 }
 
-if (import.meta.main) {
-  const flags = {
-    switches: ["--local", "--connect", "--sdkconfig"],
-    values: { "--answers": "file" },
-  };
-  await runBrandCommand("brand:init", flags, async (args) => {
-    const answersFile = args.value("--answers");
-    // pnpm runs root scripts from the workspace root; INIT_CWD is where the user typed.
-    const cwd = process.env.INIT_CWD ?? process.cwd();
-    const answers = answersFile ? readJsonFile(resolve(cwd, answersFile), answersFile) : {};
-    if (!isRecord(answers)) {
-      throw new BrandConfigError(
-        [`${answersFile}: must be a JSON object`],
-        [
-          {
-            change: `make ${answersFile} a JSON object like the example in ${guideStep("profile")}`,
-          },
-        ],
-      );
+const yes = async (prompter: Prompter, key: string, label: string) =>
+  isYes(await prompter.ask({ key, label: `${label} (y/N)` }));
+
+function readSavedAnswers(file: string): Answers {
+  const answers = readJsonFile(file, ANSWERS_FILE);
+  if (isRecord(answers)) return answers;
+  throw new BrandConfigError(
+    [`${ANSWERS_FILE}: must be a JSON object`],
+    [{ change: `delete ${ANSWERS_FILE} and answer the questions again`, run: "pnpm brand:init" }],
+  );
+}
+
+/**
+ * `pnpm brand:init`: creates the chapter's profile or, once brand/ has one, offers to
+ * connect it to a Firebase project (spec R27 C4). The answers a failed try saved are offered
+ * first, and removed once a run succeeds. Returns what to print.
+ */
+export async function runInit({
+  repoRoot = REPO_ROOT,
+  prompter,
+  run = runCommand,
+}: {
+  repoRoot?: string;
+  /** The terminal; absent in a script or CI, where nobody can answer. */
+  prompter?: Prompter;
+  run?: CommandRunner;
+}): Promise<string> {
+  if (!prompter) {
+    throw new BrandConfigError(
+      ["brand:init asks questions, so it needs a terminal."],
+      [{ change: "run it in a terminal", run: "pnpm brand:init" }],
+    );
+  }
+  const savedFile = join(repoRoot, ANSWERS_FILE);
+  const useSaved =
+    existsSync(savedFile) &&
+    (await yes(
+      prompter,
+      "useSaved",
+      `Use the answers saved from your last try (${ANSWERS_FILE})?`,
+    ));
+  const answers = useSaved ? readSavedAnswers(savedFile) : {};
+
+  let text: string;
+  const [chapter] = chapterProfiles(repoRoot);
+  if (chapter) {
+    const profile = loadProfile({ repoRoot });
+    const question = profile.localOnly
+      ? `brand/${chapter}/ runs on this computer only. Connect it to a Firebase project now?`
+      : `brand/${chapter}/ uses Firebase project ${profile.brand.firebase.projectId}. Connect it again, to change the project or its keys?`;
+    if (!(await yes(prompter, "connect", question))) {
+      return `brand:init: nothing changed. To change brand/${chapter}/'s other values, edit brand/${chapter}/brand.json.`;
     }
-    const prompter = answersFile ? undefined : terminalPrompter();
-    const fillWeb = args.has("--sdkconfig");
+    const { slug, projectId } = await connect({ repoRoot, answers, prompter, run });
+    text = `brand:init: brand/${slug}/brand.json now uses Firebase project ${projectId}; ${FIREBASERC} rewritten.\n\n${formatNext(CONNECT_NEXT)}`;
+  } else {
+    const { slug, files, local } = await init({ repoRoot, answers, prompter, run });
+    const where = local
+      ? " It runs on this computer only, until you connect a Firebase project."
+      : "";
+    text = `brand:init: wrote ${files.join(", ")}. brand/ now selects "${slug}".${where}\n\n${formatNext(initNext(slug, { local }))}`;
+  }
+  // Used or declined, saved answers are stale once a run succeeds: offered again, they would
+  // answer the next run's questions (a connect skips the project id it finds there).
+  rmSync(savedFile, { force: true });
+  return text;
+}
+
+if (import.meta.main) {
+  await runBrandCommand("brand:init", async () => {
+    const prompter = process.stdin.isTTY ? terminalPrompter() : undefined;
     try {
-      if (args.has("--connect")) {
-        const { slug, projectId } = await connect({ answers, prompter, fillWeb });
-        console.log(
-          `brand:init: brand/${slug}/brand.json now uses Firebase project ${projectId}; ${FIREBASERC} rewritten.\n\n${formatNext(CONNECT_NEXT)}`,
-        );
-        return;
-      }
-      const { slug, files, local } = await init({
-        answers,
-        prompter,
-        fillWeb,
-        local: args.has("--local"),
-      });
-      const where = local
-        ? " It runs on this computer only, until you connect a Firebase project."
-        : "";
-      console.log(
-        `brand:init: wrote ${files.join(", ")}. brand/ now selects "${slug}".${where}\n\n${formatNext(initNext(slug, { local }))}`,
-      );
+      console.log(await runInit({ prompter }));
     } finally {
       prompter?.close();
     }

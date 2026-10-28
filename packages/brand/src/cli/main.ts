@@ -1,4 +1,3 @@
-import { parseArgs, type Args, type Flags } from "../argv.ts";
 import { BrandConfigError, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { formatRemedies } from "../remedy.ts";
 import { CommandError } from "./gcloud.ts";
@@ -21,45 +20,39 @@ export async function exitOnFailure(body: () => Promise<void> | void): Promise<v
   }
 }
 
+type Body = () => Promise<void> | void;
+type ProfileBody = (profile: LoadedProfile) => Promise<void> | void;
+
 /**
- * Runs a brand command once its arguments are all ones it takes (`flags`); anything else
- * stops it with the list of what it takes. `body` reads the flags through `args`.
+ * Runs a brand command, which takes no options (spec R27 C1): anything typed after it stops
+ * it before it does anything. A bare `--` is pnpm's separator, not the user's.
  */
 export async function runBrandCommand(
   name: string,
-  flags: Flags,
-  body: (args: Args) => Promise<void> | void,
+  body: Body,
   argv: readonly string[] = process.argv.slice(2),
 ): Promise<void> {
   await exitOnFailure(async () => {
-    const args = parseArgs(
-      argv,
-      flags,
-      (problems, usage) =>
-        new BrandConfigError(problems, [
-          { change: usage ? `${name} takes ${usage}` : `${name} takes no options` },
-        ]),
-    );
-    await body(args);
+    const extra = argv.filter((arg) => arg !== "--");
+    if (extra.length > 0) {
+      throw new CommandError(`${name} takes no options (got ${extra.join(" ")}).`, [
+        { run: `pnpm ${name}` },
+      ]);
+    }
+    await body();
   });
 }
 
 /**
- * Runs a brand CLI against the profile brand/ selects, or `--profile <slug>`, which every
- * such command takes on top of its own `flags`.
+ * Runs a brand CLI against the profile brand/ selects.
  * A CLI that tooling runs (a firebase.json hook, a CD step) keeps stdout for data a caller
  * parses (`brand:ci-config`'s outputs) and writes status to stderr: firebase-tools copies
  * hook stdout into its `--json` output.
  */
-export async function runCli(
-  name: string,
-  flags: Flags,
-  body: (profile: LoadedProfile, args: Args) => Promise<void> | void,
-): Promise<void> {
-  const withProfile = { ...flags, values: { ...flags.values, "--profile": "slug" } };
-  await runBrandCommand(name, withProfile, async (args) => {
-    const profile = loadProfile({ profile: args.value("--profile") });
+export async function runCli(name: string, body: ProfileBody): Promise<void> {
+  await runBrandCommand(name, async () => {
+    const profile = loadProfile({});
     for (const warning of profile.warnings) console.warn(`${name}: ${warning}`);
-    await body(profile, args);
+    await body(profile);
   });
 }

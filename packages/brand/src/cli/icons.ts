@@ -23,6 +23,8 @@ import { BRAND_APPS } from "../ports.ts";
 import { PULLED_ASSETS_DIR, displayDir } from "../release.ts";
 import { formatNext, guideStep, type Problem, type Remedy } from "../remedy.ts";
 import { runCli } from "./main.ts";
+import { terminalConfirm, type Confirm } from "./prompts.ts";
+import { plural } from "./table.ts";
 
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
 const MIN = `${MIN_ICON_MASTER_SIZE}×${MIN_ICON_MASTER_SIZE}`;
@@ -127,7 +129,10 @@ function writeIcons(icons: readonly { file: string; png: Buffer }[], label: stri
         {
           message: `${index} of ${files.length} icons replaced, then: ${errorMessage(error)}`,
           remedies: [
-            { change: "fix what stopped it, then finish the set", run: "pnpm brand:icons --force" },
+            {
+              change: "fix what stopped it, then run it again and answer y to finish the set",
+              run: "pnpm brand:icons",
+            },
           ],
         },
       ]);
@@ -137,17 +142,18 @@ function writeIcons(icons: readonly { file: string; png: Buffer }[], label: stri
 
 /**
  * Renders both apps' icon sets from `brand-assets/icon-master.png` or `icon-master.svg`.
- * Checks the master and the targets and renders every icon before writing any; never
- * replaces an icon unless `force`. Returns the written paths as the user sees them.
+ * Checks the master and renders every icon before writing any. Icons already there are
+ * replaced only when `confirmReplace` says yes; without it (no terminal) nothing is written.
+ * Returns the written paths as the user sees them: none when the answer was no.
  */
 export async function generateIcons({
   profile,
   repoRoot = REPO_ROOT,
-  force = false,
+  confirmReplace,
 }: {
   profile: LoadedProfile;
   repoRoot?: string;
-  force?: boolean;
+  confirmReplace?: Confirm;
 }): Promise<string[]> {
   const assetsDir = join(repoRoot, PULLED_ASSETS_DIR);
   const label = displayDir(repoRoot, assetsDir);
@@ -179,17 +185,27 @@ export async function generateIcons({
     master = only ? await readMaster(join(assetsDir, only.file), only.kind) : { reason: "missing" };
     if ("reason" in master) problems.push(masterProblem(master.reason));
   }
-  const existing = force ? [] : targets.filter(({ path }) => existsSync(join(assetsDir, path)));
-  if (existing.length > 0) {
-    problems.push({
-      message: `already there, not overwritten: ${existing.map(({ path }) => `${label}/${path}`).join(", ")}`,
-      remedies: [
-        { change: "replace them with icons made from the master", run: "pnpm brand:icons --force" },
-      ],
-    });
-  }
   if (!master || !("bytes" in master) || problems.length > 0) throw new BrandConfigError(problems);
   const { bytes } = master;
+  const existing = targets.filter(({ path }) => existsSync(join(assetsDir, path)));
+  if (existing.length > 0) {
+    if (!confirmReplace) {
+      throw new BrandConfigError([
+        {
+          message: `already there, not replaced: ${existing.map(({ path }) => `${label}/${path}`).join(", ")}`,
+          remedies: [
+            {
+              change:
+                "run it in a terminal and answer y to replace them with icons made from the master",
+              run: "pnpm brand:icons",
+            },
+          ],
+        },
+      ]);
+    }
+    const question = `Replace the ${plural(existing.length, "icon")} already in ${label}/ with icons made from ${only?.file ?? ICON_MASTER_FILE}?`;
+    if (!(await confirmReplace(question))) return [];
+  }
   const input = only?.kind === "SVG" ? SVG_INPUT : {};
 
   let icons: { file: string; png: Buffer }[];
@@ -218,8 +234,12 @@ const NEXT: readonly Remedy[] = [
 ];
 
 if (import.meta.main) {
-  await runCli("brand:icons", { switches: ["--force"] }, async (profile, args) => {
-    const written = await generateIcons({ profile, force: args.has("--force") });
+  await runCli("brand:icons", async (profile) => {
+    const written = await generateIcons({ profile, confirmReplace: terminalConfirm() });
+    if (written.length === 0) {
+      console.log(`brand:icons: kept the icons in ${PULLED_ASSETS_DIR}/; nothing changed.`);
+      return;
+    }
     console.log(
       `brand:icons: ${written.length} icons for profile "${profile.slug}" from the master in ${PULLED_ASSETS_DIR}/:`,
     );

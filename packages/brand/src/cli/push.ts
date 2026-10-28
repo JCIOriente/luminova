@@ -1,10 +1,13 @@
-import { join, resolve } from "node:path";
-import { assetRemedies, contractByFolder, validateAssets } from "../assets.ts";
-import { BrandConfigError, REPO_ROOT, type LoadedProfile } from "../load-profile.ts";
-import { PULLED_ASSETS_DIR, displayDir, undeployableProfileErrors } from "../release.ts";
+import { join } from "node:path";
+import { contractByFolder } from "../assets.ts";
+import { BrandConfigError, REPO_ROOT, type Env, type LoadedProfile } from "../load-profile.ts";
+import { displayDir, undeployableProfileErrors } from "../release.ts";
 import { formatNext, type Remedy, guideStep } from "../remedy.ts";
-import { bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
+import { bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
+import { checkImages, type Images } from "./images.ts";
 import { runCli } from "./main.ts";
+import { formatReport, formatSections } from "./rows.ts";
+import { plural } from "./table.ts";
 
 export const deployDispatch = (surface: "hosting" | "all") =>
   `gh workflow run deploy.yml -f surface=${surface}`;
@@ -13,7 +16,7 @@ export const deployDispatch = (surface: "hosting" | "all") =>
 export const DEPLOY_DISPATCH = deployDispatch("hosting");
 
 export const pushNext = (slug: string): Remedy[] => [
-  { change: "confirm the bucket row passes", run: "pnpm brand:doctor" },
+  { change: "confirm the bucket row passes", run: "pnpm brand:check" },
   {
     change: `when you are ready to go live: merge brand/${slug}/ to main; the first deploy ships everything (${guideStep("goLive")}). Already on main? Deploy by hand:`,
     run: deployDispatch("all"),
@@ -27,32 +30,49 @@ export const pushNext = (slug: string): Remedy[] => [
   },
 ];
 
+/** The images have problems: nothing was uploaded. Carries brand:check's images section. */
+export class ImagesNotReadyError extends Error {
+  readonly images: Images;
+
+  constructor(images: Images) {
+    super(`${images.title}: not ready`);
+    this.images = images;
+  }
+}
+
 /**
- * Uploads a validated asset set to the selected profile's bucket (owner/adopter only).
- * Plain `cp` per file: never a sync that deletes, so a partial source cannot erase
- * objects, and versioning keeps every overwritten generation for rollback.
+ * Uploads the images `brand:check` reads to the selected profile's bucket (owner/adopter
+ * only), once they all pass. Plain `cp` per file: never a sync that deletes, so a partial
+ * source cannot erase objects, and versioning keeps every overwritten generation for rollback.
  */
 export async function push({
   profile,
-  from,
+  repoRoot = REPO_ROOT,
+  env = process.env,
   run = runCommand,
 }: {
   profile: LoadedProfile;
-  from: string;
+  repoRoot?: string;
+  env?: Env;
   run?: CommandRunner;
-}): Promise<void> {
+}): Promise<Images> {
   const refused = undeployableProfileErrors(profile);
-  if (refused.length > 0) throw new BrandConfigError(refused);
-  const validation = validateAssets(from, { profile: profile.slug });
-  if (validation.errors.length > 0) {
-    throw new BrandConfigError(
-      validation.errors.map((error) => `${from}/${error}`),
-      assetRemedies(validation, displayDir(REPO_ROOT, from), {
-        checkCommand: `pnpm brand:check --assets ${shellQuote(displayDir(REPO_ROOT, from))}`,
-      }),
-    );
+  if (env.BRAND_ASSETS_DIR?.trim()) {
+    refused.push({
+      message:
+        "BRAND_ASSETS_DIR is set in your environment; brand:push uploads only the images brand:check reads without it.",
+      remedies: [
+        {
+          change: "remove it from your environment (tools set it for test builds only)",
+          run: "unset BRAND_ASSETS_DIR",
+          where: "shell",
+        },
+      ],
+    });
   }
-  for (const warning of validation.warnings) console.warn(`brand:push: ${warning}`);
+  if (refused.length > 0) throw new BrandConfigError(refused);
+  const images = checkImages({ profile, repoRoot, env });
+  if (images.validation.errors.length > 0) throw new ImagesNotReadyError(images);
 
   const bucket = profile.brand.assetsBucket;
   await Promise.all(
@@ -60,20 +80,28 @@ export async function push({
       run("gcloud", [
         "storage",
         "cp",
-        ...paths.map((path) => join(from, path)),
+        ...paths.map((path) => join(images.dir, path)),
         bucketUrl(bucket, folder),
       ]),
     ),
   );
+  return images;
 }
 
 if (import.meta.main) {
-  await runCli("brand:push", { values: { "--from": "folder" } }, async (profile, args) => {
-    const from = resolve(args.value("--from") ?? PULLED_ASSETS_DIR);
+  await runCli("brand:push", async (profile) => {
     const bucket = bucketUrl(profile.brand.assetsBucket);
-    await push({ profile, from });
+    let images: Images;
+    try {
+      images = await push({ profile });
+    } catch (error) {
+      if (!(error instanceof ImagesNotReadyError)) throw error;
+      const { text, failures } = formatReport([error.images]);
+      console.error(`${text}\n\nbrand:push: nothing uploaded, ${plural(failures, "problem")}.`);
+      process.exit(1);
+    }
     console.log(
-      `brand:push: uploaded ${from} to ${bucket} (profile "${profile.slug}", project ${profile.brand.firebase.projectId}).\n\n${formatNext(pushNext(profile.slug))}`,
+      `${formatSections([images])}\n\nbrand:push: uploaded ${displayDir(REPO_ROOT, images.dir)}/ to ${bucket} (profile "${profile.slug}", project ${profile.brand.firebase.projectId}).\n\n${formatNext(pushNext(profile.slug))}`,
     );
   });
 }

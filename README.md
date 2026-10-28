@@ -163,7 +163,7 @@ More: [`docs/architecture.md`](docs/architecture.md) ·
 ## Quickstart
 
 You need **Node 24**, **pnpm** (via `corepack enable`), the **Firebase CLI**, and
-**Java 21 or later** (the Firestore emulator runs on the JVM). `pnpm brand:setup` checks
+**Java 21 or later** (the Firestore emulator runs on the JVM). `pnpm brand:check` checks
 all four and prints the install command for your computer. The commands for macOS, Linux
 and Windows (WSL 2) are in [Before you start](docs/adopting.md#before-you-start).
 
@@ -173,7 +173,7 @@ cd luminova
 nvm use                       # Node 24, pinned in .nvmrc
 corepack enable
 pnpm install
-pnpm brand:setup --part try   # Node, pnpm, Java, Firebase CLI: what it found, or how to install
+pnpm brand:check              # the tools, the profile and its images: what it found, or how to fix it
 pnpm dev
 ```
 
@@ -207,7 +207,7 @@ Full developer guide, including the quality gate and the repository layout:
 Luminova is not multi-tenant: one deployment serves one chapter. To run it for yours, fork
 it and create a brand profile with `pnpm brand:init` (names, places, site addresses). Try it
 on your computer first: the profile starts local-only, with no Firebase project and nothing
-deployed. When your chapter is ready to go live, `pnpm brand:init --connect` attaches your
+deployed. When your chapter is ready to go live, running `pnpm brand:init` again attaches your
 Firebase project and `pnpm brand:provision` walks through the Google Cloud setup. The JCI marks are **not** covered by this repository's license — see
 [NOTICE](NOTICE).
 

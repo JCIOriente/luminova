@@ -85,7 +85,7 @@ describe("loadProfile", () => {
     expect(loadProfile({ repoRoot: root, env: {} }).slug).toBe("other");
   });
 
-  it("stops on two chapter profiles, naming both and both ways out", () => {
+  it("stops on two chapter profiles, naming both and the way out", () => {
     writeProfile("jci-andina");
     const { remedies, message } = remediesOf(() => loadProfile({ repoRoot: root, env: {} }));
     expect(message).toContain(
@@ -93,7 +93,6 @@ describe("loadProfile", () => {
     );
     expect(remedies).toEqual([
       { change: "delete the folder under brand/ you do not build, so one chapter profile remains" },
-      { change: "or pass --profile one of: jci-andina, other, for one command" },
     ]);
   });
 
@@ -139,14 +138,14 @@ describe("loadProfile", () => {
     ]);
   });
 
-  it("prefers --profile over the override and brand/", () => {
+  it("prefers the profile its caller names over the override and brand/", () => {
     const profile = loadProfile({
       repoRoot: root,
       env: { BRAND_PROFILE: "other" },
       profile: EXAMPLE_PROFILE,
     });
     expect(profile.slug).toBe(EXAMPLE_PROFILE);
-    expect(profile.source).toBe("flag");
+    expect(profile.source).toBe("named");
   });
 
   it("lists the chapter profiles for brand:init's one-per-repository rule", () => {
@@ -212,7 +211,7 @@ describe("loadProfile remedies", () => {
       loadProfile({ repoRoot: root, profile: "nope" }),
     );
     expect(remedies).toEqual([
-      { change: "pass --profile one of: jci-oriente, other" },
+      { change: "name one of: jci-oriente, other" },
       { change: "or create brand/nope/", run: "pnpm brand:init" },
     ]);
     expect(message).toContain("To fix:");

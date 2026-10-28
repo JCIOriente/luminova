@@ -214,8 +214,7 @@ pnpm deploy:all         # rules → functions → hosting
 ### Hosting deploys need a release build
 
 A hosting deploy ships only a **release build** (`pnpm build:release`): it needs the
-profile `brand/` selects, or one passed with `--profile` (never a `BRAND_PROFILE`
-override that differs from it),
+profile `brand/` selects (never a `BRAND_PROFILE` override that differs from it),
 that profile's assets pulled from its private bucket into `brand-assets/`
 (`pnpm brand:pull`), and, when `GCP_PROJECT_ID` is set, that it names the profile's
 project. The build writes `dist/.brand-release.json`, and each hosting target's
@@ -233,12 +232,12 @@ firebase deploy --only hosting:backstage
 
 Deployment images live in `brand.json` `assetsBucket` (`jci-oriente-brand-assets`), a
 private, versioned bucket the CD service account can only read (`docs/ci-cd.md` section 5).
-`pnpm brand:provision` prints the setup with the profile's values; `--apply` creates and
-configures the bucket. `pnpm brand:push --from <dir>` validates and
-uploads a new set, then prints the hosting dispatch: an asset change is not in git, so CD
+`pnpm brand:provision` prints the setup with the profile's values, then asks whether to
+create and configure the bucket. `pnpm brand:push` validates and uploads the images
+`pnpm brand:check` names, then prints the hosting dispatch: an asset change is not in git, so CD
 does not see it until someone runs `gh workflow run deploy.yml -f surface=hosting`. A bad
 upload rolls back with `gcloud storage cp gs://<bucket>/<file>#<generation> gs://<bucket>/<file>`.
-Claude never runs `brand:push`, `brand:provision --apply` or the dispatch.
+Claude never runs `brand:push`, `brand:provision` (its question can create the bucket) or the dispatch.
 
 ## Firestore Rules Deploy
 

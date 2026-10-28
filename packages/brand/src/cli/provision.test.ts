@@ -4,7 +4,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { DEPLOY_SA, POOL_ID, PROVIDER_ID } from "../deploy-identity.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
-import { applyBucket, printProvisioning, provisionNext, provisioningSection } from "./provision.ts";
+import {
+  applyBucket,
+  offerBucket,
+  printProvisioning,
+  provisionNext,
+  provisioningSection,
+} from "./provision.ts";
 
 const BUCKET = "gs://jci-oriente-brand-assets";
 const SA = "firebase-deployer@jci-oriente.iam.gserviceaccount.com";
@@ -73,7 +79,7 @@ describe("printProvisioning", () => {
     expect(text).toContain(
       `gcloud storage buckets add-iam-policy-binding ${BUCKET} --member=serviceAccount:${SA} --role=roles/storage.objectViewer`,
     );
-    expect(text).toContain("pnpm brand:push --from brand/jci-oriente/assets");
+    expect(text).toContain("    pnpm brand:push\n");
     expect(text).toContain("gh workflow run deploy.yml -f surface=all");
     expect(text).not.toMatch(/BRAND_PROFILE|gh variable/);
     expect(mutations()).toEqual([]);
@@ -88,18 +94,20 @@ describe("printProvisioning", () => {
     expect(calls).toContainEqual(["gh", "api", "user", "-q", ".id"]);
   });
 
-  it("prefers --repo over gh and leaves a hint when a lookup fails", async () => {
+  it("leaves a hint for each value a lookup could not find", async () => {
     const failing: CommandRunner = async (command, args) => {
       calls.push([command, ...args]);
       throw new CommandError("offline");
     };
-    const text = await printProvisioning({ profile, run: failing, repo: "me/fork" });
-    expect(text).toContain("export GH_REPO=me/fork\n");
+    const text = await printProvisioning({ profile, run: failing });
+    expect(text).toContain(
+      "export GH_REPO=   # FILL IN before pasting: gh repo view --json nameWithOwner -q .nameWithOwner\n",
+    );
     expect(text).toContain("export REVIEWER_ID=   # FILL IN before pasting: gh api user -q .id\n");
     expect(text).toContain(
       "export PROJECT_NUMBER=   # FILL IN before pasting: gcloud projects describe jci-oriente",
     );
-    expect(text).toMatch(/# PROJECT_NUMBER, REVIEWER_ID could not be looked up\. Sign in/);
+    expect(text).toMatch(/# PROJECT_NUMBER, GH_REPO, REVIEWER_ID could not be looked up\. Sign in/);
     // Nothing a shell would read as a redirection.
     expect(text).not.toMatch(/^\s*export \w+=</m);
   });
@@ -132,15 +140,13 @@ describe("printProvisioning", () => {
 });
 
 describe("printProvisioning of a local-only profile", () => {
-  it("refuses, pointing at --connect, without looking anything up", async () => {
+  it("refuses, pointing at connecting a project, without looking anything up", async () => {
     const fixture = loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" });
     const error = await printProvisioning({ profile: fixture, run: fakeRunner() }).catch(
       (caught: unknown) => caught,
     );
     expect(error).toBeInstanceOf(BrandConfigError);
-    expect((error as BrandConfigError).remedies.map(({ run }) => run)).toEqual([
-      "pnpm brand:init --connect",
-    ]);
+    expect((error as BrandConfigError).remedies.map(({ run }) => run)).toEqual(["pnpm brand:init"]);
     expect(calls).toEqual([]);
   });
 });
@@ -262,16 +268,75 @@ describe("applyBucket", () => {
   });
 });
 
+describe("offerBucket", () => {
+  it("creates the bucket only when the answer is yes", async () => {
+    const steps = await offerBucket({
+      profile,
+      repoRoot: REPO_ROOT,
+      run: fakeRunner({ describe: [null, DONE] }),
+      confirm: async () => true,
+    });
+    expect(steps?.[0]).toEqual({ label: "create the bucket", done: false });
+    expect(mutations().map((call) => call.slice(1, 4).join(" "))).toContain(
+      "storage buckets create",
+    );
+  });
+
+  it("asks about step 3 after steps 1 and 2, and changes nothing on a no", async () => {
+    const questions: string[] = [];
+    const steps = await offerBucket({
+      profile,
+      repoRoot: REPO_ROOT,
+      run: fakeRunner(),
+      confirm: async (question) => {
+        questions.push(question);
+        return false;
+      },
+    });
+    expect(steps).toBeNull();
+    expect(questions).toEqual([
+      "Steps 1 and 2 done? Then this can do step 3 now: create and set up the bucket (skips what is done). Do step 3 now?",
+    ]);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a profile that cannot ship before asking", async () => {
+    let asked = false;
+    await expect(
+      offerBucket({
+        profile: { ...profile, source: "override" },
+        repoRoot: REPO_ROOT,
+        run: fakeRunner(),
+        confirm: async () => {
+          asked = true;
+          return true;
+        },
+      }),
+    ).rejects.toThrow(BrandConfigError);
+    expect(asked).toBe(false);
+    expect(calls).toEqual([]);
+  });
+
+  it("never asks or changes anything without a terminal", async () => {
+    expect(await offerBucket({ profile, repoRoot: REPO_ROOT, run: fakeRunner() })).toBeNull();
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("provisionNext", () => {
-  it("after printing, points at --apply", () => {
-    expect(provisionNext({ applied: false }).map(({ run }) => run)).toEqual([
-      "pnpm brand:provision --apply",
+  it("after printing, says to come back and answer y once steps 1 and 2 are done", () => {
+    expect(provisionNext({ applied: false })).toEqual([
+      expect.objectContaining({
+        change: expect.stringMatching(/answer y/),
+        run: "pnpm brand:provision",
+      }),
     ]);
   });
 
-  it("after applying, points at the upload and doctor", () => {
-    expect(
-      provisionNext({ applied: true, pushCommand: "pnpm brand:push" }).map(({ run }) => run),
-    ).toEqual(["pnpm brand:push", "pnpm brand:doctor"]);
+  it("after creating the bucket, points at the upload and the check", () => {
+    expect(provisionNext({ applied: true }).map(({ run }) => run)).toEqual([
+      "pnpm brand:push",
+      "pnpm brand:check",
+    ]);
   });
 });
