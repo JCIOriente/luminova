@@ -298,5 +298,5 @@ async function main(): Promise<number> {
 }
 
 if (import.meta.main) {
-  await runBrandCommand("brand:guard", {}, async () => process.exit(await main()));
+  await runBrandCommand("brand:guard", async () => process.exit(await main()));
 }

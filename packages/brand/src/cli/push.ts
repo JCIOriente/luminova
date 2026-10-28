@@ -76,7 +76,7 @@ export async function push({
 }
 
 if (import.meta.main) {
-  await runCli("brand:push", {}, async (profile) => {
+  await runCli("brand:push", async (profile) => {
     const bucket = bucketUrl(profile.brand.assetsBucket);
     let images: Images;
     try {
