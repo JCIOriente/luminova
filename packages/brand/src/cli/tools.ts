@@ -6,9 +6,8 @@ import { CI_FIREBASE_CLI, INSTALL_NVM, installRemedy, type Tool } from "./instal
 import { fail, ok, skip, warn, type CheckRow } from "./rows.ts";
 
 /**
- * The tools each part of docs/adopting.md needs, checked read-only (spec
- * docs/specs/2026-10-25-brand-setup.md), for `brand:check`. Imports no npm package, so it runs
- * before `pnpm install` (S4).
+ * The tools each part of docs/adopting.md needs, checked read-only for `brand:check` (spec
+ * docs/specs/2026-10-25-brand-setup.md).
  */
 export type Part = "try" | "live";
 

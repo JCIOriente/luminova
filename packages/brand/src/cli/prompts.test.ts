@@ -1,6 +1,6 @@
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
-import { terminalConfirm } from "./prompts.ts";
+import { terminalConfirm, terminalPrompter } from "./prompts.ts";
 
 /** A stdin stand-in that already holds `reply`. */
 function input(reply: string, isTTY: boolean): NodeJS.ReadStream {
@@ -28,7 +28,21 @@ describe("terminalConfirm", () => {
     expect((await asked("maybe\n")).answer).toBe(false);
   });
 
+  it("counts a closed input (Ctrl-D, Ctrl-C) as no instead of hanging", async () => {
+    expect(await asked("")).toEqual({ answer: false, printed: "Replace them? (y/N) " });
+  });
+
   it("is absent without a terminal, so a script is never asked", () => {
     expect(terminalConfirm(input("y\n", false), new PassThrough())).toBeUndefined();
+  });
+});
+
+describe("terminalPrompter", () => {
+  it("stops with a clean error when the input closes mid-question", async () => {
+    const prompter = terminalPrompter(input("", true), new PassThrough());
+    await expect(prompter.ask({ key: "name", label: "Name" })).rejects.toThrow(
+      /Stopped before every question was answered/,
+    );
+    prompter.close();
   });
 });

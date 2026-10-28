@@ -1,4 +1,16 @@
-import { createInterface } from "node:readline/promises";
+import { once } from "node:events";
+import { createInterface, type Interface } from "node:readline/promises";
+import { CommandError } from "./gcloud.ts";
+
+/**
+ * The reply, or null when the input closes first (Ctrl-D, or Ctrl-C, which closes readline):
+ * a pending question would otherwise never settle, and Node exits 13 mid-await.
+ */
+async function reply(readline: Interface, prompt: string): Promise<string | null> {
+  const closed = once(readline, "close").then(() => null);
+  const answered = readline.question(prompt).catch(() => null);
+  return Promise.race([answered, closed]);
+}
 
 export interface Question {
   /** Dotted brand.json path, or a flag name such as `fillWeb`. */
@@ -32,7 +44,7 @@ export function terminalConfirm(
   return async (question) => {
     const readline = createInterface({ input, output });
     try {
-      return isYes(await readline.question(`${question} (y/N) `));
+      return isYes((await reply(readline, `${question} (y/N) `)) ?? "");
     } finally {
       readline.close();
     }
@@ -47,7 +59,9 @@ export function terminalPrompter(
   return {
     async ask({ label, fallback, error }) {
       if (error) output.write(`  ${error}\n`);
-      return (await readline.question(fallback ? `${label} [${fallback}]: ` : `${label}: `)).trim();
+      const text = await reply(readline, fallback ? `${label} [${fallback}]: ` : `${label}: `);
+      if (text === null) throw new CommandError("Stopped before every question was answered.");
+      return text.trim();
     },
     close: () => readline.close(),
   };
