@@ -222,7 +222,7 @@ describe("toolRows", () => {
       });
     });
 
-    it("only warns when nobody is signed in: just --sdkconfig needs it", async () => {
+    it("only warns when nobody is signed in: just reading the API keys needs it", async () => {
       responses.set("firebase login:list", '⚠  No authorized accounts, run "firebase login"\n');
       expect(rowFor(await check(), "firebase account")).toMatchObject({
         status: "warn",

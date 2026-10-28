@@ -129,8 +129,8 @@ export interface LoadedProfile {
   source: ProfileSource;
   warnings: string[];
   /**
-   * The profile runs only in the emulators: a `demo-` project, from `brand:init --local`,
-   * until `brand:init --connect` attaches a real one.
+   * The profile runs only in the emulators: a `demo-` project, from `brand:init` without a
+   * Firebase project, until brand:init connects a real one.
    */
   localOnly: boolean;
 }

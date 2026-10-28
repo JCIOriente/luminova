@@ -367,10 +367,7 @@ describe("check", () => {
         "gh workflow run deploy.yml -f surface=all",
       ]);
       const local = loadProfile({ repoRoot: root, profile: "fixture" });
-      expect(checkNext(local).map(({ run }) => run)).toEqual([
-        "pnpm dev",
-        "pnpm brand:init --connect",
-      ]);
+      expect(checkNext(local).map(({ run }) => run)).toEqual(["pnpm dev", "pnpm brand:init"]);
     });
 
     it("shows going live as one row for a local-only profile, without calling gcloud", async () => {

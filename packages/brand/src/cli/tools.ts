@@ -228,7 +228,7 @@ const CHECKS: readonly ToolCheck[] = [
         ? ok("firebase account", account)
         : warn("firebase account", "not signed in", [
             {
-              change: "only brand:init --connect --sdkconfig needs it (step 7)",
+              change: "only reading the API keys in brand:init needs it (step 7)",
               ...SIGN_IN_REMEDY.firebase,
             },
           ]);

@@ -202,7 +202,7 @@ function cdIdentityRow(profile: LoadedProfile): CheckRow {
   return ok("CD identity", profile.brand.deploy?.serviceAccount ?? "");
 }
 
-const LOCAL_ONLY = "local-only profile; comes with going live (pnpm brand:init --connect)";
+const LOCAL_ONLY = "local-only profile; comes with going live (pnpm brand:init connects it)";
 
 export const SECTION_TITLES = {
   tools: "Tools on this computer",
