@@ -21,10 +21,10 @@ const RELEASE_ENV = "BRAND_RELEASE";
 export const RELEASE_MARKER_FILE = ".brand-release.json";
 export const PULLED_ASSETS_DIR = "brand-assets";
 
-/** How a local-only profile goes live: a real project, then `--connect`. */
+/** How a local-only profile goes live: a real project, then brand:init connects it. */
 export const CONNECT_PROJECT: Remedy = {
-  change: `when you are ready to go live: create a Firebase project (${guideStep("firebaseProject")}), then connect it (step ${GUIDE_STEPS.connect})`,
-  run: "pnpm brand:init --connect",
+  change: `when you are ready to go live: create a Firebase project (${guideStep("firebaseProject")}), then run this and answer y to connect it (step ${GUIDE_STEPS.connect})`,
+  run: "pnpm brand:init",
 };
 
 const releaseMarkerSchema = z.strictObject({
@@ -68,7 +68,7 @@ const SHIP_CHAPTER: Remedy = {
 /**
  * A profile that may reach production: found in brand/ or chosen with --profile (never a
  * stray environment override; spec P5), not the fixture, not an emulator-only project. Release
- * builds, brand:push and brand:provision --apply share it.
+ * builds, brand:push and brand:provision's bucket step share it.
  */
 export const PRINT_GCP_SETUP: Remedy = {
   change:

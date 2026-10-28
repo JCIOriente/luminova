@@ -140,15 +140,13 @@ describe("printProvisioning", () => {
 });
 
 describe("printProvisioning of a local-only profile", () => {
-  it("refuses, pointing at --connect, without looking anything up", async () => {
+  it("refuses, pointing at connecting a project, without looking anything up", async () => {
     const fixture = loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" });
     const error = await printProvisioning({ profile: fixture, run: fakeRunner() }).catch(
       (caught: unknown) => caught,
     );
     expect(error).toBeInstanceOf(BrandConfigError);
-    expect((error as BrandConfigError).remedies.map(({ run }) => run)).toEqual([
-      "pnpm brand:init --connect",
-    ]);
+    expect((error as BrandConfigError).remedies.map(({ run }) => run)).toEqual(["pnpm brand:init"]);
     expect(calls).toEqual([]);
   });
 });
