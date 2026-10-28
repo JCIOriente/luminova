@@ -288,6 +288,15 @@ export function checkNext(profile: LoadedProfile): Remedy[] {
       CONNECT_PROJECT,
     ];
   }
+  // Without CD's sign-in a merge deploys nothing (Deploy skips), so that comes first.
+  if (!profile.brand.deploy) {
+    return [
+      {
+        change: `set up keyless CD and the assets bucket (${guideStep("provision")})`,
+        run: "pnpm brand:provision",
+      },
+    ];
+  }
   return [
     {
       change: `when you are ready to go live: merge brand/${slug}/ to main in your fork. The merge starts the first deploy; approve it in GitHub (${guideStep("goLive")})`,
@@ -311,6 +320,11 @@ if (import.meta.main) {
     }
     // A failing profile row exits above; the guard only narrows the type.
     if (!profile) return;
-    console.log(`\nbrand:check: everything is ready.\n\n${formatNext(checkNext(profile))}`);
+    const notes = sections.flatMap(({ rows }) => rows).filter(({ status }) => status === "warn");
+    const summary =
+      notes.length > 0
+        ? `no problems; ${plural(notes.length, "note")} above, worth a look`
+        : "everything is ready";
+    console.log(`\nbrand:check: ${summary}.\n\n${formatNext(checkNext(profile))}`);
   });
 }

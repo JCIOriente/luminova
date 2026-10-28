@@ -101,6 +101,18 @@ describe("push", () => {
     expect(calls).toEqual([]);
   });
 
+  it("refuses a BRAND_ASSETS_DIR override before uploading anything", async () => {
+    const error = await push({
+      profile,
+      repoRoot: root,
+      env: { BRAND_ASSETS_DIR: from },
+      run,
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(BrandConfigError);
+    expect(String(error)).toMatch(/BRAND_ASSETS_DIR is set/);
+    expect(calls).toEqual([]);
+  });
+
   it("refuses the fixture profile, which can never reach production", async () => {
     const fixture: LoadedProfile = {
       ...loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" }),

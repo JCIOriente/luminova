@@ -1,4 +1,7 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import {
+  ASSET_CONTRACT,
   PULL_MANIFEST_FILE,
   assetRemedies,
   validateAssets,
@@ -43,5 +46,22 @@ export function checkImages({
   }
   if (valid === validation.files.length) rows.push(ok("images", `all ${valid} valid`));
   else if (valid > 0) rows.push(ok("images", `${valid} more valid`));
+  // brand-assets/ wins as soon as it holds one image (a pull, brand:icons), so edits to the
+  // profile's own images would otherwise go unnoticed.
+  const own = join(profile.dir, "assets");
+  if (dir !== own && ASSET_CONTRACT.some(({ path }) => existsSync(join(own, path)))) {
+    const ownLabel = displayDir(repoRoot, own);
+    rows.push(
+      warn(
+        "other folder",
+        `${ownLabel}/ also holds images; they are not used while ${label}/ holds any`,
+        [
+          {
+            change: `keep the images you edit in ${label}/, or empty ${label}/ to use ${ownLabel}/ again`,
+          },
+        ],
+      ),
+    );
+  }
   return { title: `Images in ${label}/`, rows, dir, validation };
 }
