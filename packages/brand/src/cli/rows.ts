@@ -1,4 +1,4 @@
-import { uniqueRemedies, type Remedy } from "../remedy.ts";
+import { formatRemedies, uniqueRemedies, type Remedy } from "../remedy.ts";
 import { formatTable } from "./table.ts";
 
 /** One line of a `brand:check` section. */
@@ -40,6 +40,19 @@ export const ok = row("ok");
 export const warn = row("warn");
 export const fail = row("fail");
 export const skip = row("skip");
+
+/**
+ * Sections, then one "To fix:" block for them, and how many rows failed: what brand:check
+ * prints, and brand:push for its images.
+ */
+export function formatReport(sections: readonly Section[]): { text: string; failures: number } {
+  const rows = sections.flatMap((section) => section.rows);
+  const fix = formatRemedies(rowRemedies(rows));
+  return {
+    text: [formatSections(sections), fix].filter(Boolean).join("\n\n"),
+    failures: rows.filter(({ status }) => status === "fail").length,
+  };
+}
 
 /** The remedies of failing and warning rows, each once, in row (fix) order. */
 export const rowRemedies = (rows: readonly CheckRow[]): Remedy[] =>

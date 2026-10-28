@@ -3,15 +3,14 @@ import { fileURLToPath } from "node:url";
 import { renderBrandJsonSchema } from "../schema.ts";
 import { runBrandCommand } from "./main.ts";
 
-const SCHEMAS = [["brand/brand.schema.json", renderBrandJsonSchema()]] as const;
-
-const target = (path: string) => fileURLToPath(new URL(`../../../../${path}`, import.meta.url));
+const SCHEMA_FILE = "brand/brand.schema.json";
 
 if (import.meta.main) {
   await runBrandCommand("brand:schema", () => {
-    for (const [path, expected] of SCHEMAS) {
-      writeFileSync(target(path), expected);
-      console.log(`Wrote ${path}.`);
-    }
+    writeFileSync(
+      fileURLToPath(new URL(`../../../../${SCHEMA_FILE}`, import.meta.url)),
+      renderBrandJsonSchema(),
+    );
+    console.log(`Wrote ${SCHEMA_FILE}.`);
   });
 }
