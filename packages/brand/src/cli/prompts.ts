@@ -14,6 +14,28 @@ export interface Prompter {
   ask(question: Question): Promise<string>;
 }
 
+/** A yes/no question whose default is no. */
+export type Confirm = (question: string) => Promise<boolean>;
+
+/**
+ * Asks on the terminal; undefined without one (a script, CI), so a command never waits for
+ * an answer nobody can give and does its safe default instead.
+ */
+export function terminalConfirm(
+  input: NodeJS.ReadStream = process.stdin,
+  output: NodeJS.WritableStream = process.stdout,
+): Confirm | undefined {
+  if (!input.isTTY) return undefined;
+  return async (question) => {
+    const readline = createInterface({ input, output });
+    try {
+      return /^y(es)?$/i.test((await readline.question(`${question} (y/N) `)).trim());
+    } finally {
+      readline.close();
+    }
+  };
+}
+
 export function terminalPrompter(
   input: NodeJS.ReadableStream = process.stdin,
   output: NodeJS.WritableStream = process.stdout,

@@ -10,16 +10,11 @@ import {
   readJsonFile,
   type LoadedProfile,
 } from "../load-profile.ts";
-import {
-  CONNECT_PROJECT,
-  PULLED_ASSETS_DIR,
-  displayDir,
-  selectAssetsDir,
-  undeployableProfileErrors,
-} from "../release.ts";
+import { CONNECT_PROJECT, undeployableProfileErrors } from "../release.ts";
 import { formatNext, type Remedy, guideStep } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
 import { runCli } from "./main.ts";
+import { terminalConfirm, type Confirm } from "./prompts.ts";
 import { deployDispatch } from "./push.ts";
 
 const LIFECYCLE_FILE = "brand/bucket-lifecycle.json";
@@ -145,25 +140,46 @@ async function viewerMembers(run: CommandRunner, bucket: string): Promise<string
     .flatMap(({ members }) => members);
 }
 
-/** What follows: after the printout, `--apply`; after `--apply`, `pushCommand` (step 4). */
-export function provisionNext(
-  next: { applied: false } | { applied: true; pushCommand: string },
-): Remedy[] {
-  if (!next.applied) {
+/** What follows: after the printout, step 3 by answering y; after it, the upload (step 4). */
+export function provisionNext({ applied }: { applied: boolean }): Remedy[] {
+  if (!applied) {
     return [
       {
-        change: "do steps 1 and 2 above, then let this command do step 3 (project owner)",
-        run: "pnpm brand:provision --apply",
+        change:
+          "do steps 1 and 2 above, then run this again in a terminal and answer y to let it do step 3 (project owner)",
+        run: "pnpm brand:provision",
       },
     ];
   }
   return [
-    { change: "step 4: upload your images to the bucket", run: next.pushCommand },
-    { change: "confirm every row passes", run: "pnpm brand:doctor" },
+    { change: "step 4: upload your images to the bucket", run: "pnpm brand:push" },
+    { change: "confirm every row passes", run: "pnpm brand:check" },
   ];
 }
 
-/** `--apply`: runs each bucket step whose state shows it undone; never touches GitHub. */
+export const BUCKET_QUESTION =
+  "Steps 1 and 2 done? Then this can do step 3 now: create and set up the bucket (skips what is done). Do step 3 now?";
+
+/**
+ * After the printout, offers step 3. Without a terminal (`confirm` absent) or on a no,
+ * nothing changes and the result is null.
+ */
+export async function offerBucket({
+  profile,
+  repoRoot = REPO_ROOT,
+  run = runCommand,
+  confirm,
+}: {
+  profile: LoadedProfile;
+  repoRoot?: string;
+  run?: CommandRunner;
+  confirm?: Confirm;
+}): Promise<{ label: string; done: boolean }[] | null> {
+  if (!confirm || !(await confirm(BUCKET_QUESTION))) return null;
+  return applyBucket({ profile, repoRoot, run });
+}
+
+/** Step 3: runs each bucket step whose state shows it undone; never touches GitHub. */
 export async function applyBucket({
   profile,
   repoRoot = REPO_ROOT,
@@ -239,14 +255,6 @@ interface GuideStep {
 const indent = (lines: readonly string[], by: string) =>
   lines.flatMap((line) => line.split("\n")).map((line) => (line ? `${by}${line}` : ""));
 
-/** `brand:push`, with `--from` when the images are not in brand-assets/ (the example profile). */
-function pushCommandFor(profile: LoadedProfile, repoRoot: string): string {
-  const assetsDir = selectAssetsDir(repoRoot, profile, {}, false);
-  return assetsDir === join(repoRoot, PULLED_ASSETS_DIR)
-    ? "pnpm brand:push"
-    : `pnpm brand:push --from ${shellQuote(displayDir(repoRoot, assetsDir))}`;
-}
-
 /** Numbered steps: what, why, where, the exact lines, and how to see that it worked. */
 export function formatGuide(steps: readonly GuideStep[]): string {
   return steps
@@ -267,12 +275,10 @@ export async function printProvisioning({
   profile,
   repoRoot = REPO_ROOT,
   run = runCommand,
-  repo,
 }: {
   profile: LoadedProfile;
   repoRoot?: string;
   run?: CommandRunner;
-  repo?: string;
 }): Promise<string> {
   const { projectId } = profile.brand.firebase;
   const { slug } = profile;
@@ -292,12 +298,11 @@ export async function printProvisioning({
     LIFECYCLE_FILE,
   );
   const gcloud = (step: BucketStep | undefined) => (step ? `gcloud ${command(step.args)}` : "");
-  const pushCommand = pushCommandFor(profile, repoRoot);
 
   // Independent read-only lookups: one wait, not three.
   const [projectNumber, ghRepo, reviewerId] = await Promise.all([
     lookup(run, "gcloud", ["projects", "describe", projectId, "--format=value(projectNumber)"]),
-    repo ?? lookup(run, "gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]),
+    lookup(run, "gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]),
     lookup(run, "gh", ["api", "user", "-q", ".id"]),
   ]);
   const values: Record<string, string | null> = {
@@ -343,13 +348,13 @@ export async function printProvisioning({
         ? `${brandFile} already has it: check the values match step 1`
         : `your editor, once step 1 is done: add this to ${brandFile}; it ships with your go-live merge (${guideStep("goLive")})`,
       lines: [deploySnippet],
-      check: 'pnpm brand:doctor   (row "CD identity")',
+      check: 'pnpm brand:check   (row "CD identity")',
     },
     {
       title: "create the private bucket for your logos and icons",
       why: "Deploys download your images from it, so they never enter git. Old versions are kept for rollback.",
       where:
-        "your shell, as a project owner; or run pnpm brand:provision --apply, which does all of this step",
+        "your shell, as a project owner; or answer y when this command asks, and it does all of this step",
       lines: [gcloud(create), gcloud(access), gcloud(versioning), gcloud(lifecycle), gcloud(grant)],
       check: `gcloud storage buckets describe ${bucket} --format="yaml(public_access_prevention,uniform_bucket_level_access,versioning_enabled)"`,
     },
@@ -357,7 +362,7 @@ export async function printProvisioning({
       title: "upload your images",
       why: "The first deploy needs them in the bucket.",
       where: "the repo root",
-      lines: [pushCommand],
+      lines: ["pnpm brand:push"],
       check: `gcloud storage ls "${bucket}/**"`,
     },
     {
@@ -377,22 +382,15 @@ export async function printProvisioning({
 }
 
 if (import.meta.main) {
-  await runCli(
-    "brand:provision",
-    { switches: ["--apply"], values: { "--repo": "owner/name" } },
-    async (profile, args) => {
-      if (args.has("--apply")) {
-        for (const { label, done } of await applyBucket({ profile })) {
-          console.log(`brand:provision: ${label}: ${done ? "already done" : "applied"}`);
-        }
-        console.log(
-          `brand:provision: bucket ready.\n\n${formatNext(provisionNext({ applied: true, pushCommand: pushCommandFor(profile, REPO_ROOT) }))}`,
-        );
-      } else {
-        const repo = args.value("--repo");
-        console.log(await printProvisioning({ profile, repo }));
-        console.log(`\n${formatNext(provisionNext({ applied: false }))}`);
+  await runCli("brand:provision", {}, async (profile) => {
+    console.log(await printProvisioning({ profile }));
+    const steps = await offerBucket({ profile, confirm: terminalConfirm() });
+    if (steps) {
+      for (const { label, done } of steps) {
+        console.log(`brand:provision: ${label}: ${done ? "already done" : "applied"}`);
       }
-    },
-  );
+      console.log("brand:provision: bucket ready.");
+    }
+    console.log(`\n${formatNext(provisionNext({ applied: steps !== null }))}`);
+  });
 }

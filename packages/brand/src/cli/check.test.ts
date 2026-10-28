@@ -320,10 +320,7 @@ describe("check", () => {
           stderr: "gs://x not found: 404.",
         }),
       );
-      expect(runsOf(rowFor(await diagnose(), "bucket"))).toEqual([
-        "pnpm brand:provision",
-        "pnpm brand:provision --apply",
-      ]);
+      expect(runsOf(rowFor(await diagnose(), "bucket"))).toEqual(["pnpm brand:provision"]);
     });
 
     it("says how to install a missing CLI, and skips its sign-in", async () => {

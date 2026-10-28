@@ -23,7 +23,7 @@ import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gclou
 import { checkImages } from "./images.ts";
 import { runBrandCommand } from "./main.ts";
 import { deployDispatch } from "./push.ts";
-import { CONNECT_PROJECT, PRINT_GCP_SETUP, missingDeployProblem } from "../release.ts";
+import { CONNECT_PROJECT, missingDeployProblem } from "../release.ts";
 import { SITE_CONTENT_FILE, readSiteContent } from "../site-content.ts";
 import {
   fail,
@@ -142,11 +142,10 @@ async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<Ch
   } catch (error) {
     if (!(error instanceof CommandError) || error.kind !== "notFound") throw error;
     return fail("bucket", `${bucketUrl(bucket)} does not exist yet`, [
-      PRINT_GCP_SETUP,
       {
         change:
-          "then create the bucket, step 3 of that printout (after step 1: the grant needs CD's deploy account)",
-        run: "pnpm brand:provision --apply",
+          "print the Google Cloud setup, do its steps 1 and 2, then answer y to let it create the bucket (step 3)",
+        run: "pnpm brand:provision",
       },
     ]);
   }
