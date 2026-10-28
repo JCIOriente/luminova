@@ -30,14 +30,13 @@ selected when it is the only chapter profile there; with none, the example `jci-
 is. Your fork only adds that folder and never edits a shared file, so pulling upstream
 updates never conflicts with your configuration. A repository builds one chapter:
 `brand:init` refuses to create a second, and with two every command stops and names them.
-To run one command against another profile, add `--profile <slug>`.
 
 Your editor explains every field of `brand.json` on hover: it points at a JSON Schema
 (`brand/brand.schema.json`).
 
 Upgrading a fork from a version with a root `luminova.json`: the pull that removes it
 conflicts once if you had edited it. Resolve it by deleting the file
-(`git rm luminova.json`); `brand:doctor` warns while a copy is left. If `brand/` holds
+(`git rm luminova.json`); `brand:check` warns while a copy is left. If `brand/` holds
 more than one chapter folder (an older `brand:init` allowed it), every command and Deploy
 stop until you delete all but the one you build. Send pull requests upstream from a branch
 of upstream's `main`, never from your fork's `main`: upstream's CI refuses a chapter folder.
@@ -57,7 +56,7 @@ with a note until the profile has a real project and CD's sign-in (step 9).
 
 | # | Step | Command |
 |---|---|---|
-| | **Before you start: the tools** | `pnpm brand:setup` |
+| | **Before you start: the tools** | `pnpm brand:check` |
 | | **Part 1: try it on your computer** | |
 | 1 | Fork, clone, run the example | `pnpm install`, then `pnpm dev` |
 | 2 | Create your profile | `pnpm brand:init` (answer **n**: no Firebase project yet) |
@@ -66,10 +65,10 @@ with a note until the profile has a real project and CD's sign-in (step 9).
 | 5 | Commit the profile | `git add brand/<slug>/` |
 | | **Part 2: go live, when you are ready** | |
 | 6 | Firebase project, two web apps, second hosting site | Firebase console (below) |
-| 7 | Connect the project | `pnpm brand:init --connect` |
-| 8 | Check the setup | `pnpm brand:doctor` |
+| 7 | Connect the project | `pnpm brand:init` (answer **y**: connect it) |
+| 8 | Check the setup | `pnpm brand:check` |
 | 9 | Keyless CD | `pnpm brand:provision`, steps 1 and 2 |
-| 10 | Create the assets bucket | `pnpm brand:provision --apply` |
+| 10 | Create the assets bucket | `pnpm brand:provision` (answer **y**: do step 3) |
 | 11 | Upload the images | `pnpm brand:push` |
 | 12 | Go live | merge to `main` |
 | 13 | First admin | `pnpm seed:production --project <id>` |
@@ -98,14 +97,15 @@ Each part needs a few tools on your computer. Install Node and pnpm first (the f
 rows of the Part 1 table below), clone your fork, then let the repository check the rest:
 
 ```bash
-pnpm brand:setup               # in the repo root; add --part try or --part live for one part
+pnpm brand:check               # in the repo root
 ```
 
-It prints one table per part. Each row shows the tool and the version or account it found.
-Missing tools end in a **To fix:** block with the install command for your computer. It
-only reads: it never installs anything and never signs you in. In a fresh clone, pnpm
-installs the repository's packages before the check runs. To check even before that, run
-`node packages/brand/src/cli/setup.ts` instead; it needs only Node.
+It is the one command that checks everything, in four sections: the tools on this
+computer, your chapter's files, its images, and going live. Each row shows what it found.
+Anything missing ends in a **To fix:** block with the command for your computer. It only
+reads: it never installs anything and never signs you in. In a fresh clone, pnpm installs
+the repository's packages before the check runs. Until your chapter connects a Firebase
+project, going live is one line: you need its tools only then.
 
 **Windows:** use WSL 2. Open PowerShell as administrator, run `wsl --install`, restart,
 open Ubuntu, and follow the Linux commands below inside it. Clone into your Ubuntu home
@@ -132,7 +132,7 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | bash
 nvm install
 ```
 
-CI uses Firebase CLI 15.22.1. Another version works for Part 1; `brand:setup` only notes
+CI uses Firebase CLI 15.22.1. Another version works for Part 1; `brand:check` only notes
 the difference. If you already have Java from Homebrew's `openjdk` formula, it also works:
 it is not on `PATH`, but `pnpm dev` adds it.
 
@@ -149,11 +149,12 @@ Then sign in. Each tool keeps its own sign-in on your computer, outside the repo
 |---|---|---|---|
 | `gh`, as an admin of your fork | `gh auth login` | step 9 | `gh auth status` |
 | `gcloud`, as an owner of your Firebase project | `gcloud auth login` | steps 9 to 11 | `gcloud auth list` |
-| `gcloud` Application Default Credentials (the sign-in scripts use) | `gcloud auth application-default login` | step 13 | the `gcloud ADC` row of `brand:setup` |
-| Firebase CLI | `firebase login` | step 7, only with `--sdkconfig` | `firebase login:list` |
+| `gcloud` Application Default Credentials (the sign-in scripts use) | `gcloud auth application-default login` | step 13 | the `gcloud ADC` row of `brand:check` |
+| Firebase CLI | `firebase login` | step 7, only to read the API keys for you | `firebase login:list` |
 
-`brand:setup --part live` fails until `gh` and `gcloud` are installed and signed in. The
-last two rows only warn: you can do them when you reach their step.
+Once your chapter is connected (step 7), `brand:check`'s going-live section fails until
+`gh` and `gcloud` are installed and signed in. The last two rows only warn: you can do
+them when you reach their step.
 
 ## Part 1: try it on your computer
 
@@ -170,8 +171,7 @@ Dev talks to the emulators, never to a real project.
 ### 2. Create your profile
 
 ```bash
-pnpm brand:init                                 # asks each question, with a suggested default
-pnpm brand:init --local --answers answers.json  # or from a file, without prompts
+pnpm brand:init               # asks each question, with a suggested default
 ```
 
 It asks about your chapter: name, city, region, founding year, national federation, the
@@ -184,25 +184,11 @@ Firebase questions now instead (see step 7).
 next to it, creates `brand-assets/README.txt` and writes `.firebaserc`. Being the only chapter
 profile in `brand/`, the new one is selected from then on. It validates everything before writing anything and never
 overwrites an existing profile. It re-asks a malformed or taken slug, or a year that is
-not a whole number, on the spot; if a later step fails, your answers are saved to
-`brand-init-answers.json` (gitignored) for `--answers`. An answers file is a partial
-`brand.json`; anything missing is either derived (site addresses, SEO text and, for a real
-project, the storage bucket, site ids, auth domain, sender id and assets bucket) or
-reported, all at once:
-
-```json
-{
-  "slug": "jci-valle",
-  "name": "JCI Valle",
-  "locality": { "city": "Cochabamba", "region": "el valle cochabambino", "country": "Bolivia" },
-  "foundedYear": 1990,
-  "stats": { "nationalOrganizations": 18 },
-  "parentOrganization": { "name": "JCI Bolivia", "url": "https://jcibolivia.org/" },
-  "broadcastChannelName": "Difusión Valle",
-  "urls": { "spotlight": "https://jcivalle.org", "backstage": "https://admin.jcivalle.org" },
-  "backstage": { "emailPlaceholder": "tu.nombre@jcivalle.org", "contactEmail": "hola@jcivalle.org" }
-}
-```
+not a whole number, on the spot. If a later step fails, your answers are saved to
+`brand-init-answers.json` (gitignored), and the next `pnpm brand:init` offers them: answer
+**y** to reuse them. Anything you leave blank is either derived (site addresses, SEO text
+and, for a real project, the storage bucket, site ids, auth domain, sender id and assets
+bucket) or reported, all at once.
 
 ### 3. Images
 
@@ -222,19 +208,20 @@ by hand: the three logos and `og-image.png`. For the 12 icons, put your logo mar
 square PNG of at least 512×512), best on a transparent background, and generate them:
 
 ```bash
-pnpm brand:icons            # the 12 icons from the master; --force replaces existing ones
-pnpm brand:check            # one row per file: expected, found, verdict
+pnpm brand:icons            # the 12 icons from the master
+pnpm brand:check            # the images section names each file with a problem
 ```
 
 The maskable and Apple icons get an opaque background in your `themeColor`; the others
-stay transparent. `brand:icons` never overwrites an icon without `--force`, and if it
-cannot write one icon it changes none. You can also
-export the 12 icons yourself with any tool that writes exact PNG sizes.
+stay transparent. If icons are already there, `brand:icons` asks before replacing them
+(answer **y**), and if it cannot write one icon it changes none. You can also export the
+12 icons yourself with any tool that writes exact PNG sizes.
 
 `brand:check` runs the same validator as the build and also schema-checks your
-`site-content.json`. A local build reads `brand-assets/` once it holds any of the 16
-files (the README alone does not count). Before that, a new profile has no images of its
-own and the build lists every missing file.
+`site-content.json`. Every command reads one images folder, named in the title of
+`brand:check`'s images section: `brand-assets/` once it holds any of the 16 files (the
+README alone does not count). Before that, a new profile has no images of its own and
+the section lists every missing file.
 
 ### 4. Site texts, and a look
 
@@ -271,36 +258,36 @@ In the [Firebase console](https://console.firebase.google.com), create the proje
 
 ### 7. Connect the project
 
-Needs: nothing new. Only `--sdkconfig` also needs the Firebase CLI
+Needs: nothing new. Reading the API keys for you also needs the Firebase CLI
 [signed in](#part-2-tools-go-live) (`firebase login`).
 
 ```bash
-pnpm brand:init --connect               # only the Firebase questions
-pnpm brand:init --connect --sdkconfig   # and read the API keys for you (needs firebase login)
+pnpm brand:init               # answer y to connect your profile to a Firebase project
 ```
 
-It asks the project id, the hosting site ids and both web app ids, replaces the `demo-`
-project in `brand/<slug>/brand.json` and rewrites `.firebaserc`. Your chapter's answers
-from step 2 stay as they are. `--sdkconfig` reads both API keys, the auth domain and the
-sender id with `firebase apps:sdkconfig` (read-only). Run it again any time: for the same
-project it offers the current values as defaults, so Enter keeps them; to turn App Check
-or web push off, blank that key in `brand.json` instead. Merging this to `main` still
+With your profile already in `brand/`, `brand:init` asks whether to connect it. Answer
+**y**: it asks the project id, the hosting site ids and both web app ids, replaces the
+`demo-` project in `brand/<slug>/brand.json` and rewrites `.firebaserc`. Your chapter's
+answers from step 2 stay as they are. It also offers to read both API keys, the auth
+domain and the sender id with `firebase apps:sdkconfig` (read-only). Run it again any time:
+for the same project it offers the current values as defaults, so Enter keeps them; to
+turn App Check or web push off, blank that key in `brand.json` instead. Merging this to `main` still
 deploys nothing: CD waits for the `deploy` section of step 9.
 
-### 8. Doctor
+### 8. Check the setup
 
-Needs: the [Part 1 tools](#part-1-tools-try-it), plus `gh` and `gcloud` for the cloud rows.
+Needs: the [Part 1 tools](#part-1-tools-try-it), plus `gh` and `gcloud` for going live.
 
 ```bash
-pnpm brand:doctor
+pnpm brand:check
 ```
 
-One table, in the order fixes must happen: the Part 1 tools (Node, pnpm, Java, the
-Firebase CLI), the selection (which profile `brand/` selects, and why), the profile,
-`brand.json`, site content, images, `.firebaserc`, CD identity, `gh` and `gcloud` with
-their sign-ins, and the bucket. It only reads, and every row reports even when an earlier
-one fails. For a local-only profile it skips the cloud rows. Until step 11 the **bucket**
-row fails, and **CD identity** warns until step 9.
+Four sections, in the order fixes must happen: the tools on this computer (Node, pnpm,
+Java, the Firebase CLI); your chapter (which profile `brand/` selects and why, the
+profile, `brand.json`, site content, `.firebaserc`); the images; and going live (CD
+identity, `gh` and `gcloud` with their sign-ins, and the bucket). It only reads, and every
+row reports even when an earlier one fails. Until step 11 the **bucket** row fails, and
+**CD identity** warns until step 9.
 
 If you exported `BRAND_PROFILE` in an earlier version of this guide, the selection row
 warns while it differs from what `brand/` selects: remove the `export` line from your
@@ -329,10 +316,10 @@ each permission, is [`docs/ci-cd.md` section 6](ci-cd.md#6-one-time-provisioning
 Needs: [`gcloud`](#part-2-tools-go-live), signed in as a project owner.
 
 ```bash
-pnpm brand:provision --apply   # creates and configures the bucket, skipping what is done
+pnpm brand:provision           # after printing, it asks: answer y to do step 3
 ```
 
-The bucket is private and versioned, keeps the last three versions of each file, and the
+It creates and configures the bucket, skipping what is already done. The bucket is private and versioned, keeps the last three versions of each file, and the
 deploy account from step 9 gets read-only access to it alone. Step 9 must come first:
 the grant fails for an account that does not exist yet.
 
@@ -341,9 +328,12 @@ the grant fails for an account that does not exist yet.
 Needs: [`gcloud`](#part-2-tools-go-live), signed in as a project owner.
 
 ```bash
-pnpm brand:push                # validates brand-assets/ first, then uploads
-pnpm brand:doctor              # every row passes now
+pnpm brand:push                # checks the images first, then uploads them
+pnpm brand:check               # every row passes now
 ```
+
+`brand:push` uploads the folder `brand:check` names, and refuses with the same images
+section while any image has a problem.
 
 `brand:push` never deletes, and versioning keeps every overwritten file for rollback. An
 image change is not in git, so after going live CD does not see it on its own:

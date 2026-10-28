@@ -2,13 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO_ROOT } from "./load-profile.ts";
-import {
-  BEFORE_YOU_START,
-  GUIDE_STEPS,
-  formatNext,
-  formatRemedies,
-  uniqueRemedies,
-} from "./remedy.ts";
+import { GUIDE_STEPS, formatNext, formatRemedies, uniqueRemedies } from "./remedy.ts";
 
 describe("formatRemedies", () => {
   it("prints each remedy once, with the command and where to run it", () => {
@@ -46,8 +40,8 @@ describe("formatRemedies", () => {
 
 describe("formatNext", () => {
   it("prints one step as a command to paste", () => {
-    expect(formatNext([{ change: "check the whole setup", run: "pnpm brand:doctor" }])).toBe(
-      ["Next:", "  check the whole setup", "    pnpm brand:doctor   # in the repo root"].join("\n"),
+    expect(formatNext([{ change: "check the whole setup", run: "pnpm brand:check" }])).toBe(
+      ["Next:", "  check the whole setup", "    pnpm brand:check   # in the repo root"].join("\n"),
     );
   });
 
@@ -84,14 +78,12 @@ describe("GUIDE_STEPS", () => {
       images: "Images",
       firebaseProject: "Firebase project",
       connect: "Connect the project",
-      doctor: "Doctor",
+      check: "Check the setup",
       provision: "Keyless CD",
       goLive: "Go live",
     };
     for (const [step, number] of Object.entries(GUIDE_STEPS)) {
       expect(guide).toContain(`### ${number}. ${titles[step as keyof typeof GUIDE_STEPS]}`);
     }
-    expect(BEFORE_YOU_START).toMatch(/^docs\/adopting\.md, "Before you start"$/);
-    expect(guide).toContain("\n## Before you start\n");
   });
 });

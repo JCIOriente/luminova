@@ -178,7 +178,7 @@ describe("init from an answers file", () => {
   });
 });
 
-describe("init --sdkconfig", () => {
+describe("init reading the API keys (firebase apps:sdkconfig)", () => {
   const sdkconfig =
     (projectId: string): CommandRunner =>
     async (command, args) => {
@@ -365,7 +365,7 @@ function localAnswers(): Record<string, unknown> {
   return chapter;
 }
 
-describe("init --local", () => {
+describe("init without a Firebase project (local-only)", () => {
   it("writes a profile that runs only in the emulators, with no cloud question", async () => {
     const { local, files } = await init({
       repoRoot: root,
@@ -444,7 +444,7 @@ describe("init --local", () => {
   });
 });
 
-describe("init --connect", () => {
+describe("connect", () => {
   it("replaces a local profile's demo project with the real one", async () => {
     await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
     const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };

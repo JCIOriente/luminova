@@ -371,7 +371,7 @@ describe("check", () => {
     });
 
     it("shows going live as one row for a local-only profile, without calling gcloud", async () => {
-      // A chapter fresh from brand:init --local: a demo- project, found in brand/.
+      // A chapter fresh from brand:init without a Firebase project: a demo- project.
       cpSync(join(root, "brand/fixture"), join(root, "brand/jci-valle"), { recursive: true });
       const file = join(root, "brand/jci-valle/brand.json");
       writeFileSync(
