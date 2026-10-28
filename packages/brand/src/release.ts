@@ -114,22 +114,21 @@ export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
 }
 
 /**
- * Where a build reads the asset set: release always reads the pulled `brand-assets/`;
- * otherwise a folder named on the command line (`brand:check --assets`), then the
- * `BRAND_ASSETS_DIR` tooling override, then `brand-assets/` once it holds any contract file
- * (brand:init leaves only a README there), then the profile's own `assets/`. A profile
- * without its own assets reads `brand-assets/`, so its errors name the folder to fill.
+ * Where a build, `brand:check` and `brand:push` read the asset set: release always reads the
+ * pulled `brand-assets/`; otherwise the `BRAND_ASSETS_DIR` tooling override, then
+ * `brand-assets/` once it holds any contract file (brand:init leaves only a README there),
+ * then the profile's own `assets/`. A profile without its own assets reads `brand-assets/`,
+ * so its errors name the folder to fill.
  */
 export function selectAssetsDir(
   repoRoot: string,
   profile: LoadedProfile,
   env: Env,
   release: boolean,
-  chosen?: string,
 ): string {
   const pulled = join(repoRoot, PULLED_ASSETS_DIR);
   if (release) return pulled;
-  const fromEnv = chosen?.trim() || env.BRAND_ASSETS_DIR?.trim();
+  const fromEnv = env.BRAND_ASSETS_DIR?.trim();
   if (fromEnv) return resolve(repoRoot, fromEnv);
   const own = join(profile.dir, "assets");
   const pulledHasAssets = ASSET_CONTRACT.some(({ path }) => existsSync(join(pulled, path)));

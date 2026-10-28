@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CommandError, commandFailure, type CommandRunner } from "./gcloud.ts";
 import { installRemedy } from "./install.ts";
 import type { CheckRow } from "./rows.ts";
-import { nativeWindows, toolChecks, toolRows, type Part } from "./tools.ts";
+import { nativeWindows, toolRows, type Part } from "./tools.ts";
 
 let root: string;
 let calls: string[][];
@@ -59,7 +59,6 @@ const check = (
     env?: Record<string, string>;
     exists?: (path: string) => boolean;
     nodeVersion?: string;
-    required?: boolean;
   } = {},
 ) =>
   toolRows({
@@ -85,7 +84,7 @@ const summary = (rows: readonly CheckRow[]) =>
   rows.map(({ check: name, status, detail }) => `${name} ${status} ${detail}`);
 
 describe("toolRows", () => {
-  it("reports each tool's version and each sign-in, grouped by part", async () => {
+  it("reports each tool's version and each sign-in, in guide order", async () => {
     const rows = await check();
     expect(summary(rows)).toEqual([
       "node ok 24.15.0",
@@ -98,10 +97,6 @@ describe("toolRows", () => {
       "gcloud account ok owner@example.org",
       `gcloud ADC ok ${join(root, "application_default_credentials.json")}`,
       "firebase account ok owner@example.org",
-    ]);
-    expect(rows.map(({ part }) => part)).toEqual([
-      ...Array<Part>(4).fill("try"),
-      ...Array<Part>(6).fill("live"),
     ]);
   });
 
@@ -125,22 +120,6 @@ describe("toolRows", () => {
     const rows = await check({ parts: ["try"] });
     expect(rows.map(({ check: name }) => name)).toEqual(["node", "pnpm", "java", "firebase"]);
     expect(calls.every(([command]) => command !== "gh" && command !== "gcloud")).toBe(true);
-  });
-
-  it("leaves out the optional sign-ins when only the required checks are asked", async () => {
-    const rows = await check({ parts: ["live"], required: true });
-    expect(rows.map(({ check: name }) => name)).toEqual([
-      "gh",
-      "gh account",
-      "gcloud",
-      "gcloud account",
-    ]);
-    expect(toolChecks("live", { required: true })).toEqual([
-      "gh",
-      "gh account",
-      "gcloud",
-      "gcloud account",
-    ]);
   });
 
   describe("on native Windows", () => {
