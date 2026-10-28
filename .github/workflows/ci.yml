@@ -117,11 +117,9 @@ jobs:
       # apps/*/dist is present; fails the gate on a breach.
       - if: steps.code.outputs.run == 'true'
         run: bash tools/scripts/check-bundle-budget.sh
-      # Brand neutrality (spec 2026-10-22-brand-config section 7): the committed JSON
-      # schema matches the zod source, the jci-oriente dist above still carries its own
-      # values, and a fixture-profile build carries none of them.
-      - if: steps.code.outputs.run == 'true'
-        run: pnpm brand:schema --check
+      # Brand neutrality (spec 2026-10-22-brand-config section 7): the jci-oriente dist
+      # above still carries its own values, and a fixture-profile build carries none of
+      # them. (The committed JSON schema matching the zod source is a package test.)
       - if: steps.code.outputs.run == 'true'
         run: pnpm brand:guard
       # Upstream builds the example: a chapter folder merged from a fork's main would make
