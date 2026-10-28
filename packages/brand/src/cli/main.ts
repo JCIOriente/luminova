@@ -22,8 +22,6 @@ export async function exitOnFailure(body: () => Promise<void> | void): Promise<v
 
 type Body = () => Promise<void> | void;
 type ProfileBody = (profile: LoadedProfile) => Promise<void> | void;
-// Until every command drops it: the flags declaration they all pass as {}.
-type NoFlags = Record<string, never>;
 
 /**
  * Runs a brand command, which takes no options (spec R27 C1): anything typed after it stops
@@ -31,11 +29,9 @@ type NoFlags = Record<string, never>;
  */
 export async function runBrandCommand(
   name: string,
-  ...rest: [body: Body, argv?: readonly string[]] | [flags: NoFlags, body: Body]
+  body: Body,
+  argv: readonly string[] = process.argv.slice(2),
 ): Promise<void> {
-  const [first, second] = rest;
-  const body = typeof first === "function" ? first : (second as Body);
-  const argv = Array.isArray(second) ? second : process.argv.slice(2);
   await exitOnFailure(async () => {
     const extra = argv.filter((arg) => arg !== "--");
     if (extra.length > 0) {
@@ -53,11 +49,7 @@ export async function runBrandCommand(
  * parses (`brand:ci-config`'s outputs) and writes status to stderr: firebase-tools copies
  * hook stdout into its `--json` output.
  */
-export async function runCli(
-  name: string,
-  ...rest: [body: ProfileBody] | [flags: NoFlags, body: ProfileBody]
-): Promise<void> {
-  const body = rest.length === 1 ? rest[0] : rest[1];
+export async function runCli(name: string, body: ProfileBody): Promise<void> {
   await runBrandCommand(name, async () => {
     const profile = loadProfile({});
     for (const warning of profile.warnings) console.warn(`${name}: ${warning}`);

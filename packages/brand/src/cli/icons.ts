@@ -234,7 +234,7 @@ const NEXT: readonly Remedy[] = [
 ];
 
 if (import.meta.main) {
-  await runCli("brand:icons", {}, async (profile) => {
+  await runCli("brand:icons", async (profile) => {
     const written = await generateIcons({ profile, confirmReplace: terminalConfirm() });
     if (written.length === 0) {
       console.log(`brand:icons: kept the icons in ${PULLED_ASSETS_DIR}/; nothing changed.`);

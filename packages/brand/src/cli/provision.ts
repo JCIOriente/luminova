@@ -382,7 +382,7 @@ export async function printProvisioning({
 }
 
 if (import.meta.main) {
-  await runCli("brand:provision", {}, async (profile) => {
+  await runCli("brand:provision", async (profile) => {
     console.log(await printProvisioning({ profile }));
     const steps = await offerBucket({ profile, confirm: terminalConfirm() });
     if (steps) {
