@@ -61,12 +61,11 @@ const RELEASE_BUILD_COMMAND = "pnpm build:release";
 
 /** What ships when nothing is passed: the profile brand/ selects (spec P1). */
 const SHIP_CHAPTER: Remedy = {
-  change:
-    "drop --profile and BRAND_PROFILE so the profile found in brand/ ships, or pass --profile with your chapter",
+  change: "unset BRAND_PROFILE so the chapter profile found in brand/ ships",
 };
 
 /**
- * A profile that may reach production: found in brand/ or chosen with --profile (never a
+ * A profile that may reach production: found in brand/ or named by its caller (never a
  * stray environment override; spec P5), not the fixture, not an emulator-only project. Release
  * builds, brand:push and brand:provision's bucket step share it.
  */
@@ -94,7 +93,7 @@ export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
   const { projectId } = profile.brand.firebase;
   if (profile.source === "override") {
     errors.push({
-      message: `${PROFILE_OVERRIDE_ENV}=${slug} is set in your environment; what ships is the profile found in brand/, or --profile.`,
+      message: `${PROFILE_OVERRIDE_ENV}=${slug} is set in your environment; what ships is the profile found in brand/.`,
       remedies: [REMOVE_OVERRIDE],
     });
   }
@@ -185,7 +184,7 @@ export function releaseErrors({
       message: `GCP_PROJECT_ID "${target}" is not profile "${slug}"'s project "${projectId}".`,
       remedies: [
         {
-          change: `set GCP_PROJECT_ID to "${projectId}", or pass --profile with the profile whose firebase.projectId is "${target}"`,
+          change: `set GCP_PROJECT_ID to "${projectId}", the project of the profile found in brand/`,
         },
       ],
     });
