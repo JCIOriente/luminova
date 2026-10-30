@@ -97,15 +97,18 @@ Each part needs a few tools on your computer. Install Node and pnpm first (the f
 rows of the Part 1 table below), clone your fork, then let the repository check the rest:
 
 ```bash
-pnpm brand:check               # in the repo root
+pnpm install                                     # in the repo root
+pnpm turbo run build --filter=@luminova/types    # once: the check reads the site texts with it
+pnpm brand:check                                 # in the repo root
 ```
 
 It is the one command that checks everything, in four sections: the tools on this
 computer, your chapter's files, its images, and going live. Each row shows what it found.
 Anything missing ends in a **To fix:** block with the command for your computer. It only
-reads: it never installs anything and never signs you in. In a fresh clone, pnpm installs
-the repository's packages before the check runs. Until your chapter connects a Firebase
-project, going live is one line: you need its tools only then.
+reads: it never installs anything and never signs you in. In a fresh clone, `pnpm install`
+installs the packages but builds none: the site-content row fails until the build above
+has run once, and its **To fix:** names it. Until your chapter's own profile connects a
+Firebase project, going live is one line: you need its tools only then.
 
 **Windows:** use WSL 2. Open PowerShell as administrator, run `wsl --install`, restart,
 open Ubuntu, and follow the Linux commands below inside it. Clone into your Ubuntu home

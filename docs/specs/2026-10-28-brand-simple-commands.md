@@ -30,11 +30,12 @@ The brand commands are for chapter members who are not engineers, yet:
   3. *Images in `<folder>/`*: one row per image with a problem, then one row for the rest
      (`all 16 valid`, or `14 more valid`).
   4. *Going live*: CD's identity, gh, gcloud and their sign-ins (the scripts' sign-in and
-     the Firebase CLI's only warn), the bucket. A local-only profile shows one row instead:
-     it comes with going live.
+     the Firebase CLI's only warn), the bucket. A local-only profile, or the example
+     (selected while `brand/` holds no chapter profile), shows one row instead: going live
+     comes with the chapter's own connected profile.
   Then one **To fix:** block in section order and a summary line; **Next:** when nothing
-  failed. Exit 1 on any failure; `warn` and `skip` never fail. pnpm installs the packages
-  before running it, so a fresh clone needs only Node and pnpm.
+  failed. Exit 1 on any failure; `warn` and `skip` never fail. A fresh clone needs Node,
+  pnpm, `pnpm install` and one build of `@luminova/types` (the site-content row names it).
 - **C3. One images folder.** Every command reads the folder `brand:check` names
   (`selectAssetsDir`: `brand-assets/` once it holds any image, else the profile's own
   `assets/`). `brand:push` uploads that folder, and its refusal prints the same images

@@ -173,6 +173,7 @@ cd luminova
 nvm use                       # Node 24, pinned in .nvmrc
 corepack enable
 pnpm install
+pnpm turbo run build --filter=@luminova/types   # once: brand:check reads the site texts with it
 pnpm brand:check              # the tools, the profile and its images: what it found, or how to fix it
 pnpm dev
 ```
