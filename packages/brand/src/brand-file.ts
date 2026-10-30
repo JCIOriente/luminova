@@ -1,19 +1,21 @@
 import { readFileSync } from "node:fs";
 import { TomlError, parse } from "smol-toml";
-import { BrandConfigError, errorMessage } from "./errors.ts";
+import { BrandConfigError, errorMessage, issueLines } from "./errors.ts";
 import type { Remedy } from "./remedy.ts";
-import { brandFileSchema, toBrand, type Brand } from "./schema.ts";
+import {
+  CHAPTER_IDENTITY,
+  brandFileSchema,
+  isTable,
+  toBrand,
+  type Brand,
+  type Table,
+} from "./schema.ts";
 import { toSiteContent, type SiteContent } from "./site-content.ts";
 
 export const BRAND_FILE = "brand.toml";
 
 /** Line 1 of a brand.toml: Taplo and Even Better TOML read it for hover help and completion. */
 export const SCHEMA_LINE = "#:schema ../brand.schema.json";
-
-export type Table = Record<string, unknown>;
-
-export const isTable = (value: unknown): value is Table =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date);
 
 /** Parses a brand.toml; a syntax error names the file, the line and the column. */
 export function parseBrandToml(text: string, label: string): Table {
@@ -53,15 +55,11 @@ export function layer(base: Table, over: Table): Table {
 }
 
 /**
- * The example's identity, which no chapter inherits: a chapter names its own, or the
- * schema says it is required.
+ * What no chapter inherits from the example: the identity (a chapter names its own, or the
+ * schema says it is required) and the web apps, which belong to the example's project.
  */
-const IDENTITY: readonly (readonly string[])[] = [
-  ["name"],
-  ["city"],
-  ["country"],
-  ["project"],
-  ["colors", "spotlight"],
+const NOT_INHERITED: readonly (readonly string[])[] = [
+  ...CHAPTER_IDENTITY,
   ["firebase", "spotlight"],
   ["firebase", "backstage"],
 ];
@@ -76,8 +74,25 @@ function without(table: Table, path: readonly string[]): Table {
   return Object.keys(inner).length > 0 ? { ...others, [key]: inner } : others;
 }
 
+/**
+ * Values the example sets that describe the example, not a chapter: a chapter inherits
+ * them like any other, but the sites would then state the example's year, email and map.
+ */
+const EXAMPLE_SPECIFIC: readonly (readonly string[])[] = [
+  ["foundedYear"],
+  ["contact", "email"],
+  ["backstage", "emailPlaceholder"],
+  ["contact", "mapUrl"],
+];
+
+/** Where a chapter's own file leaves an example-specific value to the example. */
+export const inheritedExampleValues = (chapter: Table): string[] =>
+  EXAMPLE_SPECIFIC.filter((path) => valueAt(chapter, path) === undefined).map((path) =>
+    tomlLocation(path, chapter),
+  );
+
 /** The example as a base layer: everything but its identity. */
-export const baseLayer = (example: Table): Table => IDENTITY.reduce(without, example);
+export const baseLayer = (example: Table): Table => NOT_INHERITED.reduce(without, example);
 
 /** Each placeholder and the key that holds its value. */
 const PLACEHOLDERS: Readonly<Record<string, readonly string[]>> = {
@@ -98,7 +113,7 @@ const KNOWN = Object.keys(PLACEHOLDERS)
 
 type Path = readonly (string | number)[];
 
-function valueAt(root: unknown, path: readonly PropertyKey[]): unknown {
+export function valueAt(root: unknown, path: readonly PropertyKey[]): unknown {
   let node = root;
   for (const key of path) {
     if (Array.isArray(node) && typeof key === "number") node = node[key];
@@ -215,29 +230,6 @@ const editRemedy = (label: string): Remedy => ({
   run: "pnpm brand:check",
 });
 
-interface Issue {
-  path: readonly PropertyKey[];
-  message: string;
-  code?: string;
-  keys?: readonly string[];
-  input?: unknown;
-}
-
-function issueLines(issue: Issue, data: unknown, layers: Layers): string[] {
-  const line = (path: readonly PropertyKey[], text: string) =>
-    `${ownerOf(layers, path)} ${tomlLocation(path, data)}: ${text}`;
-  if (issue.code === "unrecognized_keys" && issue.keys) {
-    return issue.keys.map((key) => line([...issue.path, key], "unknown key (a typo?)"));
-  }
-  if (issue.code === "invalid_type" && issue.input === undefined) {
-    return [line(issue.path, "required")];
-  }
-  if (issue.code === "too_small" && typeof issue.input === "string") {
-    return [line(issue.path, "must not be blank")];
-  }
-  return [line(issue.path, issue.message)];
-}
-
 export interface ResolvedBrandFile {
   brand: Brand;
   siteContent: SiteContent;
@@ -260,7 +252,9 @@ export function resolveBrandFile({
   const expanded = expandTemplates(merged, layers);
   const parsed = brandFileSchema.safeParse(expanded, { reportInput: true });
   if (!parsed.success) {
-    const lines = parsed.error.issues.flatMap((issue) => issueLines(issue, expanded, layers));
+    const lines = parsed.error.issues.flatMap((issue) =>
+      issueLines(issue, (path) => `${ownerOf(layers, path)} ${tomlLocation(path, expanded)}`),
+    );
     throw new BrandConfigError([...new Set(lines)], [editRemedy(label)]);
   }
   return { brand: toBrand(parsed.data, slug), siteContent: toSiteContent(parsed.data) };

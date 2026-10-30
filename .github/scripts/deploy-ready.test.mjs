@@ -182,10 +182,18 @@ test("a [deploy] key outside the [deploy] table does not count", () => {
   assert.match(check(fork(text)).stdout, /^project=acme\nready=false\n/);
 });
 
-test("a brand.toml without project is no project at all", () => {
-  const r = check(fork('name = "Acme"\n[deploy]\n'));
-  assert.equal(r.status, 0);
-  assert.match(r.stdout, /^project=\nready=false\n/);
+test("a brand.toml without a readable project says so, not that [deploy] is missing", () => {
+  for (const text of [
+    'name = "Acme"\n[deploy]\n',
+    toml("acme", DEPLOY).replace(/^project = .*$/m, "project = acme"),
+  ]) {
+    const r = check(fork(text));
+    assert.equal(r.status, 0);
+    assert.match(
+      r.stdout,
+      /^project=\nready=false\nreason=brand\/acme\/brand\.toml: its project could not be read \(a line project = "<id>" before the first \[table\]\), so Deploy cannot tell where to deploy\.\n$/,
+    );
+  }
 });
 
 test("still reads a brand.json profile, as the base tree before brand.toml holds it", () => {

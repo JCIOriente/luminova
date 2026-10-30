@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Is this repository set up to deploy? A fork whose profile is local-only (a `demo-`
-# project, from `pnpm brand:init` without a Firebase project) or has no "deploy" section has no cloud yet, so
+# project, from `pnpm brand:init` without a Firebase project) or has no [deploy] table has no cloud yet, so
 # Deploy skips every job with a notice instead of failing on every merge to main
 # (docs/specs/2026-10-25-local-first-adoption.md, L4). A brand/ folder with no single
 # profile to select is not "not set up": it fails loudly.
@@ -126,17 +126,24 @@ if [ "$file" = brand.toml ]; then
   provider=$(toml_value deploy workloadIdentityProvider <<<"$brand")
   account=$(toml_value deploy serviceAccount <<<"$brand")
   missing="has no [deploy] table"
+  unread='its project could not be read (a line project = "<id>" before the first [table])'
 else
+  # Only the base tree from before brand.toml holds a brand.json; the fork-CD PR drops this
+  # branch and jq with it.
   project=$(jq -r '.firebase.projectId // empty' <<<"$brand")
   provider=$(jq -r '.deploy.workloadIdentityProvider // empty' <<<"$brand")
   account=$(jq -r '.deploy.serviceAccount // empty' <<<"$brand")
   missing='has no "deploy" section'
+  unread='its firebase.projectId could not be read'
 fi
 echo "project=$project"
 if [[ "$project" == demo-* ]]; then
   echo "ready=false"
   echo "reason=profile \"$profile\" is local-only (project $project). To go live: create a Firebase project, connect it with pnpm brand:init, then pnpm brand:provision (docs/adopting.md steps 6 to 12)."
-elif [ -z "$project" ] || [ -z "$provider" ] || [ -z "$account" ]; then
+elif [ -z "$project" ]; then
+  echo "ready=false"
+  echo "reason=brand/$profile/$file: $unread, so Deploy cannot tell where to deploy."
+elif [ -z "$provider" ] || [ -z "$account" ]; then
   echo "ready=false"
   echo "reason=brand/$profile/$file $missing, so CD cannot sign in yet. pnpm brand:provision shows it (step 2)."
 else

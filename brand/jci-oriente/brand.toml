@@ -3,6 +3,8 @@ name = "JCI Oriente"
 city = "Santa Cruz"
 country = "Bolivia"
 project = "jci-oriente"
+# Printed member credentials carry it: it never changes, whatever the project.
+qrPrefix = "jcioriente"
 legalName = "Cámara Junior Internacional Oriente"
 description = "Junior Chamber International Oriente"
 foundedYear = 1993

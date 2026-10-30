@@ -12,10 +12,9 @@ import {
 import {
   BRAND_FILE,
   SCHEMA_LINE,
-  isTable,
   parseBrandToml,
   resolveBrandFile,
-  type Table,
+  valueAt,
 } from "../brand-file.ts";
 import { BRAND_APPS } from "../ports.ts";
 import {
@@ -29,12 +28,13 @@ import {
   issuesToBrandError,
   loadProfile,
   parseJsonText,
+  readBase,
   readJsonFile,
   type LoadedProfile,
 } from "../load-profile.ts";
 import { CONNECT_PROJECT, PULLED_ASSETS_DIR } from "../release.ts";
 import { formatNext, type Remedy, guideStep } from "../remedy.ts";
-import { SLUG_MESSAGE, SLUG_PATTERN } from "../schema.ts";
+import { CHAPTER_IDENTITY, SLUG_MESSAGE, SLUG_PATTERN, isTable, type Table } from "../schema.ts";
 import { FIREBASERC, applyProfile } from "./apply.ts";
 import { CommandError, runCommand, type CommandRunner } from "./gcloud.ts";
 import { INSTALL_FIREBASE_CLI } from "./install.ts";
@@ -43,14 +43,7 @@ import { isYes, terminalPrompter, type Prompter } from "./prompts.ts";
 
 type Answers = Record<string, unknown>;
 
-function get(answers: Answers, path: string): unknown {
-  let node: unknown = answers;
-  for (const key of path.split(".")) {
-    if (!isTable(node)) return undefined;
-    node = node[key];
-  }
-  return node;
-}
+const get = (answers: Answers, path: string): unknown => valueAt(answers, path.split("."));
 
 function set(answers: Answers, path: string, value: unknown): void {
   const keys = path.split(".");
@@ -74,8 +67,8 @@ interface Field {
   path: string;
   label: string;
   fallback?: (answers: Answers, example: Answers) => string | undefined;
-  /** `blank` keeps "" (feature off) instead of leaving the key out. */
-  kind?: "blank";
+  /** `int` takes a whole number; `blank` keeps "" (feature off) instead of leaving the key out. */
+  kind?: "int" | "blank";
   /** Re-asked at once while this returns a reason (interactive only; a file is checked whole). */
   check?: (reply: string, repoRoot: string) => string | undefined;
 }
@@ -97,6 +90,7 @@ const CHAPTER_FIELDS: readonly Field[] = [
   { path: "name", label: "Chapter name (e.g. JCI Andina)" },
   { path: "city", label: "City, as used in a sentence (e.g. Cochabamba)" },
   { path: "country", label: "Country" },
+  { path: "foundedYear", label: "Year founded", kind: "int" },
   {
     path: "colors.spotlight",
     label: "Public site theme colour, #RRGGBB",
@@ -140,8 +134,15 @@ const WEB_KEY_FIELDS: readonly Field[] = [
 
 const WEB_KEYS = ["apiKey", "appId", "appCheckSiteKey", "vapidKey"] as const;
 
-/** The answers brand:init takes: the identity, then the project; brand.toml holds the rest. */
-const ANSWER_KEYS = ["slug", "name", "city", "country", "colors", "project", "firebase"];
+/** The answers brand:init takes: the identity, the year and the project; brand.toml holds the rest. */
+const ANSWER_KEYS = [
+  ...new Set([
+    "slug",
+    ...CHAPTER_IDENTITY.flatMap((path) => path.slice(0, 1)),
+    "foundedYear",
+    "firebase",
+  ]),
+];
 
 const sdkconfigSchema = z.object({
   result: z.object({
@@ -270,6 +271,13 @@ function assetReadme(): string {
   ].join("\n");
 }
 
+const WHOLE = /^\d+$/;
+
+function checkReply(field: Field, reply: string, repoRoot: string): string | undefined {
+  if (field.kind === "int" && !WHOLE.test(reply)) return `"${reply}" must be a whole number`;
+  return field.check?.(reply, repoRoot);
+}
+
 /** Asks each field the answers do not hold yet, re-asking a reply its check refuses. */
 function asker(
   answers: Answers,
@@ -290,9 +298,11 @@ function asker(
           (await prompter?.ask({ key: field.path, label: field.label, fallback, error })) ||
           fallback ||
           "";
-        error = prompter && reply !== "" ? field.check?.(reply, repoRoot) : undefined;
+        error = prompter && reply !== "" ? checkReply(field, reply, repoRoot) : undefined;
       } while (error);
-      if (reply !== "" || field.kind === "blank") set(answers, field.path, reply);
+      if (reply !== "" || field.kind === "blank") {
+        set(answers, field.path, field.kind === "int" && WHOLE.test(reply) ? Number(reply) : reply);
+      }
     }
   };
 }
@@ -356,15 +366,6 @@ function refuseOtherAnswers(answers: Answers): void {
   );
 }
 
-/** The example's brand.toml: the defaults a question offers, and the base layer. */
-function exampleFile(repoRoot: string): Table {
-  const example = loadProfile({ repoRoot, profile: EXAMPLE_PROFILE });
-  return parseBrandToml(
-    readFileSync(join(example.dir, BRAND_FILE), "utf8"),
-    brandFileLabel(EXAMPLE_PROFILE),
-  );
-}
-
 const tomlString = (value: unknown) => JSON.stringify(String(value));
 
 /** `[firebase.<app>]` with each web key answered, blanks left out. */
@@ -390,7 +391,8 @@ function renderBrandToml(answers: Answers, example: Table): string {
   // An unanswered key is left out, so the schema reports it as required.
   const line = (key: string, path = key) => {
     const value = get(answers, path);
-    return value === undefined ? [] : [`${key} = ${tomlString(value)}`];
+    if (value === undefined) return [];
+    return [`${key} = ${typeof value === "number" ? String(value) : tomlString(value)}`];
   };
   return [
     SCHEMA_LINE,
@@ -401,14 +403,42 @@ function renderBrandToml(answers: Answers, example: Table): string {
     ...line("country"),
     "# The Firebase project. A demo- project runs only in the emulators; pnpm brand:init connects a real one.",
     ...line("project"),
-    "# The year the chapter was founded, which the site states; until set, it is the example's:",
-    `# foundedYear = ${String(example.foundedYear)}`,
+    ...(answers.foundedYear === undefined
+      ? [
+          "# The year the chapter was founded, which the site states; until set, it is the example's:",
+          `# foundedYear = ${String(example.foundedYear)}`,
+        ]
+      : ["# The year the chapter was founded, which the site states.", ...line("foundedYear")]),
     "",
     "[colors]",
     ...line("spotlight", "colors.spotlight"),
     ...webTables(answers),
     "",
   ].join("\n");
+}
+
+/**
+ * brand:init wrote this text, so a syntax error in it is no line the member typed: the
+ * message says so instead of asking them to fix their file.
+ */
+function parseGenerated(toml: string, label: string): Table {
+  try {
+    return parseBrandToml(toml, label);
+  } catch (error) {
+    if (!(error instanceof BrandConfigError)) throw error;
+    const where = error.errors.map((line) => line.replace(`${label}: `, "")).join("; ");
+    throw new BrandConfigError(
+      [
+        `brand:init built ${label} from your answers, but it does not parse (${where}); nothing was written`,
+      ],
+      [
+        {
+          change:
+            "check your answers for unusual characters (such as control characters); if they hold none, report this as a brand:init bug",
+        },
+      ],
+    );
+  }
 }
 
 /** The resolved profile of a brand.toml text, so nothing invalid is ever written. */
@@ -419,7 +449,7 @@ function validated(
   const label = brandFileLabel(slug);
   const resolved = resolveBrandFile({
     slug,
-    chapter: parseBrandToml(toml, label),
+    chapter: parseGenerated(toml, label),
     base: example,
     label,
     baseLabel: brandFileLabel(EXAMPLE_PROFILE),
@@ -457,7 +487,7 @@ export async function init({
 }): Promise<{ slug: string; files: string[]; local: boolean }> {
   refuseSecondChapter(repoRoot);
   refuseOtherAnswers(initial);
-  const example = exampleFile(repoRoot);
+  const example = readBase(repoRoot);
   const answers: Answers = structuredClone(initial);
   const ask = asker(answers, example, repoRoot, prompter);
 
@@ -573,11 +603,25 @@ const TABLE_HEADER = /^\s*\[/;
 const isHeader = (line: string, table: string) =>
   new RegExp(`^\\s*\\[\\s*${table.replace(".", "\\s*\\.\\s*")}\\s*\\]\\s*(#.*)?$`).test(line);
 
+const isNote = (line: string) => /^\s*(#.*)?$/.test(line);
+
+/**
+ * Drops each of `tables`, header to next header. Comments and blank lines right before the
+ * next header belong to that header, so they stay unless it is dropped too.
+ */
 function withoutTables(lines: readonly string[], tables: readonly string[]): string[] {
   const out: string[] = [];
   let skipping = false;
+  let notes: string[] = [];
   for (const line of lines) {
-    if (TABLE_HEADER.test(line)) skipping = tables.some((table) => isHeader(line, table));
+    if (TABLE_HEADER.test(line)) {
+      skipping = tables.some((table) => isHeader(line, table));
+      if (!skipping) out.push(...notes);
+      notes = [];
+    } else if (skipping) {
+      notes = isNote(line) ? [...notes, line] : [];
+      continue;
+    }
     if (!skipping) out.push(line);
   }
   return out;
@@ -599,8 +643,12 @@ function connectedToml(
   const header = kept.findIndex((line) => TABLE_HEADER.test(line));
   const top = header === -1 ? kept.length : header;
   const projectLine = `project = ${tomlString(answers.project)}`;
-  const at = kept.slice(0, top).findIndex((line) => /^\s*project\s*=/.test(line));
-  const extra = pinQrPrefix ? [`qrPrefix = ${tomlString(pinQrPrefix)}`] : [];
+  const topLine = (key: string) =>
+    kept.slice(0, top).findIndex((line) => new RegExp(`^\\s*${key}\\s*=`).test(line));
+  const at = topLine("project");
+  // A prefix already written is the one credentials carry: it stays as it is.
+  const pin = pinQrPrefix !== undefined && topLine("qrPrefix") === -1;
+  const extra = pin ? [`qrPrefix = ${tomlString(pinQrPrefix)}`] : [];
   if (at === -1) kept.splice(top, 0, projectLine, ...extra);
   else kept.splice(at, 1, projectLine, ...extra);
   return `${kept.join("\n").trimEnd()}\n${webTables(answers).join("\n")}\n`;
@@ -643,7 +691,7 @@ export async function connect({
     ...(initial.project !== undefined ? { project: initial.project } : {}),
     ...(initial.firebase !== undefined ? { firebase: initial.firebase } : {}),
   });
-  const example = exampleFile(repoRoot);
+  const example = readBase(repoRoot);
   // Re-connecting offers the current project's values as defaults (Enter keeps one, a
   // reply replaces it); a demo project's placeholders are never offered.
   const defaults = profile.localOnly ? {} : current;

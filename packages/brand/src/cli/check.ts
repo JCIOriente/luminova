@@ -1,15 +1,17 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ASSET_CONTRACT } from "../assets.ts";
-import { BRAND_FILE, SCHEMA_LINE } from "../brand-file.ts";
+import { BRAND_FILE, SCHEMA_LINE, inheritedExampleValues, parseBrandToml } from "../brand-file.ts";
 import {
   BrandConfigError,
+  EXAMPLE_PROFILE,
   PROFILE_OVERRIDE_ENV,
   ProfileNotFoundError,
   ProfileSelectionError,
   REMOVE_OVERRIDE,
   REPO_ROOT,
   SOURCE_LABEL,
+  brandFileLabel,
   errorMessage,
   loadProfile,
   discoverProfile,
@@ -66,14 +68,36 @@ async function attempt(check: string, body: () => Promise<CheckRow>): Promise<Ch
  * Valid, and the first line points editors at the schema (Taplo, Even Better TOML); a
  * missing line is a note, not a failure: the build never reads it.
  */
-function brandFileRow({ dir }: LoadedProfile): CheckRow {
-  const firstLine = readFileSync(join(dir, BRAND_FILE), "utf8").split(/\r?\n/, 1)[0];
+function brandFileRow(text: string): CheckRow {
+  const firstLine = text.split(/\r?\n/, 1)[0];
   if (firstLine === SCHEMA_LINE) return ok(BRAND_FILE, "valid");
   return warn(
     BRAND_FILE,
     `valid, but line 1 is not "${SCHEMA_LINE}", so editors offer no hover help or completion`,
     [{ change: `add "${SCHEMA_LINE}" as line 1 of the profile's ${BRAND_FILE}` }],
   );
+}
+
+const listed = (items: readonly string[]) =>
+  items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items.at(-1)}` : (items[0] ?? "");
+
+/** A note, never a failure, while a chapter's sites state the example's year, email or map. */
+function exampleValuesRows({ slug }: LoadedProfile, text: string): CheckRow[] {
+  if (slug === EXAMPLE_PROFILE) return [];
+  const label = brandFileLabel(slug);
+  const inherited = inheritedExampleValues(parseBrandToml(text, label));
+  if (inherited.length === 0) return [];
+  return [
+    warn(
+      "example values",
+      `${listed(inherited)} ${inherited.length > 1 ? "are" : "is"} still the example's`,
+      [
+        {
+          change: `set them in ${label} (brand/${EXAMPLE_PROFILE}/${BRAND_FILE} shows each)`,
+        },
+      ],
+    ),
+  ];
 }
 
 function profileRows(repoRoot: string, env: Env): { rows: CheckRow[]; profile?: LoadedProfile } {
@@ -92,7 +116,8 @@ function profileRows(repoRoot: string, env: Env): { rows: CheckRow[]; profile?: 
     }
     return { rows: [ok("profile", "found"), fail(BRAND_FILE, detail, error.remedies)] };
   }
-  const { slug, source } = profile;
+  const { slug, source, dir } = profile;
+  const text = readFileSync(join(dir, BRAND_FILE), "utf8");
   return {
     rows: [
       // The selection row already says why brand/ chose it; only an override is noted.
@@ -100,7 +125,8 @@ function profileRows(repoRoot: string, env: Env): { rows: CheckRow[]; profile?: 
         "profile",
         `brand/${slug}/${isExplicitSource(source) ? ` (${SOURCE_LABEL[source]})` : ""}`,
       ),
-      brandFileRow(profile),
+      brandFileRow(text),
+      ...exampleValuesRows(profile, text),
     ],
     profile,
   };

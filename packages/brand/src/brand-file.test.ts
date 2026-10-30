@@ -4,22 +4,18 @@ import { describe, expect, it } from "vitest";
 import {
   baseLayer,
   layer,
+  inheritedExampleValues,
   parseBrandToml,
+  readBrandToml,
   resolveBrandFile,
   tomlLocation,
-  type Table,
 } from "./brand-file.ts";
-import { BrandConfigError } from "./errors.ts";
 import { EXAMPLE_PROFILE, REPO_ROOT, loadProfile } from "./load-profile.ts";
+import type { Table } from "./schema.ts";
+import { errorsOf, exampleToml } from "./test-profiles.ts";
 
 const LABEL = "brand/acme/brand.toml";
 const BASE_LABEL = "brand/example/brand.toml";
-
-const example = (): Table =>
-  parseBrandToml(
-    readFileSync(join(REPO_ROOT, "brand", EXAMPLE_PROFILE, "brand.toml"), "utf8"),
-    BASE_LABEL,
-  );
 
 const IDENTITY = `
 name = "JCI Andina"
@@ -35,20 +31,10 @@ function resolve(toml: string) {
   return resolveBrandFile({
     slug: "acme",
     chapter: parseBrandToml(toml, LABEL),
-    base: example(),
+    base: exampleToml(),
     label: LABEL,
     baseLabel: BASE_LABEL,
   });
-}
-
-function errorsOf(run: () => unknown): string[] {
-  try {
-    run();
-  } catch (error) {
-    if (error instanceof BrandConfigError) return error.errors;
-    throw error;
-  }
-  throw new Error("expected a BrandConfigError");
 }
 
 const fixture = (name: string): unknown =>
@@ -70,6 +56,12 @@ describe("JCI Oriente's brand.toml", () => {
     expect(loadProfile({ profile: "jci-oriente" }).siteContent).toStrictEqual(
       fixture("jci-oriente.site-content.json"),
     );
+  });
+
+  it("pins the QR prefix its printed credentials carry", () => {
+    expect(
+      readBrandToml(join(REPO_ROOT, "brand", "jci-oriente", "brand.toml"), "oriente").qrPrefix,
+    ).toBe("jcioriente");
   });
 
   it("keeps the key order the bundles inline", () => {
@@ -136,7 +128,7 @@ describe("layering", () => {
   });
 
   it("never passes the example's identity to a chapter", () => {
-    const base = baseLayer(example());
+    const base = baseLayer(exampleToml());
     for (const key of ["name", "city", "country", "project"]) expect(base).not.toHaveProperty(key);
     expect(base.colors).toEqual({ backstage: "#222222" });
     expect(base).not.toHaveProperty("firebase");
@@ -316,6 +308,20 @@ describe("errors name the file, the table and the key", () => {
     ]);
   });
 
+  it("for a public address that is no bare origin written in full, a line break included", () => {
+    for (const url of [
+      "https://acme.example.org\\nproject_id=evil",
+      "https://acme.example.org\\r",
+      "https://acme.example.org/",
+      "https://Acme.example.org",
+      " https://acme.example.org",
+    ]) {
+      expect(errorsOf(() => resolve(`${IDENTITY}\n[urls]\nspotlight = "${url}"\n`))).toEqual([
+        "brand/acme/brand.toml [urls] spotlight: must be a bare https origin written in full, e.g. https://example.org",
+      ]);
+    }
+  });
+
   it("for a syntax error, with the line and column", () => {
     expect(errorsOf(() => parseBrandToml('name = "JCI\ncity = 1\n', LABEL))).toEqual([
       expect.stringMatching(/^brand\/acme\/brand\.toml: line 1, column \d+: /),
@@ -335,5 +341,18 @@ describe("tomlLocation", () => {
     [["og", "legacyPaths", 0], "[og] legacyPaths, item 1"],
   ])("writes %j as %s", (path, expected) => {
     expect(tomlLocation(path, data)).toBe(expected);
+  });
+});
+
+describe("inheritedExampleValues", () => {
+  it("names the values a chapter still takes from the example that only fit the example", () => {
+    expect(inheritedExampleValues(parseBrandToml(IDENTITY, LABEL))).toEqual([
+      "foundedYear",
+      "[contact] email",
+      "[backstage] emailPlaceholder",
+      "[contact] mapUrl",
+    ]);
+    const own = `foundedYear = 1990\n${IDENTITY}\n[contact]\nemail = ""\nmapUrl = "https://maps.example.org/andina"\n[backstage]\nemailPlaceholder = "tu@andina.org"\n`;
+    expect(inheritedExampleValues(parseBrandToml(own, LABEL))).toEqual([]);
   });
 });

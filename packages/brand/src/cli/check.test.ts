@@ -199,6 +199,17 @@ describe("check", () => {
     );
   });
 
+  it("warns, without failing, about values the chapter still takes from the example", async () => {
+    writeChapter(root, { assets: false, brand: { foundedYear: undefined, contact: undefined } });
+    const rows = await diagnose();
+    expect(rowFor(rows, "example values")).toMatchObject({
+      status: "warn",
+      detail: "foundedYear, [contact] email and [contact] mapUrl are still the example's",
+      remedies: [{ change: expect.stringMatching(/^set them in brand\/jci-valle\/brand\.toml/) }],
+    });
+    expect(rows.filter(({ status }) => status === "fail")).toEqual([]);
+  });
+
   it("warns, without failing, when brand.toml lacks the #:schema line editors read", async () => {
     const file = join(root, "brand", CHAPTER, "brand.toml");
     writeFileSync(file, readFileSync(file, "utf8").replace(/^#:schema .*\n/, ""));

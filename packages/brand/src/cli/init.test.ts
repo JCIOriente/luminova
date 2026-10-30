@@ -18,6 +18,7 @@ function minimalAnswers(): Record<string, unknown> {
     name: "JCI Valle",
     city: "Cochabamba",
     country: "Bolivia",
+    foundedYear: 1990,
     colors: { spotlight: "#0097D7" },
     project: "jci-valle",
     firebase: {
@@ -63,6 +64,7 @@ describe("init from an answers file", () => {
     });
     expect(brand.assetsBucket).toBe("jci-valle-brand-assets");
     expect(brand.qrPrefix).toBe("jcivalle");
+    expect(brand.foundedYear).toBe(1990);
     expect(brand.shortName).toBe("JCI Valle");
     expect(brand.seo.ogTitle).toBe("JCI Valle: Cámara Junior Internacional en Cochabamba");
     expect(brand.locality.cityFormal).toBe("Cochabamba");
@@ -82,7 +84,7 @@ describe("init from an answers file", () => {
     expect(brand.movementName).toBe(example.movementName);
   });
 
-  it("starts the file with the #:schema line and holds only the identity and the project", async () => {
+  it("starts the file with the #:schema line and holds only the identity, the year and the project", async () => {
     await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
     const written = readFileSync(brandToml(), "utf8");
     expect(written.split("\n")[0]).toBe("#:schema ../brand.schema.json");
@@ -95,6 +97,7 @@ describe("init from an answers file", () => {
       "city",
       "country",
       "project",
+      "foundedYear",
       "[colors]",
       "spotlight",
       "[firebase.spotlight]",
@@ -183,6 +186,17 @@ describe("init from an answers file", () => {
     expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
   });
 
+  it("says an answer it cannot write is no syntax error in the member's file", async () => {
+    const answers = { ...minimalAnswers(), name: "JCI\u007fValle" };
+    const error = await init({ repoRoot: root, answers, run: noCommands }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(BrandConfigError);
+    expect(String(error)).toMatch(
+      /brand:init built brand\/jci-valle\/brand\.toml from your answers, but it does not parse/,
+    );
+    expect(String(error)).not.toMatch(/fix the TOML syntax/);
+    expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
+  });
+
   it("refuses a malformed slug before writing", async () => {
     const answers = { ...minimalAnswers(), slug: "../escape" };
     await expect(init({ repoRoot: root, answers, run: noCommands })).rejects.toThrow(/kebab-case/);
@@ -256,6 +270,7 @@ describe("init interactively", () => {
       name: "JCI Valle",
       city: "Cochabamba",
       country: "Bolivia",
+      foundedYear: "1990",
       project: "jci-valle",
       "firebase.spotlight.appId": SPOTLIGHT_APP,
       "firebase.backstage.appId": BACKSTAGE_APP,
@@ -275,6 +290,9 @@ describe("init interactively", () => {
     const keys = asked.map(({ key }) => key);
     expect(new Set(keys).size).toBe(keys.length);
     expect(keys).toContain("fillWeb");
+    expect(keys).toContain("foundedYear");
+    expect(asked.find(({ key }) => key === "foundedYear")?.fallback).toBeUndefined();
+    expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.foundedYear).toBe(1990);
     expect(asked.find(({ key }) => key === "colors.spotlight")?.fallback).toBe("#336699");
     expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.themeColor.spotlight).toBe(
       "#336699",
@@ -308,14 +326,16 @@ describe("init interactively", () => {
     return prompter;
   }
 
-  it("re-asks a slug that is malformed or taken, and a color that is no #RRGGBB", async () => {
+  it("re-asks a slug that is malformed or taken, a year that is no number, and a color that is no #RRGGBB", async () => {
     const seen: { key: string; error?: string }[] = [];
     const answers = minimalAnswers();
     delete answers.slug;
+    delete answers.foundedYear;
     delete answers.colors;
     const prompter = scripted(
       {
         slug: ["Bad Slug", EXAMPLE_PROFILE, "jci-valle"],
+        foundedYear: ["1,990", "1990"],
         "colors.spotlight": ["blue", "#0097D7"],
       },
       seen,
@@ -327,10 +347,11 @@ describe("init interactively", () => {
       expect.stringMatching(/kebab-case/),
       expect.stringMatching(/brand\/example already exists/),
     ]);
+    expect(errors("foundedYear")).toEqual([undefined, expect.stringMatching(/whole number/)]);
     expect(errors("colors.spotlight")).toEqual([undefined, expect.stringMatching(/#RRGGBB/)]);
-    expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.themeColor.spotlight).toBe(
-      "#0097D7",
-    );
+    const { brand } = loadProfile({ repoRoot: root, profile: "jci-valle" });
+    expect(brand.themeColor.spotlight).toBe("#0097D7");
+    expect(brand.foundedYear).toBe(1990);
   });
 
   it("saves the answers for the next try when a later step fails", async () => {
@@ -504,6 +525,33 @@ describe("connect", () => {
     expect(moved.deploy).toBeUndefined();
     // Printed credentials carry the old prefix: moving project must not change it.
     expect(moved.qrPrefix).toBe("jcivalle");
+  });
+
+  it("moves project again and again, pinning the QR prefix once", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
+    for (const project of ["jci-valle-2", "jci-valle-3"]) {
+      await connect({ repoRoot: root, answers: { ...projectAnswers(), project }, run: noCommands });
+    }
+    expect(readFileSync(brandToml(), "utf8").match(/^qrPrefix\b.*$/gm)).toEqual([
+      'qrPrefix = "jcivalle"',
+    ]);
+    const { brand } = loadProfile({ repoRoot: root, env: {} });
+    expect(brand.firebase.projectId).toBe("jci-valle-3");
+    expect(brand.qrPrefix).toBe("jcivalle");
+  });
+
+  it("keeps the comments that lead into the table after a replaced one", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
+    writeFileSync(
+      brandToml(),
+      `${readFileSync(brandToml(), "utf8")}\n# our motto\n\n# still ours\n[hero]\nmotto = "Hola"\n`,
+    );
+    await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
+    const written = readFileSync(brandToml(), "utf8");
+    expect(written).toContain('\n# our motto\n\n# still ours\n[hero]\nmotto = "Hola"\n');
+    expect(written.match(/^\[firebase\.spotlight\]$/gm)).toHaveLength(1);
   });
 
   it("re-connecting the same project keeps App Check keys a blank answer would erase", async () => {
