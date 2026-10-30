@@ -7,7 +7,7 @@
     "node": ">=24.15.0"
   },
   "scripts": {
-    "prepare": "node packages/brand/src/cli/apply.ts",
+    "prepare": "node packages/brand/src/cli/seed.ts && node packages/brand/src/cli/apply.ts",
     "dev": "concurrently -k -n emu,web -c blue,green \"bash tools/scripts/emulators.sh\" \"wait-on tcp:127.0.0.1:4010 tcp:127.0.0.1:4030 && pnpm seed:emulator && turbo run dev\"",
     "build": "turbo run build",
     "build:release": "BRAND_RELEASE=1 VITE_FIREBASE_EMULATOR_ENABLED=false turbo run build --filter spotlight --filter backstage --force",

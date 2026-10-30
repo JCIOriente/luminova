@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stringify } from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { EXAMPLE_PROFILE, chapterProfiles, loadProfile } from "./load-profile.ts";
+import { EXAMPLE_PROFILE, loadProfile } from "./load-profile.ts";
 import { brandErrorOf, errorsOf, exampleRepo, exampleToml } from "./test-profiles.ts";
 
 let root: string;
@@ -134,8 +134,59 @@ describe("loadProfile", () => {
     expect(profile.source).toBe("named");
   });
 
-  it("lists the chapter profiles for brand:init's one-per-repository rule", () => {
-    expect(chapterProfiles(root)).toEqual(["other"]);
+  it("selects brand/local/ over a committed chapter, and reads its images there", () => {
+    writeProfile("local");
+    const profile = loadProfile({ repoRoot: root, env: {} });
+    expect(profile).toMatchObject({ slug: "local", source: "local", warnings: [] });
+    expect(profile.dir).toBe(join(root, "brand", "local"));
+    expect(profile.assetsDir).toBe(join(root, "brand", "local"));
+  });
+
+  it("leaves the committed chapter selected while brand/local/ holds no brand.toml", () => {
+    mkdirSync(join(root, "brand", "local"));
+    writeFileSync(join(root, "brand", "local", "notes.txt"), "images only, as CD pulls them");
+    expect(loadProfile({ repoRoot: root, env: {} })).toMatchObject({
+      slug: "other",
+      source: "chapter",
+    });
+  });
+
+  it("reads a committed chapter's own assets/ until brand/local/ records bucket images", () => {
+    expect(loadProfile({ repoRoot: root, env: {} }).assetsDir).toBe(
+      join(root, "brand", "other", "assets"),
+    );
+    const local = join(root, "brand", "local");
+    mkdirSync(local);
+    const manifest = (source: string) =>
+      JSON.stringify({
+        version: 1,
+        project: "demo-example",
+        bucket: "demo-example-brand-assets",
+        objects: { "logo-main.png": { md5: "x", sha256: "a".repeat(64), source } },
+      });
+    writeFileSync(join(local, ".pull-manifest.json"), manifest("example"));
+    expect(loadProfile({ repoRoot: root, env: {} }).assetsDir).toBe(
+      join(root, "brand", "other", "assets"),
+    );
+    writeFileSync(join(local, ".pull-manifest.json"), manifest("bucket"));
+    expect(loadProfile({ repoRoot: root, env: {} })).toMatchObject({
+      slug: "other",
+      assetsDir: local,
+    });
+  });
+
+  it("reads the example's images from its own assets/", () => {
+    expect(loadProfile({ repoRoot: root, profile: EXAMPLE_PROFILE }).assetsDir).toBe(
+      join(root, "brand", EXAMPLE_PROFILE, "assets"),
+    );
+  });
+
+  it("stops on a malformed manifest instead of guessing where the images are", () => {
+    mkdirSync(join(root, "brand", "local"));
+    writeFileSync(join(root, "brand", "local", ".pull-manifest.json"), "{");
+    expect(errorsOf(() => loadProfile({ repoRoot: root, env: {} }))).toEqual([
+      expect.stringMatching(/^brand\/local\/\.pull-manifest\.json: not valid JSON/),
+    ]);
   });
 
   it.each(["../other", "Other", "a/b", "-x"])(
@@ -191,7 +242,7 @@ describe("loadProfile remedies", () => {
     );
     expect(remedies).toEqual([
       { change: "name one of: example, other" },
-      { change: "or create brand/nope/", run: "pnpm brand:init" },
+      { change: "or create your chapter's brand", run: "pnpm brand:init" },
     ]);
     expect(message).toContain("To fix:");
     expect(message).toContain("pnpm brand:init   # in the repo root");
