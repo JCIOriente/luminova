@@ -11,21 +11,31 @@ export type Table = Record<string, unknown>;
 export const isTable = (value: unknown): value is Table =>
   typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date);
 
-const isNormalOrigin = (value: string) => {
+const normalOrigin = (value: string): string | null => {
   try {
-    return normalizeSiteUrl(value) === value;
+    return normalizeSiteUrl(value);
   } catch {
-    return false;
+    // Not an https origin at all: the caller reports it.
+    return null;
   }
 };
 
 // Written exactly as the URL parser normalizes it, which also strips tabs and line breaks:
 // the value reaches CD's $GITHUB_OUTPUT, where a line break would add an output of its own.
-const httpsOrigin = z
-  .string()
-  .refine((value) => !/[\s\p{Cc}]/u.test(value) && isNormalOrigin(value), {
-    message: "must be a bare https origin written in full, e.g. https://example.org",
+const httpsOrigin = z.string().superRefine((value, context) => {
+  if (/[\s\p{Cc}]/u.test(value)) {
+    context.addIssue({ code: "custom", message: "must hold no spaces or line breaks" });
+    return;
+  }
+  const normal = normalOrigin(value);
+  if (normal === value) return;
+  context.addIssue({
+    code: "custom",
+    message: normal
+      ? `write it as "${normal}" (no path or trailing slash, lowercase, no default port)`
+      : "must be a bare https origin written in full, e.g. https://example.org",
   });
+});
 
 const httpsUrl = z.url({ protocol: /^https$/, message: "must be an https URL" });
 

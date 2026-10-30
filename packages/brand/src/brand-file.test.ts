@@ -309,17 +309,25 @@ describe("errors name the file, the table and the key", () => {
   });
 
   it("for a public address that is no bare origin written in full, a line break included", () => {
+    const urlError = (url: string) =>
+      errorsOf(() => resolve(`${IDENTITY}\n[urls]\nspotlight = "${url}"\n`));
     for (const url of [
       "https://acme.example.org\\nproject_id=evil",
       "https://acme.example.org\\r",
-      "https://acme.example.org/",
-      "https://Acme.example.org",
       " https://acme.example.org",
     ]) {
-      expect(errorsOf(() => resolve(`${IDENTITY}\n[urls]\nspotlight = "${url}"\n`))).toEqual([
-        "brand/acme/brand.toml [urls] spotlight: must be a bare https origin written in full, e.g. https://example.org",
+      expect(urlError(url)).toEqual([
+        "brand/acme/brand.toml [urls] spotlight: must hold no spaces or line breaks",
       ]);
     }
+    for (const url of ["https://acme.example.org/", "https://Acme.example.org"]) {
+      expect(urlError(url)).toEqual([
+        'brand/acme/brand.toml [urls] spotlight: write it as "https://acme.example.org" (no path or trailing slash, lowercase, no default port)',
+      ]);
+    }
+    expect(urlError("http://acme.example.org")).toEqual([
+      "brand/acme/brand.toml [urls] spotlight: must be a bare https origin written in full, e.g. https://example.org",
+    ]);
   });
 
   it("for a syntax error, with the line and column", () => {
