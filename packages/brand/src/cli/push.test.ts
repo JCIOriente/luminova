@@ -4,15 +4,22 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { writeAssetSet } from "../asset-set.ts";
 import { ASSET_CONTRACT } from "../assets.ts";
-import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
+import {
+  BrandConfigError,
+  EXAMPLE_PROFILE,
+  REPO_ROOT,
+  loadProfile,
+  type LoadedProfile,
+} from "../load-profile.ts";
+import { chapterProfile } from "../test-profiles.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import type { CommandRunner } from "./gcloud.ts";
 import { DEPLOY_DISPATCH, ImagesNotReadyError, pushNext, push } from "./push.ts";
 
-const BUCKET = "jci-oriente-brand-assets";
+const BUCKET = "jci-valle-brand-assets";
 const profile: LoadedProfile = {
-  ...loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" }),
-  source: "example",
+  ...chapterProfile(),
+  source: "chapter",
 };
 
 let root: string;
@@ -52,7 +59,7 @@ describe("push", () => {
   });
 
   it("never syncs with deletion and never uploads the pull manifest", async () => {
-    writeFileSync(join(from, "pull-manifest.json"), JSON.stringify({ profile: "jci-oriente" }));
+    writeFileSync(join(from, "pull-manifest.json"), JSON.stringify({ profile: "jci-valle" }));
     await upload();
     const argv = calls.flat().join(" ");
     expect(argv).not.toMatch(/rsync|delete-unmatched/);
@@ -76,14 +83,14 @@ describe("push", () => {
     rmSync(from, { recursive: true });
     mkdirSync(from);
     const images = await upload();
-    expect(images.dir).toBe(join(REPO_ROOT, "brand/jci-oriente/assets"));
+    expect(images.dir).toBe(join(profile.dir, "assets"));
     expect(calls.flatMap((call) => call.slice(3, -1))).toEqual(
       ASSET_CONTRACT.map(({ path }) => join(images.dir, path)),
     );
   });
 
   it("checks first, then offers going live as a choice", () => {
-    const next = pushNext("jci-oriente");
+    const next = pushNext("jci-valle");
     expect(next.map(({ run }) => run)).toEqual([
       "pnpm brand:check",
       "gh workflow run deploy.yml -f surface=all",
@@ -113,12 +120,9 @@ describe("push", () => {
     expect(calls).toEqual([]);
   });
 
-  it("refuses the fixture profile, which can never reach production", async () => {
-    const fixture: LoadedProfile = {
-      ...loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" }),
-      source: "example",
-    };
-    await expect(upload({ profile: fixture })).rejects.toThrow(/neutral test profile/);
+  it("refuses the example, which can never reach production", async () => {
+    const example = loadProfile({ repoRoot: REPO_ROOT, profile: EXAMPLE_PROFILE });
+    await expect(upload({ profile: example })).rejects.toThrow(/is the example/);
     expect(calls).toEqual([]);
   });
 
