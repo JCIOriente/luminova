@@ -9,7 +9,7 @@ import {
   loadProfile,
   type LoadedProfile,
 } from "../load-profile.ts";
-import { chapterRepo, localRepo, recordLocal } from "../test-profiles.ts";
+import { localRepo, recordLocal } from "../test-profiles.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
 import { DEPLOY_DISPATCH, ImagesNotReadyError, PUSH_NEXT, push } from "./push.ts";
 
@@ -154,22 +154,6 @@ describe("push", () => {
       remedies: [expect.objectContaining({ run: "pnpm brand:check" })],
     });
     expect(calls).toEqual([]);
-  });
-
-  it("refuses a committed chapter: the bucket mirrors brand/local/", async () => {
-    const committed = chapterRepo("brand-push-chapter-");
-    try {
-      const chapter = loadProfile({ repoRoot: committed, env: {} });
-      const error = await push({ profile: chapter, repoRoot: committed, run }).catch(
-        (caught: unknown) => caught,
-      );
-      expect(String(error)).toMatch(
-        /brand:push uploads brand\/local\/[\s\S]*cp brand\/jci-valle\/brand\.toml brand\/local\/brand\.toml/,
-      );
-      expect(calls).toEqual([]);
-    } finally {
-      rmSync(committed, { recursive: true, force: true });
-    }
   });
 
   it("refuses the default profile: the bucket must be named on purpose", async () => {

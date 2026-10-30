@@ -88,10 +88,10 @@ test("an edited example file and the shared files pass", () => {
 test("a deleted chapter folder passes", () => {
   const { root, base, commit } = repo({
     ...UPSTREAM,
-    "brand/jci-oriente/brand.json": "{}",
-    "brand/jci-oriente/assets/logo-main.png": "real logo",
+    "brand/jci-andina/brand.toml": 'name = "JCI Andina"\n',
+    "brand/jci-andina/assets/logo-main.png": "real logo",
   });
-  rmSync(join(root, "brand/jci-oriente"), { recursive: true });
+  rmSync(join(root, "brand/jci-andina"), { recursive: true });
   commit();
   assert.equal(check(root, base).status, 0);
 });
@@ -106,43 +106,25 @@ test("a chapter file replaced by a symlink fails", () => {
   assert.match(r.stderr, /brand\/jci-andina\/brand\.json/);
 });
 
-// Temporary: the brand.toml PR converts JCI Oriente's committed profile in place; the JCI
-// Oriente removal PR deletes the folder and this allowance.
-test("allows only JCI Oriente's brand.toml under its folder, for the one conversion", () => {
+test("fails a chapter's brand.toml edited in a folder git already holds", () => {
   const { root, base, write, commit } = repo({
     ...UPSTREAM,
-    "brand/jci-oriente/brand.json": "{}",
-    "brand/jci-oriente/site-content.json": "{}",
+    "brand/jci-andina/brand.toml": 'name = "JCI Andina"\n',
   });
-  rmSync(join(root, "brand/jci-oriente/brand.json"));
-  rmSync(join(root, "brand/jci-oriente/site-content.json"));
-  write("brand/jci-oriente/brand.toml", 'name = "JCI Oriente"\n');
-  commit();
-  assert.equal(check(root, base).status, 0, check(root, base).stderr);
-
-  write("brand/jci-oriente/assets/logo-main.png", "real logo");
-  write("brand/jci-andina/brand.toml", 'name = "JCI Andina"\n');
+  write("brand/jci-andina/brand.toml", 'name = "JCI Andina"\ncity = "Cochabamba"\n');
   commit();
   const r = check(root, base);
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /brand\/jci-oriente\/assets\/logo-main\.png/);
   assert.match(r.stderr, /brand\/jci-andina\/brand\.toml/);
-  assert.doesNotMatch(r.stderr, /brand\/jci-oriente\/brand\.toml/);
 });
 
 test("allows exactly what .gitignore re-includes under brand/", () => {
   const scriptDir = dirname(SCRIPT);
   const gitignore = readFileSync(join(scriptDir, "..", "..", ".gitignore"), "utf8");
-  // Upstream keeps jci-oriente committed until its removal; deleting it always passes.
-  const reIncluded = [...gitignore.matchAll(/^!\/(brand\/\S+)$/gm)]
-    .map(([, path]) => path)
-    .filter((path) => path !== "brand/jci-oriente/");
+  const reIncluded = [...gitignore.matchAll(/^!\/(brand\/\S+)$/gm)].map(([, path]) => path);
   const pattern = readFileSync(SCRIPT, "utf8").match(/^\s*(brand\/.+)\) return 0 ;;$/m)?.[1];
   assert.ok(pattern, "allowed() case pattern not found");
-  const allowed = pattern
-    .split("|")
-    .map((path) => path.trim().replace(/\*$/, ""))
-    .filter((path) => path !== "brand/jci-oriente/brand.toml");
+  const allowed = pattern.split("|").map((path) => path.trim().replace(/\*$/, ""));
   assert.deepEqual(allowed.sort(), reIncluded.sort());
 });
 

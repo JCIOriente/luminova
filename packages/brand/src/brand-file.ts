@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
-import { TomlError, parse } from "smol-toml";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { TomlError, parse, stringify } from "smol-toml";
 import { BrandConfigError, errorMessage, issueLines } from "./errors.ts";
 import type { Remedy } from "./remedy.ts";
 import {
@@ -17,6 +18,11 @@ export const BRAND_FILE = "brand.toml";
 
 /** Line 1 of a brand.toml: Taplo and Even Better TOML read it for hover help and completion. */
 export const SCHEMA_LINE = "#:schema ../brand.schema.json";
+
+/** Writes `table` as `dir`'s brand.toml, under the schema line. */
+export function writeBrandToml(dir: string, table: Table): void {
+  writeFileSync(join(dir, BRAND_FILE), `${SCHEMA_LINE}\n${stringify(table)}\n`);
+}
 
 /** Parses a brand.toml; a syntax error names the file, the line and the column. */
 export function parseBrandToml(text: string, label: string): Table {

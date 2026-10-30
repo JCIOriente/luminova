@@ -132,8 +132,12 @@ jobs:
       # apps/*/dist is present; fails the gate on a breach.
       - if: steps.code.outputs.run == 'true'
         run: bash tools/scripts/check-bundle-budget.sh
-      # Brand neutrality (spec 2026-10-22-brand-config section 7): the chapter dist above
-      # still carries its own values, and a build of the example carries none of them.
+      # Brand neutrality (spec 2026-10-29-brand-outside-repo D8): a build of the example
+      # carries none of a chapter's values. With a real chapter in brand/local/ the guard
+      # runs in chapter mode, which replaces the canary check: it scans the example build
+      # for that chapter's values and checks the chapter's own dist. CI never has
+      # brand/local/ (it never seeds one), so here it always runs the canary check: it writes
+      # a synthetic canary chapter there and scans the example built beside it.
       # (The committed JSON schema matching the zod source is a package test.)
       - if: steps.code.outputs.run == 'true'
         run: pnpm brand:guard

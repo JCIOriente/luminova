@@ -6,8 +6,8 @@ import { PULL_ASSETS } from "./assets.ts";
 import { fileSha256 } from "./hash.ts";
 import {
   MANIFEST_LABEL,
+  BUCKET_CONTRACT,
   PULL_MANIFEST_FILE,
-  bucketContract,
   localDir,
   localLabel,
   readManifest,
@@ -178,7 +178,7 @@ function pulledFileErrors(profile: LoadedProfile, repoRoot: string): Problem[] {
       },
     ];
   }
-  return bucketContract(profile).flatMap((path): Problem[] => {
+  return BUCKET_CONTRACT.flatMap((path): Problem[] => {
     const record = manifest.objects[path];
     const file = join(dir, path);
     const label = localLabel(path);

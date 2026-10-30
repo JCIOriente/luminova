@@ -243,10 +243,10 @@ The PRs land in this order; JCI Oriente keeps deploying through each:
 4. **Fork CD**: `deploy.yml` reads the variables and pulls before building. Merge it only
    after the owner ran the runbook below; its first run is the proof that the bucket's
    `brand.toml` deploys JCI Oriente.
-5. **Removal**: `brand/jci-oriente/` leaves the repo, with the `fixture` exclusion of
-   `deploy-ready.sh` and the `.gitignore` re-include; `brand:guard` switches to the canary
-   chapter (D8). Its merge is one full redeploy of every surface (the base tree's shape
-   changes), on purpose.
+5. **Removal**: `brand/jci-oriente/` leaves the repo, with the `.gitignore` re-include;
+   `brand:guard` switches to the canary chapter (D8). Its merge redeploys the surfaces its
+   diff touches (spotlight, backstage and functions, not rules). The one deploy of every
+   surface is the first Deploy after step 4, since no earlier run carries its title.
 
 ### Owner runbook (after step 3 merges, before step 4 merges; Claude runs none of it)
 
@@ -306,8 +306,9 @@ the options), and is recorded here as the fact.
   country; the example may say "Cámara Junior Internacional".
 - **D11. `[backstage] contactEmail` defaults to `[contact] email`**; with neither, the login
   page hides the link.
-- **D12. `deploy-ready.sh` keeps excluding `fixture` until the removal PR**, which deletes
-  the exclusion and is the one intended full redeploy.
+- **D12. `deploy-ready.sh` reads no brand folder from git from step 4 on**, when CD reads
+  repository variables. Until then it excluded `fixture`, so the first deploy after step 1
+  saw one chapter and redeployed only what changed.
 - **D13. This spec is its own docs PR**, first in the stack after landing R27.
 
 ## Later

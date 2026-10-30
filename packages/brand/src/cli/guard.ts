@@ -1,19 +1,44 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
 import { z } from "zod";
 import { fileSha256, sha256 } from "../hash.ts";
 import {
+  BrandConfigError,
   EXAMPLE_PROFILE,
   PROFILE_OVERRIDE_ENV,
   REPO_ROOT,
+  errorMessage,
   loadProfile,
   type Env,
   type LoadedProfile,
 } from "../load-profile.ts";
-import { IMAGE_PATHS, LOCAL_PROFILE, isUntouchedSeed, localLabel } from "../local-folder.ts";
+import {
+  BACKUP_LABEL,
+  CANARY_MARKER,
+  IMAGE_PATHS,
+  LOCAL_PROFILE,
+  canaryBackupDir,
+  isUntouchedSeed,
+  liveCanaryPid,
+  localDir,
+  localLabel,
+  recoverInterruptedCanary,
+  restoreFromCanary,
+} from "../local-folder.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
+import { formatRemedies, type Remedy } from "../remedy.ts";
 import { isTable, type Brand } from "../schema.ts";
+import { writeCanary } from "./canary.ts";
 import { runBrandCommand } from "./main.ts";
 
 const MIN_NEEDLE_LENGTH = 6;
@@ -48,9 +73,6 @@ export const NEEDLE_EXCLUSIONS: readonly NeedleExclusion[] = [
   },
 ];
 
-// Case-sensitive on purpose: a case-insensitive "oriente" matches "oriented" in third-party code.
-export const CHAPTER_REGEX = /[Jj][Cc][Ii][ -]?[Oo]riente|\bOriente\b|Santa Cruz/;
-
 export interface Needle {
   value: string;
   keyPaths: string[];
@@ -67,9 +89,17 @@ export interface ScanResult {
   filesScanned: number;
 }
 
+/** Site-text keys whose values are enum members, which the code names in every build. */
+const SITE_CONTENT_EXCLUSIONS: readonly NeedleExclusion[] = [
+  { keyPath: "siteContent.linktree.socials.platform", reason: "an enum value the code names" },
+  { keyPath: "siteContent.linktree.links.icon", reason: "an enum value the code names" },
+];
+
+/** Array indices do not matter: `a[2].b` matches the exclusion `a.b`. */
 function isExcluded(keyPath: string, exclusions: readonly NeedleExclusion[]): boolean {
+  const path = keyPath.replace(/\[\d+\]/g, "");
   return exclusions.some(({ keyPath: excluded }) =>
-    excluded.endsWith(".*") ? keyPath.startsWith(excluded.slice(0, -1)) : keyPath === excluded,
+    excluded.endsWith(".*") ? path.startsWith(excluded.slice(0, -1)) : path === excluded,
   );
 }
 
@@ -78,7 +108,7 @@ function isExcluded(keyPath: string, exclusions: readonly NeedleExclusion[]): bo
  * to `example`'s at the same key is a default the chapter kept from the example's
  * brand.toml, which the example build shows by design, so it is no needle.
  */
-export function collectNeedles(
+function collectNeedles(
   value: unknown,
   exclusions: readonly NeedleExclusion[],
   example?: unknown,
@@ -101,6 +131,29 @@ export function collectNeedles(
   };
   visit(value, "", example);
   return [...byValue].map(([needle, keyPaths]) => ({ value: needle, keyPaths }));
+}
+
+/**
+ * A profile's needles: its brand's (with the exclusions) and its site texts' (key paths under
+ * `siteContent.`), less what it kept from `example`.
+ */
+export function profileNeedles(
+  { brand, siteContent }: Pick<LoadedProfile, "brand" | "siteContent">,
+  example?: Pick<LoadedProfile, "brand" | "siteContent">,
+): Needle[] {
+  const byValue = new Map<string, string[]>();
+  const all = [
+    ...collectNeedles(brand, NEEDLE_EXCLUSIONS, example?.brand),
+    ...collectNeedles(
+      { siteContent },
+      SITE_CONTENT_EXCLUSIONS,
+      example && { siteContent: example.siteContent },
+    ),
+  ];
+  for (const { value, keyPaths } of all) {
+    byValue.set(value, [...(byValue.get(value) ?? []), ...keyPaths]);
+  }
+  return [...byValue].map(([value, keyPaths]) => ({ value, keyPaths }));
 }
 
 function listFiles(dir: string): string[] {
@@ -148,15 +201,10 @@ function isText(bytes: Uint8Array): boolean {
 
 export function scanDist(
   dir: string,
-  {
-    needles,
-    hashes,
-    regex,
-  }: { needles: readonly Needle[]; hashes: Map<string, string>; regex: RegExp },
+  { needles, hashes }: { needles: readonly Needle[]; hashes: Map<string, string> },
 ): ScanResult {
   const findings: Finding[] = [];
   const files = listFiles(dir);
-  const global = new RegExp(regex.source, `${regex.flags.replace("g", "")}g`);
   for (const file of files) {
     const path = relative(dir, file);
     const bytes = readFileSync(file);
@@ -166,10 +214,6 @@ export function scanDist(
     const text = bytes.toString("utf8");
     for (const { value, keyPaths } of needles) {
       if (text.includes(value)) findings.push({ path, rule: value, source: keyPaths.join(", ") });
-    }
-    const matches = new Set(Array.from(text.matchAll(global), ([match]) => match));
-    for (const match of matches) {
-      findings.push({ path, rule: `regex ${regex.source} matched ${JSON.stringify(match)}` });
     }
   }
   return { findings, filesScanned: files.length };
@@ -275,61 +319,119 @@ async function buildExample(app: BrandApp, outDir: string, envDir: string): Prom
 }
 
 /**
- * How brand:guard ends before building anything when the profile is the example, or
- * brand/local/ is still the example install seeded; undefined when it is a chapter profile
- * to protect. A fork's brand/ holds no chapter profile in git.
+ * What brand:guard checks: the chapter brand/local/ holds (its dist, and the example build
+ * against it); the canary chapter where brand/ holds none (upstream CI, a fork before
+ * brand:init, a brand/local/ still the seed); or nothing, with the reason.
  */
-export function exampleOutcome(
+export type GuardMode =
+  { kind: "chapter" } | { kind: "canary"; reason: string } | { kind: "refuse"; message: string };
+
+export function guardMode(
   { slug, source }: Pick<LoadedProfile, "slug" | "source">,
   env: Env,
   repoRoot: string = REPO_ROOT,
-): { code: 0 | 1; message: string } | undefined {
+): GuardMode {
+  const running = liveCanaryPid(repoRoot);
+  if (running !== null && running !== process.pid) {
+    return {
+      kind: "refuse",
+      message: `another brand:guard is running (pid ${running}); wait for it to finish`,
+    };
+  }
   if (slug === LOCAL_PROFILE && isUntouchedSeed(repoRoot)) {
     return {
-      code: 0,
-      message: `brand:guard: ${localLabel()} is still the example install seeded, so it holds no chapter to protect; nothing to check.`,
+      kind: "canary",
+      reason: `${localLabel()} is still the example install seeded, so it holds no chapter`,
     };
   }
-  if (slug !== EXAMPLE_PROFILE) return undefined;
-  if (source === "example" && !env[PROFILE_OVERRIDE_ENV]?.trim()) {
+  if (slug !== EXAMPLE_PROFILE) return { kind: "chapter" };
+  if (source !== "example" || env[PROFILE_OVERRIDE_ENV]?.trim()) {
     return {
-      code: 0,
-      message: "brand:guard: brand/ holds no chapter profile to protect; nothing to check.",
+      kind: "refuse",
+      message: `brand:guard protects a chapter profile; "${EXAMPLE_PROFILE}" is the example it builds. Run it without ${PROFILE_OVERRIDE_ENV}.`,
     };
   }
-  return {
-    code: 1,
-    message: `brand:guard protects a chapter profile; "${EXAMPLE_PROFILE}" is the example it builds. Run it where brand/ holds a chapter profile, without ${PROFILE_OVERRIDE_ENV}.`,
-  };
+  if (existsSync(localDir(repoRoot))) {
+    return {
+      kind: "refuse",
+      message: `brand:guard: ${localLabel()} holds files but no brand.toml, and the canary chapter is written there. Move them out of ${localLabel()}, or make it your chapter's with pnpm brand:init.`,
+    };
+  }
+  return { kind: "canary", reason: "brand/ holds no chapter" };
 }
 
-async function main(): Promise<number> {
-  const started = performance.now();
-  // The profile brand/ selects is the one CI just built.
-  const chapter = loadProfile();
-  const early = exampleOutcome(chapter, process.env);
-  if (early) {
-    (early.code === 0 ? console.log : console.error)(early.message);
-    return early.code;
+const STOP_SIGNALS = ["SIGINT", "SIGTERM"] as const;
+
+const RESTORE_BY_HAND: Remedy[] = [
+  {
+    change: `delete the canary chapter in ${localLabel()} (or move aside what is there now), then rename ${BACKUP_LABEL} back to ${localLabel()}`,
+  },
+];
+
+/**
+ * Runs `body` with the canary chapter in brand/local/, where a chapter's brand lives, so the
+ * example build next to it proves it never reads that folder. brand/local/ is absent or the
+ * untouched seed (guardMode); it is renamed aside, member's own files and all, and renamed
+ * back afterwards, whatever `body` does. SIGINT and SIGTERM restore it before the process
+ * dies of them; what a SIGKILL leaves, the next loadProfile restores (the canary's marker).
+ */
+export async function withCanaryChapter<T>(
+  repoRoot: string,
+  body: (canary: LoadedProfile) => Promise<T>,
+): Promise<T> {
+  const recovered = recoverInterruptedCanary(repoRoot);
+  if (recovered) console.error(`brand:guard: ${recovered}`);
+  const dir = localDir(repoRoot);
+  const backup = canaryBackupDir(repoRoot);
+  if (existsSync(backup)) {
+    throw new BrandConfigError(
+      [`brand:guard: another brand:guard is running: its canary chapter is in ${localLabel()}`],
+      [{ change: "wait for it to finish, then run brand:guard again" }],
+    );
   }
-  const { brand } = chapter;
 
-  const inverseErrors = BRAND_APPS.flatMap((app) =>
-    inverseChecks(join(REPO_ROOT, "apps", app, "dist"), brand, app),
-  );
-
-  const example = loadProfile({ profile: EXAMPLE_PROFILE });
-  const needles = collectNeedles(brand, NEEDLE_EXCLUSIONS, example.brand);
-  // The chapter's own images: brand/local/, or a committed chapter's assets/
-  // (TRANSITIONAL (the JCI Oriente removal PR drops this)).
-  const { assetsDir } = chapter;
-  const hashes = imageHashes(assetsDir, `${relative(REPO_ROOT, assetsDir)}/`);
-  for (const app of BRAND_APPS) {
-    const dist = join(REPO_ROOT, "apps", app, "dist");
-    for (const [hash, label] of emittedLogoHashes(dist, `apps/${app}/dist/`))
-      hashes.set(hash, label);
+  let restored = false;
+  const restore = () => {
+    if (restored) return;
+    restored = true;
+    for (const signal of STOP_SIGNALS) process.off(signal, onSignal);
+    restoreFromCanary(repoRoot);
+  };
+  const onSignal = (signal: NodeJS.Signals) => {
+    // A throw here would end the process with an uncaught exception instead of the signal.
+    try {
+      restore();
+    } catch (error) {
+      console.error(
+        `brand:guard: could not put ${localLabel()} back on ${signal}: ${errorMessage(error)}\n${formatRemedies(RESTORE_BY_HAND)}`,
+      );
+    }
+    process.kill(process.pid, signal);
+  };
+  for (const signal of STOP_SIGNALS) process.once(signal, onSignal);
+  try {
+    if (existsSync(dir)) renameSync(dir, backup);
+    mkdirSync(dir);
+    writeFileSync(join(dir, CANARY_MARKER), `${process.pid}\n`);
+    writeCanary(dir);
+    return await body(loadProfile({ repoRoot, profile: LOCAL_PROFILE }));
+  } finally {
+    restore();
   }
+}
 
+interface ExampleScan {
+  findings: string[];
+  filesScanned: number;
+  needleCount: number;
+  hashCount: number;
+}
+
+/** Builds the example for each app and scans it for the needles and hashes. */
+async function scanExampleBuilds(
+  needles: readonly Needle[],
+  hashes: Map<string, string>,
+): Promise<ExampleScan> {
   const findings: string[] = [];
   let filesScanned = 0;
   const workDir = mkdtempSync(join(tmpdir(), "brand-guard-"));
@@ -339,25 +441,93 @@ async function main(): Promise<number> {
     for (const app of BRAND_APPS) {
       const outDir = join(workDir, app);
       await buildExample(app, outDir, envDir);
-      const result = scanDist(outDir, { needles, hashes, regex: CHAPTER_REGEX });
+      const result = scanDist(outDir, { needles, hashes });
       filesScanned += result.filesScanned;
       findings.push(...result.findings.map((finding) => `${app}: ${formatFinding(finding)}`));
     }
   } finally {
     rmSync(workDir, { recursive: true, force: true });
   }
+  return { findings, filesScanned, needleCount: needles.length, hashCount: hashes.size };
+}
 
-  for (const error of inverseErrors) console.error(`inverse: ${error}`);
+const seconds = (started: number) => ((performance.now() - started) / 1000).toFixed(1);
+
+/** The canary's needles and images, against an example build made beside it. */
+async function guardCanary(reason: string, started: number): Promise<number> {
+  console.log(`brand:guard: ${reason}; checking the canary chapter instead.`);
+  const example = loadProfile({ profile: EXAMPLE_PROFILE });
+  const { findings, filesScanned, needleCount, hashCount } = await withCanaryChapter(
+    REPO_ROOT,
+    (canary) =>
+      scanExampleBuilds(profileNeedles(canary, example), imageHashes(canary.assetsDir, "canary/")),
+  );
   for (const finding of findings) console.error(`leak: ${finding}`);
-  const seconds = ((performance.now() - started) / 1000).toFixed(1);
-  if (inverseErrors.length > 0 || findings.length > 0) {
+  if (findings.length > 0) {
     console.error(
-      `brand:guard failed: ${inverseErrors.length} inverse error(s), ${findings.length} leak(s) (${seconds}s).`,
+      `brand:guard failed: the ${EXAMPLE_PROFILE} build carries ${findings.length} value(s) of the canary chapter in ${localLabel()} (${seconds(started)}s).`,
     );
     return 1;
   }
   console.log(
-    `brand:guard OK: ${chapter.slug} dist intact; ${EXAMPLE_PROFILE} build clean of ${needles.length} needles, ${hashes.size} asset hashes and the regex across ${filesScanned} files (${seconds}s).`,
+    `brand:guard OK: ${EXAMPLE_PROFILE} build clean of the canary chapter's ${needleCount} needles and ${hashCount} image hashes across ${filesScanned} files (${seconds(started)}s).`,
+  );
+  return 0;
+}
+
+/**
+ * What chapter mode looks for in the example build: the chapter's needles and images, and
+ * the logos its own builds in `repoRoot`'s apps/<app>/dist emitted.
+ */
+export function chapterTargets(
+  chapter: LoadedProfile,
+  example: LoadedProfile,
+  repoRoot: string = REPO_ROOT,
+): { needles: Needle[]; hashes: Map<string, string> } {
+  const needles = profileNeedles(chapter, example);
+  const { assetsDir } = chapter;
+  const hashes = imageHashes(assetsDir, `${relative(repoRoot, assetsDir)}/`);
+  for (const app of BRAND_APPS) {
+    const dist = join(repoRoot, "apps", app, "dist");
+    for (const [hash, label] of emittedLogoHashes(dist, `apps/${app}/dist/`))
+      hashes.set(hash, label);
+  }
+  return { needles, hashes };
+}
+
+async function main(): Promise<number> {
+  const started = performance.now();
+  // The profile brand/ selects is the one CI just built.
+  const chapter = loadProfile();
+  const mode = guardMode(chapter, process.env);
+  if (mode.kind === "refuse") {
+    console.error(mode.message);
+    return 1;
+  }
+  if (mode.kind === "canary") return guardCanary(mode.reason, started);
+  const { brand } = chapter;
+
+  const inverseErrors = BRAND_APPS.flatMap((app) =>
+    inverseChecks(join(REPO_ROOT, "apps", app, "dist"), brand, app),
+  );
+
+  const example = loadProfile({ profile: EXAMPLE_PROFILE });
+  const { needles, hashes } = chapterTargets(chapter, example);
+  const { findings, filesScanned, needleCount, hashCount } = await scanExampleBuilds(
+    needles,
+    hashes,
+  );
+
+  for (const error of inverseErrors) console.error(`inverse: ${error}`);
+  for (const finding of findings) console.error(`leak: ${finding}`);
+  if (inverseErrors.length > 0 || findings.length > 0) {
+    console.error(
+      `brand:guard failed: ${inverseErrors.length} inverse error(s), ${findings.length} leak(s) (${seconds(started)}s).`,
+    );
+    return 1;
+  }
+  console.log(
+    `brand:guard OK: ${chapter.slug} dist intact; ${EXAMPLE_PROFILE} build clean of ${needleCount} needles and ${hashCount} asset hashes across ${filesScanned} files (${seconds(started)}s).`,
   );
   return 0;
 }
