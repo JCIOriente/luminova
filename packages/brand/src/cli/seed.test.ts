@@ -73,7 +73,7 @@ describe("seedLocal", () => {
     expect(readdirSync(local())).toEqual([]);
   });
 
-  it("seeds nothing under CI, where the committed chapter stays selected", () => {
+  it("seeds nothing under CI, where brand:pull fills brand/local/", () => {
     expect(seedLocal({ repoRoot: root, env: { CI: "true" } })).toBe(false);
     expect(existsSync(local())).toBe(false);
   });
@@ -83,16 +83,9 @@ describe("seedLocal", () => {
     expect(seedNotes(root)).toEqual([]);
   });
 
-  it("says brand/local/ overrides a committed chapter, and how to build that chapter", () => {
+  it("notes nothing about another folder in brand/: only brand/local/ is read", () => {
     writeChapter(root, { slug: "jci-valle", assets: false });
     seedLocal({ repoRoot: root, env: {} });
-    expect(seedNotes(root)).toEqual([
-      "brand/local/ overrides brand/jci-valle/; to build brand/jci-valle/ instead, copy its brand.toml into brand/local/: cp brand/jci-valle/brand.toml brand/local/brand.toml",
-    ]);
-    writeFileSync(
-      join(local(), "brand.toml"),
-      readFileSync(join(root, "brand", "jci-valle", "brand.toml")),
-    );
     expect(seedNotes(root)).toEqual([]);
   });
 

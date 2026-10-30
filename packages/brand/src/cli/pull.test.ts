@@ -1,6 +1,5 @@
 import {
   appendFileSync,
-  copyFileSync,
   existsSync,
   mkdtempSync,
   readFileSync,
@@ -15,12 +14,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ASSET_CONTRACT } from "../assets.ts";
 import { BrandConfigError, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { encodePng } from "../png.ts";
-import { exampleRepo, localRepo, recordLocal, writeChapter } from "../test-profiles.ts";
+import { localRepo, recordLocal } from "../test-profiles.ts";
 import type { CommandRunner } from "./gcloud.ts";
 import { cdProject } from "../deploy-identity.ts";
 import { PULL_NEXT, pull, pullProject } from "./pull.ts";
-import { push } from "./push.ts";
-import { seedLocal } from "./seed.ts";
 
 /** A copy into a destination under `failCopiesInto` writes half the bytes, then fails. */
 const copyFault = vi.hoisted(() => ({ failCopiesInto: "" }));
@@ -148,7 +145,6 @@ describe("pull", () => {
     const { asked, confirm } = confirmer(false);
     const result = await pull({ profile, repoRoot: root, run: fakeRunner(listing()), confirm });
     expect(asked).toEqual([]);
-    expect(result.brandFile).toBe(true);
     expect(read("og-image.png")).toEqual(bucketImage("og-image.png"));
     expect(readFileSync(local("brand.toml"), "utf8")).toBe(bucketToml);
     const manifest = JSON.parse(readFileSync(local(".pull-manifest.json"), "utf8"));
@@ -226,25 +222,25 @@ describe("pull", () => {
     expect(asked).toEqual([]);
   });
 
-  it("pulls only the images while the bucket holds no brand.toml, keeping the local one", async () => {
+  it("refuses a bucket without a brand.toml, as CD does, and changes nothing", async () => {
     recordLocal(root, { source: "example" });
-    const toml = readFileSync(local("brand.toml"), "utf8");
-    const before = JSON.parse(readFileSync(local(".pull-manifest.json"), "utf8"));
-    const result = await pull({ profile, repoRoot: root, run: fakeRunner(listing(IMAGES)) });
-    expect(result.brandFile).toBe(false);
-    expect(readFileSync(local("brand.toml"), "utf8")).toBe(toml);
-    expect(calls.flatMap((call) => call.slice(3, -1))).not.toContain(
-      `gs://${BUCKET}/brand.toml#1000`,
+    const before = readdirSync(local()).sort();
+    const manifest = readFileSync(local(".pull-manifest.json"), "utf8");
+    const error = await errorOf(
+      pull({ profile, repoRoot: root, run: fakeRunner(listing(IMAGES)) }),
     );
-    expect(result.manifest.objects["brand.toml"]).toEqual(before.objects["brand.toml"]);
-    expect(result.manifest.objects["logo-main.png"]?.source).toBe("bucket");
+    expect(error.errors).toEqual([
+      `gs://${BUCKET}/brand.toml: missing from the bucket (upload it with brand:push)`,
+    ]);
+    expect(readdirSync(local()).sort()).toEqual(before);
+    expect(readFileSync(local(".pull-manifest.json"), "utf8")).toBe(manifest);
   });
 
-  it("pulls into a missing brand/local/, as CD does for a committed chapter", async () => {
+  it("pulls into a missing brand/local/", async () => {
     rmSync(local(), { recursive: true });
-    await pull({ profile, repoRoot: root, run: fakeRunner(listing(IMAGES)) });
+    await pull({ profile, repoRoot: root, run: fakeRunner(listing()) });
     expect(readdirSync(local()).sort()).toEqual(
-      [".pull-manifest.json", "backstage", "logo-main.png", "logo-on-dark.png"]
+      [".pull-manifest.json", "backstage", "brand.toml", "logo-main.png", "logo-on-dark.png"]
         .concat(["logo-on-primary.png", "og-image.png", "spotlight"])
         .sort(),
     );
@@ -373,54 +369,6 @@ describe("pull", () => {
     expect(manifest.objects["backstage/pwa-192x192.png"]).toEqual(
       recorded.objects["backstage/pwa-192x192.png"],
     );
-  });
-
-  it("follows the owner runbook: seed, copy brand.toml, pull the images, then push", async () => {
-    const repo = exampleRepo("brand-runbook-");
-    try {
-      seedLocal({ repoRoot: repo, env: {} });
-      const committed = writeChapter(repo, { slug: "jci-valle", assets: false });
-      copyFileSync(join(committed, "brand.toml"), join(repo, "brand", "local", "brand.toml"));
-      rmSync(committed, { recursive: true });
-      const owner = loadProfile({ repoRoot: repo, env: {} });
-      expect(owner).toMatchObject({ slug: "local", localOnly: false });
-
-      const pulledImages = await pull({
-        profile: owner,
-        repoRoot: repo,
-        run: fakeRunner(listing(IMAGES)),
-      });
-      expect(pulledImages.brandFile).toBe(false);
-
-      const pushed: string[][] = [];
-      const bucketRun: CommandRunner = async (_command, args) => {
-        if (args[1] === "objects") {
-          return JSON.stringify(
-            CONTRACT.map((name, index) => ({ name, generation: String(3000 + index) })),
-          );
-        }
-        pushed.push([args[2] ?? "", args.at(-1) ?? ""]);
-        return "";
-      };
-      await push({ profile: owner, repoRoot: repo, run: bucketRun });
-      expect(pushed).toEqual(
-        // brand.toml create-only (the bucket has none); each image at the generation pulled.
-        CONTRACT.map((path, index) => [
-          `--if-generation-match=${path === "brand.toml" ? 0 : 1000 + index - 1}`,
-          `gs://${BUCKET}/${path}`,
-        ]),
-      );
-      const manifest = JSON.parse(
-        readFileSync(join(repo, "brand", "local", ".pull-manifest.json"), "utf8"),
-      );
-      expect(
-        Object.values(manifest.objects).every(
-          (record) => (record as { source: string }).source === "bucket",
-        ),
-      ).toBe(true);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
   });
 });
 

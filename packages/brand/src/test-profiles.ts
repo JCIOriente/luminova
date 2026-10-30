@@ -1,19 +1,10 @@
 // Test-only: repo roots that hold the committed example and a connected chapter made from it,
 // so no test depends on a real chapter's profile being in git.
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { stringify } from "smol-toml";
 import { writeAssetSet } from "./asset-set.ts";
-import { BRAND_FILE, SCHEMA_LINE, parseBrandToml } from "./brand-file.ts";
+import { BRAND_FILE, parseBrandToml, writeBrandToml } from "./brand-file.ts";
 import {
   BrandConfigError,
   EXAMPLE_PROFILE,
@@ -133,15 +124,15 @@ export function exampleRepo(
 }
 
 /**
- * Writes `brand/<slug>/` into `root`: the chapter's brand.toml (with `brand`'s top-level
+ * Writes `brand/<slug>/` (brand/local/ unless named) into `root`: the chapter's brand.toml (with `brand`'s top-level
  * keys replacing the test chapter's) and, unless `assets` is false, the chapter's own
- * images: flat in brand/local/, in `assets/` of a committed chapter folder. Returns the
- * profile folder.
+ * images: flat in brand/local/, in `assets/` of any other folder (a profile a test names).
+ * Returns the profile folder.
  */
 export function writeChapter(
   root: string,
   {
-    slug = TEST_CHAPTER,
+    slug = LOCAL_PROFILE,
     assets = true,
     brand = {},
   }: { slug?: string; assets?: boolean; brand?: Record<string, unknown> } = {},
@@ -153,30 +144,19 @@ export function writeChapter(
       ([, value]) => value !== undefined,
     ),
   );
-  writeFileSync(join(dir, BRAND_FILE), `${SCHEMA_LINE}\n${stringify(file)}\n`);
+  writeBrandToml(dir, file);
   if (assets)
     writeAssetSet(slug === LOCAL_PROFILE ? dir : join(dir, "assets"), () => CHAPTER_COLOR);
   return dir;
 }
 
-/**
- * A repo root with the example and the test chapter committed in brand/, which brand/ then
- * selects. TRANSITIONAL (the JCI Oriente removal PR drops this).
- */
-export function chapterRepo(prefix = "brand-chapter-"): string {
+/** A repo root with the example and the test chapter in brand/local/, which brand/ then selects. */
+export function localRepo(prefix = "brand-local-"): string {
   const root = exampleRepo(prefix);
   writeChapter(root);
   return root;
 }
 
-/** A repo root with the example and the test chapter in brand/local/, which brand/ then selects. */
-export function localRepo(prefix = "brand-local-"): string {
-  const root = exampleRepo(prefix);
-  writeChapter(root, { slug: LOCAL_PROFILE });
-  return root;
-}
-
-let shared: LoadedProfile | undefined;
 let sharedLocal: LoadedProfile | undefined;
 
 /** The test chapter in brand/local/, as brand/ selects it, loaded once per test file. */
@@ -187,19 +167,6 @@ export function localProfile(): LoadedProfile {
     sharedLocal = loadProfile({ repoRoot: root, env: {} });
   }
   return sharedLocal;
-}
-
-/**
- * The test chapter committed in brand/, as brand/ selects it, loaded once per test file from
- * a repo root removed on exit. TRANSITIONAL (the JCI Oriente removal PR drops this).
- */
-export function chapterProfile(): LoadedProfile {
-  if (shared === undefined) {
-    const root = chapterRepo();
-    process.once("exit", () => rmSync(root, { recursive: true, force: true }));
-    shared = loadProfile({ repoRoot: root, env: {} });
-  }
-  return shared;
 }
 
 /**

@@ -1,7 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { writeAssetSet } from "./asset-set.ts";
 import { sha256 } from "./hash.ts";
 import { EXAMPLE_PROFILE, REPO_ROOT, loadProfile, type LoadedProfile } from "./load-profile.ts";
 import {
@@ -11,7 +10,7 @@ import {
   releaseErrors,
   releaseIdentity,
 } from "./release.ts";
-import { chapterRepo, localRepo, recordLocal } from "./test-profiles.ts";
+import { TEST_CHAPTER, localRepo, recordLocal, writeChapter } from "./test-profiles.ts";
 
 const BUILD = { command: "build", emulatorEnabled: false } as const;
 
@@ -180,20 +179,17 @@ describe("releaseErrors", () => {
     ]);
   });
 
-  it("takes a committed chapter's brand.toml from git: only its images need the pull", () => {
-    const committed = chapterRepo("brand-release-chapter-");
-    try {
-      writeAssetSet(join(committed, "brand", "local"));
-      recordLocal(committed);
-      const profile = loadProfile({ repoRoot: committed, env: {} });
-      expect(profile.slug).toBe("jci-valle");
-      expect(profile.assetsDir).toBe(join(committed, "brand", "local"));
-      expect(messages(releaseErrors({ profile, env: {}, repoRoot: committed, ...BUILD }))).toEqual(
-        [],
-      );
-    } finally {
-      rmSync(committed, { recursive: true, force: true });
-    }
+  it("requires brand.toml from the bucket for every profile, one named by its caller too", () => {
+    writeManifest();
+    const file = local(".pull-manifest.json");
+    const manifest = JSON.parse(readFileSync(file, "utf8")) as { objects: Record<string, unknown> };
+    delete manifest.objects["brand.toml"];
+    writeFileSync(file, JSON.stringify(manifest));
+    writeChapter(root, { slug: TEST_CHAPTER, assets: false });
+    const named = loadProfile({ repoRoot: root, profile: "jci-valle" });
+    expect(messages(releaseErrors({ profile: named, env: {}, repoRoot: root, ...BUILD }))).toEqual([
+      "brand/local/brand.toml: not in brand/local/.pull-manifest.json, so not pulled from the bucket",
+    ]);
   });
 
   it("lists every problem at once", () => {
