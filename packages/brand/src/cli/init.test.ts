@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ASSET_CONTRACT, ICON_MASTER_FILE } from "../assets.ts";
-import { BrandConfigError, loadProfile } from "../load-profile.ts";
+import { BrandConfigError, EXAMPLE_PROFILE, loadProfile } from "../load-profile.ts";
 import { exampleRepo } from "../test-profiles.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
@@ -76,7 +76,7 @@ describe("init from an answers file", () => {
 
   it("takes style defaults from the example profile", async () => {
     await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
-    const example = loadProfile({ repoRoot: root, profile: "example" }).brand;
+    const example = loadProfile({ repoRoot: root, profile: EXAMPLE_PROFILE }).brand;
     const { brand } = loadProfile({ repoRoot: root, profile: "jci-valle" });
     expect(brand.themeColor).toEqual(example.themeColor);
     expect(brand.locale).toBe(example.locale);
@@ -93,7 +93,7 @@ describe("init from an answers file", () => {
   it("copies the example site content and writes the asset README", async () => {
     await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
     expect(readFileSync(join(root, "brand/jci-valle/site-content.json"), "utf8")).toBe(
-      readFileSync(join(root, "brand/example/site-content.json"), "utf8"),
+      readFileSync(join(root, "brand", EXAMPLE_PROFILE, "site-content.json"), "utf8"),
     );
     const readme = readFileSync(join(root, PULLED_ASSETS_DIR, "README.txt"), "utf8");
     for (const { path } of ASSET_CONTRACT) expect(readme).toContain(path);
@@ -140,7 +140,7 @@ describe("init from an answers file", () => {
   });
 
   it("refuses to overwrite an existing profile", async () => {
-    const answers = { ...minimalAnswers(), slug: "example" };
+    const answers = { ...minimalAnswers(), slug: EXAMPLE_PROFILE };
     await expect(init({ repoRoot: root, answers, run: noCommands })).rejects.toThrow(
       /brand\/example already exists/,
     );
@@ -306,7 +306,7 @@ describe("init interactively", () => {
     delete answers.slug;
     delete answers.foundedYear;
     const prompter = scripted(
-      { slug: ["Bad Slug", "example", "jci-valle"], foundedYear: ["1,990", "1990"] },
+      { slug: ["Bad Slug", EXAMPLE_PROFILE, "jci-valle"], foundedYear: ["1,990", "1990"] },
       seen,
     );
     await init({ repoRoot: root, answers, prompter, run: noCommands });

@@ -19,10 +19,8 @@ const BUILD = { command: "build", emulatorEnabled: false } as const;
 let root: string;
 let assetsDir: string;
 
-const chapter = (source: LoadedProfile["source"] = "chapter"): LoadedProfile => ({
-  ...chapterProfile(),
-  source,
-});
+const chapter = chapterProfile();
+const overridden: LoadedProfile = { ...chapter, source: "override" };
 const example = () => loadProfile({ repoRoot: REPO_ROOT, profile: EXAMPLE_PROFILE });
 
 function writeManifest(profile = "jci-valle") {
@@ -60,7 +58,7 @@ const messages = (problems: readonly { message: string }[]) =>
 
 describe("release remedies", () => {
   it("asks to drop a BRAND_PROFILE override, so the profile in brand/ ships", () => {
-    const [problem] = releaseErrors({ profile: chapter("override"), env: {}, assetsDir, ...BUILD });
+    const [problem] = releaseErrors({ profile: overridden, env: {}, assetsDir, ...BUILD });
     expect(problem?.message).toMatch(/what ships is the profile found in brand\/\./);
     expect(problem?.remedies).toEqual([
       expect.objectContaining({ run: "unset BRAND_PROFILE", where: "shell" }),
@@ -68,7 +66,7 @@ describe("release remedies", () => {
   });
 
   it("points a missing pull manifest at brand:pull", () => {
-    const problems = releaseErrors({ profile: chapter(), env: {}, assetsDir, ...BUILD });
+    const problems = releaseErrors({ profile: chapter, env: {}, assetsDir, ...BUILD });
     expect(problems.flatMap(({ remedies }) => remedies ?? []).map(({ run }) => run)).toContain(
       "pnpm brand:pull",
     );
@@ -81,7 +79,7 @@ describe("releaseErrors", () => {
     expect(
       messages(
         releaseErrors({
-          profile: chapter(),
+          profile: chapter,
           env: { GCP_PROJECT_ID: "jci-valle" },
           assetsDir,
           ...BUILD,
@@ -92,9 +90,9 @@ describe("releaseErrors", () => {
 
   it("refuses a profile chosen by an environment override", () => {
     writeManifest();
-    expect(
-      messages(releaseErrors({ profile: chapter("override"), env: {}, assetsDir, ...BUILD })),
-    ).toEqual([expect.stringMatching(/BRAND_PROFILE=jci-valle is set in your environment/)]);
+    expect(messages(releaseErrors({ profile: overridden, env: {}, assetsDir, ...BUILD }))).toEqual([
+      expect.stringMatching(/BRAND_PROFILE=jci-valle is set in your environment/),
+    ]);
   });
 
   it("rejects the example, sending the user to their chapter's own profile", () => {
@@ -108,7 +106,7 @@ describe("releaseErrors", () => {
 
   it("rejects a local-only chapter, naming its demo- project", () => {
     writeManifest();
-    const local = { ...chapter(), localOnly: true };
+    const local = { ...chapter, localOnly: true };
     expect(messages(releaseErrors({ profile: local, env: {}, assetsDir, ...BUILD }))).toEqual([
       expect.stringMatching(
         /"jci-valle" is local-only \(project "jci-valle" exists only in the emulators\)/,
@@ -121,7 +119,7 @@ describe("releaseErrors", () => {
     expect(
       messages(
         releaseErrors({
-          profile: chapter(),
+          profile: chapter,
           env: { BRAND_ASSETS_DIR: "elsewhere" },
           assetsDir,
           ...BUILD,
@@ -135,7 +133,7 @@ describe("releaseErrors", () => {
     expect(
       messages(
         releaseErrors({
-          profile: chapter(),
+          profile: chapter,
           env: { GCP_PROJECT_ID: "someone-else" },
           assetsDir,
           ...BUILD,
@@ -145,7 +143,7 @@ describe("releaseErrors", () => {
   });
 
   it("requires the pull manifest, so release assets come only from brand:pull", () => {
-    expect(messages(releaseErrors({ profile: chapter(), env: {}, assetsDir, ...BUILD }))).toEqual([
+    expect(messages(releaseErrors({ profile: chapter, env: {}, assetsDir, ...BUILD }))).toEqual([
       expect.stringMatching(
         /^no pull-manifest\.json in brand-assets\/: a deploy only uses images downloaded with brand:pull/,
       ),
@@ -173,7 +171,7 @@ describe("releaseErrors on the build itself", () => {
     expect(
       messages(
         releaseErrors({
-          profile: chapter(),
+          profile: chapter,
           env,
           assetsDir,
           command: "serve",
@@ -184,7 +182,7 @@ describe("releaseErrors on the build itself", () => {
     expect(
       messages(
         releaseErrors({
-          profile: chapter(),
+          profile: chapter,
           env,
           assetsDir,
           command: "build",
@@ -198,7 +196,7 @@ describe("releaseErrors on the build itself", () => {
 describe("release marker", () => {
   it("records the profile, its project and the pull manifest's sha256", () => {
     const digest = writeManifest();
-    expect(releaseIdentity(chapter(), assetsDir)).toEqual({
+    expect(releaseIdentity(chapter, assetsDir)).toEqual({
       profile: "jci-valle",
       projectId: "jci-valle",
       assets: digest,

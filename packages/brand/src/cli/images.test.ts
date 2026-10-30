@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { writeAssetSet } from "../asset-set.ts";
 import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES } from "../assets.ts";
-import { loadProfile, type LoadedProfile } from "../load-profile.ts";
+import { EXAMPLE_PROFILE, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { TEST_CHAPTER, exampleRepo, writeChapter } from "../test-profiles.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { checkImages } from "./images.ts";
@@ -85,7 +85,7 @@ describe("checkImages", () => {
   it("fails a set pulled for another profile", () => {
     writeFileSync(
       join(brandAssets(), "pull-manifest.json"),
-      JSON.stringify({ profile: "example" }),
+      JSON.stringify({ profile: EXAMPLE_PROFILE }),
     );
     expect(images().rows[0]).toMatchObject({
       check: "pull-manifest.json",

@@ -88,12 +88,22 @@ function chapterJson(slug = TEST_CHAPTER): Record<string, unknown> {
   return { ...exampleJson(), ...structuredClone(CHAPTER_VALUES), slug };
 }
 
-/** A temporary repo root whose brand/ holds what upstream ships: the example and the shared files. */
-export function exampleRepo(prefix = "brand-test-"): string {
+/**
+ * A temporary repo root whose brand/ holds what upstream ships: the example and the shared
+ * files, with the example's images unless `assets` is false.
+ */
+export function exampleRepo(
+  prefix = "brand-test-",
+  { assets = true }: { assets?: boolean } = {},
+): string {
   const root = mkdtempSync(join(tmpdir(), prefix));
   mkdirSync(join(root, "brand"));
+  const exampleAssets = join(REPO_ROOT, "brand", EXAMPLE_PROFILE, "assets");
   for (const path of SHARED_BRAND_PATHS) {
-    cpSync(join(REPO_ROOT, "brand", path), join(root, "brand", path), { recursive: true });
+    cpSync(join(REPO_ROOT, "brand", path), join(root, "brand", path), {
+      recursive: true,
+      filter: (source) => assets || source !== exampleAssets,
+    });
   }
   return root;
 }
@@ -131,14 +141,17 @@ export function chapterRepo(prefix = "brand-chapter-"): string {
   return root;
 }
 
-let shared: string | undefined;
+let shared: LoadedProfile | undefined;
 
-/** The test chapter, loaded from one repo root shared by the whole test file and removed on exit. */
+/**
+ * The test chapter as brand/ selects it, loaded once per test file from a repo root removed
+ * on exit.
+ */
 export function chapterProfile(): LoadedProfile {
   if (shared === undefined) {
     const root = chapterRepo();
-    shared = root;
     process.once("exit", () => rmSync(root, { recursive: true, force: true }));
+    shared = loadProfile({ repoRoot: root, env: {} });
   }
-  return loadProfile({ repoRoot: shared, profile: TEST_CHAPTER });
+  return shared;
 }

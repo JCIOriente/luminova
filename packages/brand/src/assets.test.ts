@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FIXTURE_LOGO_SIZE, writeAssetSet } from "./asset-set.ts";
 import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES, assetRemedies, validateAssets } from "./assets.ts";
-import { sha256 } from "./hash.ts";
+import { assetHashes } from "./cli/guard.ts";
 import { EXAMPLE_PROFILE, REPO_ROOT } from "./load-profile.ts";
 import { encodePng } from "./png.ts";
 
@@ -28,17 +28,14 @@ describe("the example's assets", () => {
   });
 
   it("share no byte with any other folder under brand/", () => {
-    const hashesIn = (assets: string) =>
-      readdirSync(assets, { recursive: true, withFileTypes: true })
-        .filter((entry) => entry.isFile())
-        .map((entry) => sha256(readFileSync(join(entry.parentPath, entry.name))));
-    const own = new Set(hashesIn(exampleAssets));
+    const own = assetHashes(exampleAssets);
     const others = readdirSync(join(REPO_ROOT, "brand"), { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && entry.name !== EXAMPLE_PROFILE)
       .map((entry) => join(REPO_ROOT, "brand", entry.name, "assets"))
       .filter((assets) => existsSync(assets));
     for (const assets of others) {
-      expect(hashesIn(assets).filter((hash) => own.has(hash))).toEqual([]);
+      const shared = [...assetHashes(assets)].filter(([hash]) => own.has(hash));
+      expect(shared.map(([, file]) => file)).toEqual([]);
     }
   });
 });
@@ -129,15 +126,15 @@ describe("validateAssets", () => {
   it("rejects a pull manifest written for another profile", () => {
     writeCompleteSet();
     put("pull-manifest.json", Buffer.from(JSON.stringify({ profile: "other" })));
-    expect(validateAssets(dir, { profile: "example" }).errors).toEqual([
+    expect(validateAssets(dir, { profile: EXAMPLE_PROFILE }).errors).toEqual([
       expect.stringMatching(/pull-manifest\.json.*"other".*"example"/),
     ]);
   });
 
   it("accepts a pull manifest for the selected profile", () => {
     writeCompleteSet();
-    put("pull-manifest.json", Buffer.from(JSON.stringify({ profile: "example" })));
-    expect(validateAssets(dir, { profile: "example" }).errors).toEqual([]);
+    put("pull-manifest.json", Buffer.from(JSON.stringify({ profile: EXAMPLE_PROFILE })));
+    expect(validateAssets(dir, { profile: EXAMPLE_PROFILE }).errors).toEqual([]);
   });
 });
 
@@ -223,7 +220,7 @@ describe("assetRemedies", () => {
 
   it("asks to pull again when the manifest names another profile", () => {
     writeCompleteSet();
-    writeFileSync(join(dir, "pull-manifest.json"), JSON.stringify({ profile: "example" }));
+    writeFileSync(join(dir, "pull-manifest.json"), JSON.stringify({ profile: EXAMPLE_PROFILE }));
     expect(runs(dir).map(({ run }) => run)).toEqual(["pnpm brand:pull"]);
   });
 

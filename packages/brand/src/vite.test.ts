@@ -1,21 +1,11 @@
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { build } from "vite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { writeAssetSet } from "./asset-set.ts";
 import { OG_IMAGE_FILE } from "./assets.ts";
 import { BrandConfigError, EXAMPLE_PROFILE, REPO_ROOT, loadProfile } from "./load-profile.ts";
-import { TEST_CHAPTER, writeChapter } from "./test-profiles.ts";
+import { TEST_CHAPTER, exampleRepo, writeChapter } from "./test-profiles.ts";
 import { DEV_PORTS, PREVIEW_PORTS } from "./ports.ts";
 import { sha256 } from "./hash.ts";
 import { RELEASE_MARKER_FILE, readReleaseMarker } from "./release.ts";
@@ -61,16 +51,9 @@ function resolve(overrides: Partial<Parameters<typeof resolveBrandBuild>[0]> = {
 
 beforeEach(() => {
   savedEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
-  repoRoot = mkdtempSync(join(tmpdir(), "brand-vite-"));
+  repoRoot = exampleRepo("brand-vite-", { assets: false });
   envDir = join(repoRoot, "env");
   mkdirSync(envDir);
-  mkdirSync(join(repoRoot, "brand", EXAMPLE_PROFILE), { recursive: true });
-  for (const file of ["brand.json", "site-content.json"]) {
-    cpSync(
-      join(REPO_ROOT, "brand", EXAMPLE_PROFILE, file),
-      join(repoRoot, "brand", EXAMPLE_PROFILE, file),
-    );
-  }
   writeChapter(repoRoot, { assets: false });
   for (const slug of [EXAMPLE_PROFILE, TEST_CHAPTER]) {
     writeAssetSet(join(repoRoot, "brand", slug, "assets"), distinctColors);

@@ -17,10 +17,7 @@ import type { CommandRunner } from "./gcloud.ts";
 import { DEPLOY_DISPATCH, ImagesNotReadyError, pushNext, push } from "./push.ts";
 
 const BUCKET = "jci-valle-brand-assets";
-const profile: LoadedProfile = {
-  ...chapterProfile(),
-  source: "chapter",
-};
+const profile = chapterProfile();
 
 let root: string;
 let from: string;

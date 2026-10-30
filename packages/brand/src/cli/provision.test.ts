@@ -2,13 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { DEPLOY_SA, POOL_ID, PROVIDER_ID } from "../deploy-identity.ts";
-import {
-  BrandConfigError,
-  EXAMPLE_PROFILE,
-  REPO_ROOT,
-  loadProfile,
-  type LoadedProfile,
-} from "../load-profile.ts";
+import { BrandConfigError, EXAMPLE_PROFILE, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { chapterProfile } from "../test-profiles.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
 import {
@@ -22,10 +16,7 @@ import {
 const BUCKET = "gs://jci-valle-brand-assets";
 const SA = "firebase-deployer@jci-valle.iam.gserviceaccount.com";
 const LIFECYCLE = JSON.parse(readFileSync(join(REPO_ROOT, "brand/bucket-lifecycle.json"), "utf8"));
-const profile: LoadedProfile = {
-  ...chapterProfile(),
-  source: "chapter",
-};
+const profile = chapterProfile();
 
 const DONE = {
   name: "jci-valle-brand-assets",
