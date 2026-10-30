@@ -1,17 +1,15 @@
 import { join } from "node:path";
-import { z } from "zod";
+import { fileSha256 } from "../hash.ts";
 import {
   BrandConfigError,
   REPO_ROOT,
-  brandFileLabel,
-  issuesToBrandError,
-  parseJsonText,
+  copyChapterRemedy,
+  errorMessage,
   type LoadedProfile,
 } from "../load-profile.ts";
 import {
   BUCKET_CONTRACT,
   LOCAL_PROFILE,
-  fileHashes,
   localDir,
   localLabel,
   readManifest,
@@ -20,7 +18,14 @@ import {
 } from "../local-folder.ts";
 import { undeployableProfileErrors } from "../release.ts";
 import { formatNext, type Problem, type Remedy } from "../remedy.ts";
-import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
+import {
+  CommandError,
+  bucketUrl,
+  listBucket,
+  runCommand,
+  type CommandFailureKind,
+  type CommandRunner,
+} from "./gcloud.ts";
 import { checkImages, type Images } from "./images.ts";
 import { runCli } from "./main.ts";
 import { formatReport, formatSections } from "./rows.ts";
@@ -50,27 +55,15 @@ export class ImagesNotReadyError extends Error {
   }
 }
 
-const listingSchema = z.array(
-  z.looseObject({
-    name: z.string(),
-    generation: z.union([z.string(), z.number()]).transform(String),
-  }),
-);
-
 /**
- * TRANSITIONAL (the JCI Oriente removal PR drops it): the bucket mirrors brand/local/, so a
+ * TRANSITIONAL (the JCI Oriente removal PR drops this): the bucket mirrors brand/local/, so a
  * profile committed in brand/<slug>/ is copied there first (owner runbook step 1).
  */
 function committedChapterProblem({ slug }: LoadedProfile): Problem | null {
   if (slug === LOCAL_PROFILE) return null;
   return {
     message: `brand:push uploads ${localLabel()}, but the selected profile is committed in brand/${slug}/.`,
-    remedies: [
-      {
-        change: `copy it into ${localLabel()}, then run brand:push again`,
-        run: `cp ${brandFileLabel(slug)} ${localLabel("brand.toml")}`,
-      },
-    ],
+    remedies: [copyChapterRemedy(slug, `copy it into ${localLabel()}, then run brand:push again`)],
   };
 }
 
@@ -101,8 +94,10 @@ export async function push({
   const bucket = profile.brand.assetsBucket;
   const previous = readManifest(dir);
   const sameBucket = previous?.bucket === bucket;
-  const generationOf = (path: string) =>
-    (sameBucket ? previous.objects[path]?.generation : undefined) ?? "0";
+  const generationOf = (path: string) => {
+    const record = sameBucket ? previous.objects[path] : undefined;
+    return record?.source === "bucket" ? record.generation : "0";
+  };
   const results = await Promise.allSettled(
     BUCKET_CONTRACT.map((path) =>
       run("gcloud", [
@@ -114,31 +109,28 @@ export async function push({
       ]),
     ),
   );
-  const uploaded = BUCKET_CONTRACT.filter((_, index) => results[index]?.status === "fulfilled");
-  const failures = results.flatMap((result) =>
-    result.status === "rejected" ? [result.reason] : [],
-  );
-  if (uploaded.length > 0) {
-    const label = `gcloud listing of ${bucketUrl(bucket)}`;
-    const raw = await run("gcloud", [
-      "storage",
-      "objects",
-      "list",
-      bucketUrl(bucket, "**"),
-      "--format=json",
-    ]);
-    const listing = listingSchema.safeParse(parseJsonText(raw, label));
-    if (!listing.success) throw issuesToBrandError(label, listing.error.issues);
-    const generations = new Map(listing.data.map(({ name, generation }) => [name, generation]));
+  const uploaded = new Set<string>();
+  const conflicts: string[] = [];
+  const failed = new Map<CommandFailureKind, unknown[]>();
+  results.forEach((result, index) => {
+    const path = BUCKET_CONTRACT[index] ?? "";
+    if (result.status === "fulfilled") uploaded.add(path);
+    else if (result.reason instanceof CommandError && result.reason.kind === "precondition") {
+      conflicts.push(path);
+    } else {
+      const kind = result.reason instanceof CommandError ? result.reason.kind : "other";
+      failed.set(kind, [...(failed.get(kind) ?? []), result.reason]);
+    }
+  });
+
+  if (uploaded.size > 0) {
+    const generations = await listBucket(run, bucket);
     const objects: Record<string, ObjectRecord> = {};
     for (const path of BUCKET_CONTRACT) {
+      const generation = generations.get(path);
       const kept = sameBucket ? previous.objects[path] : undefined;
-      if (uploaded.includes(path)) {
-        objects[path] = {
-          generation: generations.get(path),
-          ...fileHashes(join(dir, path)),
-          source: "bucket",
-        };
+      if (uploaded.has(path) && generation !== undefined) {
+        objects[path] = { source: "bucket", generation, sha256: fileSha256(join(dir, path)) };
       } else if (kept) {
         objects[path] = kept;
       }
@@ -150,32 +142,37 @@ export async function push({
       objects,
     });
   }
-  const conflicts = BUCKET_CONTRACT.filter((_, index) => {
-    const result = results[index];
-    return (
-      result?.status === "rejected" &&
-      result.reason instanceof CommandError &&
-      result.reason.kind === "precondition"
-    );
+  if (conflicts.length === 0) {
+    const first = [...failed.values()][0]?.[0];
+    if (first !== undefined) throw first;
+    return images;
+  }
+  // The conflicts say what to do; every other kind of failure is reported with them.
+  const others = [...failed.values()].map((reasons) => {
+    const [first] = reasons;
+    const more = reasons.length - 1;
+    const text = errorMessage(first);
+    return {
+      message: more > 0 ? `${text} (and ${plural(more, "more upload")} failed the same way)` : text,
+      remedies: first instanceof CommandError ? first.remedies : [],
+    };
   });
-  if (conflicts.length > 0) {
-    throw new BrandConfigError(
-      conflicts.map(
+  throw new BrandConfigError(
+    [
+      ...conflicts.map(
         (path) =>
           `${bucketUrl(bucket, path)}: changed in the bucket since your last pull or push (another upload), so it was not replaced`,
       ),
-      [
-        {
-          change: "download the bucket's copy first (it asks before replacing your changed files)",
-          run: "pnpm brand:pull",
-        },
-        { change: "then upload again", run: "pnpm brand:push" },
-      ],
-    );
-  }
-  const [failure] = failures;
-  if (failure !== undefined) throw failure;
-  return images;
+      ...others,
+    ],
+    [
+      {
+        change: "download the bucket's copy first (it asks before replacing your changed files)",
+        run: "pnpm brand:pull",
+      },
+      { change: "then upload again", run: "pnpm brand:push" },
+    ],
+  );
 }
 
 if (import.meta.main) {

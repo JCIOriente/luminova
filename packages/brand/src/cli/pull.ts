@@ -1,40 +1,32 @@
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { z } from "zod";
 import { ASSET_CONTRACT, contractByFolder, validateAssets } from "../assets.ts";
 import { BRAND_FILE, readBrandToml, resolveBrandFile } from "../brand-file.ts";
+import { fileSha256 } from "../hash.ts";
 import {
   BrandConfigError,
   EXAMPLE_PROFILE,
   REPO_ROOT,
   brandFileLabel,
-  issuesToBrandError,
-  parseJsonText,
   readBase,
   type LoadedProfile,
 } from "../load-profile.ts";
 import {
-  changedSinceRecorded,
-  fileHashes,
+  BUCKET_CONTRACT,
   localDir,
   localLabel,
   readManifest,
+  replaceWithCopy,
+  symlinkedPaths,
   writeManifest,
   type ObjectRecord,
   type PullManifest,
 } from "../local-folder.ts";
 import { undeployableProfileErrors } from "../release.ts";
 import { formatNext, type Remedy } from "../remedy.ts";
-import { bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
+import { bucketUrl, listBucket, runCommand, type CommandRunner } from "./gcloud.ts";
 import { runCli } from "./main.ts";
 import { terminalConfirm, type Confirm } from "./prompts.ts";
-
-const listingSchema = z.array(
-  z.looseObject({
-    name: z.string(),
-    generation: z.union([z.string(), z.number()]).transform(String),
-  }),
-);
 
 export const PULL_NEXT: readonly Remedy[] = [
   { change: "deploy the sites with these images (project owner)", run: "pnpm deploy:hosting" },
@@ -42,7 +34,7 @@ export const PULL_NEXT: readonly Remedy[] = [
 
 export interface PullResult {
   manifest: PullManifest;
-  /** Whether the bucket held a brand.toml (TRANSITION: JCI Oriente's gets one from the runbook). */
+  /** Whether the bucket held a brand.toml. */
   brandFile: boolean;
 }
 
@@ -69,11 +61,23 @@ const PUSH_INSTEAD: Remedy = {
   run: "pnpm brand:push",
 };
 
+/** A link in brand/local/ could point anywhere on the computer, so nothing is written through one. */
+function refuseSymlinks(dir: string, paths: readonly string[]): void {
+  const linked = symlinkedPaths(dir, paths);
+  if (linked.length === 0) return;
+  throw new BrandConfigError(
+    linked.map((path) => `${localLabel(path)}: a symlink; brand:pull never writes through one`),
+    [{ change: "replace each with a plain file or folder (or delete it)", run: "pnpm brand:pull" }],
+  );
+}
+
 /**
  * Downloads the selected profile's contract files from its bucket into brand/local/ (spec
  * "brand:pull"). Downloads land in a scratch dir and are validated whole first, so a failed
  * pull changes nothing. A local file changed since the manifest recorded it is replaced only
- * after one yes; everything outside the contract stays.
+ * after one yes; everything outside the contract stays. Each file is replaced whole (a temp
+ * copy, then a rename), and the manifest records exactly the files replaced, even when a
+ * copy fails part way.
  */
 export async function pull({
   profile,
@@ -90,18 +94,7 @@ export async function pull({
   const refused = undeployableProfileErrors(profile);
   if (refused.length > 0) throw new BrandConfigError(refused);
   const bucket = profile.brand.assetsBucket;
-  const label = `gcloud listing of ${bucketUrl(bucket)}`;
-  // gs://bucket alone lists one directory level; ** reaches spotlight/ and backstage/.
-  const raw = await run("gcloud", [
-    "storage",
-    "objects",
-    "list",
-    bucketUrl(bucket, "**"),
-    "--format=json",
-  ]);
-  const listing = listingSchema.safeParse(parseJsonText(raw, label));
-  if (!listing.success) throw issuesToBrandError(label, listing.error.issues);
-  const generations = new Map(listing.data.map(({ name, generation }) => [name, generation]));
+  const generations = await listBucket(run, bucket);
 
   const missing = ASSET_CONTRACT.filter(({ path }) => !generations.has(path)).map(
     ({ path }) => `${bucketUrl(bucket, path)}: missing from the bucket (upload it with brand:push)`,
@@ -111,10 +104,14 @@ export async function pull({
       { change: "upload the full set to the bucket (project owner)", run: "pnpm brand:push" },
     ]);
   }
+  // TRANSITIONAL (the fork-CD PR drops this): a bucket without brand.toml (JCI Oriente's,
+  // until the owner runbook) gives only its images.
   const brandFile = generations.has(BRAND_FILE);
   const folders = contractByFolder();
   if (brandFile) folders.set("", [BRAND_FILE, ...(folders.get("") ?? [])]);
   const pulled = [...folders.values()].flat();
+  const dir = localDir(repoRoot);
+  refuseSymlinks(dir, pulled);
 
   const cacheDir = join(repoRoot, "node_modules", ".cache");
   mkdirSync(cacheDir, { recursive: true });
@@ -145,36 +142,51 @@ export async function pull({
     }
     if (brandFile) checkBrandFile(join(staging, BRAND_FILE), bucket, profile, repoRoot);
 
-    const dir = localDir(repoRoot);
     const previous = readManifest(dir);
-    const staged = (path: string) => fileHashes(join(staging, path)).sha256;
-    const changed = changedSinceRecorded(dir, previous, pulled).filter(
-      (path) => fileHashes(join(dir, path)).sha256 !== staged(path),
+    const staged = new Map(pulled.map((path) => [path, fileSha256(join(staging, path))]));
+    const local = new Map(
+      pulled
+        .filter((path) => existsSync(join(dir, path)))
+        .map((path) => [path, fileSha256(join(dir, path))]),
     );
+    const changed = pulled.filter((path) => {
+      const hash = local.get(path);
+      return (
+        hash !== undefined && hash !== previous?.objects[path]?.sha256 && hash !== staged.get(path)
+      );
+    });
     if (changed.length > 0) await confirmReplacing(changed, confirm);
 
-    const objects: Record<string, ObjectRecord> = {};
-    // Without one in the bucket, the local brand.toml keeps what was recorded about it.
-    const kept = brandFile ? undefined : previous?.objects[BRAND_FILE];
-    if (kept) objects[BRAND_FILE] = kept;
-    for (const path of pulled) {
-      const target = join(dir, path);
-      mkdirSync(dirname(target), { recursive: true });
-      copyFileSync(join(staging, path), target);
-      objects[path] = {
-        generation: generations.get(path),
-        ...fileHashes(target),
-        source: "bucket",
-      };
-    }
-    const manifest: PullManifest = {
-      version: 1,
-      project: profile.brand.firebase.projectId,
-      bucket,
-      objects,
+    const replaced = new Set<string>();
+    const record = (): PullManifest => {
+      const objects: Record<string, ObjectRecord> = {};
+      for (const path of BUCKET_CONTRACT) {
+        const generation = generations.get(path);
+        const sha256 = staged.get(path);
+        const kept = previous?.objects[path];
+        if (replaced.has(path) && generation !== undefined && sha256 !== undefined) {
+          objects[path] = { source: "bucket", generation, sha256 };
+        } else if (kept && (kept.source === "example" || previous?.bucket === bucket)) {
+          // A file this pull did not replace keeps its record: one a failed copy left as it
+          // was and, TRANSITIONAL (the fork-CD PR drops this), the local brand.toml while the
+          // bucket holds none.
+          objects[path] = kept;
+        }
+      }
+      return { version: 1, project: profile.brand.firebase.projectId, bucket, objects };
     };
-    writeManifest(dir, manifest);
-    return { manifest, brandFile };
+    try {
+      for (const path of pulled) {
+        const target = join(dir, path);
+        mkdirSync(dirname(target), { recursive: true });
+        if (local.get(path) !== staged.get(path)) replaceWithCopy(join(staging, path), target);
+        replaced.add(path);
+      }
+    } finally {
+      // A copy that failed part way still leaves a manifest true to the files on disk.
+      if (replaced.size > 0) writeManifest(dir, record());
+    }
+    return { manifest: record(), brandFile };
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
@@ -211,13 +223,16 @@ async function confirmReplacing(changed: readonly string[], confirm: Confirm | u
 if (import.meta.main) {
   await runCli("brand:pull", async (profile) => {
     const { manifest, brandFile } = await pull({ profile, confirm: terminalConfirm() });
-    const files = Object.entries(manifest.objects).filter(([, { source }]) => source === "bucket");
+    const files = Object.entries(manifest.objects).flatMap(([path, record]) =>
+      record.source === "bucket" ? [`  ${path}#${record.generation}`] : [],
+    );
     console.error(
       `brand:pull: ${files.length} files from ${bucketUrl(manifest.bucket)} into ${localLabel()} (project ${manifest.project}).`,
     );
-    for (const [path, { generation }] of files) console.error(`  ${path}#${generation ?? ""}`);
+    for (const line of files) console.error(line);
     if (!brandFile) {
-      // TRANSITION: JCI Oriente's bucket gets its brand.toml from the owner runbook.
+      // TRANSITIONAL (the fork-CD PR drops this): JCI Oriente's bucket gets its brand.toml
+      // from the owner runbook.
       console.error(
         `  The bucket holds no ${BRAND_FILE} yet: images only; ${localLabel(BRAND_FILE)} was left as it was.`,
       );

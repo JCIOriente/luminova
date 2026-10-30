@@ -20,6 +20,8 @@ let root: string;
 let profile: LoadedProfile;
 let calls: string[][];
 let conflicts: string[];
+let denied: string[];
+let listedGeneration: (index: number) => string;
 
 const local = (path = "") => join(root, "brand", "local", path);
 const manifest = () => JSON.parse(readFileSync(local(".pull-manifest.json"), "utf8"));
@@ -29,7 +31,7 @@ const run: CommandRunner = async (command, args) => {
   calls.push([command, ...args]);
   if (args[1] === "objects") {
     return JSON.stringify(
-      CONTRACT.map((name, index) => ({ name, generation: String(2000 + index) })),
+      CONTRACT.map((name, index) => ({ name, generation: listedGeneration(index) })),
     );
   }
   const target = args.at(-1) ?? "";
@@ -38,6 +40,18 @@ const run: CommandRunner = async (command, args) => {
       `gcloud storage cp failed: HTTPError 412: At least one of the pre-conditions you specified did not hold.`,
       [],
       "precondition",
+    );
+  }
+  if (denied.some((path) => target === `gs://${BUCKET}/${path}`)) {
+    throw new CommandError(
+      `gcloud storage cp ${target} failed: HTTPError 403: caller does not have storage.objects.create access`,
+      [
+        {
+          change: "sign in with an account that has access to the project (its owner)",
+          run: "gcloud auth login",
+        },
+      ],
+      "denied",
     );
   }
   return "";
@@ -50,6 +64,8 @@ beforeEach(() => {
   profile = loadProfile({ repoRoot: root, env: {} });
   calls = [];
   conflicts = [];
+  denied = [];
+  listedGeneration = (index) => String(2000 + index);
 });
 
 afterEach(() => {
@@ -97,7 +113,6 @@ describe("push", () => {
     expect(Object.keys(written.objects)).toEqual(CONTRACT);
     expect(written.objects["og-image.png"]).toEqual({
       generation: "2004",
-      md5: expect.stringMatching(/==$/),
       sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
       source: "bucket",
     });
@@ -183,5 +198,30 @@ describe("push", () => {
     ]);
     expect(DEPLOY_DISPATCH).toBe("gh workflow run deploy.yml -f surface=hosting");
     expect(calls.some(([command]) => command === "gh")).toBe(false);
+  });
+
+  it("reports every other failure along with the conflicts", async () => {
+    recordLocal(root);
+    conflicts = ["og-image.png"];
+    denied = ["logo-main.png", "logo-on-dark.png"];
+    const error = await upload().catch((caught: unknown) => caught);
+    if (!(error instanceof BrandConfigError)) throw new Error(`got ${String(error)}`);
+    expect(error.errors).toEqual([
+      `gs://${BUCKET}/og-image.png: changed in the bucket since your last pull or push (another upload), so it was not replaced`,
+      `gcloud storage cp gs://${BUCKET}/logo-main.png failed: HTTPError 403: caller does not have storage.objects.create access (and 1 more upload failed the same way)`,
+    ]);
+    expect(error.remedies.map(({ run: command }) => command)).toEqual([
+      "gcloud auth login",
+      "pnpm brand:pull",
+      "pnpm brand:push",
+    ]);
+  });
+
+  it("fails closed on a listing whose generation is not a number", async () => {
+    recordLocal(root);
+    listedGeneration = (index) => (index === 2 ? "1e3" : String(2000 + index));
+    const before = readFileSync(local(".pull-manifest.json"), "utf8");
+    await expect(upload()).rejects.toThrow(/2\.generation: expected a generation number/);
+    expect(readFileSync(local(".pull-manifest.json"), "utf8")).toBe(before);
   });
 });

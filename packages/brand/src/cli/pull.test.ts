@@ -1,19 +1,41 @@
 import {
   appendFileSync,
+  copyFileSync,
   existsSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ASSET_CONTRACT } from "../assets.ts";
 import { BrandConfigError, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { encodePng } from "../png.ts";
-import { localRepo, recordLocal } from "../test-profiles.ts";
+import { exampleRepo, localRepo, recordLocal, writeChapter } from "../test-profiles.ts";
 import type { CommandRunner } from "./gcloud.ts";
 import { PULL_NEXT, pull } from "./pull.ts";
+import { push } from "./push.ts";
+import { seedLocal } from "./seed.ts";
+
+/** A copy into a destination under `failCopiesInto` writes half the bytes, then fails. */
+const copyFault = vi.hoisted(() => ({ failCopiesInto: "" }));
+
+vi.mock("node:fs", async (importOriginal) => {
+  const fs = await importOriginal<typeof import("node:fs")>();
+  const copyFileSync: typeof fs.copyFileSync = (source, destination, mode) => {
+    const into = copyFault.failCopiesInto;
+    if (into && String(destination).includes(into)) {
+      fs.writeFileSync(destination, fs.readFileSync(source).subarray(0, 10));
+      throw new Error("ENOSPC: no space left on device");
+    }
+    fs.copyFileSync(source, destination, mode);
+  };
+  return { ...fs, copyFileSync, default: { ...fs, copyFileSync } };
+});
 
 const BUCKET = "jci-valle-brand-assets";
 const IMAGES = ASSET_CONTRACT.map(({ path }) => path);
@@ -75,6 +97,7 @@ function confirmer(answer: boolean) {
 }
 
 beforeEach(() => {
+  copyFault.failCopiesInto = "";
   root = localRepo("brand-pull-");
   profile = loadProfile({ repoRoot: root, env: {} });
   bucketToml = `${readFileSync(local("brand.toml"), "utf8")}\n# from the bucket\n`;
@@ -133,7 +156,6 @@ describe("pull", () => {
     expect(Object.keys(manifest.objects)).toEqual(CONTRACT);
     expect(manifest.objects["logo-main.png"]).toEqual({
       generation: "1001",
-      md5: expect.stringMatching(/==$/),
       sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
       source: "bucket",
     });
@@ -279,5 +301,124 @@ describe("pull", () => {
       pull({ profile, repoRoot: root, run: fakeRunner('{"not":"a list"}') }),
     ).rejects.toThrow(BrandConfigError);
     expect(existsSync(local(".pull-manifest.json"))).toBe(false);
+  });
+
+  it("refuses a listing whose generation is not a number, before downloading", async () => {
+    const listed = JSON.stringify(
+      CONTRACT.map((name, index) => ({ name, generation: index === 3 ? "12 --flag" : "5" })),
+    );
+    const error = await errorOf(pull({ profile, repoRoot: root, run: fakeRunner(listed) }));
+    expect(error.errors).toEqual([
+      `gcloud listing of gs://${BUCKET} 3.generation: expected a generation number`,
+    ]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("never writes through a symlink in brand/local/, and changes nothing", async () => {
+    recordLocal(root);
+    const outside = mkdtempSync(join(tmpdir(), "brand-pull-outside-"));
+    try {
+      const target = join(outside, "precious.png");
+      writeFileSync(target, "not yours");
+      rmSync(local("og-image.png"));
+      symlinkSync(target, local("og-image.png"));
+      const before = read("logo-main.png");
+      const error = await errorOf(pull({ profile, repoRoot: root, run: fakeRunner(listing()) }));
+      expect(error.errors).toEqual([
+        "brand/local/og-image.png: a symlink; brand:pull never writes through one",
+      ]);
+      expect(readFileSync(target, "utf8")).toBe("not yours");
+      expect(read("logo-main.png")).toEqual(before);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("never writes into a symlinked folder of the contract", async () => {
+    recordLocal(root);
+    const outside = mkdtempSync(join(tmpdir(), "brand-pull-outside-"));
+    try {
+      rmSync(local("backstage"), { recursive: true });
+      symlinkSync(outside, local("backstage"));
+      const error = await errorOf(pull({ profile, repoRoot: root, run: fakeRunner(listing()) }));
+      expect(error.errors).toEqual([
+        "brand/local/backstage: a symlink; brand:pull never writes through one",
+      ]);
+      expect(readdirSync(outside)).toEqual([]);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("replaces each file whole: a copy failing part way leaves no half file, and the manifest records what was replaced", async () => {
+    recordLocal(root);
+    const recorded = JSON.parse(readFileSync(local(".pull-manifest.json"), "utf8"));
+    const before = read("backstage/pwa-192x192.png");
+    copyFault.failCopiesInto = join("brand", "local", "backstage");
+    await expect(pull({ profile, repoRoot: root, run: fakeRunner(listing()) })).rejects.toThrow(
+      /ENOSPC/,
+    );
+    expect(read("backstage/pwa-192x192.png")).toEqual(before);
+    expect(readdirSync(local("backstage")).filter((name) => name.startsWith("."))).toEqual([]);
+    expect(read("og-image.png")).toEqual(bucketImage("og-image.png"));
+    const manifest = JSON.parse(readFileSync(local(".pull-manifest.json"), "utf8"));
+    expect(manifest.objects["og-image.png"]).toMatchObject({
+      source: "bucket",
+      generation: "1004",
+    });
+    expect(manifest.objects["og-image.png"].sha256).not.toBe(
+      recorded.objects["og-image.png"].sha256,
+    );
+    expect(manifest.objects["backstage/pwa-192x192.png"]).toEqual(
+      recorded.objects["backstage/pwa-192x192.png"],
+    );
+  });
+
+  it("follows the owner runbook: seed, copy brand.toml, pull the images, then push", async () => {
+    const repo = exampleRepo("brand-runbook-");
+    try {
+      seedLocal({ repoRoot: repo, env: {} });
+      const committed = writeChapter(repo, { slug: "jci-valle", assets: false });
+      copyFileSync(join(committed, "brand.toml"), join(repo, "brand", "local", "brand.toml"));
+      rmSync(committed, { recursive: true });
+      const owner = loadProfile({ repoRoot: repo, env: {} });
+      expect(owner).toMatchObject({ slug: "local", localOnly: false });
+
+      const pulledImages = await pull({
+        profile: owner,
+        repoRoot: repo,
+        run: fakeRunner(listing(IMAGES)),
+      });
+      expect(pulledImages.brandFile).toBe(false);
+
+      const pushed: string[][] = [];
+      const bucketRun: CommandRunner = async (_command, args) => {
+        if (args[1] === "objects") {
+          return JSON.stringify(
+            CONTRACT.map((name, index) => ({ name, generation: String(3000 + index) })),
+          );
+        }
+        pushed.push([args[2] ?? "", args.at(-1) ?? ""]);
+        return "";
+      };
+      await push({ profile: owner, repoRoot: repo, run: bucketRun });
+      expect(pushed).toEqual(
+        // brand.toml create-only (the bucket has none); each image at the generation pulled.
+        CONTRACT.map((path, index) => [
+          `--if-generation-match=${path === "brand.toml" ? 0 : 1000 + index - 1}`,
+          `gs://${BUCKET}/${path}`,
+        ]),
+      );
+      const manifest = JSON.parse(
+        readFileSync(join(repo, "brand", "local", ".pull-manifest.json"), "utf8"),
+      );
+      expect(
+        Object.values(manifest.objects).every(
+          (record) => (record as { source: string }).source === "bucket",
+        ),
+      ).toBe(true);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 });
