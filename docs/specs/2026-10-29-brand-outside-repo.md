@@ -1,0 +1,272 @@
+# Brand outside the repo
+
+Status: approved 2026-10-29 (R28). Replaces the profile discovery of
+`docs/specs/2026-10-25-profile-discovery.md`, the `deploy` section of
+`docs/specs/2026-10-25-repo-contained-config.md`, and the two images folders of
+`docs/specs/2026-10-28-brand-simple-commands.md` C3.
+
+## Goal
+
+One codebase, many deploys. `JCIOriente/luminova` is public and holds the code plus one
+neutral profile, `brand/example/`, whose default Spanish texts are good enough to ship. A
+real chapter's brand (JCI Oriente, a future JCI Andina) never lives in git:
+
+- The chapter keeps a short, git-ignored `brand/local/brand.toml` and its images next to it.
+  `pnpm brand:push` uploads them to the chapter's own Firebase Storage bucket.
+- The chapter deploys from its GitHub fork. The fork's repository variables name the Firebase
+  project, and CD pulls the brand from the bucket before it builds.
+- A chapter that fixes a bug opens a code-only PR from its fork. Its brand cannot come along
+  (it is not in git), and a fork PR gets no secrets and no OIDC token, so it cannot deploy.
+- Updates reach a chapter through GitHub's **Sync fork**; the push to the fork's `main` runs
+  its CI, then its CD redeploys.
+
+JCI Oriente deploys the same way, from `JCIOriente/luminova` itself.
+
+## The brand file
+
+`brand.toml` replaces `brand.json` and `site-content.json`. A chapter writes only what makes
+it different; everything else comes from the example.
+
+### Layers
+
+1. **Base:** `brand/example/brand.toml`, the full file. Every optional key has a value there,
+   and the texts are templates over the identity fields.
+2. **Chapter:** `brand/local/brand.toml`. Tables merge key by key; an array (`[[timeline]]`,
+   `[[reasons]]`, `[[contact.links]]`, ...) replaces the example's array whole.
+3. **Templates** are expanded after the merge, on the merged value, so a chapter can override
+   a sentence or keep the template. Placeholders: `{name}`, `{shortName}`, `{city}`,
+   `{cityFormal}`, `{region}`, `{regionShort}`, `{country}`, `{movementName}`. An unknown
+   placeholder is an error naming its section and key.
+
+### Required: identity only
+
+```toml
+#:schema ../brand.schema.json
+name = "JCI Andina"
+city = "Cochabamba"
+country = "Bolivia"
+project = "jci-andina"
+
+[colors]
+spotlight = "#0097D7"
+```
+
+- `name`, `city`, `country`: the chapter's identity; every default text is built from them.
+- `project`: the Firebase project id. A `demo-` id runs only in the emulators (try it locally).
+- `[colors] spotlight`: the public site's theme color (browser bar, icons). `[colors]
+  backstage` is optional and defaults to a neutral dark.
+- `[firebase.spotlight]` and `[firebase.backstage]` (`apiKey`, `appId`): the web apps' public
+  config. `brand:init` fetches them with `firebase apps:sdkconfig` and writes them; nobody
+  copies them by hand. A `demo-` project needs none.
+
+### Derived from `project` (each can be overridden)
+
+| Key | Default |
+| --- | --- |
+| `[firebase] storageBucket` | `<project>.firebasestorage.app` |
+| `[firebase] authDomain` | `<project>.firebaseapp.com` |
+| `[firebase] messagingSenderId` | the number inside the spotlight `appId` |
+| `[firebase.sites] spotlight` / `backstage` | `<project>` / `<project>-backstage` |
+| `[urls] spotlight` / `backstage` | `https://<site>.web.app` |
+| `qrPrefix` | `<project>` without hyphens (never change it once credentials are printed) |
+| the brand bucket | `<project>-brand-assets` |
+
+`slug`, `$schema` and `deploy` are gone: the folder is fixed, the schema line is a TOML
+comment, and CD's sign-in lives in repository variables.
+
+### Optional, with templated defaults
+
+Top level: `shortName`, `legalName`, `movementName`, `description`, `foundedYear`,
+`broadcastChannelName`, `locale`, `ogLocale`. Tables: `[locality]` (`cityFormal`, `region`,
+`regionShort`), `[parentOrganization]`, `[seo]`, `[backstage]` (`title`, `emailPlaceholder`,
+`contactEmail`, which defaults to `[contact] email`; no email at all hides the link),
+`[og]`, `[firebase.*]` (`appCheckSiteKey`, `vapidKey`: blank keeps App Check and push off).
+
+Site texts, in their own clearly titled part of the same file: `[hero]`, `[stats]` and
+`[stats.standoutOrg]`, `[[timeline]]`, `[mvv]`, `[[reasons]]`, `[contact]`,
+`[contact.socials]`, `[[contact.links]]`, `[linktree]`. Keys keep their Firestore names
+(`mvv.mision`, `mvv.vision`, `mvv.valores`), because the seeds write them as they are.
+`foundedYear` is optional, so no default text depends on it.
+
+### Errors
+
+Every message names the file, the TOML table and the key, the way the member wrote it:
+`brand/local/brand.toml [contact] email: not an email address`,
+`brand/local/brand.toml [[timeline]] 3, year: required`. A syntax error gives the line and
+column. Unknown keys are errors (a typo must not fall back to a default silently).
+
+### Editor support
+
+`brand/brand.schema.json` is still generated from the zod schema (input shape, so optional
+keys are optional) and drift still fails `schema.test.ts`. `brand:init` writes the
+`#:schema ../brand.schema.json` first line, which Taplo / Even Better TOML read for hover
+help and completion; `brand:check` warns when the line is missing.
+
+## Folders
+
+| Path | In git | Holds |
+| --- | --- | --- |
+| `brand/example/` | yes | the full base `brand.toml` and the 16 neutral images |
+| `brand/local/` | no | the chapter's `brand.toml`, its images, `.pull-manifest.json` |
+| `brand/brand.schema.json`, `brand/bucket-lifecycle.json` | yes | shared |
+
+`.gitignore` ignores `brand/*` and re-includes `brand/example/` and the two shared files. A
+CI check (`assert-brand-example-only`) fails any change that adds or edits a file under
+`brand/` outside those paths, in upstream and in every fork, so a chapter cannot publish its
+brand by accident. Deleting a file passes.
+
+`brand/local/` is the only local brand folder. On install (`prepare`), a missing folder is
+seeded from the example: a minimal `brand.toml` with the example's identity and copies of
+the example's images, recorded in the manifest with source `example`. Every command reads
+this folder: dev, `brand:check`, `brand:icons`, `brand:push`, and the build. The
+`brand-assets/` folder, `selectAssetsDir`, `BRAND_ASSETS_DIR` and the "other folder" warning
+are removed. `BRAND_PROFILE` survives only as a test seam.
+
+## The bucket
+
+`gs://<project>-brand-assets/` mirrors `brand/local/`, except the manifest:
+
+```
+brand.toml
+logo-main.png  logo-on-dark.png  logo-on-primary.png  og-image.png
+spotlight/  apple-touch-icon-180x180.png favicon-16.png favicon-32.png
+            maskable-icon-512x512.png pwa-192x192.png pwa-512x512.png
+backstage/  (the same six icons)
+```
+
+These 17 paths are the **contract**. Anything else in the folder (an icon master, notes) is
+the member's and neither command touches it. The bucket keeps object versioning and the
+lifecycle in `brand/bucket-lifecycle.json`.
+
+### `brand:push`
+
+Checks the folder with the same rules as `brand:check` (and refuses with the same sections),
+then uploads the 17 contract files. Each upload is conditional on the generation the
+manifest recorded (`--if-generation-match`), so a member never overwrites a newer upload by
+another member without noticing; on a conflict it says to run `brand:pull` first. Then it
+rewrites the manifest. **Next:** `gh workflow run deploy.yml -f surface=hosting` in the
+chapter's fork.
+
+### `brand:pull`
+
+1. Lists the bucket and downloads the contract files into a staging folder; validates them.
+2. For each contract file, compares the local file's sha256 with the manifest's hash from the
+   last pull or push (or the seed). A file changed since then is listed, and the member is
+   asked once: `Replace these N files with the bucket's copy? [y/N]`. No is the default.
+   Without a terminal (CI, a script) the command refuses and lists them.
+3. Replaces only the contract files, never the folder; everything else stays.
+4. Writes `.pull-manifest.json`:
+   `{ "version": 1, "project", "bucket", "objects": { "<path>": { "generation", "md5", "sha256", "source": "bucket" | "example" } } }`.
+
+### Release builds
+
+A release build (`BRAND_RELEASE=1`, which CD sets) reads only what was pulled: it requires
+`.pull-manifest.json`, source `bucket` for every contract file, and a matching sha256 for
+each. A file edited after the pull, or a seeded example file, fails the build with the file
+named. A `demo-` project is refused, as today.
+
+## CD from a fork
+
+Repository variables (Settings, Secrets and variables, Actions, **Variables**; none is a
+secret):
+
+| Variable | Required | Example |
+| --- | --- | --- |
+| `FIREBASE_PROJECT_ID` | yes | `jci-andina` |
+| `GCP_PROJECT_NUMBER` | yes | `123456789012` |
+| `GCP_REGION` | no | the functions region; defaults to the one in the code |
+| `WIF_PROVIDER` | no | overrides `projects/<number>/locations/global/workloadIdentityPools/github-actions/providers/github-oidc` |
+| `DEPLOY_SA` | no | overrides `firebase-deployer@<project>.iam.gserviceaccount.com` |
+
+`brand:provision` creates the pool, provider and service account under those fixed names and
+prints the `gh variable set` commands. The provider's attribute condition pins the fork's own
+repository and `refs/heads/main`.
+
+Flow per deploy job: checkout, install, `deploy-ready.sh` (ready = `FIREBASE_PROJECT_ID` set
+and not `demo-`; otherwise every job skips with a notice), Workload Identity sign-in,
+`brand:pull` into the empty `brand/local/`, `brand:apply` (`.firebaserc`), release build,
+deploy. Upstream sets no variables of its own beyond JCI Oriente's, and a fork that has not
+set them skips. GitHub disables Actions in a new fork until its owner enables them.
+
+A brand change does not move git, so it does not start CD: the member runs the hosting
+deploy after `brand:push` (above). A code change arrives by Sync fork and deploys the
+surfaces its diff touches, as today.
+
+## Migration of JCI Oriente
+
+The PRs land in this order; JCI Oriente keeps deploying through each:
+
+1. **Example profile** (`brand/example/`): `brand/fixture/` and `brand/jci-oriente/` merge
+   into one neutral example. `brand/jci-oriente/` stays tracked, re-included in
+   `.gitignore`, and keeps being the one chapter profile that discovery selects for CD.
+   `deploy-ready.sh` keeps excluding `fixture` so the base tree of the first deploy after
+   merge does not look like two chapters.
+2. **`brand.toml`**: the loader, schema, Vite plugin, `brand:init`, `brand:check` and the
+   example move to TOML. JCI Oriente's committed profile is converted in the same PR (the
+   example-only check allows this one transition).
+3. **Bucket and one local folder**: push and pull carry `brand.toml`; `brand/local/` replaces
+   discovery. Until step 4, CD still reads the committed `brand/jci-oriente/`.
+4. **Fork CD**: `deploy.yml` reads the variables and pulls before building.
+5. **Removal**: `brand/jci-oriente/` leaves the repo. Merge it only after the owner ran the
+   runbook below. Its merge is one full redeploy of every surface (the base tree's shape
+   changes), on purpose.
+
+### Owner runbook (run before merging step 5; Claude runs none of it)
+
+From a clone of `main` that includes step 4, with `gcloud` signed in as a project owner:
+
+1. Write `brand/local/brand.toml`: `pnpm brand:init` and answer for JCI Oriente, then add the
+   overrides that differ from the derived defaults: `[firebase.sites]` (`jcioriente`,
+   `jcioriente-backstage`), `[urls]` (`https://jcioriente.org`,
+   `https://admin.jcioriente.org`), `qrPrefix = "jcioriente"`, the App Check and VAPID keys,
+   and the texts JCI Oriente uses today (the step 5 PR body lists them).
+2. Copy the images: the 16 files from the current `brand-assets/` (or `pnpm brand:pull` before
+   upgrading) into `brand/local/`.
+3. `pnpm brand:check`, then `pnpm brand:push`.
+4. `gh variable set FIREBASE_PROJECT_ID --body jci-oriente --repo JCIOriente/luminova` and
+   `gh variable set GCP_PROJECT_NUMBER --body 953870918238 --repo JCIOriente/luminova`.
+5. `gh workflow run deploy.yml -f surface=hosting --repo JCIOriente/luminova`, approve it, and
+   check both sites.
+
+## Decisions
+
+Each was taken by the decision protocol of the run that wrote this spec (a Fable pass over
+the options), and is recorded here as the fact.
+
+- **D1. Parser: `smol-toml`**, after `secure-dep-vetting`. It is TOML 1.0-complete,
+  maintained, has no dependencies, gives line and column on errors, and has `stringify` for
+  `brand:init`. Caret range: it is a build-time parser, not one of the exact-pin classes.
+- **D2. The JSON Schema stays** for editor support, referenced by a `#:schema` comment.
+- **D3. Defaults live in `brand/example/brand.toml`**, the base layer, not in TypeScript, so
+  "what do I get if I leave this out" is answered by opening one file in the format members
+  read.
+- **D4. One fixed local folder, `brand/local/`.** Nothing is discovered any more, so the
+  two-chapters error, its bash twin in `deploy-ready.sh` and the slug-equals-folder rule go.
+- **D5. The manifest is `brand/local/.pull-manifest.json`**, next to the files it describes,
+  so it survives reinstalls; push is conditional on its generations.
+- **D6. `brand:init` writes the web apps' `apiKey` and `appId`** into `brand.toml` with
+  `firebase apps:sdkconfig`. CD does not fetch them: that would widen the deploy service
+  account's roles and match apps by an editable display name.
+- **D7. CD's sign-in comes from two variables**, `FIREBASE_PROJECT_ID` and
+  `GCP_PROJECT_NUMBER`. The provider and service account follow the fixed names
+  `brand:provision` creates, with `WIF_PROVIDER` / `DEPLOY_SA` as overrides. The brand cannot
+  hold them: it sits in the bucket CD can read only after signing in.
+- **D8. `brand:guard` builds a synthetic canary chapter** (the example with sentinel values
+  and sentinel images) in upstream CI, so the neutral build is still proven leak-free with
+  no chapter in git. `CHAPTER_REGEX`, which names JCI Oriente, goes.
+- **D9. Colors: `spotlight` required, `backstage` optional** (neutral dark default).
+- **D10. Movement-wide strings are not needles.** `movementName`, `parentOrganization.*`,
+  `locale`, `ogLocale` and `locality.country` are shared by every chapter of a movement or
+  country; the example may say "Cámara Junior Internacional".
+- **D11. `[backstage] contactEmail` defaults to `[contact] email`**; with neither, the login
+  page hides the link.
+- **D12. `deploy-ready.sh` keeps excluding `fixture` until the removal PR**, which deletes
+  the exclusion and is the one intended full redeploy.
+- **D13. This spec is its own docs PR**, first in the stack after landing R27.
+
+## Later
+
+- **Edit the texts from backstage.** An Admin form that edits the site texts of
+  `brand.toml` and writes them back to the bucket (and redeploys hosting), so a chapter
+  never edits the file for a wording change. Not in this run; it needs its own spec
+  (permissions, the bucket write path, and how a form edit and a `brand:push` reconcile).
