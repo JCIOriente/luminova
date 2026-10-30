@@ -157,7 +157,7 @@ export function provisionNext({ applied }: { applied: boolean }): Remedy[] {
   ];
 }
 
-export const BUCKET_QUESTION =
+const BUCKET_QUESTION =
   "Steps 1 and 2 done? Then this can do step 3 now: create and set up the bucket (skips what is done). Do step 3 now?";
 
 /**
@@ -174,13 +174,15 @@ export async function offerBucket({
   repoRoot?: string;
   run?: CommandRunner;
   confirm?: Confirm;
-}): Promise<{ label: string; done: boolean }[] | null> {
+}): Promise<BucketResult[] | null> {
   if (!confirm) return null;
   const refused = undeployableProfileErrors(profile);
   if (refused.length > 0) throw new BrandConfigError(refused);
   if (!(await confirm(BUCKET_QUESTION))) return null;
   return applyBucket({ profile, repoRoot, run });
 }
+
+type BucketResult = { label: string; done: boolean };
 
 /** Step 3: runs each bucket step whose state shows it undone; never touches GitHub. */
 export async function applyBucket({
@@ -191,7 +193,7 @@ export async function applyBucket({
   profile: LoadedProfile;
   repoRoot?: string;
   run?: CommandRunner;
-}): Promise<{ label: string; done: boolean }[]> {
+}): Promise<BucketResult[]> {
   const refused = undeployableProfileErrors(profile);
   if (refused.length > 0) throw new BrandConfigError(refused);
   const steps = bucketSteps(profile, repoRoot, join(repoRoot, LIFECYCLE_FILE));
@@ -199,7 +201,7 @@ export async function applyBucket({
   const [create, ...rest] = steps;
   if (!create) throw new Error("unreachable: no bucket steps");
 
-  const results: { label: string; done: boolean }[] = [];
+  const results: BucketResult[] = [];
   let state = await describeBucket(run, bucket);
   if (state) {
     results.push({ label: create.label, done: true });
@@ -259,7 +261,7 @@ const indent = (lines: readonly string[], by: string) =>
   lines.flatMap((line) => line.split("\n")).map((line) => (line ? `${by}${line}` : ""));
 
 /** Numbered steps: what, why, where, the exact lines, and how to see that it worked. */
-export function formatGuide(steps: readonly GuideStep[]): string {
+function formatGuide(steps: readonly GuideStep[]): string {
   return steps
     .map(({ title, why, where, lines, check }, index) =>
       [

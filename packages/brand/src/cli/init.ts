@@ -354,7 +354,7 @@ export function initNext(slug: string, { local = false }: { local?: boolean } = 
 }
 
 /** After connecting: confirm the project, then the Google Cloud setup. */
-export const CONNECT_NEXT: readonly Remedy[] = [
+const CONNECT_NEXT: readonly Remedy[] = [
   { change: `check the whole setup (${guideStep("check")})`, run: "pnpm brand:check" },
   {
     change: `print the Google Cloud setup, step by step, with your values (${guideStep("provision")}; changes nothing)`,
@@ -437,12 +437,11 @@ async function askProject(
   return (
     fillWeb ||
     (prompter !== undefined &&
-      isYes(
-        await prompter.ask({
-          key: "fillWeb",
-          label: "Read the API keys with firebase apps:sdkconfig? Needs firebase login (y/N)",
-        }),
-      ))
+      (await yes(
+        prompter,
+        "fillWeb",
+        "Read the API keys with firebase apps:sdkconfig? Needs firebase login",
+      )))
   );
 }
 

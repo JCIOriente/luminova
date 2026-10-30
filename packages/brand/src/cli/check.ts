@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { ASSET_CONTRACT } from "../assets.ts";
 import {
@@ -17,7 +17,7 @@ import {
   type Env,
   type LoadedProfile,
 } from "../load-profile.ts";
-import { FIREBASERC, firebasercContent } from "./apply.ts";
+import { FIREBASERC, firebasercContent, readFirebaserc } from "./apply.ts";
 import { formatNext, type Problem, type Remedy, guideStep } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
 import { ASSETS_OVERRIDE_ENV, REMOVE_ASSETS_OVERRIDE, checkImages } from "./images.ts";
@@ -39,10 +39,17 @@ import { nativeWindows, toolRows, type Part } from "./tools.ts";
 
 const skip = (check: string, detail = "needs a valid profile") => skipRow(check, detail);
 
+const problemOf = (error: BrandConfigError): Problem => ({
+  message: error.errors.join("; "),
+  remedies: error.remedies,
+});
+
 /** A caught error as a row: its message in the cell (never a "To fix:" block), its remedies. */
 function failed(check: string, error: unknown): CheckRow {
-  if (error instanceof BrandConfigError)
-    return fail(check, error.errors.join("; "), error.remedies);
+  if (error instanceof BrandConfigError) {
+    const { message, remedies } = problemOf(error);
+    return fail(check, message, remedies);
+  }
   if (error instanceof CommandError) return fail(check, error.message, error.remedies);
   return fail(check, errorMessage(error));
 }
@@ -61,7 +68,7 @@ function profileRows(repoRoot: string, env: Env): { rows: CheckRow[]; profile?: 
     profile = loadProfile({ repoRoot, env });
   } catch (error) {
     if (!(error instanceof BrandConfigError)) throw error;
-    const detail = error.errors.join("; ");
+    const detail = problemOf(error).message;
     // brand/ without a single choice is the selection row's failure; it says how to fix it.
     if (error instanceof ProfileSelectionError) {
       return { rows: [skip("profile", `needs a ${SELECTION}`), skip("brand.json")] };
@@ -105,7 +112,7 @@ async function siteContentProblem(
     return null;
   } catch (error) {
     if (error instanceof BrandConfigError) {
-      return { message: error.errors.join("; "), remedies: error.remedies };
+      return problemOf(error);
     }
     if (error instanceof Error && "code" in error && error.code === "ERR_MODULE_NOT_FOUND") {
       return {
@@ -133,8 +140,7 @@ async function siteContentRow(
 }
 
 function firebasercRow(profile: LoadedProfile, repoRoot: string): CheckRow {
-  const file = join(repoRoot, FIREBASERC);
-  const current = existsSync(file) ? readFileSync(file, "utf8") : null;
+  const current = readFirebaserc(repoRoot);
   if (current === firebasercContent(profile.brand)) {
     return ok(FIREBASERC, `in sync (project ${profile.brand.firebase.projectId})`);
   }
