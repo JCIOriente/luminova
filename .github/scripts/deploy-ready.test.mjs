@@ -32,10 +32,11 @@ function repo(profiles) {
 }
 
 const READY = { firebase: { projectId: "acme" }, deploy: DEPLOY };
-const EXAMPLE = { firebase: { projectId: "jci-oriente" }, deploy: DEPLOY };
+const EXAMPLE = { firebase: { projectId: "demo-example" } };
+/** The example's old name, still in the base tree of the first deploy after the rename (D12). */
 const FIXTURE = { firebase: { projectId: "demo-fixture" } };
-/** A fork: the committed example and fixture, plus its chapter. */
-const fork = (acme, more = {}) => repo({ "jci-oriente": EXAMPLE, fixture: FIXTURE, acme, ...more });
+/** A fork: the committed example, plus its chapter. */
+const fork = (acme, more = {}) => repo({ example: EXAMPLE, acme, ...more });
 
 const check = (root) => spawnSync("bash", [SCRIPT, root], { encoding: "utf8" });
 
@@ -45,10 +46,19 @@ test("a profile on a real project with a deploy section is ready", () => {
   assert.equal(r.stdout, "project=acme\nready=true\n");
 });
 
-test("upstream, with no chapter profile, deploys the example", () => {
-  const r = check(repo({ "jci-oriente": EXAMPLE, fixture: FIXTURE, notes: null }));
+test("a clone with no chapter profile selects the example, which never deploys", () => {
+  const r = check(repo({ example: EXAMPLE, notes: null }));
   assert.equal(r.status, 0);
-  assert.equal(r.stdout, "project=jci-oriente\nready=true\n");
+  assert.match(
+    r.stdout,
+    /^project=demo-example\nready=false\nreason=profile "example" is local-only/,
+  );
+});
+
+test("the old fixture beside one chapter is no second chapter (D12)", () => {
+  const before = { "jci-oriente": READY, fixture: FIXTURE };
+  assert.equal(check(repo(before)).stdout, "project=acme\nready=true\n");
+  assert.equal(check(repo({ ...before, example: EXAMPLE })).stdout, "project=acme\nready=true\n");
 });
 
 test("a chapter profile wins without the example beside it", () => {
@@ -134,11 +144,11 @@ test("judges a past commit with a git ref", () => {
   git("rm", "-rq", "brand/acme");
   commit();
   writeFileSync(join(root, "brand", "untracked.json"), "{}");
-  assert.equal(at("HEAD"), "project=jci-oriente\nready=true\n");
+  assert.match(at("HEAD"), /^project=demo-example\nready=false\n/);
   assert.equal(at("HEAD~1"), "project=acme\nready=true\n");
 });
 
-test("names the example and the fixture as the TypeScript twin does", () => {
+test("names the example as the TypeScript twin does", () => {
   const loader = readFileSync(
     join(dirname(SCRIPT), "..", "..", "packages", "brand", "src", "load-profile.ts"),
     "utf8",
@@ -146,7 +156,6 @@ test("names the example and the fixture as the TypeScript twin does", () => {
   const script = readFileSync(SCRIPT, "utf8");
   const constant = (name) => loader.match(new RegExp(`export const ${name} = "([^"]+)"`))?.[1];
   assert.equal(script.match(/^example=(\S+)$/m)?.[1], constant("EXAMPLE_PROFILE"));
-  assert.match(script, new RegExp(`case "\\$name" in "" \\| ${constant("NEUTRAL_PROFILE")} \\|`));
 });
 
 test("the committed profile is ready to deploy", () => {

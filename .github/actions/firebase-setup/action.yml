@@ -40,7 +40,7 @@ runs:
     # .firebaserc (project, hosting sites, storage bucket) is generated from the profile.
     # `prepare` writes it on install, but pnpm skips `prepare` on an up-to-date install,
     # so it is written explicitly: no deploy depends on that lifecycle detail.
-    # BRAND_RELEASE=1 makes brand:apply refuse a fixture or demo- profile.
+    # BRAND_RELEASE=1 makes brand:apply refuse the example or a demo- profile.
     - name: Write .firebaserc from the brand profile
       shell: bash
       env:

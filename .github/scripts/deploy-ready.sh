@@ -46,9 +46,11 @@ folders() {
 }
 
 # The profile brand/ selects (spec docs/specs/2026-10-25-profile-discovery.md, P1): its one
-# chapter profile (a folder with a brand.json, not the example or the fixture), else the
-# example.
-example=jci-oriente
+# chapter profile (a folder with a brand.json, not the example), else the example.
+# `fixture` is the example's old name: a base tree from before brand/example/ still holds it
+# beside jci-oriente, and must not look like two chapters (D12 in
+# docs/specs/2026-10-29-brand-outside-repo.md; the removal PR drops it).
+example=example
 chapters=()
 while IFS= read -r name; do
   case "$name" in "" | fixture | "$example") continue ;; esac
