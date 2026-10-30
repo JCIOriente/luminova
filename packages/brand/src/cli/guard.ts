@@ -248,9 +248,8 @@ async function buildExample(app: BrandApp, outDir: string, envDir: string): Prom
   const root = join(REPO_ROOT, "apps", app);
   await withEnv(
     {
-      BRAND_PROFILE: EXAMPLE_PROFILE,
-      // Hermetic: never a developer's pulled brand-assets/ of real logos.
-      BRAND_ASSETS_DIR: `brand/${EXAMPLE_PROFILE}/assets`,
+      // Hermetic: the example reads only brand/example/, never brand/local/'s real logos.
+      [PROFILE_OVERRIDE_ENV]: EXAMPLE_PROFILE,
       // Process env wins over every .env file, so .env.local cannot turn on the emulator.
       VITE_FIREBASE_EMULATOR_ENABLED: "false",
     },
@@ -305,8 +304,8 @@ async function main(): Promise<number> {
 
   const example = loadProfile({ profile: EXAMPLE_PROFILE });
   const needles = collectNeedles(brand, NEEDLE_EXCLUSIONS, example.brand);
-  // An adopter's marks live in the gitignored brand-assets/, not in the profile folder.
-  const assetsDir = join(chapter.dir, "assets");
+  // The chapter's own images: brand/local/, or a committed chapter's assets/.
+  const { assetsDir } = chapter;
   const hashes = existsSync(assetsDir)
     ? assetHashes(assetsDir, `${relative(REPO_ROOT, assetsDir)}/`)
     : new Map<string, string>();

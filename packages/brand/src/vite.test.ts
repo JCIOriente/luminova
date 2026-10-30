@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { writeAssetSet } from "./asset-set.ts";
 import { OG_IMAGE_FILE } from "./assets.ts";
 import { BrandConfigError, EXAMPLE_PROFILE, REPO_ROOT, loadProfile } from "./load-profile.ts";
-import { TEST_CHAPTER, errorsOf, exampleRepo, writeChapter } from "./test-profiles.ts";
+import { TEST_CHAPTER, errorsOf, exampleRepo, recordLocal, writeChapter } from "./test-profiles.ts";
 import { DEV_PORTS, PREVIEW_PORTS } from "./ports.ts";
 import { sha256 } from "./hash.ts";
 import { RELEASE_MARKER_FILE, readReleaseMarker } from "./release.ts";
@@ -88,27 +88,18 @@ describe("resolveBrandBuild", () => {
     expect(result.logoSize).toEqual({ width: 400, height: 200 });
   });
 
-  it("prefers brand-assets/ over the profile's assets", () => {
-    writeAssetSet(join(repoRoot, "brand-assets"));
-    expect(resolve().assetsDir).toBe(join(repoRoot, "brand-assets"));
+  it("reads brand/local/ for the local profile, and names it in the errors", () => {
+    writeChapter(repoRoot, { slug: "local" });
+    const result = resolve({ profile: undefined });
+    expect(result.profile.slug).toBe("local");
+    expect(result.assetsDir).toBe(join(repoRoot, "brand", "local"));
+    rmSync(join(repoRoot, "brand", "local", OG_IMAGE_FILE));
+    expect(() => resolve({ profile: undefined })).toThrow(/brand\/local\/og-image\.png: missing/);
   });
 
-  it("ignores a brand-assets/ that holds no contract file, such as brand:init's README", () => {
-    mkdirSync(join(repoRoot, "brand-assets"));
-    writeFileSync(join(repoRoot, "brand-assets", "README.txt"), "put the files here");
-    expect(resolve().assetsDir).toBe(join(repoRoot, "brand", EXAMPLE_PROFILE, "assets"));
-  });
-
-  it("reads brand-assets/ when the profile has no assets of its own, naming it in the errors", () => {
-    rmSync(join(repoRoot, "brand", EXAMPLE_PROFILE, "assets"), { recursive: true });
-    expect(() => resolve()).toThrow(/brand-assets\/logo-main\.png: missing/);
-  });
-
-  it("prefers BRAND_ASSETS_DIR, resolved against the repo root, over everything", () => {
-    writeAssetSet(join(repoRoot, "brand-assets"));
-    writeAssetSet(join(repoRoot, "elsewhere"));
-    expect(resolve({ env: { BRAND_ASSETS_DIR: "elsewhere" } }).assetsDir).toBe(
-      join(repoRoot, "elsewhere"),
+  it("reads a committed chapter's own assets/ while brand/local/ holds no pulled images", () => {
+    expect(resolve({ profile: undefined }).assetsDir).toBe(
+      join(repoRoot, "brand", TEST_CHAPTER, "assets"),
     );
   });
 
@@ -195,17 +186,17 @@ describe("resolveBrandBuild", () => {
 
 const RELEASE_ENV = { BRAND_RELEASE: "1", GCP_PROJECT_ID: "jci-valle" };
 
-function writePulledAssets(profile = "jci-valle") {
-  const dir = join(repoRoot, "brand-assets");
-  writeAssetSet(dir, distinctColors);
-  writeFileSync(join(dir, "pull-manifest.json"), JSON.stringify({ profile, objects: [] }));
+/** What CD's brand:pull leaves today: the bucket's images in brand/local/, no brand.toml. */
+function writePulledAssets(project = "jci-valle") {
+  writeAssetSet(join(repoRoot, "brand", "local"), distinctColors);
+  recordLocal(repoRoot, { project });
 }
 
 describe("resolveBrandBuild in release mode", () => {
-  it("reads brand-assets/ and carries the marker for the selected profile", () => {
+  it("reads the committed chapter's pulled images in brand/local/ and carries the marker", () => {
     writePulledAssets();
     const result = resolve({ profile: undefined, env: RELEASE_ENV });
-    expect(result.assetsDir).toBe(join(repoRoot, "brand-assets"));
+    expect(result.assetsDir).toBe(join(repoRoot, "brand", "local"));
     expect(result.release).toEqual({
       profile: "jci-valle",
       projectId: "jci-valle",
@@ -213,16 +204,25 @@ describe("resolveBrandBuild in release mode", () => {
     });
   });
 
-  it("never falls back to the profile's committed assets", () => {
-    const errors = errorsOf(() => resolve({ profile: undefined, env: RELEASE_ENV }));
-    expect(errors).toContainEqual(
-      expect.stringMatching(/^no pull-manifest\.json in brand-assets\//),
-    );
-    expect(errors).toContainEqual(expect.stringMatching(/^brand-assets\/logo-main\.png: missing/));
+  it("never ships the profile's committed assets", () => {
+    expect(errorsOf(() => resolve({ profile: undefined, env: RELEASE_ENV }))).toEqual([
+      "no .pull-manifest.json in brand/local/: a deploy only uses files downloaded with brand:pull.",
+    ]);
+  });
+
+  it("releases the local profile from brand/local/, brand.toml included", () => {
+    writeChapter(repoRoot, { slug: "local" });
+    recordLocal(repoRoot);
+    const result = resolve({ profile: undefined, env: RELEASE_ENV });
+    expect(result.release).toMatchObject({ profile: "local", projectId: "jci-valle" });
+    writeFileSync(join(repoRoot, "brand", "local", "brand.toml"), "# edited\n", { flag: "a" });
+    expect(errorsOf(() => resolve({ profile: undefined, env: RELEASE_ENV }))).toEqual([
+      "brand/local/brand.toml: changed after brand:pull; upload it with brand:push, or pull again",
+    ]);
   });
 
   it("fails a release of the example, naming it", () => {
-    writePulledAssets(EXAMPLE_PROFILE);
+    writePulledAssets("demo-example");
     const errors = errorsOf(() =>
       resolve({ profile: EXAMPLE_PROFILE, env: { BRAND_RELEASE: "1" } }),
     );
@@ -234,7 +234,7 @@ describe("resolveBrandBuild in release mode", () => {
       resolve({ profile: undefined, env: { ...RELEASE_ENV, GCP_PROJECT_ID: "someone-else" } }),
     );
     expect(errors).toContainEqual(expect.stringMatching(/^GCP_PROJECT_ID "someone-else"/));
-    expect(errors).toContainEqual(expect.stringMatching(/logo-main\.png: missing/));
+    expect(errors).toContainEqual(expect.stringMatching(/^no \.pull-manifest\.json/));
   });
 
   it("refuses an emulator build", () => {
@@ -275,8 +275,7 @@ describe("pwaManifest", () => {
 
 describe("logoInclude", () => {
   it("matches the resolved logos and nothing else", () => {
-    writeAssetSet(join(repoRoot, "custom (assets)"));
-    const build = resolve({ env: { BRAND_ASSETS_DIR: "custom (assets)" } });
+    const build = { ...resolve(), assetsDir: join(repoRoot, "custom (assets)") };
     const include = logoInclude(build);
     expect(include.test(join(build.assetsDir, "logo-main.png"))).toBe(true);
     expect(include.test(join(build.assetsDir, "og-image.png"))).toBe(false);
