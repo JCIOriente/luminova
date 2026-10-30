@@ -31,8 +31,7 @@ your shell's startup file, and CD needs no GitHub variables.
 | What | File | In git? | Who reads it |
 |---|---|---|---|
 | Which chapter this repository builds | the folder `brand/<slug>/` itself: your chapter's is the only one besides the example `example` | no, git-ignored | every `pnpm brand:*` command, `pnpm dev`, the builds, the seed scripts, CD |
-| The chapter: names, texts, site addresses, Firebase project and web apps, CD's sign-in | `brand/<slug>/brand.json` | no, git-ignored; every value is public | the builds, CD |
-| The site's texts, seeded into the database once | `brand/<slug>/site-content.json` | no, git-ignored | `pnpm seed:production`, `pnpm dev` |
+| The chapter: names, site addresses, Firebase project and web apps, CD's sign-in, and the site's texts (seeded into the database once) | `brand/<slug>/brand.toml` | no, git-ignored; every value is public | the builds, CD, `pnpm seed:production`, `pnpm dev` |
 | Your images | `brand-assets/` | **no**, gitignored | `pnpm dev`, `brand:check`, `brand:push` |
 | The images deploys use | your private bucket, `<project>-brand-assets` | no | CD (`brand:pull`) |
 | Firebase CLI's project file | `.firebaserc` | no, generated | the `firebase` CLI |
@@ -44,8 +43,38 @@ is. Your fork only adds that folder and never edits a shared file, so pulling up
 updates never conflicts with your configuration. A repository builds one chapter:
 `brand:init` refuses to create a second, and with two every command stops and names them.
 
-Your editor explains every field of `brand.json` on hover: it points at a JSON Schema
-(`brand/brand.schema.json`).
+### The brand file
+
+`brand/<slug>/brand.toml` holds only what makes your chapter different. Every key you
+leave out comes from the example's file, `brand/example/brand.toml`, which sets them all
+and shows what each one means. To change one, copy it into your file:
+
+- Required: `name`, `city`, `country`, `project` (the Firebase project id; a `demo-` id
+  runs only in the emulators) and `[colors] spotlight`. A real project also needs each
+  web app's `apiKey` and `appId` under `[firebase.spotlight]` and `[firebase.backstage]`;
+  `brand:init` writes them.
+- Tables merge key by key: writing `[contact] email` keeps the example's other `[contact]`
+  keys. An array (`[[timeline]]`, `[[reasons]]`, `[[contact.links]]`) replaces the
+  example's whole.
+- The example's texts are templates: `{name}`, `{shortName}`, `{city}`, `{cityFormal}`,
+  `{region}`, `{regionShort}`, `{country}` and `{movementName}` take your values, so its
+  default sentences already name your chapter. Your own texts may use them too.
+- Derived from `project` unless you set them: `[firebase] storageBucket`, `authDomain`,
+  `messagingSenderId`, the hosting sites `[firebase.sites]` (`<project>` and
+  `<project>-backstage`), the site addresses `[urls]` (`https://<site>.web.app`),
+  `qrPrefix` (the project id without hyphens) and `assetsBucket` (`<project>-brand-assets`).
+- `[backstage] contactEmail`, where a member without an account asks for access, defaults
+  to `[contact] email`; with neither, the login page shows no link.
+- `foundedYear`, which the site states, is the one `brand:init` asks for besides the
+  identity. `brand:check` warns while it, `[contact] email`, `[contact] mapUrl` or
+  `[backstage] emailPlaceholder` is still the example's.
+
+Every error names the file, the table and the key, such as
+`brand/jci-valle/brand.toml [contact] email: not an email address`; a syntax error gives
+the line and column, and an unknown key is an error, so a typo never falls back to a
+default. Line 1 of the file, `#:schema ../brand.schema.json`, points editors with TOML
+support (Taplo, Even Better TOML) at `brand/brand.schema.json`, which explains every key
+on hover; `brand:check` warns when that line is missing.
 
 Upgrading a fork from a version with a root `luminova.json`: the pull that removes it
 conflicts once if you had edited it. Resolve it by deleting the file
@@ -74,7 +103,7 @@ with a note until the profile has a real project and CD's sign-in (step 9).
 | 1 | Fork, clone, run the example | `pnpm install`, then `pnpm dev` |
 | 2 | Create your profile | `pnpm brand:init` (answer **n**: no Firebase project yet) |
 | 3 | Add the 16 images and check them | `pnpm brand:check` |
-| 4 | Write the site texts and look at your sites | edit `site-content.json`, `pnpm dev` |
+| 4 | Write the site texts and look at your sites | edit `brand.toml`, `pnpm dev` |
 | 5 | Commit the profile | `git add brand/<slug>/` |
 | | **Part 2: go live, when you are ready** | |
 | 6 | Firebase project, two web apps, second hosting site | Firebase console (below) |
@@ -111,16 +140,13 @@ rows of the Part 1 table below), clone your fork, then let the repository check 
 
 ```bash
 pnpm install                                     # in the repo root
-pnpm turbo run build --filter=@luminova/types    # once: the check reads the site texts with it
 pnpm brand:check                                 # in the repo root
 ```
 
 It is the one command that checks everything, in four sections: the tools on this
 computer, your chapter's files, its images, and going live. Each row shows what it found.
 Anything missing ends in a **To fix:** block with the command for your computer. It only
-reads: it never installs anything and never signs you in. In a fresh clone, `pnpm install`
-installs the packages but builds none: the site-content row fails until the build above
-has run once, and its **To fix:** names it. Before `brand:init`, the check reads the
+reads: it never installs anything and never signs you in. Before `brand:init`, the check reads the
 example, which upstream deploys: its going-live rows only warn, and you need their tools
 only once your chapter's own profile connects a Firebase project. A local-only profile
 shows going live as one line.
@@ -192,21 +218,21 @@ Dev talks to the emulators, never to a real project.
 pnpm brand:init               # asks each question, with a suggested default
 ```
 
-It asks about your chapter: name, city, region, founding year, national federation, the
-two site addresses and a contact email. Then it asks whether you already have a Firebase
-project. Answer **n** (the default) to start local-only: the profile gets the emulator
+It asks about your chapter: the profile's folder name (the slug), the chapter's name,
+city and country, and the public site's theme colour. Then it asks whether you already
+have a Firebase project. Answer **n** (the default) to start local-only: the profile gets the emulator
 project `demo-<slug>`, and you connect a real one at step 7. Answering **y** asks the
 Firebase questions now instead (see step 7).
 
-`brand:init` writes `brand/<slug>/brand.json`, copies the example's `site-content.json`
-next to it, creates `brand-assets/README.txt` and writes `.firebaserc`. Being the only chapter
-profile in `brand/`, the new one is selected from then on. It validates everything before writing anything and never
-overwrites an existing profile. It re-asks a malformed or taken slug, or a year that is
-not a whole number, on the spot. If a later step fails, your answers are saved to
-`brand-init-answers.json` (gitignored), and the next `pnpm brand:init` offers them: answer
-**y** to reuse them. Anything you leave blank is either derived (site addresses, SEO text
-and, for a real project, the storage bucket, site ids, auth domain, sender id and assets
-bucket) or reported, all at once.
+`brand:init` writes a short `brand/<slug>/brand.toml`: the `#:schema` line, your
+answers, and the web apps' keys once a project is connected. Everything else comes from
+the example ([The brand file](#the-brand-file)). It also creates
+`brand-assets/README.txt` and writes `.firebaserc`. Being the only chapter profile in
+`brand/`, the new one is selected from then on. It validates everything before writing
+anything and never overwrites an existing profile. It re-asks a malformed or taken slug,
+or a colour that is not `#RRGGBB`, on the spot. If a later step fails, your answers are
+saved to `brand-init-answers.json` (gitignored), and the next `pnpm brand:init` offers
+them: answer **y** to reuse them.
 
 ### 3. Images
 
@@ -230,22 +256,25 @@ pnpm brand:icons            # the 12 icons from the master
 pnpm brand:check            # the images section names each file with a problem
 ```
 
-The maskable and Apple icons get an opaque background in your `themeColor`; the others
+The maskable and Apple icons get an opaque background in your theme colour; the others
 stay transparent. If icons are already there, `brand:icons` asks before replacing them
 (answer **y**), and if it cannot write one icon it changes none. You can also export the
 12 icons yourself with any tool that writes exact PNG sizes.
 
-`brand:check` runs the same validator as the build and also schema-checks your
-`site-content.json`. Every command reads one images folder, named in the title of
+`brand:check` runs the same validator as the build, and the build's checks on your whole
+`brand.toml`, its site texts included. Every command reads one images folder, named in the title of
 `brand:check`'s images section: `brand-assets/` once it holds any of the 16 files (the
 README alone does not count). Before that, a new profile has no images of its own and
 the section lists every missing file.
 
 ### 4. Site texts, and a look
 
-Edit `brand/<slug>/site-content.json`: history, mission, vision, values, statistics and
-contacts. These texts fill the site once; after going live, the admin `/config` screen is
-where they change. Then `pnpm dev` shows both sites with your name, images and texts.
+Edit the site texts in `brand/<slug>/brand.toml`: history (`[[timeline]]`), mission,
+vision and values (`[mvv]`), statistics (`[stats]`) and contacts (`[contact]`). Copy each
+table you change from `brand/example/brand.toml`; the example's texts already name your
+chapter through their templates. These texts fill the site once; after going live, the
+admin `/config` screen is where they change. Then `pnpm dev` shows both sites with your
+name, images and texts.
 
 ### 5. Commit the profile
 
@@ -269,7 +298,8 @@ In the [Firebase console](https://console.firebase.google.com), create the proje
 1. Register **two web apps**, one for the public site and one for the admin site. Note
    each app id (`1:<number>:web:<hash>`).
 2. Add a **second hosting site** for the admin site. The first site's id is usually the
-   project id; `brand:init` suggests `<project>-backstage` for the second.
+   project id, and `brand.toml` expects `<project>-backstage` for the second; if your
+   site ids differ, set them in `[firebase.sites]`.
 3. Enable **Authentication → Email/Password**, and the rest of the console checklist in
    [`docs/firebase-setup.md`](firebase-setup.md#console-checklist-manual-one-time). App Check
    is optional: a blank `appCheckSiteKey` turns it off.
@@ -284,13 +314,16 @@ pnpm brand:init               # answer y to connect your profile to a Firebase p
 ```
 
 With your profile already in `brand/`, `brand:init` asks whether to connect it. Answer
-**y**: it asks the project id, the hosting site ids and both web app ids, replaces the
-`demo-` project in `brand/<slug>/brand.json` and rewrites `.firebaserc`. Your chapter's
-answers from step 2 stay as they are. It also offers to read both API keys, the auth
-domain and the sender id with `firebase apps:sdkconfig` (read-only). Run it again any time:
-for the same project it offers the current values as defaults, so Enter keeps them; to
-turn App Check or web push off, blank that key in `brand.json` instead. Merging this to `main` still
-deploys nothing: CD waits for the `deploy` section of step 9.
+**y**: it asks the project id and both web app ids, rewrites the `project` line and the
+`[firebase.spotlight]` and `[firebase.backstage]` tables of `brand/<slug>/brand.toml`, and
+rewrites `.firebaserc`. Every other line of the file, comments included, stays as it is.
+It also offers to read both API keys with `firebase apps:sdkconfig` (read-only), and asks
+for the optional App Check and web push keys. Run it again any time: for the same project
+it offers the current values as defaults, so Enter keeps them; to turn App Check or web
+push off, delete that key from `brand.toml` instead. Connecting another project drops the
+`[deploy]` table, which names the old one, and keeps the QR prefix members' credentials
+already carry. Merging this to `main` still deploys nothing: CD waits for the `[deploy]`
+table of step 9.
 
 ### 8. Check the setup
 
@@ -302,7 +335,7 @@ pnpm brand:check
 
 Four sections, in the order fixes must happen: the tools on this computer (Node, pnpm,
 Java, the Firebase CLI); your chapter (which profile `brand/` selects and why, the
-profile, `brand.json`, site content, `.firebaserc`); the images; and going live (CD
+profile, `brand.toml`, `.firebaserc`); the images; and going live (CD
 identity, `gh` and `gcloud` with their sign-ins, and the bucket). It only reads, and every
 row reports even when an earlier one fails. Until step 11 the **bucket** row fails, and
 **CD identity** warns until step 9.
@@ -325,7 +358,7 @@ pnpm brand:provision           # prints every step with your values; changes not
 why, where to run it, the exact commands and how to check that it worked. Run its step 1
 yourself: it creates CD's deploy account and its keyless sign-in (Workload Identity
 Federation: GitHub proves the run comes from your fork's `main`, no key is stored). Its
-step 2 is the `deploy` section to add to `brand/<slug>/brand.json`. That section is the
+step 2 is the `[deploy]` table to add to `brand/<slug>/brand.toml`. That table is the
 switch: CD deploys only a profile that has it. The full block, with the reasoning behind
 each permission, is [`docs/ci-cd.md` section 6](ci-cd.md#6-one-time-provisioning-reproducible).
 
@@ -361,7 +394,7 @@ image change is not in git, so after going live CD does not see it on its own:
 
 Needs: git, and a browser to approve the run. `gh` only to deploy again later.
 
-Commit the `deploy` section from step 9 and merge to `main`, then approve the Deploy run it
+Commit the `[deploy]` table from step 9 and merge to `main`, then approve the Deploy run it
 starts. The first deploy after setup ships everything: rules, functions and both sites.
 To deploy everything again later without a merge: `gh workflow run deploy.yml -f surface=all`.
 Hosting deploys to a preview channel, is smoke-tested, then promoted. Then check:
@@ -392,19 +425,19 @@ the emulators and any project other than the one your profile names.
 
 | Change | Do |
 |---|---|
-| A profile value (`brand.json`) | Edit, commit, merge; CD redeploys |
+| A profile value (`brand.toml`) | Edit, commit, merge; CD redeploys |
 | Site content | The admin `/config` screen |
 | An image | Replace it in `brand-assets/`, `pnpm brand:check`, `pnpm brand:push`, then the printed deploy command |
 | Roll back an image | `gcloud storage cp gs://<bucket>/<file>#<generation> gs://<bucket>/<file>`, then deploy |
 
 A new share image gets a new URL automatically (`og-image.<hash>.png`), so WhatsApp picks
-it up. To keep an old cached URL working, list it in `og.legacyPaths`.
+it up. To keep an old cached URL working, list it in `[og] legacyPaths`.
 
 ## What a profile does not cover
 
 - **Language.** The interface is Spanish. Strings are not extracted for translation yet.
 - **Country rules.** The phone format and the date/time zone are Bolivian.
-- **Design tokens.** The JCI palette in `packages/ui` is shared; only `themeColor` is per
+- **Design tokens.** The JCI palette in `packages/ui` is shared; only `[colors]` is per
   profile.
 - **Points matrix.** Defaults follow JCI Oriente's scoring
   (`docs/reference/points-matrix.md`); values are editable per term at `/point-rules`, but

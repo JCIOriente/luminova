@@ -7,7 +7,8 @@ import { EXAMPLE_PROFILE, REPO_ROOT, loadProfile } from "./load-profile.ts";
 import { encodePng } from "./png.ts";
 import { stagePublic } from "./stage-public.ts";
 
-const { brand } = loadProfile({ repoRoot: REPO_ROOT, profile: EXAMPLE_PROFILE });
+const example = loadProfile({ repoRoot: REPO_ROOT, profile: EXAMPLE_PROFILE }).brand;
+const brand = { ...example, og: { legacyPaths: ["og-image-legacy.png"] } };
 
 let root: string;
 let assetsDir: string;

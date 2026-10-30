@@ -10,6 +10,7 @@ import {
   EXAMPLE_PROFILE,
   PROFILE_OVERRIDE_ENV,
   REMOVE_OVERRIDE,
+  brandFileLabel,
   issuesToBrandError,
   readJsonFile,
   type Env,
@@ -83,7 +84,7 @@ const PRINT_GCP_SETUP: Remedy = {
 export function missingDeployProblem({ slug, brand }: LoadedProfile): Problem | null {
   if (brand.deploy) return null;
   return {
-    message: `brand/${slug}/brand.json has no "deploy" section (CD's sign-in, needed to deploy): copy it from step 2 of pnpm brand:provision.`,
+    message: `${brandFileLabel(slug)} has no [deploy] table (CD's sign-in, needed to deploy): copy it from step 2 of pnpm brand:provision.`,
     remedies: [PRINT_GCP_SETUP],
   };
 }

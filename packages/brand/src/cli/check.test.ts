@@ -91,8 +91,7 @@ describe("check", () => {
     const rows = await diagnose();
     expect(statusOf(rows)).toEqual({
       profile: "ok",
-      "brand.json": "ok",
-      "site content": "ok",
+      "brand.toml": "ok",
       images: "ok",
       "gcloud ADC": "ok",
       "firebase account": "ok",
@@ -148,7 +147,7 @@ describe("check", () => {
       new CommandError("gcloud storage objects list failed: spawn gcloud ENOENT"),
     );
     const rows = await diagnose();
-    expect(rows).toHaveLength(18);
+    expect(rows).toHaveLength(17);
     expect(statusOf(rows)).toMatchObject({ "gcloud account": "fail", bucket: "fail", pnpm: "ok" });
     expect(rowFor(rows, "gcloud account").detail).toMatch(/ENOENT/);
   });
@@ -200,30 +199,27 @@ describe("check", () => {
     );
   });
 
-  it("names the build that makes the site-content schema loadable in a fresh clone", async () => {
-    const unbuilt = Object.assign(new Error("Cannot find module 'types/dist/index.js'"), {
-      code: "ERR_MODULE_NOT_FOUND",
+  it("warns, without failing, about values the chapter still takes from the example", async () => {
+    writeChapter(root, { assets: false, brand: { foundedYear: undefined, contact: undefined } });
+    const rows = await diagnose();
+    expect(rowFor(rows, "example values")).toMatchObject({
+      status: "warn",
+      detail: "foundedYear, [contact] email and [contact] mapUrl are still the example's",
+      remedies: [{ change: expect.stringMatching(/^set them in brand\/jci-valle\/brand\.toml/) }],
     });
-    const { sections } = await check({
-      ...TOOLS,
-      repoRoot: root,
-      run,
-      env: ENV,
-      importSchema: () => Promise.reject(unbuilt),
-    });
-    expect(
-      rowFor(
-        sections.flatMap(({ rows }) => rows),
-        "site content",
+    expect(rows.filter(({ status }) => status === "fail")).toEqual([]);
+  });
+
+  it("warns, without failing, when brand.toml lacks the #:schema line editors read", async () => {
+    const file = join(root, "brand", CHAPTER, "brand.toml");
+    writeFileSync(file, readFileSync(file, "utf8").replace(/^#:schema .*\n/, ""));
+    expect(rowFor(await diagnose(), "brand.toml")).toMatchObject({
+      status: "warn",
+      detail: expect.stringMatching(
+        /valid, but line 1 is not "#:schema \.\.\/brand\.schema\.json"/,
       ),
-    ).toMatchObject({
-      status: "fail",
-      detail: expect.stringMatching(/^cannot load the site-content schema/),
       remedies: [
-        {
-          change: expect.stringMatching(/after pnpm install/),
-          run: "pnpm turbo run build --filter=@luminova/types",
-        },
+        { change: expect.stringMatching(/add "#:schema \.\.\/brand\.schema\.json" as line 1/) },
       ],
     });
   });
@@ -258,10 +254,7 @@ describe("check", () => {
   });
 
   it("warns, without failing, when the profile has no CD identity", async () => {
-    const file = join(root, "brand", CHAPTER, "brand.json");
-    const brand = JSON.parse(readFileSync(file, "utf8"));
-    delete brand.deploy;
-    writeFileSync(file, JSON.stringify(brand));
+    writeChapter(root, { assets: false, brand: { deploy: undefined } });
     expect(rowFor(await diagnose(), "CD identity")).toMatchObject({
       status: "warn",
       remedies: [expect.objectContaining({ run: "pnpm brand:provision" })],
@@ -272,7 +265,7 @@ describe("check", () => {
     const rows = await diagnose({ env: { BRAND_PROFILE: "nope" } });
     expect(statusOf(rows)).toMatchObject({
       profile: "fail",
-      "brand.json": "skip",
+      "brand.toml": "skip",
       images: "skip",
       ".firebaserc": "skip",
       bucket: "skip",
@@ -283,17 +276,17 @@ describe("check", () => {
   });
 
   it("reports unreadable files as failing rows instead of throwing", async () => {
-    rmSync(join(root, "brand", CHAPTER, "brand.json"));
-    mkdirSync(join(root, "brand", CHAPTER, "brand.json"));
+    rmSync(join(root, "brand", CHAPTER, "brand.toml"));
+    mkdirSync(join(root, "brand", CHAPTER, "brand.toml"));
     rmSync(join(root, ".firebaserc"));
     mkdirSync(join(root, ".firebaserc"));
     const rows = await diagnose();
     expect(statusOf(rows)).toMatchObject({
       profile: "ok",
-      "brand.json": "fail",
+      "brand.toml": "fail",
       ".firebaserc": "skip",
     });
-    expect(rowFor(rows, "brand.json").detail).toMatch(/cannot read/);
+    expect(rowFor(rows, "brand.toml").detail).toMatch(/cannot read/);
   });
 
   it("fails an unreadable .firebaserc as its own row", async () => {
@@ -304,14 +297,18 @@ describe("check", () => {
       status: "fail",
       detail: expect.stringMatching(/EISDIR/),
     });
-    expect(rows).toHaveLength(18);
+    expect(rows).toHaveLength(17);
   });
 
-  it("fails the schema row with the schema errors", async () => {
-    writeFileSync(join(root, "brand", CHAPTER, "brand.json"), JSON.stringify({ slug: CHAPTER }));
+  it("fails the brand.toml row with every schema error, the site texts' included", async () => {
+    writeFileSync(
+      join(root, "brand", CHAPTER, "brand.toml"),
+      'name = "JCI Valle"\n[contact]\nemail = "nope"\n',
+    );
     const rows = await diagnose();
-    expect(statusOf(rows)).toMatchObject({ profile: "ok", "brand.json": "fail", images: "skip" });
-    expect(rowFor(rows, "brand.json").detail).toMatch(/name/);
+    expect(statusOf(rows)).toMatchObject({ profile: "ok", "brand.toml": "fail", images: "skip" });
+    expect(rowFor(rows, "brand.toml").detail).toMatch(/brand\.toml city: required/);
+    expect(rowFor(rows, "brand.toml").detail).toMatch(/\[contact\] email: not an email address/);
   });
 
   it("stops at the WSL 2 row on native Windows", async () => {
@@ -423,11 +420,6 @@ describe("check", () => {
       // A chapter fresh from brand:init without a Firebase project: a demo- project.
       rmSync(join(root, "brand", CHAPTER), { recursive: true });
       cpSync(join(root, "brand/example"), join(root, "brand/jci-valle"), { recursive: true });
-      const file = join(root, "brand/jci-valle/brand.json");
-      writeFileSync(
-        file,
-        JSON.stringify({ ...JSON.parse(readFileSync(file, "utf8")), slug: "jci-valle" }),
-      );
       const rows = await diagnose();
       expect(rowFor(rows, "profile").detail).toBe("brand/jci-valle/");
       expect(rows.at(-1)).toMatchObject({
@@ -472,10 +464,7 @@ describe("check", () => {
         sections.map(({ title, rows }) => [title, rows.map(({ check: name }) => name)]),
       ).toEqual([
         [SECTION_TITLES.tools, ["node", "pnpm", "java", "firebase"]],
-        [
-          SECTION_TITLES.chapter,
-          ["selection", "profile", "brand.json", "site content", ".firebaserc"],
-        ],
+        [SECTION_TITLES.chapter, ["selection", "profile", "brand.toml", ".firebaserc"]],
         ["Images in brand-assets/", ["images"]],
         [
           SECTION_TITLES.live,

@@ -87,7 +87,11 @@ Site texts, in their own clearly titled part of the same file: `[hero]`, `[stats
 `brand.json`: one table), `[[timeline]]`, `[mvv]`, `[[reasons]]`, `[contact]`,
 `[contact.socials]`, `[[contact.links]]`, `[linktree]`. Keys keep their Firestore names
 (`mvv.mision`, `mvv.vision`, `mvv.valores`), because the seeds write them as they are.
-`foundedYear` is optional, so no default text depends on it.
+`foundedYear` is optional in a chapter's file, like every key outside the identity, but the
+example's year is no chapter's: `brand:init` asks for the year the chapter was founded and
+writes it. Until a chapter sets it, `brand:check` warns that the sites state the example's
+value, and does the same for `[contact] email`, `[backstage] emailPlaceholder` and
+`[contact] mapUrl`; it never fails on them.
 
 ### Errors
 

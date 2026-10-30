@@ -17,8 +17,7 @@ import {
 } from "./release.ts";
 import { renderHtml } from "./render-html.ts";
 import type { Brand } from "./schema.ts";
-import { readSiteContent } from "./site-content.ts";
-import { parseSiteContent, type SiteContent } from "./site-content-schema.ts";
+import type { SiteContent } from "./site-content.ts";
 import { stagePublic } from "./stage-public.ts";
 import { resolveUrls, type BrandUrls } from "./urls.ts";
 import { sha256 } from "./hash.ts";
@@ -91,8 +90,6 @@ export function resolveBrandBuild({
   // In release an override is an error that says the same thing, so the warning would repeat it.
   if (!release) for (const warning of profile.warnings) warnOnce(warning);
 
-  const siteContent = parseSiteContent(readSiteContent(profile.dir, profile.slug), profile.slug);
-
   const emulatorEnabled = emulatorSetting(command, loadEnv(mode, envDir, "VITE_"));
   const urls = resolveUrls(profile.brand.urls, { command, emulatorEnabled });
 
@@ -116,7 +113,7 @@ export function resolveBrandBuild({
     emulatorEnabled,
     assetsDir,
     logoSize: validation.logoSize,
-    siteContent,
+    siteContent: profile.siteContent,
     release: release ? releaseIdentity(profile, assetsDir) : null,
   };
 }

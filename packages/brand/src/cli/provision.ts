@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { join } from "node:path";
+import { stringify } from "smol-toml";
 import { z } from "zod";
 import { defaultDeploy, deploySaEmail } from "../deploy-identity.ts";
 import {
   BrandConfigError,
+  brandFileLabel,
   REPO_ROOT,
   issuesToBrandError,
   readJsonFile,
@@ -295,7 +297,7 @@ export async function printProvisioning({
       [CONNECT_PROJECT],
     );
   }
-  const brandFile = `brand/${slug}/brand.json`;
+  const brandFile = brandFileLabel(slug);
   const bucket = bucketUrl(profile.brand.assetsBucket);
   const [create, access, versioning, lifecycle, grant] = bucketSteps(
     profile,
@@ -334,7 +336,7 @@ export async function printProvisioning({
   const deploy =
     profile.brand.deploy ??
     defaultDeploy({ projectId, projectNumber: projectNumber ?? "<project number>" });
-  const deploySnippet = JSON.stringify({ deploy }, null, 2).slice(2, -2);
+  const deploySnippet = stringify({ deploy }).trimEnd();
 
   const steps: GuideStep[] = [
     {

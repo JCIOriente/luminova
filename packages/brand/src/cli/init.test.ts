@@ -16,22 +16,19 @@ function minimalAnswers(): Record<string, unknown> {
   return {
     slug: "jci-valle",
     name: "JCI Valle",
-    locality: { city: "Cochabamba", region: "el valle", country: "Bolivia" },
+    city: "Cochabamba",
+    country: "Bolivia",
     foundedYear: 1990,
-    stats: { nationalOrganizations: 18 },
-    parentOrganization: { name: "JCI Bolivia", url: "https://jcibolivia.org/" },
-    broadcastChannelName: "Difusión Valle",
-    urls: { spotlight: "https://jcivalle.org", backstage: "https://admin.jcivalle.org" },
-    backstage: { emailPlaceholder: "tu@jcivalle.org", contactEmail: "hola@jcivalle.org" },
+    colors: { spotlight: "#0097D7" },
+    project: "jci-valle",
     firebase: {
-      projectId: "jci-valle",
-      web: {
-        spotlight: { appId: SPOTLIGHT_APP, apiKey: "key-spotlight" },
-        backstage: { appId: BACKSTAGE_APP, apiKey: "key-backstage" },
-      },
+      spotlight: { appId: SPOTLIGHT_APP, apiKey: "key-spotlight" },
+      backstage: { appId: BACKSTAGE_APP, apiKey: "key-backstage" },
     },
   };
 }
+
+const brandToml = (slug = "jci-valle") => join(root, "brand", slug, "brand.toml");
 
 let root: string;
 let calls: string[][];
@@ -50,7 +47,7 @@ afterEach(() => {
 });
 
 describe("init from an answers file", () => {
-  it("writes a profile the loader accepts, with the derivable values filled in", async () => {
+  it("writes a minimal brand.toml the loader accepts, everything else from the example", async () => {
     const result = await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
     expect(result.slug).toBe("jci-valle");
 
@@ -62,39 +59,58 @@ describe("init from an answers file", () => {
       web: {
         authDomain: "jci-valle.firebaseapp.com",
         messagingSenderId: "111222333",
-        spotlight: { appCheckSiteKey: "", vapidKey: "" },
+        spotlight: { apiKey: "key-spotlight", appCheckSiteKey: "", vapidKey: "" },
       },
     });
     expect(brand.assetsBucket).toBe("jci-valle-brand-assets");
     expect(brand.qrPrefix).toBe("jcivalle");
+    expect(brand.foundedYear).toBe(1990);
     expect(brand.shortName).toBe("JCI Valle");
-    expect(brand.seo.ogTitle).toBe("JCI Valle");
+    expect(brand.seo.ogTitle).toBe("JCI Valle: Cámara Junior Internacional en Cochabamba");
     expect(brand.locality.cityFormal).toBe("Cochabamba");
-    expect(brand.locality.regionShort).toBe("el valle");
+    expect(profile.siteContent.contact.location).toBe("Cochabamba, Bolivia");
     expect(calls).toEqual([]);
   });
 
-  it("takes style defaults from the example profile", async () => {
+  it("takes every other value from the example profile", async () => {
     await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
     const example = loadProfile({ repoRoot: root, profile: EXAMPLE_PROFILE }).brand;
     const { brand } = loadProfile({ repoRoot: root, profile: "jci-valle" });
-    expect(brand.themeColor).toEqual(example.themeColor);
+    expect(brand.themeColor).toEqual({
+      spotlight: "#0097D7",
+      backstage: example.themeColor.backstage,
+    });
     expect(brand.locale).toBe(example.locale);
     expect(brand.movementName).toBe(example.movementName);
   });
 
-  it("leaves an omitted regionShort out of the file", async () => {
+  it("starts the file with the #:schema line and holds only the identity, the year and the project", async () => {
     await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
-    const written = JSON.parse(readFileSync(join(root, "brand/jci-valle/brand.json"), "utf8"));
-    expect(written.locality).not.toHaveProperty("regionShort");
-    expect(Object.keys(written).slice(0, 2)).toEqual(["$schema", "slug"]);
+    const written = readFileSync(brandToml(), "utf8");
+    expect(written.split("\n")[0]).toBe("#:schema ../brand.schema.json");
+    const keys = written
+      .split("\n")
+      .filter((line) => /^\s*[\w[]/.test(line))
+      .map((line) => line.split(/\s*=/)[0]);
+    expect(keys).toEqual([
+      "name",
+      "city",
+      "country",
+      "project",
+      "foundedYear",
+      "[colors]",
+      "spotlight",
+      "[firebase.spotlight]",
+      "apiKey",
+      "appId",
+      "[firebase.backstage]",
+      "apiKey",
+      "appId",
+    ]);
   });
 
-  it("copies the example site content and writes the asset README", async () => {
+  it("writes the asset README", async () => {
     await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
-    expect(readFileSync(join(root, "brand/jci-valle/site-content.json"), "utf8")).toBe(
-      readFileSync(join(root, "brand", EXAMPLE_PROFILE, "site-content.json"), "utf8"),
-    );
     const readme = readFileSync(join(root, PULLED_ASSETS_DIR, "README.txt"), "utf8");
     for (const { path } of ASSET_CONTRACT) expect(readme).toContain(path);
     expect(readme).toContain("1200×630");
@@ -129,12 +145,12 @@ describe("init from an answers file", () => {
   it("lists every missing required value at once and writes nothing", async () => {
     const answers = minimalAnswers();
     delete answers.name;
-    delete answers.backstage;
+    delete answers.city;
     const error = await init({ repoRoot: root, answers, run: noCommands }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(BrandConfigError);
     const message = String(error);
-    expect(message).toMatch(/name/);
-    expect(message).toMatch(/backstage/);
+    expect(message).toMatch(/brand\/jci-valle\/brand\.toml name: required/);
+    expect(message).toMatch(/brand\/jci-valle\/brand\.toml city: required/);
     expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
     expect(existsSync(join(root, PULLED_ASSETS_DIR))).toBe(false);
   });
@@ -160,6 +176,25 @@ describe("init from an answers file", () => {
       /brand\/jci-valle\/ already is this repository's chapter[\s\S]*pnpm brand:init {3}# in the repo root/,
     );
     expect(seen).toEqual([]);
+  });
+
+  it("refuses an answer it never asks, before writing", async () => {
+    const answers = { ...minimalAnswers(), locality: { region: "el valle" } };
+    await expect(init({ repoRoot: root, answers, run: noCommands })).rejects.toThrow(
+      /brand-init-answers: "locality" is not an answer brand:init takes/,
+    );
+    expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
+  });
+
+  it("says an answer it cannot write is no syntax error in the member's file", async () => {
+    const answers = { ...minimalAnswers(), name: "JCI\u007fValle" };
+    const error = await init({ repoRoot: root, answers, run: noCommands }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(BrandConfigError);
+    expect(String(error)).toMatch(
+      /brand:init built brand\/jci-valle\/brand\.toml from your answers, but it does not parse/,
+    );
+    expect(String(error)).not.toMatch(/fix the TOML syntax/);
+    expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
   });
 
   it("refuses a malformed slug before writing", async () => {
@@ -193,10 +228,7 @@ describe("init reading the API keys (firebase apps:sdkconfig)", () => {
 
   function withoutKeys() {
     const answers = minimalAnswers();
-    answers.firebase = {
-      projectId: "jci-valle",
-      web: { spotlight: { appId: SPOTLIGHT_APP }, backstage: { appId: BACKSTAGE_APP } },
-    };
+    answers.firebase = { spotlight: { appId: SPOTLIGHT_APP }, backstage: { appId: BACKSTAGE_APP } };
     return answers;
   }
 
@@ -214,7 +246,7 @@ describe("init reading the API keys (firebase apps:sdkconfig)", () => {
     const { web } = loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.firebase;
     expect(web.spotlight.apiKey).toBe(`key-for-${SPOTLIGHT_APP}`);
     expect(web.backstage.apiKey).toBe(`key-for-${BACKSTAGE_APP}`);
-    expect(web.messagingSenderId).toBe("999");
+    expect(web.messagingSenderId).toBe("111222333");
   });
 
   it("refuses an app that belongs to another project", async () => {
@@ -236,25 +268,16 @@ describe("init interactively", () => {
     const replies: Record<string, string> = {
       slug: "jci-valle",
       name: "JCI Valle",
-      "locality.city": "Cochabamba",
-      "locality.region": "el valle",
-      "locality.country": "Bolivia",
+      city: "Cochabamba",
+      country: "Bolivia",
       foundedYear: "1990",
-      "stats.nationalOrganizations": "18",
-      "parentOrganization.name": "JCI Bolivia",
-      "parentOrganization.url": "https://jcibolivia.org/",
-      broadcastChannelName: "Difusión Valle",
-      "urls.spotlight": "https://jcivalle.org",
-      "urls.backstage": "https://admin.jcivalle.org",
-      "backstage.emailPlaceholder": "tu@jcivalle.org",
-      "backstage.contactEmail": "hola@jcivalle.org",
-      "firebase.projectId": "jci-valle",
-      "firebase.web.spotlight.appId": SPOTLIGHT_APP,
-      "firebase.web.backstage.appId": BACKSTAGE_APP,
+      project: "jci-valle",
+      "firebase.spotlight.appId": SPOTLIGHT_APP,
+      "firebase.backstage.appId": BACKSTAGE_APP,
       hasProject: "y",
       fillWeb: "n",
-      "firebase.web.spotlight.apiKey": "key-spotlight",
-      "firebase.web.backstage.apiKey": "key-backstage",
+      "firebase.spotlight.apiKey": "key-spotlight",
+      "firebase.backstage.apiKey": "key-backstage",
     };
     const prompter: Prompter = {
       async ask({ key, fallback }) {
@@ -267,10 +290,13 @@ describe("init interactively", () => {
     const keys = asked.map(({ key }) => key);
     expect(new Set(keys).size).toBe(keys.length);
     expect(keys).toContain("fillWeb");
-    expect(asked.find(({ key }) => key === "firebase.storageBucket")?.fallback).toBe(
-      "jci-valle.firebasestorage.app",
-    );
+    expect(keys).toContain("foundedYear");
+    expect(asked.find(({ key }) => key === "foundedYear")?.fallback).toBeUndefined();
     expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.foundedYear).toBe(1990);
+    expect(asked.find(({ key }) => key === "colors.spotlight")?.fallback).toBe("#336699");
+    expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.themeColor.spotlight).toBe(
+      "#336699",
+    );
   });
 
   it("does not ask what the answers file already gives", async () => {
@@ -283,8 +309,8 @@ describe("init interactively", () => {
     };
     await init({ repoRoot: root, answers: minimalAnswers(), prompter, run: noCommands });
     expect(asked).not.toContain("name");
-    expect(asked).not.toContain("firebase.projectId");
-    expect(asked).toContain("firebase.storageBucket");
+    expect(asked).not.toContain("project");
+    expect(asked).toContain("firebase.spotlight.appCheckSiteKey");
   });
 
   function scripted(
@@ -300,13 +326,18 @@ describe("init interactively", () => {
     return prompter;
   }
 
-  it("re-asks a slug that is malformed or taken, and a year that is not a number", async () => {
+  it("re-asks a slug that is malformed or taken, a year that is no number, and a color that is no #RRGGBB", async () => {
     const seen: { key: string; error?: string }[] = [];
     const answers = minimalAnswers();
     delete answers.slug;
     delete answers.foundedYear;
+    delete answers.colors;
     const prompter = scripted(
-      { slug: ["Bad Slug", EXAMPLE_PROFILE, "jci-valle"], foundedYear: ["1,990", "1990"] },
+      {
+        slug: ["Bad Slug", EXAMPLE_PROFILE, "jci-valle"],
+        foundedYear: ["1,990", "1990"],
+        "colors.spotlight": ["blue", "#0097D7"],
+      },
       seen,
     );
     await init({ repoRoot: root, answers, prompter, run: noCommands });
@@ -317,7 +348,10 @@ describe("init interactively", () => {
       expect.stringMatching(/brand\/example already exists/),
     ]);
     expect(errors("foundedYear")).toEqual([undefined, expect.stringMatching(/whole number/)]);
-    expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.foundedYear).toBe(1990);
+    expect(errors("colors.spotlight")).toEqual([undefined, expect.stringMatching(/#RRGGBB/)]);
+    const { brand } = loadProfile({ repoRoot: root, profile: "jci-valle" });
+    expect(brand.themeColor.spotlight).toBe("#0097D7");
+    expect(brand.foundedYear).toBe(1990);
   });
 
   it("saves the answers for the next try when a later step fails", async () => {
@@ -352,6 +386,7 @@ describe("init interactively", () => {
 
 function localAnswers(): Record<string, unknown> {
   const chapter = minimalAnswers();
+  delete chapter.project;
   delete chapter.firebase;
   return chapter;
 }
@@ -374,6 +409,7 @@ describe("init without a Firebase project (local-only)", () => {
     });
     expect(brand.firebase.web.spotlight.appCheckSiteKey).toBe("");
     expect(brand.deploy).toBeUndefined();
+    expect(readFileSync(brandToml(), "utf8")).not.toMatch(/\[firebase/);
     expect(calls).toEqual([]);
   });
 
@@ -396,10 +432,10 @@ describe("init without a Firebase project (local-only)", () => {
     expect(asked.filter((key) => key.startsWith("firebase."))).toEqual([]);
   });
 
-  it("refuses --local with a firebase block it would otherwise throw away", async () => {
+  it("refuses --local with a project it would otherwise throw away", async () => {
     await expect(
       init({ repoRoot: root, answers: minimalAnswers(), local: true, run: noCommands }),
-    ).rejects.toThrow(/"firebase" block/);
+    ).rejects.toThrow(/a project and its web apps/);
   });
 
   it("saves a failed local run so the next try accepts the file", async () => {
@@ -421,6 +457,7 @@ describe("init without a Firebase project (local-only)", () => {
     expect(String(error)).toMatch(/already exists[\s\S]*pnpm brand:init {3}# in the repo root/);
     const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
     expect(saved.firebase).toBeUndefined();
+    expect(saved.project).toBeUndefined();
     rmSync(join(root, "brand/jci-valle"), { recursive: true });
     const rerun = await init({ repoRoot: root, answers: saved, local: true, run: noCommands });
     expect(rerun.local).toBe(true);
@@ -435,58 +472,102 @@ describe("init without a Firebase project (local-only)", () => {
   });
 });
 
+const projectAnswers = () => {
+  const { project, firebase } = minimalAnswers();
+  return { project, firebase };
+};
+
 describe("connect", () => {
-  it("replaces a local profile's demo project with the real one", async () => {
+  it("replaces a local profile's demo project with the real one, keeping the rest of the file", async () => {
     await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
-    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
-    const result = await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
+    writeFileSync(
+      brandToml(),
+      `${readFileSync(brandToml(), "utf8")}\n# our motto\n[hero]\nmotto = "Hola {city}"\n`,
+    );
+    const result = await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
     expect(result).toEqual({ slug: "jci-valle", projectId: "jci-valle" });
-    const { brand } = loadProfile({ repoRoot: root, env: {} });
+    const { brand, siteContent } = loadProfile({ repoRoot: root, env: {} });
     expect(brand.name).toBe("JCI Valle");
     expect(brand.firebase.sites.backstage).toBe("jci-valle-backstage");
+    expect(brand.firebase.web.spotlight.apiKey).toBe("key-spotlight");
     expect(brand.assetsBucket).toBe("jci-valle-brand-assets");
     expect(brand.deploy).toBeUndefined();
+    expect(siteContent.hero.motto).toBe("Hola Cochabamba");
+    const written = readFileSync(brandToml(), "utf8");
+    expect(written).toContain("# our motto\n[hero]");
+    expect(written.split("\n")[0]).toBe("#:schema ../brand.schema.json");
+    expect(written.match(/^project = .*$/gm)).toEqual(['project = "jci-valle"']);
     expect(JSON.parse(readFileSync(join(root, ".firebaserc"), "utf8")).projects.default).toBe(
       "jci-valle",
     );
   });
 
-  it("re-connects a connected profile, keeping deploy only for the same project", async () => {
+  it("re-connects a connected profile, keeping [deploy] only for the same project", async () => {
     await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
-    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
-    await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
-    const file = join(root, "brand/jci-valle/brand.json");
-    const withDeploy = JSON.parse(readFileSync(file, "utf8"));
-    withDeploy.deploy = {
+    await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
+    const deploy = {
       workloadIdentityProvider:
         "projects/111222333/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
       serviceAccount: "firebase-deployer@jci-valle.iam.gserviceaccount.com",
     };
-    writeFileSync(file, JSON.stringify(withDeploy));
+    writeFileSync(
+      brandToml(),
+      `${readFileSync(brandToml(), "utf8")}\n[deploy]\nworkloadIdentityProvider = "${deploy.workloadIdentityProvider}"\nserviceAccount = "${deploy.serviceAccount}"\n`,
+    );
 
-    await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
-    expect(loadProfile({ repoRoot: root, env: {} }).brand.deploy).toEqual(withDeploy.deploy);
+    await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
+    expect(loadProfile({ repoRoot: root, env: {} }).brand.deploy).toEqual(deploy);
 
-    const other = structuredClone(firebase);
-    other.projectId = "jci-valle-2";
-    await connect({ repoRoot: root, answers: { firebase: other }, run: noCommands });
+    const other = { ...projectAnswers(), project: "jci-valle-2" };
+    await connect({ repoRoot: root, answers: other, run: noCommands });
     const moved = loadProfile({ repoRoot: root, env: {} }).brand;
     expect(moved.firebase.projectId).toBe("jci-valle-2");
     expect(moved.deploy).toBeUndefined();
+    // Printed credentials carry the old prefix: moving project must not change it.
+    expect(moved.qrPrefix).toBe("jcivalle");
+  });
+
+  it("moves project again and again, pinning the QR prefix once", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
+    for (const project of ["jci-valle-2", "jci-valle-3"]) {
+      await connect({ repoRoot: root, answers: { ...projectAnswers(), project }, run: noCommands });
+    }
+    expect(readFileSync(brandToml(), "utf8").match(/^qrPrefix\b.*$/gm)).toEqual([
+      'qrPrefix = "jcivalle"',
+    ]);
+    const { brand } = loadProfile({ repoRoot: root, env: {} });
+    expect(brand.firebase.projectId).toBe("jci-valle-3");
+    expect(brand.qrPrefix).toBe("jcivalle");
+  });
+
+  it("keeps the comments that lead into the table after a replaced one", async () => {
+    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
+    writeFileSync(
+      brandToml(),
+      `${readFileSync(brandToml(), "utf8")}\n# our motto\n\n# still ours\n[hero]\nmotto = "Hola"\n`,
+    );
+    await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
+    const written = readFileSync(brandToml(), "utf8");
+    expect(written).toContain('\n# our motto\n\n# still ours\n[hero]\nmotto = "Hola"\n');
+    expect(written.match(/^\[firebase\.spotlight\]$/gm)).toHaveLength(1);
   });
 
   it("re-connecting the same project keeps App Check keys a blank answer would erase", async () => {
     await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
-    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
-    await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
-    const file = join(root, "brand/jci-valle/brand.json");
-    const live = JSON.parse(readFileSync(file, "utf8"));
-    live.firebase.web.spotlight.appCheckSiteKey = "site-key";
-    writeFileSync(file, JSON.stringify(live));
+    await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
+    writeFileSync(
+      brandToml(),
+      readFileSync(brandToml(), "utf8").replace(
+        `appId = "${SPOTLIGHT_APP}"`,
+        `appId = "${SPOTLIGHT_APP}"\nappCheckSiteKey = "site-key"`,
+      ),
+    );
     // Only the project id is answered; every other question falls back.
     const prompter: Prompter = {
       async ask({ key }) {
-        return key === "firebase.projectId" ? "jci-valle" : "";
+        return key === "project" ? "jci-valle" : "";
       },
     };
     await connect({ repoRoot: root, prompter, run: noCommands });
@@ -497,33 +578,20 @@ describe("connect", () => {
 
   it("re-connecting the same project offers its values as defaults a reply can replace", async () => {
     await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
-    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
-    await connect({ repoRoot: root, answers: { firebase }, run: noCommands });
+    await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
     const offered: Record<string, string | undefined> = {};
     const prompter: Prompter = {
       async ask({ key, fallback }) {
         offered[key] = fallback;
-        if (key === "firebase.projectId") return "jci-valle";
-        return key === "firebase.web.spotlight.apiKey" ? "new-key" : "";
+        if (key === "project") return "jci-valle";
+        return key === "firebase.spotlight.apiKey" ? "new-key" : "";
       },
     };
     await connect({ repoRoot: root, prompter, run: noCommands });
-    expect(offered["firebase.web.backstage.apiKey"]).toBe("key-backstage");
+    expect(offered["firebase.backstage.apiKey"]).toBe("key-backstage");
     const { web } = loadProfile({ repoRoot: root, env: {} }).brand.firebase;
     expect(web.spotlight.apiKey).toBe("new-key");
     expect(web.backstage.apiKey).toBe("key-backstage");
-  });
-
-  it("merges a partial answers file into the profile instead of replacing a section", async () => {
-    await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
-    const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
-    await connect({
-      repoRoot: root,
-      answers: { firebase, locality: { city: "Quillacollo" } },
-      run: noCommands,
-    });
-    const { locality } = loadProfile({ repoRoot: root, env: {} }).brand;
-    expect(locality).toMatchObject({ city: "Quillacollo", country: "Bolivia" });
   });
 
   it("saves typed project answers when a later step fails", async () => {
@@ -532,9 +600,9 @@ describe("connect", () => {
       throw new CommandError("firebase apps:sdkconfig failed: not logged in");
     };
     const replies: Record<string, string> = {
-      "firebase.projectId": "jci-valle",
-      "firebase.web.spotlight.appId": SPOTLIGHT_APP,
-      "firebase.web.backstage.appId": BACKSTAGE_APP,
+      project: "jci-valle",
+      "firebase.spotlight.appId": SPOTLIGHT_APP,
+      "firebase.backstage.appId": BACKSTAGE_APP,
       fillWeb: "y",
     };
     const prompter: Prompter = {
@@ -551,18 +619,18 @@ describe("connect", () => {
       /answer y to use them\n {6}pnpm brand:init {3}# in the repo root/,
     );
     const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
-    expect(saved.firebase.projectId).toBe("jci-valle");
+    expect(saved.project).toBe("jci-valle");
   });
 
   it("asks only the Firebase questions", async () => {
     await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
     const asked: string[] = [];
     const replies: Record<string, string> = {
-      "firebase.projectId": "jci-valle",
-      "firebase.web.spotlight.appId": SPOTLIGHT_APP,
-      "firebase.web.backstage.appId": BACKSTAGE_APP,
-      "firebase.web.spotlight.apiKey": "k1",
-      "firebase.web.backstage.apiKey": "k2",
+      project: "jci-valle",
+      "firebase.spotlight.appId": SPOTLIGHT_APP,
+      "firebase.backstage.appId": BACKSTAGE_APP,
+      "firebase.spotlight.apiKey": "k1",
+      "firebase.backstage.apiKey": "k2",
     };
     const prompter: Prompter = {
       async ask({ key }) {
@@ -571,9 +639,7 @@ describe("connect", () => {
       },
     };
     await connect({ repoRoot: root, prompter, run: noCommands });
-    expect(asked.filter((key) => !key.startsWith("firebase.") && key !== "assetsBucket")).toEqual([
-      "fillWeb",
-    ]);
+    expect(asked.filter((key) => !key.startsWith("firebase."))).toEqual(["project", "fillWeb"]);
   });
 });
 
@@ -582,7 +648,7 @@ describe("init guidance", () => {
     const runs = initNext("jci-valle").map(({ change, run }) => run ?? change);
     expect(runs).toEqual([
       "pnpm brand:check",
-      expect.stringMatching(/^edit brand\/jci-valle\/site-content\.json/),
+      expect.stringMatching(/^edit brand\/jci-valle\/brand\.toml/),
       "pnpm dev",
       "git add brand/jci-valle/",
       "pnpm brand:check",
@@ -651,7 +717,7 @@ describe("runInit, the command", () => {
     expect(asked[0]).toBe(
       `useSaved: Use the answers saved from your last try (${ANSWERS_FILE})? (y/N)`,
     );
-    expect(text).toMatch(/^brand:init: wrote brand\/jci-valle\/brand\.json/);
+    expect(text).toMatch(/^brand:init: wrote brand\/jci-valle\/brand\.toml/);
     expect(existsSync(join(root, ANSWERS_FILE))).toBe(false);
   });
 
@@ -671,7 +737,7 @@ describe("runInit, the command", () => {
     });
 
     it("offers to connect a local-only chapter, and changes nothing on a no", async () => {
-      const before = readFileSync(join(root, "brand/jci-valle/brand.json"), "utf8");
+      const before = readFileSync(brandToml(), "utf8");
       const asked: string[] = [];
       const text = await runInit({
         repoRoot: root,
@@ -682,21 +748,21 @@ describe("runInit, the command", () => {
         "connect: brand/jci-valle/ runs on this computer only. Connect it to a Firebase project now? (y/N)",
       ]);
       expect(text).toMatch(/^brand:init: nothing changed/);
-      expect(readFileSync(join(root, "brand/jci-valle/brand.json"), "utf8")).toBe(before);
+      expect(readFileSync(brandToml(), "utf8")).toBe(before);
     });
 
     it("connects it on a yes, and drops declined saved answers once that succeeds", async () => {
-      saveAnswers({ firebase: { projectId: "someone-else" } });
+      saveAnswers({ project: "someone-else" });
       const text = await runInit({
         repoRoot: root,
         prompter: answering({
           useSaved: "n",
           connect: "y",
-          "firebase.projectId": "jci-valle",
-          "firebase.web.spotlight.appId": SPOTLIGHT_APP,
-          "firebase.web.backstage.appId": BACKSTAGE_APP,
-          "firebase.web.spotlight.apiKey": "k1",
-          "firebase.web.backstage.apiKey": "k2",
+          project: "jci-valle",
+          "firebase.spotlight.appId": SPOTLIGHT_APP,
+          "firebase.backstage.appId": BACKSTAGE_APP,
+          "firebase.spotlight.apiKey": "k1",
+          "firebase.backstage.apiKey": "k2",
         }),
         run: noCommands,
       });

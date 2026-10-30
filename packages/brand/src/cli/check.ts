@@ -1,14 +1,17 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ASSET_CONTRACT } from "../assets.ts";
+import { BRAND_FILE, SCHEMA_LINE, inheritedExampleValues, parseBrandToml } from "../brand-file.ts";
 import {
   BrandConfigError,
+  EXAMPLE_PROFILE,
   PROFILE_OVERRIDE_ENV,
   ProfileNotFoundError,
   ProfileSelectionError,
   REMOVE_OVERRIDE,
   REPO_ROOT,
   SOURCE_LABEL,
+  brandFileLabel,
   errorMessage,
   loadProfile,
   discoverProfile,
@@ -24,7 +27,6 @@ import { ASSETS_OVERRIDE_ENV, REMOVE_ASSETS_OVERRIDE, checkImages } from "./imag
 import { runBrandCommand } from "./main.ts";
 import { deployDispatch } from "./push.ts";
 import { CONNECT_PROJECT, missingDeployProblem } from "../release.ts";
-import { SITE_CONTENT_FILE, readSiteContent } from "../site-content.ts";
 import {
   fail,
   formatReport,
@@ -62,6 +64,42 @@ async function attempt(check: string, body: () => Promise<CheckRow>): Promise<Ch
   }
 }
 
+/**
+ * Valid, and the first line points editors at the schema (Taplo, Even Better TOML); a
+ * missing line is a note, not a failure: the build never reads it.
+ */
+function brandFileRow(text: string): CheckRow {
+  const firstLine = text.split(/\r?\n/, 1)[0];
+  if (firstLine === SCHEMA_LINE) return ok(BRAND_FILE, "valid");
+  return warn(
+    BRAND_FILE,
+    `valid, but line 1 is not "${SCHEMA_LINE}", so editors offer no hover help or completion`,
+    [{ change: `add "${SCHEMA_LINE}" as line 1 of the profile's ${BRAND_FILE}` }],
+  );
+}
+
+const listed = (items: readonly string[]) =>
+  items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items.at(-1)}` : (items[0] ?? "");
+
+/** A note, never a failure, while a chapter's sites state the example's year, email or map. */
+function exampleValuesRows({ slug }: LoadedProfile, text: string): CheckRow[] {
+  if (slug === EXAMPLE_PROFILE) return [];
+  const label = brandFileLabel(slug);
+  const inherited = inheritedExampleValues(parseBrandToml(text, label));
+  if (inherited.length === 0) return [];
+  return [
+    warn(
+      "example values",
+      `${listed(inherited)} ${inherited.length > 1 ? "are" : "is"} still the example's`,
+      [
+        {
+          change: `set them in ${label} (brand/${EXAMPLE_PROFILE}/${BRAND_FILE} shows each)`,
+        },
+      ],
+    ),
+  ];
+}
+
 function profileRows(repoRoot: string, env: Env): { rows: CheckRow[]; profile?: LoadedProfile } {
   let profile: LoadedProfile;
   try {
@@ -71,14 +109,15 @@ function profileRows(repoRoot: string, env: Env): { rows: CheckRow[]; profile?: 
     const detail = problemOf(error).message;
     // brand/ without a single choice is the selection row's failure; it says how to fix it.
     if (error instanceof ProfileSelectionError) {
-      return { rows: [skip("profile", `needs a ${SELECTION}`), skip("brand.json")] };
+      return { rows: [skip("profile", `needs a ${SELECTION}`), skip(BRAND_FILE)] };
     }
     if (error instanceof ProfileNotFoundError) {
-      return { rows: [fail("profile", detail, error.remedies), skip("brand.json")] };
+      return { rows: [fail("profile", detail, error.remedies), skip(BRAND_FILE)] };
     }
-    return { rows: [ok("profile", "found"), fail("brand.json", detail, error.remedies)] };
+    return { rows: [ok("profile", "found"), fail(BRAND_FILE, detail, error.remedies)] };
   }
-  const { slug, source } = profile;
+  const { slug, source, dir } = profile;
+  const text = readFileSync(join(dir, BRAND_FILE), "utf8");
   return {
     rows: [
       // The selection row already says why brand/ chose it; only an override is noted.
@@ -86,57 +125,11 @@ function profileRows(repoRoot: string, env: Env): { rows: CheckRow[]; profile?: 
         "profile",
         `brand/${slug}/${isExplicitSource(source) ? ` (${SOURCE_LABEL[source]})` : ""}`,
       ),
-      ok("brand.json", "valid"),
+      brandFileRow(text),
+      ...exampleValuesRows(profile, text),
     ],
     profile,
   };
-}
-
-type ImportSchema = () => Promise<typeof import("../site-content-schema.ts")>;
-
-/**
- * Loaded lazily: the schema comes from @luminova/types, whose runtime entry is its built
- * dist, which `pnpm install` alone does not build.
- */
-const importSiteContentSchema: ImportSchema = () => import("../site-content-schema.ts");
-
-/** The site content the build would embed, validated with the build's schema. */
-async function siteContentProblem(
-  profile: LoadedProfile,
-  importSchema: ImportSchema,
-): Promise<Problem | null> {
-  try {
-    const raw = readSiteContent(profile.dir, profile.slug);
-    const { parseSiteContent } = await importSchema();
-    parseSiteContent(raw, profile.slug);
-    return null;
-  } catch (error) {
-    if (error instanceof BrandConfigError) {
-      return problemOf(error);
-    }
-    if (error instanceof Error && "code" in error && error.code === "ERR_MODULE_NOT_FOUND") {
-      return {
-        message: `cannot load the site-content schema (${error.message})`,
-        remedies: [
-          {
-            change: "build the shared types once (a fresh clone needs it after pnpm install)",
-            run: "pnpm turbo run build --filter=@luminova/types",
-          },
-        ],
-      };
-    }
-    throw error;
-  }
-}
-
-async function siteContentRow(
-  profile: LoadedProfile,
-  importSchema: ImportSchema,
-): Promise<CheckRow> {
-  const problem = await siteContentProblem(profile, importSchema);
-  return problem
-    ? fail("site content", problem.message, problem.remedies)
-    : ok("site content", `brand/${profile.slug}/${SITE_CONTENT_FILE} valid`);
 }
 
 function firebasercRow(profile: LoadedProfile, repoRoot: string): CheckRow {
@@ -275,7 +268,6 @@ export async function check({
   nodeVersion = process.versions.node,
   platform = process.platform,
   home,
-  importSchema = importSiteContentSchema,
 }: {
   repoRoot?: string;
   env?: Env;
@@ -283,7 +275,6 @@ export async function check({
   nodeVersion?: string;
   platform?: NodeJS.Platform;
   home?: string;
-  importSchema?: ImportSchema;
 } = {}): Promise<{ sections: Section[]; profile?: LoadedProfile }> {
   // Nothing else runs on native Windows (brand-setup spec S7).
   const windows = nativeWindows(platform);
@@ -294,19 +285,15 @@ export async function check({
   const tools = (part: Part) =>
     toolRows({ parts: [part], repoRoot, run, env, nodeVersion, platform, home });
   // The external commands are independent; start them together, report in order.
-  const [trying, live, bucket, content] = await Promise.all([
+  const [trying, live, bucket] = await Promise.all([
     tools("try"),
     waits ? [] : tools("live"),
     profile && !waits ? attempt("bucket", () => bucketRow(profile, run)) : skip("bucket"),
-    profile
-      ? attempt("site content", () => siteContentRow(profile, importSchema))
-      : skip("site content"),
   ]);
 
   const chapter = [
     selectionRow(repoRoot, env),
     ...profileChecks,
-    content,
     profile
       ? await attempt(FIREBASERC, async () => firebasercRow(profile, repoRoot))
       : skip(FIREBASERC),
