@@ -130,7 +130,7 @@ describe("releaseErrors", () => {
     expect(
       messages(releaseErrors({ profile: chapter, env: {}, repoRoot: root, ...BUILD })),
     ).toEqual([
-      "no .pull-manifest.json in brand/local/: a deploy only uses files downloaded with brand:pull.",
+      "no brand/local/.pull-manifest.json: a deploy only uses files downloaded with brand:pull.",
     ]);
   });
 
@@ -166,7 +166,7 @@ describe("releaseErrors", () => {
     expect(
       messages(releaseErrors({ profile: chapter, env: {}, repoRoot: root, ...BUILD })),
     ).toEqual([
-      "brand/local/logo-main.png: not in .pull-manifest.json, so not pulled from the bucket",
+      "brand/local/logo-main.png: not in brand/local/.pull-manifest.json, so not pulled from the bucket",
       "brand/local/spotlight/favicon-16.png: missing, though brand:pull downloaded it",
     ]);
   });

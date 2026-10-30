@@ -157,12 +157,18 @@ describe("loadProfile", () => {
     );
     const local = join(root, "brand", "local");
     mkdirSync(local);
-    const manifest = (source: string) =>
+    const manifest = (source: "bucket" | "example") =>
       JSON.stringify({
         version: 1,
         project: "demo-example",
         bucket: "demo-example-brand-assets",
-        objects: { "logo-main.png": { md5: "x", sha256: "a".repeat(64), source } },
+        objects: {
+          "logo-main.png": {
+            sha256: "a".repeat(64),
+            source,
+            ...(source === "bucket" ? { generation: "1" } : {}),
+          },
+        },
       });
     writeFileSync(join(local, ".pull-manifest.json"), manifest("example"));
     expect(loadProfile({ repoRoot: root, env: {} }).assetsDir).toBe(

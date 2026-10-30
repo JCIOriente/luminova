@@ -206,7 +206,7 @@ describe("resolveBrandBuild in release mode", () => {
 
   it("never ships the profile's committed assets", () => {
     expect(errorsOf(() => resolve({ profile: undefined, env: RELEASE_ENV }))).toEqual([
-      "no .pull-manifest.json in brand/local/: a deploy only uses files downloaded with brand:pull.",
+      "no brand/local/.pull-manifest.json: a deploy only uses files downloaded with brand:pull.",
     ]);
   });
 
@@ -234,7 +234,7 @@ describe("resolveBrandBuild in release mode", () => {
       resolve({ profile: undefined, env: { ...RELEASE_ENV, GCP_PROJECT_ID: "someone-else" } }),
     );
     expect(errors).toContainEqual(expect.stringMatching(/^GCP_PROJECT_ID "someone-else"/));
-    expect(errors).toContainEqual(expect.stringMatching(/^no \.pull-manifest\.json/));
+    expect(errors).toContainEqual(expect.stringMatching(/^no brand\/local\/\.pull-manifest\.json/));
   });
 
   it("refuses an emulator build", () => {

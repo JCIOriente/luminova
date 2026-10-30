@@ -22,10 +22,10 @@ import {
   loadProfile,
   type LoadedProfile,
 } from "./load-profile.ts";
+import { fileSha256 } from "./hash.ts";
 import {
   BUCKET_CONTRACT,
   LOCAL_PROFILE,
-  fileHashes,
   localDir,
   writeManifest,
   type ObjectRecord,
@@ -164,7 +164,10 @@ export function writeChapter(
   return dir;
 }
 
-/** A repo root with the example and the test chapter, which brand/ then selects. */
+/**
+ * A repo root with the example and the test chapter committed in brand/, which brand/ then
+ * selects. TRANSITIONAL (the JCI Oriente removal PR drops this).
+ */
 export function chapterRepo(prefix = "brand-chapter-"): string {
   const root = exampleRepo(prefix);
   writeChapter(root);
@@ -192,8 +195,8 @@ export function localProfile(): LoadedProfile {
 }
 
 /**
- * The test chapter as brand/ selects it, loaded once per test file from a repo root removed
- * on exit.
+ * The test chapter committed in brand/, as brand/ selects it, loaded once per test file from
+ * a repo root removed on exit. TRANSITIONAL (the JCI Oriente removal PR drops this).
  */
 export function chapterProfile(): LoadedProfile {
   if (shared === undefined) {
@@ -219,11 +222,11 @@ export function recordLocal(
   const objects: Record<string, ObjectRecord> = {};
   BUCKET_CONTRACT.forEach((path, index) => {
     if (!existsSync(join(dir, path))) return;
-    objects[path] = {
-      ...(source === "bucket" ? { generation: String(1000 + index) } : {}),
-      ...fileHashes(join(dir, path)),
-      source,
-    };
+    const sha256 = fileSha256(join(dir, path));
+    objects[path] =
+      source === "bucket"
+        ? { source, generation: String(1000 + index), sha256 }
+        : { source, sha256 };
   });
   writeManifest(dir, { version: 1, project, bucket: `${project}-brand-assets`, objects });
 }

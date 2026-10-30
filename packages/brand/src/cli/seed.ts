@@ -1,12 +1,21 @@
 import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { BRAND_FILE, SCHEMA_LINE, valueAt } from "../brand-file.ts";
-import { EXAMPLE_PROFILE, REPO_ROOT, loadProfile, readBase, type Env } from "../load-profile.ts";
+import {
+  EXAMPLE_PROFILE,
+  REPO_ROOT,
+  loadProfile,
+  overrideNote,
+  overriddenChapter,
+  readBase,
+  type Env,
+} from "../load-profile.ts";
+import { fileSha256 } from "../hash.ts";
 import {
   BUCKET_CONTRACT,
   IMAGE_PATHS,
-  fileHashes,
   localDir,
+  localLabel,
   writeManifest,
   type ObjectRecord,
 } from "../local-folder.ts";
@@ -44,8 +53,8 @@ export function seedLocal({
   repoRoot = REPO_ROOT,
   env = process.env,
 }: { repoRoot?: string; env?: Env } = {}): boolean {
-  // TRANSITION: CI never seeds, so the committed brand/jci-oriente/ stays the profile CI and
-  // CD select until the fork-CD PR (a seeded brand.toml would win over it).
+  // TRANSITIONAL (the fork-CD PR drops this): CI never seeds, so the committed
+  // brand/jci-oriente/ stays the profile CI and CD select (a seeded brand.toml would win).
   if (env.CI?.trim()) return false;
   const dir = localDir(repoRoot);
   if (existsSync(dir)) return false;
@@ -59,7 +68,7 @@ export function seedLocal({
   const { brand } = loadProfile({ repoRoot, profile: EXAMPLE_PROFILE });
   const objects: Record<string, ObjectRecord> = {};
   for (const path of BUCKET_CONTRACT) {
-    objects[path] = { ...fileHashes(join(dir, path)), source: "example" };
+    objects[path] = { source: "example", sha256: fileSha256(join(dir, path)) };
   }
   writeManifest(dir, {
     version: 1,
@@ -70,12 +79,32 @@ export function seedLocal({
   return true;
 }
 
+/** Where a brand lived before brand/local/; nothing reads it any more. */
+const LEGACY_ASSETS_DIR = "brand-assets";
+
+/** What install says about brand/ besides seeding, one line each. */
+export function seedNotes(repoRoot: string = REPO_ROOT): string[] {
+  const notes: string[] = [];
+  const overridden = overriddenChapter(repoRoot);
+  if (overridden) {
+    const { message, remedy } = overrideNote(overridden);
+    notes.push(`${message}; ${remedy.change}: ${remedy.run}`);
+  }
+  if (existsSync(join(repoRoot, LEGACY_ASSETS_DIR))) {
+    notes.push(
+      `${LEGACY_ASSETS_DIR}/ is no longer read: copy your images into ${localLabel()}, then delete ${LEGACY_ASSETS_DIR}/.`,
+    );
+  }
+  return notes;
+}
+
 if (import.meta.main) {
   await exitOnFailure(() => {
     if (seedLocal()) {
       console.error(
-        `brand:seed: brand/local/ seeded from brand/${EXAMPLE_PROFILE}/; pnpm brand:init makes it your chapter's.`,
+        `brand:seed: ${localLabel()} seeded from brand/${EXAMPLE_PROFILE}/; pnpm brand:init makes it your chapter's.`,
       );
     }
+    for (const note of seedNotes()) console.error(`brand:seed: ${note}`);
   });
 }

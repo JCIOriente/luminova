@@ -1,15 +1,13 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { GUIDE_STEPS, guideStep } from "./remedy.ts";
 import { isAbsolute, join, relative } from "node:path";
 import { z } from "zod";
-import { PULL_ASSETS, PULL_MANIFEST_FILE } from "./assets.ts";
-import { sha256 } from "./hash.ts";
+import { PULL_ASSETS } from "./assets.ts";
+import { fileSha256 } from "./hash.ts";
 import {
-  BUCKET_CONTRACT,
-  IMAGE_PATHS,
-  LOCAL_PROFILE,
   MANIFEST_LABEL,
-  fileHashes,
+  PULL_MANIFEST_FILE,
+  bucketContract,
   localDir,
   localLabel,
   readManifest,
@@ -177,8 +175,7 @@ const PUSH_OR_PULL = {
 
 /**
  * A release ships only what brand:pull downloaded into brand/local/ (spec "Release builds"):
- * every contract file recorded with source `bucket` and still those bytes. TRANSITIONAL: a
- * committed chapter's brand.toml comes from git, so only its images need the pull.
+ * every contract file recorded with source `bucket` and still those bytes.
  */
 function pulledFileErrors(profile: LoadedProfile, repoRoot: string): Problem[] {
   const dir = localDir(repoRoot);
@@ -186,7 +183,7 @@ function pulledFileErrors(profile: LoadedProfile, repoRoot: string): Problem[] {
   if (!manifest) {
     return [
       {
-        message: `no ${PULL_MANIFEST_FILE} in ${localLabel()}: a deploy only uses files downloaded with brand:pull.`,
+        message: `no ${MANIFEST_LABEL}: a deploy only uses files downloaded with brand:pull.`,
         remedies: [PULL_ASSETS],
       },
     ];
@@ -200,15 +197,14 @@ function pulledFileErrors(profile: LoadedProfile, repoRoot: string): Problem[] {
       },
     ];
   }
-  const paths = profile.slug === LOCAL_PROFILE ? BUCKET_CONTRACT : IMAGE_PATHS;
-  return paths.flatMap((path): Problem[] => {
+  return bucketContract(profile).flatMap((path): Problem[] => {
     const record = manifest.objects[path];
     const file = join(dir, path);
     const label = localLabel(path);
     if (!record) {
       return [
         {
-          message: `${label}: not in ${PULL_MANIFEST_FILE}, so not pulled from the bucket`,
+          message: `${label}: not in ${MANIFEST_LABEL}, so not pulled from the bucket`,
           remedies: [PULL_ASSETS],
         },
       ];
@@ -229,7 +225,7 @@ function pulledFileErrors(profile: LoadedProfile, repoRoot: string): Problem[] {
         },
       ];
     }
-    if (fileHashes(file).sha256 !== record.sha256) {
+    if (fileSha256(file) !== record.sha256) {
       return [
         {
           message: `${label}: changed after brand:pull; upload it with brand:push, or pull again`,
@@ -245,7 +241,7 @@ export function releaseIdentity(profile: LoadedProfile, repoRoot: string): Relea
   return {
     profile: profile.slug,
     projectId: profile.brand.firebase.projectId,
-    assets: sha256(readFileSync(join(localDir(repoRoot), PULL_MANIFEST_FILE))),
+    assets: fileSha256(join(localDir(repoRoot), PULL_MANIFEST_FILE)),
   };
 }
 

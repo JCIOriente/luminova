@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BRAND_FILE, readBrandToml, resolveBrandFile } from "./brand-file.ts";
 import { BrandConfigError, errorMessage, issueLines, type SchemaIssue } from "./errors.ts";
-import { LOCAL_PROFILE, holdsBucketImages, localDir } from "./local-folder.ts";
+import { LOCAL_PROFILE, holdsBucketImages, localDir, localLabel } from "./local-folder.ts";
 import type { Remedy } from "./remedy.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN, isDemoProject, type Brand, type Table } from "./schema.ts";
 import type { SiteContent } from "./site-content.ts";
@@ -78,7 +78,11 @@ export type ProfileSource = ExplicitSource | DiscoveredSource;
 /** Chosen by hand, for one command. */
 export type ExplicitSource = "named" | "override";
 /** Chosen by what brand/ holds. */
-export type DiscoveredSource = "local" | "chapter" | "example";
+export type DiscoveredSource =
+  | "local"
+  // TRANSITIONAL (the JCI Oriente removal PR drops this): a chapter committed in brand/.
+  | "chapter"
+  | "example";
 
 export const isExplicitSource = (source: ProfileSource): source is ExplicitSource =>
   source === "named" || source === "override";
@@ -148,9 +152,37 @@ function availableProfiles(repoRoot: string): string[] {
 
 const isCommittedChapter = (slug: string) => slug !== EXAMPLE_PROFILE && slug !== LOCAL_PROFILE;
 
+/** Copy a committed chapter's brand.toml into brand/local/, the folder every command reads. */
+export const copyChapterRemedy = (slug: string, change: string): Remedy => ({
+  change,
+  run: `cp ${brandFileLabel(slug)} ${localLabel(BRAND_FILE)}`,
+});
+
 /**
- * What brand/ selects: brand/local/brand.toml, else (TRANSITIONAL) its one committed chapter
- * profile, else the example. Twin of the committed-chapter rule:
+ * The committed chapter brand/local/ wins over, when its brand.toml is not that chapter's.
+ * TRANSITIONAL (the JCI Oriente removal PR drops this): only upstream commits one.
+ */
+export function overriddenChapter(repoRoot: string = REPO_ROOT): string | null {
+  const local = join(localDir(repoRoot), BRAND_FILE);
+  if (!existsSync(local)) return null;
+  const [chapter] = availableProfiles(repoRoot).filter(isCommittedChapter);
+  if (chapter === undefined) return null;
+  const committed = readFileSync(join(repoRoot, "brand", chapter, BRAND_FILE));
+  return readFileSync(local).equals(committed) ? null : chapter;
+}
+
+/** What overriddenChapter means for the member, and how to build that chapter instead. */
+export const overrideNote = (slug: string) => ({
+  message: `${localLabel()} overrides brand/${slug}/`,
+  remedy: copyChapterRemedy(
+    slug,
+    `to build brand/${slug}/ instead, copy its ${BRAND_FILE} into ${localLabel()}`,
+  ),
+});
+
+/**
+ * What brand/ selects: brand/local/brand.toml, else its one committed chapter profile
+ * (see the TRANSITIONAL marker below), else the example. Twin of the committed-chapter rule:
  * .github/scripts/deploy-ready.sh applies it before Deploy installs anything.
  */
 export function discoverProfile(repoRoot: string = REPO_ROOT): {
@@ -160,8 +192,8 @@ export function discoverProfile(repoRoot: string = REPO_ROOT): {
   if (existsSync(join(localDir(repoRoot), BRAND_FILE))) {
     return { slug: LOCAL_PROFILE, source: "local" };
   }
-  // TRANSITIONAL: a chapter folder committed in brand/ (only jci-oriente upstream, which CD
-  // still deploys); the JCI Oriente removal PR drops this branch and the two-chapters error.
+  // TRANSITIONAL (the JCI Oriente removal PR drops this): a chapter folder committed in
+  // brand/ (only jci-oriente upstream, which CD still deploys), with the two-chapters error.
   const profiles = availableProfiles(repoRoot);
   const chapters = profiles.filter(isCommittedChapter);
   const [only] = chapters;
@@ -197,7 +229,7 @@ export function discoverProfile(repoRoot: string = REPO_ROOT): {
 
 /**
  * Where a profile's images are: brand/local/ for the local profile, the example's own
- * assets/ for the example. TRANSITIONAL (the JCI Oriente removal PR drops it): a committed
+ * assets/ for the example. TRANSITIONAL (the JCI Oriente removal PR drops this): a committed
  * chapter reads brand/local/ once brand:pull recorded bucket images there (that is how CD
  * feeds it), else its own assets/.
  */
