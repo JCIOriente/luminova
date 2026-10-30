@@ -240,7 +240,10 @@ The PRs land in this order; JCI Oriente keeps deploying through each:
 From a clone of `main` that includes step 3, with `gcloud` signed in as a project owner:
 
 1. `pnpm install`, then copy JCI Oriente's committed profile into the local folder:
-   `cp brand/jci-oriente/brand.toml brand/local/brand.toml`.
+   `cp brand/jci-oriente/brand.toml brand/local/brand.toml`. Then delete the `[deploy]` table
+   from `brand/local/brand.toml` (its header and its two lines): from step 4 on, CD signs in
+   with the repository variables and refuses a `brand.toml` that still holds `[deploy]`. If
+   you already pushed a file with it, delete it and push again before merging step 4.
 2. Download the deployed images from today's bucket over the seeded ones: `pnpm brand:pull`.
    The bucket holds no `brand.toml` yet, so the pull replaces the 16 seeded images without
    asking (they are unchanged since the seed), keeps the `brand.toml` of step 1, and records
