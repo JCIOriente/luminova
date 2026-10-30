@@ -194,7 +194,11 @@ firebase emulators:start --import=./emulator-data
 **The normal path is the CD pipeline** — see `docs/ci-cd.md`. Merging to `main` with
 green CI triggers the keyless (WIF/OIDC) Deploy workflow, which deploys only the
 changed surfaces in order (rules → functions → hosting, with a preview → smoke →
-promote flow for hosting), each job gated on a `production` environment approval.
+promote flow for hosting), each job gated on a `production` environment approval. The
+repository variables `FIREBASE_PROJECT_ID` and `GCP_PROJECT_NUMBER` name the project and
+CD's sign-in (`docs/ci-cd.md` section 3.3; JCI Oriente: `jci-oriente`, `953870918238`), and
+every deploy job pulls the brand (`brand.toml` and the 16 images) from the project's bucket
+before it builds.
 
 The commands below are the **manual owner fallback** (first-run validation,
 emergencies). They use human credentials (`firebase login`) and skip the smoke gate —
@@ -232,8 +236,11 @@ firebase deploy --only hosting:backstage
 
 ### Brand assets bucket (owner only)
 
-Deployment images live in the profile's `assetsBucket` (`jci-oriente-brand-assets`, the `<project>-brand-assets` default), a
-private, versioned bucket the CD service account can only read (`docs/ci-cd.md` section 5).
+The deployed brand (`brand.toml` and the 16 images) lives in `<project>-brand-assets`
+(`jci-oriente-brand-assets`), a private, versioned bucket the CD service account can only
+read (`docs/ci-cd.md` section 5). CD pulls from that default name, so an `assetsBucket`
+override serves local commands only, and CD refuses a pulled `brand.toml` that names
+another bucket.
 `pnpm brand:provision` prints the setup with the profile's values, then asks whether to
 create and configure the bucket. The bucket mirrors `brand/local/` (its `brand.toml` and
 the 16 images; never the manifest). `pnpm brand:push` validates them and uploads each one
