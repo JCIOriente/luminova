@@ -135,12 +135,10 @@
       "type": "object",
       "properties": {
         "spotlight": {
-          "type": "string",
-          "minLength": 1
+          "type": "string"
         },
         "backstage": {
-          "type": "string",
-          "minLength": 1
+          "type": "string"
         }
       },
       "additionalProperties": false

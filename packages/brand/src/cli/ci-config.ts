@@ -24,11 +24,21 @@ export function ciConfig(profile: LoadedProfile): Record<string, string> {
   };
 }
 
-/** `key=value` lines; the schema rules out newlines, so each value is one output. */
-export const formatOutputs = (outputs: Record<string, string>) =>
-  Object.entries(outputs)
-    .map(([key, value]) => `${key}=${value}`)
+/**
+ * `key=value` lines for $GITHUB_OUTPUT. A line break would let a value write an output of
+ * its own (a project or a service account), so one is refused here, whatever the schema let
+ * through.
+ */
+export function formatOutputs(outputs: Record<string, string>): string {
+  return Object.entries(outputs)
+    .map(([key, value]) => {
+      if (/[\r\n]/.test(key) || /[\r\n]/.test(value)) {
+        throw new Error(`brand:ci-config: ${key} holds a line break, so it cannot be a CD output`);
+      }
+      return `${key}=${value}`;
+    })
     .join("\n");
+}
 
 if (import.meta.main) {
   await runCli("brand:ci-config", (profile) => {

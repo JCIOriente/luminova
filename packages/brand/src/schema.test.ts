@@ -1,9 +1,7 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseBrandToml, type Table } from "./brand-file.ts";
-import { EXAMPLE_PROFILE, REPO_ROOT } from "./load-profile.ts";
-import { brandFileSchema, renderBrandJsonSchema } from "./schema.ts";
+import { brandFileSchema, renderBrandJsonSchema, type Table } from "./schema.ts";
+import { exampleToml } from "./test-profiles.ts";
 
 describe("brand.schema.json", () => {
   it("is regenerated from the zod schema (pnpm brand:schema)", () => {
@@ -27,11 +25,7 @@ describe("brand.schema.json", () => {
 });
 
 /** The example's own brand.toml: a complete file. */
-const valid = (): Table =>
-  parseBrandToml(
-    readFileSync(join(REPO_ROOT, "brand", EXAMPLE_PROFILE, "brand.toml"), "utf8"),
-    "example",
-  );
+const valid = exampleToml;
 
 function rejects(mutate: (file: Table) => void, path: string) {
   const file = valid();

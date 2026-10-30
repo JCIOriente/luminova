@@ -33,9 +33,11 @@ runs:
     - run: pnpm install --frozen-lockfile
       shell: bash
     # Release rules first: an unshippable profile or a missing [deploy] table stops the
-    # job here, before any credential is minted. The values pass the brand.toml schema
-    # (a Workload Identity resource name, an email, a project id, an https origin, two
-    # hosting site ids), so none holds a newline.
+    # job here, before any credential is minted. Each value is one output line: the
+    # brand.toml schema checks its shape (a Workload Identity resource name, an email, a
+    # project id, an https origin written exactly as normalized, two hosting site ids), and
+    # brand:ci-config refuses any value with a line break, which could add an output such as
+    # project_id or service_account of its own.
     - name: Read the deploy target from the repo
       id: config
       shell: bash

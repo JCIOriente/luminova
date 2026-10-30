@@ -5,17 +5,27 @@ import { normalizeSiteUrl } from "./urls.ts";
 
 const text = z.string().trim().min(1);
 
-const httpsOrigin = text.refine(
-  (value) => {
-    try {
-      normalizeSiteUrl(value);
-      return true;
-    } catch {
-      return false;
-    }
-  },
-  { message: "must be a bare https origin, e.g. https://example.org" },
-);
+/** A TOML table, or a JSON object: a plain object (TOML dates are not tables). */
+export type Table = Record<string, unknown>;
+
+export const isTable = (value: unknown): value is Table =>
+  typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date);
+
+const isNormalOrigin = (value: string) => {
+  try {
+    return normalizeSiteUrl(value) === value;
+  } catch {
+    return false;
+  }
+};
+
+// Written exactly as the URL parser normalizes it, which also strips tabs and line breaks:
+// the value reaches CD's $GITHUB_OUTPUT, where a line break would add an output of its own.
+const httpsOrigin = z
+  .string()
+  .refine((value) => !/[\s\p{Cc}]/u.test(value) && isNormalOrigin(value), {
+    message: "must be a bare https origin written in full, e.g. https://example.org",
+  });
 
 const httpsUrl = z.url({ protocol: /^https$/, message: "must be an https URL" });
 
@@ -324,8 +334,8 @@ export function toBrand(file: BrandFile, slug: string): Brand {
     locale: file.locale,
     ogLocale: file.ogLocale,
     urls: {
-      spotlight: file.urls?.spotlight ?? `https://${sites.spotlight}.web.app`,
-      backstage: file.urls?.backstage ?? `https://${sites.backstage}.web.app`,
+      spotlight: normalizeSiteUrl(file.urls?.spotlight ?? `https://${sites.spotlight}.web.app`),
+      backstage: normalizeSiteUrl(file.urls?.backstage ?? `https://${sites.backstage}.web.app`),
     },
     qrPrefix: file.qrPrefix ?? project.replaceAll("-", ""),
     themeColor: file.colors,
@@ -354,25 +364,37 @@ export function toBrand(file: BrandFile, slug: string): Brand {
 }
 
 /**
+ * The identity: the keys every chapter's own brand.toml names, and which none inherits from
+ * the example.
+ */
+export const CHAPTER_IDENTITY: readonly (readonly string[])[] = [
+  ["name"],
+  ["city"],
+  ["country"],
+  ["project"],
+  ["colors", "spotlight"],
+];
+
+/**
  * Required in a chapter's own file, by table: the identity. Everything else comes from the
  * example, so the editor schema marks it optional; an array's items stay whole, because a
  * chapter's array replaces the example's.
  */
-const REQUIRED_IN_A_CHAPTER: Readonly<Record<string, readonly string[]>> = {
-  "": ["name", "city", "country", "project", "colors"],
-  colors: ["spotlight"],
-};
-
-type JsonNode = Record<string, unknown>;
-const isNode = (value: unknown): value is JsonNode =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+const REQUIRED_IN_A_CHAPTER = new Map<string, string[]>();
+for (const path of CHAPTER_IDENTITY) {
+  path.forEach((key, depth) => {
+    const table = path.slice(0, depth).join(".");
+    const required = REQUIRED_IN_A_CHAPTER.get(table) ?? [];
+    if (!required.includes(key)) REQUIRED_IN_A_CHAPTER.set(table, [...required, key]);
+  });
+}
 
 function chapterRequired(node: unknown, path: string, inItem: boolean): unknown {
   if (Array.isArray(node)) return node.map((child) => chapterRequired(child, path, inItem));
-  if (!isNode(node)) return node;
-  const out: JsonNode = {};
+  if (!isTable(node)) return node;
+  const out: Table = {};
   for (const [key, value] of Object.entries(node)) {
-    if (key === "properties" && isNode(value)) {
+    if (key === "properties" && isTable(value)) {
       out[key] = Object.fromEntries(
         Object.entries(value).map(([name, child]) => [
           name,
@@ -382,7 +404,7 @@ function chapterRequired(node: unknown, path: string, inItem: boolean): unknown 
     } else if (key === "items") {
       out[key] = chapterRequired(value, path, true);
     } else if (key === "required" && Array.isArray(value) && !inItem) {
-      const keep = REQUIRED_IN_A_CHAPTER[path] ?? [];
+      const keep = REQUIRED_IN_A_CHAPTER.get(path) ?? [];
       const required = value.filter((name) => keep.includes(String(name)));
       if (required.length > 0) out[key] = required;
     } else {
