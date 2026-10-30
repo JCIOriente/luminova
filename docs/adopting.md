@@ -11,10 +11,8 @@ a private bucket in your own Google Cloud project.
 - `brand/` commits only `brand/example/` and the two shared files. `brand/local/` is
   git-ignored, and CI's `assert-brand-example-only` check fails a change that adds or edits
   a file anywhere else under `brand/`; deleting one passes.
-- Upstream still commits JCI Oriente's own profile, `brand/jci-oriente/`, until its removal.
-  It is not a path for your chapter, and CD does not deploy it: CD deploys the brand it pulls
-  from the bucket. While it exists and `brand/local/brand.toml` does not, it is the profile
-  `brand/` selects on a computer.
+- Upstream holds no chapter's brand either: JCI Oriente keeps its own in `brand/local/` and
+  its bucket, like every chapter.
 - Your fork deploys itself. Its GitHub Actions sign in to your Google Cloud project, which two
   repository variables of the fork name, and pull your brand from your bucket before they
   build. A pull request from a fork never deploys: it gets no credentials.
@@ -38,8 +36,7 @@ shell's startup file.
 | Firebase CLI's project file | `.firebaserc` | no, generated | the `firebase` CLI |
 
 There is no file to edit to choose the chapter. Every command looks in `brand/`:
-`brand/local/brand.toml` is the profile when it exists, otherwise (until upstream's
-`brand/jci-oriente/` is removed) that committed profile, otherwise the example. `pnpm install`
+`brand/local/brand.toml` is the profile when it exists, otherwise the example. `pnpm install`
 creates `brand/local/` from the example when it is missing, never under `CI`, and never
 touches a folder that exists, even an empty one. Your fork only adds that git-ignored
 folder and never edits a shared file, so pulling upstream updates never conflicts with your

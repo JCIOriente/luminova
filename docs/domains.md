@@ -15,7 +15,8 @@ share cards link to, and the public site's "Ingresar" / "Portal de miembros" lin
 
 ## Where the domain lives in code
 
-One file: the brand profile, `brand/jci-oriente/brand.toml`.
+One file: JCI Oriente's `brand.toml`, which lives in its brand bucket
+(`gs://jci-oriente-brand-assets/`) and in an owner's `brand/local/brand.toml`, not in git.
 
 ```toml
 [urls]
@@ -81,8 +82,9 @@ backstage fallback URL.
 **Then point the code at the fallback**, so search engines, share cards and the public
 site's admin link stop sending people to the dead hostname:
 
-1. In a worktree off `main`, edit `[urls]` in `brand/jci-oriente/brand.toml` (or delete
-   the table: it then defaults to the same two `web.app` origins):
+1. From a clone whose `brand/local/` holds JCI Oriente's brand (`pnpm brand:pull` brings
+   the bucket's copy), edit `[urls]` in `brand/local/brand.toml` (or delete the table: it
+   then defaults to the same two `web.app` origins):
 
    ```toml
    [urls]
@@ -93,8 +95,10 @@ site's admin link stop sending people to the dead hostname:
 2. Update the two hand-maintained mentions listed under "Where the domain lives in code",
    the "Canonical" column of the table at the top of this file, and the admin URL in
    `docs/negocio/manual-administracion.md`.
-3. Open a PR and merge it. The Deploy workflow redeploys hosting (`docs/ci-cd.md`); in an
-   emergency, `pnpm deploy:hosting` (`docs/firebase-setup.md`, "Deploying").
+3. Upload the brand and redeploy hosting (project owner): `pnpm brand:check`,
+   `pnpm brand:push`, then `gh workflow run deploy.yml -f surface=hosting` and approve the
+   run (`docs/ci-cd.md`). A brand change is not in git, so no merge deploys it. Open a PR for
+   the doc edits of step 2.
 4. Verify in a browser:
    - `https://jcioriente.web.app` → view source: `rel="canonical"` and `og:url` show the
      fallback hostname.

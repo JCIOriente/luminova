@@ -254,9 +254,9 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 [Apache License 2.0](LICENSE).
 
-The license covers the code. It does not grant rights to the JCI name and marks, the JCI
-Oriente logos and icons in `brand/jci-oriente/assets/`, or the chapter's own content shipped as seed
-data. See [NOTICE](NOTICE) before you fork.
+The license covers the code. It does not grant rights to the JCI name and marks, or to JCI
+Oriente's logos, icons and own content, which live in the chapter's private bucket, not in
+this repository. See [NOTICE](NOTICE) before you fork.
 
 ## Origin
 

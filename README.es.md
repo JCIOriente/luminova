@@ -162,9 +162,8 @@ Al participar aceptas el [Código de Conducta](CODE_OF_CONDUCT.md).
 [Apache License 2.0](LICENSE).
 
 La licencia cubre el código. No otorga derechos sobre el nombre ni las marcas de JCI, ni
-sobre los logos e iconos de JCI Oriente en `brand/jci-oriente/assets/`, ni sobre el contenido propio
-del capítulo que se distribuye como datos iniciales. Lee [NOTICE](NOTICE) antes de hacer un
-fork.
+sobre los logos, iconos y contenido propio de JCI Oriente, que viven en el bucket privado del
+capítulo y no en este repositorio. Lee [NOTICE](NOTICE) antes de hacer un fork.
 
 ## Origen
 
