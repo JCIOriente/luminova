@@ -15,14 +15,16 @@ import {
   loadProfile,
   discoverProfile,
   isExplicitSource,
+  overriddenChapter,
+  overrideNote,
   type DiscoveredSource,
   type Env,
   type LoadedProfile,
 } from "../load-profile.ts";
-import { BUCKET_CONTRACT, IMAGE_PATHS, LOCAL_PROFILE } from "../local-folder.ts";
+import { LOCAL_PROFILE, bucketContract } from "../local-folder.ts";
 import { FIREBASERC, firebasercContent, readFirebaserc } from "./apply.ts";
 import { formatNext, type Problem, type Remedy, guideStep } from "../remedy.ts";
-import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
+import { CommandError, bucketUrl, listBucket, runCommand, type CommandRunner } from "./gcloud.ts";
 import { checkImages } from "./images.ts";
 import { runBrandCommand } from "./main.ts";
 import { deployDispatch } from "./push.ts";
@@ -144,15 +146,9 @@ function firebasercRow(profile: LoadedProfile, repoRoot: string): CheckRow {
 
 async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<CheckRow> {
   const bucket = profile.brand.assetsBucket;
-  let listing: string;
+  let names: Map<string, string>;
   try {
-    listing = await run("gcloud", [
-      "storage",
-      "objects",
-      "list",
-      bucketUrl(bucket, "**"),
-      "--format=value(name)",
-    ]);
+    names = await listBucket(run, bucket);
   } catch (error) {
     if (!(error instanceof CommandError) || error.kind !== "notFound") throw error;
     return fail("bucket", `${bucketUrl(bucket)} does not exist yet`, [
@@ -163,9 +159,7 @@ async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<Ch
       },
     ]);
   }
-  const names = new Set(listing.split("\n").map((line) => line.trim()));
-  // TRANSITIONAL: a committed chapter's brand.toml is in git, so its bucket holds the images.
-  const contract = profile.slug === LOCAL_PROFILE ? BUCKET_CONTRACT : IMAGE_PATHS;
+  const contract = bucketContract(profile);
   const missing = contract.filter((path) => !names.has(path)).length;
   const total = contract.length;
   return missing === 0
@@ -199,6 +193,12 @@ function selectionRow(repoRoot: string, env: Env): CheckRow {
   if (override && override !== slug) {
     notes.push(`${PROFILE_OVERRIDE_ENV}=${override} overrides it`);
     remedies.push(REMOVE_OVERRIDE);
+  }
+  const overridden = source === "local" ? overriddenChapter(repoRoot) : null;
+  if (overridden) {
+    const { message, remedy } = overrideNote(overridden);
+    notes.push(message);
+    remedies.push(remedy);
   }
   if (existsSync(join(repoRoot, LEGACY_CONFIG_FILE))) {
     notes.push(`${LEGACY_CONFIG_FILE} is no longer read`);
@@ -348,7 +348,7 @@ export function checkNext(profile: LoadedProfile): Remedy[] {
       },
     ];
   }
-  // TRANSITIONAL: a chapter committed in brand/ (the JCI Oriente removal PR drops this).
+  // TRANSITIONAL (the JCI Oriente removal PR drops this): a chapter committed in brand/.
   return [
     {
       change: `when you are ready to go live: merge brand/${slug}/ to main in your fork. The merge starts the first deploy; approve it in GitHub (${guideStep("goLive")})`,

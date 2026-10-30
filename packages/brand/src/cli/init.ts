@@ -479,7 +479,7 @@ export async function init({
   prompter?: Prompter;
   fillWeb?: boolean;
   local?: boolean;
-  /** The member said yes to replacing the chapter's own brand.toml. */
+  /** The caller decided an existing brand.toml may go: the member said yes, or it is the seed. */
   replace?: boolean;
   run?: CommandRunner;
 }): Promise<{ files: string[]; local: boolean }> {
@@ -740,7 +740,6 @@ export async function runInit({
   const answers = useSaved ? readSavedAnswers(savedFile) : {};
 
   let output: string | undefined;
-  let replace = false;
   if (holdsOwnBrandFile(repoRoot)) {
     const label = localLabel(BRAND_FILE);
     const profile = loadProfile({ repoRoot, profile: LOCAL_PROFILE });
@@ -750,18 +749,19 @@ export async function runInit({
     if (await yes(prompter, "connect", question)) {
       const { slug, projectId } = await connect({ repoRoot, answers, prompter, run });
       output = `brand:init: ${brandFileLabel(slug)} now uses Firebase project ${projectId}; ${FIREBASERC} rewritten.\n\n${formatNext(CONNECT_NEXT)}`;
-    } else {
-      replace = await yes(
+    } else if (
+      !(await yes(
         prompter,
         "replace",
         `Replace ${label} with a new one, answering every question again?`,
-      );
-      if (!replace)
-        return `brand:init: nothing changed. To change its other values, edit ${label}.`;
+      ))
+    ) {
+      return `brand:init: nothing changed. To change its other values, edit ${label}.`;
     }
   }
   if (output === undefined) {
-    const { files, local } = await init({ repoRoot, answers, prompter, replace, run });
+    // Decided above: the seeded brand.toml, none, or the member said yes to replacing theirs.
+    const { files, local } = await init({ repoRoot, answers, prompter, replace: true, run });
     const where = local
       ? " It runs on this computer only, until you connect a Firebase project."
       : "";

@@ -20,6 +20,10 @@ let root: string;
 let calls: string[][];
 let responses: Map<string, string | Error>;
 
+/** What `gcloud storage objects list --format=json` prints for these object names. */
+const listingOf = (names: readonly string[]) =>
+  JSON.stringify(names.map((name, index) => ({ name, generation: String(100 + index) })));
+
 const run: CommandRunner = async (command, args) => {
   calls.push([command, ...args]);
   const key = [command, ...args].join(" ");
@@ -60,7 +64,7 @@ beforeEach(() => {
     ["gcloud auth list", "owner@example.org\n"],
     [
       "gcloud storage objects list",
-      `brand.toml\n${ASSET_CONTRACT.map(({ path }) => path).join("\n")}\n`,
+      listingOf(["brand.toml", ...ASSET_CONTRACT.map(({ path }) => path)]),
     ],
     ["pnpm --version", "11.5.1\n"],
     ["java --version", "openjdk 21.0.5 2024-10-15 LTS\n"],
@@ -128,7 +132,7 @@ describe("check", () => {
         "firebase login:list",
         "gcloud --version",
         "gcloud auth list --filter=status:ACTIVE --format=value(account)",
-        `gcloud storage objects list gs://${BUCKET}/** --format=value(name)`,
+        `gcloud storage objects list gs://${BUCKET}/** --format=json`,
         "gh --version",
         "gh auth status --active",
         "java --version",
@@ -161,7 +165,7 @@ describe("check", () => {
   });
 
   it("names the images missing from the bucket", async () => {
-    responses.set("gcloud storage objects list", "logo-main.png\n");
+    responses.set("gcloud storage objects list", listingOf(["logo-main.png"]));
     const row = rowFor(await diagnose(), "bucket");
     expect(row.status).toBe("fail");
     expect(row.detail).toMatch(/16 of 17 files missing/);
@@ -171,10 +175,7 @@ describe("check", () => {
     rmSync(join(root, "brand", CHAPTER), { recursive: true });
     writeChapter(root);
     applyProfile({ profile: loadProfile({ repoRoot: root, env: {} }), repoRoot: root, env: {} });
-    responses.set(
-      "gcloud storage objects list",
-      `${ASSET_CONTRACT.map(({ path }) => path).join("\n")}\n`,
-    );
+    responses.set("gcloud storage objects list", listingOf(ASSET_CONTRACT.map(({ path }) => path)));
     expect(rowFor(await diagnose(), "bucket")).toMatchObject({
       status: "ok",
       detail: `all 16 files in gs://${BUCKET}`,
@@ -242,6 +243,27 @@ describe("check", () => {
       remedies: [expect.objectContaining({ run: "unset BRAND_PROFILE" })],
     });
     expect(rowFor(rows, "profile").detail).toBe("brand/example/ (from BRAND_PROFILE)");
+  });
+
+  it("notes that brand/local/ overrides a committed chapter, and how to build that one", async () => {
+    const committed = writeChapter(root, {
+      slug: "jci-andina",
+      assets: false,
+      brand: { name: "JCI Andina" },
+    });
+    const rows = await diagnose();
+    expect(rowFor(rows, "selection")).toMatchObject({
+      status: "warn",
+      detail: `brand/ selects "${CHAPTER}" (your chapter's brand in brand/local/), but brand/local/ overrides brand/jci-andina/`,
+      remedies: [
+        {
+          change: "to build brand/jci-andina/ instead, copy its brand.toml into brand/local/",
+          run: "cp brand/jci-andina/brand.toml brand/local/brand.toml",
+        },
+      ],
+    });
+    cpSync(join(committed, "brand.toml"), join(root, "brand", "local", "brand.toml"));
+    expect(rowFor(await diagnose(), "selection").status).toBe("ok");
   });
 
   it("warns that a leftover luminova.json is no longer read", async () => {
@@ -340,7 +362,7 @@ describe("check", () => {
     it("says how to fix each failing row", async () => {
       writeFileSync(join(root, ".firebaserc"), "{}");
       responses.set("gcloud auth list", "");
-      responses.set("gcloud storage objects list", "logo-main.png\n");
+      responses.set("gcloud storage objects list", listingOf(["logo-main.png"]));
       const rows = await diagnose({ nodeVersion: "24.10.0" });
       expect(runsOf(rowFor(rows, ".firebaserc"))).toEqual(["pnpm brand:apply"]);
       expect(runsOf(rowFor(rows, "gcloud account"))).toEqual(["gcloud auth login"]);
