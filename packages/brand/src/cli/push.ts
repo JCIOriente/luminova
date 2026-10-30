@@ -31,8 +31,9 @@ import { runCli } from "./main.ts";
 import { formatReport, formatSections } from "./rows.ts";
 import { plural } from "./table.ts";
 
-export const deployDispatch = (surface: "hosting" | "all") =>
-  `gh workflow run deploy.yml -f surface=${surface}`;
+/** With the fork's owner/name when known: gh's default repository may be upstream. */
+export const deployDispatch = (surface: "hosting" | "all", repo: string | null = null) =>
+  `gh workflow run deploy.yml -f surface=${surface}${repo ? ` --repo ${repo}` : ""}`;
 
 /** A brand change does not trigger CD, which diffs git; the owner dispatches it. */
 export const DEPLOY_DISPATCH = deployDispatch("hosting");

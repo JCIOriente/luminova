@@ -1,12 +1,17 @@
 import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { join } from "node:path";
-import { stringify } from "smol-toml";
 import { z } from "zod";
-import { defaultDeploy, deploySaEmail } from "../deploy-identity.ts";
+import {
+  POOL_ID,
+  PROJECT_NUMBER_VARIABLE,
+  PROJECT_VARIABLE,
+  PROVIDER_ID,
+  attributeCondition,
+  deploySaEmail,
+} from "../deploy-identity.ts";
 import {
   BrandConfigError,
-  brandFileLabel,
   REPO_ROOT,
   issuesToBrandError,
   readJsonFile,
@@ -15,6 +20,7 @@ import {
 import { CONNECT_PROJECT, undeployableProfileErrors } from "../release.ts";
 import { formatNext, type Remedy, guideStep } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, shellQuote, type CommandRunner } from "./gcloud.ts";
+import { FORK_HINT, forkRepo } from "./github-repo.ts";
 import { runCli } from "./main.ts";
 import { terminalConfirm, type Confirm } from "./prompts.ts";
 import { deployDispatch } from "./push.ts";
@@ -46,9 +52,8 @@ interface BucketStep {
   isDone: (state: BucketState, members: readonly string[]) => boolean;
 }
 
-/** The account CD signs in as: the profile's `deploy` value, else the one section 6 creates. */
-const deployAccount = ({ brand }: LoadedProfile) =>
-  brand.deploy?.serviceAccount ?? deploySaEmail(brand.firebase.projectId);
+/** The account CD signs in as: the one section 6 creates (a DEPLOY_SA variable overrides it in CD). */
+const deployAccount = ({ brand }: LoadedProfile) => deploySaEmail(brand.firebase.projectId);
 
 /** Part B steps B1–B3 (spec section 5.7), the one list both modes use. */
 function bucketSteps(
@@ -221,6 +226,91 @@ export async function applyBucket({
   return results;
 }
 
+/**
+ * What a fork's variables are set from, looked up once: the project number and the fork (null
+ * when not known), and why the fork is not known when its origin is upstream.
+ */
+export interface DeployTarget {
+  projectNumber: string | null;
+  ghRepo: string | null;
+  warning?: string | null;
+  /** Set when gh could not confirm the fork's letter case. */
+  caseNote?: string | null;
+}
+
+const NUMBER_HINT = (projectId: string) =>
+  `gcloud projects describe ${projectId} --format='value(projectNumber)'`;
+
+export async function lookupDeployTarget({
+  profile,
+  repoRoot = REPO_ROOT,
+  run = runCommand,
+}: {
+  profile: LoadedProfile;
+  repoRoot?: string;
+  run?: CommandRunner;
+}): Promise<DeployTarget> {
+  const { projectId } = profile.brand.firebase;
+  const [projectNumber, fork] = await Promise.all([
+    lookup(run, "gcloud", ["projects", "describe", projectId, "--format=value(projectNumber)"]),
+    forkRepo({ run, repoRoot, projectId }),
+  ]);
+  // A missing or foreign origin is a value to fill in; only upstream needs a warning.
+  const warning = fork.upstream ? fork.problem : null;
+  return { projectNumber, ghRepo: fork.repo, warning, caseNote: fork.caseNote ?? null };
+}
+
+/** `gh variable set` arguments for one of CD's two repository variables, on the fork. */
+const setVariable = (name: string, value: string, repo: string) => [
+  "variable",
+  "set",
+  name,
+  "--body",
+  value,
+  "--repo",
+  repo,
+];
+
+export type VariablesOffer = { set: true } | { set: false; reason: string | null };
+
+/**
+ * After the printout, offers step 2: setting the repository variables with gh. Without a
+ * terminal, or on a no (the default), nothing changes and there is nothing to explain;
+ * without a known project number and fork it does not ask, and says why.
+ */
+export async function offerVariables({
+  profile,
+  target,
+  run = runCommand,
+  confirm,
+}: {
+  profile: LoadedProfile;
+  target: DeployTarget;
+  run?: CommandRunner;
+  confirm?: Confirm;
+}): Promise<VariablesOffer> {
+  if (!confirm) return { set: false, reason: null };
+  const { projectId } = profile.brand.firebase;
+  const { projectNumber, ghRepo, warning } = target;
+  if (projectNumber === null || ghRepo === null) {
+    if (warning) return { set: false, reason: warning };
+    const unknown = [
+      ...(projectNumber === null
+        ? [`the project number of ${projectId} could not be looked up (${NUMBER_HINT(projectId)})`]
+        : []),
+      ...(ghRepo === null
+        ? [`your fork could not be read from the git remote origin (git remote get-url origin)`]
+        : []),
+    ];
+    return { set: false, reason: unknown.join(", and ") };
+  }
+  const question = `Step 1 done? Then this can do step 2 now: set ${PROJECT_VARIABLE}=${projectId} and ${PROJECT_NUMBER_VARIABLE}=${projectNumber} on ${ghRepo}. Do step 2 now?`;
+  if (!(await confirm(question))) return { set: false, reason: null };
+  await run("gh", setVariable(PROJECT_VARIABLE, projectId, ghRepo));
+  await run("gh", setVariable(PROJECT_NUMBER_VARIABLE, projectNumber, ghRepo));
+  return { set: true };
+}
+
 /** The fenced bash block under `## 6.` in docs/ci-cd.md, the single copy of those steps. */
 export function provisioningSection(doc: string): string {
   const section = doc.slice(doc.indexOf("\n## 6."));
@@ -244,8 +334,8 @@ async function lookup(
 }
 
 const LOOKUP_HINTS: Record<string, string> = {
-  PROJECT_NUMBER: "gcloud projects describe <PROJECT_ID> --format='value(projectNumber)'",
-  GH_REPO: "gh repo view --json nameWithOwner -q .nameWithOwner",
+  PROJECT_NUMBER: NUMBER_HINT("<PROJECT_ID>"),
+  GH_REPO: FORK_HINT,
   REVIEWER_ID: "gh api user -q .id",
 };
 
@@ -282,10 +372,13 @@ export async function printProvisioning({
   profile,
   repoRoot = REPO_ROOT,
   run = runCommand,
+  target,
 }: {
   profile: LoadedProfile;
   repoRoot?: string;
   run?: CommandRunner;
+  /** The project number and fork, when the caller already looked them up. */
+  target?: DeployTarget;
 }): Promise<string> {
   const { projectId } = profile.brand.firebase;
   const { slug } = profile;
@@ -297,7 +390,6 @@ export async function printProvisioning({
       [CONNECT_PROJECT],
     );
   }
-  const brandFile = brandFileLabel(slug);
   const bucket = bucketUrl(profile.brand.assetsBucket);
   const [create, access, versioning, lifecycle, grant] = bucketSteps(
     profile,
@@ -307,9 +399,8 @@ export async function printProvisioning({
   const gcloud = (step: BucketStep | undefined) => (step ? `gcloud ${command(step.args)}` : "");
 
   // Independent read-only lookups: one wait, not three.
-  const [projectNumber, ghRepo, reviewerId] = await Promise.all([
-    lookup(run, "gcloud", ["projects", "describe", projectId, "--format=value(projectNumber)"]),
-    lookup(run, "gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]),
+  const [{ projectNumber, ghRepo, warning, caseNote }, reviewerId] = await Promise.all([
+    target ?? lookupDeployTarget({ profile, repoRoot, run }),
     lookup(run, "gh", ["api", "user", "-q", ".id"]),
   ]);
   const values: Record<string, string | null> = {
@@ -333,29 +424,38 @@ export async function printProvisioning({
         `# ${unknown.join(", ")} could not be looked up. Sign in (gcloud auth login, gh auth login) and run pnpm brand:provision again, or fill in the lines marked FILL IN first.`,
       ]
     : [];
-  const deploy =
-    profile.brand.deploy ??
-    defaultDeploy({ projectId, projectNumber: projectNumber ?? "<project number>" });
-  const deploySnippet = stringify({ deploy }).trimEnd();
+  // An unknown value is a commented line to fill in: a <placeholder> would break the shell.
+  const fork = ghRepo ?? "<owner/name of your fork>";
+  const variableLines = [
+    ghRepo
+      ? `gh ${command(setVariable(PROJECT_VARIABLE, projectId, ghRepo))}`
+      : `# FILL IN, then run: gh variable set ${PROJECT_VARIABLE} --body ${projectId} --repo ${fork}   (git remote get-url origin)`,
+    ghRepo && projectNumber
+      ? `gh ${command(setVariable(PROJECT_NUMBER_VARIABLE, projectNumber, ghRepo))}`
+      : `# FILL IN, then run: gh variable set ${PROJECT_NUMBER_VARIABLE} --body ${projectNumber ?? "<project number>"} --repo ${fork}   (${NUMBER_HINT(projectId)})`,
+  ];
+  const repoLabel = ghRepo ?? "your fork";
+  const condition = attributeCondition(ghRepo ?? "<owner>/<repo>");
 
   const steps: GuideStep[] = [
     {
       title: "create CD's deploy account and its keyless sign-in (once per project)",
       why: "GitHub Actions deploys as this account. No key is stored anywhere: GitHub proves it is your repo's main branch.",
       where: `your shell, signed in to gcloud as an owner of ${projectId} (gcloud auth login) and to gh as a repo admin (gh auth login). Re-running is harmless: a line that says "already exists" means that part is done.`,
-      lines: [...unknownNote, section.trimEnd()],
-      check: `gcloud iam service-accounts describe ${deployAccount(profile)}`,
+      lines: [
+        ...unknownNote,
+        section.trimEnd(),
+        `# The provider: only ${repoLabel}'s deploy.yml on main gets a token: ${condition}`,
+      ],
+      check: `gcloud iam service-accounts describe ${deployAccount(profile)}; gcloud iam workload-identity-pools providers describe ${PROVIDER_ID} --project=${projectId} --location=global --workload-identity-pool=${POOL_ID} --format='value(attributeCondition)'`,
     },
     {
-      title: profile.brand.deploy
-        ? `tell CD which account to use (done: ${brandFile} has it)`
-        : "tell CD which account to use",
-      why: "CD signs in with these two names (not secrets), and deploys only a profile that has them: adding them is the switch that turns deploys on.",
-      where: profile.brand.deploy
-        ? `${brandFile} already has it: check the values match step 1`
-        : `your editor, once step 1 is done: add this to ${brandFile}; it ships with your go-live merge (${guideStep("goLive")})`,
-      lines: [deploySnippet],
-      check: 'pnpm brand:check   (row "CD identity")',
+      title: "tell CD where to deploy: two repository variables",
+      why: `CD signs in with the account and provider of step 1, derived from these two values (not secrets). Setting them is the switch that turns deploys on in ${repoLabel}; GCP_REGION, WIF_PROVIDER and DEPLOY_SA are optional overrides (docs/ci-cd.md).`,
+      where:
+        "your shell, signed in to gh as a repo admin; or answer y when this command asks, and it runs these two lines",
+      lines: variableLines,
+      check: `gh variable list${ghRepo ? ` --repo ${ghRepo}` : ""}   (or pnpm brand:check, row "CD identity")`,
     },
     {
       title: "create the private bucket for your logos and icons",
@@ -374,15 +474,17 @@ export async function printProvisioning({
     },
     {
       title: "first deploy",
-      why: "Builds rules, functions and both sites with your profile and publishes them.",
-      where: `GitHub: merge the branch with brand/${slug}/ to main. The merge starts the Deploy run (the first deploy to a project ships everything); approve it`,
-      lines: ["# later, to deploy everything again without a merge:", deployDispatch("all")],
+      why: "Pulls your brand from the bucket, builds rules, functions and both sites with it and publishes them. The first deploy to a project ships everything.",
+      where: `your shell, from the repo root (or the next push to main in your fork, a merge or a Sync fork, starts it); approve the run in GitHub`,
+      lines: [deployDispatch("all", ghRepo)],
       check: `open both sites and follow ${guideStep("goLive")}`,
     },
   ];
 
   return [
     `Google Cloud setup for profile "${slug}" (project ${projectId}). A printout only: nothing was changed. Do the steps in order.`,
+    ...(warning ? ["", `Warning: ${warning}.`] : []),
+    ...(caseNote ? ["", `Note: ${caseNote}.`] : []),
     "",
     formatGuide(steps),
   ].join("\n");
@@ -390,8 +492,18 @@ export async function printProvisioning({
 
 if (import.meta.main) {
   await runCli("brand:provision", async (profile) => {
-    console.log(await printProvisioning({ profile }));
-    const steps = await offerBucket({ profile, confirm: terminalConfirm() });
+    const target = await lookupDeployTarget({ profile });
+    console.log(await printProvisioning({ profile, target }));
+    const confirm = terminalConfirm();
+    const variables = await offerVariables({ profile, target, confirm });
+    if (variables.set) {
+      console.log(
+        `brand:provision: repository variables ${PROJECT_VARIABLE} and ${PROJECT_NUMBER_VARIABLE} set.`,
+      );
+    } else if (variables.reason) {
+      console.log(`brand:provision: not offering to do step 2: ${variables.reason}.`);
+    }
+    const steps = await offerBucket({ profile, confirm });
     if (steps) {
       for (const { label, done } of steps) {
         console.log(`brand:provision: ${label}: ${done ? "already done" : "applied"}`);

@@ -28,7 +28,14 @@ import { CommandError, bucketUrl, listBucket, runCommand, type CommandRunner } f
 import { checkImages } from "./images.ts";
 import { runBrandCommand } from "./main.ts";
 import { deployDispatch } from "./push.ts";
-import { CONNECT_PROJECT, missingDeployProblem } from "../release.ts";
+import { CONNECT_PROJECT } from "../release.ts";
+import {
+  PROJECT_NUMBER_PATTERN,
+  PROJECT_NUMBER_VARIABLE,
+  PROJECT_VARIABLE,
+  deploySaEmail,
+} from "../deploy-identity.ts";
+import { forkRepo, type ForkLookup } from "./github-repo.ts";
 import {
   fail,
   formatReport,
@@ -212,11 +219,120 @@ function selectionRow(repoRoot: string, env: Env): CheckRow {
     : ok(SELECTION, selects);
 }
 
-function cdIdentityRow(profile: LoadedProfile): CheckRow {
-  const missing = missingDeployProblem(profile);
-  if (missing) return warn("CD identity", missing.message, missing.remedies);
-  return ok("CD identity", profile.brand.deploy?.serviceAccount ?? "");
+const CD_IDENTITY = "CD identity";
+const PRINT_GCP_SETUP: Remedy = {
+  change: "print the Google Cloud and GitHub setup, step by step, with your values",
+  run: "pnpm brand:provision",
+};
+
+/** A repository variable's value, null when it is not set; throws when gh cannot tell. */
+async function readVariable(
+  run: CommandRunner,
+  name: string,
+  repo: string,
+): Promise<string | null> {
+  try {
+    return (await run("gh", ["variable", "get", name, "--repo", repo])).trim() || null;
+  } catch (error) {
+    if (
+      error instanceof CommandError &&
+      error.kind === "other" &&
+      /not found/i.test(error.message)
+    ) {
+      return null;
+    }
+    throw error;
+  }
 }
+
+const SET_ORIGIN: Remedy = {
+  change: "point the git remote origin at your fork on github.com",
+  run: "git remote set-url origin <your fork's URL>",
+  where: "shell",
+};
+
+/**
+ * The repository variables CD deploys with (`gh variable get --repo <fork>`, read-only), on
+ * the fork origin names (null: not readable, the row says why). Unreadable or unset is a
+ * note; only a value CD would refuse fails.
+ */
+async function cdIdentityRow(
+  profile: LoadedProfile,
+  run: CommandRunner,
+  fork: ForkLookup,
+): Promise<CheckRow> {
+  const { repo } = fork;
+  if (repo === null) {
+    return warn(CD_IDENTITY, fork.problem ?? "no fork", [SET_ORIGIN]);
+  }
+  let project: string | null;
+  let number: string | null;
+  try {
+    [project, number] = await Promise.all([
+      readVariable(run, PROJECT_VARIABLE, repo),
+      readVariable(run, PROJECT_NUMBER_VARIABLE, repo),
+    ]);
+  } catch (error) {
+    if (!(error instanceof CommandError)) throw error;
+    return warn(
+      CD_IDENTITY,
+      `could not read the repository variables: ${error.message}`,
+      error.remedies,
+    );
+  }
+  const { projectId, web } = profile.brand.firebase;
+  const unset = [
+    ...(project === null ? [PROJECT_VARIABLE] : []),
+    ...(number === null ? [PROJECT_NUMBER_VARIABLE] : []),
+  ];
+  if (project === null || number === null) {
+    const noun =
+      unset.length > 1
+        ? `repository variables ${unset.join(", ")} are`
+        : `repository variable ${unset.join("")} is`;
+    return warn(
+      CD_IDENTITY,
+      `${noun} not set, so CD deploys nothing yet (step 2 of pnpm brand:provision)`,
+      [PRINT_GCP_SETUP],
+    );
+  }
+  if (project !== projectId) {
+    return fail(
+      CD_IDENTITY,
+      `repository variable ${PROJECT_VARIABLE} is "${project}", but ${BRAND_FILE} names "${projectId}": CD would refuse to deploy this brand`,
+      [
+        {
+          change: `point CD at this brand's project (or fix ${BRAND_FILE} if the variable is right)`,
+          run: `gh variable set ${PROJECT_VARIABLE} --body ${projectId} --repo ${repo}`,
+          where: "shell",
+        },
+      ],
+    );
+  }
+  if (!PROJECT_NUMBER_PATTERN.test(number)) {
+    return fail(
+      CD_IDENTITY,
+      `repository variable ${PROJECT_NUMBER_VARIABLE} is "${number}", not a project number`,
+      [PRINT_GCP_SETUP],
+    );
+  }
+  // A web app id is 1:<project number>:web:<hash>, so the two must agree.
+  if (number !== web.messagingSenderId) {
+    return warn(
+      CD_IDENTITY,
+      `repository variable ${PROJECT_NUMBER_VARIABLE} is "${number}", but the web apps of ${BRAND_FILE} belong to project number ${web.messagingSenderId}`,
+      [PRINT_GCP_SETUP],
+    );
+  }
+  return ok(
+    CD_IDENTITY,
+    `${PROJECT_VARIABLE}=${project}, ${PROJECT_NUMBER_VARIABLE}=${number}: CD signs in as ${deploySaEmail(project)}`,
+  );
+}
+
+/** The row, with a note when the fork it read is spelled as origin writes it, unconfirmed. */
+const withCaseNote = (row: CheckRow, caseNote: string | undefined): CheckRow =>
+  caseNote ? { ...row, detail: `${row.detail}. Note: ${caseNote}` } : row;
 
 const LOCAL_ONLY = "local-only profile; comes with going live (pnpm brand:init connects it)";
 const EXAMPLE = "the example profile; your chapter's own goes live (pnpm brand:init creates it)";
@@ -270,20 +386,44 @@ export async function check({
   nodeVersion?: string;
   platform?: NodeJS.Platform;
   home?: string;
-} = {}): Promise<{ sections: Section[]; profile?: LoadedProfile }> {
+} = {}): Promise<{
+  sections: Section[];
+  profile?: LoadedProfile;
+  /** CD's repository variables are set and match the brand: a deploy would run. */
+  cdReady: boolean;
+  /** The fork the variables were read from, for the commands to print. */
+  repo: string | null;
+}> {
   // Nothing else runs on native Windows (brand-setup spec S7).
   const windows = nativeWindows(platform);
-  if (windows) return { sections: [{ title: SECTION_TITLES.tools, rows: [windows] }] };
+  if (windows) {
+    return {
+      sections: [{ title: SECTION_TITLES.tools, rows: [windows] }],
+      cdReady: false,
+      repo: null,
+    };
+  }
   const { rows: profileChecks, profile } = profileRows(repoRoot, env);
   // While going live waits, nothing calls gcloud or gh.
   const waits = goingLiveWaits(profile);
   const tools = (part: Part) =>
     toolRows({ parts: [part], repoRoot, run, env, nodeVersion, platform, home });
   // The external commands are independent; start them together, report in order.
-  const [trying, live, bucket] = await Promise.all([
+  const live = profile && !waits ? profile : undefined;
+  const forkLookup: Promise<ForkLookup> = live
+    ? forkRepo({ run, repoRoot, projectId: live.brand.firebase.projectId })
+    : Promise.resolve({ repo: null, problem: null });
+  const [trying, liveTools, bucket, cdIdentity, fork] = await Promise.all([
     tools("try"),
     waits ? [] : tools("live"),
-    profile && !waits ? attempt("bucket", () => bucketRow(profile, run)) : skip("bucket"),
+    live ? attempt("bucket", () => bucketRow(live, run)) : skip("bucket"),
+    live
+      ? attempt(CD_IDENTITY, async () => {
+          const fork = await forkLookup;
+          return withCaseNote(await cdIdentityRow(live, run, fork), fork.caseNote);
+        })
+      : skip(CD_IDENTITY),
+    forkLookup.catch(() => ({ repo: null, problem: null })),
   ]);
 
   const chapter = [
@@ -293,9 +433,7 @@ export async function check({
       ? await attempt(FIREBASERC, async () => firebasercRow(profile, repoRoot))
       : skip(FIREBASERC),
   ];
-  const goingLive = waits
-    ? [skip("going live", waits)]
-    : [profile ? cdIdentityRow(profile) : skip("CD identity"), ...live, bucket];
+  const goingLive = waits ? [skip("going live", waits)] : [cdIdentity, ...liveTools, bucket];
   return {
     sections: [
       { title: SECTION_TITLES.tools, rows: trying },
@@ -304,15 +442,20 @@ export async function check({
       { title: SECTION_TITLES.live, rows: goingLive },
     ],
     profile,
+    cdReady: cdIdentity.status === "ok",
+    repo: fork.repo,
   };
 }
 
 /**
  * With every row passing, what remains is a choice (spec L5): the example can be tried or
  * replaced by the chapter's own profile; a local-only profile can go live by connecting a
- * project; a connected one goes live by merging to main.
+ * project; a connected one goes live once CD's repository variables are set (`cdReady`).
  */
-export function checkNext(profile: LoadedProfile): Remedy[] {
+export function checkNext(
+  profile: LoadedProfile,
+  { cdReady, repo }: { cdReady: boolean; repo: string | null },
+): Remedy[] {
   const { slug } = profile;
   if (profile.source === "example") {
     return [
@@ -326,8 +469,8 @@ export function checkNext(profile: LoadedProfile): Remedy[] {
       CONNECT_PROJECT,
     ];
   }
-  // Without CD's sign-in a merge deploys nothing (Deploy skips), so that comes first.
-  if (!profile.brand.deploy) {
+  // Without CD's variables a deploy does nothing (Deploy skips), so that comes first.
+  if (!cdReady) {
     return [
       {
         change: `set up keyless CD and the assets bucket (${guideStep("provision")})`,
@@ -343,7 +486,7 @@ export function checkNext(profile: LoadedProfile): Remedy[] {
       },
       {
         change: `then deploy everything from your fork; approve the run in GitHub (${guideStep("goLive")})`,
-        run: deployDispatch("all"),
+        run: deployDispatch("all", repo),
         where: "shell",
       },
     ];
@@ -355,7 +498,7 @@ export function checkNext(profile: LoadedProfile): Remedy[] {
     },
     {
       change: "later, to deploy everything again without a merge (project owner)",
-      run: deployDispatch("all"),
+      run: deployDispatch("all", repo),
       where: "shell",
     },
   ];
@@ -363,7 +506,7 @@ export function checkNext(profile: LoadedProfile): Remedy[] {
 
 if (import.meta.main) {
   await runBrandCommand("brand:check", async () => {
-    const { sections, profile } = await check();
+    const { sections, profile, cdReady, repo } = await check();
     const { text, failures } = formatReport(sections);
     console.log(text);
     if (failures > 0) {
@@ -377,6 +520,8 @@ if (import.meta.main) {
       notes.length > 0
         ? `no problems; ${plural(notes.length, "note")} above, worth a look`
         : "everything is ready";
-    console.log(`\nbrand:check: ${summary}.\n\n${formatNext(checkNext(profile))}`);
+    console.log(
+      `\nbrand:check: ${summary}.\n\n${formatNext(checkNext(profile, { cdReady, repo }))}`,
+    );
   });
 }
