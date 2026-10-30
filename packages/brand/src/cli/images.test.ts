@@ -1,31 +1,21 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { writeAssetSet } from "../asset-set.ts";
 import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES } from "../assets.ts";
-import { EXAMPLE_PROFILE, loadProfile, type LoadedProfile } from "../load-profile.ts";
-import { TEST_CHAPTER, exampleRepo, writeChapter } from "../test-profiles.ts";
-import { PULLED_ASSETS_DIR } from "../release.ts";
+import { loadProfile, type LoadedProfile } from "../load-profile.ts";
+import { chapterRepo, localRepo } from "../test-profiles.ts";
 import { checkImages } from "./images.ts";
 
 let root: string;
 let profile: LoadedProfile;
-let ownAssets: string;
 const TOTAL = ASSET_CONTRACT.length;
 
-const images = (env: Record<string, string> = {}) => checkImages({ profile, repoRoot: root, env });
-const brandAssets = () => join(root, PULLED_ASSETS_DIR);
+const images = () => checkImages({ profile, repoRoot: root });
+const brandAssets = () => join(root, "brand", "local");
 
 beforeEach(() => {
-  root = exampleRepo("brand-images-");
-  writeChapter(root);
-  profile = loadProfile({ repoRoot: root, profile: TEST_CHAPTER });
-  writeAssetSet(brandAssets());
-  // brand-assets/ holds the images; the profile's own would add the other-folder note.
-  ownAssets = join(root, "brand", TEST_CHAPTER, "assets");
-  cpSync(ownAssets, join(root, "example-assets"), { recursive: true });
-  rmSync(ownAssets, { recursive: true });
+  root = localRepo("brand-images-");
+  profile = loadProfile({ repoRoot: root, env: {} });
 });
 
 afterEach(() => {
@@ -36,7 +26,7 @@ describe("checkImages", () => {
   it("is one passing row when every image is right, under a title naming the folder", () => {
     const { title, rows, dir } = images();
     expect(dir).toBe(brandAssets());
-    expect(title).toBe("Images in brand-assets/");
+    expect(title).toBe("Images in brand/local/");
     expect(rows).toEqual([{ check: "images", status: "ok", detail: `all ${TOTAL} valid` }]);
   });
 
@@ -68,7 +58,7 @@ describe("checkImages", () => {
     const [missing] = images().rows;
     expect(missing?.remedies).toEqual([
       expect.objectContaining({
-        change: expect.stringMatching(/^put the files marked above in brand-assets\//),
+        change: expect.stringMatching(/^put the files marked above in brand\/local\//),
         run: "pnpm brand:check",
       }),
     ]);
@@ -82,47 +72,20 @@ describe("checkImages", () => {
     expect(heavy?.detail).toMatch(/WhatsApp/);
   });
 
-  it("fails a set pulled for another profile", () => {
-    writeFileSync(
-      join(brandAssets(), "pull-manifest.json"),
-      JSON.stringify({ profile: EXAMPLE_PROFILE }),
-    );
-    expect(images().rows[0]).toMatchObject({
-      check: "pull-manifest.json",
-      status: "fail",
-      detail: expect.stringMatching(/re-run brand:pull/),
-    });
+  it("keeps files outside the contract out of the section: an icon master, notes", () => {
+    writeFileSync(join(brandAssets(), "notes.txt"), "mine");
+    expect(images().rows).toEqual([expect.objectContaining({ check: "images", status: "ok" })]);
   });
 
-  it("notes the profile's own images when brand-assets/ wins over them", () => {
-    cpSync(join(root, "example-assets"), ownAssets, { recursive: true });
-    const { dir, rows } = images();
-    expect(dir).toBe(brandAssets());
-    expect(rows.at(-1)).toMatchObject({
-      check: "other folder",
-      status: "warn",
-      detail:
-        "brand/jci-valle/assets/ also holds images; they are not used while brand-assets/ holds any",
-    });
-  });
-
-  it("reads the profile's own images while brand-assets/ holds none, and says so", () => {
-    cpSync(join(root, "example-assets"), ownAssets, { recursive: true });
-    rmSync(brandAssets(), { recursive: true });
-    const { title, dir, rows } = images();
-    expect(dir).toBe(join(root, "brand/jci-valle/assets"));
-    expect(title).toBe("Images in brand/jci-valle/assets/");
-    expect(rows).toEqual([expect.objectContaining({ status: "ok" })]);
-  });
-
-  it("reads the folder the BRAND_ASSETS_DIR tooling override names", () => {
-    const other = mkdtempSync(join(tmpdir(), "brand-images-other-"));
+  it("reads a committed chapter's own assets/ while brand/local/ holds no pulled images", () => {
+    const committed = chapterRepo("brand-images-chapter-");
     try {
-      const { dir, rows } = images({ BRAND_ASSETS_DIR: other });
-      expect(dir).toBe(other);
-      expect(rows.filter(({ status }) => status === "fail")).toHaveLength(TOTAL);
+      const chapter = loadProfile({ repoRoot: committed, env: {} });
+      const { title, dir } = checkImages({ profile: chapter, repoRoot: committed });
+      expect(dir).toBe(join(committed, "brand/jci-valle/assets"));
+      expect(title).toBe("Images in brand/jci-valle/assets/");
     } finally {
-      rmSync(other, { recursive: true, force: true });
+      rmSync(committed, { recursive: true, force: true });
     }
   });
 });

@@ -1,38 +1,36 @@
-import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { writeAssetSet } from "./asset-set.ts";
+import { sha256 } from "./hash.ts";
 import { EXAMPLE_PROFILE, REPO_ROOT, loadProfile, type LoadedProfile } from "./load-profile.ts";
 import {
-  PULLED_ASSETS_DIR,
   RELEASE_MARKER_FILE,
   isRelease,
   readReleaseMarker,
   releaseErrors,
   releaseIdentity,
 } from "./release.ts";
-import { chapterProfile } from "./test-profiles.ts";
+import { chapterRepo, localRepo, recordLocal } from "./test-profiles.ts";
 
 const BUILD = { command: "build", emulatorEnabled: false } as const;
 
 let root: string;
-let assetsDir: string;
-
-const chapter = chapterProfile();
-const overridden: LoadedProfile = { ...chapter, source: "override" };
+let chapter: LoadedProfile;
+let overridden: LoadedProfile;
 const example = () => loadProfile({ repoRoot: REPO_ROOT, profile: EXAMPLE_PROFILE });
+const local = (path = "") => join(root, "brand", "local", path);
 
-function writeManifest(profile = "jci-valle") {
-  mkdirSync(assetsDir, { recursive: true });
-  const body = JSON.stringify({ profile, objects: [] });
-  writeFileSync(join(assetsDir, "pull-manifest.json"), body);
-  return createHash("sha256").update(body).digest("hex");
+/** brand/local/ as brand:pull leaves it: the files, recorded with source bucket. */
+function writeManifest(project = "jci-valle") {
+  recordLocal(root, { project });
+  return sha256(readFileSync(local(".pull-manifest.json")));
 }
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "brand-release-"));
-  assetsDir = join(root, PULLED_ASSETS_DIR);
+  root = localRepo("brand-release-");
+  chapter = loadProfile({ repoRoot: root, env: {} });
+  overridden = { ...chapter, source: "override" };
 });
 
 afterEach(() => {
@@ -58,7 +56,7 @@ const messages = (problems: readonly { message: string }[]) =>
 
 describe("release remedies", () => {
   it("asks to drop a BRAND_PROFILE override, so the profile in brand/ ships", () => {
-    const [problem] = releaseErrors({ profile: overridden, env: {}, assetsDir, ...BUILD });
+    const [problem] = releaseErrors({ profile: overridden, env: {}, repoRoot: root, ...BUILD });
     expect(problem?.message).toMatch(/what ships is the profile found in brand\/\./);
     expect(problem?.remedies).toEqual([
       expect.objectContaining({ run: "unset BRAND_PROFILE", where: "shell" }),
@@ -66,7 +64,7 @@ describe("release remedies", () => {
   });
 
   it("points a missing pull manifest at brand:pull", () => {
-    const problems = releaseErrors({ profile: chapter, env: {}, assetsDir, ...BUILD });
+    const problems = releaseErrors({ profile: chapter, env: {}, repoRoot: root, ...BUILD });
     expect(problems.flatMap(({ remedies }) => remedies ?? []).map(({ run }) => run)).toContain(
       "pnpm brand:pull",
     );
@@ -81,7 +79,7 @@ describe("releaseErrors", () => {
         releaseErrors({
           profile: chapter,
           env: { GCP_PROJECT_ID: "jci-valle" },
-          assetsDir,
+          repoRoot: root,
           ...BUILD,
         }),
       ),
@@ -90,14 +88,14 @@ describe("releaseErrors", () => {
 
   it("refuses a profile chosen by an environment override", () => {
     writeManifest();
-    expect(messages(releaseErrors({ profile: overridden, env: {}, assetsDir, ...BUILD }))).toEqual([
-      expect.stringMatching(/BRAND_PROFILE=jci-valle is set in your environment/),
-    ]);
+    expect(
+      messages(releaseErrors({ profile: overridden, env: {}, repoRoot: root, ...BUILD })),
+    ).toEqual([expect.stringMatching(/BRAND_PROFILE=local is set in your environment/)]);
   });
 
   it("rejects the example, sending the user to their chapter's own profile", () => {
-    writeManifest(EXAMPLE_PROFILE);
-    const problems = releaseErrors({ profile: example(), env: {}, assetsDir, ...BUILD });
+    writeManifest("demo-example");
+    const problems = releaseErrors({ profile: example(), env: {}, repoRoot: root, ...BUILD });
     expect(messages(problems)).toEqual([
       expect.stringMatching(/"example" is the example and can never be released/),
     ]);
@@ -107,25 +105,11 @@ describe("releaseErrors", () => {
   it("rejects a local-only chapter, naming its demo- project", () => {
     writeManifest();
     const local = { ...chapter, localOnly: true };
-    expect(messages(releaseErrors({ profile: local, env: {}, assetsDir, ...BUILD }))).toEqual([
+    expect(messages(releaseErrors({ profile: local, env: {}, repoRoot: root, ...BUILD }))).toEqual([
       expect.stringMatching(
-        /"jci-valle" is local-only \(project "jci-valle" exists only in the emulators\)/,
+        /"local" is local-only \(project "jci-valle" exists only in the emulators\)/,
       ),
     ]);
-  });
-
-  it("rejects BRAND_ASSETS_DIR", () => {
-    writeManifest();
-    expect(
-      messages(
-        releaseErrors({
-          profile: chapter,
-          env: { BRAND_ASSETS_DIR: "elsewhere" },
-          assetsDir,
-          ...BUILD,
-        }),
-      ),
-    ).toEqual([expect.stringMatching(/^BRAND_ASSETS_DIR is not allowed in release mode/)]);
   });
 
   it("rejects a GCP_PROJECT_ID that is not the profile's project", () => {
@@ -135,31 +119,93 @@ describe("releaseErrors", () => {
         releaseErrors({
           profile: chapter,
           env: { GCP_PROJECT_ID: "someone-else" },
-          assetsDir,
+          repoRoot: root,
           ...BUILD,
         }),
       ),
-    ).toEqual([expect.stringMatching(/^GCP_PROJECT_ID "someone-else" is not profile "jci-valle"/)]);
+    ).toEqual([expect.stringMatching(/^GCP_PROJECT_ID "someone-else" is not profile "local"/)]);
   });
 
-  it("requires the pull manifest, so release assets come only from brand:pull", () => {
-    expect(messages(releaseErrors({ profile: chapter, env: {}, assetsDir, ...BUILD }))).toEqual([
-      expect.stringMatching(
-        /^no pull-manifest\.json in brand-assets\/: a deploy only uses images downloaded with brand:pull/,
-      ),
+  it("requires the pull manifest, so a deploy ships only what brand:pull downloaded", () => {
+    expect(
+      messages(releaseErrors({ profile: chapter, env: {}, repoRoot: root, ...BUILD })),
+    ).toEqual([
+      "no brand/local/.pull-manifest.json: a deploy only uses files downloaded with brand:pull.",
     ]);
+  });
+
+  it("refuses a file edited after the pull, naming it", () => {
+    writeManifest();
+    appendFileSync(local("og-image.png"), "edited");
+    writeFileSync(local("brand.toml"), `${readFileSync(local("brand.toml"), "utf8")}\n# note\n`);
+    expect(
+      messages(releaseErrors({ profile: chapter, env: {}, repoRoot: root, ...BUILD })),
+    ).toEqual([
+      "brand/local/brand.toml: changed after brand:pull; upload it with brand:push, or pull again",
+      "brand/local/og-image.png: changed after brand:pull; upload it with brand:push, or pull again",
+    ]);
+  });
+
+  it("refuses a seeded example file: only the bucket's files ship", () => {
+    recordLocal(root, { source: "example" });
+    const problems = messages(
+      releaseErrors({ profile: chapter, env: {}, repoRoot: root, ...BUILD }),
+    );
+    expect(problems).toHaveLength(17);
+    expect(problems).toContain(
+      "brand/local/logo-main.png: the seeded example's copy, never pulled from the bucket",
+    );
+  });
+
+  it("refuses a file the manifest does not record, or one deleted after the pull", () => {
+    writeManifest();
+    rmSync(local("spotlight/favicon-16.png"));
+    const manifest = JSON.parse(readFileSync(local(".pull-manifest.json"), "utf8"));
+    delete manifest.objects["logo-main.png"];
+    writeFileSync(local(".pull-manifest.json"), JSON.stringify(manifest));
+    expect(
+      messages(releaseErrors({ profile: chapter, env: {}, repoRoot: root, ...BUILD })),
+    ).toEqual([
+      "brand/local/logo-main.png: not in brand/local/.pull-manifest.json, so not pulled from the bucket",
+      "brand/local/spotlight/favicon-16.png: missing, though brand:pull downloaded it",
+    ]);
+  });
+
+  it("refuses a manifest pulled for another project", () => {
+    writeManifest("jci-other");
+    expect(
+      messages(releaseErrors({ profile: chapter, env: {}, repoRoot: root, ...BUILD })),
+    ).toEqual([
+      'brand/local/.pull-manifest.json: pulled from project "jci-other", but the profile deploys "jci-valle"',
+    ]);
+  });
+
+  it("takes a committed chapter's brand.toml from git: only its images need the pull", () => {
+    const committed = chapterRepo("brand-release-chapter-");
+    try {
+      writeAssetSet(join(committed, "brand", "local"));
+      recordLocal(committed);
+      const profile = loadProfile({ repoRoot: committed, env: {} });
+      expect(profile.slug).toBe("jci-valle");
+      expect(profile.assetsDir).toBe(join(committed, "brand", "local"));
+      expect(messages(releaseErrors({ profile, env: {}, repoRoot: committed, ...BUILD }))).toEqual(
+        [],
+      );
+    } finally {
+      rmSync(committed, { recursive: true, force: true });
+    }
   });
 
   it("lists every problem at once", () => {
     const errors = messages(
       releaseErrors({
         profile: { ...example(), source: "override" },
-        env: { BRAND_ASSETS_DIR: "x", GCP_PROJECT_ID: "someone-else" },
-        assetsDir,
+        env: { GCP_PROJECT_ID: "someone-else" },
+        repoRoot: root,
         ...BUILD,
       }),
     );
-    expect(errors).toHaveLength(5);
+    expect(errors).toHaveLength(4);
   });
 });
 
@@ -173,7 +219,7 @@ describe("releaseErrors on the build itself", () => {
         releaseErrors({
           profile: chapter,
           env,
-          assetsDir,
+          repoRoot: root,
           command: "serve",
           emulatorEnabled: false,
         }),
@@ -184,7 +230,7 @@ describe("releaseErrors on the build itself", () => {
         releaseErrors({
           profile: chapter,
           env,
-          assetsDir,
+          repoRoot: root,
           command: "build",
           emulatorEnabled: true,
         }),
@@ -196,8 +242,8 @@ describe("releaseErrors on the build itself", () => {
 describe("release marker", () => {
   it("records the profile, its project and the pull manifest's sha256", () => {
     const digest = writeManifest();
-    expect(releaseIdentity(chapter, assetsDir)).toEqual({
-      profile: "jci-valle",
+    expect(releaseIdentity(chapter, root)).toEqual({
+      profile: "local",
       projectId: "jci-valle",
       assets: digest,
     });

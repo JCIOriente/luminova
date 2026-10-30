@@ -1,6 +1,14 @@
 // Test-only: repo roots that hold the committed example and a connected chapter made from it,
 // so no test depends on a real chapter's profile being in git.
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stringify } from "smol-toml";
@@ -14,6 +22,14 @@ import {
   loadProfile,
   type LoadedProfile,
 } from "./load-profile.ts";
+import { fileSha256 } from "./hash.ts";
+import {
+  BUCKET_CONTRACT,
+  LOCAL_PROFILE,
+  localDir,
+  writeManifest,
+  type ObjectRecord,
+} from "./local-folder.ts";
 import type { Table } from "./schema.ts";
 
 /** A chapter on a real (fictional) project, with CD's sign-in: everything a deploy needs. */
@@ -124,7 +140,8 @@ export function exampleRepo(
 /**
  * Writes `brand/<slug>/` into `root`: the chapter's brand.toml (with `brand`'s top-level
  * keys replacing the test chapter's) and, unless `assets` is false, the chapter's own
- * images. Returns the profile folder.
+ * images: flat in brand/local/, in `assets/` of a committed chapter folder. Returns the
+ * profile folder.
  */
 export function writeChapter(
   root: string,
@@ -142,22 +159,44 @@ export function writeChapter(
     ),
   );
   writeFileSync(join(dir, BRAND_FILE), `${SCHEMA_LINE}\n${stringify(file)}\n`);
-  if (assets) writeAssetSet(join(dir, "assets"), () => CHAPTER_COLOR);
+  if (assets)
+    writeAssetSet(slug === LOCAL_PROFILE ? dir : join(dir, "assets"), () => CHAPTER_COLOR);
   return dir;
 }
 
-/** A repo root with the example and the test chapter, which brand/ then selects. */
+/**
+ * A repo root with the example and the test chapter committed in brand/, which brand/ then
+ * selects. TRANSITIONAL (the JCI Oriente removal PR drops this).
+ */
 export function chapterRepo(prefix = "brand-chapter-"): string {
   const root = exampleRepo(prefix);
   writeChapter(root);
   return root;
 }
 
+/** A repo root with the example and the test chapter in brand/local/, which brand/ then selects. */
+export function localRepo(prefix = "brand-local-"): string {
+  const root = exampleRepo(prefix);
+  writeChapter(root, { slug: LOCAL_PROFILE });
+  return root;
+}
+
 let shared: LoadedProfile | undefined;
+let sharedLocal: LoadedProfile | undefined;
+
+/** The test chapter in brand/local/, as brand/ selects it, loaded once per test file. */
+export function localProfile(): LoadedProfile {
+  if (sharedLocal === undefined) {
+    const root = localRepo();
+    process.once("exit", () => rmSync(root, { recursive: true, force: true }));
+    sharedLocal = loadProfile({ repoRoot: root, env: {} });
+  }
+  return sharedLocal;
+}
 
 /**
- * The test chapter as brand/ selects it, loaded once per test file from a repo root removed
- * on exit.
+ * The test chapter committed in brand/, as brand/ selects it, loaded once per test file from
+ * a repo root removed on exit. TRANSITIONAL (the JCI Oriente removal PR drops this).
  */
 export function chapterProfile(): LoadedProfile {
   if (shared === undefined) {
@@ -166,4 +205,28 @@ export function chapterProfile(): LoadedProfile {
     shared = loadProfile({ repoRoot: root, env: {} });
   }
   return shared;
+}
+
+/**
+ * Records the contract files brand/local/ holds in its manifest, as brand:pull (source
+ * `bucket`, a generation each) or the seed (source `example`) would.
+ */
+export function recordLocal(
+  root: string,
+  {
+    source = "bucket",
+    project = TEST_CHAPTER,
+  }: { source?: ObjectRecord["source"]; project?: string } = {},
+): void {
+  const dir = localDir(root);
+  const objects: Record<string, ObjectRecord> = {};
+  BUCKET_CONTRACT.forEach((path, index) => {
+    if (!existsSync(join(dir, path))) return;
+    const sha256 = fileSha256(join(dir, path));
+    objects[path] =
+      source === "bucket"
+        ? { source, generation: String(1000 + index), sha256 }
+        : { source, sha256 };
+  });
+  writeManifest(dir, { version: 1, project, bucket: `${project}-brand-assets`, objects });
 }

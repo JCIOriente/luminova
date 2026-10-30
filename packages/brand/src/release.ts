@@ -1,9 +1,17 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { GUIDE_STEPS, guideStep } from "./remedy.ts";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { z } from "zod";
-import { ASSET_CONTRACT, PULL_ASSETS, PULL_MANIFEST_FILE } from "./assets.ts";
-import { sha256 } from "./hash.ts";
+import { PULL_ASSETS } from "./assets.ts";
+import { fileSha256 } from "./hash.ts";
+import {
+  MANIFEST_LABEL,
+  PULL_MANIFEST_FILE,
+  bucketContract,
+  localDir,
+  localLabel,
+  readManifest,
+} from "./local-folder.ts";
 import type { Problem, Remedy } from "./remedy.ts";
 import {
   BrandConfigError,
@@ -20,7 +28,6 @@ import {
 /** Release mode (spec section 5.6): the deploy build. Only `build:release`, `deploy:*` and CD set it. */
 const RELEASE_ENV = "BRAND_RELEASE";
 export const RELEASE_MARKER_FILE = ".brand-release.json";
-export const PULLED_ASSETS_DIR = "brand-assets";
 
 /** How a local-only profile goes live: a real project, then brand:init connects it. */
 export const CONNECT_PROJECT: Remedy = {
@@ -113,28 +120,6 @@ export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
   return errors;
 }
 
-/**
- * Where a build, `brand:check` and `brand:push` read the asset set: release always reads the
- * pulled `brand-assets/`; otherwise the `BRAND_ASSETS_DIR` tooling override, then
- * `brand-assets/` once it holds any contract file (brand:init leaves only a README there),
- * then the profile's own `assets/`. A profile without its own assets reads `brand-assets/`,
- * so its errors name the folder to fill.
- */
-export function selectAssetsDir(
-  repoRoot: string,
-  profile: LoadedProfile,
-  env: Env,
-  release: boolean,
-): string {
-  const pulled = join(repoRoot, PULLED_ASSETS_DIR);
-  if (release) return pulled;
-  const fromEnv = env.BRAND_ASSETS_DIR?.trim();
-  if (fromEnv) return resolve(repoRoot, fromEnv);
-  const own = join(profile.dir, "assets");
-  const pulledHasAssets = ASSET_CONTRACT.some(({ path }) => existsSync(join(pulled, path)));
-  return pulledHasAssets || !existsSync(own) ? pulled : own;
-}
-
 /** A directory as the user should read it: relative inside the repo, absolute outside it. */
 export function displayDir(repoRoot: string, dir: string): string {
   const path = relative(repoRoot, dir);
@@ -145,13 +130,13 @@ export function displayDir(repoRoot: string, dir: string): string {
 export function releaseErrors({
   profile,
   env,
-  assetsDir,
+  repoRoot,
   command,
   emulatorEnabled,
 }: {
   profile: LoadedProfile;
   env: Env;
-  assetsDir: string;
+  repoRoot: string;
   command: "serve" | "build";
   emulatorEnabled: boolean;
 }): Problem[] {
@@ -167,18 +152,6 @@ export function releaseErrors({
       ],
     });
   }
-  if (env.BRAND_ASSETS_DIR?.trim()) {
-    errors.push({
-      message: `BRAND_ASSETS_DIR is not allowed in release mode; release assets come only from ${PULLED_ASSETS_DIR}/.`,
-      remedies: [
-        {
-          change: "remove it from your environment (tools set it for test builds only)",
-          run: "unset BRAND_ASSETS_DIR",
-          where: "shell",
-        },
-      ],
-    });
-  }
   const target = env.GCP_PROJECT_ID?.trim();
   if (target && target !== projectId) {
     errors.push({
@@ -190,20 +163,85 @@ export function releaseErrors({
       ],
     });
   }
-  if (!existsSync(join(assetsDir, PULL_MANIFEST_FILE))) {
-    errors.push({
-      message: `no ${PULL_MANIFEST_FILE} in ${PULLED_ASSETS_DIR}/: a deploy only uses images downloaded with brand:pull.`,
-      remedies: [PULL_ASSETS],
-    });
-  }
+  errors.push(...pulledFileErrors(profile, repoRoot));
   return errors;
 }
 
-export function releaseIdentity(profile: LoadedProfile, assetsDir: string): ReleaseIdentity {
+const PUSH_OR_PULL = {
+  change:
+    "upload your change to the bucket, or replace it with the bucket's copy (pnpm brand:pull)",
+  run: "pnpm brand:push",
+};
+
+/**
+ * A release ships only what brand:pull downloaded into brand/local/ (spec "Release builds"):
+ * every contract file recorded with source `bucket` and still those bytes.
+ */
+function pulledFileErrors(profile: LoadedProfile, repoRoot: string): Problem[] {
+  const dir = localDir(repoRoot);
+  const manifest = readManifest(dir);
+  if (!manifest) {
+    return [
+      {
+        message: `no ${MANIFEST_LABEL}: a deploy only uses files downloaded with brand:pull.`,
+        remedies: [PULL_ASSETS],
+      },
+    ];
+  }
+  const { projectId } = profile.brand.firebase;
+  if (manifest.project !== projectId) {
+    return [
+      {
+        message: `${MANIFEST_LABEL}: pulled from project "${manifest.project}", but the profile deploys "${projectId}"`,
+        remedies: [PULL_ASSETS],
+      },
+    ];
+  }
+  return bucketContract(profile).flatMap((path): Problem[] => {
+    const record = manifest.objects[path];
+    const file = join(dir, path);
+    const label = localLabel(path);
+    if (!record) {
+      return [
+        {
+          message: `${label}: not in ${MANIFEST_LABEL}, so not pulled from the bucket`,
+          remedies: [PULL_ASSETS],
+        },
+      ];
+    }
+    if (record.source !== "bucket") {
+      return [
+        {
+          message: `${label}: the seeded example's copy, never pulled from the bucket`,
+          remedies: [PULL_ASSETS],
+        },
+      ];
+    }
+    if (!existsSync(file)) {
+      return [
+        {
+          message: `${label}: missing, though brand:pull downloaded it`,
+          remedies: [PULL_ASSETS],
+        },
+      ];
+    }
+    if (fileSha256(file) !== record.sha256) {
+      return [
+        {
+          message: `${label}: changed after brand:pull; upload it with brand:push, or pull again`,
+          remedies: [PUSH_OR_PULL],
+        },
+      ];
+    }
+    return [];
+  });
+}
+
+export function releaseIdentity(profile: LoadedProfile, repoRoot: string): ReleaseIdentity {
   return {
     profile: profile.slug,
     projectId: profile.brand.firebase.projectId,
-    assets: sha256(readFileSync(join(assetsDir, PULL_MANIFEST_FILE))),
+    assets: fileSha256(join(localDir(repoRoot), PULL_MANIFEST_FILE)),
   };
 }
 

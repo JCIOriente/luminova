@@ -1,25 +1,28 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { writeAssetSet } from "../asset-set.ts";
 import { ASSET_CONTRACT } from "../assets.ts";
 import { EXAMPLE_PROFILE, loadProfile } from "../load-profile.ts";
-import { TEST_CHAPTER, exampleRepo, writeChapter } from "../test-profiles.ts";
-import { PULLED_ASSETS_DIR } from "../release.ts";
+import { exampleRepo, writeChapter } from "../test-profiles.ts";
 import { applyProfile } from "./apply.ts";
 import { SECTION_TITLES, check, checkNext } from "./check.ts";
 import { rowRemedies, type CheckRow } from "./rows.ts";
 import { CommandError, commandFailure, type CommandRunner } from "./gcloud.ts";
 
 const BUCKET = "jci-valle-brand-assets";
-/** A connected chapter with CD's sign-in. */
-const CHAPTER = TEST_CHAPTER;
+/** A connected chapter with CD's sign-in, in brand/local/. */
+const CHAPTER = "local";
+const LOCAL = { slug: CHAPTER };
 const TOOLS = { nodeVersion: "24.15.0", platform: "linux" } as const;
 const ENV = { CLOUDSDK_CONFIG: "" };
 
 let root: string;
 let calls: string[][];
 let responses: Map<string, string | Error>;
+
+/** What `gcloud storage objects list --format=json` prints for these object names. */
+const listingOf = (names: readonly string[]) =>
+  JSON.stringify(names.map((name, index) => ({ name, generation: String(100 + index) })));
 
 const run: CommandRunner = async (command, args) => {
   calls.push([command, ...args]);
@@ -46,13 +49,11 @@ beforeEach(() => {
   root = exampleRepo("brand-check-");
   ENV.CLOUDSDK_CONFIG = root;
   writeFileSync(join(root, "application_default_credentials.json"), "{}");
-  // Images live in brand-assets/ here; the profile's own would add the other-folder note.
-  writeChapter(root, { assets: false });
+  writeChapter(root, LOCAL);
   writeFileSync(
     join(root, "package.json"),
     JSON.stringify({ engines: { node: ">=24.15.0" }, packageManager: "pnpm@11.5.1" }),
   );
-  writeAssetSet(join(root, PULLED_ASSETS_DIR));
   applyProfile({
     profile: loadProfile({ repoRoot: root, profile: CHAPTER }),
     repoRoot: root,
@@ -61,7 +62,10 @@ beforeEach(() => {
   calls = [];
   responses = new Map<string, string | Error>([
     ["gcloud auth list", "owner@example.org\n"],
-    ["gcloud storage objects list", `${ASSET_CONTRACT.map(({ path }) => path).join("\n")}\n`],
+    [
+      "gcloud storage objects list",
+      listingOf(["brand.toml", ...ASSET_CONTRACT.map(({ path }) => path)]),
+    ],
     ["pnpm --version", "11.5.1\n"],
     ["java --version", "openjdk 21.0.5 2024-10-15 LTS\n"],
     ["firebase --version", "15.22.1\n"],
@@ -109,14 +113,14 @@ describe("check", () => {
       gcloud: "ok",
     });
     expect(rowFor(rows, "selection").detail).toBe(
-      `brand/ selects "${CHAPTER}" (the chapter profile in brand/)`,
+      `brand/ selects "${CHAPTER}" (your chapter's brand in brand/local/)`,
     );
     expect(rowFor(rows, "profile").detail).toBe(`brand/${CHAPTER}/`);
     expect(rowFor(rows, "CD identity").detail).toBe(
       "firebase-deployer@jci-valle.iam.gserviceaccount.com",
     );
     expect(rowFor(rows, "gcloud account").detail).toBe("owner@example.org");
-    expect(rowFor(rows, "bucket").detail).toMatch(`all 16 images in gs://${BUCKET}`);
+    expect(rowFor(rows, "bucket").detail).toMatch(`all 17 files in gs://${BUCKET}`);
     expect(rowFor(rows, "images").detail).toBe("all 16 valid");
   });
 
@@ -128,7 +132,7 @@ describe("check", () => {
         "firebase login:list",
         "gcloud --version",
         "gcloud auth list --filter=status:ACTIVE --format=value(account)",
-        `gcloud storage objects list gs://${BUCKET}/** --format=value(name)`,
+        `gcloud storage objects list gs://${BUCKET}/** --format=json`,
         "gh --version",
         "gh auth status --active",
         "java --version",
@@ -161,10 +165,21 @@ describe("check", () => {
   });
 
   it("names the images missing from the bucket", async () => {
-    responses.set("gcloud storage objects list", "logo-main.png\n");
+    responses.set("gcloud storage objects list", listingOf(["logo-main.png"]));
     const row = rowFor(await diagnose(), "bucket");
     expect(row.status).toBe("fail");
-    expect(row.detail).toMatch(/15 of 16 images missing/);
+    expect(row.detail).toMatch(/16 of 17 files missing/);
+  });
+
+  it("counts only the 16 images in a committed chapter's bucket: its brand.toml is in git", async () => {
+    rmSync(join(root, "brand", CHAPTER), { recursive: true });
+    writeChapter(root);
+    applyProfile({ profile: loadProfile({ repoRoot: root, env: {} }), repoRoot: root, env: {} });
+    responses.set("gcloud storage objects list", listingOf(ASSET_CONTRACT.map(({ path }) => path)));
+    expect(rowFor(await diagnose(), "bucket")).toMatchObject({
+      status: "ok",
+      detail: `all 16 files in gs://${BUCKET}`,
+    });
   });
 
   it("fails a stale .firebaserc with the command that fixes it", async () => {
@@ -176,36 +191,22 @@ describe("check", () => {
   });
 
   it("names each image with a problem in the images section, and the folder in its title", async () => {
-    rmSync(join(root, PULLED_ASSETS_DIR, "og-image.png"));
+    rmSync(join(root, "brand", CHAPTER, "og-image.png"));
     const images = (await sectionsOf())[2];
-    expect(images?.title).toBe("Images in brand-assets/");
+    expect(images?.title).toBe("Images in brand/local/");
     expect(images?.rows.map(({ check: name, status }) => `${name} ${status}`)).toEqual([
       "og-image.png fail",
       "images ok",
     ]);
   });
 
-  it("warns that brand:push will not use a BRAND_ASSETS_DIR the images section read", async () => {
-    writeAssetSet(join(root, "elsewhere"));
-    const images = (await sectionsOf({ env: { BRAND_ASSETS_DIR: "elsewhere" } }))[2];
-    expect(images?.title).toBe("Images in elsewhere/");
-    expect(images?.rows).toContainEqual(
-      expect.objectContaining({
-        check: "BRAND_ASSETS_DIR",
-        status: "warn",
-        detail: expect.stringMatching(/brand:push/),
-        remedies: [expect.objectContaining({ run: "unset BRAND_ASSETS_DIR" })],
-      }),
-    );
-  });
-
   it("warns, without failing, about values the chapter still takes from the example", async () => {
-    writeChapter(root, { assets: false, brand: { foundedYear: undefined, contact: undefined } });
+    writeChapter(root, { ...LOCAL, brand: { foundedYear: undefined, contact: undefined } });
     const rows = await diagnose();
     expect(rowFor(rows, "example values")).toMatchObject({
       status: "warn",
       detail: "foundedYear, [contact] email and [contact] mapUrl are still the example's",
-      remedies: [{ change: expect.stringMatching(/^set them in brand\/jci-valle\/brand\.toml/) }],
+      remedies: [{ change: expect.stringMatching(/^set them in brand\/local\/brand\.toml/) }],
     });
     expect(rows.filter(({ status }) => status === "fail")).toEqual([]);
   });
@@ -224,7 +225,9 @@ describe("check", () => {
     });
   });
 
-  it("fails two chapter profiles once, with both ways out, and skips the profile", async () => {
+  it("fails two committed chapter profiles once, with the way out, and skips the profile", async () => {
+    rmSync(join(root, "brand", CHAPTER), { recursive: true });
+    writeChapter(root, { assets: false });
     writeChapter(root, { slug: "jci-andina", assets: false });
     const rows = await diagnose();
     expect(statusOf(rows)).toMatchObject({ selection: "fail", profile: "skip", bucket: "skip" });
@@ -236,10 +239,31 @@ describe("check", () => {
     const rows = await diagnose({ env: { BRAND_PROFILE: EXAMPLE_PROFILE } });
     expect(rowFor(rows, "selection")).toMatchObject({
       status: "warn",
-      detail: `brand/ selects "${CHAPTER}" (the chapter profile in brand/), but BRAND_PROFILE=example overrides it`,
+      detail: `brand/ selects "${CHAPTER}" (your chapter's brand in brand/local/), but BRAND_PROFILE=example overrides it`,
       remedies: [expect.objectContaining({ run: "unset BRAND_PROFILE" })],
     });
     expect(rowFor(rows, "profile").detail).toBe("brand/example/ (from BRAND_PROFILE)");
+  });
+
+  it("notes that brand/local/ overrides a committed chapter, and how to build that one", async () => {
+    const committed = writeChapter(root, {
+      slug: "jci-andina",
+      assets: false,
+      brand: { name: "JCI Andina" },
+    });
+    const rows = await diagnose();
+    expect(rowFor(rows, "selection")).toMatchObject({
+      status: "warn",
+      detail: `brand/ selects "${CHAPTER}" (your chapter's brand in brand/local/), but brand/local/ overrides brand/jci-andina/`,
+      remedies: [
+        {
+          change: "to build brand/jci-andina/ instead, copy its brand.toml into brand/local/",
+          run: "cp brand/jci-andina/brand.toml brand/local/brand.toml",
+        },
+      ],
+    });
+    cpSync(join(committed, "brand.toml"), join(root, "brand", "local", "brand.toml"));
+    expect(rowFor(await diagnose(), "selection").status).toBe("ok");
   });
 
   it("warns that a leftover luminova.json is no longer read", async () => {
@@ -254,7 +278,7 @@ describe("check", () => {
   });
 
   it("warns, without failing, when the profile has no CD identity", async () => {
-    writeChapter(root, { assets: false, brand: { deploy: undefined } });
+    writeChapter(root, { ...LOCAL, brand: { deploy: undefined } });
     expect(rowFor(await diagnose(), "CD identity")).toMatchObject({
       status: "warn",
       remedies: [expect.objectContaining({ run: "pnpm brand:provision" })],
@@ -338,7 +362,7 @@ describe("check", () => {
     it("says how to fix each failing row", async () => {
       writeFileSync(join(root, ".firebaserc"), "{}");
       responses.set("gcloud auth list", "");
-      responses.set("gcloud storage objects list", "logo-main.png\n");
+      responses.set("gcloud storage objects list", listingOf(["logo-main.png"]));
       const rows = await diagnose({ nodeVersion: "24.10.0" });
       expect(runsOf(rowFor(rows, ".firebaserc"))).toEqual(["pnpm brand:apply"]);
       expect(runsOf(rowFor(rows, "gcloud account"))).toEqual(["gcloud auth login"]);
@@ -391,8 +415,6 @@ describe("check", () => {
         "corepack enable && corepack install",
         "unset BRAND_PROFILE",
         "pnpm brand:apply",
-        // The example keeps its own images, which brand-assets/ outranks here.
-        "keep the images you edit in brand-assets/, or empty brand-assets/ to use brand/example/assets/ again",
       ]);
     });
 
@@ -404,14 +426,13 @@ describe("check", () => {
       ]);
     });
 
-    it("after a passing run, offers going live as a choice", () => {
+    it("after a passing run, offers going live as a choice: upload, then deploy", () => {
       const connected = loadProfile({ repoRoot: root, profile: CHAPTER });
-      expect(checkNext(connected).map(({ change, run }) => run ?? change)).toEqual([
-        expect.stringMatching(
-          /^when you are ready to go live: merge brand\/jci-valle\/ to main in your fork/,
-        ),
+      expect(checkNext(connected).map(({ run }) => run)).toEqual([
+        "pnpm brand:push",
         "gh workflow run deploy.yml -f surface=all",
       ]);
+      expect(checkNext(connected)[0]?.change).toMatch(/^when you are ready to go live/);
       const local = loadProfile({ repoRoot: root, profile: EXAMPLE_PROFILE });
       expect(checkNext(local).map(({ run }) => run)).toEqual(["pnpm dev", "pnpm brand:init"]);
     });
@@ -419,9 +440,9 @@ describe("check", () => {
     it("shows going live as one row for a local-only profile, without calling gcloud", async () => {
       // A chapter fresh from brand:init without a Firebase project: a demo- project.
       rmSync(join(root, "brand", CHAPTER), { recursive: true });
-      cpSync(join(root, "brand/example"), join(root, "brand/jci-valle"), { recursive: true });
+      cpSync(join(root, "brand/example"), join(root, "brand/local"), { recursive: true });
       const rows = await diagnose();
-      expect(rowFor(rows, "profile").detail).toBe("brand/jci-valle/");
+      expect(rowFor(rows, "profile").detail).toBe("brand/local/");
       expect(rows.at(-1)).toMatchObject({
         check: "going live",
         status: "skip",
@@ -432,7 +453,7 @@ describe("check", () => {
     });
 
     it("shows going live as one row for the example, without calling gcloud or gh", async () => {
-      // An untouched clone of a fork: no chapter profile, so brand/ selects the example.
+      // A clone installed under CI: no brand/local/, so brand/ selects the example.
       rmSync(join(root, "brand", CHAPTER), { recursive: true });
       applyProfile({
         profile: loadProfile({ repoRoot: root, profile: EXAMPLE_PROFILE }),
@@ -465,7 +486,7 @@ describe("check", () => {
       ).toEqual([
         [SECTION_TITLES.tools, ["node", "pnpm", "java", "firebase"]],
         [SECTION_TITLES.chapter, ["selection", "profile", "brand.toml", ".firebaserc"]],
-        ["Images in brand-assets/", ["images"]],
+        ["Images in brand/local/", ["images"]],
         [
           SECTION_TITLES.live,
           [

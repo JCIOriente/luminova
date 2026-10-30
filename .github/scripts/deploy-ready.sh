@@ -96,10 +96,12 @@ profile_file() {
 # `fixture` is the example's old name: a base tree from before brand/example/ still holds it
 # beside jci-oriente, and must not look like two chapters (D12 in
 # docs/specs/2026-10-29-brand-outside-repo.md; the removal PR drops it).
+# `local` is the git-ignored brand/local/ (a member's checkout, or a CD job after brand:pull):
+# never a committed chapter, as discoverProfile in load-profile.ts also says.
 example=example
 chapters=()
 while IFS= read -r name; do
-  case "$name" in "" | fixture | "$example") continue ;; esac
+  case "$name" in "" | fixture | local | "$example") continue ;; esac
   if profile_file "$name" >/dev/null; then chapters+=("$name"); fi
 done < <(folders)
 if [ "${#chapters[@]}" -gt 1 ]; then

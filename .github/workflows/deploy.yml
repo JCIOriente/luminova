@@ -304,10 +304,17 @@ jobs:
       # brand:pull runs `gcloud storage`; same pin and reasoning as deploy-functions.
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
       # The brand assets live out of git, in the profile's private bucket (read-only to
-      # this SA). An unreadable bucket or a missing file fails here, before any build;
+      # this SA); brand:pull writes them into brand/local/. firebase-setup above read the
+      # committed brand/jci-oriente/ (CI never seeds brand/local/): GCP_PROJECT_ID,
+      # .firebaserc, the hosting sites and the public URL come from it. While the bucket
+      # holds no brand.toml, the build reads that committed profile with the pulled
+      # images. Once it holds one (owner runbook step 3), brand:pull writes it to
+      # brand/local/brand.toml and the build selects that `local` profile instead: brand:pull
+      # refuses a brand.toml naming another project, and the release build refuses one
+      # whose project is not GCP_PROJECT_ID. TRANSITIONAL (the fork-CD PR drops this).
+      # An unreadable bucket or a missing file fails here, before any build;
       # live hosting is untouched. The summary records which generation of each file
-      # shipped (they are not pinned in git, spec 5.7). The hosting sites and public URL
-      # come from firebase-setup (brand:ci-config reads the resolved brand.toml).
+      # shipped (they are not pinned in git, spec 5.7).
       - name: Pull brand assets
         env:
           BRAND_SLUG: ${{ steps.setup.outputs.profile }}
@@ -318,7 +325,7 @@ jobs:
             echo "### Brand assets (profile \`${BRAND_SLUG}\`)"
             echo "| File | Generation |"
             echo "|---|---|"
-            jq -r '.objects[] | "| \(.name) | \(.generation) |"' brand-assets/pull-manifest.json
+            jq -r '.objects | to_entries[] | select(.value.source == "bucket") | "| \(.key) | \(.value.generation) |"' brand/local/.pull-manifest.json
           } >> "$GITHUB_STEP_SUMMARY"
       # Release builds of the changed target(s). BRAND_RELEASE=1 is the validation: the
       # build fails on any asset or config problem, on a profile/project mismatch with

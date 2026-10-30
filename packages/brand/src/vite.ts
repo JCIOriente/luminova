@@ -11,7 +11,6 @@ import {
   releaseErrors,
   displayDir,
   releaseIdentity,
-  selectAssetsDir,
   type ReleaseIdentity,
   type ReleaseMarker,
 } from "./release.ts";
@@ -93,11 +92,9 @@ export function resolveBrandBuild({
   const emulatorEnabled = emulatorSetting(command, loadEnv(mode, envDir, "VITE_"));
   const urls = resolveUrls(profile.brand.urls, { command, emulatorEnabled });
 
-  const assetsDir = selectAssetsDir(repoRoot, profile, env, release);
-  const errors = release
-    ? releaseErrors({ profile, env, assetsDir, command, emulatorEnabled })
-    : [];
-  const validation = validateAssets(assetsDir, { profile: profile.slug });
+  const { assetsDir } = profile;
+  const errors = release ? releaseErrors({ profile, env, repoRoot, command, emulatorEnabled }) : [];
+  const validation = validateAssets(assetsDir);
   for (const warning of validation.warnings) warnOnce(warning);
   const prefix = displayDir(repoRoot, assetsDir);
   const problems = [...errors, ...validation.errors.map((error) => `${prefix}/${error}`)];
@@ -114,7 +111,7 @@ export function resolveBrandBuild({
     assetsDir,
     logoSize: validation.logoSize,
     siteContent: profile.siteContent,
-    release: release ? releaseIdentity(profile, assetsDir) : null,
+    release: release ? releaseIdentity(profile, repoRoot) : null,
   };
 }
 

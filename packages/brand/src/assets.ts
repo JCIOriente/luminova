@@ -1,7 +1,6 @@
-import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
+import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { guideStep } from "./remedy.ts";
 import { join } from "node:path";
-import { errorMessage } from "./load-profile.ts";
 import type { Remedy } from "./remedy.ts";
 import { BRAND_APPS } from "./ports.ts";
 import { PNG_HEADER_BYTES, readPngSize, type PngSize } from "./png.ts";
@@ -12,7 +11,6 @@ export const OG_IMAGE_FILE = "og-image.png";
 /** Input to `brand:icons`, one or the other; never read by the build. */
 export const ICON_MASTER_FILE = "icon-master.png";
 export const ICON_MASTER_SVG_FILE = "icon-master.svg";
-export const PULL_MANIFEST_FILE = "pull-manifest.json";
 const MIN_LOGO_HEIGHT = 184;
 export const OG_IMAGE_WARN_BYTES = 300 * 1024;
 
@@ -79,8 +77,6 @@ export interface AssetValidation {
   warnings: string[];
   /** Each contract file with its own problems, in contract order. */
   files: AssetFile[];
-  /** Why `pull-manifest.json` does not fit the profile, without the file prefix. */
-  manifestError: string | null;
   /** Which kinds of problem were found, so callers can say what to do about each. */
   kinds: { files: boolean; logoSize: boolean; heavyOg: boolean };
   /** The shared size of the three logos, when they all read. */
@@ -102,23 +98,6 @@ function readHeader(file: string): Buffer {
 }
 
 const sameSize = (a: PngSize, b: PngSize) => a.width === b.width && a.height === b.height;
-
-function checkPullManifest(dir: string, profile: string): string | null {
-  const file = join(dir, PULL_MANIFEST_FILE);
-  if (!existsSync(file)) return null;
-  try {
-    const manifest: unknown = JSON.parse(readFileSync(file, "utf8"));
-    const pulled =
-      typeof manifest === "object" && manifest !== null && "profile" in manifest
-        ? manifest.profile
-        : undefined;
-    return pulled === profile
-      ? null
-      : `pulled for profile "${String(pulled)}", but "${profile}" is selected; re-run brand:pull`;
-  } catch (error) {
-    return `not valid JSON (${errorMessage(error)})`;
-  }
-}
 
 function readFile(dir: string, spec: AssetSpec): { file: AssetFile; size: PngSize | null } {
   const path = join(dir, spec.path);
@@ -164,10 +143,7 @@ function readFile(dir: string, spec: AssetSpec): { file: AssetFile; size: PngSiz
 }
 
 /** Checks a directory against the asset contract and returns every problem at once. */
-export function validateAssets(
-  dir: string,
-  { profile }: { profile?: string } = {},
-): AssetValidation {
+export function validateAssets(dir: string): AssetValidation {
   const files: AssetFile[] = [];
   const logos = new Map<string, { file: AssetFile; size: PngSize }>();
   for (const spec of ASSET_CONTRACT) {
@@ -193,18 +169,13 @@ export function validateAssets(
   }
   const logoSize = main && logos.size === LOGO_FILES.length && mismatched === 0 ? main : null;
   const errorCount = files.reduce((total, file) => total + file.errors.length, 0);
-  const manifestError = profile ? checkPullManifest(dir, profile) : null;
 
   const prefixed = (pick: (file: AssetFile) => string[]) =>
     files.flatMap((file) => pick(file).map((message) => `${file.path}: ${message}`));
   return {
-    errors: [
-      ...prefixed((file) => file.errors),
-      ...(manifestError ? [`${PULL_MANIFEST_FILE}: ${manifestError}`] : []),
-    ],
+    errors: prefixed((file) => file.errors),
     warnings: prefixed((file) => file.warnings),
     files,
-    manifestError,
     kinds: {
       files: errorCount > mismatched,
       logoSize: mismatched > 0,
@@ -215,7 +186,7 @@ export function validateAssets(
 }
 
 export const PULL_ASSETS: Remedy = {
-  change: "download the images a deploy uses from the profile's bucket (needs gcloud auth login)",
+  change: "download the brand a deploy uses from the profile's bucket (needs gcloud auth login)",
   run: "pnpm brand:pull",
 };
 
@@ -247,6 +218,5 @@ export function assetRemedies(
       change: `compress ${dirLabel}/${OG_IMAGE_FILE} below ${OG_IMAGE_WARN_BYTES / 1024} KB (still 1200×630)`,
     });
   }
-  if (validation.manifestError) remedies.push(PULL_ASSETS);
   return remedies;
 }

@@ -2,8 +2,9 @@ name: firebase-setup
 description: >-
   Shared deploy-job setup — Node + pnpm, pinned firebase-tools (cached), and
   keyless Workload Identity Federation auth. Assumes the repo is already checked out.
-  Everything it needs comes from the repo: brand/ selects the brand profile (its one chapter
-  profile, else the example), whose brand.toml names the project and CD's sign-in (specs
+  Everything it needs comes from the repo: brand/ selects the brand profile (brand/local/,
+  which CI never seeds, else its one committed chapter profile, else the example), whose
+  brand.toml names the project and CD's sign-in (specs
   docs/specs/2026-10-25-repo-contained-config.md, docs/specs/2026-10-25-profile-discovery.md).
 outputs:
   profile:

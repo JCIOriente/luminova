@@ -4,17 +4,17 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ASSET_CONTRACT, ICON_MASTER_FILE } from "../assets.ts";
 import { BrandConfigError, EXAMPLE_PROFILE, loadProfile } from "../load-profile.ts";
 import { exampleRepo } from "../test-profiles.ts";
-import { PULLED_ASSETS_DIR } from "../release.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
 import { ANSWERS_FILE, connect, init, initNext, runInit } from "./init.ts";
 import type { Prompter } from "./prompts.ts";
+import { isTable } from "../schema.ts";
+import { seedLocal } from "./seed.ts";
 
 const SPOTLIGHT_APP = "1:111222333:web:aaa";
 const BACKSTAGE_APP = "1:111222333:web:bbb";
 
 function minimalAnswers(): Record<string, unknown> {
   return {
-    slug: "jci-valle",
     name: "JCI Valle",
     city: "Cochabamba",
     country: "Bolivia",
@@ -28,7 +28,8 @@ function minimalAnswers(): Record<string, unknown> {
   };
 }
 
-const brandToml = (slug = "jci-valle") => join(root, "brand", slug, "brand.toml");
+const LOCAL = "brand/local";
+const brandToml = () => join(root, LOCAL, "brand.toml");
 
 let root: string;
 let calls: string[][];
@@ -48,10 +49,9 @@ afterEach(() => {
 
 describe("init from an answers file", () => {
   it("writes a minimal brand.toml the loader accepts, everything else from the example", async () => {
-    const result = await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
-    expect(result.slug).toBe("jci-valle");
+    await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
 
-    const profile = loadProfile({ repoRoot: root, profile: "jci-valle" });
+    const profile = loadProfile({ repoRoot: root, profile: "local" });
     const { brand } = profile;
     expect(brand.firebase).toMatchObject({
       storageBucket: "jci-valle.firebasestorage.app",
@@ -75,7 +75,7 @@ describe("init from an answers file", () => {
   it("takes every other value from the example profile", async () => {
     await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
     const example = loadProfile({ repoRoot: root, profile: EXAMPLE_PROFILE }).brand;
-    const { brand } = loadProfile({ repoRoot: root, profile: "jci-valle" });
+    const { brand } = loadProfile({ repoRoot: root, profile: "local" });
     expect(brand.themeColor).toEqual({
       spotlight: "#0097D7",
       backstage: example.themeColor.backstage,
@@ -111,7 +111,7 @@ describe("init from an answers file", () => {
 
   it("writes the asset README", async () => {
     await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
-    const readme = readFileSync(join(root, PULLED_ASSETS_DIR, "README.txt"), "utf8");
+    const readme = readFileSync(join(root, LOCAL, "README.txt"), "utf8");
     for (const { path } of ASSET_CONTRACT) expect(readme).toContain(path);
     expect(readme).toContain("1200×630");
     expect(readme).toMatch(/never commit/i);
@@ -125,21 +125,32 @@ describe("init from an answers file", () => {
     expect(files).not.toContain("luminova.json");
     expect(existsSync(join(root, "luminova.json"))).toBe(false);
     expect(loadProfile({ repoRoot: root, env: {} })).toMatchObject({
-      slug: "jci-valle",
-      source: "chapter",
+      slug: "local",
+      source: "local",
     });
     expect(JSON.parse(readFileSync(join(root, ".firebaserc"), "utf8")).projects.default).toBe(
       "jci-valle",
     );
     // "deploy" switches CD on; it comes at brand:provision step 2, never from init.
-    expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.deploy).toBeUndefined();
+    expect(loadProfile({ repoRoot: root, profile: "local" }).brand.deploy).toBeUndefined();
   });
 
-  it("keeps an existing brand-assets/README.txt", async () => {
-    mkdirSync(join(root, PULLED_ASSETS_DIR));
-    writeFileSync(join(root, PULLED_ASSETS_DIR, "README.txt"), "mine");
+  it("seeds a missing brand/local/ first, so the example's images run until the chapter's arrive", async () => {
     await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
-    expect(readFileSync(join(root, PULLED_ASSETS_DIR, "README.txt"), "utf8")).toBe("mine");
+    expect(readFileSync(join(root, LOCAL, "og-image.png"))).toEqual(
+      readFileSync(join(root, "brand/example/assets/og-image.png")),
+    );
+    const manifest = JSON.parse(readFileSync(join(root, LOCAL, ".pull-manifest.json"), "utf8"));
+    expect(manifest.objects["og-image.png"].source).toBe("example");
+  });
+
+  it("keeps an existing brand/local/README.txt and every other file there", async () => {
+    mkdirSync(join(root, LOCAL), { recursive: true });
+    writeFileSync(join(root, LOCAL, "README.txt"), "mine");
+    writeFileSync(join(root, LOCAL, "icon-master.svg"), "<svg/>");
+    await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
+    expect(readFileSync(join(root, LOCAL, "README.txt"), "utf8")).toBe("mine");
+    expect(readFileSync(join(root, LOCAL, "icon-master.svg"), "utf8")).toBe("<svg/>");
   });
 
   it("lists every missing required value at once and writes nothing", async () => {
@@ -149,21 +160,20 @@ describe("init from an answers file", () => {
     const error = await init({ repoRoot: root, answers, run: noCommands }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(BrandConfigError);
     const message = String(error);
-    expect(message).toMatch(/brand\/jci-valle\/brand\.toml name: required/);
-    expect(message).toMatch(/brand\/jci-valle\/brand\.toml city: required/);
-    expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
-    expect(existsSync(join(root, PULLED_ASSETS_DIR))).toBe(false);
+    expect(message).toMatch(/brand\/local\/brand\.toml name: required/);
+    expect(message).toMatch(/brand\/local\/brand\.toml city: required/);
+    expect(existsSync(join(root, LOCAL))).toBe(false);
   });
 
-  it("refuses to overwrite an existing profile", async () => {
-    const answers = { ...minimalAnswers(), slug: EXAMPLE_PROFILE };
-    await expect(init({ repoRoot: root, answers, run: noCommands })).rejects.toThrow(
-      /brand\/example already exists/,
-    );
-  });
-
-  it("refuses a second chapter profile before asking anything", async () => {
+  it("replaces the seeded brand.toml without asking", async () => {
+    seedLocal({ repoRoot: root, env: {} });
     await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
+    expect(loadProfile({ repoRoot: root, env: {} }).brand.name).toBe("JCI Valle");
+  });
+
+  it("refuses to replace a chapter's own brand.toml unless told to, before asking anything", async () => {
+    await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
+    const before = readFileSync(brandToml(), "utf8");
     const seen: string[] = [];
     const prompter: Prompter = {
       async ask({ key }) {
@@ -173,9 +183,13 @@ describe("init from an answers file", () => {
     };
     const second = init({ repoRoot: root, answers: {}, prompter, run: noCommands });
     await expect(second).rejects.toThrow(
-      /brand\/jci-valle\/ already is this repository's chapter[\s\S]*pnpm brand:init {3}# in the repo root/,
+      /brand\/local\/brand\.toml already holds your chapter's brand[\s\S]*pnpm brand:init {3}# in the repo root/,
     );
     expect(seen).toEqual([]);
+    expect(readFileSync(brandToml(), "utf8")).toBe(before);
+    const answers = { ...minimalAnswers(), name: "JCI Valle Nueva" };
+    await init({ repoRoot: root, answers, replace: true, run: noCommands });
+    expect(loadProfile({ repoRoot: root, env: {} }).brand.name).toBe("JCI Valle Nueva");
   });
 
   it("refuses an answer it never asks, before writing", async () => {
@@ -183,7 +197,7 @@ describe("init from an answers file", () => {
     await expect(init({ repoRoot: root, answers, run: noCommands })).rejects.toThrow(
       /brand-init-answers: "locality" is not an answer brand:init takes/,
     );
-    expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
+    expect(existsSync(join(root, LOCAL))).toBe(false);
   });
 
   it("says an answer it cannot write is no syntax error in the member's file", async () => {
@@ -191,16 +205,10 @@ describe("init from an answers file", () => {
     const error = await init({ repoRoot: root, answers, run: noCommands }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(BrandConfigError);
     expect(String(error)).toMatch(
-      /brand:init built brand\/jci-valle\/brand\.toml from your answers, but it does not parse/,
+      /brand:init built brand\/local\/brand\.toml from your answers, but it does not parse/,
     );
     expect(String(error)).not.toMatch(/fix the TOML syntax/);
-    expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
-  });
-
-  it("refuses a malformed slug before writing", async () => {
-    const answers = { ...minimalAnswers(), slug: "../escape" };
-    await expect(init({ repoRoot: root, answers, run: noCommands })).rejects.toThrow(/kebab-case/);
-    expect(existsSync(join(root, "escape"))).toBe(false);
+    expect(existsSync(join(root, LOCAL))).toBe(false);
   });
 });
 
@@ -243,7 +251,7 @@ describe("init reading the API keys (firebase apps:sdkconfig)", () => {
       ["firebase", "apps:sdkconfig", "WEB", SPOTLIGHT_APP, "--project", "jci-valle", "--json"],
       ["firebase", "apps:sdkconfig", "WEB", BACKSTAGE_APP, "--project", "jci-valle", "--json"],
     ]);
-    const { web } = loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.firebase;
+    const { web } = loadProfile({ repoRoot: root, profile: "local" }).brand.firebase;
     expect(web.spotlight.apiKey).toBe(`key-for-${SPOTLIGHT_APP}`);
     expect(web.backstage.apiKey).toBe(`key-for-${BACKSTAGE_APP}`);
     expect(web.messagingSenderId).toBe("111222333");
@@ -258,7 +266,7 @@ describe("init reading the API keys (firebase apps:sdkconfig)", () => {
         run: sdkconfig("someone-else"),
       }),
     ).rejects.toThrow(/belongs to project "someone-else"/);
-    expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
+    expect(existsSync(join(root, LOCAL))).toBe(false);
   });
 });
 
@@ -266,7 +274,6 @@ describe("init interactively", () => {
   it("asks each question once, offering the derived default", async () => {
     const asked: { key: string; fallback: string | undefined }[] = [];
     const replies: Record<string, string> = {
-      slug: "jci-valle",
       name: "JCI Valle",
       city: "Cochabamba",
       country: "Bolivia",
@@ -292,9 +299,9 @@ describe("init interactively", () => {
     expect(keys).toContain("fillWeb");
     expect(keys).toContain("foundedYear");
     expect(asked.find(({ key }) => key === "foundedYear")?.fallback).toBeUndefined();
-    expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.foundedYear).toBe(1990);
+    expect(loadProfile({ repoRoot: root, profile: "local" }).brand.foundedYear).toBe(1990);
     expect(asked.find(({ key }) => key === "colors.spotlight")?.fallback).toBe("#336699");
-    expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.themeColor.spotlight).toBe(
+    expect(loadProfile({ repoRoot: root, profile: "local" }).brand.themeColor.spotlight).toBe(
       "#336699",
     );
   });
@@ -326,15 +333,13 @@ describe("init interactively", () => {
     return prompter;
   }
 
-  it("re-asks a slug that is malformed or taken, a year that is no number, and a color that is no #RRGGBB", async () => {
+  it("re-asks a year that is no number, and a color that is no #RRGGBB", async () => {
     const seen: { key: string; error?: string }[] = [];
     const answers = minimalAnswers();
-    delete answers.slug;
     delete answers.foundedYear;
     delete answers.colors;
     const prompter = scripted(
       {
-        slug: ["Bad Slug", EXAMPLE_PROFILE, "jci-valle"],
         foundedYear: ["1,990", "1990"],
         "colors.spotlight": ["blue", "#0097D7"],
       },
@@ -342,14 +347,9 @@ describe("init interactively", () => {
     );
     await init({ repoRoot: root, answers, prompter, run: noCommands });
     const errors = (key: string) => seen.filter((entry) => entry.key === key).map((e) => e.error);
-    expect(errors("slug")).toEqual([
-      undefined,
-      expect.stringMatching(/kebab-case/),
-      expect.stringMatching(/brand\/example already exists/),
-    ]);
     expect(errors("foundedYear")).toEqual([undefined, expect.stringMatching(/whole number/)]);
     expect(errors("colors.spotlight")).toEqual([undefined, expect.stringMatching(/#RRGGBB/)]);
-    const { brand } = loadProfile({ repoRoot: root, profile: "jci-valle" });
+    const { brand } = loadProfile({ repoRoot: root, profile: "local" });
     expect(brand.themeColor.spotlight).toBe("#0097D7");
     expect(brand.foundedYear).toBe(1990);
   });
@@ -372,8 +372,8 @@ describe("init interactively", () => {
       /not logged in[\s\S]*run it again and answer y to use them\n {6}pnpm brand:init {3}# in the repo root/,
     );
     const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
-    expect(saved).toMatchObject({ slug: "jci-valle", name: "JCI Valle" });
-    expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
+    expect(saved).toMatchObject({ name: "JCI Valle" });
+    expect(existsSync(join(root, LOCAL))).toBe(false);
   });
 
   it("saves nothing without a prompter, where the answers came from a file", async () => {
@@ -439,32 +439,32 @@ describe("init without a Firebase project (local-only)", () => {
   });
 
   it("saves a failed local run so the next try accepts the file", async () => {
-    mkdirSync(join(root, "brand/jci-valle"), { recursive: true });
     const prompter: Prompter = {
-      async ask({ key, fallback }) {
-        return (localAnswers() as Record<string, unknown>)[key] === undefined
-          ? (fallback ?? "")
-          : "";
+      async ask({ fallback }) {
+        return fallback ?? "";
       },
     };
+    const answers = { ...localAnswers(), colors: { spotlight: "#00000G" } };
     const error = await init({
       repoRoot: root,
-      answers: localAnswers(),
+      answers,
       prompter,
       local: true,
       run: noCommands,
     }).catch((caught: unknown) => caught);
-    expect(String(error)).toMatch(/already exists[\s\S]*pnpm brand:init {3}# in the repo root/);
+    expect(String(error)).toMatch(
+      /\[colors\] spotlight[\s\S]*pnpm brand:init {3}# in the repo root/,
+    );
     const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
     expect(saved.firebase).toBeUndefined();
     expect(saved.project).toBeUndefined();
-    rmSync(join(root, "brand/jci-valle"), { recursive: true });
+    saved.colors.spotlight = "#0097D7";
     const rerun = await init({ repoRoot: root, answers: saved, local: true, run: noCommands });
     expect(rerun.local).toBe(true);
   });
 
-  it("keeps a long slug's demo project within Firebase's 30 characters", async () => {
-    const answers = { ...localAnswers(), slug: "jci-a-very-long-chapter-name-indeed" };
+  it("names the demo project after the chapter, within Firebase's 30 characters", async () => {
+    const answers = { ...localAnswers(), name: "JCI Á Very Long Chapter Name Indeed" };
     await init({ repoRoot: root, answers, local: true, run: noCommands });
     const { projectId } = loadProfile({ repoRoot: root, env: {} }).brand.firebase;
     expect(projectId.length).toBeLessThanOrEqual(30);
@@ -485,7 +485,7 @@ describe("connect", () => {
       `${readFileSync(brandToml(), "utf8")}\n# our motto\n[hero]\nmotto = "Hola {city}"\n`,
     );
     const result = await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
-    expect(result).toEqual({ slug: "jci-valle", projectId: "jci-valle" });
+    expect(result).toEqual({ slug: "local", projectId: "jci-valle" });
     const { brand, siteContent } = loadProfile({ repoRoot: root, env: {} });
     expect(brand.name).toBe("JCI Valle");
     expect(brand.firebase.sites.backstage).toBe("jci-valle-backstage");
@@ -645,16 +645,16 @@ describe("connect", () => {
 
 describe("init guidance", () => {
   it("lists the next steps with their commands", () => {
-    const runs = initNext("jci-valle").map(({ change, run }) => run ?? change);
+    const runs = initNext().map(({ change, run }) => run ?? change);
     expect(runs).toEqual([
       "pnpm brand:check",
-      expect.stringMatching(/^edit brand\/jci-valle\/brand\.toml/),
+      expect.stringMatching(/^edit brand\/local\/brand\.toml/),
       "pnpm dev",
-      "git add brand/jci-valle/",
       "pnpm brand:check",
     ]);
+    expect(JSON.stringify(runs)).not.toMatch(/git add/);
     // A local-only profile ends with going live, as a choice, not a deploy.
-    const local = initNext("jci-valle", { local: true });
+    const local = initNext({ local: true });
     expect(local.at(-1)).toMatchObject({ run: "pnpm brand:init" });
     expect(local.at(-1)?.change).toMatch(/^when you are ready to go live/);
     expect(JSON.stringify(local)).not.toMatch(/deploy/);
@@ -692,6 +692,17 @@ describe("init guidance", () => {
   });
 });
 
+/** Answers as a prompter's replies: every leaf at its dotted key. */
+function stringAnswers(answers: Record<string, unknown>, prefix = ""): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(answers).flatMap(([key, value]) =>
+      isTable(value)
+        ? Object.entries(stringAnswers(value, `${prefix}${key}.`))
+        : [[`${prefix}${key}`, String(value)]],
+    ),
+  );
+}
+
 describe("runInit, the command", () => {
   const answering = (replies: Record<string, string>, asked: string[] = []): Prompter => ({
     async ask({ key, label, fallback }) {
@@ -717,7 +728,7 @@ describe("runInit, the command", () => {
     expect(asked[0]).toBe(
       `useSaved: Use the answers saved from your last try (${ANSWERS_FILE})? (y/N)`,
     );
-    expect(text).toMatch(/^brand:init: wrote brand\/jci-valle\/brand\.toml/);
+    expect(text).toMatch(/^brand:init: wrote brand\/local\/brand\.toml/);
     expect(existsSync(join(root, ANSWERS_FILE))).toBe(false);
   });
 
@@ -727,16 +738,29 @@ describe("runInit, the command", () => {
     await runInit({ repoRoot: root, prompter: answering({}, asked), run: noCommands }).catch(
       () => undefined,
     );
-    expect(asked.map((line) => line.split(":")[0])).toContain("slug");
+    expect(asked.map((line) => line.split(":")[0])).toContain("name");
     expect(existsSync(join(root, ANSWERS_FILE))).toBe(true);
   });
 
-  describe("with a chapter already in brand/", () => {
+  it("writes over the seeded brand/local/ without the connect question", async () => {
+    seedLocal({ repoRoot: root, env: {} });
+    saveAnswers(minimalAnswers());
+    const asked: string[] = [];
+    await runInit({
+      repoRoot: root,
+      prompter: answering({ useSaved: "y" }, asked),
+      run: noCommands,
+    });
+    expect(asked.map((line) => line.split(":")[0])).not.toContain("connect");
+    expect(loadProfile({ repoRoot: root, env: {} }).brand.name).toBe("JCI Valle");
+  });
+
+  describe("with a chapter's own brand.toml in brand/local/", () => {
     beforeEach(async () => {
       await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
     });
 
-    it("offers to connect a local-only chapter, and changes nothing on a no", async () => {
+    it("offers to connect a local-only chapter, then to start over; no and no change nothing", async () => {
       const before = readFileSync(brandToml(), "utf8");
       const asked: string[] = [];
       const text = await runInit({
@@ -745,10 +769,26 @@ describe("runInit, the command", () => {
         run: noCommands,
       });
       expect(asked).toEqual([
-        "connect: brand/jci-valle/ runs on this computer only. Connect it to a Firebase project now? (y/N)",
+        "connect: brand/local/ runs on this computer only. Connect it to a Firebase project now? (y/N)",
+        "replace: Replace brand/local/brand.toml with a new one, answering every question again? (y/N)",
       ]);
       expect(text).toMatch(/^brand:init: nothing changed/);
       expect(readFileSync(brandToml(), "utf8")).toBe(before);
+    });
+
+    it("starts over on a yes to the second question", async () => {
+      const text = await runInit({
+        repoRoot: root,
+        prompter: answering({
+          replace: "y",
+          hasProject: "y",
+          fillWeb: "n",
+          ...stringAnswers(minimalAnswers()),
+        }),
+        run: noCommands,
+      });
+      expect(text).toMatch(/^brand:init: wrote brand\/local\/brand\.toml/);
+      expect(loadProfile({ repoRoot: root, env: {} }).localOnly).toBe(false);
     });
 
     it("connects it on a yes, and drops declined saved answers once that succeeds", async () => {
