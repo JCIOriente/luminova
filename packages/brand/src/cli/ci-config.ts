@@ -3,20 +3,24 @@ import { missingDeployProblem, undeployableProfileErrors } from "../release.ts";
 import { runCli } from "./main.ts";
 
 /**
- * What CD needs before it can sign in, read from the repo (spec C4): the profile
- * brand/ selects, its project and its `deploy` names. The release rules apply, so
- * CD stops here, before minting any credential, on a profile that cannot ship.
+ * What CD needs, read from the repo (spec C4): the profile brand/ selects, its project, its
+ * `deploy` names, and the hosting sites and public URL the hosting job deploys to. The
+ * release rules apply, so CD stops here, before minting any credential, on a profile that
+ * cannot ship.
  */
 export function ciConfig(profile: LoadedProfile): Record<string, string> {
   const missing = missingDeployProblem(profile);
   const problems = [...undeployableProfileErrors(profile), ...(missing ? [missing] : [])];
-  const { deploy, firebase } = profile.brand;
+  const { deploy, firebase, urls } = profile.brand;
   if (problems.length > 0 || !deploy) throw new BrandConfigError(problems);
   return {
     profile: profile.slug,
     project_id: firebase.projectId,
     workload_identity_provider: deploy.workloadIdentityProvider,
     service_account: deploy.serviceAccount,
+    spotlight_url: urls.spotlight,
+    spotlight_site: firebase.sites.spotlight,
+    backstage_site: firebase.sites.backstage,
   };
 }
 

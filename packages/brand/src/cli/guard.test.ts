@@ -39,7 +39,6 @@ afterEach(() => {
 describe("NEEDLE_EXCLUSIONS", () => {
   it("is pinned: widening it is a reviewed change", () => {
     expect(NEEDLE_EXCLUSIONS.map(({ keyPath }) => keyPath)).toEqual([
-      "$schema",
       "themeColor.*",
       "locale",
       "ogLocale",
@@ -73,7 +72,6 @@ describe("collectNeedles", () => {
   it("skips excluded keys, short strings, empty strings and non-strings", () => {
     const paths = needles.flatMap(({ keyPaths }) => keyPaths);
     expect(paths.some((path) => path.startsWith("themeColor"))).toBe(false);
-    expect(paths).not.toContain("$schema");
     expect(paths).not.toContain("locale");
     expect(paths).not.toContain("ogLocale");
     expect(paths).not.toContain("locality.country");
@@ -84,6 +82,22 @@ describe("collectNeedles", () => {
     expect(needles.every(({ value }) => value.length >= 6)).toBe(true);
     expect(collectNeedles({ a: "12345", b: "123456" }, [])).toEqual([
       { value: "123456", keyPaths: ["b"] },
+    ]);
+  });
+
+  it("skips a value the chapter shares with the example at the same key: a default it kept", () => {
+    const example = {
+      backstage: { emailPlaceholder: "tu.nombre@example.org" },
+      name: "JCI Ejemplo",
+    };
+    const own = {
+      backstage: { emailPlaceholder: "tu.nombre@example.org" },
+      name: "JCI Valle",
+      x: "JCI Ejemplo",
+    };
+    expect(collectNeedles(own, [], example)).toEqual([
+      { value: "JCI Valle", keyPaths: ["name"] },
+      { value: "JCI Ejemplo", keyPaths: ["x"] },
     ]);
   });
 });

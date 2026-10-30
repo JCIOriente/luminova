@@ -22,13 +22,16 @@ function errorsOf(run: () => unknown): BrandConfigError {
 }
 
 describe("ciConfig", () => {
-  it("hands CD the profile, its project and its sign-in names", () => {
+  it("hands CD the profile, its project, its sign-in names and its hosting targets", () => {
     expect(formatOutputs(ciConfig(chapter))).toBe(
       [
         "profile=jci-valle",
         "project_id=jci-valle",
         "workload_identity_provider=projects/123456789012/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
         "service_account=firebase-deployer@jci-valle.iam.gserviceaccount.com",
+        "spotlight_url=https://jcivalle.example.org",
+        "spotlight_site=jcivalle",
+        "backstage_site=jcivalle-backstage",
       ].join("\n"),
     );
   });
@@ -37,7 +40,7 @@ describe("ciConfig", () => {
     const brand = structuredClone(chapter.brand);
     delete brand.deploy;
     const error = errorsOf(() => ciConfig({ ...chapter, brand }));
-    expect(error.errors).toEqual([expect.stringMatching(/has no "deploy" section/)]);
+    expect(error.errors).toEqual([expect.stringMatching(/brand\.toml has no \[deploy\] table/)]);
     expect(error.remedies.map(({ run }) => run)).toEqual(["pnpm brand:provision"]);
   });
 

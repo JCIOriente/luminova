@@ -24,7 +24,6 @@ export interface NeedleExclusion {
 }
 
 export const NEEDLE_EXCLUSIONS: readonly NeedleExclusion[] = [
-  { keyPath: "$schema", reason: "editor hint pointing at the shared schema, never bundled" },
   { keyPath: "themeColor.*", reason: "the palette is shared by every profile (D16)" },
   {
     keyPath: "locale",
@@ -73,23 +72,34 @@ function isExcluded(keyPath: string, exclusions: readonly NeedleExclusion[]): bo
   );
 }
 
-/** Every leaf string of `MIN_NEEDLE_LENGTH`+ characters, deduplicated by value. */
-export function collectNeedles(value: unknown, exclusions: readonly NeedleExclusion[]): Needle[] {
+/**
+ * Every leaf string of `MIN_NEEDLE_LENGTH`+ characters, deduplicated by value. A leaf equal
+ * to `example`'s at the same key is a default the chapter kept from the example's
+ * brand.toml, which the example build shows by design, so it is no needle.
+ */
+export function collectNeedles(
+  value: unknown,
+  exclusions: readonly NeedleExclusion[],
+  example?: unknown,
+): Needle[] {
   const byValue = new Map<string, string[]>();
-  const visit = (node: unknown, keyPath: string) => {
+  const visit = (node: unknown, keyPath: string, shared: unknown) => {
     if (keyPath && isExcluded(keyPath, exclusions)) return;
     if (typeof node === "string") {
-      if (node.length < MIN_NEEDLE_LENGTH) return;
+      if (node.length < MIN_NEEDLE_LENGTH || node === shared) return;
       byValue.set(node, [...(byValue.get(node) ?? []), keyPath]);
     } else if (Array.isArray(node)) {
-      node.forEach((item, index) => visit(item, `${keyPath}[${index}]`));
+      const items: unknown[] = Array.isArray(shared) ? shared : [];
+      node.forEach((item, index) => visit(item, `${keyPath}[${index}]`, items[index]));
     } else if (typeof node === "object" && node !== null) {
+      const fields: Record<string, unknown> =
+        typeof shared === "object" && shared !== null ? { ...shared } : {};
       for (const [key, child] of Object.entries(node)) {
-        visit(child, keyPath ? `${keyPath}.${key}` : key);
+        visit(child, keyPath ? `${keyPath}.${key}` : key, fields[key]);
       }
     }
   };
-  visit(value, "");
+  visit(value, "", example);
   return [...byValue].map(([needle, keyPaths]) => ({ value: needle, keyPaths }));
 }
 
@@ -294,7 +304,8 @@ async function main(): Promise<number> {
     inverseChecks(join(REPO_ROOT, "apps", app, "dist"), brand, app),
   );
 
-  const needles = collectNeedles(brand, NEEDLE_EXCLUSIONS);
+  const example = loadProfile({ profile: EXAMPLE_PROFILE });
+  const needles = collectNeedles(brand, NEEDLE_EXCLUSIONS, example.brand);
   // An adopter's marks live in the gitignored brand-assets/, not in the profile folder.
   const assetsDir = join(chapter.dir, "assets");
   const hashes = existsSync(assetsDir)
