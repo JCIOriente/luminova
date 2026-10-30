@@ -612,15 +612,14 @@ function withoutTables(lines: readonly string[], tables: readonly string[]): str
 /**
  * The connected project in a chapter's own brand.toml text: the `project` line and the
  * web app tables are rewritten, and every other line, comments included, stays. A new
- * project drops `[deploy]`, which names the old one, and pins the QR prefix printed
- * credentials already carry.
+ * project pins the QR prefix printed credentials already carry.
  */
 function connectedToml(
   toml: string,
   answers: Answers,
   { pinQrPrefix }: { pinQrPrefix?: string },
 ): string {
-  const replaced = [...(pinQrPrefix ? ["deploy"] : []), "firebase.spotlight", "firebase.backstage"];
+  const replaced = ["firebase.spotlight", "firebase.backstage"];
   const kept = withoutTables(toml.trimEnd().split("\n"), replaced);
   const header = kept.findIndex((line) => TABLE_HEADER.test(line));
   const top = header === -1 ? kept.length : header;
@@ -648,8 +647,7 @@ function projectAnswers(file: Table): Answers {
 /**
  * Connecting (spec L2): asks only the Firebase questions for the profile brand/ selects,
  * then rewrites its project lines and `.firebaserc`. It replaces a local-only profile's
- * demo project, or re-connects a connected one; `[deploy]` survives only when the project
- * stays the same.
+ * demo project, or re-connects a connected one.
  */
 export async function connect({
   repoRoot = REPO_ROOT,

@@ -131,8 +131,8 @@ describe("init from an answers file", () => {
     expect(JSON.parse(readFileSync(join(root, ".firebaserc"), "utf8")).projects.default).toBe(
       "jci-valle",
     );
-    // "deploy" switches CD on; it comes at brand:provision step 2, never from init.
-    expect(loadProfile({ repoRoot: root, profile: "local" }).brand.deploy).toBeUndefined();
+    // CD's target and sign-in are repository variables (brand:provision step 2), never brand.toml.
+    expect(readFileSync(join(root, "brand", "local", "brand.toml"), "utf8")).not.toMatch(/deploy/);
   });
 
   it("seeds a missing brand/local/ first, so the example's images run until the chapter's arrive", async () => {
@@ -408,7 +408,7 @@ describe("init without a Firebase project (local-only)", () => {
       backstage: "demo-jci-valle-backstage",
     });
     expect(brand.firebase.web.spotlight.appCheckSiteKey).toBe("");
-    expect(brand.deploy).toBeUndefined();
+    expect(readFileSync(brandToml(), "utf8")).not.toMatch(/deploy/);
     expect(readFileSync(brandToml(), "utf8")).not.toMatch(/\[firebase/);
     expect(calls).toEqual([]);
   });
@@ -491,7 +491,7 @@ describe("connect", () => {
     expect(brand.firebase.sites.backstage).toBe("jci-valle-backstage");
     expect(brand.firebase.web.spotlight.apiKey).toBe("key-spotlight");
     expect(brand.assetsBucket).toBe("jci-valle-brand-assets");
-    expect(brand.deploy).toBeUndefined();
+    expect(readFileSync(brandToml(), "utf8")).not.toMatch(/deploy/);
     expect(siteContent.hero.motto).toBe("Hola Cochabamba");
     const written = readFileSync(brandToml(), "utf8");
     expect(written).toContain("# our motto\n[hero]");
@@ -502,27 +502,13 @@ describe("connect", () => {
     );
   });
 
-  it("re-connects a connected profile, keeping [deploy] only for the same project", async () => {
+  it("re-connects a connected profile to another project, keeping the QR prefix", async () => {
     await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
     await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
-    const deploy = {
-      workloadIdentityProvider:
-        "projects/111222333/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
-      serviceAccount: "firebase-deployer@jci-valle.iam.gserviceaccount.com",
-    };
-    writeFileSync(
-      brandToml(),
-      `${readFileSync(brandToml(), "utf8")}\n[deploy]\nworkloadIdentityProvider = "${deploy.workloadIdentityProvider}"\nserviceAccount = "${deploy.serviceAccount}"\n`,
-    );
-
-    await connect({ repoRoot: root, answers: projectAnswers(), run: noCommands });
-    expect(loadProfile({ repoRoot: root, env: {} }).brand.deploy).toEqual(deploy);
-
     const other = { ...projectAnswers(), project: "jci-valle-2" };
     await connect({ repoRoot: root, answers: other, run: noCommands });
     const moved = loadProfile({ repoRoot: root, env: {} }).brand;
     expect(moved.firebase.projectId).toBe("jci-valle-2");
-    expect(moved.deploy).toBeUndefined();
     // Printed credentials carry the old prefix: moving project must not change it.
     expect(moved.qrPrefix).toBe("jcivalle");
   });
