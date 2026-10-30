@@ -47,6 +47,9 @@ const rgba = (hex: string) => [
   255,
 ];
 
+const yes = async () => true;
+const no = async () => false;
+
 async function refusal(promise: Promise<unknown>): Promise<BrandConfigError> {
   const error: unknown = await promise.catch((caught: unknown) => caught);
   if (!(error instanceof BrandConfigError))
@@ -57,6 +60,8 @@ async function refusal(promise: Promise<unknown>): Promise<BrandConfigError> {
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "brand-icons-"));
   cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
+  // Without the example's own images, brand-assets/ is the images folder, as in a chapter's fork.
+  rmSync(join(root, "brand/jci-oriente/assets"), { recursive: true });
   profile = loadProfile({ repoRoot: root, profile: "jci-oriente" });
   assetsDir = join(root, PULLED_ASSETS_DIR);
 });
@@ -147,20 +152,76 @@ describe("generateIcons", () => {
     expect(error.errors.join()).toContain(`${ICON_MASTER_FILE}: not a file`);
   });
 
-  it("never overwrites an existing icon without --force, and writes nothing then", async () => {
+  describe("when icons are already there", () => {
+    let kept: string;
+    beforeEach(async () => {
+      await writeMaster();
+      kept = join(assetsDir, "backstage", "favicon-16.png");
+      mkdirSync(join(assetsDir, "backstage"), { recursive: true });
+      writeFileSync(kept, "mine");
+    });
+
+    it("asks before replacing them, naming how many and where", async () => {
+      const questions: string[] = [];
+      await generateIcons({
+        profile,
+        repoRoot: root,
+        confirmReplace: async (question) => {
+          questions.push(question);
+          return true;
+        },
+      });
+      expect(questions).toEqual([
+        `Replace the 1 icon already in ${PULLED_ASSETS_DIR}/ with icons made from ${ICON_MASTER_FILE}?`,
+      ]);
+      expect(readFileSync(kept).subarray(1, 4).toString("latin1")).toBe("PNG");
+    });
+
+    it("writes nothing when the answer is no", async () => {
+      expect(await generateIcons({ profile, repoRoot: root, confirmReplace: no })).toEqual([]);
+      expect(readFileSync(kept, "utf8")).toBe("mine");
+      expect(existsSync(join(assetsDir, "spotlight", "favicon-16.png"))).toBe(false);
+    });
+
+    it("refuses without a terminal to ask in, and writes nothing", async () => {
+      const error = await refusal(generateIcons({ profile, repoRoot: root }));
+      expect(error.errors.join()).toContain(`${PULLED_ASSETS_DIR}/backstage/favicon-16.png`);
+      expect(error.remedies).toEqual([
+        expect.objectContaining({
+          change: expect.stringMatching(/in a terminal/),
+          run: "pnpm brand:icons",
+        }),
+      ]);
+      expect(readFileSync(kept, "utf8")).toBe("mine");
+    });
+
+    it("never asks while the master has a problem", async () => {
+      rmSync(join(assetsDir, ICON_MASTER_FILE));
+      const error = await refusal(
+        generateIcons({
+          profile,
+          repoRoot: root,
+          confirmReplace: async () => {
+            throw new Error("asked");
+          },
+        }),
+      );
+      expect(error.errors.join()).toMatch(/missing/);
+    });
+  });
+});
+
+describe("generateIcons in the images folder brand:check names", () => {
+  it("reads the master from, and writes the icons to, the profile's own assets/ while brand-assets/ holds no image", async () => {
+    assetsDir = join(root, "brand/jci-oriente/assets");
+    cpSync(join(REPO_ROOT, "brand/jci-oriente/assets"), assetsDir, { recursive: true });
     await writeMaster();
-    const kept = join(assetsDir, "backstage", "favicon-16.png");
-    mkdirSync(join(assetsDir, "backstage"), { recursive: true });
-    writeFileSync(kept, "mine");
-
-    const error = await refusal(generateIcons({ profile, repoRoot: root }));
-    expect(error.errors.join()).toContain(`${PULLED_ASSETS_DIR}/backstage/favicon-16.png`);
-    expect(error.remedies.map(({ run }) => run)).toContain("pnpm brand:icons --force");
-    expect(readFileSync(kept, "utf8")).toBe("mine");
-    expect(existsSync(join(assetsDir, "spotlight", "favicon-16.png"))).toBe(false);
-
-    await generateIcons({ profile, repoRoot: root, force: true });
-    expect(readFileSync(kept).subarray(1, 4).toString("latin1")).toBe("PNG");
+    const written = await generateIcons({ profile, repoRoot: root, env: {}, confirmReplace: yes });
+    expect(written).toContain("brand/jci-oriente/assets/spotlight/pwa-512x512.png");
+    expect(await pixel(join(assetsDir, "spotlight", "pwa-512x512.png"), 256, 256)).toEqual([
+      255, 0, 0, 255,
+    ]);
+    expect(existsSync(join(root, PULLED_ASSETS_DIR))).toBe(false);
   });
 });
 
@@ -231,9 +292,9 @@ describe("generateIcons when the disk fails", () => {
     rmSync(last);
     mkdirSync(join(last, "inside"), { recursive: true });
 
-    const error = await refusal(generateIcons({ profile, repoRoot: root, force: true }));
+    const error = await refusal(generateIcons({ profile, repoRoot: root, confirmReplace: yes }));
     expect(error.errors.join()).toContain("11 of 12 icons replaced");
-    expect(error.remedies.map(({ run }) => run)).toContain("pnpm brand:icons --force");
+    expect(error.remedies.map(({ run }) => run)).toContain("pnpm brand:icons");
     for (const app of BRAND_APPS) {
       expect(files(join(assetsDir, app)).filter((name) => name.startsWith("."))).toEqual([]);
     }

@@ -27,6 +27,11 @@ export function renderFirebaserc({ firebase }: Brand) {
 export const firebasercContent = (brand: Brand) =>
   `${JSON.stringify(renderFirebaserc(brand), null, 2)}\n`;
 
+export const readFirebaserc = (repoRoot: string) => {
+  const file = join(repoRoot, FIREBASERC);
+  return existsSync(file) ? readFileSync(file, "utf8") : null;
+};
+
 /** Writes `.firebaserc`; under BRAND_RELEASE=1 (CD) only for a profile that may ship. */
 export function applyProfile({
   profile,
@@ -41,16 +46,15 @@ export function applyProfile({
     const refused = undeployableProfileErrors(profile);
     if (refused.length > 0) throw new BrandConfigError(refused);
   }
-  const file = join(repoRoot, FIREBASERC);
   const content = firebasercContent(profile.brand);
   // Rewriting an identical file would bump its mtime on every install for nothing.
-  const written = !existsSync(file) || readFileSync(file, "utf8") !== content;
-  if (written) writeFileSync(file, content);
+  const written = readFirebaserc(repoRoot) !== content;
+  if (written) writeFileSync(join(repoRoot, FIREBASERC), content);
   return { slug: profile.slug, projectId: profile.brand.firebase.projectId, written };
 }
 
 if (import.meta.main) {
-  await runCli("brand:apply", {}, (profile) => {
+  await runCli("brand:apply", (profile) => {
     const result = applyProfile({ profile });
     console.log(
       `brand:apply: ${FIREBASERC} ${result.written ? "written" : "up to date"} for profile "${result.slug}" (project ${result.projectId}).`,

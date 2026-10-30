@@ -115,11 +115,11 @@ describe("pull", () => {
     expect(existsSync(join(root, "brand-assets"))).toBe(false);
   });
 
-  it("names the next step: check the downloaded images as a deploy would", () => {
+  it("names the next step: deploy the sites with the downloaded images", () => {
     expect(PULL_NEXT).toEqual([
       {
-        change: "check the downloaded images as a deploy would",
-        run: "pnpm brand:check --release",
+        change: "deploy the sites with these images (project owner)",
+        run: "pnpm deploy:hosting",
       },
     ]);
   });

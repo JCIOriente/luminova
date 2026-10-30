@@ -29,7 +29,7 @@ export interface PullManifest {
 }
 
 export const PULL_NEXT: readonly Remedy[] = [
-  { change: "check the downloaded images as a deploy would", run: "pnpm brand:check --release" },
+  { change: "deploy the sites with these images (project owner)", run: "pnpm deploy:hosting" },
 ];
 
 /**
@@ -101,8 +101,9 @@ export async function pull({
         validation.errors.map((error) => bucketUrl(bucket, error)),
         [
           {
-            change: "replace the bad files: brand:push checks a set before uploading it",
-            run: "pnpm brand:push --from <folder with the fixed set>",
+            change:
+              "the bucket holds the invalid files listed above: fix your images (pnpm brand:check names any problem), then upload them again",
+            run: "pnpm brand:push",
           },
         ],
       );
@@ -118,7 +119,7 @@ export async function pull({
 }
 
 if (import.meta.main) {
-  await runCli("brand:pull", {}, async (profile) => {
+  await runCli("brand:pull", async (profile) => {
     const manifest = await pull({ profile });
     console.error(
       `brand:pull: ${manifest.objects.length} files from ${bucketUrl(manifest.bucket)} into ${PULLED_ASSETS_DIR}/ for profile "${manifest.profile}".`,

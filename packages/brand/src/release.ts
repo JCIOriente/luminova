@@ -21,10 +21,10 @@ const RELEASE_ENV = "BRAND_RELEASE";
 export const RELEASE_MARKER_FILE = ".brand-release.json";
 export const PULLED_ASSETS_DIR = "brand-assets";
 
-/** How a local-only profile goes live: a real project, then `--connect`. */
+/** How a local-only profile goes live: a real project, then brand:init connects it. */
 export const CONNECT_PROJECT: Remedy = {
-  change: `when you are ready to go live: create a Firebase project (${guideStep("firebaseProject")}), then connect it (step ${GUIDE_STEPS.connect})`,
-  run: "pnpm brand:init --connect",
+  change: `when you are ready to go live: create a Firebase project (${guideStep("firebaseProject")}), then run this and answer y to connect it (step ${GUIDE_STEPS.connect})`,
+  run: "pnpm brand:init",
 };
 
 const releaseMarkerSchema = z.strictObject({
@@ -61,16 +61,15 @@ const RELEASE_BUILD_COMMAND = "pnpm build:release";
 
 /** What ships when nothing is passed: the profile brand/ selects (spec P1). */
 const SHIP_CHAPTER: Remedy = {
-  change:
-    "drop --profile and BRAND_PROFILE so the profile found in brand/ ships, or pass --profile with your chapter",
+  change: "unset BRAND_PROFILE so the chapter profile found in brand/ ships",
 };
 
 /**
- * A profile that may reach production: found in brand/ or chosen with --profile (never a
+ * A profile that may reach production: found in brand/ or named by its caller (never a
  * stray environment override; spec P5), not the fixture, not an emulator-only project. Release
- * builds, brand:push and brand:provision --apply share it.
+ * builds, brand:push and brand:provision's bucket step share it.
  */
-export const PRINT_GCP_SETUP: Remedy = {
+const PRINT_GCP_SETUP: Remedy = {
   change:
     "print this profile's Google Cloud setup, step by step, with your values (changes nothing)",
   run: "pnpm brand:provision",
@@ -94,7 +93,7 @@ export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
   const { projectId } = profile.brand.firebase;
   if (profile.source === "override") {
     errors.push({
-      message: `${PROFILE_OVERRIDE_ENV}=${slug} is set in your environment; what ships is the profile found in brand/, or --profile.`,
+      message: `${PROFILE_OVERRIDE_ENV}=${slug} is set in your environment; what ships is the profile found in brand/.`,
       remedies: [REMOVE_OVERRIDE],
     });
   }
@@ -114,22 +113,21 @@ export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
 }
 
 /**
- * Where a build reads the asset set: release always reads the pulled `brand-assets/`;
- * otherwise a folder named on the command line (`brand:check --assets`), then the
- * `BRAND_ASSETS_DIR` tooling override, then `brand-assets/` once it holds any contract file
- * (brand:init leaves only a README there), then the profile's own `assets/`. A profile
- * without its own assets reads `brand-assets/`, so its errors name the folder to fill.
+ * Where a build, `brand:check` and `brand:push` read the asset set: release always reads the
+ * pulled `brand-assets/`; otherwise the `BRAND_ASSETS_DIR` tooling override, then
+ * `brand-assets/` once it holds any contract file (brand:init leaves only a README there),
+ * then the profile's own `assets/`. A profile without its own assets reads `brand-assets/`,
+ * so its errors name the folder to fill.
  */
 export function selectAssetsDir(
   repoRoot: string,
   profile: LoadedProfile,
   env: Env,
   release: boolean,
-  chosen?: string,
 ): string {
   const pulled = join(repoRoot, PULLED_ASSETS_DIR);
   if (release) return pulled;
-  const fromEnv = chosen?.trim() || env.BRAND_ASSETS_DIR?.trim();
+  const fromEnv = env.BRAND_ASSETS_DIR?.trim();
   if (fromEnv) return resolve(repoRoot, fromEnv);
   const own = join(profile.dir, "assets");
   const pulledHasAssets = ASSET_CONTRACT.some(({ path }) => existsSync(join(pulled, path)));
@@ -186,7 +184,7 @@ export function releaseErrors({
       message: `GCP_PROJECT_ID "${target}" is not profile "${slug}"'s project "${projectId}".`,
       remedies: [
         {
-          change: `set GCP_PROJECT_ID to "${projectId}", or pass --profile with the profile whose firebase.projectId is "${target}"`,
+          change: `set GCP_PROJECT_ID to "${projectId}", the project of the profile found in brand/`,
         },
       ],
     });
