@@ -321,6 +321,17 @@ describe("offerBucket", () => {
     expect(await offerBucket({ profile, repoRoot: REPO_ROOT, run: fakeRunner() })).toBeNull();
     expect(calls).toEqual([]);
   });
+
+  it("only prints without a terminal, even for a profile that cannot ship", async () => {
+    expect(
+      await offerBucket({
+        profile: { ...profile, source: "override" },
+        repoRoot: REPO_ROOT,
+        run: fakeRunner(),
+      }),
+    ).toBeNull();
+    expect(calls).toEqual([]);
+  });
 });
 
 describe("provisionNext", () => {

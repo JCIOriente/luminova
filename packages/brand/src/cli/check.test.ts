@@ -12,6 +12,8 @@ import { rowRemedies, type CheckRow } from "./rows.ts";
 import { CommandError, commandFailure, type CommandRunner } from "./gcloud.ts";
 
 const BUCKET = "jci-oriente-brand-assets";
+/** A chapter's own profile: the example's values under another slug. */
+const CHAPTER = "jci-valle";
 const TOOLS = { nodeVersion: "24.15.0", platform: "linux" } as const;
 const ENV = { CLOUDSDK_CONFIG: "" };
 
@@ -45,15 +47,19 @@ beforeEach(() => {
   ENV.CLOUDSDK_CONFIG = root;
   writeFileSync(join(root, "application_default_credentials.json"), "{}");
   cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
+  const chapter = join(root, "brand", CHAPTER);
+  cpSync(join(root, "brand/jci-oriente"), chapter, { recursive: true });
+  // Images live in brand-assets/ here; the profile's own would add the other-folder note.
+  rmSync(join(chapter, "assets"), { recursive: true });
+  const file = join(chapter, "brand.json");
+  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, "utf8")), slug: CHAPTER }));
   writeFileSync(
     join(root, "package.json"),
     JSON.stringify({ engines: { node: ">=24.15.0" }, packageManager: "pnpm@11.5.1" }),
   );
   writeAssetSet(join(root, PULLED_ASSETS_DIR));
-  // Images live in brand-assets/ here; the example's own would add the other-folder note.
-  rmSync(join(root, "brand/jci-oriente/assets"), { recursive: true });
   applyProfile({
-    profile: loadProfile({ repoRoot: root, profile: "jci-oriente" }),
+    profile: loadProfile({ repoRoot: root, profile: CHAPTER }),
     repoRoot: root,
     env: {},
   });
@@ -109,9 +115,9 @@ describe("check", () => {
       gcloud: "ok",
     });
     expect(rowFor(rows, "selection").detail).toBe(
-      'brand/ selects "jci-oriente" (the example: no chapter profile in brand/ yet)',
+      `brand/ selects "${CHAPTER}" (the chapter profile in brand/)`,
     );
-    expect(rowFor(rows, "profile").detail).toBe("brand/jci-oriente/");
+    expect(rowFor(rows, "profile").detail).toBe(`brand/${CHAPTER}/`);
     expect(rowFor(rows, "CD identity").detail).toBe(
       "firebase-deployer@jci-oriente.iam.gserviceaccount.com",
     );
@@ -171,7 +177,7 @@ describe("check", () => {
     writeFileSync(join(root, ".firebaserc"), "{}");
     expect(rowFor(await diagnose(), ".firebaserc")).toMatchObject({
       status: "fail",
-      detail: 'not generated from "jci-oriente"',
+      detail: `not generated from "${CHAPTER}"`,
     });
   });
 
@@ -185,10 +191,50 @@ describe("check", () => {
     ]);
   });
 
+  it("warns that brand:push will not use a BRAND_ASSETS_DIR the images section read", async () => {
+    writeAssetSet(join(root, "elsewhere"));
+    const images = (await sectionsOf({ env: { BRAND_ASSETS_DIR: "elsewhere" } }))[2];
+    expect(images?.title).toBe("Images in elsewhere/");
+    expect(images?.rows).toContainEqual(
+      expect.objectContaining({
+        check: "BRAND_ASSETS_DIR",
+        status: "warn",
+        detail: expect.stringMatching(/brand:push/),
+        remedies: [expect.objectContaining({ run: "unset BRAND_ASSETS_DIR" })],
+      }),
+    );
+  });
+
+  it("names the build that makes the site-content schema loadable in a fresh clone", async () => {
+    const unbuilt = Object.assign(new Error("Cannot find module 'types/dist/index.js'"), {
+      code: "ERR_MODULE_NOT_FOUND",
+    });
+    const { sections } = await check({
+      ...TOOLS,
+      repoRoot: root,
+      run,
+      env: ENV,
+      importSchema: () => Promise.reject(unbuilt),
+    });
+    expect(
+      rowFor(
+        sections.flatMap(({ rows }) => rows),
+        "site content",
+      ),
+    ).toMatchObject({
+      status: "fail",
+      detail: expect.stringMatching(/^cannot load the site-content schema/),
+      remedies: [
+        {
+          change: expect.stringMatching(/after pnpm install/),
+          run: "pnpm turbo run build --filter=@luminova/types",
+        },
+      ],
+    });
+  });
+
   it("fails two chapter profiles once, with both ways out, and skips the profile", async () => {
-    for (const slug of ["jci-andina", "jci-valle"]) {
-      cpSync(join(root, "brand/fixture"), join(root, "brand", slug), { recursive: true });
-    }
+    cpSync(join(root, "brand/fixture"), join(root, "brand/jci-andina"), { recursive: true });
     const rows = await diagnose();
     expect(statusOf(rows)).toMatchObject({ selection: "fail", profile: "skip", bucket: "skip" });
     expect(rowFor(rows, "selection").detail).toMatch(/brand\/ holds 2 chapter profiles/);
@@ -199,8 +245,7 @@ describe("check", () => {
     const rows = await diagnose({ env: { BRAND_PROFILE: "fixture" } });
     expect(rowFor(rows, "selection")).toMatchObject({
       status: "warn",
-      detail:
-        'brand/ selects "jci-oriente" (the example: no chapter profile in brand/ yet), but BRAND_PROFILE=fixture overrides it',
+      detail: `brand/ selects "${CHAPTER}" (the chapter profile in brand/), but BRAND_PROFILE=fixture overrides it`,
       remedies: [expect.objectContaining({ run: "unset BRAND_PROFILE" })],
     });
     expect(rowFor(rows, "profile").detail).toBe("brand/fixture/ (from BRAND_PROFILE)");
@@ -214,11 +259,11 @@ describe("check", () => {
       detail: expect.stringMatching(/, but luminova\.json is no longer read$/),
       remedies: [expect.objectContaining({ run: "git rm luminova.json" })],
     });
-    expect(rowFor(rows, "profile").detail).toBe("brand/jci-oriente/");
+    expect(rowFor(rows, "profile").detail).toBe(`brand/${CHAPTER}/`);
   });
 
   it("warns, without failing, when the profile has no CD identity", async () => {
-    const file = join(root, "brand/jci-oriente/brand.json");
+    const file = join(root, "brand", CHAPTER, "brand.json");
     const brand = JSON.parse(readFileSync(file, "utf8"));
     delete brand.deploy;
     writeFileSync(file, JSON.stringify(brand));
@@ -243,8 +288,8 @@ describe("check", () => {
   });
 
   it("reports unreadable files as failing rows instead of throwing", async () => {
-    rmSync(join(root, "brand/jci-oriente/brand.json"));
-    mkdirSync(join(root, "brand/jci-oriente/brand.json"));
+    rmSync(join(root, "brand", CHAPTER, "brand.json"));
+    mkdirSync(join(root, "brand", CHAPTER, "brand.json"));
     rmSync(join(root, ".firebaserc"));
     mkdirSync(join(root, ".firebaserc"));
     const rows = await diagnose();
@@ -268,10 +313,7 @@ describe("check", () => {
   });
 
   it("fails the schema row with the schema errors", async () => {
-    writeFileSync(
-      join(root, "brand/jci-oriente/brand.json"),
-      JSON.stringify({ slug: "jci-oriente" }),
-    );
+    writeFileSync(join(root, "brand", CHAPTER, "brand.json"), JSON.stringify({ slug: CHAPTER }));
     const rows = await diagnose();
     expect(statusOf(rows)).toMatchObject({ profile: "ok", "brand.json": "fail", images: "skip" });
     expect(rowFor(rows, "brand.json").detail).toMatch(/name/);
@@ -363,7 +405,7 @@ describe("check", () => {
     });
 
     it("sends a connected profile without CD's sign-in to brand:provision, not to a merge", () => {
-      const connected = loadProfile({ repoRoot: root, profile: "jci-oriente" });
+      const connected = loadProfile({ repoRoot: root, profile: CHAPTER });
       const brand = { ...connected.brand, deploy: undefined };
       expect(checkNext({ ...connected, brand }).map(({ run }) => run)).toEqual([
         "pnpm brand:provision",
@@ -371,10 +413,10 @@ describe("check", () => {
     });
 
     it("after a passing run, offers going live as a choice", () => {
-      const connected = loadProfile({ repoRoot: root, profile: "jci-oriente" });
+      const connected = loadProfile({ repoRoot: root, profile: CHAPTER });
       expect(checkNext(connected).map(({ change, run }) => run ?? change)).toEqual([
         expect.stringMatching(
-          /^when you are ready to go live: merge brand\/jci-oriente\/ to main in your fork/,
+          /^when you are ready to go live: merge brand\/jci-valle\/ to main in your fork/,
         ),
         "gh workflow run deploy.yml -f surface=all",
       ]);
@@ -384,6 +426,7 @@ describe("check", () => {
 
     it("shows going live as one row for a local-only profile, without calling gcloud", async () => {
       // A chapter fresh from brand:init without a Firebase project: a demo- project.
+      rmSync(join(root, "brand", CHAPTER), { recursive: true });
       cpSync(join(root, "brand/fixture"), join(root, "brand/jci-valle"), { recursive: true });
       const file = join(root, "brand/jci-valle/brand.json");
       writeFileSync(
@@ -399,6 +442,33 @@ describe("check", () => {
       });
       expect(rows.map(({ check: name }) => name)).not.toContain("bucket");
       expect(calls.filter(([command]) => command === "gcloud" || command === "gh")).toEqual([]);
+    });
+
+    it("shows going live as one row for the example, without calling gcloud or gh", async () => {
+      // An untouched clone: no chapter profile, so brand/ selects the example.
+      rmSync(join(root, "brand", CHAPTER), { recursive: true });
+      applyProfile({
+        profile: loadProfile({ repoRoot: root, profile: "jci-oriente" }),
+        repoRoot: root,
+        env: {},
+      });
+      const { sections, profile } = await check({ ...TOOLS, repoRoot: root, run, env: ENV });
+      const rows = sections.flatMap(({ rows: sectionRows }) => sectionRows);
+      expect(rowFor(rows, "selection").detail).toMatch(/selects "jci-oriente" \(the example/);
+      expect(sections.at(-1)?.rows).toEqual([
+        expect.objectContaining({
+          check: "going live",
+          status: "skip",
+          detail: expect.stringMatching(/example.*brand:init/),
+        }),
+      ]);
+      expect(rows.filter(({ status }) => status === "fail")).toEqual([]);
+      expect(calls.filter(([command]) => command === "gcloud" || command === "gh")).toEqual([]);
+      if (!profile) throw new Error("expected the example profile");
+      expect(checkNext(profile).map(({ run: command }) => command)).toEqual([
+        "pnpm dev",
+        "pnpm brand:init",
+      ]);
     });
 
     it("orders the sections and rows as the fixes must happen", async () => {

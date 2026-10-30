@@ -20,7 +20,7 @@ import {
 import { FIREBASERC, firebasercContent } from "./apply.ts";
 import { formatNext, type Problem, type Remedy, guideStep } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
-import { checkImages } from "./images.ts";
+import { ASSETS_OVERRIDE_ENV, REMOVE_ASSETS_OVERRIDE, checkImages } from "./images.ts";
 import { runBrandCommand } from "./main.ts";
 import { deployDispatch } from "./push.ts";
 import { CONNECT_PROJECT, missingDeployProblem } from "../release.ts";
@@ -85,14 +85,22 @@ function profileRows(repoRoot: string, env: Env): { rows: CheckRow[]; profile?: 
   };
 }
 
+type ImportSchema = () => Promise<typeof import("../site-content-schema.ts")>;
+
 /**
- * The site content the build would embed, validated with the build's schema. Loaded lazily:
- * the schema comes from @luminova/types, whose runtime entry is its built dist.
+ * Loaded lazily: the schema comes from @luminova/types, whose runtime entry is its built
+ * dist, which `pnpm install` alone does not build.
  */
-async function siteContentProblem(profile: LoadedProfile): Promise<Problem | null> {
+const importSiteContentSchema: ImportSchema = () => import("../site-content-schema.ts");
+
+/** The site content the build would embed, validated with the build's schema. */
+async function siteContentProblem(
+  profile: LoadedProfile,
+  importSchema: ImportSchema,
+): Promise<Problem | null> {
   try {
     const raw = readSiteContent(profile.dir, profile.slug);
-    const { parseSiteContent } = await import("../site-content-schema.ts");
+    const { parseSiteContent } = await importSchema();
     parseSiteContent(raw, profile.slug);
     return null;
   } catch (error) {
@@ -102,15 +110,23 @@ async function siteContentProblem(profile: LoadedProfile): Promise<Problem | nul
     if (error instanceof Error && "code" in error && error.code === "ERR_MODULE_NOT_FOUND") {
       return {
         message: `cannot load the site-content schema (${error.message})`,
-        remedies: [{ run: "pnpm turbo run build --filter=@luminova/types" }],
+        remedies: [
+          {
+            change: "build the shared types once (a fresh clone needs it after pnpm install)",
+            run: "pnpm turbo run build --filter=@luminova/types",
+          },
+        ],
       };
     }
     throw error;
   }
 }
 
-async function siteContentRow(profile: LoadedProfile): Promise<CheckRow> {
-  const problem = await siteContentProblem(profile);
+async function siteContentRow(
+  profile: LoadedProfile,
+  importSchema: ImportSchema,
+): Promise<CheckRow> {
+  const problem = await siteContentProblem(profile, importSchema);
   return problem
     ? fail("site content", problem.message, problem.remedies)
     : ok("site content", `brand/${profile.slug}/${SITE_CONTENT_FILE} valid`);
@@ -202,6 +218,19 @@ function cdIdentityRow(profile: LoadedProfile): CheckRow {
 }
 
 const LOCAL_ONLY = "local-only profile; comes with going live (pnpm brand:init connects it)";
+const EXAMPLE = "the example profile; your chapter's own goes live (pnpm brand:init creates it)";
+
+/**
+ * Why going live is not checked yet, or null when it is: a local-only profile has no cloud,
+ * and the example, selected only while brand/ holds no chapter profile, is not the adopter's.
+ */
+function goingLiveWaits(profile: LoadedProfile | undefined): string | null {
+  if (profile?.localOnly) return LOCAL_ONLY;
+  if (profile?.source === "example") return EXAMPLE;
+  return null;
+}
+
+const CREATE_PROFILE: Remedy = { change: "create your chapter's profile", run: "pnpm brand:init" };
 
 export const SECTION_TITLES = {
   tools: "Tools on this computer",
@@ -212,7 +241,14 @@ export const SECTION_TITLES = {
 function imagesSection(profile: LoadedProfile | undefined, repoRoot: string, env: Env): Section {
   if (!profile) return { title: "Images", rows: [skip("images")] };
   try {
-    return checkImages({ profile, repoRoot, env });
+    const images = checkImages({ profile, repoRoot, env });
+    if (!env[ASSETS_OVERRIDE_ENV]?.trim()) return images;
+    const override = warn(
+      ASSETS_OVERRIDE_ENV,
+      "set, so this section read its folder; brand:push refuses it and uploads only the folder brand:check reads without it",
+      [REMOVE_ASSETS_OVERRIDE],
+    );
+    return { title: images.title, rows: [...images.rows, override] };
   } catch (error) {
     return { title: "Images", rows: [failed("images", error)] };
   }
@@ -230,6 +266,7 @@ export async function check({
   nodeVersion = process.versions.node,
   platform = process.platform,
   home,
+  importSchema = importSiteContentSchema,
 }: {
   repoRoot?: string;
   env?: Env;
@@ -237,21 +274,24 @@ export async function check({
   nodeVersion?: string;
   platform?: NodeJS.Platform;
   home?: string;
+  importSchema?: ImportSchema;
 } = {}): Promise<{ sections: Section[]; profile?: LoadedProfile }> {
   // Nothing else runs on native Windows (brand-setup spec S7).
   const windows = nativeWindows(platform);
   if (windows) return { sections: [{ title: SECTION_TITLES.tools, rows: [windows] }] };
   const { rows: profileChecks, profile } = profileRows(repoRoot, env);
-  // A local-only profile has no cloud yet: going live waits, and nothing calls gcloud or gh.
-  const local = profile?.localOnly === true;
+  // While going live waits, nothing calls gcloud or gh.
+  const waits = goingLiveWaits(profile);
   const tools = (part: Part) =>
     toolRows({ parts: [part], repoRoot, run, env, nodeVersion, platform, home });
   // The external commands are independent; start them together, report in order.
   const [trying, live, bucket, content] = await Promise.all([
     tools("try"),
-    local ? [] : tools("live"),
-    profile && !local ? attempt("bucket", () => bucketRow(profile, run)) : skip("bucket"),
-    profile ? attempt("site content", () => siteContentRow(profile)) : skip("site content"),
+    waits ? [] : tools("live"),
+    profile && !waits ? attempt("bucket", () => bucketRow(profile, run)) : skip("bucket"),
+    profile
+      ? attempt("site content", () => siteContentRow(profile, importSchema))
+      : skip("site content"),
   ]);
 
   const chapter = [
@@ -262,8 +302,8 @@ export async function check({
       ? await attempt(FIREBASERC, async () => firebasercRow(profile, repoRoot))
       : skip(FIREBASERC),
   ];
-  const goingLive = local
-    ? [skip("going live", LOCAL_ONLY)]
+  const goingLive = waits
+    ? [skip("going live", waits)]
     : [profile ? cdIdentityRow(profile) : skip("CD identity"), ...live, bucket];
   return {
     sections: [
@@ -277,11 +317,18 @@ export async function check({
 }
 
 /**
- * With every row passing, what remains is a choice (spec L5): a local-only profile can go
- * live by connecting a project; a connected one goes live by merging to main.
+ * With every row passing, what remains is a choice (spec L5): the example leads to the
+ * chapter's own profile; a local-only profile can go live by connecting a project; a
+ * connected one goes live by merging to main.
  */
 export function checkNext(profile: LoadedProfile): Remedy[] {
   const { slug } = profile;
+  if (profile.source === "example") {
+    return [
+      { change: "see the example's sites on this computer", run: "pnpm dev" },
+      CREATE_PROFILE,
+    ];
+  }
   if (profile.localOnly) {
     return [
       { change: "see your chapter's sites on this computer", run: "pnpm dev" },

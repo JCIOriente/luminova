@@ -1,5 +1,5 @@
 import { PassThrough } from "node:stream";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { terminalConfirm, terminalPrompter } from "./prompts.ts";
 
 /** A stdin stand-in that already holds `reply`. */
@@ -44,5 +44,24 @@ describe("terminalPrompter", () => {
       /Stopped before every question was answered/,
     );
     prompter.close();
+  });
+
+  it("asks many questions on one input without piling up listeners", async () => {
+    const warn = vi.spyOn(process, "emitWarning");
+    const stdin = new PassThrough();
+    const output = new PassThrough();
+    // Each prompt printed is answered, as a person would.
+    output.on("data", () => stdin.write("a\n"));
+    const prompter = terminalPrompter(stdin, output);
+    try {
+      for (let index = 0; index < 15; index += 1) {
+        expect(await prompter.ask({ key: `field${index}`, label: "Field" })).toBe("a");
+      }
+      await new Promise((settle) => setImmediate(settle));
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      prompter.close();
+      warn.mockRestore();
+    }
   });
 });

@@ -9,7 +9,17 @@ import {
 } from "../assets.ts";
 import type { Env, LoadedProfile } from "../load-profile.ts";
 import { displayDir, selectAssetsDir } from "../release.ts";
+import type { Remedy } from "../remedy.ts";
 import { fail, ok, warn, type CheckRow, type Section } from "./rows.ts";
+
+/** The tooling override of the images folder; brand:push refuses it. */
+export const ASSETS_OVERRIDE_ENV = "BRAND_ASSETS_DIR";
+
+export const REMOVE_ASSETS_OVERRIDE: Remedy = {
+  change: "remove it from your environment (tools set it for test builds only)",
+  run: `unset ${ASSETS_OVERRIDE_ENV}`,
+  where: "shell",
+};
 
 export interface Images extends Section {
   /** The folder dev, `brand:check` and `brand:push` all read. */

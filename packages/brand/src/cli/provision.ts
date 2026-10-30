@@ -175,9 +175,10 @@ export async function offerBucket({
   run?: CommandRunner;
   confirm?: Confirm;
 }): Promise<{ label: string; done: boolean }[] | null> {
+  if (!confirm) return null;
   const refused = undeployableProfileErrors(profile);
   if (refused.length > 0) throw new BrandConfigError(refused);
-  if (!confirm || !(await confirm(BUCKET_QUESTION))) return null;
+  if (!(await confirm(BUCKET_QUESTION))) return null;
   return applyBucket({ profile, repoRoot, run });
 }
 

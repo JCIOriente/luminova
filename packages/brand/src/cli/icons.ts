@@ -17,10 +17,16 @@ import {
   MIN_ICON_MASTER_SIZE,
   OG_IMAGE_FILE,
 } from "../assets.ts";
-import { BrandConfigError, REPO_ROOT, errorMessage, type LoadedProfile } from "../load-profile.ts";
+import {
+  BrandConfigError,
+  REPO_ROOT,
+  errorMessage,
+  type Env,
+  type LoadedProfile,
+} from "../load-profile.ts";
 import { readPngSize } from "../png.ts";
 import { BRAND_APPS } from "../ports.ts";
-import { PULLED_ASSETS_DIR, displayDir } from "../release.ts";
+import { displayDir, selectAssetsDir } from "../release.ts";
 import { formatNext, guideStep, type Problem, type Remedy } from "../remedy.ts";
 import { runCli } from "./main.ts";
 import { terminalConfirm, type Confirm } from "./prompts.ts";
@@ -140,8 +146,12 @@ function writeIcons(icons: readonly { file: string; png: Buffer }[], label: stri
   }
 }
 
+/** The images folder `brand:check` names (spec C3). */
+const imagesDir = (profile: LoadedProfile, repoRoot: string, env: Env) =>
+  selectAssetsDir(repoRoot, profile, env, false);
+
 /**
- * Renders both apps' icon sets from `brand-assets/icon-master.png` or `icon-master.svg`.
+ * Renders both apps' icon sets from `icon-master.png` or `icon-master.svg` in the images folder.
  * Checks the master and renders every icon before writing any. Icons already there are
  * replaced only when `confirmReplace` says yes; without it (no terminal) nothing is written.
  * Returns the written paths as the user sees them: none when the answer was no.
@@ -149,13 +159,15 @@ function writeIcons(icons: readonly { file: string; png: Buffer }[], label: stri
 export async function generateIcons({
   profile,
   repoRoot = REPO_ROOT,
+  env = process.env,
   confirmReplace,
 }: {
   profile: LoadedProfile;
   repoRoot?: string;
+  env?: Env;
   confirmReplace?: Confirm;
 }): Promise<string[]> {
-  const assetsDir = join(repoRoot, PULLED_ASSETS_DIR);
+  const assetsDir = imagesDir(profile, repoRoot, env);
   const label = displayDir(repoRoot, assetsDir);
   const targets = BRAND_APPS.flatMap((app) =>
     ICON_FILES.map((icon) => ({ app, icon, path: `${app}/${icon.name}` })),
@@ -226,24 +238,25 @@ export async function generateIcons({
   return targets.map(({ path }) => `${label}/${path}`);
 }
 
-const NEXT: readonly Remedy[] = [
+const next = (label: string): Remedy[] => [
   {
-    change: `add ${[...LOGO_FILES, OG_IMAGE_FILE].join(", ")} to ${PULLED_ASSETS_DIR}/ if they are not there yet, then check all of it`,
+    change: `add ${[...LOGO_FILES, OG_IMAGE_FILE].join(", ")} to ${label}/ if they are not there yet, then check all of it`,
     run: "pnpm brand:check",
   },
 ];
 
 if (import.meta.main) {
   await runCli("brand:icons", async (profile) => {
+    const label = displayDir(REPO_ROOT, imagesDir(profile, REPO_ROOT, process.env));
     const written = await generateIcons({ profile, confirmReplace: terminalConfirm() });
     if (written.length === 0) {
-      console.log(`brand:icons: kept the icons in ${PULLED_ASSETS_DIR}/; nothing changed.`);
+      console.log(`brand:icons: kept the icons in ${label}/; nothing changed.`);
       return;
     }
     console.log(
-      `brand:icons: ${written.length} icons for profile "${profile.slug}" from the master in ${PULLED_ASSETS_DIR}/:`,
+      `brand:icons: ${written.length} icons for profile "${profile.slug}" from the master in ${label}/:`,
     );
     for (const path of written) console.log(`  ${path}`);
-    console.log(`\n${formatNext(NEXT)}`);
+    console.log(`\n${formatNext(next(label))}`);
   });
 }

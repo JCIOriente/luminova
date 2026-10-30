@@ -3,13 +3,13 @@ import { createInterface, type Interface } from "node:readline/promises";
 import { CommandError } from "./gcloud.ts";
 
 /**
- * The reply, or null when the input closes first (Ctrl-D, or Ctrl-C, which closes readline):
- * a pending question would otherwise never settle, and Node exits 13 mid-await.
+ * Asks on `readline`: the reply, or null when the input closes first (Ctrl-D, or Ctrl-C,
+ * which closes readline): a pending question would otherwise never settle, and Node exits
+ * 13 mid-await. One close listener serves every question, so none pile up.
  */
-async function reply(readline: Interface, prompt: string): Promise<string | null> {
+function replier(readline: Interface): (prompt: string) => Promise<string | null> {
   const closed = once(readline, "close").then(() => null);
-  const answered = readline.question(prompt).catch(() => null);
-  return Promise.race([answered, closed]);
+  return (prompt) => Promise.race([readline.question(prompt).catch(() => null), closed]);
 }
 
 export interface Question {
@@ -44,7 +44,7 @@ export function terminalConfirm(
   return async (question) => {
     const readline = createInterface({ input, output });
     try {
-      return isYes((await reply(readline, `${question} (y/N) `)) ?? "");
+      return isYes((await replier(readline)(`${question} (y/N) `)) ?? "");
     } finally {
       readline.close();
     }
@@ -56,10 +56,11 @@ export function terminalPrompter(
   output: NodeJS.WritableStream = process.stdout,
 ): Prompter & { close(): void } {
   const readline = createInterface({ input, output });
+  const reply = replier(readline);
   return {
     async ask({ label, fallback, error }) {
       if (error) output.write(`  ${error}\n`);
-      const text = await reply(readline, fallback ? `${label} [${fallback}]: ` : `${label}: `);
+      const text = await reply(fallback ? `${label} [${fallback}]: ` : `${label}: `);
       if (text === null) throw new CommandError("Stopped before every question was answered.");
       return text.trim();
     },

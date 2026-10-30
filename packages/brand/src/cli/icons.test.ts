@@ -60,6 +60,8 @@ async function refusal(promise: Promise<unknown>): Promise<BrandConfigError> {
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "brand-icons-"));
   cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
+  // Without the example's own images, brand-assets/ is the images folder, as in a chapter's fork.
+  rmSync(join(root, "brand/jci-oriente/assets"), { recursive: true });
   profile = loadProfile({ repoRoot: root, profile: "jci-oriente" });
   assetsDir = join(root, PULLED_ASSETS_DIR);
 });
@@ -206,6 +208,20 @@ describe("generateIcons", () => {
       );
       expect(error.errors.join()).toMatch(/missing/);
     });
+  });
+});
+
+describe("generateIcons in the images folder brand:check names", () => {
+  it("reads the master from, and writes the icons to, the profile's own assets/ while brand-assets/ holds no image", async () => {
+    assetsDir = join(root, "brand/jci-oriente/assets");
+    cpSync(join(REPO_ROOT, "brand/jci-oriente/assets"), assetsDir, { recursive: true });
+    await writeMaster();
+    const written = await generateIcons({ profile, repoRoot: root, env: {}, confirmReplace: yes });
+    expect(written).toContain("brand/jci-oriente/assets/spotlight/pwa-512x512.png");
+    expect(await pixel(join(assetsDir, "spotlight", "pwa-512x512.png"), 256, 256)).toEqual([
+      255, 0, 0, 255,
+    ]);
+    expect(existsSync(join(root, PULLED_ASSETS_DIR))).toBe(false);
   });
 });
 
