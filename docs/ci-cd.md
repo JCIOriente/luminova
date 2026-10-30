@@ -417,7 +417,7 @@ Effectively **$0**.
 | Symptom | Cause / fix |
 |---------|-------------|
 | Deploy job fails at `google-github-actions/auth` | `deploy` values wrong, or STS condition mismatch. Verify `deploy.workloadIdentityProvider` in the profile's `brand.json` matches the provider resource name exactly and the run is on `main`. |
-| Deploy job fails at "Read the deploy target from the repo" | `brand:ci-config` printed the reason and the fix: usually a missing `deploy` section (`pnpm brand:provision` prints it) or a profile that cannot ship (the fixture, or a chapter still on its `demo-` project). |
+| Deploy job fails at "Read the deploy target from the repo" | `brand:ci-config` printed the reason and the fix: usually a missing `deploy` section (`pnpm brand:provision` prints it) or a profile that cannot ship (the example, or a chapter still on its `demo-` project). |
 | `PERMISSION_DENIED` mid-deploy | Missing IAM role on the deploy SA — grant it (see role list), or temporarily grant `roles/firebase.admin` then narrow back. |
 | `workflow_dispatch` deploy fails auth | Dispatched from a non-`main` branch — the STS `ref` condition only honors `refs/heads/main`. Re-dispatch from `main`. |
 | Deploy never triggers after merge | The CI workflow's `name:` must equal `"CI"` (the `workflow_run.workflows` value). Also confirm CI concluded `success`. |
