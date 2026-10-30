@@ -49,6 +49,14 @@ describe("commandFailure", () => {
     expect(error).toMatchObject({ kind: "notFound", remedies: [] });
   });
 
+  it("classifies a failed generation precondition (412) of gcloud storage cp", () => {
+    const error = commandFailure("gcloud", ["storage", "cp", "--if-generation-match=7"], {
+      stderr:
+        "ERROR: HTTPError 412: At least one of the pre-conditions you specified did not hold.",
+    });
+    expect(error).toMatchObject({ kind: "precondition", remedies: [] });
+  });
+
   it("leaves an unrecognised failure plain", () => {
     expect(commandFailure("pnpm", ["--version"], { stderr: "boom" })).toMatchObject({
       kind: "other",

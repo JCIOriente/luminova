@@ -15,7 +15,8 @@ export type CommandRunner = (
 type Command = Parameters<CommandRunner>[0];
 
 /** What a failure was, when stderr says so; callers branch on it instead of re-reading text. */
-export type CommandFailureKind = "notInstalled" | "signIn" | "denied" | "notFound" | "other";
+export type CommandFailureKind =
+  "notInstalled" | "signIn" | "denied" | "notFound" | "precondition" | "other";
 
 export class CommandError extends Error {
   override name = "CommandError";
@@ -109,6 +110,8 @@ export function commandFailure(
     );
   }
   if (/\b404\b|not found/i.test(stderr)) return new CommandError(text, [], "notFound");
+  // --if-generation-match did not hold: someone else wrote the object since.
+  if (/\b412\b|pre-?condition/i.test(stderr)) return new CommandError(text, [], "precondition");
   return new CommandError(text);
 }
 
