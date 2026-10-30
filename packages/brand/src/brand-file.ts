@@ -4,6 +4,7 @@ import { BrandConfigError, errorMessage, issueLines } from "./errors.ts";
 import type { Remedy } from "./remedy.ts";
 import {
   CHAPTER_IDENTITY,
+  RETIRED_KEYS,
   brandFileSchema,
   isTable,
   toBrand,
@@ -253,9 +254,15 @@ export function resolveBrandFile({
   const parsed = brandFileSchema.safeParse(expanded, { reportInput: true });
   if (!parsed.success) {
     const lines = parsed.error.issues.flatMap((issue) =>
-      issueLines(issue, (path) => `${ownerOf(layers, path)} ${tomlLocation(path, expanded)}`),
+      issueLines(
+        issue,
+        (path) => `${ownerOf(layers, path)} ${tomlLocation(path, expanded)}`,
+        RETIRED_KEYS,
+      ),
     );
-    throw new BrandConfigError([...new Set(lines)], [editRemedy(label)]);
+    // A retired key carries its own remedy; the generic edit is for the rest.
+    const editable = lines.some((line) => typeof line === "string");
+    throw new BrandConfigError([...new Set(lines)], editable ? [editRemedy(label)] : []);
   }
   return { brand: toBrand(parsed.data, slug), siteContent: toSiteContent(parsed.data) };
 }

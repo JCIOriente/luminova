@@ -43,14 +43,22 @@ export interface SchemaIssue {
 /**
  * One `<where>: <what>` line per problem in a schema issue, the common ones in plain words;
  * `where` names the location of a path (a file and key, the way that file writes it).
+ * `retired` gives a top-level key the file no longer has its own message and remedies.
  */
 export function issueLines(
   issue: SchemaIssue,
   where: (path: readonly PropertyKey[]) => string,
-): string[] {
+  retired: Readonly<Record<string, Problem>> = {},
+): (string | Problem)[] {
   const line = (path: readonly PropertyKey[], text: string) => `${where(path)}: ${text}`;
   if (issue.code === "unrecognized_keys" && issue.keys) {
-    return issue.keys.map((key) => line([...issue.path, key], "unknown key (a typo?)"));
+    return issue.keys.map((key) => {
+      const path = [...issue.path, key];
+      const gone = issue.path.length === 0 ? retired[key] : undefined;
+      return gone
+        ? { message: line(path, gone.message), remedies: gone.remedies }
+        : line(path, "unknown key (a typo?)");
+    });
   }
   if (issue.code === "invalid_type" && issue.input === undefined) {
     return [line(issue.path, "required")];
