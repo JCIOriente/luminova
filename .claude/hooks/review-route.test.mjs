@@ -183,13 +183,19 @@ test("real dependency change (lockfile moves) → secure-dep-vetting + bundle-bu
   assert.ok(t.includes("bundle-budget-watcher"));
 });
 
-test("a scripts-only package.json edit does not summon the bundle agent", () => {
-  // No lockfile movement => no installed-dep change => zero bundle impact.
-  // secure-dep-vetting still routes (a hand-edited version pin must be checked),
-  // carrying its no-dependency-delta exemption note.
-  const t = tokens([["package.json", 2, 1]]);
-  assert.ok(t.includes("secure-dep-vetting"));
-  assert.ok(!t.includes("bundle-budget-watcher"));
+test("a scripts-only package.json edit summons neither dependency review", () => {
+  // No lockfile movement => no installed-dep change. A hand-edited version pin
+  // without the lockfile fails CI's `pnpm install --frozen-lockfile`, so the
+  // lockfile is the one signal of a real dependency delta.
+  for (const p of ["package.json", "packages/brand/package.json", "pnpm-workspace.yaml"]) {
+    const t = tokens([[p, 2, 1]]);
+    assert.ok(!t.includes("secure-dep-vetting"), `${p}: ${t}`);
+    assert.ok(!t.includes("bundle-budget-watcher"), `${p}: ${t}`);
+  }
+});
+
+test("a lockfile change alone routes secure-dep-vetting", () => {
+  assert.ok(tokens([["pnpm-lock.yaml", 12, 3]]).includes("secure-dep-vetting"));
 });
 
 test("new route file → bundle-budget-watcher", () => {
