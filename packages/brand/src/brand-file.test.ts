@@ -40,9 +40,14 @@ function resolve(toml: string) {
 const fixture = (name: string): unknown =>
   JSON.parse(readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url), "utf8"));
 
-/** A committed brand.json fixture without its editor hint, which brand.toml has no key for. */
+/**
+ * A committed brand.json fixture without its editor hint, which brand.toml has no key for, and
+ * without `deploy`: CD's sign-in lives in repository variables.
+ */
 const oldBrand = (name: string): Table =>
-  Object.fromEntries(Object.entries(fixture(name) as Table).filter(([key]) => key !== "$schema"));
+  Object.fromEntries(
+    Object.entries(fixture(name) as Table).filter(([key]) => key !== "$schema" && key !== "deploy"),
+  );
 
 describe("JCI Oriente's brand.toml", () => {
   // The JSON files it replaced, as committed before the move to TOML: the deploy must not change.
@@ -305,6 +310,13 @@ describe("errors name the file, the table and the key", () => {
     ]);
     expect(errorsOf(() => resolve(`nmae = "x"\n${IDENTITY}`))).toEqual([
       "brand/acme/brand.toml nmae: unknown key (a typo?)",
+    ]);
+  });
+
+  it("for a [deploy] table, naming the repository variables CD reads instead", () => {
+    const deploy = `\n[deploy]\nserviceAccount = "firebase-deployer@acme.iam.gserviceaccount.com"\n`;
+    expect(errorsOf(() => resolve(`${IDENTITY}${deploy}`))).toEqual([
+      "brand/acme/brand.toml deploy: the [deploy] table is no longer read: CD reads its project and sign-in from the repository variables FIREBASE_PROJECT_ID and GCP_PROJECT_NUMBER (docs/ci-cd.md)",
     ]);
   });
 

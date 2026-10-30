@@ -32,7 +32,7 @@ import {
 } from "./local-folder.ts";
 import type { Table } from "./schema.ts";
 
-/** A chapter on a real (fictional) project, with CD's sign-in: everything a deploy needs. */
+/** A chapter on a real (fictional) project: everything a deploy needs from its brand. */
 export const TEST_CHAPTER = "jci-valle";
 
 /** The committed example's brand.toml, parsed: a complete file. */
@@ -106,11 +106,6 @@ const CHAPTER_FILE = {
       appId: "1:123456789012:web:valle02",
       appCheckSiteKey: "6LTestValleBackstageSiteKey",
     },
-  },
-  deploy: {
-    workloadIdentityProvider:
-      "projects/123456789012/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
-    serviceAccount: "firebase-deployer@jci-valle.iam.gserviceaccount.com",
   },
 };
 

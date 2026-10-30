@@ -18,7 +18,6 @@ import {
   EXAMPLE_PROFILE,
   PROFILE_OVERRIDE_ENV,
   REMOVE_OVERRIDE,
-  brandFileLabel,
   issuesToBrandError,
   readJsonFile,
   type Env,
@@ -78,24 +77,6 @@ const SHIP_CHAPTER: Remedy = {
  * stray environment override; spec P5), not the example, not an emulator-only project. Release
  * builds, brand:push and brand:provision's bucket step share it.
  */
-const PRINT_GCP_SETUP: Remedy = {
-  change:
-    "print this profile's Google Cloud setup, step by step, with your values (changes nothing)",
-  run: "pnpm brand:provision",
-};
-
-/**
- * CD signs in with the profile's `deploy` names; without them no deploy can start.
- * Twin: .github/scripts/deploy-ready.sh makes Deploy skip on the same rule.
- */
-export function missingDeployProblem({ slug, brand }: LoadedProfile): Problem | null {
-  if (brand.deploy) return null;
-  return {
-    message: `${brandFileLabel(slug)} has no [deploy] table (CD's sign-in, needed to deploy): copy it from step 2 of pnpm brand:provision.`,
-    remedies: [PRINT_GCP_SETUP],
-  };
-}
-
 export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
   const errors: Problem[] = [];
   const { slug } = profile;

@@ -69,7 +69,7 @@
       "pattern": "^[a-z0-9-]+$"
     },
     "assetsBucket": {
-      "description": "Private bucket holding the chapter's images for deploys; defaults to <project>-brand-assets. pnpm brand:provision creates it.",
+      "description": "Private bucket holding the chapter's brand for deploys; defaults to <project>-brand-assets, the one CD pulls from. pnpm brand:provision creates it.",
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$"
     },
@@ -289,24 +289,6 @@
         }
       },
       "additionalProperties": false
-    },
-    "deploy": {
-      "type": "object",
-      "properties": {
-        "workloadIdentityProvider": {
-          "type": "string",
-          "pattern": "^projects\\/\\d+\\/locations\\/global\\/workloadIdentityPools\\/[a-z0-9-]+\\/providers\\/[a-z0-9-]+$",
-          "description": "The Workload Identity provider CD signs in through, without a stored key. pnpm brand:provision prints the value."
-        },
-        "serviceAccount": {
-          "type": "string",
-          "format": "email",
-          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
-          "description": "The service account CD deploys as, e.g. firebase-deployer@<project>.iam.gserviceaccount.com."
-        }
-      },
-      "additionalProperties": false,
-      "description": "How CD (GitHub Actions) signs in to Google Cloud. Names, not secrets. Needed only to deploy."
     },
     "hero": {
       "type": "object",
