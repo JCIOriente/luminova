@@ -444,26 +444,28 @@ describe("check", () => {
       expect(calls.filter(([command]) => command === "gcloud" || command === "gh")).toEqual([]);
     });
 
-    it("shows going live as one row for the example, without calling gcloud or gh", async () => {
-      // An untouched clone: no chapter profile, so brand/ selects the example.
+    it("checks going live for the example, which upstream deploys, but only warns", async () => {
+      // An untouched clone: no chapter profile, so brand/ selects the example. Its cloud is
+      // upstream's, so gh, gcloud and the bucket fail here and must not fail the check.
       rmSync(join(root, "brand", CHAPTER), { recursive: true });
       applyProfile({
         profile: loadProfile({ repoRoot: root, profile: "jci-oriente" }),
         repoRoot: root,
         env: {},
       });
+      responses.set("gh auth status", new CommandError("gh auth status failed: not signed in"));
+      responses.set(
+        "gcloud storage objects list",
+        new CommandError("gcloud storage objects list failed: 403 Forbidden"),
+      );
       const { sections, profile } = await check({ ...TOOLS, repoRoot: root, run, env: ENV });
       const rows = sections.flatMap(({ rows: sectionRows }) => sectionRows);
       expect(rowFor(rows, "selection").detail).toMatch(/selects "jci-oriente" \(the example/);
-      expect(sections.at(-1)?.rows).toEqual([
-        expect.objectContaining({
-          check: "going live",
-          status: "skip",
-          detail: expect.stringMatching(/example.*brand:init/),
-        }),
-      ]);
+      const live = sections.at(-1)?.rows ?? [];
+      expect(live[0]).toMatchObject({ check: "example", status: "warn" });
+      expect(live.map(({ check: name }) => name)).toContain("bucket");
+      expect(live.filter(({ status }) => status === "warn").length).toBeGreaterThan(1);
       expect(rows.filter(({ status }) => status === "fail")).toEqual([]);
-      expect(calls.filter(([command]) => command === "gcloud" || command === "gh")).toEqual([]);
       if (!profile) throw new Error("expected the example profile");
       expect(checkNext(profile).map(({ run: command }) => command)).toEqual([
         "pnpm dev",

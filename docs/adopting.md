@@ -107,8 +107,10 @@ computer, your chapter's files, its images, and going live. Each row shows what 
 Anything missing ends in a **To fix:** block with the command for your computer. It only
 reads: it never installs anything and never signs you in. In a fresh clone, `pnpm install`
 installs the packages but builds none: the site-content row fails until the build above
-has run once, and its **To fix:** names it. Until your chapter's own profile connects a
-Firebase project, going live is one line: you need its tools only then.
+has run once, and its **To fix:** names it. Before `brand:init`, the check reads the
+example, which upstream deploys: its going-live rows only warn, and you need their tools
+only once your chapter's own profile connects a Firebase project. A local-only profile
+shows going live as one line.
 
 **Windows:** use WSL 2. Open PowerShell as administrator, run `wsl --install`, restart,
 open Ubuntu, and follow the Linux commands below inside it. Clone into your Ubuntu home
