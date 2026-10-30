@@ -1,17 +1,9 @@
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ASSET_CONTRACT, ICON_MASTER_FILE } from "../assets.ts";
-import { BrandConfigError, REPO_ROOT, loadProfile } from "../load-profile.ts";
+import { BrandConfigError, loadProfile } from "../load-profile.ts";
+import { exampleRepo } from "../test-profiles.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
 import { ANSWERS_FILE, connect, init, initNext, runInit } from "./init.ts";
@@ -49,8 +41,7 @@ const noCommands: CommandRunner = async (command, args) => {
 };
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "brand-init-"));
-  cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
+  root = exampleRepo("brand-init-");
   calls = [];
 });
 
@@ -85,7 +76,7 @@ describe("init from an answers file", () => {
 
   it("takes style defaults from the example profile", async () => {
     await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
-    const example = loadProfile({ repoRoot: root, profile: "jci-oriente" }).brand;
+    const example = loadProfile({ repoRoot: root, profile: "example" }).brand;
     const { brand } = loadProfile({ repoRoot: root, profile: "jci-valle" });
     expect(brand.themeColor).toEqual(example.themeColor);
     expect(brand.locale).toBe(example.locale);
@@ -102,7 +93,7 @@ describe("init from an answers file", () => {
   it("copies the example site content and writes the asset README", async () => {
     await init({ repoRoot: root, answers: minimalAnswers(), run: noCommands });
     expect(readFileSync(join(root, "brand/jci-valle/site-content.json"), "utf8")).toBe(
-      readFileSync(join(root, "brand/jci-oriente/site-content.json"), "utf8"),
+      readFileSync(join(root, "brand/example/site-content.json"), "utf8"),
     );
     const readme = readFileSync(join(root, PULLED_ASSETS_DIR, "README.txt"), "utf8");
     for (const { path } of ASSET_CONTRACT) expect(readme).toContain(path);
@@ -149,9 +140,9 @@ describe("init from an answers file", () => {
   });
 
   it("refuses to overwrite an existing profile", async () => {
-    const answers = { ...minimalAnswers(), slug: "jci-oriente" };
+    const answers = { ...minimalAnswers(), slug: "example" };
     await expect(init({ repoRoot: root, answers, run: noCommands })).rejects.toThrow(
-      /brand\/jci-oriente already exists/,
+      /brand\/example already exists/,
     );
   });
 
@@ -315,7 +306,7 @@ describe("init interactively", () => {
     delete answers.slug;
     delete answers.foundedYear;
     const prompter = scripted(
-      { slug: ["Bad Slug", "jci-oriente", "jci-valle"], foundedYear: ["1,990", "1990"] },
+      { slug: ["Bad Slug", "example", "jci-valle"], foundedYear: ["1,990", "1990"] },
       seen,
     );
     await init({ repoRoot: root, answers, prompter, run: noCommands });
@@ -323,7 +314,7 @@ describe("init interactively", () => {
     expect(errors("slug")).toEqual([
       undefined,
       expect.stringMatching(/kebab-case/),
-      expect.stringMatching(/brand\/jci-oriente already exists/),
+      expect.stringMatching(/brand\/example already exists/),
     ]);
     expect(errors("foundedYear")).toEqual([undefined, expect.stringMatching(/whole number/)]);
     expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.foundedYear).toBe(1990);

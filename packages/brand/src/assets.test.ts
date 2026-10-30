@@ -1,25 +1,45 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FIXTURE_LOGO_SIZE, writeAssetSet } from "./asset-set.ts";
 import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES, assetRemedies, validateAssets } from "./assets.ts";
-import { REPO_ROOT } from "./load-profile.ts";
+import { sha256 } from "./hash.ts";
+import { EXAMPLE_PROFILE, REPO_ROOT } from "./load-profile.ts";
 import { encodePng } from "./png.ts";
 
 let dir: string;
 
-describe("committed profile assets", () => {
-  it("the jci-oriente set meets the contract with its 674×326 logos", () => {
-    const result = validateAssets(join(REPO_ROOT, "brand/jci-oriente/assets"));
-    expect(result.errors).toEqual([]);
-    expect(result.logoSize).toEqual({ width: 674, height: 326 });
-  });
+describe("the example's assets", () => {
+  const exampleAssets = join(REPO_ROOT, "brand", EXAMPLE_PROFILE, "assets");
 
-  it("the fixture set meets the contract with 400×200 logos", () => {
-    const result = validateAssets(join(REPO_ROOT, "brand/fixture/assets"));
+  it("meet the contract with 400×200 logos", () => {
+    const result = validateAssets(exampleAssets);
     expect(result.errors).toEqual([]);
     expect(result.logoSize).toEqual(FIXTURE_LOGO_SIZE);
+  });
+
+  it("share no byte with any other folder under brand/", () => {
+    const hashesIn = (assets: string) =>
+      readdirSync(assets, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => sha256(readFileSync(join(entry.parentPath, entry.name))));
+    const own = new Set(hashesIn(exampleAssets));
+    const others = readdirSync(join(REPO_ROOT, "brand"), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name !== EXAMPLE_PROFILE)
+      .map((entry) => join(REPO_ROOT, "brand", entry.name, "assets"))
+      .filter((assets) => existsSync(assets));
+    for (const assets of others) {
+      expect(hashesIn(assets).filter((hash) => own.has(hash))).toEqual([]);
+    }
   });
 });
 
@@ -109,15 +129,15 @@ describe("validateAssets", () => {
   it("rejects a pull manifest written for another profile", () => {
     writeCompleteSet();
     put("pull-manifest.json", Buffer.from(JSON.stringify({ profile: "other" })));
-    expect(validateAssets(dir, { profile: "fixture" }).errors).toEqual([
-      expect.stringMatching(/pull-manifest\.json.*"other".*"fixture"/),
+    expect(validateAssets(dir, { profile: "example" }).errors).toEqual([
+      expect.stringMatching(/pull-manifest\.json.*"other".*"example"/),
     ]);
   });
 
   it("accepts a pull manifest for the selected profile", () => {
     writeCompleteSet();
-    put("pull-manifest.json", Buffer.from(JSON.stringify({ profile: "fixture" })));
-    expect(validateAssets(dir, { profile: "fixture" }).errors).toEqual([]);
+    put("pull-manifest.json", Buffer.from(JSON.stringify({ profile: "example" })));
+    expect(validateAssets(dir, { profile: "example" }).errors).toEqual([]);
   });
 });
 
@@ -165,7 +185,7 @@ describe("validateAssets files", () => {
 
 describe("assetRemedies", () => {
   const runs = (dir: string) =>
-    assetRemedies(validateAssets(dir, { profile: "jci-oriente" }), "brand-assets");
+    assetRemedies(validateAssets(dir, { profile: "jci-valle" }), "brand-assets");
 
   it("asks for the missing or wrong files, then brand:check", () => {
     writeCompleteSet();
@@ -203,7 +223,7 @@ describe("assetRemedies", () => {
 
   it("asks to pull again when the manifest names another profile", () => {
     writeCompleteSet();
-    writeFileSync(join(dir, "pull-manifest.json"), JSON.stringify({ profile: "fixture" }));
+    writeFileSync(join(dir, "pull-manifest.json"), JSON.stringify({ profile: "example" }));
     expect(runs(dir).map(({ run }) => run)).toEqual(["pnpm brand:pull"]);
   });
 

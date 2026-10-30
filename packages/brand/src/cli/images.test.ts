@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { writeAssetSet } from "../asset-set.ts";
 import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES } from "../assets.ts";
-import { REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
+import { loadProfile, type LoadedProfile } from "../load-profile.ts";
+import { TEST_CHAPTER, exampleRepo, writeChapter } from "../test-profiles.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { checkImages } from "./images.ts";
 
@@ -17,12 +18,12 @@ const images = (env: Record<string, string> = {}) => checkImages({ profile, repo
 const brandAssets = () => join(root, PULLED_ASSETS_DIR);
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "brand-images-"));
-  cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
-  profile = loadProfile({ repoRoot: root, profile: "jci-oriente" });
+  root = exampleRepo("brand-images-");
+  writeChapter(root);
+  profile = loadProfile({ repoRoot: root, profile: TEST_CHAPTER });
   writeAssetSet(brandAssets());
-  // A chapter profile has no images of its own; the example's would add the other-folder note.
-  ownAssets = join(root, "brand/jci-oriente/assets");
+  // brand-assets/ holds the images; the profile's own would add the other-folder note.
+  ownAssets = join(root, "brand", TEST_CHAPTER, "assets");
   cpSync(ownAssets, join(root, "example-assets"), { recursive: true });
   rmSync(ownAssets, { recursive: true });
 });
@@ -84,7 +85,7 @@ describe("checkImages", () => {
   it("fails a set pulled for another profile", () => {
     writeFileSync(
       join(brandAssets(), "pull-manifest.json"),
-      JSON.stringify({ profile: "fixture" }),
+      JSON.stringify({ profile: "example" }),
     );
     expect(images().rows[0]).toMatchObject({
       check: "pull-manifest.json",
@@ -101,7 +102,7 @@ describe("checkImages", () => {
       check: "other folder",
       status: "warn",
       detail:
-        "brand/jci-oriente/assets/ also holds images; they are not used while brand-assets/ holds any",
+        "brand/jci-valle/assets/ also holds images; they are not used while brand-assets/ holds any",
     });
   });
 
@@ -109,8 +110,8 @@ describe("checkImages", () => {
     cpSync(join(root, "example-assets"), ownAssets, { recursive: true });
     rmSync(brandAssets(), { recursive: true });
     const { title, dir, rows } = images();
-    expect(dir).toBe(join(root, "brand/jci-oriente/assets"));
-    expect(title).toBe("Images in brand/jci-oriente/assets/");
+    expect(dir).toBe(join(root, "brand/jci-valle/assets"));
+    expect(title).toBe("Images in brand/jci-valle/assets/");
     expect(rows).toEqual([expect.objectContaining({ status: "ok" })]);
   });
 

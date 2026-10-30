@@ -2,7 +2,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { DEPLOY_SA, POOL_ID, PROVIDER_ID } from "../deploy-identity.ts";
-import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
+import {
+  BrandConfigError,
+  EXAMPLE_PROFILE,
+  REPO_ROOT,
+  loadProfile,
+  type LoadedProfile,
+} from "../load-profile.ts";
+import { chapterProfile } from "../test-profiles.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
 import {
   applyBucket,
@@ -12,16 +19,16 @@ import {
   provisioningSection,
 } from "./provision.ts";
 
-const BUCKET = "gs://jci-oriente-brand-assets";
-const SA = "firebase-deployer@jci-oriente.iam.gserviceaccount.com";
+const BUCKET = "gs://jci-valle-brand-assets";
+const SA = "firebase-deployer@jci-valle.iam.gserviceaccount.com";
 const LIFECYCLE = JSON.parse(readFileSync(join(REPO_ROOT, "brand/bucket-lifecycle.json"), "utf8"));
 const profile: LoadedProfile = {
-  ...loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" }),
-  source: "example",
+  ...chapterProfile(),
+  source: "chapter",
 };
 
 const DONE = {
-  name: "jci-oriente-brand-assets",
+  name: "jci-valle-brand-assets",
   uniform_bucket_level_access: true,
   public_access_prevention: "enforced",
   versioning_enabled: true,
@@ -70,7 +77,7 @@ describe("printProvisioning", () => {
   it("prints part B with the profile's values and changes nothing", async () => {
     const text = await printProvisioning({ profile, run: fakeRunner() });
     expect(text).toContain(
-      `gcloud storage buckets create ${BUCKET} --project=jci-oriente --location=us-central1 --default-storage-class=STANDARD --uniform-bucket-level-access --public-access-prevention`,
+      `gcloud storage buckets create ${BUCKET} --project=jci-valle --location=us-central1 --default-storage-class=STANDARD --uniform-bucket-level-access --public-access-prevention`,
     );
     expect(text).toContain(`gcloud storage buckets update ${BUCKET} --versioning`);
     expect(text).toContain(
@@ -87,7 +94,7 @@ describe("printProvisioning", () => {
 
   it("fills the docs/ci-cd.md section 6 block with project, number, repo and reviewer", async () => {
     const text = await printProvisioning({ profile, run: fakeRunner() });
-    expect(text).toContain("export PROJECT_ID=jci-oriente\n");
+    expect(text).toContain("export PROJECT_ID=jci-valle\n");
     expect(text).toContain("export PROJECT_NUMBER=42\n");
     expect(text).toContain("export GH_REPO=acme/luminova\n");
     expect(text).toContain("export REVIEWER_ID=123\n");
@@ -105,7 +112,7 @@ describe("printProvisioning", () => {
     );
     expect(text).toContain("export REVIEWER_ID=   # FILL IN before pasting: gh api user -q .id\n");
     expect(text).toContain(
-      "export PROJECT_NUMBER=   # FILL IN before pasting: gcloud projects describe jci-oriente",
+      "export PROJECT_NUMBER=   # FILL IN before pasting: gcloud projects describe jci-valle",
     );
     expect(text).toMatch(/# PROJECT_NUMBER, GH_REPO, REVIEWER_ID could not be looked up\. Sign in/);
     // Nothing a shell would read as a redirection.
@@ -117,7 +124,7 @@ describe("printProvisioning", () => {
     const titles = [...text.matchAll(/^Step (\d) of 5: (.*)$/gm)].map(([, , title]) => title);
     expect(titles).toEqual([
       "create CD's deploy account and its keyless sign-in (once per project)",
-      "tell CD which account to use (done: brand/jci-oriente/brand.json has it)",
+      "tell CD which account to use (done: brand/jci-valle/brand.json has it)",
       "create the private bucket for your logos and icons",
       "upload your images",
       "first deploy",
@@ -141,8 +148,8 @@ describe("printProvisioning", () => {
 
 describe("printProvisioning of a local-only profile", () => {
   it("refuses, pointing at connecting a project, without looking anything up", async () => {
-    const fixture = loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" });
-    const error = await printProvisioning({ profile: fixture, run: fakeRunner() }).catch(
+    const local = { ...profile, localOnly: true };
+    const error = await printProvisioning({ profile: local, run: fakeRunner() }).catch(
       (caught: unknown) => caught,
     );
     expect(error).toBeInstanceOf(BrandConfigError);
@@ -169,7 +176,7 @@ describe("provisioningSection", () => {
 
 describe("applyBucket", () => {
   it("grants read access to the account the profile's deploy section names", async () => {
-    const custom = "deployer@jci-oriente.iam.gserviceaccount.com";
+    const custom = "deployer@jci-valle.iam.gserviceaccount.com";
     const brand = structuredClone(profile.brand);
     brand.deploy = {
       workloadIdentityProvider: brand.deploy?.workloadIdentityProvider ?? "",
@@ -193,7 +200,7 @@ describe("applyBucket", () => {
 
   it("creates and configures a missing bucket, then grants the deploy SA read", async () => {
     const created = {
-      name: "jci-oriente-brand-assets",
+      name: "jci-valle-brand-assets",
       uniform_bucket_level_access: true,
       public_access_prevention: "enforced",
     };
@@ -245,14 +252,11 @@ describe("applyBucket", () => {
     ]);
   });
 
-  it("refuses the fixture profile", async () => {
-    const fixture: LoadedProfile = {
-      ...loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" }),
-      source: "example",
-    };
+  it("refuses the example", async () => {
+    const example = loadProfile({ repoRoot: REPO_ROOT, profile: EXAMPLE_PROFILE });
     await expect(
-      applyBucket({ profile: fixture, repoRoot: REPO_ROOT, run: fakeRunner() }),
-    ).rejects.toThrow(/neutral test profile/);
+      applyBucket({ profile: example, repoRoot: REPO_ROOT, run: fakeRunner() }),
+    ).rejects.toThrow(/is the example/);
     expect(calls).toEqual([]);
   });
 
