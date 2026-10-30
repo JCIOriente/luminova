@@ -65,7 +65,9 @@ and shows what each one means. To change one, copy it into your file:
   `qrPrefix` (the project id without hyphens) and `assetsBucket` (`<project>-brand-assets`).
 - `[backstage] contactEmail`, where a member without an account asks for access, defaults
   to `[contact] email`; with neither, the login page shows no link.
-- Set `foundedYear`: the site states it, and until you do it is the example's.
+- `foundedYear`, which the site states, is the one `brand:init` asks for besides the
+  identity. `brand:check` warns while it, `[contact] email`, `[contact] mapUrl` or
+  `[backstage] emailPlaceholder` is still the example's.
 
 Every error names the file, the table and the key, such as
 `brand/jci-valle/brand.toml [contact] email: not an email address`; a syntax error gives

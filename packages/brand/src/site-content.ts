@@ -131,32 +131,9 @@ export type SiteContent = Omit<SiteConfig, "version" | "updatedAt">;
 /** The site content the build embeds and the seeds write, in siteConfig's key order. */
 export function toSiteContent(file: SiteContentFile): SiteContent {
   const { hero, stats, timeline, mvv, reasons, contact, linktree } = file;
-  return {
-    hero,
-    // nationalOrganizations shares the table but is a brand value (virtual:luminova-brand).
-    stats: {
-      programCount: stats.programCount,
-      countries: stats.countries,
-      membersWorldwide: stats.membersWorldwide,
-      nationalAwards: stats.nationalAwards,
-      efficiencyPct: stats.efficiencyPct,
-      standoutOrg: stats.standoutOrg,
-    },
-    timeline,
-    mvv,
-    reasons,
-    contact: {
-      email: contact.email,
-      location: contact.location,
-      meetingSchedule: contact.meetingSchedule,
-      mapUrl: contact.mapUrl,
-      whatsapp: contact.whatsapp,
-      broadcastChannel: contact.broadcastChannel,
-      socials: contact.socials,
-      links: contact.links,
-    },
-    linktree,
-  };
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- nationalOrganizations shares the table but is a brand value (virtual:luminova-brand)
+  const { nationalOrganizations, ...siteStats } = stats;
+  return { hero, stats: siteStats, timeline, mvv, reasons, contact, linktree };
 }
 
 // The seeds own these keys; hero and linktree are left to /config so a re-seed keeps edits.

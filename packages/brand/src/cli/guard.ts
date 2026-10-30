@@ -12,7 +12,7 @@ import {
   type LoadedProfile,
 } from "../load-profile.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
-import type { Brand } from "../schema.ts";
+import { isTable, type Brand } from "../schema.ts";
 import { runBrandCommand } from "./main.ts";
 
 const MIN_NEEDLE_LENGTH = 6;
@@ -91,9 +91,8 @@ export function collectNeedles(
     } else if (Array.isArray(node)) {
       const items: unknown[] = Array.isArray(shared) ? shared : [];
       node.forEach((item, index) => visit(item, `${keyPath}[${index}]`, items[index]));
-    } else if (typeof node === "object" && node !== null) {
-      const fields: Record<string, unknown> =
-        typeof shared === "object" && shared !== null ? { ...shared } : {};
+    } else if (isTable(node)) {
+      const fields = isTable(shared) ? shared : {};
       for (const [key, child] of Object.entries(node)) {
         visit(child, keyPath ? `${keyPath}.${key}` : key, fields[key]);
       }

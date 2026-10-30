@@ -2,9 +2,9 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BRAND_FILE, readBrandToml, resolveBrandFile } from "./brand-file.ts";
-import { BrandConfigError, errorMessage } from "./errors.ts";
+import { BrandConfigError, errorMessage, issueLines, type SchemaIssue } from "./errors.ts";
 import type { Remedy } from "./remedy.ts";
-import { SLUG_MESSAGE, SLUG_PATTERN, isDemoProject, type Brand } from "./schema.ts";
+import { SLUG_MESSAGE, SLUG_PATTERN, isDemoProject, type Brand, type Table } from "./schema.ts";
 import type { SiteContent } from "./site-content.ts";
 
 export { BrandConfigError, errorMessage };
@@ -55,34 +55,16 @@ export function readJsonFile(file: string, label: string): unknown {
   return parseJsonText(text, label, [{ change: `fix the JSON syntax in ${label}` }]);
 }
 
-interface SchemaIssue {
-  path: readonly PropertyKey[];
-  message: string;
-  code?: string;
-  keys?: readonly string[];
-  input?: unknown;
-}
-
-/** zod's wording for the two issues a hand-edited file hits most, in plain words. */
-function describeIssue({ code, keys, input, message }: SchemaIssue): string {
-  if (code === "unrecognized_keys" && keys) {
-    return `unknown field ${keys.map((key) => `"${key}"`).join(", ")} (a typo?)`;
-  }
-  if (code === "invalid_type" && input === undefined) return "missing";
-  return message;
-}
-
-/** One error line per schema issue, `<label> <path>: <message>`. */
+/** Error lines for schema issues in a JSON file or output, `<label> <dotted.path>: <what>`. */
 export function issuesToBrandError(
   label: string,
   issues: readonly SchemaIssue[],
   remedies: readonly Remedy[] = [],
 ): BrandConfigError {
+  const where = (path: readonly PropertyKey[]) =>
+    `${label} ${path.map(String).join(".") || "(root)"}`;
   return new BrandConfigError(
-    issues.map(
-      (issue) =>
-        `${label} ${issue.path.map(String).join(".") || "(root)"}: ${describeIssue(issue)}`,
-    ),
+    issues.flatMap((issue) => issueLines(issue, where)),
     remedies,
   );
 }
@@ -297,7 +279,7 @@ export function loadProfile({
 const BASE_LABEL = brandFileLabel(EXAMPLE_PROFILE);
 
 /** The example's brand.toml, the base layer every chapter's builds on. */
-function readBase(repoRoot: string) {
+export function readBase(repoRoot: string = REPO_ROOT): Table {
   const file = join(repoRoot, "brand", EXAMPLE_PROFILE, BRAND_FILE);
   if (!existsSync(file)) {
     throw new BrandConfigError(

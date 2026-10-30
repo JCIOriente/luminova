@@ -1,15 +1,44 @@
 // Test-only: repo roots that hold the committed example and a connected chapter made from it,
 // so no test depends on a real chapter's profile being in git.
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stringify } from "smol-toml";
 import { writeAssetSet } from "./asset-set.ts";
-import { BRAND_FILE, SCHEMA_LINE } from "./brand-file.ts";
-import { EXAMPLE_PROFILE, REPO_ROOT, loadProfile, type LoadedProfile } from "./load-profile.ts";
+import { BRAND_FILE, SCHEMA_LINE, parseBrandToml } from "./brand-file.ts";
+import {
+  BrandConfigError,
+  EXAMPLE_PROFILE,
+  REPO_ROOT,
+  brandFileLabel,
+  loadProfile,
+  type LoadedProfile,
+} from "./load-profile.ts";
+import type { Table } from "./schema.ts";
 
 /** A chapter on a real (fictional) project, with CD's sign-in: everything a deploy needs. */
 export const TEST_CHAPTER = "jci-valle";
+
+/** The committed example's brand.toml, parsed: a complete file. */
+export const exampleToml = (): Table =>
+  parseBrandToml(
+    readFileSync(join(REPO_ROOT, "brand", EXAMPLE_PROFILE, BRAND_FILE), "utf8"),
+    brandFileLabel(EXAMPLE_PROFILE),
+  );
+
+/** The BrandConfigError `run` throws; anything else it throws, or no throw, fails the test. */
+export function brandErrorOf(run: () => unknown): BrandConfigError {
+  try {
+    run();
+  } catch (error) {
+    if (error instanceof BrandConfigError) return error;
+    throw error;
+  }
+  throw new Error("expected a BrandConfigError");
+}
+
+/** The error lines of the BrandConfigError `run` throws. */
+export const errorsOf = (run: () => unknown): string[] => brandErrorOf(run).errors;
 
 /** The files under brand/ that every repository has: the example and the shared two. */
 const SHARED_BRAND_PATHS = [EXAMPLE_PROFILE, "brand.schema.json", "bucket-lifecycle.json"];
@@ -43,6 +72,10 @@ const CHAPTER_FILE = {
   backstage: {
     emailPlaceholder: "tu.nombre@jcivalle.example.org",
     contactEmail: "hola@jcivalle.example.org",
+  },
+  contact: {
+    email: "contacto@jcivalle.example.org",
+    mapUrl: "https://maps.example.org/jci-valle",
   },
   og: { legacyPaths: ["og-image-v3.png"] },
   firebase: {

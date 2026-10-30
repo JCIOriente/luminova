@@ -1,37 +1,19 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parse, stringify } from "smol-toml";
+import { stringify } from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  BrandConfigError,
-  EXAMPLE_PROFILE,
-  REPO_ROOT,
-  chapterProfiles,
-  loadProfile,
-} from "./load-profile.ts";
-import { exampleRepo } from "./test-profiles.ts";
+import { EXAMPLE_PROFILE, chapterProfiles, loadProfile } from "./load-profile.ts";
+import { brandErrorOf, errorsOf, exampleRepo, exampleToml } from "./test-profiles.ts";
 
 let root: string;
 
 /** A profile folder whose brand.toml is the example's, changed by `mutate`. */
 function writeProfile(folder: string, mutate: (brand: Record<string, unknown>) => void = () => {}) {
-  const brand = parse(
-    readFileSync(join(REPO_ROOT, "brand", EXAMPLE_PROFILE, "brand.toml"), "utf8"),
-  );
+  const brand = exampleToml();
   mutate(brand);
   mkdirSync(join(root, "brand", folder), { recursive: true });
   writeFileSync(join(root, "brand", folder, "brand.toml"), stringify(brand));
-}
-
-function errorsOf(run: () => unknown): string[] {
-  try {
-    run();
-  } catch (error) {
-    if (error instanceof BrandConfigError) return error.errors;
-    throw error;
-  }
-  throw new Error("expected a BrandConfigError");
 }
 
 beforeEach(() => {
@@ -45,14 +27,8 @@ afterEach(() => {
 });
 
 function remediesOf(run: () => unknown) {
-  try {
-    run();
-  } catch (error) {
-    if (error instanceof BrandConfigError)
-      return { remedies: error.remedies, message: error.message };
-    throw error;
-  }
-  throw new Error("expected a BrandConfigError");
+  const { remedies, message } = brandErrorOf(run);
+  return { remedies, message };
 }
 
 describe("loadProfile", () => {
@@ -256,9 +232,7 @@ describe("committed profiles", () => {
   });
 
   it("the example sets every key a chapter may leave out", () => {
-    const own = parse(
-      readFileSync(join(REPO_ROOT, "brand", EXAMPLE_PROFILE, "brand.toml"), "utf8"),
-    );
+    const own = exampleToml();
     for (const key of [
       "shortName",
       "legalName",

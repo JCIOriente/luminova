@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { writeAssetSet } from "./asset-set.ts";
 import { OG_IMAGE_FILE } from "./assets.ts";
 import { BrandConfigError, EXAMPLE_PROFILE, REPO_ROOT, loadProfile } from "./load-profile.ts";
-import { TEST_CHAPTER, exampleRepo, writeChapter } from "./test-profiles.ts";
+import { TEST_CHAPTER, errorsOf, exampleRepo, writeChapter } from "./test-profiles.ts";
 import { DEV_PORTS, PREVIEW_PORTS } from "./ports.ts";
 import { sha256 } from "./hash.ts";
 import { RELEASE_MARKER_FILE, readReleaseMarker } from "./release.ts";
@@ -199,16 +199,6 @@ function writePulledAssets(profile = "jci-valle") {
   const dir = join(repoRoot, "brand-assets");
   writeAssetSet(dir, distinctColors);
   writeFileSync(join(dir, "pull-manifest.json"), JSON.stringify({ profile, objects: [] }));
-}
-
-function errorsOf(run: () => unknown): string[] {
-  try {
-    run();
-  } catch (error) {
-    if (error instanceof BrandConfigError) return error.errors;
-    throw error;
-  }
-  throw new Error("expected a BrandConfigError");
 }
 
 describe("resolveBrandBuild in release mode", () => {
