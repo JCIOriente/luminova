@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { ASSET_CONTRACT, contractByFolder, validateAssets } from "../assets.ts";
+import { contractByFolder, validateAssets } from "../assets.ts";
 import { BRAND_FILE, readBrandToml, resolveBrandFile } from "../brand-file.ts";
 import { PROJECT_VARIABLE, cdProject } from "../deploy-identity.ts";
 import { fileSha256 } from "../hash.ts";
@@ -38,8 +38,6 @@ export const PULL_NEXT: readonly Remedy[] = [
 
 export interface PullResult {
   manifest: PullManifest;
-  /** Whether the bucket held a brand.toml. */
-  brandFile: boolean;
 }
 
 /** Where a pull reads from and what it must find there. */
@@ -47,8 +45,6 @@ interface PullTarget {
   projectId: string;
   bucket: string;
   slug: string;
-  /** CD has no other brand.toml to build; a member's pull keeps the local one meanwhile. */
-  requireBrandFile: boolean;
 }
 
 /**
@@ -118,7 +114,6 @@ export async function pull({
     projectId: profile.brand.firebase.projectId,
     bucket: profile.brand.assetsBucket,
     slug: profile.slug,
-    requireBrandFile: false,
   };
   return pullTarget({ target, repoRoot, run, confirm });
 }
@@ -161,7 +156,6 @@ export async function pullProject({
     projectId,
     bucket: defaultAssetsBucket(projectId),
     slug: LOCAL_PROFILE,
-    requireBrandFile: true,
   };
   return pullTarget({ target, repoRoot, run, confirm });
 }
@@ -180,25 +174,16 @@ async function pullTarget({
   const { bucket } = target;
   const generations = await listBucket(run, bucket);
 
-  const required = [
-    ...(target.requireBrandFile ? [BRAND_FILE] : []),
-    ...ASSET_CONTRACT.map(({ path }) => path),
-  ];
-  const missing = required
-    .filter((path) => !generations.has(path))
-    .map(
-      (path) => `${bucketUrl(bucket, path)}: missing from the bucket (upload it with brand:push)`,
-    );
+  const missing = BUCKET_CONTRACT.filter((path) => !generations.has(path)).map(
+    (path) => `${bucketUrl(bucket, path)}: missing from the bucket (upload it with brand:push)`,
+  );
   if (missing.length > 0) {
     throw new BrandConfigError(missing, [
       { change: "upload the full set to the bucket (project owner)", run: "pnpm brand:push" },
     ]);
   }
-  // TRANSITIONAL (the JCI Oriente removal PR drops this): a member's pull of a bucket
-  // without brand.toml (JCI Oriente's, until the owner runbook) gives only its images.
-  const brandFile = generations.has(BRAND_FILE);
   const folders = contractByFolder();
-  if (brandFile) folders.set("", [BRAND_FILE, ...(folders.get("") ?? [])]);
+  folders.set("", [BRAND_FILE, ...(folders.get("") ?? [])]);
   const pulled = [...folders.values()].flat();
   const dir = localDir(repoRoot);
   refuseSymlinks(dir, pulled);
@@ -230,7 +215,7 @@ async function pullTarget({
         ],
       );
     }
-    if (brandFile) checkBrandFile(join(staging, BRAND_FILE), target, repoRoot);
+    checkBrandFile(join(staging, BRAND_FILE), target, repoRoot);
 
     const previous = readManifest(dir);
     const staged = new Map(pulled.map((path) => [path, fileSha256(join(staging, path))]));
@@ -257,9 +242,7 @@ async function pullTarget({
         if (replaced.has(path) && generation !== undefined && sha256 !== undefined) {
           objects[path] = { source: "bucket", generation, sha256 };
         } else if (kept && (kept.source === "example" || previous?.bucket === bucket)) {
-          // A file this pull did not replace keeps its record: one a failed copy left as it
-          // was and, TRANSITIONAL (the JCI Oriente removal PR drops this), the local brand.toml
-          // while the bucket holds none.
+          // A file this pull did not replace keeps its record: one a failed copy left as it was.
           objects[path] = kept;
         }
       }
@@ -276,7 +259,7 @@ async function pullTarget({
       // A copy that failed part way still leaves a manifest true to the files on disk.
       if (replaced.size > 0) writeManifest(dir, record());
     }
-    return { manifest: record(), brandFile };
+    return { manifest: record() };
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
@@ -310,8 +293,8 @@ async function confirmReplacing(changed: readonly string[], confirm: Confirm | u
   );
 }
 
-/** What a pull printed: the files, and a note when the bucket held no brand.toml. */
-function report({ manifest, brandFile }: PullResult) {
+/** What a pull printed: the files it downloaded. */
+function report({ manifest }: PullResult) {
   const files = Object.entries(manifest.objects).flatMap(([path, record]) =>
     record.source === "bucket" ? [`  ${path}#${record.generation}`] : [],
   );
@@ -319,13 +302,6 @@ function report({ manifest, brandFile }: PullResult) {
     `brand:pull: ${files.length} files from ${bucketUrl(manifest.bucket)} into ${localLabel()} (project ${manifest.project}).`,
   );
   for (const line of files) console.error(line);
-  if (!brandFile) {
-    // TRANSITIONAL (the JCI Oriente removal PR drops this): JCI Oriente's bucket gets its
-    // brand.toml from the owner runbook; only a member's pull of brand/jci-oriente/ gets here.
-    console.error(
-      `  The bucket holds no ${BRAND_FILE} yet: images only; ${localLabel(BRAND_FILE)} was left as it was.`,
-    );
-  }
 }
 
 if (import.meta.main) {
