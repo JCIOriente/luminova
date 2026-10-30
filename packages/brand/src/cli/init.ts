@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import {
@@ -22,7 +22,6 @@ import {
   EXAMPLE_PROFILE,
   REPO_ROOT,
   brandFileLabel,
-  chapterProfiles,
   demoProjectId,
   isDemoProject,
   issuesToBrandError,
@@ -32,14 +31,16 @@ import {
   readJsonFile,
   type LoadedProfile,
 } from "../load-profile.ts";
-import { CONNECT_PROJECT, PULLED_ASSETS_DIR } from "../release.ts";
+import { LOCAL_PROFILE, isSeededBrandFile, localDir, localLabel } from "../local-folder.ts";
+import { CONNECT_PROJECT } from "../release.ts";
 import { formatNext, type Remedy, guideStep } from "../remedy.ts";
-import { CHAPTER_IDENTITY, SLUG_MESSAGE, SLUG_PATTERN, isTable, type Table } from "../schema.ts";
+import { CHAPTER_IDENTITY, isTable, type Table } from "../schema.ts";
 import { FIREBASERC, applyProfile } from "./apply.ts";
 import { CommandError, runCommand, type CommandRunner } from "./gcloud.ts";
 import { INSTALL_FIREBASE_CLI } from "./install.ts";
 import { runBrandCommand } from "./main.ts";
 import { isYes, terminalPrompter, type Prompter } from "./prompts.ts";
+import { seedLocal } from "./seed.ts";
 
 type Answers = Record<string, unknown>;
 
@@ -70,23 +71,13 @@ interface Field {
   /** `int` takes a whole number; `blank` keeps "" (feature off) instead of leaving the key out. */
   kind?: "int" | "blank";
   /** Re-asked at once while this returns a reason (interactive only; a file is checked whole). */
-  check?: (reply: string, repoRoot: string) => string | undefined;
+  check?: (reply: string) => string | undefined;
 }
 
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 
 /** The chapter itself: everything a local-only profile needs. */
 const CHAPTER_FIELDS: readonly Field[] = [
-  {
-    path: "slug",
-    label: "Profile slug, lowercase kebab-case (e.g. jci-valle)",
-    check: (reply, repoRoot) =>
-      !SLUG_PATTERN.test(reply)
-        ? `"${reply}" ${SLUG_MESSAGE}`
-        : existsSync(join(repoRoot, "brand", reply))
-          ? `brand/${reply} already exists; pick another slug`
-          : undefined,
-  },
   { path: "name", label: "Chapter name (e.g. JCI Andina)" },
   { path: "city", label: "City, as used in a sentence (e.g. Cochabamba)" },
   { path: "country", label: "Country" },
@@ -136,12 +127,7 @@ const WEB_KEYS = ["apiKey", "appId", "appCheckSiteKey", "vapidKey"] as const;
 
 /** The answers brand:init takes: the identity, the year and the project; brand.toml holds the rest. */
 const ANSWER_KEYS = [
-  ...new Set([
-    "slug",
-    ...CHAPTER_IDENTITY.flatMap((path) => path.slice(0, 1)),
-    "foundedYear",
-    "firebase",
-  ]),
+  ...new Set([...CHAPTER_IDENTITY.flatMap((path) => path.slice(0, 1)), "foundedYear", "firebase"]),
 ];
 
 const sdkconfigSchema = z.object({
@@ -218,24 +204,20 @@ const FIREBASE_SETTINGS = "Firebase console → Project settings";
 const YOUR_APPS = `${FIREBASE_SETTINGS} → Your apps`;
 
 /** What a new profile needs next, in docs/adopting.md order (spec L1, L5). */
-export function initNext(slug: string, { local = false }: { local?: boolean } = {}): Remedy[] {
+export function initNext({ local = false }: { local?: boolean } = {}): Remedy[] {
   return [
     {
-      change: `put the ${ASSET_CONTRACT.length} images in ${PULLED_ASSETS_DIR}/ (its README.txt lists them), then check them (${guideStep("images")})`,
+      change: `replace the example's ${ASSET_CONTRACT.length} images in ${localLabel()} with your chapter's (its README.txt lists them), then check them (${guideStep("images")})`,
       run: "pnpm brand:check",
     },
     {
-      change: `edit brand/${slug}/${BRAND_FILE}: history, mission, contacts. Copy any key or table you want to change from brand/${EXAMPLE_PROFILE}/${BRAND_FILE} (these texts fill the site once; later you edit them in the admin /config screen)`,
+      change: `edit ${localLabel(BRAND_FILE)}: history, mission, contacts. Copy any key or table you want to change from brand/${EXAMPLE_PROFILE}/${BRAND_FILE} (these texts fill the site once; later you edit them in the admin /config screen)`,
     },
     {
       change: local
         ? "see your chapter's sites on this computer, with local test data (nothing leaves your machine)"
         : "see your chapter's sites on this computer, against the local emulators",
       run: "pnpm dev",
-    },
-    {
-      change: `commit the profile (never ${PULLED_ASSETS_DIR}/: it is gitignored on purpose)`,
-      run: `git add brand/${slug}/`,
     },
     local ? CONNECT_PROJECT : { change: "check the whole setup", run: "pnpm brand:check" },
   ];
@@ -253,8 +235,8 @@ const CONNECT_NEXT: readonly Remedy[] = [
 function assetReadme(): string {
   const rows = ASSET_CONTRACT.map((spec) => `  ${spec.path.padEnd(40)}${describeSpec(spec)}`);
   return [
-    "Your chapter's images, for its profile in brand/. Never commit this folder:",
-    "it is gitignored, and deployments read the profile's private bucket instead.",
+    "Your chapter's brand: brand.toml and its images. Never commit this folder: it is",
+    "gitignored; pnpm brand:push uploads it to the profile's private bucket, which deployments read.",
     "",
     `Put these ${ASSET_CONTRACT.length} PNG files here, then run pnpm brand:check:`,
     "",
@@ -273,16 +255,15 @@ function assetReadme(): string {
 
 const WHOLE = /^\d+$/;
 
-function checkReply(field: Field, reply: string, repoRoot: string): string | undefined {
+function checkReply(field: Field, reply: string): string | undefined {
   if (field.kind === "int" && !WHOLE.test(reply)) return `"${reply}" must be a whole number`;
-  return field.check?.(reply, repoRoot);
+  return field.check?.(reply);
 }
 
 /** Asks each field the answers do not hold yet, re-asking a reply its check refuses. */
 function asker(
   answers: Answers,
   exampleAnswers: Answers,
-  repoRoot: string,
   prompter: Prompter | undefined,
   /** Values offered first as the default, e.g. a project's current ones on re-connect. */
   defaults: Answers = {},
@@ -298,7 +279,7 @@ function asker(
           (await prompter?.ask({ key: field.path, label: field.label, fallback, error })) ||
           fallback ||
           "";
-        error = prompter && reply !== "" ? checkReply(field, reply, repoRoot) : undefined;
+        error = prompter && reply !== "" ? checkReply(field, reply) : undefined;
       } while (error);
       if (reply !== "" || field.kind === "blank") {
         set(answers, field.path, field.kind === "int" && WHOLE.test(reply) ? Number(reply) : reply);
@@ -334,24 +315,36 @@ async function askWebKeys(
   await ask(WEB_KEY_FIELDS);
 }
 
+/** brand/local/ holds a brand.toml that is the chapter's own, not the one install seeded. */
+const holdsOwnBrandFile = (repoRoot: string) =>
+  existsSync(join(localDir(repoRoot), BRAND_FILE)) && !isSeededBrandFile(repoRoot);
+
 /**
- * One chapter per repository (spec P8): a second would leave brand/ without a selection.
+ * The chapter's own brand.toml is replaced only when the member said so (runInit asks).
  * Checked before the first question, so nobody answers them for nothing.
  */
-function refuseSecondChapter(repoRoot: string): void {
-  const [existing] = chapterProfiles(repoRoot);
-  if (!existing) return;
+function refuseReplacing(repoRoot: string): void {
+  if (!holdsOwnBrandFile(repoRoot)) return;
+  const label = localLabel(BRAND_FILE);
   throw new BrandConfigError(
-    [`brand/${existing}/ already is this repository's chapter, and a repository builds one.`],
+    [`${label} already holds your chapter's brand; brand:init replaces it only when you say so.`],
     [
       {
-        change: `edit ${brandFileLabel(existing)} to change its values, or run this again and answer y to connect it to a Firebase project`,
+        change: `edit ${label} to change its values, or run this in a terminal and answer y to connect it to a Firebase project or to start over`,
         run: "pnpm brand:init",
       },
-      { change: `or delete brand/${existing}/ to start over` },
     ],
   );
 }
+
+/** The chapter's name as a project id part: "JCI Andina" → "jci-andina". */
+const nameSlug = (name: string | undefined) =>
+  (name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "chapter";
 
 /** Refuses an answers file with keys brand:init never asks, before any question. */
 function refuseOtherAnswers(answers: Answers): void {
@@ -457,18 +450,20 @@ function validated(
   return {
     slug,
     dir,
+    assetsDir: dir,
     ...resolved,
-    source: "chapter",
+    source: "local",
     warnings: [],
     localOnly: isDemoProject(resolved.brand.firebase.projectId),
   };
 }
 
 /**
- * Creates `brand/<slug>/brand.toml` from answers (a file, prompts, or both) and
- * `brand-assets/README.txt`. Validates everything before writing anything.
- * `local` (or answering "no" to the project question) writes a local-only profile on a
- * `demo-` project; running brand:init again connects the real one later.
+ * Writes `brand/local/brand.toml` from answers (a file, prompts, or both), seeding a
+ * missing brand/local/ first and adding its README.txt. Validates everything before writing
+ * anything. The chapter's own brand.toml is replaced only with `replace`; the seeded one
+ * always. `local` (or answering "no" to the project question) writes a local-only profile on
+ * a `demo-` project; running brand:init again connects the real one later.
  */
 export async function init({
   repoRoot = REPO_ROOT,
@@ -476,6 +471,7 @@ export async function init({
   prompter,
   fillWeb = false,
   local: wantLocal = false,
+  replace = false,
   run = runCommand,
 }: {
   repoRoot?: string;
@@ -483,13 +479,15 @@ export async function init({
   prompter?: Prompter;
   fillWeb?: boolean;
   local?: boolean;
+  /** The member said yes to replacing the chapter's own brand.toml. */
+  replace?: boolean;
   run?: CommandRunner;
-}): Promise<{ slug: string; files: string[]; local: boolean }> {
-  refuseSecondChapter(repoRoot);
+}): Promise<{ files: string[]; local: boolean }> {
+  if (!replace) refuseReplacing(repoRoot);
   refuseOtherAnswers(initial);
   const example = readBase(repoRoot);
   const answers: Answers = structuredClone(initial);
-  const ask = asker(answers, example, repoRoot, prompter);
+  const ask = asker(answers, example, prompter);
 
   let local = wantLocal;
   try {
@@ -501,7 +499,7 @@ export async function init({
     if (local && (answers.project !== undefined || answers.firebase !== undefined)) {
       throw new BrandConfigError(
         [
-          "your answers name a project and its web apps, but a local-only profile runs on demo-<slug>",
+          "your answers name a project and its web apps, but a local-only profile runs on demo-<chapter name>",
         ],
         [
           {
@@ -511,7 +509,7 @@ export async function init({
         ],
       );
     }
-    if (local) answers.project = demoProjectId(text(answers, "slug") ?? "chapter");
+    if (local) answers.project = demoProjectId(nameSlug(text(answers, "name")));
     else {
       const wanted = await askProject(ask, { prompter, fillWeb });
       await askWebKeys(ask, answers, { wanted, run });
@@ -561,41 +559,25 @@ function writeProfile({
   repoRoot: string;
   answers: Answers;
   example: Table;
-}): { slug: string; files: string[] } {
-  const slug = String(answers.slug ?? "");
-  if (!SLUG_PATTERN.test(slug)) {
-    throw new BrandConfigError([`slug "${slug}" ${SLUG_MESSAGE} (e.g. jci-valle)`]);
-  }
-  const dir = join(repoRoot, "brand", slug);
+}): { files: string[] } {
+  const dir = localDir(repoRoot);
   const toml = renderBrandToml(answers, example);
-  const profile = validated(toml, { slug, dir, example });
-  if (existsSync(dir)) {
-    throw new BrandConfigError(
-      [`brand/${slug} already exists`],
-      [
-        {
-          change: `pick another slug, or edit ${brandFileLabel(slug)} directly`,
-          run: "pnpm brand:check",
-        },
-      ],
-    );
-  }
-  mkdirSync(dir);
-  const files = [brandFileLabel(slug)];
+  const profile = validated(toml, { slug: LOCAL_PROFILE, dir, example });
+  // The example's images keep dev running until the chapter's replace them.
+  seedLocal({ repoRoot, env: {} });
+  const files = [localLabel(BRAND_FILE)];
   writeFileSync(join(dir, BRAND_FILE), toml);
 
-  const assetsDir = join(repoRoot, PULLED_ASSETS_DIR);
-  const readme = join(assetsDir, "README.txt");
+  const readme = join(dir, "README.txt");
   if (!existsSync(readme)) {
-    mkdirSync(assetsDir, { recursive: true });
     writeFileSync(readme, assetReadme());
-    files.push(`${PULLED_ASSETS_DIR}/README.txt`);
+    files.push(localLabel("README.txt"));
   }
 
-  // brand/ now holds this one chapter profile, so every command selects it (spec P1).
+  // brand/local/brand.toml is what brand/ selects, so every command now reads it.
   applyProfile({ profile, repoRoot, env: {} });
   files.push(FIREBASERC);
-  return { slug, files };
+  return { files };
 }
 
 /** A line or a whole `[table]` of a brand.toml: its header up to the next header. */
@@ -695,7 +677,7 @@ export async function connect({
   // Re-connecting offers the current project's values as defaults (Enter keeps one, a
   // reply replaces it); a demo project's placeholders are never offered.
   const defaults = profile.localOnly ? {} : current;
-  const ask = asker(answers, example, repoRoot, prompter, defaults);
+  const ask = asker(answers, example, prompter, defaults);
   try {
     await ask(PROJECT_FIELDS.filter(({ path }) => path === "project"));
     const before = profile.brand.firebase.projectId;
@@ -757,24 +739,33 @@ export async function runInit({
     ));
   const answers = useSaved ? readSavedAnswers(savedFile) : {};
 
-  let output: string;
-  const [chapter] = chapterProfiles(repoRoot);
-  if (chapter) {
-    const profile = loadProfile({ repoRoot });
+  let output: string | undefined;
+  let replace = false;
+  if (holdsOwnBrandFile(repoRoot)) {
+    const label = localLabel(BRAND_FILE);
+    const profile = loadProfile({ repoRoot, profile: LOCAL_PROFILE });
     const question = profile.localOnly
-      ? `brand/${chapter}/ runs on this computer only. Connect it to a Firebase project now?`
-      : `brand/${chapter}/ uses Firebase project ${profile.brand.firebase.projectId}. Connect it again, to change the project or its keys?`;
-    if (!(await yes(prompter, "connect", question))) {
-      return `brand:init: nothing changed. To change brand/${chapter}/'s other values, edit ${brandFileLabel(chapter)}.`;
+      ? `${localLabel()} runs on this computer only. Connect it to a Firebase project now?`
+      : `${localLabel()} uses Firebase project ${profile.brand.firebase.projectId}. Connect it again, to change the project or its keys?`;
+    if (await yes(prompter, "connect", question)) {
+      const { slug, projectId } = await connect({ repoRoot, answers, prompter, run });
+      output = `brand:init: ${brandFileLabel(slug)} now uses Firebase project ${projectId}; ${FIREBASERC} rewritten.\n\n${formatNext(CONNECT_NEXT)}`;
+    } else {
+      replace = await yes(
+        prompter,
+        "replace",
+        `Replace ${label} with a new one, answering every question again?`,
+      );
+      if (!replace)
+        return `brand:init: nothing changed. To change its other values, edit ${label}.`;
     }
-    const { slug, projectId } = await connect({ repoRoot, answers, prompter, run });
-    output = `brand:init: ${brandFileLabel(slug)} now uses Firebase project ${projectId}; ${FIREBASERC} rewritten.\n\n${formatNext(CONNECT_NEXT)}`;
-  } else {
-    const { slug, files, local } = await init({ repoRoot, answers, prompter, run });
+  }
+  if (output === undefined) {
+    const { files, local } = await init({ repoRoot, answers, prompter, replace, run });
     const where = local
       ? " It runs on this computer only, until you connect a Firebase project."
       : "";
-    output = `brand:init: wrote ${files.join(", ")}. brand/ now selects "${slug}".${where}\n\n${formatNext(initNext(slug, { local }))}`;
+    output = `brand:init: wrote ${files.join(", ")}.${where}\n\n${formatNext(initNext({ local }))}`;
   }
   // Used or declined, saved answers are stale once a run succeeds: offered again, they would
   // answer the next run's questions (a connect skips the project id it finds there).

@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ASSET_CONTRACT } from "../assets.ts";
 import { BRAND_FILE, SCHEMA_LINE, inheritedExampleValues, parseBrandToml } from "../brand-file.ts";
 import {
   BrandConfigError,
@@ -20,10 +19,11 @@ import {
   type Env,
   type LoadedProfile,
 } from "../load-profile.ts";
+import { BUCKET_CONTRACT, IMAGE_PATHS, LOCAL_PROFILE } from "../local-folder.ts";
 import { FIREBASERC, firebasercContent, readFirebaserc } from "./apply.ts";
 import { formatNext, type Problem, type Remedy, guideStep } from "../remedy.ts";
 import { CommandError, bucketUrl, runCommand, type CommandRunner } from "./gcloud.ts";
-import { ASSETS_OVERRIDE_ENV, REMOVE_ASSETS_OVERRIDE, checkImages } from "./images.ts";
+import { checkImages } from "./images.ts";
 import { runBrandCommand } from "./main.ts";
 import { deployDispatch } from "./push.ts";
 import { CONNECT_PROJECT, missingDeployProblem } from "../release.ts";
@@ -164,12 +164,14 @@ async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<Ch
     ]);
   }
   const names = new Set(listing.split("\n").map((line) => line.trim()));
-  const missing = ASSET_CONTRACT.filter(({ path }) => !names.has(path)).length;
-  const total = ASSET_CONTRACT.length;
+  // TRANSITIONAL: a committed chapter's brand.toml is in git, so its bucket holds the images.
+  const contract = profile.slug === LOCAL_PROFILE ? BUCKET_CONTRACT : IMAGE_PATHS;
+  const missing = contract.filter((path) => !names.has(path)).length;
+  const total = contract.length;
   return missing === 0
-    ? ok("bucket", `all ${total} images in ${bucketUrl(bucket)}`)
-    : fail("bucket", `${missing} of ${total} images missing from ${bucketUrl(bucket)}`, [
-        { change: "upload the images (project owner)", run: "pnpm brand:push" },
+    ? ok("bucket", `all ${total} files in ${bucketUrl(bucket)}`)
+    : fail("bucket", `${missing} of ${total} files missing from ${bucketUrl(bucket)}`, [
+        { change: "upload brand/local/ (project owner)", run: "pnpm brand:push" },
       ]);
 }
 
@@ -240,17 +242,10 @@ export const SECTION_TITLES = {
   live: "Going live",
 } as const;
 
-function imagesSection(profile: LoadedProfile | undefined, repoRoot: string, env: Env): Section {
+function imagesSection(profile: LoadedProfile | undefined, repoRoot: string): Section {
   if (!profile) return { title: "Images", rows: [skip("images")] };
   try {
-    const images = checkImages({ profile, repoRoot, env });
-    if (!env[ASSETS_OVERRIDE_ENV]?.trim()) return images;
-    const override = warn(
-      ASSETS_OVERRIDE_ENV,
-      "set, so this section read its folder; brand:push refuses it and uploads only the folder brand:check reads without it",
-      [REMOVE_ASSETS_OVERRIDE],
-    );
-    return { title: images.title, rows: [...images.rows, override] };
+    return checkImages({ profile, repoRoot });
   } catch (error) {
     return { title: "Images", rows: [failed("images", error)] };
   }
@@ -305,7 +300,7 @@ export async function check({
     sections: [
       { title: SECTION_TITLES.tools, rows: trying },
       { title: SECTION_TITLES.chapter, rows: chapter },
-      imagesSection(profile, repoRoot, env),
+      imagesSection(profile, repoRoot),
       { title: SECTION_TITLES.live, rows: goingLive },
     ],
     profile,
@@ -340,6 +335,20 @@ export function checkNext(profile: LoadedProfile): Remedy[] {
       },
     ];
   }
+  if (slug === LOCAL_PROFILE) {
+    return [
+      {
+        change: "when you are ready to go live: upload brand/local/ to the bucket (project owner)",
+        run: "pnpm brand:push",
+      },
+      {
+        change: `then deploy everything from your fork; approve the run in GitHub (${guideStep("goLive")})`,
+        run: deployDispatch("all"),
+        where: "shell",
+      },
+    ];
+  }
+  // TRANSITIONAL: a chapter committed in brand/ (the JCI Oriente removal PR drops this).
   return [
     {
       change: `when you are ready to go live: merge brand/${slug}/ to main in your fork. The merge starts the first deploy; approve it in GitHub (${guideStep("goLive")})`,
