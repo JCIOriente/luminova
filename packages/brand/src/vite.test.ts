@@ -136,22 +136,19 @@ describe("resolveBrandBuild", () => {
     ]);
   });
 
-  it("validates site-content.json and lists every problem", () => {
-    const file = join(repoRoot, "brand", EXAMPLE_PROFILE, "site-content.json");
-    const content = JSON.parse(readFileSync(file, "utf8"));
-    writeFileSync(file, JSON.stringify({ ...content, stats: undefined, mvv: { mision: 1 } }));
+  it("validates the site texts of brand.toml and lists every problem", () => {
+    editExample(["programCount = 3", 'programCount = "3"'], ['valores = "', 'valoress = "']);
     let caught: unknown;
     try {
       resolve();
     } catch (error) {
       caught = error;
     }
-    expect(caught instanceof BrandConfigError ? caught.errors : []).toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(/^brand\/example\/site-content\.json stats:/),
-        expect.stringMatching(/^brand\/example\/site-content\.json mvv\.mision:/),
-      ]),
-    );
+    expect(caught instanceof BrandConfigError ? caught.errors : []).toEqual([
+      expect.stringMatching(/^brand\/example\/brand\.toml \[stats\] programCount: /),
+      "brand/example/brand.toml [mvv] valores: required",
+      "brand/example/brand.toml [mvv] valoress: unknown key (a typo?)",
+    ]);
   });
 
   it("carries the parsed site content", () => {
@@ -265,7 +262,7 @@ describe("pwaManifest", () => {
     expect(pwaManifest(brand, "backstage")).toEqual({
       name: "JCI Ejemplo",
       short_name: "JCI Ejemplo",
-      description: "Junior Chamber International Ejemplo",
+      description: "Junior Chamber International Ciudad Ejemplo",
       lang: "es",
       theme_color: "#222222",
       background_color: "#222222",
@@ -330,11 +327,22 @@ const SPOTLIGHT_PLACEHOLDERS = [
 const APP_CHECK_KEY = "example-recaptcha-site-key";
 
 /** The example with a real-looking App Check key, as a live chapter has. */
+/** Edits the example's brand.toml in the test repo, one exact text replacement at a time. */
+function editExample(...replacements: [string, string][]) {
+  const file = join(repoRoot, "brand", EXAMPLE_PROFILE, "brand.toml");
+  let toml = readFileSync(file, "utf8");
+  for (const [from, to] of replacements) {
+    if (!toml.includes(from)) throw new Error(`the example's brand.toml has no ${from}`);
+    toml = toml.replace(from, to);
+  }
+  writeFileSync(file, toml);
+}
+
 function giveExampleAppCheck() {
-  const file = join(repoRoot, "brand", EXAMPLE_PROFILE, "brand.json");
-  const brand = JSON.parse(readFileSync(file, "utf8"));
-  brand.firebase.web.spotlight.appCheckSiteKey = APP_CHECK_KEY;
-  writeFileSync(file, JSON.stringify(brand));
+  editExample(
+    ['appCheckSiteKey = "" # blank: App Check off', `appCheckSiteKey = "${APP_CHECK_KEY}"`],
+    ["legacyPaths = []", 'legacyPaths = ["og-image-legacy.png"]'],
+  );
 }
 
 function writeApp(): string {

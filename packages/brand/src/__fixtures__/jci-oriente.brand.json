@@ -1,0 +1,65 @@
+{
+  "$schema": "../brand.schema.json",
+  "slug": "jci-oriente",
+  "name": "JCI Oriente",
+  "shortName": "JCI Oriente",
+  "legalName": "Cámara Junior Internacional Oriente",
+  "movementName": "Cámara Junior Internacional",
+  "description": "Junior Chamber International Oriente",
+  "locality": {
+    "city": "Santa Cruz",
+    "cityFormal": "Santa Cruz de la Sierra",
+    "region": "el Oriente boliviano",
+    "regionShort": "el Oriente",
+    "country": "Bolivia"
+  },
+  "foundedYear": 1993,
+  "stats": { "nationalOrganizations": 18 },
+  "parentOrganization": { "name": "JCI Bolivia", "url": "https://jcibolivia.org/" },
+  "broadcastChannelName": "Difusión Oriente",
+  "locale": "es",
+  "ogLocale": "es_BO",
+  "urls": { "spotlight": "https://jcioriente.org", "backstage": "https://admin.jcioriente.org" },
+  "qrPrefix": "jcioriente",
+  "themeColor": { "spotlight": "#0097D7", "backstage": "#130F2D" },
+  "seo": {
+    "title": "JCI Oriente: Cámara Junior Internacional en Santa Cruz",
+    "description": "JCI Oriente, capítulo Santa Cruz de la Cámara Junior Internacional. Formamos líderes con propósito desde 1993.",
+    "ogTitle": "JCI Oriente: Cámara Junior Internacional en Santa Cruz",
+    "ogDescription": "Formamos líderes con propósito en el Oriente boliviano desde 1993. Conoce nuestros proyectos, nuestro impacto y cómo unirte.",
+    "ogImageAlt": "JCI Oriente: Jóvenes que lideran con propósito en Santa Cruz.",
+    "twitterDescription": "Formamos líderes con propósito en el Oriente boliviano desde 1993."
+  },
+  "backstage": {
+    "title": "JCI Oriente — Portal de miembros",
+    "emailPlaceholder": "tu.nombre@jcioriente.bo",
+    "contactEmail": "jci.orienteolm@gmail.com"
+  },
+  "og": { "legacyPaths": ["og-image-v3.png"] },
+  "firebase": {
+    "projectId": "jci-oriente",
+    "storageBucket": "jci-oriente.firebasestorage.app",
+    "sites": { "spotlight": "jcioriente", "backstage": "jcioriente-backstage" },
+    "web": {
+      "authDomain": "jci-oriente.firebaseapp.com",
+      "messagingSenderId": "953870918238",
+      "spotlight": {
+        "apiKey": "AIzaSyA9HS_owsTTJW1TTLXGdWxaFQxg1qwhZWA",
+        "appId": "1:953870918238:web:63d0034740735d618b4acf",
+        "appCheckSiteKey": "6Lee4BUtAAAAAOsqDH6GpEk10rIIUEONQY7aV8WT",
+        "vapidKey": ""
+      },
+      "backstage": {
+        "apiKey": "AIzaSyDdLctu49oDf2sKidnwlGtkhEeJYP3veMg",
+        "appId": "1:953870918238:web:acbd53d377846bd88b4acf",
+        "appCheckSiteKey": "6LcmDVAtAAAAABOCgvpUCAN5TbAfYqJ80wF_5DlR",
+        "vapidKey": ""
+      }
+    }
+  },
+  "assetsBucket": "jci-oriente-brand-assets",
+  "deploy": {
+    "workloadIdentityProvider": "projects/953870918238/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
+    "serviceAccount": "firebase-deployer@jci-oriente.iam.gserviceaccount.com"
+  }
+}

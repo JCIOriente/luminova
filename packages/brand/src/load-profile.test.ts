@@ -1,6 +1,7 @@
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parse, stringify } from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   BrandConfigError,
@@ -13,14 +14,14 @@ import { exampleRepo } from "./test-profiles.ts";
 
 let root: string;
 
+/** A profile folder whose brand.toml is the example's, changed by `mutate`. */
 function writeProfile(folder: string, mutate: (brand: Record<string, unknown>) => void = () => {}) {
-  const brand = JSON.parse(
-    readFileSync(join(REPO_ROOT, "brand", EXAMPLE_PROFILE, "brand.json"), "utf8"),
+  const brand = parse(
+    readFileSync(join(REPO_ROOT, "brand", EXAMPLE_PROFILE, "brand.toml"), "utf8"),
   );
-  brand.slug = folder;
   mutate(brand);
   mkdirSync(join(root, "brand", folder), { recursive: true });
-  writeFileSync(join(root, "brand", folder, "brand.json"), JSON.stringify(brand));
+  writeFileSync(join(root, "brand", folder, "brand.toml"), stringify(brand));
 }
 
 function errorsOf(run: () => unknown): string[] {
@@ -71,14 +72,23 @@ describe("loadProfile", () => {
     });
   });
 
-  it("does not count a folder without brand.json as a profile", () => {
+  it("does not count a folder without brand.toml as a profile", () => {
     mkdirSync(join(root, "brand", "notes"));
     expect(loadProfile({ repoRoot: root, env: {} }).slug).toBe("other");
   });
 
-  it("finds a chapter profile with no example beside it", () => {
+  it("finds a chapter profile with no example beside it, and names the base it needs", () => {
     rmSync(join(root, "brand", EXAMPLE_PROFILE), { recursive: true });
-    expect(loadProfile({ repoRoot: root, env: {} }).slug).toBe("other");
+    const { remedies, message } = remediesOf(() => loadProfile({ repoRoot: root, env: {} }));
+    expect(message).toContain(
+      "brand/example/brand.toml: missing; every chapter's brand.toml builds on it",
+    );
+    expect(remedies).toEqual([
+      {
+        change: "restore the example from git",
+        run: "git checkout -- brand/example/brand.toml",
+      },
+    ]);
   });
 
   it("never reads a leftover luminova.json", () => {
@@ -110,8 +120,7 @@ describe("loadProfile", () => {
     const { remedies } = remediesOf(() => loadProfile({ repoRoot: root, env: {} }));
     expect(remedies).toEqual([
       {
-        change:
-          'rename brand/Other_Name/ to lowercase letters, digits and hyphens, and set "slug" in its brand.json to match',
+        change: "rename brand/Other_Name/ to lowercase letters, digits and hyphens",
       },
     ]);
   });
@@ -153,14 +162,6 @@ describe("loadProfile", () => {
     expect(chapterProfiles(root)).toEqual(["other"]);
   });
 
-  it("fails when the slug differs from the folder name", () => {
-    writeProfile("renamed", (brand) => (brand.slug = "original"));
-    const errors = errorsOf(() => loadProfile({ repoRoot: root, profile: "renamed" }));
-    expect(errors).toEqual([
-      expect.stringMatching(/slug "original" must equal its folder "renamed"/),
-    ]);
-  });
-
   it.each(["../other", "Other", "a/b", "-x"])(
     "rejects the malformed slug %j before touching the filesystem",
     (slug) => {
@@ -185,17 +186,19 @@ describe("loadProfile", () => {
     expect(errors.join("\n")).toMatch(/broken.*foundedYear/);
   });
 
-  it("names the profile when brand.json is not valid JSON", () => {
+  it("names the profile, line and column when brand.toml is not valid TOML", () => {
     mkdirSync(join(root, "brand", "garbled"));
-    writeFileSync(join(root, "brand", "garbled", "brand.json"), "{ nope");
+    writeFileSync(join(root, "brand", "garbled", "brand.toml"), 'name = "JCI"\ncity = { nope\n');
     const errors = errorsOf(() => loadProfile({ repoRoot: root, profile: "garbled" }));
-    expect(errors).toEqual([expect.stringMatching(/^brand\/garbled\/brand\.json: not valid JSON/)]);
+    expect(errors).toEqual([
+      expect.stringMatching(/^brand\/garbled\/brand\.toml: line 2, column \d+: /),
+    ]);
   });
 
-  it("reports an unreadable brand.json as a profile error, not a crash", () => {
-    mkdirSync(join(root, "brand", "dir", "brand.json"), { recursive: true });
+  it("reports an unreadable brand.toml as a profile error, not a crash", () => {
+    mkdirSync(join(root, "brand", "dir", "brand.toml"), { recursive: true });
     const errors = errorsOf(() => loadProfile({ repoRoot: root, profile: "dir" }));
-    expect(errors).toEqual([expect.stringMatching(/^brand\/dir\/brand\.json: cannot read/)]);
+    expect(errors).toEqual([expect.stringMatching(/^brand\/dir\/brand\.toml: cannot read/)]);
   });
 
   it("aggregates the errors into the thrown message", () => {
@@ -225,37 +228,61 @@ describe("loadProfile remedies", () => {
     });
   });
 
-  it("points a schema error at the file, the schema and brand:check", () => {
+  it("points a schema error at the file, the schema, the example and brand:check", () => {
     writeProfile("broken", (brand) => (brand.qrPrefix = "bad:prefix"));
     const { remedies } = remediesOf(() => loadProfile({ repoRoot: root, profile: "broken" }));
     expect(remedies).toEqual([
       {
         change:
-          "edit the fields above in brand/broken/brand.json (brand/brand.schema.json describes each)",
+          "edit the keys above in brand/broken/brand.toml (brand/brand.schema.json describes each; brand/example/brand.toml shows every one)",
         run: "pnpm brand:check",
       },
     ]);
   });
 
-  it("names the field to change when the slug differs from its folder", () => {
-    writeProfile("renamed", (brand) => (brand.slug = "original"));
-    const { remedies } = remediesOf(() => loadProfile({ repoRoot: root, profile: "renamed" }));
-    expect(remedies).toEqual([
-      { change: 'set "slug" to "renamed" in brand/renamed/brand.json, or rename the folder' },
-    ]);
-  });
-
-  it("asks to fix the JSON syntax of an unparsable file", () => {
+  it("asks to fix the TOML syntax of an unparsable file", () => {
     mkdirSync(join(root, "brand", "garbled"));
-    writeFileSync(join(root, "brand", "garbled", "brand.json"), "{ nope");
+    writeFileSync(join(root, "brand", "garbled", "brand.toml"), "{ nope");
     const { remedies } = remediesOf(() => loadProfile({ repoRoot: root, profile: "garbled" }));
-    expect(remedies).toEqual([{ change: "fix the JSON syntax in brand/garbled/brand.json" }]);
+    expect(remedies).toEqual([
+      { change: "fix the TOML syntax in brand/garbled/brand.toml at that line" },
+    ]);
   });
 });
 
 describe("committed profiles", () => {
   it("the example parses", () => {
     expect(loadProfile({ profile: EXAMPLE_PROFILE }).brand.slug).toBe(EXAMPLE_PROFILE);
+  });
+
+  it("the example sets every key a chapter may leave out", () => {
+    const own = parse(
+      readFileSync(join(REPO_ROOT, "brand", EXAMPLE_PROFILE, "brand.toml"), "utf8"),
+    );
+    for (const key of [
+      "shortName",
+      "legalName",
+      "movementName",
+      "description",
+      "foundedYear",
+      "broadcastChannelName",
+      "locale",
+      "ogLocale",
+      "locality",
+      "parentOrganization",
+      "seo",
+      "backstage",
+      "og",
+      "hero",
+      "stats",
+      "timeline",
+      "mvv",
+      "reasons",
+      "contact",
+      "linktree",
+    ]) {
+      expect(own).toHaveProperty(key);
+    }
   });
 
   it("selects the example in a repository that holds only what upstream ships", () => {
