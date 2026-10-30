@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { siteConfigDocSchema } from "./site-config-doc-schema";
 import { fakeTimestamp, without } from "./doc-schema-test-helpers.js";
-// Each brand profile's site-content.json (the seed and fallback content) is parsed through
-// this schema by packages/brand/src/site-content.test.ts.
+// The site texts of the example's brand.toml (the seed and fallback content) are parsed
+// through this schema by packages/brand/src/site-content.test.ts.
 
 const validDoc = {
   version: 3,

@@ -115,7 +115,7 @@ describe("printProvisioning", () => {
     const titles = [...text.matchAll(/^Step (\d) of 5: (.*)$/gm)].map(([, , title]) => title);
     expect(titles).toEqual([
       "create CD's deploy account and its keyless sign-in (once per project)",
-      "tell CD which account to use (done: brand/jci-valle/brand.json has it)",
+      "tell CD which account to use (done: brand/jci-valle/brand.toml has it)",
       "create the private bucket for your logos and icons",
       "upload your images",
       "first deploy",
@@ -130,9 +130,9 @@ describe("printProvisioning", () => {
     delete brand.deploy;
     const text = await printProvisioning({ profile: { ...profile, brand }, run: fakeRunner() });
     expect(text).toContain(
-      '"workloadIdentityProvider": "projects/42/locations/global/workloadIdentityPools/github-actions/providers/github-oidc"',
+      '    [deploy]\n    workloadIdentityProvider = "projects/42/locations/global/workloadIdentityPools/github-actions/providers/github-oidc"',
     );
-    expect(text).toContain(`"serviceAccount": "${SA}"`);
+    expect(text).toContain(`serviceAccount = "${SA}"`);
     expect(text).toMatch(/^Step 2 of 5: tell CD which account to use$/m);
   });
 });
