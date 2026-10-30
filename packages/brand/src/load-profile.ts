@@ -1,56 +1,34 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { formatRemedies, uniqueRemedies, type Problem, type Remedy } from "./remedy.ts";
-import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema, type Brand } from "./schema.ts";
+import { BRAND_FILE, readBrandToml, resolveBrandFile } from "./brand-file.ts";
+import { BrandConfigError, errorMessage } from "./errors.ts";
+import type { Remedy } from "./remedy.ts";
+import { SLUG_MESSAGE, SLUG_PATTERN, isDemoProject, type Brand } from "./schema.ts";
+import type { SiteContent } from "./site-content.ts";
+
+export { BrandConfigError, errorMessage };
+export { demoProjectId, isDemoProject } from "./schema.ts";
 
 /**
  * The committed, chapter-neutral example: tests and `brand:guard` build it, `brand:init`
- * starts from it, and it can never ship.
+ * starts from it, it can never ship, and its brand.toml is the base layer of every chapter's.
  */
 export const EXAMPLE_PROFILE = "example";
 
 export const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
-/**
- * Every problem at once, then what to do about them. The message carries the "To fix:"
- * block, so any caller that prints it (a CLI, Vite during `pnpm dev`) shows the remedies.
- */
-export class BrandConfigError extends Error {
-  readonly errors: string[];
-  readonly remedies: Remedy[];
+/** `brand/<slug>/brand.toml`, as messages name it. */
+export const brandFileLabel = (slug: string) => `brand/${slug}/${BRAND_FILE}`;
 
-  constructor(problems: readonly (string | Problem)[], remedies: readonly Remedy[] = []) {
-    const errors = problems.map((problem) =>
-      typeof problem === "string" ? problem : problem.message,
-    );
-    const all = uniqueRemedies([
-      ...problems.flatMap((problem) =>
-        typeof problem === "string" ? [] : (problem.remedies ?? []),
-      ),
-      ...remedies,
-    ]);
-    const fix = formatRemedies(all);
-    super(
-      `Brand profile error:\n${errors.map((error) => `  - ${error}`).join("\n")}${fix ? `\n${fix}` : ""}`,
-    );
-    this.name = "BrandConfigError";
-    this.errors = errors;
-    this.remedies = all;
-  }
-}
-
-/** A profile that cannot be located: a malformed slug or no `brand/<slug>/brand.json`. */
+/** A profile that cannot be located: a malformed slug or no `brand/<slug>/brand.toml`. */
 export class ProfileNotFoundError extends BrandConfigError {
   override name = "ProfileNotFoundError";
 }
 
 export type Env = Readonly<Record<string, string | undefined>>;
 
-export const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
-
-/** Parses JSON text; `label` prefixes the error, e.g. `brand/acme/brand.json`. */
+/** Parses JSON text; `label` prefixes the error, e.g. `.brand-release.json`. */
 export function parseJsonText(
   text: string,
   label: string,
@@ -126,6 +104,8 @@ export interface LoadedProfile {
   slug: string;
   dir: string;
   brand: Brand;
+  /** The site texts of the same brand.toml: spotlight's fallback and the seeds' content. */
+  siteContent: SiteContent;
   source: ProfileSource;
   warnings: string[];
   /**
@@ -134,15 +114,6 @@ export interface LoadedProfile {
    */
   localOnly: boolean;
 }
-
-const DEMO_PROJECT_PREFIX = "demo-";
-
-/** A `demo-` project exists only in the Firebase emulators. */
-export const isDemoProject = (projectId: string) => projectId.startsWith(DEMO_PROJECT_PREFIX);
-
-/** The emulator-only project a local profile runs on, kept within Firebase's 30 characters. */
-export const demoProjectId = (slug: string) =>
-  `${DEMO_PROJECT_PREFIX}${slug}`.slice(0, 30).replace(/-+$/, "");
 
 interface Selection {
   slug: string;
@@ -179,12 +150,12 @@ export class ProfileSelectionError extends BrandConfigError {
   override name = "ProfileSelectionError";
 }
 
-/** Profile folders (each with a brand.json), sorted. */
+/** Profile folders (each with a brand.toml), sorted. */
 function availableProfiles(repoRoot: string): string[] {
   const brandDir = join(repoRoot, "brand");
   if (!existsSync(brandDir)) return [];
   return readdirSync(brandDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && existsSync(join(brandDir, entry.name, "brand.json")))
+    .filter((entry) => entry.isDirectory() && existsSync(join(brandDir, entry.name, BRAND_FILE)))
     .map((entry) => entry.name)
     .sort();
 }
@@ -223,7 +194,7 @@ export function discoverProfile(repoRoot: string = REPO_ROOT): {
       [`brand/${only}/: a profile folder name ${SLUG_MESSAGE} (e.g. jci-valle)`],
       [
         {
-          change: `rename brand/${only}/ to lowercase letters, digits and hyphens, and set "slug" in its brand.json to match`,
+          change: `rename brand/${only}/ to lowercase letters, digits and hyphens`,
         },
       ],
     );
@@ -231,7 +202,7 @@ export function discoverProfile(repoRoot: string = REPO_ROOT): {
   if (only !== undefined) return { slug: only, source: "chapter" };
   if (profiles.includes(EXAMPLE_PROFILE)) return { slug: EXAMPLE_PROFILE, source: "example" };
   throw new ProfileSelectionError(
-    ["brand/ holds no profile: each one is a folder with a brand.json."],
+    [`brand/ holds no profile: each one is a folder with a ${BRAND_FILE}.`],
     [{ change: "create your chapter's profile", run: "pnpm brand:init" }],
   );
 }
@@ -299,33 +270,40 @@ export function loadProfile({
     );
   }
   const dir = join(brandDir, slug);
-  const file = join(dir, "brand.json");
+  const file = join(dir, BRAND_FILE);
+  const label = brandFileLabel(slug);
   if (!existsSync(file)) {
     throw new ProfileNotFoundError(
-      [
-        `profile "${slug}" not found at brand/${slug}/brand.json (available: ${choices().join(", ") || "none"})`,
-      ],
+      [`profile "${slug}" not found at ${label} (available: ${choices().join(", ") || "none"})`],
       [...select(), { change: `or create brand/${slug}/`, run: "pnpm brand:init" }],
     );
   }
 
-  const label = `brand/${slug}/brand.json`;
-  const parsed = brandSchema.safeParse(readJsonFile(file, label));
-  if (!parsed.success) {
-    throw issuesToBrandError(label, parsed.error.issues, [
-      {
-        change: `edit the fields above in ${label} (brand/brand.schema.json describes each)`,
-        run: "pnpm brand:check",
-      },
-    ]);
-  }
-  if (parsed.data.slug !== slug) {
+  const own = readBrandToml(file, label);
+  const resolved =
+    slug === EXAMPLE_PROFILE
+      ? resolveBrandFile({ slug, base: own, label, baseLabel: label })
+      : resolveBrandFile({
+          slug,
+          chapter: own,
+          base: readBase(repoRoot),
+          label,
+          baseLabel: BASE_LABEL,
+        });
+  const localOnly = isDemoProject(resolved.brand.firebase.projectId);
+  return { slug, dir, ...resolved, source, warnings, localOnly };
+}
+
+const BASE_LABEL = brandFileLabel(EXAMPLE_PROFILE);
+
+/** The example's brand.toml, the base layer every chapter's builds on. */
+function readBase(repoRoot: string) {
+  const file = join(repoRoot, "brand", EXAMPLE_PROFILE, BRAND_FILE);
+  if (!existsSync(file)) {
     throw new BrandConfigError(
-      [`${label}: slug "${parsed.data.slug}" must equal its folder "${slug}"`],
-      [{ change: `set "slug" to "${slug}" in ${label}, or rename the folder` }],
+      [`${BASE_LABEL}: missing; every chapter's ${BRAND_FILE} builds on it`],
+      [{ change: "restore the example from git", run: `git checkout -- ${BASE_LABEL}` }],
     );
   }
-
-  const localOnly = isDemoProject(parsed.data.firebase.projectId);
-  return { slug, dir, brand: parsed.data, source, warnings, localOnly };
+  return readBrandToml(file, BASE_LABEL);
 }
