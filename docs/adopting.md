@@ -31,8 +31,8 @@ your shell's startup file, and CD needs no GitHub variables.
 | What | File | In git? | Who reads it |
 |---|---|---|---|
 | Which chapter this repository builds | the folder `brand/<slug>/` itself: your chapter's is the only one besides the example `example` | no, git-ignored | every `pnpm brand:*` command, `pnpm dev`, the builds, the seed scripts, CD |
-| The chapter: names, texts, site addresses, Firebase project and web apps, CD's sign-in | `brand/<slug>/brand.json` | yes; every value is public | the builds, CD |
-| The site's texts, seeded into the database once | `brand/<slug>/site-content.json` | yes | `pnpm seed:production`, `pnpm dev` |
+| The chapter: names, texts, site addresses, Firebase project and web apps, CD's sign-in | `brand/<slug>/brand.json` | no, git-ignored; every value is public | the builds, CD |
+| The site's texts, seeded into the database once | `brand/<slug>/site-content.json` | no, git-ignored | `pnpm seed:production`, `pnpm dev` |
 | Your images | `brand-assets/` | **no**, gitignored | `pnpm dev`, `brand:check`, `brand:push` |
 | The images deploys use | your private bucket, `<project>-brand-assets` | no | CD (`brand:pull`) |
 | Firebase CLI's project file | `.firebaserc` | no, generated | the `firebase` CLI |

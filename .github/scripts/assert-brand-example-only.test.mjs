@@ -5,7 +5,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -86,6 +94,29 @@ test("a deleted chapter folder passes", () => {
   rmSync(join(root, "brand/jci-oriente"), { recursive: true });
   commit();
   assert.equal(check(root, base).status, 0);
+});
+
+test("a chapter file replaced by a symlink fails", () => {
+  const { root, base, commit } = repo({ ...UPSTREAM, "brand/jci-oriente/brand.json": "{}" });
+  rmSync(join(root, "brand/jci-oriente/brand.json"));
+  symlinkSync("../example/brand.json", join(root, "brand/jci-oriente/brand.json"));
+  commit();
+  const r = check(root, base);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /brand\/jci-oriente\/brand\.json/);
+});
+
+test("allows exactly what .gitignore re-includes under brand/", () => {
+  const scriptDir = dirname(SCRIPT);
+  const gitignore = readFileSync(join(scriptDir, "..", "..", ".gitignore"), "utf8");
+  // Upstream keeps jci-oriente committed until its removal; deleting it always passes.
+  const reIncluded = [...gitignore.matchAll(/^!\/(brand\/\S+)$/gm)]
+    .map(([, path]) => path)
+    .filter((path) => path !== "brand/jci-oriente/");
+  const pattern = readFileSync(SCRIPT, "utf8").match(/^\s*(brand\/.+)\) return 0 ;;$/m)?.[1];
+  assert.ok(pattern, "allowed() case pattern not found");
+  const allowed = pattern.split("|").map((path) => path.trim().replace(/\*$/, ""));
+  assert.deepEqual(allowed.sort(), reIncluded.sort());
 });
 
 test("a rename into a chapter folder fails; a rename into the example passes", () => {

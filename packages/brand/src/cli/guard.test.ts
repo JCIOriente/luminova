@@ -3,13 +3,15 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { chapterProfile } from "../test-profiles.ts";
+import { loadProfile } from "../load-profile.ts";
+import { chapterProfile, chapterRepo, exampleRepo } from "../test-profiles.ts";
 import {
   CHAPTER_REGEX,
   NEEDLE_EXCLUSIONS,
   assetHashes,
   collectNeedles,
   emittedLogoHashes,
+  exampleOutcome,
   formatFinding,
   inverseChecks,
   scanDist,
@@ -213,5 +215,45 @@ describe("inverseChecks", () => {
     expect(errors.join("\n")).toContain(brand.themeColor.spotlight);
     expect(errors.join("\n")).toContain("sitemap.xml");
     expect(errors.join("\n")).toContain(`projectId "${brand.firebase.projectId}"`);
+  });
+});
+
+describe("exampleOutcome", () => {
+  const roots: string[] = [];
+  const repo = (make: () => string) => {
+    const root = make();
+    roots.push(root);
+    return root;
+  };
+  afterEach(() => {
+    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+  });
+
+  it("protects a chapter profile", () => {
+    const repoRoot = repo(chapterRepo);
+    expect(exampleOutcome(loadProfile({ repoRoot, env: {} }), {})).toBeUndefined();
+  });
+
+  it("passes with a notice where brand/ holds no chapter profile (a fork)", () => {
+    const repoRoot = repo(exampleRepo);
+    const outcome = exampleOutcome(loadProfile({ repoRoot, env: {} }), {});
+    expect(outcome?.code).toBe(0);
+    expect(outcome?.message).toMatch(/no chapter profile to protect/);
+  });
+
+  it("refuses BRAND_PROFILE=example over a chapter profile", () => {
+    const repoRoot = repo(chapterRepo);
+    const env = { BRAND_PROFILE: "example" };
+    const outcome = exampleOutcome(loadProfile({ repoRoot, env }), env);
+    expect(outcome?.code).toBe(1);
+    expect(outcome?.message).toMatch(/protects a chapter profile/);
+  });
+
+  it("refuses BRAND_PROFILE=example even where brand/ selects the example", () => {
+    const repoRoot = repo(exampleRepo);
+    const env = { BRAND_PROFILE: "example" };
+    const outcome = exampleOutcome(loadProfile({ repoRoot, env }), env);
+    expect(outcome?.code).toBe(1);
+    expect(outcome?.message).toMatch(/protects a chapter profile/);
   });
 });

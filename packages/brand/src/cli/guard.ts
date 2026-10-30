@@ -3,7 +3,14 @@ import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
 import { z } from "zod";
 import { sha256 } from "../hash.ts";
-import { EXAMPLE_PROFILE, REPO_ROOT, loadProfile } from "../load-profile.ts";
+import {
+  EXAMPLE_PROFILE,
+  PROFILE_OVERRIDE_ENV,
+  REPO_ROOT,
+  loadProfile,
+  type Env,
+  type LoadedProfile,
+} from "../load-profile.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
 import type { Brand } from "../schema.ts";
 import { runBrandCommand } from "./main.ts";
@@ -251,15 +258,35 @@ async function buildExample(app: BrandApp, outDir: string, envDir: string): Prom
   );
 }
 
+/**
+ * How brand:guard ends before building anything when the profile is the example; undefined
+ * when it is a chapter profile to protect. A fork's brand/ holds no chapter profile in git.
+ */
+export function exampleOutcome(
+  { slug, source }: Pick<LoadedProfile, "slug" | "source">,
+  env: Env,
+): { code: 0 | 1; message: string } | undefined {
+  if (slug !== EXAMPLE_PROFILE) return undefined;
+  if (source === "example" && !env[PROFILE_OVERRIDE_ENV]?.trim()) {
+    return {
+      code: 0,
+      message: "brand:guard: brand/ holds no chapter profile to protect; nothing to check.",
+    };
+  }
+  return {
+    code: 1,
+    message: `brand:guard protects a chapter profile; "${EXAMPLE_PROFILE}" is the example it builds. Run it where brand/ holds a chapter profile, without ${PROFILE_OVERRIDE_ENV}.`,
+  };
+}
+
 async function main(): Promise<number> {
   const started = performance.now();
   // The profile brand/ selects is the one CI just built.
   const chapter = loadProfile();
-  if (chapter.slug === EXAMPLE_PROFILE) {
-    console.error(
-      `brand:guard protects a chapter profile; "${EXAMPLE_PROFILE}" is the example it builds. Run it where brand/ holds a chapter profile, without BRAND_PROFILE.`,
-    );
-    return 1;
+  const early = exampleOutcome(chapter, process.env);
+  if (early) {
+    (early.code === 0 ? console.log : console.error)(early.message);
+    return early.code;
   }
   const { brand } = chapter;
 

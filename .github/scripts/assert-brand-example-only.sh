@@ -35,7 +35,7 @@ while IFS= read -r -d '' status; do
     R* | C*) IFS= read -r -d '' path ;;
   esac
   if ! allowed "$path"; then offending+=("$path"); fi
-done < <(git diff --name-status -z --diff-filter=AMRC "${base}...HEAD" -- brand/)
+done < <(git diff --name-status -z --diff-filter=d "${base}...HEAD" -- brand/)
 
 if [ "${#offending[@]}" -gt 0 ]; then
   for path in "${offending[@]}"; do

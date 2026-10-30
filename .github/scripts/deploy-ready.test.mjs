@@ -158,7 +158,20 @@ test("names the example as the TypeScript twin does", () => {
   assert.equal(script.match(/^example=(\S+)$/m)?.[1], constant("EXAMPLE_PROFILE"));
 });
 
-test("the committed profile is ready to deploy", () => {
-  const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-  assert.match(check(root).stdout, /^project=jci-oriente\nready=true\n$/);
-});
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+/** Chapter profiles git tracks: upstream's jci-oriente until its removal; none in a fork. */
+const COMMITTED_CHAPTERS = spawnSync("git", ["-C", ROOT, "ls-files", "brand/*/brand.json"], {
+  encoding: "utf8",
+})
+  .stdout.split("\n")
+  .map((path) => path.split("/")[1])
+  .filter((slug) => slug && slug !== "example");
+
+test(
+  "the committed profile is ready to deploy",
+  { skip: COMMITTED_CHAPTERS.length === 0 && "brand/ commits no chapter profile (a fork)" },
+  () => {
+    assert.deepEqual(COMMITTED_CHAPTERS, ["jci-oriente"]);
+    assert.match(check(ROOT).stdout, /^project=jci-oriente\nready=true\n$/);
+  },
+);
