@@ -83,7 +83,7 @@ this file, in the same PR.
 
 - **Firestore App Check stays unenforced in prod.** Do not enable it or recommend enabling it.
   The enforced callables are `APP_CHECK_ENFORCED_CALLABLES`; Storage enforces App Check.
-- Firebase web API keys in `brand/<slug>/brand.toml` / `.env.local.example` are public client
+- Firebase web API keys in `brand/local/brand.toml` / `.env.local.example` are public client
   identifiers, not secrets, so they stay as they are.
 - `/code-review` is user-invoked only. Sessions substitute an adversarial Opus pass and say so
   in the PR.
