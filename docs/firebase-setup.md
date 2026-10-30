@@ -20,11 +20,11 @@ Two web app registrations share one Firebase project and one Firestore database:
 | spotlight | `1:953870918238:web:63d0034740735d618b4acf` | `spotlight` | https://jcioriente.org |
 | backstage | `1:953870918238:web:acbd53d377846bd88b4acf` | `backstage` | https://admin.jcioriente.org |
 
-Each app reads its Firebase config from the brand profile (`firebase.web.<app>` in `brand/<slug>/brand.json`). The two apps share the same project and database but use separate app registrations and separate App Check site keys.
+Each app reads its Firebase config from the brand profile (`[firebase.<app>]` in `brand/<slug>/brand.toml`; the auth domain, storage bucket and sender id derive from `project`). The two apps share the same project and database but use separate app registrations and separate App Check site keys.
 
 ## Hosting Targets
 
-| Target (`firebase.json`) | Site id (`brand.json` `firebase.sites`) | App | URL | Firebase default (fallback) |
+| Target (`firebase.json`) | Site id (`brand.toml` `[firebase.sites]`) | App | URL | Firebase default (fallback) |
 |--------|---------|-----|-----|-----------------------------|
 | `spotlight` | `jcioriente` | spotlight | https://jcioriente.org | https://jcioriente.web.app |
 | `backstage` | `jcioriente-backstage` | backstage | https://admin.jcioriente.org | https://jcioriente-backstage.web.app |
@@ -58,8 +58,8 @@ pnpm brand:apply
 
 No `.env` file is needed. The brand Vite plugin (`packages/brand/src/vite.ts`) gives every
 mode (`pnpm dev`, `build:local`, release builds) the Firebase config of the profile
-`brand/` selects: `firebase.web.<app>` in `brand/<slug>/brand.json` holds each app's
-`apiKey`, `appId`, `appCheckSiteKey` and `vapidKey`. It sets them as process env, which
+`brand/` selects: `[firebase.<app>]` in `brand/<slug>/brand.toml` holds each app's
+`apiKey`, `appId` and the optional `appCheckSiteKey` and `vapidKey`. It sets them as process env, which
 wins over any `.env` file, so dev, the emulators (`.firebaserc`) and the seeds always name
 the same project.
 
@@ -81,7 +81,7 @@ For local emulator, the Firebase CLI handles credentials automatically.
 
 App Check uses **reCAPTCHA v3** to protect the Firebase backend from abuse.
 
-- Setting `VITE_APPCHECK_SITE_KEY` enables App Check for that app; leaving it blank disables it. Prod builds carry the real site keys (`firebase.web.<app>.appCheckSiteKey` in `brand/<slug>/brand.json`); against the emulators the plugin leaves the key out, so App Check is off in local dev and you develop without a token.
+- Setting `VITE_APPCHECK_SITE_KEY` enables App Check for that app; leaving it blank disables it. Prod builds carry the real site keys (`appCheckSiteKey` under `[firebase.<app>]` in `brand/<slug>/brand.toml`); against the emulators the plugin leaves the key out, so App Check is off in local dev and you develop without a token.
 - Every deployed client initializes App Check and attests — that is why the lite read path (`getFirestoreLite`) also initializes App Check, not just the full SDK. What is enforced and where, registering a web app, verification and failure diagnosis: owner op 3 under "Enlaces de acceso" below.
 
 The `@luminova/firebase` package initializes App Check automatically when `VITE_APPCHECK_SITE_KEY` is set (shared `initAppCheck` helper, used by both `getFirebase` and `getFirestoreLite`).
@@ -230,7 +230,7 @@ firebase deploy --only hosting:backstage
 
 ### Brand assets bucket (owner only)
 
-Deployment images live in `brand.json` `assetsBucket` (`jci-oriente-brand-assets`), a
+Deployment images live in the profile's `assetsBucket` (`jci-oriente-brand-assets`, the `<project>-brand-assets` default), a
 private, versioned bucket the CD service account can only read (`docs/ci-cd.md` section 5).
 `pnpm brand:provision` prints the setup with the profile's values, then asks whether to
 create and configure the bucket. `pnpm brand:push` validates and uploads the images
@@ -547,7 +547,7 @@ it in a copy dialog with its expiry.
 
    The unauthenticated `/invitacion` page does attest: it is a top-level route outside the
    `_auth` layout, the production build carries `VITE_APPCHECK_SITE_KEY` from
-   `firebase.web.backstage.appCheckSiteKey` in `brand/jci-oriente/brand.json`, and the client's `ensureApp()`
+   `appCheckSiteKey` under `[firebase.backstage]` in `brand/jci-oriente/brand.toml`, and the client's `ensureApp()`
    (`packages/firebase/src/app-core.ts`) wires `initAppCheck` on first app acquisition, which
    `getFunctionsService()` goes through.
 
@@ -565,7 +565,7 @@ it in a copy dialog with its expiry.
       (https://console.firebase.google.com/project/jci-oriente/appcheck/) → **Apps** tab → the
       web app → **reCAPTCHA v3** → paste the secret key → Save. The same dialog
       holds the **token TTL** (30 min to 7 days, default 1 day; backstage uses 72 h).
-   4. Put the site key in `brand/jci-oriente/brand.json` as `firebase.web.<app>.appCheckSiteKey`, rebuild and
+   4. Put the site key in `brand/jci-oriente/brand.toml` as `appCheckSiteKey` under `[firebase.<app>]`, rebuild and
       redeploy hosting. Leave `.env.local` blank: local dev runs against the
       emulators, which need no token.
 
@@ -1037,8 +1037,8 @@ web apps (backstage + spotlight).
 ### 3. Wire the key
 
 For production, set it in the brand profile for **both** apps:
-`firebase.web.spotlight.vapidKey` and `firebase.web.backstage.vapidKey` in
-`brand/<slug>/brand.json`. For local development, set the same value in **both** apps'
+`vapidKey` under `[firebase.spotlight]` and under `[firebase.backstage]` in
+`brand/<slug>/brand.toml`. For local development, set the same value in **both** apps'
 `.env.local` (gitignored):
 
 ```bash
