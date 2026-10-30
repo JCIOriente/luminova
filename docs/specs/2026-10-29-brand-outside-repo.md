@@ -157,11 +157,13 @@ chapter's fork.
 1. Lists the bucket and downloads the contract files into a staging folder; validates them.
 2. For each contract file, compares the local file's sha256 with the manifest's hash from the
    last pull or push (or the seed). A file changed since then is listed, and the member is
-   asked once: `Replace these N files with the bucket's copy? [y/N]`. No is the default.
+   asked once: `Replace these N files with the bucket's copy? (y/N)`. No is the default.
    Without a terminal (CI, a script) the command refuses and lists them.
 3. Replaces only the contract files, never the folder; everything else stays.
 4. Writes `.pull-manifest.json`:
-   `{ "version": 1, "project", "bucket", "objects": { "<path>": { "generation", "md5", "sha256", "source": "bucket" | "example" } } }`.
+   `{ "version": 1, "project", "bucket", "objects": { "<path>": { "source": "bucket", "generation", "sha256" } | { "source": "example", "sha256" } } }`.
+   Each file is replaced whole (a temp copy, then a rename), never through a symlink; if a
+   copy fails part way, the manifest still records exactly the files replaced.
    A seeded file (source `example`) has no `generation`; `brand:push` uploads it
    create-only (`--if-generation-match=0`), which also defines the first push onto a
    bucket that already holds files.
@@ -219,7 +221,12 @@ The PRs land in this order; JCI Oriente keeps deploying through each:
    example move to TOML. JCI Oriente's committed profile is converted in the same PR (the
    example-only check allows this one transition).
 3. **Bucket and one local folder**: push and pull carry `brand.toml`; `brand/local/` replaces
-   discovery for every local command. CD still reads the committed `brand/jci-oriente/`.
+   discovery for every local command. CI never seeds `brand/local/`, so CD's setup (project,
+   `.firebaserc`, hosting sites) reads the committed `brand/jci-oriente/`. While the bucket
+   holds no `brand.toml`, the build reads that profile with the pulled images; once the
+   bucket holds one (runbook step 3), CD's `brand:pull` writes it to `brand/local/brand.toml`
+   and the build selects it. Its project must be the committed profile's: `brand:pull`
+   refuses another, and so does the release build (`GCP_PROJECT_ID`).
 4. **Fork CD**: `deploy.yml` reads the variables and pulls before building. Merge it only
    after the owner ran the runbook below; its first run is the proof that the bucket's
    `brand.toml` deploys JCI Oriente.
@@ -234,8 +241,10 @@ From a clone of `main` that includes step 3, with `gcloud` signed in as a projec
 
 1. `pnpm install`, then copy JCI Oriente's committed profile into the local folder:
    `cp brand/jci-oriente/brand.toml brand/local/brand.toml`.
-2. Copy the deployed images from today's bucket over the seeded ones:
-   `gcloud storage cp --recursive "gs://jci-oriente-brand-assets/*" brand/local/`.
+2. Download the deployed images from today's bucket over the seeded ones: `pnpm brand:pull`.
+   The bucket holds no `brand.toml` yet, so the pull replaces the 16 seeded images without
+   asking (they are unchanged since the seed), keeps the `brand.toml` of step 1, and records
+   each image's generation, which step 3's push is conditional on.
 3. `pnpm brand:check`, then `pnpm brand:push`.
 4. `gh variable set FIREBASE_PROJECT_ID --body jci-oriente --repo JCIOriente/luminova` and
    `gh variable set GCP_PROJECT_NUMBER --body 953870918238 --repo JCIOriente/luminova`.

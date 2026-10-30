@@ -16,6 +16,7 @@ import {
   touchedPathDiffers,
   worktreeBlocker,
 } from "./lib/worktree-clean.mjs";
+import { BRAND_LOCAL, isRebuildableBrandSeed } from "./lib/brand-seed.mjs";
 
 const MERGED_PR_LIMIT = 1000;
 // ls-files and log output can pass the 1 MiB default, which would throw ENOBUFS.
@@ -149,6 +150,8 @@ function inspect(path) {
     ),
     lsFiles: gitIn(path, "ls-files", "-v"),
     refs: gitIn(path, "for-each-ref", "--format=%(refname)", "refs/worktree", "refs/bisect"),
+    // Install seeds brand/local/ in every worktree; only the member's own brand keeps one.
+    rebuildable: isRebuildableBrandSeed(path) ? [BRAND_LOCAL] : [],
   });
 }
 
