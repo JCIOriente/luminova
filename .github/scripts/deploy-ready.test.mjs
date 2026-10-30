@@ -17,22 +17,37 @@ const DEPLOY = {
   serviceAccount: "firebase-deployer@acme.iam.gserviceaccount.com",
 };
 
-/** A repo root whose brand/ holds `profiles` (folder -> brand.json, or null for a folder without one). */
+/**
+ * A repo root whose brand/ holds `profiles`: folder -> brand.toml text (a string), a
+ * brand.json (an object: a base tree from before brand.toml), or null for a folder with neither.
+ */
 function repo(profiles) {
   const root = mkdtempSync(join(tmpdir(), "deploy-ready-"));
   mkdirSync(join(root, "brand"));
   writeFileSync(join(root, "brand", "brand.schema.json"), "{}");
   for (const [folder, brand] of Object.entries(profiles)) {
     mkdirSync(join(root, "brand", folder));
-    if (brand !== null) {
+    if (typeof brand === "string") writeFileSync(join(root, "brand", folder, "brand.toml"), brand);
+    else if (brand !== null) {
       writeFileSync(join(root, "brand", folder, "brand.json"), JSON.stringify(brand));
     }
   }
   return root;
 }
 
-const READY = { firebase: { projectId: "acme" }, deploy: DEPLOY };
-const EXAMPLE = { firebase: { projectId: "demo-example" } };
+/** A brand.toml with `project` and, when given, a [deploy] table with those keys. */
+function toml(project, deploy) {
+  const lines = ["#:schema ../brand.schema.json", 'name = "Acme"', `project = "${project}"`];
+  lines.push("", "[colors]", 'spotlight = "#0097D7"');
+  if (deploy) {
+    lines.push("", "[deploy]");
+    for (const [key, value] of Object.entries(deploy)) lines.push(`${key} = "${value}"`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+const READY = toml("acme", DEPLOY);
+const EXAMPLE = toml("demo-example");
 /** The example's old name, still in the base tree of the first deploy after the rename (D12). */
 const FIXTURE = { firebase: { projectId: "demo-fixture" } };
 /** A fork: the committed example, plus its chapter. */
@@ -66,7 +81,7 @@ test("a chapter profile wins without the example beside it", () => {
 });
 
 test("a local-only profile skips, naming the way to go live", () => {
-  const r = check(fork({ firebase: { projectId: "demo-acme" } }));
+  const r = check(fork(toml("demo-acme")));
   assert.equal(r.status, 0);
   assert.match(
     r.stdout,
@@ -77,11 +92,11 @@ test("a local-only profile skips, naming the way to go live", () => {
 
 test("a real project without a deploy section skips, pointing at brand:provision", () => {
   for (const deploy of [undefined, { serviceAccount: DEPLOY.serviceAccount }]) {
-    const r = check(fork({ firebase: { projectId: "acme" }, deploy }));
+    const r = check(fork(toml("acme", deploy)));
     assert.equal(r.status, 0);
     assert.match(
       r.stdout,
-      /^project=acme\nready=false\nreason=.*no "deploy" section.*pnpm brand:provision/,
+      /^project=acme\nready=false\nreason=brand\/acme\/brand\.toml has no \[deploy\] table.*pnpm brand:provision/,
     );
   }
 });
@@ -105,7 +120,7 @@ test("a broken selection fails loudly instead of skipping", () => {
 test("counts folders as Node does: no symlinks, dot-folders included", () => {
   const linked = fork(READY);
   const elsewhere = mkdtempSync(join(tmpdir(), "deploy-ready-elsewhere-"));
-  writeFileSync(join(elsewhere, "brand.json"), JSON.stringify(READY));
+  writeFileSync(join(elsewhere, "brand.toml"), READY);
   symlinkSync(elsewhere, join(linked, "brand", "jci-valle"));
   assert.equal(check(linked).stdout, "project=acme\nready=true\n");
   const hidden = check(fork(READY, { ".valle": READY, "..urku": READY }));
@@ -127,7 +142,7 @@ test("reads a ref's folder names unquoted", () => {
 });
 
 test("judges a past commit with a git ref", () => {
-  const root = fork({ firebase: { projectId: "demo-acme" } });
+  const root = fork(toml("demo-acme"));
   const git = (...args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
   const commit = () => {
     git("add", "-A");
@@ -135,7 +150,7 @@ test("judges a past commit with a git ref", () => {
   };
   git("init", "-q");
   commit();
-  writeFileSync(join(root, "brand", "acme", "brand.json"), JSON.stringify(READY));
+  writeFileSync(join(root, "brand", "acme", "brand.toml"), READY);
   assert.equal(check(root).stdout, "project=acme\nready=true\n");
   const at = (ref) => spawnSync("bash", [SCRIPT, root, ref], { encoding: "utf8" }).stdout;
   assert.match(at("HEAD"), /^project=demo-acme\nready=false\n/);
@@ -146,6 +161,43 @@ test("judges a past commit with a git ref", () => {
   writeFileSync(join(root, "brand", "untracked.json"), "{}");
   assert.match(at("HEAD"), /^project=demo-example\nready=false\n/);
   assert.equal(at("HEAD~1"), "project=acme\nready=true\n");
+});
+
+test("reads brand.toml's narrow grammar: quotes, comments, whitespace, tables", () => {
+  const variants = [
+    // Literal strings, padding and trailing comments.
+    `# a comment\n  project   =   'acme'   # the project\n\n[deploy] # CD\n workloadIdentityProvider = '${DEPLOY.workloadIdentityProvider}'\nserviceAccount="${DEPLOY.serviceAccount}"#x\n`,
+    // A key named project inside a table is not the top-level one; [deploy] after another table.
+    `project = "acme"\n[seo]\nproject = "nope"\n[ deploy ]\nworkloadIdentityProvider = "${DEPLOY.workloadIdentityProvider}"\nserviceAccount = "${DEPLOY.serviceAccount}"\n[hero]\nmotto = "x"\n`,
+    // CRLF line endings.
+    READY.replaceAll("\n", "\r\n"),
+  ];
+  for (const text of variants) {
+    assert.equal(check(fork(text)).stdout, "project=acme\nready=true\n", text);
+  }
+});
+
+test("a [deploy] key outside the [deploy] table does not count", () => {
+  const text = `project = "acme"\nworkloadIdentityProvider = "${DEPLOY.workloadIdentityProvider}"\n[deploy]\nserviceAccount = "${DEPLOY.serviceAccount}"\n[x]\nworkloadIdentityProvider = "${DEPLOY.workloadIdentityProvider}"\n`;
+  assert.match(check(fork(text)).stdout, /^project=acme\nready=false\n/);
+});
+
+test("a brand.toml without project is no project at all", () => {
+  const r = check(fork('name = "Acme"\n[deploy]\n'));
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /^project=\nready=false\n/);
+});
+
+test("still reads a brand.json profile, as the base tree before brand.toml holds it", () => {
+  const json = { firebase: { projectId: "acme" }, deploy: DEPLOY };
+  assert.equal(
+    check(repo({ example: { firebase: { projectId: "demo-example" } }, acme: json })).stdout,
+    "project=acme\nready=true\n",
+  );
+  assert.match(
+    check(repo({ acme: { firebase: { projectId: "acme" } } })).stdout,
+    /^project=acme\nready=false\nreason=brand\/acme\/brand\.json has no "deploy" section/,
+  );
 });
 
 test("names the example as the TypeScript twin does", () => {
@@ -160,7 +212,7 @@ test("names the example as the TypeScript twin does", () => {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 /** Chapter profiles git tracks: upstream's jci-oriente until its removal; none in a fork. */
-const COMMITTED_CHAPTERS = spawnSync("git", ["-C", ROOT, "ls-files", "brand/*/brand.json"], {
+const COMMITTED_CHAPTERS = spawnSync("git", ["-C", ROOT, "ls-files", "brand/*/brand.toml"], {
   encoding: "utf8",
 })
   .stdout.split("\n")

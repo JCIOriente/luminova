@@ -3,7 +3,7 @@ description: >-
   Shared deploy-job setup — Node + pnpm, pinned firebase-tools (cached), and
   keyless Workload Identity Federation auth. Assumes the repo is already checked out.
   Everything it needs comes from the repo: brand/ selects the brand profile (its one chapter
-  profile, else the example), whose brand.json names the project and CD's sign-in (specs
+  profile, else the example), whose brand.toml names the project and CD's sign-in (specs
   docs/specs/2026-10-25-repo-contained-config.md, docs/specs/2026-10-25-profile-discovery.md).
 outputs:
   profile:
@@ -12,6 +12,15 @@ outputs:
   project_id:
     description: The profile's Firebase project id (also exported as GCP_PROJECT_ID)
     value: ${{ steps.config.outputs.project_id }}
+  spotlight_url:
+    description: The public site's production origin
+    value: ${{ steps.config.outputs.spotlight_url }}
+  spotlight_site:
+    description: The public site's Firebase Hosting site id
+    value: ${{ steps.config.outputs.spotlight_site }}
+  backstage_site:
+    description: The admin site's Firebase Hosting site id
+    value: ${{ steps.config.outputs.backstage_site }}
 runs:
   using: composite
   steps:
@@ -23,9 +32,10 @@ runs:
         cache: pnpm
     - run: pnpm install --frozen-lockfile
       shell: bash
-    # Release rules first: an unshippable profile or a missing deploy section stops the
-    # job here, before any credential is minted. The values pass the brand.json schema
-    # (a Workload Identity resource name, an email, a project id), so none holds a newline.
+    # Release rules first: an unshippable profile or a missing [deploy] table stops the
+    # job here, before any credential is minted. The values pass the brand.toml schema
+    # (a Workload Identity resource name, an email, a project id, an https origin, two
+    # hosting site ids), so none holds a newline.
     - name: Read the deploy target from the repo
       id: config
       shell: bash

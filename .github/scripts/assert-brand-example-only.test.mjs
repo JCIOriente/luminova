@@ -97,13 +97,37 @@ test("a deleted chapter folder passes", () => {
 });
 
 test("a chapter file replaced by a symlink fails", () => {
-  const { root, base, commit } = repo({ ...UPSTREAM, "brand/jci-oriente/brand.json": "{}" });
-  rmSync(join(root, "brand/jci-oriente/brand.json"));
-  symlinkSync("../example/brand.json", join(root, "brand/jci-oriente/brand.json"));
+  const { root, base, commit } = repo({ ...UPSTREAM, "brand/jci-andina/brand.json": "{}" });
+  rmSync(join(root, "brand/jci-andina/brand.json"));
+  symlinkSync("../example/brand.json", join(root, "brand/jci-andina/brand.json"));
   commit();
   const r = check(root, base);
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /brand\/jci-oriente\/brand\.json/);
+  assert.match(r.stderr, /brand\/jci-andina\/brand\.json/);
+});
+
+// Temporary: the brand.toml PR converts JCI Oriente's committed profile in place; the JCI
+// Oriente removal PR deletes the folder and this allowance.
+test("allows only JCI Oriente's brand.toml under its folder, for the one conversion", () => {
+  const { root, base, write, commit } = repo({
+    ...UPSTREAM,
+    "brand/jci-oriente/brand.json": "{}",
+    "brand/jci-oriente/site-content.json": "{}",
+  });
+  rmSync(join(root, "brand/jci-oriente/brand.json"));
+  rmSync(join(root, "brand/jci-oriente/site-content.json"));
+  write("brand/jci-oriente/brand.toml", 'name = "JCI Oriente"\n');
+  commit();
+  assert.equal(check(root, base).status, 0, check(root, base).stderr);
+
+  write("brand/jci-oriente/assets/logo-main.png", "real logo");
+  write("brand/jci-andina/brand.toml", 'name = "JCI Andina"\n');
+  commit();
+  const r = check(root, base);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /brand\/jci-oriente\/assets\/logo-main\.png/);
+  assert.match(r.stderr, /brand\/jci-andina\/brand\.toml/);
+  assert.doesNotMatch(r.stderr, /brand\/jci-oriente\/brand\.toml/);
 });
 
 test("allows exactly what .gitignore re-includes under brand/", () => {
@@ -115,7 +139,10 @@ test("allows exactly what .gitignore re-includes under brand/", () => {
     .filter((path) => path !== "brand/jci-oriente/");
   const pattern = readFileSync(SCRIPT, "utf8").match(/^\s*(brand\/.+)\) return 0 ;;$/m)?.[1];
   assert.ok(pattern, "allowed() case pattern not found");
-  const allowed = pattern.split("|").map((path) => path.trim().replace(/\*$/, ""));
+  const allowed = pattern
+    .split("|")
+    .map((path) => path.trim().replace(/\*$/, ""))
+    .filter((path) => path !== "brand/jci-oriente/brand.toml");
   assert.deepEqual(allowed.sort(), reIncluded.sort());
 });
 
