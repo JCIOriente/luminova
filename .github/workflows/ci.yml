@@ -25,6 +25,21 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+      # A chapter's brand lives in its bucket, never in git (spec 2026-10-29-brand-outside-repo):
+      # no change may add or edit a file under brand/ outside the example and the two shared
+      # files; deleting one passes. Runs in upstream and in every fork, before any install.
+      - name: Guard — brand/ commits only the example
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then base="$PR_BASE_SHA"; else base="$PUSH_BEFORE_SHA"; fi
+          if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "::notice::base SHA unavailable (new branch or force-push); brand/ example-only check skipped"
+            exit 0
+          fi
+          bash .github/scripts/assert-brand-example-only.sh "$base"
       # Skip the build/lint/test/audit suite when a PR touches ONLY inert files
       # (docs, markdown, license) — nothing to compile or test. The job still RUNS
       # and reports success on skip, so it stays safe to mark as a required status
@@ -117,25 +132,11 @@ jobs:
       # apps/*/dist is present; fails the gate on a breach.
       - if: steps.code.outputs.run == 'true'
         run: bash tools/scripts/check-bundle-budget.sh
-      # Brand neutrality (spec 2026-10-22-brand-config section 7): the jci-oriente dist
-      # above still carries its own values, and a fixture-profile build carries none of
-      # them. (The committed JSON schema matching the zod source is a package test.)
+      # Brand neutrality (spec 2026-10-22-brand-config section 7): the chapter dist above
+      # still carries its own values, and a build of the example carries none of them.
+      # (The committed JSON schema matching the zod source is a package test.)
       - if: steps.code.outputs.run == 'true'
         run: pnpm brand:guard
-      # Upstream builds the example: a chapter folder merged from a fork's main would make
-      # brand/ select it and re-target upstream's Deploy (spec 2026-10-25-profile-discovery P9).
-      # Forks run CI under their own name, so the step skips there.
-      - if: steps.code.outputs.run == 'true' && github.repository == 'JCIOriente/luminova'
-        name: Guard — upstream holds no chapter profile
-        run: |
-          node --input-type=module -e '
-            const { chapterProfiles } = await import("./packages/brand/src/load-profile.ts");
-            const chapters = chapterProfiles(process.cwd());
-            if (chapters.length > 0) {
-              console.error(`brand/ holds chapter profiles (${chapters.join(", ")}); upstream builds the example only. Open the PR from a branch of upstream main, without your chapter folder.`);
-              process.exit(1);
-            }
-          '
       # Unit suites only — exclude tests/* (those boot the Firestore emulator, see
       # the `emulator` job). beacon's own `test` task is unit-only; its emulator
       # suite is a separate `test:emulator` script.

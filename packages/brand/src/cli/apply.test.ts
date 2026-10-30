@@ -1,11 +1,11 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BrandConfigError, REPO_ROOT, loadProfile } from "../load-profile.ts";
+import { BrandConfigError, EXAMPLE_PROFILE, loadProfile } from "../load-profile.ts";
+import { TEST_CHAPTER, chapterProfile, chapterRepo } from "../test-profiles.ts";
 import { applyProfile, renderFirebaserc } from "./apply.ts";
 
-/** `profile` names one; without it, brand/ selects (the example here). */
+/** `profile` names one; without it, brand/ selects (the test chapter here). */
 function apply(profile: string | undefined, env: Record<string, string> = {}) {
   return applyProfile({
     profile: loadProfile({ repoRoot: root, env, profile }),
@@ -17,8 +17,7 @@ function apply(profile: string | undefined, env: Record<string, string> = {}) {
 let root: string;
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "brand-apply-"));
-  cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
+  root = chapterRepo("brand-apply-");
 });
 
 afterEach(() => {
@@ -26,16 +25,16 @@ afterEach(() => {
 });
 
 describe("renderFirebaserc", () => {
-  it("renders the jci-oriente profile as today's .firebaserc with the targets renamed", () => {
-    const { brand } = loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" });
+  it("renders a chapter profile as .firebaserc with the hosting targets named by app", () => {
+    const { brand } = chapterProfile();
     expect(renderFirebaserc(brand)).toEqual({
-      projects: { default: "jci-oriente" },
+      projects: { default: "jci-valle" },
       targets: {
-        "jci-oriente": {
-          storage: { default: ["jci-oriente.firebasestorage.app"] },
+        "jci-valle": {
+          storage: { default: ["jci-valle.firebasestorage.app"] },
           hosting: {
-            spotlight: ["jcioriente"],
-            backstage: ["jcioriente-backstage"],
+            spotlight: ["jcivalle"],
+            backstage: ["jcivalle-backstage"],
           },
         },
       },
@@ -46,32 +45,34 @@ describe("renderFirebaserc", () => {
 
 describe("applyProfile", () => {
   it("writes .firebaserc for the selected profile", () => {
-    const result = apply("fixture");
-    expect(result).toMatchObject({ slug: "fixture", projectId: "demo-fixture", written: true });
+    const result = apply(EXAMPLE_PROFILE);
+    expect(result).toMatchObject({ slug: "example", projectId: "demo-example", written: true });
     const written = JSON.parse(readFileSync(join(root, ".firebaserc"), "utf8"));
-    expect(written.projects.default).toBe("demo-fixture");
+    expect(written.projects.default).toBe("demo-example");
   });
 
   it("leaves an up-to-date file untouched", () => {
-    apply("fixture");
+    apply(EXAMPLE_PROFILE);
     const file = join(root, ".firebaserc");
     const before = statSync(file).mtimeMs;
-    expect(apply("fixture").written).toBe(false);
+    expect(apply(EXAMPLE_PROFILE).written).toBe(false);
     expect(statSync(file).mtimeMs).toBe(before);
   });
 
   it("replaces a stale file from another profile", () => {
     writeFileSync(join(root, ".firebaserc"), '{"projects":{"default":"someone-else"}}');
-    apply("jci-oriente");
-    expect(readFileSync(join(root, ".firebaserc"), "utf8")).toContain('"default": "jci-oriente"');
+    apply(TEST_CHAPTER);
+    expect(readFileSync(join(root, ".firebaserc"), "utf8")).toContain('"default": "jci-valle"');
   });
 
   it("in release mode refuses a profile that cannot ship, without writing", () => {
     const release = { BRAND_RELEASE: "1" };
-    expect(() => apply(undefined, { ...release, BRAND_PROFILE: "fixture" })).toThrow(
+    expect(() => apply(undefined, { ...release, BRAND_PROFILE: EXAMPLE_PROFILE })).toThrow(
       /set in your environment/,
     );
-    expect(() => apply("fixture", release)).toThrow(/neutral test profile/);
+    expect(() => apply(EXAMPLE_PROFILE, release)).toThrow(
+      /is the example and can never be released/,
+    );
     expect(() => statSync(join(root, ".firebaserc"))).toThrow();
     expect(apply(undefined, release).written).toBe(true);
   });

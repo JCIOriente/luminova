@@ -1,0 +1,64 @@
+{
+  "$schema": "../brand.schema.json",
+  "slug": "example",
+  "name": "JCI Ejemplo",
+  "shortName": "JCI Ejemplo",
+  "legalName": "Cámara Junior Internacional Ejemplo",
+  "movementName": "Cámara Junior Internacional",
+  "description": "Junior Chamber International Ejemplo",
+  "locality": {
+    "city": "Ciudad Ejemplo",
+    "cityFormal": "Ciudad Ejemplo",
+    "region": "la región de Ejemplo",
+    "regionShort": "la región",
+    "country": "Bolivia"
+  },
+  "foundedYear": 2001,
+  "stats": { "nationalOrganizations": 7 },
+  "parentOrganization": { "name": "JCI Bolivia", "url": "https://jcibolivia.org/" },
+  "broadcastChannelName": "Difusión JCI Ejemplo",
+  "locale": "es",
+  "ogLocale": "es_BO",
+  "urls": {
+    "spotlight": "https://demo-example.web.app",
+    "backstage": "https://demo-example-backstage.web.app"
+  },
+  "qrPrefix": "demoexample",
+  "themeColor": { "spotlight": "#336699", "backstage": "#222222" },
+  "seo": {
+    "title": "JCI Ejemplo: Cámara Junior Internacional en Ciudad Ejemplo",
+    "description": "JCI Ejemplo, capítulo Ciudad Ejemplo de la Cámara Junior Internacional. Formamos líderes con propósito desde 2001.",
+    "ogTitle": "JCI Ejemplo: Cámara Junior Internacional en Ciudad Ejemplo",
+    "ogDescription": "Formamos líderes con propósito en la región de Ejemplo desde 2001. Conoce nuestros proyectos, nuestro impacto y cómo unirte.",
+    "ogImageAlt": "JCI Ejemplo: jóvenes que lideran con propósito en Ciudad Ejemplo.",
+    "twitterDescription": "Formamos líderes con propósito en la región de Ejemplo desde 2001."
+  },
+  "backstage": {
+    "title": "JCI Ejemplo — Portal de miembros",
+    "emailPlaceholder": "tu.nombre@example.org",
+    "contactEmail": "contacto@example.org"
+  },
+  "og": { "legacyPaths": ["og-image-legacy.png"] },
+  "firebase": {
+    "projectId": "demo-example",
+    "storageBucket": "demo-example.firebasestorage.app",
+    "sites": { "spotlight": "demo-example", "backstage": "demo-example-backstage" },
+    "web": {
+      "authDomain": "demo-example.firebaseapp.com",
+      "messagingSenderId": "100000000001",
+      "spotlight": {
+        "apiKey": "demo-example-spotlight-api-key",
+        "appId": "1:100000000001:web:demoexample01",
+        "appCheckSiteKey": "",
+        "vapidKey": ""
+      },
+      "backstage": {
+        "apiKey": "demo-example-backstage-api-key",
+        "appId": "1:100000000001:web:demoexample02",
+        "appCheckSiteKey": "",
+        "vapidKey": ""
+      }
+    }
+  },
+  "assetsBucket": "demo-example-brand-assets"
+}

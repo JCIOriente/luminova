@@ -11,13 +11,14 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ASSET_CONTRACT } from "../assets.ts";
-import { BrandConfigError, REPO_ROOT, loadProfile } from "../load-profile.ts";
+import { BrandConfigError } from "../load-profile.ts";
+import { chapterProfile } from "../test-profiles.ts";
 import { encodePng } from "../png.ts";
 import type { CommandRunner } from "./gcloud.ts";
 import { PULL_NEXT, pull } from "./pull.ts";
 
-const BUCKET = "jci-oriente-brand-assets";
-const profile = loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" });
+const BUCKET = "jci-valle-brand-assets";
+const profile = chapterProfile();
 
 let root: string;
 let calls: string[][];
@@ -87,7 +88,7 @@ describe("pull", () => {
     const manifest = await pull({ profile, repoRoot: root, run: fakeRunner(listing()) });
     const dir = join(root, "brand-assets");
     expect(JSON.parse(readFileSync(join(dir, "pull-manifest.json"), "utf8"))).toEqual(manifest);
-    expect(manifest.profile).toBe("jci-oriente");
+    expect(manifest.profile).toBe("jci-valle");
     expect(manifest.bucket).toBe(BUCKET);
     expect(manifest.objects[0]).toEqual({
       name: "logo-main.png",

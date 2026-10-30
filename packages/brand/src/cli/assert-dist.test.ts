@@ -11,8 +11,8 @@ let distDir: string;
 
 const INDEX_HTML = "<!doctype html><script src=/assets/index-abc.js></script>";
 const MARKER = {
-  profile: "jci-oriente",
-  projectId: "jci-oriente",
+  profile: "jci-valle",
+  projectId: "jci-valle",
   assets: "a".repeat(64),
   indexHtml: createHash("sha256").update(INDEX_HTML).digest("hex"),
 };
@@ -34,20 +34,20 @@ describe("assertDist", () => {
   it("accepts a release dist built for the project firebase-tools targets", () => {
     writeMarker();
     expect(
-      assertDist({ distDir, label: "apps/spotlight/dist", env: { GCLOUD_PROJECT: "jci-oriente" } }),
+      assertDist({ distDir, label: "apps/spotlight/dist", env: { GCLOUD_PROJECT: "jci-valle" } }),
     ).toEqual({ errors: [], marker: MARKER });
   });
 
   it("accepts CD's own check through GCP_PROJECT_ID", () => {
     writeMarker();
     expect(
-      assertDist({ distDir, label: "d", env: { GCP_PROJECT_ID: "jci-oriente" } }).errors,
+      assertDist({ distDir, label: "d", env: { GCP_PROJECT_ID: "jci-valle" } }).errors,
     ).toEqual([]);
   });
 
   it("rejects a dist with no marker (a plain `pnpm build`)", () => {
     expect(
-      assertDist({ distDir, label: "apps/spotlight/dist", env: { GCLOUD_PROJECT: "jci-oriente" } })
+      assertDist({ distDir, label: "apps/spotlight/dist", env: { GCLOUD_PROJECT: "jci-valle" } })
         .errors,
     ).toEqual([expect.stringMatching(/^apps\/spotlight\/dist has no release marker/)]);
   });
@@ -55,18 +55,18 @@ describe("assertDist", () => {
   it("rejects a dist built for another project", () => {
     writeMarker({ ...MARKER, profile: "acme", projectId: "acme-prod" });
     expect(
-      assertDist({ distDir, label: "d", env: { GCLOUD_PROJECT: "jci-oriente" } }).errors,
+      assertDist({ distDir, label: "d", env: { GCLOUD_PROJECT: "jci-valle" } }).errors,
     ).toEqual([
       expect.stringMatching(
-        /built for "acme-prod" \(profile "acme"\) but this deploy targets "jci-oriente"/,
+        /built for "acme-prod" \(profile "acme"\) but this deploy targets "jci-valle"/,
       ),
     ]);
   });
 
   it("rejects a malformed marker", () => {
-    writeMarker({ profile: "jci-oriente" });
+    writeMarker({ profile: "jci-valle" });
     expect(
-      assertDist({ distDir, label: "d", env: { GCLOUD_PROJECT: "jci-oriente" } }).errors,
+      assertDist({ distDir, label: "d", env: { GCLOUD_PROJECT: "jci-valle" } }).errors,
     ).toContainEqual(expect.stringMatching(/projectId/));
   });
 
@@ -81,7 +81,7 @@ describe("assertDist", () => {
     writeMarker();
     writeFileSync(join(distDir, "index.html"), "<!doctype html><script src=/assets/index-zzz.js>");
     expect(
-      assertDist({ distDir, label: "d", env: { GCLOUD_PROJECT: "jci-oriente" } }).errors,
+      assertDist({ distDir, label: "d", env: { GCLOUD_PROJECT: "jci-valle" } }).errors,
     ).toEqual([expect.stringMatching(/index\.html is not the one this marker was written for/)]);
   });
 
@@ -91,7 +91,7 @@ describe("assertDist", () => {
       assertDist({
         distDir,
         label: "d",
-        env: { GCLOUD_PROJECT: "jci-oriente", GOOGLE_CLOUD_PROJECT: "personal-sandbox" },
+        env: { GCLOUD_PROJECT: "jci-valle", GOOGLE_CLOUD_PROJECT: "personal-sandbox" },
       }).errors,
     ).toEqual([]);
   });
@@ -102,7 +102,7 @@ describe("assertDist", () => {
       assertDist({
         distDir,
         label: "d",
-        env: { GCLOUD_PROJECT: "jci-oriente", GCP_PROJECT_ID: "someone-else" },
+        env: { GCLOUD_PROJECT: "jci-valle", GCP_PROJECT_ID: "someone-else" },
       }).errors,
     ).toEqual([expect.stringMatching(/disagree/)]);
   });
@@ -117,7 +117,7 @@ describe("brand:assert-dist as a predeploy hook", () => {
     else writeFileSync(join(dist, "index.html"), INDEX_HTML);
     const module = new URL("./assert-dist.ts", import.meta.url).href;
     // A developer's own GCP_PROJECT_ID would disagree with GCLOUD_PROJECT and fail the pass case.
-    const env: NodeJS.ProcessEnv = { ...process.env, GCLOUD_PROJECT: "jci-oriente" };
+    const env: NodeJS.ProcessEnv = { ...process.env, GCLOUD_PROJECT: "jci-valle" };
     delete env.GCP_PROJECT_ID;
     return spawnSync(
       process.execPath,
@@ -135,7 +135,7 @@ describe("brand:assert-dist as a predeploy hook", () => {
     const { status, stdout, stderr } = run(true);
     expect(status).toBe(0);
     expect(stdout).toBe("");
-    expect(stderr).toMatch(/apps\/spotlight\/dist is a release build of "jci-oriente"/);
+    expect(stderr).toMatch(/apps\/spotlight\/dist is a release build of "jci-valle"/);
   });
 
   it("fails with nothing on stdout and its reason on stderr", () => {

@@ -224,18 +224,17 @@ function cdIdentityRow(profile: LoadedProfile): CheckRow {
 }
 
 const LOCAL_ONLY = "local-only profile; comes with going live (pnpm brand:init connects it)";
+const EXAMPLE = "the example profile; your chapter's own goes live (pnpm brand:init creates it)";
 
 /**
- * The example is selected both in an untouched clone, where its cloud is not the adopter's,
- * and upstream, which deploys it: its going-live rows report, but none fails the check.
+ * Why going live is not checked yet, or null when it is: the example never goes live, and a
+ * local-only profile has no cloud yet.
  */
-const EXAMPLE_LIVE = warn(
-  "example",
-  "upstream deploys the example, so these rows only warn; your chapter's own profile goes live (pnpm brand:init creates it)",
-);
-
-const asWarning = (row: CheckRow): CheckRow =>
-  row.status === "fail" ? { ...row, status: "warn" } : row;
+function goingLiveWaits(profile: LoadedProfile | undefined): string | null {
+  if (profile?.source === "example") return EXAMPLE;
+  if (profile?.localOnly) return LOCAL_ONLY;
+  return null;
+}
 
 const CREATE_PROFILE: Remedy = {
   change: "or create your chapter's own profile",
@@ -290,16 +289,15 @@ export async function check({
   const windows = nativeWindows(platform);
   if (windows) return { sections: [{ title: SECTION_TITLES.tools, rows: [windows] }] };
   const { rows: profileChecks, profile } = profileRows(repoRoot, env);
-  // A local-only profile has no cloud yet: going live waits, and nothing calls gcloud or gh.
-  const local = profile?.localOnly === true;
-  const example = profile?.source === "example";
+  // While going live waits, nothing calls gcloud or gh.
+  const waits = goingLiveWaits(profile);
   const tools = (part: Part) =>
     toolRows({ parts: [part], repoRoot, run, env, nodeVersion, platform, home });
   // The external commands are independent; start them together, report in order.
   const [trying, live, bucket, content] = await Promise.all([
     tools("try"),
-    local ? [] : tools("live"),
-    profile && !local ? attempt("bucket", () => bucketRow(profile, run)) : skip("bucket"),
+    waits ? [] : tools("live"),
+    profile && !waits ? attempt("bucket", () => bucketRow(profile, run)) : skip("bucket"),
     profile
       ? attempt("site content", () => siteContentRow(profile, importSchema))
       : skip("site content"),
@@ -313,12 +311,9 @@ export async function check({
       ? await attempt(FIREBASERC, async () => firebasercRow(profile, repoRoot))
       : skip(FIREBASERC),
   ];
-  const liveRows = [profile ? cdIdentityRow(profile) : skip("CD identity"), ...live, bucket];
-  const goingLive = local
-    ? [skip("going live", LOCAL_ONLY)]
-    : example
-      ? [EXAMPLE_LIVE, ...liveRows.map(asWarning)]
-      : liveRows;
+  const goingLive = waits
+    ? [skip("going live", waits)]
+    : [profile ? cdIdentityRow(profile) : skip("CD identity"), ...live, bucket];
   return {
     sections: [
       { title: SECTION_TITLES.tools, rows: trying },
@@ -332,8 +327,8 @@ export async function check({
 
 /**
  * With every row passing, what remains is a choice (spec L5): the example can be tried or
- * replaced by the chapter's own profile; a local-only profile can go live by connecting a project; a
- * connected one goes live by merging to main.
+ * replaced by the chapter's own profile; a local-only profile can go live by connecting a
+ * project; a connected one goes live by merging to main.
  */
 export function checkNext(profile: LoadedProfile): Remedy[] {
   const { slug } = profile;
