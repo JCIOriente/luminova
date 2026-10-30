@@ -187,7 +187,7 @@ test("a scripts-only package.json edit summons neither dependency review", () =>
   // No lockfile movement => no installed-dep change. A hand-edited version pin
   // without the lockfile fails CI's `pnpm install --frozen-lockfile`, so the
   // lockfile is the one signal of a real dependency delta.
-  for (const p of ["package.json", "packages/brand/package.json", "pnpm-workspace.yaml"]) {
+  for (const p of ["package.json", "packages/brand/package.json"]) {
     const t = tokens([[p, 2, 1]]);
     assert.ok(!t.includes("secure-dep-vetting"), `${p}: ${t}`);
     assert.ok(!t.includes("bundle-budget-watcher"), `${p}: ${t}`);
@@ -196,6 +196,11 @@ test("a scripts-only package.json edit summons neither dependency review", () =>
 
 test("a lockfile change alone routes secure-dep-vetting", () => {
   assert.ok(tokens([["pnpm-lock.yaml", 12, 3]]).includes("secure-dep-vetting"));
+});
+
+test("pnpm-workspace.yaml alone routes secure-dep-vetting", () => {
+  // allowBuilds (which packages may run install scripts) never reaches the lockfile.
+  assert.ok(tokens([["pnpm-workspace.yaml", 2, 0]]).includes("secure-dep-vetting"));
 });
 
 test("new route file → bundle-budget-watcher", () => {

@@ -143,9 +143,9 @@
       "invoke": "secure-dep-vetting",
       "gate": "advisory",
       "why": "latest secure version + Node 24 compat + CVE block",
-      "_comment": "Keyed on the LOCKFILE alone, like bundle-budget-watcher: every real dependency change (a package.json specifier, a pnpm-workspace.yaml override) moves pnpm-lock.yaml, and a package.json edited without it fails CI's `pnpm install --frozen-lockfile`. Keying on package.json mandated the skill for `scripts`-only edits, where it can only be exempted or falsely stamped.",
-      "_exempt": "Exempt when the lockfile moved with NO dependency delta — only `workspace:*` links or pnpm's own formatting changed. State that in the PR instead of running the skill; never claim the skill ran.",
-      "paths": ["^pnpm-lock\\.yaml$"]
+      "_comment": "Keyed on the LOCKFILE and pnpm-workspace.yaml, not package.json. Every real dependency change (a package.json specifier, an override) moves pnpm-lock.yaml, and a package.json edited without it fails CI's `pnpm install --frozen-lockfile`. pnpm-workspace.yaml stays because `allowBuilds` (which installed packages may run install scripts) never reaches the lockfile. Keying on package.json mandated the skill for `scripts`-only edits, where it could only be exempted or falsely stamped.",
+      "_exempt": "Exempt when the lockfile or pnpm-workspace.yaml moved with NO dependency delta — only `workspace:*` links, pnpm's own formatting, or a workspace setting that changes no installed package and no build-script approval. State that in the PR instead of running the skill; never claim the skill ran.",
+      "paths": ["^pnpm-lock\\.yaml$", "^pnpm-workspace\\.yaml$"]
     },
     {
       "token": "bundle-budget-watcher",
