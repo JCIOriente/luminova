@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { BrandConfigError, readJsonFile } from "./load-profile.ts";
+import { BrandConfigError, EXAMPLE_PROFILE, readJsonFile } from "./load-profile.ts";
 import type { Remedy } from "./remedy.ts";
 
 export const SITE_CONTENT_FILE = "site-content.json";
@@ -10,7 +10,7 @@ export const SEEDED_SITE_CONTENT_KEYS = ["stats", "timeline", "mvv", "reasons", 
 
 type SeededKey = (typeof SEEDED_SITE_CONTENT_KEYS)[number];
 
-const EXAMPLE = `brand/jci-oriente/${SITE_CONTENT_FILE}`;
+const EXAMPLE = `brand/${EXAMPLE_PROFILE}/${SITE_CONTENT_FILE}`;
 
 /** Edit the profile's site content, with the example as the reference for every field. */
 export const editSiteContent = (slug: string): Remedy => ({
@@ -24,7 +24,7 @@ export function readSiteContent(profileDir: string, slug: string): Record<string
   const label = `brand/${slug}/${SITE_CONTENT_FILE}`;
   if (!existsSync(file)) {
     throw new BrandConfigError(
-      [`${label}: missing (copy it from brand/jci-oriente/ and edit it)`],
+      [`${label}: missing (copy it from brand/${EXAMPLE_PROFILE}/ and edit it)`],
       [{ change: `copy the example, then edit it`, run: `cp ${EXAMPLE} ${label}` }],
     );
   }

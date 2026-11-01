@@ -4,11 +4,11 @@ import { fileURLToPath } from "node:url";
 import { formatRemedies, uniqueRemedies, type Problem, type Remedy } from "./remedy.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN, brandSchema, type Brand } from "./schema.ts";
 
-/** The chapter-neutral test profile `brand:guard` builds; it can never ship. */
-export const NEUTRAL_PROFILE = "fixture";
-
-/** The committed example chapter; `brand:init` copies its site content. */
-export const EXAMPLE_PROFILE = "jci-oriente";
+/**
+ * The committed, chapter-neutral example: tests and `brand:guard` build it, `brand:init`
+ * starts from it, and it can never ship.
+ */
+export const EXAMPLE_PROFILE = "example";
 
 export const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -189,15 +189,11 @@ function availableProfiles(repoRoot: string): string[] {
     .sort();
 }
 
-/** Profiles a person would select: every one except the neutral fixture. */
-const selectableProfiles = (repoRoot: string) =>
-  availableProfiles(repoRoot).filter((slug) => slug !== NEUTRAL_PROFILE);
-
 const notExample = (slug: string) => slug !== EXAMPLE_PROFILE;
 
-/** Every profile folder except the example and the neutral fixture. */
+/** Every profile folder except the example. */
 export const chapterProfiles = (repoRoot: string = REPO_ROOT) =>
-  selectableProfiles(repoRoot).filter(notExample);
+  availableProfiles(repoRoot).filter(notExample);
 
 /**
  * What brand/ selects (spec P1): its one chapter profile, else the example. Twin:
@@ -207,7 +203,7 @@ export function discoverProfile(repoRoot: string = REPO_ROOT): {
   slug: string;
   source: DiscoveredSource;
 } {
-  const profiles = selectableProfiles(repoRoot);
+  const profiles = availableProfiles(repoRoot);
   const chapters = profiles.filter(notExample);
   const [only] = chapters;
   if (chapters.length > 1) {
@@ -291,14 +287,14 @@ export function loadProfile({
   const warnings = source === "override" ? [overrideWarning(slug, discovered)] : [];
 
   const brandDir = join(repoRoot, "brand");
-  const choices = () => selectableProfiles(repoRoot);
+  const choices = () => availableProfiles(repoRoot);
   // Discovery checks its own folder names, so only an explicit choice can fail below.
   const select = (): Remedy[] =>
     isExplicitSource(source) ? [selectProfileRemedy(choices(), source)] : [];
   // Checked before the path join, so a slug like "../x" can never leave brand/.
   if (!SLUG_PATTERN.test(slug)) {
     throw new ProfileNotFoundError(
-      [`profile "${slug}" ${SLUG_MESSAGE} (e.g. jci-oriente)`],
+      [`profile "${slug}" ${SLUG_MESSAGE} (e.g. jci-valle)`],
       select(),
     );
   }

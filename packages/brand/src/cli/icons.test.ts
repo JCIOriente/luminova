@@ -2,22 +2,21 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ICON_FILES, ICON_MASTER_FILE, ICON_MASTER_SVG_FILE, validateAssets } from "../assets.ts";
 import { writeAssetSet } from "../asset-set.ts";
-import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
+import { BrandConfigError, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { encodePng } from "../png.ts";
 import { BRAND_APPS } from "../ports.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
+import { TEST_CHAPTER, exampleRepo, writeChapter } from "../test-profiles.ts";
 import { generateIcons } from "./icons.ts";
 
 let root: string;
@@ -58,11 +57,10 @@ async function refusal(promise: Promise<unknown>): Promise<BrandConfigError> {
 }
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "brand-icons-"));
-  cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
-  // Without the example's own images, brand-assets/ is the images folder, as in a chapter's fork.
-  rmSync(join(root, "brand/jci-oriente/assets"), { recursive: true });
-  profile = loadProfile({ repoRoot: root, profile: "jci-oriente" });
+  root = exampleRepo("brand-icons-");
+  // Without the chapter's own images, brand-assets/ is the images folder, as in a chapter's fork.
+  writeChapter(root, { assets: false });
+  profile = loadProfile({ repoRoot: root, profile: TEST_CHAPTER });
   assetsDir = join(root, PULLED_ASSETS_DIR);
 });
 
@@ -213,11 +211,11 @@ describe("generateIcons", () => {
 
 describe("generateIcons in the images folder brand:check names", () => {
   it("reads the master from, and writes the icons to, the profile's own assets/ while brand-assets/ holds no image", async () => {
-    assetsDir = join(root, "brand/jci-oriente/assets");
-    cpSync(join(REPO_ROOT, "brand/jci-oriente/assets"), assetsDir, { recursive: true });
+    assetsDir = join(root, "brand", TEST_CHAPTER, "assets");
+    writeAssetSet(assetsDir);
     await writeMaster();
     const written = await generateIcons({ profile, repoRoot: root, env: {}, confirmReplace: yes });
-    expect(written).toContain("brand/jci-oriente/assets/spotlight/pwa-512x512.png");
+    expect(written).toContain("brand/jci-valle/assets/spotlight/pwa-512x512.png");
     expect(await pixel(join(assetsDir, "spotlight", "pwa-512x512.png"), 256, 256)).toEqual([
       255, 0, 0, 255,
     ]);

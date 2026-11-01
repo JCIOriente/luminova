@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BrandConfigError, REPO_ROOT } from "./load-profile.ts";
+import { BrandConfigError, EXAMPLE_PROFILE, REPO_ROOT } from "./load-profile.ts";
 import {
   SEEDED_SITE_CONTENT_KEYS,
   pickSeededSiteContent,
@@ -31,16 +31,18 @@ function errorsOf(run: () => unknown): string[] {
 }
 
 describe("committed site-content.json", () => {
-  it.each(["jci-oriente", "fixture"])("%s parses with the site-config schema", (slug) => {
-    const raw = readSiteContent(join(REPO_ROOT, "brand", slug), slug);
-    expect(() => parseSiteContent(raw, slug)).not.toThrow();
+  it("the example's parses with the site-config schema", () => {
+    const raw = readSiteContent(join(REPO_ROOT, "brand", EXAMPLE_PROFILE), EXAMPLE_PROFILE);
+    expect(() => parseSiteContent(raw, EXAMPLE_PROFILE)).not.toThrow();
   });
 });
 
 describe("readSiteContent", () => {
   it("names the profile and file when it is missing", () => {
     expect(errorsOf(() => readSiteContent(dir, "acme"))).toEqual([
-      expect.stringMatching(/^brand\/acme\/site-content\.json: missing/),
+      expect.stringMatching(
+        /^brand\/acme\/site-content\.json: missing \(copy it from brand\/example\//,
+      ),
     ]);
   });
 
@@ -54,28 +56,28 @@ describe("readSiteContent", () => {
 
 describe("parseSiteContent", () => {
   it("lists every schema problem by path", () => {
-    const raw = readSiteContent(join(REPO_ROOT, "brand", "fixture"), "fixture");
+    const raw = readSiteContent(join(REPO_ROOT, "brand", EXAMPLE_PROFILE), EXAMPLE_PROFILE);
     const broken = { ...Object(raw), stats: undefined, contact: { email: 1 } };
-    const errors = errorsOf(() => parseSiteContent(broken, "fixture"));
+    const errors = errorsOf(() => parseSiteContent(broken, EXAMPLE_PROFILE));
     expect(errors).toEqual(
       expect.arrayContaining([
-        expect.stringMatching(/^brand\/fixture\/site-content\.json stats:/),
-        expect.stringMatching(/^brand\/fixture\/site-content\.json contact\.email:/),
+        expect.stringMatching(/^brand\/example\/site-content\.json stats:/),
+        expect.stringMatching(/^brand\/example\/site-content\.json contact\.email:/),
       ]),
     );
   });
 
   it("does not accept the version or updatedAt the seeds stamp", () => {
-    const raw = readSiteContent(join(REPO_ROOT, "brand", "fixture"), "fixture");
-    const parsed = parseSiteContent({ ...Object(raw), version: 9 }, "fixture");
+    const raw = readSiteContent(join(REPO_ROOT, "brand", EXAMPLE_PROFILE), EXAMPLE_PROFILE);
+    const parsed = parseSiteContent({ ...Object(raw), version: 9 }, EXAMPLE_PROFILE);
     expect(parsed).not.toHaveProperty("version");
   });
 });
 
 describe("pickSeededSiteContent", () => {
   it("keeps only the keys the seeds own, so hero and linktree edits survive a re-seed", () => {
-    const raw = readSiteContent(join(REPO_ROOT, "brand", "jci-oriente"), "jci-oriente");
-    expect(Object.keys(pickSeededSiteContent(raw, "jci-oriente")).sort()).toEqual(
+    const raw = readSiteContent(join(REPO_ROOT, "brand", EXAMPLE_PROFILE), EXAMPLE_PROFILE);
+    expect(Object.keys(pickSeededSiteContent(raw, EXAMPLE_PROFILE)).sort()).toEqual(
       [...SEEDED_SITE_CONTENT_KEYS].sort(),
     );
   });
@@ -83,10 +85,10 @@ describe("pickSeededSiteContent", () => {
 
 describe("pickSeededSiteContent before any write", () => {
   it("refuses a missing seed-owned key instead of writing undefined", () => {
-    const raw = readSiteContent(join(REPO_ROOT, "brand", "fixture"), "fixture");
+    const raw = readSiteContent(join(REPO_ROOT, "brand", EXAMPLE_PROFILE), EXAMPLE_PROFILE);
     const withoutContact = { ...raw, contact: undefined };
-    expect(errorsOf(() => pickSeededSiteContent(withoutContact, "fixture"))).toEqual([
-      expect.stringMatching(/^brand\/fixture\/site-content\.json contact: missing/),
+    expect(errorsOf(() => pickSeededSiteContent(withoutContact, EXAMPLE_PROFILE))).toEqual([
+      expect.stringMatching(/^brand\/example\/site-content\.json contact: missing/),
     ]);
   });
 });

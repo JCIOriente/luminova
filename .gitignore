@@ -60,11 +60,16 @@ coverage/
 # Playwright MCP output
 .playwright-mcp/
 
-# Brand assets: deployment assets stay out of git; only the example and fixture profiles commit theirs
+# A chapter's brand lives in its bucket, never in git: brand/ commits only the example and the
+# two shared files (CI's assert-brand-example-only fails any other addition)
 brand-assets/
 brand-init-answers.json
 # Generated from the selected profile by `pnpm brand:apply` (prepare runs it on install)
 .firebaserc
-brand/*/assets/
-!brand/jci-oriente/assets/
-!brand/fixture/assets/
+# Anchored with a leading slash: knip reads an unanchored brand/* as matching packages/brand/*
+/brand/*
+!/brand/example/
+!/brand/brand.schema.json
+!/brand/bucket-lifecycle.json
+# Temporary: JCI Oriente deploys from its committed profile until the removal PR deletes it
+!/brand/jci-oriente/

@@ -1,19 +1,19 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { writeAssetSet } from "../asset-set.ts";
 import { ASSET_CONTRACT } from "../assets.ts";
-import { REPO_ROOT, loadProfile } from "../load-profile.ts";
+import { EXAMPLE_PROFILE, loadProfile } from "../load-profile.ts";
+import { TEST_CHAPTER, exampleRepo, writeChapter } from "../test-profiles.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { applyProfile } from "./apply.ts";
 import { SECTION_TITLES, check, checkNext } from "./check.ts";
 import { rowRemedies, type CheckRow } from "./rows.ts";
 import { CommandError, commandFailure, type CommandRunner } from "./gcloud.ts";
 
-const BUCKET = "jci-oriente-brand-assets";
-/** A chapter's own profile: the example's values under another slug. */
-const CHAPTER = "jci-valle";
+const BUCKET = "jci-valle-brand-assets";
+/** A connected chapter with CD's sign-in. */
+const CHAPTER = TEST_CHAPTER;
 const TOOLS = { nodeVersion: "24.15.0", platform: "linux" } as const;
 const ENV = { CLOUDSDK_CONFIG: "" };
 
@@ -43,16 +43,11 @@ function rowFor(rows: CheckRow[], check: string): CheckRow {
 }
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "brand-check-"));
+  root = exampleRepo("brand-check-");
   ENV.CLOUDSDK_CONFIG = root;
   writeFileSync(join(root, "application_default_credentials.json"), "{}");
-  cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
-  const chapter = join(root, "brand", CHAPTER);
-  cpSync(join(root, "brand/jci-oriente"), chapter, { recursive: true });
   // Images live in brand-assets/ here; the profile's own would add the other-folder note.
-  rmSync(join(chapter, "assets"), { recursive: true });
-  const file = join(chapter, "brand.json");
-  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, "utf8")), slug: CHAPTER }));
+  writeChapter(root, { assets: false });
   writeFileSync(
     join(root, "package.json"),
     JSON.stringify({ engines: { node: ">=24.15.0" }, packageManager: "pnpm@11.5.1" }),
@@ -119,7 +114,7 @@ describe("check", () => {
     );
     expect(rowFor(rows, "profile").detail).toBe(`brand/${CHAPTER}/`);
     expect(rowFor(rows, "CD identity").detail).toBe(
-      "firebase-deployer@jci-oriente.iam.gserviceaccount.com",
+      "firebase-deployer@jci-valle.iam.gserviceaccount.com",
     );
     expect(rowFor(rows, "gcloud account").detail).toBe("owner@example.org");
     expect(rowFor(rows, "bucket").detail).toMatch(`all 16 images in gs://${BUCKET}`);
@@ -234,7 +229,7 @@ describe("check", () => {
   });
 
   it("fails two chapter profiles once, with both ways out, and skips the profile", async () => {
-    cpSync(join(root, "brand/fixture"), join(root, "brand/jci-andina"), { recursive: true });
+    writeChapter(root, { slug: "jci-andina", assets: false });
     const rows = await diagnose();
     expect(statusOf(rows)).toMatchObject({ selection: "fail", profile: "skip", bucket: "skip" });
     expect(rowFor(rows, "selection").detail).toMatch(/brand\/ holds 2 chapter profiles/);
@@ -242,17 +237,17 @@ describe("check", () => {
   });
 
   it("warns when a BRAND_PROFILE override in the shell differs from brand/", async () => {
-    const rows = await diagnose({ env: { BRAND_PROFILE: "fixture" } });
+    const rows = await diagnose({ env: { BRAND_PROFILE: EXAMPLE_PROFILE } });
     expect(rowFor(rows, "selection")).toMatchObject({
       status: "warn",
-      detail: `brand/ selects "${CHAPTER}" (the chapter profile in brand/), but BRAND_PROFILE=fixture overrides it`,
+      detail: `brand/ selects "${CHAPTER}" (the chapter profile in brand/), but BRAND_PROFILE=example overrides it`,
       remedies: [expect.objectContaining({ run: "unset BRAND_PROFILE" })],
     });
-    expect(rowFor(rows, "profile").detail).toBe("brand/fixture/ (from BRAND_PROFILE)");
+    expect(rowFor(rows, "profile").detail).toBe("brand/example/ (from BRAND_PROFILE)");
   });
 
   it("warns that a leftover luminova.json is no longer read", async () => {
-    writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: "fixture" }));
+    writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: EXAMPLE_PROFILE }));
     const rows = await diagnose();
     expect(rowFor(rows, "selection")).toMatchObject({
       status: "warn",
@@ -392,15 +387,15 @@ describe("check", () => {
         }),
       );
       responses.set("pnpm --version", "11.4.0\n");
-      const fixes = rowRemedies(await diagnose({ env: { BRAND_PROFILE: "fixture" } })).map(
+      const fixes = rowRemedies(await diagnose({ env: { BRAND_PROFILE: EXAMPLE_PROFILE } })).map(
         ({ change, run }) => run ?? change,
       );
       expect(fixes).toEqual([
         "corepack enable && corepack install",
         "unset BRAND_PROFILE",
         "pnpm brand:apply",
-        // The fixture keeps its own images, which brand-assets/ outranks here.
-        "keep the images you edit in brand-assets/, or empty brand-assets/ to use brand/fixture/assets/ again",
+        // The example keeps its own images, which brand-assets/ outranks here.
+        "keep the images you edit in brand-assets/, or empty brand-assets/ to use brand/example/assets/ again",
       ]);
     });
 
@@ -420,14 +415,14 @@ describe("check", () => {
         ),
         "gh workflow run deploy.yml -f surface=all",
       ]);
-      const local = loadProfile({ repoRoot: root, profile: "fixture" });
+      const local = loadProfile({ repoRoot: root, profile: EXAMPLE_PROFILE });
       expect(checkNext(local).map(({ run }) => run)).toEqual(["pnpm dev", "pnpm brand:init"]);
     });
 
     it("shows going live as one row for a local-only profile, without calling gcloud", async () => {
       // A chapter fresh from brand:init without a Firebase project: a demo- project.
       rmSync(join(root, "brand", CHAPTER), { recursive: true });
-      cpSync(join(root, "brand/fixture"), join(root, "brand/jci-valle"), { recursive: true });
+      cpSync(join(root, "brand/example"), join(root, "brand/jci-valle"), { recursive: true });
       const file = join(root, "brand/jci-valle/brand.json");
       writeFileSync(
         file,
@@ -444,28 +439,26 @@ describe("check", () => {
       expect(calls.filter(([command]) => command === "gcloud" || command === "gh")).toEqual([]);
     });
 
-    it("checks going live for the example, which upstream deploys, but only warns", async () => {
-      // An untouched clone: no chapter profile, so brand/ selects the example. Its cloud is
-      // upstream's, so gh, gcloud and the bucket fail here and must not fail the check.
+    it("shows going live as one row for the example, without calling gcloud or gh", async () => {
+      // An untouched clone of a fork: no chapter profile, so brand/ selects the example.
       rmSync(join(root, "brand", CHAPTER), { recursive: true });
       applyProfile({
-        profile: loadProfile({ repoRoot: root, profile: "jci-oriente" }),
+        profile: loadProfile({ repoRoot: root, profile: EXAMPLE_PROFILE }),
         repoRoot: root,
         env: {},
       });
-      responses.set("gh auth status", new CommandError("gh auth status failed: not signed in"));
-      responses.set(
-        "gcloud storage objects list",
-        new CommandError("gcloud storage objects list failed: 403 Forbidden"),
-      );
       const { sections, profile } = await check({ ...TOOLS, repoRoot: root, run, env: ENV });
       const rows = sections.flatMap(({ rows: sectionRows }) => sectionRows);
-      expect(rowFor(rows, "selection").detail).toMatch(/selects "jci-oriente" \(the example/);
-      const live = sections.at(-1)?.rows ?? [];
-      expect(live[0]).toMatchObject({ check: "example", status: "warn" });
-      expect(live.map(({ check: name }) => name)).toContain("bucket");
-      expect(live.filter(({ status }) => status === "warn").length).toBeGreaterThan(1);
+      expect(rowFor(rows, "selection").detail).toMatch(/selects "example" \(the example/);
+      expect(sections.at(-1)?.rows).toEqual([
+        expect.objectContaining({
+          check: "going live",
+          status: "skip",
+          detail: expect.stringMatching(/the example.*brand:init/),
+        }),
+      ]);
       expect(rows.filter(({ status }) => status === "fail")).toEqual([]);
+      expect(calls.filter(([command]) => command === "gcloud" || command === "gh")).toEqual([]);
       if (!profile) throw new Error("expected the example profile");
       expect(checkNext(profile).map(({ run: command }) => command)).toEqual([
         "pnpm dev",

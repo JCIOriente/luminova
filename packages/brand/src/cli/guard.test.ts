@@ -4,18 +4,20 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadProfile } from "../load-profile.ts";
+import { chapterProfile, chapterRepo, exampleRepo } from "../test-profiles.ts";
 import {
   CHAPTER_REGEX,
   NEEDLE_EXCLUSIONS,
   assetHashes,
   collectNeedles,
   emittedLogoHashes,
+  exampleOutcome,
   formatFinding,
   inverseChecks,
   scanDist,
 } from "./guard.ts";
 
-const chapter = loadProfile({ profile: "jci-oriente" });
+const chapter = chapterProfile();
 const { brand } = chapter;
 
 let dist: string;
@@ -42,6 +44,8 @@ describe("NEEDLE_EXCLUSIONS", () => {
       "locale",
       "ogLocale",
       "locality.country",
+      "movementName",
+      "parentOrganization.*",
     ]);
     for (const { reason } of NEEDLE_EXCLUSIONS) expect(reason.length).toBeGreaterThan(10);
   });
@@ -73,6 +77,8 @@ describe("collectNeedles", () => {
     expect(paths).not.toContain("locale");
     expect(paths).not.toContain("ogLocale");
     expect(paths).not.toContain("locality.country");
+    expect(paths).not.toContain("movementName");
+    expect(paths.some((path) => path.startsWith("parentOrganization"))).toBe(false);
     expect(paths).not.toContain("foundedYear");
     expect(paths).not.toContain("firebase.web.spotlight.vapidKey");
     expect(needles.every(({ value }) => value.length >= 6)).toBe(true);
@@ -100,11 +106,19 @@ describe("scanDist", () => {
     scanDist(dist, { needles, hashes, regex: CHAPTER_REGEX });
 
   it("passes a neutral dist", () => {
-    put("index.html", "<title>Fixture Chapter</title>");
+    put("index.html", "<title>JCI Ejemplo</title>");
     put("assets/index-abc.js", 'const a="oriented layout";');
     const result = scan();
     expect(result.findings).toEqual([]);
     expect(result.filesScanned).toBe(2);
+  });
+
+  it("passes the movement-wide words every chapter shares (D10)", () => {
+    put(
+      "index.html",
+      `<p>${brand.movementName}, ${brand.parentOrganization.name} ${brand.parentOrganization.url}, ${brand.locality.country}</p>`,
+    );
+    expect(scan().findings).toEqual([]);
   });
 
   it("finds a needle and names the file and key path", () => {
@@ -126,11 +140,9 @@ describe("scanDist", () => {
   it("finds an asset by hash, whatever its name", () => {
     const bytes = readFileSync(join(chapter.dir, "assets", "og-image.png"));
     put("og-image.12345678.png", bytes);
-    const { findings } = scan(
-      assetHashes(join(chapter.dir, "assets"), "brand/jci-oriente/assets/"),
-    );
+    const { findings } = scan(assetHashes(join(chapter.dir, "assets"), "brand/jci-valle/assets/"));
     expect(findings.map(formatFinding)).toEqual([
-      "og-image.12345678.png: sha256 of brand/jci-oriente/assets/og-image.png (asset)",
+      "og-image.12345678.png: sha256 of brand/jci-valle/assets/og-image.png (asset)",
     ]);
   });
 
@@ -203,5 +215,45 @@ describe("inverseChecks", () => {
     expect(errors.join("\n")).toContain(brand.themeColor.spotlight);
     expect(errors.join("\n")).toContain("sitemap.xml");
     expect(errors.join("\n")).toContain(`projectId "${brand.firebase.projectId}"`);
+  });
+});
+
+describe("exampleOutcome", () => {
+  const roots: string[] = [];
+  const repo = (make: () => string) => {
+    const root = make();
+    roots.push(root);
+    return root;
+  };
+  afterEach(() => {
+    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+  });
+
+  it("protects a chapter profile", () => {
+    const repoRoot = repo(chapterRepo);
+    expect(exampleOutcome(loadProfile({ repoRoot, env: {} }), {})).toBeUndefined();
+  });
+
+  it("passes with a notice where brand/ holds no chapter profile (a fork)", () => {
+    const repoRoot = repo(exampleRepo);
+    const outcome = exampleOutcome(loadProfile({ repoRoot, env: {} }), {});
+    expect(outcome?.code).toBe(0);
+    expect(outcome?.message).toMatch(/no chapter profile to protect/);
+  });
+
+  it("refuses BRAND_PROFILE=example over a chapter profile", () => {
+    const repoRoot = repo(chapterRepo);
+    const env = { BRAND_PROFILE: "example" };
+    const outcome = exampleOutcome(loadProfile({ repoRoot, env }), env);
+    expect(outcome?.code).toBe(1);
+    expect(outcome?.message).toMatch(/protects a chapter profile/);
+  });
+
+  it("refuses BRAND_PROFILE=example even where brand/ selects the example", () => {
+    const repoRoot = repo(exampleRepo);
+    const env = { BRAND_PROFILE: "example" };
+    const outcome = exampleOutcome(loadProfile({ repoRoot, env }), env);
+    expect(outcome?.code).toBe(1);
+    expect(outcome?.message).toMatch(/protects a chapter profile/);
   });
 });

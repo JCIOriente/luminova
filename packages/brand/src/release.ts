@@ -7,7 +7,7 @@ import { sha256 } from "./hash.ts";
 import type { Problem, Remedy } from "./remedy.ts";
 import {
   BrandConfigError,
-  NEUTRAL_PROFILE,
+  EXAMPLE_PROFILE,
   PROFILE_OVERRIDE_ENV,
   REMOVE_OVERRIDE,
   issuesToBrandError,
@@ -59,14 +59,15 @@ export function isRelease(env: Env): boolean {
 
 const RELEASE_BUILD_COMMAND = "pnpm build:release";
 
-/** What ships when nothing is passed: the profile brand/ selects (spec P1). */
+/** What ships is the chapter's own profile, found in brand/ (spec P1). */
 const SHIP_CHAPTER: Remedy = {
-  change: "unset BRAND_PROFILE so the chapter profile found in brand/ ships",
+  change:
+    "release your chapter's own profile (pnpm brand:init creates it), with BRAND_PROFILE unset",
 };
 
 /**
  * A profile that may reach production: found in brand/ or named by its caller (never a
- * stray environment override; spec P5), not the fixture, not an emulator-only project. Release
+ * stray environment override; spec P5), not the example, not an emulator-only project. Release
  * builds, brand:push and brand:provision's bucket step share it.
  */
 const PRINT_GCP_SETUP: Remedy = {
@@ -97,13 +98,12 @@ export function undeployableProfileErrors(profile: LoadedProfile): Problem[] {
       remedies: [REMOVE_OVERRIDE],
     });
   }
-  if (slug === NEUTRAL_PROFILE) {
+  if (slug === EXAMPLE_PROFILE) {
     errors.push({
-      message: `profile "${slug}" is the neutral test profile and can never be released.`,
+      message: `profile "${slug}" is the example and can never be released.`,
       remedies: [SHIP_CHAPTER],
     });
-  }
-  if (profile.localOnly) {
+  } else if (profile.localOnly) {
     errors.push({
       message: `profile "${slug}" is local-only (project "${projectId}" exists only in the emulators), so it cannot be released.`,
       remedies: [CONNECT_PROJECT],

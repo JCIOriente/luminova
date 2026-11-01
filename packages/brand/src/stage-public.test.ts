@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ICON_FILES, OG_IMAGE_FILE } from "./assets.ts";
-import { REPO_ROOT, loadProfile } from "./load-profile.ts";
+import { EXAMPLE_PROFILE, REPO_ROOT, loadProfile } from "./load-profile.ts";
 import { encodePng } from "./png.ts";
 import { stagePublic } from "./stage-public.ts";
 
-const { brand } = loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" });
+const { brand } = loadProfile({ repoRoot: REPO_ROOT, profile: EXAMPLE_PROFILE });
 
 let root: string;
 let assetsDir: string;

@@ -1,0 +1,87 @@
+{
+  "hero": {
+    "motto": "Jóvenes que lideran con propósito en Ciudad Ejemplo.",
+    "submotto": ""
+  },
+  "stats": {
+    "programCount": 3,
+    "countries": "100+",
+    "membersWorldwide": "200.000+",
+    "nationalAwards": 2,
+    "efficiencyPct": 90,
+    "standoutOrg": {
+      "year": "2010",
+      "title": "Organización Local Destacada"
+    }
+  },
+  "timeline": [
+    {
+      "year": "1915",
+      "title": "Nace la Junior Chamber",
+      "description": "San Luis, Missouri. Henry Giessenbier funda lo que se convertirá en JCI Worldwide."
+    },
+    {
+      "year": "2001",
+      "title": "Se funda JCI Ejemplo",
+      "description": "El capítulo Ciudad Ejemplo se establece como parte de JCI Bolivia."
+    },
+    {
+      "year": "Hoy",
+      "title": "Una nueva generación",
+      "description": "Proyectos en marcha y nuevos miembros cada gestión."
+    }
+  ],
+  "mvv": {
+    "mision": "Brindar oportunidades de desarrollo que empoderen a las personas jóvenes para crear cambios positivos en la región de Ejemplo.",
+    "vision": "Ser la organización referente de jóvenes líderes activos en Ciudad Ejemplo, reconocida por su impacto, ética y red global.",
+    "valores": "Liderazgo con propósito · Servicio · Hermandad internacional · Empresa libre · Fe en Dios · Dignidad humana."
+  },
+  "reasons": [
+    {
+      "number": "01",
+      "title": "Una red que abre puertas",
+      "body": "Formas parte de una red de 200.000+ miembros en 100+ países, con conferencias regionales y mundiales."
+    },
+    {
+      "number": "02",
+      "title": "Proyectos con impacto medible",
+      "body": "Trabajas en proyectos con objetivos e indicadores claros, y al cerrarlos medimos lo que logramos."
+    },
+    {
+      "number": "03",
+      "title": "Liderazgo en práctica",
+      "body": "Cargos que se renuevan cada gestión y formación en oratoria y liderazgo."
+    }
+  ],
+  "contact": {
+    "email": "contacto@example.org",
+    "location": "Ciudad Ejemplo, Bolivia",
+    "meetingSchedule": "Cada miércoles · 19:30 hrs",
+    "mapUrl": "https://maps.example.org/jci-ejemplo",
+    "whatsapp": "",
+    "broadcastChannel": "",
+    "socials": {
+      "instagram": "",
+      "facebook": "",
+      "tiktok": "",
+      "linkedin": ""
+    },
+    "links": [
+      {
+        "label": "JCI Worldwide ↗",
+        "url": "https://jci.cc"
+      },
+      {
+        "label": "JCI Bolivia ↗",
+        "url": "https://jcibolivia.org/"
+      }
+    ]
+  },
+  "linktree": {
+    "handle": "",
+    "tagline": "",
+    "taglineAccent": "",
+    "links": [],
+    "socials": []
+  }
+}

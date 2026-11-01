@@ -3,9 +3,22 @@
 Luminova is not multi-tenant: one deployment serves one chapter. You run it for yours by
 forking the repository and adding a **brand profile**, `brand/<slug>/`, that holds every
 value that makes a deployment yours: names, places, origins, the Firebase project, theme
-colours and share text. JCI Oriente's profile, `brand/jci-oriente/`, is the committed example.
+colours and share text. The committed example, `brand/example/`, is a neutral chapter
+("JCI Ejemplo") on an emulator-only project; its texts are good defaults to start from.
 Your images never enter git. Deployments read them from a private bucket in your own Google
 Cloud project.
+
+A chapter's brand is moving out of git into its own bucket
+(`docs/specs/2026-10-29-brand-outside-repo.md`). Where that move stands today:
+
+- `brand/` commits only `brand/example/` and the two shared files. A chapter folder is
+  git-ignored, and CI's `assert-brand-example-only` check fails a change that adds or edits
+  a file anywhere else under `brand/`; deleting one passes.
+- Upstream still commits JCI Oriente's own profile, `brand/jci-oriente/`, which is how JCI
+  Oriente deploys until its brand reaches its bucket. In your fork it is a chapter profile
+  like yours, so delete it before step 2: `git rm -r brand/jci-oriente`.
+- Steps 1 to 4 work as written. Steps 5 and 12 commit a chapter profile, which the check
+  refuses, so going live from a fork waits for the fork CD of that spec (its steps 3 and 4).
 
 Every step below names its command. No step needs a Luminova maintainer. If you get stuck,
 [open an adoption issue](https://github.com/JCIOriente/luminova/issues/new?template=chapter_adoption.yml).
@@ -17,16 +30,16 @@ your shell's startup file, and CD needs no GitHub variables.
 
 | What | File | In git? | Who reads it |
 |---|---|---|---|
-| Which chapter this repository builds | the folder `brand/<slug>/` itself: your chapter's is the only one besides the example `jci-oriente` and the test `fixture` | yes | every `pnpm brand:*` command, `pnpm dev`, the builds, the seed scripts, CD |
-| The chapter: names, texts, site addresses, Firebase project and web apps, CD's sign-in | `brand/<slug>/brand.json` | yes; every value is public | the builds, CD |
-| The site's texts, seeded into the database once | `brand/<slug>/site-content.json` | yes | `pnpm seed:production`, `pnpm dev` |
+| Which chapter this repository builds | the folder `brand/<slug>/` itself: your chapter's is the only one besides the example `example` | no, git-ignored | every `pnpm brand:*` command, `pnpm dev`, the builds, the seed scripts, CD |
+| The chapter: names, texts, site addresses, Firebase project and web apps, CD's sign-in | `brand/<slug>/brand.json` | no, git-ignored; every value is public | the builds, CD |
+| The site's texts, seeded into the database once | `brand/<slug>/site-content.json` | no, git-ignored | `pnpm seed:production`, `pnpm dev` |
 | Your images | `brand-assets/` | **no**, gitignored | `pnpm dev`, `brand:check`, `brand:push` |
 | The images deploys use | your private bucket, `<project>-brand-assets` | no | CD (`brand:pull`) |
 | Firebase CLI's project file | `.firebaserc` | no, generated | the `firebase` CLI |
 
 There is no file to edit to choose the chapter. Every command looks in `brand/`: your
 chapter's folder (named with lowercase letters, digits and hyphens, such as `jci-valle`) is
-selected when it is the only chapter profile there; with none, the example `jci-oriente`
+selected when it is the only chapter profile there; with none, the example `example`
 is. Your fork only adds that folder and never edits a shared file, so pulling upstream
 updates never conflicts with your configuration. A repository builds one chapter:
 `brand:init` refuses to create a second, and with two every command stops and names them.
@@ -169,8 +182,8 @@ Nothing else.
 ### 1. Run the example
 
 Follow the README Quickstart. `pnpm dev` starts the local emulators, fills them with test
-data and opens both sites with the example profile (`brand/` holds no chapter profile yet,
-so `jci-oriente` is selected).
+data and opens both sites with the example profile (once `brand/jci-oriente/` is deleted,
+`brand/` holds no chapter profile, so `example` is selected).
 Dev talks to the emulators, never to a real project.
 
 ### 2. Create your profile

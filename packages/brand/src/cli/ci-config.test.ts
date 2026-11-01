@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { BrandConfigError, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
+import {
+  BrandConfigError,
+  EXAMPLE_PROFILE,
+  REPO_ROOT,
+  loadProfile,
+  type LoadedProfile,
+} from "../load-profile.ts";
+import { chapterProfile } from "../test-profiles.ts";
 import { ciConfig, formatOutputs } from "./ci-config.ts";
 
-const jci: LoadedProfile = loadProfile({ repoRoot: REPO_ROOT, profile: "jci-oriente" });
+const chapter: LoadedProfile = chapterProfile();
 
 function errorsOf(run: () => unknown): BrandConfigError {
   try {
@@ -16,28 +23,28 @@ function errorsOf(run: () => unknown): BrandConfigError {
 
 describe("ciConfig", () => {
   it("hands CD the profile, its project and its sign-in names", () => {
-    expect(formatOutputs(ciConfig(jci))).toBe(
+    expect(formatOutputs(ciConfig(chapter))).toBe(
       [
-        "profile=jci-oriente",
-        "project_id=jci-oriente",
-        "workload_identity_provider=projects/953870918238/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
-        "service_account=firebase-deployer@jci-oriente.iam.gserviceaccount.com",
+        "profile=jci-valle",
+        "project_id=jci-valle",
+        "workload_identity_provider=projects/123456789012/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
+        "service_account=firebase-deployer@jci-valle.iam.gserviceaccount.com",
       ].join("\n"),
     );
   });
 
   it("stops without a deploy section, pointing at brand:provision", () => {
-    const brand = structuredClone(jci.brand);
+    const brand = structuredClone(chapter.brand);
     delete brand.deploy;
-    const error = errorsOf(() => ciConfig({ ...jci, brand }));
+    const error = errorsOf(() => ciConfig({ ...chapter, brand }));
     expect(error.errors).toEqual([expect.stringMatching(/has no "deploy" section/)]);
     expect(error.remedies.map(({ run }) => run)).toEqual(["pnpm brand:provision"]);
   });
 
-  it("applies the release rules: no fixture, no environment override", () => {
-    const fixture = loadProfile({ repoRoot: REPO_ROOT, profile: "fixture" });
-    expect(errorsOf(() => ciConfig(fixture)).message).toMatch(/neutral test profile/);
-    expect(errorsOf(() => ciConfig({ ...jci, source: "override" })).message).toMatch(
+  it("applies the release rules: not the example, no environment override", () => {
+    const example = loadProfile({ repoRoot: REPO_ROOT, profile: EXAMPLE_PROFILE });
+    expect(errorsOf(() => ciConfig(example)).message).toMatch(/is the example/);
+    expect(errorsOf(() => ciConfig({ ...chapter, source: "override" })).message).toMatch(
       /set in your environment/,
     );
   });

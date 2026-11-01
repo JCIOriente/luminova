@@ -1,20 +1,22 @@
-import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   BrandConfigError,
   EXAMPLE_PROFILE,
-  NEUTRAL_PROFILE,
   REPO_ROOT,
   chapterProfiles,
   loadProfile,
 } from "./load-profile.ts";
+import { exampleRepo } from "./test-profiles.ts";
 
 let root: string;
 
 function writeProfile(folder: string, mutate: (brand: Record<string, unknown>) => void = () => {}) {
-  const brand = JSON.parse(readFileSync(join(REPO_ROOT, "brand/fixture/brand.json"), "utf8"));
+  const brand = JSON.parse(
+    readFileSync(join(REPO_ROOT, "brand", EXAMPLE_PROFILE, "brand.json"), "utf8"),
+  );
   brand.slug = folder;
   mutate(brand);
   mkdirSync(join(root, "brand", folder), { recursive: true });
@@ -63,7 +65,6 @@ describe("loadProfile", () => {
 
   it("selects the example when brand/ holds no chapter profile", () => {
     rmSync(join(root, "brand", "other"), { recursive: true });
-    writeProfile(NEUTRAL_PROFILE);
     expect(loadProfile({ repoRoot: root, env: {} })).toMatchObject({
       slug: EXAMPLE_PROFILE,
       source: "example",
@@ -120,7 +121,7 @@ describe("loadProfile", () => {
     expect(profile.slug).toBe(EXAMPLE_PROFILE);
     expect(profile.source).toBe("override");
     expect(profile.warnings).toEqual([
-      'BRAND_PROFILE=jci-oriente in your environment overrides the profile found in brand/ ("other"). If you did not mean that: unset BRAND_PROFILE   # in your shell',
+      'BRAND_PROFILE=example in your environment overrides the profile found in brand/ ("other"). If you did not mean that: unset BRAND_PROFILE   # in your shell',
     ]);
     // Repeating the discovered choice is no override: no warning, and release builds accept it.
     expect(loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "other" } })).toMatchObject({
@@ -149,7 +150,6 @@ describe("loadProfile", () => {
   });
 
   it("lists the chapter profiles for brand:init's one-per-repository rule", () => {
-    writeProfile(NEUTRAL_PROFILE);
     expect(chapterProfiles(root)).toEqual(["other"]);
   });
 
@@ -171,7 +171,7 @@ describe("loadProfile", () => {
 
   it("lists the available profiles when the folder is missing", () => {
     const errors = errorsOf(() => loadProfile({ repoRoot: root, profile: "nope" }));
-    expect(errors).toEqual([expect.stringMatching(/"nope".*available: jci-oriente, other/)]);
+    expect(errors).toEqual([expect.stringMatching(/"nope".*available: example, other/)]);
   });
 
   it("reports every schema error with its field path at once", () => {
@@ -211,7 +211,7 @@ describe("loadProfile remedies", () => {
       loadProfile({ repoRoot: root, profile: "nope" }),
     );
     expect(remedies).toEqual([
-      { change: "name one of: jci-oriente, other" },
+      { change: "name one of: example, other" },
       { change: "or create brand/nope/", run: "pnpm brand:init" },
     ]);
     expect(message).toContain("To fix:");
@@ -221,7 +221,7 @@ describe("loadProfile remedies", () => {
       remediesOf(() => loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "nope" } })).remedies[0],
     ).toEqual({
       change:
-        "set BRAND_PROFILE to one of: jci-oriente, other, or unset it to use the profile found in brand/",
+        "set BRAND_PROFILE to one of: example, other, or unset it to use the profile found in brand/",
     });
   });
 
@@ -254,17 +254,20 @@ describe("loadProfile remedies", () => {
 });
 
 describe("committed profiles", () => {
-  it.each(["jci-oriente", "fixture"])("%s parses", (slug) => {
-    const profile = loadProfile({ profile: slug });
-    expect(profile.brand.slug).toBe(slug);
+  it("the example parses", () => {
+    expect(loadProfile({ profile: EXAMPLE_PROFILE }).brand.slug).toBe(EXAMPLE_PROFILE);
   });
 
-  it("can load from a copy of the repo brand folder", () => {
-    rmSync(join(root, "brand"), { recursive: true });
-    cpSync(join(REPO_ROOT, "brand"), join(root, "brand"), { recursive: true });
-    expect(loadProfile({ repoRoot: root, env: {} })).toMatchObject({
-      source: "example",
-      brand: { name: "JCI Oriente" },
-    });
+  it("selects the example in a repository that holds only what upstream ships", () => {
+    const upstream = exampleRepo();
+    try {
+      expect(loadProfile({ repoRoot: upstream, env: {} })).toMatchObject({
+        source: "example",
+        localOnly: true,
+        brand: { name: "JCI Ejemplo" },
+      });
+    } finally {
+      rmSync(upstream, { recursive: true, force: true });
+    }
   });
 });

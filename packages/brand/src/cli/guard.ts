@@ -3,7 +3,14 @@ import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
 import { z } from "zod";
 import { sha256 } from "../hash.ts";
-import { NEUTRAL_PROFILE, REPO_ROOT, loadProfile } from "../load-profile.ts";
+import {
+  EXAMPLE_PROFILE,
+  PROFILE_OVERRIDE_ENV,
+  REPO_ROOT,
+  loadProfile,
+  type Env,
+  type LoadedProfile,
+} from "../load-profile.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
 import type { Brand } from "../schema.ts";
 import { runBrandCommand } from "./main.ts";
@@ -19,11 +26,25 @@ export interface NeedleExclusion {
 export const NEEDLE_EXCLUSIONS: readonly NeedleExclusion[] = [
   { keyPath: "$schema", reason: "editor hint pointing at the shared schema, never bundled" },
   { keyPath: "themeColor.*", reason: "the palette is shared by every profile (D16)" },
-  { keyPath: "locale", reason: "the language is product-wide, not chapter identity" },
-  { keyPath: "ogLocale", reason: "the Open Graph locale is product-wide, not chapter identity" },
+  {
+    keyPath: "locale",
+    reason: "the language is shared by every chapter of a country, not chapter identity (D10)",
+  },
+  {
+    keyPath: "ogLocale",
+    reason: "the Open Graph locale is shared by every chapter of a country (D10)",
+  },
   {
     keyPath: "locality.country",
-    reason: "the Bolivian phone rule is product-wide until follow-up 3",
+    reason: "the country is shared by every chapter in it, and the example names it (D10)",
+  },
+  {
+    keyPath: "movementName",
+    reason: "the movement's name is shared by every chapter, and the example says it (D10)",
+  },
+  {
+    keyPath: "parentOrganization.*",
+    reason: "the national federation is shared by every chapter of a country (D10)",
   },
 ];
 
@@ -213,14 +234,14 @@ function withEnv<T>(overrides: Record<string, string>, run: () => Promise<T>): P
   });
 }
 
-async function buildNeutral(app: BrandApp, outDir: string, envDir: string): Promise<void> {
+async function buildExample(app: BrandApp, outDir: string, envDir: string): Promise<void> {
   const { build } = await import("vite");
   const root = join(REPO_ROOT, "apps", app);
   await withEnv(
     {
-      BRAND_PROFILE: NEUTRAL_PROFILE,
+      BRAND_PROFILE: EXAMPLE_PROFILE,
       // Hermetic: never a developer's pulled brand-assets/ of real logos.
-      BRAND_ASSETS_DIR: `brand/${NEUTRAL_PROFILE}/assets`,
+      BRAND_ASSETS_DIR: `brand/${EXAMPLE_PROFILE}/assets`,
       // Process env wins over every .env file, so .env.local cannot turn on the emulator.
       VITE_FIREBASE_EMULATOR_ENABLED: "false",
     },
@@ -237,15 +258,35 @@ async function buildNeutral(app: BrandApp, outDir: string, envDir: string): Prom
   );
 }
 
+/**
+ * How brand:guard ends before building anything when the profile is the example; undefined
+ * when it is a chapter profile to protect. A fork's brand/ holds no chapter profile in git.
+ */
+export function exampleOutcome(
+  { slug, source }: Pick<LoadedProfile, "slug" | "source">,
+  env: Env,
+): { code: 0 | 1; message: string } | undefined {
+  if (slug !== EXAMPLE_PROFILE) return undefined;
+  if (source === "example" && !env[PROFILE_OVERRIDE_ENV]?.trim()) {
+    return {
+      code: 0,
+      message: "brand:guard: brand/ holds no chapter profile to protect; nothing to check.",
+    };
+  }
+  return {
+    code: 1,
+    message: `brand:guard protects a chapter profile; "${EXAMPLE_PROFILE}" is the example it builds. Run it where brand/ holds a chapter profile, without ${PROFILE_OVERRIDE_ENV}.`,
+  };
+}
+
 async function main(): Promise<number> {
   const started = performance.now();
   // The profile brand/ selects is the one CI just built.
   const chapter = loadProfile();
-  if (chapter.slug === NEUTRAL_PROFILE) {
-    console.error(
-      `brand:guard protects a chapter profile; "${NEUTRAL_PROFILE}" is the neutral one. Run it without BRAND_PROFILE, so brand/ selects the chapter.`,
-    );
-    return 1;
+  const early = exampleOutcome(chapter, process.env);
+  if (early) {
+    (early.code === 0 ? console.log : console.error)(early.message);
+    return early.code;
   }
   const { brand } = chapter;
 
@@ -273,7 +314,7 @@ async function main(): Promise<number> {
     mkdirSync(envDir);
     for (const app of BRAND_APPS) {
       const outDir = join(workDir, app);
-      await buildNeutral(app, outDir, envDir);
+      await buildExample(app, outDir, envDir);
       const result = scanDist(outDir, { needles, hashes, regex: CHAPTER_REGEX });
       filesScanned += result.filesScanned;
       findings.push(...result.findings.map((finding) => `${app}: ${formatFinding(finding)}`));
@@ -292,7 +333,7 @@ async function main(): Promise<number> {
     return 1;
   }
   console.log(
-    `brand:guard OK: ${chapter.slug} dist intact; ${NEUTRAL_PROFILE} build clean of ${needles.length} needles, ${hashes.size} asset hashes and the regex across ${filesScanned} files (${seconds}s).`,
+    `brand:guard OK: ${chapter.slug} dist intact; ${EXAMPLE_PROFILE} build clean of ${needles.length} needles, ${hashes.size} asset hashes and the regex across ${filesScanned} files (${seconds}s).`,
   );
   return 0;
 }

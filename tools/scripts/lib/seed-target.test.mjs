@@ -100,9 +100,9 @@ test("production accepts the profile's project from the flag or the env", () => 
 
 test("seededSiteContent reads the profile's seed-owned keys", () => {
   const content = seededSiteContent({
-    slug: "fixture",
-    dir: new URL("../../../brand/fixture", import.meta.url).pathname,
+    slug: "example",
+    dir: new URL("../../../brand/example", import.meta.url).pathname,
   });
   assert.deepEqual(Object.keys(content).sort(), ["contact", "mvv", "reasons", "stats", "timeline"]);
-  assert.equal(content.stats.standoutOrg.title, "Fixture Standout Award");
+  assert.equal(content.stats.standoutOrg.title, "Organización Local Destacada");
 });
