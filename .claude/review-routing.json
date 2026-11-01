@@ -37,7 +37,6 @@
       "^tsconfig(\\.[a-z]+)?\\.json$",
       "^vitest\\.config\\.[cm]?[jt]s$"
     ],
-    "deps": ["(^|/)package\\.json$", "^pnpm-lock\\.yaml$", "^pnpm-workspace\\.yaml$"],
     "_authSurfaceComment": "firebase.json carries hosting headers and rewrites (a rewrite can point hosting at a function); the seed scripts mint PRODUCTION auth claims — 'seed scripts must mint perms not just roles' was a real bug class here; deploy.yml is the keyless-CD trust boundary (WIF/OIDC per docs/ci-cd.md). ci.yml stays advisory so ordinary CI edits keep their low friction.",
     "authSurface": [
       "^apps/beacon/",
@@ -144,8 +143,9 @@
       "invoke": "secure-dep-vetting",
       "gate": "advisory",
       "why": "latest secure version + Node 24 compat + CVE block",
-      "_exempt": "Exempt when the edit carries NO dependency delta — only `workspace:*` entries moved, or a non-dependency field (scripts, engines) changed. State that in the PR instead of running the skill; never claim the skill ran.",
-      "pathsRef": ["deps"]
+      "_comment": "Keyed on the LOCKFILE and pnpm-workspace.yaml, not package.json. Every real dependency change (a package.json specifier, an override) moves pnpm-lock.yaml, and a package.json edited without it fails CI's `pnpm install --frozen-lockfile`. pnpm-workspace.yaml stays because `allowBuilds` (which installed packages may run install scripts) never reaches the lockfile. Keying on package.json mandated the skill for `scripts`-only edits, where it could only be exempted or falsely stamped.",
+      "_exempt": "Exempt when the lockfile or pnpm-workspace.yaml moved with NO dependency delta — only `workspace:*` links, pnpm's own formatting, or a workspace setting that changes no installed package and no build-script approval. State that in the PR instead of running the skill; never claim the skill ran.",
+      "paths": ["^pnpm-lock\\.yaml$", "^pnpm-workspace\\.yaml$"]
     },
     {
       "token": "bundle-budget-watcher",
