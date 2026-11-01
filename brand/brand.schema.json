@@ -2,18 +2,25 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "$schema": {
-      "type": "string"
-    },
-    "slug": {
-      "type": "string",
-      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-      "description": "This profile's folder name under brand/. A repository holds one chapter profile, and every command selects it."
-    },
     "name": {
       "type": "string",
       "minLength": 1,
-      "description": "The chapter's name as people say it, e.g. JCI Oriente."
+      "description": "The chapter's name as people say it, e.g. JCI Andina. Required."
+    },
+    "city": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The city, as used in a sentence, e.g. Cochabamba. Required."
+    },
+    "country": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The country, e.g. Bolivia. Required."
+    },
+    "project": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
+      "description": "Your Firebase project id (Firebase console → Project settings). A demo- id runs only in the emulators."
     },
     "shortName": {
       "type": "string",
@@ -35,83 +42,11 @@
       "minLength": 1,
       "description": "One line about the chapter, used in the web app manifest."
     },
-    "locality": {
-      "description": "Where the chapter is; the site's copy uses these words.",
-      "type": "object",
-      "properties": {
-        "city": {
-          "type": "string",
-          "minLength": 1,
-          "description": "City as used in a sentence, e.g. Santa Cruz."
-        },
-        "cityFormal": {
-          "type": "string",
-          "minLength": 1,
-          "description": "The city's formal name, e.g. Santa Cruz de la Sierra."
-        },
-        "region": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Region as used in a sentence, e.g. el Oriente boliviano."
-        },
-        "regionShort": {
-          "description": "Optional short region, e.g. el Oriente. Blank means the same as region.",
-          "type": "string",
-          "minLength": 1
-        },
-        "country": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Country, e.g. Bolivia."
-        }
-      },
-      "required": [
-        "city",
-        "cityFormal",
-        "region",
-        "country"
-      ],
-      "additionalProperties": false
-    },
     "foundedYear": {
       "type": "integer",
       "minimum": 1900,
       "maximum": 2100,
-      "description": "Year the chapter was founded."
-    },
-    "stats": {
-      "type": "object",
-      "properties": {
-        "nationalOrganizations": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991
-        }
-      },
-      "required": [
-        "nationalOrganizations"
-      ],
-      "additionalProperties": false,
-      "description": "Numbers the home page states. nationalOrganizations: local organizations in the national federation."
-    },
-    "parentOrganization": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "url": {
-          "type": "string",
-          "format": "uri"
-        }
-      },
-      "required": [
-        "name",
-        "url"
-      ],
-      "additionalProperties": false,
-      "description": "The national federation the site links to."
+      "description": "Year the chapter was founded. Set it: the example's year is no one's."
     },
     "broadcastChannelName": {
       "type": "string",
@@ -128,48 +63,85 @@
       "pattern": "^[a-z]{2,3}_[A-Z]{2}$",
       "description": "Language and country for link previews, e.g. es_BO."
     },
-    "urls": {
-      "type": "object",
-      "properties": {
-        "spotlight": {
-          "type": "string",
-          "minLength": 1
-        },
-        "backstage": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "spotlight",
-        "backstage"
-      ],
-      "additionalProperties": false,
-      "description": "Public addresses: spotlight is the public site, backstage the admin site. Bare https origins, no path."
-    },
     "qrPrefix": {
+      "description": "Prefix inside member QR credentials; defaults to the project id without hyphens. Never change it once credentials are printed: old QR codes would stop scanning.",
       "type": "string",
-      "pattern": "^[a-z0-9-]+$",
-      "description": "Prefix inside member QR credentials. Never change it once credentials are issued: old QR codes would stop scanning."
+      "pattern": "^[a-z0-9-]+$"
     },
-    "themeColor": {
+    "assetsBucket": {
+      "description": "Private bucket holding the chapter's images for deploys; defaults to <project>-brand-assets. pnpm brand:provision creates it.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$"
+    },
+    "locality": {
+      "type": "object",
+      "properties": {
+        "cityFormal": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The city's formal name, e.g. Santa Cruz de la Sierra."
+        },
+        "region": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Region as used in a sentence, e.g. el Oriente boliviano."
+        },
+        "regionShort": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A short form some copy uses, e.g. el Oriente."
+        }
+      },
+      "additionalProperties": false,
+      "description": "More of where the chapter is; the site's copy uses these words."
+    },
+    "colors": {
       "type": "object",
       "properties": {
         "spotlight": {
           "type": "string",
-          "pattern": "^#[0-9A-Fa-f]{6}$"
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "description": "The public site's theme color, #RRGGBB. Required."
         },
         "backstage": {
           "type": "string",
-          "pattern": "^#[0-9A-Fa-f]{6}$"
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "description": "The admin site's theme color, #RRGGBB."
         }
       },
       "required": [
-        "spotlight",
-        "backstage"
+        "spotlight"
       ],
       "additionalProperties": false,
-      "description": "Browser and home-screen color of each site, #RRGGBB."
+      "description": "Browser and home-screen color of each site."
+    },
+    "parentOrganization": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "additionalProperties": false,
+      "description": "The national federation the site links to."
+    },
+    "urls": {
+      "description": "Public addresses, bare https origins. Default: https://<hosting site>.web.app for each.",
+      "type": "object",
+      "properties": {
+        "spotlight": {
+          "type": "string"
+        },
+        "backstage": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
     "seo": {
       "type": "object",
@@ -199,14 +171,6 @@
           "minLength": 1
         }
       },
-      "required": [
-        "title",
-        "description",
-        "ogTitle",
-        "ogDescription",
-        "ogImageAlt",
-        "twitterDescription"
-      ],
       "additionalProperties": false,
       "description": "What search engines and link previews (WhatsApp, Facebook, X) show for the public site."
     },
@@ -222,28 +186,17 @@
           "minLength": 1
         },
         "contactEmail": {
-          "type": "string",
-          "format": "email",
-          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "description": "Where a member without an account asks for access (login page). Defaults to [contact] email; with neither, the page shows no link.",
+          "type": "string"
         }
       },
-      "required": [
-        "title",
-        "emailPlaceholder",
-        "contactEmail"
-      ],
       "additionalProperties": false,
-      "description": "Admin site texts. contactEmail is where a member without an account asks for access."
+      "description": "Admin site texts."
     },
     "og": {
-      "default": {
-        "legacyPaths": []
-      },
-      "description": "Old share-image file names that must keep working because apps cached them.",
       "type": "object",
       "properties": {
         "legacyPaths": {
-          "default": [],
           "type": "array",
           "items": {
             "type": "string",
@@ -251,127 +204,91 @@
           }
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Old share-image file names that must keep working because apps cached them."
     },
     "firebase": {
+      "description": "The Firebase project's values; each defaults from `project`.",
       "type": "object",
       "properties": {
-        "projectId": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
-          "description": "Your Firebase project id (Firebase console → Project settings). Builds and deploys target it."
-        },
         "storageBucket": {
+          "description": "Cloud Storage bucket; defaults to <project>.firebasestorage.app.",
           "type": "string",
-          "minLength": 1,
-          "description": "The project's Cloud Storage bucket, usually <projectId>.firebasestorage.app."
+          "minLength": 1
+        },
+        "authDomain": {
+          "description": "Defaults to <project>.firebaseapp.com.",
+          "type": "string",
+          "minLength": 1
+        },
+        "messagingSenderId": {
+          "description": "Defaults to the number inside the spotlight appId.",
+          "type": "string",
+          "pattern": "^\\d+$"
         },
         "sites": {
+          "description": "Firebase Hosting site ids. Default: <project> and <project>-backstage.",
           "type": "object",
           "properties": {
             "spotlight": {
               "type": "string",
-              "minLength": 1
+              "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
             },
             "backstage": {
               "type": "string",
-              "minLength": 1
+              "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
             }
           },
-          "required": [
-            "spotlight",
-            "backstage"
-          ],
-          "additionalProperties": false,
-          "description": "Firebase Hosting site ids for the public and the admin site."
+          "additionalProperties": false
         },
-        "web": {
+        "spotlight": {
           "type": "object",
           "properties": {
-            "authDomain": {
+            "apiKey": {
               "type": "string",
               "minLength": 1
             },
-            "messagingSenderId": {
+            "appId": {
               "type": "string",
-              "pattern": "^\\d+$"
+              "pattern": "^1:\\d+:web:[A-Za-z0-9]+$"
             },
-            "spotlight": {
-              "type": "object",
-              "properties": {
-                "apiKey": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "appId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "appCheckSiteKey": {
-                  "type": "string"
-                },
-                "vapidKey": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "apiKey",
-                "appId",
-                "appCheckSiteKey",
-                "vapidKey"
-              ],
-              "additionalProperties": false
+            "appCheckSiteKey": {
+              "description": "Blank or absent keeps App Check off.",
+              "type": "string"
             },
-            "backstage": {
-              "type": "object",
-              "properties": {
-                "apiKey": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "appId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "appCheckSiteKey": {
-                  "type": "string"
-                },
-                "vapidKey": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "apiKey",
-                "appId",
-                "appCheckSiteKey",
-                "vapidKey"
-              ],
-              "additionalProperties": false
+            "vapidKey": {
+              "description": "Blank or absent keeps web push off.",
+              "type": "string"
             }
           },
-          "required": [
-            "authDomain",
-            "messagingSenderId",
-            "spotlight",
-            "backstage"
-          ],
           "additionalProperties": false,
-          "description": "Each web app's config from Firebase console → Project settings → Your apps. Public identifiers, not secrets. A blank appCheckSiteKey or vapidKey turns that feature off."
+          "description": "This web app's public config, which pnpm brand:init reads with firebase apps:sdkconfig. Not secrets. A demo- project needs none."
+        },
+        "backstage": {
+          "type": "object",
+          "properties": {
+            "apiKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "appId": {
+              "type": "string",
+              "pattern": "^1:\\d+:web:[A-Za-z0-9]+$"
+            },
+            "appCheckSiteKey": {
+              "description": "Blank or absent keeps App Check off.",
+              "type": "string"
+            },
+            "vapidKey": {
+              "description": "Blank or absent keeps web push off.",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "description": "This web app's public config, which pnpm brand:init reads with firebase apps:sdkconfig. Not secrets. A demo- project needs none."
         }
       },
-      "required": [
-        "projectId",
-        "storageBucket",
-        "sites",
-        "web"
-      ],
-      "additionalProperties": false,
-      "description": "The Firebase project this chapter runs on."
-    },
-    "assetsBucket": {
-      "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$",
-      "description": "Private bucket holding the chapter's logos and icons for deploys, usually <projectId>-brand-assets. pnpm brand:provision creates it."
+      "additionalProperties": false
     },
     "deploy": {
       "type": "object",
@@ -379,45 +296,310 @@
         "workloadIdentityProvider": {
           "type": "string",
           "pattern": "^projects\\/\\d+\\/locations\\/global\\/workloadIdentityPools\\/[a-z0-9-]+\\/providers\\/[a-z0-9-]+$",
-          "description": "The Workload Identity provider CD signs in through, without a stored key. docs/ci-cd.md section 6 creates it; pnpm brand:provision prints the value."
+          "description": "The Workload Identity provider CD signs in through, without a stored key. pnpm brand:provision prints the value."
         },
         "serviceAccount": {
           "type": "string",
           "format": "email",
           "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
-          "description": "The service account CD deploys as, e.g. firebase-deployer@<projectId>.iam.gserviceaccount.com."
+          "description": "The service account CD deploys as, e.g. firebase-deployer@<project>.iam.gserviceaccount.com."
         }
       },
-      "required": [
-        "workloadIdentityProvider",
-        "serviceAccount"
-      ],
       "additionalProperties": false,
-      "description": "How CD (GitHub Actions) signs in to Google Cloud. Names, not secrets: safe to commit. Needed only to deploy."
+      "description": "How CD (GitHub Actions) signs in to Google Cloud. Names, not secrets. Needed only to deploy."
+    },
+    "hero": {
+      "type": "object",
+      "properties": {
+        "motto": {
+          "type": "string"
+        },
+        "submotto": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "The home page's opening line and the smaller line under it."
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "nationalOrganizations": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Local organizations in the national federation."
+        },
+        "programCount": {
+          "type": "number"
+        },
+        "countries": {
+          "type": "string"
+        },
+        "membersWorldwide": {
+          "type": "string"
+        },
+        "nationalAwards": {
+          "type": "number"
+        },
+        "efficiencyPct": {
+          "type": "number"
+        },
+        "standoutOrg": {
+          "type": "object",
+          "properties": {
+            "year": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "description": "The standout recognition the home page names."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Numbers the home page states."
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "year",
+          "title",
+          "description"
+        ],
+        "additionalProperties": false
+      },
+      "description": "The history page, one [[timeline]] per milestone, oldest first."
+    },
+    "mvv": {
+      "type": "object",
+      "properties": {
+        "mision": {
+          "type": "string"
+        },
+        "vision": {
+          "type": "string"
+        },
+        "valores": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Mission, vision and values."
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "body"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Why join: one [[reasons]] per reason."
+    },
+    "contact": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "The chapter's public email; blank shows none."
+        },
+        "location": {
+          "type": "string"
+        },
+        "meetingSchedule": {
+          "type": "string"
+        },
+        "mapUrl": {
+          "type": "string"
+        },
+        "whatsapp": {
+          "type": "string"
+        },
+        "broadcastChannel": {
+          "type": "string"
+        },
+        "socials": {
+          "type": "object",
+          "properties": {
+            "instagram": {
+              "type": "string"
+            },
+            "facebook": {
+              "type": "string"
+            },
+            "tiktok": {
+              "type": "string"
+            },
+            "linkedin": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "label",
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Links in the footer, one [[contact.links]] each."
+        }
+      },
+      "additionalProperties": false,
+      "description": "How to reach the chapter."
+    },
+    "linktree": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        },
+        "tagline": {
+          "type": "string"
+        },
+        "taglineAccent": {
+          "type": "string"
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "icon": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "globe",
+                  "folder",
+                  "calendar",
+                  "mail",
+                  "megaphone",
+                  "handshake",
+                  "heart",
+                  "target",
+                  "compass",
+                  "briefcase",
+                  "spark",
+                  "linkedin",
+                  "whatsapp",
+                  "youtube"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "isPrimary": {
+                "type": "boolean"
+              },
+              "badge": {
+                "type": "string"
+              },
+              "active": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "icon",
+              "title",
+              "description",
+              "url",
+              "isPrimary",
+              "active"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "socials": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "instagram",
+                  "facebook",
+                  "tiktok",
+                  "linkedin",
+                  "whatsapp",
+                  "youtube"
+                ]
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "platform",
+              "url"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false,
+      "description": "The /links page."
     }
   },
   "required": [
-    "slug",
     "name",
-    "shortName",
-    "legalName",
-    "movementName",
-    "description",
-    "locality",
-    "foundedYear",
-    "stats",
-    "parentOrganization",
-    "broadcastChannelName",
-    "locale",
-    "ogLocale",
-    "urls",
-    "qrPrefix",
-    "themeColor",
-    "seo",
-    "backstage",
-    "firebase",
-    "assetsBucket"
+    "city",
+    "country",
+    "project",
+    "colors"
   ],
   "additionalProperties": false,
-  "description": "A chapter's brand profile: names, texts, addresses and the Firebase project. Every value here is public."
+  "description": "A chapter's brand: names, texts, addresses and the Firebase project. Every value here is public. Anything left out comes from brand/example/brand.toml."
 }

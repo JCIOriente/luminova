@@ -100,7 +100,7 @@ concurrency: { group: deploy-production, cancel-in-progress: false }  # never in
 
 | Job | Runs when | Environment | Notes |
 |-----|-----------|-------------|-------|
-| `filter` | green-CI-on-main **or** manual dispatch | — | Checks out the deployed SHA (`fetch-depth: 0`) and diffs it against the **last successfully-deployed commit** (`gh run list --workflow Deploy --status success`, needs `actions: read`); falls back to the first parent, then to deploy-all. First it runs `.github/scripts/deploy-ready.sh`: a profile that is local-only (`demo-` project) or has no `deploy` section turns every surface off, with a notice and a summary line, so a fork's merges stay green until it sets up CD. When the base commit was not set up (the last run skipped), this is the first real deploy and every surface ships. Emits `spotlight/backstage/functions/rules` booleans + the SHA. Untrusted-ish inputs (`surface`, SHAs) flow through `env:`, never inline `${{ }}` in `run:`. |
+| `filter` | green-CI-on-main **or** manual dispatch | — | Checks out the deployed SHA (`fetch-depth: 0`) and diffs it against the **last successfully-deployed commit** (`gh run list --workflow Deploy --status success`, needs `actions: read`); falls back to the first parent, then to deploy-all. First it runs `.github/scripts/deploy-ready.sh`: a profile that is local-only (`demo-` project) or has no `[deploy]` table turns every surface off, with a notice and a summary line, so a fork's merges stay green until it sets up CD. When the base commit was not set up (the last run skipped), this is the first real deploy and every surface ships. Emits `spotlight/backstage/functions/rules` booleans + the SHA. Untrusted-ish inputs (`surface`, SHAs) flow through `env:`, never inline `${{ }}` in `run:`. |
 | `deploy-rules` | `rules == true` | `production` | Two steps: `firebase deploy --only firestore:rules,storage --force`, then `--only firestore:indexes` **without `--force`** (see §9 — index deletes fail loud instead of silently reaping). Both `--message <sha>`. |
 | `deploy-functions` | `functions == true` and rules didn't fail | `production` | `firebase deploy --only functions --force --message <sha>` (predeploy builds beacon), then `functions:list` as a sanity check. gen2 = Cloud Run; no auto-rollback. |
 | `deploy-hosting` | `spotlight` or `backstage` true, and **neither rules nor functions failed** | `production` | `brand:pull` the profile's assets from its private bucket (generations to the job summary), **release-build** the changed target(s) (`BRAND_RELEASE=1 --force`, emulator flag off), `brand:assert-dist` each, then **preview → smoke → promote** (below) to the profile's site ids. `needs` both prior deploy jobs so a failed rules deploy can't ship a UI against a data contract that never landed. |
@@ -169,7 +169,7 @@ notification webhook.
 | A feature/fork branch tries to deploy | attribute-condition pins `assertion.ref == 'refs/heads/main'`; `production` environment is main-only; `filter` guard rejects `event != push` / `head_branch != main` |
 | A PR edits `deploy.yml` to exfiltrate the token | `workflow_run` executes `deploy.yml` from the **default branch** only |
 | Unattended prod change | `production` environment **required reviewer** blocks every deploy job until approved |
-| Leaked provider name or SA email (both committed in `brand.json` `deploy`) | Inert without a GitHub-minted OIDC token satisfying the attribute-condition |
+| Leaked provider name or SA email (both committed in the profile's `brand.toml` `[deploy]`) | Inert without a GitHub-minted OIDC token satisfying the attribute-condition |
 | Script injection via dispatch input | Inputs/SHAs pass through `env:`, never inline in shell |
 
 Fork PRs are **triple-gated** (filter guard + STS condition + main-only environment)
@@ -194,7 +194,7 @@ project owner via `gcloud`. All identifiers below are non-secret.
 | Runtime SA (gen2 actAs) | `953870918238-compute@developer.gserviceaccount.com` ← `roles/iam.serviceAccountUser` |
 | App Engine default SA (CLI preflight actAs) | `jci-oriente@appspot.gserviceaccount.com` ← `roles/iam.serviceAccountUser` (added 2026-07-03) |
 | Billing account binding | `billingAccounts/016148-904C31-A656A9` ← `roles/billing.viewer` for the deploy SA (added 2026-07-03) |
-| Brand assets bucket | `gs://jci-oriente-brand-assets` (`brand.json` `assetsBucket`): `us-central1`, Standard, uniform bucket-level access, public access prevention enforced, versioning on, lifecycle keeps 3 noncurrent generations (`brand/bucket-lifecycle.json`). Owner step O10 |
+| Brand assets bucket | `gs://jci-oriente-brand-assets` (the profile's `assetsBucket`, by default `<project>-brand-assets`): `us-central1`, Standard, uniform bucket-level access, public access prevention enforced, versioning on, lifecycle keeps 3 noncurrent generations (`brand/bucket-lifecycle.json`). Owner step O10 |
 | Bucket grant (not a project role) | `roles/storage.objectViewer` **on the bucket only** for the deploy SA: `storage.objects.get` + `storage.objects.list`, what `brand:pull` needs. CD never writes; the owner uploads with `brand:push` |
 
 > **Functions-deploy preflight gotcha.** firebase-tools hardcodes an
@@ -233,11 +233,11 @@ project owner via `gcloud`. All identifiers below are non-secret.
 **GitHub `production` environment:** required reviewer `arkgast`; deployments restricted
 to `main`; **no variables**. Every deploy job reads its target from the repo: the
 `firebase-setup` action runs `pnpm brand:ci-config`, which loads the profile `brand/`
-selects under the release rules and outputs its `firebase.projectId` and its `deploy`
-section (Workload Identity provider and service account). A profile without `deploy`
-stops the job before any credential is minted. Changing where CD deploys is therefore a
-reviewed change under `brand/` on `main`: the chapter's `brand.json`, or which profile
-folder `brand/` holds.
+selects under the release rules and outputs its `project`, its `[deploy]` table
+(Workload Identity provider and service account), and the hosting job's two site ids and
+public URL. A profile without `[deploy]` stops the job before any credential is minted.
+Changing where CD deploys is therefore a reviewed change under `brand/` on `main`: the
+chapter's `brand.toml`, or which profile folder `brand/` holds.
 Optional repo secret `DEPLOY_WEBHOOK_URL` (unset → `notify` is a no-op).
 
 **Enabled APIs:** `iamcredentials`, `sts`, `firebasehosting`, `firebaserules`,
@@ -253,7 +253,7 @@ The exact steps executed. Idempotent to re-run. Requires an operator with projec
 IAM admin + repo admin. `gh` covers the GitHub side; no console clicks required.
 `pnpm brand:provision` prints this block as its step 1, with `PROJECT_ID`, `PROJECT_NUMBER`,
 `GH_REPO` and `REVIEWER_ID` filled in for the profile `brand/` selects; its step 2 is
-the profile's `deploy` section, and the brand-assets bucket follows (which
+the profile's `[deploy]` table, and the brand-assets bucket follows (which
 `pnpm brand:provision` runs when you answer y to its question).
 The deploy service account must be created **in the Firebase project itself**
 (`firebase-deployer@${PROJECT_ID}.iam.gserviceaccount.com`): `brand:provision` grants
@@ -328,8 +328,8 @@ gh api -X PUT "repos/${GH_REPO}/environments/production" --input - <<< \
   "{\"wait_timer\":0,\"reviewers\":[{\"type\":\"User\",\"id\":${REVIEWER_ID}}],\"deployment_branch_policy\":{\"protected_branches\":false,\"custom_branch_policies\":true}}"
 gh api -X POST "repos/${GH_REPO}/environments/production/deployment-branch-policies" \
   --input - <<< '{"name":"main","type":"branch"}'
-# CD reads the provider and service account from the profile's brand.json "deploy"
-# section, not from GitHub variables: pnpm brand:provision step 2 shows both values.
+# CD reads the provider and service account from the profile's brand.toml [deploy]
+# table, not from GitHub variables: pnpm brand:provision step 2 shows both values.
 ```
 
 > **First gen2 deploy bootstrap:** on a project that never deployed gen2 functions, the
@@ -416,8 +416,8 @@ Effectively **$0**.
 
 | Symptom | Cause / fix |
 |---------|-------------|
-| Deploy job fails at `google-github-actions/auth` | `deploy` values wrong, or STS condition mismatch. Verify `deploy.workloadIdentityProvider` in the profile's `brand.json` matches the provider resource name exactly and the run is on `main`. |
-| Deploy job fails at "Read the deploy target from the repo" | `brand:ci-config` printed the reason and the fix: usually a missing `deploy` section (`pnpm brand:provision` prints it) or a profile that cannot ship (the example, or a chapter still on its `demo-` project). |
+| Deploy job fails at `google-github-actions/auth` | `[deploy]` values wrong, or STS condition mismatch. Verify `[deploy] workloadIdentityProvider` in the profile's `brand.toml` matches the provider resource name exactly and the run is on `main`. |
+| Deploy job fails at "Read the deploy target from the repo" | `brand:ci-config` printed the reason and the fix: usually a missing `[deploy]` table (`pnpm brand:provision` prints it) or a profile that cannot ship (the example, or a chapter still on its `demo-` project). |
 | `PERMISSION_DENIED` mid-deploy | Missing IAM role on the deploy SA — grant it (see role list), or temporarily grant `roles/firebase.admin` then narrow back. |
 | `workflow_dispatch` deploy fails auth | Dispatched from a non-`main` branch — the STS `ref` condition only honors `refs/heads/main`. Re-dispatch from `main`. |
 | Deploy never triggers after merge | The CI workflow's `name:` must equal `"CI"` (the `workflow_run.workflows` value). Also confirm CI concluded `success`. |

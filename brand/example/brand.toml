@@ -1,0 +1,161 @@
+#:schema ../brand.schema.json
+# The example chapter, and the base every chapter's brand.toml builds on: a chapter writes
+# only what makes it different, and every key it leaves out comes from here. Tables merge
+# key by key; an array ([[timeline]], [[reasons]], [[contact.links]], ...) replaces this
+# one whole. Texts may use the placeholders {name}, {shortName}, {city}, {cityFormal},
+# {region}, {regionShort}, {country} and {movementName}, filled from the chapter's values.
+
+# ── Identity: every chapter writes its own (no chapter inherits these) ──────────────────
+name = "JCI Ejemplo"
+city = "Ciudad Ejemplo"
+country = "Bolivia"
+# The Firebase project id. A demo- id runs only in the emulators.
+project = "demo-example"
+
+# ── Defaults a chapter may override (top-level keys come before any [table]) ──────────
+shortName = "{name}"
+legalName = "{movementName} {city}"
+movementName = "Cámara Junior Internacional"
+description = "Junior Chamber International {city}"
+# Set your own: the example's year is no one's.
+foundedYear = 2001
+broadcastChannelName = "Difusión {name}"
+locale = "es"
+ogLocale = "es_BO"
+
+[colors]
+spotlight = "#336699"
+# Optional for a chapter; this neutral dark is the default.
+backstage = "#222222"
+
+# The web apps' public config (pnpm brand:init writes a chapter's own). A demo- project
+# needs none; the example names placeholders.
+[firebase.spotlight]
+apiKey = "demo-example-spotlight-api-key"
+appId = "1:100000000001:web:demoexample01"
+appCheckSiteKey = "" # blank: App Check off
+vapidKey = "" # blank: web push off
+
+[firebase.backstage]
+apiKey = "demo-example-backstage-api-key"
+appId = "1:100000000001:web:demoexample02"
+appCheckSiteKey = ""
+vapidKey = ""
+
+# Derived from `project` unless a chapter sets them:
+#   [firebase] storageBucket = "<project>.firebasestorage.app"
+#   [firebase] authDomain = "<project>.firebaseapp.com"
+#   [firebase] messagingSenderId = the number inside the spotlight appId
+#   [firebase.sites] spotlight = "<project>", backstage = "<project>-backstage"
+#   [urls] spotlight / backstage = "https://<site>.web.app"
+#   qrPrefix = "<project>" without hyphens (never change it once credentials are printed)
+#   assetsBucket = "<project>-brand-assets"
+# CD's sign-in, until CD reads it from repository variables:
+#   [deploy] workloadIdentityProvider, serviceAccount (pnpm brand:provision prints them)
+
+# ── More defaults a chapter may override ─────────────────────────────────────────────────
+
+[locality]
+cityFormal = "{city}"
+region = "{city}"
+regionShort = "{region}"
+
+[parentOrganization]
+name = "JCI Bolivia"
+url = "https://jcibolivia.org/"
+
+[seo]
+title = "{name}: {movementName} en {city}"
+description = "{name}, capítulo {city} de la {movementName}. Formamos líderes con propósito."
+ogTitle = "{name}: {movementName} en {city}"
+ogDescription = "Formamos líderes con propósito en {region}. Conoce nuestros proyectos, nuestro impacto y cómo unirte."
+ogImageAlt = "{name}: jóvenes que lideran con propósito en {city}."
+twitterDescription = "Formamos líderes con propósito en {region}."
+
+[backstage]
+title = "{name} — Portal de miembros"
+emailPlaceholder = "tu.nombre@example.org"
+# contactEmail = "…"  # where a member without an account asks for access; defaults to
+#                       [contact] email, and with neither the login page shows no link.
+
+[og]
+# Old share-image file names that must keep working because apps cached them.
+legacyPaths = []
+
+# ── Site texts: the public site's first content, and what the seeds write ────────────────
+# Later edits happen in the admin /config screen.
+
+[hero]
+motto = "Jóvenes que lideran con propósito en {city}."
+submotto = ""
+
+[stats]
+nationalOrganizations = 7
+programCount = 3
+countries = "100+"
+membersWorldwide = "200.000+"
+nationalAwards = 2
+efficiencyPct = 90
+
+[stats.standoutOrg]
+year = "2010"
+title = "Organización Local Destacada"
+
+[[timeline]]
+year = "1915"
+title = "Nace la Junior Chamber"
+description = "San Luis, Missouri. Henry Giessenbier funda lo que se convertirá en JCI Worldwide."
+
+[[timeline]]
+year = "Hoy"
+title = "Una nueva generación"
+description = "Proyectos en marcha y nuevos miembros cada gestión."
+
+[mvv]
+mision = "Brindar oportunidades de desarrollo que empoderen a las personas jóvenes para crear cambios positivos en {region}."
+vision = "Ser la organización referente de jóvenes líderes activos en {city}, reconocida por su impacto, ética y red global."
+valores = "Liderazgo con propósito · Servicio · Hermandad internacional · Empresa libre · Fe en Dios · Dignidad humana."
+
+[[reasons]]
+number = "01"
+title = "Una red que abre puertas"
+body = "Formas parte de una red de 200.000+ miembros en 100+ países, con conferencias regionales y mundiales."
+
+[[reasons]]
+number = "02"
+title = "Proyectos con impacto medible"
+body = "Trabajas en proyectos con objetivos e indicadores claros, y al cerrarlos medimos lo que logramos."
+
+[[reasons]]
+number = "03"
+title = "Liderazgo en práctica"
+body = "Cargos que se renuevan cada gestión y formación en oratoria y liderazgo."
+
+[contact]
+email = "contacto@example.org"
+location = "{cityFormal}, {country}"
+meetingSchedule = "Cada miércoles · 19:30 hrs"
+mapUrl = "https://maps.example.org/jci-ejemplo"
+whatsapp = ""
+broadcastChannel = ""
+
+[contact.socials]
+instagram = ""
+facebook = ""
+tiktok = ""
+linkedin = ""
+
+[[contact.links]]
+label = "JCI Worldwide ↗"
+url = "https://jci.cc"
+
+[[contact.links]]
+label = "JCI Bolivia ↗"
+url = "https://jcibolivia.org/"
+
+[linktree]
+handle = ""
+tagline = ""
+taglineAccent = ""
+links = []
+socials = []

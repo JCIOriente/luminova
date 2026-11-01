@@ -1,35 +1,75 @@
 import { z } from "zod";
 import { DEPLOY_SA } from "./deploy-identity.ts";
+import { emailOrBlank, siteContentTables } from "./site-content.ts";
 import { normalizeSiteUrl } from "./urls.ts";
 
 const text = z.string().trim().min(1);
 
-const httpsOrigin = text.refine(
-  (value) => {
-    try {
-      normalizeSiteUrl(value);
-      return true;
-    } catch {
-      return false;
-    }
-  },
-  { message: "must be a bare https origin, e.g. https://example.org" },
-);
+/** A TOML table, or a JSON object: a plain object (TOML dates are not tables). */
+export type Table = Record<string, unknown>;
+
+export const isTable = (value: unknown): value is Table =>
+  typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date);
+
+const normalOrigin = (value: string): string | null => {
+  try {
+    return normalizeSiteUrl(value);
+  } catch {
+    // Not an https origin at all: the caller reports it.
+    return null;
+  }
+};
+
+// Written exactly as the URL parser normalizes it, which also strips tabs and line breaks:
+// the value reaches CD's $GITHUB_OUTPUT, where a line break would add an output of its own.
+const httpsOrigin = z.string().superRefine((value, context) => {
+  if (/[\s\p{Cc}]/u.test(value)) {
+    context.addIssue({ code: "custom", message: "must hold no spaces or line breaks" });
+    return;
+  }
+  const normal = normalOrigin(value);
+  if (normal === value) return;
+  context.addIssue({
+    code: "custom",
+    message: normal
+      ? `write it as "${normal}" (no path or trailing slash, lowercase, no default port)`
+      : "must be a bare https origin written in full, e.g. https://example.org",
+  });
+});
 
 const httpsUrl = z.url({ protocol: /^https$/, message: "must be an https URL" });
 
 export const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 export const SLUG_MESSAGE = "must be lowercase kebab-case";
 
+const DEMO_PROJECT_PREFIX = "demo-";
+
+/** A `demo-` project exists only in the Firebase emulators. */
+export const isDemoProject = (projectId: string) => projectId.startsWith(DEMO_PROJECT_PREFIX);
+
+/** The emulator-only project a local profile runs on, kept within Firebase's 30 characters. */
+export const demoProjectId = (slug: string) =>
+  `${DEMO_PROJECT_PREFIX}${slug}`.slice(0, 30).replace(/-+$/, "");
+
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/, "must be a #RRGGBB hex color");
 
-const webApp = z.strictObject({
-  apiKey: text,
-  appId: text,
-  // Blank disables App Check / web push for that app, as in today's .env files.
-  appCheckSiteKey: z.string(),
-  vapidKey: z.string(),
-});
+const siteId = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/, "must be a Firebase Hosting site id");
+
+const webApp = z
+  .strictObject({
+    apiKey: text.optional(),
+    appId: z
+      .string()
+      .regex(/^1:\d+:web:[A-Za-z0-9]+$/, "must look like 1:<number>:web:<id>")
+      .optional(),
+    appCheckSiteKey: z.string().optional().describe("Blank or absent keeps App Check off."),
+    vapidKey: z.string().optional().describe("Blank or absent keeps web push off."),
+  })
+  .describe(
+    "This web app's public config, which pnpm brand:init reads with firebase apps:sdkconfig. Not secrets. A demo- project needs none.",
+  );
 
 // The hashed og-image.<sha256-8>.png and the source og-image.png are staged by the plugin.
 const legacyOgPath = z
@@ -48,60 +88,48 @@ const deploySchema = z
         "must be projects/<project number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>",
       )
       .describe(
-        "The Workload Identity provider CD signs in through, without a stored key. docs/ci-cd.md section 6 creates it; pnpm brand:provision prints the value.",
+        "The Workload Identity provider CD signs in through, without a stored key. pnpm brand:provision prints the value.",
       ),
     serviceAccount: z
       .email({ message: "must be a service account email" })
       .describe(
-        `The service account CD deploys as, e.g. ${DEPLOY_SA}@<projectId>.iam.gserviceaccount.com.`,
+        `The service account CD deploys as, e.g. ${DEPLOY_SA}@<project>.iam.gserviceaccount.com.`,
       ),
   })
   .describe(
-    "How CD (GitHub Actions) signs in to Google Cloud. Names, not secrets: safe to commit. Needed only to deploy.",
+    "How CD (GitHub Actions) signs in to Google Cloud. Names, not secrets. Needed only to deploy.",
   );
 
-export const brandSchema = z
+const projectId = z
+  .string()
+  .regex(/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/, "must be a Firebase project id")
+  .describe(
+    "Your Firebase project id (Firebase console → Project settings). A demo- id runs only in the emulators.",
+  );
+
+/**
+ * brand.toml after the chapter is layered on the example and its templates are expanded.
+ * Every key the example sets is required here; the keys derived from `project` stay
+ * optional. A chapter's own file is the same shape with only the identity required
+ * (renderBrandJsonSchema).
+ */
+export const brandFileSchema = z
   .strictObject({
-    $schema: z.string().optional(),
-    slug: z
-      .string()
-      .regex(SLUG_PATTERN, SLUG_MESSAGE)
-      .describe(
-        "This profile's folder name under brand/. A repository holds one chapter profile, and every command selects it.",
-      ),
-    name: text.describe("The chapter's name as people say it, e.g. JCI Oriente."),
+    name: text.describe("The chapter's name as people say it, e.g. JCI Andina. Required."),
+    city: text.describe("The city, as used in a sentence, e.g. Cochabamba. Required."),
+    country: text.describe("The country, e.g. Bolivia. Required."),
+    project: projectId,
     shortName: text.describe("A short form for tight places (app name on a phone's home screen)."),
     legalName: text.describe("The registered legal name, for the footer and legal pages."),
     movementName: text.describe(
       "The movement's name in your language, e.g. Cámara Junior Internacional.",
     ),
     description: text.describe("One line about the chapter, used in the web app manifest."),
-    locality: z
-      .strictObject({
-        city: text.describe("City as used in a sentence, e.g. Santa Cruz."),
-        cityFormal: text.describe("The city's formal name, e.g. Santa Cruz de la Sierra."),
-        region: text.describe("Region as used in a sentence, e.g. el Oriente boliviano."),
-        // The bare-article short form some copy uses ("el Oriente" beside "el Oriente boliviano");
-        // a region without one reads fine in full.
-        regionShort: text
-          .optional()
-          .describe("Optional short region, e.g. el Oriente. Blank means the same as region."),
-        country: text.describe("Country, e.g. Bolivia."),
-      })
-      .transform(({ regionShort, ...locality }) => ({
-        ...locality,
-        regionShort: regionShort ?? locality.region,
-      }))
-      .describe("Where the chapter is; the site's copy uses these words."),
-    foundedYear: z.int().min(1900).max(2100).describe("Year the chapter was founded."),
-    stats: z
-      .strictObject({ nationalOrganizations: z.int().positive() })
-      .describe(
-        "Numbers the home page states. nationalOrganizations: local organizations in the national federation.",
-      ),
-    parentOrganization: z
-      .strictObject({ name: text, url: httpsUrl })
-      .describe("The national federation the site links to."),
+    foundedYear: z
+      .int()
+      .min(1900)
+      .max(2100)
+      .describe("Year the chapter was founded. Set it: the example's year is no one's."),
     broadcastChannelName: text.describe("Name of the chapter's WhatsApp broadcast channel."),
     locale: z
       .string()
@@ -111,20 +139,45 @@ export const brandSchema = z
       .string()
       .regex(/^[a-z]{2,3}_[A-Z]{2}$/, "must be an Open Graph locale such as es_BO")
       .describe("Language and country for link previews, e.g. es_BO."),
-    urls: z
-      .strictObject({ spotlight: httpsOrigin, backstage: httpsOrigin })
-      .describe(
-        "Public addresses: spotlight is the public site, backstage the admin site. Bare https origins, no path.",
-      ),
     qrPrefix: z
       .string()
       .regex(/^[a-z0-9-]+$/, "must match [a-z0-9-]+ (no colon)")
+      .optional()
       .describe(
-        "Prefix inside member QR credentials. Never change it once credentials are issued: old QR codes would stop scanning.",
+        "Prefix inside member QR credentials; defaults to the project id without hyphens. Never change it once credentials are printed: old QR codes would stop scanning.",
       ),
-    themeColor: z
-      .strictObject({ spotlight: hexColor, backstage: hexColor })
-      .describe("Browser and home-screen color of each site, #RRGGBB."),
+    assetsBucket: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/, "must be a Cloud Storage bucket name")
+      .optional()
+      .describe(
+        "Private bucket holding the chapter's images for deploys; defaults to <project>-brand-assets. pnpm brand:provision creates it.",
+      ),
+    locality: z
+      .strictObject({
+        cityFormal: text.describe("The city's formal name, e.g. Santa Cruz de la Sierra."),
+        region: text.describe("Region as used in a sentence, e.g. el Oriente boliviano."),
+        regionShort: text.describe("A short form some copy uses, e.g. el Oriente."),
+      })
+      .describe("More of where the chapter is; the site's copy uses these words."),
+    colors: z
+      .strictObject({
+        spotlight: hexColor.describe("The public site's theme color, #RRGGBB. Required."),
+        backstage: hexColor.describe("The admin site's theme color, #RRGGBB."),
+      })
+      .describe("Browser and home-screen color of each site."),
+    parentOrganization: z
+      .strictObject({ name: text, url: httpsUrl })
+      .describe("The national federation the site links to."),
+    urls: z
+      .strictObject({
+        spotlight: httpsOrigin.optional(),
+        backstage: httpsOrigin.optional(),
+      })
+      .optional()
+      .describe(
+        "Public addresses, bare https origins. Default: https://<hosting site>.web.app for each.",
+      ),
     seo: z
       .strictObject({
         title: text,
@@ -141,56 +194,238 @@ export const brandSchema = z
       .strictObject({
         title: text,
         emailPlaceholder: text,
-        // Where a member without an account asks for access (login page mailto).
-        contactEmail: z.email({ message: "must be an email address" }),
+        contactEmail: emailOrBlank
+          .optional()
+          .describe(
+            "Where a member without an account asks for access (login page). Defaults to [contact] email; with neither, the page shows no link.",
+          ),
       })
-      .describe(
-        "Admin site texts. contactEmail is where a member without an account asks for access.",
-      ),
+      .describe("Admin site texts."),
     og: z
-      .strictObject({ legacyPaths: z.array(legacyOgPath).default([]) })
-      .default({ legacyPaths: [] })
+      .strictObject({ legacyPaths: z.array(legacyOgPath) })
       .describe("Old share-image file names that must keep working because apps cached them."),
     firebase: z
       .strictObject({
-        projectId: z
+        storageBucket: text
+          .optional()
+          .describe("Cloud Storage bucket; defaults to <project>.firebasestorage.app."),
+        authDomain: text.optional().describe("Defaults to <project>.firebaseapp.com."),
+        messagingSenderId: z
           .string()
-          .regex(/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/, "must be a Firebase project id")
-          .describe(
-            "Your Firebase project id (Firebase console → Project settings). Builds and deploys target it.",
-          ),
-        storageBucket: text.describe(
-          "The project's Cloud Storage bucket, usually <projectId>.firebasestorage.app.",
-        ),
+          .regex(/^\d+$/, "must be numeric")
+          .optional()
+          .describe("Defaults to the number inside the spotlight appId."),
         sites: z
-          .strictObject({ spotlight: text, backstage: text })
-          .describe("Firebase Hosting site ids for the public and the admin site."),
-        web: z
-          .strictObject({
-            authDomain: text,
-            messagingSenderId: z.string().regex(/^\d+$/, "must be numeric"),
-            spotlight: webApp,
-            backstage: webApp,
-          })
-          .describe(
-            "Each web app's config from Firebase console → Project settings → Your apps. Public identifiers, not secrets. A blank appCheckSiteKey or vapidKey turns that feature off.",
-          ),
+          .strictObject({ spotlight: siteId.optional(), backstage: siteId.optional() })
+          .optional()
+          .describe("Firebase Hosting site ids. Default: <project> and <project>-backstage."),
+        spotlight: webApp.optional(),
+        backstage: webApp.optional(),
       })
-      .describe("The Firebase project this chapter runs on."),
-    assetsBucket: z
-      .string()
-      .regex(/^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/, "must be a Cloud Storage bucket name")
-      .describe(
-        "Private bucket holding the chapter's logos and icons for deploys, usually <projectId>-brand-assets. pnpm brand:provision creates it.",
-      ),
+      .optional()
+      .describe("The Firebase project's values; each defaults from `project`."),
     deploy: deploySchema.optional(),
+    ...siteContentTables,
+  })
+  .superRefine((file, context) => {
+    if (typeof file.project !== "string" || isDemoProject(file.project)) return;
+    for (const app of ["spotlight", "backstage"] as const) {
+      for (const key of ["apiKey", "appId"] as const) {
+        if (file.firebase?.[app]?.[key] !== undefined) continue;
+        context.addIssue({
+          code: "custom",
+          path: ["firebase", app, key],
+          message: "required for a real Firebase project (pnpm brand:init writes it)",
+        });
+      }
+    }
   })
   .describe(
-    "A chapter's brand profile: names, texts, addresses and the Firebase project. Every value here is public.",
+    "A chapter's brand: names, texts, addresses and the Firebase project. Every value here is public. Anything left out comes from brand/example/brand.toml.",
   );
 
-export type Brand = z.infer<typeof brandSchema>;
+export type BrandFile = z.infer<typeof brandFileSchema>;
 
+interface WebAppConfig {
+  apiKey: string;
+  appId: string;
+  appCheckSiteKey: string;
+  vapidKey: string;
+}
+
+/** The resolved brand every build and command reads. */
+export interface Brand {
+  slug: string;
+  name: string;
+  shortName: string;
+  legalName: string;
+  movementName: string;
+  description: string;
+  locality: {
+    city: string;
+    cityFormal: string;
+    region: string;
+    country: string;
+    regionShort: string;
+  };
+  foundedYear: number;
+  stats: { nationalOrganizations: number };
+  parentOrganization: { name: string; url: string };
+  broadcastChannelName: string;
+  locale: string;
+  ogLocale: string;
+  urls: { spotlight: string; backstage: string };
+  qrPrefix: string;
+  themeColor: { spotlight: string; backstage: string };
+  seo: {
+    title: string;
+    description: string;
+    ogTitle: string;
+    ogDescription: string;
+    ogImageAlt: string;
+    twitterDescription: string;
+  };
+  backstage: { title: string; emailPlaceholder: string; contactEmail: string };
+  og: { legacyPaths: string[] };
+  firebase: {
+    projectId: string;
+    storageBucket: string;
+    sites: { spotlight: string; backstage: string };
+    web: {
+      authDomain: string;
+      messagingSenderId: string;
+      spotlight: WebAppConfig;
+      backstage: WebAppConfig;
+    };
+  };
+  assetsBucket: string;
+  deploy?: { workloadIdentityProvider: string; serviceAccount: string };
+}
+
+/** What a demo- project's web apps use when the file names none; the emulators accept any. */
+const DEMO_API_KEY = "demo-api-key";
+const demoAppId = (app: string) => `1:0:web:${app}`;
+
+/** The brand a build reads: the validated file with every default from `project` filled in. */
+export function toBrand(file: BrandFile, slug: string): Brand {
+  const { project, firebase = {} } = file;
+  const web = (app: "spotlight" | "backstage"): WebAppConfig => {
+    const own = firebase[app] ?? {};
+    return {
+      apiKey: own.apiKey ?? DEMO_API_KEY,
+      appId: own.appId ?? demoAppId(app),
+      appCheckSiteKey: own.appCheckSiteKey ?? "",
+      vapidKey: own.vapidKey ?? "",
+    };
+  };
+  const spotlight = web("spotlight");
+  const sites = {
+    spotlight: firebase.sites?.spotlight ?? project,
+    backstage: firebase.sites?.backstage ?? `${project}-backstage`,
+  };
+  return {
+    slug,
+    name: file.name,
+    shortName: file.shortName,
+    legalName: file.legalName,
+    movementName: file.movementName,
+    description: file.description,
+    locality: {
+      city: file.city,
+      cityFormal: file.locality.cityFormal,
+      region: file.locality.region,
+      country: file.country,
+      regionShort: file.locality.regionShort,
+    },
+    foundedYear: file.foundedYear,
+    stats: { nationalOrganizations: file.stats.nationalOrganizations },
+    parentOrganization: file.parentOrganization,
+    broadcastChannelName: file.broadcastChannelName,
+    locale: file.locale,
+    ogLocale: file.ogLocale,
+    urls: {
+      spotlight: normalizeSiteUrl(file.urls?.spotlight ?? `https://${sites.spotlight}.web.app`),
+      backstage: normalizeSiteUrl(file.urls?.backstage ?? `https://${sites.backstage}.web.app`),
+    },
+    qrPrefix: file.qrPrefix ?? project.replaceAll("-", ""),
+    themeColor: file.colors,
+    seo: file.seo,
+    backstage: {
+      title: file.backstage.title,
+      emailPlaceholder: file.backstage.emailPlaceholder,
+      contactEmail: file.backstage.contactEmail ?? file.contact.email,
+    },
+    og: file.og,
+    firebase: {
+      projectId: project,
+      storageBucket: firebase.storageBucket ?? `${project}.firebasestorage.app`,
+      sites,
+      web: {
+        authDomain: firebase.authDomain ?? `${project}.firebaseapp.com`,
+        // A web app id is 1:<sender id>:web:<hash>; the schema checks that shape.
+        messagingSenderId: firebase.messagingSenderId ?? spotlight.appId.split(":")[1] ?? "0",
+        spotlight,
+        backstage: web("backstage"),
+      },
+    },
+    assetsBucket: file.assetsBucket ?? `${project}-brand-assets`,
+    ...(file.deploy ? { deploy: file.deploy } : {}),
+  };
+}
+
+/**
+ * The identity: the keys every chapter's own brand.toml names, and which none inherits from
+ * the example.
+ */
+export const CHAPTER_IDENTITY: readonly (readonly string[])[] = [
+  ["name"],
+  ["city"],
+  ["country"],
+  ["project"],
+  ["colors", "spotlight"],
+];
+
+/**
+ * Required in a chapter's own file, by table: the identity. Everything else comes from the
+ * example, so the editor schema marks it optional; an array's items stay whole, because a
+ * chapter's array replaces the example's.
+ */
+const REQUIRED_IN_A_CHAPTER = new Map<string, string[]>();
+for (const path of CHAPTER_IDENTITY) {
+  path.forEach((key, depth) => {
+    const table = path.slice(0, depth).join(".");
+    const required = REQUIRED_IN_A_CHAPTER.get(table) ?? [];
+    if (!required.includes(key)) REQUIRED_IN_A_CHAPTER.set(table, [...required, key]);
+  });
+}
+
+function chapterRequired(node: unknown, path: string, inItem: boolean): unknown {
+  if (Array.isArray(node)) return node.map((child) => chapterRequired(child, path, inItem));
+  if (!isTable(node)) return node;
+  const out: Table = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "properties" && isTable(value)) {
+      out[key] = Object.fromEntries(
+        Object.entries(value).map(([name, child]) => [
+          name,
+          chapterRequired(child, path ? `${path}.${name}` : name, inItem),
+        ]),
+      );
+    } else if (key === "items") {
+      out[key] = chapterRequired(value, path, true);
+    } else if (key === "required" && Array.isArray(value) && !inItem) {
+      const keep = REQUIRED_IN_A_CHAPTER.get(path) ?? [];
+      const required = value.filter((name) => keep.includes(String(name)));
+      if (required.length > 0) out[key] = required;
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+/** The editor schema of a brand.toml (Taplo, Even Better TOML): only the identity required. */
 export function renderBrandJsonSchema(): string {
-  return `${JSON.stringify(z.toJSONSchema(brandSchema, { io: "input" }), null, 2)}\n`;
+  const schema = z.toJSONSchema(brandFileSchema, { io: "input" });
+  return `${JSON.stringify(chapterRequired(schema, "", false), null, 2)}\n`;
 }

@@ -1,0 +1,114 @@
+#:schema ../brand.schema.json
+name = "JCI Oriente"
+city = "Santa Cruz"
+country = "Bolivia"
+project = "jci-oriente"
+# Printed member credentials carry it: it never changes, whatever the project.
+qrPrefix = "jcioriente"
+legalName = "Cámara Junior Internacional Oriente"
+description = "Junior Chamber International Oriente"
+foundedYear = 1993
+broadcastChannelName = "Difusión Oriente"
+
+[colors]
+spotlight = "#0097D7"
+backstage = "#130F2D"
+
+[locality]
+cityFormal = "Santa Cruz de la Sierra"
+region = "el Oriente boliviano"
+regionShort = "el Oriente"
+
+[urls]
+spotlight = "https://jcioriente.org"
+backstage = "https://admin.jcioriente.org"
+
+[firebase.sites]
+spotlight = "jcioriente"
+backstage = "jcioriente-backstage"
+
+[firebase.spotlight]
+apiKey = "AIzaSyA9HS_owsTTJW1TTLXGdWxaFQxg1qwhZWA"
+appId = "1:953870918238:web:63d0034740735d618b4acf"
+appCheckSiteKey = "6Lee4BUtAAAAAOsqDH6GpEk10rIIUEONQY7aV8WT"
+
+[firebase.backstage]
+apiKey = "AIzaSyDdLctu49oDf2sKidnwlGtkhEeJYP3veMg"
+appId = "1:953870918238:web:acbd53d377846bd88b4acf"
+appCheckSiteKey = "6LcmDVAtAAAAABOCgvpUCAN5TbAfYqJ80wF_5DlR"
+
+[deploy]
+workloadIdentityProvider = "projects/953870918238/locations/global/workloadIdentityPools/github-actions/providers/github-oidc"
+serviceAccount = "firebase-deployer@jci-oriente.iam.gserviceaccount.com"
+
+[seo]
+description = "JCI Oriente, capítulo Santa Cruz de la Cámara Junior Internacional. Formamos líderes con propósito desde 1993."
+ogDescription = "Formamos líderes con propósito en el Oriente boliviano desde 1993. Conoce nuestros proyectos, nuestro impacto y cómo unirte."
+ogImageAlt = "JCI Oriente: Jóvenes que lideran con propósito en Santa Cruz."
+twitterDescription = "Formamos líderes con propósito en el Oriente boliviano desde 1993."
+
+[backstage]
+emailPlaceholder = "tu.nombre@jcioriente.bo"
+
+[og]
+legacyPaths = ["og-image-v3.png"]
+
+# ── Site texts ──────────────────────────────────────────────────────────────────────────
+
+[hero]
+motto = "Se ve, se siente, el espíritu de Oriente."
+
+[stats]
+nationalOrganizations = 18
+programCount = 5
+nationalAwards = 11
+efficiencyPct = 100
+
+[stats.standoutOrg]
+year = "2021"
+title = "Organización Local Más Sobresaliente"
+
+[[timeline]]
+year = "1915"
+title = "Nace la Junior Chamber"
+description = "San Luis, Missouri. Henry Giessenbier funda lo que se convertirá en JCI Worldwide."
+
+[[timeline]]
+year = "1993"
+title = "Se funda JCI Oriente"
+description = "El capítulo Santa Cruz se establece como parte de JCI Bolivia."
+
+[[timeline]]
+year = "2018"
+title = "Expansión de programas"
+description = "Lanzamiento de Madre Emprendedora y consolidación de Emprende Oriente."
+
+[[timeline]]
+year = "2019"
+title = "100% de eficiencia"
+description = "Primera certificación nacional de eficiencia operativa."
+
+[[timeline]]
+year = "2020"
+title = "Eficiencia ratificada"
+description = "Segundo año consecutivo cumpliendo el 100% de los indicadores JCI Bolivia."
+
+[[timeline]]
+year = "2021"
+title = "Organización Local Más Sobresaliente"
+description = "Reconocimiento nacional al desempeño del capítulo."
+
+[[timeline]]
+year = "Hoy"
+title = "Una nueva generación"
+description = "Más de 11 reconocimientos acumulados y proyectos en marcha."
+
+[contact]
+email = "jci.orienteolm@gmail.com"
+mapUrl = "https://maps.app.goo.gl/VtmEnphZxKmfD4bA9"
+
+[contact.socials]
+instagram = "https://www.instagram.com/jci.oriente"
+facebook = "https://www.facebook.com/JCI.Oriente.Bolivia"
+tiktok = "https://www.tiktok.com/@jci_oriente"
+linkedin = "https://www.linkedin.com/company/jci-oriente"

@@ -13,7 +13,7 @@ function replier(readline: Interface): (prompt: string) => Promise<string | null
 }
 
 export interface Question {
-  /** Dotted brand.json path, or a flag name such as `fillWeb`. */
+  /** Dotted brand.toml path, or a flag name such as `fillWeb`. */
   key: string;
   label: string;
   fallback?: string;

@@ -15,10 +15,12 @@ share cards link to, and the public site's "Ingresar" / "Portal de miembros" lin
 
 ## Where the domain lives in code
 
-One file: the brand profile, `brand/jci-oriente/brand.json`.
+One file: the brand profile, `brand/jci-oriente/brand.toml`.
 
-```json
-"urls": { "spotlight": "https://jcioriente.org", "backstage": "https://admin.jcioriente.org" }
+```toml
+[urls]
+spotlight = "https://jcioriente.org"
+backstage = "https://admin.jcioriente.org"
 ```
 
 Production builds use these origins. Local builds resolve them to `localhost` instead
@@ -79,10 +81,13 @@ backstage fallback URL.
 **Then point the code at the fallback**, so search engines, share cards and the public
 site's admin link stop sending people to the dead hostname:
 
-1. In a worktree off `main`, edit `urls` in `brand/jci-oriente/brand.json`:
+1. In a worktree off `main`, edit `[urls]` in `brand/jci-oriente/brand.toml` (or delete
+   the table: it then defaults to the same two `web.app` origins):
 
-   ```json
-   "urls": { "spotlight": "https://jcioriente.web.app", "backstage": "https://jcioriente-backstage.web.app" }
+   ```toml
+   [urls]
+   spotlight = "https://jcioriente.web.app"
+   backstage = "https://jcioriente-backstage.web.app"
    ```
 
 2. Update the two hand-maintained mentions listed under "Where the domain lives in code",

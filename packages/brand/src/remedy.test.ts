@@ -49,14 +49,14 @@ describe("formatNext", () => {
     expect(
       formatNext([
         { change: "select the profile", run: "export BRAND_PROFILE=acme", where: "shell" },
-        { change: "edit brand/acme/site-content.json" },
+        { change: "edit brand/acme/brand.toml" },
       ]),
     ).toBe(
       [
         "Next:",
         "  1. select the profile",
         "       export BRAND_PROFILE=acme   # in your shell",
-        "  2. edit brand/acme/site-content.json",
+        "  2. edit brand/acme/brand.toml",
       ].join("\n"),
     );
   });

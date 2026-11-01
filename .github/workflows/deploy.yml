@@ -55,7 +55,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      # A fork that has not set up CD yet (local-only profile, or no "deploy" section)
+      # A fork that has not set up CD yet (local-only profile, or no [deploy] table)
       # skips every deploy job: no credential minted, no approval requested.
       - name: Is this repository set up to deploy?
         id: ready
@@ -290,7 +290,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: ${{ steps.brand.outputs.spotlight_url }}
+      url: ${{ steps.setup.outputs.spotlight_url }}
     timeout-minutes: 15
     permissions:
       id-token: write
@@ -306,20 +306,14 @@ jobs:
       # The brand assets live out of git, in the profile's private bucket (read-only to
       # this SA). An unreadable bucket or a missing file fails here, before any build;
       # live hosting is untouched. The summary records which generation of each file
-      # shipped (they are not pinned in git, spec 5.7).
+      # shipped (they are not pinned in git, spec 5.7). The hosting sites and public URL
+      # come from firebase-setup (brand:ci-config reads the resolved brand.toml).
       - name: Pull brand assets
-        id: brand
         env:
           BRAND_SLUG: ${{ steps.setup.outputs.profile }}
         run: |
           set -euo pipefail
           pnpm -s brand:pull
-          profile="brand/${BRAND_SLUG}/brand.json"
-          {
-            echo "spotlight_url=$(jq -r '.urls.spotlight' "$profile")"
-            echo "spotlight_site=$(jq -r '.firebase.sites.spotlight' "$profile")"
-            echo "backstage_site=$(jq -r '.firebase.sites.backstage' "$profile")"
-          } >> "$GITHUB_OUTPUT"
           {
             echo "### Brand assets (profile \`${BRAND_SLUG}\`)"
             echo "| File | Generation |"
@@ -357,8 +351,8 @@ jobs:
           SPOTLIGHT: ${{ needs.filter.outputs.spotlight }}
           BACKSTAGE: ${{ needs.filter.outputs.backstage }}
           SHA: ${{ needs.filter.outputs.sha }}
-          SPOTLIGHT_SITE: ${{ steps.brand.outputs.spotlight_site }}
-          BACKSTAGE_SITE: ${{ steps.brand.outputs.backstage_site }}
+          SPOTLIGHT_SITE: ${{ steps.setup.outputs.spotlight_site }}
+          BACKSTAGE_SITE: ${{ steps.setup.outputs.backstage_site }}
         run: |
           set -euo pipefail
           chan="ci-${SHA:0:7}"

@@ -3,71 +3,94 @@
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { stringify } from "smol-toml";
 import { writeAssetSet } from "./asset-set.ts";
-import { EXAMPLE_PROFILE, REPO_ROOT, loadProfile, type LoadedProfile } from "./load-profile.ts";
+import { BRAND_FILE, SCHEMA_LINE, parseBrandToml } from "./brand-file.ts";
+import {
+  BrandConfigError,
+  EXAMPLE_PROFILE,
+  REPO_ROOT,
+  brandFileLabel,
+  loadProfile,
+  type LoadedProfile,
+} from "./load-profile.ts";
+import type { Table } from "./schema.ts";
 
 /** A chapter on a real (fictional) project, with CD's sign-in: everything a deploy needs. */
 export const TEST_CHAPTER = "jci-valle";
 
+/** The committed example's brand.toml, parsed: a complete file. */
+export const exampleToml = (): Table =>
+  parseBrandToml(
+    readFileSync(join(REPO_ROOT, "brand", EXAMPLE_PROFILE, BRAND_FILE), "utf8"),
+    brandFileLabel(EXAMPLE_PROFILE),
+  );
+
+/** The BrandConfigError `run` throws; anything else it throws, or no throw, fails the test. */
+export function brandErrorOf(run: () => unknown): BrandConfigError {
+  try {
+    run();
+  } catch (error) {
+    if (error instanceof BrandConfigError) return error;
+    throw error;
+  }
+  throw new Error("expected a BrandConfigError");
+}
+
+/** The error lines of the BrandConfigError `run` throws. */
+export const errorsOf = (run: () => unknown): string[] => brandErrorOf(run).errors;
+
 /** The files under brand/ that every repository has: the example and the shared two. */
 const SHARED_BRAND_PATHS = [EXAMPLE_PROFILE, "brand.schema.json", "bucket-lifecycle.json"];
 
-const CHAPTER_VALUES = {
+/** The test chapter's brand.toml: only what differs from the example, as a chapter writes it. */
+const CHAPTER_FILE = {
   name: "JCI Valle",
-  shortName: "JCI Valle",
+  city: "Villa Valle",
+  country: "Bolivia",
+  project: "jci-valle",
   legalName: "Cámara Junior Internacional Valle",
   description: "Junior Chamber International Valle",
+  foundedYear: 1990,
+  broadcastChannelName: "Difusión Valle",
+  qrPrefix: "jcivalle",
+  colors: { spotlight: "#0097D7", backstage: "#130F2D" },
   locality: {
-    city: "Villa Valle",
     cityFormal: "Villa Valle de Prueba",
     region: "el valle central",
     regionShort: "el valle",
-    country: "Bolivia",
   },
-  foundedYear: 1990,
-  broadcastChannelName: "Difusión Valle",
   urls: {
     spotlight: "https://jcivalle.example.org",
     backstage: "https://admin.jcivalle.example.org",
   },
-  qrPrefix: "jcivalle",
-  themeColor: { spotlight: "#0097D7", backstage: "#130F2D" },
   seo: {
-    title: "JCI Valle: Cámara Junior Internacional en Villa Valle",
     description: "JCI Valle, capítulo Villa Valle de la Cámara Junior Internacional.",
-    ogTitle: "JCI Valle: Cámara Junior Internacional en Villa Valle",
     ogDescription: "Formamos líderes con propósito en el valle central desde 1990.",
-    ogImageAlt: "JCI Valle: jóvenes que lideran con propósito en Villa Valle.",
     twitterDescription: "Formamos líderes en el valle central desde 1990.",
   },
   backstage: {
-    title: "JCI Valle — Portal de miembros",
     emailPlaceholder: "tu.nombre@jcivalle.example.org",
     contactEmail: "hola@jcivalle.example.org",
   },
+  contact: {
+    email: "contacto@jcivalle.example.org",
+    mapUrl: "https://maps.example.org/jci-valle",
+  },
   og: { legacyPaths: ["og-image-v3.png"] },
   firebase: {
-    projectId: "jci-valle",
-    storageBucket: "jci-valle.firebasestorage.app",
     sites: { spotlight: "jcivalle", backstage: "jcivalle-backstage" },
-    web: {
-      authDomain: "jci-valle.firebaseapp.com",
-      messagingSenderId: "123456789012",
-      spotlight: {
-        apiKey: "AIzaTestValleSpotlightKey",
-        appId: "1:123456789012:web:valle01",
-        appCheckSiteKey: "6LTestValleSpotlightSiteKey",
-        vapidKey: "",
-      },
-      backstage: {
-        apiKey: "AIzaTestValleBackstageKey",
-        appId: "1:123456789012:web:valle02",
-        appCheckSiteKey: "6LTestValleBackstageSiteKey",
-        vapidKey: "",
-      },
+    spotlight: {
+      apiKey: "AIzaTestValleSpotlightKey",
+      appId: "1:123456789012:web:valle01",
+      appCheckSiteKey: "6LTestValleSpotlightSiteKey",
+    },
+    backstage: {
+      apiKey: "AIzaTestValleBackstageKey",
+      appId: "1:123456789012:web:valle02",
+      appCheckSiteKey: "6LTestValleBackstageSiteKey",
     },
   },
-  assetsBucket: "jci-valle-brand-assets",
   deploy: {
     workloadIdentityProvider:
       "projects/123456789012/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
@@ -77,16 +100,6 @@ const CHAPTER_VALUES = {
 
 /** The chapter's own images: solid colours no example image shares. */
 const CHAPTER_COLOR = [0x00, 0x97, 0xd7] as const;
-
-/** The example's brand.json as written in git. */
-function exampleJson(): Record<string, unknown> {
-  return JSON.parse(readFileSync(join(REPO_ROOT, "brand", EXAMPLE_PROFILE, "brand.json"), "utf8"));
-}
-
-/** The test chapter's brand.json: the example with every chapter value replaced. */
-function chapterJson(slug = TEST_CHAPTER): Record<string, unknown> {
-  return { ...exampleJson(), ...structuredClone(CHAPTER_VALUES), slug };
-}
 
 /**
  * A temporary repo root whose brand/ holds what upstream ships: the example and the shared
@@ -109,8 +122,9 @@ export function exampleRepo(
 }
 
 /**
- * Writes `brand/<slug>/` into `root`: the chapter's brand.json, the example's site content
- * and, unless `assets` is false, the chapter's own images. Returns the profile folder.
+ * Writes `brand/<slug>/` into `root`: the chapter's brand.toml (with `brand`'s top-level
+ * keys replacing the test chapter's) and, unless `assets` is false, the chapter's own
+ * images. Returns the profile folder.
  */
 export function writeChapter(
   root: string,
@@ -122,14 +136,12 @@ export function writeChapter(
 ): string {
   const dir = join(root, "brand", slug);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    join(dir, "brand.json"),
-    `${JSON.stringify({ ...chapterJson(slug), ...brand }, null, 2)}\n`,
+  const file = Object.fromEntries(
+    Object.entries({ ...structuredClone(CHAPTER_FILE), ...brand }).filter(
+      ([, value]) => value !== undefined,
+    ),
   );
-  cpSync(
-    join(REPO_ROOT, "brand", EXAMPLE_PROFILE, "site-content.json"),
-    join(dir, "site-content.json"),
-  );
+  writeFileSync(join(dir, BRAND_FILE), `${SCHEMA_LINE}\n${stringify(file)}\n`);
   if (assets) writeAssetSet(join(dir, "assets"), () => CHAPTER_COLOR);
   return dir;
 }

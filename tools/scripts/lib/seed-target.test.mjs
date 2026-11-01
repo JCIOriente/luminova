@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   ProjectTargetError,
+  loadProfile,
   parseProjectFlag,
   resolveLocalProject,
   resolveProductionTarget,
@@ -98,11 +99,11 @@ test("production accepts the profile's project from the flag or the env", () => 
   );
 });
 
-test("seededSiteContent reads the profile's seed-owned keys", () => {
-  const content = seededSiteContent({
-    slug: "example",
-    dir: new URL("../../../brand/example", import.meta.url).pathname,
-  });
+test("seededSiteContent takes the seed-owned keys of the profile's resolved brand.toml", () => {
+  const content = seededSiteContent(loadProfile({ profile: "example" }));
   assert.deepEqual(Object.keys(content).sort(), ["contact", "mvv", "reasons", "stats", "timeline"]);
   assert.equal(content.stats.standoutOrg.title, "Organización Local Destacada");
+  // Resolved: the example's templates are expanded, and the brand-only stat is not seeded.
+  assert.equal(content.contact.location, "Ciudad Ejemplo, Bolivia");
+  assert.equal("nationalOrganizations" in content.stats, false);
 });

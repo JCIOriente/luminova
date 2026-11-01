@@ -8,10 +8,7 @@ import {
   envProjectSources,
   parseProjectFlag,
 } from "../../../packages/brand/src/project-target.ts";
-import {
-  pickSeededSiteContent,
-  readSiteContent,
-} from "../../../packages/brand/src/site-content.ts";
+import { pickSeededSiteContent } from "../../../packages/brand/src/site-content.ts";
 
 export { ProjectTargetError, loadProfile, parseProjectFlag };
 
@@ -54,7 +51,7 @@ export function resolveProductionTarget({
   return project;
 }
 
-/** The siteConfig/current fields the seeds own, from the profile's site-content.json. */
+/** The siteConfig/current fields the seeds own, from the site texts of the profile's brand.toml. */
 export function seededSiteContent(profile) {
-  return pickSeededSiteContent(readSiteContent(profile.dir, profile.slug), profile.slug);
+  return pickSeededSiteContent(profile.siteContent);
 }

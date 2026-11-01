@@ -124,15 +124,21 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         ¿Olvidaste tu contraseña? Escríbenos y te enviamos un nuevo enlace de acceso.
       </p>
 
+      {/* A brand without any contact email (brand.toml D11) shows the sentence alone. */}
       <p className="mt-2 text-ui-xs leading-[1.5] text-ink-3">
-        ¿Aún no tienes cuenta? Te la creamos al unirte al capítulo.{" "}
-        <a
-          href={`mailto:${contactEmail}`}
-          className="font-semibold text-jci-blue hover:text-jci-blue-2"
-        >
-          Escríbenos
-        </a>
-        .
+        ¿Aún no tienes cuenta? Te la creamos al unirte al capítulo.
+        {contactEmail ? (
+          <>
+            {" "}
+            <a
+              href={`mailto:${contactEmail}`}
+              className="font-semibold text-jci-blue hover:text-jci-blue-2"
+            >
+              Escríbenos
+            </a>
+            .
+          </>
+        ) : null}
       </p>
     </div>
   );

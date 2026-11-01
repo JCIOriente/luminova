@@ -274,6 +274,9 @@ importers:
       '@luminova/types':
         specifier: workspace:*
         version: link:../types
+      smol-toml:
+        specifier: ^1.9.1
+        version: 1.9.1
       zod:
         specifier: 4.6.7
         version: 4.6.7
