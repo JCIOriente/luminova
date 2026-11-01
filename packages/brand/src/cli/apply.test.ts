@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BrandConfigError, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { applyProfile, renderFirebaserc } from "./apply.ts";
 
-/** `profile` is the --profile flag; without it, brand/ selects (the example here). */
+/** `profile` names one; without it, brand/ selects (the example here). */
 function apply(profile: string | undefined, env: Record<string, string> = {}) {
   return applyProfile({
     profile: loadProfile({ repoRoot: root, env, profile }),

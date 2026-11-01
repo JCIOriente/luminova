@@ -6,20 +6,10 @@ import { CI_FIREBASE_CLI, INSTALL_NVM, installRemedy, type Tool } from "./instal
 import { fail, ok, skip, warn, type CheckRow } from "./rows.ts";
 
 /**
- * The tools each part of docs/adopting.md needs, checked read-only (spec
- * docs/specs/2026-10-25-brand-setup.md). Imports no npm package, so `brand:setup` runs
- * before `pnpm install` (S4).
+ * The tools each part of docs/adopting.md needs, checked read-only for `brand:check` (spec
+ * docs/specs/2026-10-25-brand-setup.md).
  */
 export type Part = "try" | "live";
-
-export const PART_TITLES: Readonly<Record<Part, string>> = {
-  try: "Part 1: try it on your computer",
-  live: "Part 2: go live",
-};
-
-export interface ToolRow extends CheckRow {
-  part: Part;
-}
 
 interface Manifest {
   engines?: string;
@@ -45,7 +35,7 @@ interface ToolCheck {
    * its sign-in rows skip; refusing a sign-in fails the row with the sign-in command.
    */
   tool?: Tool;
-  /** Only an optional step needs it: it warns, and brand:doctor leaves it out (S3, S5). */
+  /** Only an optional step needs it: it warns, never fails (S3). */
   optional?: true;
   probe: (context: Context) => Promise<CheckRow>;
 }
@@ -237,7 +227,7 @@ const CHECKS: readonly ToolCheck[] = [
         ? ok("firebase account", account)
         : warn("firebase account", "not signed in", [
             {
-              change: "only brand:init --connect --sdkconfig needs it (step 7)",
+              change: "only reading the API keys in brand:init needs it (step 7)",
               ...SIGN_IN_REMEDY.firebase,
             },
           ]);
@@ -246,7 +236,7 @@ const CHECKS: readonly ToolCheck[] = [
 ];
 
 /**
- * Native Windows cannot run the guide (S7): the one row brand:setup and brand:doctor show
+ * Native Windows cannot run the guide (S7): the one row brand:check shows
  * there, before any check.
  */
 export const nativeWindows = (
@@ -262,13 +252,6 @@ export const nativeWindows = (
         },
       ])
     : undefined;
-
-const selectChecks = (parts: readonly Part[], required: boolean) =>
-  CHECKS.filter((tool) => parts.includes(tool.part) && !(required && tool.optional));
-
-/** The checks of a part, by name; `required` leaves out the optional ones. */
-export const toolChecks = (part: Part, { required = false } = {}): string[] =>
-  selectChecks([part], required).map(({ check }) => check);
 
 /** A probe's failure as its row; an optional check only warns (S3). */
 function failedRow(toolCheck: ToolCheck, platform: NodeJS.Platform, error: unknown): CheckRow {
@@ -304,7 +287,6 @@ export async function toolRows({
   home = homedir(),
   exists = existsSync,
   nodeVersion = process.versions.node,
-  required = false,
 }: {
   parts: readonly Part[];
   repoRoot: string;
@@ -314,9 +296,7 @@ export async function toolRows({
   home?: string;
   exists?: (path: string) => boolean;
   nodeVersion?: string;
-  /** brand:doctor: only what the next step cannot do without. */
-  required?: boolean;
-}): Promise<ToolRow[]> {
+}): Promise<CheckRow[]> {
   let manifest: Manifest | undefined;
   const context: Context = {
     run,
@@ -329,11 +309,11 @@ export async function toolRows({
   };
   // Independent commands: start them together, report in guide order.
   return Promise.all(
-    selectChecks(parts, required).map(async (tool) => {
+    CHECKS.filter((tool) => parts.includes(tool.part)).map(async (tool) => {
       try {
-        return { ...(await tool.probe(context)), part: tool.part };
+        return await tool.probe(context);
       } catch (error) {
-        return { ...failedRow(tool, platform, error), part: tool.part };
+        return failedRow(tool, platform, error);
       }
     }),
   );

@@ -364,18 +364,17 @@ through `execFile` with argument arrays, never a shell string. No new dependenci
 |---|---|---|
 | `prepare` (pnpm lifecycle) | Runs `brand:apply` on every install that links packages (not on "Already up to date") | No |
 | `brand:apply` | Writes `.firebaserc` from the selected profile | No |
-| `brand:init` | Prompts for every `brand.json` value (or reads `--answers <file>`), writes `brand/<slug>/brand.json`, copies `site-content.json` from the example for editing, creates `brand-assets/` with a `README.txt` of the contract, and prints the `export BRAND_PROFILE=<slug>` line. Offers to fill `firebase.web` from `firebase apps:sdkconfig WEB <appId>` (read-only) | No |
-| `brand:check [--release]` | Runs the same validator as the build and prints one row per asset (found, dimensions, verdict) | No |
-| `brand:doctor` | One table: selected profile and where it came from, schema verdict, asset verdict, `.firebaserc` in sync, `gcloud` signed in, bucket readable (read-only list), `BRAND_PROFILE` set, Node and pnpm versions. Never fails fast; every row reports | Reads only |
+| `brand:init` | Prompts for every `brand.json` value (offering the answers a failed try saved), writes `brand/<slug>/brand.json`, copies `site-content.json` from the example for editing, creates `brand-assets/` with a `README.txt` of the contract, and prints the `export BRAND_PROFILE=<slug>` line. Offers to fill `firebase.web` from `firebase apps:sdkconfig WEB <appId>` (read-only) | No |
+| `brand:check` | Four sections (R27, `docs/specs/2026-10-28-brand-simple-commands.md`): the tools, the chapter (selection, schema, site content, `.firebaserc`), the images (the build's validator, a row per problem) and going live (CD identity, `gh`/`gcloud` sign-ins, bucket readable by a read-only list). Never fails fast; every row reports. Replaced `brand:setup` and `brand:doctor` | Reads only |
 | `brand:pull` | Lists the bucket, downloads those generations into `brand-assets/`, writes `pull-manifest.json` | Reads only |
-| `brand:push [--from <dir>]` | Validates first, then uploads to the bucket; prints the Deploy dispatch command | **Yes — owner/adopter runs it** |
-| `brand:provision [--apply]` | Prints (default) or runs the idempotent bucket setup: create, versioning, lifecycle, IAM grant to the deploy SA. Also prints the `docs/ci-cd.md` section 6 block with the profile's project, repo and reviewer id filled in | **Yes — owner/adopter runs it** |
+| `brand:push` | Validates the folder `brand:check` names, then uploads it to the bucket; prints the Deploy dispatch command | **Yes — owner/adopter runs it** |
+| `brand:provision` | Prints, then (answered y in a terminal) runs the idempotent bucket setup: create, versioning, lifecycle, IAM grant to the deploy SA. Also prints the `docs/ci-cd.md` section 6 block with the profile's project, repo and reviewer id filled in | **Yes — owner/adopter runs it** |
 | `brand:icons` | Generates both apps' icon sets from `brand-assets/icon-master.png` (or `.svg`) and `themeColor` | No |
 | `brand:assert-dist <app>` | Checks the release marker against `$GCLOUD_PROJECT` / `GCP_PROJECT_ID` | No |
-| `brand:schema [--check]` | Regenerates `brand/brand.schema.json`; `--check` fails on drift (CI) | No |
+| `brand:schema` | Regenerates `brand/brand.schema.json`; `schema.test.ts` fails on drift (CI) | No |
 | `brand:guard` | The neutrality and inverse guards (section 7) | No |
 
-Claude never runs `brand:push`, `brand:provision --apply`, or the Deploy dispatch; the
+Claude never runs `brand:push`, `brand:provision` (its question can create the bucket), or the Deploy dispatch; the
 docs and the scripts' own output say so.
 
 **`prepare` spike (PR 2a, pnpm 11.5.1, firebase-tools 15.19.1).** On a fresh clone with

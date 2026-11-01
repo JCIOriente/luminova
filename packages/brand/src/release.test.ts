@@ -60,7 +60,7 @@ const messages = (problems: readonly { message: string }[]) =>
 describe("release remedies", () => {
   it("asks to drop a BRAND_PROFILE override, so the profile in brand/ ships", () => {
     const [problem] = releaseErrors({ profile: jci("override"), env: {}, assetsDir, ...BUILD });
-    expect(problem?.message).toMatch(/what ships is the profile found in brand\/, or --profile/);
+    expect(problem?.message).toMatch(/what ships is the profile found in brand\/\./);
     expect(problem?.remedies).toEqual([
       expect.objectContaining({ run: "unset BRAND_PROFILE", where: "shell" }),
     ]);

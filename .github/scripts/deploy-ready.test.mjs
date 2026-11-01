@@ -62,7 +62,7 @@ test("a local-only profile skips, naming the way to go live", () => {
     r.stdout,
     /^project=demo-acme\nready=false\nreason=profile "acme" is local-only \(project demo-acme\)/,
   );
-  assert.match(r.stdout, /pnpm brand:init --connect/);
+  assert.match(r.stdout, /connect it with pnpm brand:init,/);
 });
 
 test("a real project without a deploy section skips, pointing at brand:provision", () => {

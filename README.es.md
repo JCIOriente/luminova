@@ -138,7 +138,7 @@ Luminova no es multi-inquilino: un despliegue sirve a un capítulo. Para usarlo 
 haz un fork y crea un perfil de marca con `pnpm brand:init` (nombres, lugares, direcciones
 de los sitios). Pruébalo primero en tu computadora: el perfil empieza solo en local, sin
 proyecto de Firebase y sin desplegar nada. Cuando tu capítulo esté listo para publicar,
-`pnpm brand:init --connect` conecta tu proyecto de Firebase y `pnpm brand:provision` guía la
+volver a ejecutar `pnpm brand:init` conecta tu proyecto de Firebase y `pnpm brand:provision` guía la
 configuración de Google Cloud. Las marcas de JCI **no** están cubiertas por la licencia de este repositorio
 — ver [NOTICE](NOTICE).
 

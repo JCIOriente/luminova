@@ -110,17 +110,17 @@ export function issuesToBrandError(
 }
 
 /**
- * Where a command's profile came from: `--profile`, the tooling override, or brand/
+ * Where a command's profile came from: named by its caller (tests, tooling), the tooling override, or brand/
  * itself (its one chapter profile, else the example; spec P1).
  */
 export type ProfileSource = ExplicitSource | DiscoveredSource;
 /** Chosen by hand, for one command. */
-export type ExplicitSource = "flag" | "override";
+export type ExplicitSource = "named" | "override";
 /** Chosen by what brand/ holds. */
 export type DiscoveredSource = "chapter" | "example";
 
 export const isExplicitSource = (source: ProfileSource): source is ExplicitSource =>
-  source === "flag" || source === "override";
+  source === "named" || source === "override";
 
 export interface LoadedProfile {
   slug: string;
@@ -129,8 +129,8 @@ export interface LoadedProfile {
   source: ProfileSource;
   warnings: string[];
   /**
-   * The profile runs only in the emulators: a `demo-` project, from `brand:init --local`,
-   * until `brand:init --connect` attaches a real one.
+   * The profile runs only in the emulators: a `demo-` project, from `brand:init` without a
+   * Firebase project, until brand:init connects a real one.
    */
   localOnly: boolean;
 }
@@ -162,7 +162,7 @@ export const PROFILE_OVERRIDE_ENV = "BRAND_PROFILE";
 
 /** How a command tells the user where its profile came from. */
 export const SOURCE_LABEL: Readonly<Record<ProfileSource, string>> = {
-  flag: "from --profile",
+  named: "named by the caller",
   override: `from ${PROFILE_OVERRIDE_ENV}`,
   chapter: "the chapter profile in brand/",
   example: "the example: no chapter profile in brand/ yet",
@@ -219,7 +219,6 @@ export function discoverProfile(repoRoot: string = REPO_ROOT): {
         {
           change: "delete the folder under brand/ you do not build, so one chapter profile remains",
         },
-        { change: `or pass --profile one of: ${chapters.join(", ")}, for one command` },
       ],
     );
   }
@@ -241,13 +240,13 @@ export function discoverProfile(repoRoot: string = REPO_ROOT): {
   );
 }
 
-/** Which profile a command means: `--profile`, else the tooling override, else brand/ (spec P1, P4). */
+/** Which profile a command means: the one its caller names, else the tooling override, else brand/ (spec P1, P4). */
 function selectedProfile({
   repoRoot = REPO_ROOT,
   env = process.env,
   profile,
 }: LoadProfileOptions = {}): Selection {
-  if (profile) return { slug: profile, source: "flag" };
+  if (profile) return { slug: profile, source: "named" };
   const override = env[PROFILE_OVERRIDE_ENV]?.trim();
   if (!override) return discoverProfile(repoRoot);
   const discovered = discoveredProfile(repoRoot);
@@ -271,13 +270,13 @@ function overrideWarning(slug: string, discovered: string | null | undefined): s
 }
 
 /**
- * Choose an existing profile where the bad one came from: the `--profile` flag or the
- * override. `choices` lists the ones that exist.
+ * Choose an existing profile where the bad one came from: the caller or the override.
+ * `choices` lists the ones that exist.
  */
 function selectProfileRemedy(choices: readonly string[], source: ExplicitSource): Remedy {
   const list = choices.join(", ") || "(none yet: run pnpm brand:init)";
-  return source === "flag"
-    ? { change: `pass --profile one of: ${list}` }
+  return source === "named"
+    ? { change: `name one of: ${list}` }
     : {
         change: `set ${PROFILE_OVERRIDE_ENV} to one of: ${list}, or unset it to use the profile found in brand/`,
       };

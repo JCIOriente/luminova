@@ -14,7 +14,7 @@ import { ASSET_CONTRACT, ICON_MASTER_FILE } from "../assets.ts";
 import { BrandConfigError, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { PULLED_ASSETS_DIR } from "../release.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
-import { connect, init, initNext } from "./init.ts";
+import { ANSWERS_FILE, connect, init, initNext, runInit } from "./init.ts";
 import type { Prompter } from "./prompts.ts";
 
 const SPOTLIGHT_APP = "1:111222333:web:aaa";
@@ -166,7 +166,7 @@ describe("init from an answers file", () => {
     };
     const second = init({ repoRoot: root, answers: {}, prompter, run: noCommands });
     await expect(second).rejects.toThrow(
-      /brand\/jci-valle\/ already is this repository's chapter[\s\S]*pnpm brand:init --connect/,
+      /brand\/jci-valle\/ already is this repository's chapter[\s\S]*pnpm brand:init {3}# in the repo root/,
     );
     expect(seen).toEqual([]);
   });
@@ -178,7 +178,7 @@ describe("init from an answers file", () => {
   });
 });
 
-describe("init --sdkconfig", () => {
+describe("init reading the API keys (firebase apps:sdkconfig)", () => {
   const sdkconfig =
     (projectId: string): CommandRunner =>
     async (command, args) => {
@@ -329,7 +329,7 @@ describe("init interactively", () => {
     expect(loadProfile({ repoRoot: root, profile: "jci-valle" }).brand.foundedYear).toBe(1990);
   });
 
-  it("saves the answers for --answers when a later step fails", async () => {
+  it("saves the answers for the next try when a later step fails", async () => {
     const answers = minimalAnswers();
     delete answers.name;
     const failing: CommandRunner = async () => {
@@ -344,14 +344,14 @@ describe("init interactively", () => {
     }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(BrandConfigError);
     expect(String(error)).toMatch(
-      /not logged in[\s\S]*pnpm brand:init --answers \/.*\/brand-init-answers\.json --sdkconfig {3}# in the repo root/,
+      /not logged in[\s\S]*run it again and answer y to use them\n {6}pnpm brand:init {3}# in the repo root/,
     );
     const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
     expect(saved).toMatchObject({ slug: "jci-valle", name: "JCI Valle" });
     expect(existsSync(join(root, "brand/jci-valle"))).toBe(false);
   });
 
-  it("saves nothing in --answers mode, where the file already holds the answers", async () => {
+  it("saves nothing without a prompter, where the answers came from a file", async () => {
     const answers = minimalAnswers();
     delete answers.name;
     await expect(init({ repoRoot: root, answers, run: noCommands })).rejects.toThrow(/name/);
@@ -365,7 +365,7 @@ function localAnswers(): Record<string, unknown> {
   return chapter;
 }
 
-describe("init --local", () => {
+describe("init without a Firebase project (local-only)", () => {
   it("writes a profile that runs only in the emulators, with no cloud question", async () => {
     const { local, files } = await init({
       repoRoot: root,
@@ -411,7 +411,7 @@ describe("init --local", () => {
     ).rejects.toThrow(/"firebase" block/);
   });
 
-  it("saves a failed local run so the printed --local re-run accepts the file", async () => {
+  it("saves a failed local run so the next try accepts the file", async () => {
     mkdirSync(join(root, "brand/jci-valle"), { recursive: true });
     const prompter: Prompter = {
       async ask({ key, fallback }) {
@@ -427,9 +427,7 @@ describe("init --local", () => {
       local: true,
       run: noCommands,
     }).catch((caught: unknown) => caught);
-    expect(String(error)).toMatch(
-      /already exists[\s\S]*--answers .*brand-init-answers\.json --local/,
-    );
+    expect(String(error)).toMatch(/already exists[\s\S]*pnpm brand:init {3}# in the repo root/);
     const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
     expect(saved.firebase).toBeUndefined();
     rmSync(join(root, "brand/jci-valle"), { recursive: true });
@@ -446,7 +444,7 @@ describe("init --local", () => {
   });
 });
 
-describe("init --connect", () => {
+describe("connect", () => {
   it("replaces a local profile's demo project with the real one", async () => {
     await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
     const { firebase } = minimalAnswers() as { firebase: Record<string, unknown> };
@@ -559,7 +557,7 @@ describe("init --connect", () => {
       run: failing,
     }).catch((caught: unknown) => caught);
     expect(String(error)).toMatch(
-      /pnpm brand:init --answers \/.*brand-init-answers\.json --connect --sdkconfig/,
+      /answer y to use them\n {6}pnpm brand:init {3}# in the repo root/,
     );
     const saved = JSON.parse(readFileSync(join(root, "brand-init-answers.json"), "utf8"));
     expect(saved.firebase.projectId).toBe("jci-valle");
@@ -596,11 +594,11 @@ describe("init guidance", () => {
       expect.stringMatching(/^edit brand\/jci-valle\/site-content\.json/),
       "pnpm dev",
       "git add brand/jci-valle/",
-      "pnpm brand:doctor",
+      "pnpm brand:check",
     ]);
     // A local-only profile ends with going live, as a choice, not a deploy.
     const local = initNext("jci-valle", { local: true });
-    expect(local.at(-1)).toMatchObject({ run: "pnpm brand:init --connect" });
+    expect(local.at(-1)).toMatchObject({ run: "pnpm brand:init" });
     expect(local.at(-1)?.change).toMatch(/^when you are ready to go live/);
     expect(JSON.stringify(local)).not.toMatch(/deploy/);
   });
@@ -634,5 +632,86 @@ describe("init guidance", () => {
     expect(error instanceof BrandConfigError ? error.remedies[0]?.change : "").toMatch(
       /brand\/brand\.schema\.json/,
     );
+  });
+});
+
+describe("runInit, the command", () => {
+  const answering = (replies: Record<string, string>, asked: string[] = []): Prompter => ({
+    async ask({ key, label, fallback }) {
+      asked.push(`${key}: ${label}`);
+      return replies[key] ?? fallback ?? "";
+    },
+  });
+  const saveAnswers = (answers: Record<string, unknown>) =>
+    writeFileSync(join(root, ANSWERS_FILE), JSON.stringify(answers));
+
+  it("refuses without a terminal, since it asks questions", async () => {
+    await expect(runInit({ repoRoot: root, run: noCommands })).rejects.toThrow(/needs a terminal/);
+  });
+
+  it("creates the profile from saved answers when asked to use them, then removes the file", async () => {
+    saveAnswers(minimalAnswers());
+    const asked: string[] = [];
+    const text = await runInit({
+      repoRoot: root,
+      prompter: answering({ useSaved: "y" }, asked),
+      run: noCommands,
+    });
+    expect(asked[0]).toBe(
+      `useSaved: Use the answers saved from your last try (${ANSWERS_FILE})? (y/N)`,
+    );
+    expect(text).toMatch(/^brand:init: wrote brand\/jci-valle\/brand\.json/);
+    expect(existsSync(join(root, ANSWERS_FILE))).toBe(false);
+  });
+
+  it("starts over when the saved answers are declined, and keeps the file", async () => {
+    saveAnswers(minimalAnswers());
+    const asked: string[] = [];
+    await runInit({ repoRoot: root, prompter: answering({}, asked), run: noCommands }).catch(
+      () => undefined,
+    );
+    expect(asked.map((line) => line.split(":")[0])).toContain("slug");
+    expect(existsSync(join(root, ANSWERS_FILE))).toBe(true);
+  });
+
+  describe("with a chapter already in brand/", () => {
+    beforeEach(async () => {
+      await init({ repoRoot: root, answers: localAnswers(), local: true, run: noCommands });
+    });
+
+    it("offers to connect a local-only chapter, and changes nothing on a no", async () => {
+      const before = readFileSync(join(root, "brand/jci-valle/brand.json"), "utf8");
+      const asked: string[] = [];
+      const text = await runInit({
+        repoRoot: root,
+        prompter: answering({}, asked),
+        run: noCommands,
+      });
+      expect(asked).toEqual([
+        "connect: brand/jci-valle/ runs on this computer only. Connect it to a Firebase project now? (y/N)",
+      ]);
+      expect(text).toMatch(/^brand:init: nothing changed/);
+      expect(readFileSync(join(root, "brand/jci-valle/brand.json"), "utf8")).toBe(before);
+    });
+
+    it("connects it on a yes, and drops declined saved answers once that succeeds", async () => {
+      saveAnswers({ firebase: { projectId: "someone-else" } });
+      const text = await runInit({
+        repoRoot: root,
+        prompter: answering({
+          useSaved: "n",
+          connect: "y",
+          "firebase.projectId": "jci-valle",
+          "firebase.web.spotlight.appId": SPOTLIGHT_APP,
+          "firebase.web.backstage.appId": BACKSTAGE_APP,
+          "firebase.web.spotlight.apiKey": "k1",
+          "firebase.web.backstage.apiKey": "k2",
+        }),
+        run: noCommands,
+      });
+      expect(text).toMatch(/now uses Firebase project jci-valle/);
+      expect(loadProfile({ repoRoot: root, env: {} }).localOnly).toBe(false);
+      expect(existsSync(join(root, ANSWERS_FILE))).toBe(false);
+    });
   });
 });

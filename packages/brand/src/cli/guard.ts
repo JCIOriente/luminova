@@ -243,7 +243,7 @@ async function main(): Promise<number> {
   const chapter = loadProfile();
   if (chapter.slug === NEUTRAL_PROFILE) {
     console.error(
-      `brand:guard protects a chapter profile; "${NEUTRAL_PROFILE}" is the neutral one. Run it without BRAND_PROFILE or --profile, so brand/ selects the chapter.`,
+      `brand:guard protects a chapter profile; "${NEUTRAL_PROFILE}" is the neutral one. Run it without BRAND_PROFILE, so brand/ selects the chapter.`,
     );
     return 1;
   }
@@ -298,5 +298,5 @@ async function main(): Promise<number> {
 }
 
 if (import.meta.main) {
-  await runBrandCommand("brand:guard", {}, async () => process.exit(await main()));
+  await runBrandCommand("brand:guard", async () => process.exit(await main()));
 }

@@ -52,41 +52,47 @@ describe("exitOnFailure", () => {
 });
 
 describe("runBrandCommand", () => {
-  it("runs the body with the flags it declared", async () => {
+  it("runs the body when nothing follows the command (a bare -- is pnpm's, not the user's)", async () => {
     capture();
-    const seen: unknown[] = [];
+    let ran = 0;
     await runBrandCommand(
-      "brand:icons",
-      { switches: ["--force"], values: { "--profile": "slug" } },
-      (args) => {
-        seen.push(args.has("--force"), args.value("--profile"));
-      },
-      ["--force", "--profile", "acme"],
-    );
-    expect(seen).toEqual([true, "acme"]);
-  });
-
-  it("refuses a typo before the body runs, listing every flag the command takes", async () => {
-    const { exit, printed } = capture();
-    let ran = false;
-    await runBrandCommand(
-      "brand:icons",
-      { switches: ["--force"], values: { "--profile": "slug" } },
+      "brand:check",
       () => {
-        ran = true;
+        ran += 1;
       },
-      ["--forse"],
+      [],
     );
-    expect(ran).toBe(false);
-    expect(printed.join("\n")).toMatch(
-      /unknown option --forse\nTo fix:\n {2}- brand:icons takes --force, --profile <slug>$/,
+    await runBrandCommand(
+      "brand:check",
+      () => {
+        ran += 1;
+      },
+      ["--"],
     );
-    expect(exit).toHaveBeenCalledWith(1);
+    expect(ran).toBe(2);
   });
 
-  it("says when a command takes no options", async () => {
-    const { printed } = capture();
-    await runBrandCommand("brand:guard", {}, () => undefined, ["--profile", "acme"]);
-    expect(printed.join("\n")).toContain("brand:guard takes no options");
-  });
+  it.each([["--assets", "x"], ["--profile", "acme"], ["typo"]])(
+    "refuses %s before the body runs, saying the command takes no options",
+    async (...argv) => {
+      const { exit, printed } = capture();
+      let ran = false;
+      await runBrandCommand(
+        "brand:check",
+        () => {
+          ran = true;
+        },
+        argv,
+      );
+      expect(ran).toBe(false);
+      expect(printed.join("\n")).toBe(
+        [
+          `brand:check takes no options (got ${argv.join(" ")}).`,
+          "To fix:",
+          "  - pnpm brand:check   # in the repo root",
+        ].join("\n"),
+      );
+      expect(exit).toHaveBeenCalledWith(1);
+    },
+  );
 });

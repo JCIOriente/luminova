@@ -1,4 +1,16 @@
-import { createInterface } from "node:readline/promises";
+import { once } from "node:events";
+import { createInterface, type Interface } from "node:readline/promises";
+import { CommandError } from "./gcloud.ts";
+
+/**
+ * Asks on `readline`: the reply, or null when the input closes first (Ctrl-D, or Ctrl-C,
+ * which closes readline): a pending question would otherwise never settle, and Node exits
+ * 13 mid-await. One close listener serves every question, so none pile up.
+ */
+function replier(readline: Interface): (prompt: string) => Promise<string | null> {
+  const closed = once(readline, "close").then(() => null);
+  return (prompt) => Promise.race([readline.question(prompt).catch(() => null), closed]);
+}
 
 export interface Question {
   /** Dotted brand.json path, or a flag name such as `fillWeb`. */
@@ -14,15 +26,43 @@ export interface Prompter {
   ask(question: Question): Promise<string>;
 }
 
+/** A yes/no reply: only y or yes (any case) is yes; anything else, blank included, is no. */
+export const isYes = (reply: string) => /^y(es)?$/i.test(reply.trim());
+
+/** A yes/no question whose default is no. */
+export type Confirm = (question: string) => Promise<boolean>;
+
+/**
+ * Asks on the terminal; undefined without one (a script, CI), so a command never waits for
+ * an answer nobody can give and does its safe default instead.
+ */
+export function terminalConfirm(
+  input: NodeJS.ReadStream = process.stdin,
+  output: NodeJS.WritableStream = process.stdout,
+): Confirm | undefined {
+  if (!input.isTTY) return undefined;
+  return async (question) => {
+    const readline = createInterface({ input, output });
+    try {
+      return isYes((await replier(readline)(`${question} (y/N) `)) ?? "");
+    } finally {
+      readline.close();
+    }
+  };
+}
+
 export function terminalPrompter(
   input: NodeJS.ReadableStream = process.stdin,
   output: NodeJS.WritableStream = process.stdout,
 ): Prompter & { close(): void } {
   const readline = createInterface({ input, output });
+  const reply = replier(readline);
   return {
     async ask({ label, fallback, error }) {
       if (error) output.write(`  ${error}\n`);
-      return (await readline.question(fallback ? `${label} [${fallback}]: ` : `${label}: `)).trim();
+      const text = await reply(fallback ? `${label} [${fallback}]: ` : `${label}: `);
+      if (text === null) throw new CommandError("Stopped before every question was answered.");
+      return text.trim();
     },
     close: () => readline.close(),
   };

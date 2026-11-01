@@ -254,7 +254,7 @@ IAM admin + repo admin. `gh` covers the GitHub side; no console clicks required.
 `pnpm brand:provision` prints this block as its step 1, with `PROJECT_ID`, `PROJECT_NUMBER`,
 `GH_REPO` and `REVIEWER_ID` filled in for the profile `brand/` selects; its step 2 is
 the profile's `deploy` section, and the brand-assets bucket follows (which
-`pnpm brand:provision --apply` runs).
+`pnpm brand:provision` runs when you answer y to its question).
 The deploy service account must be created **in the Firebase project itself**
 (`firebase-deployer@${PROJECT_ID}.iam.gserviceaccount.com`): `brand:provision` grants
 that address read access on the brand-assets bucket, so an account living in another
