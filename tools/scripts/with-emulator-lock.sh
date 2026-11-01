@@ -12,8 +12,8 @@
 # suites are fast, so the serialization cost is negligible.
 #
 # The lock is a file ($LOCK) holding the holder's PID for liveness checks, created
-# by bash itself: noclobber opens with O_EXCL, so exactly one contender wins. Do not
-# use `mkdir` for this: uutils mkdir (the default on Ubuntu 26.04, 0.10.0) stats first
+# by bash itself: noclobber creates a new file with O_EXCL, so one contender wins. Do
+# not use `mkdir` for this: uutils mkdir (the default on Ubuntu 26.04, 0.10.0) stats first
 # and lets two concurrent callers both exit 0. Portable (no flock — absent on macOS).
 #
 # Not handled by design: PID reuse (a recycled PID reads as "alive" so a crashed
@@ -32,6 +32,9 @@ LOCK="${EMULATOR_LOCK_FILE:-${TMPDIR:-/tmp}/luminova-emulator-$(id -u).lock}"
 TIMEOUT="${EMULATOR_LOCK_TIMEOUT:-300}"
 
 create_exclusive() { (set -C; echo $$ > "$1") 2>/dev/null; }
+# $LOCK/pid is a live or dead holder of the old mkdir format, from a worktree not yet on
+# this version. Its PID has to count, or a waiter here would reap a running lock.
+read_holder() { cat "$LOCK" "$LOCK/pid" 2>/dev/null; }
 
 acquired=""
 release() { [ -n "$acquired" ] && rm -rf "$LOCK" 2>/dev/null; return 0; }
@@ -55,17 +58,16 @@ while :; do
   # then both re-acquire (a TOCTOU double-acquire), and RE-VERIFY liveness under
   # that reclaim lock so a holder that became live meanwhile is never reaped.
   if create_exclusive "$LOCK.reap"; then
-    holder=$(cat "$LOCK" 2>/dev/null)
+    holder=$(read_holder)
     stale=""
     if [ -n "$holder" ]; then
       kill -0 "$holder" 2>/dev/null || stale=1
     else
       # No pid: either the lock was just released, or the holder died between the
       # create and the write. A healthy holder writes within milliseconds, so if
-      # it is still unreadable after a beat, treat the lock as abandoned. That also
-      # clears a directory left by the old mkdir format, which cat cannot read.
+      # it is still unreadable after a beat, treat the lock as abandoned.
       sleep 1
-      [ -e "$LOCK" ] && [ -z "$(cat "$LOCK" 2>/dev/null)" ] && stale=1
+      [ -e "$LOCK" ] && [ -z "$(read_holder)" ] && stale=1
     fi
     [ -n "$stale" ] && rm -rf "$LOCK" 2>/dev/null
     rm -f "$LOCK.reap"
@@ -79,7 +81,7 @@ while :; do
     # once and retry — but ONLY when the holder is genuinely dead/absent. A LIVE
     # holder that legitimately ran past TIMEOUT must still time out; stealing its
     # lock would double-acquire.
-    h=$(cat "$LOCK" 2>/dev/null)
+    h=$(read_holder)
     if [ -z "${retried:-}" ] && { [ -z "$h" ] || ! kill -0 "$h" 2>/dev/null; }; then
       retried=1
       rm -rf "$LOCK" "$LOCK.reap" 2>/dev/null

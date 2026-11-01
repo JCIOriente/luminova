@@ -69,8 +69,6 @@ The `main` branch ruleset requires **both** checks and is `enforcement: active`
 (a ruleset can silently sit at `disabled` and gate nothing — verify `active`, not just
 that checks are listed).
 
----
-
 ### Runner image
 
 Every job in `ci.yml` and `deploy.yml` names `ubuntu-26.04`, not `ubuntu-latest`, so the OS
@@ -80,6 +78,8 @@ all of them in one PR so CI proves the image the deploy will use.
 Ubuntu 26.04 ships uutils coreutils. Its `mkdir` (0.10.0) is not exclusive: two simultaneous
 callers can both exit 0, so a script must not use `mkdir` as a lock. Use bash `noclobber`, as
 `tools/scripts/with-emulator-lock.sh` does.
+
+---
 
 ## 3. CD (`deploy.yml`)
 

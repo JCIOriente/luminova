@@ -12,13 +12,17 @@ const WRAPPER = fileURLToPath(new URL("../with-emulator-lock.sh", import.meta.ur
 // reclaim path treats a lock stamped with it as abandoned.
 const DEAD_PID = "2147483646";
 
-function run(env, ...args) {
+function bash(env, args) {
   return new Promise((resolve) => {
-    const p = spawn("bash", [WRAPPER, ...args], { env: { ...process.env, ...env } });
+    const p = spawn("bash", args, { env: { ...process.env, ...env } });
     let stderr = "";
     p.stderr.on("data", (d) => (stderr += d));
     p.on("close", (code) => resolve({ code, stderr }));
   });
+}
+
+function run(env, ...args) {
+  return bash(env, [WRAPPER, ...args]);
 }
 
 test("serializes concurrent runs — critical sections never overlap", async (t) => {
@@ -38,7 +42,7 @@ test("serializes concurrent runs — critical sections never overlap", async (t)
     ["ENTER", "EXIT", "ENTER", "EXIT"],
     "runs overlapped — lock did not serialize",
   );
-  assert.ok(!existsSync(lock), "lock dir not released on exit");
+  assert.ok(!existsSync(lock), "lock not released on exit");
 });
 
 // Ubuntu 26.04's uutils mkdir let two simultaneous callers both win, inside a window plain
@@ -47,11 +51,7 @@ test("serializes concurrent runs — critical sections never overlap", async (t)
 // TIMEOUT 0 sends the loser straight out while the winner holds, which keeps a round short.
 function contender(env, start, body) {
   const script = 'until [ -e "$1" ]; do :; done; exec bash "$2" bash -c "$3"';
-  const child = spawn("bash", ["-c", script, "_", start, WRAPPER, body], {
-    env: { ...process.env, ...env },
-    stdio: "ignore",
-  });
-  return new Promise((resolve) => child.on("close", resolve));
+  return bash(env, ["-c", script, "_", start, WRAPPER, body]);
 }
 
 test("exclusive when contenders start at the same instant", async (t) => {
@@ -118,6 +118,25 @@ test("reclaims a directory left by the old mkdir lock format", async (t) => {
   assert.equal(code, 0, "wrapper did not run the command after clearing the old lock");
   assert.equal(readFileSync(marker, "utf8"), "ok");
   assert.ok(!existsSync(lock), "lock not released on exit");
+});
+
+test("waits for a live holder of the old mkdir lock format", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "emu-lock-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const lock = join(dir, "lock");
+  mkdirSync(lock);
+  writeFileSync(join(lock, "pid"), String(process.pid));
+
+  const { code, stderr } = await run(
+    { EMULATOR_LOCK_FILE: lock, EMULATOR_LOCK_TIMEOUT: "1" },
+    "bash",
+    "-c",
+    "echo should-not-run",
+  );
+
+  assert.equal(code, 1, "reaped a running holder");
+  assert.match(stderr, /timed out/);
+  assert.ok(existsSync(join(lock, "pid")), "old-format lock was removed");
 });
 
 test("self-heals a wedged reap file (orphaned reaper) instead of failing forever", async (t) => {
