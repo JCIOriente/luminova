@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
 
 const WRAPPER = fileURLToPath(new URL("../with-emulator-lock.sh", import.meta.url));
 // A PID that cannot be alive (above every platform's pid_max), so the stale-lock
@@ -40,23 +41,37 @@ test("serializes concurrent runs — critical sections never overlap", async (t)
   assert.ok(!existsSync(lock), "lock dir not released on exit");
 });
 
-// Ubuntu 26.04's uutils mkdir let two simultaneous callers both win, and two spawns only
-// line up that tightly about one time in four. Many contenders on many locks at once make
-// a non-exclusive primitive overlap on every run, without one run paying for many rounds.
-test("exclusive under a burst of simultaneous contenders", async (t) => {
+// Ubuntu 26.04's uutils mkdir let two simultaneous callers both win, inside a window plain
+// spawns rarely hit: a burst of them caught it one run in eight. So each pair spins on a
+// start file and is released together, for enough rounds that a miss is not a real outcome.
+// TIMEOUT 0 sends the loser straight out while the winner holds, which keeps a round short.
+function contender(env, start, body) {
+  const script = 'until [ -e "$1" ]; do :; done; exec bash "$2" bash -c "$3"';
+  const child = spawn("bash", ["-c", script, "_", start, WRAPPER, body], {
+    env: { ...process.env, ...env },
+    stdio: "ignore",
+  });
+  return new Promise((resolve) => child.on("close", resolve));
+}
+
+test("exclusive when contenders start at the same instant", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "emu-lock-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const contenders = Array.from({ length: 12 }, (_, i) => join(dir, `log-${i}`)).flatMap((log) => {
-    const env = { EMULATOR_LOCK_FILE: `${log}.lock`, EMULATOR_LOCK_TIMEOUT: "1" };
-    const body = `printf 'ENTER\\n' >> '${log}'; sleep 1.5; printf 'EXIT\\n' >> '${log}'`;
-    return Array.from({ length: 5 }, () => [log, env, body]);
-  });
 
-  await Promise.all(contenders.map(([, env, body]) => run(env, "bash", "-c", body)));
+  for (let round = 0; round < 30; round++) {
+    const log = join(dir, `log-${round}`);
+    const start = join(dir, `start-${round}`);
+    const env = { EMULATOR_LOCK_FILE: `${log}.lock`, EMULATOR_LOCK_TIMEOUT: "0" };
+    const body = `printf 'ENTER\\n' >> '${log}'; sleep 0.1; printf 'EXIT\\n' >> '${log}'`;
+    const pair = [contender(env, start, body), contender(env, start, body)];
+    await delay(50);
+    writeFileSync(start, "");
+    await Promise.all(pair);
 
-  for (const log of new Set(contenders.map(([path]) => path))) {
     const lines = readFileSync(log, "utf8").trim().split("\n");
-    lines.forEach((line, i) => assert.equal(line, i % 2 ? "EXIT" : "ENTER", "runs overlapped"));
+    lines.forEach((line, i) =>
+      assert.equal(line, i % 2 ? "EXIT" : "ENTER", `runs overlapped in round ${round}`),
+    );
   }
 });
 

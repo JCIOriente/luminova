@@ -44,7 +44,7 @@ runs:
           "$RUNNER_TEMP/deploy-target" >> "$GITHUB_ENV"
     - run: corepack enable
       shell: bash
-    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version-file: .nvmrc
         cache: pnpm
@@ -59,7 +59,7 @@ runs:
         echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
       shell: bash
     - id: fbcache
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.npm-global
         key: firebase-tools-${{ runner.os }}-15.22.1
@@ -74,7 +74,7 @@ runs:
       with:
         workload_identity_provider: ${{ steps.target.outputs.workload_identity_provider }}
         service_account: ${{ steps.target.outputs.service_account }}
-    # brand:pull and the functions job's assert run `gcloud`. ubuntu-24.04 ships the Cloud
+    # brand:pull and the functions job's assert run `gcloud`. The runner image ships the Cloud
     # SDK today, but a guard must not depend on something we neither pin nor control
     # (guardrail #6), so it is pinned here.
     - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1

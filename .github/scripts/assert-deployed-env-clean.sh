@@ -60,7 +60,7 @@ if [ -z "${ENV_PROBE:-}" ]; then
   #
   # `firebase-setup` installs Node, pnpm and firebase-tools and runs google-github-actions/auth,
   # which writes ADC only and installs no CLI — so deploy.yml runs a pinned setup-gcloud before
-  # the step that calls this. ubuntu-24.04 also ships the SDK today, which makes this check
+  # the step that calls this. The runner image also ships the SDK today, which makes this check
   # belt-and-braces rather than load-bearing; it stays because the message it prints is the
   # difference between a five-minute fix and a confusing post-deploy failure.
   command -v gcloud >/dev/null 2>&1 || {

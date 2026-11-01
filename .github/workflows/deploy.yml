@@ -59,7 +59,7 @@ concurrency:
 jobs:
   filter:
     name: filter
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read # checkout
@@ -79,10 +79,11 @@ jobs:
       sha: ${{ steps.f.outputs.sha }}
     steps:
       # fetch-depth 0 so we can diff the deployed commit against any main ancestor.
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
       # A fork that has not set the repository variables yet (or names a demo- project)
       # skips every deploy job: no credential minted, no approval requested. A malformed
       # variable fails here, loudly.
@@ -182,16 +183,17 @@ jobs:
     name: deploy-rules
     needs: filter
     if: needs.filter.outputs.rules == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: production
     timeout-minutes: 10
     permissions:
       id-token: write # mint the OIDC token for WIF
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.filter.outputs.sha }}
+          persist-credentials: false
       # Signs in, pulls the brand from the project's bucket, sets GCP_PROJECT_ID.
       - uses: ./.github/actions/firebase-setup
       - name: Deploy rules + storage
@@ -227,16 +229,17 @@ jobs:
       needs.deploy-rules.result != 'failure' &&
       needs.deploy-rules.result != 'cancelled' &&
       needs.filter.outputs.functions == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: production
     timeout-minutes: 20
     permissions:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.filter.outputs.sha }}
+          persist-credentials: false
       # Also installs the pinned gcloud the assert step below needs, and exports GCP_REGION.
       - uses: ./.github/actions/firebase-setup
       # firebase.json `predeploy` runs `pnpm turbo run build --filter beacon`.
@@ -298,7 +301,7 @@ jobs:
       needs.deploy-functions.result != 'failure' &&
       needs.deploy-functions.result != 'cancelled' &&
       (needs.filter.outputs.spotlight == 'true' || needs.filter.outputs.backstage == 'true')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment:
       name: production
       url: ${{ steps.setup.outputs.spotlight_url }}
@@ -307,9 +310,10 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.filter.outputs.sha }}
+          persist-credentials: false
       # firebase-setup pulled the brand (brand.toml and images) from the project's private
       # bucket into brand/local/; the hosting sites and public URL come from it.
       - uses: ./.github/actions/firebase-setup
@@ -415,7 +419,7 @@ jobs:
     name: notify
     needs: [filter, deploy-rules, deploy-functions, deploy-hosting]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Post deploy result
