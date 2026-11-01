@@ -17,16 +17,10 @@ import {
   MIN_ICON_MASTER_SIZE,
   OG_IMAGE_FILE,
 } from "../assets.ts";
-import {
-  BrandConfigError,
-  REPO_ROOT,
-  errorMessage,
-  type Env,
-  type LoadedProfile,
-} from "../load-profile.ts";
+import { BrandConfigError, REPO_ROOT, errorMessage, type LoadedProfile } from "../load-profile.ts";
 import { readPngSize } from "../png.ts";
 import { BRAND_APPS } from "../ports.ts";
-import { displayDir, selectAssetsDir } from "../release.ts";
+import { displayDir } from "../release.ts";
 import { formatNext, guideStep, type Problem, type Remedy } from "../remedy.ts";
 import { runCli } from "./main.ts";
 import { terminalConfirm, type Confirm } from "./prompts.ts";
@@ -146,10 +140,6 @@ function writeIcons(icons: readonly { file: string; png: Buffer }[], label: stri
   }
 }
 
-/** The images folder `brand:check` names (spec C3). */
-const imagesDir = (profile: LoadedProfile, repoRoot: string, env: Env) =>
-  selectAssetsDir(repoRoot, profile, env, false);
-
 /**
  * Renders both apps' icon sets from `icon-master.png` or `icon-master.svg` in the images folder.
  * Checks the master and renders every icon before writing any. Icons already there are
@@ -159,15 +149,14 @@ const imagesDir = (profile: LoadedProfile, repoRoot: string, env: Env) =>
 export async function generateIcons({
   profile,
   repoRoot = REPO_ROOT,
-  env = process.env,
   confirmReplace,
 }: {
   profile: LoadedProfile;
   repoRoot?: string;
-  env?: Env;
   confirmReplace?: Confirm;
 }): Promise<string[]> {
-  const assetsDir = imagesDir(profile, repoRoot, env);
+  // The images folder brand:check names.
+  const { assetsDir } = profile;
   const label = displayDir(repoRoot, assetsDir);
   const targets = BRAND_APPS.flatMap((app) =>
     ICON_FILES.map((icon) => ({ app, icon, path: `${app}/${icon.name}` })),
@@ -247,7 +236,7 @@ const next = (label: string): Remedy[] => [
 
 if (import.meta.main) {
   await runCli("brand:icons", async (profile) => {
-    const label = displayDir(REPO_ROOT, imagesDir(profile, REPO_ROOT, process.env));
+    const label = displayDir(REPO_ROOT, profile.assetsDir);
     const written = await generateIcons({ profile, confirmReplace: terminalConfirm() });
     if (written.length === 0) {
       console.log(`brand:icons: kept the icons in ${label}/; nothing changed.`);

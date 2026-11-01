@@ -51,9 +51,9 @@ tokens only** (surface/ink/line); brand colors stay locked. A few hardcoded
 **Brand assets:** the logos come from the selected brand profile's asset set, not from
 this package — `logo-main.png`, `logo-on-dark.png`, `logo-on-primary.png`, one shared
 size — served through `virtual:luminova-brand` and rendered by the `LogoLockup` component.
-A local build reads `brand-assets/` once it holds a contract file, else `brand/<slug>/assets/` (committed
-for the example and, until its brand moves to its bucket, upstream's `jci-oriente`); a deploy build reads only `brand-assets/`
-pulled from the profile's private bucket. `pnpm brand:check` validates the set.
+A local build reads `brand/local/` (seeded from the example on install; until its brand moves
+to its bucket, upstream's committed `jci-oriente` reads its own `assets/`); a deploy build reads
+only the files `brand:pull` downloaded into `brand/local/` from the profile's private bucket. `pnpm brand:check` validates the set.
 
 Styling model: **pure Tailwind v4 utility classes** driven by these tokens (no
 semantic CSS classes). Components are consumed as **raw TypeScript source** — no

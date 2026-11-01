@@ -8,14 +8,8 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],
-      "env": [
-        "VITE_FIREBASE_EMULATOR_ENABLED",
-        "BRAND_PROFILE",
-        "BRAND_RELEASE",
-        "BRAND_ASSETS_DIR",
-        "GCP_PROJECT_ID"
-      ],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/brand/**", "$TURBO_ROOT$/brand-assets/**"]
+      "env": ["VITE_FIREBASE_EMULATOR_ENABLED", "BRAND_PROFILE", "BRAND_RELEASE", "GCP_PROJECT_ID"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/brand/**"]
     },
     "preview": {
       "cache": false,

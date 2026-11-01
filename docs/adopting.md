@@ -1,24 +1,22 @@
 # Adopting Luminova for your chapter
 
 Luminova is not multi-tenant: one deployment serves one chapter. You run it for yours by
-forking the repository and adding a **brand profile**, `brand/<slug>/`, that holds every
+forking the repository and filling one git-ignored folder, `brand/local/`, that holds every
 value that makes a deployment yours: names, places, origins, the Firebase project, theme
-colours and share text. The committed example, `brand/example/`, is a neutral chapter
-("JCI Ejemplo") on an emulator-only project; its texts are good defaults to start from.
-Your images never enter git. Deployments read them from a private bucket in your own Google
-Cloud project.
+colours, share text and your 16 images. `pnpm install` creates it from the committed example,
+`brand/example/` (a neutral chapter, "JCI Ejemplo", on an emulator-only project), so the
+example's texts and images are good defaults to start from. Deployments read your brand from
+a private bucket in your own Google Cloud project.
 
-A chapter's brand is moving out of git into its own bucket
-(`docs/specs/2026-10-29-brand-outside-repo.md`). Where that move stands today:
-
-- `brand/` commits only `brand/example/` and the two shared files. A chapter folder is
+- `brand/` commits only `brand/example/` and the two shared files. `brand/local/` is
   git-ignored, and CI's `assert-brand-example-only` check fails a change that adds or edits
   a file anywhere else under `brand/`; deleting one passes.
 - Upstream still commits JCI Oriente's own profile, `brand/jci-oriente/`, which is how JCI
-  Oriente deploys until its brand reaches its bucket. In your fork it is a chapter profile
-  like yours, so delete it before step 2: `git rm -r brand/jci-oriente`.
-- Steps 1 to 4 work as written. Steps 5 and 12 commit a chapter profile, which the check
-  refuses, so going live from a fork waits for the fork CD of that spec (its steps 3 and 4).
+  Oriente deploys until its brand reaches its bucket. It is not a path for your chapter.
+  While it exists and `brand/local/brand.toml` does not, it is the profile `brand/` selects.
+- Going live from a fork (CD signing in to your Google Cloud project from your fork) comes
+  with the fork CD of `docs/specs/2026-10-29-brand-outside-repo.md`. Steps 1 to 11 work
+  as written; step 12 depends on it.
 
 Every step below names its command. No step needs a Luminova maintainer. If you get stuck,
 [open an adoption issue](https://github.com/JCIOriente/luminova/issues/new?template=chapter_adoption.yml).
@@ -30,22 +28,23 @@ your shell's startup file, and CD needs no GitHub variables.
 
 | What | File | In git? | Who reads it |
 |---|---|---|---|
-| Which chapter this repository builds | the folder `brand/<slug>/` itself: your chapter's is the only one besides the example `example` | no, git-ignored | every `pnpm brand:*` command, `pnpm dev`, the builds, the seed scripts, CD |
-| The chapter: names, site addresses, Firebase project and web apps, CD's sign-in, and the site's texts (seeded into the database once) | `brand/<slug>/brand.toml` | no, git-ignored; every value is public | the builds, CD, `pnpm seed:production`, `pnpm dev` |
-| Your images | `brand-assets/` | **no**, gitignored | `pnpm dev`, `brand:check`, `brand:push` |
-| The images deploys use | your private bucket, `<project>-brand-assets` | no | CD (`brand:pull`) |
+| The chapter: names, site addresses, Firebase project and web apps, CD's sign-in, and the site's texts (seeded into the database once) | `brand/local/brand.toml` | no, git-ignored; every value is public | every `pnpm brand:*` command, the builds, `pnpm seed:production`, `pnpm dev`, CD |
+| Your images: the 16 files, laid out at the bucket's paths | `brand/local/` (`logo-main.png`, `spotlight/favicon-16.png`, ...) | **no**, git-ignored | `pnpm dev`, `brand:check`, `brand:push` |
+| What the folder last received from the bucket or the example, with hashes | `brand/local/.pull-manifest.json` | no, git-ignored | `brand:pull`, `brand:push`, release builds |
+| The brand deploys use: `brand.toml` and the 16 images | your private bucket, `gs://<project>-brand-assets/` | no | CD (`brand:pull`) |
 | Firebase CLI's project file | `.firebaserc` | no, generated | the `firebase` CLI |
 
-There is no file to edit to choose the chapter. Every command looks in `brand/`: your
-chapter's folder (named with lowercase letters, digits and hyphens, such as `jci-valle`) is
-selected when it is the only chapter profile there; with none, the example `example`
-is. Your fork only adds that folder and never edits a shared file, so pulling upstream
-updates never conflicts with your configuration. A repository builds one chapter:
-`brand:init` refuses to create a second, and with two every command stops and names them.
+There is no file to edit to choose the chapter. Every command looks in `brand/`:
+`brand/local/brand.toml` is the profile when it exists, otherwise (until upstream's
+`brand/jci-oriente/` is removed) that committed profile, otherwise the example. `pnpm install`
+creates `brand/local/` from the example when it is missing, never under `CI`, and never
+touches a folder that exists, even an empty one. Your fork only adds that git-ignored
+folder and never edits a shared file, so pulling upstream updates never conflicts with your
+configuration.
 
 ### The brand file
 
-`brand/<slug>/brand.toml` holds only what makes your chapter different. Every key you
+`brand/local/brand.toml` holds only what makes your chapter different. Every key you
 leave out comes from the example's file, `brand/example/brand.toml`, which sets them all
 and shows what each one means. To change one, copy it into your file:
 
@@ -70,7 +69,7 @@ and shows what each one means. To change one, copy it into your file:
   `[backstage] emailPlaceholder` is still the example's.
 
 Every error names the file, the table and the key, such as
-`brand/jci-valle/brand.toml [contact] email: not an email address`; a syntax error gives
+`brand/local/brand.toml [contact] email: not an email address`; a syntax error gives
 the line and column, and an unknown key is an error, so a typo never falls back to a
 default. Line 1 of the file, `#:schema ../brand.schema.json`, points editors with TOML
 support (Taplo, Even Better TOML) at `brand/brand.schema.json`, which explains every key
@@ -78,10 +77,9 @@ on hover; `brand:check` warns when that line is missing.
 
 Upgrading a fork from a version with a root `luminova.json`: the pull that removes it
 conflicts once if you had edited it. Resolve it by deleting the file
-(`git rm luminova.json`); `brand:check` warns while a copy is left. If `brand/` holds
-more than one chapter folder (an older `brand:init` allowed it), every command and Deploy
-stop until you delete all but the one you build. Send pull requests upstream from a branch
-of upstream's `main`, never from your fork's `main`: upstream's CI refuses a chapter folder.
+(`git rm luminova.json`); `brand:check` warns while a copy is left. Send pull requests
+upstream from a branch of upstream's `main`, never from your fork's `main`: upstream's CI
+refuses any addition under `brand/` other than the example.
 
 What stays out of the repository: your `gcloud`, `gh` and `firebase` sign-ins (each tool
 keeps its own), and the optional `DEPLOY_WEBHOOK_URL` GitHub secret that posts deploy
@@ -92,7 +90,7 @@ the few optional overrides.
 
 Part 1 runs entirely on your computer. You need no Google account and no Firebase
 project, and nothing is deployed: your profile starts **local-only**, on an emulator
-project named `demo-<slug>`. Part 2 connects a real Firebase project and goes live, when
+project named `demo-` plus an id derived from your chapter's name. Part 2 connects a real Firebase project and goes live, when
 your chapter decides to. Merging to your fork's `main` is safe at any time: Deploy skips
 with a note until the profile has a real project and CD's sign-in (step 9).
 
@@ -104,7 +102,7 @@ with a note until the profile has a real project and CD's sign-in (step 9).
 | 2 | Create your profile | `pnpm brand:init` (answer **n**: no Firebase project yet) |
 | 3 | Add the 16 images and check them | `pnpm brand:check` |
 | 4 | Write the site texts and look at your sites | edit `brand.toml`, `pnpm dev` |
-| 5 | Commit the profile | `git add brand/<slug>/` |
+| 5 | Know what stays out of git | nothing to commit: `brand/local/` is git-ignored |
 | | **Part 2: go live, when you are ready** | |
 | 6 | Firebase project, two web apps, second hosting site | Firebase console (below) |
 | 7 | Connect the project | `pnpm brand:init` (answer **y**: connect it) |
@@ -129,7 +127,7 @@ where it goes:
 
 ```text
 To fix:
-  - put the files marked above in brand-assets/ at the sizes shown (all 16: docs/adopting.md step 3)
+  - put the files marked above in brand/local/ at the sizes shown (all 16: docs/adopting.md step 3)
       pnpm brand:check   # in the repo root
 ```
 
@@ -207,10 +205,9 @@ Nothing else.
 
 ### 1. Run the example
 
-Follow the README Quickstart. `pnpm dev` starts the local emulators, fills them with test
-data and opens both sites with the example profile (once `brand/jci-oriente/` is deleted,
-`brand/` holds no chapter profile, so `example` is selected).
-Dev talks to the emulators, never to a real project.
+Follow the README Quickstart. `pnpm install` creates `brand/local/` from the example, and
+`pnpm dev` starts the local emulators, fills them with test data and opens both sites with
+that profile. Dev talks to the emulators, never to a real project.
 
 ### 2. Create your profile
 
@@ -218,25 +215,24 @@ Dev talks to the emulators, never to a real project.
 pnpm brand:init               # asks each question, with a suggested default
 ```
 
-It asks about your chapter: the profile's folder name (the slug), the chapter's name,
-city and country, and the public site's theme colour. Then it asks whether you already
-have a Firebase project. Answer **n** (the default) to start local-only: the profile gets the emulator
-project `demo-<slug>`, and you connect a real one at step 7. Answering **y** asks the
-Firebase questions now instead (see step 7).
+It asks about your chapter: its name, city and country, the year it was founded, and the
+public site's theme colour. Then it asks whether you already have a Firebase project. Answer
+**n** (the default) to start local-only: the profile gets an emulator project named
+`demo-` plus an id derived from the chapter's name, and you connect a real one at step 7.
+Answering **y** asks the Firebase questions now instead (see step 7).
 
-`brand:init` writes a short `brand/<slug>/brand.toml`: the `#:schema` line, your
+`brand:init` writes a short `brand/local/brand.toml`: the `#:schema` line, your
 answers, and the web apps' keys once a project is connected. Everything else comes from
-the example ([The brand file](#the-brand-file)). It also creates
-`brand-assets/README.txt` and writes `.firebaserc`. Being the only chapter profile in
-`brand/`, the new one is selected from then on. It validates everything before writing
-anything and never overwrites an existing profile. It re-asks a malformed or taken slug,
-or a colour that is not `#RRGGBB`, on the spot. If a later step fails, your answers are
-saved to `brand-init-answers.json` (gitignored), and the next `pnpm brand:init` offers
-them: answer **y** to reuse them.
+the example ([The brand file](#the-brand-file)). It also creates `brand/local/README.txt`
+(the list of images below) and writes `.firebaserc`. It validates everything before writing
+anything, and asks before replacing an existing `brand.toml`. It re-asks a colour that is
+not `#RRGGBB` on the spot. If a later step fails, your answers are saved to
+`brand-init-answers.json` (gitignored), and the next `pnpm brand:init` offers them: answer
+**y** to reuse them.
 
 ### 3. Images
 
-Put these 16 PNG files in `brand-assets/` (its `README.txt` lists them too):
+`brand/local/` starts with copies of the example's 16 PNG files. Replace them with your chapter's, at the same paths (`brand/local/README.txt` lists them too):
 
 | File | Size |
 |---|---|
@@ -248,7 +244,7 @@ Put these 16 PNG files in `brand-assets/` (its `README.txt` lists them too):
 
 `<app>` is `spotlight` and `backstage`, so 6 icons each. You only have to make 4 of the 16
 by hand: the three logos and `og-image.png`. For the 12 icons, put your logo mark in
-`brand-assets/icon-master.svg` (any square SVG) or `brand-assets/icon-master.png` (a
+`brand/local/icon-master.svg` (any square SVG) or `brand/local/icon-master.png` (a
 square PNG of at least 512×512), best on a transparent background, and generate them:
 
 ```bash
@@ -262,14 +258,12 @@ stay transparent. If icons are already there, `brand:icons` asks before replacin
 12 icons yourself with any tool that writes exact PNG sizes.
 
 `brand:check` runs the same validator as the build, and the build's checks on your whole
-`brand.toml`, its site texts included. Every command reads one images folder, named in the title of
-`brand:check`'s images section: `brand-assets/` once it holds any of the 16 files (the
-README alone does not count). Before that, a new profile has no images of its own and
-the section lists every missing file.
+`brand.toml`, its site texts included. Its images section checks the 16 files in
+`brand/local/` and lists each one with a problem.
 
 ### 4. Site texts, and a look
 
-Edit the site texts in `brand/<slug>/brand.toml`: history (`[[timeline]]`), mission,
+Edit the site texts in `brand/local/brand.toml`: history (`[[timeline]]`), mission,
 vision and values (`[mvv]`), statistics (`[stats]`) and contacts (`[contact]`). Copy each
 table you change from `brand/example/brand.toml`; the example's texts already name your
 chapter through their templates. These texts fill the site once; after going live, the
@@ -278,10 +272,10 @@ name, images and texts.
 
 ### 5. Commit the profile
 
-Commit `brand/<slug>/`. Never commit `brand-assets/`: it is
-gitignored, and a deploy build refuses any asset source other than a pull from your
-bucket. Merging to `main` deploys nothing yet: Deploy skips a local-only profile and says
-so in the run's summary.
+`brand/local/` is git-ignored, so there is nothing to commit: your brand lives in that folder
+and, once you go live, in your private bucket. A deploy build refuses any asset source other
+than the files `brand:pull` downloaded from that bucket. Merging to `main` deploys nothing
+yet: Deploy skips a local-only profile and says so in the run's summary.
 
 ## Part 2: go live
 
@@ -313,9 +307,9 @@ Needs: nothing new. Reading the API keys for you also needs the Firebase CLI
 pnpm brand:init               # answer y to connect your profile to a Firebase project
 ```
 
-With your profile already in `brand/`, `brand:init` asks whether to connect it. Answer
+With your profile already in `brand/local/`, `brand:init` asks whether to connect it. Answer
 **y**: it asks the project id and both web app ids, rewrites the `project` line and the
-`[firebase.spotlight]` and `[firebase.backstage]` tables of `brand/<slug>/brand.toml`, and
+`[firebase.spotlight]` and `[firebase.backstage]` tables of `brand/local/brand.toml`, and
 rewrites `.firebaserc`. Every other line of the file, comments included, stays as it is.
 It also offers to read both API keys with `firebase apps:sdkconfig` (read-only), and asks
 for the optional App Check and web push keys. Run it again any time: for the same project
@@ -358,7 +352,7 @@ pnpm brand:provision           # prints every step with your values; changes not
 why, where to run it, the exact commands and how to check that it worked. Run its step 1
 yourself: it creates CD's deploy account and its keyless sign-in (Workload Identity
 Federation: GitHub proves the run comes from your fork's `main`, no key is stored). Its
-step 2 is the `[deploy]` table to add to `brand/<slug>/brand.toml`. That table is the
+step 2 is the `[deploy]` table to add to `brand/local/brand.toml`. That table is the
 switch: CD deploys only a profile that has it. The full block, with the reasoning behind
 each permission, is [`docs/ci-cd.md` section 6](ci-cd.md#6-one-time-provisioning-reproducible).
 
@@ -383,18 +377,24 @@ pnpm brand:push                # checks the images first, then uploads them
 pnpm brand:check               # every row passes now
 ```
 
-`brand:push` uploads the folder `brand:check` names, and refuses with the same images
-section while any image has a problem.
+`brand:push` uploads `brand/local/brand.toml` and the 16 images to
+`gs://<project>-brand-assets/`, each with a generation precondition, so it refuses to
+overwrite an object someone else changed since your last pull or push. It refuses while any
+image has a problem, rewrites `brand/local/.pull-manifest.json` with what it uploaded, and
+never deletes; versioning keeps every overwritten file for rollback. A brand change is not
+in git, so after going live CD does not see it on its own: `brand:push` prints the hosting
+deploy command for that, `gh workflow run deploy.yml -f surface=hosting`.
 
-`brand:push` never deletes, and versioning keeps every overwritten file for rollback. An
-image change is not in git, so after going live CD does not see it on its own:
-`brand:push` prints the hosting deploy command for that.
+`brand:pull` downloads the same 17 files into `brand/local/` and replaces only those. If any
+changed since the last pull, push or install, it asks once (y/N, default no) before
+overwriting them, and it refuses without a terminal. Release builds (what CD deploys) need
+the pulled manifest, with matching hashes.
 
 ### 12. Go live
 
 Needs: git, and a browser to approve the run. `gh` only to deploy again later.
 
-Commit the `[deploy]` table from step 9 and merge to `main`, then approve the Deploy run it
+Once fork CD is in place, merge to `main` and approve the Deploy run it
 starts. The first deploy after setup ships everything: rules, functions and both sites.
 To deploy everything again later without a merge: `gh workflow run deploy.yml -f surface=all`.
 Hosting deploys to a preview channel, is smoke-tested, then promoted. Then check:
@@ -425,9 +425,9 @@ the emulators and any project other than the one your profile names.
 
 | Change | Do |
 |---|---|
-| A profile value (`brand.toml`) | Edit, commit, merge; CD redeploys |
+| A profile value (`brand.toml`) | Edit `brand/local/brand.toml`, `pnpm brand:check`, `pnpm brand:push`, then the printed deploy command |
 | Site content | The admin `/config` screen |
-| An image | Replace it in `brand-assets/`, `pnpm brand:check`, `pnpm brand:push`, then the printed deploy command |
+| An image | Replace it in `brand/local/`, `pnpm brand:check`, `pnpm brand:push`, then the printed deploy command |
 | Roll back an image | `gcloud storage cp gs://<bucket>/<file>#<generation> gs://<bucket>/<file>`, then deploy |
 
 A new share image gets a new URL automatically (`og-image.<hash>.png`), so WhatsApp picks

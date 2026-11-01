@@ -61,10 +61,11 @@ const nonEmpty = (output, separator) => output.split(separator).filter(Boolean);
 
 /** A worktree's local state from `git status --porcelain -z --ignored=matching`,
  *  `git ls-files -v` and `git for-each-ref --format=%(refname) refs/worktree refs/bisect`.
- *  `ignored` lists only files a rebuild would not bring back. `ls-files -v` tags
+ *  `ignored` lists only files a rebuild would not bring back; `rebuildable` names ignored
+ *  paths the caller found a reinstall recreates (a still-seeded brand/local/). `ls-files -v` tags
  *  assume-unchanged (lowercase) and skip-worktree (S) files: their edits are invisible to
  *  `status` and to `worktree remove`, so they count as dirty. */
-export function parseWorktreeState({ status, lsFiles = "", refs = "" }) {
+export function parseWorktreeState({ status, lsFiles = "", refs = "", rebuildable = [] }) {
   const entries = nonEmpty(status, "\0");
   const isIgnored = (entry) => entry.startsWith("!! ");
   return {
@@ -75,7 +76,7 @@ export function parseWorktreeState({ status, lsFiles = "", refs = "" }) {
     ignored: entries
       .filter(isIgnored)
       .map((entry) => entry.slice(3))
-      .filter((path) => !isArtifact(path)),
+      .filter((path) => !isArtifact(path) && !rebuildable.includes(path)),
     localRefs: nonEmpty(refs, "\n"),
   };
 }

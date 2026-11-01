@@ -1,4 +1,7 @@
 import { execFile } from "node:child_process";
+import { z } from "zod";
+import { issuesToBrandError, parseJsonText } from "../load-profile.ts";
+import { generationSchema } from "../local-folder.ts";
 import type { Remedy } from "../remedy.ts";
 import { installRemedy } from "./install.ts";
 
@@ -15,7 +18,8 @@ export type CommandRunner = (
 type Command = Parameters<CommandRunner>[0];
 
 /** What a failure was, when stderr says so; callers branch on it instead of re-reading text. */
-export type CommandFailureKind = "notInstalled" | "signIn" | "denied" | "notFound" | "other";
+export type CommandFailureKind =
+  "notInstalled" | "signIn" | "denied" | "notFound" | "precondition" | "other";
 
 export class CommandError extends Error {
   override name = "CommandError";
@@ -109,6 +113,8 @@ export function commandFailure(
     );
   }
   if (/\b404\b|not found/i.test(stderr)) return new CommandError(text, [], "notFound");
+  // --if-generation-match did not hold: someone else wrote the object since.
+  if (/\b412\b|pre-?condition/i.test(stderr)) return new CommandError(text, [], "precondition");
   return new CommandError(text);
 }
 
@@ -131,4 +137,28 @@ export function shellQuote(arg: string): string {
 /** `gs://<bucket>` alone, or `gs://<bucket>/<path>` (a trailing `/` path names a folder). */
 export function bucketUrl(bucket: string, path?: string): string {
   return path === undefined ? `gs://${bucket}` : `gs://${bucket}/${path}`;
+}
+
+// A malformed generation fails closed here, before any `#<generation>` URL or
+// `--if-generation-match` is built from it.
+const listingSchema = z.array(
+  z.looseObject({
+    name: z.string(),
+    generation: z.union([z.string(), z.number()]).transform(String).pipe(generationSchema),
+  }),
+);
+
+/** Every object of the bucket (`**` reaches spotlight/ and backstage/), name → generation. */
+export async function listBucket(run: CommandRunner, bucket: string): Promise<Map<string, string>> {
+  const label = `gcloud listing of ${bucketUrl(bucket)}`;
+  const raw = await run("gcloud", [
+    "storage",
+    "objects",
+    "list",
+    bucketUrl(bucket, "**"),
+    "--format=json",
+  ]);
+  const listing = listingSchema.safeParse(parseJsonText(raw, label));
+  if (!listing.success) throw issuesToBrandError(label, listing.error.issues);
+  return new Map(listing.data.map(({ name, generation }) => [name, generation]));
 }

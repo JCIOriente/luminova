@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync }
 import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
 import { z } from "zod";
-import { sha256 } from "../hash.ts";
+import { fileSha256, sha256 } from "../hash.ts";
 import {
   EXAMPLE_PROFILE,
   PROFILE_OVERRIDE_ENV,
@@ -11,6 +11,7 @@ import {
   type Env,
   type LoadedProfile,
 } from "../load-profile.ts";
+import { IMAGE_PATHS, LOCAL_PROFILE, isUntouchedSeed, localLabel } from "../local-folder.ts";
 import { BRAND_APPS, type BrandApp } from "../ports.ts";
 import { isTable, type Brand } from "../schema.ts";
 import { runBrandCommand } from "./main.ts";
@@ -109,14 +110,21 @@ function listFiles(dir: string): string[] {
     .sort();
 }
 
+const hashesOf = (dir: string, files: readonly string[], labelPrefix: string) =>
+  new Map(files.map((file) => [fileSha256(file), `${labelPrefix}${relative(dir, file)}`]));
+
 /** sha256 → `${labelPrefix}<path relative to dir>` for every file under `dir`. */
 export function assetHashes(dir: string, labelPrefix = ""): Map<string, string> {
-  return new Map(
-    listFiles(dir).map((file) => [
-      sha256(readFileSync(file)),
-      `${labelPrefix}${relative(dir, file)}`,
-    ]),
-  );
+  return hashesOf(dir, listFiles(dir), labelPrefix);
+}
+
+/**
+ * The same for the chapter's 16 contract images in `dir` only: brand/local/ also holds
+ * brand.toml, the manifest and the member's own files, none of which a build emits.
+ */
+export function imageHashes(dir: string, labelPrefix = ""): Map<string, string> {
+  const images = IMAGE_PATHS.map((path) => join(dir, path)).filter((file) => existsSync(file));
+  return hashesOf(dir, images, labelPrefix);
 }
 
 /**
@@ -129,7 +137,7 @@ export function emittedLogoHashes(dist: string, labelPrefix = ""): Map<string, s
   return new Map(
     listFiles(assets)
       .filter((file) => basename(file).startsWith("logo-"))
-      .map((file) => [sha256(readFileSync(file)), `${labelPrefix}${relative(dist, file)}`]),
+      .map((file) => [fileSha256(file), `${labelPrefix}${relative(dist, file)}`]),
   );
 }
 
@@ -248,9 +256,8 @@ async function buildExample(app: BrandApp, outDir: string, envDir: string): Prom
   const root = join(REPO_ROOT, "apps", app);
   await withEnv(
     {
-      BRAND_PROFILE: EXAMPLE_PROFILE,
-      // Hermetic: never a developer's pulled brand-assets/ of real logos.
-      BRAND_ASSETS_DIR: `brand/${EXAMPLE_PROFILE}/assets`,
+      // Hermetic: the example reads only brand/example/, never brand/local/'s real logos.
+      [PROFILE_OVERRIDE_ENV]: EXAMPLE_PROFILE,
       // Process env wins over every .env file, so .env.local cannot turn on the emulator.
       VITE_FIREBASE_EMULATOR_ENABLED: "false",
     },
@@ -268,13 +275,21 @@ async function buildExample(app: BrandApp, outDir: string, envDir: string): Prom
 }
 
 /**
- * How brand:guard ends before building anything when the profile is the example; undefined
- * when it is a chapter profile to protect. A fork's brand/ holds no chapter profile in git.
+ * How brand:guard ends before building anything when the profile is the example, or
+ * brand/local/ is still the example install seeded; undefined when it is a chapter profile
+ * to protect. A fork's brand/ holds no chapter profile in git.
  */
 export function exampleOutcome(
   { slug, source }: Pick<LoadedProfile, "slug" | "source">,
   env: Env,
+  repoRoot: string = REPO_ROOT,
 ): { code: 0 | 1; message: string } | undefined {
+  if (slug === LOCAL_PROFILE && isUntouchedSeed(repoRoot)) {
+    return {
+      code: 0,
+      message: `brand:guard: ${localLabel()} is still the example install seeded, so it holds no chapter to protect; nothing to check.`,
+    };
+  }
   if (slug !== EXAMPLE_PROFILE) return undefined;
   if (source === "example" && !env[PROFILE_OVERRIDE_ENV]?.trim()) {
     return {
@@ -305,11 +320,10 @@ async function main(): Promise<number> {
 
   const example = loadProfile({ profile: EXAMPLE_PROFILE });
   const needles = collectNeedles(brand, NEEDLE_EXCLUSIONS, example.brand);
-  // An adopter's marks live in the gitignored brand-assets/, not in the profile folder.
-  const assetsDir = join(chapter.dir, "assets");
-  const hashes = existsSync(assetsDir)
-    ? assetHashes(assetsDir, `${relative(REPO_ROOT, assetsDir)}/`)
-    : new Map<string, string>();
+  // The chapter's own images: brand/local/, or a committed chapter's assets/
+  // (TRANSITIONAL (the JCI Oriente removal PR drops this)).
+  const { assetsDir } = chapter;
+  const hashes = imageHashes(assetsDir, `${relative(REPO_ROOT, assetsDir)}/`);
   for (const app of BRAND_APPS) {
     const dist = join(REPO_ROOT, "apps", app, "dist");
     for (const [hash, label] of emittedLogoHashes(dist, `apps/${app}/dist/`))

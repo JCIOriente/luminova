@@ -3,12 +3,21 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ASSET_CONTRACT } from "../assets.ts";
 import { loadProfile } from "../load-profile.ts";
-import { chapterProfile, chapterRepo, exampleRepo } from "../test-profiles.ts";
+import {
+  chapterProfile,
+  chapterRepo,
+  exampleRepo,
+  localRepo,
+  recordLocal,
+} from "../test-profiles.ts";
+import { seedLocal } from "./seed.ts";
 import {
   CHAPTER_REGEX,
   NEEDLE_EXCLUSIONS,
   assetHashes,
+  imageHashes,
   collectNeedles,
   emittedLogoHashes,
   exampleOutcome,
@@ -111,6 +120,26 @@ describe("assetHashes", () => {
     expect(hashes.get(sha("one"))).toBe("a.png");
     expect(hashes.get(sha("two"))).toBe("nested/b.png");
     expect(hashes.size).toBe(2);
+  });
+});
+
+describe("imageHashes", () => {
+  it("hashes only the 16 contract images, never brand.toml, the manifest or a note", () => {
+    const root = localRepo("brand-guard-images-");
+    try {
+      recordLocal(root);
+      const dir = join(root, "brand", "local");
+      writeFileSync(join(dir, "README.txt"), "notes");
+      writeFileSync(join(dir, "og-image.png"), "a distinct og image");
+      const hashes = imageHashes(dir, "brand/local/");
+      expect(hashes.get(createHash("sha256").update("a distinct og image").digest("hex"))).toBe(
+        "brand/local/og-image.png",
+      );
+      const images = new Set(ASSET_CONTRACT.map(({ path }) => `brand/local/${path}`));
+      expect([...hashes.values()].filter((label) => !images.has(label))).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 
@@ -253,6 +282,24 @@ describe("exampleOutcome", () => {
     const outcome = exampleOutcome(loadProfile({ repoRoot, env: {} }), {});
     expect(outcome?.code).toBe(0);
     expect(outcome?.message).toMatch(/no chapter profile to protect/);
+  });
+
+  it("passes with a notice while brand/local/ is still the seeded example", () => {
+    const repoRoot = repo(exampleRepo);
+    seedLocal({ repoRoot, env: {} });
+    const outcome = exampleOutcome(loadProfile({ repoRoot, env: {} }), {}, repoRoot);
+    expect(outcome).toEqual({
+      code: 0,
+      message:
+        "brand:guard: brand/local/ is still the example install seeded, so it holds no chapter to protect; nothing to check.",
+    });
+  });
+
+  it("protects brand/local/ once it differs from the seed", () => {
+    const repoRoot = repo(exampleRepo);
+    seedLocal({ repoRoot, env: {} });
+    writeFileSync(join(repoRoot, "brand", "local", "og-image.png"), "mine");
+    expect(exampleOutcome(loadProfile({ repoRoot, env: {} }), {}, repoRoot)).toBeUndefined();
   });
 
   it("refuses BRAND_PROFILE=example over a chapter profile", () => {

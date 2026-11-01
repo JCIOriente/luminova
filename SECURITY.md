@@ -29,7 +29,7 @@ These come up on every public Firebase repository. Please read before reporting.
 
 ### The Firebase API keys in this repository are not secrets
 
-`brand/<slug>/brand.toml` contains values such as the web apps' `apiKey`, `appId` and the
+`brand/local/brand.toml` (and the committed `brand/example/brand.toml`) contains values such as the web apps' `apiKey`, `appId` and the
 Firebase project id (`project`), which the builds ship as `VITE_FIREBASE_API_KEY` and friends.
 
 These are **public client identifiers**, not credentials. Firebase requires them to

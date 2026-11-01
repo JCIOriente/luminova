@@ -76,6 +76,12 @@ test("the old fixture beside one chapter is no second chapter (D12)", () => {
   assert.equal(check(repo({ ...before, example: EXAMPLE })).stdout, "project=acme\nready=true\n");
 });
 
+test("a git-ignored brand/local/ beside the committed chapter is no second chapter", () => {
+  const r = check(repo({ example: EXAMPLE, "jci-oriente": READY, local: EXAMPLE }));
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout, "project=acme\nready=true\n");
+});
+
 test("a chapter profile wins without the example beside it", () => {
   assert.equal(check(repo({ acme: READY })).stdout, "project=acme\nready=true\n");
 });

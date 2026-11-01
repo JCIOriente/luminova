@@ -15,10 +15,10 @@ import { writeAssetSet } from "../asset-set.ts";
 import { BrandConfigError, loadProfile, type LoadedProfile } from "../load-profile.ts";
 import { encodePng } from "../png.ts";
 import { BRAND_APPS } from "../ports.ts";
-import { PULLED_ASSETS_DIR } from "../release.ts";
 import { TEST_CHAPTER, exampleRepo, writeChapter } from "../test-profiles.ts";
 import { generateIcons } from "./icons.ts";
 
+const LOCAL = "local";
 let root: string;
 let assetsDir: string;
 let profile: LoadedProfile;
@@ -58,10 +58,10 @@ async function refusal(promise: Promise<unknown>): Promise<BrandConfigError> {
 
 beforeEach(() => {
   root = exampleRepo("brand-icons-");
-  // Without the chapter's own images, brand-assets/ is the images folder, as in a chapter's fork.
-  writeChapter(root, { assets: false });
-  profile = loadProfile({ repoRoot: root, profile: TEST_CHAPTER });
-  assetsDir = join(root, PULLED_ASSETS_DIR);
+  // brand/local/ without images yet: the master and the icons go there.
+  writeChapter(root, { slug: LOCAL, assets: false });
+  profile = loadProfile({ repoRoot: root, env: {} });
+  assetsDir = join(root, "brand", LOCAL);
 });
 
 afterEach(() => {
@@ -73,9 +73,7 @@ describe("generateIcons", () => {
     await writeMaster();
     const written = await generateIcons({ profile, repoRoot: root });
     expect(written).toEqual(
-      BRAND_APPS.flatMap((app) =>
-        ICON_FILES.map(({ name }) => `${PULLED_ASSETS_DIR}/${app}/${name}`),
-      ),
+      BRAND_APPS.flatMap((app) => ICON_FILES.map(({ name }) => `brand/local/${app}/${name}`)),
     );
 
     const handMade = join(root, "hand-made");
@@ -120,7 +118,7 @@ describe("generateIcons", () => {
   it("refuses without a master, pointing at the guide step", async () => {
     const error = await refusal(generateIcons({ profile, repoRoot: root }));
     expect(error.errors.join()).toContain(
-      `${PULLED_ASSETS_DIR}/${ICON_MASTER_FILE} or ${ICON_MASTER_SVG_FILE}: missing`,
+      `brand/local/${ICON_MASTER_FILE} or ${ICON_MASTER_SVG_FILE}: missing`,
     );
     expect(error.message).toContain("docs/adopting.md step 3");
     expect(existsSync(join(assetsDir, "spotlight"))).toBe(false);
@@ -170,7 +168,7 @@ describe("generateIcons", () => {
         },
       });
       expect(questions).toEqual([
-        `Replace the 1 icon already in ${PULLED_ASSETS_DIR}/ with icons made from ${ICON_MASTER_FILE}?`,
+        `Replace the 1 icon already in brand/local/ with icons made from ${ICON_MASTER_FILE}?`,
       ]);
       expect(readFileSync(kept).subarray(1, 4).toString("latin1")).toBe("PNG");
     });
@@ -183,7 +181,7 @@ describe("generateIcons", () => {
 
     it("refuses without a terminal to ask in, and writes nothing", async () => {
       const error = await refusal(generateIcons({ profile, repoRoot: root }));
-      expect(error.errors.join()).toContain(`${PULLED_ASSETS_DIR}/backstage/favicon-16.png`);
+      expect(error.errors.join()).toContain(`brand/local/backstage/favicon-16.png`);
       expect(error.remedies).toEqual([
         expect.objectContaining({
           change: expect.stringMatching(/in a terminal/),
@@ -210,16 +208,18 @@ describe("generateIcons", () => {
 });
 
 describe("generateIcons in the images folder brand:check names", () => {
-  it("reads the master from, and writes the icons to, the profile's own assets/ while brand-assets/ holds no image", async () => {
+  it("writes a committed chapter's own assets/ while brand/local/ holds no pulled images", async () => {
+    writeChapter(root, { assets: false });
+    profile = loadProfile({ repoRoot: root, profile: TEST_CHAPTER });
     assetsDir = join(root, "brand", TEST_CHAPTER, "assets");
     writeAssetSet(assetsDir);
     await writeMaster();
-    const written = await generateIcons({ profile, repoRoot: root, env: {}, confirmReplace: yes });
+    const written = await generateIcons({ profile, repoRoot: root, confirmReplace: yes });
     expect(written).toContain("brand/jci-valle/assets/spotlight/pwa-512x512.png");
     expect(await pixel(join(assetsDir, "spotlight", "pwa-512x512.png"), 256, 256)).toEqual([
       255, 0, 0, 255,
     ]);
-    expect(existsSync(join(root, PULLED_ASSETS_DIR))).toBe(false);
+    expect(existsSync(join(root, "brand", LOCAL, "spotlight"))).toBe(false);
   });
 });
 

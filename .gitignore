@@ -61,9 +61,12 @@ coverage/
 .playwright-mcp/
 
 # A chapter's brand lives in its bucket, never in git: brand/ commits only the example and the
-# two shared files (CI's assert-brand-example-only fails any other addition)
-brand-assets/
+# two shared files (CI's assert-brand-example-only fails any other addition). brand/local/,
+# the chapter's own brand folder, is ignored by /brand/* below.
 brand-init-answers.json
+# Legacy: the brand folder before brand/local/. Nothing reads it any more, but a clone that
+# pulled before still holds a chapter's real logos there (the seed says to move them).
+/brand-assets/
 # Generated from the selected profile by `pnpm brand:apply` (prepare runs it on install)
 .firebaserc
 # Anchored with a leading slash: knip reads an unanchored brand/* as matching packages/brand/*

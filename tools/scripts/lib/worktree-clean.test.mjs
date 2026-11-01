@@ -73,6 +73,19 @@ test("state: build output is not precious; .env.local, untracked files and refs 
   ]);
 });
 
+test("state: a brand/local/ the caller found rebuildable is not precious; otherwise it is", () => {
+  const status = "!! brand/local/\0!! node_modules/\0";
+  assert.deepEqual(parseWorktreeState({ status }).ignored, ["brand/local/"]);
+  assert.deepEqual(parseWorktreeState({ status, rebuildable: ["brand/local/"] }).ignored, []);
+  assert.deepEqual(
+    parseWorktreeState({
+      status: `${status}!! apps/web/.env.local\0`,
+      rebuildable: ["brand/local/"],
+    }).ignored,
+    ["apps/web/.env.local"],
+  );
+});
+
 test("state: assume-unchanged and skip-worktree files count as dirty", () => {
   const dirtyFor = (lsFiles) => parseWorktreeState({ status: "", lsFiles }).dirty;
   assert.equal(dirtyFor("H a.ts\nH b.ts\n"), false);

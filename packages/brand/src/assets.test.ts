@@ -122,20 +122,6 @@ describe("validateAssets", () => {
     expect(result.errors).toEqual([]);
     expect(result.warnings).toEqual([expect.stringMatching(/og-image\.png.*300 KB/)]);
   });
-
-  it("rejects a pull manifest written for another profile", () => {
-    writeCompleteSet();
-    put("pull-manifest.json", Buffer.from(JSON.stringify({ profile: "other" })));
-    expect(validateAssets(dir, { profile: EXAMPLE_PROFILE }).errors).toEqual([
-      expect.stringMatching(/pull-manifest\.json.*"other".*"example"/),
-    ]);
-  });
-
-  it("accepts a pull manifest for the selected profile", () => {
-    writeCompleteSet();
-    put("pull-manifest.json", Buffer.from(JSON.stringify({ profile: EXAMPLE_PROFILE })));
-    expect(validateAssets(dir, { profile: EXAMPLE_PROFILE }).errors).toEqual([]);
-  });
 });
 
 describe("validateAssets files", () => {
@@ -181,8 +167,7 @@ describe("validateAssets files", () => {
 });
 
 describe("assetRemedies", () => {
-  const runs = (dir: string) =>
-    assetRemedies(validateAssets(dir, { profile: "jci-valle" }), "brand-assets");
+  const runs = (dir: string) => assetRemedies(validateAssets(dir), "brand/local");
 
   it("asks for the missing or wrong files, then brand:check", () => {
     writeCompleteSet();
@@ -190,7 +175,7 @@ describe("assetRemedies", () => {
     expect(runs(dir)).toEqual([
       {
         change:
-          "put the files marked above in brand-assets/ at the sizes shown (all 16: docs/adopting.md step 3)",
+          "put the files marked above in brand/local/ at the sizes shown (all 16: docs/adopting.md step 3)",
         run: "pnpm brand:check",
       },
     ]);
@@ -214,14 +199,8 @@ describe("assetRemedies", () => {
     const og = join(dir, "og-image.png");
     writeFileSync(og, Buffer.concat([readFileSync(og), Buffer.alloc(OG_IMAGE_WARN_BYTES + 1)]));
     expect(runs(dir)).toEqual([
-      { change: "compress brand-assets/og-image.png below 300 KB (still 1200×630)" },
+      { change: "compress brand/local/og-image.png below 300 KB (still 1200×630)" },
     ]);
-  });
-
-  it("asks to pull again when the manifest names another profile", () => {
-    writeCompleteSet();
-    writeFileSync(join(dir, "pull-manifest.json"), JSON.stringify({ profile: EXAMPLE_PROFILE }));
-    expect(runs(dir).map(({ run }) => run)).toEqual(["pnpm brand:pull"]);
   });
 
   it("has nothing to say about a valid set", () => {
