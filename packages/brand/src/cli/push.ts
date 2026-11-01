@@ -1,15 +1,8 @@
 import { join } from "node:path";
 import { fileSha256 } from "../hash.ts";
-import {
-  BrandConfigError,
-  REPO_ROOT,
-  copyChapterRemedy,
-  errorMessage,
-  type LoadedProfile,
-} from "../load-profile.ts";
+import { BrandConfigError, REPO_ROOT, errorMessage, type LoadedProfile } from "../load-profile.ts";
 import {
   BUCKET_CONTRACT,
-  LOCAL_PROFILE,
   localDir,
   localLabel,
   readManifest,
@@ -17,7 +10,7 @@ import {
   type ObjectRecord,
 } from "../local-folder.ts";
 import { undeployableProfileErrors } from "../release.ts";
-import { formatNext, type Problem, type Remedy } from "../remedy.ts";
+import { formatNext, type Remedy } from "../remedy.ts";
 import {
   CommandError,
   bucketUrl,
@@ -57,18 +50,6 @@ export class ImagesNotReadyError extends Error {
 }
 
 /**
- * TRANSITIONAL (the JCI Oriente removal PR drops this): the bucket mirrors brand/local/, so a
- * profile committed in brand/<slug>/ is copied there first (owner runbook step 1).
- */
-function committedChapterProblem({ slug }: LoadedProfile): Problem | null {
-  if (slug === LOCAL_PROFILE) return null;
-  return {
-    message: `brand:push uploads ${localLabel()}, but the selected profile is committed in brand/${slug}/.`,
-    remedies: [copyChapterRemedy(slug, `copy it into ${localLabel()}, then run brand:push again`)],
-  };
-}
-
-/**
  * Uploads brand/local/'s 17 contract files to the profile's bucket (spec "brand:push"), once
  * the images pass brand:check's rules. Each `cp` is conditional on the generation the
  * manifest recorded (0, create-only, for a file never pushed to this bucket), so nobody
@@ -85,8 +66,6 @@ export async function push({
   run?: CommandRunner;
 }): Promise<Images> {
   const refused = undeployableProfileErrors(profile);
-  const committed = committedChapterProblem(profile);
-  if (committed) refused.push(committed);
   if (refused.length > 0) throw new BrandConfigError(refused);
   const images = checkImages({ profile, repoRoot });
   if (images.validation.errors.length > 0) throw new ImagesNotReadyError(images);

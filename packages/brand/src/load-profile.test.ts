@@ -32,28 +32,36 @@ function remediesOf(run: () => unknown) {
 }
 
 describe("loadProfile", () => {
-  it("selects the one chapter profile in brand/, with no warning", () => {
+  it("selects the example while brand/local/ holds no brand.toml, ignoring any other folder", () => {
     const profile = loadProfile({ repoRoot: root, env: {} });
-    expect(profile.slug).toBe("other");
-    expect(profile.source).toBe("chapter");
-    expect(profile.warnings).toEqual([]);
-    expect(profile.dir).toBe(join(root, "brand", "other"));
+    expect(profile).toMatchObject({ slug: EXAMPLE_PROFILE, source: "example", warnings: [] });
+    mkdirSync(join(root, "brand", "local"));
+    writeFileSync(join(root, "brand", "local", "notes.txt"), "no brand.toml yet");
+    expect(loadProfile({ repoRoot: root, env: {} }).slug).toBe(EXAMPLE_PROFILE);
   });
 
-  it("selects the example when brand/ holds no chapter profile", () => {
-    rmSync(join(root, "brand", "other"), { recursive: true });
+  it("selects brand/local/ when it holds a brand.toml, and reads its images there", () => {
+    writeProfile("local");
+    const profile = loadProfile({ repoRoot: root, env: {} });
+    expect(profile).toMatchObject({ slug: "local", source: "local", warnings: [] });
+    expect(profile.dir).toBe(join(root, "brand", "local"));
+    expect(profile.assetsDir).toBe(join(root, "brand", "local"));
+  });
+
+  it("never selects a chapter folder committed in brand/, however many there are", () => {
+    writeProfile("jci-andina");
+    writeProfile("Other_Name");
+    expect(loadProfile({ repoRoot: root, env: {} }).slug).toBe(EXAMPLE_PROFILE);
+    writeProfile("local");
     expect(loadProfile({ repoRoot: root, env: {} })).toMatchObject({
-      slug: EXAMPLE_PROFILE,
-      source: "example",
+      slug: "local",
+      source: "local",
+      warnings: [],
     });
   });
 
-  it("does not count a folder without brand.toml as a profile", () => {
-    mkdirSync(join(root, "brand", "notes"));
-    expect(loadProfile({ repoRoot: root, env: {} }).slug).toBe("other");
-  });
-
-  it("finds a chapter profile with no example beside it, and names the base it needs", () => {
+  it("reads brand/local/'s own brand.toml with the example missing, and names the base it needs", () => {
+    writeProfile("local");
     rmSync(join(root, "brand", EXAMPLE_PROFILE), { recursive: true });
     const { remedies, message } = remediesOf(() => loadProfile({ repoRoot: root, env: {} }));
     expect(message).toContain(
@@ -68,19 +76,8 @@ describe("loadProfile", () => {
   });
 
   it("never reads a leftover luminova.json", () => {
-    writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: EXAMPLE_PROFILE }));
-    expect(loadProfile({ repoRoot: root, env: {} }).slug).toBe("other");
-  });
-
-  it("stops on two chapter profiles, naming both and the way out", () => {
-    writeProfile("jci-andina");
-    const { remedies, message } = remediesOf(() => loadProfile({ repoRoot: root, env: {} }));
-    expect(message).toContain(
-      "brand/ holds 2 chapter profiles (jci-andina, other); a repository builds one.",
-    );
-    expect(remedies).toEqual([
-      { change: "delete the folder under brand/ you do not build, so one chapter profile remains" },
-    ]);
+    writeFileSync(join(root, "luminova.json"), JSON.stringify({ profile: "other" }));
+    expect(loadProfile({ repoRoot: root, env: {} }).slug).toBe(EXAMPLE_PROFILE);
   });
 
   it("stops with brand:init when brand/ holds no profile at all", () => {
@@ -90,38 +87,19 @@ describe("loadProfile", () => {
     expect(remedies).toEqual([{ change: "create your chapter's profile", run: "pnpm brand:init" }]);
   });
 
-  it("asks to rename a discovered folder whose name is no slug", () => {
-    writeProfile("Other_Name");
-    rmSync(join(root, "brand", "other"), { recursive: true });
-    const { remedies } = remediesOf(() => loadProfile({ repoRoot: root, env: {} }));
-    expect(remedies).toEqual([
-      {
-        change: "rename brand/Other_Name/ to lowercase letters, digits and hyphens",
-      },
-    ]);
-  });
-
   it("lets the BRAND_PROFILE override win, and says so when it differs from brand/", () => {
+    writeProfile("local");
     const profile = loadProfile({ repoRoot: root, env: { BRAND_PROFILE: EXAMPLE_PROFILE } });
     expect(profile.slug).toBe(EXAMPLE_PROFILE);
     expect(profile.source).toBe("override");
     expect(profile.warnings).toEqual([
-      'BRAND_PROFILE=example in your environment overrides the profile found in brand/ ("other"). If you did not mean that: unset BRAND_PROFILE   # in your shell',
+      'BRAND_PROFILE=example in your environment overrides the profile found in brand/ ("local"). If you did not mean that: unset BRAND_PROFILE   # in your shell',
     ]);
     // Repeating the discovered choice is no override: no warning, and release builds accept it.
-    expect(loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "other" } })).toMatchObject({
-      source: "chapter",
+    expect(loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "local" } })).toMatchObject({
+      source: "local",
       warnings: [],
     });
-  });
-
-  it("still obeys the override when brand/ has no single choice", () => {
-    writeProfile("jci-andina");
-    const profile = loadProfile({ repoRoot: root, env: { BRAND_PROFILE: "other" } });
-    expect(profile).toMatchObject({ slug: "other", source: "override" });
-    expect(profile.warnings).toEqual([
-      "BRAND_PROFILE=other in your environment overrides the profile found in brand/. If you did not mean that: unset BRAND_PROFILE   # in your shell",
-    ]);
   });
 
   it("prefers the profile its caller names over the override and brand/", () => {
@@ -134,65 +112,10 @@ describe("loadProfile", () => {
     expect(profile.source).toBe("named");
   });
 
-  it("selects brand/local/ over a committed chapter, and reads its images there", () => {
-    writeProfile("local");
-    const profile = loadProfile({ repoRoot: root, env: {} });
-    expect(profile).toMatchObject({ slug: "local", source: "local", warnings: [] });
-    expect(profile.dir).toBe(join(root, "brand", "local"));
-    expect(profile.assetsDir).toBe(join(root, "brand", "local"));
-  });
-
-  it("leaves the committed chapter selected while brand/local/ holds no brand.toml", () => {
-    mkdirSync(join(root, "brand", "local"));
-    writeFileSync(join(root, "brand", "local", "notes.txt"), "images only, as CD pulls them");
-    expect(loadProfile({ repoRoot: root, env: {} })).toMatchObject({
-      slug: "other",
-      source: "chapter",
-    });
-  });
-
-  it("reads a committed chapter's own assets/ until brand/local/ records bucket images", () => {
-    expect(loadProfile({ repoRoot: root, env: {} }).assetsDir).toBe(
-      join(root, "brand", "other", "assets"),
-    );
-    const local = join(root, "brand", "local");
-    mkdirSync(local);
-    const manifest = (source: "bucket" | "example") =>
-      JSON.stringify({
-        version: 1,
-        project: "demo-example",
-        bucket: "demo-example-brand-assets",
-        objects: {
-          "logo-main.png": {
-            sha256: "a".repeat(64),
-            source,
-            ...(source === "bucket" ? { generation: "1" } : {}),
-          },
-        },
-      });
-    writeFileSync(join(local, ".pull-manifest.json"), manifest("example"));
-    expect(loadProfile({ repoRoot: root, env: {} }).assetsDir).toBe(
-      join(root, "brand", "other", "assets"),
-    );
-    writeFileSync(join(local, ".pull-manifest.json"), manifest("bucket"));
-    expect(loadProfile({ repoRoot: root, env: {} })).toMatchObject({
-      slug: "other",
-      assetsDir: local,
-    });
-  });
-
   it("reads the example's images from its own assets/", () => {
     expect(loadProfile({ repoRoot: root, profile: EXAMPLE_PROFILE }).assetsDir).toBe(
       join(root, "brand", EXAMPLE_PROFILE, "assets"),
     );
-  });
-
-  it("stops on a malformed manifest instead of guessing where the images are", () => {
-    mkdirSync(join(root, "brand", "local"));
-    writeFileSync(join(root, "brand", "local", ".pull-manifest.json"), "{");
-    expect(errorsOf(() => loadProfile({ repoRoot: root, env: {} }))).toEqual([
-      expect.stringMatching(/^brand\/local\/\.pull-manifest\.json: not valid JSON/),
-    ]);
   });
 
   it.each(["../other", "Other", "a/b", "-x"])(

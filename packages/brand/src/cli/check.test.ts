@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ASSET_CONTRACT } from "../assets.ts";
 import { EXAMPLE_PROFILE, loadProfile } from "../load-profile.ts";
-import { exampleRepo, writeChapter } from "../test-profiles.ts";
+import { TEST_CHAPTER, exampleRepo, writeChapter } from "../test-profiles.ts";
 import { applyProfile } from "./apply.ts";
 import { SECTION_TITLES, check, checkNext } from "./check.ts";
 import { rowRemedies, type CheckRow } from "./rows.ts";
@@ -12,7 +12,6 @@ import { CommandError, commandFailure, type CommandRunner } from "./gcloud.ts";
 const BUCKET = "jci-valle-brand-assets";
 /** A connected chapter with CD's sign-in, in brand/local/. */
 const CHAPTER = "local";
-const LOCAL = { slug: CHAPTER };
 const TOOLS = { nodeVersion: "24.15.0", platform: "linux" } as const;
 const ENV = { CLOUDSDK_CONFIG: "" };
 
@@ -49,7 +48,7 @@ beforeEach(() => {
   root = exampleRepo("brand-check-");
   ENV.CLOUDSDK_CONFIG = root;
   writeFileSync(join(root, "application_default_credentials.json"), "{}");
-  writeChapter(root, LOCAL);
+  writeChapter(root);
   writeFileSync(
     join(root, "package.json"),
     JSON.stringify({ engines: { node: ">=24.15.0" }, packageManager: "pnpm@11.5.1" }),
@@ -179,17 +178,6 @@ describe("check", () => {
     expect(row.detail).toMatch(/16 of 17 files missing/);
   });
 
-  it("counts only the 16 images in a committed chapter's bucket: its brand.toml is in git", async () => {
-    rmSync(join(root, "brand", CHAPTER), { recursive: true });
-    writeChapter(root);
-    applyProfile({ profile: loadProfile({ repoRoot: root, env: {} }), repoRoot: root, env: {} });
-    responses.set("gcloud storage objects list", listingOf(ASSET_CONTRACT.map(({ path }) => path)));
-    expect(rowFor(await diagnose(), "bucket")).toMatchObject({
-      status: "ok",
-      detail: `all 16 files in gs://${BUCKET}`,
-    });
-  });
-
   it("fails a stale .firebaserc with the command that fixes it", async () => {
     writeFileSync(join(root, ".firebaserc"), "{}");
     expect(rowFor(await diagnose(), ".firebaserc")).toMatchObject({
@@ -209,7 +197,7 @@ describe("check", () => {
   });
 
   it("warns, without failing, about values the chapter still takes from the example", async () => {
-    writeChapter(root, { ...LOCAL, brand: { foundedYear: undefined, contact: undefined } });
+    writeChapter(root, { brand: { foundedYear: undefined, contact: undefined } });
     const rows = await diagnose();
     expect(rowFor(rows, "example values")).toMatchObject({
       status: "warn",
@@ -233,14 +221,16 @@ describe("check", () => {
     });
   });
 
-  it("fails two committed chapter profiles once, with the way out, and skips the profile", async () => {
+  it("selects the example, not a chapter folder committed in brand/, while brand/local/ holds none", async () => {
     rmSync(join(root, "brand", CHAPTER), { recursive: true });
-    writeChapter(root, { assets: false });
+    writeChapter(root, { slug: TEST_CHAPTER, assets: false });
     writeChapter(root, { slug: "jci-andina", assets: false });
     const rows = await diagnose();
-    expect(statusOf(rows)).toMatchObject({ selection: "fail", profile: "skip", bucket: "skip" });
-    expect(rowFor(rows, "selection").detail).toMatch(/brand\/ holds 2 chapter profiles/);
-    expect(rowFor(rows, "selection").remedies?.[0]?.change).toMatch(/^delete the folder/);
+    expect(rowFor(rows, "selection")).toMatchObject({
+      status: "ok",
+      detail: expect.stringMatching(/^brand\/ selects "example" \(the example/),
+    });
+    expect(rowFor(rows, "profile").detail).toBe("brand/example/");
   });
 
   it("warns when a BRAND_PROFILE override in the shell differs from brand/", async () => {
@@ -253,25 +243,12 @@ describe("check", () => {
     expect(rowFor(rows, "profile").detail).toBe("brand/example/ (from BRAND_PROFILE)");
   });
 
-  it("notes that brand/local/ overrides a committed chapter, and how to build that one", async () => {
-    const committed = writeChapter(root, {
-      slug: "jci-andina",
-      assets: false,
-      brand: { name: "JCI Andina" },
+  it("passes the selection with brand/local/ beside a chapter folder committed in brand/", async () => {
+    writeChapter(root, { slug: "jci-andina", assets: false, brand: { name: "JCI Andina" } });
+    expect(rowFor(await diagnose(), "selection")).toMatchObject({
+      status: "ok",
+      detail: `brand/ selects "${CHAPTER}" (your chapter's brand in brand/local/)`,
     });
-    const rows = await diagnose();
-    expect(rowFor(rows, "selection")).toMatchObject({
-      status: "warn",
-      detail: `brand/ selects "${CHAPTER}" (your chapter's brand in brand/local/), but brand/local/ overrides brand/jci-andina/`,
-      remedies: [
-        {
-          change: "to build brand/jci-andina/ instead, copy its brand.toml into brand/local/",
-          run: "cp brand/jci-andina/brand.toml brand/local/brand.toml",
-        },
-      ],
-    });
-    cpSync(join(committed, "brand.toml"), join(root, "brand", "local", "brand.toml"));
-    expect(rowFor(await diagnose(), "selection").status).toBe("ok");
   });
 
   it("warns that a leftover luminova.json is no longer read", async () => {

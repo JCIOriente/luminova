@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BRAND_FILE, readBrandToml, resolveBrandFile } from "./brand-file.ts";
 import { BrandConfigError, errorMessage, issueLines, type SchemaIssue } from "./errors.ts";
-import { LOCAL_PROFILE, holdsBucketImages, localDir, localLabel } from "./local-folder.ts";
+import { LOCAL_PROFILE, localDir, recoverInterruptedCanary } from "./local-folder.ts";
 import type { Remedy } from "./remedy.ts";
 import { SLUG_MESSAGE, SLUG_PATTERN, isDemoProject, type Brand, type Table } from "./schema.ts";
 import type { SiteContent } from "./site-content.ts";
@@ -72,17 +72,13 @@ export function issuesToBrandError(
 
 /**
  * Where a command's profile came from: named by its caller (tests, tooling), the tooling
- * override, or brand/ itself (brand/local/, else a committed chapter, else the example).
+ * override, or brand/ itself (brand/local/, else the example).
  */
 export type ProfileSource = ExplicitSource | DiscoveredSource;
 /** Chosen by hand, for one command. */
 export type ExplicitSource = "named" | "override";
 /** Chosen by what brand/ holds. */
-export type DiscoveredSource =
-  | "local"
-  // TRANSITIONAL (the JCI Oriente removal PR drops this): a chapter committed in brand/.
-  | "chapter"
-  | "example";
+export type DiscoveredSource = "local" | "example";
 
 export const isExplicitSource = (source: ProfileSource): source is ExplicitSource =>
   source === "named" || source === "override";
@@ -125,7 +121,6 @@ export const SOURCE_LABEL: Readonly<Record<ProfileSource, string>> = {
   named: "named by the caller",
   override: `from ${PROFILE_OVERRIDE_ENV}`,
   local: "your chapter's brand in brand/local/",
-  chapter: "the chapter profile committed in brand/",
   example: "the example: brand/local/ holds no brand.toml (pnpm install seeds one)",
 };
 
@@ -135,7 +130,7 @@ export const REMOVE_OVERRIDE: Remedy = {
   where: "shell",
 };
 
-/** brand/ has no single profile to select: none, two chapter profiles, or a misnamed folder. */
+/** brand/ has no profile to select: neither brand/local/brand.toml nor the example. */
 export class ProfileSelectionError extends BrandConfigError {
   override name = "ProfileSelectionError";
 }
@@ -150,39 +145,9 @@ function availableProfiles(repoRoot: string): string[] {
     .sort();
 }
 
-const isCommittedChapter = (slug: string) => slug !== EXAMPLE_PROFILE && slug !== LOCAL_PROFILE;
-
-/** Copy a committed chapter's brand.toml into brand/local/, the folder every command reads. */
-export const copyChapterRemedy = (slug: string, change: string): Remedy => ({
-  change,
-  run: `cp ${brandFileLabel(slug)} ${localLabel(BRAND_FILE)}`,
-});
-
 /**
- * The committed chapter brand/local/ wins over, when its brand.toml is not that chapter's.
- * TRANSITIONAL (the JCI Oriente removal PR drops this): only upstream commits one.
- */
-export function overriddenChapter(repoRoot: string = REPO_ROOT): string | null {
-  const local = join(localDir(repoRoot), BRAND_FILE);
-  if (!existsSync(local)) return null;
-  const [chapter] = availableProfiles(repoRoot).filter(isCommittedChapter);
-  if (chapter === undefined) return null;
-  const committed = readFileSync(join(repoRoot, "brand", chapter, BRAND_FILE));
-  return readFileSync(local).equals(committed) ? null : chapter;
-}
-
-/** What overriddenChapter means for the member, and how to build that chapter instead. */
-export const overrideNote = (slug: string) => ({
-  message: `${localLabel()} overrides brand/${slug}/`,
-  remedy: copyChapterRemedy(
-    slug,
-    `to build brand/${slug}/ instead, copy its ${BRAND_FILE} into ${localLabel()}`,
-  ),
-});
-
-/**
- * What brand/ selects: brand/local/brand.toml, else (TRANSITIONAL) its one committed chapter
- * profile, else the example. CD always selects brand/local/: it pulls brand.toml there first.
+ * What brand/ selects: brand/local/brand.toml, else the example. CD always selects
+ * brand/local/: it pulls brand.toml there first.
  */
 export function discoverProfile(repoRoot: string = REPO_ROOT): {
   slug: string;
@@ -191,52 +156,18 @@ export function discoverProfile(repoRoot: string = REPO_ROOT): {
   if (existsSync(join(localDir(repoRoot), BRAND_FILE))) {
     return { slug: LOCAL_PROFILE, source: "local" };
   }
-  // TRANSITIONAL (the JCI Oriente removal PR drops this): a chapter folder committed in
-  // brand/ (only jci-oriente upstream, which CD no longer reads), with the two-chapters error.
-  const profiles = availableProfiles(repoRoot);
-  const chapters = profiles.filter(isCommittedChapter);
-  const [only] = chapters;
-  if (chapters.length > 1) {
-    throw new ProfileSelectionError(
-      [
-        `brand/ holds ${chapters.length} chapter profiles (${chapters.join(", ")}); a repository builds one.`,
-      ],
-      [
-        {
-          change: "delete the folder under brand/ you do not build, so one chapter profile remains",
-        },
-      ],
-    );
+  if (existsSync(join(repoRoot, "brand", EXAMPLE_PROFILE, BRAND_FILE))) {
+    return { slug: EXAMPLE_PROFILE, source: "example" };
   }
-  if (only !== undefined && !SLUG_PATTERN.test(only)) {
-    throw new ProfileSelectionError(
-      [`brand/${only}/: a profile folder name ${SLUG_MESSAGE} (e.g. jci-valle)`],
-      [
-        {
-          change: `rename brand/${only}/ to lowercase letters, digits and hyphens`,
-        },
-      ],
-    );
-  }
-  if (only !== undefined) return { slug: only, source: "chapter" };
-  if (profiles.includes(EXAMPLE_PROFILE)) return { slug: EXAMPLE_PROFILE, source: "example" };
   throw new ProfileSelectionError(
     [`brand/ holds no profile: each one is a folder with a ${BRAND_FILE}.`],
     [{ change: "create your chapter's profile", run: "pnpm brand:init" }],
   );
 }
 
-/**
- * Where a profile's images are: brand/local/ for the local profile, the example's own
- * assets/ for the example. TRANSITIONAL (the JCI Oriente removal PR drops this): a committed
- * chapter reads brand/local/ once brand:pull recorded bucket images there (that is how CD
- * feeds it), else its own assets/.
- */
-function assetsDirOf(repoRoot: string, slug: string, dir: string): string {
-  if (slug === LOCAL_PROFILE) return dir;
-  if (slug !== EXAMPLE_PROFILE && holdsBucketImages(repoRoot)) return localDir(repoRoot);
-  return join(dir, "assets");
-}
+/** Where a profile's 16 images are: brand/local/ itself, or any other profile's own assets/. */
+const assetsDirOf = (slug: string, dir: string) =>
+  slug === LOCAL_PROFILE ? dir : join(dir, "assets");
 
 /** Which profile a command means: the one its caller names, else the tooling override, else brand/ (spec P1, P4). */
 function selectedProfile({
@@ -285,6 +216,9 @@ export function loadProfile({
   env = process.env,
   profile,
 }: LoadProfileOptions = {}): LoadedProfile {
+  // Every command loads a profile first: none must take a leftover canary for the chapter.
+  const recovered = recoverInterruptedCanary(repoRoot);
+  if (recovered) console.error(`brand: ${recovered}`);
   const { slug, source, discovered } = selectedProfile({ repoRoot, env, profile });
   const warnings = source === "override" ? [overrideWarning(slug, discovered)] : [];
 
@@ -322,7 +256,7 @@ export function loadProfile({
           baseLabel: BASE_LABEL,
         });
   const localOnly = isDemoProject(resolved.brand.firebase.projectId);
-  const assetsDir = assetsDirOf(repoRoot, slug, dir);
+  const assetsDir = assetsDirOf(slug, dir);
   return { slug, dir, assetsDir, ...resolved, source, warnings, localOnly };
 }
 

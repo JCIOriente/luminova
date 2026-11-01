@@ -1,16 +1,14 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   baseLayer,
   layer,
   inheritedExampleValues,
   parseBrandToml,
-  readBrandToml,
   resolveBrandFile,
   tomlLocation,
 } from "./brand-file.ts";
-import { EXAMPLE_PROFILE, REPO_ROOT, loadProfile } from "./load-profile.ts";
+import { EXAMPLE_PROFILE, loadProfile } from "./load-profile.ts";
 import type { Table } from "./schema.ts";
 import { errorsOf, exampleToml } from "./test-profiles.ts";
 
@@ -49,42 +47,17 @@ const oldBrand = (name: string): Table =>
     Object.entries(fixture(name) as Table).filter(([key]) => key !== "$schema" && key !== "deploy"),
   );
 
-describe("JCI Oriente's brand.toml", () => {
-  // The JSON files it replaced, as committed before the move to TOML: the deploy must not change.
-  it("resolves to the brand.json it replaced, field for field", () => {
-    expect(loadProfile({ profile: "jci-oriente" }).brand).toStrictEqual(
-      oldBrand("jci-oriente.brand.json"),
-    );
-  });
-
-  it("resolves to the site-content.json it replaced, field for field", () => {
-    expect(loadProfile({ profile: "jci-oriente" }).siteContent).toStrictEqual(
-      fixture("jci-oriente.site-content.json"),
-    );
-  });
-
-  it("pins the QR prefix its printed credentials carry", () => {
-    expect(
-      readBrandToml(join(REPO_ROOT, "brand", "jci-oriente", "brand.toml"), "oriente").qrPrefix,
-    ).toBe("jcioriente");
-  });
-
+describe("the example's brand.toml", () => {
   it("keeps the key order the bundles inline", () => {
-    const { brand, siteContent } = loadProfile({ profile: "jci-oriente" });
-    expect(Object.keys(brand.locality)).toEqual([
+    expect(Object.keys(loadProfile({ profile: EXAMPLE_PROFILE }).brand.locality)).toEqual([
       "city",
       "cityFormal",
       "region",
       "country",
       "regionShort",
     ]);
-    expect(JSON.stringify(siteContent)).toBe(
-      JSON.stringify(fixture("jci-oriente.site-content.json")),
-    );
   });
-});
 
-describe("the example's brand.toml", () => {
   it("resolves to the JSON it replaced, except the sentences its templates rewrote", () => {
     const old = oldBrand("example.brand.json");
     const { brand, siteContent } = loadProfile({ profile: EXAMPLE_PROFILE });

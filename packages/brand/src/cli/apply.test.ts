@@ -2,7 +2,7 @@ import { readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BrandConfigError, EXAMPLE_PROFILE, loadProfile } from "../load-profile.ts";
-import { TEST_CHAPTER, chapterProfile, chapterRepo } from "../test-profiles.ts";
+import { localProfile, localRepo } from "../test-profiles.ts";
 import { applyProfile, renderFirebaserc } from "./apply.ts";
 
 /** `profile` names one; without it, brand/ selects (the test chapter here). */
@@ -17,7 +17,7 @@ function apply(profile: string | undefined, env: Record<string, string> = {}) {
 let root: string;
 
 beforeEach(() => {
-  root = chapterRepo("brand-apply-");
+  root = localRepo("brand-apply-");
 });
 
 afterEach(() => {
@@ -26,7 +26,7 @@ afterEach(() => {
 
 describe("renderFirebaserc", () => {
   it("renders a chapter profile as .firebaserc with the hosting targets named by app", () => {
-    const { brand } = chapterProfile();
+    const { brand } = localProfile();
     expect(renderFirebaserc(brand)).toEqual({
       projects: { default: "jci-valle" },
       targets: {
@@ -61,7 +61,7 @@ describe("applyProfile", () => {
 
   it("replaces a stale file from another profile", () => {
     writeFileSync(join(root, ".firebaserc"), '{"projects":{"default":"someone-else"}}');
-    apply(TEST_CHAPTER);
+    apply("local");
     expect(readFileSync(join(root, ".firebaserc"), "utf8")).toContain('"default": "jci-valle"');
   });
 

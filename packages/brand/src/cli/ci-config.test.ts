@@ -35,8 +35,8 @@ describe("ciConfig", () => {
     }
   });
 
-  it("refuses a profile brand:pull did not write, such as a committed chapter", () => {
-    const committed = { ...pulled, slug: "jci-valle", source: "chapter" as const };
+  it("refuses a profile brand:pull did not write, such as one named by its caller", () => {
+    const committed = { ...pulled, slug: "jci-valle", source: "named" as const };
     expect(brandErrorOf(() => ciConfig(committed, CD)).errors).toEqual([
       'brand/ selects "jci-valle", not the brand/local/ brand:pull wrote: CD deploys only the brand pulled from the bucket.',
     ]);

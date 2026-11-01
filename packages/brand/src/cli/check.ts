@@ -15,13 +15,11 @@ import {
   loadProfile,
   discoverProfile,
   isExplicitSource,
-  overriddenChapter,
-  overrideNote,
   type DiscoveredSource,
   type Env,
   type LoadedProfile,
 } from "../load-profile.ts";
-import { LOCAL_PROFILE, bucketContract } from "../local-folder.ts";
+import { BUCKET_CONTRACT } from "../local-folder.ts";
 import { FIREBASERC, firebasercContent, readFirebaserc } from "./apply.ts";
 import { formatNext, type Problem, type Remedy, guideStep } from "../remedy.ts";
 import { CommandError, bucketUrl, listBucket, runCommand, type CommandRunner } from "./gcloud.ts";
@@ -166,9 +164,8 @@ async function bucketRow(profile: LoadedProfile, run: CommandRunner): Promise<Ch
       },
     ]);
   }
-  const contract = bucketContract(profile);
-  const missing = contract.filter((path) => !names.has(path)).length;
-  const total = contract.length;
+  const missing = BUCKET_CONTRACT.filter((path) => !names.has(path)).length;
+  const total = BUCKET_CONTRACT.length;
   return missing === 0
     ? ok("bucket", `all ${total} files in ${bucketUrl(bucket)}`)
     : fail("bucket", `${missing} of ${total} files missing from ${bucketUrl(bucket)}`, [
@@ -200,12 +197,6 @@ function selectionRow(repoRoot: string, env: Env): CheckRow {
   if (override && override !== slug) {
     notes.push(`${PROFILE_OVERRIDE_ENV}=${override} overrides it`);
     remedies.push(REMOVE_OVERRIDE);
-  }
-  const overridden = source === "local" ? overriddenChapter(repoRoot) : null;
-  if (overridden) {
-    const { message, remedy } = overrideNote(overridden);
-    notes.push(message);
-    remedies.push(remedy);
   }
   if (existsSync(join(repoRoot, LEGACY_CONFIG_FILE))) {
     notes.push(`${LEGACY_CONFIG_FILE} is no longer read`);
@@ -456,7 +447,6 @@ export function checkNext(
   profile: LoadedProfile,
   { cdReady, repo }: { cdReady: boolean; repo: string | null },
 ): Remedy[] {
-  const { slug } = profile;
   if (profile.source === "example") {
     return [
       { change: "see the example's sites on this computer", run: "pnpm dev" },
@@ -478,26 +468,13 @@ export function checkNext(
       },
     ];
   }
-  if (slug === LOCAL_PROFILE) {
-    return [
-      {
-        change: "when you are ready to go live: upload brand/local/ to the bucket (project owner)",
-        run: "pnpm brand:push",
-      },
-      {
-        change: `then deploy everything from your fork; approve the run in GitHub (${guideStep("goLive")})`,
-        run: deployDispatch("all", repo),
-        where: "shell",
-      },
-    ];
-  }
-  // TRANSITIONAL (the JCI Oriente removal PR drops this): a chapter committed in brand/.
   return [
     {
-      change: `when you are ready to go live: merge brand/${slug}/ to main in your fork. The merge starts the first deploy; approve it in GitHub (${guideStep("goLive")})`,
+      change: "when you are ready to go live: upload brand/local/ to the bucket (project owner)",
+      run: "pnpm brand:push",
     },
     {
-      change: "later, to deploy everything again without a merge (project owner)",
+      change: `then deploy everything from your fork; approve the run in GitHub (${guideStep("goLive")})`,
       run: deployDispatch("all", repo),
       where: "shell",
     },

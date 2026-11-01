@@ -54,10 +54,7 @@ beforeEach(() => {
   repoRoot = exampleRepo("brand-vite-", { assets: false });
   envDir = join(repoRoot, "env");
   mkdirSync(envDir);
-  writeChapter(repoRoot, { assets: false });
-  for (const slug of [EXAMPLE_PROFILE, TEST_CHAPTER]) {
-    writeAssetSet(join(repoRoot, "brand", slug, "assets"), distinctColors);
-  }
+  writeAssetSet(join(repoRoot, "brand", EXAMPLE_PROFILE, "assets"), distinctColors);
 });
 
 afterEach(() => {
@@ -72,6 +69,7 @@ afterEach(() => {
 describe("resolveBrandBuild", () => {
   it("prints each profile warning once per process", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    writeChapter(repoRoot);
     const env = { BRAND_PROFILE: EXAMPLE_PROFILE };
     resolve({ profile: undefined, env });
     resolve({ profile: undefined, env });
@@ -89,7 +87,7 @@ describe("resolveBrandBuild", () => {
   });
 
   it("reads brand/local/ for the local profile, and names it in the errors", () => {
-    writeChapter(repoRoot, { slug: "local" });
+    writeChapter(repoRoot);
     const result = resolve({ profile: undefined });
     expect(result.profile.slug).toBe("local");
     expect(result.assetsDir).toBe(join(repoRoot, "brand", "local"));
@@ -97,10 +95,12 @@ describe("resolveBrandBuild", () => {
     expect(() => resolve({ profile: undefined })).toThrow(/brand\/local\/og-image\.png: missing/);
   });
 
-  it("reads a committed chapter's own assets/ while brand/local/ holds no pulled images", () => {
-    expect(resolve({ profile: undefined }).assetsDir).toBe(
-      join(repoRoot, "brand", TEST_CHAPTER, "assets"),
-    );
+  it("builds the example, never a chapter folder committed in brand/, while brand/local/ holds none", () => {
+    writeChapter(repoRoot, { slug: TEST_CHAPTER });
+    expect(resolve({ profile: undefined })).toMatchObject({
+      profile: { slug: EXAMPLE_PROFILE },
+      assetsDir: join(repoRoot, "brand", EXAMPLE_PROFILE, "assets"),
+    });
   });
 
   it("tells the developer what to do, in the error Vite prints", () => {
@@ -187,31 +187,34 @@ describe("resolveBrandBuild", () => {
 const RELEASE_ENV = { BRAND_RELEASE: "1", GCP_PROJECT_ID: "jci-valle" };
 
 /** What CD's brand:pull leaves today: the bucket's images in brand/local/, no brand.toml. */
+/** brand/local/ as brand:pull leaves it: the test chapter's brand.toml and images, recorded. */
 function writePulledAssets(project = "jci-valle") {
+  writeChapter(repoRoot, { assets: false });
   writeAssetSet(join(repoRoot, "brand", "local"), distinctColors);
   recordLocal(repoRoot, { project });
 }
 
 describe("resolveBrandBuild in release mode", () => {
-  it("reads the committed chapter's pulled images in brand/local/ and carries the marker", () => {
+  it("reads the pulled files in brand/local/ and carries the marker", () => {
     writePulledAssets();
     const result = resolve({ profile: undefined, env: RELEASE_ENV });
     expect(result.assetsDir).toBe(join(repoRoot, "brand", "local"));
     expect(result.release).toEqual({
-      profile: "jci-valle",
+      profile: "local",
       projectId: "jci-valle",
       assets: expect.stringMatching(/^[0-9a-f]{64}$/),
     });
   });
 
-  it("never ships the profile's committed assets", () => {
+  it("never ships files brand:pull did not download", () => {
+    writeChapter(repoRoot);
     expect(errorsOf(() => resolve({ profile: undefined, env: RELEASE_ENV }))).toEqual([
       "no brand/local/.pull-manifest.json: a deploy only uses files downloaded with brand:pull.",
     ]);
   });
 
   it("releases the local profile from brand/local/, brand.toml included", () => {
-    writeChapter(repoRoot, { slug: "local" });
+    writeChapter(repoRoot);
     recordLocal(repoRoot);
     const result = resolve({ profile: undefined, env: RELEASE_ENV });
     expect(result.release).toMatchObject({ profile: "local", projectId: "jci-valle" });

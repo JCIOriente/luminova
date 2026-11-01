@@ -4,6 +4,7 @@ import {
   existsSync,
   lstatSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -14,7 +15,6 @@ import { ASSET_CONTRACT } from "./assets.ts";
 import { BRAND_FILE } from "./brand-file.ts";
 import { BrandConfigError, errorMessage, issueLines } from "./errors.ts";
 import { fileSha256 } from "./hash.ts";
-import type { LoadedProfile } from "./load-profile.ts";
 import type { Remedy } from "./remedy.ts";
 
 /** The one local brand folder (spec D4): the chapter's brand.toml, its images, the manifest. */
@@ -25,6 +25,80 @@ export const PULL_MANIFEST_FILE = ".pull-manifest.json";
 
 export const localDir = (repoRoot: string) => join(repoRoot, "brand", LOCAL_PROFILE);
 
+/** In brand/local/ while it holds brand:guard's canary chapter: the pid of the run that wrote it. */
+export const CANARY_MARKER = ".canary";
+
+/** Where brand:guard sets brand/local/ aside while the canary chapter takes its place. */
+export const canaryBackupDir = (repoRoot: string) =>
+  join(repoRoot, "brand", ".local-canary-backup");
+
+export const BACKUP_LABEL = "brand/.local-canary-backup/";
+
+/** The pid in a canary marker, when it belongs to a running process (this one included). */
+function liveRunPid(marker: string): number | null {
+  const pid = Number(readFileSync(marker, "utf8").trim());
+  if (!Number.isInteger(pid) || pid <= 0) return null;
+  if (pid === process.pid) return pid;
+  try {
+    process.kill(pid, 0);
+    return pid;
+  } catch (error) {
+    // EPERM: the process exists but belongs to another user.
+    return error instanceof Error && "code" in error && error.code === "EPERM" ? pid : null;
+  }
+}
+
+/** The pid of the running brand:guard (this one included) whose canary is in brand/local/. */
+export function liveCanaryPid(repoRoot: string): number | null {
+  const marker = join(localDir(repoRoot), CANARY_MARKER);
+  return existsSync(marker) ? liveRunPid(marker) : null;
+}
+
+/**
+ * brand/local/ is brand:guard's: it holds the marker, or nothing at all (a kill between
+ * renaming the folder aside and writing the marker).
+ */
+function holdsCanary(dir: string): boolean {
+  return existsSync(join(dir, CANARY_MARKER)) || readdirSync(dir).length === 0;
+}
+
+/**
+ * Takes the canary chapter out of brand/local/ and renames what brand:guard set aside back,
+ * exactly as it was; brand/local/ stays absent when nothing was set aside (it was absent).
+ * Returns whether a set-aside folder came back.
+ */
+export function restoreFromCanary(repoRoot: string): boolean {
+  const dir = localDir(repoRoot);
+  const backup = canaryBackupDir(repoRoot);
+  if (existsSync(dir) && holdsCanary(dir)) rmSync(dir, { recursive: true, force: true });
+  if (!existsSync(backup)) return false;
+  if (existsSync(dir)) {
+    throw new BrandConfigError(
+      [
+        `${BACKUP_LABEL} holds the ${localLabel()} an interrupted brand:guard set aside, but ${localLabel()} holds another folder now`,
+      ],
+      [{ change: `keep the one that is your chapter's as ${localLabel()} and delete the other` }],
+    );
+  }
+  renameSync(backup, dir);
+  return true;
+}
+
+/**
+ * Undoes what an interrupted brand:guard (Ctrl-C past its handlers, a crash, SIGKILL) left:
+ * its canary chapter in brand/local/, the member's folder set aside. A canary whose run is
+ * still alive is left alone. Returns a one-line notice when it changed anything.
+ */
+export function recoverInterruptedCanary(repoRoot: string): string | null {
+  const marker = join(localDir(repoRoot), CANARY_MARKER);
+  const hasCanary = existsSync(marker);
+  if (!hasCanary && !existsSync(canaryBackupDir(repoRoot))) return null;
+  if (hasCanary && liveRunPid(marker) !== null) return null;
+  return restoreFromCanary(repoRoot)
+    ? `put back the ${localLabel()} an interrupted brand:guard had set aside for its canary chapter`
+    : `removed the canary chapter an interrupted brand:guard left in ${localLabel()}`;
+}
+
 /** `brand/local/<path>`, as messages name a file of the folder. */
 export const localLabel = (path = "") => `brand/${LOCAL_PROFILE}/${path}`;
 
@@ -32,13 +106,6 @@ export const IMAGE_PATHS: readonly string[] = ASSET_CONTRACT.map(({ path }) => p
 
 /** The 17 paths the bucket and brand/local/ share: brand.toml, then the 16 images. */
 export const BUCKET_CONTRACT: readonly string[] = [BRAND_FILE, ...IMAGE_PATHS];
-
-/**
- * The paths a profile's bucket holds. TRANSITIONAL (the JCI Oriente removal PR drops this):
- * a committed chapter's brand.toml is in git, so its bucket holds only the images.
- */
-export const bucketContract = ({ slug }: Pick<LoadedProfile, "slug">): readonly string[] =>
-  slug === LOCAL_PROFILE ? BUCKET_CONTRACT : IMAGE_PATHS;
 
 /** A generation number, as gcloud lists it and `--if-generation-match` takes it. */
 export const generationSchema = z.string().regex(/^\d+$/, "expected a generation number");
@@ -162,14 +229,4 @@ export function isUntouchedSeed(repoRoot: string): boolean {
     throw error;
   }
   return BUCKET_CONTRACT.every((path) => isSeeded(dir, manifest, path));
-}
-
-/**
- * Whether brand/local/ holds images brand:pull or brand:push recorded from the bucket.
- * TRANSITIONAL (the JCI Oriente removal PR drops this): how a committed chapter finds the
- * images CD pulled.
- */
-export function holdsBucketImages(repoRoot: string): boolean {
-  const manifest = readManifest(localDir(repoRoot));
-  return IMAGE_PATHS.some((path) => manifest?.objects[path]?.source === "bucket");
 }
