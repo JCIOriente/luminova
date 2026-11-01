@@ -74,5 +74,3 @@ brand-init-answers.json
 !/brand/example/
 !/brand/brand.schema.json
 !/brand/bucket-lifecycle.json
-# Temporary: JCI Oriente deploys from its committed profile until the removal PR deletes it
-!/brand/jci-oriente/

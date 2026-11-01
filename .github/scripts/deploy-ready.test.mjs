@@ -1,243 +1,183 @@
-/** Fixture tests for deploy-ready.sh, the check that lets an unprepared fork skip Deploy.
+/** Fixture tests for deploy-ready.sh, which reads CD's target and sign-in from the
+ *  repository variables and lets a fork that has not set them skip Deploy.
  *
  *  Run: node --test .github/scripts/deploy-ready.test.mjs
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  DEPLOY_SA,
+  POOL_ID,
+  PROJECT_NUMBER_PATTERN,
+  PROVIDER_ID,
+  deployIdentity,
+} from "../../packages/brand/src/deploy-identity.ts";
+import { PROJECT_ID_PATTERN } from "../../packages/brand/src/schema.ts";
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "deploy-ready.sh");
+const VARIABLES = [
+  "FIREBASE_PROJECT_ID",
+  "GCP_PROJECT_NUMBER",
+  "GCP_REGION",
+  "WIF_PROVIDER",
+  "DEPLOY_SA",
+];
 
-const DEPLOY = {
-  workloadIdentityProvider: "projects/1/locations/global/workloadIdentityPools/p/providers/q",
-  serviceAccount: "firebase-deployer@acme.iam.gserviceaccount.com",
-};
-
-/**
- * A repo root whose brand/ holds `profiles`: folder -> brand.toml text (a string), a
- * brand.json (an object: a base tree from before brand.toml), or null for a folder with neither.
- */
-function repo(profiles) {
-  const root = mkdtempSync(join(tmpdir(), "deploy-ready-"));
-  mkdirSync(join(root, "brand"));
-  writeFileSync(join(root, "brand", "brand.schema.json"), "{}");
-  for (const [folder, brand] of Object.entries(profiles)) {
-    mkdirSync(join(root, "brand", folder));
-    if (typeof brand === "string") writeFileSync(join(root, "brand", folder, "brand.toml"), brand);
-    else if (brand !== null) {
-      writeFileSync(join(root, "brand", folder, "brand.json"), JSON.stringify(brand));
-    }
-  }
-  return root;
+/** Runs the script with only `vars` set among the five variables, in an empty directory. */
+function check(vars = {}) {
+  const env = { ...process.env };
+  for (const name of VARIABLES) delete env[name];
+  return spawnSync("bash", [SCRIPT], {
+    encoding: "utf8",
+    cwd: mkdtempSync(join(tmpdir(), "deploy-ready-")),
+    env: { ...env, ...vars },
+  });
 }
 
-/** A brand.toml with `project` and, when given, a [deploy] table with those keys. */
-function toml(project, deploy) {
-  const lines = ["#:schema ../brand.schema.json", 'name = "Acme"', `project = "${project}"`];
-  lines.push("", "[colors]", 'spotlight = "#0097D7"');
-  if (deploy) {
-    lines.push("", "[deploy]");
-    for (const [key, value] of Object.entries(deploy)) lines.push(`${key} = "${value}"`);
-  }
-  return `${lines.join("\n")}\n`;
-}
+/** The script's `key=value` lines as an object. */
+const outputs = (stdout) =>
+  Object.fromEntries(
+    stdout
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
+  );
 
-const READY = toml("acme", DEPLOY);
-const EXAMPLE = toml("demo-example");
-/** The example's old name, still in the base tree of the first deploy after the rename (D12). */
-const FIXTURE = { firebase: { projectId: "demo-fixture" } };
-/** A fork: the committed example, plus its chapter. */
-const fork = (acme, more = {}) => repo({ example: EXAMPLE, acme, ...more });
+const ACME = { FIREBASE_PROJECT_ID: "acme-prod", GCP_PROJECT_NUMBER: "123456789012" };
 
-const check = (root) => spawnSync("bash", [SCRIPT, root], { encoding: "utf8" });
-
-test("a profile on a real project with a deploy section is ready", () => {
-  const r = check(fork(READY));
-  assert.equal(r.status, 0);
-  assert.equal(r.stdout, "project=acme\nready=true\n");
+test("both required variables set: ready, with the sign-in derived from them", () => {
+  const r = check(ACME);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(outputs(r.stdout), {
+    project: "acme-prod",
+    ready: "true",
+    project_number: "123456789012",
+    region: "us-central1",
+    workload_identity_provider:
+      "projects/123456789012/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
+    service_account: "firebase-deployer@acme-prod.iam.gserviceaccount.com",
+  });
 });
 
-test("a clone with no chapter profile selects the example, which never deploys", () => {
-  const r = check(repo({ example: EXAMPLE, notes: null }));
-  assert.equal(r.status, 0);
-  assert.match(
-    r.stdout,
-    /^project=demo-example\nready=false\nreason=profile "example" is local-only/,
+test("derives the same provider and account as brand:provision creates (one source of truth)", () => {
+  const out = outputs(check(ACME).stdout);
+  const expected = deployIdentity({ projectId: "acme-prod", projectNumber: "123456789012" });
+  assert.equal(out.workload_identity_provider, expected.workloadIdentityProvider);
+  assert.equal(out.service_account, expected.serviceAccount);
+  // The names themselves, so a rename on either side shows here.
+  assert.deepEqual(
+    [DEPLOY_SA, POOL_ID, PROVIDER_ID],
+    ["firebase-deployer", "github-actions", "github-oidc"],
   );
 });
 
-test("the old fixture beside one chapter is no second chapter (D12)", () => {
-  const before = { "jci-oriente": READY, fixture: FIXTURE };
-  assert.equal(check(repo(before)).stdout, "project=acme\nready=true\n");
-  assert.equal(check(repo({ ...before, example: EXAMPLE })).stdout, "project=acme\nready=true\n");
-});
-
-test("a git-ignored brand/local/ beside the committed chapter is no second chapter", () => {
-  const r = check(repo({ example: EXAMPLE, "jci-oriente": READY, local: EXAMPLE }));
-  assert.equal(r.status, 0);
-  assert.equal(r.stdout, "project=acme\nready=true\n");
-});
-
-test("a chapter profile wins without the example beside it", () => {
-  assert.equal(check(repo({ acme: READY })).stdout, "project=acme\nready=true\n");
-});
-
-test("a local-only profile skips, naming the way to go live", () => {
-  const r = check(fork(toml("demo-acme")));
-  assert.equal(r.status, 0);
-  assert.match(
-    r.stdout,
-    /^project=demo-acme\nready=false\nreason=profile "acme" is local-only \(project demo-acme\)/,
-  );
-  assert.match(r.stdout, /connect it with pnpm brand:init,/);
-});
-
-test("a real project without a deploy section skips, pointing at brand:provision", () => {
-  for (const deploy of [undefined, { serviceAccount: DEPLOY.serviceAccount }]) {
-    const r = check(fork(toml("acme", deploy)));
-    assert.equal(r.status, 0);
-    assert.match(
-      r.stdout,
-      /^project=acme\nready=false\nreason=brand\/acme\/brand\.toml has no \[deploy\] table.*pnpm brand:provision/,
-    );
-  }
-});
-
-test("a broken selection fails loudly instead of skipping", () => {
-  for (const [root, error] of [
-    [
-      fork(READY, { "jci-andina": READY }),
-      /brand\/ holds 2 chapter profiles \(acme, jci-andina\); a repository builds one$/m,
-    ],
-    [repo({ fixture: FIXTURE }), /brand\/ holds no profile/],
-    [repo({ Acme_Chapter: READY }), /brand\/Acme_Chapter\/ must be named with lowercase/],
-  ]) {
-    const r = check(root);
-    assert.equal(r.status, 1, r.stdout);
-    assert.equal(r.stdout, "");
-    assert.match(r.stderr, error);
-  }
-});
-
-test("counts folders as Node does: no symlinks, dot-folders included", () => {
-  const linked = fork(READY);
-  const elsewhere = mkdtempSync(join(tmpdir(), "deploy-ready-elsewhere-"));
-  writeFileSync(join(elsewhere, "brand.toml"), READY);
-  symlinkSync(elsewhere, join(linked, "brand", "jci-valle"));
-  assert.equal(check(linked).stdout, "project=acme\nready=true\n");
-  const hidden = check(fork(READY, { ".valle": READY, "..urku": READY }));
-  assert.equal(hidden.status, 1);
-  assert.match(hidden.stderr, /3 chapter profiles \(\.\.urku, \.valle, acme\)/);
-});
-
-test("reads a ref's folder names unquoted", () => {
-  const root = fork(READY, { 'jci-va"lle': READY });
-  // A file whose name looks like an ls-tree type is no folder.
-  writeFileSync(join(root, "brand", "x tree y"), "{}");
-  const git = (...args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
-  git("init", "-q");
-  git("add", "-A");
-  git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "c");
-  const at = spawnSync("bash", [SCRIPT, root, "HEAD"], { encoding: "utf8" });
-  assert.equal(at.status, 1);
-  assert.match(at.stderr, /2 chapter profiles \(acme, jci-va"lle\)/);
-});
-
-test("judges a past commit with a git ref", () => {
-  const root = fork(toml("demo-acme"));
-  const git = (...args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
-  const commit = () => {
-    git("add", "-A");
-    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "c");
-  };
-  git("init", "-q");
-  commit();
-  writeFileSync(join(root, "brand", "acme", "brand.toml"), READY);
-  assert.equal(check(root).stdout, "project=acme\nready=true\n");
-  const at = (ref) => spawnSync("bash", [SCRIPT, root, ref], { encoding: "utf8" }).stdout;
-  assert.match(at("HEAD"), /^project=demo-acme\nready=false\n/);
-  // Once the chapter folder is gone, brand/ selects the example again: another project.
-  commit();
-  git("rm", "-rq", "brand/acme");
-  commit();
-  writeFileSync(join(root, "brand", "untracked.json"), "{}");
-  assert.match(at("HEAD"), /^project=demo-example\nready=false\n/);
-  assert.equal(at("HEAD~1"), "project=acme\nready=true\n");
-});
-
-test("reads brand.toml's narrow grammar: quotes, comments, whitespace, tables", () => {
-  const variants = [
-    // Literal strings, padding and trailing comments.
-    `# a comment\n  project   =   'acme'   # the project\n\n[deploy] # CD\n workloadIdentityProvider = '${DEPLOY.workloadIdentityProvider}'\nserviceAccount="${DEPLOY.serviceAccount}"#x\n`,
-    // A key named project inside a table is not the top-level one; [deploy] after another table.
-    `project = "acme"\n[seo]\nproject = "nope"\n[ deploy ]\nworkloadIdentityProvider = "${DEPLOY.workloadIdentityProvider}"\nserviceAccount = "${DEPLOY.serviceAccount}"\n[hero]\nmotto = "x"\n`,
-    // CRLF line endings.
-    READY.replaceAll("\n", "\r\n"),
-  ];
-  for (const text of variants) {
-    assert.equal(check(fork(text)).stdout, "project=acme\nready=true\n", text);
-  }
-});
-
-test("a [deploy] key outside the [deploy] table does not count", () => {
-  const text = `project = "acme"\nworkloadIdentityProvider = "${DEPLOY.workloadIdentityProvider}"\n[deploy]\nserviceAccount = "${DEPLOY.serviceAccount}"\n[x]\nworkloadIdentityProvider = "${DEPLOY.workloadIdentityProvider}"\n`;
-  assert.match(check(fork(text)).stdout, /^project=acme\nready=false\n/);
-});
-
-test("a brand.toml without a readable project says so, not that [deploy] is missing", () => {
-  for (const text of [
-    'name = "Acme"\n[deploy]\n',
-    toml("acme", DEPLOY).replace(/^project = .*$/m, "project = acme"),
-  ]) {
-    const r = check(fork(text));
-    assert.equal(r.status, 0);
-    assert.match(
-      r.stdout,
-      /^project=\nready=false\nreason=brand\/acme\/brand\.toml: its project could not be read \(a line project = "<id>" before the first \[table\]\), so Deploy cannot tell where to deploy\.\n$/,
-    );
-  }
-});
-
-test("still reads a brand.json profile, as the base tree before brand.toml holds it", () => {
-  const json = { firebase: { projectId: "acme" }, deploy: DEPLOY };
-  assert.equal(
-    check(repo({ example: { firebase: { projectId: "demo-example" } }, acme: json })).stdout,
-    "project=acme\nready=true\n",
-  );
-  assert.match(
-    check(repo({ acme: { firebase: { projectId: "acme" } } })).stdout,
-    /^project=acme\nready=false\nreason=brand\/acme\/brand\.json has no "deploy" section/,
-  );
-});
-
-test("names the example as the TypeScript twin does", () => {
-  const loader = readFileSync(
-    join(dirname(SCRIPT), "..", "..", "packages", "brand", "src", "load-profile.ts"),
-    "utf8",
-  );
+test("checks the project id and number with the patterns brand:check and brand:pull use", () => {
   const script = readFileSync(SCRIPT, "utf8");
-  const constant = (name) => loader.match(new RegExp(`export const ${name} = "([^"]+)"`))?.[1];
-  assert.equal(script.match(/^example=(\S+)$/m)?.[1], constant("EXAMPLE_PROFILE"));
+  const pattern = (name) => script.match(new RegExp(`^${name}='([^']*)'$`, "m"))?.[1];
+  assert.equal(pattern("project_re"), PROJECT_ID_PATTERN.source);
+  assert.equal(pattern("number_re"), PROJECT_NUMBER_PATTERN.source);
 });
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-/** Chapter profiles git tracks: upstream's jci-oriente until its removal; none in a fork. */
-const COMMITTED_CHAPTERS = spawnSync("git", ["-C", ROOT, "ls-files", "brand/*/brand.toml"], {
-  encoding: "utf8",
-})
-  .stdout.split("\n")
-  .map((path) => path.split("/")[1])
-  .filter((slug) => slug && slug !== "example");
+test("JCI Oriente's two variables sign in exactly as its [deploy] table did", () => {
+  const out = outputs(
+    check({ FIREBASE_PROJECT_ID: "jci-oriente", GCP_PROJECT_NUMBER: "953870918238" }).stdout,
+  );
+  assert.equal(out.ready, "true");
+  assert.equal(
+    out.workload_identity_provider,
+    "projects/953870918238/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
+  );
+  assert.equal(out.service_account, "firebase-deployer@jci-oriente.iam.gserviceaccount.com");
+});
 
-test(
-  "the committed profile is ready to deploy",
-  { skip: COMMITTED_CHAPTERS.length === 0 && "brand/ commits no chapter profile (a fork)" },
-  () => {
-    assert.deepEqual(COMMITTED_CHAPTERS, ["jci-oriente"]);
-    assert.match(check(ROOT).stdout, /^project=jci-oriente\nready=true\n$/);
-  },
-);
+test("the optional variables override the region, provider and account", () => {
+  const out = outputs(
+    check({
+      ...ACME,
+      GCP_REGION: "europe-west1",
+      WIF_PROVIDER: "projects/42/locations/global/workloadIdentityPools/ci-pool/providers/gh",
+      DEPLOY_SA: "deployer@acme-ops.iam.gserviceaccount.com",
+    }).stdout,
+  );
+  assert.equal(out.region, "europe-west1");
+  assert.equal(
+    out.workload_identity_provider,
+    "projects/42/locations/global/workloadIdentityPools/ci-pool/providers/gh",
+  );
+  assert.equal(out.service_account, "deployer@acme-ops.iam.gserviceaccount.com");
+});
+
+test("a missing required variable skips, naming it and the gh command that sets it", () => {
+  for (const [vars, missing] of [
+    [{}, ["FIREBASE_PROJECT_ID", "GCP_PROJECT_NUMBER"]],
+    [{ GCP_PROJECT_NUMBER: "123456789012" }, ["FIREBASE_PROJECT_ID"]],
+    [{ FIREBASE_PROJECT_ID: "acme-prod" }, ["GCP_PROJECT_NUMBER"]],
+    [
+      { FIREBASE_PROJECT_ID: "", GCP_PROJECT_NUMBER: "" },
+      ["FIREBASE_PROJECT_ID", "GCP_PROJECT_NUMBER"],
+    ],
+  ]) {
+    const r = check(vars);
+    assert.equal(r.status, 0, r.stderr);
+    const out = outputs(r.stdout);
+    assert.equal(out.ready, "false");
+    assert.equal(out.project, vars.FIREBASE_PROJECT_ID ?? "");
+    assert.equal(out.workload_identity_provider, undefined);
+    for (const name of missing) {
+      assert.match(out.reason, new RegExp(`gh variable set ${name} --body `));
+    }
+    assert.match(out.reason, new RegExp(`repository variable.* ${missing.join(", ")} `));
+    assert.equal(r.stdout.split("\n").filter(Boolean).length, 3, "reason is one line");
+  }
+});
+
+test("a demo- project is local-only and skips, naming the way to go live", () => {
+  const r = check({ FIREBASE_PROJECT_ID: "demo-acme", GCP_PROJECT_NUMBER: "123456789012" });
+  assert.equal(r.status, 0);
+  const out = outputs(r.stdout);
+  assert.equal(out.project, "demo-acme");
+  assert.equal(out.ready, "false");
+  assert.match(
+    out.reason,
+    /demo-acme.*exists only in the emulators.*gh variable set FIREBASE_PROJECT_ID --body/,
+  );
+});
+
+test("an invalid variable fails the run loudly instead of skipping or deploying", () => {
+  for (const [vars, name] of [
+    [{ ...ACME, FIREBASE_PROJECT_ID: "Acme_Prod" }, "FIREBASE_PROJECT_ID"],
+    [
+      { ...ACME, FIREBASE_PROJECT_ID: "acme-prod\nservice_account=evil@x.iam.gserviceaccount.com" },
+      "FIREBASE_PROJECT_ID",
+    ],
+    [{ ...ACME, FIREBASE_PROJECT_ID: " acme-prod" }, "FIREBASE_PROJECT_ID"],
+    [{ ...ACME, GCP_PROJECT_NUMBER: "12345-6789" }, "GCP_PROJECT_NUMBER"],
+    [{ ...ACME, GCP_PROJECT_NUMBER: "acme-prod" }, "GCP_PROJECT_NUMBER"],
+    [{ ...ACME, GCP_PROJECT_NUMBER: "123\n456" }, "GCP_PROJECT_NUMBER"],
+    [{ ...ACME, GCP_REGION: "us central1" }, "GCP_REGION"],
+    [
+      { ...ACME, WIF_PROVIDER: "projects/x/locations/global/workloadIdentityPools/p/providers/q" },
+      "WIF_PROVIDER",
+    ],
+    [{ ...ACME, WIF_PROVIDER: "github-oidc" }, "WIF_PROVIDER"],
+    [{ ...ACME, DEPLOY_SA: "firebase-deployer" }, "DEPLOY_SA"],
+    [{ ...ACME, DEPLOY_SA: "someone@gmail.com" }, "DEPLOY_SA"],
+    // Invalid even when the other required one is missing: a typo is never "not set up".
+    [{ GCP_PROJECT_NUMBER: "twelve" }, "GCP_PROJECT_NUMBER"],
+  ]) {
+    const r = check(vars);
+    assert.equal(r.status, 1, `${name}: ${r.stdout}`);
+    assert.equal(r.stdout, "");
+    assert.match(r.stderr, new RegExp(`repository variable ${name}`));
+  }
+});
+
+test("reads no brand files: the same answer whatever the directory holds", () => {
+  const script = spawnSync("cat", [SCRIPT], { encoding: "utf8" }).stdout;
+  assert.doesNotMatch(script, /brand\.toml|brand\.json|jq |awk /);
+});

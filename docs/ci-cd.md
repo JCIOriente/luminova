@@ -8,7 +8,7 @@ deploy to Firebase). This is the living reference; dated provisioning records li
 - **CI workflow:** `.github/workflows/ci.yml`
 - **CD workflow:** `.github/workflows/deploy.yml`
 - **Shared deploy setup:** `.github/actions/firebase-setup/action.yml`
-- **Firebase project:** the brand profile's `firebase.projectId` (`PROJECT_ID`; JCI Oriente: `jci-oriente`, Blaze) · **GitHub repo:** `GH_REPO` (JCI Oriente: `JCIOriente/luminova`, public). Values below are JCI Oriente's; `pnpm brand:provision` prints section 6 with yours.
+- **Firebase project:** the repository variable `FIREBASE_PROJECT_ID` (`PROJECT_ID`; JCI Oriente: `jci-oriente`, Blaze) · **GitHub repo:** `GH_REPO`, the repository CD runs in (JCI Oriente: `JCIOriente/luminova`, public; a chapter: its fork). Values below are JCI Oriente's; `pnpm brand:provision` prints section 6 with yours.
 
 ---
 
@@ -86,8 +86,14 @@ on:
   Because `workflow_run` always executes the copy of `deploy.yml` on the **default
   branch**, a feature or fork PR can never modify deploy logic to touch the token.
 - **`workflow_dispatch`** is the manual escape hatch (first-run validation, targeted
-  re-deploy, rollback). **Must be dispatched from `main`** — the deploy jobs check out
-  the dispatched ref and the WIF token is only honored for `refs/heads/main`.
+  re-deploy, rollback, and the hosting deploy after a `brand:push`). **Only a dispatch from
+  `main` deploys**: the `filter` job's guard requires `github.ref == 'refs/heads/main'`, and
+  the WIF token is only honored for `refs/heads/main`.
+- **A pull request never starts Deploy**, from a branch or a fork: only a finished CI run of
+  a *push* to `main`, or a dispatch, does. A fork's pull request gets no secrets, no
+  variables-based sign-in and no OIDC token.
+- **Sync fork redeploys.** In a chapter's fork, GitHub's **Sync fork** pushes upstream's
+  commits to the fork's `main`; its CI runs, then its Deploy ships the surfaces they touch.
 
 ```yaml
 permissions: { contents: read }   # workflow default: least privilege
@@ -100,11 +106,19 @@ concurrency: { group: deploy-production, cancel-in-progress: false }  # never in
 
 | Job | Runs when | Environment | Notes |
 |-----|-----------|-------------|-------|
-| `filter` | green-CI-on-main **or** manual dispatch | — | Checks out the deployed SHA (`fetch-depth: 0`) and diffs it against the **last successfully-deployed commit** (`gh run list --workflow Deploy --status success`, needs `actions: read`); falls back to the first parent, then to deploy-all. First it runs `.github/scripts/deploy-ready.sh`: a profile that is local-only (`demo-` project) or has no `[deploy]` table turns every surface off, with a notice and a summary line, so a fork's merges stay green until it sets up CD. When the base commit was not set up (the last run skipped), this is the first real deploy and every surface ships. Emits `spotlight/backstage/functions/rules` booleans + the SHA. Untrusted-ish inputs (`surface`, SHAs) flow through `env:`, never inline `${{ }}` in `run:`. |
+| `filter` | green-CI-on-main **or** manual dispatch | — | Credential-free. First it runs `.github/scripts/deploy-ready.sh` on the repository variables (3.3): a missing `FIREBASE_PROJECT_ID` or `GCP_PROJECT_NUMBER`, or a `demo-` project, turns every surface off, with a notice and a summary line naming the `gh variable set` command, so a fork's merges stay green until it sets up CD; a malformed variable fails the run. Then it checks out the deployed SHA (`fetch-depth: 0`) and diffs it against the **last commit successfully deployed to this project**: the commit named by the newest successful Deploy run titled `Deploy to <project> at <sha>` (`gh run list --workflow Deploy --branch main --status success`, needs `actions: read`; `.github/scripts/last-deploy.sh` reads the sha from the title, not the run's head). `run-name` gives that title only to a run that can deploy every changed surface: a dispatch of surface `all` on `main`, or a run after a green CI of a push to `main` (the `filter` guard). A partial dispatch is titled `Deploy <project>: <surface> only`, a run whose guard is false `Deploy (skipped)`, and a repository without the variables `Deploy (not set up)`; none of them becomes the base, so the next diff still covers what they left undeployed. With none (the repository was not set up before, or deployed to another project), a base gone from history, or the head itself, this is a first deploy and every surface ships. Emits `spotlight/backstage/functions/rules` booleans + the SHA. Untrusted-ish inputs (`surface`, SHAs, variables) flow through `env:`, never inline `${{ }}` in `run:`. |
 | `deploy-rules` | `rules == true` | `production` | Two steps: `firebase deploy --only firestore:rules,storage --force`, then `--only firestore:indexes` **without `--force`** (see §9 — index deletes fail loud instead of silently reaping). Both `--message <sha>`. |
 | `deploy-functions` | `functions == true` and rules didn't fail | `production` | `firebase deploy --only functions --force --message <sha>` (predeploy builds beacon), then `functions:list` as a sanity check. gen2 = Cloud Run; no auto-rollback. |
-| `deploy-hosting` | `spotlight` or `backstage` true, and **neither rules nor functions failed** | `production` | `brand:pull` the profile's assets from its private bucket (generations to the job summary), **release-build** the changed target(s) (`BRAND_RELEASE=1 --force`, emulator flag off), `brand:assert-dist` each, then **preview → smoke → promote** (below) to the profile's site ids. `needs` both prior deploy jobs so a failed rules deploy can't ship a UI against a data contract that never landed. |
+| `deploy-hosting` | `spotlight` or `backstage` true, and **neither rules nor functions failed** | `production` | Records the pulled brand's generations in the job summary, **release-builds** the changed target(s) (`BRAND_RELEASE=1 --force`, emulator flag off), `brand:assert-dist` each, then **preview → smoke → promote** (below) to the brand's site ids. `needs` both prior deploy jobs so a failed rules deploy can't ship a UI against a data contract that never landed. |
 | `notify` | always | — | No-op unless `DEPLOY_WEBHOOK_URL` repo secret is set. Posts a Slack/Discord-compatible message with per-surface results + run URL. |
+
+Every deploy job starts with `.github/actions/firebase-setup`: it validates the variables
+again (`deploy-ready.sh`, failing closed), installs (before any credential exists), signs
+in with Workload Identity, installs the pinned `gcloud`, runs `brand:pull` (the project's
+`brand.toml` and 16 images from `gs://<project>-brand-assets/` into `brand/local/`; a bucket
+without a `brand.toml` fails), then `brand:ci-config` under the release rules (it refuses a
+pulled `brand.toml` whose project is not `FIREBASE_PROJECT_ID`) and `brand:apply`
+(`.firebaserc`). It exports `GCP_PROJECT_ID` and `GCP_REGION` to the job.
 
 **Surface → path mapping** (conservative; `packages/**` and the root dep/build files
 feed every bundle, `firebase.json` touches everything):
@@ -122,8 +136,10 @@ undici/form-data) actually redeploys the bundles that embed the vulnerable dep, 
 of merging green while prod keeps serving the old build. Rules don't embed node_modules,
 so they're deliberately excluded from the root-dep trigger.
 
-**Brand assets are not in git**, so a `brand:push` to the bucket changes nothing the
+**The brand is not in git**, so a `brand:push` to the bucket changes nothing the
 `filter` diff can see: dispatch `surface=hosting` after it (`brand:push` prints the command).
+`brand/` in git holds only the example, the base layer every `brand.toml` merges onto, so a
+change there redeploys both sites.
 
 **Ordering rationale — rules → functions → hosting:** the data contract goes live
 before the backend that relies on it (no fail-open window), the backend goes live
@@ -133,9 +149,37 @@ lets a *skipped* upstream (unchanged surface) through while still stopping on a 
 failure.
 
 **Nothing deploys on red CI:** the `filter` guard is false → all surface flags resolve
-empty → every deploy job's `if` is false → all skip.
+empty → every deploy job's `if` is false → all skip. The run still concludes `success`, so
+its title, `Deploy (skipped)`, keeps it from becoming the next diff's base.
 
-### 3.3 Hosting: preview → smoke → promote (why there is no rollback step)
+### 3.3 Repository variables
+
+Where CD deploys and as whom are repository **variables** (Settings, Secrets and
+variables, Actions, **Variables**), not secrets and not the brand: the brand sits in the
+bucket CD can read only after signing in. `deploy.yml` declares them once, in its
+workflow-level `env:`, which every step inherits (the composite `firebase-setup` steps
+included); no `run:` block interpolates them.
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `FIREBASE_PROJECT_ID` | yes | The Firebase project id, e.g. `jci-oriente`. A `demo-` id skips every deploy. |
+| `GCP_PROJECT_NUMBER` | yes | Its project number, e.g. `953870918238` (`gcloud projects describe <id> --format='value(projectNumber)'`) |
+| `GCP_REGION` | no | The deployed callables' Cloud Run region; default `us-central1`, the gen2 default, because beacon sets none |
+| `WIF_PROVIDER` | no | Overrides `projects/<GCP_PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-actions/providers/github-oidc` |
+| `DEPLOY_SA` | no | Overrides `firebase-deployer@<FIREBASE_PROJECT_ID>.iam.gserviceaccount.com` |
+
+The two defaults are the names section 6 creates (`packages/brand/src/deploy-identity.ts`;
+`deploy-ready.sh` is its bash twin, pinned to it by `deploy-ready.test.mjs`). Each value is
+checked against an anchored pattern before use (a project id, digits only, a region, a
+provider resource name, a service account email), so none can carry a line break into a
+job output. `pnpm brand:provision` step 2 prints the two `gh variable set` commands (and
+runs them when you answer y); `pnpm brand:check` reads them back with `gh variable get`.
+Both name the repository with `--repo`, read from the clone's `origin` remote, never gh's
+default repository: in a clone made with `gh repo fork --clone`, gh's default is the
+`upstream` remote, `JCIOriente/luminova`. An `origin` that is upstream itself, for any
+project but `jci-oriente`, is refused with a warning.
+
+### 3.4 Hosting: preview → smoke → promote (why there is no rollback step)
 
 firebase-tools has **no** `hosting:rollback` command. Instead each changed target:
 
@@ -165,12 +209,15 @@ notification webhook.
 
 | Attack | Blocked by |
 |--------|-----------|
-| Another GitHub repo tries to impersonate the deployer | STS **attribute-condition** pins `assertion.repository == 'JCIOriente/luminova'` |
-| A feature/fork branch tries to deploy | attribute-condition pins `assertion.ref == 'refs/heads/main'`; `production` environment is main-only; `filter` guard rejects `event != push` / `head_branch != main` |
+| Another GitHub repo (upstream, another fork) tries to impersonate the deployer | STS **attribute-condition** pins the repository the provider was created for: `assertion.repository == '<GH_REPO>'` (JCI Oriente: `JCIOriente/luminova`; a chapter: its own fork) |
+| A feature/fork branch tries to deploy | attribute-condition pins `assertion.ref == 'refs/heads/main'`; `production` environment is main-only; `filter` guard rejects `event != push` / `head_branch != main`, and a dispatch from another ref |
+| Another workflow in the repository, merged to `main`, tries to mint the deploy credential | attribute-condition pins `assertion.workflow_ref == '<GH_REPO>/.github/workflows/deploy.yml@refs/heads/main'` (provisioned by section 6; JCI Oriente's provider: see section 5) |
+| A fork's pull request tries to deploy | A `pull_request` run never starts Deploy; it gets no secrets and no OIDC token |
 | A PR edits `deploy.yml` to exfiltrate the token | `workflow_run` executes `deploy.yml` from the **default branch** only |
 | Unattended prod change | `production` environment **required reviewer** blocks every deploy job until approved |
-| Leaked provider name or SA email (both committed in the profile's `brand.toml` `[deploy]`) | Inert without a GitHub-minted OIDC token satisfying the attribute-condition |
-| Script injection via dispatch input | Inputs/SHAs pass through `env:`, never inline in shell |
+| A bucket `brand.toml` of another project | `brand:pull` and `brand:ci-config` refuse it; the release build checks it against `GCP_PROJECT_ID` again |
+| Leaked provider name or SA email (both derived from the repository variables) | Inert without a GitHub-minted OIDC token satisfying the attribute-condition |
+| Script injection via dispatch input or a variable | Inputs, SHAs and variables pass through `env:`, never inline in shell; variables are pattern-checked first |
 
 Fork PRs are **triple-gated** (filter guard + STS condition + main-only environment)
 and run CI only — they can never deploy.
@@ -189,7 +236,7 @@ project owner via `gcloud`. All identifiers below are non-secret.
 | WIF provider | `.../workloadIdentityPools/github-actions/providers/github-oidc` |
 | Issuer | `https://token.actions.githubusercontent.com` |
 | Attribute mapping | `google.subject=assertion.sub, attribute.repository=assertion.repository, attribute.ref=assertion.ref` |
-| Attribute condition | `assertion.repository == 'JCIOriente/luminova' && assertion.ref == 'refs/heads/main'` |
+| Attribute condition | `assertion.repository == 'JCIOriente/luminova' && assertion.ref == 'refs/heads/main'` (section 6 now also pins `workflow_ref`; the optional owner step below brings this provider in line) |
 | Pool → SA binding | `roles/iam.workloadIdentityUser` for `principalSet://.../attribute.repository/JCIOriente/luminova` |
 | Runtime SA (gen2 actAs) | `953870918238-compute@developer.gserviceaccount.com` ← `roles/iam.serviceAccountUser` |
 | App Engine default SA (CLI preflight actAs) | `jci-oriente@appspot.gserviceaccount.com` ← `roles/iam.serviceAccountUser` (added 2026-07-03) |
@@ -230,14 +277,23 @@ project owner via `gcloud`. All identifiers below are non-secret.
 > skips that endpoint entirely — the release then goes through `firebaserules.admin`
 > only. Do not revert `storage` to the object form.
 
+**Optional owner step: pin JCI Oriente's provider to `deploy.yml`.** A provider created by
+section 6 admits only `deploy.yml` on `main`; the one above predates that and admits any
+workflow of the repository on `main`. The project owner may tighten it (Claude never runs
+it). `assertion.workflow_ref` reads the GitHub OIDC token's own claim, so the attribute
+mapping needs no change:
+
+```bash
+gcloud iam workload-identity-pools providers update-oidc github-oidc --project=jci-oriente --location=global --workload-identity-pool=github-actions --attribute-condition="assertion.repository == 'JCIOriente/luminova' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == 'JCIOriente/luminova/.github/workflows/deploy.yml@refs/heads/main'"
+```
+
 **GitHub `production` environment:** required reviewer `arkgast`; deployments restricted
-to `main`; **no variables**. Every deploy job reads its target from the repo: the
-`firebase-setup` action runs `pnpm brand:ci-config`, which loads the profile `brand/`
-selects under the release rules and outputs its `project`, its `[deploy]` table
-(Workload Identity provider and service account), and the hosting job's two site ids and
-public URL. A profile without `[deploy]` stops the job before any credential is minted.
-Changing where CD deploys is therefore a reviewed change under `brand/` on `main`: the
-chapter's `brand.toml`, or which profile folder `brand/` holds.
+to `main`; no environment variables. **Repository variables** (3.3):
+`FIREBASE_PROJECT_ID=jci-oriente`, `GCP_PROJECT_NUMBER=953870918238`. Every deploy job signs
+in with the provider and service account derived from them, then reads its hosting sites and
+public URL from the `brand.toml` it pulls from `gs://jci-oriente-brand-assets/`. Changing
+where CD deploys is a change of repository variables, which only a repository admin can
+make, and every deploy still waits for the reviewer.
 Optional repo secret `DEPLOY_WEBHOOK_URL` (unset → `notify` is a no-op).
 
 **Enabled APIs:** `iamcredentials`, `sts`, `firebasehosting`, `firebaserules`,
@@ -252,9 +308,11 @@ billing probe).
 The exact steps executed. Idempotent to re-run. Requires an operator with project
 IAM admin + repo admin. `gh` covers the GitHub side; no console clicks required.
 `pnpm brand:provision` prints this block as its step 1, with `PROJECT_ID`, `PROJECT_NUMBER`,
-`GH_REPO` and `REVIEWER_ID` filled in for the profile `brand/` selects; its step 2 is
-the profile's `[deploy]` table, and the brand-assets bucket follows (which
-`pnpm brand:provision` runs when you answer y to its question).
+`GH_REPO` and `REVIEWER_ID` filled in for the profile `brand/` selects; its step 2 sets the
+repository variables (3.3), and the brand-assets bucket follows (which
+`pnpm brand:provision` runs when you answer y to its question). `GH_REPO` is the repository
+that deploys, your fork (`git remote get-url origin`): part 3 pins the provider to it, to
+`refs/heads/main` and to its `deploy.yml`.
 The deploy service account must be created **in the Firebase project itself**
 (`firebase-deployer@${PROJECT_ID}.iam.gserviceaccount.com`): `brand:provision` grants
 that address read access on the brand-assets bucket, so an account living in another
@@ -285,7 +343,7 @@ gcloud services enable \
 gcloud iam service-accounts create "$DEPLOY_SA" \
   --display-name="GitHub Actions deployer (keyless)"
 
-# part 3: WIF pool + provider (pinned to repo AND main)
+# part 3: WIF pool + provider (pinned to the repo, main AND deploy.yml)
 gcloud iam workload-identity-pools create "$POOL_ID" \
   --location="global" --display-name="GitHub Actions pool"
 export POOL_NAME=$(gcloud iam workload-identity-pools describe "$POOL_ID" \
@@ -295,7 +353,7 @@ gcloud iam workload-identity-pools providers create-oidc "$PROVIDER_ID" \
   --display-name="GitHub OIDC" \
   --issuer-uri="https://token.actions.githubusercontent.com" \
   --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref" \
-  --attribute-condition="assertion.repository == '${GH_REPO}' && assertion.ref == 'refs/heads/main'"
+  --attribute-condition="assertion.repository == '${GH_REPO}' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == '${GH_REPO}/.github/workflows/deploy.yml@refs/heads/main'"
 
 # part 4: bind pool -> SA
 gcloud iam service-accounts add-iam-policy-binding "$DEPLOY_SA_EMAIL" \
@@ -328,8 +386,14 @@ gh api -X PUT "repos/${GH_REPO}/environments/production" --input - <<< \
   "{\"wait_timer\":0,\"reviewers\":[{\"type\":\"User\",\"id\":${REVIEWER_ID}}],\"deployment_branch_policy\":{\"protected_branches\":false,\"custom_branch_policies\":true}}"
 gh api -X POST "repos/${GH_REPO}/environments/production/deployment-branch-policies" \
   --input - <<< '{"name":"main","type":"branch"}'
-# CD reads the provider and service account from the profile's brand.toml [deploy]
-# table, not from GitHub variables: pnpm brand:provision step 2 shows both values.
+```
+
+Then the two repository variables CD reads (`pnpm brand:provision` step 2 prints these
+lines with your values, and runs them when you answer y):
+
+```bash
+gh variable set FIREBASE_PROJECT_ID --body "$PROJECT_ID" --repo "$GH_REPO"
+gh variable set GCP_PROJECT_NUMBER --body "$PROJECT_NUMBER" --repo "$GH_REPO"
 ```
 
 > **First gen2 deploy bootstrap:** on a project that never deployed gen2 functions, the
@@ -350,8 +414,15 @@ approval → click **Review deployments → Approve** in the run → the changed
 deploys. Unchanged surfaces skip.
 
 **Manual (`workflow_dispatch`).** Actions → **Deploy** → **Run workflow**, branch =
-`main`, pick a `surface` (`all | rules | functions | hosting`). Same approval gate.
-Use for first-run validation, targeted re-deploy, or rollback re-deploy.
+`main`, pick a `surface` (`all | rules | functions | hosting`), or
+`gh workflow run deploy.yml -f surface=<surface> --repo <GH_REPO>` (in a fork's clone, gh's
+default repository is upstream). Same approval gate. Use for first-run validation, targeted
+re-deploy, rollback re-deploy, and after every `brand:push` (a brand change is not in git):
+`surface=hosting`. A dispatch of one surface never becomes the next diff's base (3.2), so
+the next automatic run still ships the other surfaces' changes.
+
+**A chapter's fork.** Upstream updates arrive with **Sync fork**: the push to the fork's
+`main` runs CI, then Deploy ships the surfaces the update touches.
 
 ---
 
@@ -416,8 +487,11 @@ Effectively **$0**.
 
 | Symptom | Cause / fix |
 |---------|-------------|
-| Deploy job fails at `google-github-actions/auth` | `[deploy]` values wrong, or STS condition mismatch. Verify `[deploy] workloadIdentityProvider` in the profile's `brand.toml` matches the provider resource name exactly and the run is on `main`. |
-| Deploy job fails at "Read the deploy target from the repo" | `brand:ci-config` printed the reason and the fix: usually a missing `[deploy]` table (`pnpm brand:provision` prints it) or a profile that cannot ship (the example, or a chapter still on its `demo-` project). |
+| Deploy skipped: "not set up" notice | `FIREBASE_PROJECT_ID` or `GCP_PROJECT_NUMBER` is not set, or names a `demo-` project. The notice names the `gh variable set` command; `pnpm brand:provision` step 2 prints both. |
+| `filter` or a deploy job fails at "Read the deploy target from the repository variables" | A variable is malformed; the log names it and the pattern it must match. |
+| Deploy job fails at `google-github-actions/auth` | Wrong `GCP_PROJECT_NUMBER` (the derived provider does not exist), a `WIF_PROVIDER` / `DEPLOY_SA` override that does not match section 6, or an STS condition mismatch: the provider must pin this repository (`GH_REPO`) and the run must be on `main`. |
+| Deploy job fails at "Pull the brand from the project's bucket" | The bucket lacks `brand.toml` or an image (run `pnpm brand:push`), its `brand.toml` names another project, or the deploy account cannot read the bucket (`pnpm brand:provision`, step 3). |
+| Deploy job fails at "Read the hosting targets from the pulled brand" | `brand:ci-config` printed the reason: a pulled `brand.toml` that cannot ship or names another project than `FIREBASE_PROJECT_ID`. |
 | `PERMISSION_DENIED` mid-deploy | Missing IAM role on the deploy SA — grant it (see role list), or temporarily grant `roles/firebase.admin` then narrow back. |
 | `workflow_dispatch` deploy fails auth | Dispatched from a non-`main` branch — the STS `ref` condition only honors `refs/heads/main`. Re-dispatch from `main`. |
 | Deploy never triggers after merge | The CI workflow's `name:` must equal `"CI"` (the `workflow_run.workflows` value). Also confirm CI concluded `success`. |

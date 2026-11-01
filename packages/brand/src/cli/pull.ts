@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { ASSET_CONTRACT, contractByFolder, validateAssets } from "../assets.ts";
+import { contractByFolder, validateAssets } from "../assets.ts";
 import { BRAND_FILE, readBrandToml, resolveBrandFile } from "../brand-file.ts";
+import { PROJECT_VARIABLE, cdProject } from "../deploy-identity.ts";
 import { fileSha256 } from "../hash.ts";
 import {
   BrandConfigError,
@@ -13,6 +14,8 @@ import {
 } from "../load-profile.ts";
 import {
   BUCKET_CONTRACT,
+  LOCAL_PROFILE,
+  PULL_MANIFEST_FILE,
   localDir,
   localLabel,
   readManifest,
@@ -22,10 +25,11 @@ import {
   type ObjectRecord,
   type PullManifest,
 } from "../local-folder.ts";
-import { undeployableProfileErrors } from "../release.ts";
+import { CONNECT_PROJECT, undeployableProfileErrors } from "../release.ts";
 import { formatNext, type Remedy } from "../remedy.ts";
+import { PROJECT_ID_PATTERN, defaultAssetsBucket, isDemoProject } from "../schema.ts";
 import { bucketUrl, listBucket, runCommand, type CommandRunner } from "./gcloud.ts";
-import { runCli } from "./main.ts";
+import { runBrandCommand, runCli } from "./main.ts";
 import { terminalConfirm, type Confirm } from "./prompts.ts";
 
 export const PULL_NEXT: readonly Remedy[] = [
@@ -34,24 +38,37 @@ export const PULL_NEXT: readonly Remedy[] = [
 
 export interface PullResult {
   manifest: PullManifest;
-  /** Whether the bucket held a brand.toml. */
-  brandFile: boolean;
 }
 
-/** The bucket's brand.toml must load, on the example, and name the bucket's own project. */
-function checkBrandFile(file: string, bucket: string, profile: LoadedProfile, repoRoot: string) {
+/** Where a pull reads from and what it must find there. */
+interface PullTarget {
+  projectId: string;
+  bucket: string;
+  slug: string;
+}
+
+/**
+ * The bucket's brand.toml must load, on the example, and name the bucket's own project and
+ * the bucket itself (CD finds a brand by its project's default bucket).
+ */
+function checkBrandFile(file: string, target: PullTarget, repoRoot: string) {
+  const { bucket, projectId } = target;
   const label = bucketUrl(bucket, BRAND_FILE);
   const { brand } = resolveBrandFile({
-    slug: profile.slug,
+    slug: target.slug,
     chapter: readBrandToml(file, label),
     base: readBase(repoRoot),
     label,
     baseLabel: brandFileLabel(EXAMPLE_PROFILE),
   });
-  const { projectId } = profile.brand.firebase;
   if (brand.firebase.projectId !== projectId) {
     throw new BrandConfigError([
       `${label}: names project "${brand.firebase.projectId}", but this is the bucket of "${projectId}"`,
+    ]);
+  }
+  if (brand.assetsBucket !== bucket) {
+    throw new BrandConfigError([
+      `${label}: names assetsBucket "${brand.assetsBucket}", but it was pulled from ${bucket}`,
     ]);
   }
 }
@@ -93,22 +110,80 @@ export async function pull({
 }): Promise<PullResult> {
   const refused = undeployableProfileErrors(profile);
   if (refused.length > 0) throw new BrandConfigError(refused);
-  const bucket = profile.brand.assetsBucket;
+  const target: PullTarget = {
+    projectId: profile.brand.firebase.projectId,
+    bucket: profile.brand.assetsBucket,
+    slug: profile.slug,
+  };
+  return pullTarget({ target, repoRoot, run, confirm });
+}
+
+/**
+ * CD's pull (spec "CD from a fork"): no local profile yet, only the project the repository
+ * variables name. Downloads brand.toml and the images from `<project>-brand-assets` into
+ * brand/local/, which brand/ then selects. A bucket without a brand.toml, or one naming
+ * another project, is refused, and so is a brand/local/ pulled from another project.
+ */
+export async function pullProject({
+  projectId,
+  repoRoot = REPO_ROOT,
+  run = runCommand,
+  confirm,
+}: {
+  projectId: string;
+  repoRoot?: string;
+  run?: CommandRunner;
+  confirm?: Confirm;
+}): Promise<PullResult> {
+  if (!PROJECT_ID_PATTERN.test(projectId)) {
+    throw new BrandConfigError([
+      `${PROJECT_VARIABLE} "${projectId}" is not a Firebase project id.`,
+    ]);
+  }
+  if (isDemoProject(projectId)) {
+    throw new BrandConfigError(
+      [`${PROJECT_VARIABLE} "${projectId}" exists only in the emulators, so it has no bucket.`],
+      [CONNECT_PROJECT],
+    );
+  }
+  const previous = readManifest(localDir(repoRoot));
+  if (previous && previous.project !== projectId) {
+    throw new BrandConfigError([
+      `${localLabel()} holds the brand of project "${previous.project}" (its ${PULL_MANIFEST_FILE}), not "${projectId}"`,
+    ]);
+  }
+  const target: PullTarget = {
+    projectId,
+    bucket: defaultAssetsBucket(projectId),
+    slug: LOCAL_PROFILE,
+  };
+  return pullTarget({ target, repoRoot, run, confirm });
+}
+
+async function pullTarget({
+  target,
+  repoRoot,
+  run,
+  confirm,
+}: {
+  target: PullTarget;
+  repoRoot: string;
+  run: CommandRunner;
+  confirm: Confirm | undefined;
+}): Promise<PullResult> {
+  const { bucket } = target;
   const generations = await listBucket(run, bucket);
 
-  const missing = ASSET_CONTRACT.filter(({ path }) => !generations.has(path)).map(
-    ({ path }) => `${bucketUrl(bucket, path)}: missing from the bucket (upload it with brand:push)`,
+  const missing = BUCKET_CONTRACT.filter((path) => !generations.has(path)).map(
+    (path) => `${bucketUrl(bucket, path)}: missing from the bucket (upload it with brand:push)`,
   );
   if (missing.length > 0) {
     throw new BrandConfigError(missing, [
       { change: "upload the full set to the bucket (project owner)", run: "pnpm brand:push" },
     ]);
   }
-  // TRANSITIONAL (the fork-CD PR drops this): a bucket without brand.toml (JCI Oriente's,
-  // until the owner runbook) gives only its images.
-  const brandFile = generations.has(BRAND_FILE);
   const folders = contractByFolder();
-  if (brandFile) folders.set("", [BRAND_FILE, ...(folders.get("") ?? [])]);
+  folders.set("", [BRAND_FILE, ...(folders.get("") ?? [])]);
   const pulled = [...folders.values()].flat();
   const dir = localDir(repoRoot);
   refuseSymlinks(dir, pulled);
@@ -140,7 +215,7 @@ export async function pull({
         ],
       );
     }
-    if (brandFile) checkBrandFile(join(staging, BRAND_FILE), bucket, profile, repoRoot);
+    checkBrandFile(join(staging, BRAND_FILE), target, repoRoot);
 
     const previous = readManifest(dir);
     const staged = new Map(pulled.map((path) => [path, fileSha256(join(staging, path))]));
@@ -167,13 +242,11 @@ export async function pull({
         if (replaced.has(path) && generation !== undefined && sha256 !== undefined) {
           objects[path] = { source: "bucket", generation, sha256 };
         } else if (kept && (kept.source === "example" || previous?.bucket === bucket)) {
-          // A file this pull did not replace keeps its record: one a failed copy left as it
-          // was and, TRANSITIONAL (the fork-CD PR drops this), the local brand.toml while the
-          // bucket holds none.
+          // A file this pull did not replace keeps its record: one a failed copy left as it was.
           objects[path] = kept;
         }
       }
-      return { version: 1, project: profile.brand.firebase.projectId, bucket, objects };
+      return { version: 1, project: target.projectId, bucket, objects };
     };
     try {
       for (const path of pulled) {
@@ -186,7 +259,7 @@ export async function pull({
       // A copy that failed part way still leaves a manifest true to the files on disk.
       if (replaced.size > 0) writeManifest(dir, record());
     }
-    return { manifest: record(), brandFile };
+    return { manifest: record() };
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
@@ -220,23 +293,28 @@ async function confirmReplacing(changed: readonly string[], confirm: Confirm | u
   );
 }
 
+/** What a pull printed: the files it downloaded. */
+function report({ manifest }: PullResult) {
+  const files = Object.entries(manifest.objects).flatMap(([path, record]) =>
+    record.source === "bucket" ? [`  ${path}#${record.generation}`] : [],
+  );
+  console.error(
+    `brand:pull: ${files.length} files from ${bucketUrl(manifest.bucket)} into ${localLabel()} (project ${manifest.project}).`,
+  );
+  for (const line of files) console.error(line);
+}
+
 if (import.meta.main) {
-  await runCli("brand:pull", async (profile) => {
-    const { manifest, brandFile } = await pull({ profile, confirm: terminalConfirm() });
-    const files = Object.entries(manifest.objects).flatMap(([path, record]) =>
-      record.source === "bucket" ? [`  ${path}#${record.generation}`] : [],
-    );
-    console.error(
-      `brand:pull: ${files.length} files from ${bucketUrl(manifest.bucket)} into ${localLabel()} (project ${manifest.project}).`,
-    );
-    for (const line of files) console.error(line);
-    if (!brandFile) {
-      // TRANSITIONAL (the fork-CD PR drops this): JCI Oriente's bucket gets its brand.toml
-      // from the owner runbook.
-      console.error(
-        `  The bucket holds no ${BRAND_FILE} yet: images only; ${localLabel(BRAND_FILE)} was left as it was.`,
-      );
-    }
-    console.error(`\n${formatNext(PULL_NEXT)}`);
-  });
+  // CD names the project (firebase-setup sets BRAND_CD_PROJECT) and has no brand/local/ yet.
+  const projectId = cdProject(process.env);
+  if (projectId) {
+    await runBrandCommand("brand:pull", async () => {
+      report(await pullProject({ projectId }));
+    });
+  } else {
+    await runCli("brand:pull", async (profile) => {
+      report(await pull({ profile, confirm: terminalConfirm() }));
+      console.error(`\n${formatNext(PULL_NEXT)}`);
+    });
+  }
 }

@@ -1,4 +1,18 @@
 name: Deploy
+# The title says what a run could deploy, and the filter job reads it back
+# (.github/scripts/last-deploy.sh) to find the commit last shipped to the project. Only a run
+# that can deploy every surface changed up to its commit is titled "Deploy to <project> at
+# <sha>": a manual run of surface `all` on main, or a run after a green CI of a push to main
+# (the filter job's `if`). A partial dispatch, a skipped run and a repository that is not set
+# up get titles that never match, so the next diff still covers what they left undeployed.
+run-name: >-
+  ${{
+    !(vars.FIREBASE_PROJECT_ID && vars.GCP_PROJECT_NUMBER) && 'Deploy (not set up)' ||
+    (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.surface == 'all') && format('Deploy to {0} at {1}', vars.FIREBASE_PROJECT_ID, github.sha) ||
+    (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push') && format('Deploy to {0} at {1}', vars.FIREBASE_PROJECT_ID, github.event.workflow_run.head_sha) ||
+    (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') && format('Deploy {0}: {1} only', vars.FIREBASE_PROJECT_ID, inputs.surface) ||
+    'Deploy (skipped)'
+  }}
 
 # Keyless CD. Runs only after the CI workflow concludes successfully on main.
 # Auth = Workload Identity Federation (OIDC) — no long-lived credential is stored
@@ -19,6 +33,19 @@ on:
         description: "all | rules | functions | hosting"
         default: "all"
 
+# Where CD deploys and as whom come from repository VARIABLES (not secrets, not the brand):
+# FIREBASE_PROJECT_ID and GCP_PROJECT_NUMBER, required; GCP_REGION, WIF_PROVIDER and
+# DEPLOY_SA, optional. They reach scripts only through this `env:` and are validated by
+# .github/scripts/deploy-ready.sh before any use (the filter job, and again in every deploy
+# job's firebase-setup). A pull_request run never reaches this workflow: it starts only from
+# a finished CI run of a push to main, or a manual dispatch.
+env:
+  FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+  GCP_PROJECT_NUMBER: ${{ vars.GCP_PROJECT_NUMBER }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
+  DEPLOY_SA: ${{ vars.DEPLOY_SA }}
+
 # Least privilege at the top: only checkout rights by default. The OIDC minting
 # right (`id-token: write`) is granted per-job to the three deploy jobs ONLY, so the
 # ungated `filter`/`notify` jobs can never mint the deploy credential.
@@ -37,9 +64,10 @@ jobs:
     permissions:
       contents: read # checkout
       actions: read # read the last successful Deploy run (change-since-last-deploy diff)
-    # Deploy only on a green CI run that came from a push to main, or a manual run.
+    # Deploy only on a green CI run that came from a push to main, or a manual run on main.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.event == 'push')
@@ -55,8 +83,9 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      # A fork that has not set up CD yet (local-only profile, or no [deploy] table)
-      # skips every deploy job: no credential minted, no approval requested.
+      # A fork that has not set the repository variables yet (or names a demo- project)
+      # skips every deploy job: no credential minted, no approval requested. A malformed
+      # variable fails here, loudly.
       - name: Is this repository set up to deploy?
         id: ready
         run: |
@@ -100,36 +129,25 @@ jobs:
             esac
             echo "manual dispatch -> surface=$SURFACE"
           else
-            # Diff against the last commit we SUCCESSFULLY deployed, not the first
-            # parent. A prior run can be superseded (concurrency cancels the pending
-            # run) or fail mid-deploy; first-parent diffing would then silently drop
-            # that commit's surfaces forever. Diffing since the last successful Deploy
-            # makes every run cover the cumulative change and self-heal a failed one.
-            # Fallbacks: first parent, then deploy-all.
+            # Diff against the last commit we SUCCESSFULLY deployed to this project, not
+            # the first parent. A prior run can be superseded (concurrency cancels the
+            # pending run) or fail mid-deploy; first-parent diffing would then silently
+            # drop that commit's surfaces forever. Diffing since the last successful
+            # Deploy makes every run cover the cumulative change and self-heal a failed one.
+            # Only a run titled "Deploy to <this project> at <sha>" counts, and the sha is
+            # read from its title (see run-name): with none, this is the first deploy to
+            # the project (the repository was not set up before, or deployed elsewhere),
+            # and every surface ships. So does a run whose base is gone from history, or
+            # the head itself (fail-safe).
             base=$(gh run list --workflow Deploy --branch main --status success \
-                     --limit 1 --json headSha -q '.[0].headSha // empty' 2>/dev/null || true)
+                     --limit 100 --json displayTitle 2>/dev/null \
+                   | bash .github/scripts/last-deploy.sh "$PROJECT" || true)
             if [ -n "$base" ] && [ "$base" != "$head" ] && git cat-file -e "${base}^{commit}" 2>/dev/null; then
-              echo "diffing against last successful deploy: $base"
-            elif git cat-file -e "${head}^^{commit}" 2>/dev/null; then
-              base="${head}^"
-              echo "no usable prior deploy -> diffing against first parent: $base"
+              echo "diffing against the last successful deploy to $PROJECT: $base"
             else
               base=""
               sp=true; bs=true; fn=true; rl=true
-              echo "no base commit available -> deploying all surfaces (fail-safe)"
-            fi
-            # The first deploy to a project ships every surface, whatever the diff says:
-            # the last deploy ran before this repo was set up (it skipped), or it went to
-            # another project (a chapter folder added under brand/ changes the project). A
-            # base the script cannot read (before brand/ existed) counts as not set up; its
-            # message stays in the log.
-            if [ -n "$base" ]; then
-              at_base=$(bash .github/scripts/deploy-ready.sh . "$base" || true)
-              if ! grep -qx 'ready=true' <<<"$at_base" || ! grep -Fqx "project=$PROJECT" <<<"$at_base"; then
-                sp=true; bs=true; fn=true; rl=true
-                echo "base $base was not set up to deploy to $PROJECT -> first deploy: all surfaces"
-                base=""
-              fi
+              echo "no usable earlier deploy to $PROJECT -> first deploy: all surfaces"
             fi
             if [ -n "$base" ]; then
               diff=$(git diff --name-only "$base...$head")
@@ -139,11 +157,9 @@ jobs:
               # in pnpm-lock/pnpm-workspace (or a root package.json/turbo.json change)
               # must redeploy the bundles that embed it, or prod keeps serving the old
               # vulnerable build. packages/** does too; firebase.json touches all;
-              # brand/** (profiles) feeds both frontends. A change of the profile brand/
-              # selects is a change of project, which the first-deploy check above already
-              # turned into every surface.
-              # A bucket asset change is not in git, so it needs a manual
-              # `surface=hosting` dispatch.
+              # brand/** (the example, the base layer of every brand.toml) feeds both
+              # frontends. A chapter's brand lives in its bucket, not in git, so a
+              # brand:push needs a manual `surface=hosting` dispatch.
               root='^pnpm-lock\.yaml$|^pnpm-workspace\.yaml$|^package\.json$|^turbo\.json$'
               q "^apps/spotlight/|^packages/|^brand/|^firebase\.json$|$root" && sp=true || true
               q "^apps/backstage/|^packages/|^brand/|^firebase\.json$|$root" && bs=true || true
@@ -176,7 +192,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ needs.filter.outputs.sha }}
-      # Sets GCP_PROJECT_ID from the profile brand/ selects.
+      # Signs in, pulls the brand from the project's bucket, sets GCP_PROJECT_ID.
       - uses: ./.github/actions/firebase-setup
       - name: Deploy rules + storage
         env:
@@ -221,14 +237,8 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ needs.filter.outputs.sha }}
+      # Also installs the pinned gcloud the assert step below needs, and exports GCP_REGION.
       - uses: ./.github/actions/firebase-setup
-      # gcloud is NOT installed by firebase-setup. `google-github-actions/auth` writes ADC and
-      # exports the credential override, but installs no CLI. ubuntu-24.04 does ship the Cloud
-      # SDK today — the runner-images readme lists Google Cloud CLI 583.0.0 — so the assert
-      # step below would run without this. Pinned anyway: the day that image detail changes,
-      # the failure is every functions release failing AFTER the functions are already live.
-      # A guard is not allowed to depend on something we neither pin nor control (guardrail #6).
-      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
       # firebase.json `predeploy` runs `pnpm turbo run build --filter beacon`.
       # --force skips the gen2 delete-confirmation prompt under --non-interactive.
       - name: Deploy functions (beacon)
@@ -264,9 +274,10 @@ jobs:
       # repo grep now lives in ci.yml, after the build, where dist actually exists.)
       #
       # us-central1 is the gen2 default and is what these get: beacon sets no `region` on any
-      # callable and calls no `setGlobalOptions`. The logic is in a script with a probe seam
-      # so its arms are covered by fixtures — `node --test .github/scripts/*.test.mjs` — rather
-      # than first executing against production.
+      # callable and calls no `setGlobalOptions`. A fork that sets one sets the repository
+      # variable GCP_REGION, which firebase-setup validates and exports. The logic is in a
+      # script with a probe seam so its arms are covered by fixtures — `node --test
+      # .github/scripts/*.test.mjs` — rather than first executing against production.
       - name: Assert token verification is not bypassed on the DEPLOYED callables
         run: bash .github/scripts/assert-deployed-env-clean.sh describeinvite redeeminvite
           issuememberinvite recomputeallclaims reseedbuiltinroleperms seedroles setuserroles
@@ -299,37 +310,26 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ needs.filter.outputs.sha }}
+      # firebase-setup pulled the brand (brand.toml and images) from the project's private
+      # bucket into brand/local/; the hosting sites and public URL come from it.
       - uses: ./.github/actions/firebase-setup
         id: setup
-      # brand:pull runs `gcloud storage`; same pin and reasoning as deploy-functions.
-      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-      # The brand assets live out of git, in the profile's private bucket (read-only to
-      # this SA); brand:pull writes them into brand/local/. firebase-setup above read the
-      # committed brand/jci-oriente/ (CI never seeds brand/local/): GCP_PROJECT_ID,
-      # .firebaserc, the hosting sites and the public URL come from it. While the bucket
-      # holds no brand.toml, the build reads that committed profile with the pulled
-      # images. Once it holds one (owner runbook step 3), brand:pull writes it to
-      # brand/local/brand.toml and the build selects that `local` profile instead: brand:pull
-      # refuses a brand.toml naming another project, and the release build refuses one
-      # whose project is not GCP_PROJECT_ID. TRANSITIONAL (the fork-CD PR drops this).
-      # An unreadable bucket or a missing file fails here, before any build;
-      # live hosting is untouched. The summary records which generation of each file
-      # shipped (they are not pinned in git, spec 5.7).
-      - name: Pull brand assets
+      # The brand is not pinned in git, so the summary records which generation of each
+      # file shipped.
+      - name: Record the brand that ships
         env:
-          BRAND_SLUG: ${{ steps.setup.outputs.profile }}
+          PROJECT: ${{ steps.setup.outputs.project_id }}
         run: |
           set -euo pipefail
-          pnpm -s brand:pull
           {
-            echo "### Brand assets (profile \`${BRAND_SLUG}\`)"
+            echo "### Brand (project \`${PROJECT}\`)"
             echo "| File | Generation |"
             echo "|---|---|"
             jq -r '.objects | to_entries[] | select(.value.source == "bucket") | "| \(.key) | \(.value.generation) |"' brand/local/.pull-manifest.json
           } >> "$GITHUB_STEP_SUMMARY"
       # Release builds of the changed target(s). BRAND_RELEASE=1 is the validation: the
-      # build fails on any asset or config problem, on a profile/project mismatch with
-      # GCP_PROJECT_ID (set by firebase-setup from the same profile), and writes
+      # build fails on any asset or config problem, on a file changed since the pull, on a
+      # profile/project mismatch with GCP_PROJECT_ID (set by firebase-setup), and writes
       # dist/.brand-release.json. --force so turbo never
       # replays a cached dist. VITE_FIREBASE_EMULATOR_ENABLED=false guards against a dev
       # bundle ever reaching prod (a build without the flag is already off).
@@ -401,7 +401,7 @@ jobs:
               || { echo "ERROR: promote (hosting:clone) failed for $site"; return 1; }
           }
           rc=0
-          # Targets are chapter-neutral (firebase.json); site ids come from the profile.
+          # Targets are chapter-neutral (firebase.json); site ids come from the pulled brand.
           if [ "$SPOTLIGHT" = "true" ]; then promote spotlight "$SPOTLIGHT_SITE" || rc=1; fi
           if [ "$BACKSTAGE" = "true" ]; then promote backstage "$BACKSTAGE_SITE" || rc=1; fi
           if [ "$rc" != "0" ]; then

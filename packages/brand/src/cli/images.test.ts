@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ASSET_CONTRACT, OG_IMAGE_WARN_BYTES } from "../assets.ts";
 import { loadProfile, type LoadedProfile } from "../load-profile.ts";
-import { chapterRepo, localRepo } from "../test-profiles.ts";
+import { localRepo } from "../test-profiles.ts";
 import { checkImages } from "./images.ts";
 
 let root: string;
@@ -75,17 +75,5 @@ describe("checkImages", () => {
   it("keeps files outside the contract out of the section: an icon master, notes", () => {
     writeFileSync(join(brandAssets(), "notes.txt"), "mine");
     expect(images().rows).toEqual([expect.objectContaining({ check: "images", status: "ok" })]);
-  });
-
-  it("reads a committed chapter's own assets/ while brand/local/ holds no pulled images", () => {
-    const committed = chapterRepo("brand-images-chapter-");
-    try {
-      const chapter = loadProfile({ repoRoot: committed, env: {} });
-      const { title, dir } = checkImages({ profile: chapter, repoRoot: committed });
-      expect(dir).toBe(join(committed, "brand/jci-valle/assets"));
-      expect(title).toBe("Images in brand/jci-valle/assets/");
-    } finally {
-      rmSync(committed, { recursive: true, force: true });
-    }
   });
 });

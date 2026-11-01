@@ -59,7 +59,7 @@ async function refusal(promise: Promise<unknown>): Promise<BrandConfigError> {
 beforeEach(() => {
   root = exampleRepo("brand-icons-");
   // brand/local/ without images yet: the master and the icons go there.
-  writeChapter(root, { slug: LOCAL, assets: false });
+  writeChapter(root, { assets: false });
   profile = loadProfile({ repoRoot: root, env: {} });
   assetsDir = join(root, "brand", LOCAL);
 });
@@ -208,8 +208,8 @@ describe("generateIcons", () => {
 });
 
 describe("generateIcons in the images folder brand:check names", () => {
-  it("writes a committed chapter's own assets/ while brand/local/ holds no pulled images", async () => {
-    writeChapter(root, { assets: false });
+  it("writes the assets/ of a profile named by its caller, not brand/local/", async () => {
+    writeChapter(root, { slug: TEST_CHAPTER, assets: false });
     profile = loadProfile({ repoRoot: root, profile: TEST_CHAPTER });
     assetsDir = join(root, "brand", TEST_CHAPTER, "assets");
     writeAssetSet(assetsDir);

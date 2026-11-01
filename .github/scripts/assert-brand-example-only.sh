@@ -19,12 +19,9 @@ if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
   exit 2
 fi
 
-# brand/jci-oriente/brand.toml is a temporary allowance: the brand.toml PR converts JCI
-# Oriente's committed profile in place, and the JCI Oriente removal PR deletes that folder
-# together with this allowance.
 allowed() {
   case "$1" in
-    brand/example/* | brand/brand.schema.json | brand/bucket-lifecycle.json | brand/jci-oriente/brand.toml) return 0 ;;
+    brand/example/* | brand/brand.schema.json | brand/bucket-lifecycle.json) return 0 ;;
     *) return 1 ;;
   esac
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEPLOY_SA } from "./deploy-identity.ts";
+import type { Problem } from "./remedy.ts";
 import { emailOrBlank, siteContentTables } from "./site-content.ts";
 import { normalizeSiteUrl } from "./urls.ts";
 
@@ -79,30 +79,32 @@ const legacyOgPath = z
     message: "is reserved for the hashed OG image",
   });
 
-const deploySchema = z
-  .strictObject({
-    workloadIdentityProvider: z
-      .string()
-      .regex(
-        /^projects\/\d+\/locations\/global\/workloadIdentityPools\/[a-z0-9-]+\/providers\/[a-z0-9-]+$/,
-        "must be projects/<project number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>",
-      )
-      .describe(
-        "The Workload Identity provider CD signs in through, without a stored key. pnpm brand:provision prints the value.",
-      ),
-    serviceAccount: z
-      .email({ message: "must be a service account email" })
-      .describe(
-        `The service account CD deploys as, e.g. ${DEPLOY_SA}@<project>.iam.gserviceaccount.com.`,
-      ),
-  })
-  .describe(
-    "How CD (GitHub Actions) signs in to Google Cloud. Names, not secrets. Needed only to deploy.",
-  );
+/** A Firebase (Google Cloud) project id. Twin: .github/scripts/deploy-ready.sh. */
+export const PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+
+/** The private bucket a project's brand lives in, which CD pulls from. */
+export const defaultAssetsBucket = (project: string) => `${project}-brand-assets`;
+
+/**
+ * Keys brand.toml no longer has, with where their job went and how to drop them: refused
+ * with that message and remedy, not as a typo.
+ */
+export const RETIRED_KEYS: Readonly<Record<string, Problem>> = {
+  deploy: {
+    message:
+      "the [deploy] table is no longer read: CD reads its project and sign-in from the repository variables FIREBASE_PROJECT_ID and GCP_PROJECT_NUMBER (docs/ci-cd.md)",
+    remedies: [
+      {
+        change: "delete the [deploy] table from brand/local/brand.toml, then upload that file",
+        run: "pnpm brand:push",
+      },
+    ],
+  },
+};
 
 const projectId = z
   .string()
-  .regex(/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/, "must be a Firebase project id")
+  .regex(PROJECT_ID_PATTERN, "must be a Firebase project id")
   .describe(
     "Your Firebase project id (Firebase console → Project settings). A demo- id runs only in the emulators.",
   );
@@ -151,7 +153,7 @@ export const brandFileSchema = z
       .regex(/^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/, "must be a Cloud Storage bucket name")
       .optional()
       .describe(
-        "Private bucket holding the chapter's images for deploys; defaults to <project>-brand-assets. pnpm brand:provision creates it.",
+        "Private bucket holding the chapter's brand for deploys; defaults to <project>-brand-assets, the one CD pulls from. pnpm brand:provision creates it.",
       ),
     locality: z
       .strictObject({
@@ -224,7 +226,6 @@ export const brandFileSchema = z
       })
       .optional()
       .describe("The Firebase project's values; each defaults from `project`."),
-    deploy: deploySchema.optional(),
     ...siteContentTables,
   })
   .superRefine((file, context) => {
@@ -299,7 +300,6 @@ export interface Brand {
     };
   };
   assetsBucket: string;
-  deploy?: { workloadIdentityProvider: string; serviceAccount: string };
 }
 
 /** What a demo- project's web apps use when the file names none; the emulators accept any. */
@@ -368,8 +368,7 @@ export function toBrand(file: BrandFile, slug: string): Brand {
         backstage: web("backstage"),
       },
     },
-    assetsBucket: file.assetsBucket ?? `${project}-brand-assets`,
-    ...(file.deploy ? { deploy: file.deploy } : {}),
+    assetsBucket: file.assetsBucket ?? defaultAssetsBucket(project),
   };
 }
 
