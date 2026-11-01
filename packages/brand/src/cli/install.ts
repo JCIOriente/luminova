@@ -5,7 +5,7 @@ import type { Remedy } from "../remedy.ts";
  * pages 2026-10-25). macOS assumes Homebrew; Linux means Ubuntu, also inside WSL 2 (S7).
  * docs/adopting.md "Before you start" shows the same commands.
  */
-export type Tool = "pnpm" | "java" | "firebase" | "gh" | "gcloud";
+export type Tool = "pnpm" | "java" | "firebase" | "gh" | "gcloud" | "git";
 
 type InstallPlatform = "darwin" | "linux";
 
@@ -58,6 +58,14 @@ const INSTALL: Readonly<Record<Tool, Record<InstallPlatform, Remedy>>> = {
       change:
         "install the GitHub CLI, following https://github.com/cli/cli/blob/trunk/docs/install_linux.md (Debian and Ubuntu)",
     },
+  },
+  git: {
+    darwin: {
+      change: "install git (with the Xcode command line tools)",
+      run: "xcode-select --install",
+      where: SHELL,
+    },
+    linux: { change: "install git", run: "sudo apt install -y git", where: SHELL },
   },
   gcloud: {
     darwin: {

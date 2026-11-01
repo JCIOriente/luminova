@@ -53,8 +53,9 @@ export function seedLocal({
   repoRoot = REPO_ROOT,
   env = process.env,
 }: { repoRoot?: string; env?: Env } = {}): boolean {
-  // TRANSITIONAL (the fork-CD PR drops this): CI never seeds, so the committed
-  // brand/jci-oriente/ stays the profile CI and CD select (a seeded brand.toml would win).
+  // CI never seeds: CD's brand:pull refuses a brand/local/ of another project (the example's),
+  // and, TRANSITIONAL (the JCI Oriente removal PR drops this), the committed
+  // brand/jci-oriente/ stays the profile CI selects (a seeded brand.toml would win).
   if (env.CI?.trim()) return false;
   const dir = localDir(repoRoot);
   if (existsSync(dir)) return false;

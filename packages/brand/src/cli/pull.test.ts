@@ -17,7 +17,8 @@ import { BrandConfigError, loadProfile, type LoadedProfile } from "../load-profi
 import { encodePng } from "../png.ts";
 import { exampleRepo, localRepo, recordLocal, writeChapter } from "../test-profiles.ts";
 import type { CommandRunner } from "./gcloud.ts";
-import { PULL_NEXT, pull } from "./pull.ts";
+import { cdProject } from "../deploy-identity.ts";
+import { PULL_NEXT, pull, pullProject } from "./pull.ts";
 import { push } from "./push.ts";
 import { seedLocal } from "./seed.ts";
 
@@ -420,5 +421,118 @@ describe("pull", () => {
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
+  });
+});
+
+describe("pullProject (CD: the project comes from FIREBASE_PROJECT_ID, not a local profile)", () => {
+  it("pulls brand.toml and the images from <project>-brand-assets into a missing brand/local/", async () => {
+    rmSync(local(), { recursive: true });
+    const result = await pullProject({
+      projectId: "jci-valle",
+      repoRoot: root,
+      run: fakeRunner(listing()),
+    });
+    expect(calls[0]).toContain(`gs://${BUCKET}/**`);
+    expect(readFileSync(local("brand.toml"), "utf8")).toBe(bucketToml);
+    expect(result.manifest).toMatchObject({ project: "jci-valle", bucket: BUCKET });
+    expect(Object.values(result.manifest.objects).every(({ source }) => source === "bucket")).toBe(
+      true,
+    );
+    // brand/ now selects the pulled brand.
+    expect(loadProfile({ repoRoot: root, env: {} }).slug).toBe("local");
+  });
+
+  it("refuses a bucket without a brand.toml: CD has no other brand to build", async () => {
+    rmSync(local(), { recursive: true });
+    const error = await errorOf(
+      pullProject({ projectId: "jci-valle", repoRoot: root, run: fakeRunner(listing(IMAGES)) }),
+    );
+    expect(error.errors).toEqual([
+      `gs://${BUCKET}/brand.toml: missing from the bucket (upload it with brand:push)`,
+    ]);
+    expect(existsSync(local())).toBe(false);
+  });
+
+  it("refuses a bucket brand.toml that names another project", async () => {
+    rmSync(local(), { recursive: true });
+    bucketToml = bucketToml.replace('project = "jci-valle"', 'project = "jci-other"');
+    const error = await errorOf(
+      pullProject({ projectId: "jci-valle", repoRoot: root, run: fakeRunner(listing()) }),
+    );
+    expect(error.errors).toEqual([
+      `gs://${BUCKET}/brand.toml: names project "jci-other", but this is the bucket of "jci-valle"`,
+    ]);
+    expect(existsSync(local("brand.toml"))).toBe(false);
+  });
+
+  it("refuses a bucket brand.toml that still holds [deploy], saying to fix brand/local/ and push", async () => {
+    rmSync(local(), { recursive: true });
+    bucketToml +=
+      '\n[deploy]\nserviceAccount = "firebase-deployer@jci-valle.iam.gserviceaccount.com"\n';
+    const error = await errorOf(
+      pullProject({ projectId: "jci-valle", repoRoot: root, run: fakeRunner(listing()) }),
+    );
+    // The whole printout: the remedy is brand/local/ and brand:push, never editing the bucket.
+    expect(error.message).toBe(
+      [
+        "Brand profile error:",
+        `  - gs://${BUCKET}/brand.toml deploy: the [deploy] table is no longer read: CD reads its project and sign-in from the repository variables FIREBASE_PROJECT_ID and GCP_PROJECT_NUMBER (docs/ci-cd.md)`,
+        "To fix:",
+        "  - delete the [deploy] table from brand/local/brand.toml, then upload that file",
+        "      pnpm brand:push   # in the repo root",
+      ].join("\n"),
+    );
+    expect(existsSync(local("brand.toml"))).toBe(false);
+  });
+
+  it("refuses a bucket brand.toml that names another bucket", async () => {
+    rmSync(local(), { recursive: true });
+    bucketToml = bucketToml.replace(
+      'project = "jci-valle"',
+      'project = "jci-valle"\nassetsBucket = "jci-valle-other-assets"',
+    );
+    const error = await errorOf(
+      pullProject({ projectId: "jci-valle", repoRoot: root, run: fakeRunner(listing()) }),
+    );
+    expect(error.errors).toEqual([
+      `gs://${BUCKET}/brand.toml: names assetsBucket "jci-valle-other-assets", but it was pulled from ${BUCKET}`,
+    ]);
+  });
+
+  it("refuses a brand/local/ pulled from another project, changing nothing", async () => {
+    recordLocal(root, { project: "jci-other" });
+    const before = readFileSync(local(".pull-manifest.json"), "utf8");
+    const error = await errorOf(
+      pullProject({ projectId: "jci-valle", repoRoot: root, run: fakeRunner(listing()) }),
+    );
+    expect(error.errors).toEqual([
+      'brand/local/ holds the brand of project "jci-other" (its .pull-manifest.json), not "jci-valle"',
+    ]);
+    expect(calls).toEqual([]);
+    expect(readFileSync(local(".pull-manifest.json"), "utf8")).toBe(before);
+  });
+
+  it("refuses a malformed or local-only project before calling gcloud", async () => {
+    for (const projectId of ["Bad_Id", "jci-valle\nevil", "demo-valle"]) {
+      await expect(
+        pullProject({ projectId, repoRoot: root, run: fakeRunner(listing()) }),
+      ).rejects.toThrow(BrandConfigError);
+    }
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("cdProject", () => {
+  it("is BRAND_CD_PROJECT, which only CD's firebase-setup sets, else null", () => {
+    expect(cdProject({})).toBeNull();
+    expect(cdProject({ BRAND_CD_PROJECT: " " })).toBeNull();
+    expect(cdProject({ BRAND_CD_PROJECT: "jci-valle" })).toBe("jci-valle");
+  });
+
+  it("leaves a member's pull in member mode when FIREBASE_PROJECT_ID is in their shell", () => {
+    expect(cdProject({ FIREBASE_PROJECT_ID: "jci-valle" })).toBeNull();
+    expect(cdProject({ FIREBASE_PROJECT_ID: "jci-other", BRAND_CD_PROJECT: "jci-valle" })).toBe(
+      "jci-valle",
+    );
   });
 });

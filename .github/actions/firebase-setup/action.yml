@@ -1,17 +1,15 @@
 name: firebase-setup
 description: >-
-  Shared deploy-job setup — Node + pnpm, pinned firebase-tools (cached), and
-  keyless Workload Identity Federation auth. Assumes the repo is already checked out.
-  Everything it needs comes from the repo: brand/ selects the brand profile (brand/local/,
-  which CI never seeds, else its one committed chapter profile, else the example), whose
-  brand.toml names the project and CD's sign-in (specs
-  docs/specs/2026-10-25-repo-contained-config.md, docs/specs/2026-10-25-profile-discovery.md).
+  Shared deploy-job setup: Node + pnpm, pinned firebase-tools (cached), keyless Workload
+  Identity Federation sign-in, pinned gcloud, then the brand. Assumes the repo is checked
+  out. Where CD deploys and as whom come from the repository variables, which deploy.yml's
+  workflow-level `env:` passes to every step, these included (FIREBASE_PROJECT_ID,
+  GCP_PROJECT_NUMBER, and the optional GCP_REGION, WIF_PROVIDER, DEPLOY_SA); the brand
+  comes from the project's bucket (docs/specs/2026-10-29-brand-outside-repo.md, "CD from a
+  fork").
 outputs:
-  profile:
-    description: The brand profile brand/ selects
-    value: ${{ steps.config.outputs.profile }}
   project_id:
-    description: The profile's Firebase project id (also exported as GCP_PROJECT_ID)
+    description: The Firebase project id (also exported as GCP_PROJECT_ID)
     value: ${{ steps.config.outputs.project_id }}
   spotlight_url:
     description: The public site's production origin
@@ -25,40 +23,35 @@ outputs:
 runs:
   using: composite
   steps:
+    # The variables first: a missing or malformed one stops the job here, before anything
+    # is installed or any credential minted. deploy-ready.sh checks every value against an
+    # anchored pattern (so none carries a line break into $GITHUB_OUTPUT or $GITHUB_ENV)
+    # and derives the provider and service account brand:provision creates.
+    - name: Read the deploy target from the repository variables
+      id: target
+      shell: bash
+      run: |
+        set -euo pipefail
+        bash .github/scripts/deploy-ready.sh > "$RUNNER_TEMP/deploy-target"
+        if ! grep -qx 'ready=true' "$RUNNER_TEMP/deploy-target"; then
+          sed -n 's/^reason=/::error title=Not set up to deploy::/p' "$RUNNER_TEMP/deploy-target"
+          exit 1
+        fi
+        cat "$RUNNER_TEMP/deploy-target" >> "$GITHUB_OUTPUT"
+        # Later steps of the job deploy with --project "$GCP_PROJECT_ID"; the functions
+        # job's assert reads GCP_REGION.
+        sed -n -e 's/^project=/GCP_PROJECT_ID=/p' -e 's/^region=/GCP_REGION=/p' \
+          "$RUNNER_TEMP/deploy-target" >> "$GITHUB_ENV"
     - run: corepack enable
       shell: bash
     - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
         node-version-file: .nvmrc
         cache: pnpm
+    # Before the sign-in, so no dependency's install script runs while a credential exists.
+    # CI is set on the runner, so install does not seed brand/local/ from the example.
     - run: pnpm install --frozen-lockfile
       shell: bash
-    # Release rules first: an unshippable profile or a missing [deploy] table stops the
-    # job here, before any credential is minted. Each value is one output line: the
-    # brand.toml schema checks its shape (a Workload Identity resource name, an email, a
-    # project id, an https origin written exactly as normalized, two hosting site ids), and
-    # brand:ci-config refuses any value with a line break, which could add an output such as
-    # project_id or service_account of its own.
-    - name: Read the deploy target from the repo
-      id: config
-      shell: bash
-      env:
-        BRAND_RELEASE: "1"
-      run: |
-        set -euo pipefail
-        pnpm -s brand:ci-config > "$RUNNER_TEMP/brand-ci-config"
-        cat "$RUNNER_TEMP/brand-ci-config" >> "$GITHUB_OUTPUT"
-        # Later steps of the job deploy with --project "$GCP_PROJECT_ID".
-        sed -n 's/^project_id=/GCP_PROJECT_ID=/p' "$RUNNER_TEMP/brand-ci-config" >> "$GITHUB_ENV"
-    # .firebaserc (project, hosting sites, storage bucket) is generated from the profile.
-    # `prepare` writes it on install, but pnpm skips `prepare` on an up-to-date install,
-    # so it is written explicitly: no deploy depends on that lifecycle detail.
-    # BRAND_RELEASE=1 makes brand:apply refuse the example or a demo- profile.
-    - name: Write .firebaserc from the brand profile
-      shell: bash
-      env:
-        BRAND_RELEASE: "1"
-      run: pnpm -s brand:apply
     # Pinned global firebase-tools under a user-owned prefix (no sudo), cached across
     # runs; only re-downloads when the version key changes. Matches the CI workflow.
     - run: |
@@ -74,8 +67,45 @@ runs:
       run: npm install -g firebase-tools@15.22.1
       shell: bash
     # Keyless: exchanges the GitHub OIDC token for short-lived GCP credentials (ADC).
-    # firebase-tools picks these up automatically — no firebase login, no stored key.
+    # firebase-tools and gcloud pick these up — no firebase login, no stored key. GCP's STS
+    # honors the token only for the repository and ref the provider's attribute condition
+    # names (the fork itself, refs/heads/main).
     - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
-        workload_identity_provider: ${{ steps.config.outputs.workload_identity_provider }}
-        service_account: ${{ steps.config.outputs.service_account }}
+        workload_identity_provider: ${{ steps.target.outputs.workload_identity_provider }}
+        service_account: ${{ steps.target.outputs.service_account }}
+    # brand:pull and the functions job's assert run `gcloud`. ubuntu-24.04 ships the Cloud
+    # SDK today, but a guard must not depend on something we neither pin nor control
+    # (guardrail #6), so it is pinned here.
+    - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+    # The brand is not in git: brand.toml and the images come from <project>-brand-assets
+    # (read-only to the deploy account) into brand/local/, which brand/ then selects. A
+    # bucket without a brand.toml, one naming another project, or an invalid image fails
+    # here, before any build; live hosting is untouched. BRAND_CD_PROJECT (the validated
+    # project, never a variable a member's shell may carry) is what puts brand:pull and
+    # brand:ci-config in CD mode.
+    - name: Pull the brand from the project's bucket
+      shell: bash
+      env:
+        BRAND_CD_PROJECT: ${{ steps.target.outputs.project }}
+      run: pnpm -s brand:pull
+    # Release rules on the pulled brand: it must be brand/local/, shippable, and name the
+    # project CD signed in to. Each value is one output line; brand:ci-config refuses any
+    # value with a line break, which could add an output of its own.
+    - name: Read the hosting targets from the pulled brand
+      id: config
+      shell: bash
+      env:
+        BRAND_RELEASE: "1"
+        BRAND_CD_PROJECT: ${{ steps.target.outputs.project }}
+      run: |
+        set -euo pipefail
+        pnpm -s brand:ci-config > "$RUNNER_TEMP/brand-ci-config"
+        cat "$RUNNER_TEMP/brand-ci-config" >> "$GITHUB_OUTPUT"
+    # .firebaserc (project, hosting sites, storage bucket) is generated from the brand.
+    # BRAND_RELEASE=1 makes brand:apply refuse the example or a demo- profile.
+    - name: Write .firebaserc from the pulled brand
+      shell: bash
+      env:
+        BRAND_RELEASE: "1"
+      run: pnpm -s brand:apply

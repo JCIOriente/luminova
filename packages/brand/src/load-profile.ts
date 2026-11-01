@@ -181,9 +181,8 @@ export const overrideNote = (slug: string) => ({
 });
 
 /**
- * What brand/ selects: brand/local/brand.toml, else its one committed chapter profile
- * (see the TRANSITIONAL marker below), else the example. Twin of the committed-chapter rule:
- * .github/scripts/deploy-ready.sh applies it before Deploy installs anything.
+ * What brand/ selects: brand/local/brand.toml, else (TRANSITIONAL) its one committed chapter
+ * profile, else the example. CD always selects brand/local/: it pulls brand.toml there first.
  */
 export function discoverProfile(repoRoot: string = REPO_ROOT): {
   slug: string;
@@ -193,7 +192,7 @@ export function discoverProfile(repoRoot: string = REPO_ROOT): {
     return { slug: LOCAL_PROFILE, source: "local" };
   }
   // TRANSITIONAL (the JCI Oriente removal PR drops this): a chapter folder committed in
-  // brand/ (only jci-oriente upstream, which CD still deploys), with the two-chapters error.
+  // brand/ (only jci-oriente upstream, which CD no longer reads), with the two-chapters error.
   const profiles = availableProfiles(repoRoot);
   const chapters = profiles.filter(isCommittedChapter);
   const [only] = chapters;

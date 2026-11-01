@@ -1,13 +1,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { DEPLOY_SA, POOL_ID, PROVIDER_ID } from "../deploy-identity.ts";
+import { DEPLOY_SA, POOL_ID, PROVIDER_ID, attributeCondition } from "../deploy-identity.ts";
 import { BrandConfigError, EXAMPLE_PROFILE, REPO_ROOT, loadProfile } from "../load-profile.ts";
 import { chapterProfile } from "../test-profiles.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
 import {
   applyBucket,
+  lookupDeployTarget,
   offerBucket,
+  offerVariables,
   printProvisioning,
   provisionNext,
   provisioningSection,
@@ -35,13 +37,19 @@ let calls: string[][];
 function fakeRunner({
   describe = [DONE] as (object | null)[],
   policy = GRANTED as object,
+  origin = "git@github.com:acme/luminova.git\n",
+  canonical = "acme/luminova\n" as string | Error,
 } = {}): CommandRunner {
   const states = [...describe];
   return async (command, args) => {
     calls.push([command, ...args]);
     const joined = args.join(" ");
     if (command === "gh" && joined.startsWith("api user")) return "123\n";
-    if (command === "gh" && joined.startsWith("repo view")) return "acme/luminova\n";
+    if (command === "gh" && joined.startsWith("repo view")) {
+      if (canonical instanceof Error) throw canonical;
+      return canonical;
+    }
+    if (command === "git" && joined === `-C ${REPO_ROOT} remote get-url origin`) return origin;
     if (joined.startsWith("projects describe")) return "42\n";
     if (joined.startsWith("storage buckets describe")) {
       const state = states.length > 1 ? states.shift() : states[0];
@@ -78,8 +86,8 @@ describe("printProvisioning", () => {
       `gcloud storage buckets add-iam-policy-binding ${BUCKET} --member=serviceAccount:${SA} --role=roles/storage.objectViewer`,
     );
     expect(text).toContain("    pnpm brand:push\n");
-    expect(text).toContain("gh workflow run deploy.yml -f surface=all");
-    expect(text).not.toMatch(/BRAND_PROFILE|gh variable/);
+    expect(text).toContain("gh workflow run deploy.yml -f surface=all --repo acme/luminova");
+    expect(text).not.toMatch(/BRAND_PROFILE|\[deploy\]/);
     expect(mutations()).toEqual([]);
   });
 
@@ -90,6 +98,48 @@ describe("printProvisioning", () => {
     expect(text).toContain("export GH_REPO=acme/luminova\n");
     expect(text).toContain("export REVIEWER_ID=123\n");
     expect(calls).toContainEqual(["gh", "api", "user", "-q", ".id"]);
+    // The fork comes from the origin remote: gh's default repository is upstream in a clone
+    // made with gh repo fork --clone.
+    expect(calls).toContainEqual(["git", "-C", REPO_ROOT, "remote", "get-url", "origin"]);
+    expect(calls.filter(([command, verb]) => command === "gh" && verb === "repo")).toEqual([
+      ["gh", "repo", "view", "acme/luminova", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
+    ]);
+    expect(text).not.toMatch(/letter case/);
+  });
+
+  it("fills in GitHub's spelling of the fork, not origin's letter case", async () => {
+    const text = await printProvisioning({
+      profile,
+      run: fakeRunner({ origin: "git@github.com:ACME/Luminova.git\n" }),
+    });
+    expect(text).toContain("export GH_REPO=acme/luminova\n");
+    expect(text).not.toMatch(/ACME/);
+  });
+
+  it("notes, next to the repo it prints, when gh could not confirm its letter case", async () => {
+    const text = await printProvisioning({
+      profile,
+      run: fakeRunner({
+        origin: "git@github.com:ACME/Luminova.git\n",
+        canonical: new CommandError("gh repo view failed: spawn gh ENOENT"),
+      }),
+    });
+    expect(text).toContain("export GH_REPO=ACME/Luminova\n");
+    expect(text).toMatch(
+      /^Note: could not confirm the letter case of ACME\/Luminova with gh \(gh repo view ACME\/Luminova\); CD's keyless sign-in matches owner\/name case-sensitively, so write it as GitHub does\.$/m,
+    );
+  });
+
+  it("warns when origin is upstream, and fills in no repository from it", async () => {
+    const text = await printProvisioning({
+      profile,
+      run: fakeRunner({ origin: "https://github.com/JCIOriente/luminova.git\n" }),
+    });
+    expect(text).toMatch(
+      /^Warning: the git remote origin is JCIOriente\/luminova, upstream, not your fork/m,
+    );
+    expect(text).not.toMatch(/--repo JCIOriente|GH_REPO=JCIOriente/);
+    expect(text).toContain("export GH_REPO=   # FILL IN before pasting: git remote get-url origin");
   });
 
   it("leaves a hint for each value a lookup could not find", async () => {
@@ -99,7 +149,7 @@ describe("printProvisioning", () => {
     };
     const text = await printProvisioning({ profile, run: failing });
     expect(text).toContain(
-      "export GH_REPO=   # FILL IN before pasting: gh repo view --json nameWithOwner -q .nameWithOwner\n",
+      "export GH_REPO=   # FILL IN before pasting: git remote get-url origin (your fork, as owner/name)\n",
     );
     expect(text).toContain("export REVIEWER_ID=   # FILL IN before pasting: gh api user -q .id\n");
     expect(text).toContain(
@@ -115,7 +165,7 @@ describe("printProvisioning", () => {
     const titles = [...text.matchAll(/^Step (\d) of 5: (.*)$/gm)].map(([, , title]) => title);
     expect(titles).toEqual([
       "create CD's deploy account and its keyless sign-in (once per project)",
-      "tell CD which account to use (done: brand/jci-valle/brand.toml has it)",
+      "tell CD where to deploy: two repository variables",
       "create the private bucket for your logos and icons",
       "upload your images",
       "first deploy",
@@ -125,15 +175,61 @@ describe("printProvisioning", () => {
     );
   });
 
-  it("prints the deploy section to paste, from the project number, when the profile lacks it", async () => {
-    const brand = structuredClone(profile.brand);
-    delete brand.deploy;
-    const text = await printProvisioning({ profile: { ...profile, brand }, run: fakeRunner() });
+  it("prints the gh variable commands, filled in, instead of a [deploy] table", async () => {
+    const text = await printProvisioning({ profile, run: fakeRunner() });
     expect(text).toContain(
-      '    [deploy]\n    workloadIdentityProvider = "projects/42/locations/global/workloadIdentityPools/github-actions/providers/github-oidc"',
+      "    gh variable set FIREBASE_PROJECT_ID --body jci-valle --repo acme/luminova\n    gh variable set GCP_PROJECT_NUMBER --body 42 --repo acme/luminova\n",
     );
-    expect(text).toContain(`serviceAccount = "${SA}"`);
-    expect(text).toMatch(/^Step 2 of 5: tell CD which account to use$/m);
+    expect(text).toContain("Check: gh variable list --repo acme/luminova");
+  });
+
+  it("looks nothing up again when given the project number and repository", async () => {
+    const text = await printProvisioning({
+      profile,
+      run: fakeRunner(),
+      target: { projectNumber: "77", ghRepo: "acme/fork" },
+    });
+    expect(text).toContain("gh variable set GCP_PROJECT_NUMBER --body 77 --repo acme/fork");
+    expect(calls).toEqual([["gh", "api", "user", "-q", ".id"]]);
+  });
+
+  it("prints the provider's attribute condition, pinned to the fork and its main branch", async () => {
+    const text = await printProvisioning({ profile, run: fakeRunner() });
+    expect(text).toContain(
+      "only acme/luminova's deploy.yml on main gets a token: assertion.repository == 'acme/luminova' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == 'acme/luminova/.github/workflows/deploy.yml@refs/heads/main'",
+    );
+    expect(text).toContain(
+      `gcloud iam workload-identity-pools providers describe ${PROVIDER_ID} --project=jci-valle --location=global --workload-identity-pool=${POOL_ID} --format='value(attributeCondition)'`,
+    );
+  });
+
+  it("leaves an unknown project number or repository as a commented line to fill in", async () => {
+    const failing: CommandRunner = async (command, args) => {
+      calls.push([command, ...args]);
+      throw new CommandError("offline");
+    };
+    const text = await printProvisioning({ profile, run: failing });
+    expect(text).toContain(
+      "    # FILL IN, then run: gh variable set FIREBASE_PROJECT_ID --body jci-valle --repo <owner/name of your fork>   (git remote get-url origin)\n",
+    );
+    expect(text).toContain(
+      "    # FILL IN, then run: gh variable set GCP_PROJECT_NUMBER --body <project number> --repo <owner/name of your fork>   (gcloud projects describe jci-valle --format='value(projectNumber)')",
+    );
+    expect(text).not.toMatch(/^ {4}gh variable set/m);
+  });
+
+  it("leaves only the project number to fill in when the repository is known", async () => {
+    const text = await printProvisioning({
+      profile,
+      run: fakeRunner(),
+      target: { projectNumber: null, ghRepo: "acme/luminova" },
+    });
+    expect(text).toContain(
+      "    gh variable set FIREBASE_PROJECT_ID --body jci-valle --repo acme/luminova\n",
+    );
+    expect(text).toContain(
+      "    # FILL IN, then run: gh variable set GCP_PROJECT_NUMBER --body <project number> --repo acme/luminova   (gcloud projects describe jci-valle --format='value(projectNumber)')",
+    );
   });
 });
 
@@ -157,6 +253,11 @@ describe("provisioningSection", () => {
     }
   });
 
+  it("pins the provider's attribute condition to the fork's repository and main", () => {
+    const block = provisioningSection(readFileSync(join(REPO_ROOT, "docs/ci-cd.md"), "utf8"));
+    expect(block).toContain(`--attribute-condition="${attributeCondition("${GH_REPO}")}"`);
+  });
+
   it("finds the section 6 block in the real docs/ci-cd.md and its four exports", () => {
     const block = provisioningSection(readFileSync(join(REPO_ROOT, "docs/ci-cd.md"), "utf8"));
     for (const key of ["PROJECT_ID", "PROJECT_NUMBER", "GH_REPO", "REVIEWER_ID"]) {
@@ -166,29 +267,6 @@ describe("provisioningSection", () => {
 });
 
 describe("applyBucket", () => {
-  it("grants read access to the account the profile's deploy section names", async () => {
-    const custom = "deployer@jci-valle.iam.gserviceaccount.com";
-    const brand = structuredClone(profile.brand);
-    brand.deploy = {
-      workloadIdentityProvider: brand.deploy?.workloadIdentityProvider ?? "",
-      serviceAccount: custom,
-    };
-    await applyBucket({
-      profile: { ...profile, brand },
-      repoRoot: REPO_ROOT,
-      run: fakeRunner({ policy: { bindings: [] } }),
-    });
-    expect(mutations()).toContainEqual([
-      "gcloud",
-      "storage",
-      "buckets",
-      "add-iam-policy-binding",
-      BUCKET,
-      `--member=serviceAccount:${custom}`,
-      "--role=roles/storage.objectViewer",
-    ]);
-  });
-
   it("creates and configures a missing bucket, then grants the deploy SA read", async () => {
     const created = {
       name: "jci-valle-brand-assets",
@@ -326,6 +404,130 @@ describe("offerBucket", () => {
       }),
     ).toBeNull();
     expect(calls).toEqual([]);
+  });
+});
+
+describe("offerVariables", () => {
+  const sets = () => calls.filter(([command, , verb]) => command === "gh" && verb === "set");
+  const target = { projectNumber: "42", ghRepo: "acme/luminova" };
+
+  it("sets both repository variables only when the answer is yes, looking nothing up again", async () => {
+    const questions: string[] = [];
+    const result = await offerVariables({
+      profile,
+      target,
+      run: fakeRunner(),
+      confirm: async (question) => {
+        questions.push(question);
+        return true;
+      },
+    });
+    expect(questions).toEqual([
+      "Step 1 done? Then this can do step 2 now: set FIREBASE_PROJECT_ID=jci-valle and GCP_PROJECT_NUMBER=42 on acme/luminova. Do step 2 now?",
+    ]);
+    expect(result).toEqual({ set: true });
+    expect(calls.filter(([, verb]) => verb !== "variable")).toEqual([]);
+    expect(sets()).toEqual([
+      [
+        "gh",
+        "variable",
+        "set",
+        "FIREBASE_PROJECT_ID",
+        "--body",
+        "jci-valle",
+        "--repo",
+        "acme/luminova",
+      ],
+      ["gh", "variable", "set", "GCP_PROJECT_NUMBER", "--body", "42", "--repo", "acme/luminova"],
+    ]);
+  });
+
+  it("changes nothing on a no, which is the default", async () => {
+    const result = await offerVariables({
+      profile,
+      target,
+      run: fakeRunner(),
+      confirm: async () => false,
+    });
+    expect(result).toEqual({ set: false, reason: null });
+    expect(sets()).toEqual([]);
+  });
+
+  it("never asks or changes anything without a terminal", async () => {
+    expect(await offerVariables({ profile, target, run: fakeRunner() })).toEqual({
+      set: false,
+      reason: null,
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("does not ask when the project number or repository is unknown, and says why", async () => {
+    let asked = false;
+    const confirm = async () => {
+      asked = true;
+      return true;
+    };
+    const run = fakeRunner();
+    expect(
+      await offerVariables({ profile, target: { ...target, projectNumber: null }, run, confirm }),
+    ).toEqual({
+      set: false,
+      reason:
+        "the project number of jci-valle could not be looked up (gcloud projects describe jci-valle --format='value(projectNumber)')",
+    });
+    expect(
+      await offerVariables({ profile, target: { ...target, ghRepo: null }, run, confirm }),
+    ).toEqual({
+      set: false,
+      reason: "your fork could not be read from the git remote origin (git remote get-url origin)",
+    });
+    expect(
+      await offerVariables({
+        profile,
+        target: { projectNumber: null, ghRepo: null },
+        run,
+        confirm,
+      }),
+    ).toEqual({
+      set: false,
+      reason: expect.stringMatching(/project number .* and your fork could not be read/),
+    });
+    expect(
+      await offerVariables({
+        profile,
+        target: { ...target, ghRepo: null, warning: "the git remote origin is upstream" },
+        run,
+        confirm,
+      }),
+    ).toEqual({ set: false, reason: "the git remote origin is upstream" });
+    expect(asked).toBe(false);
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("lookupDeployTarget", () => {
+  it("looks up the project number and the fork once each", async () => {
+    expect(await lookupDeployTarget({ profile, repoRoot: REPO_ROOT, run: fakeRunner() })).toEqual({
+      projectNumber: "42",
+      ghRepo: "acme/luminova",
+      warning: null,
+      caseNote: null,
+    });
+    expect(calls).toEqual([
+      ["gcloud", "projects", "describe", "jci-valle", "--format=value(projectNumber)"],
+      ["git", "-C", REPO_ROOT, "remote", "get-url", "origin"],
+      ["gh", "repo", "view", "acme/luminova", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
+    ]);
+  });
+
+  it("treats an upstream origin as no fork, with a warning to print", async () => {
+    const target = await lookupDeployTarget({
+      profile,
+      repoRoot: REPO_ROOT,
+      run: fakeRunner({ origin: "https://github.com/JCIOriente/luminova\n" }),
+    });
+    expect(target.ghRepo).toBeNull();
+    expect(target.warning).toMatch(/upstream, not your fork/);
   });
 });
 

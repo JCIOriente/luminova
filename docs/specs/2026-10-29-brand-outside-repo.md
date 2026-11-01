@@ -150,7 +150,7 @@ then uploads the 17 contract files. Each upload is conditional on the generation
 manifest recorded (`--if-generation-match`), so a member never overwrites a newer upload by
 another member without noticing; on a conflict it says to run `brand:pull` first. Then it
 rewrites the manifest. **Next:** `gh workflow run deploy.yml -f surface=hosting` in the
-chapter's fork.
+chapter's fork (`--repo <owner>/<repo>`).
 
 ### `brand:pull`
 
@@ -190,16 +190,29 @@ secret):
 
 `brand:provision` creates the pool, provider and service account under those fixed names and
 prints the `gh variable set` commands. The provider's attribute condition pins the fork's own
-repository and `refs/heads/main`.
+repository, `refs/heads/main` and the fork's `deploy.yml`
+(`assertion.workflow_ref == '<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main'`).
+`brand:provision` and `brand:check` name the fork with `--repo` on every `gh` call, read
+from the clone's `origin` remote: gh's own default is the `upstream` remote in a clone made
+with `gh repo fork --clone`. An `origin` that is JCIOriente/luminova, for any project but
+`jci-oriente`, is refused with a warning.
 
-Flow per deploy job: checkout, install, `deploy-ready.sh` (ready = `FIREBASE_PROJECT_ID` set
-and not `demo-`; otherwise every job skips with a notice), Workload Identity sign-in,
-`brand:pull` into `brand/local/` (install seeded it from the example with source
-`example`, and the seed's hashes match the manifest, so the pull replaces every contract
-file without asking and records source `bucket`, which the release build requires),
-`brand:apply` (`.firebaserc`), release build,
-deploy. Upstream's two variables are JCI Oriente's (runbook step 4); a fork that has not set
-them skips. GitHub disables Actions in a new fork until its owner enables them.
+Flow per deploy job: checkout, install, `deploy-ready.sh` (ready = both
+`FIREBASE_PROJECT_ID` and `GCP_PROJECT_NUMBER` set and the project not `demo-`; otherwise
+every job skips with a notice), Workload Identity sign-in, `brand:pull` (CI never seeds
+`brand/local/`, so CD's pull creates it: `brand.toml` and the 16 images, each recorded with
+source `bucket`, which the release build requires), `brand:ci-config`, `brand:apply`
+(`.firebaserc`), release build, deploy. `brand:pull` and `brand:ci-config` run in CD mode
+only when `BRAND_CD_PROJECT` is set, which only CD's setup does, to the validated
+`FIREBASE_PROJECT_ID`; a member's shell that exports `FIREBASE_PROJECT_ID` keeps the
+member's pull. Upstream's two variables are JCI Oriente's (runbook step 4); a fork that has
+not set them skips. GitHub disables Actions in a new fork until its owner enables them.
+
+A run's title records what it could deploy, and the next run diffs from the commit the
+newest successful full run names: `Deploy to <project> at <sha>` only for a dispatch of
+surface `all` on `main` or a run after a green CI of a push to `main`; a partial dispatch,
+a skipped run and an unset repository get titles that never match, so their undeployed
+surfaces stay in the next diff. A dispatch from another ref deploys nothing.
 
 A brand change does not move git, so it does not start CD: the member runs the hosting
 deploy after `brand:push` (above). A code change arrives by Sync fork and deploys the
@@ -239,11 +252,14 @@ The PRs land in this order; JCI Oriente keeps deploying through each:
 
 From a clone of `main` that includes step 3, with `gcloud` signed in as a project owner:
 
-1. `pnpm install`, then copy JCI Oriente's committed profile into the local folder:
-   `cp brand/jci-oriente/brand.toml brand/local/brand.toml`. Then delete the `[deploy]` table
-   from `brand/local/brand.toml` (its header and its two lines): from step 4 on, CD signs in
-   with the repository variables and refuses a `brand.toml` that still holds `[deploy]`. If
-   you already pushed a file with it, delete it and push again before merging step 4.
+1. `pnpm install`, then copy JCI Oriente's committed profile into the local folder and
+   delete its `[deploy]` table there (step 4's CD refuses a `brand.toml` that still has one,
+   and no CD reads it from the bucket's copy, so it can go now):
+   `cp brand/jci-oriente/brand.toml brand/local/brand.toml && sed -i.bak '/^\[deploy\]$/,/^$/d' brand/local/brand.toml && rm brand/local/brand.toml.bak`.
+   `pnpm brand:check` then notes that the CD identity has no `[deploy]` table; that note is
+   expected until step 4 merges. If the bucket already holds a `brand.toml` with `[deploy]`
+   (pushed before this step said to delete it), delete the table from
+   `brand/local/brand.toml` and run `pnpm brand:push` again before merging step 4.
 2. Download the deployed images from today's bucket over the seeded ones: `pnpm brand:pull`.
    The bucket holds no `brand.toml` yet, so the pull replaces the 16 seeded images without
    asking (they are unchanged since the seed), keeps the `brand.toml` of step 1, and records
@@ -253,6 +269,10 @@ From a clone of `main` that includes step 3, with `gcloud` signed in as a projec
    `gh variable set GCP_PROJECT_NUMBER --body 953870918238 --repo JCIOriente/luminova`.
 5. Merge step 4. Its first Deploy run (or `gh workflow run deploy.yml -f surface=hosting
    --repo JCIOriente/luminova`) needs the usual approval; check both sites afterwards.
+6. Optional, any time after step 5: pin the existing provider to `deploy.yml`, as
+   `brand:provision` now creates it for a fork (`assertion.workflow_ref` reads the token's
+   own claim, so the attribute mapping stays as it is):
+   `gcloud iam workload-identity-pools providers update-oidc github-oidc --project=jci-oriente --location=global --workload-identity-pool=github-actions --attribute-condition="assertion.repository == 'JCIOriente/luminova' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == 'JCIOriente/luminova/.github/workflows/deploy.yml@refs/heads/main'"`.
 
 ## Decisions
 

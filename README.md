@@ -167,8 +167,10 @@ You need **Node 24**, **pnpm** (via `corepack enable`), the **Firebase CLI**, an
 all four and prints the install command for your computer. The commands for macOS, Linux
 and Windows (WSL 2) are in [Before you start](docs/adopting.md#before-you-start).
 
+A chapter works in its own fork (it deploys from there):
+
 ```bash
-git clone https://github.com/JCIOriente/luminova.git
+gh repo fork JCIOriente/luminova --clone   # or: git clone <your fork's URL>
 cd luminova
 nvm use                       # Node 24, pinned in .nvmrc
 corepack enable
@@ -177,6 +179,9 @@ pnpm turbo run build --filter=@luminova/types   # once: brand:check reads the si
 pnpm brand:check              # the tools, the profile and its images: what it found, or how to fix it
 pnpm dev
 ```
+
+`gh repo fork --clone` makes `origin` your fork and adds `upstream` for JCIOriente/luminova;
+the `brand:` commands read your fork from `origin`.
 
 No `.env` file is needed: `pnpm dev` reads the Firebase config from the brand profile
 `brand/` selects and always talks to the local emulators, so nothing you do locally

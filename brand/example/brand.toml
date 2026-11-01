@@ -49,9 +49,7 @@ vapidKey = ""
 #   [firebase.sites] spotlight = "<project>", backstage = "<project>-backstage"
 #   [urls] spotlight / backstage = "https://<site>.web.app"
 #   qrPrefix = "<project>" without hyphens (never change it once credentials are printed)
-#   assetsBucket = "<project>-brand-assets"
-# CD's sign-in, until CD reads it from repository variables:
-#   [deploy] workloadIdentityProvider, serviceAccount (pnpm brand:provision prints them)
+#   assetsBucket = "<project>-brand-assets" (CD pulls the brand from this one)
 
 # ── More defaults a chapter may override ─────────────────────────────────────────────────
 

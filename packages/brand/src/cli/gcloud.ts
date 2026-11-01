@@ -6,12 +6,12 @@ import type { Remedy } from "../remedy.ts";
 import { installRemedy } from "./install.ts";
 
 /**
- * The one seam to external CLIs (`gcloud`, `gh`, `firebase`, `pnpm`, `java`). Argument arrays only, never a shell
+ * The one seam to external CLIs (`gcloud`, `gh`, `firebase`, `pnpm`, `java`, `git`). Argument arrays only, never a shell
  * string, so no value from a profile or the bucket can be interpreted by a shell. Tests
  * inject a fake that records argv.
  */
 export type CommandRunner = (
-  command: "gcloud" | "gh" | "firebase" | "pnpm" | "java",
+  command: "gcloud" | "gh" | "firebase" | "pnpm" | "java" | "git",
   args: readonly string[],
 ) => Promise<string>;
 

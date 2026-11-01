@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { EXAMPLE_PROFILE, REPO_ROOT, loadProfile, type LoadedProfile } from "../load-profile.ts";
-import { brandErrorOf, chapterProfile } from "../test-profiles.ts";
+import { brandErrorOf, localProfile } from "../test-profiles.ts";
 import { ciConfig, formatOutputs } from "./ci-config.ts";
 
-const chapter: LoadedProfile = chapterProfile();
+/** The test chapter in brand/local/, where CD's brand:pull put it. */
+const pulled: LoadedProfile = localProfile();
+/** What firebase-setup passes brand:ci-config: the validated FIREBASE_PROJECT_ID. */
+const CD = { BRAND_CD_PROJECT: "jci-valle" };
 
 describe("ciConfig", () => {
-  it("hands CD the profile, its project, its sign-in names and its hosting targets", () => {
-    expect(formatOutputs(ciConfig(chapter))).toBe(
+  it("hands CD the pulled profile's project and hosting targets, no sign-in", () => {
+    expect(formatOutputs(ciConfig(pulled, CD))).toBe(
       [
-        "profile=jci-valle",
         "project_id=jci-valle",
-        "workload_identity_provider=projects/123456789012/locations/global/workloadIdentityPools/github-actions/providers/github-oidc",
-        "service_account=firebase-deployer@jci-valle.iam.gserviceaccount.com",
         "spotlight_url=https://jcivalle.example.org",
         "spotlight_site=jcivalle",
         "backstage_site=jcivalle-backstage",
@@ -20,18 +20,34 @@ describe("ciConfig", () => {
     );
   });
 
-  it("stops without a deploy section, pointing at brand:provision", () => {
-    const brand = structuredClone(chapter.brand);
-    delete brand.deploy;
-    const error = brandErrorOf(() => ciConfig({ ...chapter, brand }));
-    expect(error.errors).toEqual([expect.stringMatching(/brand\.toml has no \[deploy\] table/)]);
-    expect(error.remedies.map(({ run }) => run)).toEqual(["pnpm brand:provision"]);
+  it("refuses a pulled brand.toml whose project is not FIREBASE_PROJECT_ID", () => {
+    const error = brandErrorOf(() => ciConfig(pulled, { BRAND_CD_PROJECT: "jci-other" }));
+    expect(error.errors).toEqual([
+      'brand/local/brand.toml names project "jci-valle", but the repository variable FIREBASE_PROJECT_ID is "jci-other": CD deploys only the brand of the project it signed in to.',
+    ]);
+  });
+
+  it("refuses to run outside CD, even with FIREBASE_PROJECT_ID in a member's shell", () => {
+    for (const env of [{}, { BRAND_CD_PROJECT: " " }, { FIREBASE_PROJECT_ID: "jci-valle" }]) {
+      expect(brandErrorOf(() => ciConfig(pulled, env)).errors).toEqual([
+        "brand:ci-config runs in CD, after brand:pull: BRAND_CD_PROJECT is not set.",
+      ]);
+    }
+  });
+
+  it("refuses a profile brand:pull did not write, such as a committed chapter", () => {
+    const committed = { ...pulled, slug: "jci-valle", source: "chapter" as const };
+    expect(brandErrorOf(() => ciConfig(committed, CD)).errors).toEqual([
+      'brand/ selects "jci-valle", not the brand/local/ brand:pull wrote: CD deploys only the brand pulled from the bucket.',
+    ]);
   });
 
   it("applies the release rules: not the example, no environment override", () => {
     const example = loadProfile({ repoRoot: REPO_ROOT, profile: EXAMPLE_PROFILE });
-    expect(brandErrorOf(() => ciConfig(example)).message).toMatch(/is the example/);
-    expect(brandErrorOf(() => ciConfig({ ...chapter, source: "override" })).message).toMatch(
+    expect(
+      brandErrorOf(() => ciConfig(example, { BRAND_CD_PROJECT: "demo-example" })).message,
+    ).toMatch(/is the example/);
+    expect(brandErrorOf(() => ciConfig({ ...pulled, source: "override" }, CD)).message).toMatch(
       /set in your environment/,
     );
   });

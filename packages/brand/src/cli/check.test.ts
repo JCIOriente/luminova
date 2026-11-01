@@ -71,6 +71,10 @@ beforeEach(() => {
     ["firebase --version", "15.22.1\n"],
     ["gh --version", "gh version 2.103.0 (2026-10-21)\n"],
     ["gh auth status", "  ✓ Logged in to github.com account octo (keyring)\n"],
+    ["git -C ", "https://github.com/acme/luminova.git\n"],
+    ["gh repo view acme/luminova", "acme/luminova\n"],
+    ["gh variable get FIREBASE_PROJECT_ID --repo acme/luminova", "jci-valle\n"],
+    ["gh variable get GCP_PROJECT_NUMBER --repo acme/luminova", "123456789012\n"],
     ["gcloud --version", "Google Cloud SDK 586.0.0\n"],
     ["firebase login:list", "Logged in as owner@example.org\n"],
   ]);
@@ -117,7 +121,7 @@ describe("check", () => {
     );
     expect(rowFor(rows, "profile").detail).toBe(`brand/${CHAPTER}/`);
     expect(rowFor(rows, "CD identity").detail).toBe(
-      "firebase-deployer@jci-valle.iam.gserviceaccount.com",
+      "FIREBASE_PROJECT_ID=jci-valle, GCP_PROJECT_NUMBER=123456789012: CD signs in as firebase-deployer@jci-valle.iam.gserviceaccount.com",
     );
     expect(rowFor(rows, "gcloud account").detail).toBe("owner@example.org");
     expect(rowFor(rows, "bucket").detail).toMatch(`all 17 files in gs://${BUCKET}`);
@@ -135,6 +139,10 @@ describe("check", () => {
         `gcloud storage objects list gs://${BUCKET}/** --format=json`,
         "gh --version",
         "gh auth status --active",
+        "gh variable get FIREBASE_PROJECT_ID --repo acme/luminova",
+        "gh variable get GCP_PROJECT_NUMBER --repo acme/luminova",
+        `git -C ${root} remote get-url origin`,
+        "gh repo view acme/luminova --json nameWithOwner -q .nameWithOwner",
         "java --version",
         "pnpm --version",
       ].sort(),
@@ -277,11 +285,125 @@ describe("check", () => {
     expect(rowFor(rows, "profile").detail).toBe(`brand/${CHAPTER}/`);
   });
 
-  it("warns, without failing, when the profile has no CD identity", async () => {
-    writeChapter(root, { ...LOCAL, brand: { deploy: undefined } });
+  it("warns, without failing, when a repository variable is not set", async () => {
+    responses.set(
+      "gh variable get GCP_PROJECT_NUMBER --repo acme/luminova",
+      commandFailure("gh", ["variable", "get", "GCP_PROJECT_NUMBER"], {
+        stderr: "variable GCP_PROJECT_NUMBER was not found",
+      }),
+    );
     expect(rowFor(await diagnose(), "CD identity")).toMatchObject({
       status: "warn",
+      detail:
+        "repository variable GCP_PROJECT_NUMBER is not set, so CD deploys nothing yet (step 2 of pnpm brand:provision)",
       remedies: [expect.objectContaining({ run: "pnpm brand:provision" })],
+    });
+  });
+
+  it("warns, without failing, when gh cannot read the variables (missing, not signed in)", async () => {
+    for (const stderr of ["", "To get started with GitHub CLI, please run:  gh auth login"]) {
+      const failure = commandFailure("gh", ["variable", "get", "FIREBASE_PROJECT_ID"], {
+        code: stderr ? 4 : "ENOENT",
+        stderr,
+      });
+      responses.set("gh variable get FIREBASE_PROJECT_ID --repo acme/luminova", failure);
+      const row = rowFor(await diagnose(), "CD identity");
+      expect(row.status).toBe("warn");
+      expect(row.detail).toMatch(/^could not read the repository variables: gh variable get/);
+      expect(row.remedies).toEqual(failure.remedies);
+    }
+  });
+
+  it("reads the variables of the fork origin names, never gh's default repository", async () => {
+    const { cdReady, repo } = await check({ ...TOOLS, repoRoot: root, run, env: ENV });
+    expect({ cdReady, repo }).toEqual({ cdReady: true, repo: "acme/luminova" });
+    const variableReads = calls.filter(
+      ([command, verb]) => command === "gh" && verb === "variable",
+    );
+    expect(variableReads.every((call) => call.join(" ").endsWith("--repo acme/luminova"))).toBe(
+      true,
+    );
+    expect(variableReads).toHaveLength(2);
+  });
+
+  it("warns, reading no variables, when origin is upstream or not a github.com repository", async () => {
+    for (const [origin, detail] of [
+      [
+        "git@github.com:JCIOriente/luminova.git\n",
+        /^the git remote origin is JCIOriente\/luminova, upstream, not your fork/,
+      ],
+      [
+        "https://gitlab.com/acme/luminova.git\n",
+        /^could not read your fork from the git remote origin/,
+      ],
+    ] as const) {
+      calls = [];
+      responses.set("git -C ", origin);
+      const { sections, cdReady } = await check({ ...TOOLS, repoRoot: root, run, env: ENV });
+      const row = rowFor(
+        sections.flatMap(({ rows }) => rows),
+        "CD identity",
+      );
+      expect(row.status).toBe("warn");
+      expect(row.detail).toMatch(detail);
+      expect(cdReady).toBe(false);
+      expect(calls.some(([command, verb]) => command === "gh" && verb === "variable")).toBe(false);
+    }
+  });
+
+  it("reads the variables under GitHub's spelling of the fork, not origin's letter case", async () => {
+    responses.set("git -C ", "https://github.com/ACME/Luminova.git\n");
+    responses.set("gh repo view ACME/Luminova", "acme/luminova\n");
+    const { repo, cdReady } = await check({ ...TOOLS, repoRoot: root, run, env: ENV });
+    expect({ repo, cdReady }).toEqual({ repo: "acme/luminova", cdReady: true });
+  });
+
+  it("notes on the CD identity row when gh could not confirm the fork's letter case", async () => {
+    responses.set("git -C ", "https://github.com/ACME/Luminova.git\n");
+    responses.set("gh repo view", new CommandError("gh repo view failed: spawn gh ENOENT"));
+    responses.set("gh variable get FIREBASE_PROJECT_ID --repo ACME/Luminova", "jci-valle\n");
+    responses.set("gh variable get GCP_PROJECT_NUMBER --repo ACME/Luminova", "123456789012\n");
+    const row = rowFor(await diagnose(), "CD identity");
+    expect(row.detail).toBe(
+      "FIREBASE_PROJECT_ID=jci-valle, GCP_PROJECT_NUMBER=123456789012: CD signs in as firebase-deployer@jci-valle.iam.gserviceaccount.com. Note: could not confirm the letter case of ACME/Luminova with gh (gh repo view ACME/Luminova); CD's keyless sign-in matches owner/name case-sensitively, so write it as GitHub does",
+    );
+  });
+
+  it("is not CD-ready while the CD identity row only warns", async () => {
+    responses.set(
+      "gh variable get GCP_PROJECT_NUMBER --repo acme/luminova",
+      commandFailure("gh", ["variable", "get", "GCP_PROJECT_NUMBER"], {
+        stderr: "variable GCP_PROJECT_NUMBER was not found",
+      }),
+    );
+    expect((await check({ ...TOOLS, repoRoot: root, run, env: ENV })).cdReady).toBe(false);
+  });
+
+  it("fails when the variables name another project than brand.toml", async () => {
+    responses.set("gh variable get FIREBASE_PROJECT_ID --repo acme/luminova", "jci-other\n");
+    expect(rowFor(await diagnose(), "CD identity")).toMatchObject({
+      status: "fail",
+      detail:
+        'repository variable FIREBASE_PROJECT_ID is "jci-other", but brand.toml names "jci-valle": CD would refuse to deploy this brand',
+      remedies: [
+        expect.objectContaining({
+          run: "gh variable set FIREBASE_PROJECT_ID --body jci-valle --repo acme/luminova",
+        }),
+      ],
+    });
+  });
+
+  it("fails on a project number that is no number, and warns on another project's", async () => {
+    responses.set("gh variable get GCP_PROJECT_NUMBER --repo acme/luminova", "jci-valle\n");
+    expect(rowFor(await diagnose(), "CD identity")).toMatchObject({
+      status: "fail",
+      detail: 'repository variable GCP_PROJECT_NUMBER is "jci-valle", not a project number',
+    });
+    responses.set("gh variable get GCP_PROJECT_NUMBER --repo acme/luminova", "42\n");
+    expect(rowFor(await diagnose(), "CD identity")).toMatchObject({
+      status: "warn",
+      detail:
+        'repository variable GCP_PROJECT_NUMBER is "42", but the web apps of brand.toml belong to project number 123456789012',
     });
   });
 
@@ -418,23 +540,26 @@ describe("check", () => {
       ]);
     });
 
-    it("sends a connected profile without CD's sign-in to brand:provision, not to a merge", () => {
+    it("sends a connected profile without CD's variables to brand:provision, not to a deploy", () => {
       const connected = loadProfile({ repoRoot: root, profile: CHAPTER });
-      const brand = { ...connected.brand, deploy: undefined };
-      expect(checkNext({ ...connected, brand }).map(({ run }) => run)).toEqual([
+      expect(checkNext(connected, { cdReady: false, repo: null }).map(({ run }) => run)).toEqual([
         "pnpm brand:provision",
       ]);
     });
 
     it("after a passing run, offers going live as a choice: upload, then deploy", () => {
       const connected = loadProfile({ repoRoot: root, profile: CHAPTER });
-      expect(checkNext(connected).map(({ run }) => run)).toEqual([
+      const ready = { cdReady: true, repo: "acme/luminova" };
+      expect(checkNext(connected, ready).map(({ run }) => run)).toEqual([
         "pnpm brand:push",
-        "gh workflow run deploy.yml -f surface=all",
+        "gh workflow run deploy.yml -f surface=all --repo acme/luminova",
       ]);
-      expect(checkNext(connected)[0]?.change).toMatch(/^when you are ready to go live/);
+      expect(checkNext(connected, ready)[0]?.change).toMatch(/^when you are ready to go live/);
       const local = loadProfile({ repoRoot: root, profile: EXAMPLE_PROFILE });
-      expect(checkNext(local).map(({ run }) => run)).toEqual(["pnpm dev", "pnpm brand:init"]);
+      expect(checkNext(local, ready).map(({ run }) => run)).toEqual([
+        "pnpm dev",
+        "pnpm brand:init",
+      ]);
     });
 
     it("shows going live as one row for a local-only profile, without calling gcloud", async () => {
@@ -473,10 +598,9 @@ describe("check", () => {
       expect(rows.filter(({ status }) => status === "fail")).toEqual([]);
       expect(calls.filter(([command]) => command === "gcloud" || command === "gh")).toEqual([]);
       if (!profile) throw new Error("expected the example profile");
-      expect(checkNext(profile).map(({ run: command }) => command)).toEqual([
-        "pnpm dev",
-        "pnpm brand:init",
-      ]);
+      expect(
+        checkNext(profile, { cdReady: false, repo: null }).map(({ run: command }) => command),
+      ).toEqual(["pnpm dev", "pnpm brand:init"]);
     });
 
     it("orders the sections and rows as the fixes must happen", async () => {

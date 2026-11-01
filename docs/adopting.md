@@ -11,27 +11,30 @@ a private bucket in your own Google Cloud project.
 - `brand/` commits only `brand/example/` and the two shared files. `brand/local/` is
   git-ignored, and CI's `assert-brand-example-only` check fails a change that adds or edits
   a file anywhere else under `brand/`; deleting one passes.
-- Upstream still commits JCI Oriente's own profile, `brand/jci-oriente/`, which is how JCI
-  Oriente deploys until its brand reaches its bucket. It is not a path for your chapter.
-  While it exists and `brand/local/brand.toml` does not, it is the profile `brand/` selects.
-- Going live from a fork (CD signing in to your Google Cloud project from your fork) comes
-  with the fork CD of `docs/specs/2026-10-29-brand-outside-repo.md`. Steps 1 to 11 work
-  as written; step 12 depends on it.
+- Upstream still commits JCI Oriente's own profile, `brand/jci-oriente/`, until its removal.
+  It is not a path for your chapter, and CD does not deploy it: CD deploys the brand it pulls
+  from the bucket. While it exists and `brand/local/brand.toml` does not, it is the profile
+  `brand/` selects on a computer.
+- Your fork deploys itself. Its GitHub Actions sign in to your Google Cloud project, which two
+  repository variables of the fork name, and pull your brand from your bucket before they
+  build. A pull request from a fork never deploys: it gets no credentials.
 
 Every step below names its command. No step needs a Luminova maintainer. If you get stuck,
 [open an adoption issue](https://github.com/JCIOriente/luminova/issues/new?template=chapter_adoption.yml).
 
 ## Where configuration lives
 
-Everything is in the repository's files. You never export an environment variable or edit
-your shell's startup file, and CD needs no GitHub variables.
+Your chapter's values live in `brand/local/` and in its bucket; where CD deploys is two
+repository variables of your fork. You never export an environment variable or edit your
+shell's startup file.
 
 | What | File | In git? | Who reads it |
 |---|---|---|---|
-| The chapter: names, site addresses, Firebase project and web apps, CD's sign-in, and the site's texts (seeded into the database once) | `brand/local/brand.toml` | no, git-ignored; every value is public | every `pnpm brand:*` command, the builds, `pnpm seed:production`, `pnpm dev`, CD |
+| The chapter: names, site addresses, Firebase project and web apps, and the site's texts (seeded into the database once) | `brand/local/brand.toml` | no, git-ignored; every value is public | every `pnpm brand:*` command, the builds, `pnpm seed:production`, `pnpm dev`, CD |
 | Your images: the 16 files, laid out at the bucket's paths | `brand/local/` (`logo-main.png`, `spotlight/favicon-16.png`, ...) | **no**, git-ignored | `pnpm dev`, `brand:check`, `brand:push` |
 | What the folder last received from the bucket or the example, with hashes | `brand/local/.pull-manifest.json` | no, git-ignored | `brand:pull`, `brand:push`, release builds |
 | The brand deploys use: `brand.toml` and the 16 images | your private bucket, `gs://<project>-brand-assets/` | no | CD (`brand:pull`) |
+| Where CD deploys: `FIREBASE_PROJECT_ID` and `GCP_PROJECT_NUMBER` (none is a secret) | your fork's repository variables (Settings, Secrets and variables, Actions, **Variables**) | no, GitHub settings | Deploy |
 | Firebase CLI's project file | `.firebaserc` | no, generated | the `firebase` CLI |
 
 There is no file to edit to choose the chapter. Every command looks in `brand/`:
@@ -92,13 +95,13 @@ Part 1 runs entirely on your computer. You need no Google account and no Firebas
 project, and nothing is deployed: your profile starts **local-only**, on an emulator
 project named `demo-` plus an id derived from your chapter's name. Part 2 connects a real Firebase project and goes live, when
 your chapter decides to. Merging to your fork's `main` is safe at any time: Deploy skips
-with a note until the profile has a real project and CD's sign-in (step 9).
+with a note until your fork's repository variables name a real project (step 9).
 
 | # | Step | Command |
 |---|---|---|
 | | **Before you start: the tools** | `pnpm brand:check` |
 | | **Part 1: try it on your computer** | |
-| 1 | Fork, clone, run the example | `pnpm install`, then `pnpm dev` |
+| 1 | Fork, enable Actions in the fork, clone, run the example | `pnpm install`, then `pnpm dev` |
 | 2 | Create your profile | `pnpm brand:init` (answer **n**: no Firebase project yet) |
 | 3 | Add the 16 images and check them | `pnpm brand:check` |
 | 4 | Write the site texts and look at your sites | edit `brand.toml`, `pnpm dev` |
@@ -107,10 +110,10 @@ with a note until the profile has a real project and CD's sign-in (step 9).
 | 6 | Firebase project, two web apps, second hosting site | Firebase console (below) |
 | 7 | Connect the project | `pnpm brand:init` (answer **y**: connect it) |
 | 8 | Check the setup | `pnpm brand:check` |
-| 9 | Keyless CD | `pnpm brand:provision`, steps 1 and 2 |
+| 9 | Keyless CD and the repository variables | `pnpm brand:provision`, steps 1 and 2 (answer **y**: do step 2) |
 | 10 | Create the assets bucket | `pnpm brand:provision` (answer **y**: do step 3) |
 | 11 | Upload the images | `pnpm brand:push` |
-| 12 | Go live | merge to `main` |
+| 12 | Go live | `gh workflow run deploy.yml -f surface=all` |
 | 13 | First admin | `pnpm seed:production --project <id>` |
 
 "You" means a chapter member. Part 2 needs owner access to the Firebase project and admin
@@ -205,7 +208,12 @@ Nothing else.
 
 ### 1. Run the example
 
-Follow the README Quickstart. `pnpm install` creates `brand/local/` from the example, and
+Fork the repository and clone your fork: `gh repo fork JCIOriente/luminova --clone` does
+both, with the `origin` remote on your fork and an `upstream` remote on JCIOriente/luminova
+(gh then treats `upstream` as its default repository, which is why the `brand:` commands
+name your fork, read from `origin`, with `--repo`). GitHub disables Actions in a new fork:
+open the fork's **Actions** tab and enable them, so CI checks your pushes (and, from step
+12, deploys them). Then follow the README Quickstart in that clone. `pnpm install` creates `brand/local/` from the example, and
 `pnpm dev` starts the local emulators, fills them with test data and opens both sites with
 that profile. Dev talks to the emulators, never to a real project.
 
@@ -314,10 +322,9 @@ rewrites `.firebaserc`. Every other line of the file, comments included, stays a
 It also offers to read both API keys with `firebase apps:sdkconfig` (read-only), and asks
 for the optional App Check and web push keys. Run it again any time: for the same project
 it offers the current values as defaults, so Enter keeps them; to turn App Check or web
-push off, delete that key from `brand.toml` instead. Connecting another project drops the
-`[deploy]` table, which names the old one, and keeps the QR prefix members' credentials
-already carry. Merging this to `main` still deploys nothing: CD waits for the `[deploy]`
-table of step 9.
+push off, delete that key from `brand.toml` instead. Connecting another project keeps the
+QR prefix members' credentials already carry. Merging to `main` still deploys nothing: CD
+waits for the repository variables of step 9.
 
 ### 8. Check the setup
 
@@ -332,7 +339,9 @@ Java, the Firebase CLI); your chapter (which profile `brand/` selects and why, t
 profile, `brand.toml`, `.firebaserc`); the images; and going live (CD
 identity, `gh` and `gcloud` with their sign-ins, and the bucket). It only reads, and every
 row reports even when an earlier one fails. Until step 11 the **bucket** row fails, and
-**CD identity** warns until step 9.
+**CD identity** (your fork's repository variables, read with `gh variable get --repo` on the
+fork `git remote get-url origin` names) warns until step 9, and while `origin` is not your
+fork; it fails when they name another project than `brand.toml`.
 
 If you exported `BRAND_PROFILE` in an earlier version of this guide, the selection row
 warns while it differs from what `brand/` selects: remove the `export` line from your
@@ -351,10 +360,27 @@ pnpm brand:provision           # prints every step with your values; changes not
 `brand:provision` prints the whole Google Cloud setup as numbered steps. Each step says
 why, where to run it, the exact commands and how to check that it worked. Run its step 1
 yourself: it creates CD's deploy account and its keyless sign-in (Workload Identity
-Federation: GitHub proves the run comes from your fork's `main`, no key is stored). Its
-step 2 is the `[deploy]` table to add to `brand/local/brand.toml`. That table is the
-switch: CD deploys only a profile that has it. The full block, with the reasoning behind
-each permission, is [`docs/ci-cd.md` section 6](ci-cd.md#6-one-time-provisioning-reproducible).
+Federation, no key is stored). The provider's attribute condition admits only your fork's
+`deploy.yml`, on `refs/heads/main`: `assertion.repository == '<owner>/<repo>' &&
+assertion.ref == 'refs/heads/main' && assertion.workflow_ref ==
+'<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main'`, with your fork's name
+(from `git remote get-url origin`) filled in.
+
+Its step 2 sets your fork's two repository variables, the switch that turns deploys on:
+
+```bash
+gh variable set FIREBASE_PROJECT_ID --body <project id> --repo <owner>/<repo>
+gh variable set GCP_PROJECT_NUMBER --body <project number> --repo <owner>/<repo>
+```
+
+It prints both lines with your values, and in a terminal it asks whether to run them (y/N,
+default no). CD derives its sign-in from them: the provider
+`projects/<number>/locations/global/workloadIdentityPools/github-actions/providers/github-oidc`
+and the account `firebase-deployer@<project>.iam.gserviceaccount.com`, the names step 1
+creates. The optional variables `GCP_REGION`, `WIF_PROVIDER` and `DEPLOY_SA` override the
+region and those two names ([`docs/ci-cd.md`](ci-cd.md#33-repository-variables)).
+The full block, with the reasoning behind each permission, is
+[`docs/ci-cd.md` section 6](ci-cd.md#6-one-time-provisioning-reproducible).
 
 ### 10. Assets bucket
 
@@ -385,6 +411,10 @@ never deletes; versioning keeps every overwritten file for rollback. A brand cha
 in git, so after going live CD does not see it on its own: `brand:push` prints the hosting
 deploy command for that, `gh workflow run deploy.yml -f surface=hosting`.
 
+Deploys use only the bucket's copy: CD pulls `brand.toml` and the images from
+`gs://<project>-brand-assets/` (the default bucket name; CD never reads an `assetsBucket`
+override) and refuses a `brand.toml` that names another project than `FIREBASE_PROJECT_ID`.
+
 `brand:pull` downloads the same 17 files into `brand/local/` and replaces only those. If any
 changed since the last pull, push or install, it asks once (y/N, default no) before
 overwriting them, and it refuses without a terminal. Release builds (what CD deploys) need
@@ -392,12 +422,17 @@ the pulled manifest, with matching hashes.
 
 ### 12. Go live
 
-Needs: git, and a browser to approve the run. `gh` only to deploy again later.
+Needs: [`gh`](#part-2-tools-go-live), and a browser to approve the run.
 
-Once fork CD is in place, merge to `main` and approve the Deploy run it
-starts. The first deploy after setup ships everything: rules, functions and both sites.
-To deploy everything again later without a merge: `gh workflow run deploy.yml -f surface=all`.
-Hosting deploys to a preview channel, is smoke-tested, then promoted. Then check:
+```bash
+gh workflow run deploy.yml -f surface=all --repo <owner>/<repo>   # your fork; brand:check prints it filled in
+```
+
+Approve the Deploy run in your fork's **Actions** tab (the `production` environment asks).
+The next push to your fork's `main` starts one too. The first deploy to a project ships
+everything: rules, functions and both sites. Each deploy job signs in, pulls your brand from
+the bucket into `brand/local/` and builds from it. Hosting deploys to a preview channel, is
+smoke-tested, then promoted. Then check:
 
 - view source on both sites: title, description, `rel=canonical` and `og:image` carry your
   origin and the hashed `og-image.<hash>.png`;
@@ -425,10 +460,12 @@ the emulators and any project other than the one your profile names.
 
 | Change | Do |
 |---|---|
-| A profile value (`brand.toml`) | Edit `brand/local/brand.toml`, `pnpm brand:check`, `pnpm brand:push`, then the printed deploy command |
+| A profile value (`brand.toml`) | Edit `brand/local/brand.toml`, `pnpm brand:check`, `pnpm brand:push`, then `gh workflow run deploy.yml -f surface=hosting` |
 | Site content | The admin `/config` screen |
-| An image | Replace it in `brand/local/`, `pnpm brand:check`, `pnpm brand:push`, then the printed deploy command |
+| An image | Replace it in `brand/local/`, `pnpm brand:check`, `pnpm brand:push`, then `gh workflow run deploy.yml -f surface=hosting` |
 | Roll back an image | `gcloud storage cp gs://<bucket>/<file>#<generation> gs://<bucket>/<file>`, then deploy |
+| Take upstream's updates | **Sync fork** on your fork's GitHub page: the push to your `main` runs CI, then Deploy redeploys the surfaces the update touches |
+| Deploy to another project | `pnpm brand:init` (connect it), `pnpm brand:provision`, set both variables again, `pnpm brand:push`; the first deploy to it ships everything |
 
 A new share image gets a new URL automatically (`og-image.<hash>.png`), so WhatsApp picks
 it up. To keep an old cached URL working, list it in `[og] legacyPaths`.

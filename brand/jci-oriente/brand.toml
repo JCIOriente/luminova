@@ -37,10 +37,6 @@ apiKey = "AIzaSyDdLctu49oDf2sKidnwlGtkhEeJYP3veMg"
 appId = "1:953870918238:web:acbd53d377846bd88b4acf"
 appCheckSiteKey = "6LcmDVAtAAAAABOCgvpUCAN5TbAfYqJ80wF_5DlR"
 
-[deploy]
-workloadIdentityProvider = "projects/953870918238/locations/global/workloadIdentityPools/github-actions/providers/github-oidc"
-serviceAccount = "firebase-deployer@jci-oriente.iam.gserviceaccount.com"
-
 [seo]
 description = "JCI Oriente, capítulo Santa Cruz de la Cámara Junior Internacional. Formamos líderes con propósito desde 1993."
 ogDescription = "Formamos líderes con propósito en el Oriente boliviano desde 1993. Conoce nuestros proyectos, nuestro impacto y cómo unirte."
