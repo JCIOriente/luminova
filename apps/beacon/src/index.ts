@@ -16,19 +16,26 @@ import {
 import {
   activityParentRefs,
   activityProjectionUnchanged,
-  activityShowcasePhotos,
   isProjectable,
-  projectInitiative,
-  rosterMemberIds,
-  showcasePerson,
+  profileIdsToSync,
 } from "./showcase/project-initiative.js";
+import { syncShowcase } from "./showcase/sync-initiative.js";
 import { projectAlly } from "./showcase/project-ally.js";
-import { projectBoard, currentCargoId, type BoardCargo } from "./showcase/project-board.js";
+import {
+  projectBoard,
+  currentCargoId,
+  toBoardCargo,
+  type BoardCargo,
+} from "./showcase/project-board.js";
+import { memberProjectionUnchanged } from "./showcase/project-member.js";
+import { syncMemberShowcase } from "./showcase/sync-member.js";
+import { HttpsError } from "firebase-functions/v2/https";
+import { requireAdmin } from "./callable-auth.js";
+import { guardedOnCall } from "./guarded-on-call.js";
 import {
   needsPublicProfileDefault,
   PUBLIC_PROFILE_DEFAULT,
 } from "./showcase/default-public-profile.js";
-import type { ShowcasePerson } from "@luminova/types/engine";
 import { firestoreClaimsDeps, logError } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
 import { roleClaimsChanged } from "./claims-sync/role-change.js";
@@ -46,55 +53,6 @@ if (!getApps().length) initializeApp();
 
 function db() {
   return getFirestore();
-}
-
-async function resolveMembers(
-  database: Firestore,
-  ids: string[],
-): Promise<Map<string, ShowcasePerson>> {
-  const unique = [...new Set(ids)].filter((id) => id.length > 0);
-  const people = new Map<string, ShowcasePerson>();
-  for (const batch of chunk(unique, 300)) {
-    const refs = batch.map((id) => database.doc(`members/${id}`));
-    const snaps = await database.getAll(...refs);
-    for (const snap of snaps) {
-      const p = showcasePerson(snap.get("name"), snap.get("profilePicture"));
-      if (p) people.set(snap.id, p);
-    }
-  }
-  return people;
-}
-
-// Defensive bound on the child-activity roll-up query — far above any realistic
-// per-initiative activity count, but caps memory/latency on a pathological parent.
-const ACTIVITY_ROLLUP_CAP = 500;
-
-async function projectShowcase(
-  database: Firestore,
-  kind: "Program" | "Project",
-  id: string,
-  data: Record<string, unknown> | undefined,
-): Promise<void> {
-  const ref = database.doc(`showcase/${id}`);
-  if (!data || !isProjectable(data)) {
-    await ref.delete();
-    return;
-  }
-  // Independent reads — resolve names and fetch child activities concurrently.
-  const [members, activitySnap] = await Promise.all([
-    resolveMembers(database, rosterMemberIds(data)),
-    database.collection("activities").where("parentId", "==", id).limit(ACTIVITY_ROLLUP_CAP).get(),
-  ]);
-  const item = projectInitiative(kind, id, data, (mid) => members.get(mid) ?? null);
-  if (!item) {
-    await ref.delete();
-    return;
-  }
-  const activityPhotos = activityShowcasePhotos(
-    kind,
-    activitySnap.docs.map((d) => ({ id: d.id, data: d.data() })),
-  );
-  await ref.set({ ...item, photos: [...item.photos, ...activityPhotos] });
 }
 
 // retry: true — a transient failure here MUST redeliver: the hasCheckIns mirror
@@ -141,8 +99,7 @@ export const awardPoints = onDocumentWritten(
 function initiativeTrigger(collection: "programs" | "projects") {
   const parentType = collection === "programs" ? "Program" : "Project";
   return onDocumentWritten(`${collection}/{id}`, async (event) => {
-    const database = db();
-    const store = createFirestoreStore(database);
+    const store = createFirestoreStore(db());
     const after = event.data?.after;
     if (after?.exists) {
       const init = parseInitiativeWrite(after.data());
@@ -151,17 +108,6 @@ function initiativeTrigger(collection: "programs" | "projects") {
       // roster row's fallback month doesn't drift between the first run and a retry.
       const stamp = after.createTime ?? Timestamp.now();
       await processInitiativeWrite(store, parentType, event.params.id, init, stamp);
-      // Projection runs after engine work so a showcase error never pre-empts points.
-      try {
-        await projectShowcase(
-          database,
-          parentType,
-          event.params.id,
-          after.data() as Record<string, unknown>,
-        );
-      } catch (err) {
-        console.error("showcase projection failed", { id: event.params.id, err });
-      }
       return;
     }
     // Initiative deleted — reconcile to an empty roster so its rows are voided.
@@ -181,11 +127,6 @@ function initiativeTrigger(collection: "programs" | "projects") {
         },
         before.createTime ?? Timestamp.now(),
       );
-      try {
-        await projectShowcase(database, parentType, event.params.id, undefined);
-      } catch (err) {
-        console.error("showcase projection failed", { id: event.params.id, err });
-      }
     }
   });
 }
@@ -193,20 +134,47 @@ function initiativeTrigger(collection: "programs" | "projects") {
 export const onProgramWritten = initiativeTrigger("programs");
 export const onProjectWritten = initiativeTrigger("projects");
 
-export const onActivityWritten = onDocumentWritten("activities/{id}", async (event) => {
-  const database = db();
-  const before = event.data?.before?.data();
-  const after = event.data?.after?.data();
-  // awardPoints mirrors hasCheckIns onto activities on every check-in write; skip
-  // the re-projection when nothing the showcase consumes changed.
-  if (activityProjectionUnchanged(before, after)) return;
-  // A parent-change re-projects both source and destination — distinct showcase
-  // docs, so run them concurrently; each keeps its own catch so one failure does
-  // not cancel the other.
-  await Promise.all(
-    activityParentRefs(before, after).map(async (parent) => {
-      const collection = parent.kind === "Program" ? "programs" : "projects";
-      try {
+// Its own trigger, not a step of initiativeTrigger, so a failed takedown is redelivered without
+// re-running the points engine. retry:true + rethrow: the delete branch is how an un-finalized
+// or deleted initiative leaves the public site, and a swallowed failure there leaves it up with
+// only a log line. No malformed input can fail permanently, so there is no retry storm to guard
+// against: projectInitiative and rosterMemberIds are no-throw on bad data. syncShowcase decides
+// from the live doc, so a late redelivery cannot republish anything.
+function initiativeShowcaseTrigger(collection: "programs" | "projects") {
+  const kind = collection === "programs" ? "Program" : "Project";
+  return onDocumentWritten({ document: `${collection}/{id}`, retry: true }, async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    // Drafts are most initiative writes. Neither side public means no showcase to touch.
+    if (![before, after].some((side) => side !== undefined && isProjectable(side))) return;
+    try {
+      await syncShowcase(db(), kind, event.params.id);
+    } catch (err) {
+      console.error("showcase projection failed", { id: event.params.id, err });
+      throw err;
+    }
+  });
+}
+
+export const onProgramShowcaseWritten = initiativeShowcaseTrigger("programs");
+export const onProjectShowcaseWritten = initiativeShowcaseTrigger("projects");
+
+// retry:true + rethrow: removing a photo is a public takedown too, and syncShowcase's
+// transaction can abort while the parent initiative is being written.
+export const onActivityWritten = onDocumentWritten(
+  { document: "activities/{id}", retry: true },
+  async (event) => {
+    const database = db();
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    // awardPoints mirrors hasCheckIns onto activities on every check-in write; skip
+    // the re-projection when nothing the showcase consumes changed.
+    if (activityProjectionUnchanged(before, after)) return;
+    // A parent-change re-projects both source and destination — distinct showcase
+    // docs, so run them concurrently; allSettled so one failure does not cancel the other.
+    const results = await Promise.allSettled(
+      activityParentRefs(before, after).map(async (parent) => {
+        const collection = parent.kind === "Program" ? "programs" : "projects";
         const snap = await database.doc(`${collection}/${parent.id}`).get();
         // Only re-project when the parent actually exists. A missing parent means
         // either the activity's `parentType` is forged (pointing at the wrong
@@ -214,18 +182,16 @@ export const onActivityWritten = onDocumentWritten("activities/{id}", async (eve
         // here would clobber a doc this trigger doesn't own (the initiative's own
         // delete-trigger handles showcase cleanup on real deletion).
         if (!snap.exists) return;
-        await projectShowcase(
-          database,
-          parent.kind,
-          parent.id,
-          snap.data() as Record<string, unknown>,
-        );
-      } catch (err) {
-        console.error("showcase projection failed", { id: parent.id, err });
-      }
-    }),
-  );
-});
+        await syncShowcase(database, parent.kind, parent.id);
+      }),
+    );
+    const failed = results.filter((r) => r.status === "rejected");
+    if (failed.length > 0) {
+      console.error("showcase projection failed", { id: event.params.id, failed });
+      throw new Error(`showcase projection failed for ${failed.length} parent(s)`);
+    }
+  },
+);
 
 export const onMemberWritten = onDocumentWritten("members/{id}", async (event) => {
   const after = event.data?.after;
@@ -387,12 +353,7 @@ async function readCargo(
   tx: FirebaseFirestore.Transaction,
 ): Promise<BoardCargo | null> {
   const snap = await tx.get(database.doc(`positions/${cargoId}`));
-  if (!snap.exists) return null;
-  return {
-    category: snap.get("category"),
-    title: snap.get("title"),
-    titleFemale: snap.get("titleFemale"),
-  };
+  return snap.exists ? toBoardCargo(snap) : null;
 }
 
 // Curated public projection: mirror a member write into the world-read boardShowcase
@@ -445,10 +406,126 @@ export const onBoardMemberWritten = onDocumentWritten(
         }
         tx.set(showcaseRef, item);
       });
+      if (!memberProjectionUnchanged(event.data?.before?.data(), event.data?.after?.data())) {
+        await syncMemberShowcase(database, event.params.id, projectId);
+      }
     } catch (err) {
       console.error("boardShowcase projection failed", { id: event.params.id, err });
       throw err;
     }
+  },
+);
+
+// A lost sync here would leave a removed project on a public profile.
+// retry:true + rethrow is safe because syncMemberShowcase decides from live docs, so a late
+// redelivery cannot republish anything. allSettled so one contended member cannot strand the
+// rest of the roster.
+export const onShowcaseWritten = onDocumentWritten(
+  { document: "showcase/{id}", retry: true, timeoutSeconds: 120 },
+  async (event) => {
+    const memberIds = profileIdsToSync(event.data?.before?.data(), event.data?.after?.data());
+    if (memberIds.length === 0) return;
+    const projectId = boardProjectId();
+    if (projectId.length === 0) throw new Error("memberShowcase sync skipped: no project id");
+    const database = db();
+    const results: PromiseSettledResult<void>[] = [];
+    for (const batch of chunk(memberIds, 10)) {
+      results.push(
+        ...(await Promise.allSettled(
+          batch.map((id) => syncMemberShowcase(database, id, projectId)),
+        )),
+      );
+    }
+    const failed = results.filter((r) => r.status === "rejected");
+    if (failed.length > 0) {
+      console.error("memberShowcase sync failed", { id: event.params.id, failed });
+      throw new Error(`memberShowcase sync failed for ${failed.length} member(s)`);
+    }
+  },
+);
+
+const REPROJECT_SCAN_CAP = 5000;
+
+/** Admin-only backfill, called by hand once after the first deploy: stamps member ids on
+ *  existing `showcase` docs, then builds every `memberShowcase` doc from them. In that order,
+ *  because a profile finds its projects through `showcase.memberIds`. Per-doc failures are
+ *  collected, so re-running is the response to a non-empty `failed`. */
+export const reprojectPublicProfiles = guardedOnCall(
+  { name: "reprojectPublicProfiles", timeoutSeconds: 540 },
+  async (request) => {
+    requireAdmin(request);
+    const projectId = boardProjectId();
+    if (projectId.length === 0) {
+      throw new HttpsError("failed-precondition", "No project id.");
+    }
+    const database = db();
+    const failed: string[] = [];
+    let showcases = 0;
+    let truncated = false;
+    for (const [collection, kind] of [
+      ["programs", "Program"],
+      ["projects", "Project"],
+    ] as const) {
+      const snap = await database
+        .collection(collection)
+        .where("status", "==", "Finalizado")
+        .limit(REPROJECT_SCAN_CAP)
+        .select()
+        .get();
+      truncated ||= snap.size === REPROJECT_SCAN_CAP;
+      for (const batch of chunk(snap.docs, 10)) {
+        await Promise.all(
+          batch.map(async (doc) => {
+            try {
+              await syncShowcase(database, kind, doc.id);
+              showcases += 1;
+            } catch (err) {
+              console.error("showcase reprojection failed", { id: doc.id, err });
+              failed.push(doc.id);
+            }
+          }),
+        );
+      }
+    }
+    // The scan above only reaches live finalized initiatives, so a showcase stranded by an older
+    // lost takedown has to be found from this side.
+    const published = await database
+      .collection("showcase")
+      .limit(REPROJECT_SCAN_CAP)
+      .select("kind")
+      .get();
+    truncated ||= published.size === REPROJECT_SCAN_CAP;
+    for (const batch of chunk(published.docs, 10)) {
+      await Promise.all(
+        batch.map(async (doc) => {
+          const kind = doc.get("kind");
+          if (kind !== "Program" && kind !== "Project") return;
+          try {
+            await syncShowcase(database, kind, doc.id);
+          } catch (err) {
+            console.error("showcase reprojection failed", { id: doc.id, err });
+            failed.push(doc.id);
+          }
+        }),
+      );
+    }
+    const members = await database.collection("members").limit(REPROJECT_SCAN_CAP).select().get();
+    truncated ||= members.size === REPROJECT_SCAN_CAP;
+    let synced = 0;
+    for (const batch of chunk(members.docs, 10)) {
+      await Promise.all(
+        batch.map(async (doc) => {
+          try {
+            await syncMemberShowcase(database, doc.id, projectId);
+            synced += 1;
+          } catch (err) {
+            console.error("memberShowcase reprojection failed", { id: doc.id, err });
+            failed.push(doc.id);
+          }
+        }),
+      );
+    }
+    return { ok: failed.length === 0 && !truncated, truncated, showcases, members: synced, failed };
   },
 );
 

@@ -105,7 +105,10 @@ const CHECKS: readonly ToolCheck[] = [
     tool: "pnpm",
     probe: async ({ manifest, run }) => {
       const version = (await run("pnpm", ["--version"])).trim();
-      const pinned = manifest().packageManager?.replace(/^pnpm@/, "");
+      // Corepack's pin carries a +sha512 suffix that `pnpm --version` never prints.
+      const pinned = manifest()
+        .packageManager?.replace(/^pnpm@/, "")
+        .split("+")[0];
       return !pinned || version === pinned
         ? ok("pnpm", version)
         : warn("pnpm", `${version} (packageManager pins ${pinned})`, [

@@ -1,7 +1,7 @@
 # @luminova/ui — Design System Manifest (for Claude Design)
 
 This file is the ingest manifest for **Claude Design** (claude.ai/design). When
-this repo is linked/uploaded, Claude Design reads this package as the JCI Oriente
+this repo is linked/uploaded, Claude Design reads this package as the JCI
 design system: the **tokens** below are the foundation, and each **component**
 points at its source of truth.
 

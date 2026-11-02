@@ -79,17 +79,17 @@
         "cityFormal": {
           "type": "string",
           "minLength": 1,
-          "description": "The city's formal name, e.g. Santa Cruz de la Sierra."
+          "description": "The city's formal name, e.g. San Miguel de Ejemplo."
         },
         "region": {
           "type": "string",
           "minLength": 1,
-          "description": "Region as used in a sentence, e.g. el Oriente boliviano."
+          "description": "Region as used in a sentence, e.g. el norte de Ejemplo."
         },
         "regionShort": {
           "type": "string",
           "minLength": 1,
-          "description": "A short form some copy uses, e.g. el Oriente."
+          "description": "A short form some copy uses, e.g. el norte."
         }
       },
       "additionalProperties": false,

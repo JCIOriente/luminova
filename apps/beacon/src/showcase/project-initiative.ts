@@ -10,17 +10,25 @@ import {
 } from "@luminova/types/engine";
 import { isDeepStrictEqual } from "node:util";
 import { isCleanId } from "../award-points/ids.js";
-import { hasToMillis } from "../firestore-util.js";
+import { hasToMillis, isSafeDocId } from "../firestore-util.js";
 
+// Admin-written, so the shape is not guaranteed, and a retrying trigger runs on this: a throw
+// on malformed data would redeliver until the event expires.
 function parseRoster(data: Record<string, unknown>): {
   directorId?: string;
-  coDirectorIds?: string[];
-  teamIds?: string[];
+  coDirectorIds: string[];
+  teamIds: string[];
 } {
-  return (data.roster ?? {}) as {
+  const roster = (data.roster ?? {}) as {
     directorId?: string;
-    coDirectorIds?: string[];
-    teamIds?: string[];
+    coDirectorIds?: unknown;
+    teamIds?: unknown;
+  };
+  const list = (v: unknown): string[] => (Array.isArray(v) ? v : []);
+  return {
+    directorId: roster.directorId,
+    coDirectorIds: list(roster.coDirectorIds),
+    teamIds: list(roster.teamIds),
   };
 }
 
@@ -69,6 +77,22 @@ export function activityShowcasePhotos(
     .flatMap((d) => asPhotos(d.data.photos).map((p) => ({ ...p, id: `${d.id}:${p.id}` })));
 }
 
+// Under Firestore's 1 MiB doc limit, with room for its encoding overhead.
+const SHOWCASE_BYTE_BUDGET = 900_000;
+
+/** The photos that fit in one showcase doc, in order. A doc past the limit fails on every retry
+ *  and strands a takedown, and caption and url are unbounded across 500 activities. */
+export function fitPhotos(item: ShowcaseItem, photos: ShowcasePhoto[]): ShowcasePhoto[] {
+  let bytes = Buffer.byteLength(JSON.stringify({ ...item, photos: [] }));
+  const kept: ShowcasePhoto[] = [];
+  for (const photo of photos) {
+    bytes += Buffer.byteLength(JSON.stringify(photo));
+    if (bytes > SHOWCASE_BYTE_BUDGET) break;
+    kept.push(photo);
+  }
+  return kept;
+}
+
 export interface ShowcaseParentRef {
   kind: InitiativeKind;
   id: string;
@@ -106,13 +130,18 @@ export function activityParentRefs(
     if (!data) continue;
     const kind = data.parentType;
     const id = data.parentId;
-    if ((kind !== "Program" && kind !== "Project") || !isCleanId(id)) continue;
+    if ((kind !== "Program" && kind !== "Project") || !isCleanId(id) || !isSafeDocId(id)) continue;
     const key = `${kind}/${id}`;
     if (seen.has(key)) continue;
     seen.add(key);
     refs.push({ kind, id });
   }
   return refs;
+}
+
+// Not String(): a map holding a non-function toString throws, and this runs in a retrying trigger.
+function asText(v: unknown): string {
+  return typeof v === "string" || typeof v === "number" ? String(v) : "";
 }
 
 function asImpact(v: unknown): InitiativeImpact | null {
@@ -132,8 +161,8 @@ function asImpact(v: unknown): InitiativeImpact | null {
       ? i.custom
           .filter((c) => typeof c === "object" && c !== null)
           .map((c) => ({
-            label: String((c as { label?: unknown }).label ?? ""),
-            value: String((c as { value?: unknown }).value ?? ""),
+            label: asText((c as { label?: unknown }).label),
+            value: asText((c as { value?: unknown }).value),
           }))
       : [],
   };
@@ -202,26 +231,47 @@ export function projectInitiative(
     completedAt: finalReport.filedAt,
     impact,
     photos: asPhotos(data.photos),
+    memberIds: [...new Set(rosterMemberIds(data))].filter((mid) => resolve(mid) !== null),
     team: {
       director: roster.directorId ? resolve(roster.directorId) : null,
-      coDirectors: (roster.coDirectorIds ?? [])
+      coDirectors: roster.coDirectorIds
         .map((cid) => resolve(cid))
         .filter((p): p is ShowcasePerson => p !== null),
-      members: (roster.teamIds ?? [])
+      members: roster.teamIds
         .map((tid) => resolve(tid))
         .filter((p): p is ShowcasePerson => p !== null),
     },
   };
 }
 
-/** All roster ids that need name resolution (director + co-directors + team). */
+/** All roster ids that need name resolution (director + co-directors + team). Both screens:
+ *  these reach a doc path in a retrying trigger, and `..` (which isCleanId allows) never succeeds. */
 export function rosterMemberIds(data: Record<string, unknown>): string[] {
   const r = parseRoster(data);
-  return [
-    ...(r.directorId ? [r.directorId] : []),
-    ...(r.coDirectorIds ?? []),
-    ...(r.teamIds ?? []),
-  ].filter(isCleanId);
+  return [...(r.directorId ? [r.directorId] : []), ...r.coDirectorIds, ...r.teamIds].filter(
+    (id) => isCleanId(id) && isSafeDocId(id),
+  );
+}
+
+// The showcase fields a memberShowcase entry copies. `photos` churns on every gallery edit
+// and no profile reads it.
+const PROFILE_SOURCE_FIELDS = ["title", "endDate", "impact", "team", "memberIds"] as const;
+
+/** Members whose public profile a showcase write can change: everyone on either side, so a
+ *  removal or a deleted showcase leaves the profile. Empty when no copied field changed. */
+export function profileIdsToSync(
+  before: Record<string, unknown> | undefined,
+  after: Record<string, unknown> | undefined,
+): string[] {
+  if (
+    before &&
+    after &&
+    PROFILE_SOURCE_FIELDS.every((f) => isDeepStrictEqual(before[f], after[f]))
+  ) {
+    return [];
+  }
+  const ids = [before?.memberIds, after?.memberIds].flatMap((v) => (Array.isArray(v) ? v : []));
+  return [...new Set(ids)].filter((id) => isCleanId(id) && isSafeDocId(id));
 }
 
 /** Cheap eligibility check: only completed initiatives with impact + filed report are projected. */

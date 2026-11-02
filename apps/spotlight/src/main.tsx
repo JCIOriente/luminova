@@ -19,6 +19,9 @@ const router = createRouter({
 });
 
 declare module "@tanstack/react-router" {
+  interface HistoryState {
+    memberOverlay?: boolean;
+  }
   interface Register {
     router: typeof router;
   }

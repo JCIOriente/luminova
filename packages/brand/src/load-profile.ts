@@ -115,6 +115,8 @@ export interface LoadProfileOptions {
 
 /** A test seam: tools set it for a single build (brand:guard's neutral build); a person never needs to. */
 export const PROFILE_OVERRIDE_ENV = "BRAND_PROFILE";
+/** Set beside the override by a caller that means it (brand:guard's example build). */
+export const PROFILE_OVERRIDE_INTENDED_ENV = "BRAND_PROFILE_INTENDED";
 
 /** How a command tells the user where its profile came from. */
 export const SOURCE_LABEL: Readonly<Record<ProfileSource, string>> = {
@@ -220,7 +222,10 @@ export function loadProfile({
   const recovered = recoverInterruptedCanary(repoRoot);
   if (recovered) console.error(`brand: ${recovered}`);
   const { slug, source, discovered } = selectedProfile({ repoRoot, env, profile });
-  const warnings = source === "override" ? [overrideWarning(slug, discovered)] : [];
+  const warnings =
+    source === "override" && !env[PROFILE_OVERRIDE_INTENDED_ENV]
+      ? [overrideWarning(slug, discovered)]
+      : [];
 
   const brandDir = join(repoRoot, "brand");
   const choices = () => availableProfiles(repoRoot);

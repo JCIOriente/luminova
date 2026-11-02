@@ -3,6 +3,8 @@ import type { AreaOfOpportunity, InitiativeImpact } from "./initiative.js";
 import type { InitiativeKind } from "./activity.js";
 
 export interface ShowcasePerson {
+  /** Absent on a doc last projected before public profiles existed. */
+  id?: string;
   name: string;
   photoUrl: string | null;
 }
@@ -37,5 +39,8 @@ export interface ShowcaseItem {
   completedAt: Timestamp;
   impact: InitiativeImpact;
   photos: ShowcasePhoto[];
+  /** Every roster member, for `array-contains`. Absent on a doc last projected before public
+   *  profiles existed. */
+  memberIds?: string[];
   team: ShowcaseTeam;
 }

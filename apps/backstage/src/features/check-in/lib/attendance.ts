@@ -1,7 +1,7 @@
 /**
- * Default per-activity capacity: the number of members JCI Oriente has declared
- * to JCI Bolivia. Used as the attendance denominator until per-activity capacity
- * (and public sign-up) lands in a later iteration.
+ * Default per-activity capacity: a mid-sized chapter's declared membership. Used as
+ * the attendance denominator until per-activity capacity (and public sign-up) lands
+ * in a later iteration.
  */
 const DEFAULT_ACTIVITY_CAPACITY = 30;
 

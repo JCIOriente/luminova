@@ -3,7 +3,7 @@
 ## System Overview
 
 ```mermaid
-%% Luminova / JCI Oriente — container diagram
+%% Luminova — container diagram
 %% The split is the trust boundary: everything above the rules membrane runs in a
 %% browser the chapter does not control. Everything below runs with the Admin SDK
 %% and bypasses rules entirely.
@@ -18,7 +18,7 @@ flowchart TB
 
     rules{{"<b>firestore.rules</b> + storage.rules<br/>the only enforcement boundary"}}
 
-    subgraph data["Firebase project · jci-oriente"]
+    subgraph data["Your Firebase project"]
         direction LR
         firestore[("Firestore<br/>one database")]
         storage[("Storage<br/>one bucket")]
@@ -29,7 +29,7 @@ flowchart TB
         beacon["<b>beacon</b><br/>Cloud Functions · nodejs24<br/>triggers + callables"]
     end
 
-    spotlight -->|"read only: siteConfig · showcase<br/>allyShowcase · boardShowcase"| rules
+    spotlight -->|"read only: siteConfig · showcase<br/>allyShowcase · boardShowcase · memberShowcase"| rules
     spotlight -.->|"the one public write: <b>leads</b>"| rules
     backstage <-->|"authenticated CRUD"| rules
 
@@ -56,12 +56,12 @@ _Source: [`docs/diagrams/container.mmd`](diagrams/container.mmd) — edit there,
 
 Both web apps (spotlight and backstage) are registered as separate Firebase web app entries
 within the same project and share one Firestore database and one Storage bucket
-(`jci-oriente.firebasestorage.app`). Each app has its own App Check configuration.
+(`<project id>.firebasestorage.app`). Each app has its own App Check configuration.
 
 ## Apps
 
 ### spotlight (Public Site)
-- React SPA deployed to Firebase Hosting target `spotlight` (site id from the brand profile; `jcioriente` for JCI Oriente)
+- React SPA deployed to Firebase Hosting target `spotlight` (site id from the brand profile)
 - Ships **no full Firebase client** — public data (`siteConfig`, `showcase`,
   `allyShowcase`) is read through the lightweight `firebase/firestore/lite` subpath via
   `@luminova/firebase/lite` (no Auth, no realtime)
@@ -69,28 +69,31 @@ within the same project and share one Firestore database and one Storage bucket
 - Contact form writes a `leads` doc directly (the one public write the site performs) —
   `src/leads/submit-lead.ts` via the lite SDK, gated by `leadCreateValid()` in
   `firestore.rules`; triaged in backstage at `/leads`
-- Firebase web app registration: `1:953870918238:web:63d0034740735d618b4acf`
+- Firebase web app registration: `1:<project number>:web:<spotlight app id>`
 
 ### backstage (Admin Dashboard)
-- React SPA with Firebase Auth + Firestore, deployed to Firebase Hosting target `backstage` (site id from the brand profile; `jcioriente-backstage` for JCI Oriente)
+- React SPA with Firebase Auth + Firestore, deployed to Firebase Hosting target `backstage` (site id from the brand profile)
 - Imports `@luminova/firebase` at boot (always included in the bundle)
 - All routes except `/login` and `/invitacion` require authentication
 - CRUD/admin surfaces: members, positions, initiatives (programs/projects), activities
   + QR check-in, point rules, allies, roles/permissions (`/permisos`), site config (`/config`)
 - Member profile pictures and initiative/activity photos stored in Firebase Storage
-- Firebase web app registration: `1:953870918238:web:acbd53d377846bd88b4acf`
+- Firebase web app registration: `1:<project number>:web:<backstage app id>`
 
 ### beacon (Cloud Functions)
 - Node.js 24 Firebase Cloud Functions (runtime: `nodejs24`, functions codebase `beacon`)
 - Firestore triggers: `awardPoints` (`checkIns/{id}` — the Recognition Engine),
-  `onProgramWritten` / `onProjectWritten` (roster → participation reconciliation +
-  `showcase` projection), `onActivityWritten` (photo roll-up into the showcase),
+  `onProgramWritten` / `onProjectWritten` (roster → participation reconciliation),
+  `onProgramShowcaseWritten` / `onProjectShowcaseWritten` (`showcase` projection),
+  `onActivityWritten` (photo roll-up into the showcase),
   `onMemberWritten` (custom-claims sync: roles + perms), `onRoleWritten` (role-definition
   claims re-sync), `onAllyWritten` (`allyShowcase` public projection),
   `onMemberCreated` (stamps the `publicProfile` opt-out default — clients may not set it),
-  `onBoardMemberWritten` (`boardShowcase` public Directiva projection),
+  `onBoardMemberWritten` (`boardShowcase` public Directiva projection and `memberShowcase`
+  public career profile), `onShowcaseWritten` (`memberShowcase` project lists),
   `onNotificationCreated` (inbox fan-out + best-effort FCM)
-- Callables: `setUserRoles`, `seedRoles`, `recomputeAllClaims`, `issueMemberInvite`,
+- Callables: `setUserRoles`, `seedRoles`, `recomputeAllClaims`, `reprojectPublicProfiles`,
+  `issueMemberInvite`,
   `describeInvite` + `redeemInvite` (the only UNAUTHENTICATED ones — see `docs/specs/invite-link-onboarding.md`)
 - Uses Firebase Admin SDK (server-side only)
 
@@ -273,7 +276,7 @@ Collections fall into four write tiers, and the tier tells you who may write:
 |------|-------------|--------|
 | Source of truth | members · positions · terms · programs · projects · activities · pointRules · allies · roles · siteConfig · checkIns · leads | admins, rules-gated (`leads` is the one public write) |
 | Engine-written | participations · memberPoints | beacon only; clients read-only |
-| Public projections | showcase · allyShowcase · boardShowcase | beacon only; world-readable |
+| Public projections | showcase · allyShowcase · boardShowcase · memberShowcase | beacon only; world-readable |
 | Per-user | notifications · pushTokens | keyed by Firebase Auth UID, not memberId |
 
 Field-level schemas live in [`data-models.md`](data-models.md); this diagram carries
@@ -348,6 +351,9 @@ erDiagram
         string tier "PUBLIC PROJECTION, world-read, beacon-written"
     }
     boardShowcase {
+        string tier "PUBLIC PROJECTION, world-read, beacon-written"
+    }
+    memberShowcase {
         string tier "PUBLIC PROJECTION, world-read, beacon-written"
     }
     leads {
