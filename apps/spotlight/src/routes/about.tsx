@@ -8,6 +8,7 @@ import { VisibilitySentinel } from "../components/visibility-sentinel";
 import { useSiteConfig } from "../site-config/use-site-config";
 import { currentYearsActive } from "../site-config/defaults";
 import { useBoardOnVisible } from "../board/use-board";
+import { MemberLink } from "../members/member-link";
 import { withPreposition } from "../lib/place-phrase";
 
 export const Route = createFileRoute("/about")({
@@ -187,9 +188,13 @@ function DirectivaHero({
         {president && (
           <Reveal delay={120}>
             <div className="pres-spread">
-              <div className="pres-portrait-frame">
+              <MemberLink
+                memberId={president.id}
+                name={president.name}
+                className="pres-portrait-frame member-link"
+              >
                 <Portrait item={president} className="pres-portrait" />
-              </div>
+              </MemberLink>
               <div className="pres-meta">
                 <div className="rank t-num">01</div>
                 <div className="role">
@@ -237,7 +242,7 @@ function DirectivaLedger({
             const num = String(startNum + i).padStart(2, "0");
             return (
               <Reveal key={m.id} delay={i * 60}>
-                <div className="ledger-row">
+                <MemberLink memberId={m.id} name={m.name} className="ledger-row member-link">
                   <div className="rank t-num">{num}</div>
                   <Portrait item={m} tintTeal={i % 2 === 1} />
                   <div className="who">
@@ -246,7 +251,7 @@ function DirectivaLedger({
                     </span>
                     <div className="name">{m.name}</div>
                   </div>
-                </div>
+                </MemberLink>
               </Reveal>
             );
           })}
@@ -272,11 +277,11 @@ function DirectivaDirecciones({ members, note }: { members: BoardShowcaseItem[];
         <div className="jdl-strip">
           {members.map((m, i) => (
             <Reveal key={m.id} delay={i * 80}>
-              <div className="jdl-chip">
+              <MemberLink memberId={m.id} name={m.name} className="jdl-chip member-link">
                 <Portrait item={m} tintTeal />
                 <span className="role-label">{m.title}</span>
                 <div className="name">{m.name}</div>
-              </div>
+              </MemberLink>
             </Reveal>
           ))}
         </div>

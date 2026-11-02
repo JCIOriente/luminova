@@ -2,9 +2,10 @@ import { urls } from "virtual:luminova-brand";
 import { useMemo } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Checkbox, DatePicker, Field, Input, PhoneInput } from "@luminova/ui";
+import { Button, Checkbox, DatePicker, Field, Input, PhoneInput, Textarea } from "@luminova/ui";
 import {
   selfProfileSchemaFor,
+  MEMBER_BIO_MAX,
   MEMBER_NAME_MAX_LENGTH,
   PROFESSION_MAX_LENGTH,
   BOLIVIA_PHONE_PLACEHOLDER,
@@ -44,6 +45,8 @@ export function SelfProfileForm({ member }: { member: Member }) {
       // unrelated phone edit, and beacon's "already decided" check would then skip that
       // member forever. Left undefined, the mapper omits the key entirely.
       publicProfile: member.publicProfile,
+      bio: member.bio ?? "",
+      linkedinUrl: member.linkedinUrl ?? "",
     },
   });
 
@@ -93,6 +96,19 @@ export function SelfProfileForm({ member }: { member: Member }) {
           )}
         />
       </Field>
+      <div className="flex flex-col gap-5 border-t border-line pt-5">
+        <Field label="Tu frase" htmlFor="self-bio" error={errors.bio?.message}>
+          <Textarea id="self-bio" maxLength={MEMBER_BIO_MAX} rows={3} {...register("bio")} />
+        </Field>
+        <Field label="LinkedIn" htmlFor="self-linkedin" error={errors.linkedinUrl?.message}>
+          <Input
+            id="self-linkedin"
+            type="url"
+            placeholder="https://www.linkedin.com/in/tu-nombre"
+            {...register("linkedinUrl")}
+          />
+        </Field>
+      </div>
       <div className="flex flex-col gap-2 border-t border-line pt-5">
         <Controller
           control={control}
@@ -102,13 +118,14 @@ export function SelfProfileForm({ member }: { member: Member }) {
               id="self-public-profile"
               checked={field.value ?? false}
               onChange={field.onChange}
-              label="Mostrar mi perfil en la Directiva del sitio público"
+              label="Mostrar mi perfil en el sitio público"
             />
           )}
         />
         <p className="text-ui-xs text-ink-3">
-          Con la casilla marcada y un cargo de directiva este año, tu foto y nombre aparecen en la
-          sección Directiva de {SPOTLIGHT_HOST}. Puedes cambiarlo cuando quieras.
+          Con la casilla marcada, tu nombre, foto, profesión, frase, LinkedIn, cargos y proyectos
+          forman tu perfil público en {SPOTLIGHT_HOST}. Con un cargo de directiva este año, también
+          apareces en la sección Directiva. Puedes cambiarlo cuando quieras.
         </p>
         {missingPhoto && (
           <p role="status" className="text-ui-xs font-medium text-warn">

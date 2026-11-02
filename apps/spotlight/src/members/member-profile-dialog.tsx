@@ -1,0 +1,282 @@
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { Dialog, ErrorState, cn, initials } from "@luminova/ui";
+import type { MemberProjectRole, MemberShowcaseItem } from "@luminova/types/engine";
+import { fetchMember } from "./member-showcase-firestore";
+import "./member-profile.css";
+
+type Load =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; member: MemberShowcaseItem | null };
+
+const ROLE_LABELS: Record<MemberProjectRole, string> = {
+  Director: "Dirección",
+  CoDirector: "Codirección",
+  Team: "Equipo",
+};
+
+// Inline: spotlight carries no icon package, and these three are all the dialog needs.
+const STROKE = {
+  width: 18,
+  height: 18,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+} as const;
+
+const NUMBER = new Intl.NumberFormat("es-BO");
+
+/** A short history gets the small card: a tall panel beside two rows reads as empty. */
+function isBrief(member: MemberShowcaseItem): boolean {
+  return !member.bio && member.career.length <= 1 && member.projects.length <= 2;
+}
+
+function eyebrow(member: MemberShowcaseItem): string {
+  const latest = member.career[0];
+  return latest ? `${latest.title} · Gestión ${latest.year}` : "Miembro";
+}
+
+function subtitle(member: MemberShowcaseItem): string {
+  const since = member.joinYear ? `Miembro desde ${member.joinYear}` : null;
+  return [member.profession, since].filter(Boolean).join(" · ");
+}
+
+function Identity({ member }: { member: MemberShowcaseItem }) {
+  return (
+    <div className="member-identity">
+      <p className="member-eyebrow">{eyebrow(member)}</p>
+      <h2 className="member-name">{member.name}</h2>
+      <p className="member-subtitle">{subtitle(member)}</p>
+    </div>
+  );
+}
+
+function Panel({ member, brief }: { member: MemberShowcaseItem; brief: boolean }) {
+  return (
+    <div className="member-panel">
+      {member.joinYear && (
+        <div className="member-ghost-year t-num" aria-hidden>
+          {member.joinYear}
+        </div>
+      )}
+      {member.portraitUrl ? (
+        <img
+          className="member-portrait"
+          src={member.portraitUrl}
+          alt={`Retrato de ${member.name}`}
+          decoding="async"
+        />
+      ) : (
+        <span className="member-initials" aria-hidden>
+          {initials(member.name)}
+        </span>
+      )}
+      {!brief && <Identity member={member} />}
+      {member.linkedinUrl && (
+        <a
+          className="member-linkedin"
+          href={member.linkedinUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`LinkedIn de ${member.name}`}
+        >
+          <svg {...STROKE}>
+            <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z" />
+            <rect x="2" y="9" width="4" height="12" />
+            <circle cx="4" cy="4" r="2" />
+          </svg>
+          <span>LinkedIn</span>
+        </a>
+      )}
+    </div>
+  );
+}
+
+function Stats({ member }: { member: MemberShowcaseItem }) {
+  const years = member.joinYear ? new Date().getUTCFullYear() - member.joinYear : 0;
+  const led = member.projects.filter((p) => p.role !== "Team").length;
+  const stats = [
+    ...(years > 0 ? [{ value: years, label: years === 1 ? "año en JCI" : "años en JCI" }] : []),
+    { value: led, label: led === 1 ? "proyecto dirigido" : "proyectos dirigidos" },
+    {
+      value: member.projects.length,
+      label: member.projects.length === 1 ? "proyecto en total" : "proyectos en total",
+    },
+  ];
+  return (
+    <dl className="member-stats">
+      {stats.map((stat) => (
+        <div key={stat.label} className="member-stat">
+          <dt>{stat.label}</dt>
+          <dd className="t-num">{stat.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function Sheet({ member, brief }: { member: MemberShowcaseItem; brief: boolean }) {
+  return (
+    <div className="member-sheet">
+      {brief && <Identity member={member} />}
+      {(member.isPastPresident || member.bio) && (
+        <div className="member-intro">
+          {member.isPastPresident && <span className="member-badge">Past President</span>}
+          {member.bio && <blockquote className="member-bio">“{member.bio}”</blockquote>}
+        </div>
+      )}
+      {!brief && <Stats member={member} />}
+      {member.career.length > 0 && (
+        <section className="member-section">
+          <h3 className="member-section-title">Trayectoria</h3>
+          <ol className="member-rows">
+            {member.career.map((entry) => (
+              <li key={entry.year} className="member-career-row">
+                <span className="member-year t-num">{entry.year}</span>
+                <span className="member-career-title">{entry.title}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+      {member.projects.length > 0 && (
+        <section className="member-section">
+          <h3 className="member-section-title">Proyectos</h3>
+          <ul className="member-rows">
+            {member.projects.map((project) => (
+              <li key={project.id}>
+                <Link
+                  to="/impacto/$id"
+                  params={{ id: project.id }}
+                  search={(prev) => ({ ...prev, miembro: undefined })}
+                  className="member-project-row"
+                >
+                  <span className="member-year t-num">{project.year}</span>
+                  <span className="member-project-text">
+                    <span className="member-project-title">{project.title}</span>
+                    {project.personsImpacted > 0 && (
+                      <span className="member-project-impact">
+                        {NUMBER.format(project.personsImpacted)} personas impactadas
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className={cn("member-role", project.role !== "Team" && "member-role-lead")}
+                  >
+                    {ROLE_LABELS[project.role]}
+                  </span>
+                  <svg {...STROKE} width={16} height={16}>
+                    <path d="M7 17 17 7" />
+                    <path d="M8 7h9v9" />
+                  </svg>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function Loading() {
+  return (
+    <div className="member-loading" aria-busy="true">
+      <div className="member-loading-panel" />
+      <div className="member-loading-sheet">
+        <div className="animate-skeleton member-loading-line" />
+        <div className="animate-skeleton member-loading-title" />
+        <div className="animate-skeleton member-loading-line" />
+      </div>
+    </div>
+  );
+}
+
+function Unavailable() {
+  return (
+    <div className="member-unavailable">
+      <h2 className="member-unavailable-title">Este perfil no está disponible</h2>
+      <p>Puede que esta persona haya elegido no mostrar su perfil en el sitio.</p>
+    </div>
+  );
+}
+
+export function MemberProfileDialog({
+  memberId,
+  onClose,
+}: {
+  memberId: string;
+  onClose: () => void;
+}) {
+  const [load, setLoad] = useState<Load>({ status: "loading" });
+
+  const read = useCallback(
+    (isCurrent: () => boolean) => {
+      setLoad({ status: "loading" });
+      fetchMember(memberId).then(
+        (member) => {
+          if (isCurrent()) setLoad({ status: "ready", member });
+        },
+        (err: unknown) => {
+          console.error("member profile read failed", { memberId, err });
+          if (isCurrent()) setLoad({ status: "error" });
+        },
+      );
+    },
+    [memberId],
+  );
+
+  useEffect(() => {
+    let current = true;
+    read(() => current);
+    return () => {
+      current = false;
+    };
+  }, [read]);
+
+  const member = load.status === "ready" ? load.member : null;
+  const brief = member ? isBrief(member) : false;
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={member ? `Perfil de ${member.name}` : "Perfil de miembro"}
+      hideHeader
+      overlayClassName="member-overlay"
+      contentClassName={cn(
+        "member-dialog",
+        (brief || load.status !== "ready" || !member) && "member-dialog-brief",
+      )}
+    >
+      {load.status === "loading" && <Loading />}
+      {load.status === "error" && (
+        <ErrorState
+          title="No se pudo cargar el perfil"
+          description="Revisa tu conexión e inténtalo de nuevo."
+          onRetry={() => read(() => true)}
+        />
+      )}
+      {load.status === "ready" && !member && <Unavailable />}
+      {member && (
+        <div className="member-layout">
+          <Panel member={member} brief={brief} />
+          <Sheet member={member} brief={brief} />
+        </div>
+      )}
+      <button type="button" className="member-close" aria-label="Cerrar" onClick={onClose}>
+        <svg {...STROKE}>
+          <path d="M18 6 6 18" />
+          <path d="m6 6 12 12" />
+        </svg>
+      </button>
+    </Dialog>
+  );
+}
