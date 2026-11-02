@@ -2,6 +2,7 @@ import { z } from "zod";
 import { MEMBER_STATUSES, MEMBER_GENDERS } from "./member.js";
 import { boliviaPhoneOptional } from "./phone.js";
 import { memberName, memberNameOrUnchanged } from "./member-name.js";
+import { MEMBER_BIO_MAX, isLinkedinProfileUrl } from "./engine/member-public.js";
 
 const dateString = z
   .string()
@@ -51,6 +52,15 @@ export const selfProfileSchema = memberSchema
   })
   .extend({
     publicProfile: z.boolean().optional(),
+    bio: z.string().trim().max(MEMBER_BIO_MAX, `Máximo ${MEMBER_BIO_MAX} caracteres.`).optional(),
+    linkedinUrl: z
+      .string()
+      .trim()
+      .refine(
+        (value) => value === "" || isLinkedinProfileUrl(value),
+        "Usa un enlace como https://www.linkedin.com/in/tu-nombre",
+      )
+      .optional(),
   });
 
 export type SelfProfileInput = z.infer<typeof selfProfileSchema>;

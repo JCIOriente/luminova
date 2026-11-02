@@ -462,7 +462,14 @@ service cloud.firestore {
       let d = request.resource.data;
       // .get(...) everywhere: clearing a field makes it ABSENT, and a bare d.phone would
       // throw (a rule that errors denies), so a cleared optional field must read as blank.
-      return changed.hasOnly(['profilePicture', 'name', 'birthdate', 'profession', 'phone', 'publicProfile'])
+      return changed.hasOnly(['profilePicture', 'name', 'birthdate', 'profession', 'phone', 'publicProfile', 'bio', 'linkedinUrl'])
+        && (!changed.hasAny(['bio'])
+          || (d.get('bio', '') is string && d.get('bio', '').size() <= 180))
+        && (!changed.hasAny(['linkedinUrl'])
+          || (d.get('linkedinUrl', '') is string
+              && d.get('linkedinUrl', '').size() <= 200
+              && (d.get('linkedinUrl', '') == ''
+                  || d.get('linkedinUrl', '').matches('^https://(www[.])?linkedin[.]com/in/[A-Za-z0-9_%.-]+/?$'))))
         && (!changed.hasAny(['profilePicture'])
           || d.get('profilePicture', null) == null || d.profilePicture is string)
         && (!changed.hasAny(['name']) || memberNameValid(d.get('name', '')))
@@ -992,6 +999,15 @@ service cloud.firestore {
     // stay unpublished until their owner opts in. Only the owner turns it on; the owner
     // or an Admin (takedown arm) turns it off.
     match /boardShowcase/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Curated public projection of a member's career (beacon admin SDK writes through
+    // syncMemberShowcase; the public marketing site reads one doc when the profile modal
+    // opens). Same consent gates as boardShowcase, without the cargo and photo gates: no
+    // contact details, points or grants. See docs/specs/2026-11-01-public-member-profile-design.md
+    match /memberShowcase/{id} {
       allow read: if true;
       allow write: if false;
     }

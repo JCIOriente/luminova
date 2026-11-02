@@ -1491,6 +1491,23 @@ describe("firestore.rules — members", () => {
     },
   );
   // The cap the Zod schema mirrors (packages/types/src/member-schema.ts).
+  it("allows a bio at the 180-character cap and denies 181", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { bio: "a".repeat(180) }),
+    );
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { bio: "a".repeat(181) }),
+    );
+  });
+
+  it("allows a LinkedIn profile URL or a blank, and denies any other URL", async () => {
+    const ref = doc(as("owner-uid", ["Member"]), "members/m1");
+    await assertSucceeds(updateDoc(ref, { linkedinUrl: "https://www.linkedin.com/in/ana-rojas" }));
+    await assertSucceeds(updateDoc(ref, { linkedinUrl: "" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "https://evil.example/in/ana" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "javascript:alert(1)" }));
+  });
+
   it("allows a profession at the 80-character cap and denies 81", async () => {
     await assertSucceeds(
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { profession: "a".repeat(80) }),
@@ -2977,6 +2994,18 @@ describe("boardShowcase (public read, beacon-only write)", () => {
   });
   it("denies Admin write (beacon admin SDK only)", async () => {
     await assertFails(setDoc(doc(as("u", ["Admin"]), "boardShowcase/b2"), { name: "x" }));
+  });
+});
+
+describe("memberShowcase (public read, beacon-only write)", () => {
+  it("allows anonymous read", async () => {
+    await assertSucceeds(getDoc(doc(anon(), "memberShowcase/m1")));
+  });
+  it("denies anonymous write", async () => {
+    await assertFails(setDoc(doc(anon(), "memberShowcase/m2"), { name: "x" }));
+  });
+  it("denies Admin write (beacon admin SDK only)", async () => {
+    await assertFails(setDoc(doc(as("u", ["Admin"]), "memberShowcase/m2"), { name: "x" }));
   });
 });
 
@@ -4692,6 +4721,7 @@ describe("hard-delete denial — every collection the rules forbid client-deleti
     { name: "showcase", path: "showcase/s1" },
     { name: "allyShowcase", path: "allyShowcase/a1" },
     { name: "boardShowcase", path: "boardShowcase/b1" },
+    { name: "memberShowcase", path: "memberShowcase/m1" },
     { name: "memberInvites", path: "memberInvites/h1" },
   ];
 

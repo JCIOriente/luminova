@@ -91,8 +91,8 @@ and returns `{ ok, showcases, members, failed }`. `ok` is true only when `failed
 
 ### Fields on `Member`
 
-`bio` and `linkedinUrl`, both optional, join the self lane on `/me` and the admin form.
-`firestore.rules` caps them (`selfProfileValid`, 180 and 200 characters; the URL pattern is
+`bio` and `linkedinUrl`, both optional, join the self lane on `/me` only: the member owns
+their public words, so the admin form does not carry them. `firestore.rules` caps them (`selfProfileValid`, 180 and 200 characters; the URL pattern is
 anchored to `https://(www.)linkedin.com/in/`), and beacon validates again because the field
 is untrusted input at a public boundary.
 
