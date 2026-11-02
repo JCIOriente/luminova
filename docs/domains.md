@@ -47,12 +47,8 @@ Nothing else links to a hostname:
   only.
 - **beacon** has no hostname configuration.
 
-Two places name the domain without linking to it, and are updated by hand on a switch:
-
-- `.github/workflows/deploy.yml` — the `production` environment `url`, the link GitHub
-  shows on a deploy.
-- `apps/backstage/src/features/members/components/self-profile-form.tsx` — the member
-  profile hint "sección Directiva de <your domain>".
+The deploy link GitHub shows on the `production` environment and the member profile hint
+"sección Directiva de ..." both follow `[urls]`, so they need no edit on a switch.
 
 ## Console settings that must list every hostname
 
@@ -92,8 +88,7 @@ site's admin link stop sending people to the dead hostname:
    backstage = "https://<backstage site id>.web.app"
    ```
 
-2. Update the two hand-maintained mentions listed under "Where the domain lives in code",
-   the "Canonical" column of the table at the top of this file, and the admin URL in
+2. Update the "Canonical" column of the table at the top of this file and the admin URL in
    `docs/negocio/manual-administracion.md`.
 3. Upload the brand and redeploy hosting (project owner): `pnpm brand:check`,
    `pnpm brand:push`, then `gh workflow run deploy.yml -f surface=hosting` and approve the

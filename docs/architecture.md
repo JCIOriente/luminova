@@ -18,7 +18,7 @@ flowchart TB
 
     rules{{"<b>firestore.rules</b> + storage.rules<br/>the only enforcement boundary"}}
 
-    subgraph data["Firebase project · <project id>"]
+    subgraph data["Your Firebase project"]
         direction LR
         firestore[("Firestore<br/>one database")]
         storage[("Storage<br/>one bucket")]

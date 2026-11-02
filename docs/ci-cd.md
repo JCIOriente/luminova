@@ -8,7 +8,7 @@ deploy to Firebase). This is the living reference; dated provisioning records li
 - **CI workflow:** `.github/workflows/ci.yml`
 - **CD workflow:** `.github/workflows/deploy.yml`
 - **Shared deploy setup:** `.github/actions/firebase-setup/action.yml`
-- **Firebase project:** the repository variable `FIREBASE_PROJECT_ID` (`PROJECT_ID`; Blaze) · **GitHub repo:** `GH_REPO`, the repository CD runs in (your fork). `pnpm brand:provision` prints section 6 with yours.
+- **Firebase project:** the repository variable `FIREBASE_PROJECT_ID` (`PROJECT_ID`; it must be on the Blaze plan) · **GitHub repo:** `GH_REPO`, the repository CD runs in (your fork). `pnpm brand:provision` prints section 6 with yours.
 
 ---
 
@@ -246,11 +246,11 @@ identifiers below are non-secret.
 | WIF provider | `.../workloadIdentityPools/github-actions/providers/github-oidc` |
 | Issuer | `https://token.actions.githubusercontent.com` |
 | Attribute mapping | `google.subject=assertion.sub, attribute.repository=assertion.repository, attribute.ref=assertion.ref` |
-| Attribute condition | `assertion.repository == '<owner>/<repo>' && assertion.ref == 'refs/heads/main'` (section 6 now also pins `workflow_ref`; the optional owner step below brings this provider in line) |
+| Attribute condition | The fork's repository, on `refs/heads/main`, running its `deploy.yml`: the condition section 6 writes |
 | Pool → SA binding | `roles/iam.workloadIdentityUser` for `principalSet://.../attribute.repository/<owner>/<repo>` |
 | Runtime SA (gen2 actAs) | `<project number>-compute@developer.gserviceaccount.com` ← `roles/iam.serviceAccountUser` |
-| App Engine default SA (CLI preflight actAs) | `<project id>@appspot.gserviceaccount.com` ← `roles/iam.serviceAccountUser` (added 2026-07-03) |
-| Billing account binding | `billingAccounts/<billing account id>` ← `roles/billing.viewer` for the deploy SA (added 2026-07-03) |
+| App Engine default SA (CLI preflight actAs) | `<project id>@appspot.gserviceaccount.com` ← `roles/iam.serviceAccountUser` |
+| Billing account binding | `billingAccounts/<billing account id>` ← `roles/billing.viewer` for the deploy SA |
 | Brand assets bucket | `gs://<project id>-brand-assets` (the profile's `assetsBucket`, by default `<project>-brand-assets`): `us-central1`, Standard, uniform bucket-level access, public access prevention enforced, versioning on, lifecycle keeps 3 noncurrent generations (`brand/bucket-lifecycle.json`). Owner step O10 |
 | Bucket grant (not a project role) | `roles/storage.objectViewer` **on the bucket only** for the deploy SA: `storage.objects.get` + `storage.objects.list`, what `brand:pull` needs. CD never writes; the owner uploads with `brand:push` |
 
@@ -265,7 +265,7 @@ identifiers below are non-secret.
 `firebasehosting.admin`, `firebaserules.admin`, `datastore.indexAdmin`,
 `cloudfunctions.admin`, `run.admin`, `artifactregistry.admin`,
 `cloudbuild.builds.editor`, `eventarc.admin`, `serviceusage.serviceUsageConsumer`,
-`firebasestorage.viewer` (added 2026-07-03).
+`firebasestorage.viewer`.
 
 > **Billing-probe gotcha.** Before a gen2 functions deploy the CLI calls
 > `cloudbilling.../projects/<p>/billingInfo` (`lib/gcp/cloudbilling.js`,
@@ -287,9 +287,9 @@ identifiers below are non-secret.
 > skips that endpoint entirely — the release then goes through `firebaserules.admin`
 > only. Do not revert `storage` to the object form.
 
-**Optional owner step: pin your provider to `deploy.yml`.** A provider created by
-section 6 admits only `deploy.yml` on `main`; the one above predates that and admits any
-workflow of the repository on `main`. The project owner may tighten it (Claude never runs
+**Optional owner step: pin an older provider to `deploy.yml`.** A provider created by
+section 6 admits only `deploy.yml` on `main`; one created before section 6 pinned that
+admits any workflow of the repository on `main`. The project owner may tighten it (Claude never runs
 it). `assertion.workflow_ref` reads the GitHub OIDC token's own claim, so the attribute
 mapping needs no change:
 
@@ -308,7 +308,7 @@ Optional repo secret `DEPLOY_WEBHOOK_URL` (unset → `notify` is a no-op).
 
 **Enabled APIs:** `iamcredentials`, `sts`, `firebasehosting`, `firebaserules`,
 `cloudfunctions`, `run`, `eventarc`, `artifactregistry`, `cloudbuild`, `firestore`,
-`storage`, `serviceusage`, `cloudbilling` (added 2026-07-03 — functions-deploy
+`storage`, `serviceusage`, `cloudbilling` (functions-deploy
 billing probe).
 
 ---
@@ -333,7 +333,7 @@ project gets no grant and CD's `brand:pull` fails.
 export PROJECT_ID=<project id>
 export PROJECT_NUMBER=<project number>
 export GH_REPO=<owner>/<repo>
-export REVIEWER_ID=5279327  # the required reviewer: gh api user -q .id
+export REVIEWER_ID=<github user id>  # the required reviewer: gh api user -q .id
 export POOL_ID=github-actions
 export PROVIDER_ID=github-oidc
 export DEPLOY_SA=firebase-deployer
@@ -479,7 +479,8 @@ rare. When still needed:
 
 Effectively **$0**.
 
-- **GitHub Actions:** free — `<owner>/<repo>` is a public repo (unlimited minutes).
+- **GitHub Actions:** free on a public fork (unlimited minutes); a private fork spends its
+  plan's included minutes.
 - **WIF / STS / service account:** always free on GCP.
 - **Hosting preview channels:** negligible; each `ci-<sha>` auto-expires in 1 day.
 - **Brand assets bucket:** about 1 MB (under 4 MB with 3 noncurrent versions) and ~20
