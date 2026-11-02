@@ -12,8 +12,9 @@
 # A fork that has not set the two required ones, or names a `demo-` project (it exists only
 # in the emulators), skips every deploy job with a notice instead of failing on every merge
 # to main. A variable that is set but malformed fails loudly: a typo is not "not set up".
-# Every value is checked against an anchored pattern before it is printed, so none can carry
-# a line break into $GITHUB_OUTPUT or $GITHUB_ENV.
+# Every repository variable is checked against an anchored pattern before it is printed, so
+# none can carry a line break into $GITHUB_OUTPUT or $GITHUB_ENV. GITHUB_REPOSITORY, set by
+# the runner and only quoted in hints, is not a variable anyone can set.
 #
 # The derived names are the ones `pnpm brand:provision` creates. Twin of
 # packages/brand/src/deploy-identity.ts (bash cannot import it); deploy-ready.test.mjs pins

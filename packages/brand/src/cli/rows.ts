@@ -79,7 +79,9 @@ export function verdict(sections: readonly Section[]): string {
   if (failures > 0) return `✗ ${plural(failures, "problem")} to fix`;
   const notes = countOf(sections, "warn");
   if (notes > 0) return `✓ No problems, ${plural(notes, "note")} worth a look`;
-  return "✓ Everything is ready";
+  return countOf(sections, "skip") > 0
+    ? "✓ No problems so far; some checks wait for going live"
+    : "✓ Everything is ready";
 }
 
 /**

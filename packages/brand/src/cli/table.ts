@@ -11,12 +11,13 @@ export function wrapText(text: string, width: number): string[] {
       continue;
     }
     if (line) lines.push(line);
-    let rest = word;
+    // By code point: slicing a string could split an emoji in a tool's error text.
+    let rest = Array.from(word);
     while (rest.length > width) {
-      lines.push(rest.slice(0, width));
+      lines.push(rest.slice(0, width).join(""));
       rest = rest.slice(width);
     }
-    line = rest;
+    line = rest.join("");
   }
   lines.push(line);
   return lines;
@@ -66,6 +67,6 @@ const NO_WINDOW_WIDTH = 100;
 
 /** The window's width, capped so a wide screen keeps lines readable; a pipe has no window. */
 export const terminalWidth = (): number =>
-  Math.min(process.stdout.columns || process.stderr.columns || NO_WINDOW_WIDTH, MAX_WIDTH);
+  Math.min(process.stdout.columns || NO_WINDOW_WIDTH, MAX_WIDTH);
 
 export const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;

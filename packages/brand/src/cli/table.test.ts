@@ -14,6 +14,10 @@ describe("wrapText", () => {
     expect(wrapText("gs://a-very-long-bucket", 10)).toEqual(["gs://a-ver", "y-long-buc", "ket"]);
   });
 
+  it("never splits a character when it breaks a word", () => {
+    expect(wrapText("😀😀😀", 2)).toEqual(["😀😀", "😀"]);
+  });
+
   it("keeps an empty cell one line tall", () => {
     expect(wrapText("", 10)).toEqual([""]);
   });

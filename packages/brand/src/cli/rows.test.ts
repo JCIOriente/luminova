@@ -92,7 +92,13 @@ describe("verdict", () => {
     );
   });
 
-  it("says ready when every row passed or waits", () => {
-    expect(verdict(section(ok("a", "x"), skip("b", "x")))).toBe("✓ Everything is ready");
+  it("says ready only when every row passed", () => {
+    expect(verdict(section(ok("a", "x")))).toBe("✓ Everything is ready");
+  });
+
+  it("does not claim ready while checks wait", () => {
+    expect(verdict(section(ok("a", "x"), skip("b", "x")))).toBe(
+      "✓ No problems so far; some checks wait for going live",
+    );
   });
 });

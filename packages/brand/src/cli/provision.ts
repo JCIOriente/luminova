@@ -23,7 +23,7 @@ import { CommandError, bucketUrl, runCommand, shellQuote, type CommandRunner } f
 import { FORK_HINT, forkRepo } from "./github-repo.ts";
 import { runCli } from "./main.ts";
 import { terminalConfirm, type Confirm } from "./prompts.ts";
-import { deployDispatch } from "./push.ts";
+import { deployDispatch, repoFlag } from "./push.ts";
 import { formatSections, ok } from "./rows.ts";
 
 const LIFECYCLE_FILE = "brand/bucket-lifecycle.json";
@@ -456,7 +456,7 @@ export async function printProvisioning({
       where:
         "your shell, signed in to gh as a repo admin; or answer y when this command asks, and it runs these two lines",
       lines: variableLines,
-      check: `gh variable list${ghRepo ? ` --repo ${ghRepo}` : ""}   (or pnpm brand:check, row "Deploy sign-in")`,
+      check: `gh variable list ${repoFlag(ghRepo)}   (or pnpm brand:check, row "Deploy sign-in")`,
     },
     {
       title: "create the private bucket for your logos and icons",

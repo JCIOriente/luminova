@@ -25,9 +25,11 @@ import { formatReport, formatSections } from "./rows.ts";
 import { forkRepo } from "./github-repo.ts";
 import { plural } from "./table.ts";
 
-/** Always names a repository: gh's default may be upstream, so an unknown fork is a placeholder. */
+/** For every printed gh hint: gh's default may be upstream, so an unknown fork is a placeholder. */
+export const repoFlag = (repo: string | null) => `--repo ${repo ?? "<owner>/<your fork>"}`;
+
 export const deployDispatch = (surface: "hosting" | "all", repo: string | null = null) =>
-  `gh workflow run deploy.yml -f surface=${surface} --repo ${repo ?? "<owner>/<your fork>"}`;
+  `gh workflow run deploy.yml -f surface=${surface} ${repoFlag(repo)}`;
 
 /** A brand change does not trigger CD, which diffs git; the owner dispatches it. */
 export const pushNext = (repo: string | null): Remedy[] => [
