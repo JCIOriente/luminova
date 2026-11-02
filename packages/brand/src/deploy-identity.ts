@@ -50,9 +50,8 @@ export const deployIdentity = ({
 /**
  * The provider's attribute condition: only the fork's own repository, on its main branch,
  * running its own deploy.yml, gets a token (docs/ci-cd.md section 6 writes the same).
- * `assertion.*` reads the GitHub OIDC token's claims directly, so these need no attribute
- * mapping. The id outlives the name: a repository recreated under a freed owner/name has a
- * new id, so it cannot sign in as the old one.
+ * `assertion.*` reads the GitHub OIDC token's claims. The id outlives the name: a repository
+ * recreated under a freed owner/name has a new id, so it cannot sign in as the old one.
  */
 export const attributeCondition = (repository: string, repositoryId: string) =>
   `assertion.repository == '${repository}' && assertion.repository_id == '${repositoryId}' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == '${repository}/.github/workflows/deploy.yml@refs/heads/main'`;

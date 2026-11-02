@@ -354,7 +354,7 @@ gcloud iam service-accounts create "$DEPLOY_SA" \
   --display-name="GitHub Actions deployer (keyless)"
 
 # part 3: WIF pool + provider (pinned to the repo and its id, main AND deploy.yml)
-export GH_REPO_ID=$(gh api "repos/${GH_REPO}" --jq .id)
+export GH_REPO_ID=<repository id>  # gh api "repos/${GH_REPO}" --jq .id
 gcloud iam workload-identity-pools create "$POOL_ID" \
   --location="global" --display-name="GitHub Actions pool"
 export POOL_NAME=$(gcloud iam workload-identity-pools describe "$POOL_ID" \
@@ -363,8 +363,8 @@ gcloud iam workload-identity-pools providers create-oidc "$PROVIDER_ID" \
   --location="global" --workload-identity-pool="$POOL_ID" \
   --display-name="GitHub OIDC" \
   --issuer-uri="https://token.actions.githubusercontent.com" \
-  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref" \
-  --attribute-condition="assertion.repository == '${GH_REPO}' && assertion.repository_id == '${GH_REPO_ID}' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == '${GH_REPO}/.github/workflows/deploy.yml@refs/heads/main'"
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref,attribute.repository_id=assertion.repository_id,attribute.workflow_ref=assertion.workflow_ref" \
+  --attribute-condition="assertion.repository == '${GH_REPO}' && assertion.repository_id == '${GH_REPO_ID:?}' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == '${GH_REPO}/.github/workflows/deploy.yml@refs/heads/main'"
 
 # part 4: bind pool -> SA
 gcloud iam service-accounts add-iam-policy-binding "$DEPLOY_SA_EMAIL" \
@@ -399,22 +399,16 @@ gh api -X POST "repos/${GH_REPO}/environments/production/deployment-branch-polic
   --input - <<< '{"name":"main","type":"branch"}'
 ```
 
-**Optional owner step: add the repository id.** A provider created by section 6 also pins
-GitHub's id for the repository, so a repository recreated under a freed name cannot sign
-in. A provider from before that lacks it; the project owner may add it (Claude never runs
-it). Keep the condition the provider has now, adding the `repository_id` clause:
+**Owner step: bring an older provider up to section 6.** A provider created before section 6
+pinned GitHub's id for the repository lacks it, so a repository recreated under a freed name
+could sign in. Run this one in place of the `deploy.yml` step above: it writes the whole
+section 6 condition and mapping, `workflow_ref` included. It is also the repair when a
+provider's condition is wrong, because re-running section 6 only says "already exists". The
+project owner runs it (Claude never does); confirm with one deploy.
 
 ```bash
-export GH_REPO_ID=$(gh api "repos/<owner>/<repo>" --jq .id)
-gcloud iam workload-identity-pools providers update-oidc github-oidc --project=<project id> --location=global --workload-identity-pool=github-actions --attribute-condition="assertion.repository == '<owner>/<repo>' && assertion.repository_id == '${GH_REPO_ID}' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == '<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main'"
-```
-
-Then the two repository variables CD reads (`pnpm brand:provision` step 2 prints these
-lines with your values, and runs them when you answer y):
-
-```bash
-gh variable set FIREBASE_PROJECT_ID --body "$PROJECT_ID" --repo "$GH_REPO"
-gh variable set GCP_PROJECT_NUMBER --body "$PROJECT_NUMBER" --repo "$GH_REPO"
+export GH_REPO_ID=<repository id>  # gh api "repos/<owner>/<repo>" --jq .id
+gcloud iam workload-identity-pools providers update-oidc github-oidc --project=<project id> --location=global --workload-identity-pool=github-actions --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref,attribute.repository_id=assertion.repository_id,attribute.workflow_ref=assertion.workflow_ref" --attribute-condition="assertion.repository == '<owner>/<repo>' && assertion.repository_id == '${GH_REPO_ID:?}' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == '<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main'"
 ```
 
 > **First gen2 deploy bootstrap:** on a project that never deployed gen2 functions, the
@@ -511,6 +505,7 @@ Effectively **$0**.
 | Deploy skipped: "not set up" notice | `FIREBASE_PROJECT_ID` or `GCP_PROJECT_NUMBER` is not set, or names a `demo-` project. The notice names the `gh variable set` command; `pnpm brand:provision` step 2 prints both. |
 | `filter` or a deploy job fails at "Read the deploy target from the repository variables" | A variable is malformed; the log names it and the pattern it must match. |
 | Deploy job fails at `google-github-actions/auth` | Wrong `GCP_PROJECT_NUMBER` (the derived provider does not exist), a `WIF_PROVIDER` / `DEPLOY_SA` override that does not match section 6, or an STS condition mismatch: the provider must pin this repository (`GH_REPO`) and the run must be on `main`. |
+| Deploy job fails at `google-github-actions/auth` after the fork was deleted and forked again | The new repository has a new id, so the provider's `repository_id` no longer matches | Run the owner step in section 6 with the new id. |
 | Deploy job fails at "Pull the brand from the project's bucket" | The bucket lacks `brand.toml` or an image (run `pnpm brand:push`), its `brand.toml` names another project, or the deploy account cannot read the bucket (`pnpm brand:provision`, step 3). |
 | Deploy job fails at "Read the hosting targets from the pulled brand" | `brand:ci-config` printed the reason: a pulled `brand.toml` that cannot ship or names another project than `FIREBASE_PROJECT_ID`. |
 | `PERMISSION_DENIED` mid-deploy | Missing IAM role on the deploy SA — grant it (see role list), or temporarily grant `roles/firebase.admin` then narrow back. |
