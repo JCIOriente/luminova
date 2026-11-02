@@ -401,8 +401,8 @@ gh api -X POST "repos/${GH_REPO}/environments/production/deployment-branch-polic
 
 **Owner step: bring an older provider up to section 6.** A provider created before section 6
 pinned GitHub's id for the repository lacks it, so a repository recreated under a freed name
-could sign in. Run this one in place of the `deploy.yml` step above: it writes the whole
-section 6 condition and mapping, `workflow_ref` included. It is also the repair when a
+could sign in. This writes the whole section 6 condition and mapping, `workflow_ref`
+included. It is also the repair when a
 provider's condition is wrong, because re-running section 6 only says "already exists". The
 project owner runs it (Claude never does); confirm with one deploy.
 

@@ -34,8 +34,6 @@
   condition, which is safe but name-based.
 - **Owner:** get JCI's written position on the design language; the license cannot limit
   adoption to JCI chapters, only the marks can.
-- **After #291 merges:** delete the older `deploy.yml` owner step in `docs/ci-cd.md`, which the
-  new owner step replaces. It stayed to keep these PRs from conflicting.
 - `docs/negocio/` was not reviewed for public suitability beyond a search for contact details
   and amounts.
 - Spotlight and `packages/ui` also run Vitest on jsdom without the teardown filter. Extract a
