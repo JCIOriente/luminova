@@ -62,11 +62,11 @@ function remedyLines(remedy: Remedy, marker: string): string[] {
   );
 }
 
-/** A "To fix:" block, each remedy once in first-seen order; "" when there are none. */
-export function formatRemedies(remedies: readonly Remedy[]): string {
+/** A titled block, each remedy once in first-seen order; "" when there are none. */
+export function formatRemedies(remedies: readonly Remedy[], title = "To fix:"): string {
   const unique = uniqueRemedies(remedies);
   if (unique.length === 0) return "";
-  return ["To fix:", ...unique.flatMap((remedy) => remedyLines(remedy, "  - "))].join("\n");
+  return [title, ...unique.flatMap((remedy) => remedyLines(remedy, "  - "))].join("\n");
 }
 
 /** The next step as commands to paste; several steps are numbered. */

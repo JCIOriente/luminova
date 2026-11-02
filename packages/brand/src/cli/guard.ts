@@ -16,6 +16,7 @@ import {
   BrandConfigError,
   EXAMPLE_PROFILE,
   PROFILE_OVERRIDE_ENV,
+  PROFILE_OVERRIDE_INTENDED_ENV,
   REPO_ROOT,
   errorMessage,
   loadProfile,
@@ -302,6 +303,7 @@ async function buildExample(app: BrandApp, outDir: string, envDir: string): Prom
     {
       // Hermetic: the example reads only brand/example/, never brand/local/'s real logos.
       [PROFILE_OVERRIDE_ENV]: EXAMPLE_PROFILE,
+      [PROFILE_OVERRIDE_INTENDED_ENV]: "1",
       // Process env wins over every .env file, so .env.local cannot turn on the emulator.
       VITE_FIREBASE_EMULATOR_ENABLED: "false",
     },

@@ -181,3 +181,19 @@ test("reads no brand files: the same answer whatever the directory holds", () =>
   const script = spawnSync("cat", [SCRIPT], { encoding: "utf8" }).stdout;
   assert.doesNotMatch(script, /brand\.toml|brand\.json|jq |awk /);
 });
+
+test("every gh hint names the repository: in a fork, gh's default may be upstream", () => {
+  const fork = { GITHUB_REPOSITORY: "chapter/luminova" };
+  const missing = outputs(check({ ...fork }).stdout);
+  assert.match(missing.reason, /FIREBASE_PROJECT_ID --body <project id> --repo chapter\/luminova;/);
+  assert.match(
+    missing.reason,
+    /GCP_PROJECT_NUMBER --body <project number> --repo chapter\/luminova /,
+  );
+  const demo = outputs(
+    check({ ...fork, FIREBASE_PROJECT_ID: "demo-acme", GCP_PROJECT_NUMBER: "123456789012" }).stdout,
+  );
+  assert.match(demo.reason, /--repo chapter\/luminova \(docs\/adopting\.md\)/);
+  const invalid = check({ ...fork, GCP_REGION: "Bad Region" });
+  assert.match(invalid.stderr, /--body <value> --repo chapter\/luminova/);
+});

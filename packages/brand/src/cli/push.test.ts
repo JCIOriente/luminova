@@ -11,7 +11,7 @@ import {
 } from "../load-profile.ts";
 import { localRepo, recordLocal } from "../test-profiles.ts";
 import { CommandError, type CommandRunner } from "./gcloud.ts";
-import { DEPLOY_DISPATCH, ImagesNotReadyError, PUSH_NEXT, push } from "./push.ts";
+import { ImagesNotReadyError, deployDispatch, push, pushNext } from "./push.ts";
 
 const BUCKET = "jci-valle-brand-assets";
 const CONTRACT = ["brand.toml", ...ASSET_CONTRACT.map(({ path }) => path)];
@@ -173,15 +173,20 @@ describe("push", () => {
 
   it("leaves the deploy dispatch to the owner, without running it", async () => {
     await upload();
-    expect(PUSH_NEXT).toEqual([
+    expect(pushNext("chapter/luminova")).toEqual([
       {
         change: "deploy the sites with this brand from your fork (CD does not notice the bucket)",
-        run: "gh workflow run deploy.yml -f surface=hosting",
+        run: "gh workflow run deploy.yml -f surface=hosting --repo chapter/luminova",
         where: "shell",
       },
     ]);
-    expect(DEPLOY_DISPATCH).toBe("gh workflow run deploy.yml -f surface=hosting");
     expect(calls.some(([command]) => command === "gh")).toBe(false);
+  });
+
+  it("never prints a dispatch without a repository: gh's default may be upstream", () => {
+    expect(deployDispatch("all", null)).toBe(
+      "gh workflow run deploy.yml -f surface=all --repo <owner>/<your fork>",
+    );
   });
 
   it("reports every other failure along with the conflicts", async () => {
