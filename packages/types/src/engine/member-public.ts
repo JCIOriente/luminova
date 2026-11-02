@@ -6,7 +6,8 @@ export const MEMBER_LINKEDIN_URL_MAX = 200;
 export const PROFESSION_MAX_LENGTH = 80;
 
 /** Byte-identical in `selfProfileValid`, pinned by member-self-lane.rules.test.ts. */
-export const LINKEDIN_PROFILE_PATTERN = "^https://(www[.])?linkedin[.]com/in/[A-Za-z0-9_%.-]+/?$";
+export const LINKEDIN_PROFILE_PATTERN =
+  "^https://([a-z]{2,3}[.])?linkedin[.]com/in/[A-Za-z0-9_%.-]+/?$";
 const LINKEDIN_PROFILE_URL = new RegExp(LINKEDIN_PROFILE_PATTERN);
 
 /** Takes `unknown` because beacon reads raw admin-SDK data at a public trust boundary. */

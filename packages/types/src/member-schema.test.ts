@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { memberSchema } from "./member-schema";
+import { memberSchema, selfProfileSchema } from "./member-schema";
 import { MEMBER_STATUSES } from "./member";
 
 const valid = {
@@ -92,5 +92,20 @@ describe("memberSchema email", () => {
   it("trims a padded email to the bare address", () => {
     const r = memberSchema.safeParse({ ...valid, email: "  a@b.co  " });
     expect(r.success && r.data.email).toBe("a@b.co");
+  });
+});
+
+describe("selfProfileSchema linkedinUrl", () => {
+  const base = { name: "Ana Rojas", birthdate: "1990-01-01" };
+  const parse = (linkedinUrl: string) => selfProfileSchema.safeParse({ ...base, linkedinUrl });
+
+  it("keeps the profile path of a share link", () => {
+    const result = parse("https://www.linkedin.com/in/ana?utm_source=share#top");
+    expect(result.data?.linkedinUrl).toBe("https://www.linkedin.com/in/ana");
+  });
+
+  it("accepts a country host and refuses another site", () => {
+    expect(parse("https://bo.linkedin.com/in/ana").success).toBe(true);
+    expect(parse("https://evil.example/in/ana").success).toBe(false);
   });
 });

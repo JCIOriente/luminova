@@ -10,7 +10,7 @@ import {
 } from "@luminova/types/engine";
 import { isDeepStrictEqual } from "node:util";
 import { isCleanId } from "../award-points/ids.js";
-import { hasToMillis } from "../firestore-util.js";
+import { hasToMillis, isSafeDocId } from "../firestore-util.js";
 
 // Admin-written, so the shape is not guaranteed, and a retrying trigger runs on this: a throw
 // on malformed data would redeliver until the event expires.
@@ -223,11 +223,12 @@ export function projectInitiative(
   };
 }
 
-/** All roster ids that need name resolution (director + co-directors + team). */
+/** All roster ids that need name resolution (director + co-directors + team). Both screens:
+ *  these reach a doc path in a retrying trigger, and `..` (which isCleanId allows) never succeeds. */
 export function rosterMemberIds(data: Record<string, unknown>): string[] {
   const r = parseRoster(data);
   return [...(r.directorId ? [r.directorId] : []), ...r.coDirectorIds, ...r.teamIds].filter(
-    isCleanId,
+    (id) => isCleanId(id) && isSafeDocId(id),
   );
 }
 
@@ -249,7 +250,7 @@ export function profileIdsToSync(
     return [];
   }
   const ids = [before?.memberIds, after?.memberIds].flatMap((v) => (Array.isArray(v) ? v : []));
-  return [...new Set(ids)].filter(isCleanId);
+  return [...new Set(ids)].filter((id) => isCleanId(id) && isSafeDocId(id));
 }
 
 /** Cheap eligibility check: only completed initiatives with impact + filed report are projected. */

@@ -159,20 +159,22 @@ function initiativeShowcaseTrigger(collection: "programs" | "projects") {
 export const onProgramShowcaseWritten = initiativeShowcaseTrigger("programs");
 export const onProjectShowcaseWritten = initiativeShowcaseTrigger("projects");
 
-export const onActivityWritten = onDocumentWritten("activities/{id}", async (event) => {
-  const database = db();
-  const before = event.data?.before?.data();
-  const after = event.data?.after?.data();
-  // awardPoints mirrors hasCheckIns onto activities on every check-in write; skip
-  // the re-projection when nothing the showcase consumes changed.
-  if (activityProjectionUnchanged(before, after)) return;
-  // A parent-change re-projects both source and destination — distinct showcase
-  // docs, so run them concurrently; each keeps its own catch so one failure does
-  // not cancel the other.
-  await Promise.all(
-    activityParentRefs(before, after).map(async (parent) => {
-      const collection = parent.kind === "Program" ? "programs" : "projects";
-      try {
+// retry:true + rethrow: removing a photo is a public takedown too, and syncShowcase's
+// transaction can abort while the parent initiative is being written.
+export const onActivityWritten = onDocumentWritten(
+  { document: "activities/{id}", retry: true },
+  async (event) => {
+    const database = db();
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    // awardPoints mirrors hasCheckIns onto activities on every check-in write; skip
+    // the re-projection when nothing the showcase consumes changed.
+    if (activityProjectionUnchanged(before, after)) return;
+    // A parent-change re-projects both source and destination — distinct showcase
+    // docs, so run them concurrently; allSettled so one failure does not cancel the other.
+    const results = await Promise.allSettled(
+      activityParentRefs(before, after).map(async (parent) => {
+        const collection = parent.kind === "Program" ? "programs" : "projects";
         const snap = await database.doc(`${collection}/${parent.id}`).get();
         // Only re-project when the parent actually exists. A missing parent means
         // either the activity's `parentType` is forged (pointing at the wrong
@@ -181,12 +183,15 @@ export const onActivityWritten = onDocumentWritten("activities/{id}", async (eve
         // delete-trigger handles showcase cleanup on real deletion).
         if (!snap.exists) return;
         await syncShowcase(database, parent.kind, parent.id);
-      } catch (err) {
-        console.error("showcase projection failed", { id: parent.id, err });
-      }
-    }),
-  );
-});
+      }),
+    );
+    const failed = results.filter((r) => r.status === "rejected");
+    if (failed.length > 0) {
+      console.error("showcase projection failed", { id: event.params.id, failed });
+      throw new Error(`showcase projection failed for ${failed.length} parent(s)`);
+    }
+  },
+);
 
 export const onMemberWritten = onDocumentWritten("members/{id}", async (event) => {
   const after = event.data?.after;
@@ -411,8 +416,7 @@ export const onBoardMemberWritten = onDocumentWritten(
   },
 );
 
-// Its own trigger, not a step of initiativeTrigger: that one has no retry and rightly swallows
-// a projection error, while a lost sync here would leave a removed project on a public profile.
+// A lost sync here would leave a removed project on a public profile.
 // retry:true + rethrow is safe because syncMemberShowcase decides from live docs, so a late
 // redelivery cannot republish anything. allSettled so one contended member cannot strand the
 // rest of the roster.
@@ -466,6 +470,7 @@ export const reprojectPublicProfiles = guardedOnCall(
         .collection(collection)
         .where("status", "==", "Finalizado")
         .limit(REPROJECT_SCAN_CAP)
+        .select()
         .get();
       truncated ||= snap.size === REPROJECT_SCAN_CAP;
       for (const batch of chunk(snap.docs, 10)) {

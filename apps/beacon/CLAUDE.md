@@ -23,7 +23,7 @@ When `finalReport` transitions null↔set, flip that initiative's participation 
 
 ### `onProgramShowcaseWritten` / `onProjectShowcaseWritten` — `initiativeShowcaseTrigger(...)`
 
-Project the showcase through `syncShowcase`, which decides from the live initiative in a transaction. `retry: true` and rethrow: the delete branch is the public takedown. Parsing must stay no-throw on malformed data, or a bad doc redelivers until the event expires.
+Project the showcase through `syncShowcase`, which decides from the live initiative in a transaction. `retry: true` and rethrow: the delete branch is the public takedown. Parsing must stay no-throw on malformed data and doc ids must pass `isSafeDocId`, or a bad doc redelivers until the event expires. `onActivityWritten` goes through the same path with the same retry.
 
 ## Invite callables
 

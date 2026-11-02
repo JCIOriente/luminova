@@ -56,6 +56,8 @@ export const selfProfileSchema = memberSchema
     linkedinUrl: z
       .string()
       .trim()
+      // Share links carry tracking params the stored pattern refuses; only the path matters.
+      .transform((value) => value.split(/[?#]/)[0] ?? "")
       .refine(
         (value) => value === "" || isLinkedinProfileUrl(value),
         "Usa un enlace como https://www.linkedin.com/in/tu-nombre",

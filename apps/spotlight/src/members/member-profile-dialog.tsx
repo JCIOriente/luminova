@@ -1,15 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Dialog, ErrorState, Icon, cn, initials } from "@luminova/ui";
 import type { MemberProjectRole, MemberShowcaseItem } from "@luminova/types/engine";
 import { formatES } from "../components/showcase/format";
+import { useAsync } from "../lib/use-async";
 import { fetchMember } from "./member-showcase-firestore";
 import "./member-profile.css";
-
-type Load =
-  | { status: "loading" }
-  | { status: "error" }
-  | { status: "ready"; member: MemberShowcaseItem | null };
 
 const ROLE_LABELS: Record<MemberProjectRole, string> = {
   Director: "Dirección",
@@ -193,7 +189,7 @@ function Unavailable() {
   return (
     <div className="member-unavailable">
       <h2 className="member-unavailable-title">Este perfil no está disponible</h2>
-      <p>Puede que esta persona haya elegido no mostrar su perfil en el sitio.</p>
+      <p>Aún no hay un perfil público para esta persona.</p>
     </div>
   );
 }
@@ -205,26 +201,20 @@ export function MemberProfileDialog({
   memberId: string;
   onClose: () => void;
 }) {
-  const [load, setLoad] = useState<Load>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let current = true;
-    fetchMember(memberId).then(
-      (member) => {
-        if (current) setLoad({ status: "ready", member });
-      },
-      (err: unknown) => {
+  const {
+    data: member,
+    loading,
+    error,
+  } = useAsync(
+    () =>
+      fetchMember(memberId).catch((err: unknown) => {
         console.error("member profile read failed", { memberId, err });
-        if (current) setLoad({ status: "error" });
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [memberId, attempt]);
-
-  const member = load.status === "ready" ? load.member : null;
+        throw err;
+      }),
+    null as MemberShowcaseItem | null,
+    [memberId, attempt],
+  );
   const brief = member ? isBrief(member) : false;
 
   return (
@@ -240,18 +230,15 @@ export function MemberProfileDialog({
       contentClassName={cn("member-dialog", (!member || brief) && "member-dialog-brief")}
       bodyClassName="member-dialog-body"
     >
-      {load.status === "loading" && <Loading />}
-      {load.status === "error" && (
+      {loading && <Loading />}
+      {error && (
         <ErrorState
           title="No se pudo cargar el perfil"
           description="Revisa tu conexión e inténtalo de nuevo."
-          onRetry={() => {
-            setLoad({ status: "loading" });
-            setAttempt((n) => n + 1);
-          }}
+          onRetry={() => setAttempt((n) => n + 1)}
         />
       )}
-      {load.status === "ready" && !member && <Unavailable />}
+      {!loading && !error && !member && <Unavailable />}
       {member && (
         <div className="member-layout">
           <Panel member={member} brief={brief} />

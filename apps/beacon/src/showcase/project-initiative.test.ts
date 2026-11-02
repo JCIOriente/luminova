@@ -321,6 +321,7 @@ describe("rosterMemberIds on malformed data", () => {
     const data = { roster: { directorId: "a", coDirectorIds: "nope", teamIds: 7 } };
     expect(rosterMemberIds(data)).toEqual(["a"]);
     expect(rosterMemberIds({ roster: "nope" })).toEqual([]);
+    expect(rosterMemberIds({ roster: { directorId: "..", teamIds: ["a", "."] } })).toEqual(["a"]);
   });
 });
 

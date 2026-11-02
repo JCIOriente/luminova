@@ -1548,6 +1548,7 @@ describe("firestore.rules — members", () => {
   it("allows a LinkedIn profile URL or a blank, and denies any other URL", async () => {
     const ref = doc(as("owner-uid", ["Member"]), "members/m1");
     await assertSucceeds(updateDoc(ref, { linkedinUrl: "https://www.linkedin.com/in/ana-rojas" }));
+    await assertSucceeds(updateDoc(ref, { linkedinUrl: "https://bo.linkedin.com/in/ana-rojas" }));
     await assertSucceeds(updateDoc(ref, { linkedinUrl: "" }));
     await assertFails(updateDoc(ref, { linkedinUrl: "https://evil.example/in/ana" }));
     await assertFails(updateDoc(ref, { linkedinUrl: "javascript:alert(1)" }));

@@ -142,7 +142,7 @@ export function projectMember(
   const profession = typeof member.profession === "string" ? member.profession.trim() : "";
   return {
     id,
-    name: member.name as string,
+    name: member.name,
     portraitUrl: isMemberPhotoUrl(member.profilePicture, id, projectId)
       ? member.profilePicture
       : null,

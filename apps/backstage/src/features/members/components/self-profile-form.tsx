@@ -54,9 +54,9 @@ export function SelfProfileForm({ member }: { member: Member }) {
   // second source of truth for "did the last save work".
   const submit = handleSubmit((data) => updateProfile.mutateAsync(data).catch(() => {}));
 
-  // The public projection (beacon projectBoard) drops a member with no portrait, so
-  // consent alone publishes nothing. Without this the opt-in looks saved and simply
-  // never appears — the exact silent failure that hid a director from the site.
+  // The Directiva (beacon projectBoard) drops a member with no portrait, though the public
+  // profile still appears with initials. Without this the opt-in looks saved and the member
+  // simply never shows on the Directiva — the silent failure that hid a director from the site.
   const optedIn = useWatch({ control, name: "publicProfile" }) === true;
   const missingPhoto = optedIn && !member.profilePicture;
 

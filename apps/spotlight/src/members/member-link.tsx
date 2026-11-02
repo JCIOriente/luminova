@@ -19,6 +19,7 @@ export function MemberLink({
       to="."
       search={(prev) => ({ ...prev, miembro: memberId })}
       resetScroll={false}
+      state={(prev) => ({ ...prev, memberOverlay: true })}
       aria-label={`Ver perfil de ${name}`}
       className={className ? `${className} member-link` : "member-link"}
     >

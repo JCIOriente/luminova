@@ -65,7 +65,9 @@ export function currentCargoId(member: Record<string, unknown>, termKey: string)
 }
 
 /** The consent and standing gates every public member projection shares. */
-export function isPublishableMember(member: Record<string, unknown>): boolean {
+export function isPublishableMember(
+  member: Record<string, unknown>,
+): member is Record<string, unknown> & { name: string } {
   if (member.publicProfile !== true) return false;
   // No uid = no login = no /me = no way to switch publication off. Since the flag now
   // defaults to on (stamped server-side at create), publishing an unprovisioned member
@@ -101,7 +103,7 @@ export function projectBoard(
   projectId: string,
 ): BoardShowcaseItem | null {
   if (!isPublishableMember(member)) return null;
-  const name = member.name as string;
+  const { name } = member;
   if (!isMemberPhotoUrl(member.profilePicture, id, projectId)) return null;
   if (!cargo) return null;
   const group = boardGroupFromCategory(cargo.category);
