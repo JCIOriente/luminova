@@ -7,5 +7,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    // A console line still flushing when a worker closes rejects Vitest's own RPC call and
+    // fails a run whose tests all passed. Only that race is ignored, never a real rejection.
+    onUnhandledError: ({ name, message }) =>
+      !(name === "EnvironmentTeardownError" && message?.includes("onUserConsoleLog")),
   },
 });
