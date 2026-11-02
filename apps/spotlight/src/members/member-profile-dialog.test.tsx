@@ -75,6 +75,13 @@ describe("MemberProfileDialog", () => {
     expect(screen.queryByRole("link", { name: /LinkedIn/ })).not.toBeInTheDocument();
   });
 
+  it("leaves a zero out of the stats", async () => {
+    fetchMock.mockResolvedValue({ ...member, projects: [] });
+    open();
+    expect(await screen.findByText("años en JCI")).toBeInTheDocument();
+    expect(screen.queryByText("proyectos dirigidos")).not.toBeInTheDocument();
+  });
+
   it("says the profile is unavailable for an opted-out member", async () => {
     fetchMock.mockResolvedValue(null);
     open();

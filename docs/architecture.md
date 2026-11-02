@@ -29,7 +29,7 @@ flowchart TB
         beacon["<b>beacon</b><br/>Cloud Functions · nodejs24<br/>triggers + callables"]
     end
 
-    spotlight -->|"read only: siteConfig · showcase<br/>allyShowcase · boardShowcase"| rules
+    spotlight -->|"read only: siteConfig · showcase<br/>allyShowcase · boardShowcase · memberShowcase"| rules
     spotlight -.->|"the one public write: <b>leads</b>"| rules
     backstage <-->|"authenticated CRUD"| rules
 
@@ -88,9 +88,11 @@ within the same project and share one Firestore database and one Storage bucket
   `onMemberWritten` (custom-claims sync: roles + perms), `onRoleWritten` (role-definition
   claims re-sync), `onAllyWritten` (`allyShowcase` public projection),
   `onMemberCreated` (stamps the `publicProfile` opt-out default — clients may not set it),
-  `onBoardMemberWritten` (`boardShowcase` public Directiva projection),
+  `onBoardMemberWritten` (`boardShowcase` public Directiva projection and `memberShowcase`
+  public career profile),
   `onNotificationCreated` (inbox fan-out + best-effort FCM)
-- Callables: `setUserRoles`, `seedRoles`, `recomputeAllClaims`, `issueMemberInvite`,
+- Callables: `setUserRoles`, `seedRoles`, `recomputeAllClaims`, `reprojectPublicProfiles`,
+  `issueMemberInvite`,
   `describeInvite` + `redeemInvite` (the only UNAUTHENTICATED ones — see `docs/specs/invite-link-onboarding.md`)
 - Uses Firebase Admin SDK (server-side only)
 
@@ -273,7 +275,7 @@ Collections fall into four write tiers, and the tier tells you who may write:
 |------|-------------|--------|
 | Source of truth | members · positions · terms · programs · projects · activities · pointRules · allies · roles · siteConfig · checkIns · leads | admins, rules-gated (`leads` is the one public write) |
 | Engine-written | participations · memberPoints | beacon only; clients read-only |
-| Public projections | showcase · allyShowcase · boardShowcase | beacon only; world-readable |
+| Public projections | showcase · allyShowcase · boardShowcase · memberShowcase | beacon only; world-readable |
 | Per-user | notifications · pushTokens | keyed by Firebase Auth UID, not memberId |
 
 Field-level schemas live in [`data-models.md`](data-models.md); this diagram carries
@@ -348,6 +350,9 @@ erDiagram
         string tier "PUBLIC PROJECTION, world-read, beacon-written"
     }
     boardShowcase {
+        string tier "PUBLIC PROJECTION, world-read, beacon-written"
+    }
+    memberShowcase {
         string tier "PUBLIC PROJECTION, world-read, beacon-written"
     }
     leads {

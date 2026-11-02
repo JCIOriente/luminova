@@ -396,7 +396,7 @@
     height: 100dvh;
     max-height: none;
     border-radius: 0;
-    transform: none;
+    translate: none;
     animation: none;
   }
 
@@ -525,6 +525,7 @@
 
   .member-project-row {
     grid-template-columns: 54px minmax(0, 1fr) 16px;
+    gap: 0;
   }
 
   .member-role {

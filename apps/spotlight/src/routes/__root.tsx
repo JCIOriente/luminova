@@ -12,6 +12,7 @@ export const Route = createRootRoute({
 });
 
 function RootLayout() {
+  const { miembro } = Route.useSearch();
   return (
     <>
       <Header />
@@ -20,7 +21,8 @@ function RootLayout() {
       </main>
       <Footer />
       <PwaUpdater />
-      <PushPrompt />
+      {/* The open dialog makes everything outside it inert, so the prompt could not be used. */}
+      {!miembro && <PushPrompt />}
       <MemberProfileHost />
     </>
   );

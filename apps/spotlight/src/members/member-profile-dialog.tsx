@@ -100,14 +100,14 @@ function Panel({ member, brief }: { member: MemberShowcaseItem; brief: boolean }
 function Stats({ member }: { member: MemberShowcaseItem }) {
   const years = member.joinYear ? new Date().getUTCFullYear() - member.joinYear : 0;
   const led = member.projects.filter((p) => p.role !== "Team").length;
+  const total = member.projects.length;
+  // A zero is left out: this card recognizes what a member has done, not what they have not.
   const stats = [
-    ...(years > 0 ? [{ value: years, label: years === 1 ? "año en JCI" : "años en JCI" }] : []),
+    { value: years, label: years === 1 ? "año en JCI" : "años en JCI" },
     { value: led, label: led === 1 ? "proyecto dirigido" : "proyectos dirigidos" },
-    {
-      value: member.projects.length,
-      label: member.projects.length === 1 ? "proyecto en total" : "proyectos en total",
-    },
-  ];
+    { value: total, label: total === 1 ? "proyecto en total" : "proyectos en total" },
+  ].filter((stat) => stat.value > 0);
+  if (stats.length === 0) return null;
   return (
     <dl className="member-stats">
       {stats.map((stat) => (
