@@ -20,7 +20,11 @@ function memberPhotoObject(memberId: string): string {
   return encodeURIComponent(`members/${memberId}/profile.jpg`);
 }
 
-function isMemberPhotoUrl(value: unknown, memberId: string, projectId: string): value is string {
+export function isMemberPhotoUrl(
+  value: unknown,
+  memberId: string,
+  projectId: string,
+): value is string {
   if (typeof value !== "string" || !URL.canParse(value) || projectId.length === 0) return false;
   const url = new URL(value);
   if (url.protocol !== "https:" || url.hostname !== "firebasestorage.googleapis.com") return false;
@@ -38,6 +42,15 @@ export interface BoardCargo {
   titleFemale?: unknown;
 }
 
+/** The BoardCargo fields of a positions/{cargoId} doc snapshot. */
+export function toBoardCargo(snap: { get(field: string): unknown }): BoardCargo {
+  return {
+    category: snap.get("category"),
+    title: snap.get("title"),
+    titleFemale: snap.get("titleFemale"),
+  };
+}
+
 /** The member's current-term cargo id, or null when they hold no cargo this term. */
 export function currentCargoId(member: Record<string, unknown>, termKey: string): string | null {
   const positions = member.positions;
@@ -49,6 +62,29 @@ export function currentCargoId(member: Record<string, unknown>, termKey: string)
   // retry:true — a db.doc() throw would be a redelivery loop. Screen it (shared with the
   // claims-sync roleIds path) so the projection stays no-throw.
   return isSafeDocId(cargoId) ? cargoId : null;
+}
+
+/** The consent and standing gates every public member projection shares. */
+export function isPublishableMember(
+  member: Record<string, unknown>,
+): member is Record<string, unknown> & { name: string } {
+  if (member.publicProfile !== true) return false;
+  // No uid = no login = no /me = no way to switch publication off. Since the flag now
+  // defaults to on (stamped server-side at create), publishing an unprovisioned member
+  // would be publication with an unreachable opt-out — the self lane keys on
+  // `resource.data.uid == request.auth.uid`. Publish only members who can revoke it.
+  if (typeof member.uid !== "string" || member.uid.length === 0) return false;
+  // `!== true`, not `=== false` — the fail-CLOSED direction, matching projectAlly. A member
+  // doc holding a non-bool `active` (the string "false"), or no `active` at all, is dropped
+  // by memberDocSchema and so is invisible everywhere in backstage; under the old test it
+  // was nonetheless published here, on the world-readable Directiva. firestore.rules now
+  // refuses to create or update such a doc, but only this line un-publishes the ones that
+  // already exist.
+  if (member.deletedAt != null || member.active !== true) return false;
+  // Shared with the internal birthday lists — one allowlist, so a status added later
+  // can't surface itself on either.
+  if (!isSurfaceableStatus(member.status)) return false;
+  return typeof member.name === "string" && member.name.length > 0;
 }
 
 /**
@@ -66,24 +102,8 @@ export function projectBoard(
   cargo: BoardCargo | null,
   projectId: string,
 ): BoardShowcaseItem | null {
-  if (member.publicProfile !== true) return null;
-  // No uid = no login = no /me = no way to switch publication off. Since the flag now
-  // defaults to on (stamped server-side at create), publishing an unprovisioned member
-  // would be publication with an unreachable opt-out — the self lane keys on
-  // `resource.data.uid == request.auth.uid`. Publish only members who can revoke it.
-  if (typeof member.uid !== "string" || member.uid.length === 0) return null;
-  // `!== true`, not `=== false` — the fail-CLOSED direction, matching projectAlly. A member
-  // doc holding a non-bool `active` (the string "false"), or no `active` at all, is dropped
-  // by memberDocSchema and so is invisible everywhere in backstage; under the old test it
-  // was nonetheless published here, on the world-readable Directiva. firestore.rules now
-  // refuses to create or update such a doc, but only this line un-publishes the ones that
-  // already exist.
-  if (member.deletedAt != null || member.active !== true) return null;
-  // Shared with the internal birthday lists — one allowlist, so a status added later
-  // can't surface itself on either.
-  if (!isSurfaceableStatus(member.status)) return null;
-  const name = member.name;
-  if (typeof name !== "string" || name.length === 0) return null;
+  if (!isPublishableMember(member)) return null;
+  const { name } = member;
   if (!isMemberPhotoUrl(member.profilePicture, id, projectId)) return null;
   if (!cargo) return null;
   const group = boardGroupFromCategory(cargo.category);

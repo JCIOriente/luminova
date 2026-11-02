@@ -74,13 +74,26 @@ function Privacidad() {
       ),
     },
     {
-      heading: "6. Portal de miembros",
+      heading: "6. Portal y perfiles de miembros",
       body: (
-        <p style={{ margin: 0 }}>
-          El acceso de miembros y administradores se realiza en una plataforma separada y protegida
-          con autenticación. Los datos de membresía se rigen por las normas internas del capítulo y
-          no se gestionan desde este sitio público.
-        </p>
+        <>
+          <p style={{ margin: 0 }}>
+            El acceso de miembros y administradores se realiza en una plataforma separada y
+            protegida con autenticación. Los datos de membresía se rigen por las normas internas del
+            capítulo y se gestionan desde esa plataforma.
+          </p>
+          <p style={{ margin: "12px 0 0" }}>
+            Para reconocer su trayectoria, los miembros pueden tener un perfil público en este
+            sitio, con su nombre, foto, profesión, año de ingreso, cargos por gestión, proyectos
+            finalizados en los que participaron y, si deciden agregarlos, una frase y su enlace de
+            LinkedIn. Nunca publicamos su correo, teléfono, fecha de nacimiento ni puntaje.
+          </p>
+          <p style={{ margin: "12px 0 0" }}>
+            Cada miembro puede desactivar su perfil en cualquier momento desde el portal. Esto no
+            quita su nombre y foto de los créditos de proyectos ya publicados; para solicitarlo,
+            escríbenos como se indica en la sección 7.
+          </p>
+        </>
       ),
     },
     {
@@ -108,8 +121,8 @@ function Privacidad() {
     <LegalPage
       eyebrow="Privacidad"
       title="Política de privacidad"
-      intro={`Cómo tratamos la información cuando visitas el sitio de ${name} o te pones en contacto con nosotros.`}
-      updatedLabel="Actualizada en octubre de 2026. Documento de referencia; no sustituye asesoría legal."
+      intro={`Cómo tratamos la información cuando visitas el sitio de ${name}, te pones en contacto con nosotros o apareces como miembro.`}
+      updatedLabel="Actualizada en noviembre de 2026. Documento de referencia; no sustituye asesoría legal."
       sections={sections}
     />
   );

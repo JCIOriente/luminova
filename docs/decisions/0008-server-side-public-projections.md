@@ -27,9 +27,10 @@ containing only public fields. Clients never write them.
 
 | Projection | Source | Written by |
 |---|---|---|
-| `showcase` | programs, projects, activity photos | `onProgramWritten`, `onProjectWritten`, `onActivityWritten` |
+| `showcase` | programs, projects, activity photos | `onProgramShowcaseWritten`, `onProjectShowcaseWritten`, `onActivityWritten` |
 | `allyShowcase` | allies | `onAllyWritten` |
 | `boardShowcase` | the term's board roster | `onBoardMemberWritten` |
+| `memberShowcase` | members, their cargos, `showcase` rosters | `onBoardMemberWritten`, `onShowcaseWritten` |
 
 `AllyShowcaseItem` is the pattern in miniature: `id`, `name`, `logoUrl`, `category` —
 and nothing else. The CRM fields are structurally absent, not merely unqueried.

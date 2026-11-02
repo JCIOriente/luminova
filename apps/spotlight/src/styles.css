@@ -1600,6 +1600,44 @@
     font-weight: 500;
     color: var(--ink-1);
   }
+  .member-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+  }
+  .member-link:hover .name,
+  .team-member-name.member-link:hover,
+  .team-lead-link.member-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .member-load-error {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
+    z-index: 50;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    max-width: 420px;
+    margin-inline: auto;
+    padding: 16px;
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    color: var(--color-ink-1);
+    box-shadow: 0 24px 64px -24px rgb(19 15 45 / 0.4);
+  }
+  .member-load-error p {
+    flex: 1 1 100%;
+    margin: 0;
+    font-size: 15px;
+  }
+  .member-link:focus-visible {
+    outline: 2px solid var(--color-jci-blue);
+    outline-offset: 2px;
+  }
   .team-avatar {
     flex-shrink: 0;
     border-radius: var(--radius-pill);

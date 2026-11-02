@@ -1,5 +1,6 @@
 import { initials } from "@luminova/ui";
 import type { ShowcaseItem, ShowcasePerson } from "@luminova/types/engine";
+import { MemberLink } from "../../members/member-link";
 
 type AvatarSize = "lg" | "md" | "sm";
 
@@ -15,13 +16,22 @@ function Avatar({ person, size }: { person: ShowcasePerson; size: AvatarSize }) 
   );
 }
 
+function PersonName({ person, className }: { person: ShowcasePerson; className: string }) {
+  if (!person.id) return <span className={className}>{person.name}</span>;
+  return (
+    <MemberLink memberId={person.id} name={person.name} className={className}>
+      {person.name}
+    </MemberLink>
+  );
+}
+
 function Roster({ people, size = "sm" }: { people: ShowcasePerson[]; size?: AvatarSize }) {
   return (
     <ul className="team-roster">
       {people.map((person, i) => (
         <li key={`${person.name}-${i}`} className="team-member">
           <Avatar person={person} size={size} />
-          <span className="team-member-name">{person.name}</span>
+          <PersonName person={person} className="team-member-name" />
         </li>
       ))}
     </ul>
@@ -40,7 +50,9 @@ export function TeamCredits({ team }: { team: ShowcaseItem["team"] }) {
           <Avatar person={director} size="lg" />
           <div className="team-lead-meta">
             <span className="team-role t-label">Dirección</span>
-            <p className="team-lead-name">{director.name}</p>
+            <p className="team-lead-name">
+              <PersonName person={director} className="team-lead-link" />
+            </p>
           </div>
         </div>
       )}
