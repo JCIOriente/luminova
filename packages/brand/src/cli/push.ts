@@ -22,19 +22,20 @@ import {
 import { checkImages, type Images } from "./images.ts";
 import { runCli } from "./main.ts";
 import { formatReport, formatSections } from "./rows.ts";
+import { forkRepo } from "./github-repo.ts";
 import { plural } from "./table.ts";
 
-/** With the fork's owner/name when known: gh's default repository may be upstream. */
+/** For every printed gh hint: gh's default may be upstream, so an unknown fork is a placeholder. */
+export const repoFlag = (repo: string | null) => `--repo ${repo ?? "<owner>/<your fork>"}`;
+
 export const deployDispatch = (surface: "hosting" | "all", repo: string | null = null) =>
-  `gh workflow run deploy.yml -f surface=${surface}${repo ? ` --repo ${repo}` : ""}`;
+  `gh workflow run deploy.yml -f surface=${surface} ${repoFlag(repo)}`;
 
 /** A brand change does not trigger CD, which diffs git; the owner dispatches it. */
-export const DEPLOY_DISPATCH = deployDispatch("hosting");
-
-export const PUSH_NEXT: readonly Remedy[] = [
+export const pushNext = (repo: string | null): Remedy[] => [
   {
     change: "deploy the sites with this brand from your fork (CD does not notice the bucket)",
-    run: DEPLOY_DISPATCH,
+    run: deployDispatch("hosting", repo),
     where: "shell",
   },
 ];
@@ -167,8 +168,10 @@ if (import.meta.main) {
       console.error(`${text}\n\nbrand:push: nothing uploaded, ${plural(failures, "problem")}.`);
       process.exit(1);
     }
+    const projectId = profile.brand.firebase.projectId;
+    const { repo } = await forkRepo({ run: runCommand, repoRoot: REPO_ROOT, projectId });
     console.log(
-      `${formatSections([images])}\n\nbrand:push: uploaded ${localLabel()} (brand.toml and ${images.validation.files.length} images) to ${bucket} (project ${profile.brand.firebase.projectId}).\n\n${formatNext(PUSH_NEXT)}`,
+      `${formatSections([images])}\n\nbrand:push: uploaded ${localLabel()} (brand.toml and ${images.validation.files.length} images) to ${bucket} (project ${projectId}).\n\n${formatNext(pushNext(repo))}`,
     );
   });
 }

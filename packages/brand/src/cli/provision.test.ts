@@ -139,6 +139,7 @@ describe("printProvisioning", () => {
       /^Warning: the git remote origin is JCIOriente\/luminova, upstream, not your fork/m,
     );
     expect(text).not.toMatch(/--repo JCIOriente|GH_REPO=JCIOriente/);
+    expect(text).toContain("gh variable list --repo <owner>/<your fork>");
     expect(text).toContain("export GH_REPO=   # FILL IN before pasting: git remote get-url origin");
   });
 

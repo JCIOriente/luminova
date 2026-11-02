@@ -19,7 +19,11 @@ Check-ins are written by any `checkIn:Attendance` holder; a Scanner is confined 
 
 ### `onProgramWritten` / `onProjectWritten` — `initiativeTrigger(...)`
 
-When `finalReport` transitions null↔set, flip that initiative's participation rows provisional↔confirmed and recompute affected members' aggregates; also projects the showcase.
+When `finalReport` transitions null↔set, flip that initiative's participation rows provisional↔confirmed and recompute affected members' aggregates.
+
+### `onProgramShowcaseWritten` / `onProjectShowcaseWritten` — `initiativeShowcaseTrigger(...)`
+
+Project the showcase through `syncShowcase`, which decides from the live initiative in a transaction. `retry: true` and rethrow: the delete branch is the public takedown. Parsing must stay no-throw on malformed data and doc ids must pass `isSafeDocId`, or a bad doc redelivers until the event expires. `onActivityWritten` goes through the same path with the same retry.
 
 ## Invite callables
 
@@ -95,6 +99,7 @@ Invariants:
 ## Known gaps (deferred)
 
 - Not built: dues→points voiding (roadmap J4), roster auto-expansion of director/team rows, term-window cutoff in the aggregate.
+- `reprojectPublicProfiles` (Admin callable, by hand) backfills `showcase.memberIds` and every `memberShowcase` doc; `ok` is false whenever `failed` is non-empty. Design: `docs/specs/2026-11-01-public-member-profile-design.md`.
 - Showcase projection gaps (board term rollover, stale team-credit names) and the boardShowcase ordering rule live in `.claude/rules/beacon-showcase.md`.
 - **boardShowcase stale publication under the fail-closed `active` guard:** `projectBoard` drops a member on `deletedAt != null || active !== true`, but cannot reach a row already published for a non-bool `active` (such docs are admin-SDK-only in `firestore.rules`, and `pnpm audit:soft-delete-shapes --repair` refuses to coerce a non-bool `active`). Remedies: (a) the script's report, then a console edit of `active`; or (b) an Admin `publicProfile: false` write (the takedown arm skips `softDeleteSafe()` on purpose; a rules test pins it) — via the console, not the backstage list, which hides the member (`memberDocSchema` drops it). Repairing a missing `active` to `true` can **add** a public row — announced per doc (`WILL PUBLISH:`) and withheld behind `--allow-publish`.
 - **`pnpm audit:soft-delete-shapes` is a deploy precondition** for the well-formedness rules (owner-op 4 of `docs/specs/position-assignment-lane.md`); exits 1 on findings, 2 when the run did not complete.

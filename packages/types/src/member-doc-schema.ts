@@ -27,6 +27,8 @@ export const memberDocSchema = z.object({
   email: z.string(),
   phone: z.string().optional(),
   profession: z.string().optional(),
+  bio: z.string().optional(),
+  linkedinUrl: z.string().optional(),
   joinDate: clientTimestampSchema,
   birthdate: clientTimestampSchema,
   // .default so a doc predating the field parses instead of being dropped by parseDocs.

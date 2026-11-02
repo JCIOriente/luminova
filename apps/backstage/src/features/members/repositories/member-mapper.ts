@@ -33,6 +33,9 @@ export function toSelfProfileDoc(data: SelfProfileInput) {
     // Consent toggle — only the self lane writes it. The admin lane composes this
     // with a MemberInput (no publicProfile), so the key is omitted there.
     ...(data.publicProfile !== undefined ? { publicProfile: data.publicProfile } : {}),
+    // Same reason: the member owns their public words, so the admin lane never carries them.
+    ...(data.bio !== undefined ? { bio: data.bio } : {}),
+    ...(data.linkedinUrl !== undefined ? { linkedinUrl: data.linkedinUrl } : {}),
   };
 }
 

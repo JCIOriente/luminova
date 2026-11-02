@@ -2,6 +2,11 @@ import { z } from "zod";
 import { MEMBER_STATUSES, MEMBER_GENDERS } from "./member.js";
 import { boliviaPhoneOptional } from "./phone.js";
 import { memberName, memberNameOrUnchanged } from "./member-name.js";
+import {
+  MEMBER_BIO_MAX,
+  PROFESSION_MAX_LENGTH,
+  isLinkedinProfileUrl,
+} from "./engine/member-public.js";
 
 const dateString = z
   .string()
@@ -11,10 +16,6 @@ const dateString = z
     const date = new Date(`${value}T00:00:00Z`);
     return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
   }, "Fecha inválida.");
-
-/** Mirrored by selfProfileValid() in firestore.rules — member-self-lane.rules.test.ts
- *  fails if the two drift, so a member never hits a cap the form let them exceed. */
-export const PROFESSION_MAX_LENGTH = 80;
 
 export const memberSchema = z.object({
   name: memberName,
@@ -51,6 +52,17 @@ export const selfProfileSchema = memberSchema
   })
   .extend({
     publicProfile: z.boolean().optional(),
+    bio: z.string().trim().max(MEMBER_BIO_MAX, `Máximo ${MEMBER_BIO_MAX} caracteres.`).optional(),
+    linkedinUrl: z
+      .string()
+      .trim()
+      // Share links carry tracking params the stored pattern refuses; only the path matters.
+      .transform((value) => value.split(/[?#]/)[0] ?? "")
+      .refine(
+        (value) => value === "" || isLinkedinProfileUrl(value),
+        "Usa un enlace como https://www.linkedin.com/in/tu-nombre",
+      )
+      .optional(),
   });
 
 export type SelfProfileInput = z.infer<typeof selfProfileSchema>;

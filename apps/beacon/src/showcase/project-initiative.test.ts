@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { Timestamp } from "firebase-admin/firestore";
-import type { ShowcasePerson } from "@luminova/types/engine";
+import type { ShowcaseItem, ShowcasePerson } from "@luminova/types/engine";
 import {
   activityParentRefs,
+  fitPhotos,
   activityProjectionUnchanged,
   activityShowcasePhotos,
   projectInitiative,
+  profileIdsToSync,
   rosterMemberIds,
   showcasePerson,
 } from "./project-initiative.js";
@@ -312,5 +314,79 @@ describe("activityProjectionUnchanged", () => {
   it("treats create and delete as changed (missing side)", () => {
     expect(activityProjectionUnchanged(undefined, base())).toBe(false);
     expect(activityProjectionUnchanged(base(), undefined)).toBe(false);
+  });
+});
+
+describe("fitPhotos", () => {
+  const item = { title: "A", photos: [] } as unknown as ShowcaseItem;
+  const photo = (id: string, size: number) => ({ id, url: "https://x", caption: "c".repeat(size) });
+
+  it("keeps a normal gallery whole", () => {
+    const photos = [photo("a", 10), photo("b", 10)];
+    expect(fitPhotos(item, photos)).toEqual(photos);
+  });
+
+  it("stops before oversized captions can exceed the doc limit", () => {
+    const kept = fitPhotos(item, [photo("a", 600_000), photo("b", 600_000), photo("c", 10)]);
+    expect(kept.map((p) => p.id)).toEqual(["a"]);
+  });
+});
+
+describe("activityParentRefs on unsafe ids", () => {
+  it("skips an id that could never resolve, which a retrying trigger would redeliver", () => {
+    expect(activityParentRefs({ parentType: "Project", parentId: ".." }, undefined)).toEqual([]);
+  });
+});
+
+describe("rosterMemberIds on malformed data", () => {
+  it("does not throw, because a retrying trigger would redeliver it forever", () => {
+    const data = { roster: { directorId: "a", coDirectorIds: "nope", teamIds: 7 } };
+    expect(rosterMemberIds(data)).toEqual(["a"]);
+    expect(rosterMemberIds({ roster: "nope" })).toEqual([]);
+    expect(rosterMemberIds({ roster: { directorId: "..", teamIds: ["a", "."] } })).toEqual(["a"]);
+  });
+});
+
+describe("profileIdsToSync", () => {
+  const doc = { title: "A", memberIds: ["a", "b"], team: { director: { id: "a" } }, photos: [] };
+
+  it("covers both sides, so a member removed from a project is synced", () => {
+    expect(profileIdsToSync(doc, { ...doc, memberIds: ["b", "c"] }).sort()).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  it("covers a showcase leaving the public site", () => {
+    expect(profileIdsToSync(doc, undefined).sort()).toEqual(["a", "b"]);
+  });
+
+  it("skips a gallery edit, which no profile reads", () => {
+    expect(profileIdsToSync(doc, { ...doc, photos: [{ id: "p" }] })).toEqual([]);
+  });
+
+  it("re-syncs when a copied field changes", () => {
+    expect(profileIdsToSync(doc, { ...doc, title: "B" }).sort()).toEqual(["a", "b"]);
+  });
+});
+
+describe("projectInitiative memberIds", () => {
+  it("publishes only the people the credit resolved", () => {
+    const item = projectInitiative(
+      "Project",
+      "p1",
+      {
+        status: "Finalizado",
+        category: "NegociosEmprendimiento",
+        impact: { personsImpacted: 1, volunteers: 1, closingSummary: "x" },
+        finalReport: { filedAt: Timestamp.now() },
+        startDate: Timestamp.now(),
+        endDate: Timestamp.now(),
+        roster: { directorId: "a", teamIds: ["gone", "a"] },
+      },
+      (id) => (id === "a" ? { id, name: "Ana", photoUrl: null } : null),
+    );
+    expect(item?.memberIds).toEqual(["a"]);
   });
 });

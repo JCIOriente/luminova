@@ -42,6 +42,7 @@ import {
   warn,
   type CheckRow,
   type Section,
+  verdict,
 } from "./rows.ts";
 import { plural } from "./table.ts";
 import { nativeWindows, toolRows, type Part } from "./tools.ts";
@@ -315,10 +316,7 @@ async function cdIdentityRow(
       [PRINT_GCP_SETUP],
     );
   }
-  return ok(
-    CD_IDENTITY,
-    `${PROJECT_VARIABLE}=${project}, ${PROJECT_NUMBER_VARIABLE}=${number}: CD signs in as ${deploySaEmail(project)}`,
-  );
+  return ok(CD_IDENTITY, `deploys to ${project} and signs in as ${deploySaEmail(project)}`);
 }
 
 /** The row, with a note when the fork it read is spelled as origin writes it, unconfirmed. */
@@ -485,20 +483,13 @@ if (import.meta.main) {
   await runBrandCommand("brand:check", async () => {
     const { sections, profile, cdReady, repo } = await check();
     const { text, failures } = formatReport(sections);
-    console.log(text);
+    console.log(`${verdict(sections)}\n\n${text}`);
     if (failures > 0) {
       console.error(`\nbrand:check: ${plural(failures, "problem")}.`);
       process.exit(1);
     }
     // A failing profile row exits above; the guard only narrows the type.
     if (!profile) return;
-    const notes = sections.flatMap(({ rows }) => rows).filter(({ status }) => status === "warn");
-    const summary =
-      notes.length > 0
-        ? `no problems; ${plural(notes.length, "note")} above, worth a look`
-        : "everything is ready";
-    console.log(
-      `\nbrand:check: ${summary}.\n\n${formatNext(checkNext(profile, { cdReady, repo }))}`,
-    );
+    console.log(`\n${formatNext(checkNext(profile, { cdReady, repo }))}`);
   });
 }

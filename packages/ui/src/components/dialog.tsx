@@ -13,6 +13,7 @@ interface DialogProps {
   hideHeader?: boolean;
   overlayClassName?: string;
   contentClassName?: string;
+  bodyClassName?: string;
   children: ReactNode;
 }
 
@@ -25,6 +26,7 @@ export function Dialog({
   hideHeader = false,
   overlayClassName,
   contentClassName,
+  bodyClassName,
   children,
 }: DialogProps) {
   return (
@@ -57,7 +59,7 @@ export function Dialog({
           >
             {description ?? title}
           </RadixDialog.Description>
-          <div className={hideHeader ? undefined : "mt-[18px]"}>{children}</div>
+          <div className={cn(!hideHeader && "mt-[18px]", bodyClassName)}>{children}</div>
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>

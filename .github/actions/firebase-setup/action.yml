@@ -24,7 +24,7 @@ runs:
   using: composite
   steps:
     # The variables first: a missing or malformed one stops the job here, before anything
-    # is installed or any credential minted. deploy-ready.sh checks every value against an
+    # is installed or any credential minted. deploy-ready.sh checks every variable against an
     # anchored pattern (so none carries a line break into $GITHUB_OUTPUT or $GITHUB_ENV)
     # and derives the provider and service account brand:provision creates.
     - name: Read the deploy target from the repository variables
