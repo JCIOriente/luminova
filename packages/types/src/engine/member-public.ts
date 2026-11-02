@@ -1,8 +1,13 @@
 export const MEMBER_BIO_MAX = 180;
 export const MEMBER_LINKEDIN_URL_MAX = 200;
 
-/** Kept in step with `selfProfileValid` in firestore.rules. */
-const LINKEDIN_PROFILE_URL = /^https:\/\/(www\.)?linkedin\.com\/in\/[A-Za-z0-9_%.-]+\/?$/;
+/** Mirrored by selfProfileValid() in firestore.rules — member-self-lane.rules.test.ts fails
+ *  if the two drift. Lives here, not in member-schema, because beacon re-checks it. */
+export const PROFESSION_MAX_LENGTH = 80;
+
+/** Byte-identical in `selfProfileValid`, pinned by member-self-lane.rules.test.ts. */
+export const LINKEDIN_PROFILE_PATTERN = "^https://(www[.])?linkedin[.]com/in/[A-Za-z0-9_%.-]+/?$";
+const LINKEDIN_PROFILE_URL = new RegExp(LINKEDIN_PROFILE_PATTERN);
 
 /** Takes `unknown` because beacon reads raw admin-SDK data at a public trust boundary. */
 export function isLinkedinProfileUrl(value: unknown): value is string {

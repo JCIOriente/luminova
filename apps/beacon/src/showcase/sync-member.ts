@@ -35,6 +35,7 @@ export async function syncMemberShowcase(
         database
           .collection("showcase")
           .where("memberIds", "array-contains", memberId)
+          .select("title", "endDate", "impact", "team")
           .limit(MEMBER_PROJECT_CAP),
       ),
     ]);

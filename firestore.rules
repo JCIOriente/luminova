@@ -289,9 +289,12 @@ service cloud.firestore {
     // the members update arm and the positions-only lane so the authority can never drift
     // apart again — the same reason canCurateFeatured() exists.
     //
-    // publicProfile is member-consent-only: it publishes their face/name to the public
-    // Directiva, so an institutional writer may never set or change it — only the
-    // owner-only self-lane, or the Admin takedown arm, can. Those two arms are therefore
+    // publicProfile is member-consent-only: it publishes their career to the public site,
+    // so an institutional writer may never set or change it — only the owner-only
+    // self-lane, or the Admin takedown arm, can. bio and linkedinUrl are the member's own
+    // public words, so they stay on the self lane too; the remedy for an abusive one is the
+    // takedown arm. isPastPresident is a public badge, an Admin decision like the Presidente
+    // cargo. Those two arms are therefore
     // the ones that do NOT call this, each deliberately: the self lane MUST touch
     // publicProfile (it IS the consent path), and the takedown arm must skip
     // softDeleteSafe() (it is the only rules-level way to unpublish a malformed member).
@@ -308,6 +311,9 @@ service cloud.firestore {
         && !touched('uid')
         && !touched('invite')
         && !touched('publicProfile')
+        && !touched('bio')
+        && !touched('linkedinUrl')
+        && (hasAnyRole(['Admin']) || !touched('isPastPresident'))
         && updatePermissionAssignmentSafe()
         && softDeleteSafe();
     }
@@ -501,6 +507,9 @@ service cloud.firestore {
         && !('uid' in request.resource.data)
         && !('invite' in request.resource.data)
         && !('publicProfile' in request.resource.data)
+        && !('bio' in request.resource.data)
+        && !('linkedinUrl' in request.resource.data)
+        && (hasAnyRole(['Admin']) || !('isPastPresident' in request.resource.data))
         && memberNameValid(request.resource.data.get('name', ''))
         && bornLive()
         && createPermissionAssignmentSafe()
@@ -977,7 +986,8 @@ service cloud.firestore {
 
     // Curated public projection of completed initiatives (beacon admin SDK writes;
     // the public marketing site reads it without auth). Curated fields only — no raw
-    // initiative/member data. See docs/specs/2026-06-12-spotlight-impacto-showcase-design.md
+    // initiative/member data; member ids appear as opaque links to public profiles.
+    // See docs/specs/2026-06-12-spotlight-impacto-showcase-design.md
     match /showcase/{id} {
       allow read: if true;
       allow write: if false;
@@ -1007,8 +1017,11 @@ service cloud.firestore {
     // syncMemberShowcase; the public marketing site reads one doc when the profile modal
     // opens). Same consent gates as boardShowcase, without the cargo and photo gates: no
     // contact details, points or grants. See docs/specs/2026-11-01-public-member-profile-design.md
+    // get, not read: spotlight opens one profile at a time, and a world-open list would hand
+    // a scraper the whole roster in one query.
     match /memberShowcase/{id} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if false;
       allow write: if false;
     }
 

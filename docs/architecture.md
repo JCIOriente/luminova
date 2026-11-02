@@ -89,7 +89,7 @@ within the same project and share one Firestore database and one Storage bucket
   claims re-sync), `onAllyWritten` (`allyShowcase` public projection),
   `onMemberCreated` (stamps the `publicProfile` opt-out default — clients may not set it),
   `onBoardMemberWritten` (`boardShowcase` public Directiva projection and `memberShowcase`
-  public career profile),
+  public career profile), `onShowcaseWritten` (`memberShowcase` project lists),
   `onNotificationCreated` (inbox fan-out + best-effort FCM)
 - Callables: `setUserRoles`, `seedRoles`, `recomputeAllClaims`, `reprojectPublicProfiles`,
   `issueMemberInvite`,

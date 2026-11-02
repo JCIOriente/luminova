@@ -1,5 +1,6 @@
 import {
   MEMBER_BIO_MAX,
+  PROFESSION_MAX_LENGTH,
   genderedTitle,
   isLinkedinProfileUrl,
   type MemberCareerEntry,
@@ -16,8 +17,7 @@ const CAREER_TERM_CAP = 40;
 export const MEMBER_PROJECT_CAP = 100;
 
 // Every member field the projection or its gates read. members.totalPoints is rewritten on
-// each check-in, so onBoardMemberWritten must tell a relevant edit from that churn. Skipping
-// is safe under unordered delivery: the event that changes one of these makes its own call.
+// each check-in, so onBoardMemberWritten must tell a relevant edit from that churn.
 const MEMBER_PROJECTION_FIELDS = [
   "name",
   "profilePicture",
@@ -36,12 +36,13 @@ const MEMBER_PROJECTION_FIELDS = [
 ] as const;
 
 /** True when a member update left every projection-consumed field deep-equal.
- *  Creates and deletes (a missing side) always count as changed. */
+ *  Creates and deletes (a missing side) always count as changed. An unpublishable member is
+ *  never "unchanged": any later write then heals a takedown whose own event was lost. */
 export function memberProjectionUnchanged(
   before: Record<string, unknown> | undefined,
   after: Record<string, unknown> | undefined,
 ): boolean {
-  if (!before || !after) return false;
+  if (!before || !after || !isPublishableMember(after)) return false;
   return MEMBER_PROJECTION_FIELDS.every((f) => isDeepStrictEqual(before[f], after[f]));
 }
 
@@ -145,7 +146,9 @@ export function projectMember(
     portraitUrl: isMemberPhotoUrl(member.profilePicture, id, projectId)
       ? member.profilePicture
       : null,
-    profession: profession.length > 0 ? profession : null,
+    // The rules cap this on the self lane only, and an admin write can reach it here.
+    profession:
+      profession.length > 0 && profession.length <= PROFESSION_MAX_LENGTH ? profession : null,
     joinYear: hasToMillis(member.joinDate)
       ? new Date(member.joinDate.toMillis()).getUTCFullYear()
       : null,

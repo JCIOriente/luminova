@@ -202,7 +202,7 @@ export function projectInitiative(
     completedAt: finalReport.filedAt,
     impact,
     photos: asPhotos(data.photos),
-    memberIds: [...new Set(rosterMemberIds(data))],
+    memberIds: [...new Set(rosterMemberIds(data))].filter((mid) => resolve(mid) !== null),
     team: {
       director: roster.directorId ? resolve(roster.directorId) : null,
       coDirectors: (roster.coDirectorIds ?? [])
@@ -225,16 +225,25 @@ export function rosterMemberIds(data: Record<string, unknown>): string[] {
   ].filter(isCleanId);
 }
 
-/** Members whose public profile an initiative write can change: the rosters of whichever
- *  side was public. Both sides, so a removal or an un-finalized initiative leaves the profile. */
-export function rosterIdsToSync(
+// The showcase fields a memberShowcase entry copies. `photos` churns on every gallery edit
+// and no profile reads it.
+const PROFILE_SOURCE_FIELDS = ["title", "endDate", "impact", "team", "memberIds"] as const;
+
+/** Members whose public profile a showcase write can change: everyone on either side, so a
+ *  removal or a deleted showcase leaves the profile. Empty when no copied field changed. */
+export function profileIdsToSync(
   before: Record<string, unknown> | undefined,
   after: Record<string, unknown> | undefined,
 ): string[] {
-  const sides = [before, after].filter(
-    (d): d is Record<string, unknown> => d !== undefined && isProjectable(d),
-  );
-  return [...new Set(sides.flatMap((d) => rosterMemberIds(d)))];
+  if (
+    before &&
+    after &&
+    PROFILE_SOURCE_FIELDS.every((f) => isDeepStrictEqual(before[f], after[f]))
+  ) {
+    return [];
+  }
+  const ids = [before?.memberIds, after?.memberIds].flatMap((v) => (Array.isArray(v) ? v : []));
+  return [...new Set(ids)].filter(isCleanId);
 }
 
 /** Cheap eligibility check: only completed initiatives with impact + filed report are projected. */

@@ -76,9 +76,11 @@ doc, the same ordering rule as `boardShowcase`, and writes or deletes the projec
   `retry: true` also covers the opt-out. No new deployed function. `members.totalPoints`
   changes on every check-in, so a write that leaves every projected field equal is skipped
   (`memberProjectionUnchanged`). Skipping is safe: the event that changes a relevant field
-  makes its own call.
-- **Initiative writes:** after `projectShowcase`, each member on the roster before or after
-  the write is synced, so a removal also drops the project from that profile.
+  makes its own call, and an unpublishable member is never skipped, so any later write heals
+  a lost takedown.
+- **Showcase writes:** `onShowcaseWritten` (`retry: true`) syncs each member on either side
+  of a write to a field a profile copies, so a removal also drops the project from that
+  profile. It is its own trigger because the initiative triggers have no retry.
 - **Bounds:** at most 100 projects per member and 40 terms.
 - **Known gap:** a cargo title edit in `positions/` does not re-project holders, as with
   `boardShowcase`. `career` keeps every term, so the UTC-year rollover needs no fix here.
@@ -92,7 +94,8 @@ and returns `{ ok, showcases, members, failed }`. `ok` is true only when `failed
 ### Fields on `Member`
 
 `bio` and `linkedinUrl`, both optional, join the self lane on `/me` only: the member owns
-their public words, so the admin form does not carry them. `firestore.rules` caps them (`selfProfileValid`, 180 and 200 characters; the URL pattern is
+their public words, so the admin form does not carry them. `memberWriteInvariants` and the create arm keep them off every other lane, so the remedy for
+an abusive one is the Admin takedown. `firestore.rules` caps them (`selfProfileValid`, 180 and 200 characters; the URL pattern is
 anchored to `https://(www.)linkedin.com/in/`), and beacon validates again because the field
 is untrusted input at a public boundary.
 

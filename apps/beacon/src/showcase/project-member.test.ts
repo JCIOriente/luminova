@@ -106,6 +106,10 @@ describe("projectMember", () => {
     expect(project({ ...member, bio: "   " })?.bio).toBeNull();
   });
 
+  it("drops a profession past the cap, which the admin lane does not enforce", () => {
+    expect(project({ ...member, profession: "x".repeat(81) })?.profession).toBeNull();
+  });
+
   it("skips a term whose cargo doc is missing", () => {
     const item = project({
       ...member,
@@ -163,12 +167,29 @@ describe("memberProjectionUnchanged", () => {
     expect(memberProjectionUnchanged(member, { ...member, totalPoints: 950 })).toBe(true);
   });
 
-  it.each(["publicProfile", "name", "bio", "linkedinUrl", "active", "deletedAt", "status", "uid"])(
-    "re-projects when %s changes",
-    (field) => {
-      expect(memberProjectionUnchanged(member, { ...member, [field]: "changed" })).toBe(false);
-    },
-  );
+  it.each([
+    "name",
+    "profilePicture",
+    "profession",
+    "joinDate",
+    "bio",
+    "linkedinUrl",
+    "isPastPresident",
+    "gender",
+    "positions",
+    "publicProfile",
+    "uid",
+    "active",
+    "deletedAt",
+    "status",
+  ])("re-projects when %s changes", (field) => {
+    expect(memberProjectionUnchanged(member, { ...member, [field]: "changed" })).toBe(false);
+  });
+
+  it("never skips an unpublishable member, so a lost takedown heals on the next write", () => {
+    const optedOut = { ...member, publicProfile: false };
+    expect(memberProjectionUnchanged(optedOut, { ...optedOut, totalPoints: 950 })).toBe(false);
+  });
 
   it("treats a create or delete as changed", () => {
     expect(memberProjectionUnchanged(undefined, member)).toBe(false);

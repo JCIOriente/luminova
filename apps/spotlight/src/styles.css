@@ -1830,6 +1830,7 @@
     align-items: end;
   }
   .directiva .pres-portrait-frame {
+    display: block;
     position: relative;
   }
   .directiva .pres-portrait-frame::before {
@@ -2024,6 +2025,7 @@
     gap: clamp(24px, 4vw, 40px);
   }
   .directiva .jdl-chip {
+    display: block;
     width: min(240px, 44vw);
     text-align: left;
   }

@@ -6,7 +6,7 @@ import {
   activityProjectionUnchanged,
   activityShowcasePhotos,
   projectInitiative,
-  rosterIdsToSync,
+  profileIdsToSync,
   rosterMemberIds,
   showcasePerson,
 } from "./project-initiative.js";
@@ -316,25 +316,46 @@ describe("activityProjectionUnchanged", () => {
   });
 });
 
-describe("rosterIdsToSync", () => {
-  const done = {
-    status: "Finalizado",
-    impact: {},
-    finalReport: { filedAt: "x" },
-    roster: { directorId: "a", coDirectorIds: ["b"], teamIds: ["b"] },
-  };
-  const open = { status: "Activo", roster: { directorId: "z" } };
+describe("profileIdsToSync", () => {
+  const doc = { title: "A", memberIds: ["a", "b"], team: { director: { id: "a" } }, photos: [] };
 
-  it("covers both sides, so a member removed from a public initiative is synced", () => {
-    const after = { ...done, roster: { directorId: "c" } };
-    expect(rosterIdsToSync(done, after).sort()).toEqual(["a", "b", "c"]);
+  it("covers both sides, so a member removed from a project is synced", () => {
+    expect(profileIdsToSync(doc, { ...doc, memberIds: ["b", "c"] }).sort()).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
   });
 
-  it("covers a roster leaving the public site", () => {
-    expect(rosterIdsToSync(done, undefined).sort()).toEqual(["a", "b"]);
+  it("covers a showcase leaving the public site", () => {
+    expect(profileIdsToSync(doc, undefined).sort()).toEqual(["a", "b"]);
   });
 
-  it("skips an initiative that was never public", () => {
-    expect(rosterIdsToSync(open, open)).toEqual([]);
+  it("skips a gallery edit, which no profile reads", () => {
+    expect(profileIdsToSync(doc, { ...doc, photos: [{ id: "p" }] })).toEqual([]);
+  });
+
+  it("re-syncs when a copied field changes", () => {
+    expect(profileIdsToSync(doc, { ...doc, title: "B" }).sort()).toEqual(["a", "b"]);
+  });
+});
+
+describe("projectInitiative memberIds", () => {
+  it("publishes only the people the credit resolved", () => {
+    const item = projectInitiative(
+      "Project",
+      "p1",
+      {
+        status: "Finalizado",
+        category: "NegociosEmprendimiento",
+        impact: { personsImpacted: 1, volunteers: 1, closingSummary: "x" },
+        finalReport: { filedAt: Timestamp.now() },
+        startDate: Timestamp.now(),
+        endDate: Timestamp.now(),
+        roster: { directorId: "a", teamIds: ["gone", "a"] },
+      },
+      (id) => (id === "a" ? { id, name: "Ana", photoUrl: null } : null),
+    );
+    expect(item?.memberIds).toEqual(["a"]);
   });
 });

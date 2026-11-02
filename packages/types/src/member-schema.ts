@@ -2,7 +2,11 @@ import { z } from "zod";
 import { MEMBER_STATUSES, MEMBER_GENDERS } from "./member.js";
 import { boliviaPhoneOptional } from "./phone.js";
 import { memberName, memberNameOrUnchanged } from "./member-name.js";
-import { MEMBER_BIO_MAX, isLinkedinProfileUrl } from "./engine/member-public.js";
+import {
+  MEMBER_BIO_MAX,
+  PROFESSION_MAX_LENGTH,
+  isLinkedinProfileUrl,
+} from "./engine/member-public.js";
 
 const dateString = z
   .string()
@@ -12,10 +16,6 @@ const dateString = z
     const date = new Date(`${value}T00:00:00Z`);
     return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
   }, "Fecha inválida.");
-
-/** Mirrored by selfProfileValid() in firestore.rules — member-self-lane.rules.test.ts
- *  fails if the two drift, so a member never hits a cap the form let them exceed. */
-export const PROFESSION_MAX_LENGTH = 80;
 
 export const memberSchema = z.object({
   name: memberName,

@@ -1506,6 +1506,27 @@ describe("firestore.rules — members", () => {
     await assertSucceeds(updateDoc(ref, { linkedinUrl: "" }));
     await assertFails(updateDoc(ref, { linkedinUrl: "https://evil.example/in/ana" }));
     await assertFails(updateDoc(ref, { linkedinUrl: "javascript:alert(1)" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "http://linkedin.com/in/ana" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "https://linkedin.com.evil.example/in/a" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "https://linkedin.com@evil.example/in/a" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "https://linkedin.com/in/a?x=1" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "https://linkedin.com/in/a\n" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: 42 }));
+  });
+
+  it("keeps a member's public words off the institutional lane", async () => {
+    const ref = doc(as("u", ["Membership"]), "members/m1");
+    await assertFails(updateDoc(ref, { bio: "Palabras ajenas" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "https://linkedin.com/in/otra" }));
+  });
+
+  it("lets only an Admin set the public Past President badge", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Membership"]), "members/m1"), { isPastPresident: true }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "members/m1"), { isPastPresident: true }),
+    );
   });
 
   it("allows a profession at the 80-character cap and denies 81", async () => {
@@ -3000,6 +3021,9 @@ describe("boardShowcase (public read, beacon-only write)", () => {
 describe("memberShowcase (public read, beacon-only write)", () => {
   it("allows anonymous read", async () => {
     await assertSucceeds(getDoc(doc(anon(), "memberShowcase/m1")));
+  });
+  it("denies listing the whole roster", async () => {
+    await assertFails(getDocs(collection(anon(), "memberShowcase")));
   });
   it("denies anonymous write", async () => {
     await assertFails(setDoc(doc(anon(), "memberShowcase/m2"), { name: "x" }));

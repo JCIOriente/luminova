@@ -112,6 +112,6 @@ describe("validateMemberSearch", () => {
   });
 
   it.each([["../secrets"], ["a/b"], [""], [42], ["x".repeat(129)]])("drops %s", (miembro) => {
-    expect(validateMemberSearch({ miembro })).toEqual({});
+    expect(validateMemberSearch({ miembro })).toStrictEqual({ miembro: undefined });
   });
 });

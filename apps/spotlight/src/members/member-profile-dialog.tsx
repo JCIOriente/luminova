@@ -249,6 +249,7 @@ export function MemberProfileDialog({
         if (!open) onClose();
       }}
       title={member ? `Perfil de ${member.name}` : "Perfil de miembro"}
+      description={member ? `Trayectoria de ${member.name}` : "Trayectoria de un miembro"}
       hideHeader
       overlayClassName="member-overlay"
       contentClassName={cn(

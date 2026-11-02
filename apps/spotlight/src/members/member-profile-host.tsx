@@ -19,6 +19,7 @@ export function MemberProfileHost() {
             to: ".",
             search: (prev) => ({ ...prev, miembro: undefined }),
             resetScroll: false,
+            replace: true,
           })
         }
       />

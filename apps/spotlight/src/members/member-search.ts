@@ -7,5 +7,7 @@ export interface MemberSearch {
 
 export function validateMemberSearch(search: Record<string, unknown>): MemberSearch {
   const { miembro } = search;
-  return typeof miembro === "string" && MEMBER_ID.test(miembro) ? { miembro } : {};
+  // An explicit undefined, not {}: the router merges this over the raw parsed search, so an
+  // omitted key would let the unvalidated value through.
+  return { miembro: typeof miembro === "string" && MEMBER_ID.test(miembro) ? miembro : undefined };
 }

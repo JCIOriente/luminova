@@ -19,7 +19,7 @@ import {
   activityShowcasePhotos,
   isProjectable,
   projectInitiative,
-  rosterIdsToSync,
+  profileIdsToSync,
   rosterMemberIds,
   showcasePerson,
 } from "./showcase/project-initiative.js";
@@ -144,14 +144,6 @@ export const awardPoints = onDocumentWritten(
   },
 );
 
-async function syncRosterProfiles(database: Firestore, memberIds: string[]): Promise<void> {
-  const projectId = boardProjectId();
-  if (projectId.length === 0) return;
-  for (const batch of chunk(memberIds, 10)) {
-    await Promise.all(batch.map((id) => syncMemberShowcase(database, id, projectId)));
-  }
-}
-
 function initiativeTrigger(collection: "programs" | "projects") {
   const parentType = collection === "programs" ? "Program" : "Project";
   return onDocumentWritten(`${collection}/{id}`, async (event) => {
@@ -172,10 +164,6 @@ function initiativeTrigger(collection: "programs" | "projects") {
           parentType,
           event.params.id,
           after.data() as Record<string, unknown>,
-        );
-        await syncRosterProfiles(
-          database,
-          rosterIdsToSync(event.data?.before?.data(), after.data()),
         );
       } catch (err) {
         console.error("showcase projection failed", { id: event.params.id, err });
@@ -201,7 +189,6 @@ function initiativeTrigger(collection: "programs" | "projects") {
       );
       try {
         await projectShowcase(database, parentType, event.params.id, undefined);
-        await syncRosterProfiles(database, rosterIdsToSync(before.data(), undefined));
       } catch (err) {
         console.error("showcase projection failed", { id: event.params.id, err });
       }
@@ -474,6 +461,35 @@ export const onBoardMemberWritten = onDocumentWritten(
   },
 );
 
+// Its own trigger, not a step of initiativeTrigger: that one has no retry and rightly swallows
+// a projection error, while a lost sync here would leave a removed project on a public profile.
+// retry:true + rethrow is safe because syncMemberShowcase decides from live docs, so a late
+// redelivery cannot republish anything. allSettled so one contended member cannot strand the
+// rest of the roster.
+export const onShowcaseWritten = onDocumentWritten(
+  { document: "showcase/{id}", retry: true, timeoutSeconds: 120 },
+  async (event) => {
+    const memberIds = profileIdsToSync(event.data?.before?.data(), event.data?.after?.data());
+    if (memberIds.length === 0) return;
+    const projectId = boardProjectId();
+    if (projectId.length === 0) throw new Error("memberShowcase sync skipped: no project id");
+    const database = db();
+    const results: PromiseSettledResult<void>[] = [];
+    for (const batch of chunk(memberIds, 10)) {
+      results.push(
+        ...(await Promise.allSettled(
+          batch.map((id) => syncMemberShowcase(database, id, projectId)),
+        )),
+      );
+    }
+    const failed = results.filter((r) => r.status === "rejected");
+    if (failed.length > 0) {
+      console.error("memberShowcase sync failed", { id: event.params.id, failed });
+      throw new Error(`memberShowcase sync failed for ${failed.length} member(s)`);
+    }
+  },
+);
+
 const REPROJECT_SCAN_CAP = 5000;
 
 /** Admin-only backfill, called by hand once after the first deploy: stamps member ids on
@@ -491,6 +507,7 @@ export const reprojectPublicProfiles = guardedOnCall(
     const database = db();
     const failed: string[] = [];
     let showcases = 0;
+    let truncated = false;
     for (const [collection, kind] of [
       ["programs", "Program"],
       ["projects", "Project"],
@@ -500,9 +517,13 @@ export const reprojectPublicProfiles = guardedOnCall(
         .where("status", "==", "Finalizado")
         .limit(REPROJECT_SCAN_CAP)
         .get();
+      truncated ||= snap.size === REPROJECT_SCAN_CAP;
       for (const doc of snap.docs) {
         try {
-          await projectShowcase(database, kind, doc.id, doc.data());
+          // The scan can be minutes old: projecting from it could republish an initiative
+          // that was un-finalized meanwhile, with no later trigger to correct it.
+          const live = await doc.ref.get();
+          await projectShowcase(database, kind, doc.id, live.data());
           showcases += 1;
         } catch (err) {
           console.error("showcase reprojection failed", { id: doc.id, err });
@@ -511,6 +532,7 @@ export const reprojectPublicProfiles = guardedOnCall(
       }
     }
     const members = await database.collection("members").limit(REPROJECT_SCAN_CAP).select().get();
+    truncated ||= members.size === REPROJECT_SCAN_CAP;
     let synced = 0;
     for (const batch of chunk(members.docs, 10)) {
       await Promise.all(
@@ -525,7 +547,7 @@ export const reprojectPublicProfiles = guardedOnCall(
         }),
       );
     }
-    return { ok: failed.length === 0, showcases, members: synced, failed };
+    return { ok: failed.length === 0 && !truncated, truncated, showcases, members: synced, failed };
   },
 );
 
