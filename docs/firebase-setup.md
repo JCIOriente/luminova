@@ -9,7 +9,7 @@
 
 ## Project
 
-Firebase project ID: `jci-oriente`
+Firebase project ID: `<project id>`
 
 ## Web Apps
 
@@ -17,8 +17,8 @@ Two web app registrations share one Firebase project and one Firestore database:
 
 | App | appId | Hosting target | URL |
 |-----|-------|----------------|-----|
-| spotlight | `1:953870918238:web:63d0034740735d618b4acf` | `spotlight` | https://jcioriente.org |
-| backstage | `1:953870918238:web:acbd53d377846bd88b4acf` | `backstage` | https://admin.jcioriente.org |
+| spotlight | `1:<project number>:web:<spotlight app id>` | `spotlight` | https://<your domain> |
+| backstage | `1:<project number>:web:<backstage app id>` | `backstage` | https://admin.<your domain> |
 
 Each app reads its Firebase config from the brand profile (`[firebase.<app>]` in `brand/local/brand.toml`; the auth domain, storage bucket and sender id derive from `project`). The two apps share the same project and database but use separate app registrations and separate App Check site keys.
 
@@ -26,8 +26,8 @@ Each app reads its Firebase config from the brand profile (`[firebase.<app>]` in
 
 | Target (`firebase.json`) | Site id (`brand.toml` `[firebase.sites]`) | App | URL | Firebase default (fallback) |
 |--------|---------|-----|-----|-----------------------------|
-| `spotlight` | `jcioriente` | spotlight | https://jcioriente.org | https://jcioriente.web.app |
-| `backstage` | `jcioriente-backstage` | backstage | https://admin.jcioriente.org | https://jcioriente-backstage.web.app |
+| `spotlight` | `<spotlight site id>` | spotlight | https://<your domain> | https://<spotlight site id>.web.app |
+| `backstage` | `<backstage site id>` | backstage | https://admin.<your domain> | https://<backstage site id>.web.app |
 
 Target names are chapter-neutral; the site ids, the project and the storage bucket live in
 the brand profile. `.firebaserc` maps one to the other and is **generated, never edited or
@@ -132,7 +132,7 @@ emulator on its own:
 pnpm seed:emulator
 ```
 
-This seeds (project `jci-oriente`, the profile's `firebase.projectId`, matching `VITE_FIREBASE_PROJECT_ID`):
+This seeds (project `<project id>`, the profile's `firebase.projectId`, matching `VITE_FIREBASE_PROJECT_ID`):
 
 - **Firestore** — sample members + a Recognition Engine slice (term, activities,
   participations, memberPoints) so the Members, member-profile, and Leaderboard pages
@@ -158,7 +158,7 @@ Emulator UI at http://localhost:4100) — this also mints the matching built-in 
 so the account can read immediately:
 
 ```bash
-FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:4030 GCLOUD_PROJECT=jci-oriente \
+FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:4030 GCLOUD_PROJECT=<project id> \
   pnpm --filter beacon seed:roles -- <uid> Admin
 # Scanner needs event scope, set separately via the setUserRoles callable.
 ```
@@ -170,7 +170,7 @@ FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:4030 GCLOUD_PROJECT=jci-oriente \
 | `seed:emulator` | `FIRESTORE_EMULATOR_HOST` (+ `FIREBASE_AUTH_EMULATOR_HOST` for the auth user) — both set by the `pnpm` script | The Admin SDK can only reach the emulator when these are set, so it can never touch prod. |
 | `seed:roles` | `FIREBASE_AUTH_EMULATOR_HOST` | Same — necessary and sufficient. (`VITE_FIREBASE_EMULATOR_ENABLED` is a frontend build-time var, not visible to a Node script.) |
 
-> Both scripts must use the **same `GCLOUD_PROJECT` as the app** (`jci-oriente`) — the
+> Both scripts must use the **same `GCLOUD_PROJECT` as the app** (`<project id>`) — the
 > emulator namespaces data/users per project, so a mismatch lands them where the app
 > never looks. If your shell can't see the keg-only JDK, prefix emulator commands with
 > the Java PATH (see Prerequisites above).
@@ -196,7 +196,7 @@ green CI triggers the keyless (WIF/OIDC) Deploy workflow, which deploys only the
 changed surfaces in order (rules → functions → hosting, with a preview → smoke →
 promote flow for hosting), each job gated on a `production` environment approval. The
 repository variables `FIREBASE_PROJECT_ID` and `GCP_PROJECT_NUMBER` name the project and
-CD's sign-in (`docs/ci-cd.md` section 3.3; JCI Oriente: `jci-oriente`, `953870918238`), and
+CD's sign-in (`docs/ci-cd.md` section 3.3), and
 every deploy job pulls the brand (`brand.toml` and the 16 images) from the project's bucket
 before it builds.
 
@@ -237,7 +237,7 @@ firebase deploy --only hosting:backstage
 ### Brand assets bucket (owner only)
 
 The deployed brand (`brand.toml` and the 16 images) lives in `<project>-brand-assets`
-(`jci-oriente-brand-assets`), a private, versioned bucket the CD service account can only
+(`<project id>-brand-assets`), a private, versioned bucket the CD service account can only
 read (`docs/ci-cd.md` section 5). CD pulls from that default name, so an `assetsBucket`
 override serves local commands only, and CD refuses a pulled `brand.toml` that names
 another bucket.
@@ -375,7 +375,7 @@ the target before the first write, and refuses to run if any emulator env var is
 ```bash
 gcloud auth application-default login
 # or GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
-pnpm seed:production --project jci-oriente
+pnpm seed:production --project <project id>
 ```
 
 Re-runs are a no-op for the president (a `meta/bootstrap` doc guards it); `siteConfig`
@@ -460,8 +460,8 @@ exposure being the one the prompt is silent about. The emulator needs no confirm
 
 **The app sends no email at all in the auth flow.** Firebase's transactional email cannot be
 meaningfully restyled, its sender is `noreply@<project>.firebaseapp.com`, and its links route
-through `firebaseapp.com` before redirecting — it reads as phishing and lands in spam. JCI
-Oriente coordinates over WhatsApp, so an operator generates a link and shares it by hand.
+through `firebaseapp.com` before redirecting — it reads as phishing and lands in spam.
+Chapters often coordinate over messaging apps, so an operator generates a link and shares it by hand.
 
 `issueMemberInvite({ memberId })` creates the Auth account if needed, links the uid, and mints
 a single-use token. Backstage assembles `https://<backstage-host>/invitacion#<token>` and shows
@@ -508,14 +508,14 @@ it in a copy dialog with its expiry.
 
    ```bash
    gcloud firestore fields ttls update purgeAt \
-     --collection-group=memberInvites --enable-ttl --project=jci-oriente
+     --collection-group=memberInvites --enable-ttl --project=<project id>
    ```
 
    **Verify it applied** — the command returns before the policy is live, so check the state
    rather than the exit code:
 
    ```bash
-   gcloud firestore fields ttls list --project=jci-oriente
+   gcloud firestore fields ttls list --project=<project id>
    ```
 
    Expect one row for `memberInvites.purgeAt` with `ttlConfig.state: ACTIVE`. `CREATING` means
@@ -566,15 +566,15 @@ it in a copy dialog with its expiry.
    **Set up** — once per web app, in the Firebase console. There is no gcloud or Firebase CLI
    command for App Check.
 
-   1. Find the app id: `firebase apps:list WEB --project jci-oriente`. Backstage is
-      `1:953870918238:web:acbd53d377846bd88b4acf`; spotlight is
-      `1:953870918238:web:63d0034740735d618b4acf`.
+   1. Find the app id: `firebase apps:list WEB --project <project id>`. Backstage is
+      `1:<project number>:web:<backstage app id>`; spotlight is
+      `1:<project number>:web:<spotlight app id>`.
    2. Create a reCAPTCHA **v3** key for the app's hosting domains — the custom domain AND
       the Firebase default, see `docs/domains.md` — at
       https://www.google.com/recaptcha/admin and keep both the **site key** and the
       **secret key**.
    3. Firebase console → **App Check**
-      (https://console.firebase.google.com/project/jci-oriente/appcheck/) → **Apps** tab → the
+      (https://console.firebase.google.com/project/<project id>/appcheck/) → **Apps** tab → the
       web app → **reCAPTCHA v3** → paste the secret key → Save. The same dialog
       holds the **token TTL** (30 min to 7 days, default 1 day; backstage uses 72 h).
    4. Put the site key in `brand/local/brand.toml` as `appCheckSiteKey` under `[firebase.<app>]`,
@@ -591,7 +591,7 @@ it in a copy dialog with its expiry.
 
       ```bash
       gcloud logging read '"App Check enforcement resolved for the invite callables"' \
-        --project=jci-oriente --freshness=7d --limit=3
+        --project=<project id> --freshness=7d --limit=3
       ```
 
       Expect `enforceAppCheck: true` and `callables` listing exactly the names in
@@ -619,7 +619,7 @@ it in a copy dialog with its expiry.
 
       ```bash
       gcloud logging read 'resource.labels.service_name=("issuememberinvite" OR "describeinvite"
-         OR "redeeminvite") AND httpRequest.requestMethod!=""' --project=jci-oriente --freshness=30d \
+         OR "redeeminvite") AND httpRequest.requestMethod!=""' --project=<project id> --freshness=30d \
         --format="value(timestamp,resource.labels.service_name,httpRequest.requestMethod,httpRequest.status)"
       ```
 
@@ -684,7 +684,7 @@ it in a copy dialog with its expiry.
      gcloud logging read \
        'severity>=WARNING AND (labels."firebase-log-type"="callable-request-verification"
           OR "AppCheck token was rejected")' \
-       --project=jci-oriente --freshness=1h --limit=20
+       --project=<project id> --freshness=1h --limit=20
      ```
 
      The filter carries both the structured label and the message text because the label
@@ -736,7 +736,7 @@ it in a copy dialog with its expiry.
    it stops is the rest of the release. Run the same script by hand any time:
 
    ```bash
-   GCP_PROJECT_ID=jci-oriente bash .github/scripts/assert-deployed-env-clean.sh \
+   GCP_PROJECT_ID=<project id> bash .github/scripts/assert-deployed-env-clean.sh \
      describeinvite redeeminvite issuememberinvite recomputeallclaims \
      reseedbuiltinroleperms seedroles setuserroles
    ```
@@ -840,7 +840,7 @@ it in a copy dialog with its expiry.
 
    `us-central1` is the gen2 default, which is what these get — beacon sets no `region` on any
    callable and calls no `setGlobalOptions`. The script defaults to it and takes `GCP_REGION`
-   if a region is ever added; confirm with `gcloud run services list --project=jci-oriente`.
+   if a region is ever added; confirm with `gcloud run services list --project=<project id>`.
 
    **If the smoke test fails**, there are three rollback scopes. Each edits
    `apps/beacon/src/token-verification-bypass.ts` and at most one callable module
@@ -885,7 +885,7 @@ it in a copy dialog with its expiry.
    **a) Notification channel first.** An alert policy with no channel fires into nothing, and
    this SDK has no `gcloud monitoring channels` command group — so create it in the console:
    Cloud Console → **Monitoring → Alerting → Edit notification channels → Email → Add new**.
-   Copy the channel id (`projects/jci-oriente/notificationChannels/NNNN`).
+   Copy the channel id (`projects/<project id>/notificationChannels/NNNN`).
 
    **b) The alert policy.** It must fire *below* the rate limiter's own ceiling, because that
    ceiling is where onboarding breaks: the endpoint-wide bucket is 600/min **per instance**,
@@ -897,7 +897,7 @@ it in a copy dialog with its expiry.
    (`INVITE_GLOBAL_DENIAL_PER_SECOND`, canonical in `packages/types/src/member-invite.ts`; if
    that figure is ever retuned, this threshold moves with it and a tripwire test says so), and
    matched to the
-   limiter's own 60 s window. There is no false-positive budget to protect: JCI Oriente issues
+   limiter's own 60 s window. There is no false-positive budget to protect: a chapter issues
    a handful of invites a week, so the normal rate is indistinguishable from zero and an early,
    twitchy alert costs nothing. `--duration=60s` rather than five minutes, for the same
    reason.
@@ -911,7 +911,7 @@ it in a copy dialog with its expiry.
 
    ```bash
    gcloud monitoring policies create \
-     --project=jci-oriente \
+     --project=<project id> \
      --display-name="Invite callables: abnormal request rate" \
      --condition-display-name="describeInvite/redeemInvite > 8 req/s for 1 min" \
      --condition-filter='metric.type="run.googleapis.com/request_count"
@@ -922,7 +922,7 @@ it in a copy dialog with its expiry.
      --duration=60s \
      --trigger-count=1 \
      --combiner=OR \
-     --notification-channels=projects/jci-oriente/notificationChannels/NNNN
+     --notification-channels=projects/<project id>/notificationChannels/NNNN
    ```
 
    `--if` takes a **comparison**, not a bare number — `gcloud monitoring policies create --help`
@@ -974,7 +974,7 @@ it in a copy dialog with its expiry.
    **Verify it applied:**
 
    ```bash
-   gcloud monitoring policies list --project=jci-oriente \
+   gcloud monitoring policies list --project=<project id> \
      --format="table(displayName,enabled,conditions[0].displayName)"
    ```
 
@@ -987,10 +987,10 @@ it in a copy dialog with its expiry.
 
    ```bash
    gcloud billing budgets create \
-     --billing-account=016148-904C31-A656A9 \
-     --display-name="jci-oriente monthly" \
+     --billing-account=<billing account id> \
+     --display-name="<project id> monthly" \
      --budget-amount=25USD \
-     --filter-projects=projects/jci-oriente \
+     --filter-projects=projects/<project id> \
      --threshold-rule=percent=0.5 \
      --threshold-rule=percent=0.9 \
      --threshold-rule=percent=1.0
@@ -999,7 +999,7 @@ it in a copy dialog with its expiry.
    **Verify:**
 
    ```bash
-   gcloud billing budgets list --billing-account=016148-904C31-A656A9 \
+   gcloud billing budgets list --billing-account=<billing account id> \
      --format="table(displayName,amount.specifiedAmount.units,budgetFilter.projects)"
    ```
 
@@ -1030,7 +1030,7 @@ is otherwise complete.
 calls this API to send. Modern Firebase projects usually enable it automatically.
 
 ```bash
-gcloud services enable fcm.googleapis.com --project jci-oriente
+gcloud services enable fcm.googleapis.com --project <project id>
 ```
 
 Or: Google Cloud Console → **APIs & Services → Library** → "Firebase Cloud Messaging
