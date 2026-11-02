@@ -40,11 +40,14 @@ region="${GCP_REGION:-}"
 provider="${WIF_PROVIDER:-}"
 account="${DEPLOY_SA:-}"
 
+# Named on every hint: in a fork, gh's default repository may be upstream.
+repo="${GITHUB_REPOSITORY:-<owner>/<your fork>}"
+
 invalid=0
 # Usage: expect <variable name> <value> <pattern> <what it must be>
 expect() {
   if [ -n "$2" ] && ! [[ "$2" =~ $3 ]]; then
-    echo "deploy-ready: repository variable $1 must be $4. Fix it: gh variable set $1 --body <value>" >&2
+    echo "deploy-ready: repository variable $1 must be $4. Fix it: gh variable set $1 --body <value> --repo $repo" >&2
     invalid=1
   fi
 }
@@ -65,8 +68,8 @@ if [ "${#missing[@]}" -gt 0 ]; then
   commands=""
   for name in "${missing[@]}"; do
     case "$name" in
-      FIREBASE_PROJECT_ID) commands+="; gh variable set FIREBASE_PROJECT_ID --body <project id>" ;;
-      GCP_PROJECT_NUMBER) commands+="; gh variable set GCP_PROJECT_NUMBER --body <project number>" ;;
+      FIREBASE_PROJECT_ID) commands+="; gh variable set FIREBASE_PROJECT_ID --body <project id> --repo $repo" ;;
+      GCP_PROJECT_NUMBER) commands+="; gh variable set GCP_PROJECT_NUMBER --body <project number> --repo $repo" ;;
     esac
   done
   echo "ready=false"
@@ -75,7 +78,7 @@ if [ "${#missing[@]}" -gt 0 ]; then
 fi
 if [[ "$project" == demo-* ]]; then
   echo "ready=false"
-  echo "reason=FIREBASE_PROJECT_ID is $project, a local-only project that exists only in the emulators. To go live: create a Firebase project, connect it with pnpm brand:init, run pnpm brand:provision, then gh variable set FIREBASE_PROJECT_ID --body <project id> (docs/adopting.md)."
+  echo "reason=FIREBASE_PROJECT_ID is $project, a local-only project that exists only in the emulators. To go live: create a Firebase project, connect it with pnpm brand:init, run pnpm brand:provision, then gh variable set FIREBASE_PROJECT_ID --body <project id> --repo $repo (docs/adopting.md)."
   exit 0
 fi
 
