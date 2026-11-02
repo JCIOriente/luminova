@@ -1,4 +1,4 @@
-# CI/CD — Luminova (JCI Oriente)
+# CI/CD — Luminova
 
 Single source of truth for how code reaches production. Covers both halves of the
 pipeline — **CI** (validation on every PR/push) and **CD** (keyless, approval-gated
@@ -8,7 +8,7 @@ deploy to Firebase). This is the living reference; dated provisioning records li
 - **CI workflow:** `.github/workflows/ci.yml`
 - **CD workflow:** `.github/workflows/deploy.yml`
 - **Shared deploy setup:** `.github/actions/firebase-setup/action.yml`
-- **Firebase project:** the repository variable `FIREBASE_PROJECT_ID` (`PROJECT_ID`; JCI Oriente: `jci-oriente`, Blaze) · **GitHub repo:** `GH_REPO`, the repository CD runs in (JCI Oriente: `JCIOriente/luminova`, public; a chapter: its fork). Values below are JCI Oriente's; `pnpm brand:provision` prints section 6 with yours.
+- **Firebase project:** the repository variable `FIREBASE_PROJECT_ID` (`PROJECT_ID`; it must be on the Blaze plan) · **GitHub repo:** `GH_REPO`, the repository CD runs in (your fork). `pnpm brand:provision` prints section 6 with yours.
 
 ---
 
@@ -172,8 +172,8 @@ included); no `run:` block interpolates them.
 
 | Variable | Required | Meaning |
 |---|---|---|
-| `FIREBASE_PROJECT_ID` | yes | The Firebase project id, e.g. `jci-oriente`. A `demo-` id skips every deploy. |
-| `GCP_PROJECT_NUMBER` | yes | Its project number, e.g. `953870918238` (`gcloud projects describe <id> --format='value(projectNumber)'`) |
+| `FIREBASE_PROJECT_ID` | yes | The Firebase project id. A `demo-` id skips every deploy. |
+| `GCP_PROJECT_NUMBER` | yes | Its project number (`gcloud projects describe <id> --format='value(projectNumber)'`) |
 | `GCP_REGION` | no | The deployed callables' Cloud Run region; default `us-central1`, the gen2 default, because beacon sets none |
 | `WIF_PROVIDER` | no | Overrides `projects/<GCP_PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-actions/providers/github-oidc` |
 | `DEPLOY_SA` | no | Overrides `firebase-deployer@<FIREBASE_PROJECT_ID>.iam.gserviceaccount.com` |
@@ -219,9 +219,9 @@ notification webhook.
 
 | Attack | Blocked by |
 |--------|-----------|
-| Another GitHub repo (upstream, another fork) tries to impersonate the deployer | STS **attribute-condition** pins the repository the provider was created for: `assertion.repository == '<GH_REPO>'` (JCI Oriente: `JCIOriente/luminova`; a chapter: its own fork) |
+| Another GitHub repo (upstream, another fork) tries to impersonate the deployer | STS **attribute-condition** pins the repository the provider was created for: `assertion.repository == '<GH_REPO>'` |
 | A feature/fork branch tries to deploy | attribute-condition pins `assertion.ref == 'refs/heads/main'`; `production` environment is main-only; `filter` guard rejects `event != push` / `head_branch != main`, and a dispatch from another ref |
-| Another workflow in the repository, merged to `main`, tries to mint the deploy credential | attribute-condition pins `assertion.workflow_ref == '<GH_REPO>/.github/workflows/deploy.yml@refs/heads/main'` (provisioned by section 6; JCI Oriente's provider: see section 5) |
+| Another workflow in the repository, merged to `main`, tries to mint the deploy credential | attribute-condition pins `assertion.workflow_ref == '<GH_REPO>/.github/workflows/deploy.yml@refs/heads/main'` (provisioned by section 6; your provider: see section 5) |
 | A fork's pull request tries to deploy | A `pull_request` run never starts Deploy; it gets no secrets and no OIDC token |
 | A PR edits `deploy.yml` to exfiltrate the token | `workflow_run` executes `deploy.yml` from the **default branch** only |
 | Unattended prod change | `production` environment **required reviewer** blocks every deploy job until approved |
@@ -236,22 +236,22 @@ and run CI only — they can never deploy.
 
 ## 5. Infrastructure inventory (as provisioned)
 
-Provisioned **2026-07-01** on project `jci-oriente` (number **953870918238**) by the
-project owner via `gcloud`. All identifiers below are non-secret.
+What section 6 provisions on a project, run by the project owner via `gcloud`. All
+identifiers below are non-secret.
 
 | Resource | Value |
 |----------|-------|
-| Deploy service account | `firebase-deployer@jci-oriente.iam.gserviceaccount.com` |
-| WIF pool | `projects/953870918238/locations/global/workloadIdentityPools/github-actions` |
+| Deploy service account | `firebase-deployer@<project id>.iam.gserviceaccount.com` |
+| WIF pool | `projects/<project number>/locations/global/workloadIdentityPools/github-actions` |
 | WIF provider | `.../workloadIdentityPools/github-actions/providers/github-oidc` |
 | Issuer | `https://token.actions.githubusercontent.com` |
 | Attribute mapping | `google.subject=assertion.sub, attribute.repository=assertion.repository, attribute.ref=assertion.ref` |
-| Attribute condition | `assertion.repository == 'JCIOriente/luminova' && assertion.ref == 'refs/heads/main'` (section 6 now also pins `workflow_ref`; the optional owner step below brings this provider in line) |
-| Pool → SA binding | `roles/iam.workloadIdentityUser` for `principalSet://.../attribute.repository/JCIOriente/luminova` |
-| Runtime SA (gen2 actAs) | `953870918238-compute@developer.gserviceaccount.com` ← `roles/iam.serviceAccountUser` |
-| App Engine default SA (CLI preflight actAs) | `jci-oriente@appspot.gserviceaccount.com` ← `roles/iam.serviceAccountUser` (added 2026-07-03) |
-| Billing account binding | `billingAccounts/016148-904C31-A656A9` ← `roles/billing.viewer` for the deploy SA (added 2026-07-03) |
-| Brand assets bucket | `gs://jci-oriente-brand-assets` (the profile's `assetsBucket`, by default `<project>-brand-assets`): `us-central1`, Standard, uniform bucket-level access, public access prevention enforced, versioning on, lifecycle keeps 3 noncurrent generations (`brand/bucket-lifecycle.json`). Owner step O10 |
+| Attribute condition | The fork's repository, on `refs/heads/main`, running its `deploy.yml`: the condition section 6 writes |
+| Pool → SA binding | `roles/iam.workloadIdentityUser` for `principalSet://.../attribute.repository/<owner>/<repo>` |
+| Runtime SA (gen2 actAs) | `<project number>-compute@developer.gserviceaccount.com` ← `roles/iam.serviceAccountUser` |
+| App Engine default SA (CLI preflight actAs) | `<project id>@appspot.gserviceaccount.com` ← `roles/iam.serviceAccountUser` |
+| Billing account binding | `billingAccounts/<billing account id>` ← `roles/billing.viewer` for the deploy SA |
+| Brand assets bucket | `gs://<project id>-brand-assets` (the profile's `assetsBucket`, by default `<project>-brand-assets`): `us-central1`, Standard, uniform bucket-level access, public access prevention enforced, versioning on, lifecycle keeps 3 noncurrent generations (`brand/bucket-lifecycle.json`). Owner step O10 |
 | Bucket grant (not a project role) | `roles/storage.objectViewer` **on the bucket only** for the deploy SA: `storage.objects.get` + `storage.objects.list`, what `brand:pull` needs. CD never writes; the owner uploads with `brand:push` |
 
 > **Functions-deploy preflight gotcha.** firebase-tools hardcodes an
@@ -265,7 +265,7 @@ project owner via `gcloud`. All identifiers below are non-secret.
 `firebasehosting.admin`, `firebaserules.admin`, `datastore.indexAdmin`,
 `cloudfunctions.admin`, `run.admin`, `artifactregistry.admin`,
 `cloudbuild.builds.editor`, `eventarc.admin`, `serviceusage.serviceUsageConsumer`,
-`firebasestorage.viewer` (added 2026-07-03).
+`firebasestorage.viewer`.
 
 > **Billing-probe gotcha.** Before a gen2 functions deploy the CLI calls
 > `cloudbilling.../projects/<p>/billingInfo` (`lib/gcp/cloudbilling.js`,
@@ -283,32 +283,22 @@ project owner via `gcloud`. All identifiers below are non-secret.
 > `firebasestorage.viewer` granted (alpha endpoint appears to require broader
 > Firebase-level read, e.g. `firebase.projects.get`; Google masks the 403 as 404).
 > `firebase.json` therefore pins the bucket explicitly via a `storage` **target**
-> (`target: "default"` → `.firebaserc` → `jci-oriente.firebasestorage.app`), which
+> (`target: "default"` → `.firebaserc` → `<project id>.firebasestorage.app`), which
 > skips that endpoint entirely — the release then goes through `firebaserules.admin`
 > only. Do not revert `storage` to the object form.
 
-**Optional owner step: pin JCI Oriente's provider to `deploy.yml`.** A provider created by
-section 6 admits only `deploy.yml` on `main`; the one above predates that and admits any
-workflow of the repository on `main`. The project owner may tighten it (Claude never runs
-it). `assertion.workflow_ref` reads the GitHub OIDC token's own claim, so the attribute
-mapping needs no change:
-
-```bash
-gcloud iam workload-identity-pools providers update-oidc github-oidc --project=jci-oriente --location=global --workload-identity-pool=github-actions --attribute-condition="assertion.repository == 'JCIOriente/luminova' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == 'JCIOriente/luminova/.github/workflows/deploy.yml@refs/heads/main'"
-```
-
-**GitHub `production` environment:** required reviewer `arkgast`; deployments restricted
+**GitHub `production` environment:** required reviewer: the project owner; deployments restricted
 to `main`; no environment variables. **Repository variables** (3.3):
-`FIREBASE_PROJECT_ID=jci-oriente`, `GCP_PROJECT_NUMBER=953870918238`. Every deploy job signs
+`FIREBASE_PROJECT_ID=<project id>`, `GCP_PROJECT_NUMBER=<project number>`. Every deploy job signs
 in with the provider and service account derived from them, then reads its hosting sites and
-public URL from the `brand.toml` it pulls from `gs://jci-oriente-brand-assets/`. Changing
+public URL from the `brand.toml` it pulls from `gs://<project id>-brand-assets/`. Changing
 where CD deploys is a change of repository variables, which only a repository admin can
 make, and every deploy still waits for the reviewer.
 Optional repo secret `DEPLOY_WEBHOOK_URL` (unset → `notify` is a no-op).
 
 **Enabled APIs:** `iamcredentials`, `sts`, `firebasehosting`, `firebaserules`,
 `cloudfunctions`, `run`, `eventarc`, `artifactregistry`, `cloudbuild`, `firestore`,
-`storage`, `serviceusage`, `cloudbilling` (added 2026-07-03 — functions-deploy
+`storage`, `serviceusage`, `cloudbilling` (functions-deploy
 billing probe).
 
 ---
@@ -330,10 +320,10 @@ project gets no grant and CD's `brand:pull` fails.
 
 ```bash
 # your values (pnpm brand:provision fills them in)
-export PROJECT_ID=jci-oriente
-export PROJECT_NUMBER=953870918238
-export GH_REPO=JCIOriente/luminova
-export REVIEWER_ID=5279327  # the required reviewer: gh api user -q .id
+export PROJECT_ID=<project id>
+export PROJECT_NUMBER=<project number>
+export GH_REPO=<owner>/<repo>
+export REVIEWER_ID=<github user id>  # the required reviewer: gh api user -q .id
 export POOL_ID=github-actions
 export PROVIDER_ID=github-oidc
 export DEPLOY_SA=firebase-deployer
@@ -408,8 +398,8 @@ gh variable set GCP_PROJECT_NUMBER --body "$PROJECT_NUMBER" --repo "$GH_REPO"
 
 > **First gen2 deploy bootstrap:** on a project that never deployed gen2 functions, the
 > GCF/Eventarc/Cloud Build service agents may not exist yet — run one manual
-> `firebase deploy --only functions` with human creds first. `jci-oriente` already runs
-> gen2 (the `953870918238-compute` runtime SA exists), so this was **not** needed here.
+> `firebase deploy --only functions` with human creds first. A project that already
+> runs gen2 (the `<project number>-compute` runtime SA exists) does not need this.
 >
 > **Escape hatch:** if a deploy fails on a missing permission, grant
 > `roles/firebase.admin` to the deploy SA temporarily, then narrow back to the list above.
@@ -440,8 +430,8 @@ the next automatic run still ships the other surfaces' changes.
 
 Run once, after the workflow is on `main`, dispatching from `main`:
 
-1. **`surface=hosting`** → approve → confirm https://jcioriente.org and
-   https://admin.jcioriente.org both serve. (First real WIF token mint +
+1. **`surface=hosting`** → approve → confirm https://<your domain> and
+   https://admin.<your domain> both serve. (First real WIF token mint +
    impersonation + deploy.)
 2. **`surface=rules`** → approve → confirm rules + indexes published (Console →
    Firestore → Rules; a signed-out `members` read is denied).
@@ -479,7 +469,8 @@ rare. When still needed:
 
 Effectively **$0**.
 
-- **GitHub Actions:** free — `JCIOriente/luminova` is a public repo (unlimited minutes).
+- **GitHub Actions:** free on a public fork (unlimited minutes); a private fork spends its
+  plan's included minutes.
 - **WIF / STS / service account:** always free on GCP.
 - **Hosting preview channels:** negligible; each `ci-<sha>` auto-expires in 1 day.
 - **Brand assets bucket:** about 1 MB (under 4 MB with 3 noncurrent versions) and ~20
@@ -488,7 +479,7 @@ Effectively **$0**.
   Registry + a Cloud Build (free tier 120 build-min/day; a beacon build is ~1–2 min).
   Images accumulate — predates CD (manual `firebase deploy` does the same). Optional
   one-time caps: an **Artifact Registry cleanup policy** (keep last N) on the
-  `gcf-artifacts` repo, and a **GCP budget alert** on `jci-oriente` (a runaway trigger
+  `gcf-artifacts` repo, and a **GCP budget alert** on `<project id>` (a runaway trigger
   loop on gen2 = Cloud Run is the only real billing risk).
 
 ---

@@ -7,21 +7,21 @@ redeploy for a hostname to start or keep working.
 
 | App | Canonical (published) | Firebase default (fallback, always live) | Hosting target |
 |-----|-----------------------|------------------------------------------|----------------|
-| spotlight | https://jcioriente.org | https://jcioriente.web.app | `spotlight` → site `jcioriente` |
-| backstage | https://admin.jcioriente.org | https://jcioriente-backstage.web.app | `backstage` → site `jcioriente-backstage` |
+| spotlight | https://<your domain> | https://<spotlight site id>.web.app | `spotlight` → site `<spotlight site id>` |
+| backstage | https://admin.<your domain> | https://<backstage site id>.web.app | `backstage` → site `<backstage site id>` |
 
 "Canonical" means the hostname the code announces: the one search engines index, WhatsApp
 share cards link to, and the public site's "Ingresar" / "Portal de miembros" links open.
 
 ## Where the domain lives in code
 
-One file: JCI Oriente's `brand.toml`, which lives in its brand bucket
-(`gs://jci-oriente-brand-assets/`) and in an owner's `brand/local/brand.toml`, not in git.
+One file: your `brand.toml`, which lives in your brand bucket
+(`gs://<project id>-brand-assets/`) and in an owner's `brand/local/brand.toml`, not in git.
 
 ```toml
 [urls]
-spotlight = "https://jcioriente.org"
-backstage = "https://admin.jcioriente.org"
+spotlight = "https://<your domain>"
+backstage = "https://admin.<your domain>"
 ```
 
 Production builds use these origins. Local builds resolve them to `localhost` instead
@@ -40,19 +40,15 @@ production admin.
 Nothing else links to a hostname:
 
 - **Invite links** are built from `window.location.origin`, so an operator on
-  `admin.jcioriente.org` issues `admin.jcioriente.org` links, and one on the fallback
+  `admin.<your domain>` issues `admin.<your domain>` links, and one on the fallback
   issues fallback links. Both redeem.
-- **`VITE_FIREBASE_AUTH_DOMAIN`** stays `jci-oriente.firebaseapp.com`. Firebase Auth uses it
+- **`VITE_FIREBASE_AUTH_DOMAIN`** stays `<project id>.firebaseapp.com`. Firebase Auth uses it
   only for popup/redirect sign-in providers, and backstage signs in with Email/Password
   only.
 - **beacon** has no hostname configuration.
 
-Two places name the domain without linking to it, and are updated by hand on a switch:
-
-- `.github/workflows/deploy.yml` — the `production` environment `url`, the link GitHub
-  shows on a deploy.
-- `apps/backstage/src/features/members/components/self-profile-form.tsx` — the member
-  profile hint "sección Directiva de jcioriente.org".
+The deploy link GitHub shows on the `production` environment and the member profile hint
+"sección Directiva de ..." both follow `[urls]`, so they need no edit on a switch.
 
 ## Console settings that must list every hostname
 
@@ -61,11 +57,11 @@ it is needed, not after a console change.
 
 | Where | Entry | What breaks if a hostname is missing |
 |-------|-------|--------------------------------------|
-| reCAPTCHA admin (https://www.google.com/recaptcha/admin) → the spotlight key → Domains | `jcioriente.org`, `jcioriente.web.app` | App Check tokens fail on that hostname. The contact form and push opt-in write to Firestore, so they are refused once Firestore App Check enforcement is turned on (it is off today) |
-| reCAPTCHA admin → the backstage key → Domains | `admin.jcioriente.org`, `jcioriente-backstage.web.app` | App Check tokens fail on the three enforced callables (invites included) and on Storage, which enforces App Check (member photo uploads). The SDK then **throttles App Check for 24 hours** in that browser; only a page reload after the fix clears it |
+| reCAPTCHA admin (https://www.google.com/recaptcha/admin) → the spotlight key → Domains | `<your domain>`, `<spotlight site id>.web.app` | App Check tokens fail on that hostname. The contact form and push opt-in write to Firestore, so they are refused once Firestore App Check enforcement is turned on (it is off today) |
+| reCAPTCHA admin → the backstage key → Domains | `admin.<your domain>`, `<backstage site id>.web.app` | App Check tokens fail on the three enforced callables (invites included) and on Storage, which enforces App Check (member photo uploads). The SDK then **throttles App Check for 24 hours** in that browser; only a page reload after the fix clears it |
 | Firebase console → Authentication → Settings → Authorized domains | all four hostnames | Auth operations that validate the origin are refused |
 | Google Cloud console → APIs & Services → Credentials → the browser API key → Website restrictions (only if restrictions are set) | all four hostnames | Every Firebase call from that hostname fails |
-| Firebase console → Hosting → each site → Custom domains | `jcioriente.org` on `jcioriente`, `admin.jcioriente.org` on `jcioriente-backstage` | The custom hostname stops serving (DNS / certificate) |
+| Firebase console → Hosting → each site → Custom domains | `<your domain>` on `<spotlight site id>`, `admin.<your domain>` on `<backstage site id>` | The custom hostname stops serving (DNS / certificate) |
 
 The DNS records the custom domains need are shown in the Hosting custom-domain dialog;
 they live at the domain registrar.
@@ -75,36 +71,35 @@ they live at the domain registrar.
 Use this when the custom domain is unavailable — expired registration, broken DNS, a
 certificate that will not provision.
 
-**Immediately:** nothing needs deploying. `jcioriente.web.app` and
-`jcioriente-backstage.web.app` keep serving the current build. Tell members to use the
+**Immediately:** nothing needs deploying. `<spotlight site id>.web.app` and
+`<backstage site id>.web.app` keep serving the current build. Tell members to use the
 backstage fallback URL.
 
 **Then point the code at the fallback**, so search engines, share cards and the public
 site's admin link stop sending people to the dead hostname:
 
-1. From a clone whose `brand/local/` holds JCI Oriente's brand (`pnpm brand:pull` brings
+1. From a clone whose `brand/local/` holds your chapter's brand (`pnpm brand:pull` brings
    the bucket's copy), edit `[urls]` in `brand/local/brand.toml` (or delete the table: it
    then defaults to the same two `web.app` origins):
 
    ```toml
    [urls]
-   spotlight = "https://jcioriente.web.app"
-   backstage = "https://jcioriente-backstage.web.app"
+   spotlight = "https://<spotlight site id>.web.app"
+   backstage = "https://<backstage site id>.web.app"
    ```
 
-2. Update the two hand-maintained mentions listed under "Where the domain lives in code",
-   the "Canonical" column of the table at the top of this file, and the admin URL in
+2. Update the "Canonical" column of the table at the top of this file and the admin URL in
    `docs/negocio/manual-administracion.md`.
 3. Upload the brand and redeploy hosting (project owner): `pnpm brand:check`,
    `pnpm brand:push`, then `gh workflow run deploy.yml -f surface=hosting` and approve the
    run (`docs/ci-cd.md`). A brand change is not in git, so no merge deploys it. Open a PR for
    the doc edits of step 2.
 4. Verify in a browser:
-   - `https://jcioriente.web.app` → view source: `rel="canonical"` and `og:url` show the
+   - `https://<spotlight site id>.web.app` → view source: `rel="canonical"` and `og:url` show the
      fallback hostname.
-   - `https://jcioriente.web.app/sitemap.xml` and `/robots.txt` list the fallback hostname.
+   - `https://<spotlight site id>.web.app/sitemap.xml` and `/robots.txt` list the fallback hostname.
    - The header "Ingresar" and footer "Portal de miembros" links open
-     `https://jcioriente-backstage.web.app`.
+     `https://<backstage site id>.web.app`.
 5. Review the URLs stored as **data**, which no deploy touches: backstage `/config` holds
    the public links page (`/linktree`) and the contact/social URLs. Point any that use the
    dead hostname at the fallback.

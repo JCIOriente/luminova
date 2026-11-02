@@ -1,4 +1,4 @@
-%% Luminova / JCI Oriente — container diagram
+%% Luminova — container diagram
 %% The split is the trust boundary: everything above the rules membrane runs in a
 %% browser the chapter does not control. Everything below runs with the Admin SDK
 %% and bypasses rules entirely.
@@ -13,7 +13,7 @@ flowchart TB
 
     rules{{"<b>firestore.rules</b> + storage.rules<br/>the only enforcement boundary"}}
 
-    subgraph data["Firebase project · jci-oriente"]
+    subgraph data["Your Firebase project"]
         direction LR
         firestore[("Firestore<br/>one database")]
         storage[("Storage<br/>one bucket")]

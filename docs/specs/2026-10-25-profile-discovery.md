@@ -1,6 +1,7 @@
 # Profile discovery
 
 Status: approved design (owner, 2026-10-25)
+Superseded in part: the `--profile` option no longer exists. Brand commands take no options, and `brand/` selects the profile (`brand/local/`, else the example).
 Amends: `docs/specs/2026-10-25-repo-contained-config.md` decisions C1 and C7
 
 ## 1. Problem

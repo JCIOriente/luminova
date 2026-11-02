@@ -1,6 +1,7 @@
 # Repo-contained configuration
 
 Status: approved design (owner, 2026-10-25)
+Superseded in part: the `--profile` option no longer exists. Brand commands take no options, and `brand/` selects the profile (`brand/local/`, else the example).
 Plan: `docs/plans/2026-10-25-repo-contained-config.md`
 Amends: `docs/specs/2026-10-22-brand-config-design.md` decision D18
 

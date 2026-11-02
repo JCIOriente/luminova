@@ -498,7 +498,7 @@ export function SiteConfigForm({ defaultValues, lastSaved, onSubmit }: SiteConfi
               label="Usuario"
               htmlFor="lt-handle"
               required
-              hint="Ej. @jci.oriente"
+              hint="Ej. @jci.tucapitulo"
               error={err(errors.linktree?.handle?.message)}
             >
               <Input id="lt-handle" {...register("linktree.handle")} />
