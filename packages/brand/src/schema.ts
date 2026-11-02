@@ -157,9 +157,9 @@ export const brandFileSchema = z
       ),
     locality: z
       .strictObject({
-        cityFormal: text.describe("The city's formal name, e.g. Santa Cruz de la Sierra."),
-        region: text.describe("Region as used in a sentence, e.g. el Oriente boliviano."),
-        regionShort: text.describe("A short form some copy uses, e.g. el Oriente."),
+        cityFormal: text.describe("The city's formal name, e.g. San Miguel de Ejemplo."),
+        region: text.describe("Region as used in a sentence, e.g. el norte de Ejemplo."),
+        regionShort: text.describe("A short form some copy uses, e.g. el norte."),
       })
       .describe("More of where the chapter is; the site's copy uses these words."),
     colors: z

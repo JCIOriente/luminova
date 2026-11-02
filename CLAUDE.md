@@ -1,6 +1,6 @@
 # Luminova — Claude Code Guide
 
-**JCI Oriente** platform (Junior Chamber International, Eastern Bolivia chapter): two frontends and one serverless backend on Firebase. Each app and package below has its own `CLAUDE.md` that loads when you work there.
+Platform for **JCI** (Junior Chamber International) local chapters: each chapter forks it and supplies its own brand. Two frontends and one serverless backend on Firebase. Each app and package below has its own `CLAUDE.md` that loads when you work there.
 
 | Path | Purpose |
 | --- | --- |

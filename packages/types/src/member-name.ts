@@ -7,7 +7,7 @@ export const MEMBER_NAME_MAX_LENGTH = 80;
 
 /** ASCII letters, the Latin-1 letter block (À-Ö Ø-ö ø-ÿ skips × and ÷) for Spanish,
  *  Portuguese, Italian and German diacritics, and Latin Extended-A (Ā-ſ) for the Croatian,
- *  Polish, Czech and Turkish surnames the Santa Cruz chapter actually carries — Šimić,
+ *  Polish, Czech and Turkish surnames real members carry — Šimić,
  *  Matković, Łukasz. Literal ranges, NOT \p{L}: this exact string is handed to Firestore
  *  rules' matches(), where Unicode-class support is undocumented — the phone rule writes
  *  [0-9] rather than \d for the same reason. Non-Latin scripts are still out; widening

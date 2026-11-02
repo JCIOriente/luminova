@@ -1,6 +1,6 @@
 # Spotlight — Claude Code Guide
 
-Public marketing site for JCI Oriente. No authentication, no backend of its own.
+Public marketing site for a JCI chapter. No authentication, no backend of its own.
 
 ## Rules
 
