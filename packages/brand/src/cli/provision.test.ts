@@ -32,6 +32,7 @@ const GRANTED = {
 };
 
 let calls: string[][];
+let repositoryId: string;
 
 /** describe answers come from a queue, so a test can model the bucket before and after create. */
 function fakeRunner({
@@ -45,6 +46,7 @@ function fakeRunner({
     calls.push([command, ...args]);
     const joined = args.join(" ");
     if (command === "gh" && joined.startsWith("api user")) return "123\n";
+    if (command === "gh" && joined.startsWith("api repos/")) return `${repositoryId}\n`;
     if (command === "gh" && joined.startsWith("repo view")) {
       if (canonical instanceof Error) throw canonical;
       return canonical;
@@ -69,6 +71,7 @@ const mutations = () =>
   );
 
 beforeEach(() => {
+  repositoryId = "777";
   calls = [];
 });
 
@@ -96,6 +99,7 @@ describe("printProvisioning", () => {
     expect(text).toContain("export PROJECT_ID=jci-valle\n");
     expect(text).toContain("export PROJECT_NUMBER=42\n");
     expect(text).toContain("export GH_REPO=acme/luminova\n");
+    expect(text).toContain("export GH_REPO_ID=777\n");
     expect(text).toContain("export REVIEWER_ID=123\n");
     expect(calls).toContainEqual(["gh", "api", "user", "-q", ".id"]);
     // The fork comes from the origin remote: gh's default repository is upstream in a clone
@@ -156,7 +160,9 @@ describe("printProvisioning", () => {
     expect(text).toContain(
       "export PROJECT_NUMBER=   # FILL IN before pasting: gcloud projects describe jci-valle",
     );
-    expect(text).toMatch(/# PROJECT_NUMBER, GH_REPO, REVIEWER_ID could not be looked up\. Sign in/);
+    expect(text).toMatch(
+      /# PROJECT_NUMBER, GH_REPO, GH_REPO_ID, REVIEWER_ID could not be looked up\. Sign in/,
+    );
     // Nothing a shell would read as a redirection.
     expect(text).not.toMatch(/^\s*export \w+=</m);
   });
@@ -191,13 +197,16 @@ describe("printProvisioning", () => {
       target: { projectNumber: "77", ghRepo: "acme/fork" },
     });
     expect(text).toContain("gh variable set GCP_PROJECT_NUMBER --body 77 --repo acme/fork");
-    expect(calls).toEqual([["gh", "api", "user", "-q", ".id"]]);
+    expect(calls).toEqual([
+      ["gh", "api", "user", "-q", ".id"],
+      ["gh", "api", "repos/acme/fork", "--jq", ".id"],
+    ]);
   });
 
   it("prints the provider's attribute condition, pinned to the fork and its main branch", async () => {
     const text = await printProvisioning({ profile, run: fakeRunner() });
     expect(text).toContain(
-      "only acme/luminova's deploy.yml on main gets a token: assertion.repository == 'acme/luminova' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == 'acme/luminova/.github/workflows/deploy.yml@refs/heads/main'",
+      "only acme/luminova's deploy.yml on main gets a token: assertion.repository == 'acme/luminova' && assertion.repository_id == '777' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == 'acme/luminova/.github/workflows/deploy.yml@refs/heads/main'",
     );
     expect(text).toContain(
       `gcloud iam workload-identity-pools providers describe ${PROVIDER_ID} --project=jci-valle --location=global --workload-identity-pool=${POOL_ID} --format='value(attributeCondition)'`,
@@ -256,12 +265,31 @@ describe("provisioningSection", () => {
 
   it("pins the provider's attribute condition to the fork's repository and main", () => {
     const block = provisioningSection(readFileSync(join(REPO_ROOT, "docs/ci-cd.md"), "utf8"));
-    expect(block).toContain(`--attribute-condition="${attributeCondition("${GH_REPO}")}"`);
+    expect(block).toContain(
+      `--attribute-condition="${attributeCondition("${GH_REPO}", "${GH_REPO_ID:?}")}"`,
+    );
+    expect(block).toMatch(/^export GH_REPO_ID=<repository id>/m);
   });
 
-  it("finds the section 6 block in the real docs/ci-cd.md and its four exports", () => {
+  it("keeps the owner step's condition equal to the one section 6 creates", () => {
+    expect(readFileSync(join(REPO_ROOT, "docs/ci-cd.md"), "utf8")).toContain(
+      `--attribute-condition="${attributeCondition("<owner>/<repo>", "${GH_REPO_ID:?}")}"`,
+    );
+  });
+
+  it("asks for the repository id instead of pasting gh's error into the condition", async () => {
+    repositoryId = '{"message":"Not Found","status":"404"}';
+    const text = await printProvisioning({ profile, run: fakeRunner() });
+    expect(text).toContain(
+      'export GH_REPO_ID=   # FILL IN before pasting: gh api "repos/${GH_REPO}" --jq .id\n',
+    );
+    expect(text).not.toContain("Not Found");
+    expect(text).toContain("assertion.repository_id == '<repository id>'");
+  });
+
+  it("finds the section 6 block in the real docs/ci-cd.md and its five exports", () => {
     const block = provisioningSection(readFileSync(join(REPO_ROOT, "docs/ci-cd.md"), "utf8"));
-    for (const key of ["PROJECT_ID", "PROJECT_NUMBER", "GH_REPO", "REVIEWER_ID"]) {
+    for (const key of ["PROJECT_ID", "PROJECT_NUMBER", "GH_REPO", "GH_REPO_ID", "REVIEWER_ID"]) {
       expect(block).toMatch(new RegExp(`^export ${key}=`, "m"));
     }
   });

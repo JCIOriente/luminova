@@ -334,9 +334,20 @@ async function lookup(
   }
 }
 
+/**
+ * GitHub's id for the fork, or null. Only digits count: gh prints its JSON error to stdout, and
+ * in a provider's condition that would match nothing, for good: create-oidc then says "already
+ * exists" on every re-run.
+ */
+async function lookupRepositoryId(run: CommandRunner, repo: string): Promise<string | null> {
+  const id = await lookup(run, "gh", ["api", `repos/${repo}`, "--jq", ".id"]);
+  return id !== null && /^[0-9]+$/.test(id) ? id : null;
+}
+
 const LOOKUP_HINTS: Record<string, string> = {
   PROJECT_NUMBER: NUMBER_HINT("<PROJECT_ID>"),
   GH_REPO: FORK_HINT,
+  GH_REPO_ID: 'gh api "repos/${GH_REPO}" --jq .id',
   REVIEWER_ID: "gh api user -q .id",
 };
 
@@ -404,17 +415,19 @@ export async function printProvisioning({
     target ?? lookupDeployTarget({ profile, repoRoot, run }),
     lookup(run, "gh", ["api", "user", "-q", ".id"]),
   ]);
+  const repositoryId = ghRepo ? await lookupRepositoryId(run, ghRepo) : null;
   const values: Record<string, string | null> = {
     PROJECT_ID: projectId,
     PROJECT_NUMBER: projectNumber,
     GH_REPO: ghRepo,
+    GH_REPO_ID: repositoryId,
     REVIEWER_ID: reviewerId,
   };
   const unknown = Object.keys(values).filter((key) => values[key] === null);
   // An unknown value prints as an empty export the reader must fill: a <placeholder> would
   // break the pasted shell, and the rest of the block would run without it.
   const section = provisioningSection(readFileSync(join(repoRoot, CI_CD_DOC), "utf8")).replace(
-    /^export (PROJECT_ID|PROJECT_NUMBER|GH_REPO|REVIEWER_ID)=.*$/gm,
+    /^export (PROJECT_ID|PROJECT_NUMBER|GH_REPO|GH_REPO_ID|REVIEWER_ID)=.*$/gm,
     (_, key: string) =>
       values[key] === null
         ? `export ${key}=   # FILL IN before pasting: ${LOOKUP_HINTS[key]?.replace("<PROJECT_ID>", projectId) ?? ""}`
@@ -436,7 +449,10 @@ export async function printProvisioning({
       : `# FILL IN, then run: gh variable set ${PROJECT_NUMBER_VARIABLE} --body ${projectNumber ?? "<project number>"} --repo ${fork}   (${NUMBER_HINT(projectId)})`,
   ];
   const repoLabel = ghRepo ?? "your fork";
-  const condition = attributeCondition(ghRepo ?? "<owner>/<repo>");
+  const condition = attributeCondition(
+    ghRepo ?? "<owner>/<repo>",
+    repositoryId ?? "<repository id>",
+  );
 
   const steps: GuideStep[] = [
     {

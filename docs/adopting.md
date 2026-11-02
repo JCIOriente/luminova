@@ -359,9 +359,10 @@ why, where to run it, the exact commands and how to check that it worked. Run it
 yourself: it creates CD's deploy account and its keyless sign-in (Workload Identity
 Federation, no key is stored). The provider's attribute condition admits only your fork's
 `deploy.yml`, on `refs/heads/main`: `assertion.repository == '<owner>/<repo>' &&
-assertion.ref == 'refs/heads/main' && assertion.workflow_ref ==
-'<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main'`, with your fork's name
-(from `git remote get-url origin`) filled in.
+assertion.repository_id == '<id>' && assertion.ref == 'refs/heads/main' &&
+assertion.workflow_ref == '<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main'`,
+with your fork's name (from `git remote get-url origin`) and GitHub's id for it filled in.
+The id means a repository recreated under the same name later cannot deploy as yours.
 
 Its step 2 sets your fork's two repository variables, the switch that turns deploys on:
 
