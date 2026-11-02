@@ -283,7 +283,8 @@ jobs:
       # .github/scripts/*.test.mjs` — rather than first executing against production.
       - name: Assert token verification is not bypassed on the DEPLOYED callables
         run: bash .github/scripts/assert-deployed-env-clean.sh describeinvite redeeminvite
-          issuememberinvite recomputeallclaims reseedbuiltinroleperms seedroles setuserroles
+          issuememberinvite recomputeallclaims reprojectpublicprofiles reseedbuiltinroleperms
+          seedroles setuserroles
       # Sanity: confirm the deploy registered functions (no auto-rollback for gen2 —
       # see the runbook; revert-and-redeploy is the documented path).
       - name: List deployed functions

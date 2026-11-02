@@ -6,6 +6,7 @@ import {
   activityProjectionUnchanged,
   activityShowcasePhotos,
   projectInitiative,
+  rosterIdsToSync,
   rosterMemberIds,
   showcasePerson,
 } from "./project-initiative.js";
@@ -312,5 +313,28 @@ describe("activityProjectionUnchanged", () => {
   it("treats create and delete as changed (missing side)", () => {
     expect(activityProjectionUnchanged(undefined, base())).toBe(false);
     expect(activityProjectionUnchanged(base(), undefined)).toBe(false);
+  });
+});
+
+describe("rosterIdsToSync", () => {
+  const done = {
+    status: "Finalizado",
+    impact: {},
+    finalReport: { filedAt: "x" },
+    roster: { directorId: "a", coDirectorIds: ["b"], teamIds: ["b"] },
+  };
+  const open = { status: "Activo", roster: { directorId: "z" } };
+
+  it("covers both sides, so a member removed from a public initiative is synced", () => {
+    const after = { ...done, roster: { directorId: "c" } };
+    expect(rosterIdsToSync(done, after).sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("covers a roster leaving the public site", () => {
+    expect(rosterIdsToSync(done, undefined).sort()).toEqual(["a", "b"]);
+  });
+
+  it("skips an initiative that was never public", () => {
+    expect(rosterIdsToSync(open, open)).toEqual([]);
   });
 });

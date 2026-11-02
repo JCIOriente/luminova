@@ -19,11 +19,17 @@ import {
   activityShowcasePhotos,
   isProjectable,
   projectInitiative,
+  rosterIdsToSync,
   rosterMemberIds,
   showcasePerson,
 } from "./showcase/project-initiative.js";
 import { projectAlly } from "./showcase/project-ally.js";
 import { projectBoard, currentCargoId, type BoardCargo } from "./showcase/project-board.js";
+import { memberProjectionUnchanged } from "./showcase/project-member.js";
+import { syncMemberShowcase } from "./showcase/sync-member.js";
+import { HttpsError } from "firebase-functions/v2/https";
+import { requireAdmin } from "./callable-auth.js";
+import { guardedOnCall } from "./guarded-on-call.js";
 import {
   needsPublicProfileDefault,
   PUBLIC_PROFILE_DEFAULT,
@@ -59,7 +65,7 @@ async function resolveMembers(
     const snaps = await database.getAll(...refs);
     for (const snap of snaps) {
       const p = showcasePerson(snap.get("name"), snap.get("profilePicture"));
-      if (p) people.set(snap.id, p);
+      if (p) people.set(snap.id, { ...p, id: snap.id });
     }
   }
   return people;
@@ -138,6 +144,14 @@ export const awardPoints = onDocumentWritten(
   },
 );
 
+async function syncRosterProfiles(database: Firestore, memberIds: string[]): Promise<void> {
+  const projectId = boardProjectId();
+  if (projectId.length === 0) return;
+  for (const batch of chunk(memberIds, 10)) {
+    await Promise.all(batch.map((id) => syncMemberShowcase(database, id, projectId)));
+  }
+}
+
 function initiativeTrigger(collection: "programs" | "projects") {
   const parentType = collection === "programs" ? "Program" : "Project";
   return onDocumentWritten(`${collection}/{id}`, async (event) => {
@@ -158,6 +172,10 @@ function initiativeTrigger(collection: "programs" | "projects") {
           parentType,
           event.params.id,
           after.data() as Record<string, unknown>,
+        );
+        await syncRosterProfiles(
+          database,
+          rosterIdsToSync(event.data?.before?.data(), after.data()),
         );
       } catch (err) {
         console.error("showcase projection failed", { id: event.params.id, err });
@@ -183,6 +201,7 @@ function initiativeTrigger(collection: "programs" | "projects") {
       );
       try {
         await projectShowcase(database, parentType, event.params.id, undefined);
+        await syncRosterProfiles(database, rosterIdsToSync(before.data(), undefined));
       } catch (err) {
         console.error("showcase projection failed", { id: event.params.id, err });
       }
@@ -445,10 +464,68 @@ export const onBoardMemberWritten = onDocumentWritten(
         }
         tx.set(showcaseRef, item);
       });
+      if (!memberProjectionUnchanged(event.data?.before?.data(), event.data?.after?.data())) {
+        await syncMemberShowcase(database, event.params.id, projectId);
+      }
     } catch (err) {
       console.error("boardShowcase projection failed", { id: event.params.id, err });
       throw err;
     }
+  },
+);
+
+const REPROJECT_SCAN_CAP = 5000;
+
+/** Admin-only backfill, called by hand once after the first deploy: stamps member ids on
+ *  existing `showcase` docs, then builds every `memberShowcase` doc from them. In that order,
+ *  because a profile finds its projects through `showcase.memberIds`. Per-doc failures are
+ *  collected, so re-running is the response to a non-empty `failed`. */
+export const reprojectPublicProfiles = guardedOnCall(
+  { name: "reprojectPublicProfiles", timeoutSeconds: 540 },
+  async (request) => {
+    requireAdmin(request);
+    const projectId = boardProjectId();
+    if (projectId.length === 0) {
+      throw new HttpsError("failed-precondition", "No project id.");
+    }
+    const database = db();
+    const failed: string[] = [];
+    let showcases = 0;
+    for (const [collection, kind] of [
+      ["programs", "Program"],
+      ["projects", "Project"],
+    ] as const) {
+      const snap = await database
+        .collection(collection)
+        .where("status", "==", "Finalizado")
+        .limit(REPROJECT_SCAN_CAP)
+        .get();
+      for (const doc of snap.docs) {
+        try {
+          await projectShowcase(database, kind, doc.id, doc.data());
+          showcases += 1;
+        } catch (err) {
+          console.error("showcase reprojection failed", { id: doc.id, err });
+          failed.push(doc.id);
+        }
+      }
+    }
+    const members = await database.collection("members").limit(REPROJECT_SCAN_CAP).select().get();
+    let synced = 0;
+    for (const batch of chunk(members.docs, 10)) {
+      await Promise.all(
+        batch.map(async (doc) => {
+          try {
+            await syncMemberShowcase(database, doc.id, projectId);
+            synced += 1;
+          } catch (err) {
+            console.error("memberShowcase reprojection failed", { id: doc.id, err });
+            failed.push(doc.id);
+          }
+        }),
+      );
+    }
+    return { ok: failed.length === 0, showcases, members: synced, failed };
   },
 );
 

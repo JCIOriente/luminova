@@ -202,6 +202,7 @@ export function projectInitiative(
     completedAt: finalReport.filedAt,
     impact,
     photos: asPhotos(data.photos),
+    memberIds: [...new Set(rosterMemberIds(data))],
     team: {
       director: roster.directorId ? resolve(roster.directorId) : null,
       coDirectors: (roster.coDirectorIds ?? [])
@@ -222,6 +223,18 @@ export function rosterMemberIds(data: Record<string, unknown>): string[] {
     ...(r.coDirectorIds ?? []),
     ...(r.teamIds ?? []),
   ].filter(isCleanId);
+}
+
+/** Members whose public profile an initiative write can change: the rosters of whichever
+ *  side was public. Both sides, so a removal or an un-finalized initiative leaves the profile. */
+export function rosterIdsToSync(
+  before: Record<string, unknown> | undefined,
+  after: Record<string, unknown> | undefined,
+): string[] {
+  const sides = [before, after].filter(
+    (d): d is Record<string, unknown> => d !== undefined && isProjectable(d),
+  );
+  return [...new Set(sides.flatMap((d) => rosterMemberIds(d)))];
 }
 
 /** Cheap eligibility check: only completed initiatives with impact + filed report are projected. */
