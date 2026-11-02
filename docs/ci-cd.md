@@ -287,16 +287,6 @@ identifiers below are non-secret.
 > skips that endpoint entirely — the release then goes through `firebaserules.admin`
 > only. Do not revert `storage` to the object form.
 
-**Optional owner step: pin an older provider to `deploy.yml`.** A provider created by
-section 6 admits only `deploy.yml` on `main`; one created before section 6 pinned that
-admits any workflow of the repository on `main`. The project owner may tighten it (Claude never runs
-it). `assertion.workflow_ref` reads the GitHub OIDC token's own claim, so the attribute
-mapping needs no change:
-
-```bash
-gcloud iam workload-identity-pools providers update-oidc github-oidc --project=<project id> --location=global --workload-identity-pool=github-actions --attribute-condition="assertion.repository == '<owner>/<repo>' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == '<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main'"
-```
-
 **GitHub `production` environment:** required reviewer: the project owner; deployments restricted
 to `main`; no environment variables. **Repository variables** (3.3):
 `FIREBASE_PROJECT_ID=<project id>`, `GCP_PROJECT_NUMBER=<project number>`. Every deploy job signs
